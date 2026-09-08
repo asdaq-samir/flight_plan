@@ -41,19 +41,25 @@ explicit path to production on AWS.
   long-term recall of past routes via a Postgres/pgvector semantic-search
   store — reusing existing infrastructure rather than standing up a
   separate vector database.
+- **The same agent task built twice, to compare frameworks.** A second
+  implementation in CrewAI — identical tools, identical model-serving
+  backend, identical Claude API — evaluates LangGraph's explicit
+  state-graph control flow against CrewAI's agent-driven tool selection on
+  the same real task, not a toy example.
 - **A concrete path to production**, not just a demo: every local service
   maps to a specific AWS target (SageMaker, ECS Fargate, RDS, CloudFormation)
   — see [Target Architecture](#target-architecture).
 
 ## Architecture
 
-The system runs today as eight Docker services:
+The system runs today as nine Docker services:
 
 | Service | Role |
 |---|---|
 | `webapp` | Spring Boot API — the public-facing route-planning service |
 | `model-service` | FastAPI model-serving endpoint (`/ping`, `/invocations`) |
 | `nav-log-agent` | LangGraph agent (MCP server) that assembles the full nav log and briefing |
+| `crewai-agent` | The same task, built in CrewAI, for framework comparison |
 | `db` | PostgreSQL + pgvector — application data and agent long-term memory |
 | `airflow` | Orchestrates the ML training pipeline |
 | `pipeline-processing` / `pipeline-training` | Data collection, feature engineering, and model training, run as isolated jobs |
@@ -72,7 +78,7 @@ Airflow → Processing Job → Training Job → Model Registry → Model Service
 - **ML/Data:** scikit-learn, PyTorch, TensorFlow/Keras, Apache Spark MLlib, pandas, HuggingFace sentence-transformers
 - **Pipeline orchestration:** Apache Airflow
 - **Backend:** Spring Boot (Java), FastAPI (Python)
-- **Gen AI:** LangGraph, Model Context Protocol (MCP), Anthropic Claude API, pgvector (RAG-style semantic memory)
+- **Gen AI:** LangGraph, CrewAI, Model Context Protocol (MCP), Anthropic Claude API, pgvector (RAG-style semantic memory)
 - **Data:** PostgreSQL, OpenStreetMap (Overpass API), FAA NASR/DOF datasets, NOAA aviation weather and magnetic-model APIs
 - **Infrastructure:** Docker / Docker Compose, designed for AWS (SageMaker, ECS Fargate, RDS, CloudFormation)
 
@@ -97,7 +103,8 @@ Gen AI layer).
 ## Status
 
 The ML pipeline, orchestration layer, dead-reckoning engine, altitude
-selection logic, and Gen AI agent are built and integrated. Model training
+selection logic, and both Gen AI agents (LangGraph and CrewAI) are built
+and integrated. Model training
 is gated on accumulating enough hand-labeled examples to clear the
 pipeline's minimum-sample threshold; until then, the serving endpoint
 returns representative sample output so the rest of the system can be

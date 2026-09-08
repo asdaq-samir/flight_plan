@@ -1,0 +1,10 @@
+# Comparison-only build of nav-log-agent's task in CrewAI instead of
+# LangGraph -- see the module docstring in app/main.py. No psycopg/pgvector/
+# sentence-transformers here on purpose: this build deliberately doesn't
+# duplicate the memory store, matching its "comparison-only, not
+# pipeline-connected" framing in architecture-future.png.
+crewai[anthropic]
+pandas
+requests
+shapely
+pyshp

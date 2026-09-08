@@ -20,7 +20,7 @@ remote + CI → 5. AWS deployment.**
 |---|---|
 | 1. ML notebooks (01-08) | Built. Blocked on data, not code — see below. |
 | 2. Airflow DAG (`vfr_pipeline`) | Built and verified, including the 2026-09-08 conversion to `DockerOperator` (separate `pipeline-processing`/`pipeline-training` containers per task) -- see the AWS mapping section for what was checked. |
-| 3. Gen AI nav-log agent (LangGraph + MCP + vector store, CrewAI comparison) | **In progress.** DR-leg math, altitude selection, the LangGraph/MCP agent, and pgvector memory are built and verified (below). CrewAI comparison build not started. |
+| 3. Gen AI nav-log agent (LangGraph + MCP + vector store, CrewAI comparison) | **Built and verified.** DR-leg math, altitude selection, the LangGraph/MCP agent, pgvector memory, and the CrewAI comparison build are all done (below). |
 | 4. GitHub remote + CI | **Not started.** Local git only (see below) — no remote, no GitHub Actions. |
 | 5. AWS deployment (SageMaker, Fargate, RDS, CloudFormation) | Not started — see the AWS mapping section below for how today's pieces are expected to land. |
 
@@ -94,6 +94,13 @@ export ANTHROPIC_API_KEY=sk-...
 docker compose up nav-log-agent
 ```
 
+`crewai-agent` needs the same `ANTHROPIC_API_KEY`. It's a one-shot CLI, not
+a standing server:
+
+```bash
+docker compose run --rm crewai-agent --departure-ident C81 --destination-ident KDLH
+```
+
 ## Layout
 
 - `data/raw/` — downloaded OSM extracts, airport CSV, cached imagery tiles, elevation/magnetic-variation caches (all gitignored, regenerable)
@@ -106,6 +113,7 @@ docker compose up nav-log-agent
 - `airflow/dags/` — the `vfr_pipeline` DAG
 - `model-service/`, `springboot-app/` — the two serving-side apps (FastAPI model stub, Spring Boot API)
 - `nav-log-agent/` — the LangGraph/MCP nav-log-assembler agent (see below)
+- `crewai-agent/` — the same task, built in CrewAI, for framework comparison (see below)
 
 ## Notebooks
 
@@ -175,10 +183,6 @@ at agent startup (`CREATE EXTENSION`/`TABLE IF NOT EXISTS`) rather than via
 a Postgres init script, because `db`'s volume already had real data before
 pgvector was added -- an init script wouldn't have re-run against it.
 
-**A second, comparison-only build of the same agent in CrewAI** is planned
-alongside this one (breadth exercise, not a fallback — both would call the
-same model-serving endpoint) -- not started.
-
 **What's verified**: the full graph -- `fetch_checkpoints` →
 `select_altitude` → `assemble_legs` → `retrieve_memory` → `generate_briefing`
 -- was run end-to-end against live services on the real C81→KDLH route
@@ -192,6 +196,46 @@ than a request-construction error) confirms the request itself -- model,
 headers, message format -- is built correctly. The one thing not yet
 observed is a *successful* completion; that needs a real `ANTHROPIC_API_KEY`
 (see Setup above).
+
+### CrewAI comparison build
+
+`crewai-agent/` -- a second, independent implementation of the exact same
+task (checkpoints → recommended altitude → dead-reckoning legs → Claude
+briefing), built in CrewAI instead of LangGraph, purely to compare the two
+frameworks -- the "CrewAI Agent (comparison build, same task, different
+framework)" box in `architecture-future.png` (dashed border: exists in
+parallel, not pipeline-connected). Not a fallback, not wired into anything
+else, and deliberately doesn't duplicate the pgvector memory store.
+
+Structural difference from the LangGraph build, which is the actual point
+of the comparison: LangGraph's graph is an explicit sequence of plain
+Python functions (deterministic control flow; the LLM only writes the
+final briefing text). CrewAI's model is an `Agent` reasoning over which
+`tools` to call and when -- so `get_route_checkpoints`/
+`get_recommended_altitude`/`compute_dead_reckoning_legs` (in
+`crewai-agent/app/tools.py`) wrap the *exact same* underlying calls
+(`vfr.altitude`, `vfr.navlog`, the same `model_client.get_checkpoints`
+hitting `model-service`) that `nav-log-agent`'s graph nodes call directly --
+same data, same deterministic logic, different control-flow philosophy.
+One-shot CLI (`docker compose run --rm crewai-agent`, flags
+`--departure-ident`/`--destination-ident`/`--aircraft-name`), not a
+standing server, matching its non-pipeline-connected role.
+
+**Gotcha hit while building this**: newer `crewai` versions need the
+`anthropic` extra installed explicitly for the native Anthropic provider
+(`crewai[anthropic]` in `requirements.txt`) -- plain `crewai` raises
+`ImportError: Anthropic native provider not available` the moment an
+`Agent` with `llm="anthropic/<model>"` is constructed, not at import time.
+
+**Verified**: all three tools tested directly against the live C81→KDLH
+route (bypassing the agent/LLM layer) -- same checkpoints, same 2200/3600/
+2500ft altitude numbers, same leg headings as the LangGraph build, since
+they call the same underlying code. `Agent`/`Task`/`Crew` construction and
+a full `kickoff()` were also run -- like `nav-log-agent`, it reached the
+real `api.anthropic.com` and got a proper `401 invalid x-api-key` from the
+placeholder key, confirming the whole CrewAI wiring (tools, native
+Anthropic provider, request construction) is correct. Same caveat as
+`nav-log-agent`: a *successful* completion hasn't been observed yet.
 
 ## Where each container is headed on AWS
 
