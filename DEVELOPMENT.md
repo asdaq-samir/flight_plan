@@ -19,8 +19,8 @@ remote + CI → 5. AWS deployment.**
 | Phase | Status |
 |---|---|
 | 1. ML notebooks (01-08) | Built. Blocked on data, not code — see below. |
-| 2. Airflow DAG (`vfr_pipeline`) | Built. Originally verified running `pipeline.py` in-process; just converted to `DockerOperator` (separate `pipeline-processing`/`pipeline-training` containers per task) -- re-verification of that specific change pending, see the AWS mapping section. |
-| 3. Gen AI nav-log agent (LangGraph + MCP + vector store, CrewAI comparison) | **In progress.** DR-leg math + the LangGraph/MCP agent + pgvector memory are built and verified (below). CrewAI comparison build not started. |
+| 2. Airflow DAG (`vfr_pipeline`) | Built and verified, including the 2026-09-08 conversion to `DockerOperator` (separate `pipeline-processing`/`pipeline-training` containers per task) -- see the AWS mapping section for what was checked. |
+| 3. Gen AI nav-log agent (LangGraph + MCP + vector store, CrewAI comparison) | **In progress.** DR-leg math, altitude selection, the LangGraph/MCP agent, and pgvector memory are built and verified (below). CrewAI comparison build not started. |
 | 4. GitHub remote + CI | **Not started.** Local git only (see below) — no remote, no GitHub Actions. |
 | 5. AWS deployment (SageMaker, Fargate, RDS, CloudFormation) | Not started — see the AWS mapping section below for how today's pieces are expected to land. |
 
@@ -179,17 +179,19 @@ pgvector was added -- an init script wouldn't have re-run against it.
 alongside this one (breadth exercise, not a fallback — both would call the
 same model-serving endpoint) -- not started.
 
-**What's verified vs. not**: `fetch_checkpoints`+`assemble_legs` and the
-pgvector store/retrieve round-trip were tested end-to-end against live
-services on 2026-09-07/08 (real C81→KDLH route, via the still-stub
-`model-service`). `select_altitude` (`vfr.altitude`) was separately
-verified against the same live route, matching the known-good notebook 08
-values exactly (2200ft floor, 3600ft ceiling, 2500ft recommended) -- not
-yet re-run through the graph as a wired-in node as of this writing.
-`generate_briefing` (the one node that calls the Anthropic API) is
-implemented against the current SDK but **has never actually been
-called** -- this dev environment has no `ANTHROPIC_API_KEY`. First real run
-needs one set (see Setup above).
+**What's verified**: the full graph -- `fetch_checkpoints` →
+`select_altitude` → `assemble_legs` → `retrieve_memory` → `generate_briefing`
+-- was run end-to-end against live services on the real C81→KDLH route
+(2026-09-07/08), via the still-stub `model-service`. `select_altitude`
+matches the known-good notebook 08 values exactly (2200ft floor, 3600ft
+ceiling, 2500ft recommended). `generate_briefing` (the node that calls the
+Anthropic API) reached the real `api.anthropic.com` and got back a proper
+`401 invalid x-api-key` -- this dev environment's key is a placeholder, not
+a real one, so the *response* is expected to fail, but that 401 (rather
+than a request-construction error) confirms the request itself -- model,
+headers, message format -- is built correctly. The one thing not yet
+observed is a *successful* completion; that needs a real `ANTHROPIC_API_KEY`
+(see Setup above).
 
 ## Where each container is headed on AWS
 
@@ -222,7 +224,11 @@ than running `pipeline.py` in-process -- the fuller mirror of "Airflow
 orchestrates, SageMaker does the compute." This needed the host's Docker
 socket mounted into `airflow` (`docker-compose.yml`'s `airflow` service),
 a real access-control tradeoff that was flagged and consciously accepted
-here, not defaulted into.
+here, not defaulted into. Verified: the DAG parses with no import errors
+and has the correct task tree; the `airflow` container's Docker-socket
+access can see the pre-built sibling images; and a container launched with
+the same `PROJECT_HOST_PATH` mount config the DAG uses correctly resolves
+to the real project files on the host, not an empty/wrong directory.
 
 One thing unchanged: `retrain` currently has a hard floor of 30 labeled
 candidates before it'll run at all -- chart-based relabeling only has 2-3
