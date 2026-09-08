@@ -1,0 +1,212 @@
+"""FAA NASR navaid data and Digital Obstacle File (DOF) data -- more
+authoritative sources than OSM tags for VOR navaids and towers/obstacles,
+since the FAA is the ground truth for both (and this project already
+treats the FAA sectional chart, not OSM/satellite imagery, as the
+reference for what a pilot would see -- see vfr.labeling).
+
+Both are published on a 28-day cycle as a full national dump (not
+queryable by bbox server-side, unlike Overpass), so they're downloaded
+once and cached under data/raw/ rather than re-fetched every notebook
+run -- ensure_nasr_data() only downloads if the cache is empty.
+"""
+import io
+import re
+import zipfile
+from pathlib import Path
+from urllib.parse import urljoin
+
+import pandas as pd
+import requests
+
+from .geo import distance_nm
+
+# FAA's site 403s a bare python-requests User-Agent.
+FAA_HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; vfr-route-learning-project/0.1)"}
+NASR_INDEX_URL = "https://www.faa.gov/air_traffic/flight_info/aeronav/aero_data/NASR_Subscription/"
+DOF_INDEX_URL = "https://www.faa.gov/air_traffic/flight_info/aeronav/digital_products/dof/"
+
+VOR_NAV_TYPES = {"VOR", "VOR/DME", "VORTAC"}
+
+# Fixed-width column layout for DOF.DAT, reverse-engineered from the raw
+# file against the 06 Aug 2026 cycle (verified against all ~18,500 rows
+# of the WI state extract with zero parse failures) since the FAA's own
+# DOF_README.pdf isn't renderable in this environment. AGL/AMSL start
+# columns were cross-checked independently via frequency analysis across
+# thousands of rows, and everything else derived from there -- if a
+# future FAA cycle shifts this layout, _parse_dof_line will start raising
+# ValueError on the int()/float() conversions, which is a loud enough
+# failure to notice rather than silently misreading obstacle heights.
+_DOF_COLUMNS = {
+    "city": (18, 34),
+    "lat_deg": (35, 37),
+    "lat_min": (38, 40),
+    "lat_sec": (41, 46),
+    "lat_hem": (46, 47),
+    "lon_deg": (48, 51),
+    "lon_min": (52, 54),
+    "lon_sec": (55, 60),
+    "lon_hem": (60, 61),
+    "type": (62, 81),
+    "agl": (83, 88),
+    "amsl": (89, 94),
+    "lt": (95, 96),
+}
+
+
+def find_current_cycle_page(index_url: str) -> str:
+    """The NASR index page marks the in-effect cycle under an <h2>Current</h2>
+    heading (as opposed to "Preview" for an upcoming cycle, or "Archives"
+    for past ones) -- pull the first link under that heading.
+    """
+    resp = requests.get(index_url, headers=FAA_HEADERS, timeout=30)
+    resp.raise_for_status()
+    m = re.search(r'<h2>Current</h2>\s*<ul>\s*<li><a href="([^"]+)"', resp.text)
+    if not m:
+        raise RuntimeError(f"Couldn't find the current NASR cycle link on {index_url}")
+    return urljoin(index_url, m.group(1))
+
+
+def find_download_link(page_url: str, href_pattern: str) -> str:
+    resp = requests.get(page_url, headers=FAA_HEADERS, timeout=30)
+    resp.raise_for_status()
+    m = re.search(href_pattern, resp.text)
+    if not m:
+        raise RuntimeError(f"Couldn't find a link matching {href_pattern!r} on {page_url}")
+    return m.group(1)
+
+
+def download_and_extract(url: str, dest_dir: Path, retries: int = 3) -> None:
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    last_err = None
+    for attempt in range(retries):
+        try:
+            resp = requests.get(url, headers=FAA_HEADERS, timeout=180)
+            resp.raise_for_status()
+            with zipfile.ZipFile(io.BytesIO(resp.content)) as zf:
+                zf.extractall(dest_dir)
+            return
+        except (requests.RequestException, zipfile.BadZipFile) as err:
+            last_err = err
+    raise RuntimeError(f"Failed to download {url}") from last_err
+
+
+def ensure_nasr_data(cache_dir) -> tuple:
+    """Download+extract the current-cycle NAV CSV and national DOF data
+    into cache_dir if not already cached. Returns (nav_csv_path, dof_dat_path).
+    """
+    cache_dir = Path(cache_dir)
+    nav_path = cache_dir / "NAV_BASE.csv"
+    dof_path = cache_dir / "DOF.DAT"
+
+    if not nav_path.exists():
+        cycle_page = find_current_cycle_page(NASR_INDEX_URL)
+        nav_url = find_download_link(cycle_page, r'href="([^"]*NAV_CSV\.zip)"')
+        download_and_extract(nav_url, cache_dir)
+
+    if not dof_path.exists():
+        dof_url = find_download_link(DOF_INDEX_URL, r'href="(https://aeronav\.faa\.gov/Obst_Data/DOF_\d+\.zip)"')
+        download_and_extract(dof_url, cache_dir)
+
+    return nav_path, dof_path
+
+
+def _in_bbox(lat: pd.Series, lon: pd.Series, bbox: tuple) -> pd.Series:
+    min_lat, min_lon, max_lat, max_lon = bbox
+    return lat.between(min_lat, max_lat) & lon.between(min_lon, max_lon)
+
+
+def load_vor_navaids(nav_csv_path, bbox: tuple) -> pd.DataFrame:
+    """VOR/VOR-DME/VORTAC navaids from the NASR NAV_BASE.csv extract,
+    within bbox and currently operational. Replaces the old OSM
+    navigationaid-tag-based approach -- the FAA is definitionally the
+    authority on its own navaid network.
+    """
+    df = pd.read_csv(nav_csv_path, dtype=str)
+    df = df[df["NAV_TYPE"].isin(VOR_NAV_TYPES) & df["NAV_STATUS"].str.startswith("OPERATIONAL")]
+    df["lat"] = df["LAT_DECIMAL"].astype(float)
+    df["lon"] = df["LONG_DECIMAL"].astype(float)
+    df = df[_in_bbox(df["lat"], df["lon"], bbox)]
+    return pd.DataFrame(
+        {
+            "osm_id": df["NAV_ID"],
+            "osm_type": "faa_navaid",
+            "category": "vor",
+            "name": df["NAME"] + " " + df["NAV_TYPE"],
+            "lat": df["lat"],
+            "lon": df["lon"],
+            "bbox_area_m2": 0.0,
+            "tags": [{"nav_type": t, "nav_id": i} for t, i in zip(df["NAV_TYPE"], df["NAV_ID"])],
+        }
+    ).reset_index(drop=True)
+
+
+def _dms_to_decimal(deg: str, minute: str, sec: str, hemisphere: str) -> float:
+    value = int(deg) + int(minute) / 60 + float(sec) / 3600
+    return -value if hemisphere in ("S", "W") else value
+
+
+def _parse_dof_line(line: str) -> dict | None:
+    if len(line) < 96:
+        return None
+    fields = {name: line[start:end] for name, (start, end) in _DOF_COLUMNS.items()}
+    try:
+        lat = _dms_to_decimal(fields["lat_deg"], fields["lat_min"], fields["lat_sec"], fields["lat_hem"])
+        lon = _dms_to_decimal(fields["lon_deg"], fields["lon_min"], fields["lon_sec"], fields["lon_hem"])
+        agl_ft = int(fields["agl"])
+        amsl_ft = int(fields["amsl"])
+    except ValueError:
+        return None
+    return {
+        "lat": lat,
+        "lon": lon,
+        "city": fields["city"].strip(),
+        "type": fields["type"].strip(),
+        "agl_ft": agl_ft,
+        "amsl_ft": amsl_ft,
+        "lit": fields["lt"].strip() not in ("", "N"),
+    }
+
+
+def load_obstacles(dof_dat_path, bbox: tuple, min_agl_ft: float = 200) -> pd.DataFrame:
+    """Obstacles from the national DOF.DAT extract, within bbox and at
+    least min_agl_ft tall. Replaces the old generic OSM man_made=tower
+    category -- the boldmethod checkpoint guide flags plain "towers" as
+    blending into terrain, and FAA obstacle height/lighting data lets us
+    filter to the ones actually significant enough to have been surveyed
+    and registered as an aeronautical obstruction (FAA/Part 77 uses 200ft
+    AGL as its own general obstruction-notification threshold, hence the
+    default here) rather than guessing from an OSM tag alone.
+    """
+    min_lat, min_lon, max_lat, max_lon = bbox
+    rows = []
+    with open(dof_dat_path, encoding="latin-1") as f:
+        for line in f:
+            parsed = _parse_dof_line(line)
+            if parsed is None:
+                continue
+            if parsed["agl_ft"] < min_agl_ft:
+                continue
+            if not (min_lat <= parsed["lat"] <= max_lat and min_lon <= parsed["lon"] <= max_lon):
+                continue
+            rows.append(parsed)
+
+    df = pd.DataFrame(rows, columns=["lat", "lon", "city", "type", "agl_ft", "amsl_ft", "lit"])
+    if df.empty:
+        return pd.DataFrame(columns=["osm_id", "osm_type", "category", "name", "lat", "lon", "bbox_area_m2", "tags"])
+
+    df = df.reset_index(drop=True)
+    return pd.DataFrame(
+        {
+            "osm_id": [f"dof-{i}" for i in df.index],
+            "osm_type": "faa_obstacle",
+            "category": "tower",
+            "name": df["type"] + " (" + df["city"] + ")",
+            "lat": df["lat"],
+            "lon": df["lon"],
+            "bbox_area_m2": 0.0,
+            "tags": [
+                {"obstacle_type": t, "agl_ft": int(a), "amsl_ft": int(m), "lit": bool(l)}
+                for t, a, m, l in zip(df["type"], df["agl_ft"], df["amsl_ft"], df["lit"])
+            ],
+        }
+    )

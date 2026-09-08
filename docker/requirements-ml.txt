@@ -1,0 +1,27 @@
+# Core set for notebooks 01-03 (previously only in the native macOS venv).
+# Moved in here 2026-09-07: recent PyPI releases of numpy/pandas/scipy/
+# pyarrow/matplotlib stopped shipping Intel-macOS wheels (same pattern that
+# already forced the torch/tensorflow pins below), so the native venv can no
+# longer track "latest" for this set without periodic version-pin surgery.
+# Linux x86_64 (manylinux) wheels stay current for all of these, so running
+# them in this container sidesteps the problem entirely instead of chasing
+# it package by package. The native `.venv` (see top-level requirements.txt)
+# still works if pinned to the last Intel-Mac-compatible versions, but this
+# container is now the primary, low-maintenance way to run notebooks 01-03.
+pandas
+numpy
+requests
+scikit-learn
+matplotlib
+pillow
+folium
+jupyter
+pyarrow
+shapely
+pyshp
+
+# For later modules (HuggingFace/PyTorch/TensorFlow/Spark).
+transformers
+tensorflow
+sentence-transformers
+pyspark

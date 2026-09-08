@@ -1,0 +1,17 @@
+# Just what src/vfr/pipeline.py needs (collect/engineer_features/retrain/
+# evaluate/promote) -- not the full notebook stack (no matplotlib, folium,
+# jupyter; airspace/terrain modules used only by notebook 08 aren't imported
+# by pipeline.py, so shapely/pyshp aren't needed here either).
+#
+# Shared by two images: `pipeline` (standalone, this file's whole reason to
+# exist -- the leanest, most reusable form of the pipeline, and the closest
+# local stand-in for what a real SageMaker training container would contain)
+# and `airflow` (still runs pipeline.py in-process today, so it needs the
+# same deps baked in -- see [[project-airflow-pipeline-dag]] in memory for
+# why that's a deliberate "partial split," not an oversight).
+pandas
+numpy
+scikit-learn
+requests
+pyarrow
+joblib

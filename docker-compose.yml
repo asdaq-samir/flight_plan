@@ -1,0 +1,64 @@
+services:
+  ml:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.ml
+    ports:
+      - "8888:8888"
+    volumes:
+      - .:/workspace
+
+  pipeline:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.pipeline
+    volumes:
+      - .:/workspace
+
+  airflow:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.airflow
+    ports:
+      - "8081:8080"
+    volumes:
+      - .:/opt/airflow/project
+      - airflow_home:/opt/airflow
+    environment:
+      AIRFLOW__CORE__DAGS_FOLDER: /opt/airflow/project/airflow/dags
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      PYTHONPATH: /opt/airflow/project/src
+    command: standalone
+
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: vfr_route
+      POSTGRES_USER: vfr
+      POSTGRES_PASSWORD: vfr
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  model-service:
+    build: ./model-service
+    ports:
+      - "8000:8000"
+
+  webapp:
+    build: ./springboot-app
+    ports:
+      - "8080:8080"
+    depends_on:
+      - db
+      - model-service
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/vfr_route
+      SPRING_DATASOURCE_USERNAME: vfr
+      SPRING_DATASOURCE_PASSWORD: vfr
+      MODEL_SERVICE_URL: http://model-service:8000
+
+volumes:
+  pgdata:
+  airflow_home:

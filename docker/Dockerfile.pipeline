@@ -1,0 +1,14 @@
+# The leanest, standalone form of src/vfr/pipeline.py -- no jupyter, no
+# matplotlib/folium, no torch/tensorflow/pyspark, no Airflow. This is what a
+# real SageMaker training/processing container would actually contain later
+# (see [[project-airflow-pipeline-dag]] in memory); today it's just runnable
+# directly: `docker compose run --rm pipeline retrain`.
+FROM python:3.12-slim
+
+WORKDIR /workspace
+
+COPY docker/requirements-pipeline.txt .
+RUN pip install --no-cache-dir -r requirements-pipeline.txt
+
+ENV PYTHONPATH=/workspace/src
+ENTRYPOINT ["python3", "-m", "vfr.pipeline"]
