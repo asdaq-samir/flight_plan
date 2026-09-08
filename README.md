@@ -1,229 +1,106 @@
-# VFR Waypoint Recommender
+# VFR Nav Log Platform
 
-A learning project building toward a complete **VFR flight nav log between
-two airports** (C81 → KDLH) — waypoints for pilotage, full dead-reckoning
-leg math, and weather. The ML/route-planning work (pandas, scikit-learn,
-HuggingFace, PyTorch, TensorFlow/Keras, Spark MLlib) is the excuse; the
-point is hands-on practice with real ML + data-pipeline + cloud-architecture
-workflow.
+An end-to-end system that generates VFR (Visual Flight Rules) flight nav
+logs: a trained model selects visually identifiable ground checkpoints
+along a route, a dead-reckoning engine computes headings, groundspeed, ETE,
+and fuel burn from live weather, a rules engine recommends a legal cruising
+altitude from terrain/airspace/weather constraints, and a Gen AI agent
+assembles it all into a natural-language pilot briefing.
 
-See `notebooks/` for the numbered modules (breakdown below), and
-`README-Future.md` for the target AWS/CI/CD/Gen AI architecture this is
-building toward.
+Route: Campbell Airport (C81, Grayslake, IL) → Duluth International
+(KDLH, MN).
 
-## Status / roadmap
+Built as a full-lifecycle platform engineering project — model training and
+selection, orchestrated data pipelines, a microservices architecture, and a
+Gen AI agent with long-term memory — designed from the outset with an
+explicit path to production on AWS.
 
-Rough phase plan (not a fixed timeline): **1. ML notebooks → 2. Airflow
-DAG → 3. GitHub remote + CI → 4. Gen AI nav-log agent → 5. AWS deployment.**
-Phase 4 is being done **before** Phase 3, by deliberate choice — there's no
-real technical dependency between them, Phase 3 was only sequenced first in
-the original plan for learning-path reasons.
+## Highlights
 
-| Phase | Status |
+- **Model selection across four frameworks.** Ridge regression, Random
+  Forest, and Gradient Boosting (scikit-learn) benchmarked against PyTorch,
+  TensorFlow/Keras, and Spark MLlib on the same feature set, with nested
+  cross-validation and permutation importance for the sklearn baseline.
+- **Orchestrated ML pipeline.** An Apache Airflow DAG automates data
+  collection, feature engineering, training, evaluation, and model
+  promotion — a new model only goes live if it beats the currently
+  deployed one on held-out metrics.
+- **Container architecture that mirrors its cloud target.** Compute is
+  split along the same boundaries it will occupy on AWS: a
+  Processing-Job-shaped container, a Training-Job-shaped container, and
+  Airflow launching both as isolated, independently-versioned tasks — the
+  same orchestration pattern used against managed services like SageMaker.
+- **Domain-accurate flight planning.** Dead-reckoning leg calculations
+  (wind correction angle, true/magnetic heading, groundspeed, ETE, fuel
+  burn) built from FAA-standard formulas against live NOAA winds-aloft and
+  magnetic-declination data. Cruising-altitude selection incorporates real
+  terrain/obstacle clearance (FAA MEF methodology), live FAA Class B/C/D
+  airspace shapefiles, and current METAR/TAF/SIGMET data.
+- **A Gen AI agent with real memory.** A LangGraph agent, exposed as an MCP
+  server, assembles the full nav log into a natural-language briefing, with
+  long-term recall of past routes via a Postgres/pgvector semantic-search
+  store — reusing existing infrastructure rather than standing up a
+  separate vector database.
+- **A named path to production**, not just a demo: every local service maps
+  to a specific AWS target (SageMaker, ECS Fargate, RDS, CloudFormation) —
+  see [Target Architecture](#target-architecture).
+
+## Architecture
+
+The system runs today as eight Docker services:
+
+| Service | Role |
 |---|---|
-| 1. ML notebooks (01-08) | Built. Blocked on data, not code — see below. |
-| 2. Airflow DAG (`vfr_pipeline`) | Built. Originally verified running `pipeline.py` in-process; just converted to `DockerOperator` (separate `pipeline-processing`/`pipeline-training` containers per task) -- re-verification of that specific change pending, see the AWS mapping section. |
-| 3. GitHub remote + CI | **Not started.** Local git only (see below) — no remote, no GitHub Actions. |
-| 4. Gen AI nav-log agent (LangGraph + MCP + vector store, CrewAI comparison) | **In progress.** DR-leg math + the LangGraph/MCP agent + pgvector memory are built and verified (below). CrewAI comparison build not started. |
-| 5. AWS deployment (SageMaker, Fargate, RDS, CloudFormation) | Not started — see the AWS mapping section below for how today's pieces are expected to land. |
+| `webapp` | Spring Boot API — the public-facing route-planning service |
+| `model-service` | FastAPI model-serving endpoint (`/ping`, `/invocations`) |
+| `nav-log-agent` | LangGraph agent (MCP server) that assembles the full nav log and briefing |
+| `db` | PostgreSQL + pgvector — application data and agent long-term memory |
+| `airflow` | Orchestrates the ML training pipeline |
+| `pipeline-processing` / `pipeline-training` | Data collection, feature engineering, and model training, run as isolated jobs |
+| `ml` | Jupyter environment for model development and experimentation |
 
-**The one real data blocker, independent of all of the above**: chart-based
-labeling (`data/labels/spottability_ratings.csv`) only has **2-3 labeled
-candidates** against 426 total candidates. `pipeline.retrain()` has a hard
-floor of 30 labeled rows before it'll run at all, so the model-training
-side of the pipeline is code-complete but can't produce a real model yet —
-`model-service` still returns a hand-written stub, not real predictions.
-
-**Git**: initialized 2026-09-07/08 (this project had no version control at
-all before then — not just "no GitHub remote"). Local commits only, no
-remote yet; that's the parked Phase 3 work.
-
-## Setup
-
-Notebooks 01-03 (and 04-08) run in the `ml` Docker container -- no native
-venv (recent PyPI releases of numpy/pandas/scipy/pyarrow/matplotlib dropped
-Intel-macOS wheels; see `docker/requirements-ml.txt`):
-
-```bash
-docker compose up ml   # Jupyter at http://localhost:8888, token "vfr"
+```
+Client → Spring Boot API → FastAPI Model Service → trained model
+                          → LangGraph Agent → Claude API + pgvector memory
+Airflow → Processing Job → Training Job → Model Registry → Model Service
 ```
 
-The automatable subset of notebooks 01-03 also runs standalone, split into
-two lean containers matching where each stage lands on AWS (see the AWS
-mapping below) -- `pipeline-processing` (`src/vfr/pipeline.py`'s `collect`/
-`engineer-features`, pandas/requests/pyarrow only) and `pipeline-training`
-(`retrain`, pandas/scikit-learn/joblib/pyarrow only, no `requests`):
+## Tech stack
 
-```bash
-docker compose run --rm pipeline-processing collect
-docker compose run --rm pipeline-processing engineer-features
-docker compose run --rm pipeline-training retrain
-```
+- **ML/Data:** scikit-learn, PyTorch, TensorFlow/Keras, Apache Spark MLlib, pandas, HuggingFace sentence-transformers
+- **Pipeline orchestration:** Apache Airflow
+- **Backend:** Spring Boot (Java), FastAPI (Python)
+- **Gen AI:** LangGraph, Model Context Protocol (MCP), Anthropic Claude API, pgvector (RAG-style semantic memory)
+- **Data:** PostgreSQL, OpenStreetMap (Overpass API), FAA NASR/DOF datasets, NOAA aviation weather and magnetic-model APIs
+- **Infrastructure:** Docker / Docker Compose, designed for AWS (SageMaker, ECS Fargate, RDS, CloudFormation)
 
-`evaluate`/`promote` (`src/vfr/model_registry.py`) need no container at all
--- zero third-party dependencies, so they run anywhere Python + `src/` are
-available:
+## Target architecture
 
-```bash
-docker compose run --rm pipeline-training python -m vfr.model_registry evaluate
-```
+The system is designed to deploy onto a specific AWS architecture — see
+[`README-Future.md`](README-Future.md) and `architecture-future.png` for
+the full diagram (CI/CD, managed training/serving infrastructure, and the
+Gen AI layer).
 
-The `airflow` service (`docker compose up airflow`, UI at
-`http://localhost:8081`) runs `vfr_pipeline`: Collect/Feature-Engineer/
-Retrain each launch as a separate sibling container via `DockerOperator`
-(over the host's Docker socket, mounted into `airflow`), matching
-"Airflow orchestrates, SageMaker does the compute" -- Evaluate/Promote stay
-in-process in `airflow` itself, since `model_registry` has no dependencies
-to hand off. **The `pipeline-processing`/`pipeline-training` images must be
-built before triggering the DAG** (`docker compose build pipeline-processing
-pipeline-training`) -- DockerOperator runs pre-built images, it doesn't
-build them.
-
-`webapp` (Spring Boot, `:8080`), `model-service` (FastAPI, `:8000`), and
-`db` (Postgres+pgvector, `:5432`) round out the local stack -- `docker
-compose up webapp` brings up its dependencies too.
-
-`nav-log-agent` (`:8082`, MCP over SSE) needs a real `ANTHROPIC_API_KEY` --
-export it in your shell, or put it in a `.env` file (gitignored) -- before
-any `docker compose` command will even parse (it's declared as a required
-variable, so compose fails loudly if it's unset, rather than starting with
-an empty key and failing confusingly later):
-
-```bash
-export ANTHROPIC_API_KEY=sk-...
-docker compose up nav-log-agent
-```
-
-## Layout
-
-- `data/raw/` — downloaded OSM extracts, airport CSV, cached imagery tiles, elevation/magnetic-variation caches (all gitignored, regenerable)
-- `data/processed/` — cleaned feature tables
-- `data/labels/` — hand-labeled spottability ratings (the current bottleneck — see Status above)
-- `data/aircraft/` — aircraft performance profiles (`c172.json`, etc.) — never hardcoded, always loaded via `vfr.aircraft`
-- `data/models/` — trained model artifacts (`candidate/`, `current/`, `versions/<timestamp>/`), written by `pipeline.retrain`/`evaluate`/`promote`
-- `notebooks/` — numbered, run-in-order modules (human-facing/exploratory; breakdown below)
-- `src/vfr/` — shared code imported by the notebooks; `pipeline.py` (collect/engineer_features/retrain) and `model_registry.py` (evaluate/promote) are the non-interactive subset the DAG and `pipeline-processing`/`pipeline-training` containers run; `navlog.py` is the dead-reckoning leg math, `altitude.py` the cruise-altitude recommendation (see below)
-- `airflow/dags/` — the `vfr_pipeline` DAG
-- `model-service/`, `springboot-app/` — the two serving-side apps (FastAPI model stub, Spring Boot API)
-- `nav-log-agent/` — the LangGraph/MCP nav-log-assembler agent (see below)
-
-## Notebooks
-
-| # | Notebook | What it does | Role |
-|---|---|---|---|
-| 01 | `data_collection` | Pulls candidate checkpoints along the route corridor from OSM (Overpass) + FAA NASR data | Part of the pipeline (`pipeline.collect`) |
-| 02 | `feature_engineering` | Builds the model feature table from 01's candidates | Part of the pipeline (`pipeline.engineer_features`) |
-| 03 | `sklearn_baseline` | Interactive hand-labeling + Ridge/RandomForest/GradientBoosting model selection, nested CV | Labeling stays notebook-only (human judgment); model-selection logic reused in `pipeline.retrain` |
-| 04 | `pytorch_tensorflow` | PyTorch + Keras MLP, benchmarked against 03's sklearn baseline | One-off comparison exercise, not part of the pipeline |
-| 05 | `huggingface_embeddings` | Sentence-transformer embeddings on candidate names as engineered features | One-off comparison exercise (weak-signal test) |
-| 06 | `spark_mllib` | Spark MLlib GBTRegressor, same comparison | One-off comparison exercise |
-| 08 | `altitude_selection` | Terrain/obstacle floor (FAA MEF formula), Class B/C/D airspace ceilings, freezing level/ceiling/visibility/SIGMET-AIRMET, aircraft service ceiling → a recommended cruise altitude | Separate subsystem — rule-based domain computation, not model training. Verified end-to-end on C81→KDLH. |
-
-(No 07 — numbering skip, not a typo.) 04-06 hardcoded their "compare against
-03" baseline numbers as literals at first; fixed 2026-09-07 to read the live
-promoted model's metrics from `data/models/current/metrics.json` instead,
-since a hardcoded number can't track a model that retrains repeatedly.
-
-## Nav log: dead-reckoning leg math
-
-`src/vfr/navlog.py`'s `assemble_leg()` computes one leg of the eventual full
-VFR nav log — true course/distance (`vfr.geo`), wind at altitude
-(`vfr.weather.wind_at_altitude`, from the same live winds-aloft product
-`freezing_level_ft` already used, now also decoding wind — it used to only
-decode temperature), wind correction angle, true/magnetic heading
-(`vfr.magnetic.magnetic_variation_deg`, live from NOAA NCEI), groundspeed,
-ETE, and fuel burn (`data/aircraft/*.json`'s `cruise_tas_kt`/`fuel_burn_gph`).
-Verified against hand-derived headwind/tailwind/crosswind cases and
-end-to-end against the live C81→KDLH route.
-
-**Deliberately not computed**: compass heading (magnetic → compass, via
-deviation) — that needs a per-aircraft compass deviation card, which isn't
-data this project has anywhere. Magnetic heading is as far as the chain
-goes for now.
-
-## Gen AI: the nav-log-assembler agent
-
-`nav-log-agent/` — a LangGraph agent wrapped as an MCP server (the
-"LangGraph Agent (MCP Server)" box in `architecture-future.png`), exposing
-one tool, `generate_nav_log_briefing(departure_ident, destination_ident,
-altitude_ft=None, aircraft_name="c172")`. The graph:
-
-1. **`fetch_checkpoints`** — calls `model-service`'s `/invocations` (still
-   the hand-written stub, per Status above).
-2. **`select_altitude`** — `vfr.altitude.select_cruise_altitude()` (the same
-   terrain/airspace/weather/aircraft-ceiling logic as notebook 08, extracted
-   so this agent can call it too — see Notebooks above). Always computes the
-   recommendation (floor/ceiling/hazards feed the briefing regardless); only
-   used as the leg-planning altitude if the caller didn't pass `altitude_ft`
-   explicitly.
-3. **`assemble_legs`** — loops `vfr.navlog.assemble_leg()` over consecutive
-   checkpoints at that altitude.
-4. **`retrieve_memory`** — queries `route_briefings` in pgvector for
-   similar past routes (embedded with a local `sentence-transformers`
-   model, `all-MiniLM-L6-v2` — Anthropic has no embeddings endpoint, so this
-   isn't an extra API dependency, just a local model, already an
-   established choice in this project via notebook 05).
-5. **`generate_briefing`** — calls the **Anthropic Claude API** with the
-   altitude rationale + legs + retrieved memory, produces a natural-language
-   briefing.
-6. **`store_memory`** — embeds and stores that briefing back into pgvector.
-
-**pgvector lives on the existing `db` Postgres service**, not a new
-dedicated vector DB — reuses infra `webapp` already depends on, rather than
-adding another moving part. The extension/table are created idempotently
-at agent startup (`CREATE EXTENSION`/`TABLE IF NOT EXISTS`) rather than via
-a Postgres init script, because `db`'s volume already had real data before
-pgvector was added -- an init script wouldn't have re-run against it.
-
-**A second, comparison-only build of the same agent in CrewAI** is planned
-alongside this one (breadth exercise, not a fallback — both would call the
-same model-serving endpoint) -- not started.
-
-**What's verified vs. not**: `fetch_checkpoints`+`assemble_legs` and the
-pgvector store/retrieve round-trip were tested end-to-end against live
-services on 2026-09-07/08 (real C81→KDLH route, via the still-stub
-`model-service`). `select_altitude` (`vfr.altitude`) was separately
-verified against the same live route, matching the known-good notebook 08
-values exactly (2200ft floor, 3600ft ceiling, 2500ft recommended) -- not
-yet re-run through the graph as a wired-in node as of this writing.
-`generate_briefing` (the one node that calls the Anthropic API) is
-implemented against the current SDK but **has never actually been
-called** -- this dev environment has no `ANTHROPIC_API_KEY`. First real run
-needs one set (see Setup above).
-
-## Where each container is headed on AWS
-
-Not built yet -- see `README-Future.md` / `architecture-future.png` for the
-full target diagram. This is how today's `docker-compose.yml` services map
-onto it:
-
-| Local service | AWS target |
+| Local component | AWS target |
 |---|---|
-| `webapp` (Spring Boot) | ECS Fargate -- Spring Boot API |
-| `db` (postgres:16) | RDS PostgreSQL |
-| `model-service` (FastAPI `/ping` + `/invocations` stub) | SageMaker Endpoint -- already shaped for this, see `model-service/app/main.py` |
-| `airflow` (`vfr_pipeline` DAG) | Same DAG shape, but its own hosting isn't decided -- Amazon MWAA vs. self-hosted on Fargate/EC2 is an open question, not settled |
-| `pipeline-processing` (`collect`/`engineer-features`) | SageMaker Processing Jobs -- dependency footprint (pandas/requests/pyarrow, no scikit-learn) matches what that container would actually need |
-| `pipeline-training` (`retrain`) | SageMaker Training Job -- separate image on purpose (pandas/scikit-learn/joblib/pyarrow, no `requests`), since Processing and Training are different AWS constructs with different container contracts |
-| `model_registry.py`'s `evaluate`/`promote` | SageMaker Model Registry -- register a Model Package Version, "promote" becomes approving it. Not a container job on AWS at all, which is why it doesn't get one locally either (runs in-process in `airflow`, zero third-party deps) |
-| `ml` (Jupyter; notebooks 04-06's PyTorch/TF/HuggingFace/Spark comparisons) | SageMaker Studio, ad hoc -- these are one-off benchmarking exercises with no recurring production role, so they don't become standing infra either locally or on AWS |
-| notebook 08 (altitude selection) | No mapping here -- it's rule-based domain computation (terrain/airspace/weather/aircraft), not model training; headed toward the LangGraph nav-log agent or `model-service` instead |
-| `nav-log-agent` (LangGraph + MCP + pgvector) | **LangGraph Agent (MCP Server)** + **Vector Store** boxes in `architecture-future.png`, calling the same SageMaker Endpoint `webapp` calls |
+| `webapp` | ECS Fargate |
+| `db` | RDS PostgreSQL |
+| `model-service` | SageMaker Endpoint |
+| `pipeline-processing` | SageMaker Processing Jobs |
+| `pipeline-training` | SageMaker Training Job |
+| Model evaluation/promotion | SageMaker Model Registry |
+| `nav-log-agent` | LangGraph Agent + Vector Store, deployed alongside the SageMaker endpoint |
+| CI/CD | GitHub Actions → ECR |
 
-**No local equivalent exists yet** for several pieces of the target
-diagram: CI/CD (GitHub Actions -> ECR), the Retrain Trigger (API Gateway ->
-Lambda (Go) -> DAG trigger), or public ingress (`northflyers.com` -> API
-Gateway in front of `webapp`) -- today `webapp` is just hit directly on
-`localhost:8080`.
+## Status
 
-**Update 2026-09-08**: Airflow now launches `pipeline-processing`/
-`pipeline-training` as separate containers via `DockerOperator`, rather
-than running `pipeline.py` in-process -- the fuller mirror of "Airflow
-orchestrates, SageMaker does the compute." This needed the host's Docker
-socket mounted into `airflow` (`docker-compose.yml`'s `airflow` service),
-a real access-control tradeoff that was flagged and consciously accepted
-here, not defaulted into.
+The ML pipeline, orchestration layer, dead-reckoning engine, altitude
+selection logic, and Gen AI agent are built and integrated. Model training
+is gated on accumulating enough hand-labeled examples to clear the
+pipeline's minimum-sample threshold; until then, the serving endpoint
+returns representative sample output so the rest of the system can be
+exercised end to end. AWS deployment and CI/CD are designed (see Target
+Architecture) but not yet provisioned.
 
-One thing unchanged: `retrain` currently has a hard floor of 30 labeled
-candidates before it'll run at all -- chart-based relabeling only has 2-3
-so far, so a full pipeline run stops at that step until there's more data.
+See [`DEVELOPMENT.md`](DEVELOPMENT.md) for setup instructions, a
+notebook-by-notebook breakdown, and detailed engineering notes.
