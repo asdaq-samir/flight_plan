@@ -11,18 +11,20 @@ _graph = build_graph()
 
 @mcp.tool()
 def generate_nav_log_briefing(
-    departure_ident: str, destination_ident: str, altitude_ft: float, aircraft_name: str = "c172"
+    departure_ident: str, destination_ident: str, altitude_ft: float | None = None, aircraft_name: str = "c172"
 ) -> dict:
     """Generate a VFR nav-log briefing for a route: checkpoints from the
-    trained model, dead-reckoning legs between them, and a natural-language
-    briefing informed by similar past routes.
+    trained model, a recommended cruise altitude (terrain/airspace/
+    weather/aircraft-ceiling constrained -- pass altitude_ft explicitly to
+    override it instead), dead-reckoning legs between checkpoints, and a
+    natural-language briefing informed by similar past routes.
     """
-    result = _graph.invoke(
-        {
-            "departure_ident": departure_ident,
-            "destination_ident": destination_ident,
-            "altitude_ft": altitude_ft,
-            "aircraft_name": aircraft_name,
-        }
-    )
-    return {"legs": result["legs"], "briefing": result["briefing"]}
+    state = {
+        "departure_ident": departure_ident,
+        "destination_ident": destination_ident,
+        "aircraft_name": aircraft_name,
+    }
+    if altitude_ft is not None:
+        state["altitude_ft"] = altitude_ft
+    result = _graph.invoke(state)
+    return {"altitude_selection": result["altitude_selection"], "legs": result["legs"], "briefing": result["briefing"]}

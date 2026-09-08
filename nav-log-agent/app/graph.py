@@ -1,12 +1,9 @@
-"""The nav-log-assembler graph: checkpoints (model-service) -> dead-
-reckoning legs (vfr.navlog, see [[project-navlog-dr-math]] in project
-memory) -> similar past routes (pgvector) -> a Claude-generated briefing ->
-store that briefing back into memory for next time.
-
-Altitude is currently a plain input parameter, not pulled from notebook
-08's altitude-selection logic (vfr.terrain/airspace/weather/aircraft) --
-integrating that is a deliberate next step, not done here, to keep this
-first slice bounded.
+"""The nav-log-assembler graph: checkpoints (model-service) -> recommended
+cruise altitude (vfr.altitude, extracted from notebook 08 -- see
+[[project-navlog-agent]] in project memory) -> dead-reckoning legs
+(vfr.navlog, see [[project-navlog-dr-math]]) -> similar past routes
+(pgvector) -> a Claude-generated briefing -> store that briefing back into
+memory for next time.
 """
 import os
 from typing import TypedDict
@@ -14,7 +11,7 @@ from typing import TypedDict
 import anthropic
 from langgraph.graph import END, START, StateGraph
 
-from vfr import aircraft, navlog
+from vfr import aircraft, airports, altitude, navlog
 
 from . import db, model_client
 
@@ -24,9 +21,10 @@ CLAUDE_MODEL = os.environ.get("NAV_LOG_AGENT_MODEL", "claude-sonnet-5")
 class NavLogState(TypedDict, total=False):
     departure_ident: str
     destination_ident: str
-    altitude_ft: float
+    altitude_ft: float  # optional input override; computed by select_altitude if omitted
     aircraft_name: str
     checkpoints: list[dict]
+    altitude_selection: dict
     legs: list[dict]
     similar_briefings: list[dict]
     briefing: str
@@ -35,6 +33,29 @@ class NavLogState(TypedDict, total=False):
 def fetch_checkpoints(state: NavLogState) -> dict:
     checkpoints = model_client.get_checkpoints(state["departure_ident"], state["destination_ident"])
     return {"checkpoints": checkpoints}
+
+
+def select_altitude(state: NavLogState) -> dict:
+    """Always computes the recommendation (floor/ceiling/hazards are useful
+    briefing context regardless), but only uses it as the leg-planning
+    altitude if the caller didn't explicitly supply altitude_ft.
+    """
+    dep = airports.get_airport(state["departure_ident"])
+    dest = airports.get_airport(state["destination_ident"])
+    profile = aircraft.load_aircraft_profile(state.get("aircraft_name", "c172"))
+    result = altitude.select_cruise_altitude((dep["lat"], dep["lon"]), (dest["lat"], dest["lon"]), profile)
+
+    altitude_ft = state.get("altitude_ft")
+    if altitude_ft is None:
+        if result["recommended_ft"] is None:
+            raise ValueError(
+                f"No valid VFR altitude for {state['departure_ident']}->{state['destination_ident']} "
+                f"(floor {result['floor_ft']}ft, ceiling {result['band_ceiling_ft']}ft) -- "
+                "and none was supplied explicitly either."
+            )
+        altitude_ft = result["recommended_ft"]
+
+    return {"altitude_selection": result, "altitude_ft": altitude_ft}
 
 
 def assemble_legs(state: NavLogState) -> dict:
@@ -71,11 +92,27 @@ def _format_memory(similar_briefings: list[dict]) -> str:
     )
 
 
+def _format_altitude_selection(sel: dict) -> str:
+    lines = [
+        f"Terrain/obstacle floor: {sel['floor_ft']:.0f}ft",
+        f"Airspace/freezing-level/service-ceiling band: {sel['band_ceiling_ft']}ft",
+    ]
+    if sel["low_ceiling_or_visibility"]:
+        lines.append(
+            f"GO/NO-GO: ceiling {sel['min_ceiling_ft']}ft / visibility {sel['min_visibility_sm']}SM "
+            "near the route is below typical VFR minimums"
+        )
+    if sel["hazards"]:
+        lines.append(f"GO/NO-GO: {len(sel['hazards'])} SIGMET/AIRMET(s) intersect the route")
+    return "\n".join(lines)
+
+
 def generate_briefing(state: NavLogState) -> dict:
     client = anthropic.Anthropic()
     prompt = (
         f"Write a concise VFR pilot briefing for a flight from "
         f"{state['departure_ident']} to {state['destination_ident']} at {state['altitude_ft']:.0f}ft.\n\n"
+        f"Altitude selection:\n{_format_altitude_selection(state['altitude_selection'])}\n\n"
         f"Dead-reckoning legs:\n{_format_legs(state['legs'])}\n\n"
         f"Similar past route briefings (for context/consistency, not to copy verbatim):\n"
         f"{_format_memory(state.get('similar_briefings', []))}"
@@ -96,13 +133,15 @@ def store_memory(state: NavLogState) -> dict:
 def build_graph():
     graph = StateGraph(NavLogState)
     graph.add_node("fetch_checkpoints", fetch_checkpoints)
+    graph.add_node("select_altitude", select_altitude)
     graph.add_node("assemble_legs", assemble_legs)
     graph.add_node("retrieve_memory", retrieve_memory)
     graph.add_node("generate_briefing", generate_briefing)
     graph.add_node("store_memory", store_memory)
 
     graph.add_edge(START, "fetch_checkpoints")
-    graph.add_edge("fetch_checkpoints", "assemble_legs")
+    graph.add_edge("fetch_checkpoints", "select_altitude")
+    graph.add_edge("select_altitude", "assemble_legs")
     graph.add_edge("assemble_legs", "retrieve_memory")
     graph.add_edge("retrieve_memory", "generate_briefing")
     graph.add_edge("generate_briefing", "store_memory")

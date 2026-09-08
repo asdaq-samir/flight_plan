@@ -9,4 +9,6 @@ psycopg[binary]
 pgvector
 sentence-transformers
 requests
-pandas  # vfr.navlog -> vfr.weather -> vfr.airports needs it (airport lat/lon lookup)
+pandas   # vfr.navlog -> vfr.weather -> vfr.airports needs it (airport lat/lon lookup)
+shapely  # vfr.altitude -> vfr.airspace (Class B/C/D polygons) + vfr.weather.hazards_along_route
+pyshp    # vfr.altitude -> vfr.airspace (reads the FAA Class Airspace shapefile)
