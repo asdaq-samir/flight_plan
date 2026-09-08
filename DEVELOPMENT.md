@@ -7,18 +7,21 @@ actually runs and why it's built this way" reference.
 
 ## Status / roadmap
 
-Rough phase plan (not a fixed timeline): **1. ML notebooks → 2. Airflow
-DAG → 3. GitHub remote + CI → 4. Gen AI nav-log agent → 5. AWS deployment.**
-Phase 4 is being done **before** Phase 3, by deliberate choice — there's no
-real technical dependency between them, Phase 3 was only sequenced first in
-the original plan for learning-path reasons.
+Rough phase plan (not a fixed timeline, and renumbered 2026-09-08 to match
+actual execution order -- originally planned as 1. ML notebooks → 2.
+Airflow DAG → 3. GitHub remote + CI → 4. Gen AI nav-log agent → 5. AWS
+deployment, but Gen AI moved ahead of GitHub/CI by deliberate choice, since
+there's no real technical dependency between them and GitHub/CI was only
+sequenced first in the original plan for learning-path reasons):
+**1. ML notebooks → 2. Airflow DAG → 3. Gen AI nav-log agent → 4. GitHub
+remote + CI → 5. AWS deployment.**
 
 | Phase | Status |
 |---|---|
 | 1. ML notebooks (01-08) | Built. Blocked on data, not code — see below. |
 | 2. Airflow DAG (`vfr_pipeline`) | Built. Originally verified running `pipeline.py` in-process; just converted to `DockerOperator` (separate `pipeline-processing`/`pipeline-training` containers per task) -- re-verification of that specific change pending, see the AWS mapping section. |
-| 3. GitHub remote + CI | **Not started.** Local git only (see below) — no remote, no GitHub Actions. |
-| 4. Gen AI nav-log agent (LangGraph + MCP + vector store, CrewAI comparison) | **In progress.** DR-leg math + the LangGraph/MCP agent + pgvector memory are built and verified (below). CrewAI comparison build not started. |
+| 3. Gen AI nav-log agent (LangGraph + MCP + vector store, CrewAI comparison) | **In progress.** DR-leg math + the LangGraph/MCP agent + pgvector memory are built and verified (below). CrewAI comparison build not started. |
+| 4. GitHub remote + CI | **Not started.** Local git only (see below) — no remote, no GitHub Actions. |
 | 5. AWS deployment (SageMaker, Fargate, RDS, CloudFormation) | Not started — see the AWS mapping section below for how today's pieces are expected to land. |
 
 **The one real data blocker, independent of all of the above**: chart-based
@@ -30,7 +33,7 @@ side of the pipeline is code-complete but can't produce a real model yet —
 
 **Git**: initialized 2026-09-07/08 (this project had no version control at
 all before then — not just "no GitHub remote"). Local commits only, no
-remote yet; that's the parked Phase 3 work.
+remote yet; that's the parked Phase 4 work.
 
 ## Setup
 
