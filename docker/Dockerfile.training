@@ -1,0 +1,11 @@
+# SageMaker-Training-Job-shaped: retrain only. See requirements-training.txt
+# for why this is a separate image from Dockerfile.processing.
+FROM python:3.12-slim
+
+WORKDIR /workspace
+
+COPY docker/requirements-training.txt .
+RUN pip install --no-cache-dir -r requirements-training.txt
+
+ENV PYTHONPATH=/workspace/src
+ENTRYPOINT ["python3", "-m", "vfr.pipeline"]

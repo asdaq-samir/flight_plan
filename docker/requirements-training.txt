@@ -1,0 +1,16 @@
+# src/vfr/pipeline.py's retrain stage -- the SageMaker-Training-Job-shaped
+# half of what was one "pipeline" image.
+#
+# `requests` is needed here too, even though retrain() itself makes no
+# network calls: pipeline.py's module-level `from vfr import airports,
+# ..., osm` pulls in vfr.airports/vfr.faa_data/vfr.osm, which import
+# `requests` at their own module level. Unlike scikit-learn (genuinely
+# heavy, worth lazy-importing inside retrain() to keep out of this image),
+# requests is small and near-universal -- not worth restructuring
+# pipeline.py's imports further just to exclude it.
+pandas
+numpy
+scikit-learn
+joblib
+pyarrow
+requests

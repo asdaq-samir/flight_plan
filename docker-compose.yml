@@ -8,10 +8,17 @@ services:
     volumes:
       - .:/workspace
 
-  pipeline:
+  pipeline-processing:
     build:
       context: .
-      dockerfile: docker/Dockerfile.pipeline
+      dockerfile: docker/Dockerfile.processing
+    volumes:
+      - .:/workspace
+
+  pipeline-training:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.training
     volumes:
       - .:/workspace
 
@@ -24,10 +31,16 @@ services:
     volumes:
       - .:/opt/airflow/project
       - airflow_home:/opt/airflow
+      - /var/run/docker.sock:/var/run/docker.sock
     environment:
       AIRFLOW__CORE__DAGS_FOLDER: /opt/airflow/project/airflow/dags
       AIRFLOW__CORE__LOAD_EXAMPLES: "false"
       PYTHONPATH: /opt/airflow/project/src
+      # DockerOperator launches sibling containers via the mounted host
+      # socket -- their -v mounts are resolved by the HOST's Docker daemon,
+      # so they need the HOST's path to this project, not this container's
+      # own /opt/airflow/project view of it.
+      PROJECT_HOST_PATH: ${PWD}
     command: standalone
 
   db:

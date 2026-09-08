@@ -1,0 +1,10 @@
+# src/vfr/pipeline.py's collect + engineer_features stages -- the
+# SageMaker-Processing-Job-shaped half of what was one "pipeline" image.
+# No scikit-learn/joblib here on purpose: those are retrain-only (see
+# requirements-training.txt) and Processing Jobs and Training Jobs are
+# different AWS constructs, so this mirrors that split rather than
+# installing everything into one image out of local convenience.
+pandas
+numpy
+requests
+pyarrow

@@ -1,38 +1,36 @@
-"""Callable, non-interactive versions of the notebook 01->02->03 sequence.
+"""Callable, non-interactive versions of the notebook 01->02->03 sequence:
+collect, engineer_features, retrain. (evaluate/promote moved to
+vfr.model_registry -- see that module's docstring for why.) Each function
+here is one Airflow/DockerOperator task body (see
+airflow/dags/vfr_pipeline_dag.py). The notebooks stay the human-facing/
+exploratory versions of this same logic (plots, the folium map, the
+interactive hand-labeling cell); this module is the automatable subset --
+everything except labeling itself, which is still a human judgment call
+and out of scope for a scheduled DAG.
 
-Each function here is one Airflow task body (see airflow/dags/vfr_pipeline_dag.py):
-collect -> engineer_features -> retrain -> evaluate -> promote. The notebooks
-stay the human-facing/exploratory versions of this same logic (plots, the
-folium map, the interactive hand-labeling cell); this module is the
-automatable subset -- everything except labeling itself, which is still a
-human judgment call and out of scope for a scheduled DAG.
+scikit-learn/joblib are imported lazily, inside retrain() only, rather than
+at module level -- this module is now shared by two differently-provisioned
+containers (Dockerfile.processing has pandas/requests/pyarrow but NOT
+scikit-learn; Dockerfile.training has scikit-learn/joblib but not requests).
+A module-level sklearn import would make collect()/engineer_features()
+uncallable in the processing image even though neither one touches sklearn.
 """
 from __future__ import annotations
 
 import json
-import shutil
-import time
 from datetime import datetime, timezone
 from pathlib import Path
 
-import joblib
 import pandas as pd
-from sklearn.dummy import DummyRegressor
-from sklearn.ensemble import GradientBoostingRegressor, RandomForestRegressor
-from sklearn.linear_model import Ridge
-from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
-from sklearn.model_selection import GridSearchCV, KFold, cross_val_score, train_test_split
 
 from vfr import airports, elevation, faa_data, features, geo, osm
+from vfr.model_registry import CANDIDATE_MODEL_DIR
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DATA_DIR = PROJECT_ROOT / "data"
 CANDIDATES_PATH = DATA_DIR / "processed" / "candidates_c81_kdlh.csv"
 FEATURES_PATH = DATA_DIR / "processed" / "features_c81_kdlh.parquet"
 LABELS_PATH = DATA_DIR / "labels" / "spottability_ratings.csv"
-MODELS_DIR = DATA_DIR / "models"
-CANDIDATE_MODEL_DIR = MODELS_DIR / "candidate"
-CURRENT_MODEL_DIR = MODELS_DIR / "current"
 
 RANDOM_STATE = 42
 PREFERRED_HALF_WIDTH_NM = 0.25  # "essentially on the line"
@@ -190,6 +188,13 @@ def retrain(
     baseline, refit the best on a train split, score on the held-out split,
     and save the fitted model + its held-out metrics as the "candidate".
     """
+    import joblib
+    from sklearn.dummy import DummyRegressor
+    from sklearn.ensemble import GradientBoostingRegressor, RandomForestRegressor
+    from sklearn.linear_model import Ridge
+    from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+    from sklearn.model_selection import GridSearchCV, KFold, cross_val_score, train_test_split
+
     labeled_df, feature_cols = _load_labeled(features_path, labels_path)
     if len(labeled_df) < min_labeled_rows:
         raise InsufficientLabelsError(
@@ -253,42 +258,9 @@ def retrain(
     return metrics
 
 
-def evaluate(candidate_dir: Path = CANDIDATE_MODEL_DIR, current_dir: Path = CURRENT_MODEL_DIR) -> bool:
-    """True (proceed to Promote) if the candidate beats the currently
-    promoted model's held-out MAE, or if nothing is promoted yet.
-    """
-    candidate_metrics_path = Path(candidate_dir) / "metrics.json"
-    candidate_metrics = json.loads(candidate_metrics_path.read_text())
-
-    current_metrics_path = Path(current_dir) / "metrics.json"
-    if not current_metrics_path.exists():
-        return True
-
-    current_metrics = json.loads(current_metrics_path.read_text())
-    return candidate_metrics["held_out_mae"] <= current_metrics["held_out_mae"]
-
-
-def promote(candidate_dir: Path = CANDIDATE_MODEL_DIR, current_dir: Path = CURRENT_MODEL_DIR) -> Path:
-    """Copy the candidate model + metrics into the "current" (serving)
-    location, and keep a timestamped copy under models/versions/ for history.
-    """
-    candidate_dir = Path(candidate_dir)
-    current_dir = Path(current_dir)
-    current_dir.mkdir(parents=True, exist_ok=True)
-
-    shutil.copy2(candidate_dir / "model.joblib", current_dir / "model.joblib")
-    shutil.copy2(candidate_dir / "metrics.json", current_dir / "metrics.json")
-
-    run_id = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
-    version_dir = current_dir.parent / "versions" / run_id
-    version_dir.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(candidate_dir / "model.joblib", version_dir / "model.joblib")
-    shutil.copy2(candidate_dir / "metrics.json", version_dir / "metrics.json")
-    return current_dir
-
-
 def _cli() -> None:
-    """Run one stage standalone, e.g. `docker compose run --rm pipeline retrain`.
+    """Run one stage standalone, e.g. `docker compose run --rm pipeline-training retrain`
+    or `docker compose run --rm pipeline-processing collect`.
 
     Kept deliberately close to a SageMaker script-mode entry point (one
     stage per invocation, paths as arguments with sensible defaults, result
@@ -315,14 +287,6 @@ def _cli() -> None:
     p.add_argument("--out-dir", type=Path, default=CANDIDATE_MODEL_DIR)
     p.add_argument("--min-labeled-rows", type=int, default=MIN_LABELED_ROWS)
 
-    p = sub.add_parser("evaluate")
-    p.add_argument("--candidate-dir", type=Path, default=CANDIDATE_MODEL_DIR)
-    p.add_argument("--current-dir", type=Path, default=CURRENT_MODEL_DIR)
-
-    p = sub.add_parser("promote")
-    p.add_argument("--candidate-dir", type=Path, default=CANDIDATE_MODEL_DIR)
-    p.add_argument("--current-dir", type=Path, default=CURRENT_MODEL_DIR)
-
     args = parser.parse_args()
     kwargs = {k: v for k, v in vars(args).items() if k != "stage"}
 
@@ -332,14 +296,8 @@ def _cli() -> None:
         result = engineer_features(**kwargs)
     elif args.stage == "retrain":
         result = retrain(**kwargs)
-    elif args.stage == "evaluate":
-        result = evaluate(**kwargs)
-    elif args.stage == "promote":
-        result = promote(**kwargs)
 
     print(result)
-    if args.stage == "evaluate" and result is False:
-        raise SystemExit(1)  # non-zero exit -- a container-based orchestrator can branch on this
 
 
 if __name__ == "__main__":

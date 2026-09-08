@@ -1,5 +1,12 @@
+# Lighter than it used to be: collect/engineer_features/retrain now run in
+# separate sibling containers (Dockerfile.processing/.training, launched via
+# DockerOperator over the mounted host Docker socket -- the local mirror of
+# "Airflow orchestrates, SageMaker does the compute"), so this image no
+# longer needs pandas/scikit-learn/etc. itself. evaluate/promote still run
+# in-process here (ShortCircuitOperator/PythonOperator in the DAG) since
+# they're plain file/JSON operations with zero third-party dependencies --
+# not real compute, so they don't need their own container either.
 FROM apache/airflow:2.10.4-python3.12
 
-COPY docker/requirements-pipeline.txt /tmp/requirements-pipeline.txt
-RUN pip install --no-cache-dir -r /tmp/requirements-pipeline.txt \
+RUN pip install --no-cache-dir "apache-airflow-providers-docker" \
     --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-2.10.4/constraints-3.12.txt"

@@ -2,24 +2,52 @@
 Collect -> Feature-Engineer -> Retrain -> Evaluate -> Promote, per the
 Airflow DAG section of README-Future.md / architecture-future.drawio.
 
+Collect/Feature-Engineer/Retrain each run in a separate sibling container
+(launched via DockerOperator over the host Docker socket mounted into this
+`airflow` container) rather than in-process here -- the local mirror of
+"Airflow orchestrates, SageMaker does the compute" (see the AWS-mapping
+table in README.md, and [[project-airflow-pipeline-dag]] in project
+memory). Evaluate/Promote stay in-process: vfr.model_registry has zero
+third-party dependencies, so there's no real compute to hand off -- on AWS
+these are just Model Registry API calls, not a job at all.
+
 Hand-labeling (notebook 03's interactive cell) stays a human, notebook-only
 step -- Retrain trains against whatever's already in data/labels/ at run
-time, it doesn't generate labels. Evaluate only lets Promote run if the
-freshly retrained model's held-out MAE beats the currently promoted model's
-(or nothing is promoted yet) -- see vfr.pipeline.evaluate.
+time, it doesn't generate labels.
 """
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
 from airflow.decorators import dag, task
 from airflow.operators.python import ShortCircuitOperator
+from airflow.providers.docker.operators.docker import DockerOperator
+from docker.types import Mount
 from pendulum import datetime
 
 PROJECT_SRC = Path("/opt/airflow/project/src")
 if str(PROJECT_SRC) not in sys.path:
     sys.path.insert(0, str(PROJECT_SRC))
+
+# DockerOperator talks to the HOST's Docker daemon over the mounted socket,
+# so its mounts must be HOST paths -- this container's own
+# /opt/airflow/project view of the repo means nothing to that daemon.
+PROJECT_HOST_PATH = os.environ["PROJECT_HOST_PATH"]
+PROJECT_MOUNT = Mount(source=PROJECT_HOST_PATH, target="/workspace", type="bind")
+
+
+def _docker_task(task_id: str, image: str, command: list[str]) -> DockerOperator:
+    return DockerOperator(
+        task_id=task_id,
+        image=image,
+        command=command,
+        docker_url="unix://var/run/docker.sock",
+        mounts=[PROJECT_MOUNT],
+        auto_remove="success",
+        mount_tmp_dir=False,
+    )
 
 
 @dag(
@@ -31,47 +59,24 @@ if str(PROJECT_SRC) not in sys.path:
     tags=["vfr", "ml"],
 )
 def vfr_pipeline():
-    @task
-    def collect() -> str:
-        from vfr import pipeline
+    collect = _docker_task("collect", "vfr_route-pipeline-processing", ["collect"])
+    feature_engineer = _docker_task("feature_engineer", "vfr_route-pipeline-processing", ["engineer-features"])
+    retrain = _docker_task("retrain", "vfr_route-pipeline-training", ["retrain"])
 
-        return str(pipeline.collect())
+    def _metrics_pass() -> bool:
+        from vfr import model_registry
 
-    @task
-    def feature_engineer(candidates_path: str) -> str:
-        from vfr import pipeline
+        return model_registry.evaluate()
 
-        return str(pipeline.engineer_features(in_path=candidates_path))
-
-    @task
-    def retrain(features_path: str) -> str:
-        from vfr import pipeline
-
-        pipeline.retrain(features_path=features_path)
-        return str(pipeline.CANDIDATE_MODEL_DIR)
-
-    def _metrics_pass(candidate_dir: str) -> bool:
-        from vfr import pipeline
-
-        return pipeline.evaluate(candidate_dir=candidate_dir)
+    evaluate = ShortCircuitOperator(task_id="evaluate", python_callable=_metrics_pass)
 
     @task
-    def promote(candidate_dir: str) -> str:
-        from vfr import pipeline
+    def promote() -> str:
+        from vfr import model_registry
 
-        return str(pipeline.promote(candidate_dir=candidate_dir))
+        return str(model_registry.promote())
 
-    candidates_path = collect()
-    features_path = feature_engineer(candidates_path)
-    candidate_dir = retrain(features_path)
-
-    metrics_pass = ShortCircuitOperator(
-        task_id="evaluate",
-        python_callable=_metrics_pass,
-        op_kwargs={"candidate_dir": candidate_dir},
-    )
-
-    metrics_pass >> promote(candidate_dir)
+    collect >> feature_engineer >> retrain >> evaluate >> promote()
 
 
 vfr_pipeline()
