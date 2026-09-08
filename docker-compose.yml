@@ -31,7 +31,7 @@ services:
     command: standalone
 
   db:
-    image: postgres:16
+    image: pgvector/pgvector:pg16
     environment:
       POSTGRES_DB: vfr_route
       POSTGRES_USER: vfr
@@ -45,6 +45,23 @@ services:
     build: ./model-service
     ports:
       - "8000:8000"
+
+  nav-log-agent:
+    build:
+      context: .
+      dockerfile: nav-log-agent/Dockerfile
+    ports:
+      - "8082:8000"
+    volumes:
+      - .:/workspace
+    depends_on:
+      - db
+      - model-service
+    environment:
+      PYTHONPATH: /workspace/src
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:?Set ANTHROPIC_API_KEY in your shell or a .env file}
+      MODEL_SERVICE_URL: http://model-service:8000
+      DATABASE_URL: postgresql://vfr:vfr@db:5432/vfr_route
 
   webapp:
     build: ./springboot-app

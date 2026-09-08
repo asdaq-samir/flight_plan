@@ -24,7 +24,7 @@ the original plan for learning-path reasons.
 | 1. ML notebooks (01-08) | Built. Blocked on data, not code — see below. |
 | 2. Airflow DAG (`vfr_pipeline`) | Built and verified (collect → feature_engineer → retrain → evaluate → promote). |
 | 3. GitHub remote + CI | **Not started.** Local git only (see below) — no remote, no GitHub Actions. |
-| 4. Gen AI nav-log agent (LangGraph + MCP + vector store, CrewAI comparison) | **In progress.** DR-leg math done (below); LangGraph/MCP/vector-store agent itself not started as of this writing. |
+| 4. Gen AI nav-log agent (LangGraph + MCP + vector store, CrewAI comparison) | **In progress.** DR-leg math + the LangGraph/MCP agent + pgvector memory are built and verified (below). CrewAI comparison build not started. |
 | 5. AWS deployment (SageMaker, Fargate, RDS, CloudFormation) | Not started — see the AWS mapping section below for how today's pieces are expected to land. |
 
 **The one real data blocker, independent of all of the above**: chart-based
@@ -64,8 +64,19 @@ via the `vfr_pipeline` DAG, in-process rather than by launching the
 `airflow/dags/vfr_pipeline_dag.py`.
 
 `webapp` (Spring Boot, `:8080`), `model-service` (FastAPI, `:8000`), and
-`db` (Postgres, `:5432`) round out the local stack -- `docker compose up
-webapp` brings up its dependencies too.
+`db` (Postgres+pgvector, `:5432`) round out the local stack -- `docker
+compose up webapp` brings up its dependencies too.
+
+`nav-log-agent` (`:8082`, MCP over SSE) needs a real `ANTHROPIC_API_KEY` --
+export it in your shell, or put it in a `.env` file (gitignored) -- before
+any `docker compose` command will even parse (it's declared as a required
+variable, so compose fails loudly if it's unset, rather than starting with
+an empty key and failing confusingly later):
+
+```bash
+export ANTHROPIC_API_KEY=sk-...
+docker compose up nav-log-agent
+```
 
 ## Layout
 
@@ -78,6 +89,7 @@ webapp` brings up its dependencies too.
 - `src/vfr/` — shared code imported by the notebooks; `pipeline.py` is the non-interactive subset the DAG/`pipeline` container run; `navlog.py` is the dead-reckoning leg math (see below)
 - `airflow/dags/` — the `vfr_pipeline` DAG
 - `model-service/`, `springboot-app/` — the two serving-side apps (FastAPI model stub, Spring Boot API)
+- `nav-log-agent/` — the LangGraph/MCP nav-log-assembler agent (see below)
 
 ## Notebooks
 
@@ -113,15 +125,50 @@ deviation) — that needs a per-aircraft compass deviation card, which isn't
 data this project has anywhere. Magnetic heading is as far as the chain
 goes for now.
 
-**The Gen AI layer being built on top of this (Phase 4, in progress)**:
-a LangGraph agent, wrapped as an MCP server, that pulls the trained model's
-recommended checkpoints, loops `assemble_leg()` over them, pulls live
-weather, and produces the actual filled-out nav log — with long-term memory
-of past routes/briefings via **pgvector on the existing `db` Postgres**
-service (not a new dedicated vector DB), calling the **Anthropic Claude
-API**. A second, comparison-only build of the same agent in CrewAI is
-planned alongside it (breadth exercise, not a fallback — both call the same
-model-serving endpoint). None of this is built yet as of this writing.
+## Gen AI: the nav-log-assembler agent
+
+`nav-log-agent/` — a LangGraph agent wrapped as an MCP server (the
+"LangGraph Agent (MCP Server)" box in `architecture-future.png`), exposing
+one tool, `generate_nav_log_briefing(departure_ident, destination_ident,
+altitude_ft, aircraft_name="c172")`. The graph:
+
+1. **`fetch_checkpoints`** — calls `model-service`'s `/invocations` (still
+   the hand-written stub, per Status above).
+2. **`assemble_legs`** — loops `vfr.navlog.assemble_leg()` over consecutive
+   checkpoints.
+3. **`retrieve_memory`** — queries `route_briefings` in pgvector for
+   similar past routes (embedded with a local `sentence-transformers`
+   model, `all-MiniLM-L6-v2` — Anthropic has no embeddings endpoint, so this
+   isn't an extra API dependency, just a local model, already an
+   established choice in this project via notebook 05).
+4. **`generate_briefing`** — calls the **Anthropic Claude API** with the
+   legs + retrieved memory, produces a natural-language briefing.
+5. **`store_memory`** — embeds and stores that briefing back into pgvector.
+
+**pgvector lives on the existing `db` Postgres service**, not a new
+dedicated vector DB — reuses infra `webapp` already depends on, rather than
+adding another moving part. The extension/table are created idempotently
+at agent startup (`CREATE EXTENSION`/`TABLE IF NOT EXISTS`) rather than via
+a Postgres init script, because `db`'s volume already had real data before
+pgvector was added -- an init script wouldn't have re-run against it.
+
+**A second, comparison-only build of the same agent in CrewAI** is planned
+alongside this one (breadth exercise, not a fallback — both would call the
+same model-serving endpoint) -- not started.
+
+**What's verified vs. not**: everything except the actual Claude call was
+tested end-to-end against live services -- MCP tool registration/schema,
+`fetch_checkpoints`+`assemble_legs` against the real C81→KDLH route (via
+the still-stub `model-service`), and a full pgvector store/retrieve
+round-trip. `generate_briefing` (the one node that calls the Anthropic API)
+is implemented against the current SDK but **not yet exercised with a real
+API key** -- this dev environment doesn't have one. First real run needs
+`ANTHROPIC_API_KEY` set (see Setup above).
+
+**Not built yet**: altitude is a plain input parameter to
+`generate_nav_log_briefing`, not pulled from notebook 08's altitude-
+selection logic -- integrating that is a deliberate next step, kept out of
+this first slice to bound scope.
 
 ## Where each container is headed on AWS
 
@@ -139,7 +186,7 @@ onto it:
 | `pipeline`'s `evaluate`/`promote` (file-copy logic) | SageMaker Model Registry -- register a Model Package Version, "promote" becomes approving it |
 | `ml` (Jupyter; notebooks 04-06's PyTorch/TF/HuggingFace/Spark comparisons) | SageMaker Studio, ad hoc -- these are one-off benchmarking exercises with no recurring production role, so they don't become standing infra either locally or on AWS |
 | notebook 08 (altitude selection) | No mapping here -- it's rule-based domain computation (terrain/airspace/weather/aircraft), not model training; headed toward the LangGraph nav-log agent or `model-service` instead |
-| The Gen AI agent being built now (LangGraph + MCP + pgvector) | **LangGraph Agent (MCP Server)** + **Vector Store** boxes in `architecture-future.png`, calling the same SageMaker Endpoint `webapp` calls |
+| `nav-log-agent` (LangGraph + MCP + pgvector) | **LangGraph Agent (MCP Server)** + **Vector Store** boxes in `architecture-future.png`, calling the same SageMaker Endpoint `webapp` calls |
 
 **No local equivalent exists yet** for several pieces of the target
 diagram: CI/CD (GitHub Actions -> ECR), the Retrain Trigger (API Gateway ->
