@@ -2,3 +2,9 @@ __pycache__/
 *.pyc
 .ipynb_checkpoints/
 .git/
+# ~600MB (FAA NASR/DOF, OSM, elevation/magnetic-variation caches) -- not
+# needed at build time (services mount the project dir at runtime), but was
+# being tarred into the build context on every `docker compose build` for
+# any service using `context: .`. Found 2026-09-08 after repeated
+# unexplained build hangs on this Intel Mac's Docker VM.
+data/raw/
