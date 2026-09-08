@@ -1,7 +1,8 @@
-"""Live weather constraints on VFR altitude selection: freezing level
-(icing avoidance), forecast ceiling/visibility along the route, and
-SIGMET/AIRMET hazard advisories -- all from aviationweather.gov's public
-JSON/text APIs.
+"""Live weather for VFR altitude selection and dead-reckoning nav-log math:
+winds/temps aloft (freezing level for icing avoidance, and wind_at_altitude
+for wind-correction-angle math), forecast ceiling/visibility along the
+route, and SIGMET/AIRMET hazard advisories -- all from aviationweather.gov's
+public JSON/text APIs.
 
 Unlike the FAA NASR/DOF data in vfr.faa_data, none of this is cached to
 disk: it's live/current-conditions data (a forecast issued hours ago is
@@ -62,8 +63,33 @@ def _decode_temp_c(group: str) -> float | None:
     return None
 
 
+def _decode_wind(group: str) -> tuple[float | None, float | None] | None:
+    """(wind_dir_true_deg, wind_speed_kt) from a group's first 4 chars
+    (DDFF -- direction in tens of degrees true, speed in knots); None if
+    the group's too short to contain a wind code at all. "9900" is the
+    product's own light-and-variable convention -- direction isn't
+    meaningful, so it's returned as None rather than guessed, with speed
+    treated as calm (0kt). Wind >=100kt is encoded by adding 50 to the
+    direction code and subtracting 100 from the speed code -- both undone
+    here (e.g. "7520" -> 250 deg / 120kt).
+    """
+    if len(group) < 4 or not group[:4].isdigit():
+        return None
+    wind_part = group[:4]
+    if wind_part == "9900":
+        return None, 0.0
+    dir_code, speed_code = int(wind_part[:2]), int(wind_part[2:4])
+    if dir_code >= 51:
+        return float((dir_code - 50) * 10), float(speed_code + 100)
+    return float(dir_code * 10), float(speed_code)
+
+
 def parse_fd_text(text: str) -> dict:
-    """{station_id: {altitude_ft: temp_c}} for every station in the FD text."""
+    """{station_id: {altitude_ft: {"wind_dir_true_deg", "wind_speed_kt", "temp_c"}}}
+    for every station/altitude group in the FD text with a decodable wind
+    (temp_c is None for wind-only groups, e.g. the 3000ft column near a
+    station's own elevation).
+    """
     lines = text.splitlines()
     header_idx = next(i for i, line in enumerate(lines) if line.startswith("FT "))
     alt_positions = [(m.start(), int(m.group())) for m in re.finditer(r"\d+", lines[header_idx])]
@@ -75,9 +101,15 @@ def parse_fd_text(text: str) -> dict:
         station_id, groups = _parse_fd_station_row(line, alt_positions)
         if not station_id:
             continue
-        temps = {alt: t for alt, g in groups.items() if (t := _decode_temp_c(g)) is not None}
-        if temps:
-            stations[station_id] = temps
+        decoded = {}
+        for alt, g in groups.items():
+            wind = _decode_wind(g)
+            if wind is None:
+                continue
+            wind_dir, wind_speed = wind
+            decoded[alt] = {"wind_dir_true_deg": wind_dir, "wind_speed_kt": wind_speed, "temp_c": _decode_temp_c(g)}
+        if decoded:
+            stations[station_id] = decoded
     return stations
 
 
@@ -111,7 +143,9 @@ def freezing_level_ft(lat: float, lon: float, fcst_hr: str = "06") -> float | No
     if station_id is None:
         return None
 
-    profile = sorted(stations[station_id].items())
+    profile = sorted((alt, v["temp_c"]) for alt, v in stations[station_id].items() if v["temp_c"] is not None)
+    if not profile:
+        return None
     if profile[0][1] <= 0:
         return profile[0][0]
 
@@ -119,6 +153,58 @@ def freezing_level_ft(lat: float, lon: float, fcst_hr: str = "06") -> float | No
         if t1 > 0 and t2 <= 0:
             frac = t1 / (t1 - t2)
             return alt1 + frac * (alt2 - alt1)
+    return None
+
+
+def _interp_circular_deg(d1: float, d2: float, frac: float) -> float:
+    """Interpolate a compass direction between d1 and d2 the short way
+    around the circle (e.g. 350deg -> 010deg goes through 000, not back
+    through 180) -- a plain linear interpolation would get that wrong.
+    """
+    diff = ((d2 - d1 + 180) % 360) - 180
+    return (d1 + frac * diff) % 360
+
+
+def wind_at_altitude(lat: float, lon: float, altitude_ft: float, fcst_hr: str = "06") -> dict | None:
+    """Wind (true direction/speed) at altitude_ft, from the nearest FD
+    station's reported profile -- linearly interpolated between the two
+    bracketing reported altitudes, or clamped to the nearest end if
+    altitude_ft falls outside the reported range. "Light and variable"
+    (direction not meaningful) reports are excluded from the profile
+    rather than guessed; if that leaves no usable profile, or no station
+    is found nearby, returns None -- callers should treat that as "no
+    wind data available," not "calm."
+    """
+    from . import airports
+
+    stations = parse_fd_text(_fetch_fd_text(fcst_hr))
+    airports_df = airports.load_airports()
+    station_id = _nearest_station(lat, lon, set(stations.keys()), airports_df)
+    if station_id is None:
+        return None
+
+    profile = sorted(
+        (alt, v["wind_dir_true_deg"], v["wind_speed_kt"])
+        for alt, v in stations[station_id].items()
+        if v["wind_dir_true_deg"] is not None
+    )
+    if not profile:
+        return None
+
+    if altitude_ft <= profile[0][0]:
+        _, d, s = profile[0]
+        return {"wind_dir_true_deg": d, "wind_speed_kt": s}
+    if altitude_ft >= profile[-1][0]:
+        _, d, s = profile[-1]
+        return {"wind_dir_true_deg": d, "wind_speed_kt": s}
+
+    for (alt1, d1, s1), (alt2, d2, s2) in zip(profile, profile[1:]):
+        if alt1 <= altitude_ft <= alt2:
+            frac = (altitude_ft - alt1) / (alt2 - alt1) if alt2 != alt1 else 0.0
+            return {
+                "wind_dir_true_deg": _interp_circular_deg(d1, d2, frac),
+                "wind_speed_kt": s1 + frac * (s2 - s1),
+            }
     return None
 
 

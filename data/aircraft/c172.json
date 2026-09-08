@@ -1,5 +1,7 @@
 {
   "type": "Cessna 172",
   "service_ceiling_ft": 13500,
-  "climb_rate_fpm_sea_level": 730
+  "climb_rate_fpm_sea_level": 730,
+  "cruise_tas_kt": 110,
+  "fuel_burn_gph": 8.5
 }

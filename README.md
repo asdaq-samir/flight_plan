@@ -36,13 +36,37 @@ via the `vfr_pipeline` DAG, in-process rather than by launching the
 
 ## Layout
 
-- `data/raw/` — downloaded OSM extracts, airport CSV, cached imagery tiles
+- `data/raw/` — downloaded OSM extracts, airport CSV, cached imagery tiles, elevation/magnetic-variation caches
 - `data/processed/` — cleaned feature tables
 - `data/labels/` — hand-labeled spottability ratings
+- `data/aircraft/` — aircraft performance profiles (`c172.json`, etc.) — never hardcoded, always loaded via `vfr.aircraft`
 - `data/models/` — trained model artifacts (`candidate/`, `current/`, `versions/<timestamp>/`), written by `pipeline.retrain`/`evaluate`/`promote`
 - `notebooks/` — numbered, run-in-order modules (human-facing/exploratory)
-- `src/vfr/` — shared code imported by the notebooks; `pipeline.py` is the non-interactive subset the DAG/`pipeline` container run
+- `src/vfr/` — shared code imported by the notebooks; `pipeline.py` is the non-interactive subset the DAG/`pipeline` container run; `navlog.py` is the dead-reckoning leg math (see below)
 - `airflow/dags/` — the `vfr_pipeline` DAG
+
+## Nav log: dead-reckoning leg math
+
+`src/vfr/navlog.py`'s `assemble_leg()` computes one leg of the eventual full
+VFR nav log — true course/distance (`vfr.geo`), wind at altitude
+(`vfr.weather.wind_at_altitude`, from the same live winds-aloft product
+`freezing_level_ft` already used, now also decoding wind — it used to only
+decode temperature), wind correction angle, true/magnetic heading
+(`vfr.magnetic.magnetic_variation_deg`, live from NOAA NCEI), groundspeed,
+ETE, and fuel burn (`data/aircraft/*.json`'s `cruise_tas_kt`/`fuel_burn_gph`).
+Verified against hand-derived headwind/tailwind/crosswind cases and
+end-to-end against the live C81→KDLH route.
+
+**Deliberately not computed**: compass heading (magnetic → compass, via
+deviation) — that needs a per-aircraft compass deviation card, which isn't
+data this project has anywhere. Magnetic heading is as far as the chain
+goes for now.
+
+**Not built yet**: anything that calls `assemble_leg()` — there's no full
+route-into-legs assembler, no LangGraph/MCP agent, no vector store. This is
+prerequisite math for the target architecture's Gen AI layer
+(`architecture-future.png`), built first and on its own so that layer has
+real numbers to work with instead of stubs.
 
 ## Where each container is headed on AWS
 
