@@ -41,9 +41,9 @@ explicit path to production on AWS.
   long-term recall of past routes via a Postgres/pgvector semantic-search
   store — reusing existing infrastructure rather than standing up a
   separate vector database.
-- **A named path to production**, not just a demo: every local service maps
-  to a specific AWS target (SageMaker, ECS Fargate, RDS, CloudFormation) —
-  see [Target Architecture](#target-architecture).
+- **A concrete path to production**, not just a demo: every local service
+  maps to a specific AWS target (SageMaker, ECS Fargate, RDS, CloudFormation)
+  — see [Target Architecture](#target-architecture).
 
 ## Architecture
 
@@ -60,8 +60,10 @@ The system runs today as eight Docker services:
 | `ml` | Jupyter environment for model development and experimentation |
 
 ```
-Client → Spring Boot API → FastAPI Model Service → trained model
-                          → LangGraph Agent → Claude API + pgvector memory
+HTTP client → Spring Boot API ─┐
+                               ├→ FastAPI Model Service → trained model
+MCP client  → LangGraph Agent ─┘  (LangGraph Agent also calls the Claude API + pgvector memory)
+
 Airflow → Processing Job → Training Job → Model Registry → Model Service
 ```
 
