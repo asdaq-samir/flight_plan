@@ -49,6 +49,10 @@ explicit path to production on AWS.
 - **A concrete path to production**, not just a demo: every local service
   maps to a specific AWS target (SageMaker, ECS Fargate, RDS, CloudFormation)
   — see [Target Architecture](#target-architecture).
+- **CI on every push.** GitHub Actions runs the test suite and lint on
+  every push/PR, then builds all eight service images and publishes them
+  to GHCR from `main` — no manually-run steps between a commit and a
+  built, tagged image.
 
 ## Architecture
 
@@ -98,18 +102,18 @@ Gen AI layer).
 | `pipeline-training` | SageMaker Training Job |
 | Model evaluation/promotion | SageMaker Model Registry |
 | `nav-log-agent` | LangGraph Agent + Vector Store, deployed alongside the SageMaker endpoint |
-| CI/CD | GitHub Actions → ECR |
+| CI/CD | GitHub Actions builds today, publishing to GHCR; pushing to ECR instead is the remaining step once AWS credentials exist |
 
 ## Status
 
 The ML pipeline, orchestration layer, dead-reckoning engine, altitude
-selection logic, and both Gen AI agents (LangGraph and CrewAI) are built
-and integrated. Model training
-is gated on accumulating enough hand-labeled examples to clear the
-pipeline's minimum-sample threshold; until then, the serving endpoint
-returns representative sample output so the rest of the system can be
-exercised end to end. AWS deployment and CI/CD are designed (see Target
-Architecture) but not yet provisioned.
+selection logic, both Gen AI agents (LangGraph and CrewAI), and CI
+(test/lint/build/publish) are built and integrated. Model training is
+gated on accumulating enough hand-labeled examples to clear the pipeline's
+minimum-sample threshold; until then, the serving endpoint returns
+representative sample output so the rest of the system can be exercised
+end to end. AWS deployment is designed (see Target Architecture) but not
+yet provisioned.
 
 See [`DEVELOPMENT.md`](DEVELOPMENT.md) for setup instructions, a
 notebook-by-notebook breakdown, and detailed engineering notes.

@@ -1,0 +1,9 @@
+# CI only (.github/workflows/ci.yml) -- what's needed to import and test
+# the modules tests/ actually covers (vfr.geo, vfr.features, vfr.navlog,
+# vfr.weather, vfr.model_registry). Not a project-wide dependency file --
+# see DEVELOPMENT.md for why this project doesn't have one of those anymore.
+pandas
+numpy
+requests
+pytest
+ruff

@@ -13,7 +13,7 @@ from pathlib import Path
 import shapefile
 from shapely.geometry import LineString, Point, shape as shapely_shape
 
-from .faa_data import FAA_HEADERS, NASR_INDEX_URL, download_and_extract, find_current_cycle_page, find_download_link
+from .faa_data import NASR_INDEX_URL, download_and_extract, find_current_cycle_page, find_download_link
 
 CONTROLLED_CLASSES = ("B", "C", "D")
 

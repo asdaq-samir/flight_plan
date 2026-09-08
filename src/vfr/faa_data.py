@@ -18,8 +18,6 @@ from urllib.parse import urljoin
 import pandas as pd
 import requests
 
-from .geo import distance_nm
-
 # FAA's site 403s a bare python-requests User-Agent.
 FAA_HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; vfr-route-learning-project/0.1)"}
 NASR_INDEX_URL = "https://www.faa.gov/air_traffic/flight_info/aeronav/aero_data/NASR_Subscription/"
@@ -205,8 +203,8 @@ def load_obstacles(dof_dat_path, bbox: tuple, min_agl_ft: float = 200) -> pd.Dat
             "lon": df["lon"],
             "bbox_area_m2": 0.0,
             "tags": [
-                {"obstacle_type": t, "agl_ft": int(a), "amsl_ft": int(m), "lit": bool(l)}
-                for t, a, m, l in zip(df["type"], df["agl_ft"], df["amsl_ft"], df["lit"])
+                {"obstacle_type": t, "agl_ft": int(a), "amsl_ft": int(m), "lit": bool(lit)}
+                for t, a, m, lit in zip(df["type"], df["agl_ft"], df["amsl_ft"], df["lit"])
             ],
         }
     )

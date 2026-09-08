@@ -21,7 +21,7 @@ remote + CI → 5. AWS deployment.**
 | 1. ML notebooks (01-08) | Built. Blocked on data, not code — see below. |
 | 2. Airflow DAG (`vfr_pipeline`) | Built and verified, including the 2026-09-08 conversion to `DockerOperator` (separate `pipeline-processing`/`pipeline-training` containers per task) -- see the AWS mapping section for what was checked. |
 | 3. Gen AI nav-log agent (LangGraph + MCP + vector store, CrewAI comparison) | **Built and verified.** DR-leg math, altitude selection, the LangGraph/MCP agent, pgvector memory, and the CrewAI comparison build are all done (below). |
-| 4. GitHub remote + CI | **Not started.** Local git only (see below) — no remote, no GitHub Actions. |
+| 4. GitHub remote + CI | **CI prepped, remote not pushed yet.** `.github/workflows/ci.yml` + `tests/` are built and verified locally (below) -- by explicit user choice, the actual `git remote add` + push was left for the user to do themselves, not automated. The workflow has never actually run on GitHub as of this writing (no remote to trigger it). |
 | 5. AWS deployment (SageMaker, Fargate, RDS, CloudFormation) | Not started — see the AWS mapping section below for how today's pieces are expected to land. |
 
 **The one real data blocker, independent of all of the above**: chart-based
@@ -33,7 +33,54 @@ side of the pipeline is code-complete but can't produce a real model yet —
 
 **Git**: initialized 2026-09-07/08 (this project had no version control at
 all before then — not just "no GitHub remote"). Local commits only, no
-remote yet; that's the parked Phase 4 work.
+remote yet -- the user's explicit choice was to have CI prepped locally
+(workflow + tests, both verified) and push it themselves, rather than have
+an agent authenticate to their GitHub account or create the repo.
+
+## Testing / CI
+
+`tests/` -- pytest, covering the parts of `src/vfr` that are pure logic and
+don't need live network/data: `vfr.geo` (great-circle math), `vfr.features`
+(engineered features), `vfr.navlog`/`vfr.weather`'s wind-correction-angle
+and FD-group-decoding logic (formalizing the hand-derived headwind/
+tailwind/crosswind checks worked through while building
+[[project-navlog-dr-math|navlog.py]] -- see project memory), and
+`vfr.model_registry`'s `evaluate`/`promote` (via `tmp_path`, no real model
+artifacts needed). Deliberately not covered: anything needing live network
+calls or a real trained model (`collect`, `engineer_features`, `retrain`,
+`vfr.altitude`, `vfr.airspace`) -- those are exercised by the manual live
+verification documented throughout this file instead, not unit tests.
+
+`requirements-dev.txt` + `pyproject.toml` (`[tool.ruff]`, `[tool.pytest.ini_options]`)
+are CI-only, not a project-wide dependency file -- consistent with this
+project being Docker-only otherwise (see [[project-vfr-ml-environment]]).
+Ruff is scoped to `E`/`F` (pyflakes + real errors) rather than a full style
+ruleset, so CI catches actual bugs (unused imports, undefined names)
+without relitigating this codebase's existing style on day one -- it did
+catch two genuine unused imports and one ambiguous variable name in
+`vfr.faa_data`/`vfr.airspace`, fixed the same session.
+
+`.github/workflows/ci.yml` -- two jobs. `test`: checkout, `actions/setup-python`,
+`pip install -r requirements-dev.txt`, `ruff check`, `pytest`. `build-images`
+(needs `test`): builds all eight service Dockerfiles (everything in
+`docker-compose.yml` except `db`, which uses a stock image) via
+`docker/build-push-action`, and on push to `main` only, publishes each to
+GHCR (`ghcr.io/<owner>/<repo>/<service>:latest`) using the built-in
+`GITHUB_TOKEN` -- no extra secrets needed. Pushing to ECR instead (or as
+well) is deferred to Phase 5, once AWS credentials exist as repo secrets.
+
+**Verified locally** (2026-09-08, inside the `ml` container -- a Linux
+environment, representative of the Ubuntu GitHub Actions runner, unlike
+this dev machine's native Intel-macOS environment): all 31 tests pass,
+`ruff check src/vfr tests` is clean, and the trickiest build-matrix entry
+(`model-service`, the one with a non-repo-root build context) was directly
+built with the exact `docker build -f <dockerfile> <context>` invocation
+`docker/build-push-action` performs, confirming the context/dockerfile
+pairing is correct. **Not verified**: the workflow has never actually run
+on GitHub (no remote exists yet) -- YAML syntax and matrix structure were
+validated locally with `yaml.safe_load`, but a real Actions run could still
+surface something the above didn't (e.g. runner-specific behavior). Worth
+checking the Actions tab after the first push.
 
 ## Setup
 
@@ -114,6 +161,7 @@ docker compose run --rm crewai-agent --departure-ident C81 --destination-ident K
 - `model-service/`, `springboot-app/` — the two serving-side apps (FastAPI model stub, Spring Boot API)
 - `nav-log-agent/` — the LangGraph/MCP nav-log-assembler agent (see below)
 - `crewai-agent/` — the same task, built in CrewAI, for framework comparison (see below)
+- `tests/`, `.github/workflows/ci.yml`, `requirements-dev.txt`, `pyproject.toml` — CI (see Testing / CI below)
 
 ## Notebooks
 

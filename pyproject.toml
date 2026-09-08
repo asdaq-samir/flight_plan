@@ -1,0 +1,12 @@
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+
+[tool.ruff]
+line-length = 140
+extend-exclude = ["notebooks", "*.ipynb"]
+
+[tool.ruff.lint]
+# Default (E/F: pyflakes + pycodestyle errors) is enough for CI to catch
+# real bugs (unused imports, undefined names, syntax issues) without also
+# relitigating this codebase's existing style choices on day one of CI.
+select = ["E", "F"]
