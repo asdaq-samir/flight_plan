@@ -22,7 +22,7 @@ the original plan for learning-path reasons.
 | Phase | Status |
 |---|---|
 | 1. ML notebooks (01-08) | Built. Blocked on data, not code — see below. |
-| 2. Airflow DAG (`vfr_pipeline`) | Built and verified (collect → feature_engineer → retrain → evaluate → promote). |
+| 2. Airflow DAG (`vfr_pipeline`) | Built. Originally verified running `pipeline.py` in-process; just converted to `DockerOperator` (separate `pipeline-processing`/`pipeline-training` containers per task) -- re-verification of that specific change pending, see the AWS mapping section. |
 | 3. GitHub remote + CI | **Not started.** Local git only (see below) — no remote, no GitHub Actions. |
 | 4. Gen AI nav-log agent (LangGraph + MCP + vector store, CrewAI comparison) | **In progress.** DR-leg math + the LangGraph/MCP agent + pgvector memory are built and verified (below). CrewAI comparison build not started. |
 | 5. AWS deployment (SageMaker, Fargate, RDS, CloudFormation) | Not started — see the AWS mapping section below for how today's pieces are expected to land. |
@@ -48,20 +48,36 @@ Intel-macOS wheels; see `docker/requirements-ml.txt`):
 docker compose up ml   # Jupyter at http://localhost:8888, token "vfr"
 ```
 
-The automatable subset of notebooks 01-03 (`src/vfr/pipeline.py` --
-collect/engineer_features/retrain/evaluate/promote) also runs standalone in
-a separate, much leaner `pipeline` container (no jupyter/matplotlib/
-torch/tensorflow -- just pandas/sklearn/pyarrow/joblib):
+The automatable subset of notebooks 01-03 also runs standalone, split into
+two lean containers matching where each stage lands on AWS (see the AWS
+mapping below) -- `pipeline-processing` (`src/vfr/pipeline.py`'s `collect`/
+`engineer-features`, pandas/requests/pyarrow only) and `pipeline-training`
+(`retrain`, pandas/scikit-learn/joblib/pyarrow only, no `requests`):
 
 ```bash
-docker compose run --rm pipeline retrain   # or collect / engineer-features / evaluate / promote
+docker compose run --rm pipeline-processing collect
+docker compose run --rm pipeline-processing engineer-features
+docker compose run --rm pipeline-training retrain
+```
+
+`evaluate`/`promote` (`src/vfr/model_registry.py`) need no container at all
+-- zero third-party dependencies, so they run anywhere Python + `src/` are
+available:
+
+```bash
+docker compose run --rm pipeline-training python -m vfr.model_registry evaluate
 ```
 
 The `airflow` service (`docker compose up airflow`, UI at
-`http://localhost:8081`) runs that same `pipeline.py` logic on a schedule
-via the `vfr_pipeline` DAG, in-process rather than by launching the
-`pipeline` container -- a deliberate simplification for now, see
-`airflow/dags/vfr_pipeline_dag.py`.
+`http://localhost:8081`) runs `vfr_pipeline`: Collect/Feature-Engineer/
+Retrain each launch as a separate sibling container via `DockerOperator`
+(over the host's Docker socket, mounted into `airflow`), matching
+"Airflow orchestrates, SageMaker does the compute" -- Evaluate/Promote stay
+in-process in `airflow` itself, since `model_registry` has no dependencies
+to hand off. **The `pipeline-processing`/`pipeline-training` images must be
+built before triggering the DAG** (`docker compose build pipeline-processing
+pipeline-training`) -- DockerOperator runs pre-built images, it doesn't
+build them.
 
 `webapp` (Spring Boot, `:8080`), `model-service` (FastAPI, `:8000`), and
 `db` (Postgres+pgvector, `:5432`) round out the local stack -- `docker
@@ -86,7 +102,7 @@ docker compose up nav-log-agent
 - `data/aircraft/` — aircraft performance profiles (`c172.json`, etc.) — never hardcoded, always loaded via `vfr.aircraft`
 - `data/models/` — trained model artifacts (`candidate/`, `current/`, `versions/<timestamp>/`), written by `pipeline.retrain`/`evaluate`/`promote`
 - `notebooks/` — numbered, run-in-order modules (human-facing/exploratory; breakdown below)
-- `src/vfr/` — shared code imported by the notebooks; `pipeline.py` is the non-interactive subset the DAG/`pipeline` container run; `navlog.py` is the dead-reckoning leg math (see below)
+- `src/vfr/` — shared code imported by the notebooks; `pipeline.py` (collect/engineer_features/retrain) and `model_registry.py` (evaluate/promote) are the non-interactive subset the DAG and `pipeline-processing`/`pipeline-training` containers run; `navlog.py` is the dead-reckoning leg math, `altitude.py` the cruise-altitude recommendation (see below)
 - `airflow/dags/` — the `vfr_pipeline` DAG
 - `model-service/`, `springboot-app/` — the two serving-side apps (FastAPI model stub, Spring Boot API)
 - `nav-log-agent/` — the LangGraph/MCP nav-log-assembler agent (see below)
@@ -130,20 +146,27 @@ goes for now.
 `nav-log-agent/` — a LangGraph agent wrapped as an MCP server (the
 "LangGraph Agent (MCP Server)" box in `architecture-future.png`), exposing
 one tool, `generate_nav_log_briefing(departure_ident, destination_ident,
-altitude_ft, aircraft_name="c172")`. The graph:
+altitude_ft=None, aircraft_name="c172")`. The graph:
 
 1. **`fetch_checkpoints`** — calls `model-service`'s `/invocations` (still
    the hand-written stub, per Status above).
-2. **`assemble_legs`** — loops `vfr.navlog.assemble_leg()` over consecutive
-   checkpoints.
-3. **`retrieve_memory`** — queries `route_briefings` in pgvector for
+2. **`select_altitude`** — `vfr.altitude.select_cruise_altitude()` (the same
+   terrain/airspace/weather/aircraft-ceiling logic as notebook 08, extracted
+   so this agent can call it too — see Notebooks above). Always computes the
+   recommendation (floor/ceiling/hazards feed the briefing regardless); only
+   used as the leg-planning altitude if the caller didn't pass `altitude_ft`
+   explicitly.
+3. **`assemble_legs`** — loops `vfr.navlog.assemble_leg()` over consecutive
+   checkpoints at that altitude.
+4. **`retrieve_memory`** — queries `route_briefings` in pgvector for
    similar past routes (embedded with a local `sentence-transformers`
    model, `all-MiniLM-L6-v2` — Anthropic has no embeddings endpoint, so this
    isn't an extra API dependency, just a local model, already an
    established choice in this project via notebook 05).
-4. **`generate_briefing`** — calls the **Anthropic Claude API** with the
-   legs + retrieved memory, produces a natural-language briefing.
-5. **`store_memory`** — embeds and stores that briefing back into pgvector.
+5. **`generate_briefing`** — calls the **Anthropic Claude API** with the
+   altitude rationale + legs + retrieved memory, produces a natural-language
+   briefing.
+6. **`store_memory`** — embeds and stores that briefing back into pgvector.
 
 **pgvector lives on the existing `db` Postgres service**, not a new
 dedicated vector DB — reuses infra `webapp` already depends on, rather than
@@ -156,19 +179,17 @@ pgvector was added -- an init script wouldn't have re-run against it.
 alongside this one (breadth exercise, not a fallback — both would call the
 same model-serving endpoint) -- not started.
 
-**What's verified vs. not**: everything except the actual Claude call was
-tested end-to-end against live services -- MCP tool registration/schema,
-`fetch_checkpoints`+`assemble_legs` against the real C81→KDLH route (via
-the still-stub `model-service`), and a full pgvector store/retrieve
-round-trip. `generate_briefing` (the one node that calls the Anthropic API)
-is implemented against the current SDK but **not yet exercised with a real
-API key** -- this dev environment doesn't have one. First real run needs
-`ANTHROPIC_API_KEY` set (see Setup above).
-
-**Not built yet**: altitude is a plain input parameter to
-`generate_nav_log_briefing`, not pulled from notebook 08's altitude-
-selection logic -- integrating that is a deliberate next step, kept out of
-this first slice to bound scope.
+**What's verified vs. not**: `fetch_checkpoints`+`assemble_legs` and the
+pgvector store/retrieve round-trip were tested end-to-end against live
+services on 2026-09-07/08 (real C81→KDLH route, via the still-stub
+`model-service`). `select_altitude` (`vfr.altitude`) was separately
+verified against the same live route, matching the known-good notebook 08
+values exactly (2200ft floor, 3600ft ceiling, 2500ft recommended) -- not
+yet re-run through the graph as a wired-in node as of this writing.
+`generate_briefing` (the one node that calls the Anthropic API) is
+implemented against the current SDK but **has never actually been
+called** -- this dev environment has no `ANTHROPIC_API_KEY`. First real run
+needs one set (see Setup above).
 
 ## Where each container is headed on AWS
 
@@ -182,8 +203,9 @@ onto it:
 | `db` (postgres:16) | RDS PostgreSQL |
 | `model-service` (FastAPI `/ping` + `/invocations` stub) | SageMaker Endpoint -- already shaped for this, see `model-service/app/main.py` |
 | `airflow` (`vfr_pipeline` DAG) | Same DAG shape, but its own hosting isn't decided -- Amazon MWAA vs. self-hosted on Fargate/EC2 is an open question, not settled |
-| `pipeline` (`src/vfr/pipeline.py`'s `collect`/`engineer_features`/`retrain` stages) | SageMaker Processing Jobs (collect, engineer_features) + a SageMaker Training Job (retrain) -- this image's dependency footprint (pandas/sklearn/pyarrow/joblib, nothing else) is deliberately close to what that training container would actually contain |
-| `pipeline`'s `evaluate`/`promote` (file-copy logic) | SageMaker Model Registry -- register a Model Package Version, "promote" becomes approving it |
+| `pipeline-processing` (`collect`/`engineer-features`) | SageMaker Processing Jobs -- dependency footprint (pandas/requests/pyarrow, no scikit-learn) matches what that container would actually need |
+| `pipeline-training` (`retrain`) | SageMaker Training Job -- separate image on purpose (pandas/scikit-learn/joblib/pyarrow, no `requests`), since Processing and Training are different AWS constructs with different container contracts |
+| `model_registry.py`'s `evaluate`/`promote` | SageMaker Model Registry -- register a Model Package Version, "promote" becomes approving it. Not a container job on AWS at all, which is why it doesn't get one locally either (runs in-process in `airflow`, zero third-party deps) |
 | `ml` (Jupyter; notebooks 04-06's PyTorch/TF/HuggingFace/Spark comparisons) | SageMaker Studio, ad hoc -- these are one-off benchmarking exercises with no recurring production role, so they don't become standing infra either locally or on AWS |
 | notebook 08 (altitude selection) | No mapping here -- it's rule-based domain computation (terrain/airspace/weather/aircraft), not model training; headed toward the LangGraph nav-log agent or `model-service` instead |
 | `nav-log-agent` (LangGraph + MCP + pgvector) | **LangGraph Agent (MCP Server)** + **Vector Store** boxes in `architecture-future.png`, calling the same SageMaker Endpoint `webapp` calls |
@@ -194,12 +216,14 @@ Lambda (Go) -> DAG trigger), or public ingress (`northflyers.com` -> API
 Gateway in front of `webapp`) -- today `webapp` is just hit directly on
 `localhost:8080`.
 
-Two deliberate simplifications worth knowing before extending this:
-Airflow runs `pipeline.py` in-process rather than launching the `pipeline`
-container per task (a "partial split" -- the fuller mirror of
-"Airflow calls SageMakerTrainingOperator, compute happens elsewhere" would
-use `DockerOperator`, which needs the host's Docker socket mounted into
-`airflow` -- a real access-control tradeoff, considered and deferred, not
-overlooked). And `retrain` currently has a hard floor of 30 labeled
+**Update 2026-09-08**: Airflow now launches `pipeline-processing`/
+`pipeline-training` as separate containers via `DockerOperator`, rather
+than running `pipeline.py` in-process -- the fuller mirror of "Airflow
+orchestrates, SageMaker does the compute." This needed the host's Docker
+socket mounted into `airflow` (`docker-compose.yml`'s `airflow` service),
+a real access-control tradeoff that was flagged and consciously accepted
+here, not defaulted into.
+
+One thing unchanged: `retrain` currently has a hard floor of 30 labeled
 candidates before it'll run at all -- chart-based relabeling only has 2-3
 so far, so a full pipeline run stops at that step until there's more data.
