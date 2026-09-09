@@ -2,8 +2,11 @@
 
 This describes `architecture-future.png` / `architecture-future.drawio` — the
 target AWS/Go/Airflow/LangGraph/CrewAI stack this project is aiming toward.
-**Nothing in this document is built yet.** For what actually exists today,
-see `architecture.drawio` / `architecture.png` and the main `README.md`.
+**Substantial parts of this are now built** (Airflow DAG, the LangGraph and
+CrewAI agents, the training/serving container split, CI) — this doc predates
+that work and hasn't been revised to say which pieces are done. For what
+actually exists today, see `architecture-current.svg` and the main
+`README.md`; don't take "nothing is built" below at face value.
 
 ![Target architecture diagram](architecture-future.png)
 
@@ -256,11 +259,18 @@ Connections:
 
 ## Where this sits relative to the current state
 
-This is explicitly the *target*, not a plan with a committed timeline —
-nothing here is built. Today's actual architecture already has a local
-Docker Compose deployment (Model Service / FastAPI stub + Spring Boot API +
-Postgres — see the DEPLOYMENT section of `architecture.drawio`), but none
-of CI/CD, Airflow, AWS, or the Gen AI layer exist yet. See
-`architecture.drawio` / `architecture.png` for the full current-state
-picture, including which of *its* boxes and connections are solid
-(built & verified) vs. dashed (designed, not yet implemented).
+This is the *target* — the AWS deployment shown here isn't built or
+provisioned. But several sections of this diagram already exist **locally**,
+just not on AWS yet: the Airflow DAG (Collect → Feature-Engineer → Retrain →
+Evaluate → Promote) runs today, split into `pipeline-processing`/
+`pipeline-training` containers much like the diagram's Processing/Training
+Job split; both the LangGraph and CrewAI Gen AI agents are built; and CI/CD
+(GitHub Actions) tests, lints, and builds every service image, just
+publishing to GHCR instead of ECR for now. What's genuinely not built yet is
+the AWS infrastructure itself — CloudFormation, SageMaker, Fargate, RDS, API
+Gateway, the Go Lambda — and the public `northflyers.com` ingress.
+
+See `architecture-current.svg` for the actual current-state diagram, and
+the main `README.md` for the full local→AWS mapping table. (The old
+`architecture.png`/`architecture.drawio`, which predated most of this, were
+removed rather than kept around stale — git history has them if ever needed.)
