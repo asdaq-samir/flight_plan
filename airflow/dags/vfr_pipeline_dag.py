@@ -1,6 +1,6 @@
 """Automated replacement for the manual notebook 01->02->03 sequence:
 Collect -> Feature-Engineer -> Retrain -> Evaluate -> Promote, per the
-Airflow DAG section of docs/README-Future.md / docs/architecture-future.drawio.
+Airflow DAG section of docs/README-AWS.md / docs/architecture-aws.drawio.
 
 Collect/Feature-Engineer/Retrain each run in a separate sibling container
 (launched via DockerOperator over the host Docker socket mounted into this

@@ -1,8 +1,8 @@
 """pipeline.py's actual collect/engineer_features/retrain need live
-network/real data, out of unit-test scope (see DEVELOPMENT.md for their
-manual live-verification record) -- this covers the pure helper functions
-around them: the local-vs-remote-path guard, and SageMaker script-mode
-channel resolution.
+network/real data, out of unit-test scope (see docs/README.md's Testing &
+CI section for their manual live-verification record) -- this covers the
+pure helper functions around them: the local-vs-remote-path guard, and
+SageMaker script-mode channel resolution.
 """
 import pytest
 

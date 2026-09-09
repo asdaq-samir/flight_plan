@@ -58,7 +58,10 @@ MIN_LABELED_ROWS = 30
 
 
 class InsufficientLabelsError(RuntimeError):
-    pass
+    """Raised by retrain() when fewer than min_labeled_rows candidates are
+    labeled -- a train/test split and 5-fold CV aren't meaningful below
+    that, so this fails loudly instead of letting scikit-learn raise an
+    opaque stratify/fold-count error."""
 
 
 def _reject_remote_uri(path) -> None:

@@ -19,6 +19,11 @@ CLAUDE_MODEL = os.environ.get("NAV_LOG_AGENT_MODEL", "claude-sonnet-5")
 
 
 class NavLogState(TypedDict, total=False):
+    """The graph's shared state, threaded through every node below --
+    each node reads some of these keys and returns a dict of the ones it
+    adds/updates, per LangGraph's StateGraph convention.
+    """
+
     departure_ident: str
     destination_ident: str
     altitude_ft: float  # optional input override; computed by select_altitude if omitted
@@ -31,6 +36,9 @@ class NavLogState(TypedDict, total=False):
 
 
 def fetch_checkpoints(state: NavLogState) -> dict:
+    """Graph entry node: gets the trained model's scored checkpoints for
+    the requested route from model_client (HTTP locally, SageMaker on AWS).
+    """
     checkpoints = model_client.get_checkpoints(state["departure_ident"], state["destination_ident"])
     return {"checkpoints": checkpoints}
 
@@ -59,6 +67,9 @@ def select_altitude(state: NavLogState) -> dict:
 
 
 def assemble_legs(state: NavLogState) -> dict:
+    """Builds one dead-reckoning leg (vfr.navlog.assemble_leg) between each
+    consecutive pair of checkpoints, sorted by along-track distance.
+    """
     profile = aircraft.load_aircraft_profile(state.get("aircraft_name", "c172"))
     checkpoints = sorted(state["checkpoints"], key=lambda c: c["along_track_nm"])
     legs = []
@@ -71,6 +82,8 @@ def assemble_legs(state: NavLogState) -> dict:
 
 
 def retrieve_memory(state: NavLogState) -> dict:
+    """Looks up briefings for similar past routes via pgvector similarity
+    search, so generate_briefing has real precedent to draw on."""
     query = f"{state['departure_ident']} to {state['destination_ident']}"
     return {"similar_briefings": db.retrieve_similar_briefings(query)}
 
@@ -108,6 +121,11 @@ def _format_altitude_selection(sel: dict) -> str:
 
 
 def generate_briefing(state: NavLogState) -> dict:
+    """Turns the altitude selection, legs, and retrieved memory into a
+    natural-language pilot briefing via a single Claude API call -- the
+    only node that actually needs the LLM; everything upstream is
+    deterministic Python.
+    """
     client = anthropic.Anthropic()
     prompt = (
         f"Write a concise VFR pilot briefing for a flight from "
@@ -126,11 +144,15 @@ def generate_briefing(state: NavLogState) -> dict:
 
 
 def store_memory(state: NavLogState) -> dict:
+    """Embeds and saves this run's briefing, so retrieve_memory can find
+    it as precedent for a future similar route."""
     db.store_briefing(state["departure_ident"], state["destination_ident"], state["briefing"])
     return {}
 
 
 def build_graph():
+    """Wires the six nodes above into the fixed sequence described in the
+    module docstring and compiles the graph, ready for .invoke(state)."""
     graph = StateGraph(NavLogState)
     graph.add_node("fetch_checkpoints", fetch_checkpoints)
     graph.add_node("select_altitude", select_altitude)

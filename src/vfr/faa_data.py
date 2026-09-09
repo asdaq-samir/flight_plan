@@ -65,6 +65,9 @@ def find_current_cycle_page(index_url: str) -> str:
 
 
 def find_download_link(page_url: str, href_pattern: str) -> str:
+    """The first href on page_url matching href_pattern -- FAA NASR/DOF
+    download pages don't have a stable direct URL, it has to be scraped
+    off the current listing page each time."""
     resp = requests.get(page_url, headers=FAA_HEADERS, timeout=30)
     resp.raise_for_status()
     m = re.search(href_pattern, resp.text)
@@ -74,6 +77,9 @@ def find_download_link(page_url: str, href_pattern: str) -> str:
 
 
 def download_and_extract(url: str, dest_dir: Path, retries: int = 3) -> None:
+    """Downloads the zip at url and extracts it into dest_dir, retrying
+    on transient failures -- the FAA's NASR/DOF archives are large enough
+    that a single flaky connection isn't unusual."""
     dest_dir.mkdir(parents=True, exist_ok=True)
     last_err = None
     for attempt in range(retries):

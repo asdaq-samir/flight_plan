@@ -19,6 +19,9 @@ _VERSION_RE = re.compile(r"V(\d+)__")
 
 
 def apply_all(conn: psycopg.Connection) -> None:
+    """Runs every V*.sql file in migrations/ not yet recorded in
+    schema_migrations, in version order, once each -- the module's sole
+    entry point, called from db.ensure_schema() at process startup."""
     conn.execute(
         "CREATE TABLE IF NOT EXISTS schema_migrations ("
         "version INTEGER PRIMARY KEY, applied_at TIMESTAMPTZ NOT NULL DEFAULT now())"

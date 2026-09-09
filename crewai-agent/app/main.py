@@ -1,7 +1,7 @@
 """Comparison-only build of nav-log-agent's task (see
 nav-log-agent/app/graph.py) in CrewAI instead of LangGraph -- the "CrewAI
 Agent (comparison build, same task, different framework)" box in
-docs/architecture-future.png. Not a fallback for the LangGraph build and not
+docs/architecture-aws.png. Not a fallback for the LangGraph build and not
 part of the request pipeline: it exists purely to compare the two
 frameworks on identical work (same tools, same model-service, same Claude
 API), which is why it's a one-shot CLI rather than a standing MCP server,
@@ -26,6 +26,9 @@ CLAUDE_MODEL = os.environ.get("NAV_LOG_AGENT_MODEL", "claude-sonnet-5")
 
 
 def build_crew(departure_ident: str, destination_ident: str, aircraft_name: str) -> Crew:
+    """Builds the single-agent Crew for one route: an Agent holding the
+    three tools in tools.py, and the Task describing what to produce with
+    them -- see module docstring for how this compares to the LangGraph build."""
     briefer = Agent(
         role="VFR Nav Log Briefer",
         goal="Produce an accurate, concise VFR pilot briefing for a route",
@@ -55,6 +58,8 @@ def build_crew(departure_ident: str, destination_ident: str, aircraft_name: str)
 
 
 def main() -> None:
+    """CLI entry point: parses --departure-ident/--destination-ident/
+    --aircraft-name, builds the crew, runs it once, and prints the briefing."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--departure-ident", default="C81")
     parser.add_argument("--destination-ident", default="KDLH")

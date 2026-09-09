@@ -1,5 +1,5 @@
 """Exposes the nav-log-assembler graph as an MCP tool -- the "LangGraph
-Agent (MCP Server)" box in docs/architecture-future.png.
+Agent (MCP Server)" box in docs/architecture-aws.png.
 """
 from mcp.server.mcpserver import MCPServer
 

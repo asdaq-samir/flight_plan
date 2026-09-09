@@ -29,6 +29,9 @@ def wind_correction_angle_deg(true_course_deg: float, wind_dir_true_deg: float, 
 
 
 def groundspeed_kt(true_course_deg: float, wind_dir_true_deg: float, wind_speed_kt: float, tas_kt: float, wca_deg: float) -> float:
+    """True airspeed minus the wind's component along the course, once
+    wca_deg (the wind correction angle) has already pointed the aircraft's
+    nose to hold that course -- standard wind-triangle groundspeed."""
     relative_wind_deg = wind_dir_true_deg - true_course_deg
     return tas_kt * math.cos(math.radians(wca_deg)) - wind_speed_kt * math.cos(math.radians(relative_wind_deg))
 

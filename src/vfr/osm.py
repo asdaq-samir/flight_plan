@@ -84,6 +84,9 @@ def _post_overpass_query(query: str, retries: int = 3) -> dict:
 
 
 def query_overpass(bbox: tuple, specs: dict = CANDIDATE_SPECS, retries: int = 3) -> dict:
+    """Raw Overpass API response for every candidate-category feature
+    (see specs) inside bbox -- pass to parse_overpass_response to get a
+    usable DataFrame out of it."""
     query = build_overpass_query(bbox, specs)
     return _post_overpass_query(query, retries)
 
@@ -106,6 +109,9 @@ def _bbox_area_m2(bounds: dict) -> float:
 
 
 def parse_overpass_response(response: dict, specs: dict = CANDIDATE_SPECS) -> pd.DataFrame:
+    """Flattens query_overpass's raw response into one row per candidate
+    feature, categorized (see _category_for_tags) and with a bbox_area_m2
+    computed for way/relation elements."""
     rows = []
     for el in response.get("elements", []):
         tags = el.get("tags", {})

@@ -1,6 +1,6 @@
-// The "Retrain Trigger" box in docs/architecture-future.png -- a
+// The "Retrain Trigger" box in docs/architecture-aws.png -- a
 // deliberately small Go function, the one place Go has a legitimate home
-// in this stack (see docs/README-Future.md). Receives a POST from API
+// in this stack (see docs/README-AWS.md). Receives a POST from API
 // Gateway and triggers an Airflow DAG run on demand, instead of waiting on
 // Airflow's own schedule -- handy right after a fresh labeling batch lands.
 //
@@ -33,6 +33,9 @@ type airflowCredentials struct {
 	Password string `json:"password"`
 }
 
+// fetchCredentials reads and parses the Airflow REST API credentials from
+// the Secrets Manager secret at secretArn, fetched fresh on every
+// invocation rather than cached or passed as a plaintext env var.
 func fetchCredentials(ctx context.Context, secretArn string) (*airflowCredentials, error) {
 	cfg, err := config.LoadDefaultConfig(ctx)
 	if err != nil {
@@ -78,6 +81,8 @@ func triggerDagRun(ctx context.Context, baseURL, dagID string, creds *airflowCre
 	return resp.StatusCode, string(respBody), nil
 }
 
+// errorResponse builds a JSON {"error": message} API Gateway response at
+// the given HTTP status, the shape every failure path in handler returns.
 func errorResponse(status int, message string) events.APIGatewayProxyResponse {
 	payload, _ := json.Marshal(map[string]string{"error": message})
 	return events.APIGatewayProxyResponse{
@@ -87,6 +92,10 @@ func errorResponse(status int, message string) events.APIGatewayProxyResponse {
 	}
 }
 
+// handler is the Lambda entry point: reads its three required env vars,
+// fetches Airflow credentials, and triggers a DAG run. The incoming
+// request body is ignored -- a POST to this endpoint is itself the
+// trigger, there's no payload to interpret.
 func handler(ctx context.Context, _ events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
 	baseURL := os.Getenv("AIRFLOW_BASE_URL")
 	dagID := os.Getenv("AIRFLOW_DAG_ID")
@@ -117,6 +126,9 @@ func handler(ctx context.Context, _ events.APIGatewayProxyRequest) (events.APIGa
 	}, nil
 }
 
+// main hands control to the Lambda runtime, which calls handler once per
+// invocation -- no local setup beyond that; see fetchCredentials/handler
+// for what actually runs.
 func main() {
 	lambda.Start(handler)
 }
