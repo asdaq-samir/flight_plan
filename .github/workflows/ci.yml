@@ -17,9 +17,28 @@ jobs:
       - run: ruff check src/vfr tests
       - run: pytest tests/ -v
 
+  # webapp's own JUnit suite. Separate from `test` above because it needs a
+  # JDK rather than Python, and separate from the image build because
+  # Dockerfile builds with -DskipTests on purpose (an image build shouldn't
+  # be the thing that runs your tests). Testcontainers drives a real
+  # Postgres for the migration/persistence tests; GitHub runners provide
+  # the Docker daemon it needs.
+  test-webapp:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      - name: mvn test (webapp)
+        working-directory: springboot-app
+        run: mvn -B test
+
   build-images:
     runs-on: ubuntu-latest
-    needs: test
+    needs: [test, test-webapp]
     permissions:
       contents: read
       packages: write
@@ -39,6 +58,9 @@ jobs:
           - service: airflow
             context: .
             dockerfile: docker/Dockerfile.airflow
+          - service: airflow-aws
+            context: .
+            dockerfile: docker/Dockerfile.airflow.aws
           - service: nav-log-agent
             context: .
             dockerfile: nav-log-agent/Dockerfile
@@ -70,3 +92,157 @@ jobs:
           tags: ghcr.io/${{ github.repository }}/${{ matrix.service }}:latest
           cache-from: type=gha,scope=${{ matrix.service }}
           cache-to: type=gha,mode=max,scope=${{ matrix.service }}
+
+  # Regenerates documentation so a broken {@link}, an import that stops
+  # working under pdoc, or a docstring regression is caught here rather
+  # than discovered later. Output is uploaded as a build artifact
+  # (Actions -> this run -> Artifacts), so current docs are a click away
+  # without regenerating them locally.
+  #
+  # Split by cost on purpose: Javadoc and godoc need only a JDK/Go
+  # toolchain and run in seconds, so they gate every push and PR. pdoc has
+  # to *import* every module, which means building this repo's heavy ML
+  # images (torch/tensorflow/jupyter) -- even as a GHA cache hit that's
+  # minutes per run, so it's scoped to pushes to main rather than charged
+  # to every PR.
+  docs:
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: Javadoc (webapp)
+        working-directory: springboot-app
+        run: mvn -q javadoc:javadoc
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+      - name: godoc (lambda-retrain-trigger)
+        working-directory: infra/lambda-retrain-trigger
+        run: |
+          go build ./...
+          go vet ./...
+          go doc -all -u . > /tmp/godoc-retrain-trigger.txt
+
+      - name: Build ml image (for pdoc's full src/vfr dependency set)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile.ml
+          tags: vfr-docs-ml:latest
+          load: true
+          cache-from: type=gha,scope=ml
+      - name: pdoc (src/vfr)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          docker run --rm -v "$PWD":/workspace -w /workspace vfr-docs-ml:latest sh -c \
+            "pip install -q pdoc && PYTHONPATH=src pdoc src/vfr -o /tmp/pdoc-vfr --no-show-source"
+
+      - name: Build nav-log-agent image (for pdoc's full app dependency set)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: nav-log-agent/Dockerfile
+          tags: vfr-docs-navlog:latest
+          load: true
+          cache-from: type=gha,scope=nav-log-agent
+      - name: pdoc (nav-log-agent)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          docker run --rm -v "$PWD":/workspace -w /workspace/nav-log-agent vfr-docs-navlog:latest sh -c \
+            "pip install -q pdoc && PYTHONPATH=/workspace/src pdoc app -o /tmp/pdoc-navlog --no-show-source"
+
+      - name: Build crewai-agent image (for pdoc's full app dependency set)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: crewai-agent/Dockerfile
+          tags: vfr-docs-crewai:latest
+          load: true
+          cache-from: type=gha,scope=crewai-agent
+      - name: pdoc (crewai-agent)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          docker run --rm -v "$PWD":/workspace -w /workspace/crewai-agent vfr-docs-crewai:latest sh -c \
+            "pip install -q pdoc && PYTHONPATH=/workspace/src pdoc app -o /tmp/pdoc-crewai --no-show-source"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: documentation
+          retention-days: 30
+          # pdoc output only exists on pushes to main (see above), so a PR
+          # run uploads just the Javadoc/godoc portion rather than failing.
+          if-no-files-found: ignore
+          path: |
+            springboot-app/target/reports/apidocs
+            /tmp/godoc-retrain-trigger.txt
+            /tmp/pdoc-vfr
+            /tmp/pdoc-navlog
+            /tmp/pdoc-crewai
+
+  # Pushes every image the CloudFormation stack actually deploys
+  # (infra/cloudformation/template.yaml's *ImageUri parameters) to ECR,
+  # alongside the GHCR publish above. Reuses build-images' GHA cache by
+  # scope, so this is a cache hit, not a second real build. Authenticates
+  # via OIDC (no long-lived AWS keys stored as secrets) -- activates
+  # automatically once AWS_ROLE_ARN/AWS_REGION are set as repo variables
+  # (Settings -> Secrets and variables -> Actions -> Variables); skipped
+  # entirely until then. ecrRepo is separate from the build-images `service`
+  # name only for airflow-aws, whose ECR repo is named `airflow` (matching
+  # AirflowImageUri) even though its GHA cache scope stays `airflow-aws`
+  # (distinct from the *local* airflow image also built above).
+  push-ecr:
+    runs-on: ubuntu-latest
+    needs: build-images
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.AWS_ROLE_ARN != ''
+    permissions:
+      contents: read
+      id-token: write
+    strategy:
+      matrix:
+        include:
+          - service: webapp
+            ecrRepo: webapp
+            context: ./springboot-app
+            dockerfile: ./springboot-app/Dockerfile
+          - service: model-service
+            ecrRepo: model-service
+            context: ./model-service
+            dockerfile: ./model-service/Dockerfile
+          - service: nav-log-agent
+            ecrRepo: nav-log-agent
+            context: .
+            dockerfile: nav-log-agent/Dockerfile
+          - service: crewai-agent
+            ecrRepo: crewai-agent
+            context: .
+            dockerfile: crewai-agent/Dockerfile
+          - service: airflow-aws
+            ecrRepo: airflow
+            context: .
+            dockerfile: docker/Dockerfile.airflow.aws
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
+      - uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          push: true
+          tags: ${{ steps.ecr-login.outputs.registry }}/vfr-route/${{ matrix.ecrRepo }}:latest
+          cache-from: type=gha,scope=${{ matrix.service }}
