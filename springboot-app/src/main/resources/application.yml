@@ -4,16 +4,36 @@ spring:
     username: ${SPRING_DATASOURCE_USERNAME:vfr}
     password: ${SPRING_DATASOURCE_PASSWORD:vfr}
   jpa:
-    # ddl-auto: update is a stub-pass simplification (auto-creates/updates
-    # the routes table from the entity) -- a real deployment would use
-    # Flyway/Liquibase migrations instead, deferred until this stops being
-    # a stub.
+    # Flyway (db/migration/) owns schema now -- validate just checks the
+    # entity mapping still matches what Flyway created, it doesn't touch
+    # the schema itself.
     hibernate:
-      ddl-auto: update
+      ddl-auto: validate
     open-in-view: false
+  flyway:
+    enabled: true
 
 model-service:
   base-url: ${MODEL_SERVICE_URL:http://localhost:8000}
 
 server:
   port: 8080
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      # /actuator/health/liveness + /actuator/health/readiness -- Fargate/
+      # ALB target-group health checks should hit /readiness (fails if the
+      # DB connection pool can't reach RDS); Kubernetes-style liveness/
+      # readiness split, but works the same way for ECS.
+      probes:
+        enabled: true
+  health:
+    livenessstate:
+      enabled: true
+    readinessstate:
+      enabled: true

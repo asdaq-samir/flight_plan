@@ -18,6 +18,7 @@ uncallable in the processing image even though neither one touches sklearn.
 from __future__ import annotations
 
 import json
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -258,6 +259,36 @@ def retrain(
     return metrics
 
 
+def _find_one(directory: Path, pattern: str) -> Path:
+    matches = sorted(Path(directory).glob(pattern))
+    if not matches:
+        raise FileNotFoundError(f"No file matching {pattern!r} in {directory}")
+    return matches[0]
+
+
+def _retrain_defaults() -> dict:
+    """Local defaults, unless SageMaker script-mode env vars are present, in
+    which case those win -- SM_CHANNEL_FEATURES/SM_CHANNEL_LABELS are
+    directories SageMaker downloads one S3 "channel" into each (the actual
+    filename inside isn't guaranteed, hence the glob), SM_MODEL_DIR is where
+    a Training Job expects the model artifact written so it can tar and
+    upload it. Never set locally/in Docker Compose, so this is a no-op
+    there -- only takes effect when this script actually runs as a
+    SageMaker Training Job entry point.
+    """
+    features_path = FEATURES_PATH
+    if channel := os.environ.get("SM_CHANNEL_FEATURES"):
+        features_path = _find_one(channel, "*.parquet")
+
+    labels_path = LABELS_PATH
+    if channel := os.environ.get("SM_CHANNEL_LABELS"):
+        labels_path = _find_one(channel, "*.csv")
+
+    out_dir = Path(os.environ["SM_MODEL_DIR"]) if "SM_MODEL_DIR" in os.environ else CANDIDATE_MODEL_DIR
+
+    return {"features_path": features_path, "labels_path": labels_path, "out_dir": out_dir}
+
+
 def _cli() -> None:
     """Run one stage standalone, e.g. `docker compose run --rm pipeline-training retrain`
     or `docker compose run --rm pipeline-processing collect`.
@@ -265,9 +296,14 @@ def _cli() -> None:
     Kept deliberately close to a SageMaker script-mode entry point (one
     stage per invocation, paths as arguments with sensible defaults, result
     printed to stdout) -- this is the leanest, most reusable form of the
-    pipeline, independent of Airflow or any other orchestrator.
+    pipeline, independent of Airflow or any other orchestrator. `retrain`
+    specifically honors SM_CHANNEL_FEATURES/SM_CHANNEL_LABELS/SM_MODEL_DIR
+    when present (see _retrain_defaults) so this same entry point could
+    become an actual SageMaker Training Job's script without modification.
     """
     import argparse
+
+    retrain_defaults = _retrain_defaults()
 
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="stage", required=True)
@@ -282,9 +318,9 @@ def _cli() -> None:
     p.add_argument("--out-path", type=Path, default=FEATURES_PATH)
 
     p = sub.add_parser("retrain")
-    p.add_argument("--features-path", type=Path, default=FEATURES_PATH)
-    p.add_argument("--labels-path", type=Path, default=LABELS_PATH)
-    p.add_argument("--out-dir", type=Path, default=CANDIDATE_MODEL_DIR)
+    p.add_argument("--features-path", type=Path, default=retrain_defaults["features_path"])
+    p.add_argument("--labels-path", type=Path, default=retrain_defaults["labels_path"])
+    p.add_argument("--out-dir", type=Path, default=retrain_defaults["out_dir"])
     p.add_argument("--min-labeled-rows", type=int, default=MIN_LABELED_ROWS)
 
     args = parser.parse_args()

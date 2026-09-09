@@ -4,16 +4,17 @@ in project memory for why that was chosen over a dedicated vector DB),
 embedded with a local sentence-transformer model so no extra API key is
 needed just to embed text (Anthropic has no embeddings endpoint).
 
-Schema is created idempotently on every connection (CREATE EXTENSION/TABLE
-IF NOT EXISTS) rather than via a Postgres init script, because the `db`
-volume already had real data before pgvector was added here -- an init
-script would never have re-run against it.
+Schema comes from migrations.py (versioned SQL files in migrations/),
+applied once via ensure_schema() at process startup (see mcp_server.py) --
+not per-connection anymore.
 """
 import os
 
 import psycopg
 from pgvector.psycopg import register_vector
 from sentence_transformers import SentenceTransformer
+
+from . import migrations
 
 DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql://vfr:vfr@db:5432/vfr_route")
 EMBEDDING_MODEL_NAME = "all-MiniLM-L6-v2"
@@ -33,22 +34,21 @@ def embed(text: str) -> list[float]:
     return _get_embedder().encode(text).tolist()
 
 
+def ensure_schema() -> None:
+    """Run once, at process startup -- applies any migration not yet
+    recorded in schema_migrations. Must run before any register_vector()
+    call (that needs the `vector` extension/type to already exist).
+    """
+    conn = psycopg.connect(DATABASE_URL, autocommit=True)
+    try:
+        migrations.apply_all(conn)
+    finally:
+        conn.close()
+
+
 def get_connection() -> psycopg.Connection:
     conn = psycopg.connect(DATABASE_URL, autocommit=True)
-    conn.execute("CREATE EXTENSION IF NOT EXISTS vector")
     register_vector(conn)
-    conn.execute(
-        f"""
-        CREATE TABLE IF NOT EXISTS route_briefings (
-            id SERIAL PRIMARY KEY,
-            departure_ident TEXT NOT NULL,
-            destination_ident TEXT NOT NULL,
-            briefing TEXT NOT NULL,
-            embedding VECTOR({EMBEDDING_DIM}),
-            created_at TIMESTAMPTZ DEFAULT now()
-        )
-        """
-    )
     return conn
 
 

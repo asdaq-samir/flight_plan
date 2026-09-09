@@ -3,8 +3,10 @@ Agent (MCP Server)" box in docs/architecture-future.png.
 """
 from mcp.server.mcpserver import MCPServer
 
+from . import db
 from .graph import build_graph
 
+db.ensure_schema()
 mcp = MCPServer("vfr-nav-log-agent")
 _graph = build_graph()
 
