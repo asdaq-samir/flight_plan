@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Description: >
-  VFR Nav Log Platform -- target AWS architecture from docs/architecture-aws.png.
+  VFR Nav Log Platform -- target AWS architecture from docs/architecture-aws.svg.
   Deploys into an existing VPC (bring-your-own-network, a common constraint in
   real orgs, and it keeps this template focused on the application-level
   resources) -- ECS Fargate (Spring Boot API, nav-log-agent, crewai-agent,

@@ -10,11 +10,16 @@
 
 ## Overview
 
-A box-by-box walkthrough of `architecture-aws.png` — the AWS/Go/Airflow/
+A box-by-box walkthrough of `architecture-aws.svg` — the AWS/Go/Airflow/
 LangGraph/CrewAI stack this project is built toward — followed by the
 infrastructure-as-code that implements it and the runbook to deploy it.
 
-![Target architecture diagram](architecture-aws.png)
+![Target architecture diagram](architecture-aws.svg)
+
+<sub>Editable source: `architecture-aws.drawio`. The rendered SVG also has
+the diagram embedded in it, so opening `architecture-aws.svg` directly in
+[draw.io](https://app.diagrams.net) (or the VS Code draw.io extension)
+works too.</sub>
 
 The diagram has four top-level sections, stacked top to bottom in the order
 they'd fire on a real push: **CI/CD → Airflow DAG → CloudFormation (which

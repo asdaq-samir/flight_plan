@@ -1,4 +1,4 @@
-// The "Retrain Trigger" box in docs/architecture-aws.png -- a
+// The "Retrain Trigger" box in docs/architecture-aws.svg -- a
 // deliberately small Go function, the one place Go has a legitimate home
 // in this stack (see docs/README-AWS.md). Receives a POST from API
 // Gateway and triggers an Airflow DAG run on demand, instead of waiting on

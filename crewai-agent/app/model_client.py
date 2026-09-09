@@ -1,6 +1,6 @@
 """Client for model-service's /invocations endpoint. Identical to
 nav-log-agent's -- both builds call the same model-serving endpoint, per
-docs/architecture-aws.png (the CrewAI build is a framework comparison, not a
+docs/architecture-aws.svg (the CrewAI build is a framework comparison, not a
 different data source).
 
 Locally this is a plain HTTP call to the model-service container. On AWS,
