@@ -1,0 +1,516 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  VFR Nav Log Platform -- target AWS architecture from docs/architecture-future.png.
+  Deploys into an existing VPC (bring-your-own-network, a common constraint in
+  real orgs, and it keeps this template focused on the application-level
+  resources) -- ECS Fargate (Spring Boot API) behind an ALB, RDS PostgreSQL,
+  a SageMaker Endpoint for the trained model, and the Go Lambda "Retrain
+  Trigger" behind an HTTP API. Not yet deployed anywhere -- see
+  docs/DEVELOPMENT.md's "Testing / CI" section for what has and hasn't been
+  verified about this template specifically.
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Networking (existing VPC)
+        Parameters:
+          - VpcId
+          - PublicSubnetIds
+          - PrivateSubnetIds
+      - Label:
+          default: Container images (already pushed to ECR by CI -- see .github/workflows/ci.yml)
+        Parameters:
+          - WebappImageUri
+          - ModelServiceImageUri
+      - Label:
+          default: Database
+        Parameters:
+          - DBInstanceClass
+          - DBAllocatedStorageGb
+          - DBName
+          - DBUsername
+      - Label:
+          default: SageMaker
+        Parameters:
+          - ModelArtifactS3Uri
+          - SageMakerInstanceType
+      - Label:
+          default: Retrain Trigger (Lambda)
+        Parameters:
+          - LambdaCodeS3Bucket
+          - LambdaCodeS3Key
+          - AirflowBaseUrl
+          - AirflowDagId
+          - AirflowCredentialsSecretArn
+      - Label:
+          default: Public ingress (optional -- omit both to skip HTTPS/custom domain)
+        Parameters:
+          - DomainName
+          - CertificateArn
+
+Parameters:
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+  PublicSubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: For the ALB and the Lambda's API Gateway (HTTP API is regional, not VPC-attached, but listed for symmetry/clarity of intent).
+  PrivateSubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: For the ECS service, RDS instance, and the Lambda's VPC config (so it can reach Airflow privately).
+
+  WebappImageUri:
+    Type: String
+    Description: Full ECR image URI for webapp, e.g. <account>.dkr.ecr.<region>.amazonaws.com/<repo>/webapp:latest
+  ModelServiceImageUri:
+    Type: String
+    Description: Full ECR image URI for model-service -- this is what SageMaker actually runs, see ModelArtifactS3Uri below.
+
+  DBInstanceClass:
+    Type: String
+    Default: db.t4g.micro
+  DBAllocatedStorageGb:
+    Type: Number
+    Default: 20
+  DBName:
+    Type: String
+    Default: vfr_route
+  DBUsername:
+    Type: String
+    Default: vfr
+
+  ModelArtifactS3Uri:
+    Type: String
+    Description: s3://bucket/key to the trained model.tar.gz -- produced by pipeline-training's retrain(), once one exists (see docs/DEVELOPMENT.md on why none does yet).
+  SageMakerInstanceType:
+    Type: String
+    Default: ml.t2.medium
+
+  LambdaCodeS3Bucket:
+    Type: String
+    Description: Where infra/lambda-retrain-trigger's compiled `bootstrap` binary (zipped) has been uploaded -- this template doesn't build/upload it, see that directory's own notes.
+  LambdaCodeS3Key:
+    Type: String
+    Default: retrain-trigger/bootstrap.zip
+  AirflowBaseUrl:
+    Type: String
+    Description: Base URL the Lambda calls Airflow's REST API on, e.g. http://airflow-internal.example:8080 -- Airflow's own AWS hosting (MWAA vs. self-hosted) isn't decided yet, see docs/README.md.
+  AirflowDagId:
+    Type: String
+    Default: vfr_pipeline
+  AirflowCredentialsSecretArn:
+    Type: String
+    Description: 'ARN of an existing Secrets Manager secret shaped {"username": "...", "password": "..."} for Airflow''s REST API basic auth.'
+
+  DomainName:
+    Type: String
+    Default: ""
+    Description: e.g. northflyers.com -- leave blank to skip the Route53 record and serve over the ALB's own DNS name.
+  CertificateArn:
+    Type: String
+    Default: ""
+    Description: ACM certificate ARN for HTTPS -- leave blank to serve HTTP only on the ALB (fine for initial testing, not for real public traffic).
+
+Conditions:
+  HasCertificate: !Not [!Equals [!Ref CertificateArn, ""]]
+  HasDomainName: !Not [!Equals [!Ref DomainName, ""]]
+
+Resources:
+  # ---------------------------------------------------------------------
+  # Security groups
+  # ---------------------------------------------------------------------
+  AlbSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: ALB -- public HTTP/HTTPS ingress
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - !If
+          - HasCertificate
+          - IpProtocol: tcp
+            FromPort: 443
+            ToPort: 443
+            CidrIp: 0.0.0.0/0
+          - !Ref AWS::NoValue
+
+  EcsServiceSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: webapp Fargate tasks -- only reachable from the ALB
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 8080
+          ToPort: 8080
+          SourceSecurityGroupId: !Ref AlbSecurityGroup
+
+  RdsSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: RDS PostgreSQL -- only reachable from the ECS service
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          SourceSecurityGroupId: !Ref EcsServiceSecurityGroup
+
+  LambdaSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Retrain Trigger Lambda -- outbound only, to reach Airflow privately
+      VpcId: !Ref VpcId
+
+  # ---------------------------------------------------------------------
+  # IAM
+  # ---------------------------------------------------------------------
+  EcsTaskExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: ecs-tasks.amazonaws.com }
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+      Policies:
+        - PolicyName: ReadDbSecret
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: secretsmanager:GetSecretValue
+                Resource: !GetAtt Database.MasterUserSecret.SecretArn
+
+  EcsTaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Description: Assumed by the running webapp container itself -- needs to call the SageMaker endpoint.
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: ecs-tasks.amazonaws.com }
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: InvokeSageMakerEndpoint
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: sagemaker:InvokeEndpoint
+                Resource: !Ref SageMakerEndpoint
+
+  SageMakerExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: sagemaker.amazonaws.com }
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: ReadModelArtifact
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: s3:GetObject
+                Resource: !Sub
+                  - "arn:aws:s3:::${BucketAndKey}"
+                  - BucketAndKey: !Select [1, !Split ["s3://", !Ref ModelArtifactS3Uri]]
+
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: lambda.amazonaws.com }
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+      Policies:
+        - PolicyName: ReadAirflowSecret
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: secretsmanager:GetSecretValue
+                Resource: !Ref AirflowCredentialsSecretArn
+
+  # ---------------------------------------------------------------------
+  # Database -- RDS-managed master password (Secrets Manager), same
+  # Postgres 16 + pgvector setup as the local `db` service.
+  # ---------------------------------------------------------------------
+  Database:
+    Type: AWS::RDS::DBInstance
+    DeletionPolicy: Snapshot
+    UpdateReplacePolicy: Snapshot
+    Metadata:
+      cfn-lint:
+        config:
+          ignore_checks:
+            - W3691 # EngineVersion below is a moving target (RDS deprecates old
+              # minor versions on its own schedule); no live AWS access from
+              # this environment to check the actual current list. Verify with
+              # `aws rds describe-db-engine-versions --engine postgres
+              # --query "DBEngineVersions[].EngineVersion"` before first deploy
+              # and bump this if needed -- don't trust it's still valid as-is.
+    Properties:
+      Engine: postgres
+      EngineVersion: "17.4"
+      DBInstanceClass: !Ref DBInstanceClass
+      AllocatedStorage: !Ref DBAllocatedStorageGb
+      DBName: !Ref DBName
+      MasterUsername: !Ref DBUsername
+      ManageMasterUserPassword: true
+      VPCSecurityGroups: [!Ref RdsSecurityGroup]
+      DBSubnetGroupName: !Ref DbSubnetGroup
+      PubliclyAccessible: false
+      BackupRetentionPeriod: 7
+
+  DbSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: Private subnets for RDS
+      SubnetIds: !Ref PrivateSubnetIds
+
+  # ---------------------------------------------------------------------
+  # ECS Fargate -- webapp (Spring Boot API)
+  # ---------------------------------------------------------------------
+  EcsCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: vfr-route
+
+  WebappLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/vfr-route-webapp
+      RetentionInDays: 30
+
+  WebappTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: vfr-route-webapp
+      RequiresCompatibilities: [FARGATE]
+      NetworkMode: awsvpc
+      Cpu: "512"
+      Memory: "1024"
+      ExecutionRoleArn: !GetAtt EcsTaskExecutionRole.Arn
+      TaskRoleArn: !GetAtt EcsTaskRole.Arn
+      ContainerDefinitions:
+        - Name: webapp
+          Image: !Ref WebappImageUri
+          PortMappings:
+            - ContainerPort: 8080
+          Environment:
+            - Name: SPRING_DATASOURCE_URL
+              Value: !Sub "jdbc:postgresql://${Database.Endpoint.Address}:${Database.Endpoint.Port}/${DBName}"
+            - Name: SPRING_DATASOURCE_USERNAME
+              Value: !Ref DBUsername
+            - Name: SAGEMAKER_ENDPOINT_NAME
+              Value: !GetAtt SageMakerEndpoint.EndpointName
+              # NOTE: webapp's ModelServiceClient.java still only knows how to call
+              # model-service over plain HTTP (MODEL_SERVICE_URL) -- on AWS there's
+              # no standalone model-service ECS task, model-service's own image IS
+              # the SageMaker Endpoint's serving container instead. Calling
+              # SageMaker Runtime's InvokeEndpoint API from Java is real application
+              # code that doesn't exist yet; this env var is there for when it does.
+          Secrets:
+            - Name: SPRING_DATASOURCE_PASSWORD
+              ValueFrom: !Sub "${Database.MasterUserSecret.SecretArn}:password::"
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref WebappLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: webapp
+
+  WebappService:
+    Type: AWS::ECS::Service
+    DependsOn: AlbListener
+    Properties:
+      Cluster: !Ref EcsCluster
+      TaskDefinition: !Ref WebappTaskDefinition
+      DesiredCount: 1
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets: !Ref PrivateSubnetIds
+          SecurityGroups: [!Ref EcsServiceSecurityGroup]
+          AssignPublicIp: DISABLED
+      LoadBalancers:
+        - ContainerName: webapp
+          ContainerPort: 8080
+          TargetGroupArn: !Ref AlbTargetGroup
+      HealthCheckGracePeriodSeconds: 60
+
+  # ---------------------------------------------------------------------
+  # ALB
+  # ---------------------------------------------------------------------
+  Alb:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Type: application
+      Scheme: internet-facing
+      Subnets: !Ref PublicSubnetIds
+      SecurityGroups: [!Ref AlbSecurityGroup]
+
+  AlbTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      VpcId: !Ref VpcId
+      Protocol: HTTP
+      Port: 8080
+      TargetType: ip
+      # Matches webapp's actual Spring Boot Actuator readiness probe --
+      # see springboot-app/src/main/resources/application.yml.
+      HealthCheckPath: /actuator/health/readiness
+      HealthCheckIntervalSeconds: 15
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 3
+
+  AlbListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref Alb
+      Port: !If [HasCertificate, 443, 80]
+      Protocol: !If [HasCertificate, HTTPS, HTTP]
+      Certificates: !If
+        - HasCertificate
+        - [{ CertificateArn: !Ref CertificateArn }]
+        - !Ref AWS::NoValue
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref AlbTargetGroup
+
+  DnsRecord:
+    Type: AWS::Route53::RecordSet
+    Condition: HasDomainName
+    Properties:
+      HostedZoneName: !Sub "${DomainName}."
+      Name: !Ref DomainName
+      Type: A
+      AliasTarget:
+        DNSName: !GetAtt Alb.DNSName
+        HostedZoneId: !GetAtt Alb.CanonicalHostedZoneID
+
+  # ---------------------------------------------------------------------
+  # SageMaker -- serves model-service's image, per that service's own
+  # /ping + /invocations contract (see model-service/app/main.py).
+  # ---------------------------------------------------------------------
+  SageMakerModel:
+    Type: AWS::SageMaker::Model
+    Properties:
+      ExecutionRoleArn: !GetAtt SageMakerExecutionRole.Arn
+      PrimaryContainer:
+        Image: !Ref ModelServiceImageUri
+        ModelDataUrl: !Ref ModelArtifactS3Uri
+
+  SageMakerEndpointConfig:
+    Type: AWS::SageMaker::EndpointConfig
+    Properties:
+      ProductionVariants:
+        - VariantName: primary
+          ModelName: !GetAtt SageMakerModel.ModelName
+          InstanceType: !Ref SageMakerInstanceType
+          InitialInstanceCount: 1
+
+  SageMakerEndpoint:
+    Type: AWS::SageMaker::Endpoint
+    Properties:
+      EndpointConfigName: !GetAtt SageMakerEndpointConfig.EndpointConfigName
+
+  # ---------------------------------------------------------------------
+  # Retrain Trigger -- infra/lambda-retrain-trigger (Go), behind an HTTP
+  # API. Triggers vfr_pipeline on demand instead of waiting on Airflow's
+  # own schedule.
+  # ---------------------------------------------------------------------
+  RetrainTriggerFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: vfr-retrain-trigger
+      Runtime: provided.al2023
+      Architectures: [arm64]
+      Handler: bootstrap
+      Code:
+        S3Bucket: !Ref LambdaCodeS3Bucket
+        S3Key: !Ref LambdaCodeS3Key
+      MemorySize: 128
+      Timeout: 15
+      Role: !GetAtt LambdaExecutionRole.Arn
+      VpcConfig:
+        SubnetIds: !Ref PrivateSubnetIds
+        SecurityGroupIds: [!Ref LambdaSecurityGroup]
+      Environment:
+        Variables:
+          AIRFLOW_BASE_URL: !Ref AirflowBaseUrl
+          AIRFLOW_DAG_ID: !Ref AirflowDagId
+          AIRFLOW_CREDENTIALS_SECRET_ARN: !Ref AirflowCredentialsSecretArn
+
+  RetrainApi:
+    Type: AWS::ApiGatewayV2::Api
+    Properties:
+      Name: vfr-retrain-api
+      ProtocolType: HTTP
+
+  RetrainApiIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref RetrainApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !GetAtt RetrainTriggerFunction.Arn
+      PayloadFormatVersion: "2.0"
+
+  RetrainApiRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref RetrainApi
+      RouteKey: "POST /retrain"
+      Target: !Sub "integrations/${RetrainApiIntegration}"
+
+  RetrainApiStage:
+    Type: AWS::ApiGatewayV2::Stage
+    Properties:
+      ApiId: !Ref RetrainApi
+      StageName: $default
+      AutoDeploy: true
+
+  RetrainApiLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref RetrainTriggerFunction
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${RetrainApi}/*/*/retrain"
+
+Outputs:
+  AlbDnsName:
+    Value: !GetAtt Alb.DNSName
+  AppUrl:
+    Value: !If
+      - HasDomainName
+      - !Sub "https://${DomainName}"
+      - !Sub
+        - "${Scheme}://${DnsName}"
+        - Scheme: !If [HasCertificate, "https", "http"]
+          DnsName: !GetAtt Alb.DNSName
+  DatabaseEndpoint:
+    Value: !GetAtt Database.Endpoint.Address
+  DatabaseSecretArn:
+    Description: Fetch the actual generated password with `aws secretsmanager get-secret-value`.
+    Value: !GetAtt Database.MasterUserSecret.SecretArn
+  SageMakerEndpointName:
+    Value: !GetAtt SageMakerEndpoint.EndpointName
+  RetrainApiUrl:
+    Value: !Sub "${RetrainApi.ApiEndpoint}/retrain"
