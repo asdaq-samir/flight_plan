@@ -1,4 +1,4 @@
-# The "LangGraph Agent (MCP Server)" box in architecture-future.png.
+# The "LangGraph Agent (MCP Server)" box in architecture-aws.png.
 # sentence-transformers (not an Anthropic embeddings API -- there isn't one)
 # embeds route briefings for pgvector similarity search; it's already an
 # established dependency in this project (notebook 05), not a new choice.
@@ -9,6 +9,7 @@ psycopg[binary]
 pgvector
 sentence-transformers
 requests
+boto3    # model_client's SageMaker Runtime path, used only when SAGEMAKER_ENDPOINT_NAME is set (AWS)
 pandas   # vfr.navlog -> vfr.weather -> vfr.airports needs it (airport lat/lon lookup)
 shapely  # vfr.altitude -> vfr.airspace (Class B/C/D polygons) + vfr.weather.hazards_along_route
 pyshp    # vfr.altitude -> vfr.airspace (reads the FAA Class Airspace shapefile)

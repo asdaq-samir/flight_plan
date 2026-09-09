@@ -19,9 +19,29 @@
 
     <properties>
         <java.version>21</java.version>
+        <aws-sdk.version>2.29.1</aws-sdk.version>
     </properties>
 
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>software.amazon.awssdk</groupId>
+                <artifactId>bom</artifactId>
+                <version>${aws-sdk.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
     <dependencies>
+        <!-- SageMaker Runtime's InvokeEndpoint API; how ModelServiceClient
+             reaches model-service on AWS, where it runs as a SageMaker
+             Endpoint's serving container rather than a plain HTTP service. -->
+        <dependency>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>sagemakerruntime</artifactId>
+        </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
@@ -36,6 +56,13 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-data-jpa</artifactId>
+        </dependency>
+        <!-- Bean Validation (@NotBlank/@Pattern on RouteRequest) and the
+             @RestControllerAdvice global exception handler's use of
+             MethodArgumentNotValidException; neither works without this. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-validation</artifactId>
         </dependency>
         <dependency>
             <groupId>org.postgresql</groupId>
@@ -63,6 +90,35 @@
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
+        <!-- Drives a real Postgres for the migration/persistence tests, so
+             Flyway and the JPA mappings are verified against the database
+             they actually run on rather than an in-memory substitute whose
+             SQL dialect differs. Versions come from Spring Boot's parent. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-testcontainers</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!-- Generates an OpenAPI spec + Swagger UI (/swagger-ui.html,
+             /v3/api-docs) from the existing controller/DTO annotations;
+             no hand-written spec to keep in sync. model-service (FastAPI)
+             already gets this for free at /docs; this gives webapp the
+             same thing. -->
+        <dependency>
+            <groupId>org.springdoc</groupId>
+            <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+            <version>2.7.0</version>
+        </dependency>
     </dependencies>
 
     <build>
@@ -70,6 +126,19 @@
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-javadoc-plugin</artifactId>
+                <configuration>
+                    <!-- Still catches malformed {@link}s, bad HTML, and
+                         unknown tags; just doesn't demand a comment on
+                         every trivial getter/DI constructor, where one
+                         would be filler ("returns the id") rather than
+                         real documentation. `mvn javadoc:javadoc`, output
+                         in target/reports/apidocs. -->
+                    <doclint>all,-missing</doclint>
+                </configuration>
             </plugin>
         </plugins>
     </build>

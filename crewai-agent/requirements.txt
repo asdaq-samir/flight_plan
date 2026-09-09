@@ -2,9 +2,10 @@
 # LangGraph -- see the module docstring in app/main.py. No psycopg/pgvector/
 # sentence-transformers here on purpose: this build deliberately doesn't
 # duplicate the memory store, matching its "comparison-only, not
-# pipeline-connected" framing in architecture-future.png.
+# pipeline-connected" framing in architecture-aws.png.
 crewai[anthropic]
 pandas
 requests
+boto3    # model_client's SageMaker Runtime path, used only when SAGEMAKER_ENDPOINT_NAME is set (AWS)
 shapely
 pyshp

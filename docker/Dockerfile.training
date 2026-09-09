@@ -9,3 +9,9 @@ RUN pip install --no-cache-dir -r requirements-training.txt
 
 ENV PYTHONPATH=/workspace/src
 ENTRYPOINT ["python3", "-m", "vfr.pipeline"]
+# SageMaker Training Jobs always run a container's own ENTRYPOINT/CMD
+# unchanged (no argument-override mechanism, unlike Processing Jobs) --
+# this default makes the image work as a Training Job's image as-is.
+# Doesn't change local usage: `docker compose run ... pipeline-training
+# retrain` already passes this explicitly, which still overrides CMD.
+CMD ["retrain"]

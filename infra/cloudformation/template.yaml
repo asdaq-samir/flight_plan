@@ -1,13 +1,14 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Description: >
-  VFR Nav Log Platform -- target AWS architecture from docs/architecture-future.png.
+  VFR Nav Log Platform -- target AWS architecture from docs/architecture-aws.png.
   Deploys into an existing VPC (bring-your-own-network, a common constraint in
   real orgs, and it keeps this template focused on the application-level
-  resources) -- ECS Fargate (Spring Boot API) behind an ALB, RDS PostgreSQL,
-  a SageMaker Endpoint for the trained model, and the Go Lambda "Retrain
-  Trigger" behind an HTTP API. Not yet deployed anywhere -- see
-  docs/DEVELOPMENT.md's "Testing / CI" section for what has and hasn't been
-  verified about this template specifically.
+  resources) -- ECS Fargate (Spring Boot API, nav-log-agent, crewai-agent,
+  and a self-hosted Airflow) behind an ALB, RDS PostgreSQL, a SageMaker
+  Endpoint for the trained model, and the Go Lambda "Retrain Trigger" behind
+  an HTTP API. Not yet deployed anywhere -- see docs/README-AWS.md's
+  "Infrastructure as code" section for what has and hasn't been verified
+  about this template specifically.
 
 Metadata:
   AWS::CloudFormation::Interface:
@@ -23,6 +24,9 @@ Metadata:
         Parameters:
           - WebappImageUri
           - ModelServiceImageUri
+          - NavLogAgentImageUri
+          - CrewaiAgentImageUri
+          - AirflowImageUri
       - Label:
           default: Database
         Parameters:
@@ -36,11 +40,18 @@ Metadata:
           - ModelArtifactS3Uri
           - SageMakerInstanceType
       - Label:
+          default: Gen AI (nav-log-agent / crewai-agent)
+        Parameters:
+          - AnthropicApiKeySecretArn
+      - Label:
+          default: Pipeline data (read/written by SageMaker Processing/Training Jobs)
+        Parameters:
+          - DataS3BucketName
+      - Label:
           default: Retrain Trigger (Lambda)
         Parameters:
           - LambdaCodeS3Bucket
           - LambdaCodeS3Key
-          - AirflowBaseUrl
           - AirflowDagId
           - AirflowCredentialsSecretArn
       - Label:
@@ -65,6 +76,15 @@ Parameters:
   ModelServiceImageUri:
     Type: String
     Description: Full ECR image URI for model-service -- this is what SageMaker actually runs, see ModelArtifactS3Uri below.
+  NavLogAgentImageUri:
+    Type: String
+    Description: Full ECR image URI for nav-log-agent.
+  CrewaiAgentImageUri:
+    Type: String
+    Description: Full ECR image URI for crewai-agent -- registered as a standalone task definition, not a standing service; run on demand with `aws ecs run-task`, matching its local one-shot CLI role.
+  AirflowImageUri:
+    Type: String
+    Description: Full ECR image URI for the AWS-hosted Airflow image (docker/Dockerfile.airflow.aws, not docker/Dockerfile.airflow -- see that file's header comment for why they differ).
 
   DBInstanceClass:
     Type: String
@@ -81,10 +101,18 @@ Parameters:
 
   ModelArtifactS3Uri:
     Type: String
-    Description: s3://bucket/key to the trained model.tar.gz -- produced by pipeline-training's retrain(), once one exists (see docs/DEVELOPMENT.md on why none does yet).
+    Description: s3://bucket/key to the trained model.tar.gz -- produced by pipeline-training's retrain(), once one exists (see docs/README.md's Status section on why none does yet).
   SageMakerInstanceType:
     Type: String
     Default: ml.t2.medium
+
+  AnthropicApiKeySecretArn:
+    Type: String
+    Description: ARN of an existing Secrets Manager secret holding the raw Anthropic API key as its secret value (plaintext, not JSON) -- used by nav-log-agent and crewai-agent.
+
+  DataS3BucketName:
+    Type: String
+    Description: S3 bucket holding pipeline data (candidates/features/labels in, trained models out) -- read and written by the SageMaker Processing/Training Jobs Airflow launches (airflow/dags/vfr_pipeline_aws_dag.py). Can be the same bucket ModelArtifactS3Uri's model.tar.gz lives in.
 
   LambdaCodeS3Bucket:
     Type: String
@@ -92,12 +120,9 @@ Parameters:
   LambdaCodeS3Key:
     Type: String
     Default: retrain-trigger/bootstrap.zip
-  AirflowBaseUrl:
-    Type: String
-    Description: Base URL the Lambda calls Airflow's REST API on, e.g. http://airflow-internal.example:8080 -- Airflow's own AWS hosting (MWAA vs. self-hosted) isn't decided yet, see docs/README.md.
   AirflowDagId:
     Type: String
-    Default: vfr_pipeline
+    Default: vfr_pipeline_aws
   AirflowCredentialsSecretArn:
     Type: String
     Description: 'ARN of an existing Secrets Manager secret shaped {"username": "...", "password": "..."} for Airflow''s REST API basic auth.'
@@ -148,16 +173,59 @@ Resources:
           ToPort: 8080
           SourceSecurityGroupId: !Ref AlbSecurityGroup
 
+  NavLogAgentSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: nav-log-agent Fargate task -- reachable from the ALB (path-based /mcp/* route, see AlbMcpListenerRule)
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 8000
+          ToPort: 8000
+          SourceSecurityGroupId: !Ref AlbSecurityGroup
+
+  CrewaiAgentSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: crewai-agent task -- one-shot CLI via aws ecs run-task, outbound only, no ingress needed
+      VpcId: !Ref VpcId
+
+  AirflowSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Airflow Fargate task -- reachable only from the Retrain Trigger Lambda
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 8080
+          ToPort: 8080
+          SourceSecurityGroupId: !Ref LambdaSecurityGroup
+
+  AirflowEfsSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Airflow EFS-backed metadata volume -- reachable only from the Airflow task
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 2049
+          ToPort: 2049
+          SourceSecurityGroupId: !Ref AirflowSecurityGroup
+
   RdsSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: RDS PostgreSQL -- only reachable from the ECS service
+      GroupDescription: RDS PostgreSQL -- only reachable from webapp and nav-log-agent
       VpcId: !Ref VpcId
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: 5432
           ToPort: 5432
           SourceSecurityGroupId: !Ref EcsServiceSecurityGroup
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          SourceSecurityGroupId: !Ref NavLogAgentSecurityGroup
 
   LambdaSecurityGroup:
     Type: AWS::EC2::SecurityGroup
@@ -171,6 +239,7 @@ Resources:
   EcsTaskExecutionRole:
     Type: AWS::IAM::Role
     Properties:
+      Description: Shared by every ECS task definition in this stack -- pulls images from ECR (managed policy) and reads the startup secrets each container needs.
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
         Statement:
@@ -180,13 +249,15 @@ Resources:
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
       Policies:
-        - PolicyName: ReadDbSecret
+        - PolicyName: ReadStartupSecrets
           PolicyDocument:
             Version: "2012-10-17"
             Statement:
               - Effect: Allow
                 Action: secretsmanager:GetSecretValue
-                Resource: !GetAtt Database.MasterUserSecret.SecretArn
+                Resource:
+                  - !GetAtt Database.MasterUserSecret.SecretArn
+                  - !Ref AnthropicApiKeySecretArn
 
   EcsTaskRole:
     Type: AWS::IAM::Role
@@ -206,6 +277,113 @@ Resources:
               - Effect: Allow
                 Action: sagemaker:InvokeEndpoint
                 Resource: !Ref SageMakerEndpoint
+
+  GenAiTaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Description: Assumed by nav-log-agent and crewai-agent -- both call the SageMaker endpoint for checkpoints, same as webapp (see model_client.py in each).
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: ecs-tasks.amazonaws.com }
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: InvokeSageMakerEndpoint
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: sagemaker:InvokeEndpoint
+                Resource: !Ref SageMakerEndpoint
+
+  SageMakerJobRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Description: Passed to SageMaker Processing/Training Jobs by Airflow's SageMakerProcessingOperator/SageMakerTrainingOperator (airflow/dags/vfr_pipeline_aws_dag.py) -- what each job runs as, distinct from AirflowTaskRole below, which is what launches them.
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: sagemaker.amazonaws.com }
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: PipelineDataAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:ListBucket
+                Resource:
+                  - !Sub "arn:aws:s3:::${DataS3BucketName}"
+                  - !Sub "arn:aws:s3:::${DataS3BucketName}/*"
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/sagemaker/*"
+
+  AirflowTaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Description: Assumed by the running Airflow container -- launches/monitors SageMaker Processing and Training Jobs, and mounts its EFS-backed metadata volume.
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: ecs-tasks.amazonaws.com }
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: RunSageMakerJobs
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                # CreateProcessingJob/CreateTrainingJob don't support
+                # resource-level restriction -- job names are chosen at
+                # creation time (see the run_id-suffixed names in
+                # vfr_pipeline_aws_dag.py), so "*" is what AWS itself
+                # requires here, not a broadened grant of convenience.
+                Action:
+                  - sagemaker:CreateProcessingJob
+                  - sagemaker:DescribeProcessingJob
+                  - sagemaker:StopProcessingJob
+                  - sagemaker:CreateTrainingJob
+                  - sagemaker:DescribeTrainingJob
+                  - sagemaker:StopTrainingJob
+                  - sagemaker:ListTags
+                Resource: "*"
+              - Effect: Allow
+                Action: iam:PassRole
+                Resource: !GetAtt SageMakerJobRole.Arn
+        - PolicyName: MountEfs
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - elasticfilesystem:ClientMount
+                  - elasticfilesystem:ClientWrite
+                Resource: !GetAtt AirflowEfs.Arn
+        - PolicyName: AllowExecuteCommand
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                # Required for AirflowService's EnableExecuteCommand above --
+                # this is the standard, AWS-documented policy shape for it,
+                # not scoped down further because the SSM data channel APIs
+                # themselves don't support resource-level restriction.
+                Action:
+                  - ssmmessages:CreateControlChannel
+                  - ssmmessages:CreateDataChannel
+                  - ssmmessages:OpenControlChannel
+                  - ssmmessages:OpenDataChannel
+                Resource: "*"
 
   SageMakerExecutionRole:
     Type: AWS::IAM::Role
@@ -285,6 +463,77 @@ Resources:
       SubnetIds: !Ref PrivateSubnetIds
 
   # ---------------------------------------------------------------------
+  # Service discovery -- gives Airflow a stable, predictable internal DNS
+  # name (airflow.vfr-route.internal) so RetrainTriggerFunction below has
+  # a real address to call, without a manually-supplied URL parameter.
+  # ---------------------------------------------------------------------
+  ServiceDiscoveryNamespace:
+    Type: AWS::ServiceDiscovery::PrivateDnsNamespace
+    Properties:
+      Name: vfr-route.internal
+      Vpc: !Ref VpcId
+
+  AirflowServiceDiscoveryService:
+    Type: AWS::ServiceDiscovery::Service
+    Properties:
+      Name: airflow
+      NamespaceId: !Ref ServiceDiscoveryNamespace
+      DnsConfig:
+        DnsRecords:
+          - Type: A
+            TTL: 10
+      HealthCheckCustomConfig:
+        FailureThreshold: 1
+
+  # ---------------------------------------------------------------------
+  # EFS -- Airflow's metadata database (SQLite, same as `standalone` mode
+  # locally) needs to survive a Fargate task restart, which ephemeral task
+  # storage doesn't. One task (DesiredCount: 1 on AirflowService below), so
+  # SQLite-on-EFS is a deliberately simple fit here, not a general-purpose
+  # multi-writer setup.
+  # ---------------------------------------------------------------------
+  AirflowEfs:
+    Type: AWS::EFS::FileSystem
+    Properties:
+      Encrypted: true
+      FileSystemTags:
+        - Key: Name
+          Value: vfr-route-airflow
+
+  # Assumes exactly two private subnets, matching the "at least two
+  # Availability Zones" guidance in docs/README-AWS.md's deploy runbook.
+  AirflowEfsMountTargetA:
+    Type: AWS::EFS::MountTarget
+    Properties:
+      FileSystemId: !Ref AirflowEfs
+      SubnetId: !Select [0, !Ref PrivateSubnetIds]
+      SecurityGroups: [!Ref AirflowEfsSecurityGroup]
+
+  AirflowEfsMountTargetB:
+    Type: AWS::EFS::MountTarget
+    Properties:
+      FileSystemId: !Ref AirflowEfs
+      SubnetId: !Select [1, !Ref PrivateSubnetIds]
+      SecurityGroups: [!Ref AirflowEfsSecurityGroup]
+
+  AirflowEfsAccessPoint:
+    Type: AWS::EFS::AccessPoint
+    Properties:
+      FileSystemId: !Ref AirflowEfs
+      # Matches the `airflow` user the apache/airflow base image itself
+      # runs as (UID/GID 50000), so files EFS creates are owned by the
+      # same user the container's own process runs as.
+      PosixUser:
+        Uid: "50000"
+        Gid: "0"
+      RootDirectory:
+        Path: /airflow
+        CreationInfo:
+          OwnerUid: "50000"
+          OwnerGid: "0"
+          Permissions: "0755"
+
+  # ---------------------------------------------------------------------
   # ECS Fargate -- webapp (Spring Boot API)
   # ---------------------------------------------------------------------
   EcsCluster:
@@ -320,12 +569,9 @@ Resources:
               Value: !Ref DBUsername
             - Name: SAGEMAKER_ENDPOINT_NAME
               Value: !GetAtt SageMakerEndpoint.EndpointName
-              # NOTE: webapp's ModelServiceClient.java still only knows how to call
-              # model-service over plain HTTP (MODEL_SERVICE_URL) -- on AWS there's
-              # no standalone model-service ECS task, model-service's own image IS
-              # the SageMaker Endpoint's serving container instead. Calling
-              # SageMaker Runtime's InvokeEndpoint API from Java is real application
-              # code that doesn't exist yet; this env var is there for when it does.
+              # Presence alone switches ModelServiceClient.java from a plain
+              # HTTP call to SageMaker Runtime's InvokeEndpoint API -- see
+              # that class. Unset locally, so local dev is unaffected.
           Secrets:
             - Name: SPRING_DATASOURCE_PASSWORD
               ValueFrom: !Sub "${Database.MasterUserSecret.SecretArn}:password::"
@@ -354,6 +600,185 @@ Resources:
           ContainerPort: 8080
           TargetGroupArn: !Ref AlbTargetGroup
       HealthCheckGracePeriodSeconds: 60
+
+  # ---------------------------------------------------------------------
+  # ECS Fargate -- nav-log-agent (LangGraph MCP server). Reached through
+  # the same ALB as webapp via a path-based route (AlbMcpListenerRule,
+  # /mcp/*) -- see app/main.py's sse_path/message_path for why those are
+  # the real, stable routes this rule can target.
+  # ---------------------------------------------------------------------
+  NavLogAgentLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/vfr-route-nav-log-agent
+      RetentionInDays: 30
+
+  NavLogAgentTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: vfr-route-nav-log-agent
+      RequiresCompatibilities: [FARGATE]
+      NetworkMode: awsvpc
+      Cpu: "512"
+      Memory: "1024"
+      ExecutionRoleArn: !GetAtt EcsTaskExecutionRole.Arn
+      TaskRoleArn: !GetAtt GenAiTaskRole.Arn
+      ContainerDefinitions:
+        - Name: nav-log-agent
+          Image: !Ref NavLogAgentImageUri
+          PortMappings:
+            - ContainerPort: 8000
+          Environment:
+            - Name: DB_HOST
+              Value: !GetAtt Database.Endpoint.Address
+            - Name: DB_PORT
+              Value: !GetAtt Database.Endpoint.Port
+            - Name: DB_NAME
+              Value: !Ref DBName
+            - Name: DB_USER
+              Value: !Ref DBUsername
+            - Name: SAGEMAKER_ENDPOINT_NAME
+              Value: !GetAtt SageMakerEndpoint.EndpointName
+          Secrets:
+            - Name: DB_PASSWORD
+              ValueFrom: !Sub "${Database.MasterUserSecret.SecretArn}:password::"
+            - Name: ANTHROPIC_API_KEY
+              ValueFrom: !Ref AnthropicApiKeySecretArn
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref NavLogAgentLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: nav-log-agent
+
+  NavLogAgentService:
+    Type: AWS::ECS::Service
+    DependsOn: AlbMcpListenerRule
+    Properties:
+      Cluster: !Ref EcsCluster
+      TaskDefinition: !Ref NavLogAgentTaskDefinition
+      DesiredCount: 1
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets: !Ref PrivateSubnetIds
+          SecurityGroups: [!Ref NavLogAgentSecurityGroup]
+          AssignPublicIp: DISABLED
+      LoadBalancers:
+        - ContainerName: nav-log-agent
+          ContainerPort: 8000
+          TargetGroupArn: !Ref AlbMcpTargetGroup
+      HealthCheckGracePeriodSeconds: 60
+
+  # ---------------------------------------------------------------------
+  # ECS Fargate -- crewai-agent. A task definition only, no service: this
+  # is a one-shot CLI locally (`docker compose run --rm crewai-agent ...`)
+  # and stays that on AWS too -- run on demand with
+  # `aws ecs run-task --cluster vfr-route --task-definition vfr-route-crewai-agent
+  # --launch-type FARGATE --network-configuration ...`, not a standing service.
+  # ---------------------------------------------------------------------
+  CrewaiAgentLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/vfr-route-crewai-agent
+      RetentionInDays: 30
+
+  CrewaiAgentTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: vfr-route-crewai-agent
+      RequiresCompatibilities: [FARGATE]
+      NetworkMode: awsvpc
+      Cpu: "512"
+      Memory: "1024"
+      ExecutionRoleArn: !GetAtt EcsTaskExecutionRole.Arn
+      TaskRoleArn: !GetAtt GenAiTaskRole.Arn
+      ContainerDefinitions:
+        - Name: crewai-agent
+          Image: !Ref CrewaiAgentImageUri
+          Environment:
+            - Name: SAGEMAKER_ENDPOINT_NAME
+              Value: !GetAtt SageMakerEndpoint.EndpointName
+          Secrets:
+            - Name: ANTHROPIC_API_KEY
+              ValueFrom: !Ref AnthropicApiKeySecretArn
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref CrewaiAgentLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: crewai-agent
+
+  # ---------------------------------------------------------------------
+  # ECS Fargate -- Airflow, self-hosted (the alternative was Amazon MWAA;
+  # self-hosting was chosen to reuse the same Fargate/ECS pattern as every
+  # other service here rather than bring in a second, differently-shaped
+  # managed service for one component). Not reachable from the ALB --
+  # only the Retrain Trigger Lambda talks to it, over Cloud Map (see
+  # ServiceDiscoveryNamespace above).
+  # ---------------------------------------------------------------------
+  AirflowLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/vfr-route-airflow
+      RetentionInDays: 30
+
+  AirflowTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: vfr-route-airflow
+      RequiresCompatibilities: [FARGATE]
+      NetworkMode: awsvpc
+      Cpu: "1024"
+      Memory: "2048"
+      ExecutionRoleArn: !GetAtt EcsTaskExecutionRole.Arn
+      TaskRoleArn: !GetAtt AirflowTaskRole.Arn
+      Volumes:
+        - Name: airflow-home
+          EFSVolumeConfiguration:
+            FilesystemId: !Ref AirflowEfs
+            TransitEncryption: ENABLED
+            AuthorizationConfig:
+              AccessPointId: !Ref AirflowEfsAccessPoint
+              IAM: ENABLED
+      ContainerDefinitions:
+        - Name: airflow
+          Image: !Ref AirflowImageUri
+          Command: ["standalone"]
+          PortMappings:
+            - ContainerPort: 8080
+          MountPoints:
+            - SourceVolume: airflow-home
+              ContainerPath: /opt/airflow
+          Environment:
+            - Name: AIRFLOW__CORE__LOAD_EXAMPLES
+              Value: "false"
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref AirflowLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: airflow
+
+  AirflowService:
+    Type: AWS::ECS::Service
+    Properties:
+      Cluster: !Ref EcsCluster
+      TaskDefinition: !Ref AirflowTaskDefinition
+      DesiredCount: 1
+      LaunchType: FARGATE
+      # Lets `aws ecs execute-command` open a shell into the running task --
+      # the way to run `airflow variables set ...` once, post-deploy (see
+      # docs/README-AWS.md's deploy runbook), since there's no other shell
+      # access to a Fargate task.
+      EnableExecuteCommand: true
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets: !Ref PrivateSubnetIds
+          SecurityGroups: [!Ref AirflowSecurityGroup]
+          AssignPublicIp: DISABLED
+      ServiceRegistries:
+        - RegistryArn: !GetAtt AirflowServiceDiscoveryService.Arn
 
   # ---------------------------------------------------------------------
   # ALB
@@ -393,6 +818,37 @@ Resources:
       DefaultActions:
         - Type: forward
           TargetGroupArn: !Ref AlbTargetGroup
+
+  # nav-log-agent's MCP endpoint, reached through the same ALB as webapp
+  # instead of a second load balancer -- see app/main.py for why /mcp/sse
+  # and /mcp/messages/ are the two real routes this pattern has to match.
+  AlbMcpTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      VpcId: !Ref VpcId
+      Protocol: HTTP
+      Port: 8000
+      TargetType: ip
+      HealthCheckPath: /mcp/sse
+      # An SSE connection is expected to hang open, not return a fast 200 --
+      # ELB's health check just needs *a* response within the timeout to
+      # consider the target healthy, which an SSE handshake satisfies.
+      HealthCheckIntervalSeconds: 30
+      HealthCheckTimeoutSeconds: 10
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 3
+
+  AlbMcpListenerRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      ListenerArn: !Ref AlbListener
+      Priority: 10
+      Conditions:
+        - Field: path-pattern
+          Values: ["/mcp/*"]
+      Actions:
+        - Type: forward
+          TargetGroupArn: !Ref AlbMcpTargetGroup
 
   DnsRecord:
     Type: AWS::Route53::RecordSet
@@ -454,7 +910,10 @@ Resources:
         SecurityGroupIds: [!Ref LambdaSecurityGroup]
       Environment:
         Variables:
-          AIRFLOW_BASE_URL: !Ref AirflowBaseUrl
+          # Matches ServiceDiscoveryNamespace + AirflowServiceDiscoveryService
+          # above -- a fixed, predictable address rather than a
+          # separately-supplied parameter, since this stack owns both ends.
+          AIRFLOW_BASE_URL: http://airflow.vfr-route.internal:8080
           AIRFLOW_DAG_ID: !Ref AirflowDagId
           AIRFLOW_CREDENTIALS_SECRET_ARN: !Ref AirflowCredentialsSecretArn
 
@@ -514,3 +973,18 @@ Outputs:
     Value: !GetAtt SageMakerEndpoint.EndpointName
   RetrainApiUrl:
     Value: !Sub "${RetrainApi.ApiEndpoint}/retrain"
+  McpUrl:
+    Description: nav-log-agent's MCP endpoint -- an MCP client connects to <this>/sse.
+    Value: !If
+      - HasDomainName
+      - !Sub "https://${DomainName}/mcp"
+      - !Sub
+        - "${Scheme}://${DnsName}/mcp"
+        - Scheme: !If [HasCertificate, "https", "http"]
+          DnsName: !GetAtt Alb.DNSName
+  CrewaiAgentTaskDefinitionArn:
+    Description: Run with `aws ecs run-task --cluster vfr-route --task-definition <this> --launch-type FARGATE --network-configuration ...` -- not a standing service.
+    Value: !Ref CrewaiAgentTaskDefinition
+  SageMakerJobRoleArn:
+    Description: Set as the `vfr_sagemaker_job_role_arn` Airflow Variable (airflow/dags/vfr_pipeline_aws_dag.py) once Airflow is up.
+    Value: !GetAtt SageMakerJobRole.Arn
