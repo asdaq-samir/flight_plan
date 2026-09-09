@@ -69,13 +69,7 @@ The system runs today as nine Docker services:
 | `pipeline-processing` / `pipeline-training` | Data collection, feature engineering, and model training, run as isolated jobs |
 | `ml` | Jupyter environment for model development and experimentation |
 
-```
-HTTP client → Spring Boot API ─┐
-                               ├→ FastAPI Model Service → trained model
-MCP client  → LangGraph Agent ─┘  (LangGraph Agent also calls the Claude API + pgvector memory)
-
-Airflow → Processing Job → Training Job → Model Registry → Model Service
-```
+![Current local architecture](architecture-current.svg)
 
 ## Tech stack
 

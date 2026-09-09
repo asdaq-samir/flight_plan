@@ -1,0 +1,104 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 780" font-family="Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#444"/>
+    </marker>
+  </defs>
+
+  <rect width="1280" height="780" fill="#ffffff"/>
+  <text x="640" y="34" text-anchor="middle" font-size="22" font-weight="bold" fill="#1a1a1a">vfr_route — Local Architecture (current)</text>
+
+  <!-- ================= ML Pipeline group ================= -->
+  <rect x="40" y="70" width="380" height="420" rx="10" fill="#eaf1fb" stroke="#5b84b1" stroke-width="1.5"/>
+  <text x="60" y="96" font-size="15" font-weight="bold" fill="#2c4e73">ML Pipeline</text>
+
+  <rect x="70" y="120" width="320" height="52" rx="6" fill="#ffffff" stroke="#5b84b1" stroke-width="1.5"/>
+  <text x="230" y="141" text-anchor="middle" font-size="14" font-weight="bold" fill="#1a1a1a">airflow</text>
+  <text x="230" y="159" text-anchor="middle" font-size="11" fill="#555">orchestrates the DAG</text>
+
+  <rect x="70" y="210" width="320" height="52" rx="6" fill="#ffffff" stroke="#5b84b1" stroke-width="1.5"/>
+  <text x="230" y="231" text-anchor="middle" font-size="14" font-weight="bold" fill="#1a1a1a">pipeline-processing</text>
+  <text x="230" y="249" text-anchor="middle" font-size="11" fill="#555">collect · engineer-features</text>
+
+  <rect x="70" y="300" width="320" height="52" rx="6" fill="#ffffff" stroke="#5b84b1" stroke-width="1.5"/>
+  <text x="230" y="321" text-anchor="middle" font-size="14" font-weight="bold" fill="#1a1a1a">pipeline-training</text>
+  <text x="230" y="339" text-anchor="middle" font-size="11" fill="#555">retrain</text>
+
+  <rect x="70" y="390" width="320" height="66" rx="6" fill="#ffffff" stroke="#5b84b1" stroke-width="1.5" stroke-dasharray="4 3"/>
+  <text x="230" y="413" text-anchor="middle" font-size="14" font-weight="bold" fill="#1a1a1a">model_registry.py</text>
+  <text x="230" y="431" text-anchor="middle" font-size="11" fill="#555">evaluate · promote</text>
+  <text x="230" y="446" text-anchor="middle" font-size="10" fill="#777">(in-process in airflow, no container)</text>
+
+  <line x1="230" y1="172" x2="230" y2="210" stroke="#444" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="230" y1="262" x2="230" y2="300" stroke="#444" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="230" y1="352" x2="230" y2="390" stroke="#444" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- ================= Serving group ================= -->
+  <rect x="460" y="70" width="360" height="420" rx="10" fill="#eaf7ee" stroke="#4a9a5c" stroke-width="1.5"/>
+  <text x="480" y="96" font-size="15" font-weight="bold" fill="#2c6b3a">Serving</text>
+
+  <text x="640" y="120" text-anchor="middle" font-size="12" fill="#333">HTTP client</text>
+  <line x1="640" y1="126" x2="640" y2="150" stroke="#444" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <rect x="490" y="150" width="300" height="52" rx="6" fill="#ffffff" stroke="#4a9a5c" stroke-width="1.5"/>
+  <text x="640" y="171" text-anchor="middle" font-size="14" font-weight="bold" fill="#1a1a1a">webapp</text>
+  <text x="640" y="189" text-anchor="middle" font-size="11" fill="#555">Spring Boot API</text>
+
+  <rect x="490" y="240" width="300" height="52" rx="6" fill="#ffffff" stroke="#4a9a5c" stroke-width="1.5"/>
+  <text x="640" y="261" text-anchor="middle" font-size="14" font-weight="bold" fill="#1a1a1a">model-service</text>
+  <text x="640" y="279" text-anchor="middle" font-size="11" fill="#555">FastAPI · /ping · /invocations</text>
+
+  <rect x="490" y="330" width="300" height="52" rx="6" fill="#ffffff" stroke="#4a9a5c" stroke-width="1.5"/>
+  <text x="640" y="351" text-anchor="middle" font-size="14" font-weight="bold" fill="#1a1a1a">db</text>
+  <text x="640" y="369" text-anchor="middle" font-size="11" fill="#555">PostgreSQL + pgvector</text>
+
+  <line x1="640" y1="202" x2="640" y2="240" stroke="#444" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="590" y1="202" x2="590" y2="330" stroke="#444" stroke-width="1.5" marker-end="url(#arrow)" marker-start="url(#arrow)"/>
+  <text x="565" y="270" font-size="10" fill="#555" transform="rotate(-90 565 270)">JDBC</text>
+
+  <!-- promote: pipeline-training -> model-service, dashed, crosses group boundary -->
+  <path d="M 390 423 H 430 V 266 H 490" fill="none" stroke="#999" stroke-width="1.5" stroke-dasharray="6 4" marker-end="url(#arrow)"/>
+  <text x="398" y="248" font-size="10" fill="#666">promoted</text>
+  <text x="398" y="260" font-size="10" fill="#666">model</text>
+
+  <!-- ================= Gen AI group ================= -->
+  <rect x="860" y="70" width="380" height="420" rx="10" fill="#f3ecfa" stroke="#8a5bc2" stroke-width="1.5"/>
+  <text x="880" y="96" font-size="15" font-weight="bold" fill="#5b3b8a">Gen AI</text>
+
+  <text x="1010" y="120" text-anchor="middle" font-size="12" fill="#333">MCP client</text>
+  <line x1="1010" y1="126" x2="1010" y2="150" stroke="#444" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <rect x="890" y="150" width="240" height="52" rx="6" fill="#ffffff" stroke="#8a5bc2" stroke-width="1.5"/>
+  <text x="1010" y="171" text-anchor="middle" font-size="14" font-weight="bold" fill="#1a1a1a">nav-log-agent</text>
+  <text x="1010" y="189" text-anchor="middle" font-size="11" fill="#555">LangGraph · MCP server</text>
+
+  <rect x="890" y="240" width="240" height="52" rx="6" fill="#ffffff" stroke="#8a5bc2" stroke-width="1.5"/>
+  <text x="1010" y="261" text-anchor="middle" font-size="14" font-weight="bold" fill="#1a1a1a">crewai-agent</text>
+  <text x="1010" y="279" text-anchor="middle" font-size="11" fill="#555">CrewAI · comparison build</text>
+
+  <text x="1180" y="222" text-anchor="middle" font-size="12" fill="#333">CLI</text>
+  <path d="M 1180 228 L 1131 244" fill="none" stroke="#444" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <rect x="890" y="330" width="240" height="52" rx="6" fill="#fdf6e8" stroke="#c79a3a" stroke-width="1.5"/>
+  <text x="1010" y="351" text-anchor="middle" font-size="14" font-weight="bold" fill="#1a1a1a">Claude API</text>
+  <text x="1010" y="369" text-anchor="middle" font-size="11" fill="#555">Anthropic (external)</text>
+
+  <line x1="1010" y1="202" x2="1010" y2="240" stroke="#444" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="1010" y1="292" x2="1010" y2="330" stroke="#444" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 890 176 H 850 V 351 H 890" fill="none" stroke="#444" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="815" y="266" font-size="10" fill="#555" transform="rotate(-90 815 266)">pgvector memory</text>
+
+  <!-- nav-log-agent / crewai-agent -> model-service -->
+  <path d="M 890 176 H 820 V 266 H 790" fill="none" stroke="#444" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 890 266 H 790" fill="none" stroke="#444" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- ================= Dev group ================= -->
+  <rect x="40" y="540" width="380" height="110" rx="10" fill="#f0f0f0" stroke="#888" stroke-width="1.5" stroke-dasharray="6 4"/>
+  <text x="60" y="566" font-size="15" font-weight="bold" fill="#444">Dev (not part of the serving path)</text>
+  <rect x="70" y="580" width="320" height="52" rx="6" fill="#ffffff" stroke="#888" stroke-width="1.5"/>
+  <text x="230" y="601" text-anchor="middle" font-size="14" font-weight="bold" fill="#1a1a1a">ml</text>
+  <text x="230" y="619" text-anchor="middle" font-size="11" fill="#555">Jupyter · notebooks 01-08</text>
+
+  <!-- Legend -->
+  <text x="60" y="740" font-size="11" fill="#666">Solid = request/data flow. Dashed = crosses between the ML pipeline and the serving layer.</text>
+</svg>
