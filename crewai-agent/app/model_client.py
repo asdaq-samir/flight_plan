@@ -1,6 +1,6 @@
 """Client for model-service's /invocations endpoint. Identical to
 nav-log-agent's -- both builds call the same model-serving endpoint, per
-architecture-future.png (the CrewAI build is a framework comparison, not a
+docs/architecture-future.png (the CrewAI build is a framework comparison, not a
 different data source).
 """
 import os

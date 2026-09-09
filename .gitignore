@@ -1,5 +1,7 @@
 __pycache__/
 *.pyc
+.pytest_cache/
+.ruff_cache/
 data/raw/
 .ipynb_checkpoints/
 springboot-app/target/

@@ -1,7 +1,7 @@
 """Comparison-only build of nav-log-agent's task (see
 nav-log-agent/app/graph.py) in CrewAI instead of LangGraph -- the "CrewAI
 Agent (comparison build, same task, different framework)" box in
-architecture-future.png. Not a fallback for the LangGraph build and not
+docs/architecture-future.png. Not a fallback for the LangGraph build and not
 part of the request pipeline: it exists purely to compare the two
 frameworks on identical work (same tools, same model-service, same Claude
 API), which is why it's a one-shot CLI rather than a standing MCP server,
