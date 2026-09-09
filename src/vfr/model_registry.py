@@ -19,6 +19,28 @@ CANDIDATE_MODEL_DIR = MODELS_DIR / "candidate"
 CURRENT_MODEL_DIR = MODELS_DIR / "current"
 
 
+def _reject_remote_uri(path) -> None:
+    """Same guard as vfr.pipeline's (duplicated deliberately, see this
+    module's docstring on why it has zero deps on vfr.pipeline) -- fails
+    loudly for a URI-style path instead of pathlib silently mishandling it.
+    Takes the raw value, checked *before* any Path(...) conversion at the
+    call site -- Path() collapses a scheme's "//" to "/" (e.g.
+    "s3://bucket/x" -> "s3:/bucket/x"), which would silently defeat an
+    "://" check performed after conversion. Worth noting this module's
+    shape on AWS isn't really "swap local copy2() for an S3 copy" though:
+    a real SageMaker Model Registry "promote" is a registry API call
+    (approve a Model Package Version), not a file copy at all -- the
+    artifact is already in S3 from the Training Job. This guard is
+    defensive correctness for local use, not a signpost for what AWS
+    support here would look like.
+    """
+    if "://" in str(path):
+        raise NotImplementedError(
+            f"'{path}' looks like a remote URI, but this module only operates on a local "
+            "filesystem right now."
+        )
+
+
 def evaluate(candidate_dir: Path = CANDIDATE_MODEL_DIR, current_dir: Path = CURRENT_MODEL_DIR) -> bool:
     """True (proceed to Promote) if the candidate beats the currently
     promoted model's held-out MAE, or if nothing is promoted yet.
@@ -38,6 +60,8 @@ def promote(candidate_dir: Path = CANDIDATE_MODEL_DIR, current_dir: Path = CURRE
     """Copy the candidate model + metrics into the "current" (serving)
     location, and keep a timestamped copy under models/versions/ for history.
     """
+    _reject_remote_uri(candidate_dir)
+    _reject_remote_uri(current_dir)
     candidate_dir = Path(candidate_dir)
     current_dir = Path(current_dir)
     current_dir.mkdir(parents=True, exist_ok=True)

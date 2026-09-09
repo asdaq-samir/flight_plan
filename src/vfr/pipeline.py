@@ -61,6 +61,48 @@ class InsufficientLabelsError(RuntimeError):
     pass
 
 
+def _reject_remote_uri(path) -> None:
+    """`pathlib.Path` has no concept of URI schemes, so an unguarded
+    mkdir() against e.g. "s3://bucket/key" wouldn't raise a helpful error --
+    it'd just silently try to create a local directory literally named
+    that. This is also the one seam that would need to change to add real
+    S3 support later: swap the two functions below (and the corresponding
+    pd.read_csv/read_parquet/to_csv/to_parquet/joblib.dump calls) for
+    fsspec/s3fs-aware equivalents; nothing else in this module assumes a
+    local filesystem beyond that.
+
+    Takes the raw value (str or Path), checked *before* any Path(...)
+    conversion happens at the call site -- Path() itself collapses a
+    scheme's "//" down to a single "/" (e.g. "s3://bucket/x" ->
+    "s3:/bucket/x"), which would silently defeat an "://" check performed
+    after conversion.
+    """
+    if "://" in str(path):
+        raise NotImplementedError(
+            f"'{path}' looks like a remote URI, but this pipeline only writes to a local "
+            "filesystem right now -- see _reject_remote_uri's docstring for what S3 support "
+            "would need to change."
+        )
+
+
+def _ensure_local_output_dir(path) -> Path:
+    """For a file path: ensure its parent directory exists locally."""
+    _reject_remote_uri(path)
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def _ensure_local_dir(path) -> Path:
+    """For a directory path (e.g. retrain's out_dir, which files get
+    written *into*): ensure it exists locally, as itself, not its parent.
+    """
+    _reject_remote_uri(path)
+    path = Path(path)
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
 def collect(
     dep_ident: str = "C81",
     dest_ident: str = "KDLH",
@@ -132,8 +174,7 @@ def collect(
     )
     candidates_df = candidates_df[~is_small_unnamed_water].reset_index(drop=True)
 
-    out_path = Path(out_path)
-    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path = _ensure_local_output_dir(out_path)
     out_df = candidates_df.copy()
     out_df["tags"] = out_df["tags"].apply(json.dumps)
     out_df.to_csv(out_path, index=False)
@@ -158,8 +199,7 @@ def engineer_features(in_path: Path = CANDIDATES_PATH, out_path: Path = FEATURES
     id_cols = ["osm_id", "osm_type", "category", "name", "lat", "lon"]
     out_df = df[id_cols + feature_cols].copy()
 
-    out_path = Path(out_path)
-    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path = _ensure_local_output_dir(out_path)
     out_df.to_parquet(out_path, index=False)
     return out_path
 
@@ -252,8 +292,7 @@ def retrain(
         "trained_at": datetime.now(timezone.utc).isoformat(),
     }
 
-    out_dir = Path(out_dir)
-    out_dir.mkdir(parents=True, exist_ok=True)
+    out_dir = _ensure_local_dir(out_dir)
     joblib.dump(best_model, out_dir / "model.joblib")
     (out_dir / "metrics.json").write_text(json.dumps(metrics, indent=2))
     return metrics
