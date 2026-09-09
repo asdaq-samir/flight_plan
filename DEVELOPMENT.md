@@ -301,8 +301,9 @@ onto it:
 | `pipeline-training` (`retrain`) | SageMaker Training Job -- separate image on purpose, since Processing and Training are different AWS constructs with different container contracts (scikit-learn/joblib only load here, lazily, inside `retrain()`) |
 | `model_registry.py`'s `evaluate`/`promote` | SageMaker Model Registry -- register a Model Package Version, "promote" becomes approving it. Not a container job on AWS at all, which is why it doesn't get one locally either (runs in-process in `airflow`, zero third-party deps) |
 | `ml` (Jupyter; notebooks 04-06's PyTorch/TF/HuggingFace/Spark comparisons) | SageMaker Studio, ad hoc -- these are one-off benchmarking exercises with no recurring production role, so they don't become standing infra either locally or on AWS |
-| notebook 08 (altitude selection) | No mapping here -- it's rule-based domain computation (terrain/airspace/weather/aircraft), not model training; headed toward the LangGraph nav-log agent or `model-service` instead |
+| notebook 08 (altitude selection) | No standing infra of its own -- it's rule-based domain computation (terrain/airspace/weather/aircraft), not model training. As of 2026-09-08 its logic (`vfr.altitude`) is actually called by `nav-log-agent`'s `select_altitude` node, so on AWS it just travels with that agent rather than needing its own box |
 | `nav-log-agent` (LangGraph + MCP + pgvector) | **LangGraph Agent (MCP Server)** + **Vector Store** boxes in `architecture-future.png`, calling the same SageMaker Endpoint `webapp` calls |
+| `crewai-agent` | **CrewAI Agent** box in `architecture-future.png` (dashed border: comparison-only, exists in parallel, not pipeline-connected) -- would run alongside the LangGraph Agent on AWS, not replace or feed into it. Missed adding this row when `crewai-agent` was first built; added 2026-09-08 during a README/DEVELOPMENT.md proofread pass. |
 
 **No local equivalent exists yet** for several pieces of the target
 diagram: CI/CD (GitHub Actions -> ECR), the Retrain Trigger (API Gateway ->

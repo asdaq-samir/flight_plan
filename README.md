@@ -50,9 +50,9 @@ explicit path to production on AWS.
   maps to a specific AWS target (SageMaker, ECS Fargate, RDS, CloudFormation)
   — see [Target Architecture](#target-architecture).
 - **CI on every push.** GitHub Actions runs the test suite and lint on
-  every push/PR, then builds all eight service images and publishes them
-  to GHCR from `main` — no manually-run steps between a commit and a
-  built, tagged image.
+  every push/PR, then builds every custom service image (all but the
+  stock Postgres one) and publishes them to GHCR from `main` — no
+  manually-run steps between a commit and a built, tagged image.
 
 ## Architecture
 
@@ -84,7 +84,7 @@ Airflow → Processing Job → Training Job → Model Registry → Model Service
 - **Backend:** Spring Boot (Java), FastAPI (Python)
 - **Gen AI:** LangGraph, CrewAI, Model Context Protocol (MCP), Anthropic Claude API, pgvector (RAG-style semantic memory)
 - **Data:** PostgreSQL, OpenStreetMap (Overpass API), FAA NASR/DOF datasets, NOAA aviation weather and magnetic-model APIs
-- **Infrastructure:** Docker / Docker Compose, designed for AWS (SageMaker, ECS Fargate, RDS, CloudFormation)
+- **Infrastructure:** Docker / Docker Compose, GitHub Actions CI (pytest, ruff, image builds to GHCR), designed for AWS (SageMaker, ECS Fargate, RDS, CloudFormation)
 
 ## Target architecture
 
@@ -98,10 +98,13 @@ Gen AI layer).
 | `webapp` | ECS Fargate |
 | `db` | RDS PostgreSQL |
 | `model-service` | SageMaker Endpoint |
+| `airflow` | Same DAG, hosting undecided — Amazon MWAA vs. self-hosted on Fargate/EC2 |
 | `pipeline-processing` | SageMaker Processing Jobs |
 | `pipeline-training` | SageMaker Training Job |
 | Model evaluation/promotion | SageMaker Model Registry |
 | `nav-log-agent` | LangGraph Agent + Vector Store, deployed alongside the SageMaker endpoint |
+| `crewai-agent` | A second agent deployment alongside it, for framework comparison — not part of the live request path |
+| `ml` | SageMaker Studio, used ad hoc for development — not standing production infrastructure |
 | CI/CD | GitHub Actions builds today, publishing to GHCR; pushing to ECR instead is the remaining step once AWS credentials exist |
 
 ## Status
