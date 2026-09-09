@@ -48,7 +48,14 @@ explicit path to production on AWS.
   the same real task, not a toy example.
 - **A concrete path to production**, not just a demo: every local service
   maps to a specific AWS target (SageMaker, ECS Fargate, RDS, CloudFormation)
-  — see [Target Architecture](#target-architecture).
+  — see [Target Architecture](#target-architecture). The CloudFormation
+  template for that target already exists (`infra/`) and passes `cfn-lint`,
+  and the services themselves are AWS-readiness-hardened ahead of an actual
+  deploy: `pipeline.retrain()` honors SageMaker script-mode's
+  `SM_CHANNEL_*`/`SM_MODEL_DIR` conventions, `webapp` has Actuator
+  liveness/readiness probes and Flyway-versioned migrations instead of
+  JPA's `ddl-auto: update`, and local-filesystem code explicitly rejects a
+  remote (`s3://`) path rather than silently mishandling it.
 - **CI on every push.** GitHub Actions runs the test suite and lint on
   every push/PR, then builds every custom service image (all but the
   stock Postgres one) and publishes them to GHCR from `main` — no
@@ -101,6 +108,14 @@ Gen AI layer).
 | `ml` | SageMaker Studio, used ad hoc for development — not standing production infrastructure |
 | CI/CD | GitHub Actions builds today, publishing to GHCR; pushing to ECR instead is the remaining step once AWS credentials exist |
 
+The infrastructure itself is already written as code: `infra/cloudformation/template.yaml`
+provisions the ECS/RDS/SageMaker/API-Gateway/Lambda resources above into an
+existing VPC, and `infra/lambda-retrain-trigger/` is the Go source for the
+Retrain Trigger. Neither has been deployed against a real AWS account — see
+[`infra/README.md`](../infra/README.md) for what's verified (`cfn-lint`
+clean, the Lambda compiles and passes `go vet`) versus what can only be
+proven with a live deploy.
+
 ## Status
 
 The ML pipeline, orchestration layer, dead-reckoning engine, altitude
@@ -109,8 +124,9 @@ selection logic, both Gen AI agents (LangGraph and CrewAI), and CI
 gated on accumulating enough hand-labeled examples to clear the pipeline's
 minimum-sample threshold; until then, the serving endpoint returns
 representative sample output so the rest of the system can be exercised
-end to end. AWS deployment is designed (see Target Architecture) but not
-yet provisioned.
+end to end. AWS deployment is designed and drafted as IaC (see Target
+Architecture) but not yet provisioned — no AWS account/credentials exist
+in this project's environment yet.
 
 See [`DEVELOPMENT.md`](DEVELOPMENT.md) for setup instructions, a
 notebook-by-notebook breakdown, and detailed engineering notes.

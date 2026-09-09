@@ -22,7 +22,7 @@ remote + CI → 5. AWS deployment.**
 | 2. Airflow DAG (`vfr_pipeline`) | Built and verified, including the 2026-09-08 conversion to `DockerOperator` (separate `pipeline-processing`/`pipeline-training` containers per task) -- see the AWS mapping section for what was checked. |
 | 3. Gen AI nav-log agent (LangGraph + MCP + vector store, CrewAI comparison) | **Built and verified.** DR-leg math, altitude selection, the LangGraph/MCP agent, pgvector memory, and the CrewAI comparison build are all done (below). |
 | 4. GitHub remote + CI | **CI prepped, remote not pushed yet.** `.github/workflows/ci.yml` + `tests/` are built and verified locally (below) -- by explicit user choice, the actual `git remote add` + push was left for the user to do themselves, not automated. The workflow has never actually run on GitHub as of this writing (no remote to trigger it). |
-| 5. AWS deployment (SageMaker, Fargate, RDS, CloudFormation) | Not started — see the AWS mapping section below for how today's pieces are expected to land. |
+| 5. AWS deployment (SageMaker, Fargate, RDS, CloudFormation) | **IaC drafted, not deployed.** `infra/cloudformation/template.yaml` + `infra/lambda-retrain-trigger/` (Go) exist and are verified as far as they can be without an AWS account -- see [AWS-readiness hardening](#aws-readiness-hardening) and `infra/README.md`. |
 
 **The one real data blocker, independent of all of the above**: chart-based
 labeling (`data/labels/spottability_ratings.csv`) only has **2-3 labeled
@@ -162,6 +162,7 @@ docker compose run --rm crewai-agent --departure-ident C81 --destination-ident K
 - `nav-log-agent/` — the LangGraph/MCP nav-log-assembler agent (see below)
 - `crewai-agent/` — the same task, built in CrewAI, for framework comparison (see below)
 - `tests/`, `.github/workflows/ci.yml`, `requirements-dev.txt`, `pyproject.toml` — CI (see Testing / CI below)
+- `infra/` — CloudFormation template + Go Lambda for the AWS target architecture; not deployed (see AWS-readiness hardening below and `infra/README.md`)
 
 ## Notebooks
 
@@ -285,6 +286,51 @@ placeholder key, confirming the whole CrewAI wiring (tools, native
 Anthropic provider, request construction) is correct. Same caveat as
 `nav-log-agent`: a *successful* completion hasn't been observed yet.
 
+## AWS-readiness hardening
+
+Ahead of an actual deploy, several pieces of the local stack were hardened
+against AWS-specific failure modes that wouldn't show up running locally
+against a fixed filesystem/database -- each verified with new or updated
+tests, not just by inspection:
+
+- **`pipeline.retrain()` is SageMaker script-mode compliant.** SageMaker
+  Training Jobs pass input channels and the output location as
+  `SM_CHANNEL_<NAME>`/`SM_MODEL_DIR` environment variables, not CLI flags.
+  `_retrain_defaults()` in `src/vfr/pipeline.py` checks for
+  `SM_CHANNEL_FEATURES`/`SM_CHANNEL_LABELS`/`SM_MODEL_DIR` and falls back to
+  the existing local paths when they're unset, so the same code runs
+  unchanged locally and as a real Training Job.
+- **Local-filesystem code rejects remote URIs instead of silently
+  mishandling them.** `_reject_remote_uri()` (`src/vfr/pipeline.py` and
+  `src/vfr/model_registry.py`) raises `NotImplementedError` if a path
+  contains `://`, checked *before* any `Path(...)` conversion --
+  `Path("s3://bucket/x")` normalizes to `"s3:/bucket/x"` (collapses the
+  double slash), which would otherwise pass a naive check and get silently
+  treated as a relative local directory. Caught by a real bug during test
+  writing: the first version of this guard checked *after* the `Path()`
+  conversion and didn't fire; the fix was verified by tests that failed
+  with "DID NOT RAISE" against the buggy version (`tests/test_pipeline.py`,
+  `tests/test_model_registry.py`).
+- **`webapp` has liveness/readiness probes and versioned migrations.**
+  Spring Boot Actuator exposes `/actuator/health/liveness` and
+  `/actuator/health/readiness` (needed for ECS/ALB health checks -- see
+  `AlbTargetGroup.HealthCheckPath` in `infra/cloudformation/template.yaml`).
+  JPA's `ddl-auto` moved from `update` (silently altering schema on
+  startup) to `validate`, with the actual schema now owned by Flyway
+  (`springboot-app/src/main/resources/db/migration/V1__*.sql`).
+- **`nav-log-agent` has the same idea, hand-rolled.** No ORM on the Python
+  side, so `nav-log-agent/app/migrations.py` is a small versioned-SQL-file
+  runner (a `schema_migrations` table tracking which `V*.sql` files have
+  applied) replacing the old per-connection `CREATE TABLE IF NOT EXISTS`,
+  which had no way to evolve the schema later without a manual `ALTER`.
+
+**Verified**: 41 tests pass (`tests/test_pipeline.py` is new), both
+`webapp`'s Flyway migration and `nav-log-agent`'s `migrations.py` were run
+against a real Postgres container end-to-end (confirmed via
+`docker compose exec db psql` and by inspecting the built JAR's contents
+directly, not just file timestamps, after a stale-container issue where
+`docker compose up` reused an old image -- fixed with `--force-recreate`).
+
 ## Where each container is headed on AWS
 
 Not built yet -- see `README-Future.md` / `architecture-future.png` for the
@@ -305,11 +351,15 @@ onto it:
 | `nav-log-agent` (LangGraph + MCP + pgvector) | **LangGraph Agent (MCP Server)** + **Vector Store** boxes in `architecture-future.png`, calling the same SageMaker Endpoint `webapp` calls |
 | `crewai-agent` | **CrewAI Agent** box in `architecture-future.png` (dashed border: comparison-only, exists in parallel, not pipeline-connected) -- would run alongside the LangGraph Agent on AWS, not replace or feed into it. Missed adding this row when `crewai-agent` was first built; added 2026-09-08 during a README/DEVELOPMENT.md proofread pass. |
 
-**No local equivalent exists yet** for several pieces of the target
-diagram: CI/CD (GitHub Actions -> ECR), the Retrain Trigger (API Gateway ->
-Lambda (Go) -> DAG trigger), or public ingress (`northflyers.com` -> API
-Gateway in front of `webapp`) -- today `webapp` is just hit directly on
-`localhost:8080`.
+**No local equivalent runs yet** for several pieces of the target diagram --
+public ingress (`northflyers.com` -> API Gateway in front of `webapp`;
+today `webapp` is just hit directly on `localhost:8080`), and pushing CI
+images to ECR instead of GHCR. The Retrain Trigger (API Gateway -> Lambda
+(Go) -> DAG trigger) is no longer a gap in the code, just in deployment --
+`infra/lambda-retrain-trigger/` is written, compiles, and is provisioned by
+`infra/cloudformation/template.yaml` alongside the rest of the AWS Serving
+Layer; see [AWS-readiness hardening](#aws-readiness-hardening) and
+`infra/README.md`.
 
 **Update 2026-09-08**: Airflow now launches `pipeline-processing`/
 `pipeline-training` as separate containers via `DockerOperator`, rather
