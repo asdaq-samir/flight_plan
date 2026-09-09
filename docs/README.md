@@ -1,5 +1,16 @@
 # VFR Nav Log Platform
 
+![Python](https://img.shields.io/badge/Python%203.12-3776AB?style=flat-square&logo=python&logoColor=white)
+![Java](https://img.shields.io/badge/Java%2021-437291?style=flat-square&logo=openjdk&logoColor=white)
+![Go](https://img.shields.io/badge/Go-00ADD8?style=flat-square&logo=go&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker%20Compose-2496ED?style=flat-square&logo=docker&logoColor=white)
+![Spring Boot](https://img.shields.io/badge/Spring%20Boot-6DB33F?style=flat-square&logo=springboot&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=flat-square&logo=fastapi&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL%20%2B%20pgvector-4169E1?style=flat-square&logo=postgresql&logoColor=white)
+![Airflow](https://img.shields.io/badge/Apache%20Airflow-017CEE?style=flat-square&logo=apacheairflow&logoColor=white)
+![AWS](https://img.shields.io/badge/AWS-232F3E?style=flat-square)
+![Claude](https://img.shields.io/badge/Claude%20API-D97757?style=flat-square&logo=anthropic&logoColor=white)
+
 ## Contents
 
 - **[Overview](#overview)** — [Highlights](#highlights) · [Architecture](#architecture) · [Tech stack](#tech-stack)
@@ -80,14 +91,48 @@ The system runs today as nine Docker services:
 
 ![Current local architecture](architecture-current.svg)
 
+<sub>Editable source: `architecture-current.drawio`. The rendered SVG has
+the diagram embedded in it, so opening `architecture-current.svg` directly
+in [draw.io](https://app.diagrams.net) (or the VS Code draw.io extension)
+works too. AWS counterpart: `architecture-aws.drawio`, rendered in
+[`README-AWS.md`](README-AWS.md).</sub>
+
 ### Tech stack
 
-- **ML/Data:** scikit-learn, PyTorch, TensorFlow/Keras, Apache Spark MLlib, pandas, HuggingFace sentence-transformers
-- **Pipeline orchestration:** Apache Airflow
-- **Backend:** Spring Boot (Java), FastAPI (Python)
-- **Gen AI:** LangGraph, CrewAI, Model Context Protocol (MCP), Anthropic Claude API, pgvector (RAG-style semantic memory)
-- **Data:** PostgreSQL, OpenStreetMap (Overpass API), FAA NASR/DOF datasets, NOAA aviation weather and magnetic-model APIs
-- **Infrastructure:** Docker / Docker Compose, GitHub Actions CI, AWS (SageMaker, ECS Fargate, RDS, CloudFormation)
+**ML / Data**
+
+![scikit-learn](https://img.shields.io/badge/scikit--learn-F7931E?style=flat-square&logo=scikitlearn&logoColor=white)
+![PyTorch](https://img.shields.io/badge/PyTorch-EE4C2C?style=flat-square&logo=pytorch&logoColor=white)
+![TensorFlow](https://img.shields.io/badge/TensorFlow%2FKeras-FF6F00?style=flat-square&logo=tensorflow&logoColor=white)
+![Spark](https://img.shields.io/badge/Spark%20MLlib-E25A1C?style=flat-square&logo=apachespark&logoColor=white)
+![pandas](https://img.shields.io/badge/pandas-150458?style=flat-square&logo=pandas&logoColor=white)
+![Hugging Face](https://img.shields.io/badge/sentence--transformers-FFD21E?style=flat-square&logo=huggingface&logoColor=black)
+
+**Backend & orchestration**
+
+![Spring Boot](https://img.shields.io/badge/Spring%20Boot-6DB33F?style=flat-square&logo=springboot&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=flat-square&logo=fastapi&logoColor=white)
+![Airflow](https://img.shields.io/badge/Apache%20Airflow-017CEE?style=flat-square&logo=apacheairflow&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL%20%2B%20pgvector-4169E1?style=flat-square&logo=postgresql&logoColor=white)
+
+**Gen AI**
+
+![LangGraph](https://img.shields.io/badge/LangGraph-1C3C3C?style=flat-square&logo=langchain&logoColor=white)
+![CrewAI](https://img.shields.io/badge/CrewAI-FF5A50?style=flat-square)
+![MCP](https://img.shields.io/badge/Model%20Context%20Protocol-000000?style=flat-square)
+![Claude](https://img.shields.io/badge/Claude%20API-D97757?style=flat-square&logo=anthropic&logoColor=white)
+
+**Infrastructure**
+
+![Docker](https://img.shields.io/badge/Docker%20Compose-2496ED?style=flat-square&logo=docker&logoColor=white)
+![GitHub Actions](https://img.shields.io/badge/GitHub%20Actions-2088FF?style=flat-square&logo=githubactions&logoColor=white)
+![AWS](https://img.shields.io/badge/AWS%3A%20SageMaker%20%C2%B7%20Fargate%20%C2%B7%20RDS%20%C2%B7%20CloudFormation-232F3E?style=flat-square)
+![Go](https://img.shields.io/badge/Go%20Lambda-00ADD8?style=flat-square&logo=go&logoColor=white)
+
+**Live data sources** (no logos, but they're where the domain accuracy
+comes from): OpenStreetMap via the Overpass API, FAA NASR/DOF datasets,
+FAA Class B/C/D airspace shapefiles, and NOAA aviation weather plus the
+magnetic-declination model.
 
 ## Services & Data Design
 
