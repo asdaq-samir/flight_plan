@@ -54,6 +54,15 @@
     #map.leaflet-dragging .leaflet-interactive{cursor:grabbing}
     /* Anything clickable -- markers and the course line -- points. */
     #map .leaflet-interactive{cursor:pointer}
+    /* The selected point breathes. Static rings get lost among the
+       chart's own circles; a moving one does not. */
+    @keyframes haloPulse{
+      0%{stroke-width:3;opacity:1}
+      50%{stroke-width:5.5;opacity:.75}
+      100%{stroke-width:3;opacity:1}
+    }
+    .halo-pulse{animation:haloPulse 1.6s ease-in-out infinite}
+    @media (prefers-reduced-motion:reduce){.halo-pulse{animation:none}}
     #side{width:300px;border-left:1px solid var(--line);overflow-y:auto;background:var(--panel)}
     h2 .count{letter-spacing:0;text-transform:none;font-weight:400;margin-left:6px}
     h2 .count b{color:var(--ink);font-weight:700}
@@ -350,14 +359,22 @@ function showHalo(d) {
   // select(), that TypeError broke every selection -- clicking a point,
   // and stepping with the arrows -- while looking like the feature was
   // simply missing.
+  // Cased on both sides -- dark outside, white under the colour -- so the
+  // ring holds its shape over black roads and over blank paper alike.
+  // The pulse is what actually finds it: on a chart full of circles, the
+  // one that moves is the one your eye goes to.
   halo = L.featureGroup([
     L.circleMarker([d.lat, d.lon], {
-      radius: 17, color: "#ffffff", weight: 7, opacity: 0.9,
+      radius: 19, color: "rgba(10,20,28,.55)", weight: 9,
       fill: false, interactive: false,
     }),
     L.circleMarker([d.lat, d.lon], {
-      radius: 17, color: "#ff6a00", weight: 3, opacity: 1,
+      radius: 19, color: "#ffffff", weight: 6,
       fill: false, interactive: false,
+    }),
+    L.circleMarker([d.lat, d.lon], {
+      radius: 19, color: "#ff3b00", weight: 3, opacity: 1,
+      fill: false, interactive: false, className: "halo-pulse",
     }),
   ]).addTo(map);
   halo.bringToFront();
@@ -475,10 +492,20 @@ function toggleBasemap() {
   renderChartNotice();
 }
 
-function dot(colour, ring) {
-  return L.divIcon({ className: "", iconSize: [16,16], iconAnchor: [8,8],
-    html: `<div style="width:14px;height:14px;border-radius:50%;background:${colour};
-           border:2px solid ${ring};box-shadow:0 1px 3px rgba(0,0,0,.4)"></div>` });
+/**
+ * A checkpoint marker. Three layers of edge, because one is never enough
+ * on a chart this busy: a white casing so it separates from dark
+ * linework, a dark hairline outside that so it still separates from pale
+ * green and white paper, and a shadow to lift it off both.
+ */
+function dot(fill, accent) {
+  return L.divIcon({
+    className: "",
+    iconSize: [20, 20], iconAnchor: [10, 10],
+    html: `<div style="width:16px;height:16px;border-radius:50%;background:${fill};
+      border:2.5px solid #fff;outline:1px solid rgba(10,20,28,.55);
+      box-shadow:0 1px 4px rgba(0,0,0,.45)"></div>`,
+  });
 }
 
 // --- step 1: the course line, drawn the moment idents are entered.
@@ -493,16 +520,26 @@ async function loadCourse(dep, dest) {
   initBasemaps(course);
   if (courseLayer) map.removeLayer(courseLayer);
   if (endsLayer) map.removeLayer(endsLayer);
-  courseLayer = L.polyline(course.course_line, {
-    color: "#c2185b", weight: 2.5, opacity: .9, dashArray: "6,6",
-    // Interactive purely so it takes the pointer cursor on hover: the
-    // course is the thing everything else is measured against, and it
-    // should read as a feature of the map rather than decoration.
-    interactive: true, bubblingMouseEvents: true,
-  }).addTo(map)
-    .bindTooltip(`${course.departure.ident} → ${course.destination.ident} · ` +
-                 `${course.distance_nm} nm · ${String(course.bearing_deg).padStart(3, "0")}°T`,
-                 { sticky: true });
+  // Two lines, not one: a white casing under a coloured core. A single
+  // stroke has to win against pale green, blue water, magenta airspace,
+  // brown contours and black roads all at once, and no colour does. The
+  // casing gives the core a consistent background to sit on, which is
+  // how charts draw their own linework and why it reads everywhere.
+  //
+  // Orange-red for the core because the sectional palette has no orange:
+  // magenta was colliding with the airspace it was drawn over.
+  courseLayer = L.layerGroup([
+    L.polyline(course.course_line, {
+      color: "#ffffff", weight: 8, opacity: .85, interactive: false,
+    }),
+    L.polyline(course.course_line, {
+      color: "#ff3b00", weight: 3.5, opacity: 1, dashArray: "11,7",
+      interactive: true, bubblingMouseEvents: true,
+    }).bindTooltip(
+      `${course.departure.ident} → ${course.destination.ident} · ` +
+      `${course.distance_nm} nm · ${String(course.bearing_deg).padStart(3, "0")}°T`,
+      { sticky: true }),
+  ]).addTo(map);
   endsLayer = L.layerGroup([[course.departure,"DEP"],[course.destination,"DEST"]].map(([a]) =>
     L.marker([a.lat,a.lon], { icon: L.divIcon({ className:"", iconSize:[48,20], iconAnchor:[24,10],
       html:`<div style="background:#142430;color:#fff;border-radius:4px;padding:1px 5px;
@@ -618,8 +655,10 @@ function renderMarkers() {
   if (addLayer) map.removeLayer(addLayer);
 
   detLayer = L.layerGroup(detections.map((d, i) => ({ d, i })).filter(x => visible(x.d)).map(({ d, i }) => {
-    const colour = d.judged ? COLORS[d.rating ?? 0] : "#ffffff";
-    const m = L.marker([d.lat, d.lon], { icon: dot(colour, "#1f5c8b") });
+    // Unjudged is a hollow-looking slate rather than white: a white dot
+    // with a white casing vanishes over pale chart.
+    const colour = d.judged ? COLORS[d.rating ?? 0] : "#8fa3b0";
+    const m = L.marker([d.lat, d.lon], { icon: dot(colour) });
     m.on("click", (e) => {
       L.DomEvent.stopPropagation(e);
       openPoint(d, "detected", i);
@@ -639,7 +678,7 @@ function renderMarkers() {
   })).addTo(map);
 
   addLayer = L.layerGroup(added.map((a, i) => ({ a, i })).filter(x => visible(x.a)).map(({ a, i }) => {
-    const m = L.marker([a.lat, a.lon], { icon: dot(COLORS[a.rating ?? 0], "#7b3fa0") });
+    const m = L.marker([a.lat, a.lon], { icon: dot(COLORS[a.rating ?? 0]) });
     m.on("click", (e) => {
       L.DomEvent.stopPropagation(e);
       openPoint(a, "added", i);
