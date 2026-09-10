@@ -163,6 +163,9 @@
       <span class="fsep"></span>
       <label><input type="checkbox" id="f-provided"> provided</label>
       <label><input type="checkbox" id="f-added"> added</label>
+      <span class="fsep"></span>
+      <label><input type="checkbox" id="f-rated"> rated</label>
+      <label><input type="checkbox" id="f-unrated"> unrated</label>
     </span>
   </header>
 
@@ -349,8 +352,12 @@ const WALK_ZOOM = 11;
 // answer one of those at a time, so there was no way to ask the question
 // that matters most -- which waypoints did the detector miss -- by
 // looking at added points alone.
-const FILTER_KEYS = ["dr", "visual", "provided", "added"];
-let filters = { dr: true, visual: false, provided: true, added: true };
+const FILTER_KEYS = ["dr", "visual", "provided", "added", "rated", "unrated"];
+let filters = {
+  dr: true, visual: false,
+  provided: true, added: true,
+  rated: true, unrated: true,
+};
 
 // A detection has no stored role until it is judged, so infer the same
 // way the server does: on course means you fly over it.
@@ -365,8 +372,15 @@ function sourceOf(d) {
   return d.source === "added" ? "added" : "provided";
 }
 
+// The rating is the fact, not the judged flag derived from it.
+function ratedOf(d) {
+  return d.rating !== null && d.rating !== undefined ? "rated" : "unrated";
+}
+
+// Three independent axes, all of which must admit a point: what job it
+// does, where it came from, and whether it has been judged yet.
 function visible(d) {
-  return filters[roleOf(d)] && filters[sourceOf(d)];
+  return filters[roleOf(d)] && filters[sourceOf(d)] && filters[ratedOf(d)];
 }
 
 function setFilter(key, on) {
@@ -712,7 +726,10 @@ function renderStats(body) {
   // number and the map cannot disagree. The added figure is the one
   // worth watching: it says how much of what a pilot wants the detector
   // is still missing.
-  const kept = (list) => list.filter(x => x.judged && visible(x)).length;
+  // What is drawn, not what is rated: with an unrated box beside it, a
+  // count that excluded unrated points would sit at zero while the chart
+  // was full of them.
+  const kept = (list) => list.filter(visible).length;
   const total = kept(detections) + kept(added);
 
   // Distance, waypoints, filter. Nothing else: how many candidates the
