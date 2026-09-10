@@ -136,9 +136,10 @@
       <h2 class="legend-h" id="legend-h">Scale <span class="caret" id="legend-caret">hide</span></h2>
       <div id="legend">
         <ol class="steps">
-          <li>Press <kbd>c</kbd> to jump to the departure.</li>
+          <li>Press <kbd>Enter</kbd> to jump to the departure.</li>
           <li>Walk the points with the <kbd>&uarr;</kbd><kbd>&darr;</kbd><kbd>&larr;</kbd><kbd>&rarr;</kbd> arrows — they follow the course.</li>
           <li>Rate each with <kbd>0</kbd>–<kbd>5</kbd>. It moves on by itself.</li>
+          <li><kbd>Esc</kbd> zooms back out to the whole course.</li>
         </ol>
         <div class="minor">
           Dead-reckoning checkpoints only. <kbd>v</kbd> also shows visual references —
@@ -183,14 +184,14 @@
   </div>
 
   <footer>
-    <span><kbd>c</kbd> start · arrows walk · <kbd>0</kbd>–<kbd>5</kbd> rate</span>
+    <span><kbd>Enter</kbd> start · arrows walk · <kbd>0</kbd>–<kbd>5</kbd> rate · <kbd>Esc</kbd> whole route</span>
     <span><kbd>v</kbd> visual refs: <b id="visflag">hidden</b></span>
     <span><kbd>Del</kbd> remove</span>
     <span><kbd>t</kbd> basemap: <b id="basemap">FAA sectional</b></span>
     <span><kbd>Esc</kbd> deselect</span>
     <span><kbd>&uarr;</kbd><kbd>&darr;</kbd><kbd>&larr;</kbd><kbd>&rarr;</kbd> step the way the course runs</span>
-    <button type="button" id="fit" class="viewbtn">Fit route <kbd>f</kbd></button>
-    <button type="button" id="recentre" class="viewbtn">Zoom to marker <kbd>c</kbd></button>
+    <button type="button" id="fit" class="viewbtn">Fit route <kbd>Esc</kbd></button>
+    <button type="button" id="recentre" class="viewbtn">Zoom to marker <kbd>Enter</kbd></button>
     <span style="margin-left:auto"><kbd>w</kbd> <b>walk unjudged</b> · <kbd>n</kbd> next · <kbd>p</kbd> previous</span>
   </footer>
 
@@ -721,8 +722,10 @@ el("del").addEventListener("click", removeCurrent);
 document.addEventListener("keydown", (e) => {
   if (e.target.tagName === "INPUT" || e.target.tagName === "SELECT") return;
   if (e.key === "t") return toggleBasemap();
-  if (e.key === "f") return fitRoute();
-  if (e.key === "c") return centreOnSelection();
+  // Escape and Enter are the bindings; f and c stay as aliases for
+  // anyone who learned them.
+  if (e.key === "Escape" || e.key === "f") { deselect(); return fitRoute(); }
+  if (e.key === "Enter" || e.key === "c") { e.preventDefault(); return centreOnSelection(); }
   // All four arrows are spatial: each moves the selection the way that
   // key points on the screen, not the way the route happens to be
   // indexed. C81->KDLH bears 328, so flying it goes up and to the left,
@@ -733,7 +736,6 @@ document.addEventListener("keydown", (e) => {
   if (e.key === "ArrowDown") { e.preventDefault(); return step(forwardIsUp() ? -1 : 1); }
   if (e.key === "ArrowLeft") { e.preventDefault(); return step(forwardIsLeft() ? 1 : -1); }
   if (e.key === "ArrowRight") { e.preventDefault(); return step(forwardIsLeft() ? -1 : 1); }
-  if (e.key === "Escape") return deselect();
   if (e.key === "v") return toggleVisual();
   if (e.key === "Delete" || e.key === "Backspace") { e.preventDefault(); return removeCurrent(); }
   if (/^[0-5]$/.test(e.key) && selected) judge(Number(e.key));
