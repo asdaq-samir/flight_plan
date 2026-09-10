@@ -2,12 +2,14 @@ import json
 
 import pytest
 
-from vfr.model_registry import _reject_remote_uri, evaluate, promote
+from vfr.model_registry import PROMOTION_METRIC, _reject_remote_uri, evaluate, promote
 
 
 def _write_metrics(directory, mae):
+    """Writes whichever metric the gate actually compares, so this suite
+    follows PROMOTION_METRIC rather than pinning the old held_out_mae."""
     directory.mkdir(parents=True, exist_ok=True)
-    (directory / "metrics.json").write_text(json.dumps({"held_out_mae": mae}))
+    (directory / "metrics.json").write_text(json.dumps({PROMOTION_METRIC: mae}))
     (directory / "model.joblib").write_text("not a real model, just a placeholder for the test")
 
 

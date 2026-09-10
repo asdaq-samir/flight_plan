@@ -41,9 +41,31 @@ def _reject_remote_uri(path) -> None:
         )
 
 
+# Which metric the promotion gate compares. This was held_out_mae until
+# 2026-09-10 and is now cv_mae, because held_out_mae is a single
+# train_test_split and at this dataset size that statistic is dominated
+# by which rows happened to land in the split.
+#
+# Measured directly, on the 206-label set: recomputing held_out_mae over
+# 50 random split seeds gives sd 0.068-0.072 and a range of 0.73-1.09 for
+# one unchanged model. The first real gate decision this ever made
+# rejected a candidate on a 0.0669 gap -- almost exactly one sd of the
+# statistic. Across those same 50 splits the two models it was comparing
+# had a paired difference of -0.0008 +/- 0.0518 and the candidate won on
+# 25 of 50: a coin flip decided by the split seed.
+#
+# cv_mae is the mean over 5 CV folds of the training set, so it averages
+# that noise down, and it is already the metric retrain() uses to pick
+# between Ridge/RandomForest/GradientBoosting -- selecting on one metric
+# and gating on another was its own inconsistency. held_out_mae is still
+# recorded in metrics.json as an honest held-out report; it is just not
+# what a promotion turns on.
+PROMOTION_METRIC = "cv_mae"
+
+
 def evaluate(candidate_dir: Path = CANDIDATE_MODEL_DIR, current_dir: Path = CURRENT_MODEL_DIR) -> bool:
     """True (proceed to Promote) if the candidate beats the currently
-    promoted model's held-out MAE, or if nothing is promoted yet.
+    promoted model on PROMOTION_METRIC, or if nothing is promoted yet.
     """
     candidate_metrics_path = Path(candidate_dir) / "metrics.json"
     candidate_metrics = json.loads(candidate_metrics_path.read_text())
@@ -53,7 +75,7 @@ def evaluate(candidate_dir: Path = CANDIDATE_MODEL_DIR, current_dir: Path = CURR
         return True
 
     current_metrics = json.loads(current_metrics_path.read_text())
-    return candidate_metrics["held_out_mae"] <= current_metrics["held_out_mae"]
+    return candidate_metrics[PROMOTION_METRIC] <= current_metrics[PROMOTION_METRIC]
 
 
 def promote(candidate_dir: Path = CANDIDATE_MODEL_DIR, current_dir: Path = CURRENT_MODEL_DIR) -> Path:
