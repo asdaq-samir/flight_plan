@@ -28,7 +28,15 @@
     #stats b{color:var(--ink)}
     #flash{margin-left:auto;font-weight:600;min-height:1.4em}
     #middle{flex:1;min-height:0;display:flex}
-    #map{flex:1;min-height:0;background:#eef2f4;cursor:crosshair}
+    #map{flex:1;min-height:0;background:#eef2f4}
+    /* The map reads as draggable. crosshair here was overriding Leaflet's
+       own grab/grabbing, so the pointer never told you the obvious thing:
+       left-drag pans. */
+    #map .leaflet-grab{cursor:grab}
+    #map.leaflet-dragging .leaflet-grab,
+    #map.leaflet-dragging .leaflet-interactive{cursor:grabbing}
+    /* Anything clickable -- markers and the course line -- points. */
+    #map .leaflet-interactive{cursor:pointer}
     #side{width:300px;border-left:1px solid var(--line);overflow-y:auto;background:var(--panel)}
     h2{margin:0;padding:7px 12px;font-size:11px;letter-spacing:.07em;text-transform:uppercase;
       color:var(--muted);background:#fff;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5}
@@ -139,7 +147,7 @@
       <h2 class="legend-h" id="legend-h">Scale <span class="caret" id="legend-caret">hide</span></h2>
       <div id="legend">
         <ol class="steps">
-          <li>Press <kbd>Enter</kbd> to jump to the departure.</li>
+          <li>Press <kbd>Space</kbd> or <kbd>Enter</kbd> to jump to the departure.</li>
           <li>Walk the points with the <kbd>&uarr;</kbd><kbd>&darr;</kbd><kbd>&larr;</kbd><kbd>&rarr;</kbd> arrows — they follow the course.</li>
           <li>Rate each with <kbd>0</kbd>–<kbd>5</kbd>. It moves on by itself.</li>
           <li><kbd>Esc</kbd> zooms back out to the whole course.</li>
@@ -188,14 +196,14 @@
   </div>
 
   <footer>
-    <span><kbd>Enter</kbd> start · arrows walk · <kbd>0</kbd>–<kbd>5</kbd> rate · <kbd>Esc</kbd> whole route</span>
+    <span><kbd>Space</kbd> start · arrows walk · <kbd>0</kbd>–<kbd>5</kbd> rate · <kbd>Esc</kbd> whole route</span>
     <span><kbd>v</kbd> visual refs: <b id="visflag">hidden</b></span>
     <span><kbd>Del</kbd> remove · right-click to add</span>
     <span><kbd>t</kbd> basemap: <b id="basemap">FAA sectional</b></span>
     <span><kbd>Esc</kbd> deselect</span>
     <span><kbd>&uarr;</kbd><kbd>&darr;</kbd><kbd>&larr;</kbd><kbd>&rarr;</kbd> step the way the course runs</span>
     <button type="button" id="fit" class="viewbtn">Fit route <kbd>Esc</kbd></button>
-    <button type="button" id="recentre" class="viewbtn">Zoom to marker <kbd>Enter</kbd></button>
+    <button type="button" id="recentre" class="viewbtn">Zoom to marker <kbd>Space</kbd></button>
     <span style="margin-left:auto"><kbd>w</kbd> <b>walk unjudged</b> · <kbd>n</kbd> next · <kbd>p</kbd> previous</span>
   </footer>
 
@@ -438,8 +446,16 @@ async function loadCourse(dep, dest) {
   initBasemaps(course);
   if (courseLayer) map.removeLayer(courseLayer);
   if (endsLayer) map.removeLayer(endsLayer);
-  courseLayer = L.polyline(course.course_line,
-    { color:"#c2185b", weight:2.5, opacity:.9, dashArray:"6,6" }).addTo(map);
+  courseLayer = L.polyline(course.course_line, {
+    color: "#c2185b", weight: 2.5, opacity: .9, dashArray: "6,6",
+    // Interactive purely so it takes the pointer cursor on hover: the
+    // course is the thing everything else is measured against, and it
+    // should read as a feature of the map rather than decoration.
+    interactive: true, bubblingMouseEvents: true,
+  }).addTo(map)
+    .bindTooltip(`${course.departure.ident} → ${course.destination.ident} · ` +
+                 `${course.distance_nm} nm · ${String(course.bearing_deg).padStart(3, "0")}°T`,
+                 { sticky: true });
   endsLayer = L.layerGroup([[course.departure,"DEP"],[course.destination,"DEST"]].map(([a]) =>
     L.marker([a.lat,a.lon], { icon: L.divIcon({ className:"", iconSize:[48,20], iconAnchor:[24,10],
       html:`<div style="background:#142430;color:#fff;border-radius:4px;padding:1px 5px;
@@ -817,7 +833,14 @@ document.addEventListener("keydown", (e) => {
   // Escape and Enter are the bindings; f and c stay as aliases for
   // anyone who learned them.
   if (e.key === "Escape" || e.key === "f") { deselect(); return fitRoute(); }
-  if (e.key === "Enter" || e.key === "c") { e.preventDefault(); return centreOnSelection(); }
+  // Space as well as Enter: it is the biggest key on the board and the
+  // one a hand finds without looking, which suits the action you take to
+  // get going and to get back on track. preventDefault stops it scrolling
+  // the page.
+  if (e.key === "Enter" || e.key === " " || e.key === "c") {
+    e.preventDefault();
+    return centreOnSelection();
+  }
   // All four arrows are spatial: each moves the selection the way that
   // key points on the screen, not the way the route happens to be
   // indexed. C81->KDLH bears 328, so flying it goes up and to the left,
