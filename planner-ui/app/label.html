@@ -71,14 +71,6 @@
     .frow.minor{font-size:12.5px;opacity:.85}
     kbd{border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;padding:1px 7px;
       background:#fff;color:var(--ink);font:600 12px ui-monospace,SFMono-Regular,Menlo,monospace}
-    #sel{padding:8px 16px;background:#f2f7fb;border-bottom:1px solid var(--line);display:none;
-      align-items:center;gap:10px;flex-wrap:wrap}
-    #sel.show{display:flex}
-    #sel .rate button{font:700 13px inherit;width:30px;height:30px;border-radius:6px;cursor:pointer;
-      border:1px solid var(--line);background:#fff;color:var(--ink);margin-right:3px}
-    #sel .rate button:hover{border-color:var(--accent);color:var(--accent)}
-    #sel .skip{border-color:var(--warn);color:var(--warn)}
-    #sel select{font:inherit;padding:5px;border:1px solid var(--line);border-radius:6px;background:#fff}
     .catpop .leaflet-popup-content{margin:10px 12px;width:auto!important}
     .cathead{margin-bottom:7px;color:var(--muted)}
     .cathead b{color:var(--ink)}
@@ -101,12 +93,6 @@
     .catremove{margin-top:8px;width:100%;font:600 12px inherit;padding:5px 8px;
       border:1px solid var(--warn);background:#fff;color:var(--warn);border-radius:5px;cursor:pointer}
     .catremove:hover{background:var(--warn);color:#fff}
-    #ask{font-weight:600;color:var(--accent)}
-    .role{font:600 12px inherit;padding:5px 9px;border:1px solid var(--line);background:#fff;
-      color:var(--muted);cursor:pointer}
-    #role-dr{border-radius:6px 0 0 6px;border-right:none}
-    #role-vis{border-radius:0 6px 6px 0}
-    .role.on{background:var(--accent);border-color:var(--accent);color:#fff}
     .viewbtn{font:inherit;font-size:13px;padding:3px 10px;border:1px solid var(--line);
       background:#fff;color:var(--ink);border-radius:6px;cursor:pointer;display:inline-flex;
       align-items:center;gap:6px}
@@ -135,37 +121,6 @@
     </form>
     <span id="stats"></span>
   </header>
-
-  <div id="sel">
-    <span id="sel-what"></span>
-    <span id="ask">Would I know <i>that's the one</i> — not one like it?</span>
-    <span class="rate" id="rate">
-      <button data-r="1" title="Real, but you would never use it — one creek among a dozen">1</button>
-      <button data-r="2" title="You would have to hunt for it and might not be sure">2</button>
-      <button data-r="3" title="Workable, but confusable with something nearby">3</button>
-      <button data-r="4" title="You would expect to spot it and be confident">4</button>
-      <button data-r="5" title="Unmistakable — goes on the nav log without a second thought">5</button>
-      <button data-r="0" class="skip" title="Not a feature at all: a contour, a boundary, a chart border. This is a detector bug, not a boring landmark.">0 · not a feature</button>
-    </span>
-    <span id="role-wrap" title="DR: you fly over it and it becomes a nav-log leg. Visual: you see it abeam and it confirms position.">
-      <button type="button" id="role-dr" class="role">DR</button><button type="button" id="role-vis" class="role">visual</button>
-    </span>
-    <select id="cat" title="Read from the chart under your click; change it if the chart is wrong">
-      <option value="water">water</option>
-      <option value="river">river</option>
-      <option value="road_or_rail">road / railroad</option>
-      <option value="town">town</option>
-      <option value="airport">airport</option>
-      <option value="road">road / intersection</option>
-      <option value="railroad">railroad</option>
-      <option value="tower">tower / obstacle</option>
-      <option value="terrain">terrain / ridge</option>
-      <option value="other">other</option>
-    </select>
-    <button id="del" style="font:inherit;padding:5px 10px;border-radius:6px;cursor:pointer;
-      border:1px solid var(--line);background:#fff;color:var(--warn)">delete</button>
-    <span class="m" id="sel-pos" style="color:var(--muted)"></span>
-  </div>
 
   <div id="middle">
     <div id="map"></div>
@@ -712,41 +667,26 @@ function select(sel) {
   if (!d) return;
   focusOn(d);
   showHalo(d);
-  el("sel").className = "show";
-  el("sel-what").innerHTML = selected.kind === "detected"
-    ? `<b>Detected ${d.category}</b>${d.area_m2 ? ` · ${(d.area_m2/1e6).toFixed(2)} km²` : ""}`
-    : `<b style="color:var(--add)">Added checkpoint</b>`;
-  el("sel-pos").textContent = `${d.lat.toFixed(4)}, ${d.lon.toFixed(4)}`;
-  el("cat").value = d.category || "other";
-  // On course means you fly over it; off course means you look at it.
-  const xt = Math.abs(d.cross_track_nm ?? 0);
-  setRole(d.role || (xt <= 0.5 ? "dr" : "visual"));
-  el("del").style.display = d.judged || selected.kind === "added" ? "" : "none";
 }
 
-function deselect() { selected = null; hideHalo(); el("sel").className = ""; }
+function deselect() { selected = null; hideHalo(); }
 
 async function judge(rating, opts = {}) {
   const d = current();
   if (!d || !course) return;
-  const body = {
-    departure_ident: course.departure.ident, destination_ident: course.destination.ident,
-    lat: d.lat, lon: d.lon, source: selected.kind, category: el("cat").value,
-    role, rating, area_m2: d.area_m2 ?? null,
-  };
-  const res = await fetch("/api/picks", { method:"POST",
-    headers:{"Content-Type":"application/json"}, body: JSON.stringify(body) });
-  const out = await res.json();
-  if (!res.ok) { flash(out.detail || "could not save", true); return; }
-  d.rating = rating; d.judged = true; d.category = el("cat").value; d.role = role;
-  if (selected.kind === "added") d.along_track_nm = out.pick.along_track_nm;
+  // Category and role come from the point itself, not from a toolbar
+  // control that may have been left on something else. A dropdown
+  // deciding these is how 34 hand-picked checkpoints were all filed as
+  // water; the editor popup is where they get changed deliberately.
+  const saved = await savePoint(d, selected.kind, { rating });
+  if (!saved) return;
   renderMarkers();
-  refreshStats(out.summary);
   if (opts.keepSelection) return;
   // Carry on the way you were already going, so rating a run of points is
   // arrow, number, number, number rather than arrow between every one.
   step(lastStepDelta);
 }
+
 
 let lastCoverage = {}, lastSummary = null;
 function refreshStats(summary) {
@@ -1010,11 +950,6 @@ el("legend-toggle").addEventListener("click",
   () => setLegend(el("legend").className !== "hidden"));
 try { setLegend(localStorage.getItem("legendHidden") === "1"); } catch { setLegend(false); }
 
-el("rate").addEventListener("click", (e) => {
-  const r = e.target.getAttribute("data-r");
-  if (r !== null) judge(Number(r));
-});
-el("del").addEventListener("click", removeCurrent);
 
 document.addEventListener("keydown", (e) => {
   if (e.target.tagName === "INPUT" || e.target.tagName === "SELECT") return;
