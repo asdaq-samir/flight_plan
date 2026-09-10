@@ -54,6 +54,11 @@
     #map.leaflet-dragging .leaflet-interactive{cursor:grabbing}
     /* Anything clickable -- markers and the course line -- points. */
     #map .leaflet-interactive{cursor:pointer}
+    /* The course gets an aiming cursor rather than the hand: over the
+       line you are placing something on the route, not pressing a
+       button, and a crosshair says where the click will land. Cased in
+       white so it reads on any part of the chart. */
+    #map .course-hit{cursor:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='28'%3E%3Cg fill='none' stroke='%23ffffff' stroke-width='4'%3E%3Cpath d='M14 3v7M14 18v7M3 14h7M18 14h7'/%3E%3Ccircle cx='14' cy='14' r='4'/%3E%3C/g%3E%3Cg fill='none' stroke='%23ff3b00' stroke-width='2'%3E%3Cpath d='M14 3v7M14 18v7M3 14h7M18 14h7'/%3E%3Ccircle cx='14' cy='14' r='4'/%3E%3C/g%3E%3C/svg%3E") 14 14, crosshair}
     /* The selected point breathes. Static rings get lost among the
        chart's own circles; a moving one does not. */
     @keyframes haloPulse{
@@ -534,6 +539,15 @@ async function loadCourse(dep, dest) {
     }),
     L.polyline(course.course_line, {
       color: "#ff3b00", weight: 3.5, opacity: 1, dashArray: "11,7",
+      interactive: false,
+    }),
+    // An invisible fat line carries the hover and the tooltip. An SVG
+    // stroke is hoverable only where it is painted, so a 3.5 px course --
+    // dashed, so half of it is not painted at all -- demanded pixel
+    // accuracy and mostly missed. This is 18 px of transparent stroke on
+    // the same path, which is what you were aiming at anyway.
+    L.polyline(course.course_line, {
+      color: "#000", weight: 18, opacity: 0, className: "course-hit",
       interactive: true, bubblingMouseEvents: true,
     }).bindTooltip(
       `${course.departure.ident} → ${course.destination.ident} · ` +
