@@ -2,7 +2,7 @@
 
 `vfr.pipeline` owns the pipeline logic but pulls in requests/pyarrow and
 the OSM/FAA modules just by being imported, so anything that only needs
-to know *where* the data lives -- labeling-ui, for one -- would drag that
+to know *where* the data lives -- planner-ui, for one -- would drag that
 whole chain in for three constants. Keeping them here means a consumer
 pays for pathlib and nothing else.
 

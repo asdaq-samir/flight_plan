@@ -88,7 +88,7 @@ The system runs today as ten Docker services:
 | `airflow` | Orchestrates the ML training pipeline |
 | `pipeline-processing` / `pipeline-training` | Data collection, feature engineering, and model training, run as isolated jobs |
 | `ml` | Jupyter environment for model development and experimentation |
-| `labeling-ui` | Keyboard-driven UI for rating checkpoint spottability against FAA sectional charts |
+| `planner-ui` | Route planner and chart-vision labeling UI: course, checkpoints, nav log, and rating spottability against FAA sectional charts |
 
 ![Current local architecture](architecture-current.svg)
 
@@ -252,8 +252,9 @@ an engineering gap:
   cannot yet show is *generalization*: every label comes from one
   corridor, so there is no held-out route to prove it transfers. Route
   position was dropped from the feature set for exactly this reason (see
-  `FEATURE_COLS_BASE`), and labeling a second corridor with
-  `docker compose up labeling-ui` (port 8083) is what would settle it.
+  `FEATURE_COLS_BASE`), and labeling a second corridor at
+  `docker compose up planner-ui` (port 8084, `/label`) is what would
+  settle it.
 - **A live AWS deployment.** No AWS account exists in this project's
   environment. Everything that can be verified without one — template
   validity, image builds, DAG correctness — has been; an actual
@@ -382,7 +383,7 @@ breakdown is in the [Appendix](#appendix).
 | `docker compose up airflow` | Orchestrates the full pipeline as a DAG | `8081` |
 | `docker compose up nav-log-agent` | LangGraph MCP server (needs `ANTHROPIC_API_KEY`) | `8082` |
 | `docker compose run --rm crewai-agent --departure-ident C81 --destination-ident KDLH` | One-shot CrewAI CLI (needs `ANTHROPIC_API_KEY`) | — |
-| `docker compose up labeling-ui` | Spottability labeling UI (see [Status](#status)) | `8083` |
+| `docker compose up planner-ui` | Route planner, and `/label` for spottability labeling (see [Status](#status)) | `8084` |
 
 Notes:
 

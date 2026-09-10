@@ -22,7 +22,7 @@ from pathlib import Path
 import pandas as pd
 
 # folium/IPython are imported inside label_candidates() rather than at
-# module level: labeling-ui imports the pure helpers below and has no
+# module level: planner-ui imports the tile constants below and has no
 # Jupyter stack in its image. Same reasoning as vfr.pipeline's lazy
 # scikit-learn import.
 

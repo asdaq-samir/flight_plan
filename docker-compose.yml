@@ -57,17 +57,6 @@ services:
   # Dev-only tool for clearing retrain()'s 30-label floor. Bind-mounts the
   # project so ratings land in the real data/labels/ CSV, same file the
   # notebook 03 loop writes.
-  labeling-ui:
-    build:
-      context: .
-      dockerfile: labeling-ui/Dockerfile
-    ports:
-      - "8083:8000"
-    volumes:
-      - .:/workspace
-    environment:
-      PYTHONPATH: /workspace/src
-
   planner-ui:
     # The route planner -- two idents in, a chart with course, checkpoints
     # and nav log out. The one human-facing surface of the project.
