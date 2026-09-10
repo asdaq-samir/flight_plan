@@ -165,6 +165,7 @@
     <span><kbd>0</kbd> skip</span>
     <span><kbd>t</kbd> basemap: <b id="basemap">FAA sectional</b></span>
     <span><kbd>Esc</kbd> deselect</span>
+    <span><kbd>&uarr;</kbd><kbd>&darr;</kbd> step through points</span>
     <button type="button" id="fit" class="viewbtn">Fit route <kbd>f</kbd></button>
     <button type="button" id="recentre" class="viewbtn">Zoom to marker <kbd>c</kbd></button>
     <span style="margin-left:auto"><kbd>w</kbd> <b>walk unjudged</b> · <kbd>n</kbd> next · <kbd>p</kbd> previous</span>
@@ -173,7 +174,7 @@
 <script>
 const el = (id) => document.getElementById(id);
 const qs = new URLSearchParams(location.search);
-const map = L.map("map", { zoomControl: true, minZoom: 4 });
+const map = L.map("map", { zoomControl: true, minZoom: 4, keyboard: false });
 
 let basemaps = null, underlay = null, activeBase = "faa", chartMinZoom = 8;
 let course = null, courseLayer = null, endsLayer = null;
@@ -255,12 +256,62 @@ function hideHalo() {
   if (halo) { map.removeLayer(halo); halo = null; }
 }
 
+// Every point on the route in the order you would fly past them, both
+// detections and hand-added picks. Separate from walk mode's queue,
+// which is unjudged detections only: arrows are for reviewing what is
+// there, w is for getting through what is not yet done.
+function orderedPoints() {
+  return detections
+    .map((d, i) => ({ d, kind: "detected", i }))
+    .concat(added.map((a, i) => ({ d: a, kind: "added", i })))
+    .filter(x => x.d.along_track_nm !== null && x.d.along_track_nm !== undefined)
+    .sort((a, b) => a.d.along_track_nm - b.d.along_track_nm);
+}
+
+function step(delta) {
+  const points = orderedPoints();
+  if (!points.length) { flash("Nothing on the route yet", true); return; }
+
+  let index;
+  const sel = current();
+  if (sel) {
+    index = points.findIndex(x => x.d === sel);
+    index = index < 0 ? 0 : index + delta;
+  } else {
+    // Entering from nothing: start at whichever point is nearest where
+    // the map is looking, so arrows continue from what you can see
+    // rather than jumping to the far end of the route.
+    const c = map.getCenter();
+    let best = 0, bestDist = Infinity;
+    points.forEach((x, i) => {
+      const dist = (x.d.lat - c.lat) ** 2 + (x.d.lon - c.lng) ** 2;
+      if (dist < bestDist) { bestDist = dist; best = i; }
+    });
+    index = best;
+  }
+
+  if (index < 0 || index >= points.length) {
+    flash(index < 0 ? "Start of route" : "End of route");
+    return;
+  }
+  const point = points[index];
+  map.setView([point.d.lat, point.d.lon], Math.max(map.getZoom(), WALK_ZOOM));
+  select({ kind: point.kind, i: point.i });
+  el("flash").style.color = "var(--muted)";
+  el("flash").textContent =
+    `${index + 1} of ${points.length} · ${point.d.category || "?"} at ` +
+    `${point.d.along_track_nm.toFixed(1)} nm` +
+    (point.d.judged ? ` · rated ${point.d.rating}` : "");
+}
+
 function centreOnSelection() {
-  const target = current() || lastFocus;
+  // Nothing selected and nothing visited yet means the session has just
+  // started, and the useful place to be is the start of the route.
+  // Deliberately not fitRoute, which would make c and f identical.
+  const target = current() || lastFocus
+    || (course && { lat: course.departure.lat, lon: course.departure.lon });
   if (!target) {
-    // Deliberately not falling back to fitRoute: doing that made c and f
-    // identical whenever nothing was selected, which is most of the time.
-    flash("Nothing to go back to — f fits the whole route", true);
+    flash("Load a route first", true);
     return;
   }
   map.setView([target.lat, target.lon], Math.max(map.getZoom(), FOCUS_ZOOM));
@@ -631,6 +682,8 @@ document.addEventListener("keydown", (e) => {
   if (e.key === "t") return toggleBasemap();
   if (e.key === "f") return fitRoute();
   if (e.key === "c") return centreOnSelection();
+  if (e.key === "ArrowDown" || e.key === "ArrowRight") { e.preventDefault(); return step(1); }
+  if (e.key === "ArrowUp" || e.key === "ArrowLeft") { e.preventDefault(); return step(-1); }
   if (e.key === "Escape") { walking = false; return deselect(); }
   if (e.key === "w") return startWalk();
   if (walking && (e.key === "n" || e.key === " ")) { e.preventDefault(); return walkTo(1); }
