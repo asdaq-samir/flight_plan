@@ -14,6 +14,16 @@ keystroke and the tiles come from browser cache.
 Both paths share vfr.labeling's helpers and write the identical CSV, so
 they're interchangeable and a session started in one can be finished in
 the other.
+
+It also serves the route view at /route, which plots a whole scored route
+on the same sectional: the course line, every candidate, and the
+checkpoints vfr.checkpoints actually selected. Reading a list of names
+tells you nothing about whether the checkpoints are findable in the air
+or sensibly spaced -- seeing them on the chart does. That lives here
+rather than in model-service because model-service is deliberately
+/ping + /invocations only, mirroring a SageMaker inference container,
+and this is a human-facing chart tool that already has the sectional tile
+layer working. The service name is now narrower than what it does.
 """
 import csv
 import io
@@ -21,16 +31,24 @@ import math
 from pathlib import Path
 
 import pandas as pd
-from fastapi import FastAPI
+import requests
+from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
-from vfr import labeling
+from vfr import airports, checkpoints as checkpoint_selection, geo, labeling
 from vfr.config import CANDIDATES_PATH, LABELS_PATH, MIN_LABELED_ROWS
 
 app = FastAPI(title="vfr-route labeling")
 
 _INDEX = Path(__file__).resolve().parent / "index.html"
+_ROUTE = Path(__file__).resolve().parent / "route.html"
+
+# Where to ask for scored candidates. A query parameter rather than a
+# fixed value because one model-service instance serves exactly one
+# corridor's feature store, so a second route means a second instance on
+# another port.
+DEFAULT_MODEL_SERVICE = "http://model-service:8000"
 
 
 def _candidates() -> pd.DataFrame:
@@ -238,4 +256,92 @@ def undo() -> dict:
             "rating": removed[4] if len(removed) > 4 else "?",
         },
         "labeled": len(labeling.load_labeled_keys(LABELS_PATH)),
+    }
+
+
+@app.get("/route")
+def route_page() -> FileResponse:
+    return FileResponse(_ROUTE)
+
+
+def _course_line(start: tuple, end: tuple, step_nm: float = 5.0) -> list:
+    """The course line as [[lat, lon], ...], following the great circle.
+
+    Stepped with the bearing recomputed toward the destination at every
+    point, which is what makes it the actual great circle: hold the
+    initial bearing constant instead and you trace a different path that
+    can sit a couple of miles off the true course at the midpoint of a
+    300 nm leg. That matters here because candidate positions come from
+    great-circle cross-track distance, so a drawn line on any other path
+    would show on-course checkpoints as visibly off it.
+    """
+    total = geo.distance_nm(start[0], start[1], end[0], end[1])
+    points, current, travelled = [list(start)], start, 0.0
+    while travelled + step_nm < total:
+        bearing = geo.bearing_deg(current[0], current[1], end[0], end[1])
+        current = geo.destination_point(current[0], current[1], bearing, step_nm)
+        travelled += step_nm
+        points.append(list(current))
+    points.append(list(end))
+    return points
+
+
+@app.get("/api/route")
+def route_data(svc: str = DEFAULT_MODEL_SERVICE) -> dict:
+    """Everything the route view needs: the course line, every scored
+    candidate, and the selected checkpoints with their leg distances.
+
+    The route being served is read back from the model-service instance
+    rather than passed in, so the page cannot ask one instance for a
+    corridor a different one holds.
+    """
+    try:
+        ping = requests.get(f"{svc}/ping", timeout=10).json()
+        if not ping.get("model_loaded"):
+            raise HTTPException(503, f"{svc} has no model loaded: {ping.get('status')}")
+        dep_ident, dest_ident = ping["route"].split("->")
+        resp = requests.post(
+            f"{svc}/invocations",
+            json={"departure_ident": dep_ident, "destination_ident": dest_ident},
+            timeout=60,
+        )
+        resp.raise_for_status()
+        scored = resp.json()["checkpoints"]
+    except requests.RequestException as err:
+        raise HTTPException(502, f"Could not reach model-service at {svc}: {err}") from err
+
+    dep, dest = airports.get_airport(dep_ident), airports.get_airport(dest_ident)
+    start, end = (dep["lat"], dep["lon"]), (dest["lat"], dest["lon"])
+
+    selected = checkpoint_selection.select_checkpoints(scored)
+    selected_keys = {(c["osm_id"], c["category"]) for c in selected}
+    for c in scored:
+        c["selected"] = (c["osm_id"], c["category"]) in selected_keys
+
+    legs = [
+        {
+            "from": a["name"] or a["category"],
+            "to": b["name"] or b["category"],
+            "distance_nm": round(
+                geo.distance_nm(a["lat"], a["lon"], b["lat"], b["lon"]), 1
+            ),
+            "bearing_deg": round(
+                geo.bearing_deg(a["lat"], a["lon"], b["lat"], b["lon"])
+            ),
+        }
+        for a, b in zip(selected, selected[1:])
+    ]
+
+    return {
+        "departure": {"ident": dep_ident, "name": dep["name"], "lat": start[0], "lon": start[1]},
+        "destination": {"ident": dest_ident, "name": dest["name"], "lat": end[0], "lon": end[1]},
+        "distance_nm": round(geo.distance_nm(start[0], start[1], end[0], end[1]), 1),
+        "course_line": _course_line(start, end),
+        "candidates": scored,
+        "selected": selected,
+        "legs": legs,
+        "tile_url": labeling.FAA_VFR_SECTIONAL_URL,
+        "max_zoom": labeling.VFR_SECTIONAL_MAX_ZOOM,
+        "min_zoom": labeling.VFR_SECTIONAL_MIN_ZOOM,
+        "service": svc,
     }

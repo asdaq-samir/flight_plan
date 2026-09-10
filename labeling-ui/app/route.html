@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Route on the sectional</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <style>
+    :root {
+      --ink: #142430; --muted: #5b6b76; --line: #c7d3da;
+      --accent: #1f5c8b; --good: #2f7d4f; --warn: #b3261e;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; height: 100vh; display: flex; flex-direction: column;
+      font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+      color: var(--ink);
+    }
+    header {
+      padding: 10px 16px; border-bottom: 1px solid var(--line);
+      display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap;
+    }
+    #route { font-size: 17px; font-weight: 600; }
+    #summary { color: var(--muted); }
+    #flash { margin-left: auto; font-weight: 600; color: var(--warn); }
+    #wrap { flex: 1; min-height: 0; display: flex; }
+    #map { flex: 1; min-height: 0; }
+    #side {
+      width: 310px; border-left: 1px solid var(--line); overflow-y: auto;
+      background: #fbfcfd;
+    }
+    #side h2 {
+      margin: 0; padding: 8px 12px; font-size: 12px; letter-spacing: .06em;
+      text-transform: uppercase; color: var(--muted);
+      border-bottom: 1px solid var(--line); background: #fff;
+      position: sticky; top: 0;
+    }
+    .cp {
+      padding: 8px 12px; border-bottom: 1px solid #e8edf0; cursor: pointer;
+      display: grid; grid-template-columns: 26px 1fr auto; gap: 8px; align-items: baseline;
+    }
+    .cp:hover { background: #eef4f8; }
+    .num {
+      background: var(--accent); color: #fff; border-radius: 50%;
+      width: 22px; height: 22px; display: grid; place-items: center;
+      font-size: 11px; font-weight: 700;
+    }
+    .cp .nm { font-weight: 600; }
+    .cp .meta { color: var(--muted); font-size: 12px; grid-column: 2 / -1; }
+    .score { font-variant-numeric: tabular-nums; font-weight: 600; color: var(--good); }
+    .leg {
+      padding: 3px 12px 3px 46px; color: var(--muted); font-size: 12px;
+      border-bottom: 1px solid #e8edf0; background: #f4f7f9;
+      font-variant-numeric: tabular-nums;
+    }
+    footer {
+      padding: 8px 16px; border-top: 1px solid var(--line);
+      display: flex; gap: 10px; align-items: center; flex-wrap: wrap; color: var(--muted);
+    }
+    kbd {
+      border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 5px;
+      padding: 2px 8px; background: #fff; color: var(--ink);
+      font: 600 13px ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+    .legend { display: inline-flex; align-items: center; gap: 6px; }
+    .dot { width: 11px; height: 11px; border-radius: 50%; display: inline-block; }
+  </style>
+</head>
+<body>
+  <header>
+    <span id="route">Loading…</span>
+    <span id="summary"></span>
+    <span id="flash"></span>
+  </header>
+
+  <div id="wrap">
+    <div id="map"></div>
+    <div id="side">
+      <h2>Checkpoints</h2>
+      <div id="list"></div>
+    </div>
+  </div>
+
+  <footer>
+    <span class="legend"><span class="dot" style="background:#1f5c8b"></span>selected checkpoint</span>
+    <span class="legend"><span class="dot" style="background:#96a7b2"></span>scored candidate</span>
+    <span><kbd>a</kbd> all candidates</span>
+    <span><kbd>t</kbd> basemap: <b id="basemap">FAA sectional</b></span>
+    <span><kbd>f</kbd> fit route</span>
+  </footer>
+
+<script>
+const el = (id) => document.getElementById(id);
+const map = L.map("map", { zoomControl: true });
+const qs = new URLSearchParams(location.search);
+
+let data = null, basemaps = null, activeBase = "faa";
+let selectedLayer = null, candidateLayer = null, courseLayer = null;
+let showAll = true;
+
+function initBasemaps(cfg) {
+  if (basemaps) return;
+  basemaps = {
+    // Sectional tiles stop at zoom 12; maxNativeZoom upscales them rather
+    // than showing blank tiles when the map is zoomed in past that.
+    faa: L.tileLayer(cfg.tile_url, {
+      attribution: "FAA Aeronautical Information Services",
+      maxNativeZoom: cfg.max_zoom, maxZoom: 18, minZoom: cfg.min_zoom,
+    }),
+    osm: L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: "&copy; OpenStreetMap contributors", maxZoom: 18,
+    }),
+  };
+  basemaps[activeBase].addTo(map);
+}
+
+function toggleBasemap() {
+  if (!basemaps) return;
+  map.removeLayer(basemaps[activeBase]);
+  activeBase = activeBase === "faa" ? "osm" : "faa";
+  basemaps[activeBase].addTo(map);
+  el("basemap").textContent = activeBase === "faa" ? "FAA sectional" : "OpenStreetMap";
+}
+
+// Warm (high) to cool (low), so a glance at the chart shows where the
+// model thinks the route is well served and where it is thin.
+function scoreColor(s) {
+  if (s >= 4.5) return "#1a7f37";
+  if (s >= 4.0) return "#4a9d4a";
+  if (s >= 3.5) return "#b8860b";
+  if (s >= 3.0) return "#c2681a";
+  return "#b3261e";
+}
+
+function numberedIcon(n, score) {
+  return L.divIcon({
+    className: "",
+    html: `<div style="background:${scoreColor(score)};color:#fff;border:2px solid #fff;
+           border-radius:50%;width:26px;height:26px;display:grid;place-items:center;
+           font:700 12px system-ui;box-shadow:0 1px 4px rgba(0,0,0,.4)">${n}</div>`,
+    iconSize: [26, 26], iconAnchor: [13, 13],
+  });
+}
+
+function render() {
+  initBasemaps(data);
+
+  courseLayer = L.polyline(data.course_line,
+    { color: "#c2185b", weight: 2, opacity: .85, dashArray: "6,6" }).addTo(map);
+
+  // Every scored candidate, small and dim: this is what the model chose
+  // *from*, which is the context that makes the selection judgable.
+  candidateLayer = L.layerGroup(
+    data.candidates.filter(c => !c.selected).map(c =>
+      L.circleMarker([c.lat, c.lon], {
+        radius: 4, color: "#5b6b76", weight: 1, opacity: .7,
+        fillColor: scoreColor(c.predicted_score), fillOpacity: .55,
+      }).bindPopup(
+        `<b>${c.name || "(unnamed)"}</b><br>${c.category}<br>` +
+        `score ${c.predicted_score.toFixed(2)} · ${c.along_track_nm.toFixed(1)} nm along`)
+    )).addTo(map);
+
+  selectedLayer = L.layerGroup(
+    data.selected.map((c, i) =>
+      L.marker([c.lat, c.lon], { icon: numberedIcon(i + 1, c.predicted_score) })
+        .bindPopup(
+          `<b>${i + 1}. ${c.name || "(unnamed)"}</b><br>${c.category}<br>` +
+          `score ${c.predicted_score.toFixed(2)} · ${c.along_track_nm.toFixed(1)} nm along`)
+    )).addTo(map);
+
+  const ends = L.layerGroup([
+    [data.departure, "DEP"], [data.destination, "DEST"],
+  ].map(([a, tag]) =>
+    L.marker([a.lat, a.lon], {
+      icon: L.divIcon({ className: "", iconSize: [46, 20], iconAnchor: [23, 10],
+        html: `<div style="background:#142430;color:#fff;border-radius:4px;
+               padding:1px 5px;font:700 11px system-ui;text-align:center">${a.ident}</div>` }),
+    }).bindPopup(`<b>${a.ident}</b> — ${a.name}<br>${tag}`)
+  )).addTo(map);
+
+  fitRoute();
+
+  el("route").textContent = `${data.departure.ident} → ${data.destination.ident}`;
+  el("summary").textContent =
+    `${data.distance_nm} nm · ${data.selected.length} checkpoints from ` +
+    `${data.candidates.length} candidates · ${data.legs.length} legs`;
+
+  const list = el("list");
+  data.selected.forEach((c, i) => {
+    const row = document.createElement("div");
+    row.className = "cp";
+    row.innerHTML =
+      `<span class="num" style="background:${scoreColor(c.predicted_score)}">${i + 1}</span>` +
+      `<span class="nm">${c.name || "(unnamed)"}</span>` +
+      `<span class="score">${c.predicted_score.toFixed(2)}</span>` +
+      `<span class="meta">${c.category} · ${c.along_track_nm.toFixed(1)} nm along route</span>`;
+    row.onclick = () => {
+      map.setView([c.lat, c.lon], data.max_zoom);
+      selectedLayer.getLayers()[i].openPopup();
+    };
+    list.appendChild(row);
+    const leg = data.legs[i];
+    if (leg) {
+      const l = document.createElement("div");
+      l.className = "leg";
+      l.textContent = `↓ ${leg.distance_nm} nm · ${String(leg.bearing_deg).padStart(3, "0")}°T`;
+      list.appendChild(l);
+    }
+  });
+}
+
+function fitRoute() {
+  map.fitBounds(L.latLngBounds(data.course_line), { padding: [30, 30] });
+}
+
+document.addEventListener("keydown", (e) => {
+  if (e.key === "t") toggleBasemap();
+  if (e.key === "f") fitRoute();
+  if (e.key === "a") {
+    showAll = !showAll;
+    showAll ? candidateLayer.addTo(map) : map.removeLayer(candidateLayer);
+  }
+});
+
+(async () => {
+  const svc = qs.get("svc");
+  const res = await fetch("/api/route" + (svc ? `?svc=${encodeURIComponent(svc)}` : ""));
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    el("route").textContent = "Could not load route";
+    el("flash").textContent = err.detail || "request failed";
+    return;
+  }
+  data = await res.json();
+  render();
+})();
+</script>
+</body>
+</html>
