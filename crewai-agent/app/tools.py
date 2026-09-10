@@ -9,7 +9,7 @@ import json
 
 from crewai.tools import tool
 
-from vfr import aircraft as aircraft_module
+from vfr import aircraft as aircraft_module, checkpoints as checkpoint_selection
 from vfr import airports, altitude, navlog
 
 from . import model_client
@@ -20,8 +20,14 @@ def get_route_checkpoints(departure_ident: str, destination_ident: str) -> str:
     """Get the trained model's recommended visual checkpoints along a VFR
     route, as JSON. departure_ident/destination_ident are ICAO/FAA idents
     (e.g. "C81", "KDLH")."""
-    checkpoints = model_client.get_checkpoints(departure_ident, destination_ident)
-    return json.dumps(checkpoints)
+    scored = model_client.get_checkpoints(departure_ident, destination_ident)
+    # Narrowed to the handful actually worth flying rather than every
+    # scored candidate in the corridor (206 of them on C81->KDLH). Two
+    # reasons here specifically: a nav log is a short list, and this is a
+    # tool result going into an LLM prompt, where handing over 206 rows
+    # spends context to make the model do the selection worse than
+    # vfr.checkpoints does it deterministically.
+    return json.dumps(checkpoint_selection.select_checkpoints(scored))
 
 
 @tool("get_recommended_altitude")
@@ -44,9 +50,13 @@ def compute_dead_reckoning_legs(
     """Compute dead-reckoning nav-log legs (true/magnetic heading, wind
     correction angle, groundspeed, ETE, fuel burn) between each consecutive
     checkpoint on the route at altitude_ft, as JSON."""
-    checkpoints = model_client.get_checkpoints(departure_ident, destination_ident)
+    scored = model_client.get_checkpoints(departure_ident, destination_ident)
     profile = aircraft_module.load_aircraft_profile(aircraft_name)
-    checkpoints = sorted(checkpoints, key=lambda c: c["along_track_nm"])
+    # Same selection as get_route_checkpoints, so the legs correspond to
+    # the checkpoints that tool reports rather than to a different list.
+    checkpoints = sorted(
+        checkpoint_selection.select_checkpoints(scored), key=lambda c: c["along_track_nm"]
+    )
     legs = []
     for a, b in zip(checkpoints, checkpoints[1:]):
         leg = navlog.assemble_leg((a["lat"], a["lon"]), (b["lat"], b["lon"]), altitude_ft, profile)

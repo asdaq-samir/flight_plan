@@ -1,3 +1,20 @@
 fastapi==0.115.6
 uvicorn[standard]==0.34.0
 pydantic==2.10.4
+
+# Real inference as of 2026-09-10 (this service returned a hand-written
+# stub before that), so the serving image now needs the model's own
+# runtime.
+#
+# These are PINNED on purpose while docker/requirements-training.txt is
+# not. A joblib artifact is a pickle of scikit-learn's own objects, so the
+# version that loads it has to match the version that wrote it -- an
+# unpinned serving image drifting ahead of the training image is a
+# textbook way to get an InconsistentVersionWarning and, eventually, a
+# model that either fails to unpickle or silently mispredicts. Pinned to
+# what pipeline-training currently resolves to; bump both together.
+scikit-learn==1.9.0
+numpy==2.5.3
+pandas==3.0.5
+joblib==1.6.0
+pyarrow

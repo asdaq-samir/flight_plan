@@ -54,10 +54,32 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
 
+  # Dev-only tool for clearing retrain()'s 30-label floor. Bind-mounts the
+  # project so ratings land in the real data/labels/ CSV, same file the
+  # notebook 03 loop writes.
+  labeling-ui:
+    build:
+      context: .
+      dockerfile: labeling-ui/Dockerfile
+    ports:
+      - "8083:8000"
+    volumes:
+      - .:/workspace
+    environment:
+      PYTHONPATH: /workspace/src
+
   model-service:
     build: ./model-service
     ports:
       - "8000:8000"
+    # Mounted at SageMaker's own paths rather than at the project layout:
+    # /opt/ml/model is where SageMaker places a model artifact for an
+    # inference container, so the service reads the same location locally
+    # and on AWS and needs no code change to move. Read-only -- serving
+    # never writes to either.
+    volumes:
+      - ./data/models/current:/opt/ml/model:ro
+      - ./data/processed:/opt/ml/features:ro
 
   nav-log-agent:
     build:

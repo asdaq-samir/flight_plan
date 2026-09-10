@@ -1,8 +1,15 @@
 """Request/response shapes for the model-serving API.
 
-Structured toward the eventual real response (a trained model's scored
-candidate checkpoints, same fields notebooks 01-03 already produce), even
-though /invocations currently returns a hand-written stub -- see main.py.
+These were written against the eventual real response (a trained model's
+scored candidate checkpoints, same fields notebooks 01-03 produce) while
+/invocations was still a stub, and did not have to change when real
+inference landed 2026-09-10 -- which was the point of shaping them that
+way.
+
+`stub` stays in the response rather than being deleted: the Spring Boot
+side deserializes it (dto/ModelServiceResponse.java), and a caller being
+able to tell real inference from placeholder output is worth a boolean.
+It is now always False.
 """
 from pydantic import BaseModel
 

@@ -1,4 +1,5 @@
-"""The nav-log-assembler graph: checkpoints (model-service) -> recommended
+"""The nav-log-assembler graph: scored checkpoints (model-service) ->
+the subset actually worth flying (vfr.checkpoints) -> recommended
 cruise altitude (vfr.altitude, extracted from notebook 08 -- see
 [[project-navlog-agent]] in project memory) -> dead-reckoning legs
 (vfr.navlog, see [[project-navlog-dr-math]]) -> similar past routes
@@ -11,7 +12,7 @@ from typing import TypedDict
 import anthropic
 from langgraph.graph import END, START, StateGraph
 
-from vfr import aircraft, airports, altitude, navlog
+from vfr import aircraft, airports, altitude, checkpoints as checkpoint_selection, navlog
 
 from . import db, model_client
 
@@ -28,7 +29,8 @@ class NavLogState(TypedDict, total=False):
     destination_ident: str
     altitude_ft: float  # optional input override; computed by select_altitude if omitted
     aircraft_name: str
-    checkpoints: list[dict]
+    checkpoints: list[dict]  # every scored candidate in the corridor
+    selected_checkpoints: list[dict]  # the subset actually flown, see select_checkpoints
     altitude_selection: dict
     legs: list[dict]
     similar_briefings: list[dict]
@@ -41,6 +43,20 @@ def fetch_checkpoints(state: NavLogState) -> dict:
     """
     checkpoints = model_client.get_checkpoints(state["departure_ident"], state["destination_ident"])
     return {"checkpoints": checkpoints}
+
+
+def select_checkpoints(state: NavLogState) -> dict:
+    """Narrows the model's full scored ranking down to the handful of
+    checkpoints a pilot actually flies.
+
+    This node did not exist until 2026-09-10, and its absence was the gap
+    between "the model works" and "the product works": assemble_legs used
+    to consume the entire scored list, so a 206-candidate route produced
+    205 legs and the predicted scores were carried through the whole
+    system without ever deciding anything. See vfr.checkpoints.
+    """
+    selected = checkpoint_selection.select_checkpoints(state["checkpoints"])
+    return {"selected_checkpoints": selected}
 
 
 def select_altitude(state: NavLogState) -> dict:
@@ -68,10 +84,13 @@ def select_altitude(state: NavLogState) -> dict:
 
 def assemble_legs(state: NavLogState) -> dict:
     """Builds one dead-reckoning leg (vfr.navlog.assemble_leg) between each
-    consecutive pair of checkpoints, sorted by along-track distance.
+    consecutive pair of *selected* checkpoints, in route order.
+
+    Reads selected_checkpoints, not checkpoints -- the full scored list is
+    a ranking of everything in the corridor, not a flight plan.
     """
     profile = aircraft.load_aircraft_profile(state.get("aircraft_name", "c172"))
-    checkpoints = sorted(state["checkpoints"], key=lambda c: c["along_track_nm"])
+    checkpoints = sorted(state["selected_checkpoints"], key=lambda c: c["along_track_nm"])
     legs = []
     for a, b in zip(checkpoints, checkpoints[1:]):
         leg = navlog.assemble_leg((a["lat"], a["lon"]), (b["lat"], b["lon"]), state["altitude_ft"], profile)
@@ -151,10 +170,11 @@ def store_memory(state: NavLogState) -> dict:
 
 
 def build_graph():
-    """Wires the six nodes above into the fixed sequence described in the
+    """Wires the seven nodes above into the fixed sequence described in the
     module docstring and compiles the graph, ready for .invoke(state)."""
     graph = StateGraph(NavLogState)
     graph.add_node("fetch_checkpoints", fetch_checkpoints)
+    graph.add_node("select_checkpoints", select_checkpoints)
     graph.add_node("select_altitude", select_altitude)
     graph.add_node("assemble_legs", assemble_legs)
     graph.add_node("retrieve_memory", retrieve_memory)
@@ -162,7 +182,8 @@ def build_graph():
     graph.add_node("store_memory", store_memory)
 
     graph.add_edge(START, "fetch_checkpoints")
-    graph.add_edge("fetch_checkpoints", "select_altitude")
+    graph.add_edge("fetch_checkpoints", "select_checkpoints")
+    graph.add_edge("select_checkpoints", "select_altitude")
     graph.add_edge("select_altitude", "assemble_legs")
     graph.add_edge("assemble_legs", "retrieve_memory")
     graph.add_edge("retrieve_memory", "generate_briefing")
