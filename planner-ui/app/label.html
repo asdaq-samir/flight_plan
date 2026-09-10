@@ -101,6 +101,11 @@
     #side{width:300px;border-left:1px solid var(--line);overflow-y:auto;background:var(--panel)}
     h2 .count{letter-spacing:0;text-transform:none;font-weight:400;margin-left:6px}
     h2 .count b{color:var(--ink);font-weight:700}
+    #pickbreak{float:right;display:inline-flex;gap:5px;letter-spacing:0;text-transform:none;
+      font-weight:400}
+    #pickbreak .chip{border:1px solid var(--line);border-radius:9px;padding:0 7px;
+      background:#fff;color:var(--muted);font-size:11px;line-height:16px}
+    h2 .count b{color:var(--ink);font-weight:700}
     h2{margin:0;padding:7px 12px;font-size:11px;letter-spacing:.07em;text-transform:uppercase;
       color:var(--muted);background:#fff;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5}
     .row{padding:7px 12px;border-bottom:1px solid var(--rule);cursor:pointer;font-size:13px}
@@ -197,7 +202,8 @@
     <div id="map"></div>
     <div id="flash"></div>
     <div id="side">
-      <h2>Picks <span class="count" id="pickcount"></span></h2>
+      <h2>Picks <span class="count" id="pickcount"></span>
+        <span id="pickbreak"></span></h2>
       <div id="list"></div>
     </div>
   </div>
@@ -799,9 +805,10 @@ function renderStats(body) {
   // the count sat still while the map changed under it.
   lastSummary = body.summary || lastSummary;
   lastCoverage = body.coverage || lastCoverage;
-  const s = lastSummary || {};
+  // Only coverage is read from the server's summary now; every count on
+  // screen is derived from what is actually loaded and filtered, so the
+  // two cannot drift apart.
   const c = lastCoverage || {};
-  const roles = s.by_role || {};
 
   // Counted through the same filter that decides what is drawn, so the
   // number and the map cannot disagree. The added figure is the one
@@ -837,10 +844,21 @@ function renderStats(body) {
   // Total, then the two cuts of it that matter: what job each pick does,
   // and where it came from. A pick "given" is one the detector put on the
   // chart and you judged; "added" is one you marked yourself.
-  const given = (s.accepted || 0) + (s.rejected || 0);
-  el("pickcount").innerHTML = s.total
-    ? `<b>${s.total}</b> (${roles.dr || 0} DR / ${roles.visual || 0} visual) · ` +
-      `${given} given, ${s.added || 0} added`
+  // Counted through the filters, so the heading matches the rows under
+  // it. It used to report every pick on file regardless of what was
+  // shown, which made the heading and the list disagree whenever a box
+  // was unticked.
+  const picks = detections.filter(d => d.rating != null)
+    .concat(added.filter(a => a.rating != null))
+    .filter(visible);
+  const tally = (test) => picks.filter(test).length;
+
+  el("pickcount").innerHTML = picks.length ? `<b>${picks.length}</b>` : "";
+  el("pickbreak").innerHTML = picks.length
+    ? `<span class="chip">${tally(p => roleOf(p) === "dr")} DR` +
+      ` · ${tally(p => roleOf(p) === "visual")} visual</span>` +
+      `<span class="chip">${tally(p => sourceOf(p) === "provided")} provided` +
+      ` · ${tally(p => sourceOf(p) === "added")} added</span>`
     : "";
 }
 
