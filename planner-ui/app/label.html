@@ -915,8 +915,8 @@ function selInfoHtml(d) {
   if (d.endpoint) {
     return `<span class="tipbox" style="background:#142430">` +
       `${d.category === "departure" ? "DEP" : "DEST"}</span>` +
-      `<b>${d.ident}</b>${place}` +
-      `<div class="sub">${d.name}</div>`;
+      `<b>${d.ident}</b>` +
+      `<div class="sub">${d.name}${place}</div>`;
   }
   // Read the rating, not the judged flag. They are meant to agree, but
   // only one of them is the fact: a marker drawn green from its rating
@@ -934,15 +934,15 @@ function selInfoHtml(d) {
   // gets a hollow box rather than a word, so the shape of the line does
   // not change as you work down the route.
   //
-  // Where you are in the walk stays on this line too: it and the rating
-  // are both about the act of judging, while the second line is about
-  // the place.
+  // Position in the walk goes on the second line: the first is what this
+  // point is, which is what you are deciding about, and everything that
+  // is merely where you are belongs under it.
   const box = rated
     ? `<span class="tipbox" style="background:${COLORS[d.rating]}">${d.rating}</span>`
     : `<span class="tipbox hollow">–</span>`;
-  return box + `<b>${d.category || "uncategorised"}</b>${place}` +
+  return box + `<b>${d.category || "uncategorised"}</b>` +
     `<div class="sub">${(d.along_track_nm ?? 0).toFixed(1)} nm along · ` +
-    `${Math.abs(d.cross_track_nm ?? 0).toFixed(2)} nm off course</div>`;
+    `${Math.abs(d.cross_track_nm ?? 0).toFixed(2)} nm off course${place}</div>`;
 }
 
 /**
