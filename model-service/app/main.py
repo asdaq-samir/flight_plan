@@ -15,12 +15,17 @@ candidates are hand-labeled and a RandomForest is promoted to
 data/models/current. This module does real inference against it.
 
 What it does NOT do is run the collection pipeline per request. Scoring a
-brand-new route means Overpass and FAA downloads and an elevation
-lookup per candidate -- minutes of network I/O, which is a batch job, not
-an inference call. So this serves the precomputed feature store
-(engineer_features' parquet) and rejects a request for any other route
-rather than pretending to. That is also how it would work on AWS: a
-Processing Job builds features, an endpoint scores them.
+brand-new route means Overpass and FAA downloads and an elevation lookup
+per candidate -- minutes of network I/O, which is a batch job, not an
+inference call. So this serves whichever precomputed feature stores
+(engineer_features' parquets) are present in FEATURES_DIR, and answers
+404 with the exact build commands for anything else rather than
+pretending. That is also how it would work on AWS: a Processing Job
+builds features, an endpoint scores them.
+
+One model serves every corridor. The model is route-agnostic by
+construction -- route position was deliberately removed from its features
+-- so the only thing that varies per route is which parquet to score.
 """
 import json
 import os
@@ -33,31 +38,48 @@ from fastapi import FastAPI, HTTPException
 from .schemas import Checkpoint, RouteRequest, RouteResponse
 
 MODEL_DIR = Path(os.environ.get("MODEL_DIR", "/opt/ml/model"))
-FEATURES_PATH = Path(
-    os.environ.get("FEATURES_PATH", "/opt/ml/features/features_c81_kdlh.parquet")
-)
-# The feature store covers exactly one corridor. Kept as configuration
-# rather than parsed out of the parquet filename so that pointing this at
-# a different route's features is an env change, not a code change.
-SERVED_DEPARTURE = os.environ.get("SERVED_DEPARTURE", "C81").upper()
-SERVED_DESTINATION = os.environ.get("SERVED_DESTINATION", "KDLH").upper()
+FEATURES_DIR = Path(os.environ.get("FEATURES_DIR", "/opt/ml/features"))
+
+# One model, many corridors. This used to serve a single route fixed by
+# env var, which meant a second route needed a second container on
+# another port -- fine for a one-off check, useless behind a UI where
+# someone types an ident. The model itself is route-agnostic (route
+# position was deliberately removed from its features), so the only thing
+# that varies per route is which feature store to score.
+FEATURES_PATTERN = "features_{dep}_{dest}.parquet"
 
 app = FastAPI(title="vfr-route model-service")
 
 _state: dict = {}
+_features_cache: dict = {}
+
+
+def _features_path(dep: str, dest: str) -> Path:
+    return FEATURES_DIR / FEATURES_PATTERN.format(dep=dep.lower(), dest=dest.lower())
+
+
+def available_routes() -> list:
+    """Route pairs this instance can serve, from the feature stores
+    actually present on disk."""
+    routes = []
+    for path in sorted(FEATURES_DIR.glob("features_*.parquet")):
+        parts = path.stem.split("_")
+        if len(parts) == 3:
+            routes.append({"departure_ident": parts[1].upper(), "destination_ident": parts[2].upper()})
+    return routes
 
 
 def _load() -> dict:
-    """Load the model, its metrics and the feature store once, on first
-    use rather than at import time -- a missing artifact should surface as
-    an unhealthy /ping and a 503, not a container that crashloops before
-    it can report why.
+    """Load the model and its metrics once, on first use rather than at
+    import time -- a missing artifact should surface as an unhealthy
+    /ping and a 503, not a container that crashloops before it can report
+    why.
     """
     if _state:
         return _state
     model_path = MODEL_DIR / "model.joblib"
     metrics_path = MODEL_DIR / "metrics.json"
-    if not model_path.exists() or not metrics_path.exists() or not FEATURES_PATH.exists():
+    if not model_path.exists() or not metrics_path.exists():
         return {}
     metrics = json.loads(metrics_path.read_text())
     _state.update(
@@ -69,9 +91,16 @@ def _load() -> dict:
         # one-hot -- which has happened repeatedly (towers, water towers,
         # quarries) and silently breaks anything holding its own copy.
         feature_cols=metrics["feature_cols"],
-        features=pd.read_parquet(FEATURES_PATH),
     )
     return _state
+
+
+def _features(dep: str, dest: str):
+    """The feature store for one corridor, cached after first read."""
+    key = (dep.lower(), dest.lower())
+    if key not in _features_cache:
+        _features_cache[key] = pd.read_parquet(_features_path(dep, dest))
+    return _features_cache[key]
 
 
 @app.get("/ping")
@@ -86,8 +115,15 @@ def ping() -> dict:
         "model_loaded": bool(state),
         "model_dir": str(MODEL_DIR),
         "trained_at": state.get("metrics", {}).get("trained_at"),
-        "route": f"{SERVED_DEPARTURE}->{SERVED_DESTINATION}",
+        "routes": available_routes(),
     }
+
+
+@app.get("/routes")
+def routes() -> dict:
+    """Which corridors have a feature store built, so a caller can offer
+    them rather than guessing and getting a 404."""
+    return {"routes": available_routes(), "features_dir": str(FEATURES_DIR)}
 
 
 @app.post("/invocations", response_model=RouteResponse)
@@ -97,26 +133,34 @@ def invocations(request: RouteRequest) -> RouteResponse:
         raise HTTPException(
             status_code=503,
             detail=(
-                f"No model artifact at {MODEL_DIR} or no feature store at "
-                f"{FEATURES_PATH}. Run the pipeline (collect -> engineer-features -> "
-                "retrain -> promote) before serving."
+                f"No model artifact at {MODEL_DIR}. Run the pipeline "
+                "(collect -> engineer-features -> retrain -> promote) before serving."
             ),
         )
 
     dep = request.departure_ident.strip().upper()
     dest = request.destination_ident.strip().upper()
-    if (dep, dest) != (SERVED_DEPARTURE, SERVED_DESTINATION):
+    path = _features_path(dep, dest)
+    if not path.exists():
+        # 404 rather than "just build it": collecting a corridor is
+        # Overpass queries, FAA downloads and a per-candidate elevation
+        # lookup -- minutes of network I/O. That is a batch job, so this
+        # says exactly how to run it instead of blocking an inference
+        # request on it.
         raise HTTPException(
-            status_code=400,
+            status_code=404,
             detail=(
-                f"This endpoint serves the precomputed {SERVED_DEPARTURE}->"
-                f"{SERVED_DESTINATION} feature store; {dep}->{dest} was requested. "
-                "Scoring a new route means re-running collection, which is a batch "
-                "job rather than an inference call."
+                f"No feature store for {dep}->{dest}. Build it first:\n"
+                f"  docker compose run --rm pipeline-processing collect "
+                f"--dep-ident {dep} --dest-ident {dest} "
+                f"--out-path /workspace/data/processed/candidates_{dep.lower()}_{dest.lower()}.csv\n"
+                f"  docker compose run --rm pipeline-processing engineer-features "
+                f"--in-path /workspace/data/processed/candidates_{dep.lower()}_{dest.lower()}.csv "
+                f"--out-path /workspace/data/processed/{path.name}"
             ),
         )
 
-    df = state["features"]
+    df = _features(dep, dest)
     # Reindex to exactly the columns the model was fitted on: a category
     # present in the parquet but not in training would shift the column
     # order, and one the model expects but the data lacks would raise. A

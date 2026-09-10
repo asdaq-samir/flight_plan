@@ -22,6 +22,26 @@
       display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap;
     }
     #route { font-size: 17px; font-weight: 600; }
+    #form { display: flex; align-items: center; gap: 6px; }
+    #form input {
+      font: 600 15px ui-monospace, SFMono-Regular, Menlo, monospace;
+      text-transform: uppercase; padding: 4px 8px; width: 82px;
+      border: 1px solid var(--line); border-radius: 6px; color: var(--ink);
+      background: #fff;
+    }
+    #form input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+    #form .arrow { color: var(--muted); }
+    #form button {
+      font: inherit; padding: 5px 12px; border-radius: 6px; cursor: pointer;
+      border: 1px solid var(--accent); background: var(--accent); color: #fff;
+    }
+    #form button:disabled { opacity: .55; cursor: progress; }
+    #howto {
+      margin: 0; padding: 10px 16px; background: #fff6f5;
+      border-bottom: 1px solid var(--line); color: var(--ink);
+      font: 12px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace;
+      white-space: pre-wrap; overflow-x: auto;
+    }
     #summary { color: var(--muted); }
     #flash { margin-left: auto; font-weight: 600; color: var(--warn); }
     #wrap { flex: 1; min-height: 0; display: flex; }
@@ -69,10 +89,18 @@
 </head>
 <body>
   <header>
-    <span id="route">Loading…</span>
+    <form id="form" autocomplete="off">
+      <input id="dep" list="built" placeholder="DEP" size="6" spellcheck="false">
+      <span class="arrow">&rarr;</span>
+      <input id="dest" list="built" placeholder="DEST" size="6" spellcheck="false">
+      <datalist id="built"></datalist>
+      <button type="submit">Plot</button>
+    </form>
+    <span id="route"></span>
     <span id="summary"></span>
     <span id="flash"></span>
   </header>
+  <pre id="howto" hidden></pre>
 
   <div id="wrap">
     <div id="map"></div>
@@ -96,7 +124,7 @@ const map = L.map("map", { zoomControl: true });
 const qs = new URLSearchParams(location.search);
 
 let data = null, basemaps = null, activeBase = "faa";
-let selectedLayer = null, candidateLayer = null, courseLayer = null;
+let selectedLayer = null, candidateLayer = null, courseLayer = null, endsLayer = null;
 let showAll = true;
 
 function initBasemaps(cfg) {
@@ -169,7 +197,7 @@ function render() {
           `score ${c.predicted_score.toFixed(2)} · ${c.along_track_nm.toFixed(1)} nm along`)
     )).addTo(map);
 
-  const ends = L.layerGroup([
+  endsLayer = L.layerGroup([
     [data.departure, "DEP"], [data.destination, "DEST"],
   ].map(([a, tag]) =>
     L.marker([a.lat, a.lon], {
@@ -215,6 +243,8 @@ function fitRoute() {
 }
 
 document.addEventListener("keydown", (e) => {
+  if (e.target.tagName === "INPUT") return;  // typing an ident, not a shortcut
+  if (!data) return;
   if (e.key === "t") toggleBasemap();
   if (e.key === "f") fitRoute();
   if (e.key === "a") {
@@ -223,17 +253,87 @@ document.addEventListener("keydown", (e) => {
   }
 });
 
-(async () => {
+// Layers are rebuilt per route rather than the page reloaded, so the
+// tiles already in browser cache stay used and the map keeps its basemap.
+function clearLayers() {
+  [courseLayer, candidateLayer, selectedLayer, endsLayer].forEach(l => l && map.removeLayer(l));
+  el("list").innerHTML = "";
+}
+
+async function plot(dep, dest) {
+  const btn = el("form").querySelector("button");
+  btn.disabled = true;
+  el("flash").textContent = "";
+  el("howto").hidden = true;
+  el("route").textContent = `${dep} → ${dest}`;
+  el("summary").textContent = "loading…";
+
   const svc = qs.get("svc");
-  const res = await fetch("/api/route" + (svc ? `?svc=${encodeURIComponent(svc)}` : ""));
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: res.statusText }));
-    el("route").textContent = "Could not load route";
-    el("flash").textContent = err.detail || "request failed";
-    return;
+  const params = new URLSearchParams({ dep, dest });
+  if (svc) params.set("svc", svc);
+
+  try {
+    const res = await fetch(`/api/route?${params}`);
+    const body = await res.json().catch(() => ({ detail: res.statusText }));
+    if (!res.ok) {
+      el("summary").textContent = "";
+      el("flash").textContent = res.status === 404
+        ? "No feature store for this route yet"
+        : (body.detail || "request failed").split("\n")[0];
+      // A 404 body carries the exact commands that build this corridor;
+      // showing them beats making someone go find the docs.
+      if (String(body.detail || "").includes("docker compose")) {
+        el("howto").textContent = body.detail;
+        el("howto").hidden = false;
+      }
+      clearLayers();
+      return;
+    }
+    clearLayers();
+    data = body;
+    render();
+    history.replaceState(null, "", `?${params}`);
+  } finally {
+    btn.disabled = false;
   }
-  data = await res.json();
-  render();
+}
+
+async function loadBuiltRoutes() {
+  try {
+    const svc = qs.get("svc");
+    const r = await fetch("/api/routes" + (svc ? `?svc=${encodeURIComponent(svc)}` : ""));
+    const { routes } = await r.json();
+    const dl = el("built");
+    dl.innerHTML = "";
+    // Both boxes share one datalist, so it offers every ident that
+    // appears at either end of a route that is actually built.
+    [...new Set(routes.flatMap(x => [x.departure_ident, x.destination_ident]))]
+      .sort().forEach(id => {
+        const o = document.createElement("option");
+        o.value = id;
+        dl.appendChild(o);
+      });
+    return routes;
+  } catch { return []; }
+}
+
+el("form").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const dep = el("dep").value.trim().toUpperCase();
+  const dest = el("dest").value.trim().toUpperCase();
+  if (!dep || !dest) { el("flash").textContent = "Enter both idents"; return; }
+  if (dep === dest) { el("flash").textContent = "Departure and destination are the same"; return; }
+  plot(dep, dest);
+});
+
+(async () => {
+  const routes = await loadBuiltRoutes();
+  const first = routes[0] || { departure_ident: "C81", destination_ident: "KDLH" };
+  const dep = (qs.get("dep") || first.departure_ident).toUpperCase();
+  const dest = (qs.get("dest") || first.destination_ident).toUpperCase();
+  el("dep").value = dep;
+  el("dest").value = dest;
+  plot(dep, dest);
 })();
 </script>
 </body>

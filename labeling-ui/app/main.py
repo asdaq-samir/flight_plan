@@ -286,32 +286,57 @@ def _course_line(start: tuple, end: tuple, step_nm: float = 5.0) -> list:
     return points
 
 
+@app.get("/api/routes")
+def available_routes(svc: str = DEFAULT_MODEL_SERVICE) -> dict:
+    """Which corridors model-service has a feature store for, so the page
+    can offer them instead of letting someone type into a void."""
+    try:
+        return requests.get(f"{svc}/routes", timeout=10).json()
+    except requests.RequestException as err:
+        raise HTTPException(502, f"Could not reach model-service at {svc}: {err}") from err
+
+
 @app.get("/api/route")
-def route_data(svc: str = DEFAULT_MODEL_SERVICE) -> dict:
+def route_data(
+    dep: str = "C81", dest: str = "KDLH", svc: str = DEFAULT_MODEL_SERVICE
+) -> dict:
     """Everything the route view needs: the course line, every scored
     candidate, and the selected checkpoints with their leg distances.
-
-    The route being served is read back from the model-service instance
-    rather than passed in, so the page cannot ask one instance for a
-    corridor a different one holds.
     """
+    dep_ident, dest_ident = dep.strip().upper(), dest.strip().upper()
+
+    # Resolve the idents before asking model-service for anything. A
+    # typo'd ident would otherwise come back as model-service's "no
+    # feature store, build it first" -- advice whose very first command
+    # would then fail, since there is no such airport to collect around.
+    try:
+        dep_airport = airports.get_airport(dep_ident)
+        dest_airport = airports.get_airport(dest_ident)
+    except ValueError as err:
+        raise HTTPException(404, str(err)) from err
+
     try:
         ping = requests.get(f"{svc}/ping", timeout=10).json()
         if not ping.get("model_loaded"):
             raise HTTPException(503, f"{svc} has no model loaded: {ping.get('status')}")
-        dep_ident, dest_ident = ping["route"].split("->")
         resp = requests.post(
             f"{svc}/invocations",
             json={"departure_ident": dep_ident, "destination_ident": dest_ident},
             timeout=60,
         )
-        resp.raise_for_status()
-        scored = resp.json()["checkpoints"]
     except requests.RequestException as err:
         raise HTTPException(502, f"Could not reach model-service at {svc}: {err}") from err
 
-    dep, dest = airports.get_airport(dep_ident), airports.get_airport(dest_ident)
-    start, end = (dep["lat"], dep["lon"]), (dest["lat"], dest["lon"])
+    if resp.status_code != 200:
+        # Passed straight through: model-service's 404 body carries the
+        # build commands for an un-collected corridor, which is exactly
+        # what the person typing the idents needs to see.
+        detail = resp.json().get("detail", resp.text)
+        raise HTTPException(resp.status_code, detail)
+    scored = resp.json()["checkpoints"]
+
+    start = (dep_airport["lat"], dep_airport["lon"])
+    end = (dest_airport["lat"], dest_airport["lon"])
 
     selected = checkpoint_selection.select_checkpoints(scored)
     selected_keys = {(c["osm_id"], c["category"]) for c in selected}
@@ -333,8 +358,8 @@ def route_data(svc: str = DEFAULT_MODEL_SERVICE) -> dict:
     ]
 
     return {
-        "departure": {"ident": dep_ident, "name": dep["name"], "lat": start[0], "lon": start[1]},
-        "destination": {"ident": dest_ident, "name": dest["name"], "lat": end[0], "lon": end[1]},
+        "departure": {"ident": dep_ident, "name": dep_airport["name"], "lat": start[0], "lon": start[1]},
+        "destination": {"ident": dest_ident, "name": dest_airport["name"], "lat": end[0], "lon": end[1]},
         "distance_nm": round(geo.distance_nm(start[0], start[1], end[0], end[1]), 1),
         "course_line": _course_line(start, end),
         "candidates": scored,
