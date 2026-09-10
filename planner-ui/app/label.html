@@ -67,7 +67,18 @@
       background:#fff;color:var(--ink);border-radius:5px;cursor:pointer;text-align:left}
     .catpick:hover{border-color:var(--accent);color:var(--accent)}
     .catpick.guessed{border-color:var(--accent);background:#eaf1f6;color:var(--accent)}
-    .catremove{margin-top:6px;width:100%;font:600 12px inherit;padding:5px 8px;
+    .editpop .leaflet-popup-content{min-width:214px}
+    .eplabel{margin:7px 0 3px;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;
+      color:var(--muted)}
+    .rgrid{display:flex;gap:3px}
+    .rpick{flex:1;font:700 12px inherit;padding:5px 0;border:1px solid var(--line);
+      background:#fff;color:var(--ink);border-radius:5px;cursor:pointer}
+    .rpick:hover{border-color:var(--accent)}
+    .rolerow{display:flex;gap:3px}
+    .rolepick{flex:1;font:600 12px inherit;padding:5px 0;border:1px solid var(--line);
+      background:#fff;color:var(--muted);border-radius:5px;cursor:pointer}
+    .rolepick.on{background:var(--accent);border-color:var(--accent);color:#fff}
+    .catremove{margin-top:8px;width:100%;font:600 12px inherit;padding:5px 8px;
       border:1px solid var(--warn);background:#fff;color:var(--warn);border-radius:5px;cursor:pointer}
     .catremove:hover{background:var(--warn);color:#fff}
     #ask{font-weight:600;color:var(--accent)}
@@ -546,7 +557,7 @@ function renderMarkers() {
     m.on("click", (e) => {
       L.DomEvent.stopPropagation(e);
       select({ kind: "detected", i });
-      openCategoryFor(d, "detected", i);
+      openPointEditor(d, "detected", i);
     });
     // Right-click behaves like left-click here rather than doing nothing.
     // Swallowing it stopped a duplicate point being added on top, which
@@ -558,7 +569,7 @@ function renderMarkers() {
       L.DomEvent.stopPropagation(e);
       if (e.originalEvent) e.originalEvent.preventDefault();
       select({ kind: "detected", i });
-      openCategoryFor(d, "detected", i);
+      openPointEditor(d, "detected", i);
     });
     return m;
   })).addTo(map);
@@ -568,13 +579,13 @@ function renderMarkers() {
     m.on("click", (e) => {
       L.DomEvent.stopPropagation(e);
       select({ kind: "added", i });
-      openCategoryFor(a, "added", i);
+      openPointEditor(a, "added", i);
     });
     m.on("contextmenu", (e) => {
       L.DomEvent.stopPropagation(e);
       if (e.originalEvent) e.originalEvent.preventDefault();
       select({ kind: "added", i });
-      openCategoryFor(a, "added", i);
+      openPointEditor(a, "added", i);
     });
     return m;
   })).addTo(map);
@@ -748,7 +759,7 @@ map.on("contextmenu", async (e) => {
   });
   if (near) {
     select({ kind: near.kind, i: near.i });
-    openCategoryFor(near.d, near.kind, near.i);
+    openPointEditor(near.d, near.kind, near.i);
     return;
   }
   deselect();
@@ -778,31 +789,104 @@ map.on("contextmenu", async (e) => {
  * deliberately not on arrow stepping, which would put a menu in front of
  * the chart on every keypress while rating a run of points.
  */
-function openCategoryFor(d, kind, index) {
-  openCategoryPopup(
-    L.latLng(d.lat, d.lon),
-    `<b>${d.category || "uncategorised"}</b>${d.judged ? ` · rated ${d.rating}` : ""} — change it?`,
-    d.category,
-    async (chosen) => {
-      d.category = chosen;
-      el("cat").value = chosen;
-      // Already-judged points are re-saved so the correction sticks
-      // without needing to be rated again.
-      if (d.judged) {
-        await judge(d.rating, { keepSelection: true });
-        flash(`Recategorised as ${chosen}`);
-      } else {
-        flash(`${chosen} — now rate it 1–5`);
-      }
+/**
+ * Save one point outright, with whatever fields are being changed.
+ * Lower level than judge(): it does not advance, so an edit made on the
+ * map leaves you looking at what you just edited.
+ */
+async function savePoint(d, kind, changes) {
+  Object.assign(d, changes);
+  if (d.rating === null || d.rating === undefined) {
+    // Nothing to store yet. An added point is local until it is rated,
+    // which is what stops a stray right-click becoming a row.
+    return false;
+  }
+  const res = await fetch("/api/picks", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      departure_ident: course.departure.ident,
+      destination_ident: course.destination.ident,
+      lat: d.lat, lon: d.lon, source: kind,
+      category: d.category || "other",
+      role: d.role || roleOf(d),
+      rating: d.rating,
+      area_m2: d.area_m2 ?? null,
+    }),
+  });
+  const out = await res.json();
+  if (!res.ok) { flash(out.detail || "could not save", true); return false; }
+  d.judged = true;
+  d.role = out.pick.role;
+  d.along_track_nm = out.pick.along_track_nm;
+  refreshStats(out.summary);
+  return true;
+}
+
+/**
+ * The point editor: everything about one pick, on the chart beside it.
+ * Rating, category and role in one place, because correcting a point
+ * usually means correcting more than one of them and reopening a menu
+ * per field is its own small punishment.
+ *
+ * Stays open as you change things, re-rendering so the current values
+ * stay marked. Closing it is the only thing that ends the edit.
+ */
+function openPointEditor(d, kind, index) {
+  const popup = L.popup({ closeButton: true, autoClose: true, className: "catpop editpop" })
+    .setLatLng([d.lat, d.lon]);
+
+  function content() {
+    const ratings = [0, 1, 2, 3, 4, 5].map(n =>
+      `<button class="rpick${d.rating === n ? " on" : ""}" data-r="${n}"
+        style="${d.rating === n ? `background:${COLORS[n]};border-color:${COLORS[n]};color:#fff` : ""}"
+        >${n}</button>`).join("");
+    const cats = CATEGORIES.map(([value, label]) =>
+      `<button class="catpick${value === d.category ? " guessed" : ""}" data-cat="${value}">${label}</button>`
+    ).join("");
+    const currentRole = d.role || roleOf(d);
+    return `
+      <div class="cathead">
+        ${d.judged ? "Editing" : "New"} · <b>${d.category || "uncategorised"}</b>
+        ${d.along_track_nm != null ? ` · ${d.along_track_nm.toFixed(1)} nm` : ""}
+      </div>
+      <div class="eplabel">Rating</div>
+      <div class="rgrid">${ratings}</div>
+      <div class="eplabel">Category</div>
+      <div class="catgrid">${cats}</div>
+      <div class="eplabel">Role</div>
+      <div class="rolerow">
+        <button class="rolepick${currentRole === "dr" ? " on" : ""}" data-role="dr">DR</button>
+        <button class="rolepick${currentRole === "visual" ? " on" : ""}" data-role="visual">visual</button>
+      </div>
+      ${(d.judged || kind === "added") ? '<button class="catremove">Remove this point</button>' : ""}`;
+  }
+
+  function wire() {
+    const node = popup.getElement();
+    if (!node) return;
+    const change = async (changes, note) => {
+      const saved = await savePoint(d, kind, changes);
       renderMarkers();
       select({ kind, i: index });
-    },
-    // Only offer removal for something actually recorded. An unjudged
-    // detection has nothing to remove -- rating it 0 is how you say it
-    // should not be there.
-    (d.judged || kind === "added") ? removeCurrent : null,
-  );
+      popup.setContent(content());
+      wire();
+      flash(saved ? note : "Rate it to save");
+    };
+    node.querySelectorAll(".rpick").forEach(b =>
+      b.addEventListener("click", () => change({ rating: Number(b.dataset.r) },
+        Number(b.dataset.r) === 0 ? "Marked not a feature" : `Rated ${b.dataset.r}`)));
+    node.querySelectorAll(".catpick").forEach(b =>
+      b.addEventListener("click", () => change({ category: b.dataset.cat }, `Now ${b.dataset.cat}`)));
+    node.querySelectorAll(".rolepick").forEach(b =>
+      b.addEventListener("click", () => change({ role: b.dataset.role }, `Now ${b.dataset.role}`)));
+    const rm = node.querySelector(".catremove");
+    if (rm) rm.addEventListener("click", () => { map.closePopup(popup); removeCurrent(); });
+  }
+
+  popup.setContent(content()).openOn(map);
+  wire();
 }
+
 
 el("form").addEventListener("submit", async (e) => {
   e.preventDefault();
