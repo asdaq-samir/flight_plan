@@ -44,10 +44,15 @@ def _write_shp(path, declared_words, body_len):
     path.write_bytes(bytes(header) + b"\x00" * body_len)
 
 
+def _companions(tmp_path, *suffixes):
+    for suffix in suffixes:
+        (tmp_path / f"Class_Airspace{suffix}").write_bytes(b"\x00" * 100)
+
+
 def test_complete_shapefile_passes(tmp_path):
     shp = tmp_path / "Class_Airspace.shp"
     _write_shp(shp, declared_words=(100 + 40) // 2, body_len=40)
-    (tmp_path / "Class_Airspace.shx").write_bytes(b"\x00" * 100)
+    _companions(tmp_path, ".shx", ".dbf")
     assert _shapefile_is_complete(shp) is True
 
 
@@ -56,22 +61,66 @@ def test_truncated_shapefile_is_rejected(tmp_path):
     shapes before raising on garbage from the middle of the file."""
     shp = tmp_path / "Class_Airspace.shp"
     _write_shp(shp, declared_words=(100 + 5000) // 2, body_len=40)
-    (tmp_path / "Class_Airspace.shx").write_bytes(b"\x00" * 100)
+    _companions(tmp_path, ".shx", ".dbf")
     assert _shapefile_is_complete(shp) is False
 
 
 def test_missing_index_is_rejected(tmp_path):
     shp = tmp_path / "Class_Airspace.shp"
     _write_shp(shp, declared_words=(100 + 40) // 2, body_len=40)
+    _companions(tmp_path, ".dbf")
+    assert _shapefile_is_complete(shp) is False
+
+
+def test_missing_dbf_is_rejected(tmp_path):
+    """iCloud evicted exactly this file minutes after a clean download;
+    pyshp only complains much later, and not about the cache."""
+    shp = tmp_path / "Class_Airspace.shp"
+    _write_shp(shp, declared_words=(100 + 40) // 2, body_len=40)
+    _companions(tmp_path, ".shx")
     assert _shapefile_is_complete(shp) is False
 
 
 def test_wrong_magic_is_rejected(tmp_path):
     shp = tmp_path / "Class_Airspace.shp"
     shp.write_bytes(b"not a shapefile" + b"\x00" * 200)
-    (tmp_path / "Class_Airspace.shx").write_bytes(b"\x00" * 100)
+    _companions(tmp_path, ".shx", ".dbf")
     assert _shapefile_is_complete(shp) is False
 
 
 def test_absent_file_is_rejected(tmp_path):
     assert _shapefile_is_complete(tmp_path / "nope.shp") is False
+
+
+# --- the hemispheric cruising-altitude rule ---
+
+from vfr.airspace import CLEARANCE_CLASSES, TWO_WAY_COMMS_CLASSES  # noqa: E402
+from vfr.altitude import lowest_vfr_cruising_altitude  # noqa: E402
+
+EAST, WEST = 90.0, 270.0
+
+
+@pytest.mark.parametrize(
+    "floor_ft, bearing, expected",
+    [
+        (3000, WEST, 4500),   # KDSM->KOMA: the case that used to give 12,500
+        (2200, WEST, 2500),
+        (3000, EAST, 3500),
+        (2200, EAST, 3500),   # 2,500 is a westbound altitude, so climb to 3,500
+        (4500, WEST, 4500),   # already legal and eastbound-correct: unchanged
+        (4600, WEST, 6500),   # just above one, so the next in the same band
+    ],
+)
+def test_lowest_legal_altitude_above_the_floor(floor_ft, bearing, expected):
+    assert lowest_vfr_cruising_altitude(floor_ft, bearing) == expected
+
+
+def test_bearing_wraps():
+    assert lowest_vfr_cruising_altitude(3000, 630.0) == lowest_vfr_cruising_altitude(3000, 270.0)
+
+
+def test_only_class_b_takes_a_clearance():
+    """The domain rule this module now encodes: C and D need two-way
+    radio communication established, B needs a clearance."""
+    assert CLEARANCE_CLASSES == ("B",)
+    assert set(TWO_WAY_COMMS_CLASSES) == {"C", "D"}
