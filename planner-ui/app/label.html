@@ -145,7 +145,7 @@
           Dead-reckoning checkpoints only. <kbd>v</kbd> also shows visual references —
           things you spot abeam rather than fly over. <kbd>Del</kbd> removes a point.
           <b>Right-click</b> bare chart to add one the detector missed;
-          left-click pans and double-click zooms.
+          <b>click a marker</b> to fix its category. Left-click pans, double-click zooms.
         </div>
         <div class="q">Flying this leg, would I look up and know <i>that&rsquo;s the one</i> — not one like it?</div>
         <table>
@@ -527,13 +527,21 @@ function renderMarkers() {
   detLayer = L.layerGroup(detections.map((d, i) => ({ d, i })).filter(x => visible(x.d)).map(({ d, i }) => {
     const colour = d.judged ? COLORS[d.rating ?? 0] : "#ffffff";
     const m = L.marker([d.lat, d.lon], { icon: dot(colour, "#1f5c8b") });
-    m.on("click", (e) => { L.DomEvent.stopPropagation(e); select({ kind:"detected", i }); });
+    m.on("click", (e) => {
+      L.DomEvent.stopPropagation(e);
+      select({ kind: "detected", i });
+      openCategoryFor(d, "detected", i);
+    });
     return m;
   })).addTo(map);
 
   addLayer = L.layerGroup(added.map((a, i) => ({ a, i })).filter(x => visible(x.a)).map(({ a, i }) => {
     const m = L.marker([a.lat, a.lon], { icon: dot(COLORS[a.rating ?? 0], "#7b3fa0") });
-    m.on("click", (e) => { L.DomEvent.stopPropagation(e); select({ kind:"added", i }); });
+    m.on("click", (e) => {
+      L.DomEvent.stopPropagation(e);
+      select({ kind: "added", i });
+      openCategoryFor(a, "added", i);
+    });
     return m;
   })).addTo(map);
 
@@ -596,7 +604,7 @@ function select(sel) {
 
 function deselect() { selected = null; hideHalo(); el("sel").className = ""; }
 
-async function judge(rating) {
+async function judge(rating, opts = {}) {
   const d = current();
   if (!d || !course) return;
   const body = {
@@ -612,6 +620,7 @@ async function judge(rating) {
   if (selected.kind === "added") d.along_track_nm = out.pick.along_track_nm;
   renderMarkers();
   refreshStats(out.summary);
+  if (opts.keepSelection) return;
   // Carry on the way you were already going, so rating a run of points is
   // arrow, number, number, number rather than arrow between every one.
   step(lastStepDelta);
@@ -645,6 +654,30 @@ const CATEGORIES = [
   ["terrain", "terrain"], ["other", "other"],
 ];
 
+/**
+ * The one category chooser, used both to add a point and to correct one.
+ * `heading` says why it is open, `current` is highlighted, and `onPick`
+ * gets the chosen value. Anchored at the point rather than sitting in the
+ * toolbar so you are looking at the chart you are judging.
+ */
+function openCategoryPopup(latlng, heading, current, onPick) {
+  const buttons = CATEGORIES.map(([value, label]) =>
+    `<button class="catpick${value === current ? " guessed" : ""}" data-cat="${value}">${label}</button>`
+  ).join("");
+  const popup = L.popup({ closeButton: true, autoClose: true, className: "catpop" })
+    .setLatLng(latlng)
+    .setContent(`<div class="cathead">${heading}</div><div class="catgrid">${buttons}</div>`)
+    .openOn(map);
+
+  popup.getElement().querySelectorAll(".catpick").forEach(btn => {
+    btn.addEventListener("click", () => {
+      map.closePopup(popup);
+      onPick(btn.dataset.cat);
+    });
+  });
+  return popup;
+}
+
 // Right-click adds. Left-click was doing this, which made the two most
 // ordinary things you do to a map -- pan it, and double-click to zoom --
 // drop unwanted points, since both start with a left click on bare
@@ -657,7 +690,6 @@ const CATEGORIES = [
 // point left behind when you click away is worse than no point at all.
 map.on("contextmenu", async (e) => {
   if (!course) return;
-  // Leaflet fires this without suppressing the browser's own menu.
   if (e.originalEvent) e.originalEvent.preventDefault();
   const lat = e.latlng.lat, lon = e.latlng.lng;
   deselect();
@@ -665,32 +697,49 @@ map.on("contextmenu", async (e) => {
   const guess = await fetch(`/api/classify?lat=${lat}&lon=${lon}`)
     .then(r => r.json()).catch(() => ({}));
 
-  const buttons = CATEGORIES.map(([value, label]) =>
-    `<button class="catpick${value === guess.category ? " guessed" : ""}" data-cat="${value}">${label}</button>`
-  ).join("");
-  const popup = L.popup({ closeButton: true, autoClose: true, className: "catpop" })
-    .setLatLng(e.latlng)
-    .setContent(
-      `<div class="cathead">${guess.category
-        ? `Chart shows <b>${guess.category}</b>`
-        : "<b>Nothing drawn here</b>"} — what is it?</div>
-       <div class="catgrid">${buttons}</div>`)
-    .openOn(map);
-
-  const node = popup.getElement();
-  node.querySelectorAll(".catpick").forEach(btn => {
-    btn.addEventListener("click", () => {
+  openCategoryPopup(
+    e.latlng,
+    guess.category ? `Chart shows <b>${guess.category}</b> — what is it?` : "<b>Nothing drawn here</b> — what is it?",
+    guess.category,
+    (chosen) => {
       added.push({
-        lat, lon, category: btn.dataset.cat, rating: null, judged: false,
+        lat, lon, category: chosen, rating: null, judged: false,
         along_track_nm: null, cross_track_nm: null, role: null,
       });
-      map.closePopup(popup);
       renderMarkers();
       select({ kind: "added", i: added.length - 1 });
       flash("Rate it 1–5 to save");
-    });
-  });
+    },
+  );
 });
+
+/**
+ * Correct the category of the point already selected. Opened by clicking
+ * a marker, since that is the deliberate "look at this one" gesture --
+ * deliberately not on arrow stepping, which would put a menu in front of
+ * the chart on every keypress while rating a run of points.
+ */
+function openCategoryFor(d, kind, index) {
+  openCategoryPopup(
+    L.latLng(d.lat, d.lon),
+    `<b>${d.category || "uncategorised"}</b>${d.judged ? ` · rated ${d.rating}` : ""} — change it?`,
+    d.category,
+    async (chosen) => {
+      d.category = chosen;
+      el("cat").value = chosen;
+      // Already-judged points are re-saved so the correction sticks
+      // without needing to be rated again.
+      if (d.judged) {
+        await judge(d.rating, { keepSelection: true });
+        flash(`Recategorised as ${chosen}`);
+      } else {
+        flash(`${chosen} — now rate it 1–5`);
+      }
+      renderMarkers();
+      select({ kind, i: index });
+    },
+  );
+}
 
 el("form").addEventListener("submit", async (e) => {
   e.preventDefault();
