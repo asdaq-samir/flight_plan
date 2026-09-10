@@ -832,7 +832,10 @@ document.addEventListener("keydown", (e) => {
   if (e.key === "t") return toggleBasemap();
   // Escape and Enter are the bindings; f and c stay as aliases for
   // anyone who learned them.
-  if (e.key === "Escape" || e.key === "f") { deselect(); return fitRoute(); }
+  // Escape frames the route without letting go of the point you were on,
+  // so Space brings you straight back to it. Zooming out to look around
+  // is not the same as being finished with a candidate.
+  if (e.key === "Escape" || e.key === "f") return fitRoute();
   // Space as well as Enter: it is the biggest key on the board and the
   // one a hand finds without looking, which suits the action you take to
   // get going and to get back on track. preventDefault stops it scrolling
