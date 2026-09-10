@@ -56,6 +56,12 @@
       border-radius:7px;padding:5px 10px;font-size:12.5px;line-height:1.4;font-weight:400;
       box-shadow:0 2px 10px rgba(0,0,0,.3);white-space:nowrap}
     .selinfo-tip.leaflet-tooltip-top:before{border-top-color:rgba(20,36,48,.94)}
+    /* The icon box is wide and invisible; the pill inside it is only as
+       wide as the ident, and centred. */
+    .end-label{text-align:center;line-height:20px}
+    .end-label span{display:inline-block;background:#142430;color:#fff;border-radius:4px;
+      padding:1px 6px;font:700 11px/16px system-ui;white-space:nowrap;
+      box-shadow:0 1px 3px rgba(0,0,0,.4)}
     .selinfo-tip b{font-weight:700}
     /* inline-flex and centred, like the legend swatches. The previous
        rule set line-height and then used the `font` shorthand after it,
@@ -726,10 +732,18 @@ async function loadCourse(dep, dest) {
       `${course.distance_nm} nm · ${String(course.bearing_deg).padStart(3, "0")}°T`,
       { sticky: true }),
   ]).addTo(map);
-  endsLayer = L.layerGroup([[course.departure,"DEP"],[course.destination,"DEST"]].map(([a]) =>
-    L.marker([a.lat,a.lon], { icon: L.divIcon({ className:"", iconSize:[48,20], iconAnchor:[24,10],
-      html:`<div style="background:#142430;color:#fff;border-radius:4px;padding:1px 5px;
-            font:700 11px system-ui;text-align:center">${a.ident}</div>` }) })
+  // The pill sizes itself and is centred inside a wider, invisible icon
+  // box. Painting the background on the icon box itself meant Leaflet's
+  // fixed 48 px width fought the text: a four-character ident like KDLH
+  // ran past the dark box it was supposed to sit in, because the width
+  // was set while the padding was added on top of it.
+  endsLayer = L.layerGroup([course.departure, course.destination].map(a =>
+    L.marker([a.lat, a.lon], {
+      icon: L.divIcon({
+        className: "end-label", iconSize: [90, 20], iconAnchor: [45, 10],
+        html: `<span>${a.ident}</span>`,
+      }),
+    })
   )).addTo(map);
   fitRoute();
   el("dist").innerHTML =
