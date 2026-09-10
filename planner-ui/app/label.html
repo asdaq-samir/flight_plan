@@ -49,6 +49,18 @@
     #sel .rate button:hover{border-color:var(--accent);color:var(--accent)}
     #sel .skip{border-color:var(--warn);color:var(--warn)}
     #sel select{font:inherit;padding:5px;border:1px solid var(--line);border-radius:6px;background:#fff}
+    #ask{font-weight:600;color:var(--accent)}
+    .legend-h{display:flex;align-items:center;cursor:pointer;user-select:none}
+    .legend-h .caret{margin-left:auto;color:var(--muted);font-weight:400}
+    #legend{padding:8px 12px 10px;border-bottom:1px solid var(--line);background:#fff;font-size:12.5px}
+    #legend .q{font-weight:600;margin-bottom:7px;line-height:1.35}
+    #legend table{border-collapse:collapse;width:100%}
+    #legend td{padding:2px 0;vertical-align:top}
+    #legend td.k{width:26px}
+    #legend .sw{display:inline-block;width:20px;height:18px;border-radius:4px;color:#fff;
+      text-align:center;font:700 11px system-ui;line-height:18px}
+    #legend .note{margin-top:8px;padding-top:7px;border-top:1px solid var(--rule);color:var(--muted);line-height:1.45}
+    #legend .note b{color:var(--ink)}
   </style>
 </head>
 <body>
@@ -66,10 +78,14 @@
 
   <div id="sel">
     <span id="sel-what"></span>
+    <span id="ask">Would I know <i>that's the one</i> — not one like it?</span>
     <span class="rate" id="rate">
-      <button data-r="1">1</button><button data-r="2">2</button><button data-r="3">3</button>
-      <button data-r="4">4</button><button data-r="5">5</button>
-      <button data-r="0" class="skip" title="detected, but I would not use it">skip</button>
+      <button data-r="1" title="Real, but you would never use it — one creek among a dozen">1</button>
+      <button data-r="2" title="You would have to hunt for it and might not be sure">2</button>
+      <button data-r="3" title="Workable, but confusable with something nearby">3</button>
+      <button data-r="4" title="You would expect to spot it and be confident">4</button>
+      <button data-r="5" title="Unmistakable — goes on the nav log without a second thought">5</button>
+      <button data-r="0" class="skip" title="Not a feature at all: a contour, a boundary, a chart border. This is a detector bug, not a boring landmark.">0 · not a feature</button>
     </span>
     <select id="cat" title="what is it">
       <option value="water">water</option>
@@ -89,6 +105,35 @@
   <div id="middle">
     <div id="map"></div>
     <div id="side">
+      <h2 class="legend-h" id="legend-h">Scale <span class="caret" id="legend-caret">hide</span></h2>
+      <div id="legend">
+        <div class="q">Flying this leg, would I look up and know <i>that&rsquo;s the one</i> — not one like it?</div>
+        <table>
+          <tr><td class="k"><span class="sw" style="background:#8a8f94">0</span></td>
+              <td><b>Not a feature.</b> Contour, boundary, chart border. The detector is wrong.</td></tr>
+          <tr><td class="k"><span class="sw" style="background:#b3261e">1</span></td>
+              <td>Real, but you&rsquo;d never use it. One creek among a dozen.</td></tr>
+          <tr><td class="k"><span class="sw" style="background:#c2681a">2</span></td>
+              <td>You&rsquo;d have to hunt, and might not be sure you found it.</td></tr>
+          <tr><td class="k"><span class="sw" style="background:#b8860b">3</span></td>
+              <td>Workable. Findable, but confusable with something nearby.</td></tr>
+          <tr><td class="k"><span class="sw" style="background:#4a9d4a">4</span></td>
+              <td>You&rsquo;d expect to spot it and be confident.</td></tr>
+          <tr><td class="k"><span class="sw" style="background:#1a7f37">5</span></td>
+              <td>Unmistakable. On the nav log without a second thought.</td></tr>
+        </table>
+        <div class="note">
+          <b>0 vs 1 matters most.</b> 0 means the detector should never have
+          surfaced it; 1 means it&rsquo;s a real feature that&rsquo;s just poor. They fix
+          different things.<br><br>
+          <b>Ignore spacing</b> — a better checkpoint two miles on is not a reason to
+          mark this one down; selection already enforces separation.<br>
+          <b>Ignore what you know</b> that the chart doesn&rsquo;t show. Judge as a stranger
+          reading it.<br>
+          <b>Judge at this zoom.</b> Needing to zoom in to tell what something is <i>is</i>
+          a low score.
+        </div>
+      </div>
       <h2>Picks</h2>
       <div id="list"></div>
     </div>
@@ -378,6 +423,19 @@ el("form").addEventListener("submit", async (e) => {
     if (await loadCourse(dep, dest)) await loadDetections(dep, dest);
   } finally { btn.disabled = false; }
 });
+
+el("legend-h").addEventListener("click", () => {
+  const open = el("legend").style.display !== "none";
+  el("legend").style.display = open ? "none" : "";
+  el("legend-caret").textContent = open ? "show" : "hide";
+  try { localStorage.setItem("legendHidden", open ? "1" : "0"); } catch {}
+});
+try {
+  if (localStorage.getItem("legendHidden") === "1") {
+    el("legend").style.display = "none";
+    el("legend-caret").textContent = "show";
+  }
+} catch {}
 
 el("rate").addEventListener("click", (e) => {
   const r = e.target.getAttribute("data-r");
