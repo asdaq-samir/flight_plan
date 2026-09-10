@@ -54,6 +54,11 @@
       box-shadow:0 2px 10px rgba(0,0,0,.3);white-space:nowrap}
     .selinfo-tip.leaflet-tooltip-top:before{border-top-color:rgba(20,36,48,.94)}
     .selinfo-tip b{font-weight:700}
+    .selinfo-tip .tipbox{display:inline-block;min-width:19px;height:18px;line-height:18px;
+      padding:0 5px;margin-right:6px;border-radius:4px;color:#fff;text-align:center;
+      font:700 11px system-ui;vertical-align:1px}
+    .selinfo-tip .tipbox.hollow{background:transparent;border:1px solid rgba(255,255,255,.5);
+      color:rgba(255,255,255,.75);line-height:16px}
     .selinfo-tip .sub{opacity:.75;font-size:11.5px}
     #flash.bad{background:#8f1d16;pointer-events:auto;cursor:default;
       display:flex;align-items:flex-start;gap:8px;text-align:left;max-width:min(820px,86%)}
@@ -908,9 +913,10 @@ function selInfoHtml(d) {
   const place = at >= 0 ? ` · ${at + 1} of ${points.length}` : "";
 
   if (d.endpoint) {
-    return `<b>${d.ident}</b>${place}` +
-      `<div class="sub">${d.name} · ` +
-      `${d.category === "departure" ? "departure" : "destination"}</div>`;
+    return `<span class="tipbox" style="background:#142430">` +
+      `${d.category === "departure" ? "DEP" : "DEST"}</span>` +
+      `<b>${d.ident}</b>${place}` +
+      `<div class="sub">${d.name}</div>`;
   }
   // Read the rating, not the judged flag. They are meant to agree, but
   // only one of them is the fact: a marker drawn green from its rating
@@ -922,11 +928,19 @@ function selInfoHtml(d) {
   // screen -- and the area is a fact about how the detector found
   // something rather than about flying past it.
   const rated = d.rating !== null && d.rating !== undefined;
-  // Where you are in the walk goes on the first line, next to the
-  // rating: both are about the act of judging, and the second line is
-  // about the place.
-  return `<b>${d.category || "uncategorised"}</b>` +
-    (rated ? ` · rated <b>${d.rating}</b>` : " · unrated") + place +
+  // The rating leads, as a swatch in its own colour -- the same colour
+  // the marker is drawn in, and the same one the scale shows for it, so
+  // the label, the pin and the legend all agree at a glance. Unrated
+  // gets a hollow box rather than a word, so the shape of the line does
+  // not change as you work down the route.
+  //
+  // Where you are in the walk stays on this line too: it and the rating
+  // are both about the act of judging, while the second line is about
+  // the place.
+  const box = rated
+    ? `<span class="tipbox" style="background:${COLORS[d.rating]}">${d.rating}</span>`
+    : `<span class="tipbox hollow">–</span>`;
+  return box + `<b>${d.category || "uncategorised"}</b>${place}` +
     `<div class="sub">${(d.along_track_nm ?? 0).toFixed(1)} nm along · ` +
     `${Math.abs(d.cross_track_nm ?? 0).toFixed(2)} nm off course</div>`;
 }
