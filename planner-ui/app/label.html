@@ -87,8 +87,10 @@
       <button data-r="5" title="Unmistakable — goes on the nav log without a second thought">5</button>
       <button data-r="0" class="skip" title="Not a feature at all: a contour, a boundary, a chart border. This is a detector bug, not a boring landmark.">0 · not a feature</button>
     </span>
-    <select id="cat" title="what is it">
+    <select id="cat" title="Read from the chart under your click; change it if the chart is wrong">
       <option value="water">water</option>
+      <option value="river">river</option>
+      <option value="road_or_rail">road / railroad</option>
       <option value="town">town</option>
       <option value="airport">airport</option>
       <option value="road">road / intersection</option>
@@ -303,7 +305,7 @@ function select(sel) {
     ? `<b>Detected ${d.category}</b>${d.area_m2 ? ` · ${(d.area_m2/1e6).toFixed(2)} km²` : ""}`
     : `<b style="color:var(--add)">Added checkpoint</b>`;
   el("sel-pos").textContent = `${d.lat.toFixed(4)}, ${d.lon.toFixed(4)}`;
-  el("cat").value = d.category || "water";
+  el("cat").value = d.category || "other";
   el("del").style.display = d.judged || selected.kind === "added" ? "" : "none";
 }
 
@@ -357,13 +359,31 @@ async function removeCurrent() {
 // Clicking bare chart adds a checkpoint the detector missed. This is the
 // signal the old OSM-rating loop could not produce: it only ever showed
 // places OSM already knew about.
-map.on("click", (e) => {
+map.on("click", async (e) => {
   if (!course) return;
-  added.push({ lat: e.latlng.lat, lon: e.latlng.lng, category: el("cat").value,
-               rating: null, judged: false, along_track_nm: null });
+  const lat = e.latlng.lat, lon = e.latlng.lng;
+  added.push({ lat, lon, category: null, rating: null, judged: false, along_track_nm: null });
+  const idx = added.length - 1;
   renderMarkers();
-  select({ kind:"added", i: added.length - 1 });
-  flash("Rate it 1–5 to save");
+  select({ kind: "added", i: idx });
+  flash("Reading the chart here…");
+
+  // Ask the chart what is drawn under the click rather than trusting the
+  // dropdown. Leaving it to the dropdown is how 34 hand-picked points
+  // were all recorded as "water" when most sat on roads.
+  try {
+    const info = await (await fetch(`/api/classify?lat=${lat}&lon=${lon}`)).json();
+    added[idx].category = info.category;
+    if (selected && selected.kind === "added" && selected.i === idx) {
+      el("cat").value = info.category || "other";
+      el("sel-what").innerHTML = info.category
+        ? `<b style="color:var(--add)">Added</b> · chart shows <b>${info.category}</b>`
+        : `<b style="color:var(--add)">Added</b> · <span style="color:var(--warn)">nothing drawn here</span>`;
+    }
+    flash(info.category ? `Chart shows ${info.category} — rate it 1–5` : "Nothing drawn here — pick a category and rate it");
+  } catch {
+    flash("Could not read the chart here; set the category yourself", true);
+  }
 });
 
 // --- Walk mode: fly to each unjudged detection in route order and rate

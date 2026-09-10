@@ -576,3 +576,49 @@ def landmarks_along_route(
         "tiles_cached": stats["cached"],
         "route_nm": route_nm,
     }
+
+# Order matters: the tests are not mutually exclusive and the first match
+# wins. Dark blue is checked before near-black because a river line is
+# dark enough to satisfy both, and "river" is the more specific answer.
+CLASSIFY_ORDER = ("river", "water", "town", "road_or_rail")
+
+# Half-width of the window sampled around a point, in pixels. Nobody
+# clicks the exact centre of a two-pixel-wide river line.
+CLASSIFY_WINDOW_PX = 4
+
+
+def classify_point(lat: float, lon: float, zoom: int = DEFAULT_ZOOM) -> dict:
+    """What the chart draws at one point.
+
+    Exists because a person marking a checkpoint should not also have to
+    tell the system what kind of thing it is. The chart already says, and
+    asking twice is how 34 hand-picked points came to be recorded as
+    "water" when most of them sat on roads -- the category came from a
+    dropdown default rather than from the pixels.
+
+    Returns the matching class and the pixel that matched, or class None
+    if the point is on open chart background.
+    """
+    px, py = latlon_to_global_px(lat, lon, zoom)
+    tile = fetch_tile(int(px // TILE_PX), int(py // TILE_PX), zoom)
+    if tile is None:
+        return {"category": None, "reason": "no chart coverage here"}
+
+    pixels = np.asarray(tile).astype(np.int16)
+    ix, iy = int(px) % TILE_PX, int(py) % TILE_PX
+    lo_y, hi_y = max(0, iy - CLASSIFY_WINDOW_PX), min(TILE_PX, iy + CLASSIFY_WINDOW_PX + 1)
+    lo_x, hi_x = max(0, ix - CLASSIFY_WINDOW_PX), min(TILE_PX, ix + CLASSIFY_WINDOW_PX + 1)
+    window = pixels[lo_y:hi_y, lo_x:hi_x].reshape(-1, 3)
+    r, g, b = window[:, 0], window[:, 1], window[:, 2]
+
+    tests = {spec.name: spec.test for spec in PALETTE + LINEAR_PALETTE}
+    for name in CLASSIFY_ORDER:
+        mask = tests[name](r, g, b)
+        if mask.any():
+            matched = window[mask][0]
+            return {
+                "category": name,
+                "rgb": [int(v) for v in matched],
+                "matched_pixels": int(mask.sum()),
+            }
+    return {"category": None, "reason": "chart background -- nothing drawn here"}

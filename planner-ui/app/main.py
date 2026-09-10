@@ -440,3 +440,11 @@ def list_picks(dep: str, dest: str) -> dict:
     route = chartlabels.route_key(*_route_key(dep, dest))
     return {"route": route, "picks": chartlabels.load_picks(route),
             "summary": chartlabels.summarise(route)}
+
+
+@app.get("/api/classify")
+def classify(lat: float, lon: float) -> dict:
+    """What the chart draws at a point, so a hand-marked checkpoint is
+    categorised from the pixels rather than from whatever the dropdown
+    happened to be left on."""
+    return chartvision.classify_point(lat, lon)
