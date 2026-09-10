@@ -125,6 +125,7 @@
     .row.endpoint .t{font:600 13px ui-monospace,SFMono-Regular,Menlo,monospace}
     .row .t{font-weight:600}
     .row .m{color:var(--muted);font-size:12px}
+    .row .coord{font:11px ui-monospace,SFMono-Regular,Menlo,monospace;opacity:.8}
     .pill{display:inline-block;padding:0 6px;border-radius:9px;color:#fff;font:700 11px system-ui}
     footer{padding:6px 16px 7px;border-top:1px solid var(--line);color:var(--muted);
       display:flex;flex-direction:column;gap:3px;font-size:13px}
@@ -947,14 +948,16 @@ function renderList() {
       row.innerHTML =
         `<span class="pill" style="background:#142430">${d.category === "departure" ? "DEP" : "DEST"}</span>
          <span class="t"> ${d.ident}</span>
-         <div class="m">${d.name}</div>`;
+         <div class="m">${d.name}</div>
+         <div class="m coord">${d.lat.toFixed(4)}, ${d.lon.toFixed(4)}</div>`;
     } else {
       row.innerHTML =
         `<span class="pill" style="background:${COLORS[d.rating ?? 0]}">${d.rating ?? "—"}</span>
          <span class="t"> ${d.category}</span>
          <span class="pill" style="background:${d.role === "visual" ? "#7b3fa0" : "#1f5c8b"};margin-left:4px">${d.role === "visual" ? "visual" : "DR"}</span>
          ${d.kind === "added" ? '<span class="pill" style="background:#555;margin-left:4px">added</span>' : ""}
-         <div class="m">${(d.along_track_nm ?? 0).toFixed(1)} nm along · ${d.lat.toFixed(4)}, ${d.lon.toFixed(4)}</div>`;
+         <div class="m">${(d.along_track_nm ?? 0).toFixed(1)} nm along</div>
+         <div class="m coord">${d.lat.toFixed(4)}, ${d.lon.toFixed(4)}</div>`;
     }
 
     row.onclick = () => {
@@ -992,6 +995,16 @@ function current() {
 }
 
 function select(sel) {
+  // Any open editor belongs to the point selected before this one, so
+  // moving on closes it. Leaving it up stranded the menu over wherever
+  // it was opened while the ring moved away -- most obviously on the
+  // departure, which has no editor of its own to replace it.
+  //
+  // Only on an actual move: the editor re-selects its own point after
+  // every change it saves, and closing on that would shut the menu the
+  // moment you used it.
+  const moved = !selected || selected.kind !== sel.kind || selected.i !== sel.i;
+  if (moved) map.closePopup();
   selected = sel;
   const d = current();
   if (!d) return;
