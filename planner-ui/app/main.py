@@ -354,98 +354,11 @@ def course(dep: str, dest: str) -> dict:
     }
 
 
-@app.get("/api/detect")
-def detect(dep: str, dest: str, half_width_nm: float = 4.0) -> dict:
-    """Landmarks read straight off the sectional for this corridor.
-
-    The default half-width is wider than a dead-reckoning corridor on
-    purpose. A DR checkpoint has to be on course, but a visual reference
-    is something seen out of the side window and is useful precisely
-    because it is not -- an airport a few miles abeam is a good fix. A
-    1 nm corridor silently discarded exactly those, so the search is wide
-    and the role distinction is carried per pick instead.
-    """
-    dep_ident, dest_ident = _route_key(dep, dest)
-    dep_airport, dest_airport = _resolve(dep_ident, dest_ident)
-    start = (dep_airport["lat"], dep_airport["lon"])
-    end = (dest_airport["lat"], dest_airport["lon"])
-
-    result = chartvision.landmarks_along_route(start, end, half_width_nm=half_width_nm)
-    route = chartlabels.route_key(dep_ident, dest_ident)
-
-    # Airports come from the FAA's own cached APT_BASE rather than from
-    # the chart raster. That is not a retreat from reading the chart: the
-    # magenta an airport is drawn in also shades Class D and E airspace
-    # across whole counties, so colour finds hundreds of false ones (see
-    # chartvision._airport). Airports are a finite published set with
-    # exact coordinates, and this is a local file read, so it costs
-    # nothing on the fast path.
-    result["landmarks"].extend(_faa_airports(start, end, half_width_nm, dep_ident, dest_ident))
-    picks = chartlabels.load_picks(route)
-
-    # Match each pick to at most one detection: its nearest within
-    # SAME_PLACE_NM. Asking every detection "is there a pick near me"
-    # independently let one pick mark two neighbouring detections as
-    # judged, which drew 58 markers for 55 picks. An assignment cannot do
-    # that, and it also gives every pick exactly one home.
-    landmarks = list(result["landmarks"])
-    claimed: dict = {}
-    unmatched = []
-    for pick in picks:
-        best, best_nm = None, chartlabels.SAME_PLACE_NM
-        for index, landmark in enumerate(landmarks):
-            if index in claimed:
-                continue
-            gap = geo.distance_nm(pick["lat"], pick["lon"], landmark.lat, landmark.lon)
-            if gap < best_nm:
-                best, best_nm = index, gap
-        if best is None:
-            unmatched.append(pick)
-        else:
-            claimed[best] = pick
-
-    detections = []
-    for index, landmark in enumerate(landmarks):
-        pick = claimed.get(index)
-        detections.append(
-            {
-                "lat": landmark.lat,
-                "lon": landmark.lon,
-                "category": landmark.category,
-                "area_m2": round(landmark.area_m2, 1),
-                "score": landmark.score,
-                "along_track_nm": round(landmark.extras["along_track_nm"], 2),
-                "cross_track_nm": round(landmark.extras["cross_track_nm"], 3),
-                "rating": pick["rating"] if pick else None,
-                "role": pick.get("role") if pick else None,
-                "judged": pick is not None,
-            }
-        )
-
-    # Picks with no detection to sit on: the detector's misses, plus
-    # anything that has drifted apart from the detection it was made
-    # against -- marker placement changed three times, from blob centroid
-    # to interior point to snapped crossing. Without a marker of their own
-    # these are invisible. Raw pick rows carry no "judged" field either,
-    # which is why every added point read as "unrated" however it was
-    # rated.
-    loose = [
-        {**pick, "judged": pick["rating"] is not None, "area_m2": pick.get("area_m2") or 0.0}
-        for pick in unmatched
-    ]
-
-    return {
-        "route": route,
-        "detections": detections,
-        "added": loose,
-        "coverage": {
-            "tiles": result["tiles"],
-            "missing": result["tiles_missing"],
-            "fetched": result["tiles_fetched"],
-            "cached": result["tiles_cached"],
-        },
-        "summary": chartlabels.summarise(route),
-    }
+# There is no /api/detect. It returned the whole corridor in one
+# response and duplicated the stream's pick-matching, which is exactly
+# how a bug survived being fixed: the matching was repaired here while
+# the page went on calling /api/detect/stream, which still had it wrong.
+# One implementation, and it is the streaming one.
 
 
 @app.post("/api/picks")

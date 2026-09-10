@@ -100,18 +100,12 @@ def load_picks(route: str | None = None, path: Path = CHART_PICKS_PATH) -> list:
     return [r for r in rows if route is None or r["route"] == route]
 
 
-def find_existing(route: str, lat: float, lon: float, path: Path = CHART_PICKS_PATH) -> dict | None:
-    """A pick already recorded at this place on this route, if any.
-
-    Matched by distance rather than exact coordinates: a detection's
-    centroid shifts slightly when the blob is seen from a different tile
-    block, and a pilot clicking the same lake twice will not hit the same
-    pixel.
-    """
-    for row in load_picks(route, path):
-        if distance_nm(row["lat"], row["lon"], lat, lon) < SAME_PLACE_NM:
-            return row
-    return None
+# There is no find_existing. It answered "is there a pick near this
+# point", per point, which reads as the obvious way to line picks up with
+# detections and is wrong: two detections a few pixels apart both matched
+# the same pick, one pick was drawn twice, and picks that matched nothing
+# vanished. Matching is an assignment -- each pick claims its nearest
+# unclaimed detection -- and belongs where the whole set is in hand.
 
 
 def save_pick(pick: dict, path: Path = CHART_PICKS_PATH) -> dict:

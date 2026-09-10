@@ -2,7 +2,6 @@ import pytest
 
 from vfr.chartlabels import (
     delete_pick,
-    find_existing,
     load_picks,
     route_key,
     save_pick,
@@ -73,12 +72,6 @@ def test_the_same_point_on_another_route_is_separate(picks_file):
     save_pick(_pick(route="C81->KDLH"), path=picks_file)
     assert len(load_picks(path=picks_file)) == 2
     assert len(load_picks(ROUTE, path=picks_file)) == 1
-
-
-def test_find_existing_locates_a_prior_judgment(picks_file):
-    save_pick(_pick(rating=5), path=picks_file)
-    assert find_existing(ROUTE, LAT, LON, path=picks_file)["rating"] == 5
-    assert find_existing(ROUTE, LAT + 1, LON, path=picks_file) is None
 
 
 def test_delete_removes_only_that_pick(picks_file):
