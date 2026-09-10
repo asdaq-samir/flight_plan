@@ -9,3 +9,10 @@ springboot-app/target/
 .claude/settings.local.json
 .claude/scheduled_tasks.lock
 .env
+
+# Trained model artifacts. Regenerable from the committed labels and code
+# (collect -> engineer-features -> retrain -> promote, all seeded on
+# RANDOM_STATE), and versions/ gains another copy on every promote, so
+# these accumulate rather than settle. The labels themselves ARE
+# committed -- those are hand judgment and cannot be regenerated.
+data/models/

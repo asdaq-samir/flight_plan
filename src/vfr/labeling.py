@@ -19,9 +19,12 @@ future addition, not built yet.
 import csv
 from pathlib import Path
 
-import folium
 import pandas as pd
-from IPython.display import clear_output, display
+
+# folium/IPython are imported inside label_candidates() rather than at
+# module level: labeling-ui imports the pure helpers below and has no
+# Jupyter stack in its image. Same reasoning as vfr.pipeline's lazy
+# scikit-learn import.
 
 # FAA's own tiled VFR Sectional service (same {z}/{y}/{x} XYZ scheme as the
 # ESRI imagery this replaced). Chart tiles only go to zoom 12 -- fixed
@@ -35,14 +38,42 @@ VFR_SECTIONAL_MIN_ZOOM = 8
 LABEL_COLUMNS = ["osm_id", "osm_type", "name", "category", "rating"]
 
 
-def _load_labeled_keys(out_path: Path) -> set:
+def load_labeled_keys(out_path: Path) -> set:
+    """The (osm_id, osm_type) pairs already rated, so a session resumes
+    where the last one stopped instead of re-asking.
+
+    Both parts are forced to str because the two files disagree on type:
+    osm_id is all-numeric in the labels CSV, so pandas reads it as int64,
+    while the candidates CSV holds at least one synthetic id (a second
+    river crossing, "12345#2") which makes that whole column strings.
+    Compared untouched, ("12345", "way") != (12345, "way") and *every*
+    rated candidate looks unrated -- the same one is served forever.
+    vfr.pipeline._load_labeled normalises for the same reason.
+    """
+    out_path = Path(out_path)
     if not out_path.exists():
         return set()
     existing = pd.read_csv(out_path)
-    return set(zip(existing["osm_id"], existing["osm_type"]))
+    return set(zip(existing["osm_id"].astype(str), existing["osm_type"].astype(str)))
 
 
-def _append_rating(row: pd.Series, rating: int, out_path: Path) -> None:
+def remaining_candidates(candidates: pd.DataFrame, out_path: Path, shuffle_seed: int = 42) -> pd.DataFrame:
+    """Unrated candidates, shuffled on a fixed seed.
+
+    Shuffled rather than left in along-route order so that stopping
+    partway through doesn't systematically skip whole stretches of the
+    route and bias the label sample; the fixed seed keeps the order
+    reproducible across sessions.
+    """
+    labeled_keys = load_labeled_keys(out_path)
+    return candidates[
+        ~candidates.apply(
+            lambda r: (str(r["osm_id"]), str(r["osm_type"])) in labeled_keys, axis=1
+        )
+    ].sample(frac=1, random_state=shuffle_seed)
+
+
+def append_rating(row: pd.Series, rating: int, out_path: Path) -> None:
     out_path.parent.mkdir(parents=True, exist_ok=True)
     write_header = not out_path.exists()
     with out_path.open("a", newline="") as f:
@@ -75,11 +106,12 @@ def label_candidates(candidates: pd.DataFrame, out_path: Path, shuffle_seed: int
     blank to skip it (revisited on a future run), or 'q' to stop the
     session.
     """
+    import folium
+    from IPython.display import clear_output, display
+
     out_path = Path(out_path)
-    labeled_keys = _load_labeled_keys(out_path)
-    remaining = candidates[
-        ~candidates.apply(lambda r: (r["osm_id"], r["osm_type"]) in labeled_keys, axis=1)
-    ].sample(frac=1, random_state=shuffle_seed)
+    labeled_keys = load_labeled_keys(out_path)
+    remaining = remaining_candidates(candidates, out_path, shuffle_seed)
 
     print(f"{len(labeled_keys)} already labeled, {len(remaining)} remaining this session")
 
@@ -111,7 +143,7 @@ def label_candidates(candidates: pd.DataFrame, out_path: Path, shuffle_seed: int
         if raw not in {"1", "2", "3", "4", "5"}:
             print(f"Ignored invalid input {raw!r}; re-run the loop to retry this candidate.")
             continue
-        _append_rating(row, int(raw), out_path)
+        append_rating(row, int(raw), out_path)
 
-    total_labeled = len(_load_labeled_keys(out_path))
+    total_labeled = len(load_labeled_keys(out_path))
     print(f"Session done. {total_labeled} total candidates labeled -> {out_path}")

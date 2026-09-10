@@ -1,0 +1,7 @@
+# Dev-only tool (clearing retrain()'s label floor), so it stays lean:
+# pandas for the candidates/labels CSVs via vfr.labeling, and nothing
+# from the Jupyter/plotting stack -- vfr.labeling imports folium and
+# IPython lazily, inside the notebook loop this service never calls.
+fastapi
+uvicorn[standard]
+pandas

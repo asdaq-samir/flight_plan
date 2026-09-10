@@ -1,0 +1,334 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Spottability labeling</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <style>
+    :root {
+      --ink: #142430;
+      --muted: #5b6b76;
+      --line: #c7d3da;
+      --accent: #1f5c8b;
+      --good: #2f7d4f;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+      color: var(--ink);
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+    }
+    header {
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      align-items: baseline;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    #name { font-size: 18px; font-weight: 600; }
+    #meta { color: var(--muted); }
+    #progress { margin-left: auto; color: var(--muted); font-variant-numeric: tabular-nums; }
+    #progress b { color: var(--ink); }
+    #goal { color: var(--good); font-weight: 600; }
+    #map { flex: 1; min-height: 0; }
+    footer {
+      padding: 8px 16px;
+      border-top: 1px solid var(--line);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      color: var(--muted);
+    }
+    .keys { display: flex; gap: 6px; }
+    kbd {
+      border: 1px solid var(--line);
+      border-bottom-width: 2px;
+      border-radius: 5px;
+      padding: 2px 8px;
+      font: 600 13px ui-monospace, SFMono-Regular, Menlo, monospace;
+      color: var(--ink);
+      background: #fff;
+    }
+    button {
+      font: inherit;
+      border: 1px solid var(--line);
+      background: #fff;
+      border-radius: 6px;
+      padding: 4px 10px;
+      cursor: pointer;
+      color: var(--ink);
+    }
+    button:hover { border-color: var(--accent); color: var(--accent); }
+    #flash {
+      margin-left: auto;
+      min-height: 1.5em;
+      font-weight: 600;
+      color: var(--good);
+      transition: opacity .3s;
+    }
+    #done {
+      display: none;
+      padding: 40px;
+      text-align: center;
+      font-size: 18px;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <span id="name">Loading…</span>
+    <span id="meta"></span>
+    <span id="progress"></span>
+  </header>
+
+  <div id="map"></div>
+  <div id="done"></div>
+
+  <footer>
+    <span>Rate:</span>
+    <span class="keys">
+      <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd><kbd>4</kbd><kbd>5</kbd>
+    </span>
+    <span>1 = hard to spot · 5 = unmistakable</span>
+    <span class="keys" id="label-keys"><kbd>s</kbd></span><span id="label-keys-txt">skip</span>
+    <span class="keys"><kbd>u</kbd></span><span>undo</span>
+    <span class="keys"><kbd>←</kbd><kbd>→</kbd></span><span id="nav-txt">browse (review)</span>
+    <span class="keys"><kbd>t</kbd></span><span>basemap: <b id="basemap">FAA sectional</b></span>
+    <button id="review-btn">Review labeled (r)</button>
+    <span id="flash"></span>
+  </footer>
+
+<script>
+const map = L.map("map", { zoomControl: true, keyboard: false });
+let marker = null;
+let current = null;
+let skipOffset = 0;
+
+// Two basemaps answering two different questions. The sectional is what a
+// pilot actually flies with, so spottability has to be judged on it -- but
+// it's a fixed-scale cartographic product that simply omits small features,
+// so a correctly-placed marker on a small pond can look wrong because the
+// chart never drew the pond. OSM shows the real feature geometry, which is
+// what you want when checking placement rather than judging spottability.
+let basemaps = null;
+let activeBase = "faa";
+
+function initBasemaps(cfg) {
+  if (basemaps) return;
+  basemaps = {
+    // maxNativeZoom lets Leaflet upscale sectional tiles past their real
+    // limit of 12 instead of showing blank tiles when OSM has zoomed in.
+    faa: L.tileLayer(cfg.url, {
+      attribution: "FAA Aeronautical Information Services",
+      maxNativeZoom: cfg.max, maxZoom: 18, minZoom: cfg.min,
+    }),
+    osm: L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: "&copy; OpenStreetMap contributors",
+      maxZoom: 18,
+    }),
+  };
+  basemaps[activeBase].addTo(map);
+  renderBase();
+}
+
+function renderBase() {
+  el("basemap").textContent = activeBase === "faa" ? "FAA sectional" : "OpenStreetMap";
+}
+
+function toggleBasemap() {
+  if (!basemaps) return;
+  map.removeLayer(basemaps[activeBase]);
+  activeBase = activeBase === "faa" ? "osm" : "faa";
+  basemaps[activeBase].addTo(map);
+  renderBase();
+  flash(activeBase === "faa" ? "FAA sectional" : "OpenStreetMap");
+}
+
+const el = (id) => document.getElementById(id);
+
+function flash(msg, isError) {
+  const f = el("flash");
+  f.textContent = msg;
+  f.style.color = isError ? "#b3261e" : "var(--good)";
+  f.style.opacity = 1;
+  // Errors linger: a failure that vanishes in the same green as a success
+  // is indistinguishable from the key not registering at all.
+  setTimeout(() => { f.style.opacity = 0; }, isError ? 5000 : 1200);
+}
+
+function renderProgress(d) {
+  const goal = d.needed_for_retrain > 0
+    ? ` · <span id="goal">${d.needed_for_retrain} more to reach ${d.min_labeled_rows}</span>`
+    : ` · <span id="goal">threshold cleared</span>`;
+  el("progress").innerHTML = `<b>${d.labeled}</b> labeled · ${d.remaining} remaining${goal}`;
+}
+
+async function load() {
+  const res = await fetch(`/api/next?skip=${skipOffset}`);
+  const d = await res.json();
+  renderProgress(d);
+
+  if (d.done) {
+    el("map").style.display = "none";
+    el("done").style.display = "block";
+    el("done").textContent = d.remaining === 0
+      ? "Everything is labeled."
+      : "No more candidates in this pass — reload to revisit skipped ones.";
+    el("name").textContent = "Done";
+    el("meta").textContent = "";
+    current = null;
+    return;
+  }
+
+  current = d.candidate;
+  el("name").textContent = current.name;
+  const along = Number.isNaN(current.along_track_nm)
+    ? "" : ` · ${current.along_track_nm.toFixed(1)} nm along route`;
+  el("meta").textContent = `${current.category}${along}`;
+
+  // Build the basemaps once, then just pan. This is the whole point of
+  // the UI: the notebook loop rebuilds the map per candidate, which
+  // re-fetches tiles every time.
+  initBasemaps({ url: d.tile_url, max: d.max_zoom, min: d.min_zoom });
+  map.setView([current.lat, current.lon], d.max_zoom);
+  if (marker) marker.remove();
+  marker = L.marker([current.lat, current.lon]).addTo(map);
+}
+
+// ---- Review mode: walk back through what's already labeled, so the
+// scale stays consistent. Ratings here update in place rather than append.
+let review = { on: false, rows: [], i: 0, dist: {}, tiles: null };
+
+function distSummary() {
+  return [1, 2, 3, 4, 5]
+    .map((n) => `${n}:${review.dist[n] || 0}`)
+    .join("  ");
+}
+
+async function enterReview() {
+  const d = await (await fetch("/api/labeled")).json();
+  if (!d.rows.length) { flash("Nothing labeled yet"); return; }
+  review.on = true;
+  review.rows = d.rows;
+  review.dist = d.distribution;
+  review.tiles = { url: d.tile_url, max: d.max_zoom, min: d.min_zoom };
+  review.i = d.rows.length - 1;  // most recent first: drift shows up at the end
+  el("review-btn").textContent = "Back to labeling (r)";
+  el("label-keys-txt").textContent = "";
+  el("label-keys").style.display = "none";
+  el("map").style.display = "";
+  el("done").style.display = "none";
+  showReview();
+}
+
+function exitReview() {
+  review.on = false;
+  el("review-btn").textContent = "Review labeled (r)";
+  el("label-keys-txt").textContent = "skip";
+  el("label-keys").style.display = "";
+  load();
+}
+
+function showReview() {
+  const r = review.rows[review.i];
+  current = r;
+  el("name").textContent = r.name;
+  el("meta").textContent = `${r.category} · rated ${r.rating}`;
+  el("progress").innerHTML =
+    `reviewing <b>${review.i + 1}</b> of ${review.rows.length} · ` +
+    `<span id="goal">${distSummary()}</span>`;
+
+  if (!r.on_map) {
+    el("map").style.display = "none";
+    el("done").style.display = "block";
+    el("done").textContent = "This label has no matching candidate any more.";
+    return;
+  }
+  el("map").style.display = "";
+  el("done").style.display = "none";
+  initBasemaps(review.tiles);
+  map.setView([r.lat, r.lon], review.tiles.max);
+  if (marker) marker.remove();
+  marker = L.marker([r.lat, r.lon]).addTo(map);
+  map.invalidateSize();
+}
+
+async function relabel(value) {
+  const r = review.rows[review.i];
+  const res = await fetch("/api/relabel", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ osm_id: r.osm_id, osm_type: r.osm_type, rating: value }),
+  });
+  const d = await res.json();
+  if (!d.ok) { flash(d.error); return; }
+  review.dist[r.rating] = (review.dist[r.rating] || 1) - 1;
+  review.dist[value] = (review.dist[value] || 0) + 1;
+  r.rating = value;
+  flash(`${d.was} → ${value}`);
+  showReview();
+}
+
+async function rate(value) {
+  if (!current) return;
+  const res = await fetch("/api/rate", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      osm_id: current.osm_id, osm_type: current.osm_type, rating: value,
+    }),
+  });
+  const d = await res.json();
+  if (!d.ok) {
+    // Usually means this page is showing a candidate that no longer
+    // exists because collect() was re-run underneath it. Reloading
+    // resyncs instead of leaving the same dead candidate on screen.
+    flash(`${d.error} — resyncing`, true);
+    skipOffset = 0;
+    load();
+    return;
+  }
+  flash(`Rated ${value}`);
+  load();
+}
+
+async function undo() {
+  const res = await fetch("/api/undo", { method: "POST" });
+  const d = await res.json();
+  if (!d.ok) { flash(d.error); return; }
+  flash(`Removed ${d.removed.name} (${d.removed.rating})`);
+  skipOffset = 0;
+  el("map").style.display = "";
+  el("done").style.display = "none";
+  load();
+}
+
+document.addEventListener("keydown", (e) => {
+  if (e.key === "t") { toggleBasemap(); return; }
+  if (e.key === "r") { review.on ? exitReview() : enterReview(); return; }
+
+  if (review.on) {
+    if (["1", "2", "3", "4", "5"].includes(e.key)) { relabel(Number(e.key)); return; }
+    if (e.key === "ArrowLeft" && review.i > 0) { review.i -= 1; showReview(); return; }
+    if (e.key === "ArrowRight" && review.i < review.rows.length - 1) { review.i += 1; showReview(); return; }
+    if (e.key === "Escape") { exitReview(); }
+    return;
+  }
+
+  if (["1", "2", "3", "4", "5"].includes(e.key)) { rate(Number(e.key)); return; }
+  if (e.key === "s") { skipOffset += 1; flash("Skipped"); load(); return; }
+  if (e.key === "u") { undo(); }
+});
+el("review-btn").addEventListener("click", () => review.on ? exitReview() : enterReview());
+
+load();
+</script>
+</body>
+</html>
