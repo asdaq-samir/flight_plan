@@ -38,10 +38,7 @@
     /* Anything clickable -- markers and the course line -- points. */
     #map .leaflet-interactive{cursor:pointer}
     #side{width:300px;border-left:1px solid var(--line);overflow-y:auto;background:var(--panel)}
-    #pickbreak{display:flex;flex-wrap:wrap;gap:2px 12px;padding:5px 12px;
-      border-bottom:1px solid var(--rule);color:var(--muted);font-size:12px;background:#fff}
-    #pickbreak:empty{display:none}
-    h2 .count{float:right;letter-spacing:0;text-transform:none;font-weight:400}
+    h2 .count{letter-spacing:0;text-transform:none;font-weight:400;margin-left:6px}
     h2 .count b{color:var(--ink);font-weight:700}
     h2{margin:0;padding:7px 12px;font-size:11px;letter-spacing:.07em;text-transform:uppercase;
       color:var(--muted);background:#fff;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5}
@@ -144,7 +141,6 @@
     <div id="map"></div>
     <div id="side">
       <h2>Picks <span class="count" id="pickcount"></span></h2>
-      <div id="pickbreak"></div>
       <div id="list"></div>
     </div>
   </div>
@@ -530,14 +526,13 @@ function renderStats(body) {
   // The DR/visual split belongs beside the list it describes, not in the
   // banner -- it is a property of the picks, and reading it two panels
   // away from them made it just another number in a row of them.
-  el("pickcount").innerHTML = s.total ? `<b>${s.total}</b>` : "";
-  // Where each pick came from, and what job it does. Two different
-  // splits of the same list, so they sit together under it rather than
-  // being crammed into the heading.
-  const fromChart = (s.accepted || 0) + (s.rejected || 0);
-  el("pickbreak").innerHTML = s.total
-    ? `<span>${fromChart} off the chart</span><span>${s.added || 0} yours</span>` +
-      `<span>${roles.dr || 0} DR</span><span>${roles.visual || 0} visual</span>`
+  // Total, then the two cuts of it that matter: what job each pick does,
+  // and where it came from. A pick "given" is one the detector put on the
+  // chart and you judged; "added" is one you marked yourself.
+  const given = (s.accepted || 0) + (s.rejected || 0);
+  el("pickcount").innerHTML = s.total
+    ? `<b>${s.total}</b> (${roles.dr || 0} DR / ${roles.visual || 0} visual) · ` +
+      `${given} given, ${s.added || 0} added`
     : "";
 }
 
