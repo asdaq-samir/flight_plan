@@ -105,10 +105,15 @@
     .picks-h{display:flex;align-items:center;gap:8px}
     h2 .count{letter-spacing:0;text-transform:none;font-weight:400;margin-left:auto}
     h2 .count b{color:var(--ink);font-weight:700}
-    #pickbreak{display:inline-flex;gap:5px;letter-spacing:0;text-transform:none;
-      font-weight:400}
-    #pickbreak .chip{border:1px solid var(--line);border-radius:9px;padding:0 7px;
-      background:#fff;color:var(--muted);font-size:11px;line-height:16px}
+    #pickbreak{display:flex;gap:6px;padding:6px 12px;background:#fff;
+      border-bottom:1px solid var(--line)}
+    #pickbreak:empty{display:none}
+    .pbox{flex:1;border:1px solid var(--rule);border-radius:6px;padding:4px 8px;
+      background:var(--panel)}
+    .pline{display:flex;align-items:baseline;gap:6px;font-size:12px;line-height:1.5}
+    .pline b{min-width:2.2ch;text-align:right;color:var(--ink);font-weight:700;
+      font-variant-numeric:tabular-nums}
+    .pline span{color:var(--muted)}
     h2 .count b{color:var(--ink);font-weight:700}
     h2{margin:0;padding:7px 12px;font-size:11px;letter-spacing:.07em;text-transform:uppercase;
       color:var(--muted);background:#fff;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5}
@@ -206,9 +211,8 @@
     <div id="map"></div>
     <div id="flash"></div>
     <div id="side">
-      <h2 class="picks-h">Picks
-        <span id="pickbreak"></span>
-        <span class="count" id="pickcount"></span></h2>
+      <h2 class="picks-h">Picks <span class="count" id="pickcount"></span></h2>
+      <div id="pickbreak"></div>
       <div id="list"></div>
     </div>
   </div>
@@ -859,11 +863,16 @@ function renderStats(body) {
   const tally = (test) => picks.filter(test).length;
 
   el("pickcount").innerHTML = picks.length ? `<b>${picks.length}</b>` : "";
+  // Two boxes, two lines each: the same list cut by what a pick is for
+  // and by where it came from. Side by side rather than run together in
+  // a sentence, so each pair reads as a pair and the figures line up in
+  // a column you can compare down.
+  const line = (n, label) => `<div class="pline"><b>${n}</b><span>${label}</span></div>`;
   el("pickbreak").innerHTML = picks.length
-    ? `<span class="chip">${tally(p => roleOf(p) === "dr")} DR` +
-      ` · ${tally(p => roleOf(p) === "visual")} visual</span>` +
-      `<span class="chip">${tally(p => sourceOf(p) === "provided")} provided` +
-      ` · ${tally(p => sourceOf(p) === "added")} added</span>`
+    ? `<div class="pbox">${line(tally(p => roleOf(p) === "dr"), "DR")}` +
+      `${line(tally(p => roleOf(p) === "visual"), "visual")}</div>` +
+      `<div class="pbox">${line(tally(p => sourceOf(p) === "provided"), "provided")}` +
+      `${line(tally(p => sourceOf(p) === "added"), "added")}</div>`
     : "";
 }
 
