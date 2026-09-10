@@ -16,6 +16,19 @@ one point on a route:
   at all. These are the misses, and they are the only way to learn what
   the palette rules fail to catch.
 
+Each pick also has a role, because two different jobs were being recorded
+as one thing:
+
+- "dr": a dead-reckoning checkpoint. You fly over it, it fixes time and
+  position, and it becomes a leg in the nav log. It has to be on course.
+- "visual": a reference you do not fly over -- an airport off the right
+  window, a lake abeam -- used to confirm you are where you think you
+  are. Being off course is the whole point of it, so the narrow corridor
+  that is correct for a DR checkpoint is exactly wrong here.
+
+Without the distinction, off-course picks looked like corridor noise and
+were silently discarded.
+
 Rating is 1-5 as before ("would I use this, reading the chart the way I
 would in flight"), with 0 meaning "detected but I would not use it".
 
@@ -36,6 +49,7 @@ CHART_PICKS_PATH = DATA_DIR / "labels" / "chart_picks.csv"
 COLUMNS = [
     "route",
     "source",
+    "role",
     "category",
     "lat",
     "lon",
@@ -51,6 +65,20 @@ COLUMNS = [
 # to match vfr.chartvision's own dedupe distance so a pick lines up with
 # the detection it refers to.
 SAME_PLACE_NM = 0.2
+
+ROLES = ("dr", "visual")
+
+# Beyond this far off course, a landmark is not something you fly over,
+# so it is being used as a visual reference rather than a DR checkpoint.
+# Only a default -- the pilot decides, and a big lake right on course can
+# still be wanted purely as a reference.
+DR_CORRIDOR_NM = 0.5
+
+
+def default_role(cross_track_nm: float) -> str:
+    """Which job a pick is most likely doing, from how far off course it
+    sits. Used to fill the field in rather than to override anyone."""
+    return "dr" if abs(cross_track_nm) <= DR_CORRIDOR_NM else "visual"
 
 
 def route_key(dep_ident: str, dest_ident: str) -> str:
@@ -152,5 +180,6 @@ def summarise(route: str | None = None, path: Path = CHART_PICKS_PATH) -> dict:
         "rejected": len(rejected),
         "added": len(added),
         "by_rating": {n: sum(1 for p in picks if p["rating"] == n) for n in range(1, 6)},
+        "by_role": {role: sum(1 for p in picks if p.get("role") == role) for role in ROLES},
         "added_categories": sorted({p["category"] for p in added if p["category"]}),
     }

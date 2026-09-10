@@ -66,10 +66,14 @@ class PaletteClass:
     name: str
     test: object
     min_area_px: int
+    # Upper bound, where being too big is itself disqualifying. An
+    # airport symbol is a small glyph; a magenta region the size of a
+    # county is airspace shading wearing the same colour.
+    max_area_px: int | None = None
     # Roughly how confidently this class means "a pilot can find it".
     # Water and towns are unambiguous on a chart; anything softer would
     # need the learned scorer rather than a constant.
-    base_score: float
+    base_score: float = 3.0
 
 
 def _water(r, g, b):
@@ -81,6 +85,32 @@ def _water(r, g, b):
 def _urban(r, g, b):
     # The (250, 248, 86) yellow used for built-up areas.
     return (r > 210) & (g > 200) & (b < 160)
+
+
+def _airport(r, g, b):
+    """The magenta an airport is drawn in. Kept, but NOT in PALETTE.
+
+    Colour cannot find airports on a sectional, and this function is here
+    to record why rather than to be used for detection. The magenta is
+    real -- sampled at KISW and Wag-Aero as (83,36,52), (74,12,33),
+    (86,18,39) -- but the chart shades Class E and Class D airspace in the
+    same colour over enormous areas. Detecting on colour returned 554
+    "airports" on one 323 nm route. Bounding blob size to something
+    glyph-shaped only got that to 535, because the vignette is a gradient
+    and thresholding a gradient produces speckle at every size. Worse, at
+    KISW's own coordinates the near-black linework of the runway symbol
+    outvoted the magenta.
+
+    Airports are the one landmark class where vision is the wrong tool
+    anyway: they are a finite, enumerated set with exact published
+    coordinates, and this project already caches the FAA's own APT_BASE.
+    Reading a local file beats inferring from pixels. See
+    vfr.faa_data.load_route_airports, merged in by the planner.
+
+    Still used by _dark_line, which subtracts it so airport magenta is at
+    least not reported as a road.
+    """
+    return (r > g + 25) & (b > g + 8) & (r < 170) & (g < 90)
 
 
 def _river_line(r, g, b):
@@ -105,12 +135,17 @@ def _dark_line(r, g, b):
     anyway: a line the course cuts at a knowable point. Which kind it is
     gets settled during labeling.
     """
-    return (r < 110) & (g < 115) & (b < 110)
+    dark = (r < 110) & (g < 115) & (b < 110)
+    # Airport magenta is dark too. Excluded here rather than relying on
+    # ordering, because linear_crossings runs its own palette and would
+    # otherwise report every airport symbol as a road crossing.
+    return dark & ~_airport(r, g, b)
 
 
 # Fills are found as blobs and reported at their centroid. Lines are
 # found as crossings of the course, because the centroid of a river is
 # not a place -- see linear_crossings.
+# No airport class here, deliberately -- see _airport.
 PALETTE = (
     PaletteClass("water", _water, min_area_px=40, base_score=4.2),
     PaletteClass("town", _urban, min_area_px=400, base_score=4.0),
@@ -309,7 +344,11 @@ def detect_landmarks(mosaic: Mosaic, palette=PALETTE) -> list:
         if count == 0:
             continue
         sizes = ndimage.sum(mask, labelled, range(1, count + 1))
-        keep = [i + 1 for i, size in enumerate(sizes) if size >= spec.min_area_px]
+        keep = [
+            i + 1 for i, size in enumerate(sizes)
+            if size >= spec.min_area_px
+            and (spec.max_area_px is None or size <= spec.max_area_px)
+        ]
         if not keep:
             continue
         for label, (cy, cx) in zip(keep, ndimage.center_of_mass(mask, labelled, keep)):
@@ -578,8 +617,9 @@ def landmarks_along_route(
     }
 
 # Order matters: the tests are not mutually exclusive and the first match
-# wins. Dark blue is checked before near-black because a river line is
-# dark enough to satisfy both, and "river" is the more specific answer.
+# wins. Airport magenta and river dark-blue are both dark enough to also
+# satisfy the near-black linework test, so both are checked before it --
+# the specific answer beats the generic one.
 CLASSIFY_ORDER = ("river", "water", "town", "road_or_rail")
 
 # Half-width of the window sampled around a point, in pixels. Nobody
@@ -611,14 +651,26 @@ def classify_point(lat: float, lon: float, zoom: int = DEFAULT_ZOOM) -> dict:
     window = pixels[lo_y:hi_y, lo_x:hi_x].reshape(-1, 3)
     r, g, b = window[:, 0], window[:, 1], window[:, 2]
 
+    # Whichever class covers the most of the window, not whichever is
+    # tested first. Order alone was wrong at the edge of a lake: a lake is
+    # outlined in the same dark blue a river is drawn in, so three
+    # shoreline pixels made Nepco Lake classify as "river" while dozens of
+    # water-fill pixels sat under the same click.
     tests = {spec.name: spec.test for spec in PALETTE + LINEAR_PALETTE}
+    scores = {}
     for name in CLASSIFY_ORDER:
         mask = tests[name](r, g, b)
         if mask.any():
-            matched = window[mask][0]
-            return {
-                "category": name,
-                "rgb": [int(v) for v in matched],
-                "matched_pixels": int(mask.sum()),
-            }
-    return {"category": None, "reason": "chart background -- nothing drawn here"}
+            scores[name] = (int(mask.sum()), window[mask][0])
+    if not scores:
+        return {"category": None, "reason": "chart background -- nothing drawn here"}
+
+    # Ties break by CLASSIFY_ORDER, which runs specific before generic.
+    best = max(scores, key=lambda n: (scores[n][0], -CLASSIFY_ORDER.index(n)))
+    count, matched = scores[best]
+    return {
+        "category": best,
+        "rgb": [int(v) for v in matched],
+        "matched_pixels": count,
+        "considered": {n: scores[n][0] for n in scores},
+    }

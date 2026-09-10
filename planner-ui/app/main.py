@@ -37,7 +37,7 @@ from pydantic import BaseModel
 
 from vfr import aircraft as aircraft_module
 from vfr import airports, altitude as altitude_module, checkpoints as checkpoint_selection
-from vfr import chartlabels, chartvision, geo, labeling, navlog, pipeline
+from vfr import chartlabels, chartvision, faa_data, geo, labeling, navlog, pipeline
 from vfr.config import DATA_DIR
 
 MODEL_SERVICE_URL = os.environ.get("MODEL_SERVICE_URL", "http://model-service:8000")
@@ -316,6 +316,7 @@ class Pick(BaseModel):
     lat: float
     lon: float
     source: str = "detected"   # "detected" (the CV found it) or "added" (it missed it)
+    role: str | None = None    # "dr" (fly over it) or "visual" (see it abeam); inferred if omitted
     category: str = "water"
     rating: int | None = None  # 1-5, or 0/None for "detected but I would not use it"
     area_m2: float | None = None
@@ -353,8 +354,16 @@ def course(dep: str, dest: str) -> dict:
 
 
 @app.get("/api/detect")
-def detect(dep: str, dest: str, half_width_nm: float = 1.0) -> dict:
-    """Landmarks read straight off the sectional for this corridor."""
+def detect(dep: str, dest: str, half_width_nm: float = 4.0) -> dict:
+    """Landmarks read straight off the sectional for this corridor.
+
+    The default half-width is wider than a dead-reckoning corridor on
+    purpose. A DR checkpoint has to be on course, but a visual reference
+    is something seen out of the side window and is useful precisely
+    because it is not -- an airport a few miles abeam is a good fix. A
+    1 nm corridor silently discarded exactly those, so the search is wide
+    and the role distinction is carried per pick instead.
+    """
     dep_ident, dest_ident = _route_key(dep, dest)
     dep_airport, dest_airport = _resolve(dep_ident, dest_ident)
     start = (dep_airport["lat"], dep_airport["lon"])
@@ -362,6 +371,15 @@ def detect(dep: str, dest: str, half_width_nm: float = 1.0) -> dict:
 
     result = chartvision.landmarks_along_route(start, end, half_width_nm=half_width_nm)
     route = chartlabels.route_key(dep_ident, dest_ident)
+
+    # Airports come from the FAA's own cached APT_BASE rather than from
+    # the chart raster. That is not a retreat from reading the chart: the
+    # magenta an airport is drawn in also shades Class D and E airspace
+    # across whole counties, so colour finds hundreds of false ones (see
+    # chartvision._airport). Airports are a finite published set with
+    # exact coordinates, and this is a local file read, so it costs
+    # nothing on the fast path.
+    result["landmarks"].extend(_faa_airports(start, end, half_width_nm, dep_ident, dest_ident))
     picks = chartlabels.load_picks(route)
 
     detections = []
@@ -377,6 +395,7 @@ def detect(dep: str, dest: str, half_width_nm: float = 1.0) -> dict:
                 "along_track_nm": round(landmark.extras["along_track_nm"], 2),
                 "cross_track_nm": round(landmark.extras["cross_track_nm"], 3),
                 "rating": existing["rating"] if existing else None,
+                "role": existing.get("role") if existing else None,
                 "judged": existing is not None,
             }
         )
@@ -406,19 +425,25 @@ def add_pick(pick: Pick) -> dict:
 
     if pick.source not in ("detected", "added"):
         raise HTTPException(422, "source must be 'detected' or 'added'")
+    if pick.role is not None and pick.role not in chartlabels.ROLES:
+        raise HTTPException(422, f"role must be one of {chartlabels.ROLES}")
     if pick.rating is not None and not (0 <= pick.rating <= 5):
         raise HTTPException(422, "rating must be 0-5, where 0 means 'would not use'")
 
     route = chartlabels.route_key(dep_ident, dest_ident)
+    cross_track_nm = round(geo.cross_track_distance_nm(pick.lat, pick.lon, start, end), 3)
     saved = chartlabels.save_pick(
         {
             "route": route,
             "source": pick.source,
+            # Inferred from how far off course it sits unless stated: a
+            # landmark you do not fly over is not a DR checkpoint.
+            "role": pick.role or chartlabels.default_role(cross_track_nm),
             "category": pick.category,
             "lat": pick.lat,
             "lon": pick.lon,
             "along_track_nm": round(geo.along_track_distance_nm(pick.lat, pick.lon, start, end), 2),
-            "cross_track_nm": round(geo.cross_track_distance_nm(pick.lat, pick.lon, start, end), 3),
+            "cross_track_nm": cross_track_nm,
             "rating": pick.rating,
             "area_m2": pick.area_m2,
             "note": pick.note,
@@ -448,3 +473,46 @@ def classify(lat: float, lon: float) -> dict:
     categorised from the pixels rather than from whatever the dropdown
     happened to be left on."""
     return chartvision.classify_point(lat, lon)
+
+
+_APT_CACHE: dict = {}
+
+
+def _faa_airports(start, end, half_width_nm, dep_ident, dest_ident) -> list:
+    """Charted airports in the corridor, as chartvision Landmarks.
+
+    Read once and held: APT_BASE is a large CSV and a planner request
+    should not re-parse it. Departure and destination are excluded -- you
+    are not using them as references, you are flying from one to the
+    other.
+    """
+    if "df" not in _APT_CACHE:
+        _, apt_csv_path, _dof = faa_data.ensure_nasr_data(DATA_DIR / "raw" / "faa_nasr")
+        _APT_CACHE["path"] = apt_csv_path
+    bbox = geo.corridor_bbox(start, end, half_width_nm + 1.0)
+    df = faa_data.load_route_airports(
+        _APT_CACHE["path"], bbox, exclude_idents=(dep_ident, dest_ident)
+    )
+
+    landmarks = []
+    for row in df.itertuples(index=False):
+        cross = geo.cross_track_distance_nm(row.lat, row.lon, start, end)
+        along = geo.along_track_distance_nm(row.lat, row.lon, start, end)
+        route_nm = geo.distance_nm(start[0], start[1], end[0], end[1])
+        if abs(cross) > half_width_nm or not (-5.0 <= along <= route_nm + 5.0):
+            continue
+        landmarks.append(
+            chartvision.Landmark(
+                category="airport",
+                lat=float(row.lat),
+                lon=float(row.lon),
+                area_m2=0.0,
+                # A runway is among the least ambiguous things on a
+                # chart, which is why these start high.
+                score=4.6,
+                pixels=0,
+                name=row.name,
+                extras={"cross_track_nm": cross, "along_track_nm": along, "source": "faa_apt"},
+            )
+        )
+    return landmarks

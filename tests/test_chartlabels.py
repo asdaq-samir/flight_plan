@@ -110,3 +110,36 @@ def test_a_zero_rating_is_a_rejection_not_a_missing_value(picks_file):
     (row,) = load_picks(ROUTE, path=picks_file)
     assert row["rating"] == 0
     assert summarise(ROUTE, path=picks_file)["rejected"] == 1
+
+
+# --- DR checkpoints and visual references are different jobs ---
+
+from vfr.chartlabels import ROLES, default_role  # noqa: E402
+
+
+def test_on_course_defaults_to_a_dead_reckoning_checkpoint():
+    assert default_role(0.0) == "dr"
+    assert default_role(-0.4) == "dr"
+
+
+def test_well_off_course_defaults_to_a_visual_reference():
+    """An airport three miles abeam is not something you fly over; it is
+    something you look at to confirm position."""
+    assert default_role(3.58) == "visual"
+    assert default_role(-1.8) == "visual"
+
+
+def test_role_survives_a_save_and_load(picks_file):
+    save_pick({**_pick(), "role": "visual"}, path=picks_file)
+    (row,) = load_picks(ROUTE, path=picks_file)
+    assert row["role"] == "visual"
+
+
+def test_summary_counts_both_roles(picks_file):
+    save_pick({**_pick(), "role": "dr"}, path=picks_file)
+    save_pick({**_pick(lat=LAT + 0.5), "role": "visual"}, path=picks_file)
+    assert summarise(ROUTE, path=picks_file)["by_role"] == {"dr": 1, "visual": 1}
+
+
+def test_roles_are_the_two_documented_ones():
+    assert ROLES == ("dr", "visual")
