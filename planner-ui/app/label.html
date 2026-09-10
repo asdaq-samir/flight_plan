@@ -111,7 +111,7 @@ const map = L.map("map", { zoomControl: true });
 let base = null, activeBase = "faa";
 let course = null, courseLayer = null, endsLayer = null;
 let detLayer = null, addLayer = null;
-let detections = [], added = [], selected = null;
+let detections = [], added = [], selected = null, detecting = false;
 
 const COLORS = { 5:"#1a7f37", 4:"#4a9d4a", 3:"#b8860b", 2:"#c2681a", 1:"#b3261e", 0:"#8a8f94" };
 
@@ -169,14 +169,24 @@ async function loadCourse(dep, dest) {
 
 // --- step 2: detections, which take seconds because they read tiles.
 async function loadDetections(dep, dest) {
-  const res = await fetch(`/api/detect?dep=${dep}&dest=${dest}`);
-  const body = await res.json();
+  detecting = true;
+  el("stats").innerHTML =
+    `<b>${course.distance_nm}</b> nm · reading the sectional…`;
+  let res, body;
+  try {
+    res = await fetch(`/api/detect?dep=${dep}&dest=${dest}`);
+    body = await res.json();
+  } finally {
+    detecting = false;
+  }
   if (!res.ok) { flash(body.detail || "detection failed", true); return; }
   detections = body.detections;
   added = body.added;
   lastCoverage = body.coverage || {};
   renderMarkers();
   renderStats(body);
+  const left = detections.filter(d => !d.judged).length;
+  flash(left ? `${left} unjudged — press w to walk them` : "All detections judged");
 }
 
 function renderStats(body) {
@@ -325,10 +335,19 @@ function unjudgedOrder() {
 }
 
 function walkTo(step) {
+  // Three different empty states, which the first version collapsed into
+  // one misleading "everything is judged" -- including the common case of
+  // pressing w during the seconds it takes to read the tiles.
+  if (!course) { flash("Load a route first", true); return; }
+  if (!detections.length) {
+    walking = false;
+    flash(detecting ? "Still reading the chart…" : "No detections loaded", true);
+    return;
+  }
   const queue = unjudgedOrder();
   if (!queue.length) {
     walking = false;
-    flash("Everything is judged");
+    flash(`All ${detections.length} detections judged`);
     return;
   }
   walkIdx = Math.max(0, Math.min(queue.length - 1, walkIdx + step));
