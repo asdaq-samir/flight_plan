@@ -254,8 +254,11 @@
       <span><kbd>Del</kbd> remove · click the course to add · right-click anywhere</span>
     </div>
     <div class="frow minor">
-      <span><kbd>v</kbd> visual references on/off</span>
-      <span><kbd>t</kbd> basemap: <b id="basemap">FAA sectional</b></span>
+      <!-- v still works, it is just not listed: the visual checkbox is
+           on screen and says the same thing more plainly. The basemap
+           indicator stays, because it is the only place that warns when
+           the map has been zoomed out past the chart. -->
+      <span><kbd>t</kbd> toggle FAA / OSM · <b id="basemap">FAA sectional</b></span>
       <button type="button" id="legend-toggle" class="viewbtn" style="margin-left:auto">Hide scale</button>
     </div>
   </footer>
