@@ -199,7 +199,7 @@
         <label><input type="checkbox" id="f-dr"> DR</label>
         <label><input type="checkbox" id="f-visual"> visual</label>
         <span class="fsep"></span>
-        <label><input type="checkbox" id="f-provided"> provided</label>
+        <label><input type="checkbox" id="f-detected"> detected</label>
         <label><input type="checkbox" id="f-added"> added</label>
         <span class="fsep"></span>
         <label><input type="checkbox" id="f-rated"> rated</label>
@@ -399,10 +399,10 @@ const WALK_ZOOM = 11;
 // answer one of those at a time, so there was no way to ask the question
 // that matters most -- which waypoints did the detector miss -- by
 // looking at added points alone.
-const FILTER_KEYS = ["dr", "visual", "provided", "added", "rated", "unrated"];
+const FILTER_KEYS = ["dr", "visual", "detected", "added", "rated", "unrated"];
 let filters = {
   dr: true, visual: false,
-  provided: true, added: true,
+  detected: true, added: true,
   rated: true, unrated: true,
 };
 
@@ -412,11 +412,12 @@ function roleOf(d) {
   return d.role || (Math.abs(d.cross_track_nm ?? 0) <= 0.5 ? "dr" : "visual");
 }
 
-// Anything the detector put on the chart is "provided", including a pick
+// Anything the detector put on the chart is "detected", including a pick
 // made against one that has since drifted out of matching range. Only a
-// point placed by hand is "added".
+// point placed by hand is "added". These are the pick file's own two
+// words for its source column, so nothing needs translating.
 function sourceOf(d) {
-  return d.source === "added" ? "added" : "provided";
+  return d.source === "added" ? "added" : "detected";
 }
 
 // The rating is the fact, not the judged flag derived from it.
@@ -448,7 +449,7 @@ function hiddenNote(picks) {
 
 // What each box is called when a message names it.
 const FILTER_NAMES = {
-  dr: "DR", visual: "visual", provided: "provided",
+  dr: "DR", visual: "visual", detected: "detected",
   added: "added", rated: "rated", unrated: "unrated",
 };
 
@@ -461,7 +462,7 @@ function setFilter(key, on) {
   filters[key] = on;
   const box = el(`f-${key}`);
   if (box) box.checked = on;
-  try { localStorage.setItem("filters", JSON.stringify(filters)); } catch {}
+  try { localStorage.setItem("filters2", JSON.stringify(filters)); } catch {}
   renderMarkers();
   renderStats({});
 
@@ -872,7 +873,7 @@ function renderStats(body) {
   el("pickbreak").innerHTML = picks.length
     ? `<div class="pbox">${line(tally(p => roleOf(p) === "dr"), "DR")}` +
       `${line(tally(p => roleOf(p) === "visual"), "visual")}</div>` +
-      `<div class="pbox">${line(tally(p => sourceOf(p) === "provided"), "provided")}` +
+      `<div class="pbox">${line(tally(p => sourceOf(p) === "detected"), "detected")}` +
       `${line(tally(p => sourceOf(p) === "added"), "added")}</div>`
     : "";
 }
@@ -1385,7 +1386,7 @@ function setLegend(hidden) {
   try { localStorage.setItem("legendHidden", hidden ? "1" : "0"); } catch {}
 }
 try {
-  const saved = JSON.parse(localStorage.getItem("filters") || "null");
+  const saved = JSON.parse(localStorage.getItem("filters2") || "null");
   if (saved) FILTER_KEYS.forEach(k => { if (k in saved) filters[k] = !!saved[k]; });
 } catch { /* first run, or storage refused */ }
 FILTER_KEYS.forEach(key => {
