@@ -634,7 +634,9 @@ function renderList() {
   list.innerHTML = "";
   const all = detections.map((d, i) => ({ ...d, kind: "detected", i })).filter(d => d.judged)
     .concat(added.map((a, i) => ({ ...a, kind: "added", i })))
-    .sort((a, b) => (a.along_track_nm || 0) - (b.along_track_nm || 0));
+    // Departure to destination, the order you fly them, so walking
+    // forward moves down the list.
+    .sort((a, b) => (a.along_track_nm ?? 0) - (b.along_track_nm ?? 0));
 
   // The list follows v, like the map does. Showing picks that have no
   // marker to click makes the panel disagree with the chart beside it.
@@ -712,8 +714,12 @@ function highlightRow() {
     row.classList.toggle("on", !!mine);
     if (mine) target = row;
   });
-  // block:"nearest" so an already-visible row does not jump the panel.
-  if (target) target.scrollIntoView({ block: "nearest" });
+  // Centred and smooth, so walking the route scrolls the list steadily
+  // alongside you. "nearest" left the panel still until a row fell off
+  // the edge and then jumped it, which reads as lurching rather than
+  // following. The list is already in departure-to-destination order, so
+  // walking forward carries it downward.
+  if (target) target.scrollIntoView({ block: "center", behavior: "smooth" });
 }
 
 function deselect() { selected = null; hideHalo(); }
