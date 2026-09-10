@@ -761,7 +761,21 @@ def iter_landmarks_along_route(
         m_per_px = metres_per_pixel(landmark.lat, zoom)
         return landmark.area_m2 >= spec.min_area_px * m_per_px ** 2 * offset ** 2
 
-    blocks = tile_blocks(tiles)
+    # Ordered by how far along the route each block sits, so a caller
+    # streaming these fills the map from the departure end. tile_blocks
+    # advances in ascending tile-x, which is the direction of flight only
+    # for an eastbound route -- C81->KDLH runs west, so the departure had
+    # the highest x and the whole corridor arrived back to front: the
+    # first candidates on screen were the ones 320 nm away.
+    def block_along_track(block) -> float:
+        xs = [x for x, _ in block]
+        ys = [y for _, y in block]
+        centre_x = (min(xs) + max(xs) + 1) / 2 * TILE_PX
+        centre_y = (min(ys) + max(ys) + 1) / 2 * TILE_PX
+        lat, lon = global_px_to_latlon(centre_x, centre_y, zoom)
+        return along_track_distance_nm(lat, lon, start, end)
+
+    blocks = sorted(tile_blocks(tiles), key=block_along_track)
     for index, block in enumerate(blocks):
         mosaic = build_mosaic(block, zoom)
         block_landmarks = detect_landmarks(mosaic) + linear_crossings(

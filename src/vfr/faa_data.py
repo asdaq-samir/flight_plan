@@ -94,6 +94,21 @@ def download_and_extract(url: str, dest_dir: Path, retries: int = 3) -> None:
     raise RuntimeError(f"Failed to download {url}") from last_err
 
 
+def _is_icloud_evicted(path: Path) -> bool:
+    """Whether iCloud has offloaded this file, leaving a placeholder.
+
+    macOS replaces an evicted file with a hidden sibling named
+    ".<filename>.icloud" of a couple of hundred bytes, and the real path
+    stops existing. An existence check therefore reports "missing"
+    correctly, but the reason matters: re-downloading a national dataset
+    does not help if the directory is going to offload it again. Seen
+    three times in one day on this project -- Class_Airspace.shp, then
+    its .dbf, then APT_BASE.csv -- so it is worth naming rather than
+    rediscovering.
+    """
+    return (path.parent / f".{path.name}.icloud").exists()
+
+
 def ensure_nasr_data(cache_dir) -> tuple:
     """Download+extract the current-cycle NAV CSV, APT CSV and national
     DOF data into cache_dir if not already cached. Returns
@@ -119,6 +134,14 @@ def ensure_nasr_data(cache_dir) -> tuple:
         dof_url = find_download_link(DOF_INDEX_URL, r'href="(https://aeronav\.faa\.gov/Obst_Data/DOF_\d+\.zip)"')
         download_and_extract(dof_url, cache_dir)
 
+    evicted = [p.name for p in (nav_path, apt_path, dof_path) if _is_icloud_evicted(p)]
+    if evicted:
+        raise RuntimeError(
+            f"iCloud evicted {', '.join(evicted)} from {cache_dir}. Re-downloading will "
+            "not hold while this directory syncs to iCloud -- exclude data/raw from "
+            "syncing (a parent directory named to end in '.nosync', or keeping the "
+            "project outside Desktop/Documents)."
+        )
     return nav_path, apt_path, dof_path
 
 
