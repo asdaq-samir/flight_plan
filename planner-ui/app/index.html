@@ -51,6 +51,17 @@
     #notice .spin { color: var(--muted); }
     #middle { flex: 1; min-height: 0; display: flex; }
     #map { flex: 1; min-height: 0; background: #eef2f4; }
+    #map .leaflet-grab { cursor: grab; }
+    #map.leaflet-dragging .leaflet-grab,
+    #map.leaflet-dragging .leaflet-interactive { cursor: grabbing; }
+    #map .leaflet-interactive { cursor: pointer; }
+    @keyframes haloPulse {
+      0% { stroke-width: 3; opacity: 1 }
+      50% { stroke-width: 5.5; opacity: .75 }
+      100% { stroke-width: 3; opacity: 1 }
+    }
+    .halo-pulse { animation: haloPulse 1.6s ease-in-out infinite; }
+    @media (prefers-reduced-motion: reduce) { .halo-pulse { animation: none } }
     #side { width: 300px; border-left: 1px solid var(--line); overflow-y: auto; background: var(--panel); }
     h2 {
       margin: 0; padding: 7px 12px; font-size: 11px; letter-spacing: .07em;
@@ -62,6 +73,9 @@
       display: grid; grid-template-columns: 24px 1fr auto; gap: 8px; align-items: baseline;
     }
     .cp:hover { background: #eaf1f6; }
+    .cp.on { background: #e2edf5; box-shadow: inset 3px 0 0 var(--accent); }
+    .cp.endpoint { background: #f2f5f7; }
+    .cp.endpoint .nm { font: 600 13px ui-monospace, SFMono-Regular, Menlo, monospace; }
     .num { color: #fff; border-radius: 50%; width: 22px; height: 22px;
            display: grid; place-items: center; font: 700 11px system-ui; }
     .cp .nm { font-weight: 600; }
@@ -238,16 +252,42 @@ function flash(msg, bad) {
 }
 
 function numberedIcon(n, score) {
+  // Three edges, as on the labeling chart: white casing to separate it
+  // from dark linework, a dark hairline outside that so it still
+  // separates from pale paper, and a shadow to lift it off both.
   return L.divIcon({
     className: "",
-    html: `<div style="background:${scoreColor(score)};color:#fff;border:2px solid #fff;
-           border-radius:50%;width:26px;height:26px;display:grid;place-items:center;
-           font:700 12px system-ui;box-shadow:0 1px 4px rgba(0,0,0,.4)">${n}</div>`,
-    iconSize: [26, 26], iconAnchor: [13, 13],
+    html: `<div style="background:${scoreColor(score)};color:#fff;
+      border:2.5px solid #fff;outline:1px solid rgba(10,20,28,.55);
+      border-radius:50%;width:26px;height:26px;display:grid;place-items:center;
+      font:700 12px system-ui;box-shadow:0 1px 4px rgba(0,0,0,.45)">${n}</div>`,
+    iconSize: [28, 28], iconAnchor: [14, 14],
   });
 }
 
+// The selected checkpoint, ringed the way the labeler rings one: cased
+// both sides so it holds over black roads and blank paper alike, and
+// pulsing, because on a chart full of circles the one that moves is the
+// one the eye finds.
+let halo = null;
+
+function showHalo(c) {
+  hideHalo();
+  if (!c) return;
+  halo = L.featureGroup([
+    L.circleMarker([c.lat, c.lon], { radius: 19, color: "rgba(10,20,28,.55)", weight: 9, fill: false, interactive: false }),
+    L.circleMarker([c.lat, c.lon], { radius: 19, color: "#ffffff", weight: 6, fill: false, interactive: false }),
+    L.circleMarker([c.lat, c.lon], { radius: 19, color: "#ff3b00", weight: 3, fill: false, interactive: false, className: "halo-pulse" }),
+  ]).addTo(map);
+}
+
+function hideHalo() {
+  if (halo) { map.removeLayer(halo); halo = null; }
+}
+
+
 function clearLayers() {
+  hideHalo();
   [courseLayer, candidateLayer, selectedLayer, endsLayer].forEach(l => l && map.removeLayer(l));
   courseLayer = candidateLayer = selectedLayer = endsLayer = null;
   el("list").innerHTML = "";
@@ -259,8 +299,26 @@ function clearLayers() {
 function render() {
   initBasemaps(data);
 
-  courseLayer = L.polyline(data.course_line,
-    { color: "#c2185b", weight: 2, opacity: .85, dashArray: "6,6" }).addTo(map);
+  // Same treatment as the labeling chart: a white casing under a
+  // coloured core, plus a wide invisible line to hover. A sectional
+  // already uses blue, magenta, black, brown, yellow and green, so no
+  // single stroke wins on colour -- the casing is what makes it read.
+  courseLayer = L.layerGroup([
+    L.polyline(data.course_line, {
+      color: "#ffffff", weight: 8, opacity: .85, interactive: false,
+    }),
+    L.polyline(data.course_line, {
+      color: "#ff3b00", weight: 3.5, opacity: 1, dashArray: "11,7", interactive: false,
+    }),
+    L.polyline(data.course_line, {
+      color: "#000", weight: 18, opacity: 0, className: "course-hit",
+      interactive: true, bubblingMouseEvents: true, lineCap: "butt",
+    }).bindTooltip(
+      `${data.departure.ident} → ${data.destination.ident} · ` +
+      `${data.distance_nm} nm` +
+      (data.altitude_ft ? ` · ${data.altitude_ft} ft` : ""),
+      { sticky: true }),
+  ]).addTo(map);
 
   // Every candidate the model scored, small and dim. The selection is
   // only judgable next to what it was selecting from.
@@ -300,21 +358,54 @@ function render() {
 
 function renderCheckpoints() {
   const list = el("list");
-  data.selected.forEach((c, i) => {
+  list.innerHTML = "";
+  if (!data.selected.length) {
+    list.innerHTML = `<div class="cp" style="cursor:default;color:var(--muted)">Scoring…</div>`;
+    return;
+  }
+
+  // Departure first, destination last, the checkpoints between them --
+  // the same shape as the labeler's picks list, so the panel reads as
+  // the leg rather than as a bag of points.
+  const ends = [
+    { ...data.departure, endpoint: "DEP", along_track_nm: 0 },
+    { ...data.destination, endpoint: "DEST", along_track_nm: data.distance_nm },
+  ];
+  const rows = ends.concat(data.selected.map((c, i) => ({ ...c, n: i + 1 })))
+    .sort((a, b) => a.along_track_nm - b.along_track_nm);
+
+  rows.forEach(c => {
     const row = document.createElement("div");
-    row.className = "cp";
-    row.innerHTML =
-      `<span class="num" style="background:${scoreColor(c.predicted_score)}">${i + 1}</span>` +
-      `<span class="nm">${c.name || "(unnamed)"}</span>` +
-      `<span class="score" style="color:${scoreColor(c.predicted_score)}">${c.predicted_score.toFixed(2)}</span>` +
-      `<span class="meta">${c.category} · ${c.along_track_nm.toFixed(1)} nm along route</span>`;
+    row.className = c.endpoint ? "cp endpoint" : "cp";
+    if (c.endpoint) {
+      row.innerHTML =
+        `<span class="num" style="background:#142430">${c.endpoint}</span>` +
+        `<span class="nm">${c.ident}</span><span></span>` +
+        `<span class="meta">${c.name}</span>`;
+    } else {
+      // Leg to the next fix, distance and heading -- the numbers you
+      // actually fly, alongside the score that put it here.
+      const legIndex = data.legs.findIndex(l => l.from === (c.name || c.category));
+      const leg = legIndex >= 0 ? data.legs[legIndex] : null;
+      row.innerHTML =
+        `<span class="num" style="background:${scoreColor(c.predicted_score)}">${c.n}</span>` +
+        `<span class="nm">${c.name || "(unnamed)"}</span>` +
+        `<span class="score" style="color:${scoreColor(c.predicted_score)}">${c.predicted_score.toFixed(2)}</span>` +
+        `<span class="meta">${c.category} · ${c.along_track_nm.toFixed(1)} nm along` +
+        (leg ? ` · next leg ${leg.distance_nm.toFixed(1)} nm, ${String(Math.round(leg.magnetic_heading_deg) % 360).padStart(3, "0")}°M` : "") +
+        `</span>`;
+    }
     row.onclick = () => {
-      map.setView([c.lat, c.lon], data.max_zoom);
-      selectedLayer.getLayers()[i].openPopup();
+      map.setView([c.lat, c.lon], Math.max(map.getZoom(), data.max_zoom));
+      showHalo(c);
+      list.querySelectorAll(".cp").forEach(r => r.classList.remove("on"));
+      row.classList.add("on");
+      if (!c.endpoint) selectedLayer.getLayers()[c.n - 1].openPopup();
     };
     list.appendChild(row);
   });
 }
+
 
 function renderNavlog() {
   const body = el("navbody");
@@ -462,6 +553,9 @@ async function plan(dep, dest) {
     data = { ...data, ...nl };
     el("navbody").innerHTML = "";
     renderNavlog();
+    // The checkpoint rows carry each leg's distance and heading, which
+    // only exist now, so they are drawn again rather than left partial.
+    renderCheckpoints();
   } finally {
     btn.disabled = false;
   }
