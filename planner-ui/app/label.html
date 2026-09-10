@@ -225,12 +225,12 @@ function fitRoute() {
 // "back to marker" still means something once a rating has moved on.
 let lastFocus = null;
 
-// Walking stays wide enough to keep context around a crossing; c is the
-// deliberate "show me this one properly" and goes closer. Both sit above
-// the chart's native zoom 12, so the sectional is upscaled -- past 14 it
-// is more blur than detail.
-const WALK_ZOOM = 13;
-const FOCUS_ZOOM = 14;
+// Walking keeps context around a crossing; c is the deliberate "show me
+// this one" and goes one step closer. Both sit at or just above the
+// chart's native zoom 12, where the sectional starts being upscaled --
+// 14 was tried and read as blur rather than detail.
+const WALK_ZOOM = 12;
+const FOCUS_ZOOM = 13;
 
 function focusOn(d) {
   if (d) lastFocus = { lat: d.lat, lon: d.lon };
