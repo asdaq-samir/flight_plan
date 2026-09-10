@@ -714,7 +714,6 @@ function renderStats(body) {
   // is still missing.
   const kept = (list) => list.filter(x => x.judged && visible(x)).length;
   const total = kept(detections) + kept(added);
-  const byHand = kept(added);
 
   // Distance, waypoints, filter. Nothing else: how many candidates the
   // chart offered and how many tiles fell outside coverage are facts
@@ -723,10 +722,10 @@ function renderStats(body) {
   // a permanent column.
   // "Showing" rather than "Total": the number moves with the boxes
   // beside it, and calling a filtered count a total invites reading it
-  // as the whole set.
+  // as the whole set. No breakdown either -- the added box is right
+  // there, and ticking it alone answers the same question exactly.
   el("stats").innerHTML =
-    `<b>${course.distance_nm}</b> nm · Showing: <b>${total}</b>` +
-    ` <span style="color:var(--muted)">(${byHand} added)</span>`;
+    `<b>${course.distance_nm}</b> nm · Showing: <b>${total}</b>`;
   if (c.missing) {
     flash(`${c.missing} tiles outside chart coverage`, true);
   }
