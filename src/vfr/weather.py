@@ -10,6 +10,8 @@ stale, not "the current cycle"), so every call re-fetches.
 """
 import re
 
+import time
+
 import requests
 
 HEADERS = {"User-Agent": "vfr-route-learning-project/0.1"}
@@ -21,7 +23,24 @@ AIRSIGMET_URL = "https://aviationweather.gov/api/data/airsigmet"
 # --- Freezing level, from the winds/temps-aloft ("FD") text product ---
 
 
+# The FD product is a forecast issued a few times a day, so refetching it
+# per nav-log leg was 22 identical HTTP round trips for one route -- most
+# of the 1.2 seconds each leg cost. Held briefly rather than forever, so a
+# long-running server still picks up a new issue.
+_FD_CACHE: dict = {}
+_FD_TTL_S = 900
+
+
 def _fetch_fd_text(fcst_hr: str = "06") -> str:
+    cached = _FD_CACHE.get(fcst_hr)
+    if cached and time.time() - cached[0] < _FD_TTL_S:
+        return cached[1]
+    text = _fetch_fd_text_uncached(fcst_hr)
+    _FD_CACHE[fcst_hr] = (time.time(), text)
+    return text
+
+
+def _fetch_fd_text_uncached(fcst_hr: str = "06") -> str:
     resp = requests.get(
         WINDTEMP_URL, params={"region": "us", "level": "low", "fcst": fcst_hr}, headers=HEADERS, timeout=30
     )

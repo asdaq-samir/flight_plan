@@ -151,11 +151,33 @@ def _floor_ft_msl(record: dict) -> float:
     return 0.0
 
 
+# Parsed polygons, keyed by file, its mtime and the bbox asked for.
+# Reading Class_Airspace.shp means walking 5,612 PolygonZ records of a
+# 394 MB file, about 8 seconds. Planning one route did it twice --
+# max_airspace_altitude_msl and airspace_transits ask for the same bbox
+# and each read it fresh -- so half of that was pure repetition, and
+# planning the same route again paid the whole cost over.
+_AIRSPACE_CACHE: dict = {}
+
+
 def load_controlled_airspace(shp_path, bbox: tuple) -> list:
     """Class B/C/D polygons (as shapely geometries, with a floor_ft_msl)
     whose bounding box overlaps bbox. Returns a list of
     {"name", "class", "floor_ft_msl", "geometry"} dicts.
+
+    Cached per file and bbox. The mtime is part of the key so a new 28-day
+    cycle is picked up rather than served stale. Callers must treat the
+    result as read-only, since they now share it.
     """
+    key = (str(shp_path), Path(shp_path).stat().st_mtime, tuple(bbox))
+    if key in _AIRSPACE_CACHE:
+        return _AIRSPACE_CACHE[key]
+    polygons = _read_controlled_airspace(shp_path, bbox)
+    _AIRSPACE_CACHE[key] = polygons
+    return polygons
+
+
+def _read_controlled_airspace(shp_path, bbox: tuple) -> list:
     min_lat, min_lon, max_lat, max_lon = bbox
     sf = shapefile.Reader(str(shp_path))
     polygons = []

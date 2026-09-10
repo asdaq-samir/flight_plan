@@ -20,10 +20,22 @@ def _ensure_cached(cache_path: Path = DEFAULT_CACHE_PATH) -> Path:
     return cache_path
 
 
+_TABLE_CACHE: dict = {}
+
+
 def load_airports(cache_path: Path = DEFAULT_CACHE_PATH) -> pd.DataFrame:
-    """Load the full OurAirports table (downloads + caches on first call)."""
+    """Load the full OurAirports table (downloads + caches on first call).
+
+    Held in memory after the first read. vfr.weather looks up the nearest
+    winds-aloft station through this, once per nav-log leg, and re-parsing
+    an 80,000-row CSV each time was a measurable part of what made
+    planning a route slow. Callers must treat the frame as read-only.
+    """
     path = _ensure_cached(cache_path)
-    return pd.read_csv(path, low_memory=False)
+    key = (str(path), path.stat().st_mtime)
+    if key not in _TABLE_CACHE:
+        _TABLE_CACHE[key] = pd.read_csv(path, low_memory=False)
+    return _TABLE_CACHE[key]
 
 
 def get_airport(ident: str, cache_path: Path = DEFAULT_CACHE_PATH) -> dict:

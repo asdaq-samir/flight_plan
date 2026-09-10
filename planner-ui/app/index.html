@@ -289,12 +289,13 @@ function render() {
 
   fitRoute();
 
-  el("summary").innerHTML =
-    `<b>${data.distance_nm}</b> nm · <b>${data.selected.length}</b> checkpoints ` +
-    `from ${data.candidates.length} candidates · <b>${data.legs.length}</b> legs`;
+  el("summary").innerHTML = data.selected.length
+    ? `<b>${data.distance_nm}</b> nm · <b>${data.selected.length}</b> checkpoints ` +
+      `from ${data.candidates.length} candidates`
+    : `<b>${data.distance_nm}</b> nm · scoring checkpoints…`;
 
   renderCheckpoints();
-  renderNavlog();
+  if (data.legs && data.legs.length) renderNavlog();
 }
 
 function renderCheckpoints() {
@@ -419,37 +420,67 @@ async function plan(dep, dest) {
   const btn = el("form").querySelector("button");
   btn.disabled = true;
   flash("");
-  el("summary").textContent = "planning…";
   const alt = el("alt").value.trim();
   const params = new URLSearchParams({ dep, dest });
   if (alt) params.set("altitude_ft", alt);
 
   try {
-    const res = await fetch(`/api/plan?${params}`);
-    const body = await res.json().catch(() => ({ detail: res.statusText }));
-    if (!res.ok) {
-      clearLayers();
-      data = null;
-      el("summary").textContent = "";
-      const detail = body.detail || "request failed";
-      if (res.status === 404 && detail.includes("not been collected")) {
-        showNotice(`${dep} → ${dest} has not been collected yet. This takes a few minutes.`, true);
-        flash("");
-      } else {
-        hideNotice();
-        flash(detail.split("\n")[0], true);
-      }
-      return;
-    }
-    hideNotice();
+    // 1. The course. Sub-second, and enough to draw the leg, so the map
+    //    is never blank while the rest is worked out.
+    el("summary").textContent = "drawing course…";
+    const courseRes = await fetch(`/api/course?${new URLSearchParams({ dep, dest })}`);
+    const course = await courseRes.json().catch(() => ({}));
+    if (!courseRes.ok) return failed(courseRes, course, dep, dest);
     clearLayers();
-    data = body;
+    data = { ...course, candidates: [], selected: [], legs: [], totals: {} };
     render();
     history.replaceState(null, "", `?${params}`);
+
+    // 2. The checkpoints. Also fast -- the model is loaded and the
+    //    features are already built.
+    el("summary").textContent = "scoring checkpoints…";
+    const cpRes = await fetch(`/api/checkpoints?${new URLSearchParams({ dep, dest })}`);
+    const cp = await cpRes.json().catch(() => ({}));
+    if (!cpRes.ok) return failed(cpRes, cp, dep, dest);
+    clearLayers();
+    data = { ...data, ...cp };
+    render();
+
+    // 3. The nav log. Terrain, the obstacle file, the airspace shapefile
+    //    and live winds, so it takes as long as it takes -- and nothing
+    //    above waits for it.
+    el("navbody").innerHTML =
+      `<tr><td class="l muted" colspan="12">reading terrain, airspace and winds…</td></tr>`;
+    const nlRes = await fetch(`/api/navlog?${params}`);
+    const nl = await nlRes.json().catch(() => ({}));
+    if (!nlRes.ok) {
+      el("navbody").innerHTML =
+        `<tr><td class="l" colspan="12" style="color:var(--warn)">${
+          (nl.detail || "could not build the nav log").split("\n")[0]}</td></tr>`;
+      return;
+    }
+    data = { ...data, ...nl };
+    el("navbody").innerHTML = "";
+    renderNavlog();
   } finally {
     btn.disabled = false;
   }
 }
+
+function failed(res, body, dep, dest) {
+  clearLayers();
+  data = null;
+  el("summary").textContent = "";
+  const detail = body.detail || "request failed";
+  if (res.status === 404 && detail.includes("not been collected")) {
+    showNotice(`${dep} → ${dest} has not been collected yet. This takes a few minutes.`, true);
+    flash("");
+  } else {
+    hideNotice();
+    flash(detail.split("\n")[0], true);
+  }
+}
+
 
 async function loadBuiltRoutes() {
   try {

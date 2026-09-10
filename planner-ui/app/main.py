@@ -607,3 +607,55 @@ def detect_stream(dep: str, dest: str, half_width_nm: float = 4.0) -> StreamingR
         lines(), media_type="application/x-ndjson",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+# ---------------------------------------------------------------------
+# The plan, in the three pieces it naturally falls into. /api/plan still
+# returns all of it at once for anything that wants one call, but a page
+# should ask for these in order: the course draws immediately, the
+# checkpoints land a tenth of a second later, and the nav log -- which
+# needs terrain, obstacles, airspace and weather -- arrives when it can
+# without holding up the map.
+# ---------------------------------------------------------------------
+
+
+@app.get("/api/checkpoints")
+def checkpoints(dep: str, dest: str) -> dict:
+    """Scored candidates and the subset worth flying. Fast: the model is
+    already loaded and the features are already built."""
+    dep_ident, dest_ident = _route_key(dep, dest)
+    dep_airport, dest_airport = _resolve(dep_ident, dest_ident)
+    start = (dep_airport["lat"], dep_airport["lon"])
+    end = (dest_airport["lat"], dest_airport["lon"])
+
+    scored = _score(dep_ident, dest_ident)
+    selected = checkpoint_selection.select_checkpoints(scored)
+    keys = {(c["osm_id"], c["category"]) for c in selected}
+    for c in scored:
+        c["selected"] = (c["osm_id"], c["category"]) in keys
+    return {
+        "departure": {"ident": dep_ident, "name": dep_airport["name"], "lat": start[0], "lon": start[1]},
+        "destination": {"ident": dest_ident, "name": dest_airport["name"], "lat": end[0], "lon": end[1]},
+        "candidates": scored,
+        "selected": selected,
+    }
+
+
+@app.get("/api/navlog")
+def navlog_only(
+    dep: str,
+    dest: str,
+    altitude_ft: float | None = None,
+    aircraft: str = DEFAULT_AIRCRAFT,
+) -> dict:
+    """Altitude and the dead-reckoning legs. The slow half, because it
+    reads terrain, the obstacle file, the airspace shapefile and live
+    winds; asked for separately so none of that delays the chart."""
+    plan_result = plan(dep=dep, dest=dest, altitude_ft=altitude_ft, aircraft=aircraft)
+    return {
+        "legs": plan_result["legs"],
+        "totals": plan_result["totals"],
+        "altitude_ft": plan_result["altitude_ft"],
+        "altitude_selection": plan_result["altitude_selection"],
+        "aircraft": plan_result["aircraft"],
+    }
