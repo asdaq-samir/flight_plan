@@ -404,9 +404,16 @@ function visible(d) {
   return filters[roleOf(d)] && filters[sourceOf(d)] && filters[ratedOf(d)];
 }
 
+// Written out singular and plural rather than pluralised by appending an
+// s, which produced "36 rateds". Half of these are adjectives and need a
+// noun to attach to.
 const FILTER_NAMES = {
-  dr: "DR", visual: "visual reference", provided: "provided",
-  added: "added", rated: "rated", unrated: "unrated",
+  dr: ["DR waypoint", "DR waypoints"],
+  visual: ["visual reference", "visual references"],
+  provided: ["provided waypoint", "provided waypoints"],
+  added: ["added waypoint", "added waypoints"],
+  rated: ["rated waypoint", "rated waypoints"],
+  unrated: ["unrated waypoint", "unrated waypoints"],
 };
 
 /**
@@ -425,7 +432,7 @@ function hiddenNote(picks) {
     if (axis) counts[axis] = (counts[axis] || 0) + 1;
   }
   const parts = FILTER_KEYS.filter(k => counts[k]).map(k =>
-    `${counts[k]} ${FILTER_NAMES[k]}${counts[k] === 1 ? "" : "s"}`);
+    `${counts[k]} ${FILTER_NAMES[k][counts[k] === 1 ? 0 : 1]}`);
   if (!parts.length) return "";
   return `${parts.join(", ")} unselected — tick to show`;
 }
