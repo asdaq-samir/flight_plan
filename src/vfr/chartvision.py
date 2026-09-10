@@ -393,7 +393,11 @@ def detect_landmarks(mosaic: Mosaic, palette=PALETTE) -> list:
         labelled, count = ndimage.label(mask)
         if count == 0:
             continue
-        sizes = ndimage.sum(mask, labelled, range(1, count + 1))
+        # np.bincount over the label image rather than ndimage.sum: the
+        # same per-component pixel counts, and the single most expensive
+        # step in blob detection before this (18 ms a block against 6-9
+        # for everything else).
+        sizes = np.bincount(labelled.ravel(), minlength=count + 1)[1:]
         keep = [
             i + 1 for i, size in enumerate(sizes)
             if size >= spec.min_area_px
@@ -448,32 +452,35 @@ def tile_blocks(tiles: list, max_span: int = MAX_BLOCK_TILES) -> list:
     long one is almost entirely empty. Stitching it as a single mosaic
     allocated that whole rectangle: a 323 nm route spans roughly 62 by 55
     tiles, which is 668 MB of canvas to hold about 191 tiles of actual
-    chart, and it made a fully cached run take 39 s. Blocks keep the
-    allocation proportional to the chart actually fetched.
+    chart, and it made a fully cached run take 39 s.
 
-    Blocks overlap by one tile so a lake straddling a boundary is seen
-    whole by at least one of them; _dedupe removes the double sighting.
+    Blocks advance along the corridor in columns and take every tile in
+    that column range, which suits a shape that is long in one direction
+    and a few tiles thick in the other. One column of overlap so a lake
+    on a seam is seen whole by one block; _dedupe drops the double
+    sighting.
+
+    The first version grouped by a square window in both axes and marked
+    only an inner core as consumed, which re-stitched 369 tiles to cover
+    198 -- 1.86x redundancy on a corridor barely three tiles thick.
     """
     if not tiles:
         return []
-    remaining = sorted(tiles)
-    blocks, seen = [], set()
-    for anchor_x, anchor_y in remaining:
-        if (anchor_x, anchor_y) in seen:
-            continue
-        block = [
-            (x, y) for x, y in remaining
-            if anchor_x <= x < anchor_x + max_span and anchor_y - 1 <= y < anchor_y + max_span
-        ]
-        if not block:
-            continue
-        # Only the non-overlapping core counts as consumed, so the next
-        # block starts one tile back and the seam is covered twice.
-        seen.update(
-            (x, y) for x, y in block
-            if x < anchor_x + max_span - 1 and y < anchor_y + max_span - 1
-        )
-        blocks.append(block)
+    by_x = {}
+    for x, y in tiles:
+        by_x.setdefault(x, []).append(y)
+
+    columns = sorted(by_x)
+    blocks, start = [], 0
+    stride = max(1, max_span - 1)
+    while start < len(columns):
+        window = columns[start:start + max_span]
+        block = [(x, y) for x in window for y in by_x[x]]
+        if block:
+            blocks.append(block)
+        if start + max_span >= len(columns):
+            break
+        start += stride
     return blocks
 
 
@@ -603,6 +610,11 @@ def linear_crossings(
             extents = _component_extents(labelled)
         else:
             labelled, extents = None, {}
+        # Sampled per course point rather than by filtering the whole
+        # block. Precomputing proximity with a uniform_filter was tried
+        # and was twice as slow: the course touches a couple of thousand
+        # pixels of a block that holds millions, so answering the question
+        # everywhere costs far more than asking it where it matters.
         hits = []
         for step in indices:
             ix, iy = int(round(local[step][0])), int(round(local[step][1]))
@@ -707,18 +719,26 @@ def _group_hits(hits: list, separation: int = CROSSING_SEPARATION_PX) -> list:
     return groups
 
 
-def landmarks_along_route(
+def iter_landmarks_along_route(
     start: tuple,
     end: tuple,
     half_width_nm: float = 1.0,
     zoom: int = DEFAULT_ZOOM,
     margin_nm: float = 5.0,
-) -> dict:
-    """Everything the chart draws inside the route corridor.
+):
+    """Everything the chart draws inside the route corridor, a block at a
+    time.
 
-    The whole fast path in one call: pick tiles, fetch them (cached),
-    segment, and keep the blobs that fall inside the corridor. No
-    Overpass, no FAA subscription, no elevation service.
+    The whole fast path: pick tiles, fetch them (cached), segment, keep
+    what falls inside the corridor. No Overpass, no FAA subscription, no
+    elevation service.
+
+    Yielded rather than returned because there is no reason to hold the
+    whole corridor back. Blocks advance along the course, so the first one
+    covers the departure end and is ready in a fraction of a second while
+    a 323 nm route takes a few seconds in total -- a caller can put
+    checkpoints on the map and let someone start work on them while the
+    rest is still being read.
     """
     tiles = corridor_tiles(start, end, half_width_nm + 1.0, zoom)
     route_nm = distance_nm(start[0], start[1], end[0], end[1])
@@ -741,15 +761,13 @@ def landmarks_along_route(
         m_per_px = metres_per_pixel(landmark.lat, zoom)
         return landmark.area_m2 >= spec.min_area_px * m_per_px ** 2 * offset ** 2
 
-    found, stats = [], {"missing": 0, "fetched": 0, "cached": 0}
-    for block in tile_blocks(tiles):
+    blocks = tile_blocks(tiles)
+    for index, block in enumerate(blocks):
         mosaic = build_mosaic(block, zoom)
-        stats["missing"] += mosaic.missing_tiles
-        stats["fetched"] += mosaic.fetched_tiles
-        stats["cached"] += mosaic.cached_tiles
         block_landmarks = detect_landmarks(mosaic) + linear_crossings(
             mosaic, start, end, course_px=course_px
         )
+        kept = []
         for landmark in block_landmarks:
             cross = cross_track_distance_nm(landmark.lat, landmark.lon, start, end)
             along = along_track_distance_nm(landmark.lat, landmark.lon, start, end)
@@ -758,17 +776,52 @@ def landmarks_along_route(
             if not big_enough_to_see(landmark, cross):
                 continue
             landmark.extras.update({"cross_track_nm": cross, "along_track_nm": along})
-            found.append(landmark)
+            kept.append(landmark)
+
+        yield {
+            "landmarks": _dedupe(kept),
+            "block": index,
+            "blocks": len(blocks),
+            "tiles": len(tiles),
+            "missing": mosaic.missing_tiles,
+            "fetched": mosaic.fetched_tiles,
+            "cached": mosaic.cached_tiles,
+            "route_nm": route_nm,
+        }
+
+
+def landmarks_along_route(
+    start: tuple,
+    end: tuple,
+    half_width_nm: float = 1.0,
+    zoom: int = DEFAULT_ZOOM,
+    margin_nm: float = 5.0,
+) -> dict:
+    """Everything the chart draws inside the route corridor, in one call.
+
+    Drains iter_landmarks_along_route. Callers that can show partial
+    results should stream that instead -- the first block covers the
+    departure end of the route and is ready in a fraction of a second,
+    while the whole corridor takes seconds.
+    """
+    found, stats = [], {"missing": 0, "fetched": 0, "cached": 0}
+    tiles = blocks = 0
+    for batch in iter_landmarks_along_route(start, end, half_width_nm, zoom, margin_nm):
+        found.extend(batch["landmarks"])
+        for key in stats:
+            stats[key] += batch[key]
+        tiles, blocks = batch["tiles"], batch["blocks"]
 
     found = _dedupe(found)
     found.sort(key=lambda l: l.extras["along_track_nm"])
     return {
         "landmarks": found,
-        "tiles": len(tiles),
+        "tiles": tiles,
+        "blocks": blocks,
         "tiles_missing": stats["missing"],
         "tiles_fetched": stats["fetched"],
         "tiles_cached": stats["cached"],
-        "route_nm": route_nm,
+        "route_nm": distance_nm(start[0], start[1], end[0], end[1]),
     }
 
 # Order matters: the tests are not mutually exclusive and the first match

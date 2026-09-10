@@ -230,23 +230,60 @@ async function loadCourse(dep, dest) {
 // --- step 2: detections, which take seconds because they read tiles.
 async function loadDetections(dep, dest) {
   detecting = true;
-  el("stats").innerHTML =
-    `<b>${course.distance_nm}</b> nm · reading the sectional…`;
-  let res, body;
+  detections = [];
+  added = [];
+  lastCoverage = {};
+  renderMarkers();
+
+  // Streamed a block at a time so the map fills from the departure end
+  // and you can start judging the first stretch while the rest of the
+  // corridor is still being read.
+  let done = false;
   try {
-    res = await fetch(`/api/detect?dep=${dep}&dest=${dest}`);
-    body = await res.json();
+    const res = await fetch(`/api/detect/stream?dep=${dep}&dest=${dest}`);
+    if (!res.ok || !res.body) {
+      const body = await res.json().catch(() => ({ detail: res.statusText }));
+      flash(body.detail || "detection failed", true);
+      return;
+    }
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    while (true) {
+      const { value, done: finished } = await reader.read();
+      if (finished) break;
+      buffer += decoder.decode(value, { stream: true });
+      // A chunk can split a line, so only whole lines are parsed and the
+      // remainder is carried forward.
+      const lines = buffer.split("\n");
+      buffer = lines.pop();
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        const msg = JSON.parse(line);
+        if (msg.type === "start") {
+          added = msg.added || [];
+        } else if (msg.type === "block") {
+          detections = detections.concat(msg.detections);
+          if (msg.missing) lastCoverage.missing = (lastCoverage.missing || 0) + msg.missing;
+          renderMarkers();
+          const pct = msg.blocks ? Math.round(((msg.block + 1) / msg.blocks) * 100) : 0;
+          el("stats").innerHTML =
+            `<b>${course.distance_nm}</b> nm · <b>${detections.length}</b> found · ` +
+            `reading chart ${pct}%`;
+        } else if (msg.type === "done") {
+          done = true;
+          renderStats({ summary: msg.summary, coverage: lastCoverage });
+          const left = detections.filter(d => !d.judged).length;
+          flash(left ? `${left} unjudged — press w to walk them` : "All detections judged");
+        }
+      }
+    }
+  } catch (err) {
+    flash(`Stream interrupted: ${err}`, true);
   } finally {
     detecting = false;
+    if (!done) renderStats({ summary: {}, coverage: lastCoverage });
   }
-  if (!res.ok) { flash(body.detail || "detection failed", true); return; }
-  detections = body.detections;
-  added = body.added;
-  lastCoverage = body.coverage || {};
-  renderMarkers();
-  renderStats(body);
-  const left = detections.filter(d => !d.judged).length;
-  flash(left ? `${left} unjudged — press w to walk them` : "All detections judged");
 }
 
 function renderStats(body) {

@@ -60,12 +60,25 @@ def test_blocks_cover_every_tile():
 
 
 def test_blocks_stay_small_enough_to_allocate():
+    """The point of blocks is bounded allocation, so the test is on the
+    stitched rectangle's area rather than on its shape. Blocks advance in
+    columns along the corridor and take its full thickness, so the second
+    dimension is whatever the corridor happens to be."""
     tiles = corridor_tiles((42.32, -88.07), (46.84, -92.20), half_width_nm=2.0)
     for block in tile_blocks(tiles, max_span=6):
         xs = [x for x, _ in block]
         ys = [y for _, y in block]
         assert (max(xs) - min(xs) + 1) <= 6
-        assert (max(ys) - min(ys) + 1) <= 7  # one row of deliberate overlap
+        assert (max(xs) - min(xs) + 1) * (max(ys) - min(ys) + 1) <= 6 * 12
+
+
+def test_blocks_do_not_re_stitch_the_corridor_many_times_over():
+    """Overlap is needed so a lake on a seam is seen whole, but the first
+    version overlapped in both axes and re-stitched 369 tiles to cover
+    198 on a corridor barely three tiles thick."""
+    tiles = corridor_tiles((42.32, -88.07), (46.84, -92.20), half_width_nm=2.0)
+    loads = sum(len(block) for block in tile_blocks(tiles))
+    assert loads < len(tiles) * 1.4
 
 
 def test_blocks_overlap_so_a_feature_on_a_seam_is_seen_whole():

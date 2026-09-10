@@ -24,6 +24,7 @@ service the Docker socket -- a much larger grant than it needs. It is the
 same vfr.pipeline functions the Airflow DAG calls, so there is one
 implementation, not two.
 """
+import json
 import os
 import threading
 import traceback
@@ -32,7 +33,7 @@ from pathlib import Path
 
 import requests
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
 
 from vfr import aircraft as aircraft_module
@@ -486,10 +487,13 @@ def _faa_airports(start, end, half_width_nm, dep_ident, dest_ident) -> list:
     are not using them as references, you are flying from one to the
     other.
     """
-    if "df" not in _APT_CACHE:
+    if "path" not in _APT_CACHE:
         _, apt_csv_path, _dof = faa_data.ensure_nasr_data(DATA_DIR / "raw" / "faa_nasr")
         _APT_CACHE["path"] = apt_csv_path
     bbox = geo.corridor_bbox(start, end, half_width_nm + 1.0)
+    # APT_BASE is a large national CSV and re-parsing it per request cost
+    # 2.1 s, which was the entire time-to-first-marker on a streamed
+    # route -- airports are meant to be the cheap thing shown first.
     df = faa_data.load_route_airports(
         _APT_CACHE["path"], bbox, exclude_idents=(dep_ident, dest_ident)
     )
@@ -516,3 +520,90 @@ def _faa_airports(start, end, half_width_nm, dep_ident, dest_ident) -> list:
             )
         )
     return landmarks
+
+
+@app.get("/api/detect/stream")
+def detect_stream(dep: str, dest: str, half_width_nm: float = 4.0) -> StreamingResponse:
+    """Detections as newline-delimited JSON, one line per block.
+
+    Same work as /api/detect, handed over as it is produced instead of
+    after all of it. Blocks advance along the course, so the map fills
+    from the departure end and a pilot can start judging the first thirty
+    miles while the rest of the corridor is still being read. Airports
+    come first, in their own line, because they are a local file lookup
+    and cost nothing to produce.
+    """
+    dep_ident, dest_ident = _route_key(dep, dest)
+    dep_airport, dest_airport = _resolve(dep_ident, dest_ident)
+    start = (dep_airport["lat"], dep_airport["lon"])
+    end = (dest_airport["lat"], dest_airport["lon"])
+    route = chartlabels.route_key(dep_ident, dest_ident)
+
+    def as_detection(landmark) -> dict:
+        existing = chartlabels.find_existing(route, landmark.lat, landmark.lon)
+        return {
+            "lat": landmark.lat,
+            "lon": landmark.lon,
+            "category": landmark.category,
+            "area_m2": round(landmark.area_m2, 1),
+            "score": landmark.score,
+            "along_track_nm": round(landmark.extras["along_track_nm"], 2),
+            "cross_track_nm": round(landmark.extras["cross_track_nm"], 3),
+            "rating": existing["rating"] if existing else None,
+            "role": existing.get("role") if existing else None,
+            "judged": existing is not None,
+        }
+
+    def lines():
+        yield json.dumps({
+            "type": "start",
+            "route": route,
+            "added": chartlabels.load_picks(route),
+        }) + "\n"
+
+        airports_found = _faa_airports(start, end, half_width_nm, dep_ident, dest_ident)
+        yield json.dumps({
+            "type": "block", "block": -1, "blocks": 0,
+            "detections": [as_detection(a) for a in airports_found],
+        }) + "\n"
+
+        # Blocks overlap by a column so a feature on a seam is seen whole
+        # by one of them, which means the same feature arrives twice.
+        # The batched path dedupes at the end; a stream has to do it as it
+        # goes or the duplicates are already on the map. Streaming
+        # produced 350 candidates against the batched 288 before this.
+        emitted, seen = [], 0
+        for batch in chartvision.iter_landmarks_along_route(
+            start, end, half_width_nm=half_width_nm
+        ):
+            fresh = []
+            for landmark in batch["landmarks"]:
+                if any(
+                    other.category == landmark.category
+                    and geo.distance_nm(other.lat, other.lon, landmark.lat, landmark.lon)
+                    < chartvision.DEDUPE_NM
+                    for other in emitted
+                ):
+                    continue
+                emitted.append(landmark)
+                fresh.append(landmark)
+            seen += len(fresh)
+            yield json.dumps({
+                "type": "block",
+                "block": batch["block"],
+                "blocks": batch["blocks"],
+                "tiles": batch["tiles"],
+                "missing": batch["missing"],
+                "detections": [as_detection(l) for l in fresh],
+            }) + "\n"
+
+        yield json.dumps({
+            "type": "done", "total": seen, "summary": chartlabels.summarise(route),
+        }) + "\n"
+
+    # Buffering off: a proxy holding these until the generator finishes
+    # would defeat the entire point of streaming them.
+    return StreamingResponse(
+        lines(), media_type="application/x-ndjson",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )

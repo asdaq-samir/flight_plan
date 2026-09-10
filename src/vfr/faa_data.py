@@ -129,6 +129,23 @@ def ensure_nasr_data(cache_dir) -> tuple:
 CHARTED_FACILITY_TYPES = {"AIRPORT"}
 
 
+_APT_BASE_CACHE: dict = {}
+
+
+def _read_apt_base(apt_csv_path) -> pd.DataFrame:
+    """APT_BASE.csv, parsed once per process.
+
+    It is a large national table and a route request only ever wants a
+    bounding box out of it, so re-reading it per call was 2.1 s of pure
+    waste -- and on a streamed route that was the whole time-to-first
+    result, since airports are the cheap thing shown first.
+    """
+    key = str(apt_csv_path)
+    if key not in _APT_BASE_CACHE:
+        _APT_BASE_CACHE[key] = pd.read_csv(apt_csv_path, dtype=str, low_memory=False)
+    return _APT_BASE_CACHE[key]
+
+
 def load_route_airports(apt_csv_path, bbox: tuple, exclude_idents: tuple = ()) -> pd.DataFrame:
     """Operational airports from the NASR APT_BASE.csv extract, within
     bbox, in the shared candidate schema.
@@ -154,7 +171,7 @@ def load_route_airports(apt_csv_path, bbox: tuple, exclude_idents: tuple = ()) -
     in the corridor by construction, and neither is a checkpoint: you are
     taking off from one and landing at the other.
     """
-    df = pd.read_csv(apt_csv_path, dtype=str, low_memory=False)
+    df = _read_apt_base(apt_csv_path)
     df = df[
         df["SITE_TYPE_CODE"].map(_SITE_TYPE_NAMES).isin(CHARTED_FACILITY_TYPES)
         & (df["ARPT_STATUS"] == "O")
