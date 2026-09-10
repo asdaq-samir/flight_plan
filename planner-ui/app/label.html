@@ -305,7 +305,12 @@ function showHalo(d) {
   // stands out everywhere. White against the colour is what makes it
   // read on any background, which is why chart symbols themselves are
   // drawn that way.
-  halo = L.layerGroup([
+  // featureGroup, not layerGroup: only FeatureGroup has bringToFront.
+  // Calling it on a LayerGroup throws, and since showHalo runs inside
+  // select(), that TypeError broke every selection -- clicking a point,
+  // and stepping with the arrows -- while looking like the feature was
+  // simply missing.
+  halo = L.featureGroup([
     L.circleMarker([d.lat, d.lon], {
       radius: 17, color: "#ffffff", weight: 7, opacity: 0.9,
       fill: false, interactive: false,
