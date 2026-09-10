@@ -211,7 +211,7 @@
     <div id="map"></div>
     <div id="flash"></div>
     <div id="side">
-      <h2 class="picks-h">Picks <span class="count" id="pickcount"></span></h2>
+      <h2 class="picks-h">Rated <span class="count" id="pickcount"></span></h2>
       <div id="pickbreak"></div>
       <div id="list"></div>
     </div>
@@ -972,7 +972,7 @@ function renderList() {
     note.style.cssText = "cursor:default;color:var(--muted)";
     note.textContent = hidden
       ? hiddenNote(picks)
-      : "No checkpoints yet. Rate a marker, or right-click bare chart to add one the detector missed.";
+      : "Nothing rated yet. Rate a marker, or right-click bare chart to add a checkpoint the detector missed.";
     list.insertBefore(note, list.children[1] || null);
   } else if (hidden) {
     const note = document.createElement("div");
