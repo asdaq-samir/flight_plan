@@ -383,9 +383,30 @@ def detect(dep: str, dest: str, half_width_nm: float = 4.0) -> dict:
     result["landmarks"].extend(_faa_airports(start, end, half_width_nm, dep_ident, dest_ident))
     picks = chartlabels.load_picks(route)
 
+    # Match each pick to at most one detection: its nearest within
+    # SAME_PLACE_NM. Asking every detection "is there a pick near me"
+    # independently let one pick mark two neighbouring detections as
+    # judged, which drew 58 markers for 55 picks. An assignment cannot do
+    # that, and it also gives every pick exactly one home.
+    landmarks = list(result["landmarks"])
+    claimed: dict = {}
+    unmatched = []
+    for pick in picks:
+        best, best_nm = None, chartlabels.SAME_PLACE_NM
+        for index, landmark in enumerate(landmarks):
+            if index in claimed:
+                continue
+            gap = geo.distance_nm(pick["lat"], pick["lon"], landmark.lat, landmark.lon)
+            if gap < best_nm:
+                best, best_nm = index, gap
+        if best is None:
+            unmatched.append(pick)
+        else:
+            claimed[best] = pick
+
     detections = []
-    for landmark in result["landmarks"]:
-        existing = chartlabels.find_existing(route, landmark.lat, landmark.lon)
+    for index, landmark in enumerate(landmarks):
+        pick = claimed.get(index)
         detections.append(
             {
                 "lat": landmark.lat,
@@ -395,18 +416,28 @@ def detect(dep: str, dest: str, half_width_nm: float = 4.0) -> dict:
                 "score": landmark.score,
                 "along_track_nm": round(landmark.extras["along_track_nm"], 2),
                 "cross_track_nm": round(landmark.extras["cross_track_nm"], 3),
-                "rating": existing["rating"] if existing else None,
-                "role": existing.get("role") if existing else None,
-                "judged": existing is not None,
+                "rating": pick["rating"] if pick else None,
+                "role": pick.get("role") if pick else None,
+                "judged": pick is not None,
             }
         )
+
+    # Picks with no detection to sit on: the detector's misses, plus
+    # anything that has drifted apart from the detection it was made
+    # against -- marker placement changed three times, from blob centroid
+    # to interior point to snapped crossing. Without a marker of their own
+    # these are invisible. Raw pick rows carry no "judged" field either,
+    # which is why every added point read as "unrated" however it was
+    # rated.
+    loose = [
+        {**pick, "judged": pick["rating"] is not None, "area_m2": pick.get("area_m2") or 0.0}
+        for pick in unmatched
+    ]
 
     return {
         "route": route,
         "detections": detections,
-        # Picks with no detection under them are the misses -- the whole
-        # reason this labeling mode exists.
-        "added": [p for p in picks if p["source"] == "added"],
+        "added": loose,
         "coverage": {
             "tiles": result["tiles"],
             "missing": result["tiles_missing"],

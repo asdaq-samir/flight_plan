@@ -355,7 +355,9 @@ function toggleVisual() {
 const FOCUS_ZOOM = 12;
 
 function focusOn(d) {
-  if (d) lastFocus = { lat: d.lat, lon: d.lon };
+  // Keeps the selector, not just the coordinates, so returning here can
+  // reselect the actual point and describe it properly.
+  if (d) lastFocus = { lat: d.lat, lon: d.lon, point: selected ? { ...selected } : null };
 }
 
 // A ring around the selected point. Its own layer rather than a swapped
@@ -479,20 +481,28 @@ function toggleView() {
 }
 
 function centreOnSelection() {
+  if (!course) { flash("Load a route first", true); return; }
+
   // Nothing selected and nothing visited yet means the session has just
   // started, and the useful place to be is the start of the route.
-  // Deliberately not fitRoute, which would make c and f identical.
-  const target = current() || lastFocus
-    || (course && { lat: course.departure.lat, lon: course.departure.lon });
-  if (!target) {
-    flash("Load a route first", true);
-    return;
+  // Deliberately not fitRoute, which would make this identical to Esc.
+  //
+  // Selecting the departure properly rather than flying to a bare pair
+  // of coordinates: the previous version built { lat, lon } on the spot,
+  // which has no ident and no category, so the label over the ring read
+  // "uncategorised" until an arrow press replaced it with the real
+  // endpoint.
+  if (!current()) {
+    if (lastFocus && lastFocus.point) {
+      select(lastFocus.point);
+    } else if (endpoints.length) {
+      select({ kind: "endpoint", i: 0 });
+    }
   }
+
+  const target = current();
+  if (!target) { flash("Nothing to go back to", true); return; }
   map.setView([target.lat, target.lon], Math.max(map.getZoom(), FOCUS_ZOOM));
-  // The ring is drawn here too, not only on select: c is often used with
-  // nothing selected -- returning to the last point worked on, or to the
-  // departure -- and moving the map without marking where you landed is
-  // the same as not moving it.
   showHalo(target);
 }
 
