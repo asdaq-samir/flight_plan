@@ -406,7 +406,7 @@ let filters = {
   rated: true, unrated: true,
 };
 
-// A detection has no stored role until it is judged, so infer the same
+// A detection has no stored role until it is rated, so infer the same
 // way the server does: on course means you fly over it.
 function roleOf(d) {
   return d.role || (Math.abs(d.cross_track_nm ?? 0) <= 0.5 ? "dr" : "visual");
@@ -420,13 +420,13 @@ function sourceOf(d) {
   return d.source === "added" ? "added" : "detected";
 }
 
-// The rating is the fact, not the judged flag derived from it.
+// The rating is the fact, not the rated flag derived from it.
 function ratedOf(d) {
   return d.rating !== null && d.rating !== undefined ? "rated" : "unrated";
 }
 
 // Three independent axes, all of which must admit a point: what job it
-// does, where it came from, and whether it has been judged yet.
+// does, where it came from, and whether it has been rated yet.
 function visible(d) {
   return filters[roleOf(d)] && filters[sourceOf(d)] && filters[ratedOf(d)];
 }
@@ -541,7 +541,7 @@ function hideHalo() {
 }
 
 // Every point on the route in the order you would fly past them, both
-// detections and hand-added picks -- judged or not. The arrows walk this
+// detections and hand-added picks -- rated or not. The arrows walk this
 // list; Space puts you on it.
 function orderedPoints() {
   return endpoints.map((e, i) => ({ d: e, kind: "endpoint", i }))
@@ -794,10 +794,10 @@ async function loadDetections(dep, dest) {
           added = msg.added || [];
           renderMarkers();
           renderStats({ summary: msg.summary, coverage: lastCoverage });
-          const left = detections.filter(d => !d.judged).length;
+          const left = detections.filter(d => !d.rated).length;
           flash(left
-            ? `${left} unjudged — press Space to start, then arrows to walk them`
-            : "All detections judged");
+            ? `${left} unrated — press Space to start, then arrows to walk them`
+            : "All detections rated");
         }
       }
     }
@@ -854,7 +854,7 @@ function renderStats(body) {
 
   // Total, then the two cuts of it that matter: what job each pick does,
   // and where it came from. A pick "given" is one the detector put on the
-  // chart and you judged; "added" is one you marked yourself.
+  // chart and you rated; "added" is one you marked yourself.
   // Counted through the filters, so the heading matches the rows under
   // it. It used to report every pick on file regardless of what was
   // shown, which made the heading and the list disagree whenever a box
@@ -883,9 +883,9 @@ function renderMarkers() {
   if (addLayer) map.removeLayer(addLayer);
 
   detLayer = L.layerGroup(detections.map((d, i) => ({ d, i })).filter(x => visible(x.d)).map(({ d, i }) => {
-    // Unjudged is a hollow-looking slate rather than white: a white dot
+    // Unrated is a hollow-looking slate rather than white: a white dot
     // with a white casing vanishes over pale chart.
-    const colour = d.judged ? COLORS[d.rating ?? 0] : "#8fa3b0";
+    const colour = d.rated ? COLORS[d.rating ?? 0] : "#8fa3b0";
     const m = L.marker([d.lat, d.lon], { icon: dot(colour) });
     m.on("click", (e) => {
       L.DomEvent.stopPropagation(e);
@@ -927,7 +927,7 @@ function renderList() {
   const list = el("list");
   list.innerHTML = "";
 
-  const picks = detections.map((d, i) => ({ ...d, kind: "detected", i })).filter(d => d.judged)
+  const picks = detections.map((d, i) => ({ ...d, kind: "detected", i })).filter(d => d.rated)
     .concat(added.map((a, i) => ({ ...a, kind: "added", i })));
   const shown = picks.filter(visible);
   const hidden = picks.length - shown.length;
@@ -1036,7 +1036,7 @@ function selInfoHtml(d) {
       `<b>${d.ident}</b>` +
       `<div class="sub">${d.name}</div>`;
   }
-  // Read the rating, not the judged flag. They are meant to agree, but
+  // Read the rating, not the rated flag. They are meant to agree, but
   // only one of them is the fact: a marker drawn green from its rating
   // beside a label reading "unrated" was the flag being trusted over the
   // number it is derived from.
@@ -1045,7 +1045,11 @@ function selInfoHtml(d) {
   // by the filter that admitted the point and by which markers are on
   // screen -- and the area is a fact about how the detector found
   // something rather than about flying past it.
-  const rated = d.rating !== null && d.rating !== undefined;
+  // Reads the rating, not the d.rated flag beside it. The flag is
+  // derived from exactly this, but a marker drawn green from its rating
+  // next to a label saying unrated was the flag being trusted over the
+  // number it comes from -- so the number stays the source here.
+  const hasRating = d.rating !== null && d.rating !== undefined;
   // The rating leads, as a swatch in its own colour -- the same colour
   // the marker is drawn in, and the same one the scale shows for it, so
   // the label, the pin and the legend all agree at a glance. Unrated
@@ -1055,7 +1059,7 @@ function selInfoHtml(d) {
   // Position in the walk goes on the second line: the first is what this
   // point is, which is what you are deciding about, and everything that
   // is merely where you are belongs under it.
-  const box = rated
+  const box = hasRating
     ? `<span class="tipbox" style="background:${COLORS[d.rating]}">${d.rating}</span>`
     : `<span class="tipbox hollow">–</span>`;
   return box + `<b>${d.category || "uncategorised"}</b>` +
@@ -1066,7 +1070,7 @@ function selInfoHtml(d) {
 /**
  * Mark the selected point's row in the picks list and bring it into
  * view, so walking the chart with the arrows moves the list with it.
- * Unjudged points have no row yet, which is not an error -- the list is
+ * Unrated points have no row yet, which is not an error -- the list is
  * of picks, and they are not one until rated.
  */
 function highlightRow() {
@@ -1124,7 +1128,7 @@ async function removeCurrent() {
                           `&lat=${d.lat}&lon=${d.lon}`, { method:"DELETE" });
   const out = await res.json();
   if (selected.kind === "added") added.splice(selected.i, 1);
-  else { d.judged = false; d.rating = null; }
+  else { d.rated = false; d.rating = null; }
   flash(out.ok ? "Deleted" : "Nothing to delete", !out.ok);
   renderMarkers();
   refreshStats(out.summary);
@@ -1205,7 +1209,7 @@ async function addPointAt(latlng) {
     guess.category,
     (chosen) => {
       added.push({
-        lat, lon, category: chosen, rating: null, judged: false,
+        lat, lon, category: chosen, rating: null, rated: false,
         along_track_nm: null, cross_track_nm: null, role: null,
       });
       renderMarkers();
@@ -1267,7 +1271,7 @@ async function savePoint(d, kind, changes) {
   });
   const out = await res.json();
   if (!res.ok) { flash(out.detail || "could not save", true); return false; }
-  d.judged = true;
+  d.rated = true;
   d.role = out.pick.role;
   d.along_track_nm = out.pick.along_track_nm;
   refreshStats(out.summary);
@@ -1319,7 +1323,7 @@ function openPointEditor(d, kind, index) {
     const currentRole = d.role || roleOf(d);
     return `
       <div class="cathead">
-        ${d.judged ? "Editing" : "New"} · <b>${d.category || "uncategorised"}</b>
+        ${d.rated ? "Editing" : "New"} · <b>${d.category || "uncategorised"}</b>
         ${d.along_track_nm != null ? ` · ${d.along_track_nm.toFixed(1)} nm` : ""}
       </div>
       <div class="eplabel">Rating</div>
@@ -1331,7 +1335,7 @@ function openPointEditor(d, kind, index) {
         <button class="rolepick${currentRole === "dr" ? " on" : ""}" data-role="dr">DR</button>
         <button class="rolepick${currentRole === "visual" ? " on" : ""}" data-role="visual">visual</button>
       </div>
-      ${(d.judged || kind === "added") ? '<button class="catremove">Remove this point</button>' : ""}`;
+      ${(d.rated || kind === "added") ? '<button class="catremove">Remove this point</button>' : ""}`;
   }
 
   function wire() {

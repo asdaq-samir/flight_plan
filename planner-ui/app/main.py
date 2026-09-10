@@ -486,7 +486,7 @@ def detect_stream(dep: str, dest: str, half_width_nm: float = 4.0) -> StreamingR
     # Picks are claimed as blocks arrive, each by the nearest landmark it
     # has not already been claimed by. find_existing per landmark was
     # wrong the same way /api/detect was: it let one pick mark two
-    # neighbouring detections as judged, and left picks whose detection
+    # neighbouring detections as rated, and left picks whose detection
     # has moved out of range with no marker at all.
     unclaimed = {id(p): p for p in chartlabels.load_picks(route)}
 
@@ -507,7 +507,7 @@ def detect_stream(dep: str, dest: str, half_width_nm: float = 4.0) -> StreamingR
             "cross_track_nm": round(landmark.extras["cross_track_nm"], 3),
             "rating": pick["rating"] if pick else None,
             "role": pick.get("role") if pick else None,
-            "judged": pick is not None and pick["rating"] is not None,
+            "rated": pick is not None and pick["rating"] is not None,
         }
 
     def lines():
@@ -554,13 +554,13 @@ def detect_stream(dep: str, dest: str, half_width_nm: float = 4.0) -> StreamingR
 
         # Whatever no landmark claimed: the detector's misses, plus picks
         # that have drifted apart from the detection they were made
-        # against. Each carries judged derived from its own rating, so a
+        # against. Each carries rated derived from its own rating, so a
         # rated point cannot describe itself as unrated.
         yield json.dumps({
             "type": "done",
             "total": seen,
             "added": [
-                {**pick, "judged": pick["rating"] is not None,
+                {**pick, "rated": pick["rating"] is not None,
                  "area_m2": pick.get("area_m2") or 0.0}
                 for pick in unclaimed.values()
             ],
