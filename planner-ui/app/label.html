@@ -61,6 +61,8 @@
       color:var(--muted);background:#fff;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5}
     .row{padding:7px 12px;border-bottom:1px solid var(--rule);cursor:pointer;font-size:13px}
     .row:hover{background:#eaf1f6}
+    .row.on{background:#e2edf5;box-shadow:inset 3px 0 0 var(--accent)}
+    .row.on:hover{background:#dae8f2}
     .row .t{font-weight:600}
     .row .m{color:var(--muted);font-size:12px}
     .pill{display:inline-block;padding:0 6px;border-radius:9px;color:#fff;font:700 11px system-ui}
@@ -650,6 +652,8 @@ function renderList() {
   judged.forEach(d => {
     const row = document.createElement("div");
     row.className = "row";
+    row.dataset.kind = d.kind;
+    row.dataset.index = d.i;
     const colour = COLORS[d.rating ?? 0];
     row.innerHTML =
       `<span class="pill" style="background:${colour}">${d.rating ?? "—"}</span>
@@ -665,6 +669,7 @@ function renderList() {
     };
     list.appendChild(row);
   });
+  highlightRow();
 
   if (hidden) {
     const note = document.createElement("div");
@@ -687,6 +692,27 @@ function select(sel) {
   if (!d) return;
   focusOn(d);
   showHalo(d);
+  highlightRow();
+}
+
+/**
+ * Mark the selected point's row in the picks list and bring it into
+ * view, so walking the chart with the arrows moves the list with it.
+ * Unjudged points have no row yet, which is not an error -- the list is
+ * of picks, and they are not one until rated.
+ */
+function highlightRow() {
+  const list = el("list");
+  let target = null;
+  list.querySelectorAll(".row").forEach(row => {
+    const mine = selected
+      && row.dataset.kind === selected.kind
+      && Number(row.dataset.index) === selected.i;
+    row.classList.toggle("on", !!mine);
+    if (mine) target = row;
+  });
+  // block:"nearest" so an already-visible row does not jump the panel.
+  if (target) target.scrollIntoView({ block: "nearest" });
 }
 
 function deselect() { selected = null; hideHalo(); }
