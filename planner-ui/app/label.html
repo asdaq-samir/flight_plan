@@ -99,9 +99,13 @@
     .halo-pulse{animation:haloPulse 1.6s ease-in-out infinite}
     @media (prefers-reduced-motion:reduce){.halo-pulse{animation:none}}
     #side{width:300px;border-left:1px solid var(--line);overflow-y:auto;background:var(--panel)}
-    h2 .count{letter-spacing:0;text-transform:none;font-weight:400;margin-left:6px}
+    /* One row: the label, then the chips, then the total pushed to the
+       right edge -- the shape of a table header with its figure in the
+       last column, which is where the eye looks for one. */
+    .picks-h{display:flex;align-items:center;gap:8px}
+    h2 .count{letter-spacing:0;text-transform:none;font-weight:400;margin-left:auto}
     h2 .count b{color:var(--ink);font-weight:700}
-    #pickbreak{float:right;display:inline-flex;gap:5px;letter-spacing:0;text-transform:none;
+    #pickbreak{display:inline-flex;gap:5px;letter-spacing:0;text-transform:none;
       font-weight:400}
     #pickbreak .chip{border:1px solid var(--line);border-radius:9px;padding:0 7px;
       background:#fff;color:var(--muted);font-size:11px;line-height:16px}
@@ -202,8 +206,9 @@
     <div id="map"></div>
     <div id="flash"></div>
     <div id="side">
-      <h2>Picks <span class="count" id="pickcount"></span>
-        <span id="pickbreak"></span></h2>
+      <h2 class="picks-h">Picks
+        <span id="pickbreak"></span>
+        <span class="count" id="pickcount"></span></h2>
       <div id="list"></div>
     </div>
   </div>
