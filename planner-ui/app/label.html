@@ -186,7 +186,7 @@
     </div>
     <div class="frow">
       <span><kbd>&uarr;</kbd><kbd>&darr;</kbd><kbd>&larr;</kbd><kbd>&rarr;</kbd> step the way the course runs</span>
-      <span><kbd>Del</kbd> remove · right-click to add</span>
+      <span><kbd>Del</kbd> remove · click the course to add · right-click anywhere</span>
     </div>
     <div class="frow minor">
       <span><kbd>v</kbd> visual refs: <b id="visflag">hidden</b></span>
@@ -552,7 +552,18 @@ async function loadCourse(dep, dest) {
     // the same path, which is what you were aiming at anyway.
     L.polyline(course.course_line, {
       color: "#000", weight: 18, opacity: 0, className: "course-hit",
-      interactive: true, bubblingMouseEvents: true,
+      // Not bubbling: a click here is a click on the course, and letting
+      // it fall through to the map would pan or deselect at the same
+      // time.
+      interactive: true, bubblingMouseEvents: false,
+    }).on("click", (e) => {
+      // Left-click on the course adds a checkpoint there. It is safe as a
+      // left-click in a way that bare chart is not: dragging still pans,
+      // and an 18 px line is far too specific to hit by accident.
+      L.DomEvent.stopPropagation(e);
+      const near = pointNear(e.latlng);
+      if (near) { openPoint(near.d, near.kind, near.i); return; }
+      addPointAt(e.latlng);
     }).bindTooltip(
       `${course.departure.ident} → ${course.destination.ident} · ` +
       `${course.distance_nm} nm · ${String(course.bearing_deg).padStart(3, "0")}°T`,
@@ -914,32 +925,24 @@ function openCategoryPopup(latlng, heading, current, onPick, onRemove) {
 // point first and letting a dropdown decide the category is how 34
 // hand-picked checkpoints all ended up filed as water, and a half-made
 // point left behind when you click away is worse than no point at all.
-map.on("contextmenu", async (e) => {
+/**
+ * Offer to add a point at a place on the chart. Asks what the feature is
+ * before recording anything -- dropping the point first and letting a
+ * dropdown decide the category is how 34 hand-picked checkpoints were
+ * all filed as water.
+ */
+async function addPointAt(latlng) {
   if (!course) return;
-  if (e.originalEvent) e.originalEvent.preventDefault();
-  const lat = e.latlng.lat, lon = e.latlng.lng;
-
-  // stopPropagation on the markers covers the icon itself; this covers
-  // the gap between icons at low zoom, where two points can be a few
-  // pixels apart and a right-click between them still means "that one".
-  const near = orderedPoints().find(x => {
-    const a = map.latLngToContainerPoint([x.d.lat, x.d.lon]);
-    const b = map.latLngToContainerPoint([lat, lon]);
-    return a.distanceTo(b) < 14;
-  });
-  if (near) {
-    select({ kind: near.kind, i: near.i });
-    openPointEditor(near.d, near.kind, near.i);
-    return;
-  }
+  const lat = latlng.lat, lon = latlng.lng;
   deselect();
 
   const guess = await fetch(`/api/classify?lat=${lat}&lon=${lon}`)
     .then(r => r.json()).catch(() => ({}));
 
   openCategoryPopup(
-    e.latlng,
-    guess.category ? `Chart shows <b>${guess.category}</b> — what is it?` : "<b>Nothing drawn here</b> — what is it?",
+    latlng,
+    guess.category ? `Chart shows <b>${guess.category}</b> — what is it?`
+                   : "<b>Nothing drawn here</b> — what is it?",
     guess.category,
     (chosen) => {
       added.push({
@@ -951,6 +954,26 @@ map.on("contextmenu", async (e) => {
       flash("Rate it 1–5 to save");
     },
   );
+}
+
+/** The point under a click, if the click is close enough to mean it. */
+function pointNear(latlng) {
+  const b = map.latLngToContainerPoint(latlng);
+  return orderedPoints().find(x =>
+    map.latLngToContainerPoint([x.d.lat, x.d.lon]).distanceTo(b) < 14);
+}
+
+// Right-click anywhere still adds, which is the only way to place a
+// visual reference: those are off the course by definition, so the
+// course line cannot be the gesture for them.
+map.on("contextmenu", (e) => {
+  if (!course) return;
+  if (e.originalEvent) e.originalEvent.preventDefault();
+  // Covers the gap between icons at low zoom, where two points can sit a
+  // few pixels apart and a click between them plainly means "that one".
+  const near = pointNear(e.latlng);
+  if (near) { openPoint(near.d, near.kind, near.i); return; }
+  addPointAt(e.latlng);
 });
 
 /**
