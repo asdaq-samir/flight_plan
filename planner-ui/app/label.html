@@ -120,10 +120,14 @@
     #legend.hidden{display:none}
     .lgq{font-weight:600;margin-bottom:6px}
     .lgscale{display:flex;flex-wrap:wrap;gap:4px 18px;margin-bottom:6px}
-    .lgitem{display:inline-flex;align-items:baseline;gap:6px;white-space:nowrap}
+    .lgitem{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
     .lgitem b{font-weight:700}
-    .sw{display:inline-block;width:19px;height:17px;border-radius:4px;color:#fff;
-      text-align:center;font:700 11px system-ui;line-height:17px;flex:none}
+    /* Centred with flex, not line-height. A line box reserves room for
+       descenders, so a digit centred that way sits a pixel high -- which
+       is exactly what it looked like. */
+    .sw{display:inline-flex;align-items:center;justify-content:center;
+      width:20px;height:18px;border-radius:4px;color:#fff;
+      font:700 11px/1 system-ui;flex:none}
     .lgnote{color:var(--muted);line-height:1.5}
     .lgnote b{color:var(--ink)}
   </style>
