@@ -347,9 +347,8 @@ function hideHalo() {
 }
 
 // Every point on the route in the order you would fly past them, both
-// detections and hand-added picks. Separate from walk mode's queue,
-// which is unjudged detections only: arrows are for reviewing what is
-// there, w is for getting through what is not yet done.
+// detections and hand-added picks -- judged or not. The arrows walk this
+// list; Space puts you on it.
 function orderedPoints() {
   return detections
     .map((d, i) => ({ d, kind: "detected", i }))
@@ -540,7 +539,9 @@ async function loadDetections(dep, dest) {
           done = true;
           renderStats({ summary: msg.summary, coverage: lastCoverage });
           const left = detections.filter(d => !d.judged).length;
-          flash(left ? `${left} unjudged — press w to walk them` : "All detections judged");
+          flash(left
+            ? `${left} unjudged — press Space to start, then arrows to walk them`
+            : "All detections judged");
         }
       }
     }
