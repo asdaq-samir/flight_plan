@@ -144,7 +144,8 @@
         <div class="minor">
           Dead-reckoning checkpoints only. <kbd>v</kbd> also shows visual references —
           things you spot abeam rather than fly over. <kbd>Del</kbd> removes a point.
-          Click bare chart to add one the detector missed.
+          <b>Right-click</b> bare chart to add one the detector missed;
+          left-click pans and double-click zooms.
         </div>
         <div class="q">Flying this leg, would I look up and know <i>that&rsquo;s the one</i> — not one like it?</div>
         <table>
@@ -186,7 +187,7 @@
   <footer>
     <span><kbd>Enter</kbd> start · arrows walk · <kbd>0</kbd>–<kbd>5</kbd> rate · <kbd>Esc</kbd> whole route</span>
     <span><kbd>v</kbd> visual refs: <b id="visflag">hidden</b></span>
-    <span><kbd>Del</kbd> remove</span>
+    <span><kbd>Del</kbd> remove · right-click to add</span>
     <span><kbd>t</kbd> basemap: <b id="basemap">FAA sectional</b></span>
     <span><kbd>Esc</kbd> deselect</span>
     <span><kbd>&uarr;</kbd><kbd>&darr;</kbd><kbd>&larr;</kbd><kbd>&rarr;</kbd> step the way the course runs</span>
@@ -644,13 +645,20 @@ const CATEGORIES = [
   ["terrain", "terrain"], ["other", "other"],
 ];
 
-// Clicking bare chart asks what it is before anything is recorded.
-// Dropping a point first and letting a dropdown decide the category is
-// how 34 hand-picked checkpoints all ended up filed as water, and a
-// half-made point left on the map when you click away is worse than no
-// point at all.
-map.on("click", async (e) => {
+// Right-click adds. Left-click was doing this, which made the two most
+// ordinary things you do to a map -- pan it, and double-click to zoom --
+// drop unwanted points, since both start with a left click on bare
+// chart. Adding is the rarer, more deliberate action, so it gets the
+// deliberate button.
+//
+// It asks what the feature is before recording anything. Dropping a
+// point first and letting a dropdown decide the category is how 34
+// hand-picked checkpoints all ended up filed as water, and a half-made
+// point left behind when you click away is worse than no point at all.
+map.on("contextmenu", async (e) => {
   if (!course) return;
+  // Leaflet fires this without suppressing the browser's own menu.
+  if (e.originalEvent) e.originalEvent.preventDefault();
   const lat = e.latlng.lat, lon = e.latlng.lng;
   deselect();
 
