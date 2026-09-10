@@ -721,9 +721,12 @@ function renderStats(body) {
   // about reading the chart, and reading is over by the time this is on
   // screen. Coverage still gets said, once, as a warning rather than as
   // a permanent column.
+  // "Showing" rather than "Total": the number moves with the boxes
+  // beside it, and calling a filtered count a total invites reading it
+  // as the whole set.
   el("stats").innerHTML =
-    `<b>${course.distance_nm}</b> nm · Total <b>${total}</b> waypoint${total === 1 ? "" : "s"}` +
-    ` <span style="color:var(--muted)">(including ${byHand} added)</span>`;
+    `<b>${course.distance_nm}</b> nm · Showing: <b>${total}</b>` +
+    ` <span style="color:var(--muted)">(${byHand} added)</span>`;
   if (c.missing) {
     flash(`${c.missing} tiles outside chart coverage`, true);
   }
