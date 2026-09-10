@@ -38,7 +38,13 @@
       background:rgba(20,36,48,.92);color:#fff;box-shadow:0 2px 10px rgba(0,0,0,.25);
       opacity:0;transition:opacity .15s}
     #flash.on{opacity:1}
-    #flash.bad{background:#8f1d16;pointer-events:auto;cursor:pointer}
+    #flash.bad{background:#8f1d16;pointer-events:auto;cursor:default;
+      display:flex;align-items:flex-start;gap:8px;text-align:left;max-width:min(820px,86%)}
+    #flash .ftext{user-select:text;-webkit-user-select:text;white-space:pre-wrap;
+      font:500 12.5px ui-monospace,SFMono-Regular,Menlo,monospace;flex:1}
+    #flash .fbtn{flex:none;font:600 11px inherit;padding:2px 8px;border-radius:5px;cursor:pointer;
+      border:1px solid rgba(255,255,255,.5);background:transparent;color:#fff}
+    #flash .fbtn:hover{background:rgba(255,255,255,.15)}
     #map{flex:1;min-height:0;background:#eef2f4}
     /* The map reads as draggable. crosshair here was overriding Leaflet's
        own grab/grabbing, so the pointer never told you the obvious thing:
@@ -229,19 +235,51 @@ let flashTimer = null;
 function flash(msg, bad) {
   const node = el("flash");
   clearTimeout(flashTimer);
-  node.textContent = msg || "";
-  node.className = msg ? (bad ? "on bad" : "on") : "";
-  if (!msg) return;
-  // Errors stay until dismissed. A fault that fades after two seconds is
-  // one you can miss entirely, which is how a broken selection read as a
-  // missing feature for three rounds.
-  if (bad) return;
-  flashTimer = setTimeout(() => {
-    if (node.textContent === msg) node.className = "";
-  }, 2500);
-}
+  if (!msg) { node.className = ""; node.textContent = ""; return; }
 
-el("flash").addEventListener("click", () => { el("flash").className = ""; });
+  if (!bad) {
+    node.textContent = msg;
+    node.className = "on";
+    flashTimer = setTimeout(() => {
+      if (node.textContent === msg) node.className = "";
+    }, 2500);
+    return;
+  }
+
+  // Errors get selectable text and a copy button, because the useful
+  // thing to do with one is send it to whoever can fix it. They also
+  // stay until dismissed -- a fault that fades after two seconds is one
+  // you can miss, which is how a broken selection read as a missing
+  // feature for three rounds.
+  node.className = "on bad";
+  node.innerHTML = "";
+  const text = document.createElement("span");
+  text.className = "ftext";
+  text.textContent = msg;
+  const copy = document.createElement("button");
+  copy.className = "fbtn";
+  copy.textContent = "Copy";
+  copy.addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText(msg);
+      copy.textContent = "Copied";
+    } catch {
+      // Clipboard can be refused; selecting the text still works.
+      const range = document.createRange();
+      range.selectNodeContents(text);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+      copy.textContent = "Selected — ⌘C";
+    }
+  });
+  const close = document.createElement("button");
+  close.className = "fbtn";
+  close.textContent = "\u00d7";
+  close.title = "Dismiss";
+  close.addEventListener("click", () => { node.className = ""; });
+  node.append(text, copy, close);
+}
 
 function initBasemaps(cfg) {
   if (basemaps) return;
@@ -881,7 +919,8 @@ function openPoint(d, kind, index) {
     select({ kind, i: index });
     openPointEditor(d, kind, index);
   } catch (err) {
-    flash(`Could not open that point: ${err.message}`, true);
+    const where = (err.stack || "").split("\n").slice(0, 3).join("\n");
+    flash(`Could not open that point (${kind} #${index})\n${err.name}: ${err.message}\n${where}`, true);
     throw err;
   }
 }
