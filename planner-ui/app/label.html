@@ -407,34 +407,17 @@ function visible(d) {
 // Written out singular and plural rather than pluralised by appending an
 // s, which produced "36 rateds". Half of these are adjectives and need a
 // noun to attach to.
-const FILTER_NAMES = {
-  dr: ["DR waypoint", "DR waypoints"],
-  visual: ["visual reference", "visual references"],
-  provided: ["provided waypoint", "provided waypoints"],
-  added: ["added waypoint", "added waypoints"],
-  rated: ["rated waypoint", "rated waypoints"],
-  unrated: ["unrated waypoint", "unrated waypoints"],
-};
-
 /**
- * Why the hidden picks are hidden, in the words of the boxes that hide
- * them. The note used to say "visual references hidden" whatever was
- * unticked, which was true when visual was the only filter and became
- * a lie the moment there were six.
+ * How many picks the filters are holding back. One number, not a
+ * breakdown: visual is unticked by default, so untick rated as well and
+ * the breakdown read "6 visual references, 45 rated waypoints", which
+ * splits a single answer -- how much am I not seeing -- across two lines
+ * of arithmetic the reader then has to add up.
  */
 function hiddenNote(picks) {
-  const counts = {};
-  for (const pick of picks) {
-    if (visible(pick)) continue;
-    // Named for the first axis that excludes it. A pick can fail more
-    // than one, and saying so twice would not tell anyone more.
-    const axis = [roleOf(pick), sourceOf(pick), ratedOf(pick)].find(k => !filters[k]);
-    if (axis) counts[axis] = (counts[axis] || 0) + 1;
-  }
-  const parts = FILTER_KEYS.filter(k => counts[k]).map(k =>
-    `${counts[k]} ${FILTER_NAMES[k][counts[k] === 1 ? 0 : 1]}`);
-  if (!parts.length) return "";
-  return `${parts.join(", ")} unselected — tick to show`;
+  const hidden = picks.filter(p => !visible(p)).length;
+  if (!hidden) return "";
+  return `${hidden} waypoint${hidden === 1 ? "" : "s"} unselected — tick to show`;
 }
 
 function setFilter(key, on) {
