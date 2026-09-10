@@ -25,7 +25,8 @@
     form button{font:600 14px inherit;padding:6px 14px;border-radius:6px;cursor:pointer;
       border:1px solid var(--accent);background:var(--accent);color:#fff}
     form button:disabled{opacity:.5;cursor:progress}
-    #stats{color:var(--muted);font-variant-numeric:tabular-nums}
+    #stats,#dist{color:var(--muted);font-variant-numeric:tabular-nums}
+    #dist b{color:var(--ink)}
     #filters{display:inline-flex;align-items:center;gap:10px;font-size:12.5px}
     #filters label{display:inline-flex;align-items:center;gap:4px;cursor:pointer;
       color:var(--ink);user-select:none}
@@ -162,6 +163,7 @@
         <input id="dest" placeholder="DEST" spellcheck="false" aria-label="Destination">
         <button type="submit">Load</button>
       </form>
+      <span id="dist"></span>
     </div>
     <div class="hrow">
       <span id="stats"></span>
@@ -653,7 +655,9 @@ async function loadCourse(dep, dest) {
             font:700 11px system-ui;text-align:center">${a.ident}</div>` }) })
   )).addTo(map);
   fitRoute();
-  el("stats").innerHTML = `<b>${course.distance_nm}</b> nm · ${String(course.bearing_deg).padStart(3,"0")}°T · reading chart…`;
+  el("dist").innerHTML =
+    `<b>${course.distance_nm}</b> nm · ${String(course.bearing_deg).padStart(3, "0")}°T`;
+  el("stats").textContent = "reading the chart…";
   // Draw the ends straight away rather than waiting on the tiles: the
   // route exists the moment the idents resolve.
   renderList();
@@ -702,8 +706,7 @@ async function loadDetections(dep, dest) {
           renderMarkers();
           const pct = msg.blocks ? Math.round(((msg.block + 1) / msg.blocks) * 100) : 0;
           el("stats").innerHTML =
-            `<b>${course.distance_nm}</b> nm · <b>${detections.length}</b> found · ` +
-            `reading chart ${pct}%`;
+            `<b>${detections.length}</b> found · reading chart ${pct}%`;
         } else if (msg.type === "done") {
           done = true;
           // Picks that no detection claimed arrive now, once every block
@@ -750,8 +753,11 @@ function renderStats(body) {
   // beside it, and calling a filtered count a total invites reading it
   // as the whole set. No breakdown either -- the added box is right
   // there, and ticking it alone answers the same question exactly.
-  el("stats").innerHTML =
-    `<b>${course.distance_nm}</b> nm · Showing: <b>${total}</b>`;
+  // Distance sits with the route on the first row: it is a fact about
+  // the leg, not about what is currently ticked.
+  el("dist").innerHTML =
+    `<b>${course.distance_nm}</b> nm · ${String(course.bearing_deg).padStart(3, "0")}°T`;
+  el("stats").innerHTML = `Showing: <b>${total}</b>`;
   if (c.missing) {
     flash(`${c.missing} tiles outside chart coverage`, true);
   }
