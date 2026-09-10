@@ -70,6 +70,10 @@ class PaletteClass:
     # airport symbol is a small glyph; a magenta region the size of a
     # county is airspace shading wearing the same colour.
     max_area_px: int | None = None
+    # For linear classes: how far the feature must run before it counts
+    # as a line rather than a glyph. Only meaningful where the class can
+    # pick up chart text -- see MIN_LINE_EXTENT_PX.
+    min_extent_px: int = 0
     # Roughly how confidently this class means "a pilot can find it".
     # Water and towns are unambiguous on a chart; anything softer would
     # need the learned scorer rather than a constant.
@@ -151,9 +155,42 @@ PALETTE = (
     PaletteClass("town", _urban, min_area_px=400, base_score=4.0),
 )
 
+# Two crossing pixels further apart than this along the course are
+# separate crossings. A river meanders and can cut the course several
+# times within a mile, but below this they are one checkpoint.
+CROSSING_SEPARATION_PX = 24
+
+# How far the feature under a crossing must extend before it counts as a
+# line at all, measured as the longer side of its connected component's
+# bounding box. 60 px at zoom 12 is a bit over 2 km.
+#
+# This is what separates a road from a letter. Chart text is drawn in the
+# same near-black ink as roads, so "Nepco Lake" and every airport name
+# matched the linework test and produced crossings on bare grass wherever
+# a label happened to sit near the course. Measured over one tile block:
+# the median dark-line component is 1 px across and the 99th percentile
+# is 31 px, while genuine roads and rivers are the handful that run for
+# hundreds. Requiring real extent keeps those and discards the text,
+# without needing to recognise text as such.
+MIN_LINE_EXTENT_PX = 60
+
+# An obstacle is drawn as a small inverted V, in the same near-black ink,
+# and is a hazard to avoid rather than a checkpoint to look for. The
+# extent test removes it for the same reason it removes text: the glyph
+# is a dozen pixels across and goes nowhere.
+
+
 LINEAR_PALETTE = (
+    # No extent test on rivers. Chart text is near-black ink and is never
+    # dark blue, so the river class cannot pick up a label in the first
+    # place -- and requiring extent here cost real river crossings a
+    # pilot had marked by hand, dropping recall from 65% to 47% while
+    # removing nothing that was wrong.
     PaletteClass("river", _river_line, min_area_px=12, base_score=4.3),
-    PaletteClass("road_or_rail", _dark_line, min_area_px=12, base_score=3.6),
+    PaletteClass(
+        "road_or_rail", _dark_line, min_area_px=12,
+        min_extent_px=MIN_LINE_EXTENT_PX, base_score=3.6,
+    ),
 )
 
 
@@ -351,7 +388,22 @@ def detect_landmarks(mosaic: Mosaic, palette=PALETTE) -> list:
         ]
         if not keep:
             continue
-        for label, (cy, cx) in zip(keep, ndimage.center_of_mass(mask, labelled, keep)):
+
+        # A point guaranteed to lie inside each blob, rather than its
+        # centre of mass. A centroid need not be inside its own shape: a
+        # crescent lake, a river bend or a ring of linework all put it
+        # outside, on bare chart. This is the raster form of shapely's
+        # representative_point -- the same fix vfr.osm needed for the
+        # same reason.
+        #
+        # Done per blob inside its own bounding box. Running a distance
+        # transform over the whole block was correct but was most of why
+        # reading a route took 25 seconds with every tile already cached:
+        # it is a global operation repeated per palette class per block,
+        # to answer a question about a few hundred small shapes.
+        boxes = ndimage.find_objects(labelled)
+        positions = [_interior_point(labelled, boxes[label - 1], label) for label in keep]
+        for label, (cy, cx) in zip(keep, positions):
             lat, lon = mosaic.to_latlon(cx, cy)
             landmarks.append(
                 Landmark(
@@ -434,10 +486,6 @@ def _dedupe(landmarks: list, within_nm: float = DEDUPE_NM) -> list:
 # pixel; 3 px at zoom 12 is a bit over 100 m.
 CROSSING_TOLERANCE_PX = 3
 
-# Two crossing pixels further apart than this along the course are
-# separate crossings. A river meanders and can cut the course several
-# times within a mile, but below this they are one checkpoint.
-CROSSING_SEPARATION_PX = 24
 
 
 def great_circle_pixels(start: tuple, end: tuple, zoom: int = DEFAULT_ZOOM) -> np.ndarray:
@@ -514,18 +562,37 @@ def linear_crossings(
         return []
 
     local = course_px - np.array(mosaic.origin_px)
+    # Only the stretch of course that actually crosses this block. Every
+    # block used to walk the whole route -- 16,000 points per palette
+    # class per block, about 900,000 Python iterations to examine 29 small
+    # images, which was the entire reason reading a route took 30 seconds
+    # when the tiles were already cached and fetching them took 0.05 s.
+    inside = (
+        (local[:, 0] >= 0) & (local[:, 0] < mosaic.pixels.shape[1])
+        & (local[:, 1] >= 0) & (local[:, 1] < mosaic.pixels.shape[0])
+    )
+    indices = np.nonzero(inside)[0]
+    if not len(indices):
+        return []
 
     centre_lat, _ = mosaic.to_latlon(width / 2, height / 2)
     m_per_px = metres_per_pixel(centre_lat, mosaic.zoom)
 
+    from scipy import ndimage
+
     found = []
     for spec in palette:
         mask = spec.test(r, g, b)
+        # Component labels are needed to ask how far the thing under a
+        # crossing actually extends -- see MIN_LINE_EXTENT_PX.
+        if spec.min_extent_px:
+            labelled, _count = ndimage.label(mask)
+            extents = _component_extents(labelled)
+        else:
+            labelled, extents = None, {}
         hits = []
-        for step, (px, py) in enumerate(local):
-            ix, iy = int(round(px)), int(round(py))
-            if not (0 <= ix < width and 0 <= iy < height):
-                continue
+        for step in indices:
+            ix, iy = int(round(local[step][0])), int(round(local[step][1]))
             lo_y, hi_y = max(0, iy - CROSSING_TOLERANCE_PX), min(height, iy + CROSSING_TOLERANCE_PX + 1)
             lo_x, hi_x = max(0, ix - CROSSING_TOLERANCE_PX), min(width, ix + CROSSING_TOLERANCE_PX + 1)
             window = mask[lo_y:hi_y, lo_x:hi_x]
@@ -535,7 +602,18 @@ def linear_crossings(
         # Collapse runs of consecutive hits into one crossing each.
         for group in _group_hits(hits):
             mid = group[len(group) // 2]
-            lat, lon = mosaic.to_latlon(mid[1], mid[2])
+            # The course point is where the line passes, which is up to
+            # CROSSING_TOLERANCE_PX away from the linework it crossed.
+            # Snap onto an actual pixel of the feature so the marker sits
+            # on the river, not beside it.
+            snapped = _nearest_mask_pixel(mask, mid[1], mid[2], CROSSING_TOLERANCE_PX)
+            if snapped is None:
+                continue
+            if spec.min_extent_px:
+                component = labelled[snapped[1], snapped[0]]
+                if extents.get(int(component), 0) < spec.min_extent_px:
+                    continue  # a letter, an obstacle glyph or speckle -- not a line
+            lat, lon = mosaic.to_latlon(snapped[0], snapped[1])
             weight = sum(h[3] for h in group)
             if weight < spec.min_area_px:
                 continue
@@ -553,6 +631,54 @@ def linear_crossings(
                 )
             )
     return found
+
+
+def _interior_point(labelled, box, label: int) -> tuple:
+    """A (row, col) inside this component, near its middle.
+
+    Takes the component's own pixels within its bounding box and picks
+    the one closest to the box centre, which is inside by construction
+    and close enough to the middle to read as "where the feature is".
+    """
+    ys, xs = np.nonzero(labelled[box] == label)
+    cy = (ys.min() + ys.max()) / 2.0
+    cx = (xs.min() + xs.max()) / 2.0
+    nearest = np.argmin((xs - cx) ** 2 + (ys - cy) ** 2)
+    return ys[nearest] + box[0].start, xs[nearest] + box[1].start
+
+
+def _component_extents(labelled) -> dict:
+    """Longest bounding-box side of each labelled component, in pixels."""
+    from scipy import ndimage
+
+    extents = {}
+    for index, slices in enumerate(ndimage.find_objects(labelled), start=1):
+        if slices is None:
+            continue
+        height = slices[0].stop - slices[0].start
+        width = slices[1].stop - slices[1].start
+        extents[index] = max(height, width)
+    return extents
+
+
+def _nearest_mask_pixel(mask, cx: int, cy: int, radius: int):
+    """The (x, y) of the mask pixel nearest (cx, cy), or None.
+
+    Used to put a crossing marker on the feature rather than on the
+    course line beside it -- the two are up to `radius` apart by
+    construction, which on bare chart is the difference between a marker
+    on a river and a marker on grass.
+    """
+    height, width = mask.shape
+    lo_y, hi_y = max(0, cy - radius), min(height, cy + radius + 1)
+    lo_x, hi_x = max(0, cx - radius), min(width, cx + radius + 1)
+    window = mask[lo_y:hi_y, lo_x:hi_x]
+    if not window.any():
+        return None
+    ys, xs = np.nonzero(window)
+    ys, xs = ys + lo_y, xs + lo_x
+    nearest = np.argmin((xs - cx) ** 2 + (ys - cy) ** 2)
+    return int(xs[nearest]), int(ys[nearest])
 
 
 def _group_hits(hits: list, separation: int = CROSSING_SEPARATION_PX) -> list:
