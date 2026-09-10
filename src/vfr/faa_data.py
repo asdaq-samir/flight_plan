@@ -105,8 +105,14 @@ def _is_icloud_evicted(path: Path) -> bool:
     three times in one day on this project -- Class_Airspace.shp, then
     its .dbf, then APT_BASE.csv -- so it is worth naming rather than
     rediscovering.
+
+    A file is only evicted if the real path is gone *and* the placeholder
+    is there. Testing for the placeholder alone was wrong: iCloud leaves
+    it beside a file it is restoring, so a present, readable 83 MB
+    DOF.DAT was reported as evicted and took the whole request down with
+    it.
     """
-    return (path.parent / f".{path.name}.icloud").exists()
+    return not path.exists() and (path.parent / f".{path.name}.icloud").exists()
 
 
 def ensure_nasr_data(cache_dir) -> tuple:
@@ -134,13 +140,18 @@ def ensure_nasr_data(cache_dir) -> tuple:
         dof_url = find_download_link(DOF_INDEX_URL, r'href="(https://aeronav\.faa\.gov/Obst_Data/DOF_\d+\.zip)"')
         download_and_extract(dof_url, cache_dir)
 
-    evicted = [p.name for p in (nav_path, apt_path, dof_path) if _is_icloud_evicted(p)]
-    if evicted:
+    missing = [p for p in (nav_path, apt_path, dof_path) if not p.exists()]
+    if missing:
+        evicted = [p.name for p in missing if _is_icloud_evicted(p)]
+        if evicted:
+            raise RuntimeError(
+                f"iCloud evicted {', '.join(evicted)} from {cache_dir}. Re-downloading "
+                "will not hold while this directory syncs to iCloud -- exclude data/raw "
+                "from syncing (a parent directory named to end in '.nosync', or keeping "
+                "the project outside Desktop/Documents)."
+            )
         raise RuntimeError(
-            f"iCloud evicted {', '.join(evicted)} from {cache_dir}. Re-downloading will "
-            "not hold while this directory syncs to iCloud -- exclude data/raw from "
-            "syncing (a parent directory named to end in '.nosync', or keeping the "
-            "project outside Desktop/Documents)."
+            f"Missing after download: {', '.join(p.name for p in missing)} in {cache_dir}."
         )
     return nav_path, apt_path, dof_path
 

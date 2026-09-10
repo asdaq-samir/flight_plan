@@ -59,8 +59,12 @@ def _is_icloud_evicted(path: Path) -> bool:
     394 MB shapefile will not keep it on disk if iCloud is going to
     offload it again, which is exactly what happened here twice in one
     afternoon under Desktop & Documents syncing.
+
+    A file is only evicted if the real path is gone *and* the placeholder
+    is there. Testing for the placeholder alone reports a file that iCloud
+    is in the middle of restoring as missing.
     """
-    return (path.parent / f".{path.name}.icloud").exists()
+    return not path.exists() and (path.parent / f".{path.name}.icloud").exists()
 
 
 def _shapefile_is_complete(shp_path: Path) -> bool:
