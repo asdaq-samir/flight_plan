@@ -182,7 +182,7 @@
   </div>
 
   <footer>
-    <span><kbd>Space</kbd> start / resume · <kbd>0</kbd>–<kbd>5</kbd> rate · <kbd>Esc</kbd> whole route</span>
+    <span><kbd>Space</kbd> start / resume / whole route · <kbd>0</kbd>–<kbd>5</kbd> rate</span>
     <span><kbd>v</kbd> visual refs: <b id="visflag">hidden</b></span>
     <span><kbd>Del</kbd> remove · right-click to add</span>
     <span><kbd>t</kbd> basemap: <b id="basemap">FAA sectional</b></span>
@@ -377,6 +377,12 @@ function step(delta) {
     `${index + 1} of ${points.length} · ${point.d.category || "?"} at ` +
     `${point.d.along_track_nm.toFixed(1)} nm` +
     (point.d.judged ? ` · rated ${point.d.rating}` : "");
+}
+
+function toggleView() {
+  if (!course) { flash("Load a route first", true); return; }
+  if (map.getZoom() >= FOCUS_ZOOM) { fitRoute(); return; }
+  centreOnSelection();
 }
 
 function centreOnSelection() {
@@ -923,13 +929,15 @@ document.addEventListener("keydown", (e) => {
   // so Space brings you straight back to it. Zooming out to look around
   // is not the same as being finished with a candidate.
   if (e.key === "Escape" || e.key === "f") return fitRoute();
-  // Space as well as Enter: it is the biggest key on the board and the
-  // one a hand finds without looking, which suits the action you take to
-  // get going and to get back on track. preventDefault stops it scrolling
-  // the page.
+  // Space is the one view key: it toggles between working on a point and
+  // seeing the whole leg. Zoomed in, it pulls back to the route; zoomed
+  // out, it returns to the point being worked on, or to the departure at
+  // the start of a session. One key because the two are the same
+  // intention -- change what you are looking at -- and which one you
+  // want is always obvious from what you are looking at now.
   if (e.key === "Enter" || e.key === " " || e.key === "c") {
     e.preventDefault();
-    return centreOnSelection();
+    return toggleView();
   }
   // All four arrows are spatial: each moves the selection the way that
   // key points on the screen, not the way the route happens to be
