@@ -708,6 +708,11 @@ async function loadCourse(dep, dest) {
   fitRoute();
   el("dist").innerHTML =
     `<b>${course.distance_nm}</b> nm · ${String(course.bearing_deg).padStart(3, "0")}°T`;
+  // Drawn as soon as the route resolves, before any tile is read. The
+  // banner was only written when the first block landed, so for the two
+  // or three seconds before that the slot was simply empty -- the count
+  // did not start at zero and climb, it appeared out of nowhere.
+  renderStats({});
   flash("Reading the chart…");
   // Draw the ends straight away rather than waiting on the tiles: the
   // route exists the moment the idents resolve.
