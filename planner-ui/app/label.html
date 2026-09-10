@@ -47,8 +47,11 @@
     .row .t{font-weight:600}
     .row .m{color:var(--muted);font-size:12px}
     .pill{display:inline-block;padding:0 6px;border-radius:9px;color:#fff;font:700 11px system-ui}
-    footer{padding:7px 16px;border-top:1px solid var(--line);color:var(--muted);
-      display:flex;gap:12px;align-items:center;flex-wrap:wrap;font-size:13px}
+    footer{padding:6px 16px 7px;border-top:1px solid var(--line);color:var(--muted);
+      display:flex;flex-direction:column;gap:3px;font-size:13px}
+    .frow{display:flex;gap:14px;align-items:center;flex-wrap:wrap;min-height:26px}
+    /* The second row is what you set once and forget, so it sits back. */
+    .frow.minor{font-size:12.5px;opacity:.85}
     kbd{border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;padding:1px 7px;
       background:#fff;color:var(--ink);font:600 12px ui-monospace,SFMono-Regular,Menlo,monospace}
     #sel{padding:8px 16px;background:#f2f7fb;border-bottom:1px solid var(--line);display:none;
@@ -182,12 +185,20 @@
   </div>
 
   <footer>
-    <span><kbd>Space</kbd> start / resume / whole route · <kbd>0</kbd>–<kbd>5</kbd> rate</span>
-    <span><kbd>v</kbd> visual refs: <b id="visflag">hidden</b></span>
-    <span><kbd>Del</kbd> remove · right-click to add</span>
-    <span><kbd>t</kbd> basemap: <b id="basemap">FAA sectional</b></span>
-    <span><kbd>&uarr;</kbd><kbd>&darr;</kbd><kbd>&larr;</kbd><kbd>&rarr;</kbd> step the way the course runs</span>
-    <button type="button" id="legend-toggle" class="viewbtn" style="margin-left:auto">Hide scale</button>
+    <!-- Three rows, grouped by what they are for: rating, moving around
+         and editing, then display settings you set once. -->
+    <div class="frow">
+      <span><kbd>Space</kbd> start / resume / whole route · <kbd>0</kbd>–<kbd>5</kbd> rate</span>
+    </div>
+    <div class="frow">
+      <span><kbd>&uarr;</kbd><kbd>&darr;</kbd><kbd>&larr;</kbd><kbd>&rarr;</kbd> step the way the course runs</span>
+      <span><kbd>Del</kbd> remove · right-click to add</span>
+    </div>
+    <div class="frow minor">
+      <span><kbd>v</kbd> visual refs: <b id="visflag">hidden</b></span>
+      <span><kbd>t</kbd> basemap: <b id="basemap">FAA sectional</b></span>
+      <button type="button" id="legend-toggle" class="viewbtn" style="margin-left:auto">Hide scale</button>
+    </div>
   </footer>
 
 <script>
