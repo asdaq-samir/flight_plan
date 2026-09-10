@@ -99,6 +99,11 @@
       font: 600 12px ui-monospace, SFMono-Regular, Menlo, monospace;
     }
     .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+    .viewbtn { font: inherit; font-size: 13px; padding: 3px 10px; border: 1px solid var(--line);
+      background: #fff; color: var(--ink); border-radius: 6px; cursor: pointer;
+      display: inline-flex; align-items: center; gap: 6px; }
+    .viewbtn:hover { border-color: var(--accent); color: var(--accent); }
+    .viewbtn kbd { padding: 0 5px; }
     .legend { display: inline-flex; align-items: center; gap: 5px; }
   </style>
 </head>
@@ -157,7 +162,7 @@
     <span class="legend"><span class="dot" style="background:#96a7b2"></span>candidate considered</span>
     <span><kbd>a</kbd> candidates</span>
     <span><kbd>t</kbd> basemap: <b id="basemap">FAA sectional</b></span>
-    <span><kbd>f</kbd> fit route</span>
+    <button type="button" id="fit" class="viewbtn">Fit route <kbd>f</kbd></button>
     <span><kbd>n</kbd> nav log</span>
   </footer>
 
@@ -475,6 +480,7 @@ function toggleNav() {
   map.invalidateSize();
 }
 el("navbar").addEventListener("click", toggleNav);
+el("fit").addEventListener("click", fitRoute);
 
 document.addEventListener("keydown", (e) => {
   if (e.target.tagName === "INPUT") return;  // typing an ident, not a shortcut

@@ -55,6 +55,11 @@
     #role-dr{border-radius:6px 0 0 6px;border-right:none}
     #role-vis{border-radius:0 6px 6px 0}
     .role.on{background:var(--accent);border-color:var(--accent);color:#fff}
+    .viewbtn{font:inherit;font-size:13px;padding:3px 10px;border:1px solid var(--line);
+      background:#fff;color:var(--ink);border-radius:6px;cursor:pointer;display:inline-flex;
+      align-items:center;gap:6px}
+    .viewbtn:hover{border-color:var(--accent);color:var(--accent)}
+    .viewbtn kbd{padding:0 5px}
     .legend-h{display:flex;align-items:center;cursor:pointer;user-select:none}
     .legend-h .caret{margin-left:auto;color:var(--muted);font-weight:400}
     #legend{padding:8px 12px 10px;border-bottom:1px solid var(--line);background:#fff;font-size:12.5px}
@@ -160,6 +165,8 @@
     <span><kbd>0</kbd> skip</span>
     <span><kbd>t</kbd> basemap: <b id="basemap">FAA sectional</b></span>
     <span><kbd>Esc</kbd> deselect</span>
+    <button type="button" id="fit" class="viewbtn">Fit route <kbd>f</kbd></button>
+    <button type="button" id="recentre" class="viewbtn">Back to marker <kbd>c</kbd></button>
     <span style="margin-left:auto"><kbd>w</kbd> <b>walk unjudged</b> · <kbd>n</kbd> next · <kbd>p</kbd> previous</span>
   </footer>
 
@@ -209,6 +216,17 @@ function initBasemaps(cfg) {
   renderChartNotice();
 }
 
+function fitRoute() {
+  if (!course) { flash("Load a route first", true); return; }
+  map.fitBounds(L.latLngBounds(course.course_line), { padding: [30, 30] });
+}
+
+function centreOnSelection() {
+  const d = current();
+  if (!d) { fitRoute(); return; }
+  map.setView([d.lat, d.lon], Math.max(map.getZoom(), chartMinZoom + 1));
+}
+
 function renderChartNotice() {
   const tag = document.getElementById("basemap");
   if (!tag || !basemaps) return;
@@ -249,7 +267,7 @@ async function loadCourse(dep, dest) {
       html:`<div style="background:#142430;color:#fff;border-radius:4px;padding:1px 5px;
             font:700 11px system-ui;text-align:center">${a.ident}</div>` }) })
   )).addTo(map);
-  map.fitBounds(L.latLngBounds(course.course_line), { padding:[30,30] });
+  fitRoute();
   el("stats").innerHTML = `<b>${course.distance_nm}</b> nm · ${String(course.bearing_deg).padStart(3,"0")}°T · reading chart…`;
   history.replaceState(null, "", `?dep=${dep}&dest=${dest}`);
   return true;
@@ -537,6 +555,9 @@ el("form").addEventListener("submit", async (e) => {
   } finally { btn.disabled = false; }
 });
 
+el("fit").addEventListener("click", fitRoute);
+el("recentre").addEventListener("click", centreOnSelection);
+
 el("legend-h").addEventListener("click", () => {
   const open = el("legend").style.display !== "none";
   el("legend").style.display = open ? "none" : "";
@@ -559,6 +580,8 @@ el("del").addEventListener("click", removeCurrent);
 document.addEventListener("keydown", (e) => {
   if (e.target.tagName === "INPUT" || e.target.tagName === "SELECT") return;
   if (e.key === "t") return toggleBasemap();
+  if (e.key === "f") return fitRoute();
+  if (e.key === "c") return centreOnSelection();
   if (e.key === "Escape") { walking = false; return deselect(); }
   if (e.key === "w") return startWalk();
   if (walking && (e.key === "n" || e.key === " ")) { e.preventDefault(); return walkTo(1); }
