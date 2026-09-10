@@ -165,7 +165,7 @@
     <span><kbd>0</kbd> skip</span>
     <span><kbd>t</kbd> basemap: <b id="basemap">FAA sectional</b></span>
     <span><kbd>Esc</kbd> deselect</span>
-    <span><kbd>&uarr;</kbd><kbd>&darr;</kbd> step along the map · <kbd>&larr;</kbd><kbd>&rarr;</kbd> along the route</span>
+    <span><kbd>&uarr;</kbd><kbd>&darr;</kbd><kbd>&larr;</kbd><kbd>&rarr;</kbd> step the way the course runs</span>
     <button type="button" id="fit" class="viewbtn">Fit route <kbd>f</kbd></button>
     <button type="button" id="recentre" class="viewbtn">Zoom to marker <kbd>c</kbd></button>
     <span style="margin-left:auto"><kbd>w</kbd> <b>walk unjudged</b> · <kbd>n</kbd> next · <kbd>p</kbd> previous</span>
@@ -281,12 +281,20 @@ function orderedPoints() {
     .sort((a, b) => a.d.along_track_nm - b.d.along_track_nm);
 }
 
-// Whether flying the route takes you up the screen. Derived from the
-// course rather than assumed, so a southbound leg reverses it.
+// Which way flying the route moves you across the screen. Both derived
+// from the course rather than assumed, so any heading works: a
+// southbound leg reverses up/down, an eastbound one reverses left/right.
+function courseBearing() {
+  return course ? ((course.bearing_deg % 360) + 360) % 360 : 0;
+}
+
 function forwardIsUp() {
-  if (!course) return true;
-  const bearing = ((course.bearing_deg % 360) + 360) % 360;
-  return bearing < 90 || bearing > 270;
+  const bearing = courseBearing();
+  return bearing < 90 || bearing > 270;   // northerly component
+}
+
+function forwardIsLeft() {
+  return courseBearing() > 180;           // westerly component
 }
 
 function step(delta) {
@@ -708,15 +716,16 @@ document.addEventListener("keydown", (e) => {
   if (e.key === "t") return toggleBasemap();
   if (e.key === "f") return fitRoute();
   if (e.key === "c") return centreOnSelection();
-  // Up and Down are spatial: they move the way the map moves, not the
-  // way the route is indexed. C81->KDLH runs south to north, so advancing
-  // along it walks *up* the screen -- binding that to Down felt backwards
-  // because it was. Left and Right stay route-ordered, where "right" for
-  // next is the usual convention and no screen direction is implied.
+  // All four arrows are spatial: each moves the selection the way that
+  // key points on the screen, not the way the route happens to be
+  // indexed. C81->KDLH bears 328, so flying it goes up and to the left,
+  // and both of those keys step forward. Route order alone was wrong
+  // twice over here -- "right for next" is a list convention, and this
+  // is a map.
   if (e.key === "ArrowUp") { e.preventDefault(); return step(forwardIsUp() ? 1 : -1); }
   if (e.key === "ArrowDown") { e.preventDefault(); return step(forwardIsUp() ? -1 : 1); }
-  if (e.key === "ArrowRight") { e.preventDefault(); return step(1); }
-  if (e.key === "ArrowLeft") { e.preventDefault(); return step(-1); }
+  if (e.key === "ArrowLeft") { e.preventDefault(); return step(forwardIsLeft() ? 1 : -1); }
+  if (e.key === "ArrowRight") { e.preventDefault(); return step(forwardIsLeft() ? -1 : 1); }
   if (e.key === "Escape") { walking = false; return deselect(); }
   if (e.key === "w") return startWalk();
   if (walking && (e.key === "n" || e.key === " ")) { e.preventDefault(); return walkTo(1); }
