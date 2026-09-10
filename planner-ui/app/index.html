@@ -1,0 +1,479 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>VFR route planner</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <style>
+    :root {
+      --ink: #142430; --muted: #5b6b76; --line: #c7d3da; --rule: #e6ecef;
+      --accent: #1f5c8b; --good: #2f7d4f; --warn: #b3261e; --panel: #fbfcfd;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; height: 100vh; display: flex; flex-direction: column;
+      font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+      color: var(--ink); background: #fff;
+    }
+    header {
+      padding: 9px 16px; border-bottom: 1px solid var(--line);
+      display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+    }
+    .brand { font-weight: 700; letter-spacing: .01em; margin-right: 4px; }
+    form { display: flex; align-items: center; gap: 6px; }
+    form input {
+      font: 600 15px ui-monospace, SFMono-Regular, Menlo, monospace;
+      text-transform: uppercase; padding: 5px 8px; width: 84px;
+      border: 1px solid var(--line); border-radius: 6px; background: #fff; color: var(--ink);
+    }
+    form input#alt { width: 92px; text-transform: none; font-weight: 500; }
+    form input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+    form .arrow { color: var(--muted); }
+    form button {
+      font: 600 14px inherit; padding: 6px 14px; border-radius: 6px; cursor: pointer;
+      border: 1px solid var(--accent); background: var(--accent); color: #fff;
+    }
+    form button:disabled { opacity: .5; cursor: progress; }
+    #summary { color: var(--muted); font-variant-numeric: tabular-nums; }
+    #summary b { color: var(--ink); }
+    #flash { margin-left: auto; font-weight: 600; }
+    #notice {
+      padding: 10px 16px; border-bottom: 1px solid var(--line);
+      background: #fff8f0; display: none; align-items: center; gap: 12px; flex-wrap: wrap;
+    }
+    #notice.show { display: flex; }
+    #notice button {
+      font: 600 13px inherit; padding: 5px 12px; border-radius: 6px; cursor: pointer;
+      border: 1px solid var(--accent); background: #fff; color: var(--accent);
+    }
+    #notice .spin { color: var(--muted); }
+    #middle { flex: 1; min-height: 0; display: flex; }
+    #map { flex: 1; min-height: 0; background: #eef2f4; }
+    #side { width: 300px; border-left: 1px solid var(--line); overflow-y: auto; background: var(--panel); }
+    h2 {
+      margin: 0; padding: 7px 12px; font-size: 11px; letter-spacing: .07em;
+      text-transform: uppercase; color: var(--muted);
+      background: #fff; border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 5;
+    }
+    .cp {
+      padding: 7px 12px; border-bottom: 1px solid var(--rule); cursor: pointer;
+      display: grid; grid-template-columns: 24px 1fr auto; gap: 8px; align-items: baseline;
+    }
+    .cp:hover { background: #eaf1f6; }
+    .num { color: #fff; border-radius: 50%; width: 22px; height: 22px;
+           display: grid; place-items: center; font: 700 11px system-ui; }
+    .cp .nm { font-weight: 600; }
+    .cp .meta { grid-column: 2 / -1; color: var(--muted); font-size: 12px; }
+    .score { font-variant-numeric: tabular-nums; font-weight: 600; }
+    #navwrap { border-top: 1px solid var(--line); background: #fff; display: flex; flex-direction: column; }
+    #navbar {
+      padding: 6px 16px; display: flex; align-items: center; gap: 14px;
+      cursor: pointer; user-select: none; background: #f4f7f9; border-bottom: 1px solid var(--rule);
+    }
+    #navbar .t { font-size: 11px; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); }
+    #navbar .tot { color: var(--ink); font-variant-numeric: tabular-nums; }
+    #navbar .tot b { font-weight: 700; }
+    #navscroll { max-height: 34vh; overflow: auto; }
+    table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+    th, td { padding: 4px 10px; text-align: right; white-space: nowrap; border-bottom: 1px solid var(--rule); }
+    th {
+      position: sticky; top: 0; background: #fff; z-index: 4;
+      font-size: 11px; letter-spacing: .04em; text-transform: uppercase;
+      color: var(--muted); font-weight: 600; border-bottom: 1px solid var(--line);
+    }
+    td.l, th.l { text-align: left; white-space: normal; }
+    tbody tr:hover { background: #eaf1f6; }
+    tr.nowind td { background: #fffaf2; }
+    tr.nowind:hover td { background: #f7eddd; }
+    .mh { font-weight: 700; }
+    .muted { color: var(--muted); }
+    footer {
+      padding: 6px 16px; border-top: 1px solid var(--line); color: var(--muted);
+      display: flex; gap: 12px; align-items: center; flex-wrap: wrap; font-size: 13px;
+    }
+    kbd {
+      border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 5px;
+      padding: 1px 7px; background: #fff; color: var(--ink);
+      font: 600 12px ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+    .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+    .legend { display: inline-flex; align-items: center; gap: 5px; }
+  </style>
+</head>
+<body>
+  <header>
+    <span class="brand">VFR planner</span>
+    <form id="form" autocomplete="off">
+      <input id="dep" list="built" placeholder="DEP" spellcheck="false" aria-label="Departure">
+      <span class="arrow">&rarr;</span>
+      <input id="dest" list="built" placeholder="DEST" spellcheck="false" aria-label="Destination">
+      <datalist id="built"></datalist>
+      <input id="alt" placeholder="alt (auto)" spellcheck="false" aria-label="Cruise altitude, feet">
+      <button type="submit">Plan</button>
+    </form>
+    <span id="summary"></span>
+    <span id="flash"></span>
+  </header>
+
+  <div id="notice">
+    <span id="notice-text"></span>
+    <button id="collect">Collect this route</button>
+    <span class="spin" id="notice-step"></span>
+  </div>
+
+  <div id="middle">
+    <div id="map"></div>
+    <div id="side">
+      <h2>Checkpoints</h2>
+      <div id="list"></div>
+    </div>
+  </div>
+
+  <div id="navwrap">
+    <div id="navbar">
+      <span class="t">Nav log</span>
+      <span class="tot" id="totals"></span>
+      <span class="muted" id="altnote"></span>
+      <span class="muted" style="margin-left:auto" id="navtoggle">hide</span>
+    </div>
+    <div id="navscroll">
+      <table>
+        <thead>
+          <tr>
+            <th class="l">From</th><th class="l">To</th>
+            <th>Dist</th><th>TC</th><th>Wind</th><th>WCA</th>
+            <th>TH</th><th>Var</th><th>MH</th><th>GS</th><th>ETE</th><th>Fuel</th>
+          </tr>
+        </thead>
+        <tbody id="navbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <footer>
+    <span class="legend"><span class="dot" style="background:#1a7f37"></span>checkpoint (score-coloured)</span>
+    <span class="legend"><span class="dot" style="background:#96a7b2"></span>candidate considered</span>
+    <span><kbd>a</kbd> candidates</span>
+    <span><kbd>t</kbd> basemap: <b id="basemap">FAA sectional</b></span>
+    <span><kbd>f</kbd> fit route</span>
+    <span><kbd>n</kbd> nav log</span>
+  </footer>
+
+<script>
+const el = (id) => document.getElementById(id);
+const qs = new URLSearchParams(location.search);
+const map = L.map("map", { zoomControl: true });
+
+let data = null, basemaps = null, activeBase = "faa";
+let courseLayer = null, candidateLayer = null, selectedLayer = null, endsLayer = null;
+let showAll = true, pollTimer = null;
+
+function initBasemaps(cfg) {
+  if (basemaps) return;
+  basemaps = {
+    // Sectional tiles stop at zoom 12. maxNativeZoom upscales them past
+    // that instead of showing blank tiles when the map is zoomed in.
+    faa: L.tileLayer(cfg.tile_url, {
+      attribution: "FAA Aeronautical Information Services",
+      maxNativeZoom: cfg.max_zoom, maxZoom: 18, minZoom: cfg.min_zoom,
+    }),
+    osm: L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: "&copy; OpenStreetMap contributors", maxZoom: 18,
+    }),
+  };
+  basemaps[activeBase].addTo(map);
+}
+
+function toggleBasemap() {
+  if (!basemaps) return;
+  map.removeLayer(basemaps[activeBase]);
+  activeBase = activeBase === "faa" ? "osm" : "faa";
+  basemaps[activeBase].addTo(map);
+  el("basemap").textContent = activeBase === "faa" ? "FAA sectional" : "OpenStreetMap";
+}
+
+function scoreColor(s) {
+  if (s >= 4.5) return "#1a7f37";
+  if (s >= 4.0) return "#4a9d4a";
+  if (s >= 3.5) return "#b8860b";
+  if (s >= 3.0) return "#c2681a";
+  return "#b3261e";
+}
+
+const deg = (d) => String(Math.round(d) % 360).padStart(3, "0") + "°";
+const one = (n) => (n === null || n === undefined) ? "—" : n.toFixed(1);
+
+function flash(msg, bad) {
+  el("flash").textContent = msg || "";
+  el("flash").style.color = bad ? "var(--warn)" : "var(--good)";
+}
+
+function numberedIcon(n, score) {
+  return L.divIcon({
+    className: "",
+    html: `<div style="background:${scoreColor(score)};color:#fff;border:2px solid #fff;
+           border-radius:50%;width:26px;height:26px;display:grid;place-items:center;
+           font:700 12px system-ui;box-shadow:0 1px 4px rgba(0,0,0,.4)">${n}</div>`,
+    iconSize: [26, 26], iconAnchor: [13, 13],
+  });
+}
+
+function clearLayers() {
+  [courseLayer, candidateLayer, selectedLayer, endsLayer].forEach(l => l && map.removeLayer(l));
+  courseLayer = candidateLayer = selectedLayer = endsLayer = null;
+  el("list").innerHTML = "";
+  el("navbody").innerHTML = "";
+  el("totals").textContent = "";
+  el("altnote").textContent = "";
+}
+
+function render() {
+  initBasemaps(data);
+
+  courseLayer = L.polyline(data.course_line,
+    { color: "#c2185b", weight: 2, opacity: .85, dashArray: "6,6" }).addTo(map);
+
+  // Every candidate the model scored, small and dim. The selection is
+  // only judgable next to what it was selecting from.
+  candidateLayer = L.layerGroup(data.candidates.filter(c => !c.selected).map(c =>
+    L.circleMarker([c.lat, c.lon], {
+      radius: 4, color: "#5b6b76", weight: 1, opacity: .65,
+      fillColor: scoreColor(c.predicted_score), fillOpacity: .5,
+    }).bindPopup(`<b>${c.name || "(unnamed)"}</b><br>${c.category}<br>` +
+                 `score ${c.predicted_score.toFixed(2)} · ${c.along_track_nm.toFixed(1)} nm along`)
+  ));
+  if (showAll) candidateLayer.addTo(map);
+
+  selectedLayer = L.layerGroup(data.selected.map((c, i) =>
+    L.marker([c.lat, c.lon], { icon: numberedIcon(i + 1, c.predicted_score) })
+      .bindPopup(`<b>${i + 1}. ${c.name || "(unnamed)"}</b><br>${c.category}<br>` +
+                 `score ${c.predicted_score.toFixed(2)} · ${c.along_track_nm.toFixed(1)} nm along`)
+  )).addTo(map);
+
+  endsLayer = L.layerGroup([[data.departure, "Departure"], [data.destination, "Destination"]].map(([a, tag]) =>
+    L.marker([a.lat, a.lon], {
+      icon: L.divIcon({ className: "", iconSize: [48, 20], iconAnchor: [24, 10],
+        html: `<div style="background:#142430;color:#fff;border-radius:4px;padding:1px 5px;
+               font:700 11px system-ui;text-align:center">${a.ident}</div>` }),
+    }).bindPopup(`<b>${a.ident}</b> — ${a.name}<br>${tag}`)
+  )).addTo(map);
+
+  fitRoute();
+
+  el("summary").innerHTML =
+    `<b>${data.distance_nm}</b> nm · <b>${data.selected.length}</b> checkpoints ` +
+    `from ${data.candidates.length} candidates · <b>${data.legs.length}</b> legs`;
+
+  renderCheckpoints();
+  renderNavlog();
+}
+
+function renderCheckpoints() {
+  const list = el("list");
+  data.selected.forEach((c, i) => {
+    const row = document.createElement("div");
+    row.className = "cp";
+    row.innerHTML =
+      `<span class="num" style="background:${scoreColor(c.predicted_score)}">${i + 1}</span>` +
+      `<span class="nm">${c.name || "(unnamed)"}</span>` +
+      `<span class="score" style="color:${scoreColor(c.predicted_score)}">${c.predicted_score.toFixed(2)}</span>` +
+      `<span class="meta">${c.category} · ${c.along_track_nm.toFixed(1)} nm along route</span>`;
+    row.onclick = () => {
+      map.setView([c.lat, c.lon], data.max_zoom);
+      selectedLayer.getLayers()[i].openPopup();
+    };
+    list.appendChild(row);
+  });
+}
+
+function renderNavlog() {
+  const body = el("navbody");
+  data.legs.forEach((l) => {
+    const tr = document.createElement("tr");
+    // A leg with no nearby winds-aloft station is a no-wind-data
+    // estimate, not a calm one. Shading it keeps that visible instead of
+    // letting it read as a confident zero.
+    if (!l.wind) tr.className = "nowind";
+    tr.innerHTML =
+      `<td class="l">${l.from}</td><td class="l">${l.to}</td>` +
+      `<td>${l.distance_nm.toFixed(1)}</td>` +
+      `<td>${deg(l.true_course_deg)}</td>` +
+      `<td>${l.wind ? `${deg(l.wind.wind_dir_true_deg)}/${Math.round(l.wind.wind_speed_kt)}` :
+             '<span class="muted">no data</span>'}</td>` +
+      `<td>${l.wca_deg >= 0 ? "+" : ""}${l.wca_deg.toFixed(1)}°</td>` +
+      `<td>${deg(l.true_heading_deg)}</td>` +
+      `<td>${l.magnetic_variation_deg >= 0 ? "+" : ""}${l.magnetic_variation_deg.toFixed(1)}°</td>` +
+      `<td class="mh">${deg(l.magnetic_heading_deg)}</td>` +
+      `<td>${l.groundspeed_kt === null ? '<span class="muted">—</span>' : Math.round(l.groundspeed_kt)}</td>` +
+      `<td>${l.ete_min === null ? '<span class="muted">unflyable</span>' : one(l.ete_min)}</td>` +
+      `<td>${one(l.fuel_gal)}</td>`;
+    body.appendChild(tr);
+  });
+
+  const t = data.totals;
+  const hrs = t.ete_min === null ? null : Math.floor(t.ete_min / 60);
+  const mins = t.ete_min === null ? null : Math.round(t.ete_min % 60);
+  el("totals").innerHTML =
+    `<b>${t.distance_nm}</b> nm · ` +
+    (t.ete_min === null ? "<b>ETE n/a</b>" : `<b>${hrs}h ${String(mins).padStart(2, "0")}m</b>`) +
+    ` · <b>${t.fuel_gal === null ? "—" : t.fuel_gal}</b> gal` +
+    (t.legs_without_wind ? ` · <span style="color:var(--warn)">${t.legs_without_wind} leg(s) without wind data</span>` : "");
+
+  const sel = data.altitude_selection;
+  el("altnote").textContent =
+    `${data.altitude_ft} ft` +
+    (sel ? ` (auto: floor ${sel.floor_ft} ft, ${data.aircraft.name})` : ` (you set this)`);
+}
+
+function fitRoute() {
+  if (data) map.fitBounds(L.latLngBounds(data.course_line), { padding: [30, 30] });
+}
+
+// ---- Collecting a corridor that has not been built yet. Minutes of
+// Overpass + FAA + elevation calls, so it runs as a polled job rather
+// than a request the page waits on.
+function showNotice(text, canCollect) {
+  el("notice").className = "show";
+  el("notice-text").textContent = text;
+  el("collect").style.display = canCollect ? "" : "none";
+  el("notice-step").textContent = "";
+}
+function hideNotice() { el("notice").className = ""; el("notice-step").textContent = ""; }
+
+async function startBuild() {
+  const dep = el("dep").value.trim().toUpperCase();
+  const dest = el("dest").value.trim().toUpperCase();
+  el("collect").disabled = true;
+  el("notice-step").textContent = "starting…";
+  try {
+    const res = await fetch("/api/build", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ departure_ident: dep, destination_ident: dest }),
+    });
+    const body = await res.json();
+    if (!res.ok) { el("notice-step").textContent = body.detail || "could not start"; el("collect").disabled = false; return; }
+    if (body.state === "done") { hideNotice(); el("collect").disabled = false; plan(dep, dest); return; }
+    pollBuild(body.job_id, dep, dest);
+  } catch (e) {
+    el("notice-step").textContent = String(e);
+    el("collect").disabled = false;
+  }
+}
+
+function pollBuild(jobId, dep, dest) {
+  clearInterval(pollTimer);
+  const started = Date.now();
+  pollTimer = setInterval(async () => {
+    const mins = Math.floor((Date.now() - started) / 60000);
+    const secs = Math.floor((Date.now() - started) / 1000) % 60;
+    try {
+      const r = await fetch(`/api/build/${jobId}`);
+      const j = await r.json();
+      el("notice-step").textContent =
+        `${j.step} — ${mins}:${String(secs).padStart(2, "0")} elapsed`;
+      if (j.state === "done") {
+        clearInterval(pollTimer);
+        el("collect").disabled = false;
+        hideNotice();
+        loadBuiltRoutes();
+        plan(dep, dest);
+      } else if (j.state === "failed") {
+        clearInterval(pollTimer);
+        el("collect").disabled = false;
+        el("notice-step").textContent = j.detail || "build failed";
+      }
+    } catch (e) { /* keep polling; a transient blip should not kill the job view */ }
+  }, 2000);
+}
+
+async function plan(dep, dest) {
+  const btn = el("form").querySelector("button");
+  btn.disabled = true;
+  flash("");
+  el("summary").textContent = "planning…";
+  const alt = el("alt").value.trim();
+  const params = new URLSearchParams({ dep, dest });
+  if (alt) params.set("altitude_ft", alt);
+
+  try {
+    const res = await fetch(`/api/plan?${params}`);
+    const body = await res.json().catch(() => ({ detail: res.statusText }));
+    if (!res.ok) {
+      clearLayers();
+      data = null;
+      el("summary").textContent = "";
+      const detail = body.detail || "request failed";
+      if (res.status === 404 && detail.includes("not been collected")) {
+        showNotice(`${dep} → ${dest} has not been collected yet. This takes a few minutes.`, true);
+        flash("");
+      } else {
+        hideNotice();
+        flash(detail.split("\n")[0], true);
+      }
+      return;
+    }
+    hideNotice();
+    clearLayers();
+    data = body;
+    render();
+    history.replaceState(null, "", `?${params}`);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function loadBuiltRoutes() {
+  try {
+    const { routes } = await (await fetch("/api/routes")).json();
+    const dl = el("built");
+    dl.innerHTML = "";
+    [...new Set(routes.flatMap(r => [r.departure_ident, r.destination_ident]))].sort()
+      .forEach(id => { const o = document.createElement("option"); o.value = id; dl.appendChild(o); });
+    return routes;
+  } catch { return []; }
+}
+
+el("form").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const dep = el("dep").value.trim().toUpperCase();
+  const dest = el("dest").value.trim().toUpperCase();
+  if (!dep || !dest) return flash("Enter both idents", true);
+  if (dep === dest) return flash("Departure and destination are the same", true);
+  plan(dep, dest);
+});
+el("collect").addEventListener("click", startBuild);
+
+let navShown = true;
+function toggleNav() {
+  navShown = !navShown;
+  el("navscroll").style.display = navShown ? "" : "none";
+  el("navtoggle").textContent = navShown ? "hide" : "show";
+  map.invalidateSize();
+}
+el("navbar").addEventListener("click", toggleNav);
+
+document.addEventListener("keydown", (e) => {
+  if (e.target.tagName === "INPUT") return;  // typing an ident, not a shortcut
+  if (e.key === "n") return toggleNav();
+  if (!data) return;
+  if (e.key === "t") toggleBasemap();
+  if (e.key === "f") fitRoute();
+  if (e.key === "a") {
+    showAll = !showAll;
+    showAll ? candidateLayer.addTo(map) : map.removeLayer(candidateLayer);
+  }
+});
+
+(async () => {
+  const routes = await loadBuiltRoutes();
+  const first = routes[0] || { departure_ident: "C81", destination_ident: "KDLH" };
+  el("dep").value = (qs.get("dep") || first.departure_ident).toUpperCase();
+  el("dest").value = (qs.get("dest") || first.destination_ident).toUpperCase();
+  if (qs.get("altitude_ft")) el("alt").value = qs.get("altitude_ft");
+  plan(el("dep").value, el("dest").value);
+})();
+</script>
+</body>
+</html>

@@ -5,7 +5,3 @@
 fastapi
 uvicorn[standard]
 pandas
-# The route view calls model-service over HTTP for scored candidates, and
-# vfr.airports (route endpoint coordinates) imports requests at module
-# level anyway.
-requests

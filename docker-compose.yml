@@ -68,6 +68,25 @@ services:
     environment:
       PYTHONPATH: /workspace/src
 
+  planner-ui:
+    # The route planner -- two idents in, a chart with course, checkpoints
+    # and nav log out. The one human-facing surface of the project.
+    # Mounts the project so it can write a new corridor's candidates and
+    # features into data/processed, which is the same directory
+    # model-service reads its feature stores from.
+    build:
+      context: .
+      dockerfile: planner-ui/Dockerfile
+    ports:
+      - "8084:8000"
+    volumes:
+      - .:/workspace
+    environment:
+      PYTHONPATH: /workspace/src
+      MODEL_SERVICE_URL: http://model-service:8000
+    depends_on:
+      - model-service
+
   model-service:
     build: ./model-service
     ports:
