@@ -182,13 +182,11 @@
   </div>
 
   <footer>
-    <span><kbd>Space</kbd> start · <kbd>0</kbd>–<kbd>5</kbd> rate · <kbd>Esc</kbd> whole route</span>
+    <span><kbd>Space</kbd> start / resume · <kbd>0</kbd>–<kbd>5</kbd> rate · <kbd>Esc</kbd> or <kbd>f</kbd> whole route</span>
     <span><kbd>v</kbd> visual refs: <b id="visflag">hidden</b></span>
     <span><kbd>Del</kbd> remove · right-click to add</span>
     <span><kbd>t</kbd> basemap: <b id="basemap">FAA sectional</b></span>
     <span><kbd>&uarr;</kbd><kbd>&darr;</kbd><kbd>&larr;</kbd><kbd>&rarr;</kbd> step the way the course runs</span>
-    <button type="button" id="fit" class="viewbtn">Fit route <kbd>Esc</kbd></button>
-    <button type="button" id="recentre" class="viewbtn">Zoom to marker <kbd>Space</kbd></button>
     <button type="button" id="legend-toggle" class="viewbtn" style="margin-left:auto">Hide scale</button>
   </footer>
 
@@ -900,9 +898,6 @@ el("form").addEventListener("submit", async (e) => {
     if (await loadCourse(dep, dest)) await loadDetections(dep, dest);
   } finally { btn.disabled = false; }
 });
-
-el("fit").addEventListener("click", fitRoute);
-el("recentre").addEventListener("click", centreOnSelection);
 
 function setLegend(hidden) {
   el("legend").className = hidden ? "hidden" : "";
