@@ -708,7 +708,7 @@ async function loadCourse(dep, dest) {
   fitRoute();
   el("dist").innerHTML =
     `<b>${course.distance_nm}</b> nm · ${String(course.bearing_deg).padStart(3, "0")}°T`;
-  el("stats").textContent = "reading the chart…";
+  flash("Reading the chart…");
   // Draw the ends straight away rather than waiting on the tiles: the
   // route exists the moment the idents resolve.
   renderList();
@@ -756,8 +756,12 @@ async function loadDetections(dep, dest) {
           if (msg.missing) lastCoverage.missing = (lastCoverage.missing || 0) + msg.missing;
           renderMarkers();
           const pct = msg.blocks ? Math.round(((msg.block + 1) / msg.blocks) * 100) : 0;
-          el("stats").innerHTML =
-            `<b>${detections.length}</b> found · reading chart ${pct}%`;
+          // Progress is something happening, so it goes where messages
+          // go. The banner slot holds the count and keeps holding it --
+          // it was being overwritten every block, so the one number you
+          // might want to watch while reading was the one that vanished.
+          flash(`Reading the chart ${pct}% · ${detections.length} found`);
+          renderStats({});
         } else if (msg.type === "done") {
           done = true;
           // Picks that no detection claimed arrive now, once every block
@@ -776,7 +780,7 @@ async function loadDetections(dep, dest) {
     flash(`Stream interrupted: ${err}`, true);
   } finally {
     detecting = false;
-    if (!done) renderStats({ summary: {}, coverage: lastCoverage });
+    if (!done) renderStats({});
   }
 }
 
