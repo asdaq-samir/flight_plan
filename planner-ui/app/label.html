@@ -404,6 +404,32 @@ function visible(d) {
   return filters[roleOf(d)] && filters[sourceOf(d)] && filters[ratedOf(d)];
 }
 
+const FILTER_NAMES = {
+  dr: "DR", visual: "visual reference", provided: "provided",
+  added: "added", rated: "rated", unrated: "unrated",
+};
+
+/**
+ * Why the hidden picks are hidden, in the words of the boxes that hide
+ * them. The note used to say "visual references hidden" whatever was
+ * unticked, which was true when visual was the only filter and became
+ * a lie the moment there were six.
+ */
+function hiddenNote(picks) {
+  const counts = {};
+  for (const pick of picks) {
+    if (visible(pick)) continue;
+    // Named for the first axis that excludes it. A pick can fail more
+    // than one, and saying so twice would not tell anyone more.
+    const axis = [roleOf(pick), sourceOf(pick), ratedOf(pick)].find(k => !filters[k]);
+    if (axis) counts[axis] = (counts[axis] || 0) + 1;
+  }
+  const parts = FILTER_KEYS.filter(k => counts[k]).map(k =>
+    `${counts[k]} ${FILTER_NAMES[k]}${counts[k] === 1 ? "" : "s"}`);
+  if (!parts.length) return "";
+  return `${parts.join(", ")} unselected — tick to show`;
+}
+
 function setFilter(key, on) {
   filters[key] = on;
   const box = el(`f-${key}`);
@@ -877,14 +903,14 @@ function renderList() {
     note.className = "row";
     note.style.cssText = "cursor:default;color:var(--muted)";
     note.textContent = hidden
-      ? `${hidden} visual reference${hidden === 1 ? "" : "s"} hidden — press v to show them`
+      ? hiddenNote(picks)
       : "No checkpoints yet. Rate a marker, or right-click bare chart to add one the detector missed.";
     list.insertBefore(note, list.children[1] || null);
   } else if (hidden) {
     const note = document.createElement("div");
     note.className = "row";
     note.style.cssText = "cursor:default;color:var(--muted)";
-    note.textContent = `${hidden} visual reference${hidden === 1 ? "" : "s"} hidden — press v to show`;
+    note.textContent = hiddenNote(picks);
     list.appendChild(note);
   }
   highlightRow();
