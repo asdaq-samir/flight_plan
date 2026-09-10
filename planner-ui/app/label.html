@@ -57,6 +57,9 @@
       background:#fff;color:var(--ink);border-radius:5px;cursor:pointer;text-align:left}
     .catpick:hover{border-color:var(--accent);color:var(--accent)}
     .catpick.guessed{border-color:var(--accent);background:#eaf1f6;color:var(--accent)}
+    .catremove{margin-top:6px;width:100%;font:600 12px inherit;padding:5px 8px;
+      border:1px solid var(--warn);background:#fff;color:var(--warn);border-radius:5px;cursor:pointer}
+    .catremove:hover{background:var(--warn);color:#fff}
     #ask{font-weight:600;color:var(--accent)}
     .role{font:600 12px inherit;padding:5px 9px;border:1px solid var(--line);background:#fff;
       color:var(--muted);cursor:pointer}
@@ -532,6 +535,9 @@ function renderMarkers() {
       select({ kind: "detected", i });
       openCategoryFor(d, "detected", i);
     });
+    // Otherwise the map's own contextmenu fires underneath and offers to
+    // add a new point on top of this one.
+    m.on("contextmenu", (e) => L.DomEvent.stopPropagation(e));
     return m;
   })).addTo(map);
 
@@ -542,6 +548,7 @@ function renderMarkers() {
       select({ kind: "added", i });
       openCategoryFor(a, "added", i);
     });
+    m.on("contextmenu", (e) => L.DomEvent.stopPropagation(e));
     return m;
   })).addTo(map);
 
@@ -660,21 +667,31 @@ const CATEGORIES = [
  * gets the chosen value. Anchored at the point rather than sitting in the
  * toolbar so you are looking at the chart you are judging.
  */
-function openCategoryPopup(latlng, heading, current, onPick) {
+function openCategoryPopup(latlng, heading, current, onPick, onRemove) {
   const buttons = CATEGORIES.map(([value, label]) =>
     `<button class="catpick${value === current ? " guessed" : ""}" data-cat="${value}">${label}</button>`
   ).join("");
+  const remove = onRemove
+    ? `<button class="catremove">Remove this point</button>` : "";
   const popup = L.popup({ closeButton: true, autoClose: true, className: "catpop" })
     .setLatLng(latlng)
-    .setContent(`<div class="cathead">${heading}</div><div class="catgrid">${buttons}</div>`)
+    .setContent(`<div class="cathead">${heading}</div><div class="catgrid">${buttons}</div>${remove}`)
     .openOn(map);
 
-  popup.getElement().querySelectorAll(".catpick").forEach(btn => {
+  const node = popup.getElement();
+  node.querySelectorAll(".catpick").forEach(btn => {
     btn.addEventListener("click", () => {
       map.closePopup(popup);
       onPick(btn.dataset.cat);
     });
   });
+  const removeBtn = node.querySelector(".catremove");
+  if (removeBtn) {
+    removeBtn.addEventListener("click", () => {
+      map.closePopup(popup);
+      onRemove();
+    });
+  }
   return popup;
 }
 
@@ -692,6 +709,20 @@ map.on("contextmenu", async (e) => {
   if (!course) return;
   if (e.originalEvent) e.originalEvent.preventDefault();
   const lat = e.latlng.lat, lon = e.latlng.lng;
+
+  // stopPropagation on the markers covers the icon itself; this covers
+  // the gap between icons at low zoom, where two points can be a few
+  // pixels apart and a right-click between them still means "that one".
+  const near = orderedPoints().find(x => {
+    const a = map.latLngToContainerPoint([x.d.lat, x.d.lon]);
+    const b = map.latLngToContainerPoint([lat, lon]);
+    return a.distanceTo(b) < 14;
+  });
+  if (near) {
+    select({ kind: near.kind, i: near.i });
+    openCategoryFor(near.d, near.kind, near.i);
+    return;
+  }
   deselect();
 
   const guess = await fetch(`/api/classify?lat=${lat}&lon=${lon}`)
@@ -738,6 +769,10 @@ function openCategoryFor(d, kind, index) {
       renderMarkers();
       select({ kind, i: index });
     },
+    // Only offer removal for something actually recorded. An unjudged
+    // detection has nothing to remove -- rating it 0 is how you say it
+    // should not be there.
+    (d.judged || kind === "added") ? removeCurrent : null,
   );
 }
 
