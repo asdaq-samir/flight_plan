@@ -259,6 +259,7 @@ function visible(d) {
 function toggleVisual() {
   showVisual = !showVisual;
   renderMarkers();
+  if (lastSummary) renderStats({ summary: lastSummary, coverage: lastCoverage });
   const tag = document.getElementById("visflag");
   if (tag) tag.textContent = showVisual ? "shown" : "hidden";
   flash(showVisual ? "Showing visual references too" : "Dead-reckoning points only");
@@ -507,18 +508,25 @@ function renderStats(body) {
   const c = body.coverage || {};
   const roles = s.by_role || {};
 
-  // The banner answers "what am I looking at": the leg, and how much of
-  // it has been read and judged.
+  // Says what it counts. "detected" was the whole list including the
+  // visual references hidden by v, so it read 316 while 189 were on
+  // screen; "kept" and "skipped" were words for rated-1-to-5 and
+  // rated-0, and skipped in particular suggests passing over something
+  // rather than judging it not a feature at all.
+  const onChart = detections.filter(visible).length;
+  const hidden = detections.length - onChart;
   el("stats").innerHTML =
-    `<b>${course.distance_nm}</b> nm · <b>${detections.length}</b> detected · ` +
-    `<b>${s.accepted||0}</b> kept · <b>${s.rejected||0}</b> skipped` +
+    `<b>${course.distance_nm}</b> nm · <b>${onChart}</b> on chart` +
+    (hidden ? ` <span style="color:var(--muted)">(${hidden} visual hidden)</span>` : "") +
+    ` · <b>${s.accepted||0}</b> rated · <b>${s.rejected||0}</b> not a feature` +
     (c.missing ? ` · <span style="color:var(--warn)">${c.missing} tiles outside chart coverage</span>` : "");
 
   // The DR/visual split belongs beside the list it describes, not in the
   // banner -- it is a property of the picks, and reading it two panels
   // away from them made it just another number in a row of them.
   el("pickcount").innerHTML = s.total
-    ? `<b>${s.total}</b> · ${roles.dr||0} DR / ${roles.visual||0} visual`
+    ? `<b>${s.total}</b> · ${roles.dr||0} DR / ${roles.visual||0} visual` +
+      (s.added ? ` · ${s.added} added` : "")
     : "";
 }
 
@@ -646,8 +654,9 @@ async function judge(rating, opts = {}) {
   step(lastStepDelta);
 }
 
-let lastCoverage = {};
+let lastCoverage = {}, lastSummary = null;
 function refreshStats(summary) {
+  lastSummary = summary;
   renderStats({ summary, coverage: lastCoverage });
 }
 
