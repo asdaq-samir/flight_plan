@@ -10,6 +10,8 @@ pyarrow
 requests    # Overpass/FAA/NOAA, and the model-service call
 shapely     # vfr.osm._representative_point, vfr.airspace polygons
 pyshp       # vfr.airspace reads the FAA Class Airspace shapefile
+pillow      # vfr.chartvision decodes sectional tiles
+scipy       # vfr.chartvision connected-component labelling
 
 # Deliberately NOT scikit-learn/joblib. Scoring belongs to model-service,
 # which owns the model artifact and its pinned sklearn; this service
