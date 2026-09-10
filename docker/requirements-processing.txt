@@ -8,3 +8,7 @@ pandas
 numpy
 requests
 pyarrow
+# osm._representative_point: places a marker on the feature rather than
+# at its bounding-box centre, which for a non-convex lake is off the
+# water entirely.
+shapely

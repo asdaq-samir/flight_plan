@@ -70,7 +70,7 @@ def min_safe_altitude_msl(
     highest_terrain_ft = max(elevations_m.values()) * M_TO_FT
 
     bbox = geo.corridor_bbox(route_start, route_end, buffer_nm=corridor_half_width_nm + 2)
-    _, dof_path = faa_data.ensure_nasr_data(faa_cache_dir)
+    *_, dof_path = faa_data.ensure_nasr_data(faa_cache_dir)
     obstacles = faa_data.load_obstacles(dof_path, bbox, min_agl_ft=0)
 
     obstacle_amsl_fts = [

@@ -27,35 +27,52 @@ import pandas as pd
 from vfr import airports, elevation, faa_data, features, geo, osm
 from vfr.model_registry import CANDIDATE_MODEL_DIR
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-DATA_DIR = PROJECT_ROOT / "data"
-CANDIDATES_PATH = DATA_DIR / "processed" / "candidates_c81_kdlh.csv"
-FEATURES_PATH = DATA_DIR / "processed" / "features_c81_kdlh.parquet"
-LABELS_PATH = DATA_DIR / "labels" / "spottability_ratings.csv"
+from vfr.config import (  # noqa: F401  (re-exported: callers import these from here)
+    CANDIDATES_PATH,
+    DATA_DIR,
+    FEATURES_PATH,
+    LABELS_PATH,
+    MIN_LABELED_ROWS,
+    PROJECT_ROOT,
+)
 
 RANDOM_STATE = 42
 PREFERRED_HALF_WIDTH_NM = 0.25  # "essentially on the line"
 FALLBACK_HALF_WIDTH_NM = 1.0  # outer bound, fills gaps later
 MARGIN_NM = 5
-MIN_UNNAMED_WATER_AREA_M2 = 40_000  # ~10 acres
 RIVER_FILTER = '["waterway"="river"]["intermittent"!="yes"]'
 RAILROAD_FILTER = '["railway"="rail"]["service"!~".*"]'
 
+# Properties of the landmark itself -- deliberately nothing about where it
+# sits on the route.
+#
+# cross_track_nm, along_track_nm and within_preferred_corridor used to be
+# in here and were removed 2026-09-10. They are corridor *filtering*
+# inputs, and every candidate that survives collect() is already inside
+# the corridor, so their leftover variance is just position along one
+# route. The model was leaning on it hard: with all 206 labels, 25-fold
+# repeated CV put the dummy-mean baseline at 1.1130 MAE, the full model
+# at 0.9232 -- and a model given *only* those three position features at
+# 0.9653, recovering 78% of the full model's gain over the baseline while
+# knowing nothing whatever about the landmark. The C81->KDLH corridor
+# runs from southern Wisconsin farmland into northern forest and lake
+# country, so along-track distance was proxying for terrain type, which
+# cannot transfer to a different route. Dropping them measured at 0.0165
+# MAE against a paired std of 0.0587 -- indistinguishable from zero.
+#
+# They stay in the features parquet as identity/display columns (see
+# engineer_features) because the serving API orders checkpoints by
+# along-track distance; they are just not fed to the model.
 FEATURE_COLS_BASE = [
-    "cross_track_nm",
-    "along_track_nm",
-    "within_preferred_corridor",
     "log_size",
     "elevation_prominence_m",
     "name_uniqueness",
     "nn_dist_nm",
 ]
 
-# Below this many labeled examples, a train/test split and 5-fold CV aren't
-# meaningful (some rating classes may have 0-1 examples). Fail loudly rather
-# than let sklearn raise an opaque stratify/fold-count error.
-MIN_LABELED_ROWS = 30
-
+# Carried through to the parquet for display and ordering, not as model
+# inputs.
+ROUTE_POSITION_COLS = ["cross_track_nm", "along_track_nm", "within_preferred_corridor"]
 
 class InsufficientLabelsError(RuntimeError):
     """Raised by retrain() when fewer than min_labeled_rows candidates are
@@ -143,10 +160,34 @@ def collect(
     raw_df = pd.concat([raw_df, river_df, rail_df, intersection_df, windfarm_df], ignore_index=True)
 
     faa_cache_dir = DATA_DIR / "raw" / "faa_nasr"
-    nav_csv_path, dof_dat_path = faa_data.ensure_nasr_data(faa_cache_dir)
+    nav_csv_path, apt_csv_path, _dof_dat_path = faa_data.ensure_nasr_data(faa_cache_dir)
     vor_df = faa_data.load_vor_navaids(nav_csv_path, bbox)
-    obstacle_df = faa_data.load_obstacles(dof_dat_path, bbox, min_agl_ft=200)
-    raw_df = pd.concat([raw_df, vor_df, obstacle_df], ignore_index=True)
+    # DOF obstacles (faa_data.load_obstacles) are deliberately not
+    # collected as candidates. A sectional draws every obstacle with the
+    # same symbol regardless of what the structure actually is, so from
+    # the chart there's nothing to distinguish one from another -- and a
+    # tower is a small, easily-missed target in flight next to the things
+    # pilotage actually leans on: water bodies, road intersections, wind
+    # farms, towns. Keeping them only added candidates that couldn't be
+    # rated consistently.
+    #
+    # Note this removes towers from consideration rather than teaching
+    # the model to score them low -- the model will never see one. Same
+    # outcome for recommendations, without spending labeling effort.
+    # load_obstacles itself is untouched; notebook 08's terrain/obstacle
+    # clearance still uses the DOF for altitude selection.
+    # Airports from the FAA's own APT data (see
+    # faa_data.load_route_airports). A runway is among the most
+    # unambiguous things on a sectional, so a field in the corridor is a
+    # strong checkpoint -- but only a charted one, and FAA registration
+    # is what tracks with being drawn, which is why this comes from
+    # APT_BASE rather than from every strip OSM or OurAirports lists. The
+    # two route endpoints are excluded, being where the flight starts and
+    # ends rather than marks along the way.
+    airport_df = faa_data.load_route_airports(
+        apt_csv_path, bbox, exclude_idents=(dep_ident, dest_ident)
+    )
+    raw_df = pd.concat([raw_df, vor_df, airport_df], ignore_index=True)
 
     def add_route_distances(df):
         df = df.copy()
@@ -170,12 +211,20 @@ def collect(
     )
     candidates_df = candidates_df.drop_duplicates(subset=["lat", "lon"]).reset_index(drop=True)
 
-    is_small_unnamed_water = (
-        candidates_df["category"].isin(["lake_or_pond", "reservoir"])
-        & candidates_df["name"].isna()
-        & (candidates_df["bbox_area_m2"] < MIN_UNNAMED_WATER_AREA_M2)
-    )
-    candidates_df = candidates_df[~is_small_unnamed_water].reset_index(drop=True)
+    # Unnamed water bodies are dropped outright, whatever their size.
+    # The label is a judgment made against the chart, and an unnamed lake
+    # gives you nothing to make it with: at 1:500,000 the chart draws
+    # water in blue with no label, so a marker on one blue shape among
+    # several identical blue shapes cannot be confirmed as the right
+    # shape -- which is a different failure from "hard to spot" and would
+    # teach the model noise. A size floor was tried first (250,000 m2,
+    # about a millimetre of chart) and still left ponds that were either
+    # undrawn or unidentifiable. A charted name is the identification, so
+    # named water stays regardless of size.
+    is_unnamed_water = candidates_df["category"].isin(
+        ["lake_or_pond", "reservoir"]
+    ) & candidates_df["name"].isna()
+    candidates_df = candidates_df[~is_unnamed_water].reset_index(drop=True)
 
     out_path = _ensure_local_output_dir(out_path)
     out_df = candidates_df.copy()
@@ -199,7 +248,7 @@ def engineer_features(in_path: Path = CANDIDATES_PATH, out_path: Path = FEATURES
     df["nn_dist_nm"] = features.nearest_neighbor_distance_nm(df["lat"], df["lon"])
 
     feature_cols = FEATURE_COLS_BASE + list(category_dummies.columns)
-    id_cols = ["osm_id", "osm_type", "category", "name", "lat", "lon"]
+    id_cols = ["osm_id", "osm_type", "category", "name", "lat", "lon"] + ROUTE_POSITION_COLS
     out_df = df[id_cols + feature_cols].copy()
 
     out_path = _ensure_local_output_dir(out_path)

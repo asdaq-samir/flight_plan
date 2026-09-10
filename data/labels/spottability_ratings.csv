@@ -1,4 +1,209 @@
 osm_id,osm_type,name,category,rating
-4057942,relation,nan,lake_or_pond,1
-43028725,way,nan,lake_or_pond,2
-353894200,node,Perkinstown Lookout Tower,tower,2
+232296451,node,US 8 & US 8;CTH B,intersection,4
+5538619433,node,WI 22 & WI 22;WI 23;CTH C & WI 23;CTH C,intersection,5
+24378665,way,Wood Lake,lake_or_pond,1
+28522546,way,Hahns Lake,lake_or_pond,4
+31032636,way,Upper Spring Lake,lake_or_pond,1
+34020498,way,Mills Lake,lake_or_pond,1
+34318182,way,Pickle Pond,lake_or_pond,5
+53967423,node,CTH C & WI 23 & WI 23;CTH C,intersection,5
+144351808,way,CN Superior Subdivision,railroad,5
+144838431,way,BNSF,railroad,4
+3430868979,node,CTH B;CTH J & CTH J,intersection,5
+42868699,way,North Fork Popple River,river,2
+231272859,node,CTH O & CTH O;CTH Z,intersection,2
+235650802,node,A33 & IL 60,intersection,3
+53863770,node,WI 33 & WI 33;CTH H,intersection,3
+59497708,way,Lake of the Woods,lake_or_pond,1
+59498282,way,Flamang Lake,lake_or_pond,1
+292879102,way,Echo Lake,lake_or_pond,3
+294906720,way,Moon Lake,lake_or_pond,3
+295309100,way,nan,quarry,2
+304568773,way,Anderson Lake,lake_or_pond,3
+231255930,node,WI 59 & WI 59;CTH H,intersection,4
+3409496519,node,CTH O & CTH O;CTH Z & CTH Z,intersection,4
+122981978,way,nan,lake_or_pond,3
+123535961,way,Lake Victoria,lake_or_pond,2
+123535963,way,Lake Mary,lake_or_pond,5
+123759640,way,Kathryn Lake,lake_or_pond,3
+294907334,way,Montello River,river,5
+301608722,way,Eau Claire River,river,4
+304267068,way,Chippewa River,river,5
+34809485,way,Black River,river,4
+3540095,relation,Lake Montello,lake_or_pond,4
+253862986,node,CH 90 & US 53,intersection,4
+188144887,node,CH 90 & MN 194,intersection,3
+1970485625,node,CH 48 & US 53;MN 194,intersection,5
+230773267,node,US 53 & WI 35,intersection,5
+1149301348,way,Vesper Pond 38,lake_or_pond,1
+1163179313,way,Central Cattle Pond,lake_or_pond,1
+661024054,node,CTH W & V44,intersection,3
+188122863,node,CH 32 & US 53;MN 194,intersection,4
+188122851,node,CH 91 & US 53;MN 194,intersection,4
+1389961352,way,CN Superior Subdivision,railroad,4
+888032843,way,Watertown Subdivision,railroad,4
+188122872,node,CH 17 & US 53;MN 194,intersection,4
+3076267327,node,WI 13 & WI 13;WI 73,intersection,4
+53293941,node,WI 186 & WI 186;CTH C;CTH HH,intersection,2
+WI92,faa_airport,Wag-Aero (WI92),airport,3
+53964781,node,WI 23 & WI 23;CTH C,intersection,5
+53964392,node,CTH F & WI 22,intersection,5
+1500117223,way,Bark River,river,4
+188122841,node,MN 194 & US 53 & US 53;MN 194,intersection,5
+188124815,node,CH 54 & CH 91,intersection,3
+388620758,way,CN Superior Subdivision,railroad,4
+6584034,way,CN Superior Subdivision,railroad,4
+220680324,way,Dyer Lake,lake_or_pond,3
+21497284,way,WSOR Waukesha Subdivision,railroad,4
+331010838,way,Westfield Creek,river,2
+1500117231,way,Bark River,river,3
+1449275802,way,Nemadji River,river,3
+1449275810,way,Bluff Creek,river,1
+53819644,node,WI 33 & WI 33;CTH H,intersection,2
+4643123204,node,US 2 & WI 35,intersection,3
+7791477,relation,Long Lake,lake_or_pond,4
+479147569,way,Montello River,river,4
+230848585,node,CTH A & US 2;US 53,intersection,4
+1970484373,node,MN 194 & US 53;MN 194,intersection,4
+188124793,node,CH 54 & CH 56,intersection,2
+456519174,way,Thornapple River,river,4
+232700852,node,WI 20 & WI 20;CTH N,intersection,2
+3LL4,faa_airport,Pillow Hill (3LL4),airport,1
+3058364272,node,WI 13 & WI 13;WI 54 & WI 13;WI 73 & WI 54;WI 73 & WI 73,intersection,4
+232458654,node,CTH K & WI 77,intersection,3
+18244549,way,BNSF Railway,railroad,4
+230872706,node,CTH E & CTH K,intersection,2
+9736288112,node,CTH EM & CTH F,intersection,2
+34810058,way,North Fork Popple River,river,1
+42868674,way,Little Jump River,river,3
+42800970,way,Jump River,river,4
+42911275,way,Little Eau Pleine River,river,4
+59548160,way,Totagatic River,river,5
+59548655,way,Ounce River,river,4
+675342339,way,Palmer Creek,lake_or_pond,1
+213950623#2,way,CN Superior Subdivision,railroad,4
+264541923,way,Tarrant Lake,lake_or_pond,2
+270000400,way,Harris Pond,lake_or_pond,4
+355592053,way,Lake Eleven,lake_or_pond,1
+355592054,way,Thief Lake,lake_or_pond,2
+28541763,way,Rock River,river,4
+28568753,way,Beaver Dam River,river,4
+830784422,way,Amnicon River,river,4
+1500067797,way,White River,river,4
+34863023,way,North Fork Popple River,river,1
+230951663,node,CTH UU & WI 13,intersection,5
+597488796,node,CTH L & US 53,intersection,5
+230868805,node,CTH B & CTH E,intersection,4
+230872761,node,CTH E & CTH Z,intersection,5
+10481063,relation,Doyle's Lake,lake_or_pond,2
+230871056,node,CTH C & CTH E & CTH E;CTH C,intersection,5
+231298823,node,CTH EM & CTH Z,intersection,3
+232358837,node,CTH B & CTH K,intersection,4
+230870849,node,CTH C & CTH C;CTH K & CTH K,intersection,3
+3779128007,node,CTH C & CTH C;CTH K & CTH K,intersection,3
+53315724,node,WI 186 & WI 186;CTH C;CTH HH,intersection,4
+918621,relation,Grass Lake,lake_or_pond,5
+919126,relation,Nelson Lake,lake_or_pond,5
+919212,relation,Phipps Flowage,lake_or_pond,5
+2743812,relation,Fox Lake,lake_or_pond,5
+349327469,node,CTH P & WI 50,intersection,5
+53309282,node,CTH Z & WI 13,intersection,4
+387607910,way,Valley Subdivision,railroad,4
+389116562,way,Medford Subdivision,railroad,4
+419631379,way,Fox Lake Subdivision,railroad,4
+53885510,node,WI 146 & WI 146;CTH A,intersection,3
+4744512708,node,CTH Z & WI 13,intersection,5
+34897519,way,Flambeau River,river,5
+34899221,way,Yellow River,river,5
+86193003,way,Saint Louis River,river,5
+263590929,way,Fox River,river,5
+304597458,way,Namekagon River,river,5
+479147570,way,Montello River,river,5
+235475343,node,CR V63 & IL 134,intersection,3
+231281486,node,CTH F & CTH F;CTH KD,intersection,3
+616617879,node,CH 54 & US 53,intersection,3
+9928068021,node,I 35 & I-35,intersection,5
+232700859,node,WI 20 & WI 20;CTH N,intersection,3
+3774858,relation,Nepco Lake,lake_or_pond,5
+4057912,relation,Mill Pond,lake_or_pond,5
+4057917,relation,Rome Pond,lake_or_pond,5
+6416924,relation,South Lake,lake_or_pond,2
+6767901,relation,Twin Lakes,lake_or_pond,2
+10856297,relation,Kilby Lake,lake_or_pond,2
+353870611,node,Big Falls Flowage,lake_or_pond,4
+3199668805,node,Tagalder Bay,lake_or_pond,5
+4639063671,node,Ole Haugsrud Stadium,stadium,2
+59499128,way,Gilbert Lake,lake_or_pond,2
+59505258,way,Metzger Lake,lake_or_pond,1
+59547996,way,Goose Lake,lake_or_pond,1
+1549528379,way,Rome Pond 114,lake_or_pond,5
+300734,relation,Big Falls Flowage 1894,lake_or_pond,5
+7291421,relation,Lost Lake,lake_or_pond,5
+3273980896,node,US 2 & US 2;US 53 & US 53,intersection,3
+205796194,way,Whitehall Subdivision,railroad,2
+2157414902,node,WI 13 & WI 13;WI 54,intersection,3
+1970484606,node,CH 6 & US 53;MN 194,intersection,4
+1970484584,node,CH 6 & CH 91,intersection,3
+9WI8,faa_airport,Fletcher (9WI8),airport,1
+53293644,node,WI 186 & WI 186;CTH N,intersection,1
+151331909,node,Superior,town,5
+153420031,node,Montello,town,1
+153546173,node,Round Lake,town,5
+153566547,node,Round Lake Beach,town,5
+59548424,way,Bullhead Lake,lake_or_pond,5
+59551399,way,Milny Lake,lake_or_pond,5
+315566336,way,nan,railroad,5
+304602632,way,Namekagon River,river,5
+304627942,way,Wisconsin River,river,5
+307499479,way,Fourmile Creek,river,5
+235262686,node,IL 120 & IL 134,intersection,3
+1427242129,way,Superior Choice Credit Union Stadium,stadium,2
+1451367158,way,2 Reservoir,lake_or_pond,1
+366718925,way,Duluth Missabe and Iron Range,railroad,5
+2748696055,node,WI 186 & WI 186;CTH N,intersection,4
+232358781,node,CTH B & CTH NN,intersection,3
+188188614,node,CH 32 & CH 91,intersection,3
+597488749,node,CTH B & US 53,intersection,5
+188105711,node,CH 48 & CH 9,intersection,3
+213950623,way,CN Superior Subdivision,railroad,4
+205008522,way,Wisconsin & Southern Railroad,railroad,4
+1544300813,way,nan,river,4
+1337916206,node,I 535 & I 535;US 53 & US 53 & WI 35,intersection,3
+235311776,node,IL 132 & IL 59,intersection,3
+425637890,way,Montello River,river,3
+ISW,faa_airport,Alexander Fld South Wood County (ISW),airport,5
+53952814,node,CTH B;CTH J & CTH J,intersection,4
+10484438,relation,Willow Pond,lake_or_pond,2
+1869500619,cluster,Wind Farm (61 turbines),wind_farm,5
+235478832,node,IL 60 & IL 60;IL 83 & IL 83,intersection,5
+235373680,node,CR A22 & CR V63,intersection,3
+236246540,node,IL 173 & V44,intersection,3
+232322074,node,US 8 & US 8;CTH B,intersection,3
+475086638,way,Round Lake Marsh,lake_or_pond,3
+430826401,way,North Lake,lake_or_pond,3
+1237546887,way,McMillan Reservoir,lake_or_pond,3
+1373926852,way,Long Beach Gardens Pond,lake_or_pond,5
+1418548343,way,Page Street Pond,lake_or_pond,2
+178013374,way,Watertown Subdivision,railroad,4
+205353008,way,Sunfish Lake,lake_or_pond,4
+205356151,way,Blueberry Lake,lake_or_pond,4
+208442375,way,Twin Ponds,lake_or_pond,3
+229121284,way,Lake Lure,lake_or_pond,3
+254297090,way,Mud Lake,lake_or_pond,3
+254297093,way,Turner Lake,lake_or_pond,3
+355592055,way,Richter Lake,lake_or_pond,2
+3076256028,node,WI 13 & WI 73,intersection,5
+53819674,node,CTH P & WI 146,intersection,3
+235442354,node,IL 176 & IL 60;IL 83,intersection,5
+232692866,node,WI 11 & WI 120,intersection,5
+21462204,way,CN Superior Subdivision,railroad,4
+53964447,node,WI 22 & WI 22;WI 23;CTH C & WI 23;CTH C,intersection,5
+315566729,way,Clyman Subdivision,railroad,5
+1451367561,way,Pabst Lake 5,lake_or_pond,1
+359588410,way,Rubber Duck Pond,lake_or_pond,2
+10481065,relation,Swift Lake,lake_or_pond,2
+1501076078,way,Fox River,river,5
+21469236,way,Wisconsin Central Railroad,railroad,4
+34897044,way,North Fork Popple River,river,1
+0WI4,faa_airport,Snow Crest Ranch (0WI4),airport,4
+21485757,way,UP Adams Subdivision,railroad,4

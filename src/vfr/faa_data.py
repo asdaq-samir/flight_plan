@@ -95,23 +95,110 @@ def download_and_extract(url: str, dest_dir: Path, retries: int = 3) -> None:
 
 
 def ensure_nasr_data(cache_dir) -> tuple:
-    """Download+extract the current-cycle NAV CSV and national DOF data
-    into cache_dir if not already cached. Returns (nav_csv_path, dof_dat_path).
+    """Download+extract the current-cycle NAV CSV, APT CSV and national
+    DOF data into cache_dir if not already cached. Returns
+    (nav_csv_path, apt_csv_path, dof_dat_path).
     """
     cache_dir = Path(cache_dir)
     nav_path = cache_dir / "NAV_BASE.csv"
+    apt_path = cache_dir / "APT_BASE.csv"
     dof_path = cache_dir / "DOF.DAT"
 
+    cycle_page = None
     if not nav_path.exists():
         cycle_page = find_current_cycle_page(NASR_INDEX_URL)
         nav_url = find_download_link(cycle_page, r'href="([^"]*NAV_CSV\.zip)"')
         download_and_extract(nav_url, cache_dir)
 
+    if not apt_path.exists():
+        cycle_page = cycle_page or find_current_cycle_page(NASR_INDEX_URL)
+        apt_url = find_download_link(cycle_page, r'href="([^"]*APT_CSV\.zip)"')
+        download_and_extract(apt_url, cache_dir)
+
     if not dof_path.exists():
         dof_url = find_download_link(DOF_INDEX_URL, r'href="(https://aeronav\.faa\.gov/Obst_Data/DOF_\d+\.zip)"')
         download_and_extract(dof_url, cache_dir)
 
-    return nav_path, dof_path
+    return nav_path, apt_path, dof_path
+
+
+# Facility types the sectional draws as a landable airport. A heliport is
+# a rooftop-sized target, a balloonport/ultralight strip is not charted as
+# an airport at all, and a seaplane base is an anchor symbol on a lake
+# that is already a candidate on its own.
+CHARTED_FACILITY_TYPES = {"AIRPORT"}
+
+
+def load_route_airports(apt_csv_path, bbox: tuple, exclude_idents: tuple = ()) -> pd.DataFrame:
+    """Operational airports from the NASR APT_BASE.csv extract, within
+    bbox, in the shared candidate schema.
+
+    FAA rather than OSM or OurAirports for the same reason
+    load_vor_navaids is: the FAA is the authority on its own airport
+    data. Here that authority is the filter itself -- being listed in
+    APT_BASE at all is what tracks with being drawn on the sectional.
+    OurAirports was tried first and its "small_airport" type pulled in
+    unregistered private strips; checking Barker Strip (35WI) and Rox
+    (WS09) against the chart tile found nothing drawn at their
+    coordinates, and neither appears in APT_BASE. A candidate the chart
+    does not draw cannot be rated, which is why towers, water towers,
+    quarries and unnamed lakes were dropped too.
+
+    Private-use fields are kept: the sectional draws a registered private
+    airport as a circled magenta "R", verified at Wag-Aero (WI92), so it
+    is identifiable on the chart. Whether a grass strip is *easy* to pick
+    out is a different question, and that is exactly what the 1-5 rating
+    is there to answer.
+
+    exclude_idents drops the departure and destination fields -- both sit
+    in the corridor by construction, and neither is a checkpoint: you are
+    taking off from one and landing at the other.
+    """
+    df = pd.read_csv(apt_csv_path, dtype=str, low_memory=False)
+    df = df[
+        df["SITE_TYPE_CODE"].map(_SITE_TYPE_NAMES).isin(CHARTED_FACILITY_TYPES)
+        & (df["ARPT_STATUS"] == "O")
+    ]
+    df["lat"] = df["LAT_DECIMAL"].astype(float)
+    df["lon"] = df["LONG_DECIMAL"].astype(float)
+    df = df[_in_bbox(df["lat"], df["lon"], bbox)]
+
+    excluded = {i.strip().upper() for i in exclude_idents}
+    if excluded:
+        keep = ~(
+            df["ARPT_ID"].str.upper().isin(excluded)
+            | df["ICAO_ID"].fillna("").str.upper().isin(excluded)
+        )
+        df = df[keep]
+
+    return pd.DataFrame(
+        {
+            "osm_id": df["ARPT_ID"],
+            "osm_type": "faa_airport",
+            "category": "airport",
+            # The chart labels a field by name and identifier, so the
+            # candidate carries both -- that is what you read off it.
+            "name": df["ARPT_NAME"].str.title() + " (" + df["ARPT_ID"] + ")",
+            "lat": df["lat"],
+            "lon": df["lon"],
+            "bbox_area_m2": 0.0,
+            "tags": [
+                {"arpt_id": a, "city": c if isinstance(c, str) else "", "use": u}
+                for a, c, u in zip(df["ARPT_ID"], df["CITY"], df["FACILITY_USE_CODE"])
+            ],
+        }
+    ).reset_index(drop=True)
+
+
+# APT_BASE encodes the facility type as a single letter.
+_SITE_TYPE_NAMES = {
+    "A": "AIRPORT",
+    "B": "BALLOONPORT",
+    "C": "SEAPLANE BASE",
+    "G": "GLIDERPORT",
+    "H": "HELIPORT",
+    "U": "ULTRALIGHT",
+}
 
 
 def _in_bbox(lat: pd.Series, lon: pd.Series, bbox: tuple) -> pd.Series:

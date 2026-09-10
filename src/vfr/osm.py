@@ -1,8 +1,8 @@
 """Overpass API query + parsing for candidate visual landmarks.
 
 Candidate categories are things a VFR pilot can plausibly pick out from
-altitude: water bodies, water towers, stadiums, quarries, and
-towns/cities, all via CANDIDATE_SPECS below -- plus rivers, railroads,
+altitude: water bodies, stadiums, and towns/cities, all via
+CANDIDATE_SPECS below -- plus rivers, railroads,
 major-highway intersections, and wind farms, which aren't single-point
 OSM features and need their own resolvers (see query_line_features/
 find_line_crossings, query_major_highways/find_intersections, and
@@ -29,33 +29,71 @@ REQUEST_HEADERS = {"User-Agent": "vfr-route-learning-project/0.1"}
 # category -> (Overpass tag filter clause, predicate on the element's tags dict)
 # Query building and categorization both come from this single spec, so they
 # can't drift out of sync with each other.
+# natural=water covers rivers too, as polygons -- and those are already
+# handled properly by query_line_features/find_line_crossings, which
+# resolve a river to the point where the route actually crosses it (the
+# only sensible checkpoint for a linear feature). Left in, they arrived
+# as enormous "lakes" placed at the centre of their bounding box: the
+# worst offender was a 665 km2 unnamed water=river multipolygon whose
+# marker landed nowhere near any water.
+_RIVERINE_WATER = ("river", "stream", "canal", "ditch")
+
 CANDIDATE_SPECS = {
     # intermittent!=yes excludes seasonal/dry water bodies -- not a
     # reliable visual checkpoint if it might be empty when you fly over.
     "lake_or_pond": (
-        '["natural"="water"]["intermittent"!="yes"]',
-        lambda t: t.get("natural") == "water" and t.get("intermittent") != "yes",
+        '["natural"="water"]["intermittent"!="yes"]'
+        '["water"!~"^(river|stream|canal|ditch)$"]',
+        lambda t: (
+            t.get("natural") == "water"
+            and t.get("intermittent") != "yes"
+            and t.get("water") not in _RIVERINE_WATER
+        ),
     ),
     "reservoir": (
         '["water"="reservoir"]["intermittent"!="yes"]',
         lambda t: t.get("water") == "reservoir" and t.get("intermittent") != "yes",
     ),
-    "water_tower": ('["man_made"="water_tower"]', lambda t: t.get("man_made") == "water_tower"),
     "stadium": ('["leisure"="stadium"]', lambda t: t.get("leisure") == "stadium"),
-    "quarry": ('["landuse"="quarry"]', lambda t: t.get("landuse") == "quarry"),
     "town": ('["place"~"^(city|town)$"]', lambda t: t.get("place") in ("city", "town")),
-    # "tower" and "vor" are deliberately absent -- both now come from
-    # vfr.faa_data (FAA DOF obstacles / NASR navaids) instead of OSM tags.
+    # "tower", "vor", "water_tower" and "quarry" are deliberately absent.
+    #
+    # tower/vor come from vfr.faa_data (FAA DOF obstacles / NASR navaids)
+    # instead of OSM tags -- the FAA is the authority on its own network,
+    # and DOF height/lighting data filters obstacles down to ones actually
+    # significant from the air.
+    #
+    # water_tower was dropped because a sectional draws every obstacle
+    # with the same symbol -- there is no water-tower symbol -- so from
+    # the chart alone you cannot tell one from any other tower, and the
+    # label is defined as a chart judgment. Checking the 17 this used to
+    # produce: 16 were not charted at all (nearest FAA obstacle 0.23 to
+    # 30 nm away), so they were unratable rather than merely ambiguous;
+    # the 1 that was charted duplicated a DOF entry 0.0014 nm away. The
+    # FAA already carries genuinely charted water towers as TANK
+    # obstacles, so nothing is lost.
+    #
+    # quarry went for the same reason one step further along: a sectional
+    # marks a mine or quarry with a crossed-pick symbol only where one is
+    # large and isolated enough to be a landmark, so most OSM
+    # landuse=quarry polygons -- gravel pits beside a county road -- have
+    # nothing drawn at all, and from the air a working pit reads as a
+    # bare patch indistinguishable from a field being cleared.
 }
 
 
 def build_overpass_query(bbox: tuple, specs: dict = CANDIDATE_SPECS, timeout_s: int = 60) -> str:
     """bbox = (min_lat, min_lon, max_lat, max_lon).
 
-    Uses `out bb;` rather than `out center;` so ways/relations come back
-    with a bounding box we can use to estimate footprint size (a lake
-    polygon's true area needs full geometry, but the bbox is enough to
-    tell a farm pond from a real lake).
+    Uses `out geom;` so ways/relations come back with full vertex
+    geometry. `out bb;` (and `out center;`, which is the same thing) only
+    gives a bounding box, and its centre is not a point on the feature --
+    for anything non-convex, a crescent lake or a bay, the marker lands
+    off the water entirely. See _representative_point.
+
+    The bounds Overpass still returns alongside the geometry are what
+    _bbox_area_m2 uses to tell a farm pond from a real lake; the true
+    polygon area isn't needed for that.
     """
     min_lat, min_lon, max_lat, max_lon = bbox
     bbox_str = f"{min_lat},{min_lon},{max_lat},{max_lon}"
@@ -65,7 +103,7 @@ def build_overpass_query(bbox: tuple, specs: dict = CANDIDATE_SPECS, timeout_s: 
         clauses.append(f"way{filt}({bbox_str});")
         clauses.append(f"relation{filt}({bbox_str});")
     body = "\n".join(clauses)
-    return f"[out:json][timeout:{timeout_s}];\n(\n{body}\n);\nout bb;"
+    return f"[out:json][timeout:{timeout_s}];\n(\n{body}\n);\nout geom;"
 
 
 def _post_overpass_query(query: str, retries: int = 3) -> dict:
@@ -108,6 +146,66 @@ def _bbox_area_m2(bounds: dict) -> float:
     return (width_nm * 1852.0) * (height_nm * 1852.0)
 
 
+def _representative_point(el: dict) -> tuple | None:
+    """A (lat, lon) that actually lies on the feature, or None if the
+    element's geometry can't be assembled into one.
+
+    shapely's representative_point() is the point of this: unlike
+    centroid(), it is guaranteed to fall *inside* the polygon, which is
+    exactly the property a map marker needs. A centroid is fine for a
+    blob and wrong for a crescent-shaped lake.
+
+    Relations are multipolygons whose outer ring is often split across
+    several member ways, so the members are stitched back together with
+    polygonize() rather than assumed to be one closed loop. Where a
+    relation yields several polygons (a lake with islands, a chain of
+    pools), the largest is the one worth flying to.
+    """
+    from shapely.geometry import LineString, Polygon
+    from shapely.ops import polygonize, unary_union
+
+    def _coords(geometry):
+        return [(p["lon"], p["lat"]) for p in geometry if p.get("lat") is not None]
+
+    shapes = []
+    if el["type"] == "way" and el.get("geometry"):
+        coords = _coords(el["geometry"])
+        if len(coords) >= 4 and coords[0] == coords[-1]:
+            shapes.append(Polygon(coords))
+        elif len(coords) >= 2:
+            shapes.append(LineString(coords))
+    elif el["type"] == "relation":
+        lines = [
+            LineString(_coords(m["geometry"]))
+            for m in el.get("members", [])
+            if m.get("role") in (None, "", "outer") and len(_coords(m.get("geometry") or [])) >= 2
+        ]
+        polys = list(polygonize(lines))
+        shapes.extend(polys or lines)
+
+    shapes = [s for s in shapes if not s.is_empty]
+    if not shapes:
+        return None
+
+    areas = [s.area for s in shapes]
+    shape = shapes[areas.index(max(areas))] if max(areas) > 0 else unary_union(shapes)
+    point = shape.representative_point()
+    return (point.y, point.x)
+
+
+def _bounds_from_geometry(el: dict) -> dict | None:
+    """Fall back to deriving bounds from the geometry, for the rare
+    element Overpass returns without a bounds block."""
+    points = list(el.get("geometry") or [])
+    for member in el.get("members", []):
+        points.extend(member.get("geometry") or [])
+    lats = [p["lat"] for p in points if p.get("lat") is not None]
+    lons = [p["lon"] for p in points if p.get("lon") is not None]
+    if not lats or not lons:
+        return None
+    return {"minlat": min(lats), "maxlat": max(lats), "minlon": min(lons), "maxlon": max(lons)}
+
+
 def parse_overpass_response(response: dict, specs: dict = CANDIDATE_SPECS) -> pd.DataFrame:
     """Flattens query_overpass's raw response into one row per candidate
     feature, categorized (see _category_for_tags) and with a bbox_area_m2
@@ -119,12 +217,20 @@ def parse_overpass_response(response: dict, specs: dict = CANDIDATE_SPECS) -> pd
         if el["type"] == "node":
             lat, lon = el.get("lat"), el.get("lon")
             bbox_area_m2 = 0.0
-        elif bounds:
-            lat = (bounds["minlat"] + bounds["maxlat"]) / 2
-            lon = (bounds["minlon"] + bounds["maxlon"]) / 2
-            bbox_area_m2 = _bbox_area_m2(bounds)
         else:
-            continue
+            bounds = bounds or _bounds_from_geometry(el)
+            if not bounds:
+                continue
+            bbox_area_m2 = _bbox_area_m2(bounds)
+            point = _representative_point(el)
+            if point is not None:
+                lat, lon = point
+            else:
+                # Geometry that won't assemble into a shape at all: the
+                # bbox centre is wrong for anything non-convex, but it's
+                # better than dropping the candidate outright.
+                lat = (bounds["minlat"] + bounds["maxlat"]) / 2
+                lon = (bounds["minlon"] + bounds["maxlon"]) / 2
         if lat is None or lon is None:
             continue
         rows.append(
@@ -180,6 +286,13 @@ def _lerp_point(p1: tuple, p2: tuple, t: float) -> tuple:
 
 _LINE_CROSSING_COLUMNS = ["osm_id", "osm_type", "name", "lat", "lon", "bbox_area_m2", "tags"]
 
+# Crossings closer together than this are the same checkpoint as far as a
+# pilot is concerned -- a meandering river can weave back over the course
+# line three times inside 100 m, and at 120 kt that's a couple of seconds.
+# Collapsing them stops the same feature being offered for labeling
+# repeatedly, and stops one label being joined onto several training rows.
+MIN_CROSSING_SEPARATION_NM = 0.5
+
 
 def find_line_crossings(ways: list, route_start: tuple, route_end: tuple) -> pd.DataFrame:
     """Resolve each way's crossing point(s) with the route's great-circle
@@ -190,6 +303,13 @@ def find_line_crossings(ways: list, route_start: tuple, route_end: tuple) -> pd.
     river/track can cross more than once, so this can emit multiple rows
     per way. `category` is left for the caller to assign, since this is
     shared by rivers and railroads.
+
+    Crossings within MIN_CROSSING_SEPARATION_NM of one already kept are
+    dropped as the same checkpoint. Those that survive get distinct ids
+    ("<way id>#2", "#3", ...) because osm_id is what labels join on: left
+    identical, a single rating would be joined onto every crossing of that
+    river and silently counted several times over. The first crossing
+    keeps the bare way id so existing labels still match.
     """
     rows = []
     for way in ways:
@@ -200,6 +320,8 @@ def find_line_crossings(ways: list, route_start: tuple, route_end: tuple) -> pd.
         cross_tracks = [
             cross_track_distance_nm(pt["lat"], pt["lon"], route_start, route_end) for pt in geometry
         ]
+
+        crossings = []
         for i in range(len(geometry) - 1):
             ct1, ct2 = cross_tracks[i], cross_tracks[i + 1]
             if (ct1 < 0) == (ct2 < 0):
@@ -210,9 +332,17 @@ def find_line_crossings(ways: list, route_start: tuple, route_end: tuple) -> pd.
                 (geometry[i + 1]["lat"], geometry[i + 1]["lon"]),
                 t,
             )
+            if any(
+                distance_nm(lat, lon, kept_lat, kept_lon) < MIN_CROSSING_SEPARATION_NM
+                for kept_lat, kept_lon in crossings
+            ):
+                continue
+            crossings.append((lat, lon))
+
+        for n, (lat, lon) in enumerate(crossings):
             rows.append(
                 {
-                    "osm_id": way["id"],
+                    "osm_id": way["id"] if n == 0 else f"{way['id']}#{n + 1}",
                     "osm_type": "way",
                     "name": tags.get("name"),
                     "lat": lat,

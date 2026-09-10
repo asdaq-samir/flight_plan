@@ -1,0 +1,8 @@
+osm_id,osm_type,name,category,rating
+4057942,relation,nan,lake_or_pond,1
+43028725,way,nan,lake_or_pond,2
+353894200,node,Perkinstown Lookout Tower,tower,2
+dof-3347,faa_obstacle,TOWER (PARKLAND),tower,5
+1213414123,way,nan,lake_or_pond,1
+1237546887,way,McMillan Reservoir,lake_or_pond,1
+1287588405,way,nan,lake_or_pond,1
