@@ -38,6 +38,9 @@
     /* Anything clickable -- markers and the course line -- points. */
     #map .leaflet-interactive{cursor:pointer}
     #side{width:300px;border-left:1px solid var(--line);overflow-y:auto;background:var(--panel)}
+    #pickbreak{display:flex;flex-wrap:wrap;gap:2px 12px;padding:5px 12px;
+      border-bottom:1px solid var(--rule);color:var(--muted);font-size:12px;background:#fff}
+    #pickbreak:empty{display:none}
     h2 .count{float:right;letter-spacing:0;text-transform:none;font-weight:400}
     h2 .count b{color:var(--ink);font-weight:700}
     h2{margin:0;padding:7px 12px;font-size:11px;letter-spacing:.07em;text-transform:uppercase;
@@ -141,6 +144,7 @@
     <div id="map"></div>
     <div id="side">
       <h2>Picks <span class="count" id="pickcount"></span></h2>
+      <div id="pickbreak"></div>
       <div id="list"></div>
     </div>
   </div>
@@ -513,20 +517,27 @@ function renderStats(body) {
   // screen; "kept" and "skipped" were words for rated-1-to-5 and
   // rated-0, and skipped in particular suggests passing over something
   // rather than judging it not a feature at all.
+  // The banner is about the leg and what the chart offered on it.
+  // Progress through the picks lives with the picks, which is the thing
+  // actually being built here.
   const onChart = detections.filter(visible).length;
   const hidden = detections.length - onChart;
   el("stats").innerHTML =
     `<b>${course.distance_nm}</b> nm · <b>${onChart}</b> on chart` +
     (hidden ? ` <span style="color:var(--muted)">(${hidden} visual hidden)</span>` : "") +
-    ` · <b>${s.accepted||0}</b> rated · <b>${s.rejected||0}</b> not a feature` +
     (c.missing ? ` · <span style="color:var(--warn)">${c.missing} tiles outside chart coverage</span>` : "");
 
   // The DR/visual split belongs beside the list it describes, not in the
   // banner -- it is a property of the picks, and reading it two panels
   // away from them made it just another number in a row of them.
-  el("pickcount").innerHTML = s.total
-    ? `<b>${s.total}</b> · ${roles.dr||0} DR / ${roles.visual||0} visual` +
-      (s.added ? ` · ${s.added} added` : "")
+  el("pickcount").innerHTML = s.total ? `<b>${s.total}</b>` : "";
+  // Where each pick came from, and what job it does. Two different
+  // splits of the same list, so they sit together under it rather than
+  // being crammed into the heading.
+  const fromChart = (s.accepted || 0) + (s.rejected || 0);
+  el("pickbreak").innerHTML = s.total
+    ? `<span>${fromChart} off the chart</span><span>${s.added || 0} yours</span>` +
+      `<span>${roles.dr || 0} DR</span><span>${roles.visual || 0} visual</span>`
     : "";
 }
 
