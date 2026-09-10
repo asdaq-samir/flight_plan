@@ -25,8 +25,11 @@
       border:1px solid var(--accent);background:var(--accent);color:#fff}
     form button:disabled{opacity:.5;cursor:progress}
     #stats{color:var(--muted);font-variant-numeric:tabular-nums}
-    #rolefilter{font:600 12px inherit;padding:3px 6px;border:1px solid var(--line);
-      border-radius:6px;background:#fff;color:var(--ink);cursor:pointer}
+    #filters{display:inline-flex;align-items:center;gap:10px;font-size:12.5px}
+    #filters label{display:inline-flex;align-items:center;gap:4px;cursor:pointer;
+      color:var(--ink);user-select:none}
+    #filters input{cursor:pointer;margin:0}
+    #filters .fsep{width:1px;height:14px;background:var(--line)}
     #stats b{color:var(--ink)}
     #middle{flex:1;min-height:0;display:flex;position:relative}
     /* Messages float over the map rather than sitting in the header. In
@@ -154,11 +157,13 @@
       <button type="submit">Load</button>
     </form>
     <span id="stats"></span>
-    <select id="rolefilter" title="Which waypoints to show and count (v cycles)">
-      <option value="dr">DR</option>
-      <option value="visual">visual</option>
-      <option value="all">DR + visual</option>
-    </select>
+    <span id="filters" title="Which waypoints to show and count">
+      <label><input type="checkbox" id="f-dr"> DR</label>
+      <label><input type="checkbox" id="f-visual"> visual</label>
+      <span class="fsep"></span>
+      <label><input type="checkbox" id="f-provided"> provided</label>
+      <label><input type="checkbox" id="f-added"> added</label>
+    </span>
   </header>
 
   <div id="middle">
@@ -206,7 +211,7 @@
       <span><kbd>Del</kbd> remove · click the course to add · right-click anywhere</span>
     </div>
     <div class="frow minor">
-      <span><kbd>v</kbd> cycles the waypoint filter</span>
+      <span><kbd>v</kbd> visual references on/off</span>
       <span><kbd>t</kbd> basemap: <b id="basemap">FAA sectional</b></span>
       <button type="button" id="legend-toggle" class="viewbtn" style="margin-left:auto">Hide scale</button>
     </div>
@@ -339,13 +344,13 @@ const WALK_ZOOM = 11;
 
 // Dead-reckoning checkpoints are the job; visual references are a
 // separate pass and clutter the first one. Hidden until v.
-// Which points are on the chart. Was a boolean for "show visual
-// references too", which could only ever express two of the three things
-// worth looking at -- there was no way to see the visual pass on its own.
-const ROLE_FILTERS = [
-  ["dr", "DR"], ["visual", "visual"], ["all", "DR + visual"],
-];
-let roleFilter = "dr";
+// Which points are on the chart, along two independent axes: what job a
+// point does, and where it came from. A single filter could only ever
+// answer one of those at a time, so there was no way to ask the question
+// that matters most -- which waypoints did the detector miss -- by
+// looking at added points alone.
+const FILTER_KEYS = ["dr", "visual", "provided", "added"];
+let filters = { dr: true, visual: false, provided: true, added: true };
 
 // A detection has no stored role until it is judged, so infer the same
 // way the server does: on course means you fly over it.
@@ -353,22 +358,31 @@ function roleOf(d) {
   return d.role || (Math.abs(d.cross_track_nm ?? 0) <= 0.5 ? "dr" : "visual");
 }
 
-function visible(d) {
-  return roleFilter === "all" || roleOf(d) === roleFilter;
+// Anything the detector put on the chart is "provided", including a pick
+// made against one that has since drifted out of matching range. Only a
+// point placed by hand is "added".
+function sourceOf(d) {
+  return d.source === "added" ? "added" : "provided";
 }
 
-function setRoleFilter(next) {
-  roleFilter = next;
-  const select = el("rolefilter");
-  if (select) select.value = next;
-  try { localStorage.setItem("roleFilter", next); } catch {}
+function visible(d) {
+  return filters[roleOf(d)] && filters[sourceOf(d)];
+}
+
+function setFilter(key, on) {
+  filters[key] = on;
+  const box = el(`f-${key}`);
+  if (box) box.checked = on;
+  try { localStorage.setItem("filters", JSON.stringify(filters)); } catch {}
   renderMarkers();
   if (lastSummary) renderStats({ summary: lastSummary, coverage: lastCoverage });
 }
 
+// v is still the quick way through: it flips visual on and off, which is
+// the switch reached for most.
 function cycleRoleFilter() {
-  const at = ROLE_FILTERS.findIndex(([value]) => value === roleFilter);
-  setRoleFilter(ROLE_FILTERS[(at + 1) % ROLE_FILTERS.length][0]);
+  setFilter("visual", !filters.visual);
+  flash(filters.visual ? "Showing visual references" : "Dead-reckoning only");
 }
 const FOCUS_ZOOM = 12;
 
@@ -1199,12 +1213,15 @@ function setLegend(hidden) {
   el("legend-toggle").textContent = hidden ? "Show scale" : "Hide scale";
   try { localStorage.setItem("legendHidden", hidden ? "1" : "0"); } catch {}
 }
-el("rolefilter").addEventListener("change", (e) => setRoleFilter(e.target.value));
 try {
-  const saved = localStorage.getItem("roleFilter");
-  if (saved && ROLE_FILTERS.some(([v]) => v === saved)) setRoleFilter(saved);
-  else el("rolefilter").value = roleFilter;
-} catch { el("rolefilter").value = roleFilter; }
+  const saved = JSON.parse(localStorage.getItem("filters") || "null");
+  if (saved) FILTER_KEYS.forEach(k => { if (k in saved) filters[k] = !!saved[k]; });
+} catch { /* first run, or storage refused */ }
+FILTER_KEYS.forEach(key => {
+  const box = el(`f-${key}`);
+  box.checked = filters[key];
+  box.addEventListener("change", () => setFilter(key, box.checked));
+});
 
 el("legend-toggle").addEventListener("click",
   () => setLegend(el("legend").className !== "hidden"));
