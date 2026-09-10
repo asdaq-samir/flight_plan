@@ -194,7 +194,10 @@
       <span id="dist"></span>
     </div>
     <div class="hrow">
-      <span id="stats"></span>
+      <!-- Ships with its label and a zero rather than empty. An empty
+           span has no width, so the filters beside it jumped right the
+           moment the first count arrived. -->
+      <span id="stats">Showing: <b class="num">0</b></span>
       <span id="filters" title="Which waypoints to show and count">
         <label><input type="checkbox" id="f-dr"> DR</label>
         <label><input type="checkbox" id="f-visual"> visual</label>
