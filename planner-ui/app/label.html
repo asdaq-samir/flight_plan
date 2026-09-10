@@ -420,20 +420,38 @@ function hiddenNote(picks) {
   return `${hidden} waypoint${hidden === 1 ? "" : "s"} unselected — tick to show`;
 }
 
+// What each box is called when a message names it.
+const FILTER_NAMES = {
+  dr: "DR", visual: "visual", provided: "provided",
+  added: "added", rated: "rated", unrated: "unrated",
+};
+
 function setFilter(key, on) {
+  // Counted before and after rather than by asking how many points carry
+  // the box's own label: the axes compound, so ticking "rated" while
+  // "visual" is off reveals only the rated DR ones, and the honest
+  // number is how many appeared, not how many exist.
+  const before = countShown();
   filters[key] = on;
   const box = el(`f-${key}`);
   if (box) box.checked = on;
   try { localStorage.setItem("filters", JSON.stringify(filters)); } catch {}
   renderMarkers();
   if (lastSummary) renderStats({ summary: lastSummary, coverage: lastCoverage });
+
+  const moved = Math.abs(countShown() - before);
+  flash(`${on ? "Showing" : "Hiding"} ${moved} ${FILTER_NAMES[key]} ` +
+        `waypoint${moved === 1 ? "" : "s"}`);
+}
+
+function countShown() {
+  return detections.filter(visible).length + added.filter(visible).length;
 }
 
 // v is still the quick way through: it flips visual on and off, which is
 // the switch reached for most.
 function cycleRoleFilter() {
   setFilter("visual", !filters.visual);
-  flash(filters.visual ? "Showing visual references" : "Dead-reckoning only");
 }
 const FOCUS_ZOOM = 12;
 
