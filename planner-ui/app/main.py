@@ -37,7 +37,7 @@ from pydantic import BaseModel
 
 from vfr import aircraft as aircraft_module
 from vfr import airports, altitude as altitude_module, checkpoints as checkpoint_selection
-from vfr import geo, labeling, navlog, pipeline
+from vfr import chartlabels, chartvision, geo, labeling, navlog, pipeline
 from vfr.config import DATA_DIR
 
 MODEL_SERVICE_URL = os.environ.get("MODEL_SERVICE_URL", "http://model-service:8000")
@@ -47,6 +47,7 @@ DEFAULT_AIRCRAFT = "c172"
 app = FastAPI(title="vfr-route planner")
 
 _INDEX = Path(__file__).resolve().parent / "index.html"
+_LABEL = Path(__file__).resolve().parent / "label.html"
 
 # job id -> {"state": queued|running|done|failed, "step", "detail", ...}
 # In-memory on purpose: a build is only meaningful to the page that
@@ -301,3 +302,141 @@ def build_status(job_id: str) -> dict:
     if job is None:
         raise HTTPException(404, f"No build job {job_id}")
     return {"job_id": job_id, **job}
+
+
+# ---------------------------------------------------------------------
+# Chart-vision path: the fast one. Nothing below touches Overpass, the
+# FAA subscription or the elevation service.
+# ---------------------------------------------------------------------
+
+
+class Pick(BaseModel):
+    departure_ident: str
+    destination_ident: str
+    lat: float
+    lon: float
+    source: str = "detected"   # "detected" (the CV found it) or "added" (it missed it)
+    category: str = "water"
+    rating: int | None = None  # 1-5, or 0/None for "detected but I would not use it"
+    area_m2: float | None = None
+    note: str | None = None
+
+
+@app.get("/label")
+def label_page() -> FileResponse:
+    return FileResponse(_LABEL)
+
+
+@app.get("/api/course")
+def course(dep: str, dest: str) -> dict:
+    """Just the course line and its endpoints.
+
+    Separate from detection so the chart can draw a line the instant two
+    idents are entered. Reading tiles takes seconds even on the fast
+    path, and there is no reason a pilot should watch an empty map for
+    them.
+    """
+    dep_ident, dest_ident = _route_key(dep, dest)
+    dep_airport, dest_airport = _resolve(dep_ident, dest_ident)
+    start = (dep_airport["lat"], dep_airport["lon"])
+    end = (dest_airport["lat"], dest_airport["lon"])
+    return {
+        "departure": {"ident": dep_ident, "name": dep_airport["name"], "lat": start[0], "lon": start[1]},
+        "destination": {"ident": dest_ident, "name": dest_airport["name"], "lat": end[0], "lon": end[1]},
+        "distance_nm": round(geo.distance_nm(start[0], start[1], end[0], end[1]), 1),
+        "bearing_deg": round(geo.bearing_deg(start[0], start[1], end[0], end[1])),
+        "course_line": _course_line(start, end),
+        "tile_url": labeling.FAA_VFR_SECTIONAL_URL,
+        "max_zoom": labeling.VFR_SECTIONAL_MAX_ZOOM,
+        "min_zoom": labeling.VFR_SECTIONAL_MIN_ZOOM,
+    }
+
+
+@app.get("/api/detect")
+def detect(dep: str, dest: str, half_width_nm: float = 1.0) -> dict:
+    """Landmarks read straight off the sectional for this corridor."""
+    dep_ident, dest_ident = _route_key(dep, dest)
+    dep_airport, dest_airport = _resolve(dep_ident, dest_ident)
+    start = (dep_airport["lat"], dep_airport["lon"])
+    end = (dest_airport["lat"], dest_airport["lon"])
+
+    result = chartvision.landmarks_along_route(start, end, half_width_nm=half_width_nm)
+    route = chartlabels.route_key(dep_ident, dest_ident)
+    picks = chartlabels.load_picks(route)
+
+    detections = []
+    for landmark in result["landmarks"]:
+        existing = chartlabels.find_existing(route, landmark.lat, landmark.lon)
+        detections.append(
+            {
+                "lat": landmark.lat,
+                "lon": landmark.lon,
+                "category": landmark.category,
+                "area_m2": round(landmark.area_m2, 1),
+                "score": landmark.score,
+                "along_track_nm": round(landmark.extras["along_track_nm"], 2),
+                "cross_track_nm": round(landmark.extras["cross_track_nm"], 3),
+                "rating": existing["rating"] if existing else None,
+                "judged": existing is not None,
+            }
+        )
+
+    return {
+        "route": route,
+        "detections": detections,
+        # Picks with no detection under them are the misses -- the whole
+        # reason this labeling mode exists.
+        "added": [p for p in picks if p["source"] == "added"],
+        "coverage": {
+            "tiles": result["tiles"],
+            "missing": result["tiles_missing"],
+            "fetched": result["tiles_fetched"],
+            "cached": result["tiles_cached"],
+        },
+        "summary": chartlabels.summarise(route),
+    }
+
+
+@app.post("/api/picks")
+def add_pick(pick: Pick) -> dict:
+    dep_ident, dest_ident = _route_key(pick.departure_ident, pick.destination_ident)
+    dep_airport, dest_airport = _resolve(dep_ident, dest_ident)
+    start = (dep_airport["lat"], dep_airport["lon"])
+    end = (dest_airport["lat"], dest_airport["lon"])
+
+    if pick.source not in ("detected", "added"):
+        raise HTTPException(422, "source must be 'detected' or 'added'")
+    if pick.rating is not None and not (0 <= pick.rating <= 5):
+        raise HTTPException(422, "rating must be 0-5, where 0 means 'would not use'")
+
+    route = chartlabels.route_key(dep_ident, dest_ident)
+    saved = chartlabels.save_pick(
+        {
+            "route": route,
+            "source": pick.source,
+            "category": pick.category,
+            "lat": pick.lat,
+            "lon": pick.lon,
+            "along_track_nm": round(geo.along_track_distance_nm(pick.lat, pick.lon, start, end), 2),
+            "cross_track_nm": round(geo.cross_track_distance_nm(pick.lat, pick.lon, start, end), 3),
+            "rating": pick.rating,
+            "area_m2": pick.area_m2,
+            "note": pick.note,
+        }
+    )
+    return {"ok": True, "pick": saved, "summary": chartlabels.summarise(route)}
+
+
+@app.delete("/api/picks")
+def remove_pick(dep: str, dest: str, lat: float, lon: float) -> dict:
+    dep_ident, dest_ident = _route_key(dep, dest)
+    route = chartlabels.route_key(dep_ident, dest_ident)
+    removed = chartlabels.delete_pick(route, lat, lon)
+    return {"ok": removed, "summary": chartlabels.summarise(route)}
+
+
+@app.get("/api/picks")
+def list_picks(dep: str, dest: str) -> dict:
+    route = chartlabels.route_key(*_route_key(dep, dest))
+    return {"route": route, "picks": chartlabels.load_picks(route),
+            "summary": chartlabels.summarise(route)}
