@@ -165,7 +165,7 @@
     <span><kbd>0</kbd> skip</span>
     <span><kbd>t</kbd> basemap: <b id="basemap">FAA sectional</b></span>
     <span><kbd>Esc</kbd> deselect</span>
-    <span><kbd>&uarr;</kbd><kbd>&darr;</kbd> step through points</span>
+    <span><kbd>&uarr;</kbd><kbd>&darr;</kbd> step along the map · <kbd>&larr;</kbd><kbd>&rarr;</kbd> along the route</span>
     <button type="button" id="fit" class="viewbtn">Fit route <kbd>f</kbd></button>
     <button type="button" id="recentre" class="viewbtn">Zoom to marker <kbd>c</kbd></button>
     <span style="margin-left:auto"><kbd>w</kbd> <b>walk unjudged</b> · <kbd>n</kbd> next · <kbd>p</kbd> previous</span>
@@ -279,6 +279,14 @@ function orderedPoints() {
     .concat(added.map((a, i) => ({ d: a, kind: "added", i })))
     .filter(x => x.d.along_track_nm !== null && x.d.along_track_nm !== undefined)
     .sort((a, b) => a.d.along_track_nm - b.d.along_track_nm);
+}
+
+// Whether flying the route takes you up the screen. Derived from the
+// course rather than assumed, so a southbound leg reverses it.
+function forwardIsUp() {
+  if (!course) return true;
+  const bearing = ((course.bearing_deg % 360) + 360) % 360;
+  return bearing < 90 || bearing > 270;
 }
 
 function step(delta) {
@@ -700,8 +708,15 @@ document.addEventListener("keydown", (e) => {
   if (e.key === "t") return toggleBasemap();
   if (e.key === "f") return fitRoute();
   if (e.key === "c") return centreOnSelection();
-  if (e.key === "ArrowDown" || e.key === "ArrowRight") { e.preventDefault(); return step(1); }
-  if (e.key === "ArrowUp" || e.key === "ArrowLeft") { e.preventDefault(); return step(-1); }
+  // Up and Down are spatial: they move the way the map moves, not the
+  // way the route is indexed. C81->KDLH runs south to north, so advancing
+  // along it walks *up* the screen -- binding that to Down felt backwards
+  // because it was. Left and Right stay route-ordered, where "right" for
+  // next is the usual convention and no screen direction is implied.
+  if (e.key === "ArrowUp") { e.preventDefault(); return step(forwardIsUp() ? 1 : -1); }
+  if (e.key === "ArrowDown") { e.preventDefault(); return step(forwardIsUp() ? -1 : 1); }
+  if (e.key === "ArrowRight") { e.preventDefault(); return step(1); }
+  if (e.key === "ArrowLeft") { e.preventDefault(); return step(-1); }
   if (e.key === "Escape") { walking = false; return deselect(); }
   if (e.key === "w") return startWalk();
   if (walking && (e.key === "n" || e.key === " ")) { e.preventDefault(); return walkTo(1); }
