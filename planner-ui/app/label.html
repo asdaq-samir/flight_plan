@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Pick checkpoints on the chart</title>
+  <title>Route — pick checkpoints</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <style>
@@ -38,6 +38,8 @@
     /* Anything clickable -- markers and the course line -- points. */
     #map .leaflet-interactive{cursor:pointer}
     #side{width:300px;border-left:1px solid var(--line);overflow-y:auto;background:var(--panel)}
+    h2 .count{float:right;letter-spacing:0;text-transform:none;font-weight:400}
+    h2 .count b{color:var(--ink);font-weight:700}
     h2{margin:0;padding:7px 12px;font-size:11px;letter-spacing:.07em;text-transform:uppercase;
       color:var(--muted);background:#fff;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5}
     .row{padding:7px 12px;border-bottom:1px solid var(--rule);cursor:pointer;font-size:13px}
@@ -93,7 +95,7 @@
 </head>
 <body>
   <header>
-    <span class="brand">Pick checkpoints</span>
+    <span class="brand">Route</span>
     <form id="form" autocomplete="off">
       <input id="dep" placeholder="DEP" spellcheck="false" aria-label="Departure">
       <span>&rarr;</span>
@@ -138,7 +140,7 @@
   <div id="middle">
     <div id="map"></div>
     <div id="side">
-      <h2>Picks</h2>
+      <h2>Picks <span class="count" id="pickcount"></span></h2>
       <div id="list"></div>
     </div>
   </div>
@@ -503,12 +505,21 @@ async function loadDetections(dep, dest) {
 function renderStats(body) {
   const s = body.summary || {};
   const c = body.coverage || {};
+  const roles = s.by_role || {};
+
+  // The banner answers "what am I looking at": the leg, and how much of
+  // it has been read and judged.
   el("stats").innerHTML =
     `<b>${course.distance_nm}</b> nm · <b>${detections.length}</b> detected · ` +
-    `<b>${s.accepted||0}</b> kept · <b>${s.rejected||0}</b> skipped · ` +
-    `<b style="color:var(--add)">${s.added||0}</b> added · ` +
-    `${(s.by_role||{}).dr||0} DR / ${(s.by_role||{}).visual||0} visual` +
+    `<b>${s.accepted||0}</b> kept · <b>${s.rejected||0}</b> skipped` +
     (c.missing ? ` · <span style="color:var(--warn)">${c.missing} tiles outside chart coverage</span>` : "");
+
+  // The DR/visual split belongs beside the list it describes, not in the
+  // banner -- it is a property of the picks, and reading it two panels
+  // away from them made it just another number in a row of them.
+  el("pickcount").innerHTML = s.total
+    ? `<b>${s.total}</b> · ${roles.dr||0} DR / ${roles.visual||0} visual`
+    : "";
 }
 
 function renderMarkers() {
