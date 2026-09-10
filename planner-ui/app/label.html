@@ -251,6 +251,13 @@ let course = null, courseLayer = null, endsLayer = null;
 let detLayer = null, addLayer = null;
 let detections = [], added = [], selected = null, detecting = false;
 
+// The last thing renderStats was told, so anything that changes only
+// what is *shown* can redraw the banner without refetching. Declared up
+// here with the rest of the state: setFilter is defined well above where
+// these used to sit, and a `let` is unreachable before its declaration
+// runs.
+let lastCoverage = {}, lastSummary = null;
+
 // The departure and destination, as points you can step onto. They are
 // not picks and are never saved: a nav log runs from one airport to the
 // other, and the checkpoints are what goes between them, so they belong
@@ -437,7 +444,7 @@ function setFilter(key, on) {
   if (box) box.checked = on;
   try { localStorage.setItem("filters", JSON.stringify(filters)); } catch {}
   renderMarkers();
-  if (lastSummary) renderStats({ summary: lastSummary, coverage: lastCoverage });
+  renderStats({});
 
   const moved = Math.abs(countShown() - before);
   flash(`${on ? "Showing" : "Hiding"} ${moved} ${FILTER_NAMES[key]} ` +
@@ -774,8 +781,14 @@ async function loadDetections(dep, dest) {
 }
 
 function renderStats(body) {
-  const s = body.summary || {};
-  const c = body.coverage || {};
+  // Remembered here rather than by every caller. lastSummary was only
+  // being set on one path, so the streaming load left it null and the
+  // banner's guard silently skipped every redraw a checkbox asked for --
+  // the count sat still while the map changed under it.
+  lastSummary = body.summary || lastSummary;
+  lastCoverage = body.coverage || lastCoverage;
+  const s = lastSummary || {};
+  const c = lastCoverage || {};
   const roles = s.by_role || {};
 
   // Counted through the same filter that decides what is drawn, so the
@@ -1038,7 +1051,6 @@ async function judge(rating, opts = {}) {
 }
 
 
-let lastCoverage = {}, lastSummary = null;
 function refreshStats(summary) {
   lastSummary = summary;
   renderStats({ summary, coverage: lastCoverage });
