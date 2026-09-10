@@ -76,7 +76,7 @@ explicit path to production on AWS.
 
 ### Architecture
 
-The system runs today as nine Docker services:
+The system runs today as ten Docker services:
 
 | Service | Role |
 |---|---|
@@ -88,6 +88,7 @@ The system runs today as nine Docker services:
 | `airflow` | Orchestrates the ML training pipeline |
 | `pipeline-processing` / `pipeline-training` | Data collection, feature engineering, and model training, run as isolated jobs |
 | `ml` | Jupyter environment for model development and experimentation |
+| `labeling-ui` | Keyboard-driven UI for rating checkpoint spottability against FAA sectional charts |
 
 ![Current local architecture](architecture-current.svg)
 
@@ -130,9 +131,9 @@ works too. AWS counterpart: `architecture-aws.drawio`, rendered in
 ![Go](https://img.shields.io/badge/Go%20Lambda-00ADD8?style=flat-square&logo=go&logoColor=white)
 
 **Live data sources** (no logos, but they're where the domain accuracy
-comes from): OpenStreetMap via the Overpass API, FAA NASR/DOF datasets,
-FAA Class B/C/D airspace shapefiles, and NOAA aviation weather plus the
-magnetic-declination model.
+comes from): OpenStreetMap via the Overpass API, FAA NASR airport,
+navaid and obstacle datasets, FAA Class B/C/D airspace shapefiles, and
+NOAA aviation weather plus the magnetic-declination model.
 
 ## Services & Data Design
 
@@ -141,7 +142,10 @@ magnetic-declination model.
 **`model-service`** — FastAPI model-serving endpoint.
 
 - `/ping` (health) and `/invocations` (inference) — matches the SageMaker serving container contract
-- Currently returns representative stub output — see [Status](#status)
+- Real inference against the promoted RandomForest, loaded from `/opt/ml/model`
+  (SageMaker's own path, bind-mounted from `data/models/current`)
+- Serves the precomputed feature store for one corridor; another route returns 400,
+  since building features means re-running collection — a batch job, not an inference call
 - Interactive API docs (a FastAPI default) at `http://localhost:8000/docs`, raw spec at `/openapi.json`
 
 **`springboot-app` (webapp)** — the public-facing route-planning API.
@@ -242,11 +246,14 @@ working end to end. The AWS side is fully written and validated
 — see [`README-AWS.md`](README-AWS.md). Two things remain, and neither is
 an engineering gap:
 
-- **A real trained model.** `retrain()` has a hard floor of 30 labeled
-  rows; chart-based labeling currently has 2-3. This is a data-collection
-  task rather than a code path — until it clears, `model-service` returns
-  representative stub output, which already exercises every other piece
-  of the system end to end.
+- **More labels, and a second route.** All 206 candidates on C81→KDLH
+  are hand-labeled against the sectional and a RandomForest is trained,
+  promoted and served — the pipeline runs end to end. What that model
+  cannot yet show is *generalization*: every label comes from one
+  corridor, so there is no held-out route to prove it transfers. Route
+  position was dropped from the feature set for exactly this reason (see
+  `FEATURE_COLS_BASE`), and labeling a second corridor with
+  `docker compose up labeling-ui` (port 8083) is what would settle it.
 - **A live AWS deployment.** No AWS account exists in this project's
   environment. Everything that can be verified without one — template
   validity, image builds, DAG correctness — has been; an actual
@@ -365,7 +372,7 @@ breakdown is in the [Appendix](#appendix).
 | Command | What it does | Port |
 |---|---|---|
 | `docker compose up db` | PostgreSQL + pgvector | `5432` |
-| `docker compose up model-service` | FastAPI model-serving stub | `8000` |
+| `docker compose up model-service` | FastAPI model serving; needs a promoted model | `8000` |
 | `docker compose up webapp` | Spring Boot API; brings up `db`+`model-service` too | `8080` |
 | `docker compose up ml` | Jupyter, for notebooks 01-08 | `8888` (token `vfr`) |
 | `docker compose run --rm pipeline-processing collect` | Runs `pipeline.collect()` | — |
@@ -375,6 +382,7 @@ breakdown is in the [Appendix](#appendix).
 | `docker compose up airflow` | Orchestrates the full pipeline as a DAG | `8081` |
 | `docker compose up nav-log-agent` | LangGraph MCP server (needs `ANTHROPIC_API_KEY`) | `8082` |
 | `docker compose run --rm crewai-agent --departure-ident C81 --destination-ident KDLH` | One-shot CrewAI CLI (needs `ANTHROPIC_API_KEY`) | — |
+| `docker compose up labeling-ui` | Spottability labeling UI (see [Status](#status)) | `8083` |
 
 Notes:
 

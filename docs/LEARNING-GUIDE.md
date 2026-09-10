@@ -217,15 +217,34 @@ This is the exact shape Section 3's Airflow DAG automates, task for task.
 ### Collect → raw candidates
 
 `collect()` pulls real-world geographic features along a flight corridor
-(rivers, railroads, road intersections, lakes, wind farms, VOR navaids,
-obstacles) from OpenStreetMap's Overpass API and FAA NASR/DOF datasets,
-filters them to a corridor around a straight line between two airports,
+(rivers, railroads, road intersections, named lakes, wind farms, towns,
+stadiums, plus airports and VOR navaids) from OpenStreetMap's Overpass
+API and the FAA's NASR data, filters them to a corridor around a
+straight line between two airports,
 and writes them to `data/processed/candidates_c81_kdlh.csv`. If you're new
 to geospatial code, the two ideas worth understanding here are
 **cross-track distance** (how far off the direct line a point is) and
 **along-track distance** (how far along the line, projected) — both live
 in [`src/vfr/geo.py`](../src/vfr/geo.py) and are standard great-circle
 navigation math, not anything ML-specific.
+
+Which categories are collected is itself a data-quality decision, and the
+rule is narrower than "anything visible from a plane": a candidate is
+only worth collecting if a pilot can **identify it on the sectional**,
+because that is what the 1-5 label is judging. Towers, water towers,
+quarries and unnamed lakes were each collected at some point and then
+removed against that rule — a sectional draws every obstacle with one
+symbol, and an unnamed lake is one blue shape among identical blue
+shapes, so neither can be confirmed as *the* feature the marker points
+at. Golf courses and forest preserves fail the same test for the opposite
+reason: at 1:500,000 the chart draws no boundary for them at all, so even
+a 100 km² forest is invisible. Airports go the other way and come from
+the FAA's `APT_BASE.csv` rather than OSM or OurAirports, because being
+FAA-registered is what tracks with being drawn: two unregistered private
+strips had nothing at all at their coordinates, while a registered
+private field is drawn as a circled magenta "R". See `CANDIDATE_SPECS` in
+[`src/vfr/osm.py`](../src/vfr/osm.py), where every exclusion is recorded
+next to the ones that stayed.
 
 ### Engineer features → a model-ready table
 
@@ -285,19 +304,39 @@ opaque stratification error on a handful of rows. Fail loud, fail early,
 fail with a message a human can act on — that's a pattern worth copying
 into your own pipelines generally.
 
+It also earned its keep as a *measurement*. At 37 labels the model beat a
+predict-the-mean baseline by 0.06% — statistically nothing. At the full
+206 it beats it by 11%. The guard's real message is that a model trained
+on too little data does not announce itself with an error; it announces
+itself by quietly matching the mean.
+
 ### Evaluate/promote → a tiny model registry
 
 [`src/vfr/model_registry.py`](../src/vfr/model_registry.py) implements the
 **champion/challenger pattern**: `evaluate()` compares the freshly-trained
-"candidate" model's held-out MAE against whatever's currently "current"
-(serving), and returns `True` only if the candidate wins (or nothing has
-been promoted yet). `promote()` then copies the candidate into the
-`current/` directory — the location `model-service` would actually read
-from in a real deployment — and also stashes a timestamped copy under
-`versions/` for history. **A new model only goes live if it's measurably
-better than what's already live** — this is the single idea that makes an
-automated retraining pipeline safe to run unattended instead of silently
-degrading production every time it fires.
+"candidate" model against whatever's currently "current" (serving), and
+returns `True` only if the candidate wins (or nothing has been promoted
+yet). `promote()` then copies the candidate into the `current/`
+directory — which `model-service` bind-mounts and really does serve
+from — and also stashes a timestamped copy under `versions/` for history.
+**A new model only goes live if it's measurably better than what's
+already live** — this is the single idea that makes an automated
+retraining pipeline safe to run unattended instead of silently degrading
+production every time it fires.
+
+**Which metric you gate on matters as much as having a gate**, and this
+one got it wrong at first. `evaluate()` originally compared
+`held_out_mae`, the score on a single train/test split. The first real
+decision it ever made rejected a candidate on a gap of 0.0669 — and
+recomputing that same statistic across 50 different split seeds, for one
+unchanged model, gave a standard deviation of 0.068 and a range from 0.73
+to 1.09. The gate was reading noise as signal: across those 50 splits the
+two models it was comparing won 25 each. It now gates on `cv_mae`, the
+mean across 5 cross-validation folds, which is also what `retrain()`
+already used to choose between model families — selecting on one metric
+and gating on another was its own quiet inconsistency. The lesson
+generalizes: before trusting a comparison, measure how much your
+comparison statistic moves when nothing changes.
 
 Notice this module has **zero third-party dependencies** — no pandas, no
 scikit-learn, just `json`/`shutil`/`pathlib` from the standard library.
@@ -416,8 +455,48 @@ deliberately minimal: two routes, `/ping` (health check) and
 what a **SageMaker real-time inference container** is required to expose.
 Building to that contract from day one means the container doesn't need
 restructuring later to actually run on SageMaker; only *what's inside*
-`/invocations` changes (currently a hand-written stub, since there's no
-trained model yet — see `MIN_LABELED_ROWS` above).
+`/invocations` changes — and that payoff was collected for real. It held
+a hand-written stub until labeling finished; swapping in real inference
+touched only the body of that route, never its shape or its name.
+
+The same idea extends to *where* it reads from. The model loads from
+`MODEL_DIR`, defaulting to `/opt/ml/model` — the path SageMaker mounts a
+model artifact at — and docker-compose bind-mounts `data/models/current`
+there, so identical code serves locally and on AWS.
+
+One thing it deliberately refuses to do: score an arbitrary route.
+Building features for a new corridor means Overpass queries, FAA
+downloads and a per-candidate elevation lookup — minutes of network I/O.
+That is a batch job, so a request for an unknown route returns 400 rather
+than pretending. On AWS the same split holds: a Processing Job builds
+features, an endpoint scores them.
+
+### Select → the checkpoints actually flown
+
+A scored ranking is not a flight plan.
+[`src/vfr/checkpoints.py`](../src/vfr/checkpoints.py) is the step between
+them: `select_checkpoints()` walks the model's candidates highest-score
+first and takes each one that sits at least `min_spacing_nm` from
+everything already chosen. On C81→KDLH that turns 206 scored candidates
+into 21 checkpoints and 20 legs, averaging 15.7 nm apart.
+
+This step is worth its own section because its *absence* was invisible for
+weeks. `predicted_score` was plumbed through the FastAPI response, the
+Java DTO and a database column, and no code anywhere branched on it — both
+agents zipped the entire candidate list into consecutive legs, producing a
+205-leg "nav log". Every test passed, every service was healthy, and the
+model's output decided nothing. When you add a model to a system, the
+question that catches this is not "is the model good?" but **"what line of
+code changes its behaviour because of the model's answer?"**
+
+Two design notes. Selection is greedy rather than an optimal dynamic
+program because there is no principled exchange rate between "a better
+checkpoint" and "more even spacing" — and greedy has the property that
+matters, which is that the best feature on the route never gets dropped to
+tidy up spacing elsewhere. And a minimum score means a barren stretch
+yields a genuinely long leg instead of a checkpoint the pilot will look
+for and fail to see; `selection_gaps_nm()` exists so that gap can be shown
+rather than hidden.
 
 ### webapp (Spring Boot)
 
