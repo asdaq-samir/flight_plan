@@ -38,6 +38,17 @@
       background:rgba(20,36,48,.92);color:#fff;box-shadow:0 2px 10px rgba(0,0,0,.25);
       opacity:0;transition:opacity .15s}
     #flash.on{opacity:1}
+    /* What is selected, for as long as it is selected. Separate from
+       #flash because the two answer different questions: this one is
+       "what am I looking at", which stays true until you move, and flash
+       is "what just happened", which stops being interesting. */
+    #selinfo{position:absolute;top:10px;left:10px;z-index:900;max-width:46%;
+      padding:6px 11px;border-radius:7px;pointer-events:none;
+      background:rgba(20,36,48,.92);color:#fff;font-size:12.5px;line-height:1.45;
+      box-shadow:0 2px 10px rgba(0,0,0,.25);display:none}
+    #selinfo.on{display:block}
+    #selinfo b{font-weight:700}
+    #selinfo .sub{opacity:.75}
     #flash.bad{background:#8f1d16;pointer-events:auto;cursor:default;
       display:flex;align-items:flex-start;gap:8px;text-align:left;max-width:min(820px,86%)}
     #flash .ftext{user-select:text;-webkit-user-select:text;white-space:pre-wrap;
@@ -147,6 +158,7 @@
   <div id="middle">
     <div id="map"></div>
     <div id="flash"></div>
+    <div id="selinfo"></div>
     <div id="side">
       <h2>Picks <span class="count" id="pickcount"></span></h2>
       <div id="list"></div>
@@ -453,10 +465,6 @@ function step(delta) {
   const point = points[index];
   map.setView([point.d.lat, point.d.lon], Math.max(map.getZoom(), WALK_ZOOM));
   select({ kind: point.kind, i: point.i });
-  flash(
-    `${index + 1} of ${points.length} · ${point.d.category || "?"} at ` +
-    `${point.d.along_track_nm.toFixed(1)} nm` +
-    (point.d.judged ? ` · rated ${point.d.rating}` : ""));
 }
 
 function toggleView() {
@@ -801,6 +809,36 @@ function select(sel) {
   focusOn(d);
   showHalo(d);
   highlightRow();
+  showSelInfo(d);
+}
+
+/**
+ * Describe the selected point, and keep describing it. This used to go
+ * through flash and vanish after two and a half seconds, which is the
+ * wrong lifetime for it: what you are looking at stays true until you
+ * move, while what just happened does not.
+ */
+function showSelInfo(d) {
+  const node = el("selinfo");
+  if (!d) { node.className = ""; return; }
+  const points = orderedPoints();
+  const at = points.findIndex(x => x.d === d);
+
+  if (d.endpoint) {
+    node.innerHTML = `<b>${d.ident}</b> — ${d.name}` +
+      `<div class="sub">${d.category === "departure" ? "departure" : "destination"}` +
+      (at >= 0 ? ` · ${at + 1} of ${points.length}` : "") + `</div>`;
+  } else {
+    const role = d.role || roleOf(d);
+    node.innerHTML =
+      `<b>${d.category || "uncategorised"}</b>` +
+      (d.judged ? ` · rated <b>${d.rating}</b>` : " · unrated") +
+      `<div class="sub">${(d.along_track_nm ?? 0).toFixed(1)} nm along · ` +
+      `${Math.abs(d.cross_track_nm ?? 0).toFixed(2)} nm off course · ${role}` +
+      (d.area_m2 ? ` · ${(d.area_m2 / 1e6).toFixed(2)} km²` : "") +
+      (at >= 0 ? ` · ${at + 1} of ${points.length}` : "") + `</div>`;
+  }
+  node.className = "on";
 }
 
 /**
@@ -827,7 +865,7 @@ function highlightRow() {
   if (target) target.scrollIntoView({ block: "center", behavior: "smooth" });
 }
 
-function deselect() { selected = null; hideHalo(); }
+function deselect() { selected = null; hideHalo(); showSelInfo(null); }
 
 async function judge(rating, opts = {}) {
   const d = current();
