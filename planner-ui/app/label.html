@@ -548,9 +548,18 @@ function renderMarkers() {
       select({ kind: "detected", i });
       openCategoryFor(d, "detected", i);
     });
-    // Otherwise the map's own contextmenu fires underneath and offers to
-    // add a new point on top of this one.
-    m.on("contextmenu", (e) => L.DomEvent.stopPropagation(e));
+    // Right-click behaves like left-click here rather than doing nothing.
+    // Swallowing it stopped a duplicate point being added on top, which
+    // was the point, but left the gesture dead *on* a marker while
+    // right-clicking a few pixels away opened the chooser via the
+    // proximity check below -- two different behaviours either side of an
+    // icon edge.
+    m.on("contextmenu", (e) => {
+      L.DomEvent.stopPropagation(e);
+      if (e.originalEvent) e.originalEvent.preventDefault();
+      select({ kind: "detected", i });
+      openCategoryFor(d, "detected", i);
+    });
     return m;
   })).addTo(map);
 
@@ -561,7 +570,12 @@ function renderMarkers() {
       select({ kind: "added", i });
       openCategoryFor(a, "added", i);
     });
-    m.on("contextmenu", (e) => L.DomEvent.stopPropagation(e));
+    m.on("contextmenu", (e) => {
+      L.DomEvent.stopPropagation(e);
+      if (e.originalEvent) e.originalEvent.preventDefault();
+      select({ kind: "added", i });
+      openCategoryFor(a, "added", i);
+    });
     return m;
   })).addTo(map);
 
