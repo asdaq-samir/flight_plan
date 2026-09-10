@@ -913,7 +913,12 @@ function select(sel) {
  * elsewhere on the chart is a lookup you should not have to do.
  */
 function selInfoHtml(d) {
-  const points = orderedPoints();
+  // Counted over the waypoints only, which is the set the banner counts.
+  // Numbering over everything steppable instead put the departure and
+  // destination in the total, so the banner said 206 while the label
+  // said "of 208" -- two numbers two apart, which reads as one of them
+  // being wrong rather than as them meaning different things.
+  const points = orderedPoints().filter(x => !x.d.endpoint);
   const at = points.findIndex(x => x.d === d);
   const place = at >= 0 ? ` · ${at + 1} of ${points.length}` : "";
 
@@ -921,7 +926,7 @@ function selInfoHtml(d) {
     return `<span class="tipbox" style="background:#142430">` +
       `${d.category === "departure" ? "DEP" : "DEST"}</span>` +
       `<b>${d.ident}</b>` +
-      `<div class="sub">${d.name}${place}</div>`;
+      `<div class="sub">${d.name}</div>`;
   }
   // Read the rating, not the judged flag. They are meant to agree, but
   // only one of them is the fact: a marker drawn green from its rating
