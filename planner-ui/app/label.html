@@ -694,27 +694,25 @@ function renderStats(body) {
   const c = body.coverage || {};
   const roles = s.by_role || {};
 
-  // The banner leads with what is being built -- the dead-reckoning
-  // waypoints -- rather than with what the chart happened to offer.
-  // Counted from the picks themselves so it says how many of them you
-  // put there by hand, which is the number that says whether the
-  // detector is pulling its weight.
-  // Counted through the same filter that decides what is on the chart,
-  // so the number and the map always agree. Counting only DR while the
-  // filter showed something else was a banner describing a different
-  // route from the one on screen.
+  // Counted through the same filter that decides what is drawn, so the
+  // number and the map cannot disagree. The added figure is the one
+  // worth watching: it says how much of what a pilot wants the detector
+  // is still missing.
   const kept = (list) => list.filter(x => x.judged && visible(x)).length;
   const total = kept(detections) + kept(added);
   const byHand = kept(added);
 
-  const onChart = detections.filter(visible).length;
-  const hidden = detections.length - onChart;
+  // Distance, waypoints, filter. Nothing else: how many candidates the
+  // chart offered and how many tiles fell outside coverage are facts
+  // about reading the chart, and reading is over by the time this is on
+  // screen. Coverage still gets said, once, as a warning rather than as
+  // a permanent column.
   el("stats").innerHTML =
-    `Total <b>${total}</b> waypoint${total === 1 ? "" : "s"}` +
-    ` <span style="color:var(--muted)">(including ${byHand} added)</span>` +
-    ` · <b>${course.distance_nm}</b> nm · <b>${onChart}</b> on chart` +
-    (hidden ? ` <span style="color:var(--muted)">(${hidden} visual hidden)</span>` : "") +
-    (c.missing ? ` · <span style="color:var(--warn)">${c.missing} tiles outside chart coverage</span>` : "");
+    `<b>${course.distance_nm}</b> nm · Total <b>${total}</b> waypoint${total === 1 ? "" : "s"}` +
+    ` <span style="color:var(--muted)">(including ${byHand} added)</span>`;
+  if (c.missing) {
+    flash(`${c.missing} tiles outside chart coverage`, true);
+  }
 
   // Total, then the two cuts of it that matter: what job each pick does,
   // and where it came from. A pick "given" is one the detector put on the
