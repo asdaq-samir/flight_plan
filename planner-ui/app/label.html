@@ -26,6 +26,9 @@
       border:1px solid var(--accent);background:var(--accent);color:#fff}
     form button:disabled{opacity:.5;cursor:progress}
     #stats,#dist{color:var(--muted);font-variant-numeric:tabular-nums}
+    /* Wide enough for four digits, right-aligned so the count grows
+       leftward into its own space rather than pushing the filters. */
+    #stats .num{display:inline-block;min-width:3.4ch;text-align:right}
     #dist b{color:var(--ink)}
     #filters{display:inline-flex;align-items:center;gap:10px;font-size:12.5px}
     #filters label{display:inline-flex;align-items:center;gap:4px;cursor:pointer;
@@ -823,7 +826,10 @@ function renderStats(body) {
   // the leg, not about what is currently ticked.
   el("dist").innerHTML =
     `<b>${course.distance_nm}</b> nm · ${String(course.bearing_deg).padStart(3, "0")}°T`;
-  el("stats").innerHTML = `Showing: <b>${total}</b>`;
+  // The digits are in a fixed-width slot so the checkboxes beside them
+  // do not slide as the count climbs from 0 to a few hundred during
+  // loading. Only the number should move.
+  el("stats").innerHTML = `Showing: <b class="num">${total}</b>`;
   if (c.missing) {
     flash(`${c.missing} tiles outside chart coverage`, true);
   }
