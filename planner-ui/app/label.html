@@ -641,9 +641,7 @@ async function loadDetections(dep, dest) {
       for (const line of lines) {
         if (!line.trim()) continue;
         const msg = JSON.parse(line);
-        if (msg.type === "start") {
-          added = msg.added || [];
-        } else if (msg.type === "block") {
+        if (msg.type === "block") {
           detections = detections.concat(msg.detections);
           if (msg.missing) lastCoverage.missing = (lastCoverage.missing || 0) + msg.missing;
           renderMarkers();
@@ -653,6 +651,10 @@ async function loadDetections(dep, dest) {
             `reading chart ${pct}%`;
         } else if (msg.type === "done") {
           done = true;
+          // Picks that no detection claimed arrive now, once every block
+          // has had its chance at them.
+          added = msg.added || [];
+          renderMarkers();
           renderStats({ summary: msg.summary, coverage: lastCoverage });
           const left = detections.filter(d => !d.judged).length;
           flash(left
@@ -842,8 +844,13 @@ function selInfoHtml(d) {
       `<div class="sub">${d.category === "departure" ? "departure" : "destination"}${place}</div>`;
   }
   const role = d.role || roleOf(d);
+  // Read the rating, not the judged flag. They are meant to agree, but
+  // only one of them is the fact: a marker drawn green from its rating
+  // beside a label reading "unrated" was the flag being trusted over the
+  // number it is derived from.
+  const rated = d.rating !== null && d.rating !== undefined;
   return `<b>${d.category || "uncategorised"}</b>` +
-    (d.judged ? ` · rated <b>${d.rating}</b>` : " · unrated") +
+    (rated ? ` · rated <b>${d.rating}</b>` : " · unrated") +
     `<div class="sub">${(d.along_track_nm ?? 0).toFixed(1)} nm along · ` +
     `${Math.abs(d.cross_track_nm ?? 0).toFixed(2)} nm off course · ${role}` +
     (d.area_m2 ? ` · ${(d.area_m2 / 1e6).toFixed(2)} km²` : "") + place + `</div>`;

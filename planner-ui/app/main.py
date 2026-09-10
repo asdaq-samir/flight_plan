@@ -570,8 +570,20 @@ def detect_stream(dep: str, dest: str, half_width_nm: float = 4.0) -> StreamingR
     end = (dest_airport["lat"], dest_airport["lon"])
     route = chartlabels.route_key(dep_ident, dest_ident)
 
+    # Picks are claimed as blocks arrive, each by the nearest landmark it
+    # has not already been claimed by. find_existing per landmark was
+    # wrong the same way /api/detect was: it let one pick mark two
+    # neighbouring detections as judged, and left picks whose detection
+    # has moved out of range with no marker at all.
+    unclaimed = {id(p): p for p in chartlabels.load_picks(route)}
+
     def as_detection(landmark) -> dict:
-        existing = chartlabels.find_existing(route, landmark.lat, landmark.lon)
+        best, best_nm = None, chartlabels.SAME_PLACE_NM
+        for key, pick in unclaimed.items():
+            gap = geo.distance_nm(pick["lat"], pick["lon"], landmark.lat, landmark.lon)
+            if gap < best_nm:
+                best, best_nm = key, gap
+        pick = unclaimed.pop(best) if best is not None else None
         return {
             "lat": landmark.lat,
             "lon": landmark.lon,
@@ -580,17 +592,16 @@ def detect_stream(dep: str, dest: str, half_width_nm: float = 4.0) -> StreamingR
             "score": landmark.score,
             "along_track_nm": round(landmark.extras["along_track_nm"], 2),
             "cross_track_nm": round(landmark.extras["cross_track_nm"], 3),
-            "rating": existing["rating"] if existing else None,
-            "role": existing.get("role") if existing else None,
-            "judged": existing is not None,
+            "rating": pick["rating"] if pick else None,
+            "role": pick.get("role") if pick else None,
+            "judged": pick is not None and pick["rating"] is not None,
         }
 
     def lines():
-        yield json.dumps({
-            "type": "start",
-            "route": route,
-            "added": chartlabels.load_picks(route),
-        }) + "\n"
+        # The picks cannot be sorted into matched and unmatched until
+        # every block has been read, so they arrive at the end rather
+        # than the start.
+        yield json.dumps({"type": "start", "route": route}) + "\n"
 
         airports_found = _faa_airports(start, end, half_width_nm, dep_ident, dest_ident)
         yield json.dumps({
@@ -628,8 +639,19 @@ def detect_stream(dep: str, dest: str, half_width_nm: float = 4.0) -> StreamingR
                 "detections": [as_detection(l) for l in fresh],
             }) + "\n"
 
+        # Whatever no landmark claimed: the detector's misses, plus picks
+        # that have drifted apart from the detection they were made
+        # against. Each carries judged derived from its own rating, so a
+        # rated point cannot describe itself as unrated.
         yield json.dumps({
-            "type": "done", "total": seen, "summary": chartlabels.summarise(route),
+            "type": "done",
+            "total": seen,
+            "added": [
+                {**pick, "judged": pick["rating"] is not None,
+                 "area_m2": pick.get("area_m2") or 0.0}
+                for pick in unclaimed.values()
+            ],
+            "summary": chartlabels.summarise(route),
         }) + "\n"
 
     # Buffering off: a proxy holding these until the generator finishes
