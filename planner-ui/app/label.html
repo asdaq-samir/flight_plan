@@ -49,6 +49,14 @@
     #sel .rate button:hover{border-color:var(--accent);color:var(--accent)}
     #sel .skip{border-color:var(--warn);color:var(--warn)}
     #sel select{font:inherit;padding:5px;border:1px solid var(--line);border-radius:6px;background:#fff}
+    .catpop .leaflet-popup-content{margin:10px 12px;width:auto!important}
+    .cathead{margin-bottom:7px;color:var(--muted)}
+    .cathead b{color:var(--ink)}
+    .catgrid{display:grid;grid-template-columns:1fr 1fr;gap:4px}
+    .catpick{font:600 12px inherit;padding:5px 8px;border:1px solid var(--line);
+      background:#fff;color:var(--ink);border-radius:5px;cursor:pointer;text-align:left}
+    .catpick:hover{border-color:var(--accent);color:var(--accent)}
+    .catpick.guessed{border-color:var(--accent);background:#eaf1f6;color:var(--accent)}
     #ask{font-weight:600;color:var(--accent)}
     .role{font:600 12px inherit;padding:5px 9px;border:1px solid var(--line);background:#fff;
       color:var(--muted);cursor:pointer}
@@ -63,7 +71,12 @@
     .legend-h{display:flex;align-items:center;cursor:pointer;user-select:none}
     .legend-h .caret{margin-left:auto;color:var(--muted);font-weight:400}
     #legend{padding:8px 12px 10px;border-bottom:1px solid var(--line);background:#fff;font-size:12.5px}
-    #legend .q{font-weight:600;margin-bottom:7px;line-height:1.35}
+    #legend .q{font-weight:600;margin-bottom:7px;line-height:1.35;padding-top:8px;
+      border-top:1px solid var(--rule)}
+    #legend .steps{margin:0 0 8px;padding-left:18px;line-height:1.6}
+    #legend .steps li{margin-bottom:1px}
+    #legend .minor{color:var(--muted);line-height:1.5;margin-bottom:2px}
+    #legend kbd{padding:0 5px;font-size:11px}
     #legend table{border-collapse:collapse;width:100%}
     #legend td{padding:2px 0;vertical-align:top}
     #legend td.k{width:26px}
@@ -122,6 +135,16 @@
     <div id="side">
       <h2 class="legend-h" id="legend-h">Scale <span class="caret" id="legend-caret">hide</span></h2>
       <div id="legend">
+        <ol class="steps">
+          <li>Press <kbd>c</kbd> to jump to the departure.</li>
+          <li>Walk the points with the <kbd>&uarr;</kbd><kbd>&darr;</kbd><kbd>&larr;</kbd><kbd>&rarr;</kbd> arrows — they follow the course.</li>
+          <li>Rate each with <kbd>0</kbd>–<kbd>5</kbd>. It moves on by itself.</li>
+        </ol>
+        <div class="minor">
+          Dead-reckoning checkpoints only. <kbd>v</kbd> also shows visual references —
+          things you spot abeam rather than fly over. <kbd>Del</kbd> removes a point.
+          Click bare chart to add one the detector missed.
+        </div>
         <div class="q">Flying this leg, would I look up and know <i>that&rsquo;s the one</i> — not one like it?</div>
         <table>
           <tr><td class="k"><span class="sw" style="background:#8a8f94">0</span></td>
@@ -160,9 +183,9 @@
   </div>
 
   <footer>
-    <span><b>Click a marker</b> to judge it · <b>click empty chart</b> to add one the detector missed</span>
-    <span><kbd>1</kbd>–<kbd>5</kbd> rate</span>
-    <span><kbd>0</kbd> skip</span>
+    <span><kbd>c</kbd> start · arrows walk · <kbd>0</kbd>–<kbd>5</kbd> rate</span>
+    <span><kbd>v</kbd> visual refs: <b id="visflag">hidden</b></span>
+    <span><kbd>Del</kbd> remove</span>
     <span><kbd>t</kbd> basemap: <b id="basemap">FAA sectional</b></span>
     <span><kbd>Esc</kbd> deselect</span>
     <span><kbd>&uarr;</kbd><kbd>&darr;</kbd><kbd>&larr;</kbd><kbd>&rarr;</kbd> step the way the course runs</span>
@@ -231,6 +254,28 @@ let lastFocus = null;
 // chart's native zoom 12, where the sectional starts being upscaled --
 // 14 was tried and read as blur rather than detail.
 const WALK_ZOOM = 11;
+
+// Dead-reckoning checkpoints are the job; visual references are a
+// separate pass and clutter the first one. Hidden until v.
+let showVisual = false;
+
+// A detection has no stored role until it is judged, so infer the same
+// way the server does: on course means you fly over it.
+function roleOf(d) {
+  return d.role || (Math.abs(d.cross_track_nm ?? 0) <= 0.5 ? "dr" : "visual");
+}
+
+function visible(d) {
+  return showVisual || roleOf(d) === "dr";
+}
+
+function toggleVisual() {
+  showVisual = !showVisual;
+  renderMarkers();
+  const tag = document.getElementById("visflag");
+  if (tag) tag.textContent = showVisual ? "shown" : "hidden";
+  flash(showVisual ? "Showing visual references too" : "Dead-reckoning points only");
+}
 const FOCUS_ZOOM = 12;
 
 function focusOn(d) {
@@ -278,6 +323,7 @@ function orderedPoints() {
     .map((d, i) => ({ d, kind: "detected", i }))
     .concat(added.map((a, i) => ({ d: a, kind: "added", i })))
     .filter(x => x.d.along_track_nm !== null && x.d.along_track_nm !== undefined)
+    .filter(x => visible(x.d))
     .sort((a, b) => a.d.along_track_nm - b.d.along_track_nm);
 }
 
@@ -297,7 +343,10 @@ function forwardIsLeft() {
   return courseBearing() > 180;           // westerly component
 }
 
+let lastStepDelta = 1;
+
 function step(delta) {
+  lastStepDelta = delta;
   const points = orderedPoints();
   if (!points.length) { flash("Nothing on the route yet", true); return; }
 
@@ -473,14 +522,14 @@ function renderMarkers() {
   if (detLayer) map.removeLayer(detLayer);
   if (addLayer) map.removeLayer(addLayer);
 
-  detLayer = L.layerGroup(detections.map((d, i) => {
+  detLayer = L.layerGroup(detections.map((d, i) => ({ d, i })).filter(x => visible(x.d)).map(({ d, i }) => {
     const colour = d.judged ? COLORS[d.rating ?? 0] : "#ffffff";
     const m = L.marker([d.lat, d.lon], { icon: dot(colour, "#1f5c8b") });
     m.on("click", (e) => { L.DomEvent.stopPropagation(e); select({ kind:"detected", i }); });
     return m;
   })).addTo(map);
 
-  addLayer = L.layerGroup(added.map((a, i) => {
+  addLayer = L.layerGroup(added.map((a, i) => ({ a, i })).filter(x => visible(x.a)).map(({ a, i }) => {
     const m = L.marker([a.lat, a.lon], { icon: dot(COLORS[a.rating ?? 0], "#7b3fa0") });
     m.on("click", (e) => { L.DomEvent.stopPropagation(e); select({ kind:"added", i }); });
     return m;
@@ -561,14 +610,9 @@ async function judge(rating) {
   if (selected.kind === "added") d.along_track_nm = out.pick.along_track_nm;
   renderMarkers();
   refreshStats(out.summary);
-  if (walking) {
-    // The judged one leaves the queue, so staying put advances by one.
-    walkIdx -= 1;
-    walkTo(1);
-  } else {
-    flash(rating === 0 ? "Skipped" : `Rated ${rating}`);
-    deselect();
-  }
+  // Carry on the way you were already going, so rating a run of points is
+  // arrow, number, number, number rather than arrow between every one.
+  step(lastStepDelta);
 }
 
 let lastCoverage = {};
@@ -593,88 +637,51 @@ async function removeCurrent() {
 // Clicking bare chart adds a checkpoint the detector missed. This is the
 // signal the old OSM-rating loop could not produce: it only ever showed
 // places OSM already knew about.
+const CATEGORIES = [
+  ["water", "water"], ["river", "river"], ["road_or_rail", "road / rail"],
+  ["town", "town"], ["airport", "airport"], ["tower", "tower"],
+  ["terrain", "terrain"], ["other", "other"],
+];
+
+// Clicking bare chart asks what it is before anything is recorded.
+// Dropping a point first and letting a dropdown decide the category is
+// how 34 hand-picked checkpoints all ended up filed as water, and a
+// half-made point left on the map when you click away is worse than no
+// point at all.
 map.on("click", async (e) => {
   if (!course) return;
   const lat = e.latlng.lat, lon = e.latlng.lng;
-  added.push({ lat, lon, category: null, rating: null, judged: false,
-               along_track_nm: null, cross_track_nm: null, role: null });
-  const idx = added.length - 1;
-  renderMarkers();
-  select({ kind: "added", i: idx });
-  flash("Reading the chart here…");
+  deselect();
 
-  // Ask the chart what is drawn under the click rather than trusting the
-  // dropdown. Leaving it to the dropdown is how 34 hand-picked points
-  // were all recorded as "water" when most sat on roads.
-  try {
-    const info = await (await fetch(`/api/classify?lat=${lat}&lon=${lon}`)).json();
-    added[idx].category = info.category;
-    if (selected && selected.kind === "added" && selected.i === idx) {
-      el("cat").value = info.category || "other";
-      el("sel-what").innerHTML = info.category
-        ? `<b style="color:var(--add)">Added</b> · chart shows <b>${info.category}</b>`
-        : `<b style="color:var(--add)">Added</b> · <span style="color:var(--warn)">nothing drawn here</span>`;
-    }
-    flash(info.category ? `Chart shows ${info.category} — rate it 1–5` : "Nothing drawn here — pick a category and rate it");
-  } catch {
-    flash("Could not read the chart here; set the category yourself", true);
-  }
+  const guess = await fetch(`/api/classify?lat=${lat}&lon=${lon}`)
+    .then(r => r.json()).catch(() => ({}));
+
+  const buttons = CATEGORIES.map(([value, label]) =>
+    `<button class="catpick${value === guess.category ? " guessed" : ""}" data-cat="${value}">${label}</button>`
+  ).join("");
+  const popup = L.popup({ closeButton: true, autoClose: true, className: "catpop" })
+    .setLatLng(e.latlng)
+    .setContent(
+      `<div class="cathead">${guess.category
+        ? `Chart shows <b>${guess.category}</b>`
+        : "<b>Nothing drawn here</b>"} — what is it?</div>
+       <div class="catgrid">${buttons}</div>`)
+    .openOn(map);
+
+  const node = popup.getElement();
+  node.querySelectorAll(".catpick").forEach(btn => {
+    btn.addEventListener("click", () => {
+      added.push({
+        lat, lon, category: btn.dataset.cat, rating: null, judged: false,
+        along_track_nm: null, cross_track_nm: null, role: null,
+      });
+      map.closePopup(popup);
+      renderMarkers();
+      select({ kind: "added", i: added.length - 1 });
+      flash("Rate it 1–5 to save");
+    });
+  });
 });
-
-// --- Walk mode: fly to each unjudged detection in route order and rate
-// it with one keystroke. Judging 367 candidates by hunting for markers on
-// a map is an hour of clicking; this is the difference between the skip
-// pass happening and not happening.
-let walking = false, walkIdx = -1;
-let role = "dr";
-
-function setRole(next) {
-  role = next;
-  el("role-dr").className = "role" + (role === "dr" ? " on" : "");
-  el("role-vis").className = "role" + (role === "visual" ? " on" : "");
-}
-el("role-dr").addEventListener("click", () => setRole("dr"));
-el("role-vis").addEventListener("click", () => setRole("visual"));
-
-function unjudgedOrder() {
-  return detections
-    .map((d, i) => ({ d, i }))
-    .filter(x => !x.d.judged)
-    .sort((a, b) => a.d.along_track_nm - b.d.along_track_nm);
-}
-
-function walkTo(step) {
-  // Three different empty states, which the first version collapsed into
-  // one misleading "everything is judged" -- including the common case of
-  // pressing w during the seconds it takes to read the tiles.
-  if (!course) { flash("Load a route first", true); return; }
-  if (!detections.length) {
-    walking = false;
-    flash(detecting ? "Still reading the chart…" : "No detections loaded", true);
-    return;
-  }
-  const queue = unjudgedOrder();
-  if (!queue.length) {
-    walking = false;
-    flash(`All ${detections.length} detections judged`);
-    return;
-  }
-  walkIdx = Math.max(0, Math.min(queue.length - 1, walkIdx + step));
-  const { d, i } = queue[walkIdx];
-  // Zoom in one past the chart's native limit: the linework a crossing
-  // sits on is thin, and at fit-route zoom you cannot see what it is.
-  map.setView([d.lat, d.lon], WALK_ZOOM);
-  focusOn(d);
-  select({ kind: "detected", i });
-  el("flash").style.color = "var(--muted)";
-  el("flash").textContent = `${walkIdx + 1} of ${queue.length} unjudged · ${d.category} at ${d.along_track_nm.toFixed(1)} nm`;
-}
-
-function startWalk() {
-  walking = true;
-  walkIdx = -1;
-  walkTo(1);
-}
 
 el("form").addEventListener("submit", async (e) => {
   e.preventDefault();
@@ -726,10 +733,9 @@ document.addEventListener("keydown", (e) => {
   if (e.key === "ArrowDown") { e.preventDefault(); return step(forwardIsUp() ? -1 : 1); }
   if (e.key === "ArrowLeft") { e.preventDefault(); return step(forwardIsLeft() ? 1 : -1); }
   if (e.key === "ArrowRight") { e.preventDefault(); return step(forwardIsLeft() ? -1 : 1); }
-  if (e.key === "Escape") { walking = false; return deselect(); }
-  if (e.key === "w") return startWalk();
-  if (walking && (e.key === "n" || e.key === " ")) { e.preventDefault(); return walkTo(1); }
-  if (walking && e.key === "p") return walkTo(-1);
+  if (e.key === "Escape") return deselect();
+  if (e.key === "v") return toggleVisual();
+  if (e.key === "Delete" || e.key === "Backspace") { e.preventDefault(); return removeCurrent(); }
   if (/^[0-5]$/.test(e.key) && selected) judge(Number(e.key));
 });
 
