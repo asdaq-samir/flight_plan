@@ -230,8 +230,8 @@ let lastFocus = null;
 // this one" and goes one step closer. Both sit at or just above the
 // chart's native zoom 12, where the sectional starts being upscaled --
 // 14 was tried and read as blur rather than detail.
-const WALK_ZOOM = 12;
-const FOCUS_ZOOM = 13;
+const WALK_ZOOM = 11;
+const FOCUS_ZOOM = 12;
 
 function focusOn(d) {
   if (d) lastFocus = { lat: d.lat, lon: d.lon };
@@ -246,10 +246,23 @@ let halo = null;
 function showHalo(d) {
   hideHalo();
   if (!d) return;
-  halo = L.circleMarker([d.lat, d.lon], {
-    radius: 20, color: "#1f5c8b", weight: 3, opacity: 0.95,
-    fill: false, dashArray: "5,4", interactive: false,
-  }).addTo(map);
+  // Two concentric rings, white behind a hot orange. A single blue ring
+  // disappeared into the chart -- a sectional is already full of blue
+  // linework, magenta airspace and black roads, so no single colour
+  // stands out everywhere. White against the colour is what makes it
+  // read on any background, which is why chart symbols themselves are
+  // drawn that way.
+  halo = L.layerGroup([
+    L.circleMarker([d.lat, d.lon], {
+      radius: 17, color: "#ffffff", weight: 7, opacity: 0.9,
+      fill: false, interactive: false,
+    }),
+    L.circleMarker([d.lat, d.lon], {
+      radius: 17, color: "#ff6a00", weight: 3, opacity: 1,
+      fill: false, interactive: false,
+    }),
+  ]).addTo(map);
+  halo.bringToFront();
 }
 
 function hideHalo() {
@@ -315,6 +328,11 @@ function centreOnSelection() {
     return;
   }
   map.setView([target.lat, target.lon], Math.max(map.getZoom(), FOCUS_ZOOM));
+  // The ring is drawn here too, not only on select: c is often used with
+  // nothing selected -- returning to the last point worked on, or to the
+  // departure -- and moving the map without marking where you landed is
+  // the same as not moving it.
+  showHalo(target);
 }
 
 function renderChartNotice() {
