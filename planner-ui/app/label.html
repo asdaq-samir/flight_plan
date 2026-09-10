@@ -25,6 +25,8 @@
       border:1px solid var(--accent);background:var(--accent);color:#fff}
     form button:disabled{opacity:.5;cursor:progress}
     #stats{color:var(--muted);font-variant-numeric:tabular-nums}
+    #rolefilter{font:600 12px inherit;padding:3px 6px;border:1px solid var(--line);
+      border-radius:6px;background:#fff;color:var(--ink);cursor:pointer}
     #stats b{color:var(--ink)}
     #middle{flex:1;min-height:0;display:flex;position:relative}
     /* Messages float over the map rather than sitting in the header. In
@@ -152,6 +154,11 @@
       <button type="submit">Load</button>
     </form>
     <span id="stats"></span>
+    <select id="rolefilter" title="Which waypoints to show and count (v cycles)">
+      <option value="dr">DR</option>
+      <option value="visual">visual</option>
+      <option value="all">DR + visual</option>
+    </select>
   </header>
 
   <div id="middle">
@@ -199,7 +206,7 @@
       <span><kbd>Del</kbd> remove · click the course to add · right-click anywhere</span>
     </div>
     <div class="frow minor">
-      <span><kbd>v</kbd> visual refs: <b id="visflag">hidden</b></span>
+      <span><kbd>v</kbd> cycles the waypoint filter</span>
       <span><kbd>t</kbd> basemap: <b id="basemap">FAA sectional</b></span>
       <button type="button" id="legend-toggle" class="viewbtn" style="margin-left:auto">Hide scale</button>
     </div>
@@ -332,7 +339,13 @@ const WALK_ZOOM = 11;
 
 // Dead-reckoning checkpoints are the job; visual references are a
 // separate pass and clutter the first one. Hidden until v.
-let showVisual = false;
+// Which points are on the chart. Was a boolean for "show visual
+// references too", which could only ever express two of the three things
+// worth looking at -- there was no way to see the visual pass on its own.
+const ROLE_FILTERS = [
+  ["dr", "DR"], ["visual", "visual"], ["all", "DR + visual"],
+];
+let roleFilter = "dr";
 
 // A detection has no stored role until it is judged, so infer the same
 // way the server does: on course means you fly over it.
@@ -341,16 +354,21 @@ function roleOf(d) {
 }
 
 function visible(d) {
-  return showVisual || roleOf(d) === "dr";
+  return roleFilter === "all" || roleOf(d) === roleFilter;
 }
 
-function toggleVisual() {
-  showVisual = !showVisual;
+function setRoleFilter(next) {
+  roleFilter = next;
+  const select = el("rolefilter");
+  if (select) select.value = next;
+  try { localStorage.setItem("roleFilter", next); } catch {}
   renderMarkers();
   if (lastSummary) renderStats({ summary: lastSummary, coverage: lastCoverage });
-  const tag = document.getElementById("visflag");
-  if (tag) tag.textContent = showVisual ? "shown" : "hidden";
-  flash(showVisual ? "Showing visual references too" : "Dead-reckoning points only");
+}
+
+function cycleRoleFilter() {
+  const at = ROLE_FILTERS.findIndex(([value]) => value === roleFilter);
+  setRoleFilter(ROLE_FILTERS[(at + 1) % ROLE_FILTERS.length][0]);
 }
 const FOCUS_ZOOM = 12;
 
@@ -681,15 +699,19 @@ function renderStats(body) {
   // Counted from the picks themselves so it says how many of them you
   // put there by hand, which is the number that says whether the
   // detector is pulling its weight.
-  const drDetections = detections.filter(d => d.judged && roleOf(d) === "dr").length;
-  const drAdded = added.filter(a => a.judged && roleOf(a) === "dr").length;
-  const drTotal = drDetections + drAdded;
+  // Counted through the same filter that decides what is on the chart,
+  // so the number and the map always agree. Counting only DR while the
+  // filter showed something else was a banner describing a different
+  // route from the one on screen.
+  const kept = (list) => list.filter(x => x.judged && visible(x)).length;
+  const total = kept(detections) + kept(added);
+  const byHand = kept(added);
 
   const onChart = detections.filter(visible).length;
   const hidden = detections.length - onChart;
   el("stats").innerHTML =
-    `Total DR <b>${drTotal}</b> waypoint${drTotal === 1 ? "" : "s"}` +
-    ` <span style="color:var(--muted)">(including ${drAdded} added)</span>` +
+    `Total <b>${total}</b> waypoint${total === 1 ? "" : "s"}` +
+    ` <span style="color:var(--muted)">(including ${byHand} added)</span>` +
     ` · <b>${course.distance_nm}</b> nm · <b>${onChart}</b> on chart` +
     (hidden ? ` <span style="color:var(--muted)">(${hidden} visual hidden)</span>` : "") +
     (c.missing ? ` · <span style="color:var(--warn)">${c.missing} tiles outside chart coverage</span>` : "");
@@ -1179,6 +1201,13 @@ function setLegend(hidden) {
   el("legend-toggle").textContent = hidden ? "Show scale" : "Hide scale";
   try { localStorage.setItem("legendHidden", hidden ? "1" : "0"); } catch {}
 }
+el("rolefilter").addEventListener("change", (e) => setRoleFilter(e.target.value));
+try {
+  const saved = localStorage.getItem("roleFilter");
+  if (saved && ROLE_FILTERS.some(([v]) => v === saved)) setRoleFilter(saved);
+  else el("rolefilter").value = roleFilter;
+} catch { el("rolefilter").value = roleFilter; }
+
 el("legend-toggle").addEventListener("click",
   () => setLegend(el("legend").className !== "hidden"));
 try { setLegend(localStorage.getItem("legendHidden") === "1"); } catch { setLegend(false); }
@@ -1213,7 +1242,7 @@ document.addEventListener("keydown", (e) => {
   if (e.key === "ArrowDown") { e.preventDefault(); return step(forwardIsUp() ? -1 : 1); }
   if (e.key === "ArrowLeft") { e.preventDefault(); return step(forwardIsLeft() ? 1 : -1); }
   if (e.key === "ArrowRight") { e.preventDefault(); return step(forwardIsLeft() ? -1 : 1); }
-  if (e.key === "v") return toggleVisual();
+  if (e.key === "v") return cycleRoleFilter();
   if (e.key === "Delete" || e.key === "Backspace") { e.preventDefault(); return removeCurrent(); }
   if (/^[0-5]$/.test(e.key) && selected) judge(Number(e.key));
 });
