@@ -164,26 +164,48 @@
 <script>
 const el = (id) => document.getElementById(id);
 const qs = new URLSearchParams(location.search);
-const map = L.map("map", { zoomControl: true });
+const map = L.map("map", { zoomControl: true, minZoom: 4 });
 
-let data = null, basemaps = null, activeBase = "faa";
+let data = null, basemaps = null, underlay = null, activeBase = "faa", chartMinZoom = 8;
 let courseLayer = null, candidateLayer = null, selectedLayer = null, endsLayer = null;
 let showAll = true, pollTimer = null;
 
 function initBasemaps(cfg) {
   if (basemaps) return;
+  chartMinZoom = cfg.min_zoom || 8;
+  // OpenStreetMap sits permanently underneath, and is why the map can
+  // zoom out far enough to frame a whole route. The FAA service has no
+  // tiles below zoom 8 -- it 404s -- and at zoom 8 a 323 nm course needs
+  // more map than the pane has, so the sectional alone can never show a
+  // long leg end to end. Below 8 the sectional stops drawing and this
+  // shows through, with the course line and markers still on top.
+  underlay = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    attribution: "&copy; OpenStreetMap contributors", maxZoom: 19, opacity: 0.85,
+  }).addTo(map);
   basemaps = {
-    // Sectional tiles stop at zoom 12. maxNativeZoom upscales them past
-    // that instead of showing blank tiles when the map is zoomed in.
+    // maxNativeZoom upscales chart tiles past their real limit of 12
+    // rather than showing blanks when zoomed in.
     faa: L.tileLayer(cfg.tile_url, {
       attribution: "FAA Aeronautical Information Services",
       maxNativeZoom: cfg.max_zoom, maxZoom: 18, minZoom: cfg.min_zoom,
     }),
     osm: L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      attribution: "&copy; OpenStreetMap contributors", maxZoom: 18,
+      attribution: "&copy; OpenStreetMap contributors", maxZoom: 19,
     }),
   };
   basemaps[activeBase].addTo(map);
+  map.on("zoomend", renderChartNotice);
+  renderChartNotice();
+}
+
+function renderChartNotice() {
+  const tag = document.getElementById("basemap");
+  if (!tag || !basemaps) return;
+  const below = map.getZoom() < chartMinZoom;
+  tag.textContent = activeBase === "faa"
+    ? (below ? "below chart zoom — OSM" : "FAA sectional")
+    : "OpenStreetMap";
+  tag.style.color = (below && activeBase === "faa") ? "var(--warn)" : "";
 }
 
 function toggleBasemap() {
@@ -191,7 +213,7 @@ function toggleBasemap() {
   map.removeLayer(basemaps[activeBase]);
   activeBase = activeBase === "faa" ? "osm" : "faa";
   basemaps[activeBase].addTo(map);
-  el("basemap").textContent = activeBase === "faa" ? "FAA sectional" : "OpenStreetMap";
+  renderChartNotice();
 }
 
 function scoreColor(s) {

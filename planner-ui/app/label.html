@@ -166,9 +166,9 @@
 <script>
 const el = (id) => document.getElementById(id);
 const qs = new URLSearchParams(location.search);
-const map = L.map("map", { zoomControl: true });
+const map = L.map("map", { zoomControl: true, minZoom: 4 });
 
-let base = null, activeBase = "faa";
+let basemaps = null, underlay = null, activeBase = "faa", chartMinZoom = 8;
 let course = null, courseLayer = null, endsLayer = null;
 let detLayer = null, addLayer = null;
 let detections = [], added = [], selected = null, detecting = false;
@@ -181,22 +181,50 @@ function flash(msg, bad) {
   if (msg) setTimeout(() => { if (el("flash").textContent === msg) el("flash").textContent = ""; }, 2500);
 }
 
-function initBase(cfg) {
-  if (base) return;
-  base = {
-    faa: L.tileLayer(cfg.tile_url, { attribution: "FAA Aeronautical Information Services",
-      maxNativeZoom: cfg.max_zoom, maxZoom: 18, minZoom: cfg.min_zoom }),
+function initBasemaps(cfg) {
+  if (basemaps) return;
+  chartMinZoom = cfg.min_zoom || 8;
+  // OpenStreetMap sits permanently underneath, and is why the map can
+  // zoom out far enough to frame a whole route. The FAA service has no
+  // tiles below zoom 8 -- it 404s -- and at zoom 8 a 323 nm course needs
+  // more map than the pane has, so the sectional alone can never show a
+  // long leg end to end. Below 8 the sectional stops drawing and this
+  // shows through, with the course line and markers still on top.
+  underlay = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    attribution: "&copy; OpenStreetMap contributors", maxZoom: 19, opacity: 0.85,
+  }).addTo(map);
+  basemaps = {
+    // maxNativeZoom upscales chart tiles past their real limit of 12
+    // rather than showing blanks when zoomed in.
+    faa: L.tileLayer(cfg.tile_url, {
+      attribution: "FAA Aeronautical Information Services",
+      maxNativeZoom: cfg.max_zoom, maxZoom: 18, minZoom: cfg.min_zoom,
+    }),
     osm: L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      attribution: "&copy; OpenStreetMap contributors", maxZoom: 18 }),
+      attribution: "&copy; OpenStreetMap contributors", maxZoom: 19,
+    }),
   };
-  base[activeBase].addTo(map);
+  basemaps[activeBase].addTo(map);
+  map.on("zoomend", renderChartNotice);
+  renderChartNotice();
 }
-function toggleBase() {
-  if (!base) return;
-  map.removeLayer(base[activeBase]);
+
+function renderChartNotice() {
+  const tag = document.getElementById("basemap");
+  if (!tag || !basemaps) return;
+  const below = map.getZoom() < chartMinZoom;
+  tag.textContent = activeBase === "faa"
+    ? (below ? "below chart zoom — OSM" : "FAA sectional")
+    : "OpenStreetMap";
+  tag.style.color = (below && activeBase === "faa") ? "var(--warn)" : "";
+}
+
+function toggleBasemap() {
+  if (!basemaps) return;
+  map.removeLayer(basemaps[activeBase]);
   activeBase = activeBase === "faa" ? "osm" : "faa";
-  base[activeBase].addTo(map);
-  el("basemap").textContent = activeBase === "faa" ? "FAA sectional" : "OpenStreetMap";
+  basemaps[activeBase].addTo(map);
+  renderChartNotice();
 }
 
 function dot(colour, ring) {
@@ -211,7 +239,7 @@ async function loadCourse(dep, dest) {
   const body = await res.json();
   if (!res.ok) { flash(body.detail || "could not resolve route", true); return false; }
   course = body;
-  initBase(course);
+  initBasemaps(course);
   if (courseLayer) map.removeLayer(courseLayer);
   if (endsLayer) map.removeLayer(endsLayer);
   courseLayer = L.polyline(course.course_line,
@@ -530,7 +558,7 @@ el("del").addEventListener("click", removeCurrent);
 
 document.addEventListener("keydown", (e) => {
   if (e.target.tagName === "INPUT" || e.target.tagName === "SELECT") return;
-  if (e.key === "t") return toggleBase();
+  if (e.key === "t") return toggleBasemap();
   if (e.key === "Escape") { walking = false; return deselect(); }
   if (e.key === "w") return startWalk();
   if (walking && (e.key === "n" || e.key === " ")) { e.preventDefault(); return walkTo(1); }
