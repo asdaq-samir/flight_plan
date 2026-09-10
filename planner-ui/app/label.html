@@ -221,10 +221,23 @@ function fitRoute() {
   map.fitBounds(L.latLngBounds(course.course_line), { padding: [30, 30] });
 }
 
+// Where you were last working, remembered even after deselecting, so
+// "back to marker" still means something once a rating has moved on.
+let lastFocus = null;
+
+function focusOn(d) {
+  if (d) lastFocus = { lat: d.lat, lon: d.lon };
+}
+
 function centreOnSelection() {
-  const d = current();
-  if (!d) { fitRoute(); return; }
-  map.setView([d.lat, d.lon], Math.max(map.getZoom(), chartMinZoom + 1));
+  const target = current() || lastFocus;
+  if (!target) {
+    // Deliberately not falling back to fitRoute: doing that made c and f
+    // identical whenever nothing was selected, which is most of the time.
+    flash("Nothing to go back to — f fits the whole route", true);
+    return;
+  }
+  map.setView([target.lat, target.lon], Math.max(map.getZoom(), chartMinZoom + 1));
 }
 
 function renderChartNotice() {
@@ -278,6 +291,7 @@ async function loadDetections(dep, dest) {
   detecting = true;
   detections = [];
   added = [];
+  lastFocus = null;
   lastCoverage = {};
   renderMarkers();
 
@@ -384,7 +398,11 @@ function renderList() {
        <span class="pill" style="background:${d.role === "visual" ? "#7b3fa0" : "#1f5c8b"};margin-left:4px">${d.role === "visual" ? "visual" : "DR"}</span>
        ${d.kind === "added" ? '<span class="pill" style="background:#555;margin-left:4px">added</span>' : ""}
        <div class="m">${(d.along_track_nm ?? 0).toFixed(1)} nm along · ${d.lat.toFixed(4)}, ${d.lon.toFixed(4)}</div>`;
-    row.onclick = () => { map.setView([d.lat,d.lon], course.max_zoom); select({kind:d.kind, i:d.i}); };
+    row.onclick = () => {
+      map.setView([d.lat, d.lon], course.max_zoom);
+      focusOn(d);
+      select({ kind: d.kind, i: d.i });
+    };
     list.appendChild(row);
   });
 }
@@ -398,6 +416,7 @@ function select(sel) {
   selected = sel;
   const d = current();
   if (!d) return;
+  focusOn(d);
   el("sel").className = "show";
   el("sel-what").innerHTML = selected.kind === "detected"
     ? `<b>Detected ${d.category}</b>${d.area_m2 ? ` · ${(d.area_m2/1e6).toFixed(2)} km²` : ""}`
@@ -531,6 +550,7 @@ function walkTo(step) {
   // Zoom in one past the chart's native limit: the linework a crossing
   // sits on is thin, and at fit-route zoom you cannot see what it is.
   map.setView([d.lat, d.lon], Math.min(course.max_zoom + 1, 14));
+  focusOn(d);
   select({ kind: "detected", i });
   el("flash").style.color = "var(--muted)";
   el("flash").textContent = `${walkIdx + 1} of ${queue.length} unjudged · ${d.category} at ${d.along_track_nm.toFixed(1)} nm`;
