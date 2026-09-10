@@ -83,9 +83,42 @@ def _urban(r, g, b):
     return (r > 210) & (g > 200) & (b < 160)
 
 
+def _river_line(r, g, b):
+    """A river or stream, drawn as a dark blue line rather than a fill.
+
+    Distinct from _water and missed entirely by it: the chart fills a
+    lake with a pale tint around (190,223,238) but draws a watercourse as
+    a saturated dark blue line, sampled between (0,43,85) and (3,82,113)
+    at points a pilot marked by hand. Dark blue is unambiguous on a
+    sectional -- nothing else uses it -- so this needs no shape test.
+    """
+    return (b > r + 40) & (b > 55) & (r < 110) & (g < b + 20)
+
+
+def _dark_line(r, g, b):
+    """Roads, railroads and boundaries: the chart's black linework.
+
+    Deliberately one class rather than three. They are all near-black and
+    separating them needs stroke pattern -- railroads carry cross ticks,
+    boundaries are dashed -- which is a different kind of analysis than a
+    colour test. As a *crossing* they are all the same thing to a pilot
+    anyway: a line the course cuts at a knowable point. Which kind it is
+    gets settled during labeling.
+    """
+    return (r < 110) & (g < 115) & (b < 110)
+
+
+# Fills are found as blobs and reported at their centroid. Lines are
+# found as crossings of the course, because the centroid of a river is
+# not a place -- see linear_crossings.
 PALETTE = (
     PaletteClass("water", _water, min_area_px=40, base_score=4.2),
     PaletteClass("town", _urban, min_area_px=400, base_score=4.0),
+)
+
+LINEAR_PALETTE = (
+    PaletteClass("river", _river_line, min_area_px=12, base_score=4.3),
+    PaletteClass("road_or_rail", _dark_line, min_area_px=12, base_score=3.6),
 )
 
 
@@ -355,6 +388,147 @@ def _dedupe(landmarks: list, within_nm: float = DEDUPE_NM) -> list:
     return kept
 
 
+
+# How far from the course line a pixel may sit and still count as being
+# on it. The course is drawn as a mathematical line but chart linework
+# has width, and a pilot clicking a crossing does not hit the exact
+# pixel; 3 px at zoom 12 is a bit over 100 m.
+CROSSING_TOLERANCE_PX = 3
+
+# Two crossing pixels further apart than this along the course are
+# separate crossings. A river meanders and can cut the course several
+# times within a mile, but below this they are one checkpoint.
+CROSSING_SEPARATION_PX = 24
+
+
+def great_circle_pixels(start: tuple, end: tuple, zoom: int = DEFAULT_ZOOM) -> np.ndarray:
+    """The course as global pixel coordinates, sampled about one pixel
+    apart, following the great circle.
+
+    Interpolating straight between the endpoints *in pixel space* is a
+    rhumb line, not a great circle, and the difference is not academic:
+    on a 323 nm route it put detected crossings up to 0.6 nm off course,
+    drifting further the longer the route ran, so almost none of them
+    lined up with the same crossings picked by hand. Cross-track distance
+    is measured against the great circle everywhere else in this project,
+    so the raster walk has to use it too.
+
+    Spherical linear interpolation rather than repeated bearing steps:
+    it is exact, and it vectorises, which matters because a long route is
+    tens of thousands of samples.
+    """
+    lat1, lon1 = math.radians(start[0]), math.radians(start[1])
+    lat2, lon2 = math.radians(end[0]), math.radians(end[1])
+    a = np.array([math.cos(lat1) * math.cos(lon1), math.cos(lat1) * math.sin(lon1), math.sin(lat1)])
+    b = np.array([math.cos(lat2) * math.cos(lon2), math.cos(lat2) * math.sin(lon2), math.sin(lat2)])
+
+    omega = math.acos(float(np.clip(np.dot(a, b), -1.0, 1.0)))
+    # Not `== 0`: the dot product of a unit vector with itself comes back
+    # as 0.999999... in floating point, so acos gives ~1e-8 rather than
+    # zero and the guard never fired. Below a microradian (~6 m) there is
+    # no course to walk.
+    if omega < 1e-6:
+        return np.empty((0, 2))
+
+    # One sample per pixel of the straight-line pixel distance is enough:
+    # the great circle is never further from it than the drift above.
+    x0, y0 = latlon_to_global_px(start[0], start[1], zoom)
+    x1, y1 = latlon_to_global_px(end[0], end[1], zoom)
+    steps = max(2, int(math.hypot(x1 - x0, y1 - y0)))
+
+    t = np.linspace(0.0, 1.0, steps + 1)
+    points = (
+        np.sin((1 - t)[:, None] * omega) * a + np.sin(t[:, None] * omega) * b
+    ) / math.sin(omega)
+
+    lat = np.degrees(np.arcsin(np.clip(points[:, 2], -1.0, 1.0)))
+    lon = np.degrees(np.arctan2(points[:, 1], points[:, 0]))
+    scale = (2 ** zoom) * TILE_PX
+    px = (lon + 180.0) / 360.0 * scale
+    py = (1.0 - np.arcsinh(np.tan(np.radians(lat))) / math.pi) / 2.0 * scale
+    return np.column_stack([px, py])
+
+
+def linear_crossings(
+    mosaic: Mosaic, start: tuple, end: tuple, palette=LINEAR_PALETTE, course_px=None
+) -> list:
+    """Where the course crosses linear chart features, as Landmarks.
+
+    A blob centroid is the wrong answer for anything linear. The centroid
+    of a river that wanders across a whole mosaic is a point in a field
+    somewhere; what a pilot uses is the place the course actually cuts
+    it. This is the raster equivalent of vfr.osm.find_line_crossings, and
+    the same reasoning: for a linear feature the checkpoint *is* the
+    intersection.
+
+    Found by walking the course in pixel space and testing the mask
+    under it, rather than by labelling components and intersecting
+    geometry -- the course is one line, so walking it is O(length) and
+    needs no component analysis at all.
+    """
+    channels = mosaic.pixels.astype(np.int16)
+    r, g, b = channels[:, :, 0], channels[:, :, 1], channels[:, :, 2]
+    height, width = mosaic.pixels.shape[:2]
+    if course_px is None:
+        course_px = great_circle_pixels(start, end, mosaic.zoom)
+    if len(course_px) < 2:
+        return []
+
+    local = course_px - np.array(mosaic.origin_px)
+
+    centre_lat, _ = mosaic.to_latlon(width / 2, height / 2)
+    m_per_px = metres_per_pixel(centre_lat, mosaic.zoom)
+
+    found = []
+    for spec in palette:
+        mask = spec.test(r, g, b)
+        hits = []
+        for step, (px, py) in enumerate(local):
+            ix, iy = int(round(px)), int(round(py))
+            if not (0 <= ix < width and 0 <= iy < height):
+                continue
+            lo_y, hi_y = max(0, iy - CROSSING_TOLERANCE_PX), min(height, iy + CROSSING_TOLERANCE_PX + 1)
+            lo_x, hi_x = max(0, ix - CROSSING_TOLERANCE_PX), min(width, ix + CROSSING_TOLERANCE_PX + 1)
+            window = mask[lo_y:hi_y, lo_x:hi_x]
+            if window.any():
+                hits.append((step, ix, iy, int(window.sum())))
+
+        # Collapse runs of consecutive hits into one crossing each.
+        for group in _group_hits(hits):
+            mid = group[len(group) // 2]
+            lat, lon = mosaic.to_latlon(mid[1], mid[2])
+            weight = sum(h[3] for h in group)
+            if weight < spec.min_area_px:
+                continue
+            found.append(
+                Landmark(
+                    category=spec.name,
+                    lat=lat,
+                    lon=lon,
+                    # A crossing has no area; the linework under it stands
+                    # in for how prominent the feature is on the chart.
+                    area_m2=float(weight) * m_per_px ** 2,
+                    score=spec.base_score,
+                    pixels=weight,
+                    extras={"crossing": True, "width_px": len(group)},
+                )
+            )
+    return found
+
+
+def _group_hits(hits: list, separation: int = CROSSING_SEPARATION_PX) -> list:
+    """Split hits along the course into separate crossings."""
+    groups, current = [], []
+    for hit in hits:
+        if current and hit[0] - current[-1][0] > separation:
+            groups.append(current)
+            current = []
+        current.append(hit)
+    if current:
+        groups.append(current)
+    return groups
+
+
 def landmarks_along_route(
     start: tuple,
     end: tuple,
@@ -371,18 +545,25 @@ def landmarks_along_route(
     tiles = corridor_tiles(start, end, half_width_nm + 1.0, zoom)
     route_nm = distance_nm(start[0], start[1], end[0], end[1])
 
+    # Once for the whole route, not once per block: the path is the same
+    # for every block and building it 40 times was pure waste.
+    course_px = great_circle_pixels(start, end, zoom)
+
     found, stats = [], {"missing": 0, "fetched": 0, "cached": 0}
     for block in tile_blocks(tiles):
         mosaic = build_mosaic(block, zoom)
         stats["missing"] += mosaic.missing_tiles
         stats["fetched"] += mosaic.fetched_tiles
         stats["cached"] += mosaic.cached_tiles
-        for landmark in detect_landmarks(mosaic):
+        block_landmarks = detect_landmarks(mosaic) + linear_crossings(
+            mosaic, start, end, course_px=course_px
+        )
+        for landmark in block_landmarks:
             cross = cross_track_distance_nm(landmark.lat, landmark.lon, start, end)
             along = along_track_distance_nm(landmark.lat, landmark.lon, start, end)
             if abs(cross) > half_width_nm or not (-margin_nm <= along <= route_nm + margin_nm):
                 continue
-            landmark.extras = {"cross_track_nm": cross, "along_track_nm": along}
+            landmark.extras.update({"cross_track_nm": cross, "along_track_nm": along})
             found.append(landmark)
 
     found = _dedupe(found)

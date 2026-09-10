@@ -107,3 +107,55 @@ def test_mosaic_maps_its_own_pixels_back_to_the_world():
     lat, lon = mosaic.to_latlon(x - origin[0], y - origin[1])
     assert lat == pytest.approx(WISCONSIN[0], abs=1e-4)
     assert lon == pytest.approx(WISCONSIN[1], abs=1e-4)
+
+
+# --- the course walk must follow the great circle, not a pixel-space line ---
+
+from vfr.chartvision import great_circle_pixels, global_px_to_latlon  # noqa: E402
+from vfr.geo import cross_track_distance_nm  # noqa: E402
+
+C81, KDLH = (42.3246, -88.0741), (46.8419, -92.1987)
+
+
+def test_course_pixels_stay_on_the_great_circle():
+    """The bug this guards: interpolating straight between the endpoints
+    in pixel space is a rhumb line. On this 323 nm route that drifted up
+    to 0.6 nm off course, growing with distance, so detected crossings
+    landed nowhere near the ones picked by hand -- recall against real
+    labels was 3% and went to 71% once fixed."""
+    path = great_circle_pixels(C81, KDLH)
+    worst = 0.0
+    for px, py in path[::200]:
+        lat, lon = global_px_to_latlon(px, py)
+        worst = max(worst, abs(cross_track_distance_nm(lat, lon, C81, KDLH)))
+    assert worst < 0.01, f"course path drifts {worst:.3f} nm off the great circle"
+
+
+def test_a_pixel_space_line_would_have_failed_this_test():
+    """Shows the guard above has teeth, by measuring the drift of the
+    approach it replaced."""
+    x0, y0 = latlon_to_global_px(*C81)
+    x1, y1 = latlon_to_global_px(*KDLH)
+    worst = 0.0
+    for t in np.linspace(0, 1, 50):
+        lat, lon = global_px_to_latlon(x0 + (x1 - x0) * t, y0 + (y1 - y0) * t)
+        worst = max(worst, abs(cross_track_distance_nm(lat, lon, C81, KDLH)))
+    assert worst > 0.1, "the rhumb line is supposed to drift; this test is the control"
+
+
+def test_course_pixels_start_and_end_at_the_airports():
+    path = great_circle_pixels(C81, KDLH)
+    for point, expected in ((path[0], C81), (path[-1], KDLH)):
+        lat, lon = global_px_to_latlon(point[0], point[1])
+        assert lat == pytest.approx(expected[0], abs=1e-4)
+        assert lon == pytest.approx(expected[1], abs=1e-4)
+
+
+def test_course_pixels_are_about_one_pixel_apart():
+    path = great_circle_pixels(C81, KDLH)
+    steps = np.hypot(np.diff(path[:, 0]), np.diff(path[:, 1]))
+    assert 0.5 < steps.mean() < 2.0
+
+
+def test_identical_endpoints_yield_no_path():
+    assert len(great_circle_pixels(C81, C81)) == 0
