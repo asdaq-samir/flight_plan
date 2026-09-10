@@ -14,8 +14,9 @@
     *{box-sizing:border-box}
     body{margin:0;height:100vh;display:flex;flex-direction:column;color:var(--ink);
       font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}
-    header{padding:9px 16px;border-bottom:1px solid var(--line);display:flex;
-      align-items:center;gap:14px;flex-wrap:wrap}
+    header{padding:8px 16px;border-bottom:1px solid var(--line);
+      display:flex;flex-direction:column;gap:6px}
+    .hrow{display:flex;align-items:center;gap:14px;flex-wrap:wrap;min-height:28px}
     .brand{font-weight:700}
     form{display:flex;align-items:center;gap:6px}
     form input{font:600 15px ui-monospace,SFMono-Regular,Menlo,monospace;text-transform:uppercase;
@@ -149,24 +150,32 @@
 </head>
 <body>
   <header>
-    <span class="brand">Route</span>
-    <form id="form" autocomplete="off">
-      <input id="dep" placeholder="DEP" spellcheck="false" aria-label="Departure">
-      <span>&rarr;</span>
-      <input id="dest" placeholder="DEST" spellcheck="false" aria-label="Destination">
-      <button type="submit">Load</button>
-    </form>
-    <span id="stats"></span>
-    <span id="filters" title="Which waypoints to show and count">
-      <label><input type="checkbox" id="f-dr"> DR</label>
-      <label><input type="checkbox" id="f-visual"> visual</label>
-      <span class="fsep"></span>
-      <label><input type="checkbox" id="f-provided"> provided</label>
-      <label><input type="checkbox" id="f-added"> added</label>
-      <span class="fsep"></span>
-      <label><input type="checkbox" id="f-rated"> rated</label>
-      <label><input type="checkbox" id="f-unrated"> unrated</label>
-    </span>
+    <!-- Two rows: the route you are loading, then what is on screen from
+         it. They change on different occasions -- one when you switch
+         legs, the other every time a box is ticked -- and sharing a line
+         made the second reflow the first. -->
+    <div class="hrow">
+      <span class="brand">Route</span>
+      <form id="form" autocomplete="off">
+        <input id="dep" placeholder="DEP" spellcheck="false" aria-label="Departure">
+        <span>&rarr;</span>
+        <input id="dest" placeholder="DEST" spellcheck="false" aria-label="Destination">
+        <button type="submit">Load</button>
+      </form>
+    </div>
+    <div class="hrow">
+      <span id="stats"></span>
+      <span id="filters" title="Which waypoints to show and count">
+        <label><input type="checkbox" id="f-dr"> DR</label>
+        <label><input type="checkbox" id="f-visual"> visual</label>
+        <span class="fsep"></span>
+        <label><input type="checkbox" id="f-provided"> provided</label>
+        <label><input type="checkbox" id="f-added"> added</label>
+        <span class="fsep"></span>
+        <label><input type="checkbox" id="f-rated"> rated</label>
+        <label><input type="checkbox" id="f-unrated"> unrated</label>
+      </span>
+    </div>
   </header>
 
   <div id="middle">
