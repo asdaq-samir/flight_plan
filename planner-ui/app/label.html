@@ -571,8 +571,7 @@ function renderMarkers() {
     const m = L.marker([d.lat, d.lon], { icon: dot(colour, "#1f5c8b") });
     m.on("click", (e) => {
       L.DomEvent.stopPropagation(e);
-      select({ kind: "detected", i });
-      openPointEditor(d, "detected", i);
+      openPoint(d, "detected", i);
     });
     // Right-click behaves like left-click here rather than doing nothing.
     // Swallowing it stopped a duplicate point being added on top, which
@@ -583,8 +582,7 @@ function renderMarkers() {
     m.on("contextmenu", (e) => {
       L.DomEvent.stopPropagation(e);
       if (e.originalEvent) e.originalEvent.preventDefault();
-      select({ kind: "detected", i });
-      openPointEditor(d, "detected", i);
+      openPoint(d, "detected", i);
     });
     return m;
   })).addTo(map);
@@ -593,14 +591,12 @@ function renderMarkers() {
     const m = L.marker([a.lat, a.lon], { icon: dot(COLORS[a.rating ?? 0], "#7b3fa0") });
     m.on("click", (e) => {
       L.DomEvent.stopPropagation(e);
-      select({ kind: "added", i });
-      openPointEditor(a, "added", i);
+      openPoint(a, "added", i);
     });
     m.on("contextmenu", (e) => {
       L.DomEvent.stopPropagation(e);
       if (e.originalEvent) e.originalEvent.preventDefault();
-      select({ kind: "added", i });
-      openPointEditor(a, "added", i);
+      openPoint(a, "added", i);
     });
     return m;
   })).addTo(map);
@@ -846,6 +842,22 @@ async function savePoint(d, kind, changes) {
  * Stays open as you change things, re-rendering so the current values
  * stay marked. Closing it is the only thing that ends the edit.
  */
+/**
+ * Select a point and open its editor. Wrapped so a fault in either shows
+ * up as a message instead of a click that appears to do nothing -- which
+ * is indistinguishable from a missing feature, and took a round trip to
+ * even identify as a fault.
+ */
+function openPoint(d, kind, index) {
+  try {
+    select({ kind, i: index });
+    openPointEditor(d, kind, index);
+  } catch (err) {
+    flash(`Could not open that point: ${err.message}`, true);
+    throw err;
+  }
+}
+
 function openPointEditor(d, kind, index) {
   const popup = L.popup({ closeButton: true, autoClose: true, className: "catpop editpop" })
     .setLatLng([d.lat, d.lon]);
@@ -898,8 +910,14 @@ function openPointEditor(d, kind, index) {
     if (rm) rm.addEventListener("click", () => { map.closePopup(popup); removeCurrent(); });
   }
 
-  popup.setContent(content()).openOn(map);
-  wire();
+  // Opened on the next tick. Leaflet closes open popups on a map click,
+  // and opening one from inside the click handler that caused it can put
+  // the two in the same event cycle -- the popup appears and vanishes,
+  // which looks exactly like nothing happening.
+  setTimeout(() => {
+    popup.setContent(content()).openOn(map);
+    wire();
+  }, 0);
 }
 
 
