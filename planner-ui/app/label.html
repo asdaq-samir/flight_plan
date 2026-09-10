@@ -166,7 +166,7 @@
     <span><kbd>t</kbd> basemap: <b id="basemap">FAA sectional</b></span>
     <span><kbd>Esc</kbd> deselect</span>
     <button type="button" id="fit" class="viewbtn">Fit route <kbd>f</kbd></button>
-    <button type="button" id="recentre" class="viewbtn">Back to marker <kbd>c</kbd></button>
+    <button type="button" id="recentre" class="viewbtn">Zoom to marker <kbd>c</kbd></button>
     <span style="margin-left:auto"><kbd>w</kbd> <b>walk unjudged</b> · <kbd>n</kbd> next · <kbd>p</kbd> previous</span>
   </footer>
 
@@ -225,8 +225,34 @@ function fitRoute() {
 // "back to marker" still means something once a rating has moved on.
 let lastFocus = null;
 
+// Walking stays wide enough to keep context around a crossing; c is the
+// deliberate "show me this one properly" and goes closer. Both sit above
+// the chart's native zoom 12, so the sectional is upscaled -- past 14 it
+// is more blur than detail.
+const WALK_ZOOM = 13;
+const FOCUS_ZOOM = 14;
+
 function focusOn(d) {
   if (d) lastFocus = { lat: d.lat, lon: d.lon };
+}
+
+// A ring around the selected point. Its own layer rather than a swapped
+// marker icon, so it survives renderMarkers rebuilding the marker layers
+// and so the radius stays constant in pixels as you zoom -- a highlight
+// that shrinks with the map is not a highlight.
+let halo = null;
+
+function showHalo(d) {
+  hideHalo();
+  if (!d) return;
+  halo = L.circleMarker([d.lat, d.lon], {
+    radius: 20, color: "#1f5c8b", weight: 3, opacity: 0.95,
+    fill: false, dashArray: "5,4", interactive: false,
+  }).addTo(map);
+}
+
+function hideHalo() {
+  if (halo) { map.removeLayer(halo); halo = null; }
 }
 
 function centreOnSelection() {
@@ -237,7 +263,7 @@ function centreOnSelection() {
     flash("Nothing to go back to — f fits the whole route", true);
     return;
   }
-  map.setView([target.lat, target.lon], Math.max(map.getZoom(), chartMinZoom + 1));
+  map.setView([target.lat, target.lon], Math.max(map.getZoom(), FOCUS_ZOOM));
 }
 
 function renderChartNotice() {
@@ -292,6 +318,7 @@ async function loadDetections(dep, dest) {
   detections = [];
   added = [];
   lastFocus = null;
+  hideHalo();
   lastCoverage = {};
   renderMarkers();
 
@@ -375,6 +402,7 @@ function renderMarkers() {
   })).addTo(map);
 
   renderList();
+  if (selected) showHalo(current());
 }
 
 function renderList() {
@@ -417,6 +445,7 @@ function select(sel) {
   const d = current();
   if (!d) return;
   focusOn(d);
+  showHalo(d);
   el("sel").className = "show";
   el("sel-what").innerHTML = selected.kind === "detected"
     ? `<b>Detected ${d.category}</b>${d.area_m2 ? ` · ${(d.area_m2/1e6).toFixed(2)} km²` : ""}`
@@ -429,7 +458,7 @@ function select(sel) {
   el("del").style.display = d.judged || selected.kind === "added" ? "" : "none";
 }
 
-function deselect() { selected = null; el("sel").className = ""; }
+function deselect() { selected = null; hideHalo(); el("sel").className = ""; }
 
 async function judge(rating) {
   const d = current();
@@ -549,7 +578,7 @@ function walkTo(step) {
   const { d, i } = queue[walkIdx];
   // Zoom in one past the chart's native limit: the linework a crossing
   // sits on is thin, and at fit-route zoom you cannot see what it is.
-  map.setView([d.lat, d.lon], Math.min(course.max_zoom + 1, 14));
+  map.setView([d.lat, d.lon], WALK_ZOOM);
   focusOn(d);
   select({ kind: "detected", i });
   el("flash").style.color = "var(--muted)";
