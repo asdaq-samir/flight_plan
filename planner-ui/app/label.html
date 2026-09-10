@@ -487,6 +487,9 @@ async function loadCourse(dep, dest) {
   const body = await res.json();
   if (!res.ok) { flash(body.detail || "could not resolve route", true); return false; }
   course = body;
+  // Before anything renders: the list's ends come from here, and a route
+  // loaded without them shows checkpoints with nothing to run between.
+  buildEndpoints();
   initBasemaps(course);
   if (courseLayer) map.removeLayer(courseLayer);
   if (endsLayer) map.removeLayer(endsLayer);
@@ -507,6 +510,9 @@ async function loadCourse(dep, dest) {
   )).addTo(map);
   fitRoute();
   el("stats").innerHTML = `<b>${course.distance_nm}</b> nm · ${String(course.bearing_deg).padStart(3,"0")}°T · reading chart…`;
+  // Draw the ends straight away rather than waiting on the tiles: the
+  // route exists the moment the idents resolve.
+  renderList();
   history.replaceState(null, "", `?dep=${dep}&dest=${dest}`);
   return true;
 }
