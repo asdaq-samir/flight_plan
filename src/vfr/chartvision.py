@@ -174,6 +174,19 @@ CROSSING_SEPARATION_PX = 24
 # without needing to recognise text as such.
 MIN_LINE_EXTENT_PX = 60
 
+# A landmark abeam has to be bigger to be usable than the same landmark
+# underneath you. Apparent size falls off with distance, so the area
+# required grows with the square of how far off course it sits: a pond
+# 290 m across is a fine checkpoint overhead and invisible at four miles.
+#
+# This is the answer to "why are there 400 candidates". The corridor was
+# widened from 1 nm to 4 nm half-width to admit visual references, which
+# multiplied the searched area four-fold -- 8,900 km2 on one route -- and
+# nearly all of the extra was small water. Median blob was 0.084 km2 with
+# only 24 of 209 above 1 km2. The area is not wrong; requiring the same
+# minimum size across all of it was.
+ON_COURSE_NM = 1.0
+
 # An obstacle is drawn as a small inverted V, in the same near-black ink,
 # and is a hazard to avoid rather than a checkpoint to look for. The
 # extent test removes it for the same reason it removes text: the glyph
@@ -714,6 +727,20 @@ def landmarks_along_route(
     # for every block and building it 40 times was pure waste.
     course_px = great_circle_pixels(start, end, zoom)
 
+    def big_enough_to_see(landmark, cross_nm: float) -> bool:
+        """Whether a blob is large enough to pick out from this far off
+        course. Crossings are exempt: they are on the course by
+        construction, and a river is identified by where it cuts the
+        line rather than by its area."""
+        if landmark.extras.get("crossing") or landmark.area_m2 <= 0:
+            return True
+        spec = next((s for s in PALETTE if s.name == landmark.category), None)
+        if spec is None:
+            return True
+        offset = max(1.0, abs(cross_nm) / ON_COURSE_NM)
+        m_per_px = metres_per_pixel(landmark.lat, zoom)
+        return landmark.area_m2 >= spec.min_area_px * m_per_px ** 2 * offset ** 2
+
     found, stats = [], {"missing": 0, "fetched": 0, "cached": 0}
     for block in tile_blocks(tiles):
         mosaic = build_mosaic(block, zoom)
@@ -727,6 +754,8 @@ def landmarks_along_route(
             cross = cross_track_distance_nm(landmark.lat, landmark.lon, start, end)
             along = along_track_distance_nm(landmark.lat, landmark.lon, start, end)
             if abs(cross) > half_width_nm or not (-margin_nm <= along <= route_nm + margin_nm):
+                continue
+            if not big_enough_to_see(landmark, cross):
                 continue
             landmark.extras.update({"cross_track_nm": cross, "along_track_nm": along})
             found.append(landmark)
