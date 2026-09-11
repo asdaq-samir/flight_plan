@@ -892,16 +892,28 @@ the surviving path never set it.
 
 The fix was not to reach for a browser-automation harness. It was to
 notice that the faults were *decisions*, not drawing: which points a
-filter admits, what counts as rated, which way the arrows step. Those are
-functions of plain objects, so
-[`planner-ui/app/static/logic.js`](../planner-ui/app/static/logic.js)
-holds them and `node --test` covers them in 150 ms with no browser
-anywhere. What is left in the page — appending elements, binding Leaflet
-layers — is the part where a test would mostly restate the code.
+filter admits, what counts as rated, which way the arrows step, which leg
+leaves a checkpoint. Those are functions of plain objects, so
+[`web/src/label/logic.ts`](../web/src/label/logic.ts) and
+[`web/src/plan/format.ts`](../web/src/plan/format.ts) hold them and
+`vitest` covers them in well under a second with no browser anywhere.
+What is left in the components — binding Leaflet layers, rendering rows —
+is the part where a test would mostly restate the code.
 
 The general lesson is worth more than the JavaScript: when something is
 hard to test, it is often because a decision and its rendering are
 tangled together, and separating them is what makes both better.
+
+The one fault this did *not* catch is worth recording next to it. After
+the port, both pages drew the whole United States instead of the leg: the
+CSS was written when the layout rows were children of `<body>`, which is
+a flex column, and React mounts them inside `#root`, which is not, so the
+map inherited no height and Leaflet fitted the route against a container
+it had measured wrong. No pure function was wrong and no test could have
+failed. It was found by rendering the pages headless and *looking* at
+them — which is the other half of the lesson: separating decisions from
+rendering makes the decisions testable, and leaves rendering as the part
+you still have to go and look at.
 
 **Contracts get slice tests.** `RouteControllerTest` uses `@WebMvcTest`
 with the service layer mocked, because what it's testing is the *HTTP

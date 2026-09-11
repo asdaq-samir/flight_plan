@@ -33,7 +33,7 @@ from pathlib import Path
 
 import requests
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -53,17 +53,7 @@ DEFAULT_AIRCRAFT = "c172"
 
 app = FastAPI(title="vfr-route planner")
 
-_INDEX = Path(__file__).resolve().parent / "index.html"
 
-# The chart primitives and the page logic, shared by both views rather
-# than copied into each. They drifted when copied -- one page called the
-# basemap setup initBase and the other initBasemaps, each with its own
-# toggle, so a fix to one never reached the other.
-app.mount(
-    "/static",
-    StaticFiles(directory=Path(__file__).resolve().parent / "static"),
-    name="static",
-)
 
 # The React build. Served here while the port is in progress so the pages
 # it replaces stay reachable and can be compared against it; when Spring
@@ -81,7 +71,6 @@ if _WEB.exists():
         above and never reach here.
         """
         return FileResponse(_WEB / "index.html")
-_LABEL = Path(__file__).resolve().parent / "label.html"
 
 # job id -> {"state": queued|running|done|failed, "step", "detail", ...}
 # In-memory on purpose: a build is only meaningful to the page that
@@ -122,8 +111,10 @@ def _resolve(dep: str, dest: str) -> tuple:
 
 
 @app.get("/")
-def index() -> FileResponse:
-    return FileResponse(_INDEX)
+def index() -> RedirectResponse:
+    """The planner now lives in the bundle. Redirected rather than
+    removed so an existing bookmark still lands somewhere."""
+    return RedirectResponse("/app/plan")
 
 
 @app.get("/api/routes")
@@ -358,8 +349,10 @@ class Pick(BaseModel):
 
 
 @app.get("/label")
-def label_page() -> FileResponse:
-    return FileResponse(_LABEL)
+def label_page() -> RedirectResponse:
+    """Likewise -- /label was the labeling page's address for long enough
+    that it is worth keeping as a redirect."""
+    return RedirectResponse("/app/label")
 
 
 @app.get("/api/course")

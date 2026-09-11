@@ -99,7 +99,7 @@ The system runs today as ten Docker services:
 | `airflow` | Orchestrates the ML training pipeline |
 | `pipeline-processing` / `pipeline-training` | Data collection, feature engineering, and model training, run as isolated jobs |
 | `ml` | Jupyter environment for model development and experimentation |
-| `planner-ui` | Route planner and chart-vision labeling UI: course, checkpoints, nav log, and rating spottability against FAA sectional charts |
+| `planner-ui` | FastAPI server for the React app in `web/`: course, checkpoints, nav log, and rating spottability against FAA sectional charts |
 
 ![Current local architecture](architecture-current.svg)
 
@@ -126,6 +126,15 @@ works too. AWS counterpart: `architecture-aws.drawio`, rendered in
 ![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=flat-square&logo=fastapi&logoColor=white)
 ![Airflow](https://img.shields.io/badge/Apache%20Airflow-017CEE?style=flat-square&logo=apacheairflow&logoColor=white)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL%20%2B%20pgvector-4169E1?style=flat-square&logo=postgresql&logoColor=white)
+
+**Front end**
+
+![React](https://img.shields.io/badge/React%2018-61DAFB?style=flat-square&logo=react&logoColor=black)
+![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=flat-square&logo=typescript&logoColor=white)
+![Vite](https://img.shields.io/badge/Vite-646CFF?style=flat-square&logo=vite&logoColor=white)
+![Zustand](https://img.shields.io/badge/Zustand-2D3748?style=flat-square)
+![Leaflet](https://img.shields.io/badge/Leaflet-199900?style=flat-square&logo=leaflet&logoColor=white)
+![Vitest](https://img.shields.io/badge/Vitest-6E9F18?style=flat-square&logo=vitest&logoColor=white)
 
 **Gen AI**
 
@@ -154,10 +163,11 @@ Overpass API for the tabular feature pipeline.
 
 **`planner-ui`** — the one human-facing surface, and where the chart is read.
 
-- `/` plans a route: the course draws in about half a second, checkpoints
-  land a tenth of a second later, and the nav log arrives when terrain,
-  airspace and winds allow, holding up nothing while it does
-- `/label` rates checkpoints on the sectional itself. `Space` jumps to the
+- `/app/plan` plans a route: the course draws in about half a second,
+  checkpoints land a tenth of a second later, and the nav log arrives when
+  terrain, airspace and winds allow, holding up nothing while it does
+  (`/` redirects here, as `/label` does to `/app/label`)
+- `/app/label` rates checkpoints on the sectional itself. `Space` jumps to the
   departure, the arrows walk the course, `0`–`5` rate and advance. Clicking
   the course adds a checkpoint the detector missed; right-click adds one off
   it
@@ -170,9 +180,10 @@ Overpass API for the tabular feature pipeline.
   background thread, rather than by launching a pipeline container — that
   would mean handing this service the Docker socket, a far larger grant
   than it needs
-- Shared browser code lives in `app/static/`: `chart.js` for the map,
-  `logic.js` for the decisions, which are pure functions and covered by the
-  `test-planner-ui` CI job
+- The front end is a React + TypeScript app in `web/`, built by Vite into
+  `app/web/` and served from `/app`. Both views share one set of chart
+  primitives and one API client; the decisions they make are pure
+  functions, covered along with a typecheck by the `test-web` CI job
 
 **`model-service`** — FastAPI model-serving endpoint.
 
@@ -285,11 +296,28 @@ an engineering gap:
 - **Ratings for the chart-vision detector.** The tabular pipeline is
   finished: all 206 OSM-derived candidates on C81→KDLH are labeled, and a
   RandomForest is trained, promoted and served. The chart-vision detector
-  that replaced it has no scorer yet, because that needs its own ratings
-  and those are still being collected — 51 picks so far, and all but one
-  of them a 5. Rating a detection `0` is the judgment the detector most
-  needs and the one the data has none of, so a pass over C81→KDLH at
-  `docker compose up planner-ui` (port 8084, `/label`) is the next step.
+  that replaced it has no scorer yet, and this has now been measured
+  rather than assumed. `vfr.chartfeatures` and `vfr.chartlabels_join`
+  build the feature table and bootstrap a training set by carrying the
+  older OSM ratings onto chart detections by position; 77 of them land.
+  On those 77, **no model beats predicting the mean** (MAE 0.804), and
+  the palette's hand-set constants are already level with it (0.810),
+  while Ridge, RandomForest and GradientBoosting all come out worse.
+
+  The cause is the target, not the features. 79% of the labels are 4 or 5
+  and 3% are 0 or 1, because they were made by clicking points worth
+  using; every category's ratings span nearly the full scale (river 4.40,
+  water 4.27, town 4.00, road_or_rail 3.67), so there is no separation to
+  find. The models' strongest feature was distance from the course line —
+  where the cursor went, not what the landmark is, which is the same
+  leakage that removed route position from the tabular model.
+
+  So rating a detection `0` is the judgment the detector most needs and
+  the one the data has none of, and a labeling pass over C81→KDLH at
+  `docker compose up planner-ui` (port 8084, `/app/label`) is the next
+  step — this time deliberately rating poor landmarks as poor. Until the
+  target has spread, the palette constants are the better scorer and the
+  honest one.
 
   Three things unblock together once it exists. The detector's recall is
   measurable (it currently supplies under 40% of the waypoints a pilot
@@ -383,9 +411,10 @@ compose up ml`. Full per-notebook breakdown is in the
 docker compose run --rm pipeline-training ruff check src/vfr tests
 docker compose run --rm pipeline-training pytest
 
-# Browser logic (planner-ui) — 21 tests, no browser needed: the filters,
-# ordering and rating rules are pure functions in app/static/logic.js
-docker run --rm -v "$PWD/planner-ui":/w -w /w node:20-slim node --test tests/
+# Web front end (web/) — 45 tests plus a typecheck. No browser needed:
+# the filters, ordering, rating and nav-log rules are pure functions.
+docker run --rm -v "$PWD/web":/w -w /w node:20-slim \
+  sh -c "npm ci && npx tsc --noEmit && npx vitest run"
 
 # Java (webapp) — 13 tests. No native Maven needed, matching the rest of
 # this project; the Docker socket is mounted through so Testcontainers can
@@ -437,7 +466,7 @@ breakdown is in the [Appendix](#appendix).
 | `docker compose up airflow` | Orchestrates the full pipeline as a DAG | `8081` |
 | `docker compose up nav-log-agent` | LangGraph MCP server (needs `ANTHROPIC_API_KEY`) | `8082` |
 | `docker compose run --rm crewai-agent --departure-ident C81 --destination-ident KDLH` | One-shot CrewAI CLI (needs `ANTHROPIC_API_KEY`) | — |
-| `docker compose up planner-ui` | Route planner, and `/label` for spottability labeling (see [Status](#status)) | `8084` |
+| `docker compose up planner-ui` | Route planner at `/app/plan`, and `/app/label` for spottability labeling (see [Status](#status)) | `8084` |
 
 Notes:
 
@@ -485,7 +514,7 @@ data/
 | Job | What it does |
 |---|---|
 | `test` | ruff + pytest over `src/vfr` |
-| `test-planner-ui` | `node --test` over the planner's browser logic — filters, ordering, and what counts as rated, all pure functions needing no browser |
+| `test-web` | `tsc --noEmit`, `vitest` and a production build over `web/` — filters, ordering, what counts as rated, and which leg leaves a checkpoint, all pure functions needing no browser |
 | `test-webapp` | `mvn test` — webapp's JUnit suite, including the Testcontainers Postgres test |
 | `docs` | Regenerates Javadoc + godoc on every push/PR; the `pdoc` steps, which need this repo's heavy ML images, run only on pushes to `main` so PRs aren't charged minutes for them. Output uploads as a `documentation` artifact. |
 | `build-images` | Builds every service Dockerfile, publishes each to GHCR on push to `main` |
