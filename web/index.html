@@ -4,6 +4,11 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Route — pick checkpoints</title>
+    <!-- Structural, not decorative: without this the page can grow a
+         scrollbar of its own (even by a stray pixel), and a wheel over
+         the map then fights the page for the scroll instead of Leaflet
+         getting it cleanly -- felt as janky zoom rather than a crash. -->
+    <style>html, body { height: 100%; margin: 0; overflow: hidden; }</style>
   </head>
   <body>
     <div id="root"></div>

@@ -1,7 +1,7 @@
-import { create } from "zustand";
-import { ApiError, api } from "../api/client";
-import type { BuiltRoute, Candidate, Course, Leg, NavLog, Totals } from "../api/types";
-import { elapsed } from "./format";
+import { useCallback, useRef, useState } from "react";
+import { ApiError, api } from "../../../lib/api/client";
+import type { BuiltRoute, Candidate, Course, Leg, NavLog, Totals } from "../../../lib/api/types";
+import { elapsed } from "../format";
 
 /**
  * The planner's state.
@@ -16,6 +16,10 @@ import { elapsed } from "./format";
  * `navError` is deliberately separate from `error`: the nav log failing
  * is not the plan failing, and it should not clear a map that is already
  * correct.
+ *
+ * This used to be a zustand store (`create<PlanState>(...)`). Rolled
+ * back to a plain hook -- see "Learning this from zero" in
+ * web/README.md for when a dependency like that is worth bringing back.
  */
 
 interface PlanState {
@@ -39,86 +43,76 @@ interface PlanState {
   selectedRow: number | null;
   showCandidates: boolean;
   showNav: boolean;
-
-  loadRoutes: () => Promise<BuiltRoute[]>;
-  plan: (dep: string, dest: string, altitudeFt?: string) => Promise<void>;
-  build: (dep: string, dest: string) => Promise<void>;
-  selectRow: (index: number | null) => void;
-  toggleCandidates: () => void;
-  toggleNav: () => void;
 }
 
-/** One in-flight plan at a time. A second submit while the nav log of the
- *  first is still outstanding would otherwise merge two routes' legs. */
-let planToken = 0;
+function initialState(): PlanState {
+  return {
+    course: null, candidates: [], selected: [], legs: [], totals: null, nav: null,
+    routes: [], stage: null, error: null, navError: null, needsBuild: null, building: null,
+    selectedRow: null, showCandidates: true, showNav: true,
+  };
+}
 
-export const usePlanStore = create<PlanState>((set, get) => ({
-  course: null,
-  candidates: [],
-  selected: [],
-  legs: [],
-  totals: null,
-  nav: null,
-  routes: [],
-  stage: null,
-  error: null,
-  navError: null,
-  needsBuild: null,
-  building: null,
-  selectedRow: null,
-  showCandidates: true,
-  showNav: true,
+export function usePlanState() {
+  const [state, setState] = useState<PlanState>(initialState);
+  const ref = useRef(state);
+  ref.current = state;
+  // One in-flight plan at a time. A second submit while the nav log of
+  // the first is still outstanding would otherwise merge two routes'
+  // legs.
+  const planToken = useRef(0);
 
-  async loadRoutes() {
+  const loadRoutes = useCallback(async () => {
     try {
       const { routes } = await api.routes();
-      set({ routes });
+      setState(s => ({ ...s, routes }));
       return routes;
     } catch {
       return [];   // the datalist is a convenience; its absence is not an error
     }
-  },
+  }, []);
 
-  async plan(dep, dest, altitudeFt) {
-    const token = ++planToken;
-    set({
+  const plan = useCallback(async (dep: string, dest: string, altitudeFt?: string) => {
+    const token = ++planToken.current;
+    setState(s => ({
+      ...s,
       stage: "course", error: null, navError: null, needsBuild: null,
       course: null, candidates: [], selected: [], legs: [], totals: null,
       nav: null, selectedRow: null,
-    });
+    }));
 
     try {
       const course = await api.course(dep, dest);
-      if (token !== planToken) return;
-      set({ course, stage: "checkpoints" });
+      if (token !== planToken.current) return;
+      setState(s => ({ ...s, course, stage: "checkpoints" }));
 
       const cp = await api.checkpoints(dep, dest);
-      if (token !== planToken) return;
-      set({ candidates: cp.candidates, selected: cp.selected, stage: "navlog" });
+      if (token !== planToken.current) return;
+      setState(s => ({ ...s, candidates: cp.candidates, selected: cp.selected, stage: "navlog" }));
     } catch (err) {
-      if (token !== planToken) return;
+      if (token !== planToken.current) return;
       const detail = err instanceof Error ? err.message : String(err);
       // The only recoverable failure: the corridor exists, nobody has
       // collected it yet, and the page can start that job itself.
       if (err instanceof ApiError && err.status === 404 && detail.includes("not been collected")) {
-        set({ stage: null, needsBuild: { dep, dest }, error: null });
+        setState(s => ({ ...s, stage: null, needsBuild: { dep, dest }, error: null }));
       } else {
-        set({ stage: null, error: detail.split("\n")[0] ?? "request failed" });
+        setState(s => ({ ...s, stage: null, error: detail.split("\n")[0] ?? "request failed" }));
       }
       return;
     }
 
     try {
       const nl = await api.navlog(dep, dest, altitudeFt);
-      if (token !== planToken) return;
+      if (token !== planToken.current) return;
       const { legs, totals, ...rest } = nl;
-      set({ legs, totals, nav: rest, stage: null });
+      setState(s => ({ ...s, legs, totals, nav: rest, stage: null }));
     } catch (err) {
-      if (token !== planToken) return;
+      if (token !== planToken.current) return;
       const detail = err instanceof Error ? err.message : "could not build the nav log";
-      set({ stage: null, navError: detail.split("\n")[0] ?? "could not build the nav log" });
+      setState(s => ({ ...s, stage: null, navError: detail.split("\n")[0] ?? "could not build the nav log" }));
     }
-  },
+  }, []);
 
   /**
    * Collect a corridor, then plan it.
@@ -128,14 +122,14 @@ export const usePlanStore = create<PlanState>((set, get) => ({
    * request held open that long dies in any proxy between here and the
    * server.
    */
-  async build(dep, dest) {
-    set({ building: "starting…" });
+  const build = useCallback(async (dep: string, dest: string) => {
+    setState(s => ({ ...s, building: "starting…" }));
     const started = Date.now();
     try {
       const job = await api.startBuild(dep, dest);
       if (job.state === "done" || !job.job_id) {
-        set({ building: null, needsBuild: null });
-        await get().plan(dep, dest);
+        setState(s => ({ ...s, building: null, needsBuild: null }));
+        await plan(dep, dest);
         return;
       }
       const jobId = job.job_id;
@@ -147,24 +141,27 @@ export const usePlanStore = create<PlanState>((set, get) => ({
         } catch {
           continue;   // a transient blip should not abandon a running job
         }
-        set({ building: `${status.step} — ${elapsed(Date.now() - started)} elapsed` });
+        setState(s => ({ ...s, building: `${status.step} — ${elapsed(Date.now() - started)} elapsed` }));
         if (status.state === "done") {
-          set({ building: null, needsBuild: null });
-          await get().loadRoutes();
-          await get().plan(dep, dest);
+          setState(s => ({ ...s, building: null, needsBuild: null }));
+          await loadRoutes();
+          await plan(dep, dest);
           return;
         }
         if (status.state === "failed") {
-          set({ building: status.detail ?? "build failed" });
+          setState(s => ({ ...s, building: status.detail ?? "build failed" }));
           return;
         }
       }
     } catch (err) {
-      set({ building: err instanceof Error ? err.message : String(err) });
+      setState(s => ({ ...s, building: err instanceof Error ? err.message : String(err) }));
     }
-  },
+  }, [plan, loadRoutes]);
 
-  selectRow: index => set({ selectedRow: index }),
-  toggleCandidates: () => set(s => ({ showCandidates: !s.showCandidates })),
-  toggleNav: () => set(s => ({ showNav: !s.showNav })),
-}));
+  const selectRow = useCallback((index: number | null) => setState(s => ({ ...s, selectedRow: index })), []);
+  const toggleCandidates = useCallback(
+    () => setState(s => ({ ...s, showCandidates: !s.showCandidates })), []);
+  const toggleNav = useCallback(() => setState(s => ({ ...s, showNav: !s.showNav })), []);
+
+  return { ...state, loadRoutes, plan, build, selectRow, toggleCandidates, toggleNav };
+}

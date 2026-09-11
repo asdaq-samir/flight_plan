@@ -1,4 +1,4 @@
-import { isEndpoint, type Point, type Rating, type Role, type Source } from "../api/types";
+import { isEndpoint, type Point, type Rating, type Role, type Source } from "../../lib/api/types";
 
 /**
  * The decisions the labeling view makes, with no map and no document in
@@ -18,6 +18,31 @@ export const COLORS: Record<Rating, string> = {
 
 /** Beyond this far off course you are looking at it, not flying over it. */
 export const DR_CORRIDOR_NM = 0.5;
+
+const COMPASS = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"] as const;
+
+/** A bearing as a rough compass point -- "along the course" means
+ *  nothing to someone picturing the chart; a direction does. */
+export function compassPoint(bearingDeg: number): string {
+  const b = ((bearingDeg % 360) + 360) % 360;
+  return COMPASS[Math.round(b / 45) % 8]!;
+}
+
+/**
+ * The categories a point has actually been seen carrying, from
+ * `CANDIDATE_SPECS` in `src/vfr/osm.py` (`lake_or_pond`, `reservoir`,
+ * `stadium`, `town`), the FAA-sourced and synthetic ones assigned
+ * elsewhere in that pipeline (`airport`, `tower`, `vor`, `wind_farm`,
+ * `intersection`), and what a manual add or a chart reading has produced
+ * in practice (`river`, `road_or_rail`, `water`, `other`). Not an enum
+ * the server enforces -- `category` is a plain string end to end -- so
+ * a value outside this list is shown too, never dropped.
+ */
+export const CATEGORIES = [
+  "airport", "intersection", "lake_or_pond", "reservoir", "river",
+  "road_or_rail", "stadium", "tower", "town", "vor", "water",
+  "wind_farm", "other",
+] as const;
 
 export const FILTER_KEYS = [
   "dr", "visual", "detected", "added", "rated", "unrated",

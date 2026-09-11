@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { Airport, Candidate, Leg, Totals } from "../api/types";
+import type { Airport, Candidate, Leg, Totals } from "../../lib/api/types";
 import {
   deg, elapsed, hhmm, one, panelRows, scoreColor, signed, summary, totalsParts,
 } from "./format";

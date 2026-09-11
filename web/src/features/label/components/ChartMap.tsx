@@ -1,9 +1,11 @@
 import L from "leaflet";
-import { useEffect, useRef } from "react";
-import type { Course, Point } from "../api/types";
-import { isEndpoint } from "../api/types";
-import { COLORS, hasRating, isVisible, type Filters } from "../label/logic";
-import { createBasemaps, createCourseLine, createHalo, dotIcon, endLabelIcon } from "./leaflet";
+import { useEffect, useRef, type ReactNode } from "react";
+import type { Course, Point } from "../../../lib/api/types";
+import { isEndpoint } from "../../../lib/api/types";
+import { COLORS, hasRating, isVisible, type Filters } from "../logic";
+import {
+  createBasemaps, createCourseLine, createHalo, dotIcon, endLabelIcon, updateHaloContent,
+} from "../../../lib/map/leaflet";
 
 interface Props {
   course: Course | null;
@@ -12,8 +14,9 @@ interface Props {
   added: Point[];
   filters: Filters;
   selected: Point | null;
-  selectedLabel?: string;
+  selectedContent?: ReactNode;
   onSelect: (kind: "endpoint" | "detected" | "added", index: number) => void;
+  onDeselect: () => void;
   onAddAt: (lat: number, lon: number) => void;
   onMapReady?: (map: L.Map) => void;
 }
@@ -29,6 +32,7 @@ export default function ChartMap(props: Props) {
   const map = useRef<L.Map | null>(null);
   const layers = useRef<Record<string, L.Layer | null>>({});
   const basemaps = useRef<ReturnType<typeof createBasemaps> | null>(null);
+  const halo = useRef<{ ring: L.FeatureGroup; marker: L.Layer; lat: number; lon: number } | null>(null);
 
   // Create once. The guard matters: StrictMode runs effects twice in
   // development, and without it Leaflet initialises two maps into the
@@ -91,17 +95,38 @@ export default function ChartMap(props: Props) {
     layers.current.added = draw(props.added, "added", "#8fa3b0");
   }, [props.detections, props.added, props.filters]);
 
-  // The selection ring, and the label pinned to it.
+  // The selection ring, and the popup pinned to it.
   useEffect(() => {
     const m = map.current;
     if (!m) return;
-    if (layers.current.halo) { m.removeLayer(layers.current.halo); layers.current.halo = null; }
-    if (props.selected) {
-      layers.current.halo = createHalo(
-        m, [props.selected.lat, props.selected.lon], props.selectedLabel,
-      );
-    }
-  }, [props.selected, props.selectedLabel]);
 
-  return <div id="map" ref={el} />;
+    const removeHalo = () => {
+      if (!halo.current) return;
+      // Detach first: removing the ring closes its popup as a side
+      // effect, which fires the same "popupclose" event a real
+      // close-button click does. Without this, stepping to the next
+      // point (which replaces this ring) would deselect it immediately.
+      halo.current.marker.off("popupclose");
+      m.removeLayer(halo.current.ring);
+      halo.current = null;
+    };
+
+    if (!props.selected) { removeHalo(); return; }
+
+    const { lat, lon } = props.selected;
+    // Same point still selected -- just refresh what the popup says (a
+    // live count while detections stream in, a new rating) instead of
+    // tearing the whole ring down and reopening it, which reads as the
+    // selection itself reloading with every block of detections.
+    if (halo.current && halo.current.lat === lat && halo.current.lon === lon) {
+      if (props.selectedContent) updateHaloContent(halo.current.marker, props.selectedContent);
+      return;
+    }
+
+    removeHalo();
+    const created = createHalo(m, [lat, lon], props.selectedContent, props.onDeselect);
+    halo.current = { ...created, lat, lon };
+  }, [props.selected, props.selectedContent]);
+
+  return <div ref={el} className="h-full w-full" />;
 }

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import type { Detection, Endpoint, LoosePick, Point } from "../api/types";
+import type { Detection, Endpoint, LoosePick, Point } from "../../lib/api/types";
 import {
   DEFAULT_FILTERS, forwardIsLeft, forwardIsUp, hasRating, hiddenCount,
   isVisible, orderedPoints, ratedOf, roleOf, sourceOf, type Filters,

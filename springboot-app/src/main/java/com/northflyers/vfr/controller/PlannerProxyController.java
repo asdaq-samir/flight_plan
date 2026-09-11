@@ -53,7 +53,15 @@ public class PlannerProxyController {
      *  collection job is minutes. The client is what should give up. */
     private static final Duration TIMEOUT = Duration.ofMinutes(10);
 
+    // HTTP/1.1 pinned deliberately: the JDK client defaults to attempting
+    // an HTTP/2 upgrade, and planning-service (uvicorn) speaks HTTP/1.1
+    // only. Left on the default, a pooled connection that had negotiated
+    // (or attempted) an upgrade could corrupt a later request on the same
+    // connection -- observed as uvicorn logging "Unsupported upgrade
+    // request" followed by "Invalid HTTP request received" for the very
+    // next POST, which FastAPI then saw as a request with no body at all.
     private final HttpClient http = HttpClient.newBuilder()
+            .version(HttpClient.Version.HTTP_1_1)
             .connectTimeout(Duration.ofSeconds(10))
             .followRedirects(HttpClient.Redirect.NEVER)
             .build();

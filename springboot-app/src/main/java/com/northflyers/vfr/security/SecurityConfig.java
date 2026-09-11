@@ -9,6 +9,7 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
+import org.springframework.security.web.csrf.CsrfFilter;
 import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
 import org.springframework.util.StringUtils;
 
@@ -69,6 +70,11 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf
                         .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
                         .csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler()))
+                // The handler above resolves the token lazily and nothing
+                // server-rendered ever forces it, so without this filter
+                // the XSRF-TOKEN cookie is never written and every POST
+                // or DELETE fails CSRF validation. See CsrfCookieFilter.
+                .addFilterAfter(new CsrfCookieFilter(), CsrfFilter.class)
 
                 // An API answers an unauthenticated call with 401. The
                 // default is a 302 to a login page, which a fetch() sees

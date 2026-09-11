@@ -122,7 +122,7 @@ them one at a time is the only way to see which one did what.
 | `repository/` | Spring Data interfaces. No implementations — Spring writes them. |
 | `domain/` | JPA entities: `Pilot`, `Aircraft`, `Flight`, `FlightCheckpoint`, `Route`, `Checkpoint`. |
 | `dto/` | Request and response shapes, kept separate from entities so the API and the schema can change independently. |
-| `security/` | `SecurityConfig` (what is public) and `Http401EntryPoint` (an API answers 401, it does not redirect to a login page). |
+| `security/` | `SecurityConfig` (what is public), `Http401EntryPoint` (an API answers 401, it does not redirect to a login page), and `CsrfCookieFilter` (forces the `XSRF-TOKEN` cookie to actually be written — see below). |
 | `config/` | `WebMvcConfig` — static-resource and SPA routing. |
 
 Three migrations, in `resources/db/migration/`: routes, then normalised
@@ -156,3 +156,31 @@ through. Unfixed.
 **Testcontainers needs the Docker socket.** That is why the `mvn test`
 command above mounts `/var/run/docker.sock`; without it the persistence
 tests cannot start their Postgres.
+
+**The `XSRF-TOKEN` cookie was never actually being set — fixed.**
+`SecurityConfig` uses `CookieCsrfTokenRepository` with
+`CsrfTokenRequestAttributeHandler`, the standard setup, but that
+handler resolves the token *lazily*: the cookie is only written once
+something reads `csrfToken.getToken()` during the request, which a
+server-rendered page does by referencing `${_csrf}` in a template.
+Nothing here does — every response is JSON — so the cookie was never
+set on any response, `web/`'s `client.ts` never had a token to echo
+back, and every POST/DELETE (saving a pick, deleting one, starting a
+build) failed CSRF validation. Because the caller is anonymous, Spring
+reports that as 401 "authentication required" via `Http401EntryPoint`
+rather than 403 via an access-denied handler, which is a doubly
+misleading way to hear "your cookie never arrived." `CsrfCookieFilter`
+forces the token to materialise on every request; it's the pattern
+Spring's own docs recommend for exactly this SPA scenario.
+
+**The planner proxy's `HttpClient` was corrupting POST bodies — fixed.**
+`PlannerProxyController`'s JDK `HttpClient` defaulted to attempting an
+HTTP/2 upgrade against `planning-service` (uvicorn, HTTP/1.1 only).
+Observed as uvicorn logging `Unsupported upgrade request` followed by
+`Invalid HTTP request received` for the *next* request on a reused
+connection, which FastAPI then saw as a request with no body at all —
+a 422 "field required" with `input: null`, for a body Spring itself had
+received intact. Fixed by pinning `.version(HttpClient.Version.HTTP_1_1)`
+on the shared client. Both of these were found the same way: `web/`
+grew a feature that actually exercised a write path nothing had
+exercised end to end before.

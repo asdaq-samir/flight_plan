@@ -1,8 +1,8 @@
 import L from "leaflet";
 import { useEffect, useRef } from "react";
-import type { Candidate, Course } from "../api/types";
-import { createBasemaps, createCourseLine, createHalo, dotIcon, endLabelIcon } from "../chart/leaflet";
-import { scoreColor } from "./format";
+import type { Candidate, Course } from "../../../lib/api/types";
+import { createBasemaps, createCourseLine, createHalo, dotIcon, endLabelIcon, mountReact } from "../../../lib/map/leaflet";
+import { scoreColor } from "../format";
 
 interface Props {
   course: Course | null;
@@ -53,7 +53,7 @@ export default function RouteMap(props: Props) {
     layers.current.ends = L.layerGroup(
       [course.departure, course.destination].map(a =>
         L.marker([a.lat, a.lon], { icon: endLabelIcon(a.ident) })
-          .bindPopup(`<b>${a.ident}</b> — ${a.name}`)),
+          .bindPopup(mountReact(<><b>{a.ident}</b> — {a.name}</>))),
     ).addTo(m);
 
     const fit = () => m.fitBounds(L.latLngBounds(course.course_line), { padding: [30, 30] });
@@ -75,9 +75,12 @@ export default function RouteMap(props: Props) {
         L.circleMarker([c.lat, c.lon], {
           radius: 4, color: "#5b6b76", weight: 1, opacity: 0.65,
           fillColor: scoreColor(c.predicted_score), fillOpacity: 0.5,
-        }).bindPopup(
-          `<b>${c.name || "(unnamed)"}</b><br>${c.category}<br>` +
-          `score ${c.predicted_score.toFixed(2)} · ${c.along_track_nm.toFixed(1)} nm along`)),
+        }).bindPopup(mountReact(
+          <>
+            <b>{c.name || "(unnamed)"}</b><br />{c.category}<br />
+            score {c.predicted_score.toFixed(2)} · {c.along_track_nm.toFixed(1)} nm along
+          </>,
+        ))),
     );
     if (props.showCandidates) layers.current.candidates.addTo(m);
   }, [props.candidates, props.showCandidates]);
@@ -89,9 +92,12 @@ export default function RouteMap(props: Props) {
     layers.current.selected = L.layerGroup(
       props.selected.map((c, i) =>
         L.marker([c.lat, c.lon], { icon: dotIcon(scoreColor(c.predicted_score), i + 1) })
-          .bindPopup(
-            `<b>${i + 1}. ${c.name || "(unnamed)"}</b><br>${c.category}<br>` +
-            `score ${c.predicted_score.toFixed(2)} · ${c.along_track_nm.toFixed(1)} nm along`)),
+          .bindPopup(mountReact(
+            <>
+              <b>{i + 1}. {c.name || "(unnamed)"}</b><br />{c.category}<br />
+              score {c.predicted_score.toFixed(2)} · {c.along_track_nm.toFixed(1)} nm along
+            </>,
+          ))),
     ).addTo(m);
   }, [props.selected]);
 
@@ -101,7 +107,7 @@ export default function RouteMap(props: Props) {
     if (!m) return;
     if (layers.current.halo) { m.removeLayer(layers.current.halo); layers.current.halo = null; }
     if (!props.focus) return;
-    layers.current.halo = createHalo(m, [props.focus.lat, props.focus.lon]);
+    layers.current.halo = createHalo(m, [props.focus.lat, props.focus.lon]).ring;
     m.setView([props.focus.lat, props.focus.lon],
               Math.max(m.getZoom(), props.course?.max_zoom ?? 12));
   }, [props.focus]);
@@ -110,5 +116,5 @@ export default function RouteMap(props: Props) {
   // announced or half the map stays unpainted.
   useEffect(() => { map.current?.invalidateSize(); }, [props.navShown]);
 
-  return <div id="map" ref={el} />;
+  return <div ref={el} className="h-full w-full" />;
 }

@@ -1,4 +1,4 @@
-import type { Airport, Candidate, Leg, Totals } from "../api/types";
+import type { Airport, Candidate, Leg, Totals } from "../../lib/api/types";
 
 /**
  * The planner's pure half: colours, number formatting, and the derived

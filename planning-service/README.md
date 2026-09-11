@@ -74,7 +74,7 @@ documentation and an editor hint.
 4. **Stream the slow one.** `/api/detect/stream` returns
    newline-delimited JSON from a `StreamingResponse`, so detections
    appear block by block from the departure end. The client side is an
-   async generator in `web/src/api/client.ts`.
+   async generator in `web/src/lib/api/client.ts`.
 
 5. **Handle work too slow for a request.** Collecting an uncollected
    corridor is minutes of Overpass and FAA calls. A request held open

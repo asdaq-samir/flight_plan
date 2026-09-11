@@ -963,8 +963,8 @@ The fix was not to reach for a browser-automation harness. It was to
 notice that the faults were *decisions*, not drawing: which points a
 filter admits, what counts as rated, which way the arrows step, which leg
 leaves a checkpoint. Those are functions of plain objects, so
-[`web/src/label/logic.ts`](../web/src/label/logic.ts) and
-[`web/src/plan/format.ts`](../web/src/plan/format.ts) hold them and
+[`web/src/features/label/logic.ts`](../web/src/features/label/logic.ts) and
+[`web/src/features/plan/format.ts`](../web/src/features/plan/format.ts) hold them and
 `vitest` covers them in well under a second with no browser anywhere.
 What is left in the components — binding Leaflet layers, rendering rows —
 is the part where a test would mostly restate the code.
