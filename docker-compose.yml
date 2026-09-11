@@ -54,15 +54,17 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
 
-  planner-ui:
-    # The route planner -- two idents in, a chart with course, checkpoints
-    # and nav log out. The one human-facing surface of the project.
+  planning-service:
+    # Planning and chart vision: reads FAA sectional tiles, walks the great
+    # circle, selects checkpoints and computes the dead-reckoning nav log.
+    # Serves no pages -- the front end is built into webapp's jar, and the
+    # browser reaches this only through webapp's /api/planner/* proxy.
     # Mounts the project so it can write a new corridor's candidates and
-    # features into data/processed, which is the same directory
-    # model-service reads its feature stores from.
+    # features into data/processed, the same directory model-service reads
+    # its feature stores from.
     build:
       context: .
-      dockerfile: planner-ui/Dockerfile
+      dockerfile: planning-service/Dockerfile
     ports:
       - "8084:8000"
     volumes:
@@ -117,17 +119,23 @@ services:
       MODEL_SERVICE_URL: http://model-service:8000
 
   webapp:
-    build: ./springboot-app
+    # Context is the repo root: the image builds web/ and bakes the
+    # bundle into the jar, so this one service serves both.
+    build:
+      context: .
+      dockerfile: springboot-app/Dockerfile
     ports:
       - "8080:8080"
     depends_on:
       - db
       - model-service
+      - planning-service
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/vfr_route
       SPRING_DATASOURCE_USERNAME: vfr
       SPRING_DATASOURCE_PASSWORD: vfr
       MODEL_SERVICE_URL: http://model-service:8000
+      PLANNER_SERVICE_URL: http://planning-service:8000
 
 volumes:
   pgdata:

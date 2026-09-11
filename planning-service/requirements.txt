@@ -1,0 +1,20 @@
+# The route planner: the one human-facing surface of this project, and the
+# only service that both builds a corridor and reads it back, so its
+# dependency list is the union of what vfr.pipeline's collect/
+# engineer_features need and what a nav log needs.
+fastapi
+uvicorn[standard]
+pandas
+numpy
+pyarrow
+requests    # Overpass/FAA/NOAA, and the model-service call
+shapely     # vfr.osm._representative_point, vfr.airspace polygons
+pyshp       # vfr.airspace reads the FAA Class Airspace shapefile
+pillow      # vfr.chartvision decodes sectional tiles
+scipy       # vfr.chartvision connected-component labelling
+
+# Deliberately NOT scikit-learn/joblib. Scoring belongs to model-service,
+# which owns the model artifact and its pinned sklearn; this service
+# writes a feature parquet into the shared volume and asks model-service
+# to score it. Installing sklearn here would create a second, unpinned
+# place a model could be loaded from.
