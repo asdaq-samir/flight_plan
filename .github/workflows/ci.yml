@@ -17,6 +17,23 @@ jobs:
       - run: ruff check src/vfr tests
       - run: pytest tests/ -v
 
+  # planner-ui's browser logic. Its own job because it needs Node rather
+  # than Python, and worth having at all because that is where the faults
+  # have been: a TypeError on every selection, a function written and
+  # never called, state kept on one of two code paths. The pure decisions
+  # -- which points a filter admits, what counts as rated, which way the
+  # arrows step -- run without a browser, so they can be tested like
+  # anything else.
+  test-planner-ui:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: node --test planner-ui/tests/
+      - run: node --check planner-ui/app/static/chart.js
+
   # webapp's own JUnit suite. Separate from `test` above because it needs a
   # JDK rather than Python, and separate from the image build because
   # Dockerfile builds with -DskipTests on purpose (an image build shouldn't

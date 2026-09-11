@@ -34,6 +34,7 @@ from pathlib import Path
 import requests
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from vfr import aircraft as aircraft_module
@@ -48,6 +49,16 @@ DEFAULT_AIRCRAFT = "c172"
 app = FastAPI(title="vfr-route planner")
 
 _INDEX = Path(__file__).resolve().parent / "index.html"
+
+# The chart primitives and the page logic, shared by both views rather
+# than copied into each. They drifted when copied -- one page called the
+# basemap setup initBase and the other initBasemaps, each with its own
+# toggle, so a fix to one never reached the other.
+app.mount(
+    "/static",
+    StaticFiles(directory=Path(__file__).resolve().parent / "static"),
+    name="static",
+)
 _LABEL = Path(__file__).resolve().parent / "label.html"
 
 # job id -> {"state": queued|running|done|failed, "step", "detail", ...}

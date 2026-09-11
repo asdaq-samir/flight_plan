@@ -6,6 +6,7 @@
   <title>Route — pick checkpoints</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="/static/chart.js"></script>
   <style>
     :root {
       --ink:#142430; --muted:#5b6b76; --line:#c7d3da; --rule:#e6ecef;
@@ -277,7 +278,7 @@ const el = (id) => document.getElementById(id);
 const qs = new URLSearchParams(location.search);
 const map = L.map("map", { zoomControl: true, minZoom: 4, keyboard: false });
 
-let basemaps = null, underlay = null, activeBase = "faa", chartMinZoom = 8;
+let basemaps = null, chartMinZoom = 8;
 let course = null, courseLayer = null, endsLayer = null;
 let detLayer = null, addLayer = null;
 let detections = [], added = [], selected = null, detecting = false;
@@ -364,29 +365,7 @@ function flash(msg, bad) {
 function initBasemaps(cfg) {
   if (basemaps) return;
   chartMinZoom = cfg.min_zoom || 8;
-  // OpenStreetMap sits permanently underneath, and is why the map can
-  // zoom out far enough to frame a whole route. The FAA service has no
-  // tiles below zoom 8 -- it 404s -- and at zoom 8 a 323 nm course needs
-  // more map than the pane has, so the sectional alone can never show a
-  // long leg end to end. Below 8 the sectional stops drawing and this
-  // shows through, with the course line and markers still on top.
-  underlay = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    attribution: "&copy; OpenStreetMap contributors", maxZoom: 19, opacity: 0.85,
-  }).addTo(map);
-  basemaps = {
-    // maxNativeZoom upscales chart tiles past their real limit of 12
-    // rather than showing blanks when zoomed in.
-    faa: L.tileLayer(cfg.tile_url, {
-      attribution: "FAA Aeronautical Information Services",
-      maxNativeZoom: cfg.max_zoom, maxZoom: 18, minZoom: cfg.min_zoom,
-    }),
-    osm: L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      attribution: "&copy; OpenStreetMap contributors", maxZoom: 19,
-    }),
-  };
-  basemaps[activeBase].addTo(map);
-  map.on("zoomend", renderChartNotice);
-  renderChartNotice();
+  basemaps = Chart.basemaps(map, cfg);
 }
 
 function fitRoute() {
@@ -506,46 +485,10 @@ function focusOn(d) {
 // that shrinks with the map is not a highlight.
 let halo = null;
 
-function showHalo(d) {
+function showHalo(point) {
   hideHalo();
-  if (!d) return;
-  // Two concentric rings, white behind a hot orange. A single blue ring
-  // disappeared into the chart -- a sectional is already full of blue
-  // linework, magenta airspace and black roads, so no single colour
-  // stands out everywhere. White against the colour is what makes it
-  // read on any background, which is why chart symbols themselves are
-  // drawn that way.
-  // featureGroup, not layerGroup: only FeatureGroup has bringToFront.
-  // Calling it on a LayerGroup throws, and since showHalo runs inside
-  // select(), that TypeError broke every selection -- clicking a point,
-  // and stepping with the arrows -- while looking like the feature was
-  // simply missing.
-  // Cased on both sides -- dark outside, white under the colour -- so the
-  // ring holds its shape over black roads and over blank paper alike.
-  // The pulse is what actually finds it: on a chart full of circles, the
-  // one that moves is the one your eye goes to.
-  halo = L.featureGroup([
-    L.circleMarker([d.lat, d.lon], {
-      radius: 19, color: "rgba(10,20,28,.55)", weight: 9,
-      fill: false, interactive: false,
-    }),
-    L.circleMarker([d.lat, d.lon], {
-      radius: 19, color: "#ffffff", weight: 6,
-      fill: false, interactive: false,
-    }),
-    L.circleMarker([d.lat, d.lon], {
-      radius: 19, color: "#ff3b00", weight: 3, opacity: 1,
-      fill: false, interactive: false, className: "halo-pulse",
-    }),
-  ]).addTo(map);
-  halo.bringToFront();
-
-  // Pinned above the ring and travelling with it. direction "top" keeps
-  // it clear of the marker, and the offset clears the ring's radius.
-  halo.getLayers()[2].bindTooltip(selInfoHtml(d), {
-    permanent: true, direction: "top", offset: [0, -22],
-    className: "selinfo-tip", opacity: 1, interactive: false,
-  }).openTooltip();
+  if (!point) return;
+  halo = Chart.halo(map, point, selInfoHtml(point));
 }
 
 function hideHalo() {
@@ -646,22 +589,9 @@ function centreOnSelection() {
   showHalo(target);
 }
 
-function renderChartNotice() {
-  const tag = document.getElementById("basemap");
-  if (!tag || !basemaps) return;
-  const below = map.getZoom() < chartMinZoom;
-  tag.textContent = activeBase === "faa"
-    ? (below ? "below chart zoom — OSM" : "FAA sectional")
-    : "OpenStreetMap";
-  tag.style.color = (below && activeBase === "faa") ? "var(--warn)" : "";
-}
 
 function toggleBasemap() {
-  if (!basemaps) return;
-  map.removeLayer(basemaps[activeBase]);
-  activeBase = activeBase === "faa" ? "osm" : "faa";
-  basemaps[activeBase].addTo(map);
-  renderChartNotice();
+  if (basemaps) basemaps.toggle();
 }
 
 /**
@@ -670,14 +600,8 @@ function toggleBasemap() {
  * linework, a dark hairline outside that so it still separates from pale
  * green and white paper, and a shadow to lift it off both.
  */
-function dot(fill, accent) {
-  return L.divIcon({
-    className: "",
-    iconSize: [20, 20], iconAnchor: [10, 10],
-    html: `<div style="width:16px;height:16px;border-radius:50%;background:${fill};
-      border:2.5px solid #fff;outline:1px solid rgba(10,20,28,.55);
-      box-shadow:0 1px 4px rgba(0,0,0,.45)"></div>`,
-  });
+function dot(fill) {
+  return Chart.dot(fill);
 }
 
 // --- step 1: the course line, drawn the moment idents are entered.
@@ -700,38 +624,19 @@ async function loadCourse(dep, dest) {
   //
   // Orange-red for the core because the sectional palette has no orange:
   // magenta was colliding with the airspace it was drawn over.
-  courseLayer = L.layerGroup([
-    L.polyline(course.course_line, {
-      color: "#ffffff", weight: 8, opacity: .85, interactive: false,
-    }),
-    L.polyline(course.course_line, {
-      color: "#ff3b00", weight: 3.5, opacity: 1, dashArray: "11,7",
-      interactive: false,
-    }),
-    // An invisible fat line carries the hover and the tooltip. An SVG
-    // stroke is hoverable only where it is painted, so a 3.5 px course --
-    // dashed, so half of it is not painted at all -- demanded pixel
-    // accuracy and mostly missed. This is 18 px of transparent stroke on
-    // the same path, which is what you were aiming at anyway.
-    L.polyline(course.course_line, {
-      color: "#000", weight: 18, opacity: 0, className: "course-hit",
-      // Not bubbling: a click here is a click on the course, and letting
-      // it fall through to the map would pan or deselect at the same
-      // time.
-      interactive: true, bubblingMouseEvents: false,
-    }).on("click", (e) => {
-      // Left-click on the course adds a checkpoint there. It is safe as a
-      // left-click in a way that bare chart is not: dragging still pans,
-      // and an 18 px line is far too specific to hit by accident.
+  courseLayer = Chart.courseLine(map, {
+    line: course.course_line,
+    tooltip: `${course.departure.ident} → ${course.destination.ident} · ` +
+             `${course.distance_nm} nm · ${String(course.bearing_deg).padStart(3, "0")}°T`,
+    // Left-click on the course adds a checkpoint there: dragging still
+    // pans, and an 18 px line is too specific to hit by accident.
+    onClick: (e) => {
       L.DomEvent.stopPropagation(e);
       const near = pointNear(e.latlng);
       if (near) { openPoint(near.d, near.kind, near.i); return; }
       addPointAt(e.latlng);
-    }).bindTooltip(
-      `${course.departure.ident} → ${course.destination.ident} · ` +
-      `${course.distance_nm} nm · ${String(course.bearing_deg).padStart(3, "0")}°T`,
-      { sticky: true }),
-  ]).addTo(map);
+    },
+  });
   // The pill sizes itself and is centred inside a wider, invisible icon
   // box. Painting the background on the icon box itself meant Leaflet's
   // fixed 48 px width fought the text: a four-character ident like KDLH
@@ -739,10 +644,7 @@ async function loadCourse(dep, dest) {
   // was set while the padding was added on top of it.
   endsLayer = L.layerGroup([course.departure, course.destination].map(a =>
     L.marker([a.lat, a.lon], {
-      icon: L.divIcon({
-        className: "end-label", iconSize: [90, 20], iconAnchor: [45, 10],
-        html: `<span>${a.ident}</span>`,
-      }),
+      icon: Chart.endLabel(a.ident),
     })
   )).addTo(map);
   fitRoute();
