@@ -39,9 +39,12 @@ import numpy as np
 import requests
 from PIL import Image
 
-from .config import DATA_DIR
+from .config import (
+    DATA_DIR,
+    FAA_VFR_SECTIONAL_URL,
+    VFR_SECTIONAL_MAX_ZOOM,
+)
 from .geo import along_track_distance_nm, cross_track_distance_nm, distance_nm
-from .labeling import FAA_VFR_SECTIONAL_URL, VFR_SECTIONAL_MAX_ZOOM
 
 TILE_PX = 256
 DEFAULT_ZOOM = VFR_SECTIONAL_MAX_ZOOM  # 12; the chart's own maximum

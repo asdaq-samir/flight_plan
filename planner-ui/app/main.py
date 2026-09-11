@@ -39,8 +39,13 @@ from pydantic import BaseModel
 
 from vfr import aircraft as aircraft_module
 from vfr import airports, altitude as altitude_module, checkpoints as checkpoint_selection
-from vfr import chartlabels, chartvision, faa_data, geo, labeling, navlog, pipeline
-from vfr.config import DATA_DIR
+from vfr import chartlabels, chartvision, faa_data, geo, navlog, pipeline
+from vfr.config import (
+    DATA_DIR,
+    FAA_VFR_SECTIONAL_URL,
+    VFR_SECTIONAL_MAX_ZOOM,
+    VFR_SECTIONAL_MIN_ZOOM,
+)
 
 MODEL_SERVICE_URL = os.environ.get("MODEL_SERVICE_URL", "http://model-service:8000")
 PROCESSED_DIR = DATA_DIR / "processed"
@@ -244,9 +249,9 @@ def plan(
         "altitude_ft": altitude_ft,
         "altitude_selection": altitude_selection,
         "aircraft": {"name": aircraft, **profile},
-        "tile_url": labeling.FAA_VFR_SECTIONAL_URL,
-        "max_zoom": labeling.VFR_SECTIONAL_MAX_ZOOM,
-        "min_zoom": labeling.VFR_SECTIONAL_MIN_ZOOM,
+        "tile_url": FAA_VFR_SECTIONAL_URL,
+        "max_zoom": VFR_SECTIONAL_MAX_ZOOM,
+        "min_zoom": VFR_SECTIONAL_MIN_ZOOM,
     }
 
 
@@ -359,9 +364,9 @@ def course(dep: str, dest: str) -> dict:
         "distance_nm": round(geo.distance_nm(start[0], start[1], end[0], end[1]), 1),
         "bearing_deg": round(geo.bearing_deg(start[0], start[1], end[0], end[1])),
         "course_line": _course_line(start, end),
-        "tile_url": labeling.FAA_VFR_SECTIONAL_URL,
-        "max_zoom": labeling.VFR_SECTIONAL_MAX_ZOOM,
-        "min_zoom": labeling.VFR_SECTIONAL_MIN_ZOOM,
+        "tile_url": FAA_VFR_SECTIONAL_URL,
+        "max_zoom": VFR_SECTIONAL_MAX_ZOOM,
+        "min_zoom": VFR_SECTIONAL_MIN_ZOOM,
     }
 
 

@@ -23,3 +23,20 @@ LABELS_PATH = DATA_DIR / "labels" / "spottability_ratings.csv"
 # retrain() refuses to run rather than let scikit-learn raise an opaque
 # stratify/fold-count error.
 MIN_LABELED_ROWS = 30
+
+# The FAA's own tiled VFR Sectional service, in the same {z}/{y}/{x} XYZ
+# scheme as any slippy map. Chart tiles stop at zoom 12 -- fixed print
+# resolution, unlike a photo you can zoom into indefinitely -- and the
+# service 404s below 8.
+#
+# These live in config rather than with the labeling loop they were
+# written for: vfr.chartvision reads the chart, both browser pages draw
+# it, and none of that is labeling. Keeping them next to a loop that has
+# been superseded meant three modules importing a labeling module for a
+# URL.
+FAA_VFR_SECTIONAL_URL = (
+    "https://tiles.arcgis.com/tiles/ssFJjBXIUyZDrSYZ/arcgis/rest/services/"
+    "VFR_Sectional/MapServer/tile/{z}/{y}/{x}"
+)
+VFR_SECTIONAL_MAX_ZOOM = 12
+VFR_SECTIONAL_MIN_ZOOM = 8

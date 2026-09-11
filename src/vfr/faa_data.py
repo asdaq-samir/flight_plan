@@ -2,7 +2,7 @@
 authoritative sources than OSM tags for VOR navaids and towers/obstacles,
 since the FAA is the ground truth for both (and this project already
 treats the FAA sectional chart, not OSM/satellite imagery, as the
-reference for what a pilot would see -- see vfr.labeling).
+reference for what a pilot would see -- see vfr.chartvision).
 
 Both are published on a 28-day cycle as a full national dump (not
 queryable by bbox server-side, unlike Overpass), so they're downloaded

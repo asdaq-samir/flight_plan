@@ -1,6 +1,7 @@
 """Hand-picked checkpoints, marked directly on the sectional.
 
-The older labeling loop (vfr.labeling) rated candidates that OpenStreetMap
+The older labeling loop (removed with the OSM labeling UI) rated
+candidates that OpenStreetMap
 had supplied, which can only ever sample places OSM already knew about.
 That is the wrong sample for a chart-reading detector: it says nothing
 about what the detector *misses*, because a landmark absent from OSM was
@@ -113,7 +114,7 @@ def save_pick(pick: dict, path: Path = CHART_PICKS_PATH) -> dict:
 
     Replacing rather than appending because a pilot changing their mind
     about a checkpoint should leave one row, not two contradictory ones --
-    the same reason vfr.labeling's relabel rewrites in place.
+    the same reason the old labeling loop's relabel rewrote in place.
     """
     path = Path(path)
     row = {column: pick.get(column) for column in COLUMNS}
