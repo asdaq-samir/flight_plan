@@ -451,8 +451,10 @@ compose up ml`. Full per-notebook breakdown is in the
 
 ```bash
 # Python (src/vfr) — 103 tests
-docker compose run --rm pipeline-training ruff check src/vfr tests
-docker compose run --rm pipeline-training pytest
+# The pipeline images carry no test tooling -- these run what CI runs,
+# from requirements-dev.txt.
+docker run --rm -v "$PWD":/w -w /w -e PYTHONPATH=/w/src python:3.12-slim \
+  sh -c "pip install -q -r requirements-dev.txt && ruff check src/vfr tests && pytest tests/ -q"
 
 # Web front end (web/) — 45 tests plus a typecheck. No browser needed:
 # the filters, ordering, rating and nav-log rules are pure functions.

@@ -1,9 +1,19 @@
 # CI only (.github/workflows/ci.yml) -- what's needed to import and test
-# the modules tests/ actually covers (vfr.geo, vfr.features, vfr.navlog,
-# vfr.weather, vfr.model_registry). Not a project-wide dependency file --
-# see DEVELOPMENT.md for why this project doesn't have one of those anymore.
+# the modules tests/ actually covers. Not a project-wide dependency file
+# -- see DEVELOPMENT.md for why this project doesn't have one of those
+# anymore.
+#
+# Keep this in step with tests/: a test module that imports something
+# missing here fails at *collection*, which takes the whole suite down
+# rather than one test. That is how test_airspace.py and
+# test_chartvision.py sat broken -- they were added with the shapely and
+# Pillow/scipy dependencies they need, and this file was not updated.
 pandas
 numpy
 requests
 pytest
 ruff
+shapely     # vfr.airspace -- Class B/C/D polygons
+pyshp       # vfr.airspace -- reads the FAA Class Airspace shapefile
+pillow      # vfr.chartvision -- decodes sectional raster tiles
+scipy       # vfr.chartvision -- connected components over the palette masks
