@@ -64,6 +64,23 @@ app.mount(
     StaticFiles(directory=Path(__file__).resolve().parent / "static"),
     name="static",
 )
+
+# The React build. Served here while the port is in progress so the pages
+# it replaces stay reachable and can be compared against it; when Spring
+# Boot becomes the public surface this is the only part that moves.
+_WEB = Path(__file__).resolve().parent / "web"
+if _WEB.exists():
+    app.mount("/app/assets", StaticFiles(directory=_WEB / "assets"), name="web-assets")
+
+    @app.get("/app/{path:path}")
+    def spa(path: str) -> FileResponse:
+        """Any /app route serves the bundle.
+
+        Routing happens in the browser, so /app/label is not a file and
+        StaticFiles would 404 it. Real files under /app/assets are mounted
+        above and never reach here.
+        """
+        return FileResponse(_WEB / "index.html")
 _LABEL = Path(__file__).resolve().parent / "label.html"
 
 # job id -> {"state": queued|running|done|failed, "step", "detail", ...}

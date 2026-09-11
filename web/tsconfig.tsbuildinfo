@@ -1,0 +1,1 @@
+{"root":["./src/main.tsx","./src/api/client.ts","./src/api/types.ts","./src/chart/ChartMap.tsx","./src/chart/leaflet.ts","./src/label/LabelView.tsx","./src/label/logic.test.ts","./src/label/logic.ts","./src/label/store.ts"],"version":"5.9.3"}
