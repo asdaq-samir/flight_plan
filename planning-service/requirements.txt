@@ -1,7 +1,7 @@
-# The route planner: the one human-facing surface of this project, and the
-# only service that both builds a corridor and reads it back, so its
-# dependency list is the union of what vfr.pipeline's collect/
-# engineer_features need and what a nav log needs.
+# The planning service: the only service that both builds a corridor and
+# reads it back, so its dependency list is the union of what
+# vfr.pipeline's collect/engineer_features need and what a nav log needs.
+# It serves no pages -- the front end is in web/ and ships inside webapp.
 fastapi
 uvicorn[standard]
 pandas
