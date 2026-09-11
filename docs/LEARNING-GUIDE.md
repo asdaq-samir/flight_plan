@@ -214,6 +214,44 @@ flowchart LR
 
 This is the exact shape Section 3's Airflow DAG automates, task for task.
 
+### Two ways to find a checkpoint, and why the second one exists
+
+Everything below describes the tabular pipeline: ask OpenStreetMap and the
+FAA what is near the route, turn each answer into a row of numbers, learn
+from those. It is the version to read first, because every ML idea in this
+project lives in it.
+
+But it has a flaw that took a while to see. The thing being predicted is
+"could a pilot spot this **on the sectional chart**", and OSM is not the
+chart. So the pipeline kept needing rules to force the two together:
+towers dropped because the chart draws every obstacle with one symbol,
+water towers dropped because 16 of 17 were not drawn at all, quarries
+dropped, unnamed lakes dropped because one blue shape among identical
+blue shapes cannot be confirmed as the right one. Each was a real
+discovery, and each was a patch over the same mismatch.
+
+[`src/vfr/chartvision.py`](../src/vfr/chartvision.py) removes the
+mismatch by reading the chart. A sectional is a cartographic product with
+a fixed palette, so the tiles can be segmented directly: pale blue is
+water, a saturated dark blue line is a watercourse, yellow is a town,
+near-black is linework. What the chart does not draw is not found, so
+none of those exclusion rules needs to exist.
+
+Two details in it are worth more than the colour thresholds. A linear
+feature is reported where the course **crosses** it, not at its centroid —
+the centroid of a river that wanders across a mosaic is a point in a field
+somewhere, and the same realisation is already in `vfr.osm`'s
+`find_line_crossings`. And chart text is drawn in the same ink as roads,
+so "Nepco Lake" and every airport name produced crossings until the
+detector started requiring the thing under one to actually run somewhere:
+the median near-black blob is one pixel across, while a real road runs for
+hundreds.
+
+It is faster for the same reason it is more accurate — 320 nm of corridor
+in about five seconds against minutes of Overpass and FAA downloads —
+but speed is the side effect. Making the ground truth and the training
+signal the same artefact is the point.
+
 ### Collect → raw candidates
 
 `collect()` pulls real-world geographic features along a flight corridor
@@ -835,13 +873,35 @@ Most projects this shape have a testing story that's either "everything is
 mocked" or "there are no tests." This one draws the line by asking what a
 given test would actually prove.
 
-**Pure logic gets unit tests.** `tests/` (pytest, 41 tests) covers the
+**Pure logic gets unit tests.** `tests/` (pytest, 103 tests) covers the
 parts of `src/vfr` that are functions of their inputs and nothing else:
 great-circle math in `vfr.geo`, engineered features, the
 wind-correction-angle math in `vfr.navlog`, `model_registry`'s
 evaluate/promote decision, and the remote-URI guards. These are fast,
 deterministic, and worth having because the math is genuinely easy to get
 subtly wrong.
+
+**Browser logic counts as pure logic.** This one was learned the hard
+way. The planner has two pages of JavaScript and had no tests at all,
+while the Python side had a hundred — and nearly every fault in a day of
+building was in the browser: a `TypeError` on every selection because
+`L.layerGroup` has no `bringToFront` (only `FeatureGroup` does), a
+function written and never called because the edit that was meant to wire
+it in matched nothing, page state maintained on one of two code paths so
+the surviving path never set it.
+
+The fix was not to reach for a browser-automation harness. It was to
+notice that the faults were *decisions*, not drawing: which points a
+filter admits, what counts as rated, which way the arrows step. Those are
+functions of plain objects, so
+[`planner-ui/app/static/logic.js`](../planner-ui/app/static/logic.js)
+holds them and `node --test` covers them in 150 ms with no browser
+anywhere. What is left in the page — appending elements, binding Leaflet
+layers — is the part where a test would mostly restate the code.
+
+The general lesson is worth more than the JavaScript: when something is
+hard to test, it is often because a decision and its rendering are
+tangled together, and separating them is what makes both better.
 
 **Contracts get slice tests.** `RouteControllerTest` uses `@WebMvcTest`
 with the service layer mocked, because what it's testing is the *HTTP

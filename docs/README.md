@@ -38,6 +38,14 @@ explicit path to production on AWS.
 
 ### Highlights
 
+- **Checkpoints read off the chart itself.** A sectional is a
+  cartographic product with a fixed palette, so water, watercourses,
+  towns and linework come straight out of the tiles — no Overpass, no
+  downloads, a few seconds for a 320 nm corridor. That matters beyond
+  speed: the label being learned is "could a pilot spot this *on the
+  chart*", so reading the chart makes the ground truth and the training
+  signal the same thing rather than filtering an OSM extract down to
+  approximate it.
 - **Model selection across four frameworks.** Ridge regression, Random
   Forest, and Gradient Boosting (scikit-learn) benchmarked against PyTorch,
   TensorFlow/Keras, and Spark MLlib on the same feature set, with nested
@@ -56,7 +64,10 @@ explicit path to production on AWS.
   burn) built from FAA-standard formulas against live NOAA winds-aloft and
   magnetic-declination data. Cruising-altitude selection incorporates real
   terrain/obstacle clearance (FAA MEF methodology), live FAA Class B/C/D
-  airspace shapefiles, and current METAR/TAF/SIGMET data.
+  airspace shapefiles, and current METAR/TAF/SIGMET data. Only Class B
+  constrains the cruising altitude: C and D need two-way radio
+  communication established rather than a clearance, so they are reported
+  as calls to make, not airspace to fly beneath.
 - **A Gen AI agent with real memory.** A LangGraph agent, exposed as an MCP
   server, assembles the full nav log into a natural-language briefing, with
   long-term recall of past routes via a Postgres/pgvector semantic-search
@@ -131,21 +142,46 @@ works too. AWS counterpart: `architecture-aws.drawio`, rendered in
 ![Go](https://img.shields.io/badge/Go%20Lambda-00ADD8?style=flat-square&logo=go&logoColor=white)
 
 **Live data sources** (no logos, but they're where the domain accuracy
-comes from): OpenStreetMap via the Overpass API, FAA NASR airport,
-navaid and obstacle datasets, FAA Class B/C/D airspace shapefiles, and
-NOAA aviation weather plus the magnetic-declination model.
+comes from): the FAA's own VFR Sectional tile service — which the
+checkpoint detector reads directly — plus FAA NASR airport, navaid and
+obstacle datasets, FAA Class B/C/D airspace shapefiles, NOAA aviation
+weather, the magnetic-declination model, and OpenStreetMap via the
+Overpass API for the tabular feature pipeline.
 
 ## Services & Data Design
 
 ### Services in detail
+
+**`planner-ui`** — the one human-facing surface, and where the chart is read.
+
+- `/` plans a route: the course draws in about half a second, checkpoints
+  land a tenth of a second later, and the nav log arrives when terrain,
+  airspace and winds allow, holding up nothing while it does
+- `/label` rates checkpoints on the sectional itself. `Space` jumps to the
+  departure, the arrows walk the course, `0`–`5` rate and advance. Clicking
+  the course adds a checkpoint the detector missed; right-click adds one off
+  it
+- `vfr.chartvision` reads the corridor's tiles and segments them by the
+  chart's own palette, streaming results block by block from the departure
+  end. `vfr.chartlabels` stores what a pilot decides about them, keyed by
+  route and position rather than by an OSM id, because for a hand-placed
+  point there is no OSM feature involved
+- Collection for an uncollected corridor runs here, in-process on a
+  background thread, rather than by launching a pipeline container — that
+  would mean handing this service the Docker socket, a far larger grant
+  than it needs
+- Shared browser code lives in `app/static/`: `chart.js` for the map,
+  `logic.js` for the decisions, which are pure functions and covered by the
+  `test-planner-ui` CI job
 
 **`model-service`** — FastAPI model-serving endpoint.
 
 - `/ping` (health) and `/invocations` (inference) — matches the SageMaker serving container contract
 - Real inference against the promoted RandomForest, loaded from `/opt/ml/model`
   (SageMaker's own path, bind-mounted from `data/models/current`)
-- Serves the precomputed feature store for one corridor; another route returns 400,
-  since building features means re-running collection — a batch job, not an inference call
+- Serves whichever precomputed feature stores exist in `FEATURES_DIR`, keyed by
+  route; an uncollected corridor returns 404 carrying the two commands that build
+  it, since collection is a batch job rather than an inference call
 - Interactive API docs (a FastAPI default) at `http://localhost:8000/docs`, raw spec at `/openapi.json`
 
 **`springboot-app` (webapp)** — the public-facing route-planning API.
@@ -243,18 +279,32 @@ The ML pipeline, orchestration layer, dead-reckoning engine, altitude
 selection logic, both Gen AI agents, and CI are built, integrated, and
 working end to end. The AWS side is fully written and validated
 (`cfn-lint` clean, every image builds, the AWS-mode DAG parses correctly)
-— see [`README-AWS.md`](README-AWS.md). Two things remain, and neither is
+— see [`README-AWS.md`](README-AWS.md). Three things remain, and none is
 an engineering gap:
 
-- **More labels, and a second route.** All 206 candidates on C81→KDLH
-  are hand-labeled against the sectional and a RandomForest is trained,
-  promoted and served — the pipeline runs end to end. What that model
-  cannot yet show is *generalization*: every label comes from one
-  corridor, so there is no held-out route to prove it transfers. Route
-  position was dropped from the feature set for exactly this reason (see
-  `FEATURE_COLS_BASE`), and labeling a second corridor at
-  `docker compose up planner-ui` (port 8084, `/label`) is what would
-  settle it.
+- **Ratings for the chart-vision detector.** The tabular pipeline is
+  finished: all 206 OSM-derived candidates on C81→KDLH are labeled, and a
+  RandomForest is trained, promoted and served. The chart-vision detector
+  that replaced it has no scorer yet, because that needs its own ratings
+  and those are still being collected — 51 picks so far, and all but one
+  of them a 5. Rating a detection `0` is the judgment the detector most
+  needs and the one the data has none of, so a pass over C81→KDLH at
+  `docker compose up planner-ui` (port 8084, `/label`) is the next step.
+
+  Three things unblock together once it exists. The detector's recall is
+  measurable (it currently supplies under 40% of the waypoints a pilot
+  actually wants on that route). The planner can drop its collection step
+  and plan any corridor, instead of 404ing on one it has not built.
+  And `vfr.osm` — still load-bearing today, since `pipeline.collect()`
+  feeds the planner, the DAG and the feature stores — can come out.
+
+- **A second route.** Every label so far comes from one corridor, so
+  nothing yet proves the model transfers. Route position was dropped from
+  the feature set for exactly this reason (see `FEATURE_COLS_BASE`):
+  measured over 25-fold repeated CV, a model given *only* where a point
+  sat along the route recovered 78% of the full model's gain over a
+  predict-the-mean baseline, which is a route being memorised rather than
+  spottability being learned.
 - **A live AWS deployment.** No AWS account exists in this project's
   environment. Everything that can be verified without one — template
   validity, image builds, DAG correctness — has been; an actual
@@ -329,9 +379,13 @@ compose up ml`. Full per-notebook breakdown is in the
 ### Testing & CI
 
 ```bash
-# Python (src/vfr) — 41 tests
+# Python (src/vfr) — 103 tests
 docker compose run --rm pipeline-training ruff check src/vfr tests
 docker compose run --rm pipeline-training pytest
+
+# Browser logic (planner-ui) — 21 tests, no browser needed: the filters,
+# ordering and rating rules are pure functions in app/static/logic.js
+docker run --rm -v "$PWD/planner-ui":/w -w /w node:20-slim node --test tests/
 
 # Java (webapp) — 13 tests. No native Maven needed, matching the rest of
 # this project; the Docker socket is mounted through so Testcontainers can
@@ -401,9 +455,11 @@ Notes:
 
 ```
 data/
-  raw/            downloaded OSM/FAA/elevation/magnetic-variation data (gitignored, regenerable)
+  raw/            downloaded OSM/FAA/elevation/magnetic-variation data and the
+                  chart tile cache (gitignored, regenerable)
   processed/      cleaned feature tables
-  labels/         hand-labeled spottability ratings
+  labels/         hand-labeled spottability ratings — chart_picks.csv is the
+                  current one, rated on the chart itself
   aircraft/       aircraft performance profiles (c172.json, etc.)
   models/         trained model artifacts (candidate/, current/, versions/<timestamp>/)
 ```
@@ -424,17 +480,18 @@ data/
 
 ### CI, in full
 
-`.github/workflows/ci.yml` — five jobs:
+`.github/workflows/ci.yml` — six jobs:
 
 | Job | What it does |
 |---|---|
 | `test` | ruff + pytest over `src/vfr` |
+| `test-planner-ui` | `node --test` over the planner's browser logic — filters, ordering, and what counts as rated, all pure functions needing no browser |
 | `test-webapp` | `mvn test` — webapp's JUnit suite, including the Testcontainers Postgres test |
 | `docs` | Regenerates Javadoc + godoc on every push/PR; the `pdoc` steps, which need this repo's heavy ML images, run only on pushes to `main` so PRs aren't charged minutes for them. Output uploads as a `documentation` artifact. |
 | `build-images` | Builds every service Dockerfile, publishes each to GHCR on push to `main` |
 | `push-ecr` | Pushes the five images the CloudFormation stack deploys (`webapp`, `model-service`, `nav-log-agent`, `crewai-agent`, `airflow`) to ECR via OIDC, reusing `build-images`' cache; activates automatically once `AWS_ROLE_ARN`/`AWS_REGION` repo variables exist |
 
-`build-images` gates on both test jobs, so a failing test never produces a
+`build-images` gates on the test jobs, so a failing test never produces a
 published image.
 
 ### Gotchas
