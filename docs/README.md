@@ -16,7 +16,7 @@
 - **[Overview](#overview)** — [Highlights](#highlights) · [Architecture](#architecture) · [Tech stack](#tech-stack)
 - **[Services & Data Design](#services--data-design)** — [Services in detail](#services-in-detail) · [Database & migrations](#database--migrations)
 - **[AWS Target & Status](#aws-target--status)** — [Target architecture (AWS)](#target-architecture-aws) · [Status](#status)
-- **[Developer Guide](#developer-guide)** — [Getting started](#getting-started) · [Notebooks](#notebooks) · [Testing & CI](#testing--ci)
+- **[Developer Guide](#developer-guide)** — [Getting started](#getting-started) · [Where things live](#where-things-live) · [Notebooks](#notebooks) · [Testing & CI](#testing--ci)
 - **[Appendix](#appendix)** — [Full service command reference](#full-service-command-reference) · [Repository layout, in full](#repository-layout-in-full) · [Notebooks, in full](#notebooks-in-full) · [CI, in full](#ci-in-full) · [Gotchas](#gotchas) · [See also](#see-also)
 
 ## Overview
@@ -99,7 +99,7 @@ The system runs today as ten Docker services:
 | `airflow` | Orchestrates the ML training pipeline |
 | `pipeline-processing` / `pipeline-training` | Data collection, feature engineering, and model training, run as isolated jobs |
 | `ml` | Jupyter environment for model development and experimentation |
-| `planner-ui` | FastAPI server for the React app in `web/`: course, checkpoints, nav log, and rating spottability against FAA sectional charts |
+| `planning-service` | FastAPI server for the React app in `web/`: course, checkpoints, nav log, and rating spottability against FAA sectional charts |
 
 ![Current local architecture](architecture-current.svg)
 
@@ -161,16 +161,20 @@ Overpass API for the tabular feature pipeline.
 
 ### Services in detail
 
-**`planner-ui`** — the one human-facing surface, and where the chart is read.
+**`planning-service`** — chart vision, checkpoint selection and the nav
+log. Serves no pages: the front end lives in [`web/`](../web) and is built
+into `webapp`'s jar, which proxies here for every computation. Publishes no
+port on AWS either — it sits behind `webapp` in a private subnet, found by
+service discovery at `planning-service.vfr-route.internal`.
 
-- `/app/plan` plans a route: the course draws in about half a second,
-  checkpoints land a tenth of a second later, and the nav log arrives when
-  terrain, airspace and winds allow, holding up nothing while it does
-  (`/` redirects here, as `/label` does to `/app/label`)
-- `/app/label` rates checkpoints on the sectional itself. `Space` jumps to the
-  departure, the arrows walk the course, `0`–`5` rate and advance. Clicking
-  the course adds a checkpoint the detector missed; right-click adds one off
-  it
+- `/api/course`, `/api/checkpoints`, `/api/navlog`, `/api/detect/stream`,
+  `/api/picks` — reached by the browser as `/api/planner/*` on `webapp`,
+  never directly. Its own OpenAPI page is at
+  [`localhost:8084/docs`](http://localhost:8084/docs)
+- The two pages it used to serve are now
+  [`/app/plan`](http://localhost:8080/app/plan) and
+  [`/app/label`](http://localhost:8080/app/label) on `webapp` — see
+  [Where things live](#where-things-live)
 - `vfr.chartvision` reads the corridor's tiles and segments them by the
   chart's own palette, streaming results block by block from the departure
   end. `vfr.chartlabels` stores what a pilot decides about them, keyed by
@@ -314,8 +318,8 @@ an engineering gap:
 
   So rating a detection `0` is the judgment the detector most needs and
   the one the data has none of, and a labeling pass over C81→KDLH at
-  `docker compose up planner-ui` (port 8084, `/app/label`) is the next
-  step — this time deliberately rating poor landmarks as poor. Until the
+  `docker compose up webapp` and
+  [`/app/label`](http://localhost:8080/app/label) is the next step — this time deliberately rating poor landmarks as poor. Until the
   target has spread, the palette constants are the better scorer and the
   honest one.
 
@@ -389,13 +393,52 @@ bring up only what you need. Full command reference is in the
 [Appendix](#appendix); the essentials:
 
 ```bash
-docker compose up db webapp                       # API at :8080
+docker compose up db webapp                        # API + both UIs at :8080
 docker compose up ml                               # Jupyter at :8888 (token "vfr")
 docker compose up airflow                          # DAG UI at :8081
 docker compose up nav-log-agent                    # MCP server at :8082
 docker compose run --rm crewai-agent \
   --departure-ident C81 --destination-ident KDLH   # one-shot CLI
 ```
+
+### Where things live
+
+Every address the running stack answers on, verified against a live
+stack. Anything not listed here does not exist.
+
+| What | URL | Needs |
+|---|---|---|
+| **Route planner** | [`localhost:8080/app/plan`](http://localhost:8080/app/plan) | `webapp` + `planning-service` |
+| **Labeling page** | [`localhost:8080/app/label`](http://localhost:8080/app/label) | `webapp` + `planning-service` |
+| Spring Boot API docs | [`localhost:8080/swagger-ui/index.html`](http://localhost:8080/swagger-ui/index.html) | `webapp` |
+| Spring Boot OpenAPI spec | [`localhost:8080/v3/api-docs`](http://localhost:8080/v3/api-docs) | `webapp` |
+| Health / readiness | [`localhost:8080/actuator/health`](http://localhost:8080/actuator/health) | `webapp` |
+| Planning + chart-vision API docs | [`localhost:8084/docs`](http://localhost:8084/docs) | `planning-service` |
+| Model-serving API docs | [`localhost:8000/docs`](http://localhost:8000/docs) | `model-service` |
+| Airflow DAG UI | [`localhost:8081`](http://localhost:8081) | `airflow` |
+| Jupyter | [`localhost:8888`](http://localhost:8888) (token `vfr`) | `ml` |
+
+Both browser pages are served by `webapp`, not by `planning-service`: the React
+app in [`web/`](../web) is built into the Spring Boot jar, and the browser
+reaches the Python service only through `webapp`'s `/api/planner/*` proxy.
+So `docker compose up webapp` alone renders the pages but leaves them
+empty — `planning-service` must be up for a route to plan. Hitting port 8084
+directly works and is useful when debugging, but nothing in the front end
+does it.
+
+A request crosses four services, each with one job:
+
+```
+browser (web/)   the map, the keyboard, the rows
+  -> webapp        :8080  serves the page, proxies /api/planner/*, owns auth and the database
+  -> planning-service    :8084  reads sectional tiles, great-circle geometry, checkpoint selection, nav log
+  -> model-service :8000  scores candidates (/invocations, SageMaker's contract)
+  -> db            :5432  pilots, flights, agent memory
+```
+
+`planning-service` is a *client* of `model-service`, not a version of it — it
+calls `/invocations` when it needs a score. And despite its name it serves
+no pages; see [Services in detail](#services-in-detail).
 
 ### Notebooks
 
@@ -457,7 +500,7 @@ breakdown is in the [Appendix](#appendix).
 |---|---|---|
 | `docker compose up db` | PostgreSQL + pgvector | `5432` |
 | `docker compose up model-service` | FastAPI model serving; needs a promoted model | `8000` |
-| `docker compose up webapp` | Spring Boot API; brings up `db`+`model-service` too | `8080` |
+| `docker compose up webapp` | Spring Boot API **and both browser UIs**; brings up `db`+`model-service` too | `8080` |
 | `docker compose up ml` | Jupyter, for notebooks 01-08 | `8888` (token `vfr`) |
 | `docker compose run --rm pipeline-processing collect` | Runs `pipeline.collect()` | — |
 | `docker compose run --rm pipeline-processing engineer-features` | Runs `pipeline.engineer_features()` | — |
@@ -466,7 +509,7 @@ breakdown is in the [Appendix](#appendix).
 | `docker compose up airflow` | Orchestrates the full pipeline as a DAG | `8081` |
 | `docker compose up nav-log-agent` | LangGraph MCP server (needs `ANTHROPIC_API_KEY`) | `8082` |
 | `docker compose run --rm crewai-agent --departure-ident C81 --destination-ident KDLH` | One-shot CrewAI CLI (needs `ANTHROPIC_API_KEY`) | — |
-| `docker compose up planner-ui` | Route planner at `/app/plan`, and `/app/label` for spottability labeling (see [Status](#status)) | `8084` |
+| `docker compose up planning-service` | Planning + chart-vision API. `webapp` proxies to it; start it for the UIs to do anything | `8084` |
 
 Notes:
 
@@ -478,7 +521,9 @@ Notes:
 - `nav-log-agent`/`crewai-agent` fail fast at `docker compose` parse time
   if `ANTHROPIC_API_KEY` is unset.
 - Full port list: `webapp` 8080, `model-service` 8000, `db` 5432
-  (`vfr`/`vfr`/`vfr_route`), `airflow` 8081, `nav-log-agent` 8082, `ml` 8888.
+  (`vfr`/`vfr`/`vfr_route`), `airflow` 8081, `nav-log-agent` 8082,
+  `planning-service` 8084, `ml` 8888. Addresses are in
+  [Where things live](#where-things-live).
 
 ### Repository layout, in full
 

@@ -164,7 +164,76 @@ build fat, ship thin.
 | [`docker/Dockerfile.airflow.aws`](../docker/Dockerfile.airflow.aws) | `apache/airflow:2.10.4-python3.12` | The AWS-hosted counterpart: `apache-airflow-providers-amazon` instead of `-docker`, and it `COPY`s the AWS DAG and `src/` in rather than relying on a bind mount that Fargate has no way to provide. See [Section 3](#the-same-dag-twice-local-and-aws). |
 | [`model-service/Dockerfile`](../model-service/Dockerfile) | `python:3.12-slim` | A plain FastAPI service: install deps, copy `app/`, run `uvicorn`. |
 | [`springboot-app/Dockerfile`](../springboot-app/Dockerfile) | `maven:...` → `eclipse-temurin:21-jre` | Multi-stage, see above. |
-| [`nav-log-agent/Dockerfile`](../nav-log-agent/Dockerfile) / [`crewai-agent/Dockerfile`](../crewai-agent/Dockerfile) | `python:3.12-slim` | Both set `PYTHONPATH=/workspace/src` so `import vfr...` resolves inside the container without installing `vfr` as a package — the bind-mounted repo is just put on the path directly. |
+| [`nav-log-agent/Dockerfile`](../nav-log-agent/Dockerfile) / [`crewai-agent/Dockerfile`](../crewai-agent/Dockerfile) | `python:3.12-slim` | Both set `PYTHONPATH=/workspace/src` so `import vfr...` resolves inside the container without installing `vfr` as a package — the bind-mounted repo is just put on the path directly. `nav-log-agent` also installs the CPU-only PyTorch wheel before its requirements, for the reason `Dockerfile.ml` does; see [the images section](#the-images-those-dockerfiles-produce) for what it cost to learn that twice. |
+
+### The images those Dockerfiles produce
+
+A Dockerfile is a recipe; an image is the baked result sitting on your
+disk. Running `docker images` on a working copy of this repo shows
+seventeen of them, which looks alarming until you see that they are three
+different kinds of thing.
+
+**The nine built from this repo.** Compose names them after the project
+directory, hence the `vfr_route-` prefix.
+
+| Image | Size | What it is |
+|---|---|---|
+| `vfr_route-ml` | 6.9 GB | The Jupyter environment for [the notebooks](../notebooks). Easily the largest, and legitimately so: scikit-learn, PyTorch, TensorFlow, PySpark and a JVM in one place. |
+| `vfr_route-nav-log-agent` | 2.3 GB | The [LangGraph agent](../nav-log-agent), served over MCP. See [Section 5](#5-the-gen-ai-layer). |
+| `vfr_route-airflow` | 2.1 GB | [Orchestration](../docker/Dockerfile.airflow). See [Section 3](#3-orchestration-with-airflow). |
+| `vfr_route-crewai-agent` | 1.6 GB | [The same task in CrewAI](../crewai-agent), for comparison. See [Section 5](#crewai--agent-driven-tool-selection). |
+| `vfr_route-model-service` | 926 MB | [FastAPI inference](../model-service). See [Section 4](#model-service-fastapi). |
+| `vfr_route-planning-service` | 902 MB | [The planner API and chart-vision detector](../planning-service). |
+| `vfr_route-pipeline-training` | 878 MB | [Training as an isolated job](../docker/Dockerfile.training). |
+| `vfr_route-webapp` | 633 MB | [Spring Boot](../springboot-app) — the public surface, and what serves the front end. Smaller than the Maven image that builds it, which is the multi-stage build working. |
+| `vfr_route-pipeline-processing` | 628 MB | [Collection and feature engineering](../docker/Dockerfile.processing). |
+
+**The six pulled, not built.** These look like clutter and are not:
+deleting one only forces a re-download on the next build.
+
+| Image | Size | Who needs it |
+|---|---|---|
+| `python:3.12-slim` | 188 MB | The base for seven of the nine above. One copy, shared — which is why the sizes in the first table are not additive. |
+| `node:20-slim` | 290 MB | Builds [the React app](../web), both on its own and inside the webapp build. |
+| `maven:3.9-eclipse-temurin-21` | 797 MB | Compiles the Spring Boot JAR. Build-only; never ships. |
+| `pgvector/pgvector:pg16` | 621 MB | The actual database: Postgres plus the vector extension for [agent memory](#vector-memory-rag-in-miniature). |
+| `postgres:16` | 636 MB | *Not* a duplicate of the above. Testcontainers starts it for the JUnit suite — see [Section 8](#8-what-gets-tested-and-what-deliberately-doesnt). |
+| `testcontainers/ryuk` | 28 MB | The janitor that removes leftover test containers when a run dies part-way. |
+| `golang:1.25-alpine` | 329 MB | Builds [the retrain-trigger Lambda](../infra/lambda-retrain-trigger). See [Section 7](#7-infrastructure-as-code-cloudformation). |
+
+Two things are worth noticing. `eclipse-temurin:21-jre` is the base of the
+running `webapp` image but does not appear in `docker images` at all —
+intermediate build stages are not listed under the containerd image store.
+And only four of the seventeen run the application: `webapp`,
+`planning-service`, `model-service` and the database. Everything else exists for
+building, training, orchestrating or testing.
+
+#### The disk lesson
+
+No image is permanently *needed*. Each one is a cache of a build that this
+repo can reproduce, so deleting one costs rebuild time and never data.
+That distinction matters, because the thing you must not delete is a named
+volume: `vfr_route_pgdata` holds the application rows and the agent's
+vector memory, and `docker system prune --volumes` — the command everyone
+reaches for when a disk fills — takes it with everything else.
+[`docker/tidy.sh`](../docker/tidy.sh) exists to be the safe version:
+build cache, stopped containers and dangling images, never a volume.
+
+The disk filled anyway, twice, and neither cause was the images:
+
+- **Build cache, 28.8 GB.** `docker system df` reported it as 1.7 GB.
+  That figure under-reports badly; do not size a cleanup from it. A
+  `docker builder prune -af` returned the real number.
+- **CUDA libraries nobody could use, 4.4 GB.** `sentence-transformers`
+  pulls `torch`, and the default wheel is a GPU build — 3.2 GB of
+  `nvidia/` plus a 1.2 GB `torch`, inside an image that runs on a laptop
+  and deploys to Fargate. `Dockerfile.ml` had already solved this, with a
+  comment saying why. The fix never reached `nav-log-agent`, which stayed
+  9.9 GB until it was measured. One line took it to 2.3 GB.
+
+The second is the more useful lesson: a fix recorded in one Dockerfile did
+not propagate to the next one someone wrote. Writing the reason down was
+necessary and not sufficient.
 
 ### Reading `docker-compose.yml`
 
