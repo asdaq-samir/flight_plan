@@ -4,6 +4,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willThrow;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -18,6 +19,7 @@ import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -28,7 +30,12 @@ import org.springframework.test.web.servlet.MockMvc;
  * is mocked -- this is about status codes and response shape, not the
  * service logic underneath (see RouteServiceTest for that).
  */
+// The real rules rather than Spring Security's defaults, so this slice
+// exercises the same permitAll for /api/routes that production has --
+// and so a change that accidentally made scored routes private would
+// fail here.
 @WebMvcTest(RouteController.class)
+@Import(com.northflyers.vfr.security.SecurityConfig.class)
 class RouteControllerTest {
 
     @Autowired
@@ -46,7 +53,7 @@ class RouteControllerTest {
     void createRoute_returns200_forAValidRequest() throws Exception {
         given(routeService.createRoute(anyString(), anyString())).willReturn(sampleRoute());
 
-        mockMvc.perform(post("/api/routes")
+        mockMvc.perform(post("/api/routes").with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"departureIdent\":\"C81\",\"destinationIdent\":\"KDLH\"}"))
                 .andExpect(status().isOk())
@@ -56,7 +63,7 @@ class RouteControllerTest {
 
     @Test
     void createRoute_returns400_whenAnIdentIsBlank() throws Exception {
-        mockMvc.perform(post("/api/routes")
+        mockMvc.perform(post("/api/routes").with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"departureIdent\":\"\",\"destinationIdent\":\"KDLH\"}"))
                 .andExpect(status().isBadRequest())
@@ -66,7 +73,7 @@ class RouteControllerTest {
 
     @Test
     void createRoute_returns400_whenAnIdentIsTheWrongShape() throws Exception {
-        mockMvc.perform(post("/api/routes")
+        mockMvc.perform(post("/api/routes").with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"departureIdent\":\"C81\",\"destinationIdent\":\"toolongident\"}"))
                 .andExpect(status().isBadRequest())
@@ -83,7 +90,7 @@ class RouteControllerTest {
         willThrow(new ModelServiceException("model-service call failed", new RuntimeException("connection refused")))
                 .given(routeService).createRoute(anyString(), anyString());
 
-        mockMvc.perform(post("/api/routes")
+        mockMvc.perform(post("/api/routes").with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"departureIdent\":\"C81\",\"destinationIdent\":\"KDLH\"}"))
                 .andExpect(status().isBadGateway())

@@ -13,6 +13,13 @@ spring:
   flyway:
     enabled: true
 
+# Sign-in with Google lives in the `oauth` profile
+# (application-oauth.yml), not here. Spring Boot validates the client
+# registration eagerly and refuses to start on an empty client id, so
+# declaring it unconditionally would make credentials a requirement for
+# running the app at all. Absent the profile, SecurityConfig registers no
+# login and the pilot-scoped endpoints answer 401 -- closed, not open.
+
 model-service:
   base-url: ${MODEL_SERVICE_URL:http://localhost:8000}
   # Set only on AWS (see WebappTaskDefinition in

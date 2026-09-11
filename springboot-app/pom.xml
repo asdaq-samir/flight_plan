@@ -85,9 +85,24 @@
             <groupId>org.flywaydb</groupId>
             <artifactId>flyway-database-postgresql</artifactId>
         </dependency>
+        <!-- Sign-in with Google. Pulls in spring-boot-starter-security
+             transitively, which is what secures the pilot-scoped
+             endpoints; sessions are the servlet container's, so there is
+             no token handling of our own to get wrong. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-oauth2-client</artifactId>
+        </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!-- oidcLogin() and csrf() request post-processors, so the
+             security rules are tested as rules rather than trusted. -->
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-test</artifactId>
             <scope>test</scope>
         </dependency>
         <!-- Drives a real Postgres for the migration/persistence tests, so
