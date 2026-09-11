@@ -1,4 +1,7 @@
-import type { Course, LoosePick, PickSummary, Rating, Role, StreamMessage } from "./types";
+import type {
+  BuildJob, BuiltRoute, Checkpoints, Course, LoosePick, NavLog,
+  PickSummary, Rating, Role, StreamMessage,
+} from "./types";
 
 /**
  * Every call the pages make. One place, so a change to a route or a
@@ -25,6 +28,33 @@ export const api = {
   /** The leg itself: sub-second, and enough to draw before any tile is read. */
   course: (dep: string, dest: string) =>
     json<Course>(`/api/course?dep=${dep}&dest=${dest}`),
+
+  /** Scored candidates and the subset worth flying. Fast -- the model is
+   *  loaded and the features are already built. */
+  checkpoints: (dep: string, dest: string) =>
+    json<Checkpoints>(`/api/checkpoints?dep=${dep}&dest=${dest}`),
+
+  /** The slow half: terrain, the obstacle file, the airspace shapefile and
+   *  live winds. Asked for separately so none of it delays the chart. */
+  navlog: (dep: string, dest: string, altitudeFt?: string) => {
+    const params = new URLSearchParams({ dep, dest });
+    if (altitudeFt) params.set("altitude_ft", altitudeFt);
+    return json<NavLog>(`/api/navlog?${params}`);
+  },
+
+  /** Corridors the feature store already covers. */
+  routes: () => json<{ routes: BuiltRoute[] }>("/api/routes"),
+
+  /** Start collecting a corridor: minutes of Overpass, FAA and elevation
+   *  calls, so it returns a job id rather than holding the request open. */
+  startBuild: (dep: string, dest: string) =>
+    json<BuildJob>("/api/build", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ departure_ident: dep, destination_ident: dest }),
+    }),
+
+  buildStatus: (jobId: string) => json<BuildJob>(`/api/build/${jobId}`),
 
   /** What the chart draws at a point, so an added pick is categorised from
    *  the pixels rather than from whatever a dropdown was left on. */

@@ -13,6 +13,12 @@
     *{box-sizing:border-box}
     body{margin:0;height:100vh;display:flex;flex-direction:column;color:var(--ink);
       font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}
+    /* React mounts into #root, so the rows below are its children rather
+       than the body's. Without this the column has no height to divide:
+       #middle{flex:1} sizes to content, the map gets no height from the
+       chain, and Leaflet fits the route against a container whose size it
+       read wrong -- which draws the whole country instead of the leg. */
+    #root{flex:1;min-height:0;display:flex;flex-direction:column}
     header{padding:8px 16px;border-bottom:1px solid var(--line);
       display:flex;flex-direction:column;gap:6px}
     .hrow{display:flex;align-items:center;gap:14px;flex-wrap:wrap;min-height:28px}
@@ -119,7 +125,6 @@
     .pline b{min-width:2.2ch;text-align:right;color:var(--ink);font-weight:700;
       font-variant-numeric:tabular-nums}
     .pline span{color:var(--muted)}
-    h2 .count b{color:var(--ink);font-weight:700}
     h2{margin:0;padding:7px 12px;font-size:11px;letter-spacing:.07em;text-transform:uppercase;
       color:var(--muted);background:#fff;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5}
     .row{padding:7px 12px;border-bottom:1px solid var(--rule);cursor:pointer;font-size:13px}
@@ -181,3 +186,58 @@
     .lgnote{color:var(--muted);line-height:1.5}
     .lgnote b{color:var(--ink)}
   
+/* ---- The planner --------------------------------------------------
+   Only what the labeling view has no equivalent of. Everything the two
+   share -- the tokens, the header, the map, the side panel, the footer,
+   kbd, the halo -- is above, which is the point: one definition, so a
+   fix to the chart look reaches both views instead of one. */
+    form input#alt{width:92px;text-transform:none;font-weight:500}
+    form .arrow{color:var(--muted)}
+    #summary{color:var(--muted);font-variant-numeric:tabular-nums}
+    #summary b{color:var(--ink)}
+
+    /* Not a failure: the corridor simply has not been collected, and
+       this is the one error the page can offer to fix. Warm rather than
+       red for that reason. */
+    #notice{padding:10px 16px;border-bottom:1px solid var(--line);background:#fff8f0;
+      display:none;align-items:center;gap:12px;flex-wrap:wrap}
+    #notice.show{display:flex}
+    #notice button{font:600 13px inherit;padding:5px 12px;border-radius:6px;cursor:pointer;
+      border:1px solid var(--accent);background:#fff;color:var(--accent)}
+    #notice button:disabled{opacity:.5;cursor:progress}
+    #notice .spin{color:var(--muted)}
+
+    .cp{padding:7px 12px;border-bottom:1px solid var(--rule);cursor:pointer;
+      display:grid;grid-template-columns:24px 1fr auto;gap:8px;align-items:baseline}
+    .cp:hover{background:#eaf1f6}
+    .cp.on{background:#e2edf5;box-shadow:inset 3px 0 0 var(--accent)}
+    .cp.endpoint{background:#f2f5f7}
+    .cp.endpoint .nm{font:600 13px ui-monospace,SFMono-Regular,Menlo,monospace}
+    .cp .nm{font-weight:600}
+    .cp .meta{grid-column:2 / -1;color:var(--muted);font-size:12px}
+    .num{color:#fff;border-radius:50%;width:22px;height:22px;
+      display:grid;place-items:center;font:700 11px/1 system-ui}
+    .score{font-variant-numeric:tabular-nums;font-weight:600}
+
+    #navwrap{border-top:1px solid var(--line);background:#fff;display:flex;flex-direction:column}
+    #navbar{padding:6px 16px;display:flex;align-items:center;gap:14px;cursor:pointer;
+      user-select:none;background:#f4f7f9;border-bottom:1px solid var(--rule)}
+    #navbar .t{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
+    #navbar .tot{color:var(--ink);font-variant-numeric:tabular-nums}
+    #navbar .tot b{font-weight:700}
+    #navscroll{max-height:34vh;overflow:auto}
+    #navwrap table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
+    #navwrap th,#navwrap td{padding:4px 10px;text-align:right;white-space:nowrap;
+      border-bottom:1px solid var(--rule)}
+    #navwrap th{position:sticky;top:0;background:#fff;z-index:4;font-size:11px;letter-spacing:.04em;
+      text-transform:uppercase;color:var(--muted);font-weight:600;border-bottom:1px solid var(--line)}
+    #navwrap td.l,#navwrap th.l{text-align:left;white-space:normal}
+    #navwrap tbody tr:hover{background:#eaf1f6}
+    /* A leg with no winds-aloft station nearby is an estimate, not a calm
+       leg, and the shading is the only thing that says so. */
+    tr.nowind td{background:#fffaf2}
+    tr.nowind:hover td{background:#f7eddd}
+    .mh{font-weight:700}
+    .muted{color:var(--muted)}
+    .dot{width:10px;height:10px;border-radius:50%;display:inline-block}
+    .legend{display:inline-flex;align-items:center;gap:5px}

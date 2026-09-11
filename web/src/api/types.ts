@@ -91,3 +91,89 @@ export type StreamMessage =
       detections: Detection[];
     }
   | { type: "done"; total: number; added: LoosePick[]; summary: PickSummary };
+
+// ---------------------------------------------------------------------
+// The planner. Separate from the labeling types above because it is a
+// different pipeline: these come from the OSM feature store and the
+// model, not from reading chart pixels.
+
+export interface Airport {
+  ident: string;
+  name: string;
+  lat: number;
+  lon: number;
+}
+
+/** A scored OSM candidate. `selected` is set by the server's greedy pass. */
+export interface Candidate {
+  osm_id: number;
+  name: string | null;
+  category: string;
+  lat: number;
+  lon: number;
+  predicted_score: number;
+  along_track_nm: number;
+  selected: boolean;
+}
+
+export interface Wind {
+  wind_dir_true_deg: number;
+  wind_speed_kt: number;
+}
+
+/**
+ * One dead-reckoning leg.
+ *
+ * `wind` is null when no winds-aloft station is near enough, and that is
+ * not the same as calm -- groundspeed then falls back to true airspeed.
+ * The table shades those rows for exactly that reason.
+ */
+export interface Leg {
+  from: string;
+  to: string;
+  distance_nm: number;
+  true_course_deg: number;
+  wind: Wind | null;
+  wca_deg: number;
+  true_heading_deg: number;
+  magnetic_variation_deg: number;
+  magnetic_heading_deg: number;
+  /** null when the wind exceeds true airspeed: the leg cannot be flown. */
+  groundspeed_kt: number | null;
+  ete_min: number | null;
+  fuel_gal: number | null;
+}
+
+export interface Totals {
+  distance_nm: number;
+  ete_min: number | null;
+  fuel_gal: number | null;
+  legs_without_wind: number;
+}
+
+export interface Checkpoints {
+  departure: Airport;
+  destination: Airport;
+  candidates: Candidate[];
+  selected: Candidate[];
+}
+
+export interface NavLog {
+  legs: Leg[];
+  totals: Totals;
+  altitude_ft: number;
+  altitude_selection: { floor_ft: number } | null;
+  aircraft: { name: string };
+}
+
+export interface BuiltRoute {
+  departure_ident: string;
+  destination_ident: string;
+}
+
+export interface BuildJob {
+  job_id: string | null;
+  state: "queued" | "running" | "done" | "failed";
+  step: string;
+  detail?: string | null;
+}
