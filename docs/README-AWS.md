@@ -118,6 +118,18 @@ VPC/subnet/NAT-gateway layout most orgs already have):
 
 - **`webapp`** — ECS Fargate behind an ALB, calling RDS and (via
   `ModelServiceClient`'s dual HTTP/SageMaker path) the model endpoint.
+- **`planning-service`** — ECS Fargate, and the one service with *no*
+  path into it from the load balancer. The browser never calls it: the
+  front end calls `webapp`, which proxies `/api/planner/*` onward, so its
+  security group admits traffic from `webapp`'s alone. `webapp` finds it
+  through the same Cloud Map namespace Airflow uses
+  (`planning-service.vfr-route.internal`), which is why no URL parameter
+  is needed. Fargate rather than SageMaker even though it is the
+  chart-vision service — SageMaker's contract is `/ping` +
+  `/invocations` for model inference, and this does I/O-heavy domain
+  computation that *calls* a model rather than being one. Sized larger
+  than `webapp` (1 vCPU / 4 GB) because sectional tiles are decoded into
+  numpy arrays block by block.
 - **`nav-log-agent`** — ECS Fargate, reachable through the *same* ALB via
   a path-based route (`/mcp/*` → its own target group), rather than a
   second load balancer.

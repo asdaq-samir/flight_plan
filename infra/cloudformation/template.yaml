@@ -23,6 +23,7 @@ Metadata:
           default: Container images (already pushed to ECR by CI -- see .github/workflows/ci.yml)
         Parameters:
           - WebappImageUri
+          - PlanningServiceImageUri
           - ModelServiceImageUri
           - NavLogAgentImageUri
           - CrewaiAgentImageUri
@@ -73,6 +74,9 @@ Parameters:
   WebappImageUri:
     Type: String
     Description: Full ECR image URI for webapp, e.g. <account>.dkr.ecr.<region>.amazonaws.com/<repo>/webapp:latest
+  PlanningServiceImageUri:
+    Type: String
+    Description: Full ECR image URI for planning-service -- chart vision, checkpoint selection and the nav log. Internal only; webapp proxies to it and nothing else reaches it.
   ModelServiceImageUri:
     Type: String
     Description: Full ECR image URI for model-service -- this is what SageMaker actually runs, see ModelArtifactS3Uri below.
@@ -183,6 +187,22 @@ Resources:
           FromPort: 8000
           ToPort: 8000
           SourceSecurityGroupId: !Ref AlbSecurityGroup
+
+  PlanningServiceSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: planning-service Fargate tasks -- reachable only from webapp, never the ALB
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        # No ALB rule on purpose. This service is the browser's data source
+        # but never its destination: the front end calls webapp, which
+        # proxies to here (PlannerProxyController). Same reasoning as
+        # RdsSecurityGroup below -- reachable from the one thing that
+        # needs it, and nothing else.
+        - IpProtocol: tcp
+          FromPort: 8000
+          ToPort: 8000
+          SourceSecurityGroupId: !Ref EcsServiceSecurityGroup
 
   CrewaiAgentSecurityGroup:
     Type: AWS::EC2::SecurityGroup
@@ -485,6 +505,21 @@ Resources:
       HealthCheckCustomConfig:
         FailureThreshold: 1
 
+  PlanningServiceDiscoveryService:
+    Type: AWS::ServiceDiscovery::Service
+    Properties:
+      Name: planning-service
+      NamespaceId: !Ref ServiceDiscoveryNamespace
+      DnsConfig:
+        DnsRecords:
+          - Type: A
+            TTL: 10
+      HealthCheckCustomConfig:
+        FailureThreshold: 1
+      # Resolves as planning-service.vfr-route.internal, which is what
+      # webapp's planner-service.base-url is set to below -- the AWS
+      # counterpart of the Compose hostname it defaults to locally.
+
   # ---------------------------------------------------------------------
   # EFS -- Airflow's metadata database (SQLite, same as `standalone` mode
   # locally) needs to survive a Fargate task restart, which ephemeral task
@@ -572,6 +607,12 @@ Resources:
               # Presence alone switches ModelServiceClient.java from a plain
               # HTTP call to SageMaker Runtime's InvokeEndpoint API -- see
               # that class. Unset locally, so local dev is unaffected.
+            - Name: PLANNER_SERVICE_URL
+              Value: http://planning-service.vfr-route.internal:8000
+              # The name application.yml reads -- planner-service.base-url
+              # is set from ${PLANNER_SERVICE_URL}. Without this the proxy
+              # would fall back to localhost:8084, which on Fargate is the
+              # webapp container talking to itself.
           Secrets:
             - Name: SPRING_DATASOURCE_PASSWORD
               ValueFrom: !Sub "${Database.MasterUserSecret.SecretArn}:password::"
@@ -600,6 +641,79 @@ Resources:
           ContainerPort: 8080
           TargetGroupArn: !Ref AlbTargetGroup
       HealthCheckGracePeriodSeconds: 60
+
+  # ---------------------------------------------------------------------
+  # ECS Fargate -- planning-service (chart vision, checkpoints, nav log)
+  #
+  # Fargate rather than SageMaker, unlike model-service: SageMaker's
+  # contract is /ping + /invocations for model inference, and this does
+  # I/O-heavy domain computation that *calls* a model rather than being
+  # one. It reads FAA sectional raster tiles, walks great circles, selects
+  # checkpoints and computes dead reckoning.
+  #
+  # No ALB listener rule and no public IP. The browser never reaches it;
+  # webapp does, over service discovery, which is why the only ingress is
+  # from EcsServiceSecurityGroup.
+  #
+  # More memory than webapp because a corridor's tiles are decoded into
+  # numpy arrays block by block -- a long leg is a few hundred MB of
+  # pixels in flight, and MAX_BLOCK_TILES bounds it (see
+  # src/vfr/chartvision.py).
+  # ---------------------------------------------------------------------
+  PlanningServiceLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/vfr-route-planning-service
+      RetentionInDays: 30
+
+  PlanningServiceTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: vfr-route-planning-service
+      RequiresCompatibilities: [FARGATE]
+      NetworkMode: awsvpc
+      Cpu: "1024"
+      Memory: "4096"
+      ExecutionRoleArn: !GetAtt EcsTaskExecutionRole.Arn
+      TaskRoleArn: !GetAtt EcsTaskRole.Arn
+      ContainerDefinitions:
+        - Name: planning-service
+          Image: !Ref PlanningServiceImageUri
+          PortMappings:
+            - ContainerPort: 8000
+          Environment:
+            # Locally this service bind-mounts the repo for data/. On
+            # Fargate there is no repo, so the FAA datasets (NASR airports,
+            # the obstacle file, Class airspace shapefiles) and the feature
+            # stores are read from the same bucket the pipeline jobs use.
+            # EcsTaskRole already carries the s3 permissions for it.
+            - Name: VFR_DATA_S3_BUCKET
+              Value: !Ref DataS3BucketName
+            - Name: SAGEMAKER_ENDPOINT_NAME
+              Value: !GetAtt SageMakerEndpoint.EndpointName
+              # Same switch as webapp: presence alone routes scoring to
+              # SageMaker Runtime instead of a local model-service HTTP call.
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref PlanningServiceLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: planning-service
+
+  PlanningServiceService:
+    Type: AWS::ECS::Service
+    Properties:
+      Cluster: !Ref EcsCluster
+      TaskDefinition: !Ref PlanningServiceTaskDefinition
+      DesiredCount: 1
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets: !Ref PrivateSubnetIds
+          SecurityGroups: [!Ref PlanningServiceSecurityGroup]
+          AssignPublicIp: DISABLED
+      ServiceRegistries:
+        - RegistryArn: !GetAtt PlanningServiceDiscoveryService.Arn
 
   # ---------------------------------------------------------------------
   # ECS Fargate -- nav-log-agent (LangGraph MCP server). Reached through

@@ -95,11 +95,17 @@ jobs:
           - service: crewai-agent
             context: .
             dockerfile: crewai-agent/Dockerfile
+          - service: planning-service
+            context: .
+            dockerfile: planning-service/Dockerfile
           - service: model-service
             context: ./model-service
             dockerfile: ./model-service/Dockerfile
+          # Context is the repo root, not ./springboot-app: the Dockerfile's
+          # first stage builds the React app from web/ and bakes the bundle
+          # into the jar, so it COPYs from both directories.
           - service: webapp
-            context: ./springboot-app
+            context: .
             dockerfile: ./springboot-app/Dockerfile
     steps:
       - uses: actions/checkout@v4
@@ -238,10 +244,16 @@ jobs:
     strategy:
       matrix:
         include:
+          # Repo root as context, for the same reason as build-images:
+          # the Dockerfile builds web/ as its first stage.
           - service: webapp
             ecrRepo: webapp
-            context: ./springboot-app
+            context: .
             dockerfile: ./springboot-app/Dockerfile
+          - service: planning-service
+            ecrRepo: planning-service
+            context: .
+            dockerfile: planning-service/Dockerfile
           - service: model-service
             ecrRepo: model-service
             context: ./model-service
