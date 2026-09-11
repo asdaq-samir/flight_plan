@@ -49,6 +49,14 @@ public class SecurityConfig {
                         // Shared, not personal: the same corridor scores
                         // the same for everyone.
                         .requestMatchers("/api/routes/**").permitAll()
+                        // The front end itself, and the planner API it
+                        // runs on. Open for now because planning a route
+                        // needs no account -- the sign-in is for saving
+                        // one. Narrowing this is a product decision, and
+                        // the matcher is here so it is one line when it
+                        // is taken.
+                        .requestMatchers("/app", "/app/**").permitAll()
+                        .requestMatchers("/api/planner/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/", "/error").permitAll()
                         // Everything else that exists is pilot-scoped.
                         .anyRequest().authenticated())

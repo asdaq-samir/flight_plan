@@ -1,19 +1,19 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
-// Built to planner-ui's static directory so FastAPI serves it, which keeps
-// the deployment story unchanged while the port is in progress: the old
-// pages stay reachable until this one is at parity. When Spring Boot
-// becomes the public surface, only this output path moves.
+// Built into Spring Boot's static resources, which is what makes it the
+// only public surface: the bundle and the API it calls arrive from one
+// origin, so there is one session, one set of access rules, and no second
+// front door on another port.
 export default defineConfig({
   plugins: [react()],
   base: "/app/",
-  build: { outDir: "../planner-ui/app/web", emptyOutDir: true },
+  build: { outDir: "../springboot-app/src/main/resources/static/app", emptyOutDir: true },
   server: {
     port: 5173,
     // The API is not in this process. Proxying in dev means the same
     // relative URLs work in both, so nothing has to know where it runs.
-    proxy: { "/api": { target: "http://planner-ui:8000", changeOrigin: true } },
+    proxy: { "/api": { target: "http://localhost:8080", changeOrigin: true } },
   },
   test: { environment: "node" },
 });

@@ -20,6 +20,12 @@ spring:
 # running the app at all. Absent the profile, SecurityConfig registers no
 # login and the pilot-scoped endpoints answer 401 -- closed, not open.
 
+# The Python planner: chart vision, course, checkpoints and nav log.
+# Reached only through this service, which is what lets it publish no port
+# of its own.
+planner-service:
+  base-url: ${PLANNER_SERVICE_URL:http://localhost:8084}
+
 model-service:
   base-url: ${MODEL_SERVICE_URL:http://localhost:8000}
   # Set only on AWS (see WebappTaskDefinition in
