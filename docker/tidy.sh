@@ -23,9 +23,10 @@ if [ "$DRY" = "1" ]; then
 Dry run. Would remove:
   - stopped containers
   - dangling (untagged) images
-  - the entire build cache
+  - build cache older than 72h, or however much exceeds 15GB
 
-Would KEEP: every named volume, and every tagged image.
+Would KEEP: every named volume, every tagged image, and recent build
+cache -- so the next build still hits cache instead of starting over.
 
 Re-run with --yes to do it.
 MSG
@@ -35,7 +36,19 @@ fi
 # Build cache first: it is almost always the largest term and the least
 # missed. `docker system df` under-reports it -- it showed 1.7 GB when a
 # prune returned 28.8 GB -- so do not use that number to decide.
-docker builder prune -af
+#
+# Not `-af` (that wipes the cache down to nothing, so the very next
+# build re-downloads and re-installs everything from scratch instead of
+# hitting a single cached layer -- discovered the hard way when a
+# `pip install` that normally takes seconds took 40). An age/size filter
+# keeps cache still backing a recent build, and only evicts what's
+# actually stale or over budget.
+#
+# `--keep-storage` silently deprecated to `--max-used-space` (the
+# buildx-based prune now underneath `docker builder prune`) -- the old
+# flag name still "succeeds" but reclaims nothing, which is worse than
+# an error since nothing announces it stopped working.
+docker builder prune -f --filter until=72h --max-used-space 15GB
 docker container prune -f
 docker image prune -f
 

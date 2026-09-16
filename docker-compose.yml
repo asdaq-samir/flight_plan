@@ -30,7 +30,12 @@ services:
       - "8081:8080"
     volumes:
       - .:/opt/airflow/project
-      - airflow_home:/opt/airflow
+      # airflow_home_v3, not airflow_home: the 2.x airflow.cfg this volume
+      # held has no [api_auth]/jwt_secret -- a value Airflow 3's api-server
+      # requires and refuses to autogenerate into an existing cfg file. A
+      # fresh volume gets a fresh cfg with the new default; the old one is
+      # left on disk, unreferenced, same fallback pattern as pgdata_pg18.
+      - airflow_home_v3:/opt/airflow
       - /var/run/docker.sock:/var/run/docker.sock
     environment:
       AIRFLOW__CORE__DAGS_FOLDER: /opt/airflow/project/airflow/dags
@@ -44,7 +49,7 @@ services:
     command: standalone
 
   db:
-    image: pgvector/pgvector:pg16
+    image: pgvector/pgvector:pg18
     environment:
       POSTGRES_DB: vfr_route
       POSTGRES_USER: vfr
@@ -52,7 +57,17 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      # pg18, not pg16: a Postgres major-version bump can't read an
+      # existing data directory in place, so this is a new volume
+      # (migrated via pg_dump/pg_restore, not initdb) rather than the
+      # old pgdata -- which still exists, untouched, as a fallback.
+      # Mounted at /var/lib/postgresql (not .../data): the postgres
+      # image changed its expected layout at 18, to a pg_ctlcluster-
+      # style major-version-specific subdirectory under the mount
+      # point, specifically so a future in-place pg_upgrade --link has
+      # no mount-boundary issue. Mounting at .../data (the pre-18
+      # convention) makes the 18 entrypoint refuse to start.
+      - pgdata_pg18:/var/lib/postgresql
 
   planning-service:
     # Planning and chart vision: reads FAA sectional tiles, walks the great
@@ -72,6 +87,9 @@ services:
     environment:
       PYTHONPATH: /workspace/src
       MODEL_SERVICE_URL: http://model-service:8000
+      # /api/checkpoint-notes: one Claude call per checkpoint that has
+      # no saved note yet.
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:?Set ANTHROPIC_API_KEY in your shell or a .env file}
     depends_on:
       - model-service
 
@@ -87,6 +105,10 @@ services:
     volumes:
       - ./data/models/current:/opt/ml/model:ro
       - ./data/processed:/opt/ml/features:ro
+      # PyTorch/TensorFlow/Spark's own artifacts (vfr.model_candidates,
+      # trained one-off inside the `ml` image, see that module's
+      # docstring) -- read-only for the same reason as the two above.
+      - ./data/models/candidates:/opt/ml/candidates:ro
 
   nav-log-agent:
     build:
@@ -136,7 +158,22 @@ services:
       SPRING_DATASOURCE_PASSWORD: vfr
       MODEL_SERVICE_URL: http://model-service:8000
       PLANNER_SERVICE_URL: http://planning-service:8000
+      # Sign-in with Google, optional unlike ANTHROPIC_API_KEY above:
+      # `docker compose up` must still work with none of these set (the
+      # `oauth` Spring profile stays inactive and sign-in is just not
+      # offered), but a real client id/secret in the shell or a .env
+      # file now actually reaches Spring Security instead of going
+      # nowhere. See application-oauth.yml.
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-}
 
 volumes:
+  # Neither pgdata nor airflow_home is referenced by any service anymore
+  # (superseded by pgdata_pg18 / airflow_home_v3) -- both left declared,
+  # and left on disk, purely as un-deleted fallbacks from their respective
+  # major-version migrations.
   pgdata:
+  pgdata_pg18:
   airflow_home:
+  airflow_home_v3:

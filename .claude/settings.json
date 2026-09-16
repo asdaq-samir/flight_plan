@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(curl *)",
-      "Bash(brew info *)"
+      "Bash(brew info *)",
+      "Bash(curl -s -o /dev/null -w \"webapp status: %{http_code}\\\\n\" http://localhost:8080/app/label)"
     ]
   }
 }
