@@ -4,10 +4,10 @@ Structured toward /ping + /invocations -- the health-check and inference
 route names a SageMaker inference container expects -- so the eventual
 AWS migration (deferred, see project memory) doesn't need a rename, even
 though nothing here actually talks to SageMaker yet. That shape extends
-to where things are read from: the model is loaded from MODEL_DIR,
-defaulting to /opt/ml/model, which is the path SageMaker mounts a model
-artifact at. Locally, docker-compose bind-mounts data/models/current
-there, so the same code path serves in both places.
+to where things are read from: the promoted model is loaded from
+MODEL_DIR, defaulting to /opt/ml/model, which is the path SageMaker
+mounts a model artifact at. Locally, docker-compose bind-mounts
+data/models/current there, so the same code path serves in both places.
 
 /invocations returned a hand-written stub until 2026-09-10, on the
 grounds that no trained model existed yet. One now does: all 206
@@ -23,9 +23,18 @@ inference call. So this serves whichever precomputed feature stores
 pretending. That is also how it would work on AWS: a Processing Job
 builds features, an endpoint scores them.
 
-One model serves every corridor. The model is route-agnostic by
-construction -- route position was deliberately removed from its features
--- so the only thing that varies per route is which parquet to score.
+Several models serve every corridor now, not one -- the promoted
+sklearn model plus whichever of PyTorch/TensorFlow/Spark's own
+candidates (vfr.model_candidates, trained one-off inside the `ml`
+image; see that module's docstring) have actually been trained,
+selected per request via RouteRequest.model. Every one of them is
+still route-agnostic by construction (route position was deliberately
+removed from the features), so the only thing that varies per route,
+for any of them, is which parquet to score. Spark is the one
+exception worth calling out: it is never loaded here at all (a JVM +
+Spark session's cold-start time has no place in a container everything
+else answers in milliseconds) -- its own trainer instead persists
+predictions for every candidate it saw, and this just looks them up.
 """
 import json
 import os
@@ -39,17 +48,19 @@ from .schemas import Checkpoint, RouteRequest, RouteResponse
 
 MODEL_DIR = Path(os.environ.get("MODEL_DIR", "/opt/ml/model"))
 FEATURES_DIR = Path(os.environ.get("FEATURES_DIR", "/opt/ml/features"))
+CANDIDATES_DIR = Path(os.environ.get("CANDIDATES_DIR", "/opt/ml/candidates"))
 
 # One model, many corridors. This used to serve a single route fixed by
 # env var, which meant a second route needed a second container on
 # another port -- fine for a one-off check, useless behind a UI where
-# someone types an ident. The model itself is route-agnostic (route
+# someone types an ident. Every model here is route-agnostic (route
 # position was deliberately removed from its features), so the only thing
 # that varies per route is which feature store to score.
 FEATURES_PATTERN = "features_{dep}_{dest}.parquet"
 
 app = FastAPI(title="vfr-route model-service")
 
+# name -> that model's loaded state, populated lazily by _LOADERS below.
 _state: dict = {}
 _features_cache: dict = {}
 
@@ -69,30 +80,94 @@ def available_routes() -> list:
     return routes
 
 
-def _load() -> dict:
-    """Load the model and its metrics once, on first use rather than at
-    import time -- a missing artifact should surface as an unhealthy
-    /ping and a 503, not a container that crashloops before it can report
-    why.
+def _load_current() -> dict:
+    """The promoted sklearn model -- unchanged behavior from before
+    multiple models existed, just keyed into _state under "current"
+    instead of being the only thing this service could ever load.
     """
-    if _state:
-        return _state
     model_path = MODEL_DIR / "model.joblib"
     metrics_path = MODEL_DIR / "metrics.json"
     if not model_path.exists() or not metrics_path.exists():
         return {}
     metrics = json.loads(metrics_path.read_text())
-    _state.update(
-        model=joblib.load(model_path),
-        metrics=metrics,
+    return {
+        "kind": "sklearn",
+        "model": joblib.load(model_path),
+        "metrics": metrics,
         # metrics.json is the authority on column order and membership.
         # Reading it back rather than hardcoding a list is what keeps this
         # service correct across a retrain that adds or drops a category
         # one-hot -- which has happened repeatedly (towers, water towers,
         # quarries) and silently breaks anything holding its own copy.
-        feature_cols=metrics["feature_cols"],
-    )
-    return _state
+        "feature_cols": metrics["feature_cols"],
+    }
+
+
+def _load_pytorch() -> dict:
+    d = CANDIDATES_DIR / "pytorch"
+    model_path, scaler_path, metrics_path = d / "model_state.pt", d / "scaler.joblib", d / "metrics.json"
+    if not (model_path.exists() and scaler_path.exists() and metrics_path.exists()):
+        return {}
+    import torch
+
+    from .torch_model import SpottabilityMLP
+
+    metrics = json.loads(metrics_path.read_text())
+    feature_cols = metrics["feature_cols"]
+    model = SpottabilityMLP(n_features=len(feature_cols))
+    model.load_state_dict(torch.load(model_path, map_location="cpu"))
+    model.eval()  # disables dropout -- this is inference, not training
+    return {
+        "kind": "pytorch", "model": model, "scaler": joblib.load(scaler_path),
+        "metrics": metrics, "feature_cols": feature_cols,
+    }
+
+
+def _load_tensorflow() -> dict:
+    d = CANDIDATES_DIR / "tensorflow"
+    model_path, scaler_path, metrics_path = d / "model.keras", d / "scaler.joblib", d / "metrics.json"
+    if not (model_path.exists() and scaler_path.exists() and metrics_path.exists()):
+        return {}
+    import tensorflow as tf
+
+    metrics = json.loads(metrics_path.read_text())
+    return {
+        "kind": "tensorflow", "model": tf.keras.models.load_model(model_path), "scaler": joblib.load(scaler_path),
+        "metrics": metrics, "feature_cols": metrics["feature_cols"],
+    }
+
+
+def _load_spark() -> dict:
+    """Not a Spark session -- see the module docstring on why. Just the
+    predictions its trainer already computed, keyed by osm_id."""
+    d = CANDIDATES_DIR / "spark"
+    predictions_path, metrics_path = d / "predictions.json", d / "metrics.json"
+    if not (predictions_path.exists() and metrics_path.exists()):
+        return {}
+    return {
+        "kind": "spark",
+        "predictions": json.loads(predictions_path.read_text()),
+        "metrics": json.loads(metrics_path.read_text()),
+    }
+
+
+_LOADERS = {"current": _load_current, "pytorch": _load_pytorch, "tensorflow": _load_tensorflow, "spark": _load_spark}
+
+
+def _load(name: str = "current") -> dict:
+    """Load one named model's state once, on first *successful* use --
+    same reasoning as the single-model version this replaced: a
+    missing artifact should surface as an unhealthy /ping (or a 503
+    for that one model), not a container that crashloops before it
+    can report why, and one not yet trained when first asked for
+    should start being served the moment it exists rather than staying
+    cached as absent for the life of the container.
+    """
+    if name not in _LOADERS:
+        return {}
+    if name not in _state or not _state[name]:
+        _state[name] = _LOADERS[name]()
+    return _state[name]
 
 
 def _features(dep: str, dest: str):
@@ -105,17 +180,20 @@ def _features(dep: str, dest: str):
 
 @app.get("/ping")
 def ping() -> dict:
-    """SageMaker's health check. Reports whether the artifacts actually
-    loaded, so an endpoint serving nothing is visible rather than quietly
-    returning 200.
+    """SageMaker's health check. Reports whether the promoted model
+    loaded (the top-level fields, unchanged shape from before this
+    service could serve more than one model, since that is the one
+    SageMaker's own health check actually cares about), plus which of
+    the others are currently available.
     """
-    state = _load()
+    current = _load("current")
     return {
-        "status": "ok" if state else "no model loaded",
-        "model_loaded": bool(state),
+        "status": "ok" if current else "no model loaded",
+        "model_loaded": bool(current),
         "model_dir": str(MODEL_DIR),
-        "trained_at": state.get("metrics", {}).get("trained_at"),
+        "trained_at": current.get("metrics", {}).get("trained_at"),
         "routes": available_routes(),
+        "models": {name: bool(_load(name)) for name in _LOADERS},
     }
 
 
@@ -126,15 +204,56 @@ def routes() -> dict:
     return {"routes": available_routes(), "features_dir": str(FEATURES_DIR)}
 
 
+def _score(state: dict, df: pd.DataFrame) -> pd.Series:
+    """Every model's own inference call, dispatched on `state["kind"]`
+    -- the one place that actually differs between a joblib-pickled
+    sklearn estimator, a PyTorch module, a Keras model and a lookup
+    into Spark's precomputed predictions. Returns a Series aligned to
+    `df`'s own index; a Spark score not found for some osm_id comes
+    back as NaN, not faked as zero -- the same "no answer" reasoning
+    the nav log already uses for an unflyable leg's fuel.
+    """
+    kind = state["kind"]
+    if kind == "spark":
+        return df["osm_id"].astype(str).map(state["predictions"])
+
+    # Reindex to exactly the columns the model was fitted on: a category
+    # present in the parquet but not in training would shift the column
+    # order, and one the model expects but the data lacks would raise. A
+    # category no candidate on this route has is legitimately all-zero.
+    X = df.reindex(columns=state["feature_cols"], fill_value=0)
+    X = X.fillna({"name_uniqueness": 0.0})
+
+    if kind == "sklearn":
+        return pd.Series(state["model"].predict(X), index=df.index)
+    if kind == "pytorch":
+        import torch
+
+        X_scaled = state["scaler"].transform(X)
+        with torch.no_grad():
+            preds = state["model"](torch.tensor(X_scaled, dtype=torch.float32)).squeeze(1).numpy()
+        return pd.Series(preds, index=df.index)
+    if kind == "tensorflow":
+        X_scaled = state["scaler"].transform(X)
+        preds = state["model"].predict(X_scaled, verbose=0).squeeze(-1)
+        return pd.Series(preds, index=df.index)
+    raise HTTPException(500, f"unknown model kind {kind!r}")
+
+
 @app.post("/invocations", response_model=RouteResponse)
 def invocations(request: RouteRequest) -> RouteResponse:
-    state = _load()
+    model_name = (request.model or "current").lower()
+    state = _load(model_name)
     if not state:
         raise HTTPException(
             status_code=503,
             detail=(
-                f"No model artifact at {MODEL_DIR}. Run the pipeline "
-                "(collect -> engineer-features -> retrain -> promote) before serving."
+                f"No '{model_name}' model artifact available. "
+                + (
+                    "Run the pipeline (collect -> engineer-features -> retrain -> promote) before serving."
+                    if model_name == "current"
+                    else f"Train it first: docker compose run --rm ml python -m vfr.model_candidates {model_name}"
+                )
             ),
         )
 
@@ -161,15 +280,14 @@ def invocations(request: RouteRequest) -> RouteResponse:
         )
 
     df = _features(dep, dest)
-    # Reindex to exactly the columns the model was fitted on: a category
-    # present in the parquet but not in training would shift the column
-    # order, and one the model expects but the data lacks would raise. A
-    # category no candidate on this route has is legitimately all-zero.
-    X = df.reindex(columns=state["feature_cols"], fill_value=0)
-    X = X.fillna({"name_uniqueness": 0.0})
-    scores = state["model"].predict(X)
+    scores = _score(state, df)
 
     scored = df.assign(predicted_score=scores).sort_values("along_track_nm")
+    # Spark only ever scored the candidates it saw at training time
+    # (the 206 labeled ones) -- a route with candidates outside that
+    # set legitimately has no Spark score for them, dropped here
+    # rather than shown as a fabricated 0.
+    scored = scored.dropna(subset=["predicted_score"])
     checkpoints = [
         Checkpoint(
             osm_id=str(row.osm_id),
@@ -187,4 +305,5 @@ def invocations(request: RouteRequest) -> RouteResponse:
         destination_ident=request.destination_ident,
         checkpoints=checkpoints,
         stub=False,
+        model_type=state["metrics"].get("model_type", model_name),
     )

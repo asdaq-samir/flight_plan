@@ -1,6 +1,6 @@
-fastapi==0.115.6
-uvicorn[standard]==0.34.0
-pydantic==2.10.4
+fastapi==0.141.1
+uvicorn[standard]==0.52.4
+pydantic==2.13.5
 
 # Real inference as of 2026-09-10 (this service returned a hand-written
 # stub before that), so the serving image now needs the model's own
@@ -13,8 +13,18 @@ pydantic==2.10.4
 # textbook way to get an InconsistentVersionWarning and, eventually, a
 # model that either fails to unpickle or silently mispredicts. Pinned to
 # what pipeline-training currently resolves to; bump both together.
-scikit-learn==1.9.0
+scikit-learn==1.9.1
 numpy==2.5.3
 pandas==3.0.5
 joblib==1.6.0
 pyarrow
+
+# The PyTorch and TensorFlow candidates (vfr.model_candidates, trained
+# one-off inside the `ml` image) -- pinned to exactly what that image
+# resolved to, same reasoning as scikit-learn above: a state_dict or a
+# Keras model loads most reliably against the runtime that wrote it.
+# CPU-only wheel, same reason as the `ml` image's own install line --
+# no GPU to use here either.
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.14.0
+tensorflow==2.21.0
