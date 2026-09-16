@@ -21,9 +21,9 @@ import os
 import sys
 from pathlib import Path
 
-from airflow.decorators import dag, task
-from airflow.operators.python import ShortCircuitOperator
 from airflow.providers.docker.operators.docker import DockerOperator
+from airflow.providers.standard.operators.python import ShortCircuitOperator
+from airflow.sdk import dag, task
 from docker.types import Mount
 from pendulum import datetime
 

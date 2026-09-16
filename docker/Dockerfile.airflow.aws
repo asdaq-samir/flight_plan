@@ -5,10 +5,12 @@
 # neither of which exist on Fargate. This image instead bakes in only the
 # AWS-mode DAG (vfr_pipeline_aws_dag.py, which launches SageMaker Jobs
 # instead of sibling containers) and the src/vfr package it imports.
-FROM apache/airflow:2.10.4-python3.12
+FROM apache/airflow:3.3.1-python3.13
 
-RUN pip install --no-cache-dir "apache-airflow-providers-amazon" \
-    --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-2.10.4/constraints-3.12.txt"
+RUN pip install --no-cache-dir \
+    "apache-airflow-providers-amazon" \
+    "apache-airflow-providers-standard" \
+    --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-3.3.1/constraints-3.13.txt"
 
 ENV AIRFLOW__CORE__DAGS_FOLDER=/opt/airflow/project/airflow/dags
 ENV AIRFLOW__CORE__LOAD_EXAMPLES=false

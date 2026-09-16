@@ -6,7 +6,12 @@
 # in-process here (ShortCircuitOperator/PythonOperator in the DAG) since
 # they're plain file/JSON operations with zero third-party dependencies --
 # not real compute, so they don't need their own container either.
-FROM apache/airflow:2.10.4-python3.12
+FROM apache/airflow:3.3.1-python3.13
 
-RUN pip install --no-cache-dir "apache-airflow-providers-docker" \
-    --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-2.10.4/constraints-3.12.txt"
+# apache-airflow-providers-standard: Airflow 3 split PythonOperator,
+# ShortCircuitOperator etc. out of airflow-core into this provider --
+# it's a hard dependency now, not an extra.
+RUN pip install --no-cache-dir \
+    "apache-airflow-providers-docker" \
+    "apache-airflow-providers-standard" \
+    --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-3.3.1/constraints-3.13.txt"

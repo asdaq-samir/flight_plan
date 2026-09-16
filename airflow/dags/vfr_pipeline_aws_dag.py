@@ -34,13 +34,12 @@ s3://<vfr_data_s3_bucket>/features/ automatically.
 """
 from __future__ import annotations
 
-from airflow.decorators import dag, task
-from airflow.models import Variable
-from airflow.operators.python import ShortCircuitOperator
 from airflow.providers.amazon.aws.operators.sagemaker import (
     SageMakerProcessingOperator,
     SageMakerTrainingOperator,
 )
+from airflow.providers.standard.operators.python import ShortCircuitOperator
+from airflow.sdk import Variable, dag, task
 from pendulum import datetime
 
 
