@@ -18,6 +18,27 @@ HEADERS = {"User-Agent": "vfr-route-learning-project/0.1"}
 WINDTEMP_URL = "https://aviationweather.gov/api/data/windtemp"
 TAF_URL = "https://aviationweather.gov/api/data/taf"
 AIRSIGMET_URL = "https://aviationweather.gov/api/data/airsigmet"
+METAR_URL = "https://aviationweather.gov/api/data/metar"
+
+
+class WeatherServiceError(RuntimeError):
+    """aviationweather.gov didn't respond, timed out, or returned an
+    error status. Every function in this module that calls it raises
+    this instead of letting requests' own exception (ConnectionError,
+    Timeout, HTTPError -- a wide, transport-specific family) propagate
+    raw, so callers (planning-service's route handlers, nav-log-agent)
+    have one exception type to catch regardless of which call failed or
+    why.
+    """
+
+
+def _get(url: str, params: dict) -> requests.Response:
+    try:
+        resp = requests.get(url, params=params, headers=HEADERS, timeout=30)
+        resp.raise_for_status()
+    except requests.RequestException as e:
+        raise WeatherServiceError(f"aviationweather.gov request to {url} failed: {e}") from e
+    return resp
 
 
 # --- Freezing level, from the winds/temps-aloft ("FD") text product ---
@@ -41,10 +62,7 @@ def _fetch_fd_text(fcst_hr: str = "06") -> str:
 
 
 def _fetch_fd_text_uncached(fcst_hr: str = "06") -> str:
-    resp = requests.get(
-        WINDTEMP_URL, params={"region": "us", "level": "low", "fcst": fcst_hr}, headers=HEADERS, timeout=30
-    )
-    resp.raise_for_status()
+    resp = _get(WINDTEMP_URL, params={"region": "us", "level": "low", "fcst": fcst_hr})
     return resp.text
 
 
@@ -227,6 +245,42 @@ def wind_at_altitude(lat: float, lon: float, altitude_ft: float, fcst_hr: str = 
     return None
 
 
+# --- METAR, from the metar JSON API ---
+
+
+def metar_for_idents(idents: list) -> dict:
+    """{ident: {...}} for the latest METAR at each ident, or {ident: None}
+    for one aviationweather.gov has nothing current for (a small field
+    with no reporting station). One request for the whole list -- the
+    API accepts a comma-joined ids param -- not one per airport.
+
+    `_ceiling_ft`/`_visibility_sm` (below, written for the TAF response)
+    are reused as-is: a METAR object's own `clouds`/`visib` fields are
+    the same shape as one TAF forecast period's, so there's no separate
+    METAR-specific parsing to write.
+    """
+    resp = _get(METAR_URL, params={"ids": ",".join(idents), "format": "json"})
+    by_ident = {m["icaoId"]: m for m in resp.json() if m.get("icaoId")}
+
+    result = {}
+    for ident in idents:
+        m = by_ident.get(ident)
+        if m is None:
+            result[ident] = None
+            continue
+        result[ident] = {
+            "raw": m.get("rawOb"),
+            "flight_category": m.get("fltCat"),
+            "ceiling_ft": _ceiling_ft(m),
+            "visibility_sm": _visibility_sm(m),
+            "wind_dir_true_deg": m.get("wdir") if isinstance(m.get("wdir"), (int, float)) else None,
+            "wind_speed_kt": m.get("wspd"),
+            "temp_c": m.get("temp"),
+            "dewpoint_c": m.get("dewp"),
+        }
+    return result
+
+
 # --- Ceiling/visibility, from the TAF JSON API ---
 
 
@@ -275,13 +329,7 @@ def ceiling_visibility_along_route(route_start: tuple, route_end: tuple, corrido
     from .geo import corridor_bbox
 
     min_lat, min_lon, max_lat, max_lon = corridor_bbox(route_start, route_end, corridor_buffer_nm)
-    resp = requests.get(
-        TAF_URL,
-        params={"bbox": f"{min_lat},{min_lon},{max_lat},{max_lon}", "format": "json"},
-        headers=HEADERS,
-        timeout=30,
-    )
-    resp.raise_for_status()
+    resp = _get(TAF_URL, params={"bbox": f"{min_lat},{min_lon},{max_lat},{max_lon}", "format": "json"})
     stations = resp.json()
 
     now = time.time()
@@ -320,13 +368,7 @@ def hazards_along_route(route_start: tuple, route_end: tuple, corridor_buffer_nm
     from .geo import corridor_bbox
 
     min_lat, min_lon, max_lat, max_lon = corridor_bbox(route_start, route_end, corridor_buffer_nm)
-    resp = requests.get(
-        AIRSIGMET_URL,
-        params={"bbox": f"{min_lat},{min_lon},{max_lat},{max_lon}", "format": "json"},
-        headers=HEADERS,
-        timeout=30,
-    )
-    resp.raise_for_status()
+    resp = _get(AIRSIGMET_URL, params={"bbox": f"{min_lat},{min_lon},{max_lat},{max_lon}", "format": "json"})
     advisories = resp.json()
 
     route_line = LineString([(route_start[1], route_start[0]), (route_end[1], route_end[0])])

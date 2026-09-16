@@ -1,0 +1,7 @@
+{
+  "type": "Piper PA-28-181 Archer",
+  "service_ceiling_ft": 14100,
+  "climb_rate_fpm_sea_level": 700,
+  "cruise_tas_kt": 125,
+  "fuel_burn_gph": 9.5
+}

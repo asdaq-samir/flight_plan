@@ -333,6 +333,13 @@ def retrain(
     metrics = {
         "model_type": best_name,
         "cv_mae": cv_mae[best_name],
+        # The full comparison, not just the winner -- Ridge/GradientBoosting's
+        # own cv_mae used to be computed here and thrown away the moment
+        # best_name was picked. Kept alongside "cv_mae" (still the winner's
+        # score alone, still what model_registry.PROMOTION_METRIC reads)
+        # rather than replacing it, so the promotion gate's read path never
+        # has to change.
+        "cv_mae_by_model": {**cv_mae, "Dummy": dummy_mae},
         "dummy_cv_mae": dummy_mae,
         "held_out_mae": mean_absolute_error(y_test, y_pred),
         "held_out_rmse": mean_squared_error(y_test, y_pred) ** 0.5,

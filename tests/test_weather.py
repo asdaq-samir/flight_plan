@@ -1,7 +1,17 @@
 """FD (winds/temps aloft) group decoding -- formalizes the ad-hoc checks
-run while building wind_at_altitude (see [[project-navlog-dr-math]]).
+run while building wind_at_altitude.
+
+metar_for_idents and the WeatherServiceError wrapping below cover the
+other half: every aviationweather.gov call in this module was
+unhandled until this pass, so a mocked network failure is worth a test
+of its own, not just the pure decoding helpers.
 """
-from vfr.weather import _decode_temp_c, _decode_wind
+from unittest.mock import Mock, patch
+
+import pytest
+import requests
+
+from vfr.weather import WeatherServiceError, _decode_temp_c, _decode_wind, metar_for_idents
 
 
 def test_decode_wind_normal_group():
@@ -38,3 +48,43 @@ def test_decode_temp_c_unsigned_six_char_group_is_always_negative():
 
 def test_decode_temp_c_wind_only_four_char_group_has_no_temp():
     assert _decode_temp_c("2712") is None
+
+
+def _mock_metar_response(reports: list) -> Mock:
+    resp = Mock()
+    resp.raise_for_status = Mock()
+    resp.json.return_value = reports
+    return resp
+
+
+@patch("vfr.weather.requests.get")
+def test_metar_for_idents_fetches_all_idents_in_one_request(mock_get):
+    mock_get.return_value = _mock_metar_response([
+        {"icaoId": "C81", "rawOb": "C81 METAR", "fltCat": "VFR"},
+        {"icaoId": "KDLH", "rawOb": "KDLH METAR", "fltCat": "MVFR"},
+    ])
+
+    result = metar_for_idents(["C81", "KDLH"])
+
+    mock_get.assert_called_once()
+    assert mock_get.call_args.kwargs["params"]["ids"] == "C81,KDLH"
+    assert result["C81"]["flight_category"] == "VFR"
+    assert result["KDLH"]["flight_category"] == "MVFR"
+
+
+@patch("vfr.weather.requests.get")
+def test_metar_for_idents_returns_none_for_an_ident_with_no_current_report(mock_get):
+    mock_get.return_value = _mock_metar_response([{"icaoId": "KDLH", "rawOb": "KDLH METAR", "fltCat": "VFR"}])
+
+    result = metar_for_idents(["C81", "KDLH"])
+
+    assert result["C81"] is None
+    assert result["KDLH"] is not None
+
+
+@patch("vfr.weather.requests.get")
+def test_metar_for_idents_wraps_a_network_failure(mock_get):
+    mock_get.side_effect = requests.ConnectionError("no route to host")
+
+    with pytest.raises(WeatherServiceError):
+        metar_for_idents(["C81"])
