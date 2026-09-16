@@ -4,6 +4,7 @@ import java.io.IOException;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.Resource;
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
+import org.springframework.web.servlet.config.annotation.ViewControllerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 import org.springframework.web.servlet.resource.PathResourceResolver;
 
@@ -24,6 +25,29 @@ import org.springframework.web.servlet.resource.PathResourceResolver;
  */
 @Configuration
 public class WebMvcConfig implements WebMvcConfigurer {
+
+    /**
+     * The bare app root ({@code /app} or {@code /app/}) is a real 500,
+     * not a routing edge case: it dispatches to the resource handler
+     * below with nothing left of the path after the {@code /app/}
+     * prefix is stripped, which Spring normalizes to {@code "."} --
+     * and rejects as an invalid resource path before the custom
+     * resolver below ever runs, regardless of what it would have
+     * returned. A redirect sidesteps it entirely: the browser reissues
+     * the request for a concrete file, which resolves normally.
+     */
+    @Override
+    public void addViewControllers(ViewControllerRegistry registry) {
+        // /app/home, not /app/index.html: that file resolves fine (it's
+        // a real resource, sidestepping the "." bug above) but the SPA
+        // itself would then see a path ending in "index.html," not one
+        // of its own route names, and fall through to whichever view
+        // main.tsx's own catch-all happens to be. A route name it
+        // already checks for keeps the redirect target and the SPA's
+        // own routing in agreement.
+        registry.addRedirectViewController("/app", "/app/home");
+        registry.addRedirectViewController("/app/", "/app/home");
+    }
 
     @Override
     public void addResourceHandlers(ResourceHandlerRegistry registry) {

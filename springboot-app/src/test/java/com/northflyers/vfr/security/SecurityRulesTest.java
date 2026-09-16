@@ -79,6 +79,16 @@ class SecurityRulesTest {
                 .andExpect(result -> assertThat(result.getResponse().getStatus()).isNotEqualTo(401));
     }
 
+    /** Aircraft and flights are the opposite case from routes: unlike a
+     *  scored corridor, they are private to whoever owns them, so a
+     *  caller with no session is refused before AircraftController --
+     *  not in this slice either -- ever runs. */
+    @Test
+    void aircraftAndFlightsRequireASession() throws Exception {
+        mockMvc.perform(get("/api/aircraft")).andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/flights")).andExpect(status().isUnauthorized());
+    }
+
     @Test
     void healthAndDocsStayReachableWithoutASession() throws Exception {
         mockMvc.perform(get("/actuator/health"))

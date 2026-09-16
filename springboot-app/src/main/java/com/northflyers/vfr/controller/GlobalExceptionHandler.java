@@ -2,9 +2,11 @@ package com.northflyers.vfr.controller;
 
 import com.northflyers.vfr.dto.ErrorResponse;
 import com.northflyers.vfr.service.ModelServiceException;
+import com.northflyers.vfr.service.NoSuchAircraftException;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -12,9 +14,10 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 /**
- * Turns three failure classes into a uniform ErrorResponse instead of an
+ * Turns failure classes into a uniform ErrorResponse instead of an
  * opaque 500 (or, for validation, Spring's own default problem-detail
- * shape) -- a bad request body, model-service being unreachable, and
+ * shape) -- a bad request body, an unresolvable aircraft reference, a
+ * unique-constraint clash, model-service being unreachable, and
  * everything else. Ordered most-specific to least-specific, matching how
  * {@code @ExceptionHandler} resolution actually works.
  */
@@ -35,6 +38,33 @@ public class GlobalExceptionHandler {
                 .map(fieldError -> fieldError.getField() + ": " + fieldError.getDefaultMessage())
                 .toList();
         return ResponseEntity.badRequest().body(new ErrorResponse("Invalid request", details));
+    }
+
+    /**
+     * Handles a {@code SaveFlightRequest} naming an {@code aircraftId}
+     * that doesn't exist or doesn't belong to the calling pilot.
+     *
+     * @param ex carries the id that didn't resolve
+     * @return 404 with that detail
+     */
+    @ExceptionHandler(NoSuchAircraftException.class)
+    public ResponseEntity<ErrorResponse> handleNoSuchAircraft(NoSuchAircraftException ex) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ErrorResponse(ex.getMessage()));
+    }
+
+    /**
+     * Handles a unique-constraint violation -- in practice, registering
+     * an aircraft whose tail number the same pilot already has on file
+     * ({@code uq_aircraft_pilot_tail}).
+     *
+     * @param ex the underlying constraint failure, logged in full server-side
+     * @return 409, with a message that doesn't leak constraint/SQL internals
+     */
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ErrorResponse> handleDataIntegrityViolation(DataIntegrityViolationException ex) {
+        log.warn("Data integrity violation", ex);
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(new ErrorResponse("That tail number is already registered"));
     }
 
     /**

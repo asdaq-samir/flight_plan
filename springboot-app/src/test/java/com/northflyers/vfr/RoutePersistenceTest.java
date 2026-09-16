@@ -30,7 +30,7 @@ class RoutePersistenceTest {
 
     @Container
     @ServiceConnection
-    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16");
+    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:18");
 
     @Autowired
     private RouteRepository routeRepository;

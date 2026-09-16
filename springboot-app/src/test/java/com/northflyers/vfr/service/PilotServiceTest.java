@@ -34,7 +34,7 @@ class PilotServiceTest {
 
     @Container
     @ServiceConnection
-    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16");
+    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:18");
 
     @Autowired
     private PilotService pilotService;

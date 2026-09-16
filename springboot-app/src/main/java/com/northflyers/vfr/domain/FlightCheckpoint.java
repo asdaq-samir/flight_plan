@@ -13,10 +13,16 @@ import jakarta.persistence.Table;
 /**
  * One line of a filed nav log.
  *
- * <p>The leg fields describe the leg <em>leaving</em> this fix, which is
- * how a nav log is read in the cockpit: you are over the checkpoint, and
- * these are the numbers to the next one. They are all null on the last
- * row, which is the destination and has no leg after it.
+ * <p>The leg fields describe the leg <em>arriving</em> at this fix --
+ * matching how the rest of this project's own nav log (the streamed
+ * {@code /api/navlog} response, and every table built from it) already
+ * reads: the departure row carries no leg (nothing has been flown
+ * yet), and the destination row carries the final leg's real numbers.
+ * A pilot walking the printed page down reads each row as "here's how
+ * I got to this fix," not "here's what's next" -- and matching that
+ * existing convention, rather than the reverse, is what lets
+ * {@code FlightService} build these directly from data the Flight
+ * Briefing page already has, with no reshuffling.
  *
  * <p>Groundspeed, ETE and fuel are separately nullable, and that is a
  * real case rather than defensiveness: a leg whose wind component exceeds

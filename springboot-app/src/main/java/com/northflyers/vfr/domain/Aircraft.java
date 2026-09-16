@@ -64,6 +64,17 @@ public class Aircraft {
         this.createdAt = Instant.now();
     }
 
+    /** Replaces every editable field at once -- an aeroplane's own
+     *  numbers change together (a new owner, a re-rigged engine) often
+     *  enough that a partial update isn't worth the extra API shape. */
+    public Aircraft update(String tailNumber, String typeDesignator, double cruiseTasKt, double fuelBurnGph) {
+        this.tailNumber = tailNumber;
+        this.typeDesignator = typeDesignator;
+        this.cruiseTasKt = cruiseTasKt;
+        this.fuelBurnGph = fuelBurnGph;
+        return this;
+    }
+
     public Long getId() {
         return id;
     }
