@@ -3,12 +3,27 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Route — pick checkpoints</title>
+    <!-- The pre-hydration fallback -- useDocumentTitle overrides this
+         per page once React mounts, so a tab open before that (or a
+         crawler that never runs JS) still sees a real title. -->
+    <title>VFR Route</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <!-- Structural, not decorative: without this the page can grow a
          scrollbar of its own (even by a stray pixel), and a wheel over
          the map then fights the page for the scroll instead of Leaflet
-         getting it cleanly -- felt as janky zoom rather than a crash. -->
-    <style>html, body { height: 100%; margin: 0; overflow: hidden; }</style>
+         getting it cleanly -- felt as janky zoom rather than a crash.
+         The print override matters for exactly one page, the Flight
+         Briefing: it's taller than one screen and needs the browser's
+         own pagination, which this height/overflow lock (two levels
+         above Shell.tsx's own, already-overridden root div) would
+         otherwise clip to a single viewport-height's worth no matter
+         what any component further down declares. -->
+    <style>
+      html, body { height: 100%; margin: 0; overflow: hidden; }
+      @media print {
+        html, body { height: auto; overflow: visible; }
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>

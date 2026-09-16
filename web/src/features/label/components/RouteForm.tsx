@@ -1,3 +1,4 @@
+import Button from "../../../components/Button";
 import type { Course } from "../../../lib/api/types";
 
 interface Props {
@@ -11,8 +12,7 @@ interface Props {
 
 export default function RouteForm({ dep, dest, onDepChange, onDestChange, onSubmit, course }: Props) {
   return (
-    <div className="flex items-center gap-3">
-      <span className="font-bold">Route</span>
+    <div className="flex flex-wrap items-center gap-3">
       <form
         className="flex items-center gap-2"
         onSubmit={e => {
@@ -25,28 +25,30 @@ export default function RouteForm({ dep, dest, onDepChange, onDestChange, onSubm
           onSubmit();
         }}
       >
+        {/* py-2, not the shared FIELD_INPUT's py-1 -- deliberately
+            larger tap targets for a workflow that's otherwise all
+            one-handed map taps and keyboard shortcuts, matching the
+            "Load" button's own `size="lg"` next to it. */}
         <input
           value={dep}
           onChange={e => onDepChange(e.target.value.toUpperCase())}
           aria-label="Departure"
-          className="w-20 rounded border border-slate-300 px-2 py-1 text-center font-mono uppercase"
+          className="w-20 rounded border border-slate-300 px-2 py-2 text-center font-mono uppercase"
         />
         <span>&rarr;</span>
         <input
           value={dest}
           onChange={e => onDestChange(e.target.value.toUpperCase())}
           aria-label="Destination"
-          className="w-20 rounded border border-slate-300 px-2 py-1 text-center font-mono uppercase"
+          className="w-20 rounded border border-slate-300 px-2 py-2 text-center font-mono uppercase"
         />
-        <button type="submit" className="rounded bg-slate-800 px-3 py-1 text-white hover:bg-slate-700">
-          Load
-        </button>
+        <Button type="submit" size="lg">Load</Button>
       </form>
       {course && (
-        <span className="text-slate-600">
-          <b className="text-slate-900">{course.distance_nm}</b> nm ·{" "}
-          {String(course.bearing_deg).padStart(3, "0")}°T
-        </span>
+        <div className="text-sm leading-tight text-slate-600">
+          <div><b className="text-slate-900">{course.distance_nm}</b> nm</div>
+          <div>{String(course.bearing_deg).padStart(3, "0")}°T</div>
+        </div>
       )}
     </div>
   );

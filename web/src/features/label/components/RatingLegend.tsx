@@ -1,7 +1,17 @@
-import { useState } from "react";
 import Badge from "../../../components/Badge";
+import GuidePanel from "../../../components/GuidePanel";
+import Key from "../../../components/Key";
 import type { Rating } from "../../../lib/api/types";
 import { COLORS } from "../logic";
+
+const SHORTCUTS: [string | null, string][] = [
+  ["Space", "start / resume / whole route"],
+  ["0–5", "rate"],
+  ["↑↓←→", "step the way the course runs"],
+  ["Del", "remove"],
+  [null, "click the course to add"],
+  ["t", "toggle FAA / OSM"],
+];
 
 const SCALE: [Rating, string, string][] = [
   [0, "Not a feature.", "Contour, boundary, chart text. The detector is wrong."],
@@ -13,60 +23,43 @@ const SCALE: [Rating, string, string][] = [
 ];
 
 /**
- * The rating scale and keyboard shortcuts, pinned to the bottom-left
+ * The rating scale and keyboard shortcuts, pinned to the bottom-right
  * corner of the map rather than the sidebar -- it's about the map, so
- * it opens over it. The panel grows upward from the toggle button
- * (`absolute bottom-full`) so opening it never shifts the button, or
- * anything else, out from under the cursor.
+ * it opens over it. The action button (Start/Resume/Fit line) takes
+ * the opposite corner, bottom-left, the same split the planner uses
+ * for its own guide/toggle pair. `GuidePanel` is the shared shell
+ * (position, open/closed panel, toggle button) both pages' guides use;
+ * this is just the label page's own content for it.
  */
-export default function RatingLegend() {
-  const [open, setOpen] = useState(false);
-
+export default function RatingLegend({ bottomOffset }: { bottomOffset?: number }) {
   return (
-    // z-[1000]: Leaflet's own panes and controls carry real z-index
-    // values (up to 1000 for controls) despite sitting later in a
-    // different part of the DOM, and z-index:auto here would lose to
-    // them regardless of paint order -- without this, the map's own
-    // layers paint over this panel once tiles load, which looks like
-    // the panel turned transparent but is actually stacking order.
-    <div className="absolute bottom-3 left-3 z-[1000]">
-      <div
-        className={`mb-2 w-72 origin-bottom overflow-y-auto rounded-lg border border-slate-200 bg-white p-3 shadow-lg transition-all duration-200 ${
-          open ? "max-h-[70vh] scale-y-100 opacity-100" : "max-h-0 scale-y-0 opacity-0"
-        }`}
-      >
-        <div className="space-y-3 text-sm">
-          <p className="italic text-slate-600">
-            Flying this leg, would I look up and know <i>that&rsquo;s the one</i> — not one like it?
-          </p>
-          <div className="space-y-1">
-            {SCALE.map(([n, lead, text]) => (
-              <div key={n} className="flex items-start gap-2">
-                <Badge color={COLORS[n]}>{n}</Badge>
-                <span>{lead && <b>{lead}</b>} {text}</span>
-              </div>
-            ))}
-          </div>
-          <p className="text-slate-600">
-            <b>0 vs 1 matters most</b> — 0 means the detector should never have surfaced it,
-            1 means it&rsquo;s real but poor. <b>Ignore spacing</b>; selection already enforces
-            separation. <b>Judge at this zoom</b>.
-          </p>
-          <div className="space-y-1 border-t border-slate-200 pt-2 text-slate-600">
-            <div><kbd>Space</kbd> start / resume / whole route · <kbd>0</kbd>–<kbd>5</kbd> rate</div>
-            <div><kbd>&uarr;&darr;&larr;&rarr;</kbd> step the way the course runs · <kbd>Del</kbd> remove</div>
-            <div>click the course to add · <kbd>t</kbd> toggle FAA / OSM</div>
-          </div>
+    <GuidePanel width="w-72" buttonLabel="Labeling Guide" bottomOffset={bottomOffset}>
+      <div className="space-y-3 text-sm">
+        <p className="italic text-slate-600">
+          Flying this leg, would I look up and know <i>that&rsquo;s the one</i> — not one like it?
+        </p>
+        <div className="space-y-1">
+          {SCALE.map(([n, lead, text]) => (
+            <div key={n} className="flex items-start gap-2">
+              <Badge color={COLORS[n]}>{n}</Badge>
+              <span>{lead && <b>{lead}</b>} {text}</span>
+            </div>
+          ))}
+        </div>
+        <p className="text-slate-600">
+          <b>0 vs 1 matters most</b> — 0 means the detector should never have surfaced it,
+          1 means it&rsquo;s real but poor. <b>Ignore spacing</b>; selection already enforces
+          separation. <b>Judge at this zoom</b>.
+        </p>
+        <div className="space-y-1.5 border-t border-slate-200 pt-2 text-slate-600">
+          {SHORTCUTS.map(([key, text]) => (
+            <div key={text} className="flex items-center gap-2">
+              {key && <Key>{key}</Key>}
+              <span>{text}</span>
+            </div>
+          ))}
         </div>
       </div>
-
-      <button
-        type="button"
-        onClick={() => setOpen(o => !o)}
-        className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm shadow-md hover:bg-slate-50"
-      >
-        {open ? "Hide" : "Show"} rating guide &amp; shortcuts
-      </button>
-    </div>
+    </GuidePanel>
   );
 }

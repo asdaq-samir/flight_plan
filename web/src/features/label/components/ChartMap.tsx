@@ -4,8 +4,10 @@ import type { Course, Point } from "../../../lib/api/types";
 import { isEndpoint } from "../../../lib/api/types";
 import { COLORS, hasRating, isVisible, type Filters } from "../logic";
 import {
-  createBasemaps, createCourseLine, createHalo, dotIcon, endLabelIcon, updateHaloContent,
+  createBasemaps, createCourseLine, createHalo, dotIcon, endLabelIcon,
+  setHaloMenuOpen, updateHaloContent,
 } from "../../../lib/map/leaflet";
+import { useLeafletMap } from "../../../lib/map/useLeafletMap";
 
 interface Props {
   course: Course | null;
@@ -15,6 +17,11 @@ interface Props {
   filters: Filters;
   selected: Point | null;
   selectedContent?: ReactNode;
+  /** Whether the selected point's popup should be showing at all --
+   *  false while fit-line has zoomed out to the whole leg, where the
+   *  ring should stay marking the selection but the rating menu would
+   *  just be floating over unrelated ground. */
+  showMenu: boolean;
   onSelect: (kind: "endpoint" | "detected" | "added", index: number) => void;
   onDeselect: () => void;
   onAddAt: (lat: number, lon: number) => void;
@@ -28,21 +35,12 @@ interface Props {
  * calls.
  */
 export default function ChartMap(props: Props) {
-  const el = useRef<HTMLDivElement>(null);
-  const map = useRef<L.Map | null>(null);
+  const { el, map } = useLeafletMap(props.onMapReady);
   const layers = useRef<Record<string, L.Layer | null>>({});
   const basemaps = useRef<ReturnType<typeof createBasemaps> | null>(null);
-  const halo = useRef<{ ring: L.FeatureGroup; marker: L.Layer; lat: number; lon: number } | null>(null);
-
-  // Create once. The guard matters: StrictMode runs effects twice in
-  // development, and without it Leaflet initialises two maps into the
-  // same element and the second one throws.
-  useEffect(() => {
-    if (map.current || !el.current) return;
-    map.current = L.map(el.current, { zoomControl: true, minZoom: 4, keyboard: false });
-    props.onMapReady?.(map.current);
-    return () => { map.current?.remove(); map.current = null; };
-  }, []);
+  const halo = useRef<
+    { ring: L.FeatureGroup; marker: L.Layer; lat: number; lon: number; onClose?: () => void } | null
+  >(null);
 
   // Basemaps and the course line, once the route resolves.
   useEffect(() => {
@@ -66,6 +64,11 @@ export default function ChartMap(props: Props) {
           .on("click", ev => { L.DomEvent.stopPropagation(ev); props.onSelect("endpoint", i); })),
     ).addTo(m);
 
+    // Leaflet's fit math reads its cached container size, which can still
+    // be stale on first load (a fresh reload fits before the container's
+    // true size has ever been measured) -- invalidateSize forces a fresh
+    // read right before the computation that depends on it.
+    m.invalidateSize();
     m.fitBounds(L.latLngBounds(props.course.course_line), { padding: [30, 30] });
   }, [props.course]);
 
@@ -120,13 +123,21 @@ export default function ChartMap(props: Props) {
     // selection itself reloading with every block of detections.
     if (halo.current && halo.current.lat === lat && halo.current.lon === lon) {
       if (props.selectedContent) updateHaloContent(halo.current.marker, props.selectedContent);
+      // The exact closure bound at creation, not the fresh `props.onDeselect`
+      // this render made -- `setHaloMenuOpen`'s `.off()` only detaches a
+      // listener that matches by function identity, and `onDeselect` is a
+      // new arrow function on every render of the page above. Passing the
+      // current render's version here would silently fail to detach the
+      // original one, leaving both attached -- closing the popup would
+      // then still fire the stale listener and deselect the point.
+      setHaloMenuOpen(halo.current.marker, props.showMenu, halo.current.onClose);
       return;
     }
 
     removeHalo();
-    const created = createHalo(m, [lat, lon], props.selectedContent, props.onDeselect);
-    halo.current = { ...created, lat, lon };
-  }, [props.selected, props.selectedContent]);
+    const created = createHalo(m, [lat, lon], props.selectedContent, props.onDeselect, props.showMenu);
+    halo.current = { ...created, lat, lon, onClose: props.onDeselect };
+  }, [props.selected, props.selectedContent, props.showMenu]);
 
   return <div ref={el} className="h-full w-full" />;
 }

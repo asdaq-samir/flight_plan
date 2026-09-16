@@ -1,8 +1,10 @@
-import type { Airport, Candidate, Leg, Totals } from "../../lib/api/types";
+import type { Totals } from "../../lib/api/types";
+import { compassPoint } from "../../lib/compass";
+
+export { compassPoint };
 
 /**
- * The planner's pure half: colours, number formatting, and the derived
- * row list the panel renders.
+ * The planner's pure half: colours and number formatting.
  *
  * Split out for the same reason the labeler's logic was -- these are the
  * parts with edge cases (a heading of exactly 360, a leg that cannot be
@@ -36,6 +38,12 @@ export function one(n: number | null | undefined): string {
   return n === null || n === undefined ? "—" : n.toFixed(1);
 }
 
+/** A whole-number altitude with a thousands separator, or an em dash --
+ *  an airport OurAirports has no recorded field elevation for. */
+export function altFt(ft: number | null | undefined): string {
+  return ft === null || ft === undefined ? "—" : Math.round(ft).toLocaleString();
+}
+
 /** Signed to one decimal: a wind correction of -3 reads as a correction,
  *  where "3" reads as a magnitude. */
 export function signed(n: number): string {
@@ -47,70 +55,6 @@ export function signed(n: number): string {
 export function hhmm(minutes: number | null): string {
   if (minutes === null) return "ETE n/a";
   return `${Math.floor(minutes / 60)}h ${String(Math.round(minutes % 60)).padStart(2, "0")}m`;
-}
-
-export interface EndpointRow {
-  kind: "endpoint";
-  tag: "DEP" | "DEST";
-  ident: string;
-  name: string;
-  lat: number;
-  lon: number;
-  along_track_nm: number;
-}
-
-export interface CheckpointRow {
-  kind: "checkpoint";
-  /** 1-based, and the same number the map marker carries. */
-  n: number;
-  name: string;
-  category: string;
-  score: number;
-  lat: number;
-  lon: number;
-  along_track_nm: number;
-  /** The leg leaving this checkpoint, once the nav log has arrived. */
-  nextLeg: Leg | null;
-}
-
-export type PanelRow = EndpointRow | CheckpointRow;
-
-/**
- * The panel's rows: departure, the checkpoints, destination, in the order
- * they are flown.
- *
- * The legs are matched by position, not by name. `legs` runs
- * departure -> 1 -> 2 -> ... -> destination, so the leg leaving
- * checkpoint n is legs[n]. The page this replaces looked the leg up by
- * comparing its `from` against the checkpoint's display name, which
- * silently picks the wrong leg when two checkpoints are both unnamed and
- * fall back to the same category word.
- */
-export function panelRows(
-  departure: Airport,
-  destination: Airport,
-  distanceNm: number,
-  selected: Candidate[],
-  legs: Leg[],
-): PanelRow[] {
-  const rows: PanelRow[] = [
-    { kind: "endpoint", tag: "DEP", ...departure, along_track_nm: 0 },
-    { kind: "endpoint", tag: "DEST", ...destination, along_track_nm: distanceNm },
-  ];
-  selected.forEach((c, i) => {
-    rows.push({
-      kind: "checkpoint",
-      n: i + 1,
-      name: c.name || "(unnamed)",
-      category: c.category,
-      score: c.predicted_score,
-      lat: c.lat,
-      lon: c.lon,
-      along_track_nm: c.along_track_nm,
-      nextLeg: legs[i + 1] ?? null,
-    });
-  });
-  return rows.sort((a, b) => a.along_track_nm - b.along_track_nm);
 }
 
 /** The header summary, which has to say something useful at each of the

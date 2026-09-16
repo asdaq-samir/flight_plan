@@ -1,6 +1,6 @@
 import Badge from "../../../components/Badge";
 import { isEndpoint, type Point, type Rating } from "../../../lib/api/types";
-import { CATEGORIES, COLORS, compassPoint, roleOf } from "../logic";
+import { CATEGORIES, COLORS, compassPoint, roleOf, sourceOf } from "../logic";
 
 interface Props {
   point: Point;
@@ -16,9 +16,34 @@ interface Props {
   onRate: (rating: Rating) => void;
   onCategoryChange: (category: string) => void;
   onRemove: () => void;
+  /** Touch has no arrow keys, so stepping needs an on-screen equivalent
+   *  too. Named by screen side, not by step direction: which one moves
+   *  forward through the route depends on the course's own bearing (a
+   *  route running west has "forward" on the left), so the caller
+   *  works that out and hands over whichever action belongs on which
+   *  side -- this component just draws two arrows. */
+  onLeft?: () => void;
+  onRight?: () => void;
+  canLeft?: boolean;
+  canRight?: boolean;
 }
 
 const RATINGS: Rating[] = [0, 1, 2, 3, 4, 5];
+
+/** A plain chevron, not a font glyph -- no icon package here (this
+ *  project adds a dependency deliberately, not for two arrows), and an
+ *  SVG stroke reads bolder and crisper at this size than "‹"/"›" do. */
+function Chevron({ direction }: { direction: "left" | "right" }) {
+  return (
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth={3}>
+      <path
+        d={direction === "left" ? "M15 5l-7 7 7 7" : "M9 5l7 7-7 7"}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
 
 /**
  * Everything about the selected point, in one Leaflet popup pinned above
@@ -28,13 +53,51 @@ const RATINGS: Rating[] = [0, 1, 2, 3, 4, 5];
  */
 export default function PointPopup({
   point, place, countChanged, bearingDeg, departureIdent, onRate, onCategoryChange, onRemove,
+  onLeft, onRight, canLeft = true, canRight = true,
 }: Props) {
+  // Same row either way -- an endpoint is the first or last stop in the
+  // walk, and needs a way off itself just as much as any other point
+  // does (this used to be endpoint-only content with no arrows at all,
+  // which meant landing on departure via "Start" had no way forward).
+  const arrows = (place || onLeft || onRight) && (
+    <div className="flex items-center justify-between gap-1">
+      <button
+        type="button"
+        onClick={onLeft}
+        disabled={!onLeft || !canLeft}
+        aria-label="Step left"
+        className="grid h-11 w-11 flex-shrink-0 place-items-center rounded-full border-2 border-slate-400 text-slate-700 disabled:opacity-30 enabled:hover:bg-slate-100 enabled:active:bg-slate-200"
+      >
+        <Chevron direction="left" />
+      </button>
+      {place && (
+        <div className={`rounded px-0.5 text-slate-500 ${
+          countChanged ? "animate-[count-flash_0.8s_ease-out]" : ""
+        }`}>
+          #{place}
+        </div>
+      )}
+      <button
+        type="button"
+        onClick={onRight}
+        disabled={!onRight || !canRight}
+        aria-label="Step right"
+        className="grid h-11 w-11 flex-shrink-0 place-items-center rounded-full border-2 border-slate-400 text-slate-700 disabled:opacity-30 enabled:hover:bg-slate-100 enabled:active:bg-slate-200"
+      >
+        <Chevron direction="right" />
+      </button>
+    </div>
+  );
+
   if (isEndpoint(point)) {
     return (
-      <div className="min-w-[150px] text-sm">
-        <Badge color="#142430">{point.category === "departure" ? "DEP" : "DEST"}</Badge>{" "}
-        <b>{point.ident}</b>
-        <div className="text-slate-500">{point.name}</div>
+      <div className="space-y-2 text-sm">
+        {arrows}
+        <div>
+          <Badge color="#142430">{point.category === "departure" ? "DEP" : "DEST"}</Badge>{" "}
+          <b>{point.ident}</b>
+          <div className="text-slate-500">{point.name}</div>
+        </div>
       </div>
     );
   }
@@ -47,22 +110,25 @@ export default function PointPopup({
     : [category, ...CATEGORIES];
 
   return (
-    <div className="min-w-[210px] space-y-2 text-sm">
-      {place && (
-        <div className={`rounded px-0.5 text-slate-500 ${
-          countChanged ? "animate-[count-flash_0.8s_ease-out]" : ""
-        }`}>
-          #{place}
-        </div>
-      )}
+    <div className="space-y-2 text-sm">
+      {arrows}
 
-      <div className="flex flex-wrap gap-1">
+      {/* No flex-wrap: Leaflet measures a popup's width by briefly
+          forcing everything onto one line, and a row that's still
+          allowed to wrap at that moment gets measured at whatever
+          narrower, wrapped width it happens to collapse to instead of
+          its real one-line width -- pinning this row flat gives it (and
+          so the popup) a stable, correctly-measured width instead. */}
+      {/* data-rating-row: how leaflet.tsx's createHalo measures this
+          popup's real width in whichever browser opens it, rather than
+          trusting a pixel constant tuned on a different one. */}
+      <div className="flex gap-1" data-rating-row>
         {RATINGS.map(r => (
           <button
             key={r}
             type="button"
             onClick={() => onRate(r)}
-            className={`rounded px-1.5 py-1 text-xs font-semibold text-white ${
+            className={`h-9 rounded px-2.5 text-sm font-bold text-white ${
               rating === r ? "ring-2 ring-offset-1 ring-slate-800" : "opacity-70 hover:opacity-100"
             }`}
             style={{ backgroundColor: COLORS[r] }}
@@ -93,7 +159,10 @@ export default function PointPopup({
         onClick={onRemove}
         className="w-full rounded border border-red-300 px-2 py-1 text-red-600 hover:bg-red-50"
       >
-        Remove point
+        {/* A detected point is still a detection either way -- this
+            only ever unrates it. An added point exists purely as a
+            pick, so the same action really does delete it. */}
+        {sourceOf(point) === "added" ? "Remove point" : "Reset rating"}
       </button>
     </div>
   );

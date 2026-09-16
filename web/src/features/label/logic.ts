@@ -1,4 +1,7 @@
 import { isEndpoint, type Point, type Rating, type Role, type Source } from "../../lib/api/types";
+import { compassPoint } from "../../lib/compass";
+
+export { compassPoint };
 
 /**
  * The decisions the labeling view makes, with no map and no document in
@@ -19,14 +22,6 @@ export const COLORS: Record<Rating, string> = {
 /** Beyond this far off course you are looking at it, not flying over it. */
 export const DR_CORRIDOR_NM = 0.5;
 
-const COMPASS = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"] as const;
-
-/** A bearing as a rough compass point -- "along the course" means
- *  nothing to someone picturing the chart; a direction does. */
-export function compassPoint(bearingDeg: number): string {
-  const b = ((bearingDeg % 360) + 360) % 360;
-  return COMPASS[Math.round(b / 45) % 8]!;
-}
 
 /**
  * The categories a point has actually been seen carrying, from

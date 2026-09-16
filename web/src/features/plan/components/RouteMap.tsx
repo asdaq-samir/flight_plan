@@ -2,6 +2,7 @@ import L from "leaflet";
 import { useEffect, useRef } from "react";
 import type { Candidate, Course } from "../../../lib/api/types";
 import { createBasemaps, createCourseLine, createHalo, dotIcon, endLabelIcon, mountReact } from "../../../lib/map/leaflet";
+import { useLeafletMap } from "../../../lib/map/useLeafletMap";
 import { scoreColor } from "../format";
 
 interface Props {
@@ -9,9 +10,11 @@ interface Props {
   candidates: Candidate[];
   selected: Candidate[];
   showCandidates: boolean;
-  /** Collapsing the nav log changes the map's height. */
-  navShown: boolean;
   focus: { lat: number; lon: number } | null;
+  /** A selected checkpoint marker's own half of row selection -- the
+   *  sidebar list already focuses the map when a row is clicked; this
+   *  is the other direction, clicking the marker itself. */
+  onSelectCandidate: (candidate: Candidate) => void;
   onReady: (controls: { fit: () => void; toggleBasemap: () => string }) => void;
 }
 
@@ -19,24 +22,16 @@ interface Props {
  * The planned route on the chart.
  *
  * Shares every drawing primitive with the labeling map -- the same cased
- * course line, the same pulsing halo, the same three-edged markers --
- * which is most of the reason for the port. As two HTML files these had
+ * course line, the same pulsing halo, the same three-edged markers, and
+ * (via `useLeafletMap`) the same map-creation boilerplate itself -- which
+ * is most of the reason for the port. As two HTML files these had
  * drifted into two implementations of the same look, and only one of
  * them ever got the basemap fix.
  */
 export default function RouteMap(props: Props) {
-  const el = useRef<HTMLDivElement>(null);
-  const map = useRef<L.Map | null>(null);
+  const { el, map } = useLeafletMap();
   const layers = useRef<Record<string, L.Layer | null>>({});
   const basemaps = useRef<ReturnType<typeof createBasemaps> | null>(null);
-
-  // StrictMode runs effects twice in development; without the guard
-  // Leaflet initialises two maps into one element and the second throws.
-  useEffect(() => {
-    if (map.current || !el.current) return;
-    map.current = L.map(el.current, { zoomControl: true, minZoom: 4, keyboard: false });
-    return () => { map.current?.remove(); map.current = null; };
-  }, []);
 
   useEffect(() => {
     const m = map.current;
@@ -56,7 +51,13 @@ export default function RouteMap(props: Props) {
           .bindPopup(mountReact(<><b>{a.ident}</b> — {a.name}</>))),
     ).addTo(m);
 
-    const fit = () => m.fitBounds(L.latLngBounds(course.course_line), { padding: [30, 30] });
+    // invalidateSize before fitBounds: on a fresh reload the map can fit
+    // against a stale cached container size before it's ever been
+    // measured, which shows up as an unexpectedly zoomed-out fit.
+    const fit = () => {
+      m.invalidateSize();
+      m.fitBounds(L.latLngBounds(course.course_line), { padding: [30, 30] });
+    };
     fit();
     props.onReady({
       fit,
@@ -97,9 +98,10 @@ export default function RouteMap(props: Props) {
               <b>{i + 1}. {c.name || "(unnamed)"}</b><br />{c.category}<br />
               score {c.predicted_score.toFixed(2)} · {c.along_track_nm.toFixed(1)} nm along
             </>,
-          ))),
+          ))
+          .on("click", ev => { L.DomEvent.stopPropagation(ev); props.onSelectCandidate(c); })),
     ).addTo(m);
-  }, [props.selected]);
+  }, [props.selected, props.onSelectCandidate]);
 
   // The ring follows the panel selection, and the map comes to it.
   useEffect(() => {
@@ -111,10 +113,6 @@ export default function RouteMap(props: Props) {
     m.setView([props.focus.lat, props.focus.lon],
               Math.max(m.getZoom(), props.course?.max_zoom ?? 12));
   }, [props.focus]);
-
-  // Leaflet caches the container size, so a height change has to be
-  // announced or half the map stays unpainted.
-  useEffect(() => { map.current?.invalidateSize(); }, [props.navShown]);
 
   return <div ref={el} className="h-full w-full" />;
 }

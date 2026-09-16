@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from "react";
 import { api } from "../../../lib/api/client";
-import type { Course, Detection, Endpoint, LoosePick, Point, Rating } from "../../../lib/api/types";
+import type { Course, Detection, Endpoint, LoosePick, Point, Rating, Role } from "../../../lib/api/types";
 import { DEFAULT_FILTERS, FILTER_KEYS, type FilterKey, type Filters } from "../logic";
 
 /**
@@ -37,6 +37,27 @@ interface LabelState {
   loading: boolean;
   progress: string | null;
   error: string | null;
+  /** Whether `undo` has anything to do -- state, not just a ref, since
+   *  the button showing it needs to re-render the moment this changes. */
+  canUndo: boolean;
+}
+
+/**
+ * Enough of the point's pre-action shape to put it back: `rate` and
+ * `removeSelected` are the only actions worth a one-step undo (a
+ * mis-tap on either is the "oops" this covers; a category correction
+ * or a fresh add rarely is). `reinsert` is set only for undoing the
+ * delete side of `removeSelected` on an "added" point -- everything
+ * else is a field revert on a point still in place.
+ */
+interface UndoEntry {
+  kind: "detected" | "added";
+  index: number;
+  rating: Rating | null;
+  rated: boolean;
+  role: Detection["role"];
+  category: string;
+  reinsert?: LoosePick;
 }
 
 const STORAGE_KEY = "vfr.filters";
@@ -58,7 +79,7 @@ function initialState(): LabelState {
   return {
     course: null, endpoints: [], detections: [], added: [],
     filters: savedFilters(), selection: null, lastFocus: null,
-    loading: false, progress: null, error: null,
+    loading: false, progress: null, error: null, canUndo: false,
   };
 }
 
@@ -69,9 +90,13 @@ export function useLabelState() {
   // selection, not whatever was current when the callback was created.
   const ref = useRef(state);
   ref.current = state;
+  const lastUndo = useRef<UndoEntry | null>(null);
 
   const load = useCallback(async (dep: string, dest: string) => {
-    setState(s => ({ ...s, loading: true, error: null, detections: [], added: [], selection: null }));
+    lastUndo.current = null;
+    setState(s => ({
+      ...s, loading: true, error: null, detections: [], added: [], selection: null, canUndo: false,
+    }));
     let course: Course;
     try {
       course = await api.course(dep, dest);
@@ -130,6 +155,14 @@ export function useLabelState() {
     const point = currentPoint(ref.current);
     if (!point) return;
 
+    // Captured before the write, so undo has the exact shape to put
+    // back rather than a guess at it.
+    const before = point as Detection | LoosePick;
+    lastUndo.current = {
+      kind: selection.kind, index: selection.index,
+      rating: before.rating, rated: before.rated, role: before.role, category: before.category,
+    };
+
     const saved = await api.savePick({
       departure_ident: course.departure.ident,
       destination_ident: course.destination.ident,
@@ -144,9 +177,9 @@ export function useLabelState() {
     // this one field, so nothing else needs updating in step.
     setState(s => selection.kind === "detected"
       ? { ...s, detections: s.detections.map((d, i) =>
-            i === selection.index ? { ...d, rating, rated: true, role: saved.pick.role } : d) }
+            i === selection.index ? { ...d, rating, rated: true, role: saved.pick.role } : d), canUndo: true }
       : { ...s, added: s.added.map((a, i) =>
-            i === selection.index ? { ...a, rating, rated: true, role: saved.pick.role } : a) });
+            i === selection.index ? { ...a, rating, rated: true, role: saved.pick.role } : a), canUndo: true });
   }, []);
 
   const addPick = useCallback(async (lat: number, lon: number) => {
@@ -191,16 +224,102 @@ export function useLabelState() {
     const { course, selection } = ref.current;
     const point = currentPoint(ref.current);
     if (!course || !selection || !point || selection.kind === "endpoint") return;
+
+    const before = point as Detection | LoosePick;
+    lastUndo.current = selection.kind === "added"
+      // The point is about to leave the array entirely -- undo needs
+      // the whole thing back, not just its fields, to re-insert it.
+      ? { kind: "added", index: selection.index, rating: before.rating, rated: before.rated,
+          role: before.role, category: before.category, reinsert: before as LoosePick }
+      : { kind: "detected", index: selection.index, rating: before.rating, rated: before.rated,
+          role: before.role, category: before.category };
+
     await api.deletePick(course.departure.ident, course.destination.ident, point.lat, point.lon);
     // An added point existed only as a pick, so deleting it removes it. A
     // detection is still a detection, so it goes back to unrated.
     setState(s => selection.kind === "added"
-      ? { ...s, added: s.added.filter((_, i) => i !== selection.index), selection: null }
+      ? { ...s, added: s.added.filter((_, i) => i !== selection.index), selection: null, canUndo: true }
       : { ...s, detections: s.detections.map((d, i) =>
-            i === selection.index ? { ...d, rating: null, rated: false } : d), selection: null });
+            i === selection.index ? { ...d, rating: null, rated: false } : d),
+          selection: null, canUndo: true });
   }, []);
 
-  return { ...state, load, setFilter, select, rate, setCategory, addPick, removeSelected };
+  const undo = useCallback(async () => {
+    const entry = lastUndo.current;
+    const { course } = ref.current;
+    if (!entry || !course) return;
+    lastUndo.current = null;   // one-shot: this is the only step back there is
+
+    if (entry.reinsert) {
+      // It had a rating before it was deleted -- restore the persisted
+      // pick, then put the point itself back at its original index.
+      if (entry.rating !== null) {
+        await api.savePick({
+          departure_ident: course.departure.ident, destination_ident: course.destination.ident,
+          lat: entry.reinsert.lat, lon: entry.reinsert.lon, source: "added",
+          category: entry.category, rating: entry.rating, area_m2: entry.reinsert.area_m2 ?? null,
+        });
+      }
+      const restored = entry.reinsert;
+      setState(s => ({
+        ...s,
+        added: [...s.added.slice(0, entry.index), restored, ...s.added.slice(entry.index)],
+        selection: { kind: "added", index: entry.index }, canUndo: false,
+      }));
+      return;
+    }
+
+    const point = entry.kind === "detected"
+      ? ref.current.detections[entry.index] : ref.current.added[entry.index];
+    if (!point) return;
+
+    if (entry.rating !== null) {
+      await api.savePick({
+        departure_ident: course.departure.ident, destination_ident: course.destination.ident,
+        lat: point.lat, lon: point.lon,
+        source: entry.kind === "added" ? "added" : "detected",
+        category: entry.category, rating: entry.rating, area_m2: (point as Detection).area_m2 ?? null,
+      });
+    } else {
+      // It was unrated before this action -- there's no pick to restore,
+      // only one to take back off the server.
+      await api.deletePick(course.departure.ident, course.destination.ident, point.lat, point.lon);
+    }
+
+    setState(s => entry.kind === "detected"
+      ? { ...s, detections: s.detections.map((d, i) => i === entry.index
+            ? { ...d, rating: entry.rating, rated: entry.rated, role: entry.role, category: entry.category }
+            : d), canUndo: false }
+      // entry.role is typed Role | null (Detection allows a null role) even
+      // though this branch only ever runs for an "added" point, whose role
+      // is never null -- addPick always sets one, and LoosePick's own type
+      // requires it.
+      : { ...s, added: s.added.map((a, i) => i === entry.index
+            ? { ...a, rating: entry.rating, rated: entry.rated, role: entry.role as Role, category: entry.category }
+            : a), canUndo: false });
+  }, []);
+
+  const resetAll = useCallback(async () => {
+    const { course, detections, added } = ref.current;
+    if (!course) return;
+    lastUndo.current = null;   // a bulk reset isn't itself one undo step
+
+    const rated = [
+      ...detections.filter(d => d.rating !== null),
+      ...added.filter(a => a.rating !== null),
+    ];
+    await Promise.all(rated.map(p =>
+      api.deletePick(course.departure.ident, course.destination.ident, p.lat, p.lon)));
+
+    setState(s => ({
+      ...s,
+      detections: s.detections.map(d => d.rating === null ? d : { ...d, rating: null, rated: false }),
+      added: [],
+      selection: null, canUndo: false,
+    }));
+  }, []);
+
+  return { ...state, load, setFilter, select, rate, setCategory, addPick, removeSelected, undo, resetAll };
 }
 
 export function currentPoint(

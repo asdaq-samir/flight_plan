@@ -1,5 +1,19 @@
 @import "tailwindcss";
 
+/* This is a controls app, not a page of text -- a long, still touch
+   on a button, a marker, or a drag handle should start whatever that
+   element does, not iOS/Android's own text-selection loupe or
+   "copy/share" callout popping up over it and swallowing the gesture.
+   Re-enabled on the few elements that are actually text entry. */
+body {
+  -webkit-touch-callout: none;
+  user-select: none;
+}
+input, select, textarea {
+  -webkit-touch-callout: default;
+  user-select: text;
+}
+
 /* Plays once whenever the element mounts -- used for the point popup's
    "of N" count, which remounts fresh (setPopupContent, not a React
    re-render) each time it changes. A live-updating number with no
@@ -9,4 +23,31 @@
 @keyframes count-flash {
   0% { background-color: #fef08a; }
   100% { background-color: transparent; }
+}
+
+/* Smaller, not gone -- the OpenStreetMap credit here is a real
+   requirement of their tile usage policy, not decoration, so it can't
+   just be removed. This is as little space as it can take while still
+   being legible, reclaiming the rest for the map on a phone screen. */
+.leaflet-control-attribution {
+  padding: 0 4px;
+  font-size: 9px;
+  line-height: 1.3;
+}
+
+/* The Flight Briefing page's own sections (<details>) are collapsed
+   by default on screen -- a pilot skims titles and opens what they
+   need. A printed page is the opposite: every section has to be
+   there whether or not a pilot happened to click it open first, so
+   printing forces every <details> open regardless of its own `open`
+   attribute. This overrides the browser's UA rule that hides a closed
+   <details>'s content -- `!important` because that UA rule is itself
+   effectively `!important`-strength and a plain override loses to it. */
+@media print {
+  details {
+    display: block !important;
+  }
+  details > *:not(summary) {
+    display: block !important;
+  }
 }

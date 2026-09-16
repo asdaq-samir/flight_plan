@@ -16,5 +16,9 @@ export default defineConfig({
     // relative URLs work in both, so nothing has to know where it runs.
     proxy: { "/api": { target: "http://localhost:8080", changeOrigin: true } },
   },
-  test: { environment: "node" },
+  // e2e/ is Playwright's own suite (`npm run test:e2e`), a real browser
+  // against the actually-running app -- vitest's default globs would
+  // otherwise also pick up its *.spec.ts files and fail them here for
+  // the wrong reason (no @playwright/test import resolves under vitest).
+  test: { environment: "node", exclude: ["**/node_modules/**", "e2e/**"] },
 });

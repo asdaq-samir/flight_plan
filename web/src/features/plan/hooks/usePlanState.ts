@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from "react";
 import { ApiError, api } from "../../../lib/api/client";
-import type { BuiltRoute, Candidate, Course, Leg, NavLog, Totals } from "../../../lib/api/types";
+import type { Briefing, BuiltRoute, Candidate, Course, Leg, NavLog, Totals } from "../../../lib/api/types";
 import { elapsed } from "../format";
 
 /**
@@ -22,6 +22,20 @@ import { elapsed } from "../format";
  * web/README.md for when a dependency like that is worth bringing back.
  */
 
+/** How to spot one checkpoint from the air. "saved" means a pilot's own
+ *  earlier edit, not a fresh LLM generation; "error" means that one
+ *  checkpoint's generation failed and `text` is empty, left for a
+ *  pilot to fill in by hand -- keyed by lat/lon since that is how the
+ *  server matches a checkpoint to its note too. */
+export interface Description {
+  text: string;
+  source: "generated" | "saved" | "error";
+}
+
+export function descriptionKey(lat: number, lon: number): string {
+  return `${lat.toFixed(5)},${lon.toFixed(5)}`;
+}
+
 interface PlanState {
   course: Course | null;
   candidates: Candidate[];
@@ -29,10 +43,23 @@ interface PlanState {
   legs: Leg[];
   totals: Totals | null;
   nav: Omit<NavLog, "legs" | "totals"> | null;
+  descriptions: Record<string, Description>;
+  /** A failure that applies to every checkpoint the same way (a bad
+   *  key, an exhausted rate limit) -- separate from a per-checkpoint
+   *  failure, which lives inline in `descriptions` instead. */
+  descriptionError: string | null;
+  /** How far the description stream has gotten -- the status popup's
+   *  own "Generating 12/21," not tracked anywhere else. */
+  descriptionProgress: { done: number; total: number } | null;
 
   routes: BuiltRoute[];
   /** Which stage is outstanding, for the header. Null when settled. */
   stage: "course" | "checkpoints" | "navlog" | null;
+  /** What the nav log stream is doing right now (scoring, altitude
+   *  selection, the live aviationweather.gov fetch) -- null once it's
+   *  settled, same as `stage`, and not meaningful until `stage` is
+   *  actually "navlog". */
+  navStage: string | null;
   error: string | null;
   navError: string | null;
   /** Set when the corridor has never been collected: the one error the
@@ -40,16 +67,40 @@ interface PlanState {
   needsBuild: { dep: string; dest: string } | null;
   building: string | null;
 
-  selectedRow: number | null;
+  /** Whichever waypoint (departure, a checkpoint, or the destination)
+   *  is currently focused -- by its own coordinates, not a row index
+   *  into any particular list, since the map's markers and the nav
+   *  log's rows are two independent orderings of the same points and
+   *  an index into one means nothing in the other. */
+  selectedPoint: { lat: number; lon: number } | null;
   showCandidates: boolean;
-  showNav: boolean;
+
+  /** The Flight Briefing page's own data (hazards, METAR, forecast,
+   *  airport info) -- fetched on demand when that page is actually
+   *  opened, not as part of `plan()`, the same reasoning
+   *  `describeCheckpoints` already follows. */
+  briefing: Briefing | null;
+  briefingError: string | null;
+  loadingBriefing: boolean;
+
+  /** The Flight Briefing page's own spoken/read narrative -- a short
+   *  paragraph one Claude call writes from the data already loaded
+   *  above. Pilot-triggered (a button), not fetched alongside
+   *  `briefing`: every call is a real, billed request, the same
+   *  reasoning `descriptions` already follows. */
+  narrative: string | null;
+  narrativeError: string | null;
+  loadingNarrative: boolean;
 }
 
 function initialState(): PlanState {
   return {
     course: null, candidates: [], selected: [], legs: [], totals: null, nav: null,
-    routes: [], stage: null, error: null, navError: null, needsBuild: null, building: null,
-    selectedRow: null, showCandidates: true, showNav: true,
+    descriptions: {}, descriptionError: null, descriptionProgress: null,
+    routes: [], stage: null, navStage: null, error: null, navError: null, needsBuild: null, building: null,
+    selectedPoint: null, showCandidates: true,
+    briefing: null, briefingError: null, loadingBriefing: false,
+    narrative: null, narrativeError: null, loadingNarrative: false,
   };
 }
 
@@ -61,6 +112,16 @@ export function usePlanState() {
   // the first is still outstanding would otherwise merge two routes'
   // legs.
   const planToken = useRef(0);
+  // Which planToken a description stream has already been started for
+  // -- calling describeCheckpoints again for the same route is a
+  // harmless no-op (already in flight, or already done), so this is
+  // what actually stops it from launching a second concurrent stream
+  // every time the page toggles to the nav log view and back.
+  const describeStarted = useRef<number | null>(null);
+  // The in-flight description stream's own cancel switch -- present
+  // only while one is actually running, which is also how
+  // stopDescribing tells whether there is anything to abort at all.
+  const describeAbort = useRef<AbortController | null>(null);
 
   const loadRoutes = useCallback(async () => {
     try {
@@ -74,11 +135,16 @@ export function usePlanState() {
 
   const plan = useCallback(async (dep: string, dest: string, altitudeFt?: string) => {
     const token = ++planToken.current;
+    describeStarted.current = null;
+    describeAbort.current?.abort();
+    describeAbort.current = null;
     setState(s => ({
       ...s,
-      stage: "course", error: null, navError: null, needsBuild: null,
+      stage: "course", navStage: null, error: null, navError: null, needsBuild: null,
       course: null, candidates: [], selected: [], legs: [], totals: null,
-      nav: null, selectedRow: null,
+      nav: null, descriptions: {}, descriptionError: null, descriptionProgress: null,
+      selectedPoint: null, briefing: null, briefingError: null, loadingBriefing: false,
+      narrative: null, narrativeError: null, loadingNarrative: false,
     }));
 
     try {
@@ -103,14 +169,37 @@ export function usePlanState() {
     }
 
     try {
-      const nl = await api.navlog(dep, dest, altitudeFt);
-      if (token !== planToken.current) return;
-      const { legs, totals, ...rest } = nl;
-      setState(s => ({ ...s, legs, totals, nav: rest, stage: null }));
+      for await (const msg of api.navlog(dep, dest, altitudeFt)) {
+        if (token !== planToken.current) return;
+        if (msg.type === "stage") {
+          setState(s => ({ ...s, navStage: msg.detail }));
+        } else if (msg.type === "error") {
+          setState(s => ({
+            ...s, stage: null, navStage: null,
+            navError: msg.detail.split("\n")[0] ?? "could not build the nav log",
+          }));
+        } else if (msg.type === "altitude") {
+          // Sent well before any leg -- the checkpoints already on
+          // screen from the checkpoints stage can show their own
+          // cruise altitude immediately instead of waiting on the
+          // first leg to carry it.
+          const { type: _type, ...rest } = msg;
+          setState(s => ({ ...s, nav: rest }));
+        } else if (msg.type === "leg") {
+          // Appended one at a time, in arrival order -- the same order
+          // `selected` is already in, so a row already on screen from
+          // the checkpoints stage gets its dead-reckoning numbers the
+          // moment its own leg arrives, not all 21 at once at the end.
+          const { type: _type, ...leg } = msg;
+          setState(s => ({ ...s, legs: [...s.legs, leg] }));
+        } else {
+          setState(s => ({ ...s, totals: msg.totals, stage: null, navStage: null }));
+        }
+      }
     } catch (err) {
       if (token !== planToken.current) return;
       const detail = err instanceof Error ? err.message : "could not build the nav log";
-      setState(s => ({ ...s, stage: null, navError: detail.split("\n")[0] ?? "could not build the nav log" }));
+      setState(s => ({ ...s, stage: null, navStage: null, navError: detail.split("\n")[0] ?? "could not build the nav log" }));
     }
   }, []);
 
@@ -158,10 +247,158 @@ export function usePlanState() {
     }
   }, [plan, loadRoutes]);
 
-  const selectRow = useCallback((index: number | null) => setState(s => ({ ...s, selectedRow: index })), []);
+  const selectPoint = useCallback(
+    (point: { lat: number; lon: number } | null) => setState(s => ({ ...s, selectedPoint: point })),
+    [],
+  );
   const toggleCandidates = useCallback(
     () => setState(s => ({ ...s, showCandidates: !s.showCandidates })), []);
-  const toggleNav = useCallback(() => setState(s => ({ ...s, showNav: !s.showNav })), []);
 
-  return { ...state, loadRoutes, plan, build, selectRow, toggleCandidates, toggleNav };
+  /**
+   * Streams one "how to spot it" line per checkpoint, filling
+   * `descriptions` in as each arrives rather than waiting for all of
+   * them -- called once the nav log view is actually opened, not as
+   * part of `plan()`, so a route that's never viewed as a nav log
+   * never spends an LLM call on it. A pilot turning the feature off
+   * (or on again) is `stopDescribing`'s job, not this one's -- this
+   * is only ever a fresh start.
+   */
+  const describeCheckpoints = useCallback(async (dep: string, dest: string, altitudeFt?: string) => {
+    const token = planToken.current;
+    if (describeStarted.current === token) return;
+    describeStarted.current = token;
+    const controller = new AbortController();
+    describeAbort.current = controller;
+    try {
+      for await (const msg of api.describeCheckpoints(dep, dest, altitudeFt, controller.signal)) {
+        if (token !== planToken.current) return;   // a different route since this started
+        if (msg.type === "start") {
+          setState(s => ({ ...s, descriptionProgress: { done: 0, total: msg.count } }));
+        } else if (msg.type === "checkpoint") {
+          const key = descriptionKey(msg.lat, msg.lon);
+          setState(s => ({
+            ...s,
+            descriptions: {
+              ...s.descriptions,
+              [key]: { text: msg.description ?? "", source: msg.source },
+            },
+            descriptionProgress: s.descriptionProgress
+              && { ...s.descriptionProgress, done: s.descriptionProgress.done + 1 },
+          }));
+        } else if (msg.type === "error") {
+          // Not one checkpoint's problem -- every remaining one would
+          // fail the exact same way, but the server keeps sending a
+          // per-checkpoint line for each anyway (see the endpoint's
+          // own docstring), so this is still one error, not 21.
+          setState(s => ({ ...s, descriptionError: msg.detail }));
+        } else if (msg.type === "done") {
+          setState(s => ({ ...s, descriptionProgress: null }));
+        }
+      }
+    } catch {
+      // An intentional abort (stopDescribing, or a fresh plan()
+      // starting) lands here too, and should stay silent -- only a
+      // genuine failure the pilot didn't ask for deserves a message,
+      // and the server already sends that as its own "error" line
+      // above rather than by the connection dying.
+    } finally {
+      if (describeAbort.current === controller) describeAbort.current = null;
+    }
+  }, []);
+
+  /** Stops an in-flight description stream and allows a later
+   *  `describeCheckpoints` call for the same route to start a fresh
+   *  one -- the "turn off the agent's checkpoint info" switch. Notes
+   *  already received (or saved earlier) stay exactly as they are;
+   *  this only stops asking for more. */
+  const stopDescribing = useCallback(() => {
+    describeAbort.current?.abort();
+    describeAbort.current = null;
+    describeStarted.current = null;
+    setState(s => ({ ...s, descriptionError: null, descriptionProgress: null }));
+  }, []);
+
+  /** A pilot's own edit, reflected locally right away rather than
+   *  waiting on the round trip -- reverted back if the save itself
+   *  fails, so a rejected/lost write never sits on screen looking
+   *  saved when it was not. */
+  const saveDescription = useCallback(
+    async (dep: string, dest: string, lat: number, lon: number, text: string) => {
+      const key = descriptionKey(lat, lon);
+      const previous = ref.current.descriptions[key];
+      setState(s => ({ ...s, descriptions: { ...s.descriptions, [key]: { text, source: "saved" } } }));
+      try {
+        await api.saveCheckpointNote(dep, dest, lat, lon, text);
+      } catch {
+        setState(s => {
+          const next = { ...s.descriptions };
+          if (previous) next[key] = previous; else delete next[key];
+          return { ...s, descriptions: next };
+        });
+      }
+    },
+    [],
+  );
+
+  /** The Flight Briefing page's own data -- fetched when that page is
+   *  actually opened, not as part of `plan()`, so a route that's never
+   *  briefed never spends the extra calls. Keyed to `planToken` the
+   *  same way the description stream is, so a route change while a
+   *  briefing fetch is still in flight can't land on the wrong route. */
+  const loadBriefing = useCallback(async (dep: string, dest: string) => {
+    const token = planToken.current;
+    setState(s => ({ ...s, loadingBriefing: true, briefingError: null }));
+    try {
+      const data = await api.briefing(dep, dest);
+      if (token !== planToken.current) return;
+      setState(s => ({ ...s, briefing: data, loadingBriefing: false }));
+    } catch (err) {
+      if (token !== planToken.current) return;
+      const detail = err instanceof Error ? err.message : "could not load the briefing";
+      setState(s => ({ ...s, loadingBriefing: false, briefingError: detail.split("\n")[0] ?? detail }));
+    }
+  }, []);
+
+  /** The narrative's own generation -- a pilot's own click, reading
+   *  from `ref.current` rather than taking every piece as an argument
+   *  the way `saveDescription` already does, since all of it (course,
+   *  nav, totals, the briefing's own hazards/METARs/forecast, legs) is
+   *  already sitting in state by the time this page can even show a
+   *  "generate" button. */
+  const loadNarrative = useCallback(async (dep: string, dest: string) => {
+    const token = planToken.current;
+    const s = ref.current;
+    if (!s.course || !s.nav || !s.briefing) {
+      setState(st => ({ ...st, narrativeError: "the briefing isn't fully loaded yet" }));
+      return;
+    }
+    setState(st => ({ ...st, loadingNarrative: true, narrativeError: null }));
+    try {
+      const data = await api.briefingNarrative({
+        departure_ident: dep,
+        destination_ident: dest,
+        distance_nm: s.course.distance_nm,
+        bearing_deg: s.course.bearing_deg,
+        altitude_ft: s.nav.altitude_ft,
+        aircraft_name: s.nav.aircraft.name,
+        total_time_min: s.totals?.ete_min ?? null,
+        total_fuel_gal: s.totals?.fuel_gal ?? null,
+        hazards: s.briefing.hazards,
+        metars: s.briefing.metars,
+        forecast: s.briefing.forecast,
+        legs: s.legs,
+      });
+      if (token !== planToken.current) return;
+      setState(st => ({ ...st, narrative: data.narrative, loadingNarrative: false }));
+    } catch (err) {
+      if (token !== planToken.current) return;
+      const detail = err instanceof Error ? err.message : "could not generate the narrative";
+      setState(st => ({ ...st, loadingNarrative: false, narrativeError: detail.split("\n")[0] ?? detail }));
+    }
+  }, []);
+
+  return {
+    ...state, loadRoutes, plan, build, selectPoint, toggleCandidates,
+    describeCheckpoints, stopDescribing, saveDescription, loadBriefing, loadNarrative,
+  };
 }

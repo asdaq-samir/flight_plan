@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- The app's own core visual, reduced to a mark: a course line
+       between two checkpoints, same slate-800 the rest of the app
+       treats as its primary color. -->
+  <line x1="7" y1="25" x2="25" y2="7" stroke="#1e293b" stroke-width="3" stroke-linecap="round" />
+  <circle cx="7" cy="25" r="4" fill="#1e293b" />
+  <circle cx="25" cy="7" r="4" fill="#1e293b" />
+</svg>

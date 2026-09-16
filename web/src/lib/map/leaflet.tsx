@@ -28,6 +28,55 @@ function mountReact(content: ReactNode): HTMLElement {
   return el;
 }
 
+// A little slack over the six rating buttons' own bare width: that
+// row has no padding or border of its own, but the popup box wrapped
+// around it does.
+const POPUP_WIDTH_PADDING = 16;
+// If measurement ever comes back implausibly small (a future markup
+// change losing the selector, say), this is the last known-good width
+// rather than trusting a broken reading and clipping anyway.
+const POPUP_WIDTH_FALLBACK = 216;
+
+/**
+ * However wide the six rating buttons actually render in this browser,
+ * measured directly rather than guessed -- a fixed pixel constant
+ * tuned on one browser clipped the last button in another (mobile Safari
+ * and desktop Chrome don't lay out the same unwrapped row of buttons at
+ * exactly the same width), and Leaflet's own auto-sizing has its own
+ * failure mode (see the comment at the call site below). Measuring
+ * needs the node attached to the real document -- an element with no
+ * parent has no layout box, so `getBoundingClientRect` on anything
+ * inside it reads all zero -- so this attaches `el` off-screen just
+ * long enough to read it, then detaches it again before Leaflet ever
+ * sees it.
+ */
+function measureRatingRowWidth(el: HTMLElement): number | null {
+  const row = el.querySelector<HTMLElement>("[data-rating-row]");
+  if (!row) return null;
+  el.style.position = "absolute";
+  el.style.visibility = "hidden";
+  el.style.left = "-9999px";
+  el.style.top = "0";
+  document.body.appendChild(el);
+  const width = Math.ceil(row.getBoundingClientRect().width);
+  document.body.removeChild(el);
+  el.removeAttribute("style");
+  return width > 100 ? width : null;
+}
+
+/**
+ * Leaflet measures its container once at init and never again on its
+ * own, so a resize the map didn't cause itself -- the sidebar
+ * collapsing, a window resize -- leaves it drawing into its old
+ * dimensions until something calls `invalidateSize()`. A
+ * ResizeObserver on the container catches all of those in one place.
+ */
+export function observeResize(map: L.Map, el: HTMLElement): () => void {
+  const observer = new ResizeObserver(() => map.invalidateSize());
+  observer.observe(el);
+  return () => observer.disconnect();
+}
+
 /** Sectional tiles stop at zoom 12 and 404 below 8, so the chart alone can
  *  never frame a long leg. OpenStreetMap sits underneath for that. */
 export function createBasemaps(map: L.Map, cfg: Course) {
@@ -103,6 +152,7 @@ export function createCourseLine(
  */
 export function createHalo(
   map: L.Map, at: L.LatLngExpression, content?: ReactNode, onClose?: () => void,
+  openInitially = true,
 ) {
   const ring = L.featureGroup([
     L.circleMarker(at, { radius: 19, color: "rgba(10,20,28,.55)", weight: 9, fill: false, interactive: false }),
@@ -117,18 +167,33 @@ export function createHalo(
     // an offset above its anchor for free. autoClose/closeOnClick are
     // off because React's selection state, not an incidental map click,
     // is what should decide whether this is open -- the close button
-    // (wired to `onClose`) is the only other way out. maxWidth is wider
-    // than Leaflet's 300px default: the rating row (six buttons) plus
-    // Leaflet's own ~44px of popup margin needs the room.
+    // (wired to `onClose`) is the only other way out.
     // autoPan is off deliberately: stepping between points calls
     // map.setView to centre the point being walked to, and Leaflet's
     // default autoPan would re-pan on top of that to keep a tall popup
     // fully visible, undoing the centring -- the point would drift off
     // centre exactly when a rated point's fuller popup opened above it.
-    marker.bindPopup(mountReact(content), {
+    // minWidth == maxWidth, a fixed width rather than Leaflet's own
+    // auto-sizing: Leaflet measures a popup's natural width by
+    // temporarily forcing it onto one line and reading offsetWidth, and
+    // that measurement is unreliable at some viewport widths -- it was
+    // observed collapsing all the way to Leaflet's own 50px floor,
+    // with the six rating buttons then overflowing past the (much too
+    // narrow) white popup box. The width itself is measured fresh here
+    // rather than a constant, though -- see measureRatingRowWidth --
+    // since a constant tuned on one browser is exactly what clipped the
+    // rating row on another one.
+    const el = mountReact(content);
+    const ratingWidth = measureRatingRowWidth(el);
+    const width = ratingWidth !== null ? ratingWidth + POPUP_WIDTH_PADDING : POPUP_WIDTH_FALLBACK;
+    const popup = marker.bindPopup(el, {
       offset: [0, -16], autoClose: false, closeOnClick: false, autoPan: false,
-      maxWidth: 340, minWidth: 240,
-    }).openPopup();
+      minWidth: width, maxWidth: width,
+    });
+    // Fit-line wants the ring to stay put but the rating menu gone --
+    // this is what makes that possible without tearing the halo down:
+    // the popup starts closed instead of always open.
+    if (openInitially) popup.openPopup();
     // `popupclose` fires both for an actual close-button click and for
     // removeLayer() closing it as a side effect of teardown -- stepping
     // to the next point removes this ring to draw the next one, which
@@ -148,6 +213,21 @@ export function updateHaloContent(marker: L.Layer, content: ReactNode) {
   marker.setPopupContent(mountReact(content));
 }
 
+/** Opens or closes the halo's menu without touching the ring itself --
+ *  the fit-line view wants exactly that: the selection stays visible,
+ *  only the popup goes away. `off`/`on` around the programmatic close
+ *  keeps it from firing `onClose` the same way a real close-button
+ *  click (or the ring itself being torn down) does. */
+export function setHaloMenuOpen(marker: L.Layer, open: boolean, onClose?: () => void) {
+  if (open) {
+    marker.openPopup();
+    return;
+  }
+  if (onClose) marker.off("popupclose", onClose);
+  marker.closePopup();
+  if (onClose) marker.on("popupclose", onClose);
+}
+
 /**
  * A marker with three edges: a white casing to separate it from dark
  * linework, a dark hairline outside that so it still separates from pale
@@ -156,15 +236,32 @@ export function updateHaloContent(marker: L.Layer, content: ReactNode) {
  */
 export function dotIcon(fill: string, label?: string | number) {
   const withLabel = label !== undefined;
+  // The tap target (iconSize) is bigger than the visual dot on purpose --
+  // a 20px dot is well under a comfortable touch target, but making the
+  // dot itself that big would make dense stretches of route hard to read.
+  // Centering it in a larger invisible box needs `position: absolute` +
+  // a transform, not a flex wrapper: Leaflet's own stylesheet sets
+  // `.leaflet-marker-icon { display: block }`, which wins the cascade
+  // over a `flex` utility class of the same specificity and silently
+  // leaves the dot top-aligned instead. Absolute positioning relative
+  // to the icon container (which Leaflet does set `position: absolute`
+  // on) isn't subject to that fight.
+  const tapSize = withLabel ? 36 : 32;
   return L.divIcon({
     className: "",
-    iconSize: withLabel ? [28, 28] : [20, 20],
-    iconAnchor: withLabel ? [14, 14] : [10, 10],
+    iconSize: [tapSize, tapSize],
+    iconAnchor: [tapSize / 2, tapSize / 2],
     html: mountReact(
       <div
-        className={`rounded-full border-[2.5px] border-white shadow-[0_1px_4px_rgba(0,0,0,.45)] outline outline-1 outline-[rgba(10,20,28,.55)] ${
+        className={`absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border-[2.5px] border-white shadow-[0_1px_4px_rgba(0,0,0,.45)] outline outline-1 outline-[rgba(10,20,28,.55)] ${
           withLabel
-            ? "grid h-[22px] w-[22px] place-items-center text-xs font-bold text-white"
+            // leading-none: a browser's own default line-height for
+            // text-xs isn't exactly 1, and that slack renders above or
+            // below the glyph asymmetrically depending on the browser's
+            // own font metrics -- place-items-center alone centers the
+            // *line box*, not the glyph within it, so that slack still
+            // reads as the number sitting off-center within the circle.
+            ? "grid h-[22px] w-[22px] place-items-center text-xs font-bold leading-none text-white"
             : "h-4 w-4"
         }`}
         style={{ backgroundColor: fill }}

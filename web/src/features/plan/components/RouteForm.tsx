@@ -1,3 +1,5 @@
+import Button from "../../../components/Button";
+import { FIELD_INPUT } from "../../../components/fieldInput";
 import type { BuiltRoute } from "../../../lib/api/types";
 
 interface Props {
@@ -18,7 +20,6 @@ export default function RouteForm({
 }: Props) {
   return (
     <div className="flex flex-wrap items-center gap-3">
-      <span className="font-bold">VFR planner</span>
       <form
         className="flex items-center gap-2"
         autoComplete="off"
@@ -31,7 +32,7 @@ export default function RouteForm({
           placeholder="DEP"
           spellCheck={false}
           aria-label="Departure"
-          className="w-20 rounded border border-slate-300 px-2 py-1 text-center font-mono uppercase"
+          className={`w-20 text-center font-mono uppercase ${FIELD_INPUT}`}
         />
         <span>→</span>
         <input
@@ -41,7 +42,7 @@ export default function RouteForm({
           placeholder="DEST"
           spellCheck={false}
           aria-label="Destination"
-          className="w-20 rounded border border-slate-300 px-2 py-1 text-center font-mono uppercase"
+          className={`w-20 text-center font-mono uppercase ${FIELD_INPUT}`}
         />
         <datalist id="built">
           {[...new Set(routes.flatMap(r => [r.departure_ident, r.destination_ident]))]
@@ -53,15 +54,9 @@ export default function RouteForm({
           placeholder="alt (auto)"
           spellCheck={false}
           aria-label="Cruise altitude, feet"
-          className="w-28 rounded border border-slate-300 px-2 py-1"
+          className={`w-28 ${FIELD_INPUT}`}
         />
-        <button
-          type="submit"
-          disabled={disabled}
-          className="rounded bg-slate-800 px-3 py-1 text-white hover:bg-slate-700 disabled:opacity-50"
-        >
-          Plan
-        </button>
+        <Button type="submit" disabled={disabled}>Plan</Button>
       </form>
       <span className="text-slate-600">{summary}</span>
     </div>
