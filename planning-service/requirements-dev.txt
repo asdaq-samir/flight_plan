@@ -1,0 +1,9 @@
+# CI only (.github/workflows/ci.yml, test-planning-service job) -- what's
+# needed on top of the service's own requirements to run
+# planning-service/tests/. Mirrors the root project's requirements-dev.txt
+# pattern: kept separate from requirements.txt because pytest/httpx have
+# no reason to ship inside the image that actually runs this service.
+-r requirements.txt
+pytest
+httpx   # fastapi.testclient.TestClient's transport
+ruff

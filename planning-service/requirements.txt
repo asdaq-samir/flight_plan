@@ -2,16 +2,25 @@
 # reads it back, so its dependency list is the union of what
 # vfr.pipeline's collect/engineer_features need and what a nav log needs.
 # It serves no pages -- the front end is in web/ and ships inside webapp.
-fastapi
-uvicorn[standard]
-pandas
-numpy
-pyarrow
-requests    # Overpass/FAA/NOAA, and the model-service call
-shapely     # vfr.osm._representative_point, vfr.airspace polygons
-pyshp       # vfr.airspace reads the FAA Class Airspace shapefile
-pillow      # vfr.chartvision decodes sectional tiles
-scipy       # vfr.chartvision connected-component labelling
+#
+# PINNED, matching model-service/requirements.txt's own convention: this
+# service was the one unpinned service-facing requirements file in the
+# repo, and an unpinned FastAPI/pandas/etc. drifting between builds is
+# exactly the kind of silent version skew that file's own comment warns
+# about for a joblib artifact -- the same risk applies to any dependency
+# this service and its callers both need to agree on. Pinned to what
+# python:3.13-slim (this service's own base image) currently resolves.
+fastapi==0.141.1
+uvicorn[standard]==0.53.0
+pandas==3.0.5
+numpy==2.5.3
+pyarrow==25.0.1
+requests==2.34.2    # Overpass/FAA/NOAA, and the model-service call
+shapely==2.1.2     # vfr.osm._representative_point, vfr.airspace polygons
+pyshp==3.1.6       # vfr.airspace reads the FAA Class Airspace shapefile
+pillow==12.3.0     # vfr.chartvision decodes sectional tiles
+scipy==1.18.1      # vfr.chartvision connected-component labelling
+anthropic==1.6.0   # /api/checkpoint-notes: one Claude call per checkpoint
 
 # Deliberately NOT scikit-learn/joblib. Scoring belongs to model-service,
 # which owns the model artifact and its pinned sklearn; this service

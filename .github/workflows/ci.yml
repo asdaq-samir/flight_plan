@@ -64,9 +64,27 @@ jobs:
         working-directory: springboot-app
         run: mvn -B test
 
+  # planning-service's own FastAPI-layer suite. Separate job for the same
+  # reason as test-webapp: its own dependency set (requirements-dev.txt,
+  # on top of the service's own requirements.txt), and no reason to gate
+  # it on the root `test` job's unrelated src/vfr dependencies.
+  test-planning-service:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: planning-service
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements-dev.txt
+      - run: ruff check tests
+      - run: pytest tests/ -v
+
   build-images:
     runs-on: ubuntu-latest
-    needs: [test, test-webapp]
+    needs: [test, test-webapp, test-planning-service]
     permissions:
       contents: read
       packages: write
