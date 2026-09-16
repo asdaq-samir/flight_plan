@@ -175,8 +175,15 @@ once after deploy — see [Deployment Guide](#deployment-guide).
 **Deliberately out of scope**, by design rather than omission:
 
 - Bringing your own VPC (above)
-- Authentication/user accounts — single-tenant by design, see the main [`README.md`](README.md)
 - Alerting/dashboards on top of the CloudWatch Logs every service already writes to — a natural next increment once real traffic exists to alert on, not a missing piece of the current design
+
+**Not yet wired into this template** (a real gap, not a design choice):
+sign-in with Google now exists in `webapp` itself (see the main
+[`README.md`](README.md#services-in-detail)), but `template.yaml` doesn't
+yet provision `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` as a Secrets
+Manager entry or pass `SPRING_PROFILES_ACTIVE=oauth` to the ECS task
+definition — a live deploy today would run with sign-in inactive, the
+same as local `docker compose up` with no Google credentials set.
 
 ### Where this sits relative to the current state
 

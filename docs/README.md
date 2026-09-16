@@ -171,7 +171,15 @@ service discovery at `planning-service.vfr-route.internal`.
   `/api/picks` — reached by the browser as `/api/planner/*` on `webapp`,
   never directly. Its own OpenAPI page is at
   [`localhost:8084/docs`](http://localhost:8084/docs)
-- The two pages it used to serve are now
+- `/api/briefing` and `/api/briefing/narrative` — the FAA-sequence
+  weather/NOTAM briefing behind the Flight Briefing section of
+  `/app/plan`, and a Claude-generated narrative of it for text/voice
+  playback
+- `/api/model-comparison`, `/api/playground/score`, `/api/altitude-breakdown`
+  — the Playground page's own demos: every algorithm's accuracy side by
+  side, live scoring from a chosen one, and the full reasoning behind a
+  recommended cruise altitude
+- The pages it used to serve are now
   [`/app/plan`](http://localhost:8080/app/plan) and
   [`/app/label`](http://localhost:8080/app/label) on `webapp` — see
   [Where things live](#where-things-live)
@@ -192,8 +200,12 @@ service discovery at `planning-service.vfr-route.internal`.
 **`model-service`** — FastAPI model-serving endpoint.
 
 - `/ping` (health) and `/invocations` (inference) — matches the SageMaker serving container contract
-- Real inference against the promoted RandomForest, loaded from `/opt/ml/model`
-  (SageMaker's own path, bind-mounted from `data/models/current`)
+- Real inference against whichever model `/invocations` is asked for: the
+  promoted model by default (loaded from `/opt/ml/model`, SageMaker's own
+  path, bind-mounted from `data/models/current`), or explicitly one of the
+  PyTorch/TensorFlow/Spark candidates `vfr.model_candidates` trained
+  (`data/models/candidates/<algo>`) — the Playground page's own
+  model-comparison and algorithm-picker panels pick between them
 - Serves whichever precomputed feature stores exist in `FEATURES_DIR`, keyed by
   route; an uncollected corridor returns 404 carrying the two commands that build
   it, since collection is a batch job rather than an inference call
@@ -205,6 +217,12 @@ service discovery at `planning-service.vfr-route.internal`.
 - Actuator health probes at `/actuator/health/liveness` and `/actuator/health/readiness`
 - Calls `model-service` over plain HTTP locally; on AWS, the identical `ModelServiceClient` calls SageMaker Runtime's `InvokeEndpoint` instead — same build either way, switched automatically by whether `SAGEMAKER_ENDPOINT_NAME` is set
 - Bean Validation on `RouteRequest` + a global exception handler turn a bad request or a downed `model-service` into a clean `400`/`502`, not an opaque `500`
+- Sign-in with Google (OIDC) — inactive by default; activate with the
+  `oauth` Spring profile once `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`
+  are set (see `application-oauth.yml`). `/api/me` reports who's signed
+  in; `/api/aircraft` and `/api/flights` are that pilot's own
+  aeroplanes and filed flights, each pilot-scoped so one can never read
+  or edit another's by guessing an id
 - Interactive API docs (springdoc-openapi) at `http://localhost:8080/swagger-ui/index.html`, raw spec at `/v3/api-docs`
 
 **`nav-log-agent`** — a LangGraph agent wrapped as an MCP server.
@@ -246,6 +264,45 @@ erDiagram
         double along_track_nm
         double predicted_score
     }
+    PILOTS ||--o{ AIRCRAFT : owns
+    PILOTS ||--o{ FLIGHTS : files
+    AIRCRAFT |o--o{ FLIGHTS : "flown in (nullable)"
+    ROUTES |o--o{ FLIGHTS : "planned on (nullable)"
+    FLIGHTS ||--o{ FLIGHT_CHECKPOINTS : "nav log"
+    PILOTS {
+        bigint id PK
+        varchar email
+        varchar display_name
+        varchar google_subject "nullable until first sign-in"
+        timestamptz created_at
+    }
+    AIRCRAFT {
+        bigint id PK
+        bigint pilot_id FK
+        varchar tail_number "unique per pilot"
+        varchar type_designator
+        double cruise_tas_kt
+        double fuel_burn_gph
+    }
+    FLIGHTS {
+        bigint id PK
+        bigint pilot_id FK
+        bigint aircraft_id FK "nullable, ON DELETE SET NULL"
+        bigint route_id FK "nullable, ON DELETE SET NULL"
+        varchar departure_ident
+        varchar destination_ident
+        integer cruise_altitude_ft
+        timestamptz planned_for
+    }
+    FLIGHT_CHECKPOINTS {
+        bigint id PK
+        bigint flight_id FK
+        integer sequence_no
+        varchar name
+        double leg_distance_nm "null on the destination row"
+        double magnetic_heading_deg
+        double groundspeed_kt
+    }
     ROUTE_BRIEFINGS {
         int id PK
         text departure_ident
@@ -256,8 +313,15 @@ erDiagram
     }
 ```
 
-- **`webapp`** (`routes`/`checkpoints`) — Flyway. `routes` and its scored
-  checkpoints are a normalized parent/child pair. Add a migration as
+- **`webapp`** (`routes`/`checkpoints`/`pilots`/`aircraft`/`flights`/`flight_checkpoints`)
+  — Flyway. `routes` and its scored checkpoints are a normalized
+  parent/child pair, shared by everyone who plans that corridor;
+  `pilots`/`aircraft`/`flights`/`flight_checkpoints` (added in `V3`) are
+  one pilot's own data, populated once Google sign-in is active (see
+  [Services in detail](#services-in-detail)) — `aircraft_id`/`route_id`
+  on `flights` are both nullable and `ON DELETE SET NULL` rather than
+  `CASCADE`, since a flown flight is a record that must survive selling
+  the aeroplane or re-collecting the corridor. Add a migration as
   `springboot-app/src/main/resources/db/migration/V<N>__description.sql`
   and it runs automatically on next startup. `ddl-auto` is `validate`, so
   drift between the JPA entities and the actual schema fails loudly at
@@ -408,8 +472,11 @@ stack. Anything not listed here does not exist.
 
 | What | URL | Needs |
 |---|---|---|
-| **Route planner** | [`localhost:8080/app/plan`](http://localhost:8080/app/plan) | `webapp` + `planning-service` |
+| **Home** | [`localhost:8080/app/home`](http://localhost:8080/app/home) (also bare `/app`) | `webapp` |
+| **Route planner** (map, nav log, Flight Briefing) | [`localhost:8080/app/plan`](http://localhost:8080/app/plan) | `webapp` + `planning-service` |
 | **Labeling page** | [`localhost:8080/app/label`](http://localhost:8080/app/label) | `webapp` + `planning-service` |
+| **Playground** (model comparison, algorithm picker, altitude breakdown) | [`localhost:8080/app/playground`](http://localhost:8080/app/playground) | `webapp` + `planning-service` |
+| **Account** (sign in, your aeroplanes, your filed flights) | [`localhost:8080/app/account`](http://localhost:8080/app/account) | `webapp` |
 | Spring Boot API docs | [`localhost:8080/swagger-ui/index.html`](http://localhost:8080/swagger-ui/index.html) | `webapp` |
 | Spring Boot OpenAPI spec | [`localhost:8080/v3/api-docs`](http://localhost:8080/v3/api-docs) | `webapp` |
 | Health / readiness | [`localhost:8080/actuator/health`](http://localhost:8080/actuator/health) | `webapp` |
@@ -450,18 +517,23 @@ compose up ml`. Full per-notebook breakdown is in the
 ### Testing & CI
 
 ```bash
-# Python (src/vfr) — 103 tests
+# Python (src/vfr) — 113 tests
 # The pipeline images carry no test tooling -- these run what CI runs,
 # from requirements-dev.txt.
 docker run --rm -v "$PWD":/w -w /w -e PYTHONPATH=/w/src python:3.12-slim \
   sh -c "pip install -q -r requirements-dev.txt && ruff check src/vfr tests && pytest tests/ -q"
 
-# Web front end (web/) — 45 tests plus a typecheck. No browser needed:
+# planning-service (its own FastAPI-layer suite, separate from the two
+# above since it needs the service's own requirements on top of pytest)
+docker run --rm -v "$PWD/planning-service":/w -w /w python:3.12-slim \
+  sh -c "pip install -q -r requirements-dev.txt && ruff check tests && pytest tests/ -q"
+
+# Web front end (web/) — 46 tests plus a typecheck. No browser needed:
 # the filters, ordering, rating and nav-log rules are pure functions.
-docker run --rm -v "$PWD/web":/w -w /w node:20-slim \
+docker run --rm -v "$PWD/web":/w -w /w node:26-slim \
   sh -c "npm ci && npx tsc --noEmit && npx vitest run"
 
-# Java (webapp) — 13 tests. No native Maven needed, matching the rest of
+# Java (webapp) — 39 tests. No native Maven needed, matching the rest of
 # this project; the Docker socket is mounted through so Testcontainers can
 # start its Postgres as a sibling container.
 docker run --rm -v "$PWD/springboot-app":/build -w /build \
@@ -474,25 +546,35 @@ docker run --rm -v "$PWD/springboot-app":/build -w /build \
 (CI runs `mvn test` directly instead — a GitHub runner has Maven and a
 local Docker daemon, so it needs none of the socket/host plumbing above.)
 
-Two suites, split by what each can actually prove:
+Three suites, split by what each can actually prove:
 
 - **`tests/`** (pytest) — the pure-logic parts of `src/vfr`: geo math,
-  engineered features, dead-reckoning, the model registry, the remote-URI
-  guards.
+  engineered features, dead-reckoning, the model registry, the
+  remote-URI guards, plus (mocked, no live network) `vfr.weather`'s
+  METAR parsing and `vfr.airports`' runway/frequency lookups.
+- **`planning-service/tests/`** (pytest, its own suite) — the HTTP
+  contract for the endpoints with no coverage anywhere else
+  (`/api/model-comparison`, `/api/playground/score`,
+  `/api/altitude-breakdown`): status codes, response shape, and that a
+  `WeatherServiceError` anywhere underneath reaches the caller as a
+  clean `502`, not a raw `500`.
 - **`springboot-app/src/test/`** (JUnit) — the HTTP contract via
   `@WebMvcTest` (validation `400`s, the `502` on an unreachable
-  model-service), the DTO→entity conversion, and a Testcontainers-backed
-  test that boots a real Postgres to verify Flyway's migrations apply and
-  that `ddl-auto: validate` accepts the JPA entities against the resulting
-  schema — so entity/schema drift fails CI rather than a deploy.
+  model-service, the `409` on a duplicate tail number), Mockito-backed
+  service tests for the pilot-scoping guards (`AircraftServiceTest`,
+  `FlightServiceTest`), the DTO→entity conversion, and a
+  Testcontainers-backed test that boots a real Postgres to verify
+  Flyway's migrations apply and that `ddl-auto: validate` accepts the
+  JPA entities against the resulting schema — so entity/schema drift
+  fails CI rather than a deploy.
 
 Deliberately left to manual verification: anything needing live network
 calls or a trained model (`collect`, `engineer_features`, `retrain`,
 `vfr.altitude`, `vfr.airspace`) — mocking those would test the mock, not
 the upstream data contract that actually breaks.
 
-`.github/workflows/ci.yml` runs both suites on every push/PR. Full CI job
-breakdown is in the [Appendix](#appendix).
+`.github/workflows/ci.yml` runs all three suites on every push/PR. Full
+CI job breakdown is in the [Appendix](#appendix).
 
 ## Appendix
 
@@ -556,13 +638,14 @@ data/
 
 ### CI, in full
 
-`.github/workflows/ci.yml` — six jobs:
+`.github/workflows/ci.yml` — seven jobs:
 
 | Job | What it does |
 |---|---|
 | `test` | ruff + pytest over `src/vfr` |
 | `test-web` | `tsc --noEmit`, `vitest` and a production build over `web/` — filters, ordering, what counts as rated, and which leg leaves a checkpoint, all pure functions needing no browser |
 | `test-webapp` | `mvn test` — webapp's JUnit suite, including the Testcontainers Postgres test |
+| `test-planning-service` | ruff + pytest over `planning-service/tests/` — its own dependency set (`planning-service/requirements-dev.txt`), separate from `test`'s unrelated `src/vfr` ones |
 | `docs` | Regenerates Javadoc + godoc on every push/PR; the `pdoc` steps, which need this repo's heavy ML images, run only on pushes to `main` so PRs aren't charged minutes for them. Output uploads as a `documentation` artifact. |
 | `build-images` | Builds every service Dockerfile, publishes each to GHCR on push to `main` |
 | `push-ecr` | Pushes the five images the CloudFormation stack deploys (`webapp`, `model-service`, `nav-log-agent`, `crewai-agent`, `airflow`) to ECR via OIDC, reusing `build-images`' cache; activates automatically once `AWS_ROLE_ARN`/`AWS_REGION` repo variables exist |

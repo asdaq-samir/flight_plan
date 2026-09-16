@@ -179,10 +179,10 @@ directory, hence the `vfr_route-` prefix.
 | Image | Size | What it is |
 |---|---|---|
 | `vfr_route-ml` | 6.9 GB | The Jupyter environment for [the notebooks](../notebooks). Easily the largest, and legitimately so: scikit-learn, PyTorch, TensorFlow, PySpark and a JVM in one place. |
+| `vfr_route-model-service` | 4.85 GB | [FastAPI inference](../model-service). See [Section 4](#model-service-fastapi). Remeasured after this image gained its own pinned PyTorch/TensorFlow CPU wheels (2026-09-10) so it can serve `vfr.model_candidates`' PyTorch/TensorFlow models directly, not just the promoted scikit-learn one — the same runtimes `ml` carries, which is most of the jump from the 926 MB this row used to read. |
 | `vfr_route-nav-log-agent` | 2.3 GB | The [LangGraph agent](../nav-log-agent), served over MCP. See [Section 5](#5-the-gen-ai-layer). |
 | `vfr_route-airflow` | 2.1 GB | [Orchestration](../docker/Dockerfile.airflow). See [Section 3](#3-orchestration-with-airflow). |
 | `vfr_route-crewai-agent` | 1.6 GB | [The same task in CrewAI](../crewai-agent), for comparison. See [Section 5](#crewai--agent-driven-tool-selection). |
-| `vfr_route-model-service` | 926 MB | [FastAPI inference](../model-service). See [Section 4](#model-service-fastapi). |
 | `vfr_route-planning-service` | 902 MB | [The planner API and chart-vision detector](../planning-service). |
 | `vfr_route-pipeline-training` | 878 MB | [Training as an isolated job](../docker/Dockerfile.training). |
 | `vfr_route-webapp` | 633 MB | [Spring Boot](../springboot-app) — the public surface, and what serves the front end. Smaller than the Maven image that builds it, which is the multi-stage build working. |
@@ -194,7 +194,7 @@ deleting one only forces a re-download on the next build.
 | Image | Size | Who needs it |
 |---|---|---|
 | `python:3.12-slim` | 188 MB | The base for seven of the nine above. One copy, shared — which is why the sizes in the first table are not additive. |
-| `node:20-slim` | 290 MB | Builds [the React app](../web), both on its own and inside the webapp build. |
+| `node:26-slim` | 290 MB | Builds [the React app](../web), both on its own and inside the webapp build. |
 | `maven:3.9-eclipse-temurin-21` | 797 MB | Compiles the Spring Boot JAR. Build-only; never ships. |
 | `pgvector/pgvector:pg16` | 621 MB | The actual database: Postgres plus the vector extension for [agent memory](#vector-memory-rag-in-miniature). |
 | `postgres:16` | 636 MB | *Not* a duplicate of the above. Testcontainers starts it for the JUnit suite — see [Section 8](#8-what-gets-tested-and-what-deliberately-doesnt). |
