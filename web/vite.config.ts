@@ -1,3 +1,4 @@
+import { fileURLToPath, URL } from "node:url";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
@@ -9,6 +10,10 @@ import tailwindcss from "@tailwindcss/vite";
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   base: "/app/",
+  // Mirrors tsconfig.json's own "@/*" path -- shadcn's generated
+  // components import from "@/lib/utils" etc., and Vite needs this
+  // independently of TypeScript's own (type-check-only) path mapping.
+  resolve: { alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) } },
   build: { outDir: "../springboot-app/src/main/resources/static/app", emptyOutDir: true },
   server: {
     port: 5173,
