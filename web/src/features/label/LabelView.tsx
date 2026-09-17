@@ -264,7 +264,6 @@ export default function LabelView() {
 
   const toolbar = (
     <CollapsibleToolbar
-      title="VFR labeler"
       label={dep && dest ? `Route: ${dep} → ${dest}` : "Route & view"}
     >
       <div>

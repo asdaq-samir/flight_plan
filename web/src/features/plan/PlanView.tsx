@@ -166,7 +166,6 @@ export default function PlanView() {
 
   const toolbar = (
     <CollapsibleToolbar
-      title="VFR planner"
       label={dep && dest ? `Route: ${dep} → ${dest}` : "Route"}
     >
       <RouteForm

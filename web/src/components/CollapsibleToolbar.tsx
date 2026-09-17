@@ -5,9 +5,6 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "./ui/collap
 interface Props {
   /** What the trigger says -- each page names its own settings. */
   label: string;
-  /** Sits in the header row at all times, open or closed -- the
-   *  page's own name ("VFR planner"). */
-  title?: ReactNode;
   children: ReactNode;
 }
 
@@ -22,8 +19,13 @@ interface Props {
  * whole screen; here, a tap fully opens in one step, so unusually
  * tall content (a long form on a short phone screen) gets its own
  * scrollbar instead of pushing the map off screen entirely.
+ *
+ * No longer takes its own `title` ("VFR planner"/"VFR labeler") --
+ * redundant once the site header's own nav highlights which page is
+ * active, so it was just a second, static way of saying the same
+ * thing.
  */
-export default function CollapsibleToolbar({ label, title, children }: Props) {
+export default function CollapsibleToolbar({ label, children }: Props) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -32,16 +34,13 @@ export default function CollapsibleToolbar({ label, title, children }: Props) {
       onOpenChange={setOpen}
       className="shrink-0 border-b border-slate-200 bg-white/95 backdrop-blur-sm print:hidden"
     >
-      <div className="flex items-center justify-between px-3 py-1">
-        {title && <div className="text-lg font-bold tracking-tight text-slate-900">{title}</div>}
-        <CollapsibleTrigger
-          data-testid="toolbar-trigger"
-          className="group flex items-center gap-1 rounded px-2 py-1 text-xs text-slate-500 hover:bg-slate-100"
-        >
-          {label}
-          <ChevronDown className="size-3.5 transition-transform group-data-[state=open]:rotate-180" />
-        </CollapsibleTrigger>
-      </div>
+      <CollapsibleTrigger
+        data-testid="toolbar-trigger"
+        className="group flex items-center gap-1 rounded px-2 py-1 text-xs text-slate-500 hover:bg-slate-100"
+      >
+        {label}
+        <ChevronDown className="size-3.5 transition-transform group-data-[state=open]:rotate-180" />
+      </CollapsibleTrigger>
       <CollapsibleContent data-testid="toolbar-content">
         <div className="max-h-[50vh] space-y-2 overflow-y-auto px-3 pb-2 pt-1 shadow-md">
           {children}
