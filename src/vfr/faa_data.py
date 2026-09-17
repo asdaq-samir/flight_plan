@@ -257,13 +257,28 @@ def _in_bbox(lat: pd.Series, lon: pd.Series, bbox: tuple) -> pd.Series:
     return lat.between(min_lat, max_lat) & lon.between(min_lon, max_lon)
 
 
+_NAV_BASE_CACHE: dict = {}
+
+
+def _read_nav_base(nav_csv_path) -> pd.DataFrame:
+    key = (str(nav_csv_path), Path(nav_csv_path).stat().st_mtime)
+    if key not in _NAV_BASE_CACHE:
+        _NAV_BASE_CACHE[key] = pd.read_csv(nav_csv_path, dtype=str)
+    return _NAV_BASE_CACHE[key]
+
+
 def load_vor_navaids(nav_csv_path, bbox: tuple) -> pd.DataFrame:
     """VOR/VOR-DME/VORTAC navaids from the NASR NAV_BASE.csv extract,
     within bbox and currently operational. Replaces the old OSM
     navigationaid-tag-based approach -- the FAA is definitionally the
     authority on its own navaid network.
+
+    Same `_read_apt_base`/`_APT_BASE_CACHE` idea as this file's own
+    airport table just above -- collecting more than one route in the
+    same process used to re-read and re-parse this national file from
+    scratch every time.
     """
-    df = pd.read_csv(nav_csv_path, dtype=str)
+    df = _read_nav_base(nav_csv_path)
     df = df[df["NAV_TYPE"].isin(VOR_NAV_TYPES) & df["NAV_STATUS"].str.startswith("OPERATIONAL")]
     df["lat"] = df["LAT_DECIMAL"].astype(float)
     df["lon"] = df["LONG_DECIMAL"].astype(float)
@@ -309,6 +324,32 @@ def _parse_dof_line(line: str) -> dict | None:
     }
 
 
+_OBSTACLES_CACHE: dict = {}
+
+
+def _load_all_obstacles(dof_dat_path) -> pd.DataFrame:
+    """Every obstacle in the national DOF.DAT extract, parsed once and
+    held in memory after that -- same idea as `_APT_BASE_CACHE` above,
+    for the same reason: `load_obstacles` used to re-parse this whole
+    national file (well over a million lines) from scratch on every
+    single call regardless of how small the requested bbox was, which
+    was most of what made selecting a cruise altitude feel slow. The
+    two filters (min_agl_ft, bbox) differ per caller, so what's cached
+    here is the parsed-but-unfiltered rows; filtering that afterward is
+    a cheap pandas boolean mask, not a second file read.
+    """
+    key = (str(dof_dat_path), Path(dof_dat_path).stat().st_mtime)
+    if key not in _OBSTACLES_CACHE:
+        rows = []
+        with open(dof_dat_path, encoding="latin-1") as f:
+            for line in f:
+                parsed = _parse_dof_line(line)
+                if parsed is not None:
+                    rows.append(parsed)
+        _OBSTACLES_CACHE[key] = pd.DataFrame(rows, columns=["lat", "lon", "city", "type", "agl_ft", "amsl_ft", "lit"])
+    return _OBSTACLES_CACHE[key]
+
+
 def load_obstacles(dof_dat_path, bbox: tuple, min_agl_ft: float = 200) -> pd.DataFrame:
     """Obstacles from the national DOF.DAT extract, within bbox and at
     least min_agl_ft tall. Replaces the old generic OSM man_made=tower
@@ -320,19 +361,12 @@ def load_obstacles(dof_dat_path, bbox: tuple, min_agl_ft: float = 200) -> pd.Dat
     default here) rather than guessing from an OSM tag alone.
     """
     min_lat, min_lon, max_lat, max_lon = bbox
-    rows = []
-    with open(dof_dat_path, encoding="latin-1") as f:
-        for line in f:
-            parsed = _parse_dof_line(line)
-            if parsed is None:
-                continue
-            if parsed["agl_ft"] < min_agl_ft:
-                continue
-            if not (min_lat <= parsed["lat"] <= max_lat and min_lon <= parsed["lon"] <= max_lon):
-                continue
-            rows.append(parsed)
-
-    df = pd.DataFrame(rows, columns=["lat", "lon", "city", "type", "agl_ft", "amsl_ft", "lit"])
+    all_obstacles = _load_all_obstacles(dof_dat_path)
+    df = all_obstacles[
+        (all_obstacles["agl_ft"] >= min_agl_ft)
+        & (all_obstacles["lat"] >= min_lat) & (all_obstacles["lat"] <= max_lat)
+        & (all_obstacles["lon"] >= min_lon) & (all_obstacles["lon"] <= max_lon)
+    ]
     if df.empty:
         return pd.DataFrame(columns=["osm_id", "osm_type", "category", "name", "lat", "lon", "bbox_area_m2", "tags"])
 

@@ -14,6 +14,8 @@ small amount of duplication against this module -- verified this module's
 output matches the notebook's exactly (2200ft floor / 3600ft ceiling /
 2500ft recommended on the live C81->KDLH route) rather than assuming it.
 """
+from concurrent.futures import ThreadPoolExecutor
+
 from . import airspace, terrain, weather
 from .geo import bearing_deg
 from .terrain import DEFAULT_FAA_CACHE_DIR
@@ -65,20 +67,33 @@ def select_cruise_altitude(
     """
     route_bearing_deg = bearing_deg(*route_start, *route_end)
 
-    floor_ft = terrain.min_safe_altitude_msl(route_start, route_end, faa_cache_dir=faa_cache_dir)
-
+    # ensure_class_airspace_shapefile runs first, on its own -- both
+    # airspace calls below need its result, so there's nothing to gain
+    # running it alongside them. Everything after it (terrain, the two
+    # airspace queries, and three separate aviationweather.gov calls)
+    # is independent of the others, and summing three external round
+    # trips instead of overlapping them was the real reason this step
+    # felt slow -- the same issue, and the same fix, as /api/briefing.
     shp_path = airspace.ensure_class_airspace_shapefile(faa_cache_dir)
-    airspace_ceiling_ft = airspace.max_airspace_altitude_msl(route_start, route_end, shp_path)
-    # Class C/D along the way are not a ceiling -- two-way comms is all
-    # they take -- but a pilot still wants to know they are coming.
-    transits = airspace.airspace_transits(route_start, route_end, shp_path)
-
     mid_lat = (route_start[0] + route_end[0]) / 2
     mid_lon = (route_start[1] + route_end[1]) / 2
-    freezing_level_ft = weather.freezing_level_ft(mid_lat, mid_lon)
 
-    cv = weather.ceiling_visibility_along_route(route_start, route_end)
-    hazards = weather.hazards_along_route(route_start, route_end)
+    with ThreadPoolExecutor(max_workers=5) as pool:
+        floor_future = pool.submit(terrain.min_safe_altitude_msl, route_start, route_end, faa_cache_dir=faa_cache_dir)
+        airspace_ceiling_future = pool.submit(airspace.max_airspace_altitude_msl, route_start, route_end, shp_path)
+        # Class C/D along the way are not a ceiling -- two-way comms is
+        # all they take -- but a pilot still wants to know they are coming.
+        transits_future = pool.submit(airspace.airspace_transits, route_start, route_end, shp_path)
+        freezing_future = pool.submit(weather.freezing_level_ft, mid_lat, mid_lon)
+        cv_future = pool.submit(weather.ceiling_visibility_along_route, route_start, route_end)
+        hazards_future = pool.submit(weather.hazards_along_route, route_start, route_end)
+
+        floor_ft = floor_future.result()
+        airspace_ceiling_ft = airspace_ceiling_future.result()
+        transits = transits_future.result()
+        freezing_level_ft = freezing_future.result()
+        cv = cv_future.result()
+        hazards = hazards_future.result()
 
     ceilings = [c for c in [airspace_ceiling_ft, freezing_level_ft, aircraft_profile["service_ceiling_ft"]] if c is not None]
     band_ceiling_ft = min(ceilings) if ceilings else None

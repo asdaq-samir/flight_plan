@@ -933,21 +933,28 @@ def briefing(dep: str, dest: str) -> dict:
     start = (dep_airport["lat"], dep_airport["lon"])
     end = (dest_airport["lat"], dest_airport["lon"])
 
-    with ThreadPoolExecutor(max_workers=3) as pool:
+    # Runways/frequencies are in this pool too, not just the three
+    # weather calls -- on a freshly started container (an empty
+    # in-memory table cache, see vfr.airports._TABLE_CACHE) those are
+    # each a multi-megabyte CSV parse, the same order of cost as a
+    # weather round trip, and were previously paying that cost after
+    # the weather pool had already finished instead of alongside it.
+    with ThreadPoolExecutor(max_workers=7) as pool:
         hazards = pool.submit(weather.hazards_along_route, start, end)
         forecast = pool.submit(weather.ceiling_visibility_along_route, start, end)
         metars = pool.submit(weather.metar_for_idents, [dep_ident, dest_ident])
+        runways = {ident: pool.submit(airports.get_runways, ident) for ident in (dep_ident, dest_ident)}
+        frequencies = {ident: pool.submit(airports.get_frequencies, ident) for ident in (dep_ident, dest_ident)}
         hazards, forecast, metars = hazards.result(), forecast.result(), metars.result()
+        runways = {ident: f.result() for ident, f in runways.items()}
+        frequencies = {ident: f.result() for ident, f in frequencies.items()}
 
     return {
         "hazards": hazards,
         "forecast": forecast,
         "metars": metars,
         "airports": {
-            ident: {
-                "runways": airports.get_runways(ident),
-                "frequencies": airports.get_frequencies(ident),
-            }
+            ident: {"runways": runways[ident], "frequencies": frequencies[ident]}
             for ident in (dep_ident, dest_ident)
         },
     }

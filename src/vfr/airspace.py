@@ -157,7 +157,39 @@ def _floor_ft_msl(record: dict) -> float:
 # max_airspace_altitude_msl and airspace_transits ask for the same bbox
 # and each read it fresh -- so half of that was pure repetition, and
 # planning the same route again paid the whole cost over.
-_AIRSPACE_CACHE: dict = {}
+_ALL_AIRSPACE_CACHE: dict = {}
+
+
+def _load_all_controlled_airspace(shp_path) -> list:
+    """Every Class B/C/D polygon in the national shapefile, parsed (and
+    each one's Shapely geometry built) once and held in memory after
+    that. `load_controlled_airspace` used to cache by `(shp_path, bbox)`,
+    which only pays off if the exact same bbox is queried twice -- every
+    other route (a different bbox) re-read and re-built geometry for
+    the entire national file from scratch, the real cost this parse
+    step had. What's cached here is bbox-independent, so a second route
+    against the same 28-day shapefile cycle gets a free hit regardless
+    of its own bbox.
+    """
+    key = (str(shp_path), Path(shp_path).stat().st_mtime)
+    if key not in _ALL_AIRSPACE_CACHE:
+        sf = shapefile.Reader(str(shp_path))
+        polygons = []
+        for sr in sf.iterShapeRecords():
+            record = sr.record.as_dict()
+            if record["CLASS"] not in CONTROLLED_CLASSES:
+                continue
+            polygons.append(
+                {
+                    "name": record["NAME"],
+                    "class": record["CLASS"],
+                    "floor_ft_msl": _floor_ft_msl(record),
+                    "geometry": shapely_shape(sr.shape.__geo_interface__),
+                    "bbox": sr.shape.bbox,  # (min_lon, min_lat, max_lon, max_lat)
+                }
+            )
+        _ALL_AIRSPACE_CACHE[key] = polygons
+    return _ALL_AIRSPACE_CACHE[key]
 
 
 def load_controlled_airspace(shp_path, bbox: tuple) -> list:
@@ -165,38 +197,17 @@ def load_controlled_airspace(shp_path, bbox: tuple) -> list:
     whose bounding box overlaps bbox. Returns a list of
     {"name", "class", "floor_ft_msl", "geometry"} dicts.
 
-    Cached per file and bbox. The mtime is part of the key so a new 28-day
-    cycle is picked up rather than served stale. Callers must treat the
-    result as read-only, since they now share it.
+    Callers must treat the result as read-only, since it's filtered
+    from the same cached list every other bbox query shares.
     """
-    key = (str(shp_path), Path(shp_path).stat().st_mtime, tuple(bbox))
-    if key in _AIRSPACE_CACHE:
-        return _AIRSPACE_CACHE[key]
-    polygons = _read_controlled_airspace(shp_path, bbox)
-    _AIRSPACE_CACHE[key] = polygons
-    return polygons
-
-
-def _read_controlled_airspace(shp_path, bbox: tuple) -> list:
     min_lat, min_lon, max_lat, max_lon = bbox
-    sf = shapefile.Reader(str(shp_path))
-    polygons = []
-    for sr in sf.iterShapeRecords():
-        record = sr.record.as_dict()
-        if record["CLASS"] not in CONTROLLED_CLASSES:
-            continue
-        shp_min_lon, shp_min_lat, shp_max_lon, shp_max_lat = sr.shape.bbox
-        if shp_max_lat < min_lat or shp_min_lat > max_lat or shp_max_lon < min_lon or shp_min_lon > max_lon:
-            continue
-        polygons.append(
-            {
-                "name": record["NAME"],
-                "class": record["CLASS"],
-                "floor_ft_msl": _floor_ft_msl(record),
-                "geometry": shapely_shape(sr.shape.__geo_interface__),
-            }
+    return [
+        p for p in _load_all_controlled_airspace(shp_path)
+        if not (
+            p["bbox"][3] < min_lat or p["bbox"][1] > max_lat
+            or p["bbox"][2] < min_lon or p["bbox"][0] > max_lon
         )
-    return polygons
+    ]
 
 
 def is_own_surface_area(polygon: dict, start_point, end_point) -> bool:
