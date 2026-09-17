@@ -31,7 +31,7 @@ docker compose up -d --build webapp
 docker run --rm -v "$PWD/springboot-app":/build -w /build \
   -v /var/run/docker.sock:/var/run/docker.sock \
   --add-host=host.docker.internal:host-gateway \
-  maven:3.9.16-eclipse-temurin-26 mvn test
+  maven:3.9.16-eclipse-temurin-25 mvn test
 ```
 
 ## Learning this from zero

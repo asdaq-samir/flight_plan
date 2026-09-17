@@ -520,12 +520,12 @@ compose up ml`. Full per-notebook breakdown is in the
 # Python (src/vfr) — 113 tests
 # The pipeline images carry no test tooling -- these run what CI runs,
 # from requirements-dev.txt.
-docker run --rm -v "$PWD":/w -w /w -e PYTHONPATH=/w/src python:3.12-slim \
+docker run --rm -v "$PWD":/w -w /w -e PYTHONPATH=/w/src python:3.13-slim \
   sh -c "pip install -q -r requirements-dev.txt && ruff check src/vfr tests && pytest tests/ -q"
 
 # planning-service (its own FastAPI-layer suite, separate from the two
 # above since it needs the service's own requirements on top of pytest)
-docker run --rm -v "$PWD/planning-service":/w -w /w python:3.12-slim \
+docker run --rm -v "$PWD/planning-service":/w -w /w python:3.13-slim \
   sh -c "pip install -q -r requirements-dev.txt && ruff check tests && pytest tests/ -q"
 
 # Web front end (web/) — 46 tests plus a typecheck. No browser needed:
@@ -540,7 +540,7 @@ docker run --rm -v "$PWD/springboot-app":/build -w /build \
   -v /var/run/docker.sock:/var/run/docker.sock \
   --add-host=host.docker.internal:host-gateway \
   -e TESTCONTAINERS_HOST_OVERRIDE=host.docker.internal \
-  maven:3.9-eclipse-temurin-21 mvn -B test
+  maven:3.9.16-eclipse-temurin-25 mvn -B test
 ```
 
 (CI runs `mvn test` directly instead — a GitHub runner has Maven and a

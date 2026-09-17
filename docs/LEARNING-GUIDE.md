@@ -131,7 +131,7 @@ an argument to a fixed `python3 -m vfr.pipeline` — see
 multi-stage build in this repo:
 
 ```dockerfile
-FROM maven:3.9-eclipse-temurin-21 AS build
+FROM maven:3.9.16-eclipse-temurin-25 AS build
 WORKDIR /build
 COPY pom.xml .
 RUN mvn -q dependency:go-offline
@@ -157,14 +157,14 @@ build fat, ship thin.
 
 | Dockerfile | Base | Why it looks like this |
 |---|---|---|
-| [`docker/Dockerfile.ml`](../docker/Dockerfile.ml) | `python:3.12-slim` + a JDK | PySpark (notebook 06) needs a JVM even from Python, hence `apt-get install default-jdk-headless`. Installs the CPU-only PyTorch wheel explicitly (`--index-url .../cpu`) — the default wheel bundles several GB of CUDA libraries this machine has no GPU to use. |
-| [`docker/Dockerfile.processing`](../docker/Dockerfile.processing) | `python:3.12-slim` | Deliberately thin: pandas/requests/pyarrow only, no scikit-learn. Mirrors what a SageMaker *Processing Job* container needs. |
-| [`docker/Dockerfile.training`](../docker/Dockerfile.training) | `python:3.12-slim` | Adds scikit-learn/joblib on top. Kept as a *separate* image from `.processing` rather than one shared image, because Processing and Training are different constructs on AWS with different container contracts — see [Section 2](#2-the-ml-pipeline). |
+| [`docker/Dockerfile.ml`](../docker/Dockerfile.ml) | `python:3.13-slim` + a JDK | PySpark (notebook 06) needs a JVM even from Python, hence `apt-get install default-jdk-headless`. Installs the CPU-only PyTorch wheel explicitly (`--index-url .../cpu`) — the default wheel bundles several GB of CUDA libraries this machine has no GPU to use. |
+| [`docker/Dockerfile.processing`](../docker/Dockerfile.processing) | `python:3.13-slim` | Deliberately thin: pandas/requests/pyarrow only, no scikit-learn. Mirrors what a SageMaker *Processing Job* container needs. |
+| [`docker/Dockerfile.training`](../docker/Dockerfile.training) | `python:3.13-slim` | Adds scikit-learn/joblib on top. Kept as a *separate* image from `.processing` rather than one shared image, because Processing and Training are different constructs on AWS with different container contracts — see [Section 2](#2-the-ml-pipeline). |
 | [`docker/Dockerfile.airflow`](../docker/Dockerfile.airflow) | `apache/airflow:2.10.4-python3.12` | Adds one provider package (`apache-airflow-providers-docker`) so its DAGs can launch sibling containers. Doesn't need pandas/scikit-learn itself — see [Section 3](#3-orchestration-with-airflow) for why. |
 | [`docker/Dockerfile.airflow.aws`](../docker/Dockerfile.airflow.aws) | `apache/airflow:2.10.4-python3.12` | The AWS-hosted counterpart: `apache-airflow-providers-amazon` instead of `-docker`, and it `COPY`s the AWS DAG and `src/` in rather than relying on a bind mount that Fargate has no way to provide. See [Section 3](#the-same-dag-twice-local-and-aws). |
-| [`model-service/Dockerfile`](../model-service/Dockerfile) | `python:3.12-slim` | A plain FastAPI service: install deps, copy `app/`, run `uvicorn`. |
+| [`model-service/Dockerfile`](../model-service/Dockerfile) | `python:3.13-slim` | A plain FastAPI service: install deps, copy `app/`, run `uvicorn`. |
 | [`springboot-app/Dockerfile`](../springboot-app/Dockerfile) | `maven:...` → `eclipse-temurin:21-jre` | Multi-stage, see above. |
-| [`nav-log-agent/Dockerfile`](../nav-log-agent/Dockerfile) / [`crewai-agent/Dockerfile`](../crewai-agent/Dockerfile) | `python:3.12-slim` | Both set `PYTHONPATH=/workspace/src` so `import vfr...` resolves inside the container without installing `vfr` as a package — the bind-mounted repo is just put on the path directly. `nav-log-agent` also installs the CPU-only PyTorch wheel before its requirements, for the reason `Dockerfile.ml` does; see [the images section](#the-images-those-dockerfiles-produce) for what it cost to learn that twice. |
+| [`nav-log-agent/Dockerfile`](../nav-log-agent/Dockerfile) / [`crewai-agent/Dockerfile`](../crewai-agent/Dockerfile) | `python:3.13-slim` | Both set `PYTHONPATH=/workspace/src` so `import vfr...` resolves inside the container without installing `vfr` as a package — the bind-mounted repo is just put on the path directly. `nav-log-agent` also installs the CPU-only PyTorch wheel before its requirements, for the reason `Dockerfile.ml` does; see [the images section](#the-images-those-dockerfiles-produce) for what it cost to learn that twice. |
 
 ### The images those Dockerfiles produce
 
@@ -193,9 +193,9 @@ deleting one only forces a re-download on the next build.
 
 | Image | Size | Who needs it |
 |---|---|---|
-| `python:3.12-slim` | 188 MB | The base for seven of the nine above. One copy, shared — which is why the sizes in the first table are not additive. |
+| `python:3.13-slim` | 187 MB | The base for seven of the nine above. One copy, shared — which is why the sizes in the first table are not additive. |
 | `node:26-slim` | 290 MB | Builds [the React app](../web), both on its own and inside the webapp build. |
-| `maven:3.9-eclipse-temurin-21` | 797 MB | Compiles the Spring Boot JAR. Build-only; never ships. |
+| `maven:3.9.16-eclipse-temurin-25` | 677 MB | Compiles the Spring Boot JAR. Build-only; never ships. |
 | `pgvector/pgvector:pg16` | 621 MB | The actual database: Postgres plus the vector extension for [agent memory](#vector-memory-rag-in-miniature). |
 | `postgres:16` | 636 MB | *Not* a duplicate of the above. Testcontainers starts it for the JUnit suite — see [Section 8](#8-what-gets-tested-and-what-deliberately-doesnt). |
 | `testcontainers/ryuk` | 28 MB | The janitor that removes leftover test containers when a run dies part-way. |

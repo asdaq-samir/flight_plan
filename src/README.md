@@ -20,14 +20,14 @@ task and a LangGraph tool, unchanged.
 ## Running it
 
 ```bash
-# 103 tests and the linter, exactly what CI runs
-docker run --rm -v "$PWD":/w -w /w -e PYTHONPATH=/w/src python:3.12-slim \
+# 113 tests and the linter, exactly what CI runs
+docker run --rm -v "$PWD":/w -w /w -e PYTHONPATH=/w/src python:3.13-slim \
   sh -c "pip install -q -r requirements-dev.txt && ruff check src/vfr tests && pytest tests/ -q"
 ```
 
 The pipeline images deliberately carry no test tooling — they mirror what
 a SageMaker Processing or Training job needs and nothing more — so tests
-run in a plain `python:3.12-slim` against `requirements-dev.txt`.
+run in a plain `python:3.13-slim` against `requirements-dev.txt`.
 
 Keep that file in step with `tests/`. A test module importing something
 missing from it fails at *collection*, which takes the whole suite down
