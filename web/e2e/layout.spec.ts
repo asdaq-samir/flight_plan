@@ -161,20 +161,28 @@ test("plan page: nav log view scrolls inside its own table, not the page", async
 });
 
 test("the site header's nav links actually reach every other page", async ({ page }) => {
-  await page.goto("/app/home");
+  await page.goto("/app/label");
   await page.waitForTimeout(300);
 
   await page.locator("header").getByText("Plan", { exact: true }).click();
   await page.waitForURL("**/app/plan");
 
-  await page.locator("header").getByText("Playground", { exact: true }).click();
-  await page.waitForURL("**/app/playground");
+  await page.locator("header").getByText("Dev", { exact: true }).click();
+  await page.waitForURL("**/app/dev");
 
-  await page.locator("header").getByText("Account", { exact: true }).click();
-  await page.waitForURL("**/app/account");
+  await page.locator("header").getByText("Settings", { exact: true }).click();
+  await page.waitForURL("**/app/settings");
 
-  // The wordmark itself is the way back to Home from anywhere --
-  // there was no such path before this header existed.
+  // The wordmark itself is the way back to Plan, the app's own
+  // homepage, from anywhere -- Dev links to Label instead of Label
+  // having its own permanent nav item (see PageHeader's own comment).
   await page.locator("header").getByText("VFR Route", { exact: true }).click();
-  await page.waitForURL("**/app/home");
+  await page.waitForURL("**/app/plan");
+});
+
+test("Dev's own Label link works, since Label has no header link of its own", async ({ page }) => {
+  await page.goto("/app/dev");
+  await page.waitForTimeout(300);
+  await page.getByRole("link", { name: "Label checkpoints" }).click();
+  await page.waitForURL("**/app/label");
 });

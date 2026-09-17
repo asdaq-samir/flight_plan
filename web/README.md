@@ -1,18 +1,19 @@
 # web/
 
-React 19 + Vite 8 + Tailwind v4 + Leaflet front end for five pages:
+React 19 + Vite 8 + Tailwind v4 + Leaflet front end for four pages:
 
-- `/app/home` — links to every other page.
-- `/app/plan` — enter a departure/destination, get a charted course,
-  scored checkpoints, a dead-reckoning nav log, and a printable Flight
+- `/app/plan` — the app's own homepage (bare `/app` redirects here):
+  enter a departure/destination, get a charted course, scored
+  checkpoints, a dead-reckoning nav log, and a printable Flight
   Briefing.
 - `/app/label` — walk a route's detected waypoints on a sectional chart
-  and rate each one (ML training data).
-- `/app/playground` — explore how the project actually works: every
-  trained algorithm's accuracy side by side, live scoring, and the
-  full reasoning behind a recommended cruise altitude. No sign-in.
-- `/app/account` — a signed-in pilot's own aeroplanes and filed
-  flights.
+  and rate each one (ML training data). Linked from Dev rather than
+  its own header link.
+- `/app/dev` — explore how the project actually works: every trained
+  algorithm's accuracy side by side, live scoring, and the full
+  reasoning behind a recommended cruise altitude. No sign-in.
+- `/app/settings` — what the app does, then a signed-in pilot's own
+  aeroplanes and filed flights.
 
 Plan/Label compute nothing themselves — every course, checkpoint,
 detection and nav log comes from `planning-service`; this front end
@@ -148,8 +149,9 @@ and use `vite build` + `docker compose up --build webapp`.
 ## Architecture
 
 **Routing.** `main.tsx` builds a `react-router-dom` `createBrowserRouter`
-with one lazy-loaded route per page (Home/Plan/Label/Playground/Account),
-`basename: "/app"` matching where `webapp` serves the bundle. Deep links
+with one lazy-loaded route per page (Plan/Label/Dev/Settings), Plan
+also being the index route, `basename: "/app"` matching where `webapp`
+serves the bundle. Deep links
 and a hard refresh both work without any change on the Spring Boot
 side — `WebMvcConfig`'s resource resolver already falls back to
 `index.html` for any path under `/app/**` that isn't a real file.

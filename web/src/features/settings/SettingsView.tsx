@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { MapPin, MoveRight, NotebookPen, PlaneTakeoff, Route, ListChecks } from "lucide-react";
 import CollapsibleSection from "../../components/CollapsibleSection";
 import Footer from "../../components/Footer";
 import PageHeader from "../../components/PageHeader";
@@ -12,6 +13,43 @@ import { Input } from "../../components/ui/input";
 import { ApiError, api } from "../../lib/api/client";
 import { useDocumentTitle } from "../../lib/useDocumentTitle";
 import type { Aircraft, AircraftRequest, Pilot } from "../../lib/api/types";
+
+/** Departure/destination in, printable Flight Briefing out -- the
+ *  actual pipeline every route walks through. Was the front door's own
+ *  content (a separate Home page) before Plan became the app's
+ *  homepage; lives here now as the one place that still explains what
+ *  the app does, rather than duplicating that on every page. */
+const STEPS: { icon: typeof MapPin; label: string }[] = [
+  { icon: MapPin, label: "Pick two airports" },
+  { icon: Route, label: "Charted course" },
+  { icon: ListChecks, label: "Scored checkpoints" },
+  { icon: NotebookPen, label: "Nav log + briefing" },
+];
+
+function OverviewPanel() {
+  return (
+    <div className="border-b border-border px-4 py-6">
+      <PlaneTakeoff className="size-8 text-primary" />
+      <h1 className="mt-3 text-2xl font-bold tracking-tight text-foreground">
+        Plan a real VFR cross-country, checkpoint by checkpoint
+      </h1>
+      <p className="mt-2 max-w-xl text-muted-foreground">
+        Two airport idents in; a charted course, ML-scored visual checkpoints,
+        a dead-reckoning nav log and a printable flight briefing out --
+        backed by the same model this project trains on hand-labeled charts.
+      </p>
+      <div className="mt-4 flex flex-wrap items-center gap-x-2 gap-y-3 rounded-lg border border-border bg-card px-4 py-3 text-sm">
+        {STEPS.map((s, i) => (
+          <div key={s.label} className="flex items-center gap-2">
+            {i > 0 && <MoveRight className="size-4 shrink-0 text-muted-foreground" aria-hidden />}
+            <s.icon className="size-4 shrink-0 text-primary" aria-hidden />
+            <span>{s.label}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 const ft = (n: number | null) => (n == null ? "—" : `${Math.round(n).toLocaleString()} ft`);
 
@@ -277,20 +315,22 @@ function FlightsPanel({ pilot }: { pilot: PilotState }) {
 }
 
 /**
- * A signed-in pilot's own data -- aeroplanes and filed flights. Split
- * out from Playground (which stays sign-in-free, stateless demos)
- * because "manage my own data" is a different intent from "explore
- * how the project works," not because they don't both fit under one
- * roof technically.
+ * What the app does (moved here from the old standalone Home page once
+ * Plan became the homepage), then a signed-in pilot's own data --
+ * aeroplanes and filed flights. Split from Dev (which stays sign-in-free,
+ * stateless demos) because "manage my own data" is a different intent
+ * from "explore how the project works," not because they don't both
+ * fit under one roof technically.
  */
-export default function AccountView() {
-  useDocumentTitle("Account — VFR Route");
+export default function SettingsView() {
+  useDocumentTitle("Settings — VFR Route");
   const { data: pilot, isLoading } = useQuery({ queryKey: ["pilot"], queryFn: api.me });
   const pilotState: PilotState = isLoading ? "loading" : (pilot ?? null);
 
   return (
     <div className="flex h-dvh flex-col overflow-y-auto bg-background">
       <PageHeader />
+      <OverviewPanel />
       <SignInPanel pilot={pilotState} />
       <AircraftPanel pilot={pilotState} />
       <FlightsPanel pilot={pilotState} />

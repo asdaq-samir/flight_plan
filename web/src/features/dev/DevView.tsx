@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { Link } from "react-router-dom";
+import { ListChecks } from "lucide-react";
 import CollapsibleSection from "../../components/CollapsibleSection";
 import Footer from "../../components/Footer";
 import PageHeader from "../../components/PageHeader";
@@ -249,17 +251,28 @@ function AltitudeBreakdownPanel() {
  * served model was actually chosen versus its alternatives, live
  * scoring from any of them, and the full reasoning behind a
  * recommended cruise altitude. Nothing here needs a pilot signed in;
- * that's Account's own page (aircraft, filed flights), split out from
+ * that's Settings' own page (aircraft, filed flights), split out from
  * this one on the grounds that "explore the project" and "manage my
  * own data" are different enough intents to deserve different pages.
+ *
+ * Label isn't its own top-nav link -- it's the one other page a
+ * developer poking at this project actually wants (the training-data
+ * side of the model these panels explore), so it's linked from here
+ * instead of adding a fourth permanent nav item for it.
  */
-export default function PlaygroundView() {
-  useDocumentTitle("Playground — VFR Route");
+export default function DevView() {
+  useDocumentTitle("Dev — VFR Route");
   return (
     <div className="flex h-dvh flex-col overflow-y-auto bg-background">
       <PageHeader />
-      <div className="border-b border-border px-4 py-3">
+      <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-3">
         <p className="text-sm text-muted-foreground">How this project actually works, underneath the map.</p>
+        <Button asChild variant="outline" size="sm">
+          <Link to="/label">
+            <ListChecks />
+            Label checkpoints
+          </Link>
+        </Button>
       </div>
       <ModelComparisonPanel />
       <AlgorithmPickerPanel />

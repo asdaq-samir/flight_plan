@@ -38,15 +38,16 @@ public class WebMvcConfig implements WebMvcConfigurer {
      */
     @Override
     public void addViewControllers(ViewControllerRegistry registry) {
-        // /app/home, not /app/index.html: that file resolves fine (it's
+        // /app/plan, not /app/index.html: that file resolves fine (it's
         // a real resource, sidestepping the "." bug above) but the SPA
         // itself would then see a path ending in "index.html," not one
         // of its own route names, and fall through to whichever view
         // main.tsx's own catch-all happens to be. A route name it
         // already checks for keeps the redirect target and the SPA's
-        // own routing in agreement.
-        registry.addRedirectViewController("/app", "/app/home");
-        registry.addRedirectViewController("/app/", "/app/home");
+        // own routing in agreement. Plan is the app's own homepage, not
+        // a separate landing page one hop removed from it.
+        registry.addRedirectViewController("/app", "/app/plan");
+        registry.addRedirectViewController("/app/", "/app/plan");
     }
 
     @Override

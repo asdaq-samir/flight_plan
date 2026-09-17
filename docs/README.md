@@ -176,7 +176,7 @@ service discovery at `planning-service.vfr-route.internal`.
   `/app/plan`, and a Claude-generated narrative of it for text/voice
   playback
 - `/api/model-comparison`, `/api/playground/score`, `/api/altitude-breakdown`
-  — the Playground page's own demos: every algorithm's accuracy side by
+  — the Dev page's own demos: every algorithm's accuracy side by
   side, live scoring from a chosen one, and the full reasoning behind a
   recommended cruise altitude
 - The pages it used to serve are now
@@ -204,7 +204,7 @@ service discovery at `planning-service.vfr-route.internal`.
   promoted model by default (loaded from `/opt/ml/model`, SageMaker's own
   path, bind-mounted from `data/models/current`), or explicitly one of the
   PyTorch/TensorFlow/Spark candidates `vfr.model_candidates` trained
-  (`data/models/candidates/<algo>`) — the Playground page's own
+  (`data/models/candidates/<algo>`) — the Dev page's own
   model-comparison and algorithm-picker panels pick between them
 - Serves whichever precomputed feature stores exist in `FEATURES_DIR`, keyed by
   route; an uncollected corridor returns 404 carrying the two commands that build
@@ -472,11 +472,10 @@ stack. Anything not listed here does not exist.
 
 | What | URL | Needs |
 |---|---|---|
-| **Home** | [`localhost:8080/app/home`](http://localhost:8080/app/home) (also bare `/app`) | `webapp` |
-| **Route planner** (map, nav log, Flight Briefing) | [`localhost:8080/app/plan`](http://localhost:8080/app/plan) | `webapp` + `planning-service` |
-| **Labeling page** | [`localhost:8080/app/label`](http://localhost:8080/app/label) | `webapp` + `planning-service` |
-| **Playground** (model comparison, algorithm picker, altitude breakdown) | [`localhost:8080/app/playground`](http://localhost:8080/app/playground) | `webapp` + `planning-service` |
-| **Account** (sign in, your aeroplanes, your filed flights) | [`localhost:8080/app/account`](http://localhost:8080/app/account) | `webapp` |
+| **Route planner** (map, nav log, Flight Briefing) — also the app's homepage, bare `/app` redirects here | [`localhost:8080/app/plan`](http://localhost:8080/app/plan) | `webapp` + `planning-service` |
+| **Labeling page** (linked from Dev, not its own nav item) | [`localhost:8080/app/label`](http://localhost:8080/app/label) | `webapp` + `planning-service` |
+| **Dev** (model comparison, algorithm picker, altitude breakdown) | [`localhost:8080/app/dev`](http://localhost:8080/app/dev) | `webapp` + `planning-service` |
+| **Settings** (what the app does, sign in, your aeroplanes, your filed flights) | [`localhost:8080/app/settings`](http://localhost:8080/app/settings) | `webapp` |
 | Spring Boot API docs | [`localhost:8080/swagger-ui/index.html`](http://localhost:8080/swagger-ui/index.html) | `webapp` |
 | Spring Boot OpenAPI spec | [`localhost:8080/v3/api-docs`](http://localhost:8080/v3/api-docs) | `webapp` |
 | Health / readiness | [`localhost:8080/actuator/health`](http://localhost:8080/actuator/health) | `webapp` |
