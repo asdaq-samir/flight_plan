@@ -2,8 +2,8 @@ import { Fragment, useCallback, useEffect, useState } from "react";
 import clsx from "clsx";
 import { Badge } from "../../../../components/ui/badge";
 import { Button } from "../../../../components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../../../components/ui/select";
 import CollapsibleSection from "../../../../components/CollapsibleSection";
-import { FIELD_INPUT } from "../../../../components/fieldInput";
 import { ApiError, api } from "../../../../lib/api/client";
 import type {
   Aircraft, Briefing, Candidate, Course, Leg, NavLog, Pilot, SaveFlightRequest, Totals,
@@ -75,34 +75,34 @@ function NavLogTable({
   return (
     <table className="border-collapse text-right text-xs whitespace-nowrap">
       <thead>
-        <tr className="border-b border-slate-200">
+        <tr className="border-b border-border">
           <th className="px-2 py-1 text-left">Waypoint</th>
-          <th className="border-l border-slate-200 px-2 py-1">Alt</th>
-          <th className="border-l border-slate-200 px-2 py-1">Dist</th>
-          <th className="border-l border-slate-200 px-2 py-1">TC</th>
-          <th className="border-l border-slate-200 px-2 py-1">Wind</th>
-          <th className="border-l border-slate-200 px-2 py-1">WCA</th>
-          <th className="border-l border-slate-200 px-2 py-1">TH</th>
-          <th className="border-l border-slate-200 px-2 py-1">Var</th>
-          <th className="border-l border-slate-200 px-2 py-1">MH</th>
-          <th className="border-l border-slate-200 px-2 py-1">GS</th>
-          <th className="border-l border-slate-200 px-2 py-1">ETE</th>
-          <th className="border-l border-slate-200 px-2 py-1">Fuel</th>
+          <th className="border-l border-border px-2 py-1">Alt</th>
+          <th className="border-l border-border px-2 py-1">Dist</th>
+          <th className="border-l border-border px-2 py-1">TC</th>
+          <th className="border-l border-border px-2 py-1">Wind</th>
+          <th className="border-l border-border px-2 py-1">WCA</th>
+          <th className="border-l border-border px-2 py-1">TH</th>
+          <th className="border-l border-border px-2 py-1">Var</th>
+          <th className="border-l border-border px-2 py-1">MH</th>
+          <th className="border-l border-border px-2 py-1">GS</th>
+          <th className="border-l border-border px-2 py-1">ETE</th>
+          <th className="border-l border-border px-2 py-1">Fuel</th>
         </tr>
       </thead>
       <tbody>
         {navError && (
-          <tr><td className="px-2 py-1 text-left text-red-600" colSpan={12}>{navError}</td></tr>
+          <tr><td className="px-2 py-1 text-left text-destructive" colSpan={12}>{navError}</td></tr>
         )}
         {!navError && selected.length === 0 && (
-          <tr><td className="px-2 py-1 text-left text-slate-500" colSpan={12}>No route planned yet</td></tr>
+          <tr><td className="px-2 py-1 text-left text-muted-foreground" colSpan={12}>No route planned yet</td></tr>
         )}
         {selected.length > 0 && (
-          <tr className="border-b border-slate-100 text-slate-400">
+          <tr className="border-b border-border text-muted-foreground">
             <td className="px-2 py-1 text-left">{dep}</td>
-            <td className="border-l border-slate-200 px-2 py-1">{altFt(depElevationFt)}</td>
+            <td className="border-l border-border px-2 py-1">{altFt(depElevationFt)}</td>
             {Array.from({ length: 10 }, (_, i) => (
-              <td key={i} className="border-l border-slate-200 px-2 py-1">—</td>
+              <td key={i} className="border-l border-border px-2 py-1">—</td>
             ))}
           </tr>
         )}
@@ -110,25 +110,25 @@ function NavLogTable({
           const description = cp && descriptions[descriptionKey(cp.lat, cp.lon)];
           return (
             <Fragment key={i}>
-              <tr className={clsx(!description && "border-b border-slate-100", !leg?.wind && "text-slate-400")}>
+              <tr className={clsx(!description && "border-b border-border", !leg?.wind && "text-muted-foreground")}>
                 <td className="px-2 py-1 text-left">{name}</td>
-                <td className="border-l border-slate-200 px-2 py-1">{altFt(cp ? nav?.altitude_ft : destElevationFt)}</td>
-                <td className="border-l border-slate-200 px-2 py-1">{leg ? leg.distance_nm.toFixed(1) : "—"}</td>
-                <td className="border-l border-slate-200 px-2 py-1">{leg ? deg(leg.true_course_deg) : "—"}</td>
-                <td className="border-l border-slate-200 px-2 py-1">{leg
+                <td className="border-l border-border px-2 py-1">{altFt(cp ? nav?.altitude_ft : destElevationFt)}</td>
+                <td className="border-l border-border px-2 py-1">{leg ? leg.distance_nm.toFixed(1) : "—"}</td>
+                <td className="border-l border-border px-2 py-1">{leg ? deg(leg.true_course_deg) : "—"}</td>
+                <td className="border-l border-border px-2 py-1">{leg
                   ? (leg.wind ? `${deg(leg.wind.wind_dir_true_deg)}/${Math.round(leg.wind.wind_speed_kt)}` : "no data")
                   : "—"}</td>
-                <td className="border-l border-slate-200 px-2 py-1">{leg ? signed(leg.wca_deg) : "—"}</td>
-                <td className="border-l border-slate-200 px-2 py-1">{leg ? deg(leg.true_heading_deg) : "—"}</td>
-                <td className="border-l border-slate-200 px-2 py-1">{leg ? signed(leg.magnetic_variation_deg) : "—"}</td>
-                <td className="border-l border-slate-200 px-2 py-1">{leg ? deg(leg.magnetic_heading_deg) : "—"}</td>
-                <td className="border-l border-slate-200 px-2 py-1">
+                <td className="border-l border-border px-2 py-1">{leg ? signed(leg.wca_deg) : "—"}</td>
+                <td className="border-l border-border px-2 py-1">{leg ? deg(leg.true_heading_deg) : "—"}</td>
+                <td className="border-l border-border px-2 py-1">{leg ? signed(leg.magnetic_variation_deg) : "—"}</td>
+                <td className="border-l border-border px-2 py-1">{leg ? deg(leg.magnetic_heading_deg) : "—"}</td>
+                <td className="border-l border-border px-2 py-1">
                   {leg ? (leg.groundspeed_kt === null ? "—" : Math.round(leg.groundspeed_kt)) : "—"}
                 </td>
-                <td className="border-l border-slate-200 px-2 py-1">
+                <td className="border-l border-border px-2 py-1">
                   {leg ? (leg.ete_min === null ? "unflyable" : one(leg.ete_min)) : "—"}
                 </td>
-                <td className="border-l border-slate-200 px-2 py-1">{leg ? one(leg.fuel_gal) : "—"}</td>
+                <td className="border-l border-border px-2 py-1">{leg ? one(leg.fuel_gal) : "—"}</td>
               </tr>
               {/* Copied over from the sidebar's own nav log, read-only --
                   a pilot's typed (or generated) "how to spot it" note is
@@ -136,11 +136,11 @@ function NavLogTable({
                   here: this page is a document to hand over or print,
                   not the workspace that note was written in. */}
               {description && description.text && (
-                <tr className="border-b border-slate-100">
+                <tr className="border-b border-border">
                   {/* pl-6, not px-2 like the waypoint cell above it --
                       indented so it reads as that row's own note, not
                       another row at the same level. */}
-                  <td colSpan={12} className="bg-slate-50/60 py-1 pl-6 pr-2 text-left whitespace-normal italic text-slate-500">
+                  <td colSpan={12} className="bg-muted/60 py-1 pl-6 pr-2 text-left whitespace-normal italic text-muted-foreground">
                     {description.text}
                   </td>
                 </tr>
@@ -196,7 +196,7 @@ function BriefingNarrativeSection({
       )}
       {narrative && (
         <div className="space-y-2">
-          <p className="text-sm text-slate-700">{narrative}</p>
+          <p className="text-sm text-muted-foreground">{narrative}</p>
           <Button onClick={toggleSpeak} className="print:hidden">{speaking ? "Stop" : "Listen"}</Button>
         </div>
       )}
@@ -327,17 +327,18 @@ function SaveFlightSection({
 
   return (
     <div className="mt-3 flex flex-wrap items-center gap-2 text-sm print:hidden">
-      <select
-        value={aircraftId} onChange={e => setAircraftId(e.target.value)}
-        aria-label="Aircraft flown" className={FIELD_INPUT}
-      >
-        <option value="">No aircraft on file</option>
-        {aircraftList.map(a => <option key={a.id} value={a.id}>{a.tailNumber}</option>)}
-      </select>
+      <Select value={aircraftId || undefined} onValueChange={setAircraftId}>
+        <SelectTrigger aria-label="Aircraft flown">
+          <SelectValue placeholder="No aircraft on file" />
+        </SelectTrigger>
+        <SelectContent>
+          {aircraftList.map(a => <SelectItem key={a.id} value={String(a.id)}>{a.tailNumber}</SelectItem>)}
+        </SelectContent>
+      </Select>
       <Button onClick={save} disabled={status === "saving" || !course}>
         {status === "saving" ? "Saving…" : status === "saved" ? "Saved" : "Save this flight"}
       </Button>
-      {error && <span className="text-red-600">{error}</span>}
+      {error && <span className="text-destructive">{error}</span>}
     </div>
   );
 }
@@ -397,40 +398,40 @@ export default function FlightBriefingView({
   }, []);
 
   return (
-    <div className="h-full overflow-y-auto bg-white print:h-auto print:overflow-visible">
-      <div className="border-b border-slate-200 px-4 py-3">
-        <h1 className="text-lg font-bold tracking-tight text-slate-900">Flight Briefing</h1>
-        <p className="text-sm text-slate-500">{dep} → {dest}</p>
+    <div className="h-full overflow-y-auto bg-background print:h-auto print:overflow-visible">
+      <div className="border-b border-border px-4 py-3">
+        <h1 className="text-lg font-bold tracking-tight text-foreground">Flight Briefing</h1>
+        <p className="text-sm text-muted-foreground">{dep} → {dest}</p>
       </div>
 
       <CollapsibleSection title="Flight Plan Summary">
         <div className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
           <div>
-            <div className="text-xs text-slate-400">Route</div>
+            <div className="text-xs text-muted-foreground">Route</div>
             <div className="font-semibold">{course?.departure.ident} → {course?.destination.ident}</div>
           </div>
           <div>
-            <div className="text-xs text-slate-400">Distance</div>
+            <div className="text-xs text-muted-foreground">Distance</div>
             <div className="font-semibold">{course ? `${course.distance_nm} nm, ${deg(course.bearing_deg)}` : "—"}</div>
           </div>
           <div>
-            <div className="text-xs text-slate-400">Altitude</div>
+            <div className="text-xs text-muted-foreground">Altitude</div>
             <div className="font-semibold">
               {nav ? `${altFt(nav.altitude_ft)} ft ${nav.altitude_selection ? "(auto)" : "(set)"}` : "—"}
             </div>
           </div>
           <div>
-            <div className="text-xs text-slate-400">Aircraft</div>
+            <div className="text-xs text-muted-foreground">Aircraft</div>
             <div className="font-semibold">{nav?.aircraft.name ?? "—"}</div>
           </div>
           {parts && (
             <>
               <div>
-                <div className="text-xs text-slate-400">Total time</div>
+                <div className="text-xs text-muted-foreground">Total time</div>
                 <div className="font-semibold">{parts.time}</div>
               </div>
               <div>
-                <div className="text-xs text-slate-400">Fuel</div>
+                <div className="text-xs text-muted-foreground">Fuel</div>
                 <div className="font-semibold">{parts.fuel}</div>
               </div>
             </>
@@ -465,9 +466,9 @@ export default function FlightBriefingView({
 
       <CollapsibleSection title="Adverse Conditions">
         {!briefing ? (
-          <p className="text-sm text-slate-400">Loading…</p>
+          <p className="text-sm text-muted-foreground">Loading…</p>
         ) : briefing.hazards.length === 0 ? (
-          <p className="text-sm text-slate-600">No SIGMETs or AIRMETs reported along this route.</p>
+          <p className="text-sm text-muted-foreground">No SIGMETs or AIRMETs reported along this route.</p>
         ) : (
           <ul className="space-y-2">
             {briefing.hazards.map((h, i) => (
@@ -477,7 +478,7 @@ export default function FlightBriefingView({
                   {hazardAltitudeRange(h.altitude_low_ft, h.altitude_high_ft) &&
                     ` — ${hazardAltitudeRange(h.altitude_low_ft, h.altitude_high_ft)}`}
                 </div>
-                {h.raw && <div className="mt-0.5 whitespace-pre-wrap font-mono text-xs text-slate-600">{h.raw}</div>}
+                {h.raw && <div className="mt-0.5 whitespace-pre-wrap font-mono text-xs text-muted-foreground">{h.raw}</div>}
               </li>
             ))}
           </ul>
@@ -486,13 +487,13 @@ export default function FlightBriefingView({
 
       <CollapsibleSection title="Current Conditions">
         {!briefing ? (
-          <p className="text-sm text-slate-400">Loading…</p>
+          <p className="text-sm text-muted-foreground">Loading…</p>
         ) : (
           <div className="grid gap-2 sm:grid-cols-2">
             {[dep, dest].map(ident => {
               const metar = briefing.metars[ident];
               return (
-                <div key={ident} className="rounded border border-slate-200 px-2 py-1.5">
+                <div key={ident} className="rounded border border-border px-2 py-1.5">
                   <div className="flex items-baseline justify-between gap-2">
                     <span className="font-semibold">{ident}</span>
                     {metar?.flight_category && (
@@ -501,7 +502,7 @@ export default function FlightBriefingView({
                       </Badge>
                     )}
                   </div>
-                  <div className="mt-0.5 whitespace-pre-wrap font-mono text-xs text-slate-600">
+                  <div className="mt-0.5 whitespace-pre-wrap font-mono text-xs text-muted-foreground">
                     {metar?.raw ?? "No current report available."}
                   </div>
                 </div>
@@ -513,15 +514,15 @@ export default function FlightBriefingView({
 
       <CollapsibleSection title="Forecast">
         {!briefing ? (
-          <p className="text-sm text-slate-400">Loading…</p>
+          <p className="text-sm text-muted-foreground">Loading…</p>
         ) : (
           <>
-            <p className="text-sm text-slate-600">
+            <p className="text-sm text-muted-foreground">
               Along the route: ceiling {altFt(briefing.forecast.min_ceiling_ft)} ft,
               visibility {briefing.forecast.min_visibility_sm ?? "—"} sm (worst nearby TAF period).
             </p>
             {briefing.forecast.stations.length > 0 && (
-              <ul className="mt-1 space-y-0.5 text-xs text-slate-500">
+              <ul className="mt-1 space-y-0.5 text-xs text-muted-foreground">
                 {briefing.forecast.stations.map(st => (
                   <li key={st.icaoId}>
                     {st.icaoId}: ceiling {altFt(st.ceiling_ft)} ft, visibility {st.visibility_sm ?? "—"} sm
@@ -535,27 +536,27 @@ export default function FlightBriefingView({
 
       <CollapsibleSection title="Winds Aloft">
         {winds.length === 0 ? (
-          <p className="text-sm text-slate-600">No winds-aloft data available for this route.</p>
+          <p className="text-sm text-muted-foreground">No winds-aloft data available for this route.</p>
         ) : (
-          <p className="text-sm text-slate-600">
+          <p className="text-sm text-muted-foreground">
             {winds.map(w => `${deg(w.dir)}/${w.speed}kt`).join(", ")} at {altFt(nav?.altitude_ft)} ft
           </p>
         )}
       </CollapsibleSection>
 
       <CollapsibleSection title="NOTAMs">
-        <p className="text-sm text-slate-600">
+        <p className="text-sm text-muted-foreground">
           Not fetched here (the official FAA NOTAM API requires operator credentials) --
           check current NOTAMs directly before you fly:{" "}
           <a
             href="https://www.1800wxbrief.com" target="_blank" rel="noreferrer"
-            className="text-blue-600 underline print:text-slate-600"
+            className="text-blue-600 underline print:text-muted-foreground"
           >
             1800wxbrief.com
           </a>{" "}or{" "}
           <a
             href="https://notams.aim.faa.gov/notamSearch/" target="_blank" rel="noreferrer"
-            className="text-blue-600 underline print:text-slate-600"
+            className="text-blue-600 underline print:text-muted-foreground"
           >
             notams.aim.faa.gov
           </a>.
@@ -564,36 +565,36 @@ export default function FlightBriefingView({
 
       <CollapsibleSection title="Airport Information">
         {!briefing ? (
-          <p className="text-sm text-slate-400">Loading…</p>
+          <p className="text-sm text-muted-foreground">Loading…</p>
         ) : (
           <div className="grid gap-3 sm:grid-cols-2">
             {[dep, dest].map(ident => {
               const info = briefing.airports[ident];
               return (
-                <div key={ident} className="rounded border border-slate-200 px-2 py-1.5 text-sm">
+                <div key={ident} className="rounded border border-border px-2 py-1.5 text-sm">
                   <div className="mb-1 font-semibold">{ident}</div>
                   {info?.frequencies.length ? (
                     <ul className="space-y-0.5">
                       {info.frequencies.map((f, i) => (
-                        <li key={i} className="text-slate-600">
+                        <li key={i} className="text-muted-foreground">
                           {f.type ?? "—"}{f.description ? ` (${f.description})` : ""}: {f.frequency_mhz ?? "—"}
                         </li>
                       ))}
                     </ul>
                   ) : (
-                    <p className="text-slate-500">No published frequencies.</p>
+                    <p className="text-muted-foreground">No published frequencies.</p>
                   )}
                   {info?.runways.length ? (
                     <ul className="mt-1 space-y-0.5">
                       {info.runways.map((r, i) => (
-                        <li key={i} className="text-slate-600">
+                        <li key={i} className="text-muted-foreground">
                           {r.ends ?? "—"}: {r.length_ft ?? "—"}×{r.width_ft ?? "—"} ft, {r.surface ?? "unknown surface"}
                           {r.lighted ? ", lighted" : ""}{r.closed ? " (closed)" : ""}
                         </li>
                       ))}
                     </ul>
                   ) : (
-                    <p className="mt-1 text-slate-500">No published runway data.</p>
+                    <p className="mt-1 text-muted-foreground">No published runway data.</p>
                   )}
                 </div>
               );

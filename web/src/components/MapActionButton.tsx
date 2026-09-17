@@ -23,7 +23,7 @@ export default function MapActionButton({ onClick, disabled, children }: Props) 
       onClick={onClick}
       disabled={disabled}
       data-testid="map-action-button"
-      className="absolute bottom-1 left-1 z-[1000] h-auto w-20 whitespace-normal rounded-lg border-2 border-white px-2 py-2 text-sm font-bold shadow-[0_2px_10px_rgba(0,0,0,.5)]"
+      className="absolute bottom-1 left-1 z-[1000] h-auto w-20 whitespace-normal rounded-lg border-2 border-background px-2 py-2 text-sm font-bold shadow-[0_2px_10px_rgba(0,0,0,.5)]"
     >
       {children}
     </Button>

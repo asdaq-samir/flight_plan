@@ -267,7 +267,7 @@ export default function LabelView() {
       label={dep && dest ? `Route: ${dep} → ${dest}` : "Route & view"}
     >
       <div>
-        <span className="text-xs font-semibold uppercase text-slate-400">Route</span>
+        <span className="text-xs font-semibold uppercase text-muted-foreground">Route</span>
         <RouteForm
           dep={dep} dest={dest} onDepChange={setDep} onDestChange={setDest}
           onSubmit={submitRoute}
@@ -275,7 +275,7 @@ export default function LabelView() {
         />
       </div>
       <div className="flex flex-wrap items-center gap-3">
-        <span className="w-16 flex-shrink-0 text-xs font-semibold uppercase text-slate-400">View</span>
+        <span className="w-16 flex-shrink-0 text-xs font-semibold uppercase text-muted-foreground">View</span>
         <FilterBar filters={store.filters} onChange={store.setFilter} shown={shown} />
       </div>
     </CollapsibleToolbar>

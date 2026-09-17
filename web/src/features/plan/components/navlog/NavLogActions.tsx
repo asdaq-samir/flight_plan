@@ -33,7 +33,7 @@ function PrintIcon() {
  * (see `NavLogView`'s own print overrides) -- neither belongs in the
  * printed page itself.
  */
-const buttonClass = "size-10 rounded-lg border-2 border-white shadow-[0_2px_10px_rgba(0,0,0,.5)] print:hidden";
+const buttonClass = "size-10 rounded-lg border-2 border-background shadow-[0_2px_10px_rgba(0,0,0,.5)] print:hidden";
 
 export default function NavLogActions({ onMapClick }: Props) {
   return (

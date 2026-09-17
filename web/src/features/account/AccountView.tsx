@@ -55,8 +55,8 @@ function SignInPanel({ pilot }: { pilot: PilotState }) {
   });
 
   return (
-    <div className="flex items-center gap-3 border-b border-slate-200 px-4 py-3 text-sm">
-      {pilot === "loading" && <span className="text-slate-400">Checking sign-in…</span>}
+    <div className="flex items-center gap-3 border-b border-border px-4 py-3 text-sm">
+      {pilot === "loading" && <span className="text-muted-foreground">Checking sign-in…</span>}
       {pilot === null && (
         <Button asChild>
           <a href="/oauth2/authorization/google">Sign in with Google</a>
@@ -129,7 +129,7 @@ function AircraftPanel({ pilot }: { pilot: PilotState }) {
   if (pilot === null) {
     return (
       <CollapsibleSection title="Aircraft">
-        <p className="text-sm text-slate-500">Sign in to manage your own aeroplanes.</p>
+        <p className="text-sm text-muted-foreground">Sign in to manage your own aeroplanes.</p>
       </CollapsibleSection>
     );
   }
@@ -140,14 +140,14 @@ function AircraftPanel({ pilot }: { pilot: PilotState }) {
 
   return (
     <CollapsibleSection title="Aircraft">
-      {banner && <p className="mb-2 text-sm text-red-600">{banner}</p>}
+      {banner && <p className="mb-2 text-sm text-destructive">{banner}</p>}
       {pilot === "loading" || isLoading ? (
-        <p className="text-sm text-slate-400">Loading…</p>
+        <p className="text-sm text-muted-foreground">Loading…</p>
       ) : (
         <div className="mb-3 overflow-x-auto">
           <table className="text-sm">
             <thead>
-              <tr className="border-b border-slate-200 text-left text-slate-500">
+              <tr className="border-b border-border text-left text-muted-foreground">
                 <th className="py-1 pr-4">Tail #</th>
                 <th className="py-1 pr-4">Type</th>
                 <th className="py-1 pr-4">Cruise TAS</th>
@@ -157,10 +157,10 @@ function AircraftPanel({ pilot }: { pilot: PilotState }) {
             </thead>
             <tbody>
               {list?.length === 0 && (
-                <tr><td colSpan={5} className="py-1 text-slate-400">No aircraft yet.</td></tr>
+                <tr><td colSpan={5} className="py-1 text-muted-foreground">No aircraft yet.</td></tr>
               )}
               {list?.map(a => (
-                <tr key={a.id} className="border-b border-slate-100">
+                <tr key={a.id} className="border-b border-border">
                   <td className="py-1 pr-4 font-mono">{a.tailNumber}</td>
                   <td className="py-1 pr-4">{a.typeDesignator}</td>
                   <td className="py-1 pr-4">{a.cruiseTasKt} kt</td>
@@ -170,7 +170,7 @@ function AircraftPanel({ pilot }: { pilot: PilotState }) {
                     <button
                       type="button"
                       onClick={() => remove.mutate(a.id)}
-                      className="text-red-600 underline"
+                      className="text-destructive underline"
                     >
                       Delete
                     </button>
@@ -211,7 +211,7 @@ function AircraftPanel({ pilot }: { pilot: PilotState }) {
           <FieldError errors={[errors.fuelBurnGph]} />
         </Field>
         <Button type="submit" disabled={save.isPending}>{editingId ? "Save changes" : "Add aircraft"}</Button>
-        {editingId && <button type="button" onClick={cancelEdit} className="text-sm text-slate-500 underline">Cancel</button>}
+        {editingId && <button type="button" onClick={cancelEdit} className="text-sm text-muted-foreground underline">Cancel</button>}
       </form>
     </CollapsibleSection>
   );
@@ -230,7 +230,7 @@ function FlightsPanel({ pilot }: { pilot: PilotState }) {
   if (pilot === null) {
     return (
       <CollapsibleSection title="My Flights">
-        <p className="text-sm text-slate-500">Sign in to see flights you've filed.</p>
+        <p className="text-sm text-muted-foreground">Sign in to see flights you've filed.</p>
       </CollapsibleSection>
     );
   }
@@ -238,19 +238,19 @@ function FlightsPanel({ pilot }: { pilot: PilotState }) {
   return (
     <CollapsibleSection title="My Flights">
       {errorMessage(error, "could not load your flights") && (
-        <p className="text-sm text-red-600">{errorMessage(error, "could not load your flights")}</p>
+        <p className="text-sm text-destructive">{errorMessage(error, "could not load your flights")}</p>
       )}
       {pilot === "loading" || isLoading ? (
-        <p className="text-sm text-slate-400">Loading…</p>
+        <p className="text-sm text-muted-foreground">Loading…</p>
       ) : list?.length === 0 ? (
-        <p className="text-sm text-slate-500">
+        <p className="text-sm text-muted-foreground">
           No flights filed yet -- plan a route, open its Flight Briefing, and save it there.
         </p>
       ) : (
         <div className="overflow-x-auto">
           <table className="text-sm">
             <thead>
-              <tr className="border-b border-slate-200 text-left text-slate-500">
+              <tr className="border-b border-border text-left text-muted-foreground">
                 <th className="py-1 pr-4">Route</th>
                 <th className="py-1 pr-4">Aircraft</th>
                 <th className="py-1 pr-4">Altitude</th>
@@ -260,7 +260,7 @@ function FlightsPanel({ pilot }: { pilot: PilotState }) {
             </thead>
             <tbody>
               {list?.map(f => (
-                <tr key={f.id} className="border-b border-slate-100">
+                <tr key={f.id} className="border-b border-border">
                   <td className="py-1 pr-4 font-mono">{f.departureIdent} → {f.destinationIdent}</td>
                   <td className="py-1 pr-4">{f.aircraftTailNumber ?? "—"}</td>
                   <td className="py-1 pr-4">{ft(f.cruiseAltitudeFt)}</td>
@@ -289,7 +289,7 @@ export default function AccountView() {
   const pilotState: PilotState = isLoading ? "loading" : (pilot ?? null);
 
   return (
-    <div className="flex h-dvh flex-col overflow-y-auto bg-white">
+    <div className="flex h-dvh flex-col overflow-y-auto bg-background">
       <PageHeader />
       <SignInPanel pilot={pilotState} />
       <AircraftPanel pilot={pilotState} />

@@ -27,8 +27,8 @@ const LINKS: { page: string; to: string; label: string }[] = [
 export default function PageHeader() {
   const { pathname } = useLocation();
   return (
-    <header className="flex h-12 shrink-0 items-center justify-between border-b border-slate-200 bg-white px-4 print:hidden">
-      <Link to="/home" className="text-sm font-bold tracking-tight text-slate-900">
+    <header className="flex h-12 shrink-0 items-center justify-between border-b border-border bg-background px-4 print:hidden">
+      <Link to="/home" className="text-sm font-bold tracking-tight text-foreground">
         VFR Route
       </Link>
       <NavigationMenu viewport={false}>
@@ -38,7 +38,7 @@ export default function PageHeader() {
               <NavigationMenuLink
                 asChild
                 active={pathname === link.to}
-                className="data-[active]:bg-slate-900 data-[active]:text-white data-[active]:hover:bg-slate-900"
+                className="data-[active]:bg-primary data-[active]:text-primary-foreground data-[active]:hover:bg-primary"
               >
                 <Link to={link.to}>{link.label}</Link>
               </NavigationMenuLink>

@@ -18,7 +18,7 @@ export default function Footer() {
   // convenience there.
   const isLocalDev = host === "localhost" || host === "127.0.0.1";
   return (
-    <footer className="border-t border-slate-200 px-4 py-4 text-xs text-slate-400">
+    <footer className="border-t border-border px-4 py-4 text-xs text-muted-foreground">
       <span className="mr-3">API docs:</span>
       <a href="/swagger-ui.html" className="mr-3 text-blue-600 underline">webapp</a>
       {isLocalDev && (

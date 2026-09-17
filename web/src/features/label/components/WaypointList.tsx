@@ -23,8 +23,8 @@ interface Props {
 // look, which Button's own default (centered, single-line, rounded)
 // classes don't have.
 const ROW_CLASS = (selected: boolean) => cn(
-  "h-auto w-full flex-col items-start whitespace-normal rounded-none border-b border-slate-100 py-2 text-left last:border-0 focus-visible:bg-blue-50",
-  selected && "bg-blue-50 font-semibold",
+  "h-auto w-full flex-col items-start whitespace-normal rounded-none border-b border-border py-2 text-left last:border-0 focus-visible:bg-accent",
+  selected && "bg-accent font-semibold",
 );
 
 export default function WaypointList({
@@ -85,7 +85,7 @@ export default function WaypointList({
                   {p.category === "departure" ? "DEP" : "DEST"}
                 </Badge>
               </div>
-              <div className="text-sm text-slate-500">{p.name}</div>
+              <div className="text-sm text-muted-foreground">{p.name}</div>
             </Button>
           );
         }
@@ -101,7 +101,7 @@ export default function WaypointList({
           >
             <div className="flex items-baseline justify-between gap-2">
               <span>
-                <span className="text-xs text-slate-400">{waypointNumbers.get(entry)}.</span>{" "}
+                <span className="text-xs text-muted-foreground">{waypointNumbers.get(entry)}.</span>{" "}
                 {(p as { category: string }).category}
               </span>
               <span className="flex items-center gap-1">
@@ -113,16 +113,16 @@ export default function WaypointList({
                 <Badge style={{ backgroundColor: COLORS[rating], color: "white" }}>{rating}</Badge>
               </span>
             </div>
-            <div className="text-sm text-slate-500">
+            <div className="text-sm text-muted-foreground">
               {p.along_track_nm.toFixed(1)} nm {compassPoint(bearingDeg)} of {departureIdent}
             </div>
-            <div className="text-sm text-slate-500">{p.lat.toFixed(4)}, {p.lon.toFixed(4)}</div>
+            <div className="text-sm text-muted-foreground">{p.lat.toFixed(4)}, {p.lon.toFixed(4)}</div>
           </Button>
         );
       })}
       </div>
       {hidden > 0 && (
-        <div className="pt-2 text-sm text-slate-500">
+        <div className="pt-2 text-sm text-muted-foreground">
           {hidden} waypoint{hidden === 1 ? "" : "s"} unselected — tick to show
         </div>
       )}

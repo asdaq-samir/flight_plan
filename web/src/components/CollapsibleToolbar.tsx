@@ -32,11 +32,11 @@ export default function CollapsibleToolbar({ label, children }: Props) {
     <Collapsible
       open={open}
       onOpenChange={setOpen}
-      className="shrink-0 border-b border-slate-200 bg-white/95 backdrop-blur-sm print:hidden"
+      className="shrink-0 border-b border-border bg-background/95 backdrop-blur-sm print:hidden"
     >
       <CollapsibleTrigger
         data-testid="toolbar-trigger"
-        className="group flex items-center gap-1 rounded px-2 py-1 text-xs text-slate-500 hover:bg-slate-100"
+        className="group flex items-center gap-1 rounded px-2 py-1 text-xs text-muted-foreground hover:bg-accent"
       >
         {label}
         <ChevronDown className="size-3.5 transition-transform group-data-[state=open]:rotate-180" />

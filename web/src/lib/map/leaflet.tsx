@@ -266,7 +266,7 @@ export function dotIcon(fill: string, label?: string | number) {
     iconAnchor: [tapSize / 2, tapSize / 2],
     html: mountReact(
       <div
-        className={`absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border-[2.5px] border-white shadow-[0_1px_4px_rgba(0,0,0,.45)] outline outline-1 outline-[rgba(10,20,28,.55)] ${
+        className={`absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border-[2.5px] border-background shadow-[0_1px_4px_rgba(0,0,0,.45)] outline outline-1 outline-[rgba(10,20,28,.55)] ${
           withLabel
             // leading-none: a browser's own default line-height for
             // text-xs isn't exactly 1, and that slack renders above or
@@ -293,7 +293,7 @@ export function endLabelIcon(ident: string) {
     className: "",
     iconSize: [90, 20], iconAnchor: [45, 10],
     html: mountReact(
-      <span className="rounded border border-slate-300 bg-white px-1.5 py-0.5 text-xs font-semibold shadow-sm">
+      <span className="rounded border border-border bg-background px-1.5 py-0.5 text-xs font-semibold shadow-sm">
         {ident}
       </span>,
     ),

@@ -42,10 +42,10 @@ const PAGES: LinkCard[] = [
 export default function HomeView() {
   useDocumentTitle("VFR Route");
   return (
-    <div className="flex h-dvh flex-col overflow-y-auto bg-white">
+    <div className="flex h-dvh flex-col overflow-y-auto bg-background">
       <PageHeader />
       <div className="mx-auto w-full max-w-2xl flex-1 px-4 py-10">
-        <p className="text-sm text-slate-500">Pick a page.</p>
+        <p className="text-sm text-muted-foreground">Pick a page.</p>
         <div className="mt-6 space-y-3">
           {PAGES.map(p => (
             <a key={p.href} href={p.href} className="block">

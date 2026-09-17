@@ -27,12 +27,12 @@ export default function ProgressCard({ visiblePicks, canUndo, onUndo, onResetAll
             <div><b>{count(p => sourceOf(p) === "added")}</b> added</div>
           </div>
         </div>
-        <div className="mt-2 flex gap-2 border-t border-slate-100 pt-2 text-sm">
+        <div className="mt-2 flex gap-2 border-t border-border pt-2 text-sm">
           <button
             type="button"
             onClick={onUndo}
             disabled={!canUndo}
-            className="rounded px-2 py-1 text-slate-600 disabled:opacity-30 enabled:hover:bg-slate-100"
+            className="rounded px-2 py-1 text-muted-foreground disabled:opacity-30 enabled:hover:bg-accent"
           >
             Undo
           </button>
@@ -45,7 +45,7 @@ export default function ProgressCard({ visiblePicks, canUndo, onUndo, onResetAll
               if (window.confirm("Reset every rating on this route? This can't be undone.")) onResetAll();
             }}
             disabled={visiblePicks.length === 0}
-            className="rounded px-2 py-1 text-red-600 disabled:opacity-30 enabled:hover:bg-red-50"
+            className="rounded px-2 py-1 text-destructive disabled:opacity-30 enabled:hover:bg-destructive/10"
           >
             Reset all
           </button>

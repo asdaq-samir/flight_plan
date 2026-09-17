@@ -37,7 +37,7 @@ export default function ScoreLegend() {
         <PopoverContent side="top" align="end" className="w-64 z-[1000] max-h-[70vh] overflow-y-auto">
           <div className="space-y-3 text-sm">
             <div className="space-y-1">
-              <div className="text-xs font-semibold uppercase text-slate-400">Checkpoint score</div>
+              <div className="text-xs font-semibold uppercase text-muted-foreground">Checkpoint score</div>
               {BUCKETS.map(([color, label]) => (
                 <div key={label} className="flex items-center gap-2">
                   <span
@@ -48,7 +48,7 @@ export default function ScoreLegend() {
                 </div>
               ))}
             </div>
-            <div className="space-y-1 border-t border-slate-200 pt-2 text-slate-600">
+            <div className="space-y-1 border-t border-border pt-2 text-muted-foreground">
               <div><Kbd>a</Kbd> all candidates · <Kbd>n</Kbd> map / nav log</div>
               <div><Kbd>f</Kbd> fit route · <Kbd>t</Kbd> toggle FAA / OSM</div>
             </div>

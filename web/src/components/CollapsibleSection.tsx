@@ -17,8 +17,8 @@ import type { ReactNode } from "react";
  *  in index.css) can actually override. */
 export default function CollapsibleSection({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <details className="break-inside-avoid-page border-b border-slate-200 px-4 py-3 print:break-inside-avoid">
-      <summary className="cursor-pointer text-sm font-semibold uppercase tracking-wide text-slate-500 print:cursor-default">
+    <details className="break-inside-avoid-page border-b border-border px-4 py-3 print:break-inside-avoid">
+      <summary className="cursor-pointer text-sm font-semibold uppercase tracking-wide text-muted-foreground print:cursor-default">
         {title}
       </summary>
       <div className="mt-2">{children}</div>

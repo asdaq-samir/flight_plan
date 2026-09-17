@@ -66,12 +66,12 @@ export default function PointPopup({
         onClick={onLeft}
         disabled={!onLeft || !canLeft}
         aria-label="Step left"
-        className="grid h-11 w-11 flex-shrink-0 place-items-center rounded-full border-2 border-slate-400 text-slate-700 disabled:opacity-30 enabled:hover:bg-slate-100 enabled:active:bg-slate-200"
+        className="grid h-11 w-11 flex-shrink-0 place-items-center rounded-full border-2 border-slate-400 text-muted-foreground disabled:opacity-30 enabled:hover:bg-accent enabled:active:bg-accent"
       >
         <Chevron direction="left" />
       </button>
       {place && (
-        <div className={`rounded px-0.5 text-slate-500 ${
+        <div className={`rounded px-0.5 text-muted-foreground ${
           countChanged ? "animate-[count-flash_0.8s_ease-out]" : ""
         }`}>
           #{place}
@@ -82,7 +82,7 @@ export default function PointPopup({
         onClick={onRight}
         disabled={!onRight || !canRight}
         aria-label="Step right"
-        className="grid h-11 w-11 flex-shrink-0 place-items-center rounded-full border-2 border-slate-400 text-slate-700 disabled:opacity-30 enabled:hover:bg-slate-100 enabled:active:bg-slate-200"
+        className="grid h-11 w-11 flex-shrink-0 place-items-center rounded-full border-2 border-slate-400 text-muted-foreground disabled:opacity-30 enabled:hover:bg-accent enabled:active:bg-accent"
       >
         <Chevron direction="right" />
       </button>
@@ -98,7 +98,7 @@ export default function PointPopup({
             {point.category === "departure" ? "DEP" : "DEST"}
           </Badge>{" "}
           <b>{point.ident}</b>
-          <div className="text-slate-500">{point.name}</div>
+          <div className="text-muted-foreground">{point.name}</div>
         </div>
       </div>
     );
@@ -143,12 +143,12 @@ export default function PointPopup({
       <select
         value={category}
         onChange={e => onCategoryChange(e.target.value)}
-        className="w-full rounded border border-slate-300 px-1.5 py-1"
+        className="w-full rounded border border-input px-1.5 py-1"
       >
         {options.map(c => <option key={c} value={c}>{c}</option>)}
       </select>
 
-      <div className="space-y-0.5 text-slate-500">
+      <div className="space-y-0.5 text-muted-foreground">
         <div>{point.along_track_nm.toFixed(1)} nm {compassPoint(bearingDeg)} of {departureIdent}</div>
         {/* DR points are on the line by definition (that's what makes
             them DR) -- the distance only means something for a visual
@@ -159,7 +159,7 @@ export default function PointPopup({
       <button
         type="button"
         onClick={onRemove}
-        className="w-full rounded border border-red-300 px-2 py-1 text-red-600 hover:bg-red-50"
+        className="w-full rounded border border-destructive px-2 py-1 text-destructive hover:bg-destructive/10"
       >
         {/* A detected point is still a detection either way -- this
             only ever unrates it. An added point exists purely as a

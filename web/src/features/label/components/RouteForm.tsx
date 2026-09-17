@@ -1,4 +1,5 @@
 import { Button } from "../../../components/ui/button";
+import { Input } from "../../../components/ui/input";
 import type { Course } from "../../../lib/api/types";
 
 interface Props {
@@ -25,28 +26,28 @@ export default function RouteForm({ dep, dest, onDepChange, onDestChange, onSubm
           onSubmit();
         }}
       >
-        {/* py-2, not the shared FIELD_INPUT's py-1 -- deliberately
-            larger tap targets for a workflow that's otherwise all
-            one-handed map taps and keyboard shortcuts, matching the
-            "Load" button's own `size="lg"` next to it. */}
-        <input
+        {/* h-10, not shadcn's own h-9 default -- deliberately larger
+            tap targets for a workflow that's otherwise all one-handed
+            map taps and keyboard shortcuts, matching the "Load"
+            button's own `size="lg"` next to it. */}
+        <Input
           value={dep}
           onChange={e => onDepChange(e.target.value.toUpperCase())}
           aria-label="Departure"
-          className="w-20 rounded border border-slate-300 px-2 py-2 text-center font-mono uppercase"
+          className="h-10 w-20 text-center font-mono uppercase"
         />
         <span>&rarr;</span>
-        <input
+        <Input
           value={dest}
           onChange={e => onDestChange(e.target.value.toUpperCase())}
           aria-label="Destination"
-          className="w-20 rounded border border-slate-300 px-2 py-2 text-center font-mono uppercase"
+          className="h-10 w-20 text-center font-mono uppercase"
         />
         <Button type="submit" size="lg">Load</Button>
       </form>
       {course && (
-        <div className="text-sm leading-tight text-slate-600">
-          <div><b className="text-slate-900">{course.distance_nm}</b> nm</div>
+        <div className="text-sm leading-tight text-muted-foreground">
+          <div><b className="text-foreground">{course.distance_nm}</b> nm</div>
           <div>{String(course.bearing_deg).padStart(3, "0")}°T</div>
         </div>
       )}

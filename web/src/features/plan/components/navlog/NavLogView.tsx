@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useRef, useState } from "react";
 import clsx from "clsx";
+import { Checkbox } from "../../../../components/ui/checkbox";
 import type { Candidate, Leg, NavLog, Totals } from "../../../../lib/api/types";
 import { type Description, descriptionKey } from "../../hooks/usePlanState";
 import { altFt, deg, one, signed, totalsParts } from "../../format";
@@ -79,7 +80,7 @@ function DescriptionCell({
   }
 
   if (!description) {
-    return <span className="italic text-slate-400">Generating description…</span>;
+    return <span className="italic text-muted-foreground">Generating description…</span>;
   }
   return (
     <textarea
@@ -91,7 +92,7 @@ function DescriptionCell({
       }}
       rows={1}
       placeholder={description.source === "error" ? "Couldn't auto-generate — type one" : "How to spot it…"}
-      className="w-full resize-none rounded border border-transparent bg-transparent px-1 py-0.5 text-left align-top text-xs text-slate-600 hover:border-slate-200 focus:border-slate-300 focus:bg-white focus:outline-none"
+      className="w-full resize-none rounded border border-transparent bg-transparent px-1 py-0.5 text-left align-top text-xs text-muted-foreground hover:border-border focus:border-ring focus:bg-background focus:outline-none"
     />
   );
 }
@@ -150,7 +151,7 @@ export default function NavLogView({
     // is no viewport to clip to, and a route long enough to scroll
     // would otherwise print only whatever page's worth happened to be
     // visible.
-    <div className="flex h-full flex-col overflow-hidden bg-white print:h-auto print:overflow-visible">
+    <div className="flex h-full flex-col overflow-hidden bg-background print:h-auto print:overflow-visible">
       {/* pr-28: NavLogActions' map/print pair floats over this view,
           top-right -- two 40px buttons, an 8px gap between them, and a
           12px offset from the edge is 100px of real footprint. pr-20
@@ -164,28 +165,27 @@ export default function NavLogView({
           it, `items-center` centers the checkbox within a shorter row
           than the buttons actually occupy, landing it a few px above
           their true center instead of level with them. */}
-      <div className="flex min-h-16 flex-wrap items-center gap-2 border-b border-slate-200 p-3 pr-28 text-sm print:min-h-0 print:pr-3">
-        <span className="font-semibold text-slate-700">Nav log</span>
+      <div className="flex min-h-16 flex-wrap items-center gap-2 border-b border-border p-3 pr-28 text-sm print:min-h-0 print:pr-3">
+        <span className="font-semibold text-muted-foreground">Nav log</span>
         {parts && (
           <span>
             <b>{parts.distance}</b> · <b>{parts.time}</b> · <b>{parts.fuel}</b>
-            {parts.warning && <> · <span className="text-red-600">{parts.warning}</span></>}
+            {parts.warning && <> · <span className="text-destructive">{parts.warning}</span></>}
           </span>
         )}
         {nav && (
-          <span className="text-slate-500">
+          <span className="text-muted-foreground">
             {nav.altitude_ft} ft{" "}
             {nav.altitude_selection
               ? `(auto: floor ${nav.altitude_selection.floor_ft} ft, ${nav.aircraft.name})`
               : "(you set this)"}
           </span>
         )}
-        <label className="ml-auto flex items-center gap-1.5 text-slate-500 print:hidden">
-          <input
-            type="checkbox"
+        <label htmlFor="show-descriptions" className="ml-auto flex items-center gap-1.5 text-muted-foreground print:hidden">
+          <Checkbox
+            id="show-descriptions"
             checked={showDescriptions}
-            onChange={e => onToggleShowDescriptions(e.target.checked)}
-            className="h-3.5 w-3.5 accent-slate-700"
+            onCheckedChange={c => onToggleShowDescriptions(c === true)}
           />
           Checkpoint descriptions
         </label>
@@ -202,27 +202,27 @@ export default function NavLogView({
             every column crammed flush against the next. */}
         <table className="border-collapse text-right text-xs whitespace-nowrap">
           <thead>
-            <tr className="border-b border-slate-200">
+            <tr className="border-b border-border">
               <th className="px-2 py-1 text-left">Waypoint</th>
-              <th className="border-l border-slate-200 px-2 py-1">Alt</th>
-              <th className="border-l border-slate-200 px-2 py-1">Dist</th>
-              <th className="border-l border-slate-200 px-2 py-1">TC</th>
-              <th className="border-l border-slate-200 px-2 py-1">Wind</th>
-              <th className="border-l border-slate-200 px-2 py-1">WCA</th>
-              <th className="border-l border-slate-200 px-2 py-1">TH</th>
-              <th className="border-l border-slate-200 px-2 py-1">Var</th>
-              <th className="border-l border-slate-200 px-2 py-1">MH</th>
-              <th className="border-l border-slate-200 px-2 py-1">GS</th>
-              <th className="border-l border-slate-200 px-2 py-1">ETE</th>
-              <th className="border-l border-slate-200 px-2 py-1">Fuel</th>
+              <th className="border-l border-border px-2 py-1">Alt</th>
+              <th className="border-l border-border px-2 py-1">Dist</th>
+              <th className="border-l border-border px-2 py-1">TC</th>
+              <th className="border-l border-border px-2 py-1">Wind</th>
+              <th className="border-l border-border px-2 py-1">WCA</th>
+              <th className="border-l border-border px-2 py-1">TH</th>
+              <th className="border-l border-border px-2 py-1">Var</th>
+              <th className="border-l border-border px-2 py-1">MH</th>
+              <th className="border-l border-border px-2 py-1">GS</th>
+              <th className="border-l border-border px-2 py-1">ETE</th>
+              <th className="border-l border-border px-2 py-1">Fuel</th>
             </tr>
           </thead>
           <tbody>
             {navError && (
-              <tr><td className="px-2 py-1 text-left text-red-600" colSpan={12}>{navError}</td></tr>
+              <tr><td className="px-2 py-1 text-left text-destructive" colSpan={12}>{navError}</td></tr>
             )}
             {!navError && selected.length === 0 && (
-              <tr><td className="px-2 py-1 text-left text-slate-500" colSpan={12}>No route planned yet</td></tr>
+              <tr><td className="px-2 py-1 text-left text-muted-foreground" colSpan={12}>No route planned yet</td></tr>
             )}
             {/* A real nav log runs down the page one waypoint at a time,
                 not one leg with both its ends spelled out on the same
@@ -245,14 +245,14 @@ export default function NavLogView({
                   }
                 }}
                 className={clsx(
-                  "cursor-pointer border-b border-slate-100 text-slate-400 hover:bg-slate-50 focus:outline-none focus-visible:bg-blue-50",
-                  isSelected(depLat, depLon) && "bg-blue-50",
+                  "cursor-pointer border-b border-border text-muted-foreground hover:bg-accent focus:outline-none focus-visible:bg-accent",
+                  isSelected(depLat, depLon) && "bg-accent",
                 )}
               >
                 <td className="px-2 py-1 text-left">{dep}</td>
-                <td className="border-l border-slate-200 px-2 py-1">{altFt(depElevationFt)}</td>
+                <td className="border-l border-border px-2 py-1">{altFt(depElevationFt)}</td>
                 {Array.from({ length: 10 }, (_, i) => (
-                  <td key={i} className="border-l border-slate-200 px-2 py-1">—</td>
+                  <td key={i} className="border-l border-border px-2 py-1">—</td>
                 ))}
               </tr>
             )}
@@ -279,10 +279,10 @@ export default function NavLogView({
                     }
                   }}
                   className={clsx(
-                    "cursor-pointer hover:bg-slate-50 focus:outline-none focus-visible:bg-blue-50",
-                    !(cp && showDescriptions) && "border-b border-slate-100",
-                    !leg?.wind && "text-slate-400",
-                    isSelected(lat, lon) && "bg-blue-50",
+                    "cursor-pointer hover:bg-accent focus:outline-none focus-visible:bg-accent",
+                    !(cp && showDescriptions) && "border-b border-border",
+                    !leg?.wind && "text-muted-foreground",
+                    isSelected(lat, lon) && "bg-accent",
                   )}
                 >
                   <td className="px-2 py-1 text-left">{name}</td>
@@ -291,29 +291,29 @@ export default function NavLogView({
                       the cruise altitude every checkpoint before it
                       flies at (which isn't known until the "altitude"
                       message arrives, either -- hence `nav?.`). */}
-                  <td className="border-l border-slate-200 px-2 py-1">
+                  <td className="border-l border-border px-2 py-1">
                     {altFt(cp ? nav?.altitude_ft : destElevationFt)}
                   </td>
-                  <td className="border-l border-slate-200 px-2 py-1">{leg ? leg.distance_nm.toFixed(1) : "—"}</td>
-                  <td className="border-l border-slate-200 px-2 py-1">{leg ? deg(leg.true_course_deg) : "—"}</td>
-                  <td className="border-l border-slate-200 px-2 py-1">{leg
+                  <td className="border-l border-border px-2 py-1">{leg ? leg.distance_nm.toFixed(1) : "—"}</td>
+                  <td className="border-l border-border px-2 py-1">{leg ? deg(leg.true_course_deg) : "—"}</td>
+                  <td className="border-l border-border px-2 py-1">{leg
                     ? (leg.wind ? `${deg(leg.wind.wind_dir_true_deg)}/${Math.round(leg.wind.wind_speed_kt)}` : "no data")
                     : "—"}</td>
-                  <td className="border-l border-slate-200 px-2 py-1">{leg ? signed(leg.wca_deg) : "—"}</td>
-                  <td className="border-l border-slate-200 px-2 py-1">{leg ? deg(leg.true_heading_deg) : "—"}</td>
-                  <td className="border-l border-slate-200 px-2 py-1">{leg ? signed(leg.magnetic_variation_deg) : "—"}</td>
-                  <td className="border-l border-slate-200 px-2 py-1">{leg ? deg(leg.magnetic_heading_deg) : "—"}</td>
-                  <td className="border-l border-slate-200 px-2 py-1">
+                  <td className="border-l border-border px-2 py-1">{leg ? signed(leg.wca_deg) : "—"}</td>
+                  <td className="border-l border-border px-2 py-1">{leg ? deg(leg.true_heading_deg) : "—"}</td>
+                  <td className="border-l border-border px-2 py-1">{leg ? signed(leg.magnetic_variation_deg) : "—"}</td>
+                  <td className="border-l border-border px-2 py-1">{leg ? deg(leg.magnetic_heading_deg) : "—"}</td>
+                  <td className="border-l border-border px-2 py-1">
                     {leg ? (leg.groundspeed_kt === null ? "—" : Math.round(leg.groundspeed_kt)) : "—"}
                   </td>
-                  <td className="border-l border-slate-200 px-2 py-1">
+                  <td className="border-l border-border px-2 py-1">
                     {leg ? (leg.ete_min === null ? "unflyable" : one(leg.ete_min)) : "—"}
                   </td>
-                  <td className="border-l border-slate-200 px-2 py-1">{leg ? one(leg.fuel_gal) : "—"}</td>
+                  <td className="border-l border-border px-2 py-1">{leg ? one(leg.fuel_gal) : "—"}</td>
                 </tr>
                 {cp && showDescriptions && (
-                  <tr className="border-b border-slate-100">
-                    <td colSpan={12} className="bg-slate-50/60 px-2 py-1">
+                  <tr className="border-b border-border">
+                    <td colSpan={12} className="bg-muted/60 px-2 py-1">
                       <DescriptionCell
                         description={descriptions[descriptionKey(cp.lat, cp.lon)]}
                         onSave={text => onSaveDescription(cp.lat, cp.lon, text)}

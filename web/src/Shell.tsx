@@ -65,7 +65,7 @@ export default function Shell({ toolbar, map, mapOverlay, sidebar, onSidebarOpen
       // supported customization point (a CSS var it already reads),
       // not a style this component fights against.
       style={{ "--sidebar-width": "22rem" } as React.CSSProperties}
-      className="h-dvh overflow-hidden bg-white print:!h-auto print:!overflow-visible"
+      className="h-dvh overflow-hidden bg-background print:!h-auto print:!overflow-visible"
     >
       <SidebarOpenReporter onChange={onSidebarOpenChange} />
       <SidebarInset className="overflow-hidden print:!h-auto print:!overflow-visible">
@@ -80,7 +80,7 @@ export default function Shell({ toolbar, map, mapOverlay, sidebar, onSidebarOpen
               hand-rolled), just the top-right corner instead of the
               bottom two those already claim. */}
           {sidebar && (
-            <SidebarTrigger className="absolute right-1 top-1 z-[1000] border-2 border-white bg-slate-900 text-white shadow-[0_2px_10px_rgba(0,0,0,.5)] hover:bg-slate-800 print:hidden" />
+            <SidebarTrigger className="absolute right-1 top-1 z-[1000] border-2 border-background bg-primary text-primary-foreground shadow-[0_2px_10px_rgba(0,0,0,.5)] hover:bg-primary/90 print:hidden" />
           )}
         </div>
       </SidebarInset>

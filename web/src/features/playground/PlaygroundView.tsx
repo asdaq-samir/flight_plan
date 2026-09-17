@@ -5,7 +5,8 @@ import Footer from "../../components/Footer";
 import PageHeader from "../../components/PageHeader";
 import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
-import { FIELD_INPUT as FIELD } from "../../components/fieldInput";
+import { Input } from "../../components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/ui/select";
 import { ApiError, api } from "../../lib/api/client";
 import { identSchema } from "../../lib/identSchema";
 import { useDocumentTitle } from "../../lib/useDocumentTitle";
@@ -27,19 +28,19 @@ function ModelComparisonPanel() {
 
   return (
     <CollapsibleSection title="Model Comparison">
-      <p className="mb-2 text-sm text-slate-600">
+      <p className="mb-2 text-sm text-muted-foreground">
         Mean absolute error on the {data?.n_labeled ?? "—"} hand-labeled checkpoints -- lower is
         better. Every algorithm this project has actually trained, not just the one serving
         predictions.
       </p>
       {errorMessage(error, "could not load the model comparison") && (
-        <p className="text-sm text-red-600">{errorMessage(error, "could not load the model comparison")}</p>
+        <p className="text-sm text-destructive">{errorMessage(error, "could not load the model comparison")}</p>
       )}
-      {!error && !rows && <p className="text-sm text-slate-400">Loading…</p>}
+      {!error && !rows && <p className="text-sm text-muted-foreground">Loading…</p>}
       {rows && (
         <table className="text-sm">
           <thead>
-            <tr className="border-b border-slate-200 text-left text-slate-500">
+            <tr className="border-b border-border text-left text-muted-foreground">
               <th className="py-1 pr-4">Algorithm</th>
               <th className="py-1 pr-4">MAE</th>
               <th className="py-1 pr-4">Metric</th>
@@ -47,7 +48,7 @@ function ModelComparisonPanel() {
           </thead>
           <tbody>
             {rows.map(m => (
-              <tr key={m.name} className="border-b border-slate-100">
+              <tr key={m.name} className="border-b border-border">
                 <td className="py-1 pr-4">
                   {m.name}
                   {m.promoted && (
@@ -55,7 +56,7 @@ function ModelComparisonPanel() {
                   )}
                 </td>
                 <td className="py-1 pr-4 font-mono">{mae(m.score)}</td>
-                <td className="py-1 pr-4 text-slate-400">{m.metric === "cv_mae" ? "5-fold CV" : "held-out split"}</td>
+                <td className="py-1 pr-4 text-muted-foreground">{m.metric === "cv_mae" ? "5-fold CV" : "held-out split"}</td>
               </tr>
             ))}
           </tbody>
@@ -87,38 +88,43 @@ function AlgorithmPickerPanel() {
 
   return (
     <CollapsibleSection title="Algorithm Picker">
-      <p className="mb-2 text-sm text-slate-600">
+      <p className="mb-2 text-sm text-muted-foreground">
         The same route, scored by whichever algorithm you pick -- real inference each time
         (Spark's own "model" is a lookup into predictions it computed once at training time, not
         a live Spark session; see the Model Comparison panel above for its own accuracy).
       </p>
       <form className="mb-3 flex flex-wrap items-center gap-2" onSubmit={e => { e.preventDefault(); run(); }}>
-        <input
+        <Input
           value={dep} onChange={e => setDep(e.target.value)} placeholder="DEP" spellCheck={false}
-          aria-label="Departure" className={`w-20 text-center font-mono uppercase ${FIELD}`}
+          aria-label="Departure" className="w-20 text-center font-mono uppercase"
         />
         <span>→</span>
-        <input
+        <Input
           value={dest} onChange={e => setDest(e.target.value)} placeholder="DEST" spellCheck={false}
-          aria-label="Destination" className={`w-20 text-center font-mono uppercase ${FIELD}`}
+          aria-label="Destination" className="w-20 text-center font-mono uppercase"
         />
-        <select value={model} onChange={e => setModel(e.target.value)} aria-label="Algorithm" className={FIELD}>
-          <option value="current">Currently promoted</option>
-          <option value="pytorch">PyTorch MLP</option>
-          <option value="tensorflow">TensorFlow MLP</option>
-          <option value="spark">Spark GBT</option>
-        </select>
+        <Select value={model} onValueChange={setModel}>
+          <SelectTrigger aria-label="Algorithm">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="current">Currently promoted</SelectItem>
+            <SelectItem value="pytorch">PyTorch MLP</SelectItem>
+            <SelectItem value="tensorflow">TensorFlow MLP</SelectItem>
+            <SelectItem value="spark">Spark GBT</SelectItem>
+          </SelectContent>
+        </Select>
         <Button type="submit" disabled={score.isPending}>{score.isPending ? "Scoring…" : "Score checkpoints"}</Button>
       </form>
       {errorMessage(score.error, "could not score this route") && (
-        <p className="text-sm text-red-600">{errorMessage(score.error, "could not score this route")}</p>
+        <p className="text-sm text-destructive">{errorMessage(score.error, "could not score this route")}</p>
       )}
       {score.data && (
         <>
-          <p className="mb-1 text-xs text-slate-500">Scored by: {score.data.model_type}</p>
+          <p className="mb-1 text-xs text-muted-foreground">Scored by: {score.data.model_type}</p>
           <table className="text-sm">
             <thead>
-              <tr className="border-b border-slate-200 text-left text-slate-500">
+              <tr className="border-b border-border text-left text-muted-foreground">
                 <th className="py-1 pr-4">Checkpoint</th>
                 <th className="py-1 pr-4">Category</th>
                 <th className="py-1 pr-4">Along track</th>
@@ -127,7 +133,7 @@ function AlgorithmPickerPanel() {
             </thead>
             <tbody>
               {score.data.checkpoints.map(c => (
-                <tr key={c.osm_id} className="border-b border-slate-100">
+                <tr key={c.osm_id} className="border-b border-border">
                   <td className="py-1 pr-4">{c.name}</td>
                   <td className="py-1 pr-4">{c.category}</td>
                   <td className="py-1 pr-4">{c.along_track_nm.toFixed(1)} nm</td>
@@ -162,51 +168,51 @@ function AltitudeBreakdownPanel() {
 
   return (
     <CollapsibleSection title="Altitude Selection Breakdown">
-      <p className="mb-2 text-sm text-slate-600">
+      <p className="mb-2 text-sm text-muted-foreground">
         Everything that goes into one recommended cruise altitude -- not just the final number.
       </p>
       <form
         className="mb-3 flex items-center gap-2"
         onSubmit={e => { e.preventDefault(); run(); }}
       >
-        <input
+        <Input
           value={dep} onChange={e => setDep(e.target.value)} placeholder="DEP" spellCheck={false}
-          aria-label="Departure" className={`w-20 text-center font-mono uppercase ${FIELD}`}
+          aria-label="Departure" className="w-20 text-center font-mono uppercase"
         />
         <span>→</span>
-        <input
+        <Input
           value={dest} onChange={e => setDest(e.target.value)} placeholder="DEST" spellCheck={false}
-          aria-label="Destination" className={`w-20 text-center font-mono uppercase ${FIELD}`}
+          aria-label="Destination" className="w-20 text-center font-mono uppercase"
         />
         <Button type="submit" disabled={breakdown.isPending}>{breakdown.isPending ? "Computing…" : "Show breakdown"}</Button>
       </form>
       {errorMessage(breakdown.error, "could not compute the breakdown") && (
-        <p className="text-sm text-red-600">{errorMessage(breakdown.error, "could not compute the breakdown")}</p>
+        <p className="text-sm text-destructive">{errorMessage(breakdown.error, "could not compute the breakdown")}</p>
       )}
       {result && (
         <div className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
           <div>
-            <div className="text-xs text-slate-400">Recommended</div>
+            <div className="text-xs text-muted-foreground">Recommended</div>
             <div className="font-semibold">{ft(result.recommended_ft)}</div>
           </div>
           <div>
-            <div className="text-xs text-slate-400">Terrain/obstacle floor</div>
+            <div className="text-xs text-muted-foreground">Terrain/obstacle floor</div>
             <div className="font-semibold">{ft(result.floor_ft)}</div>
           </div>
           <div>
-            <div className="text-xs text-slate-400">Airspace ceiling</div>
+            <div className="text-xs text-muted-foreground">Airspace ceiling</div>
             <div className="font-semibold">{ft(result.airspace_ceiling_ft)}</div>
           </div>
           <div>
-            <div className="text-xs text-slate-400">Freezing level</div>
+            <div className="text-xs text-muted-foreground">Freezing level</div>
             <div className="font-semibold">{ft(result.freezing_level_ft)}</div>
           </div>
           <div>
-            <div className="text-xs text-slate-400">Combined ceiling band</div>
+            <div className="text-xs text-muted-foreground">Combined ceiling band</div>
             <div className="font-semibold">{ft(result.band_ceiling_ft)}</div>
           </div>
           <div>
-            <div className="text-xs text-slate-400">Forecast ceiling/visibility</div>
+            <div className="text-xs text-muted-foreground">Forecast ceiling/visibility</div>
             <div className="font-semibold">
               {ft(result.min_ceiling_ft)}, {result.min_visibility_sm ?? "—"} sm
               {result.low_ceiling_or_visibility && (
@@ -215,15 +221,15 @@ function AltitudeBreakdownPanel() {
             </div>
           </div>
           <div>
-            <div className="text-xs text-slate-400">Hazards along route</div>
+            <div className="text-xs text-muted-foreground">Hazards along route</div>
             <div className="font-semibold">{result.hazards.length === 0 ? "none" : result.hazards.length}</div>
           </div>
           <div>
-            <div className="text-xs text-slate-400">Airspace transits</div>
+            <div className="text-xs text-muted-foreground">Airspace transits</div>
             <div className="font-semibold">{result.airspace_transits.length === 0 ? "none" : result.airspace_transits.length}</div>
           </div>
           {result.airspace_transits.length > 0 && (
-            <ul className="col-span-full mt-1 space-y-0.5 text-xs text-slate-500">
+            <ul className="col-span-full mt-1 space-y-0.5 text-xs text-muted-foreground">
               {result.airspace_transits.map((t, i) => (
                 <li key={i}>
                   {t.name} (Class {t.class}), floor {ft(t.floor_ft_msl)}, {t.along_track_nm} nm along route --
@@ -250,10 +256,10 @@ function AltitudeBreakdownPanel() {
 export default function PlaygroundView() {
   useDocumentTitle("Playground — VFR Route");
   return (
-    <div className="flex h-dvh flex-col overflow-y-auto bg-white">
+    <div className="flex h-dvh flex-col overflow-y-auto bg-background">
       <PageHeader />
-      <div className="border-b border-slate-200 px-4 py-3">
-        <p className="text-sm text-slate-500">How this project actually works, underneath the map.</p>
+      <div className="border-b border-border px-4 py-3">
+        <p className="text-sm text-muted-foreground">How this project actually works, underneath the map.</p>
       </div>
       <ModelComparisonPanel />
       <AlgorithmPickerPanel />

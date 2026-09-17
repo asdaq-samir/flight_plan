@@ -1,4 +1,6 @@
 import { Fragment } from "react";
+import { Badge } from "../../../components/ui/badge";
+import { Checkbox } from "../../../components/ui/checkbox";
 import { FILTER_KEYS, type FilterKey, type Filters } from "../logic";
 
 interface Props {
@@ -24,22 +26,15 @@ export default function FilterBar({ filters, onChange, shown }: Props) {
       {FILTER_KEYS.map(key => (
         <Fragment key={key}>
           {DIVIDER_BEFORE.has(key) && (
-            <span aria-hidden className="mx-1 h-4 w-px self-stretch bg-slate-300" />
+            <span aria-hidden className="mx-1 h-4 w-px self-stretch bg-border" />
           )}
-          <label className="inline-flex items-center gap-1.5 rounded px-1.5 py-1 hover:bg-slate-100 active:bg-slate-200">
-            <input
-              type="checkbox"
-              checked={filters[key]}
-              onChange={e => onChange(key, e.target.checked)}
-              className="h-4 w-4 accent-slate-700"
-            />
+          <label htmlFor={`filter-${key}`} className="inline-flex items-center gap-1.5 rounded px-1.5 py-1 hover:bg-accent active:bg-accent">
+            <Checkbox id={`filter-${key}`} checked={filters[key]} onCheckedChange={c => onChange(key, c === true)} />
             {key === "dr" ? "DR" : key}
           </label>
         </Fragment>
       ))}
-      <span className="ml-auto rounded-full bg-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-700">
-        Showing {shown}
-      </span>
+      <Badge variant="secondary" className="ml-auto">Showing {shown}</Badge>
     </div>
   );
 }

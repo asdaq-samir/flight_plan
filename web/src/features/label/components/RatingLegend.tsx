@@ -47,7 +47,7 @@ export default function RatingLegend() {
         </PopoverTrigger>
         <PopoverContent side="top" align="end" className="w-72 z-[1000] max-h-[70vh] overflow-y-auto">
           <div className="space-y-3 text-sm">
-            <p className="italic text-slate-600">
+            <p className="italic text-muted-foreground">
               Flying this leg, would I look up and know <i>that&rsquo;s the one</i> — not one like it?
             </p>
             <div className="space-y-1">
@@ -58,12 +58,12 @@ export default function RatingLegend() {
                 </div>
               ))}
             </div>
-            <p className="text-slate-600">
+            <p className="text-muted-foreground">
               <b>0 vs 1 matters most</b> — 0 means the detector should never have surfaced it,
               1 means it&rsquo;s real but poor. <b>Ignore spacing</b>; selection already enforces
               separation. <b>Judge at this zoom</b>.
             </p>
-            <div className="space-y-1.5 border-t border-slate-200 pt-2 text-slate-600">
+            <div className="space-y-1.5 border-t border-border pt-2 text-muted-foreground">
               {SHORTCUTS.map(([key, text]) => (
                 <div key={text} className="flex items-center gap-2">
                   {key && <Kbd>{key}</Kbd>}

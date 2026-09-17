@@ -14,7 +14,7 @@ export default function BuildNotice({ dep, dest, building, onBuild }: Props) {
     <div className="flex flex-wrap items-center gap-3 border-b border-amber-200 bg-amber-50 px-3 py-2 text-sm">
       <span>{dep} → {dest} has not been collected yet. This takes a few minutes.</span>
       <Button disabled={building !== null} onClick={onBuild}>Collect this route</Button>
-      <span className="text-slate-600">{building}</span>
+      <span className="text-muted-foreground">{building}</span>
     </div>
   );
 }
