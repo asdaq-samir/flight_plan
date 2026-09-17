@@ -1,4 +1,3 @@
-import type { ReactNode } from "react";
 import { Link, useLocation } from "react-router-dom";
 import {
   NavigationMenu, NavigationMenuItem, NavigationMenuLink, NavigationMenuList,
@@ -24,32 +23,29 @@ const LINKS: { page: string; to: string; label: string }[] = [
  * (`useLocation().pathname`, basename-stripped by the router already)
  * rather than a prop every view had to pass down and keep in sync with
  * its own route.
- *
- * `trailing` is Shell's own `SidebarTrigger` -- only Plan/Label ever
- * have a sidebar to toggle, so this stays empty everywhere else rather
- * than every page needing to know about it.
  */
-export default function PageHeader({ trailing }: { trailing?: ReactNode }) {
+export default function PageHeader() {
   const { pathname } = useLocation();
   return (
     <header className="flex h-12 shrink-0 items-center justify-between border-b border-slate-200 bg-white px-4 print:hidden">
       <Link to="/home" className="text-sm font-bold tracking-tight text-slate-900">
         VFR Route
       </Link>
-      <div className="flex items-center gap-2">
-        <NavigationMenu viewport={false}>
-          <NavigationMenuList>
-            {LINKS.map(link => (
-              <NavigationMenuItem key={link.page}>
-                <NavigationMenuLink asChild active={pathname === link.to}>
-                  <Link to={link.to}>{link.label}</Link>
-                </NavigationMenuLink>
-              </NavigationMenuItem>
-            ))}
-          </NavigationMenuList>
-        </NavigationMenu>
-        {trailing}
-      </div>
+      <NavigationMenu viewport={false}>
+        <NavigationMenuList>
+          {LINKS.map(link => (
+            <NavigationMenuItem key={link.page}>
+              <NavigationMenuLink
+                asChild
+                active={pathname === link.to}
+                className="data-[active]:bg-slate-900 data-[active]:text-white data-[active]:hover:bg-slate-900"
+              >
+                <Link to={link.to}>{link.label}</Link>
+              </NavigationMenuLink>
+            </NavigationMenuItem>
+          ))}
+        </NavigationMenuList>
+      </NavigationMenu>
     </header>
   );
 }

@@ -69,11 +69,19 @@ export default function Shell({ toolbar, map, mapOverlay, sidebar, onSidebarOpen
     >
       <SidebarOpenReporter onChange={onSidebarOpenChange} />
       <SidebarInset className="overflow-hidden print:!h-auto print:!overflow-visible">
-        <PageHeader trailing={sidebar && <SidebarTrigger />} />
+        <PageHeader />
         {toolbar}
         <div className="relative min-h-0 flex-1 overflow-hidden print:!h-auto print:!overflow-visible">
           {map}
           {mapOverlay}
+          {/* Floating over the map instead of sitting in the header --
+              same corner-button treatment as MapActionButton/GuidePanel
+              (a plain shadcn Button, absolutely positioned, nothing
+              hand-rolled), just the top-right corner instead of the
+              bottom two those already claim. */}
+          {sidebar && (
+            <SidebarTrigger className="absolute right-1 top-1 z-[1000] border-2 border-white bg-slate-900 text-white shadow-[0_2px_10px_rgba(0,0,0,.5)] hover:bg-slate-800 print:hidden" />
+          )}
         </div>
       </SidebarInset>
       {sidebar && (
