@@ -29,6 +29,7 @@ import os
 import threading
 import traceback
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -912,7 +913,11 @@ def navlog_only(
 # One plain synchronous response, not a stream like /api/navlog: every
 # piece here is one quick independent call (hazards, forecast, METAR,
 # runways/frequencies), not the slow per-leg loop that justified
-# streaming there.
+# streaming there. "Independent" is also why they run concurrently,
+# not one after another -- three separate blocking round trips to
+# aviationweather.gov, summed instead of overlapped, was the whole
+# reason this page felt slow to open even though no single piece
+# actually is.
 # ---------------------------------------------------------------------
 
 
@@ -928,10 +933,16 @@ def briefing(dep: str, dest: str) -> dict:
     start = (dep_airport["lat"], dep_airport["lon"])
     end = (dest_airport["lat"], dest_airport["lon"])
 
+    with ThreadPoolExecutor(max_workers=3) as pool:
+        hazards = pool.submit(weather.hazards_along_route, start, end)
+        forecast = pool.submit(weather.ceiling_visibility_along_route, start, end)
+        metars = pool.submit(weather.metar_for_idents, [dep_ident, dest_ident])
+        hazards, forecast, metars = hazards.result(), forecast.result(), metars.result()
+
     return {
-        "hazards": weather.hazards_along_route(start, end),
-        "forecast": weather.ceiling_visibility_along_route(start, end),
-        "metars": weather.metar_for_idents([dep_ident, dest_ident]),
+        "hazards": hazards,
+        "forecast": forecast,
+        "metars": metars,
         "airports": {
             ident: {
                 "runways": airports.get_runways(ident),
