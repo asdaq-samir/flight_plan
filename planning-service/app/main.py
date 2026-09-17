@@ -29,6 +29,7 @@ import os
 import threading
 import traceback
 import uuid
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 import anthropic
@@ -66,7 +67,23 @@ GLOBAL_ANTHROPIC_ERRORS = (
 PROCESSED_DIR = DATA_DIR / "processed"
 DEFAULT_AIRCRAFT = "c172"
 
-app = FastAPI(title="vfr-route planner")
+
+@asynccontextmanager
+async def _lifespan(app: FastAPI):
+    yield
+    # uvicorn's graceful SIGTERM shutdown runs this before the process
+    # exits. It can't save a build's in-memory progress across the
+    # restart that's about to happen (_builds starts empty either way),
+    # but it closes the narrow window where a load balancer still
+    # routing a drained connection's GET /api/build/{job_id} would
+    # otherwise see a "running" job simply vanish with no explanation.
+    with _builds_lock:
+        for job in _builds.values():
+            if job["state"] in ("queued", "running"):
+                job.update(state="failed", step="failed", detail="interrupted by service shutdown")
+
+
+app = FastAPI(title="vfr-route planner", lifespan=_lifespan)
 
 
 @app.exception_handler(weather.WeatherServiceError)

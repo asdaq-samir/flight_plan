@@ -36,6 +36,12 @@ model-service:
 
 server:
   port: 8080
+  # Trusts X-Forwarded-Proto/-Host/-Port from the ALB doing TLS
+  # termination, so the app sees itself as HTTPS -- without this,
+  # Spring Security's HSTS header writer (only fires on a request it
+  # considers secure) would silently never send HSTS in production. A
+  # no-op locally: nothing sends those headers without a proxy in front.
+  forward-headers-strategy: framework
 
 management:
   endpoints:
@@ -50,6 +56,14 @@ management:
       # readiness split, but works the same way for ECS.
       probes:
         enabled: true
+      group:
+        # Spring Boot's own readiness group defaults to readinessState
+        # alone -- an app-process-is-up signal, not a dependency check.
+        # "db" is the auto-configured DataSource health contributor;
+        # without adding it here, a pool that can't reach RDS would
+        # still report ready, defeating the ALB check's whole purpose.
+        readiness:
+          include: readinessState,db
   health:
     livenessstate:
       enabled: true

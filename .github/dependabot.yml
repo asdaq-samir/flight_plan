@@ -1,0 +1,96 @@
+version: 2
+
+# One entry per directory that actually holds a manifest, grouped by
+# ecosystem below. Weekly rather than daily: this repo doesn't ship on
+# every merge, so a bot PR flood serves nobody -- weekly is enough to
+# catch CVEs promptly without becoming noise to triage.
+updates:
+  - package-ecosystem: npm
+    directory: /web
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: maven
+    directory: /springboot-app
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+
+  # pip: each entry picks up every requirements*.txt file in its
+  # directory, so the root's requirements-dev.txt and each service's
+  # own requirements.txt (+ planning-service's requirements-dev.txt)
+  # are each covered by their own directory's entry.
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+  - package-ecosystem: pip
+    directory: /docker
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+  - package-ecosystem: pip
+    directory: /model-service
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+  - package-ecosystem: pip
+    directory: /planning-service
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+  - package-ecosystem: pip
+    directory: /nav-log-agent
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+  - package-ecosystem: pip
+    directory: /crewai-agent
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+
+  # docker: one entry per directory holding a Dockerfile.
+  - package-ecosystem: docker
+    directory: /docker
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+  - package-ecosystem: docker
+    directory: /model-service
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+  - package-ecosystem: docker
+    directory: /planning-service
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+  - package-ecosystem: docker
+    directory: /springboot-app
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+  - package-ecosystem: docker
+    directory: /web
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+  - package-ecosystem: docker
+    directory: /nav-log-agent
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+  - package-ecosystem: docker
+    directory: /crewai-agent
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5

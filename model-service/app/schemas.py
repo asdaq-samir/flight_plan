@@ -11,12 +11,20 @@ side deserializes it (dto/ModelServiceResponse.java), and a caller being
 able to tell real inference from placeholder output is worth a boolean.
 It is now always False.
 """
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+
+# Both idents flow straight into a feature-store filename
+# (_features_path in main.py) with no other check in between -- unlike
+# planning-service, which validates against the real airport database
+# before a path is ever built. Constraining the shape here closes that
+# gap the same way springboot-app's own SaveFlightRequest already
+# constrains airport idents.
+_IDENT_PATTERN = r"^[A-Za-z0-9]{3,4}$"
 
 
 class RouteRequest(BaseModel):
-    departure_ident: str
-    destination_ident: str
+    departure_ident: str = Field(pattern=_IDENT_PATTERN)
+    destination_ident: str = Field(pattern=_IDENT_PATTERN)
     # None (the default -- existing callers, including Spring Boot's own
     # ModelServiceClient, never set this) means "whatever's currently
     # promoted," unchanged from before this field existed. Otherwise one

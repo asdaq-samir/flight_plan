@@ -80,7 +80,29 @@ public class SecurityConfig {
                 // default is a 302 to a login page, which a fetch() sees
                 // as a confusing 200 for the wrong document.
                 .exceptionHandling(handling -> handling
-                        .authenticationEntryPoint(new Http401EntryPoint()));
+                        .authenticationEntryPoint(new Http401EntryPoint()))
+
+                // Spring Security already writes X-Content-Type-Options
+                // and a frame-options header by default; this makes both
+                // explicit and adds a CSP. Everything the app actually
+                // loads is same-origin except the OSM tile images
+                // (web/src/lib/map/leaflet.tsx) -- style-src keeps
+                // 'unsafe-inline' for Swagger UI's own inline styles.
+                // HSTS is a no-op locally (Spring Security only sends it
+                // over a request it sees as secure) and only takes effect
+                // once behind a TLS-terminating ALB with
+                // server.forward-headers-strategy: framework set.
+                .headers(headers -> headers
+                        .frameOptions(frame -> frame.deny())
+                        .contentSecurityPolicy(csp -> csp.policyDirectives(
+                                "default-src 'self'; "
+                                        + "img-src 'self' data: https://tile.openstreetmap.org; "
+                                        + "style-src 'self' 'unsafe-inline'; "
+                                        + "script-src 'self'; "
+                                        + "connect-src 'self'; "
+                                        + "object-src 'none'; "
+                                        + "base-uri 'self'; "
+                                        + "frame-ancestors 'none'")));
 
         if (googleConfigured) {
             http.oauth2Login(Customizer.withDefaults());

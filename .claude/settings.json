@@ -3,7 +3,14 @@
     "allow": [
       "Bash(curl *)",
       "Bash(brew info *)",
-      "Bash(curl -s -o /dev/null -w \"webapp status: %{http_code}\\\\n\" http://localhost:8080/app/label)"
+      "Bash(curl -s -o /dev/null -w \"webapp status: %{http_code}\\\\n\" http://localhost:8080/app/label)",
+      "Bash(docker run --rm -v \"$PWD\":/w -w /w node:26-slim sh -c \"npx tsc --noEmit && npx vitest run\"*)",
+      "Bash(docker run --rm -v \"$PWD/web\":/w -w /w node:26-slim sh -c \"npx tsc --noEmit && npx vitest run\"*)",
+      "Bash(docker run --rm -v \"$PWD\":/p -w /p/web node:26-slim sh -c \"npx vite build\"*)",
+      "Bash(docker run --rm -v \"$PWD\":/w -w /w node:26-slim sh -c \"npx tsc --noEmit\"*)",
+      "Bash(docker run --rm --network host -v \"$PWD\":/w -w /w mcr.microsoft.com/playwright:v1.55.1-jammy npx playwright test*)",
+      "Bash(docker info)",
+      "Bash(docker system df*)"
     ]
   }
 }
