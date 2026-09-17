@@ -269,12 +269,18 @@ export function dotIcon(fill: string, label?: string | number) {
         className={`absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border-[2.5px] border-background shadow-[0_1px_4px_rgba(0,0,0,.45)] outline outline-1 outline-[rgba(10,20,28,.55)] ${
           withLabel
             // leading-none: a browser's own default line-height for
-            // text-xs isn't exactly 1, and that slack renders above or
-            // below the glyph asymmetrically depending on the browser's
-            // own font metrics -- place-items-center alone centers the
-            // *line box*, not the glyph within it, so that slack still
-            // reads as the number sitting off-center within the circle.
-            ? "grid h-[22px] w-[22px] place-items-center text-xs font-bold leading-none text-white"
+            // this text isn't exactly 1, and that slack renders above
+            // or below the glyph asymmetrically depending on the
+            // browser's own font metrics -- place-items-center alone
+            // centers the *line box*, not the glyph within it, so that
+            // slack still reads as the number sitting off-center
+            // within the circle.
+            // text-[10px], not text-xs (12px): a circle has less usable
+            // width near its edges than a square of the same size, so a
+            // two-digit checkpoint number in bold 12px text pokes past
+            // the curve on either side -- 10px is the largest size two
+            // digits actually stay inside it at.
+            ? "grid h-[22px] w-[22px] place-items-center text-[10px] font-bold leading-none text-white"
             : "h-4 w-4"
         }`}
         style={{ backgroundColor: fill }}

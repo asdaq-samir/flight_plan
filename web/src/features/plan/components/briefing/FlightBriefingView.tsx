@@ -38,6 +38,14 @@ interface Props {
   narrative: string | null;
   loadingNarrative: boolean;
   onGenerateNarrative: () => void;
+  /** Whether `window.speechSynthesis` is currently reading `narrative`
+   *  aloud, and the one handler that starts/stops it -- owned by
+   *  `usePlanState` (see its own `speak`/`stopSpeaking`), not local
+   *  state here, since the nav log's own floating Listen button
+   *  (`NavLogActions`) triggers the exact same playback and the two
+   *  need to agree on whether it's currently running. */
+  speaking: boolean;
+  onListenClick: () => void;
 }
 
 const FLIGHT_CATEGORY_COLOR: Record<string, string> = {
@@ -158,35 +166,20 @@ function NavLogTable({
  * then the text plus a browser-TTS "Listen" toggle. `window.speechSynthesis`
  * rather than a cloud voice, for now -- free, no new service, no API
  * key; a more natural-sounding voice is a later upgrade, not a
- * blocker for having this at all.
+ * blocker for having this at all. `speaking`/`onListenClick` come from
+ * the page above (see `Props`'s own comment) rather than owning the
+ * playback state locally, so this stays in sync with the nav log's own
+ * floating Listen button.
  */
 function BriefingNarrativeSection({
-  narrative, loadingNarrative, onGenerate,
+  narrative, loadingNarrative, onGenerate, speaking, onListenClick,
 }: {
   narrative: string | null;
   loadingNarrative: boolean;
   onGenerate: () => void;
+  speaking: boolean;
+  onListenClick: () => void;
 }) {
-  const [speaking, setSpeaking] = useState(false);
-
-  // Leaving the briefing page (or the browser tab going elsewhere)
-  // shouldn't leave a voice talking to an empty room.
-  useEffect(() => () => window.speechSynthesis.cancel(), []);
-
-  const toggleSpeak = () => {
-    if (speaking) {
-      window.speechSynthesis.cancel();
-      setSpeaking(false);
-      return;
-    }
-    if (!narrative) return;
-    const utterance = new SpeechSynthesisUtterance(narrative);
-    utterance.onend = () => setSpeaking(false);
-    utterance.onerror = () => setSpeaking(false);
-    window.speechSynthesis.speak(utterance);
-    setSpeaking(true);
-  };
-
   return (
     <CollapsibleSection title="Briefing Narrative">
       {!narrative && (
@@ -197,7 +190,7 @@ function BriefingNarrativeSection({
       {narrative && (
         <div className="space-y-2">
           <p className="text-sm text-muted-foreground">{narrative}</p>
-          <Button onClick={toggleSpeak} className="print:hidden">{speaking ? "Stop" : "Listen"}</Button>
+          <Button onClick={onListenClick} className="print:hidden">{speaking ? "Stop" : "Listen"}</Button>
         </div>
       )}
     </CollapsibleSection>
@@ -356,7 +349,7 @@ function SaveFlightSection({
  */
 export default function FlightBriefingView({
   course, totals, nav, legs, navError, dep, dest, selected, depElevationFt, destElevationFt, descriptions,
-  briefing, narrative, loadingNarrative, onGenerateNarrative,
+  briefing, narrative, loadingNarrative, onGenerateNarrative, speaking, onListenClick,
 }: Props) {
   const parts = totals ? totalsParts(totals) : null;
   const winds = windsAloftSummary(legs);
@@ -462,6 +455,7 @@ export default function FlightBriefingView({
           to populate. */}
       <BriefingNarrativeSection
         narrative={narrative} loadingNarrative={loadingNarrative} onGenerate={onGenerateNarrative}
+        speaking={speaking} onListenClick={onListenClick}
       />
 
       <CollapsibleSection title="Adverse Conditions">

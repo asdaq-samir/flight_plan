@@ -31,44 +31,76 @@ async function settle(page: Page) {
   await page.waitForTimeout(1500);
 }
 
+async function openMobileSidebar(page: Page) {
+  const sidebarTrigger = page.locator('[data-slot="sidebar-trigger"]');
+  const mobileSidebar = page.locator('[data-mobile="true"]');
+  await sidebarTrigger.click();
+  await expect(mobileSidebar).toBeVisible();
+  // Closed via Escape, not a second click on the trigger -- the
+  // Sheet's own full-viewport overlay sits on top of everything
+  // (including the trigger's own screen position) while open, the
+  // same as any other modal dialog; Escape is the one dismissal
+  // path that doesn't depend on what's currently on top.
+  await page.keyboard.press("Escape");
+  await expect(mobileSidebar).not.toBeVisible();
+}
+
+test.describe("/app/plan", () => {
+  // No collapsible toolbar here -- the route form is the whole reason
+  // a pilot opened this page, not a settings drawer worth a tap to
+  // reveal (see PlanView's own comment on its toolbar).
+  test("the route form is visible immediately, not behind a trigger", async ({ page }) => {
+    await page.goto("/app/plan");
+    await settle(page);
+    await expect(page.getByLabel("Departure")).toBeVisible();
+    expect(await page.getByTestId("toolbar-trigger").count()).toBe(0);
+  });
+
+  test("sidebar starts collapsed on load, every load", async ({ page }) => {
+    await page.goto("/app/plan");
+    await settle(page);
+    // The mobile Sidebar is a Sheet that isn't even mounted until its
+    // trigger opens it -- "collapsed" means "not there."
+    expect(await page.locator('[data-mobile="true"]').count()).toBe(0);
+  });
+
+  test("sidebar opens from its own trigger, closed by default", async ({ page }) => {
+    await page.goto("/app/plan");
+    await settle(page);
+    await openMobileSidebar(page);
+  });
+});
+
+test.describe("/app/label", () => {
+  test("sidebar and toolbar start collapsed on load, every load", async ({ page }) => {
+    await page.goto("/app/label");
+    await settle(page);
+
+    // Radix's Collapsible doesn't render closed content at all (no
+    // box to measure), and the mobile Sidebar is a Sheet that isn't
+    // even mounted until its trigger opens it -- "collapsed" for
+    // both now means "not there," not "there at width/height 0."
+    await expect(page.getByTestId("toolbar-content")).not.toBeVisible();
+    expect(await page.locator('[data-mobile="true"]').count()).toBe(0);
+  });
+
+  test("toolbar and sidebar open from their own trigger, closed by default", async ({ page }) => {
+    await page.goto("/app/label");
+    await settle(page);
+
+    const toolbarTrigger = page.getByTestId("toolbar-trigger");
+    const toolbarContent = page.getByTestId("toolbar-content");
+    await toolbarTrigger.click();
+    await expect(toolbarContent).toBeVisible();
+    await toolbarTrigger.click();
+    await expect(toolbarContent).not.toBeVisible();
+
+    await openMobileSidebar(page);
+  });
+});
+
 for (const path of PAGES) {
   test.describe(path, () => {
-    test("sidebar and toolbar start collapsed on load, every load", async ({ page }) => {
-      await page.goto(path);
-      await settle(page);
-
-      // Radix's Collapsible doesn't render closed content at all (no
-      // box to measure), and the mobile Sidebar is a Sheet that isn't
-      // even mounted until its trigger opens it -- "collapsed" for
-      // both now means "not there," not "there at width/height 0."
-      await expect(page.getByTestId("toolbar-content")).not.toBeVisible();
-      expect(await page.locator('[data-mobile="true"]').count()).toBe(0);
-    });
-
-    test("toolbar and sidebar open from their own trigger, closed by default", async ({ page }) => {
-      await page.goto(path);
-      await settle(page);
-
-      const toolbarTrigger = page.getByTestId("toolbar-trigger");
-      const toolbarContent = page.getByTestId("toolbar-content");
-      await toolbarTrigger.click();
-      await expect(toolbarContent).toBeVisible();
-      await toolbarTrigger.click();
-      await expect(toolbarContent).not.toBeVisible();
-
-      const sidebarTrigger = page.locator('[data-slot="sidebar-trigger"]');
-      const mobileSidebar = page.locator('[data-mobile="true"]');
-      await sidebarTrigger.click();
-      await expect(mobileSidebar).toBeVisible();
-      // Closed via Escape, not a second click on the trigger -- the
-      // Sheet's own full-viewport overlay sits on top of everything
-      // (including the trigger's own screen position) while open, the
-      // same as any other modal dialog; Escape is the one dismissal
-      // path that doesn't depend on what's currently on top.
-      await page.keyboard.press("Escape");
-      await expect(mobileSidebar).not.toBeVisible();
-    });
-
     test("no page-level horizontal overflow", async ({ page }) => {
       await page.goto(path);
       await settle(page);
@@ -99,7 +131,7 @@ for (const path of PAGES) {
   });
 }
 
-test("plan page: nav log's map/print pair sits top-right, print flush against the edge", async ({ page }) => {
+test("plan page: nav log's listen/print pair sits top-right, print flush against the edge", async ({ page }) => {
   await page.goto("/app/plan");
   await settle(page);
   const viewport = page.viewportSize();
@@ -113,19 +145,36 @@ test("plan page: nav log's map/print pair sits top-right, print flush against th
 
   await page.getByTestId("map-action-button").click();
   await page.waitForTimeout(300);
+  await expect(page).toHaveURL(/[?&]view=briefing/);
 
-  // Two buttons now, not one -- the map icon sits to the left of print,
+  // Two buttons, not the three-button row this used to be -- no more
+  // "back to map" button here at all (see NavLogActions' own comment),
   // so it's print (the last of the pair) that's actually flush against
-  // the corner.
-  const mapBox = await page.getByTestId("map-action-button").boundingBox();
+  // the corner, with listen to its left.
+  const listenBox = await page.getByTestId("listen-button").boundingBox();
   const printBox = await page.getByTestId("print-button").boundingBox();
-  expect(mapBox).not.toBeNull();
+  expect(listenBox).not.toBeNull();
   expect(printBox).not.toBeNull();
   expect(printBox!.x + printBox!.width).toBeGreaterThan(viewport.width - 20);
   const mapAreaTop = headerBox!.y + headerBox!.height;
-  expect(mapBox!.y).toBeLessThan(mapAreaTop + 20);
+  expect(listenBox!.y).toBeLessThan(mapAreaTop + 20);
   expect(printBox!.y).toBeLessThan(mapAreaTop + 20);
-  expect(mapBox!.x).toBeLessThan(printBox!.x);
+  expect(listenBox!.x).toBeLessThan(printBox!.x);
+});
+
+test("plan page: the header's own Plan link, not a dedicated button, is the way back from the briefing view", async ({ page }) => {
+  await page.goto("/app/plan");
+  await settle(page);
+
+  await page.getByTestId("map-action-button").click();
+  await page.waitForTimeout(300);
+  await expect(page).toHaveURL(/[?&]view=briefing/);
+  expect(await page.getByTestId("map-action-button").count()).toBe(0);
+
+  await page.locator("header").getByText("Plan", { exact: true }).click();
+  await page.waitForTimeout(300);
+  await expect(page).not.toHaveURL(/[?&]view=briefing/);
+  await expect(page.getByTestId("map-action-button")).toBeVisible();
 });
 
 test("plan page: nav log view scrolls inside its own table, not the page", async ({ page }) => {

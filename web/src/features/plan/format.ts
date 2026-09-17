@@ -57,16 +57,18 @@ export function hhmm(minutes: number | null): string {
   return `${Math.floor(minutes / 60)}h ${String(Math.round(minutes % 60)).padStart(2, "0")}m`;
 }
 
-/** The header summary, which has to say something useful at each of the
- *  three loading stages rather than sitting blank until the last one. */
+/** The toolbar's own transient status while a route is still loading --
+ *  blank once checkpoints are actually scored, not a persistent
+ *  distance/checkpoint-count readout (that's already on the page, in
+ *  the nav log and Flight Plan Summary, once there's anything to
+ *  count). */
 export function summary(
   distanceNm: number | null,
-  candidates: number,
   selected: number,
 ): string {
   if (distanceNm === null) return "";
   if (!selected) return `${distanceNm} nm · scoring checkpoints…`;
-  return `${distanceNm} nm · ${selected} checkpoints from ${candidates} candidates`;
+  return "";
 }
 
 /** Totals for the nav-log bar. Returns parts rather than markup so the

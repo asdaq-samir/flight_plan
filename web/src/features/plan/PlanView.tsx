@@ -3,11 +3,10 @@ import { useSearchParams } from "react-router-dom";
 import { identSchema } from "../../lib/identSchema";
 // Without this Leaflet's tiles, markers and controls have no
 // positioning at all -- this is the library's own stylesheet, not
-// app styling. Imported here (not in main.tsx) so Home/Playground/
-// Account, which never touch a map, don't pay for it.
+// app styling. Imported here (not in main.tsx) so Dev/Settings, which
+// never touch a map, don't pay for it.
 import "leaflet/dist/leaflet.css";
 import Shell from "../../Shell";
-import CollapsibleToolbar from "../../components/CollapsibleToolbar";
 import MapActionButton from "../../components/MapActionButton";
 import { usePageStatus } from "../../lib/usePageStatus";
 import type { Candidate } from "../../lib/api/types";
@@ -64,7 +63,22 @@ export default function PlanView() {
   // RouteMap unmounts (and its Leaflet instance is torn down) whenever
   // this is true, so `controls` is only ever called while it's
   // actually mounted -- see the keyboard shortcuts below.
-  const [showBriefing, setShowBriefing] = useState(false);
+  //
+  // Driven by the URL (?view=briefing), not its own useState: there's
+  // no dedicated "back to map" button any more -- the site header's
+  // own "Plan" link is the way back (a plain <Link to="/plan">, no
+  // special-casing in PageHeader), which only actually navigates
+  // anywhere, and so only actually leaves this view, because the URL
+  // is what changes.
+  const showBriefing = searchParams.get("view") === "briefing";
+  const setBriefingView = useCallback((open: boolean) => {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      if (open) next.set("view", "briefing");
+      else next.delete("view");
+      return next;
+    }, { replace: true });
+  }, [setSearchParams]);
   // The Guide panel sits in the same bottom-right corner the sidebar
   // opens over -- hide it once the sidebar's open at all, rather than
   // let it float on top of the nav log.
@@ -148,14 +162,14 @@ export default function PlanView() {
     const onKey = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement)?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA") return;
-      if (e.key === "n") setShowBriefing(b => !b);
+      if (e.key === "n") setBriefingView(!showBriefing);
       if (e.key === "a") s.toggleCandidates();
       if (!showBriefing && e.key === "f") controls.current?.fit();
       if (!showBriefing && e.key === "t") controls.current?.toggleBasemap();
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [showBriefing]);
+  }, [showBriefing, setBriefingView]);
 
   // The map's own half of point selection -- clicking a checkpoint
   // marker focuses the same point the matching nav log row would.
@@ -164,21 +178,22 @@ export default function PlanView() {
     [s.selectPoint],
   );
 
+  // Always visible, not shadcn's Collapsible like Label's own toolbar --
+  // the route form is this page's entire reason for being here, not a
+  // secondary settings drawer worth hiding behind a tap. Same wrapper
+  // treatment as CollapsibleToolbar (border/background/blur) minus the
+  // trigger/collapse machinery that page doesn't need.
   const toolbar = (
-    <CollapsibleToolbar
-      label={dep && dest ? `Route: ${dep} → ${dest}` : "Route"}
-    >
+    <div className="shrink-0 border-b border-border bg-background/95 px-3 py-2 backdrop-blur-sm print:hidden">
       <RouteForm
         dep={dep} dest={dest} alt={alt}
         onDepChange={setDep} onDestChange={setDest} onAltChange={setAlt}
         onSubmit={submit}
         disabled={s.stage !== null}
         routes={s.routes}
-        summary={s.stage === "course"
-          ? "drawing course…"
-          : summary(s.course?.distance_nm ?? null, s.candidates.length, s.selected.length)}
+        summary={s.stage === "course" ? "drawing course…" : summary(s.course?.distance_nm ?? null, s.selected.length)}
       />
-    </CollapsibleToolbar>
+    </div>
   );
 
   // The nav log's own stage (scoring, altitude selection, the live
@@ -207,15 +222,31 @@ export default function PlanView() {
   // on the map view's own toolbar-having layout.
   usePageStatus(progress, error, showBriefing ? "bottom-center" : undefined);
 
+  // Generates the narrative if none exists yet, then reads it aloud
+  // the moment it's ready; toggles playback if one's already
+  // generated. The one handler both the nav log's floating button and
+  // the Briefing Narrative section's own "Listen" button call, so
+  // triggering it from either place leaves the other in agreement.
+  const handleListenClick = async () => {
+    if (s.speaking) { s.stopSpeaking(); return; }
+    if (s.narrative) { s.speak(s.narrative); return; }
+    const text = await s.loadNarrative(dep, dest);
+    if (text) s.speak(text);
+  };
+
   const mapOverlay = !showBriefing ? (
     <>
       {!sidebarOpen && <ScoreLegend />}
-      <MapActionButton onClick={() => setShowBriefing(true)} disabled={!s.course}>
+      <MapActionButton onClick={() => setBriefingView(true)} disabled={!s.course}>
         Flight Briefing
       </MapActionButton>
     </>
   ) : (
-    <NavLogActions onMapClick={() => setShowBriefing(false)} />
+    <NavLogActions
+      onListenClick={() => void handleListenClick()}
+      listenLoading={s.loadingNarrative}
+      listening={s.speaking}
+    />
   );
 
   const navLog = (
@@ -258,6 +289,7 @@ export default function PlanView() {
                 briefing={s.briefing}
                 narrative={s.narrative} loadingNarrative={s.loadingNarrative}
                 onGenerateNarrative={() => void s.loadNarrative(dep, dest)}
+                speaking={s.speaking} onListenClick={() => void handleListenClick()}
               />
             ) : (
               <RouteMap

@@ -44,11 +44,10 @@ describe("hhmm", () => {
 });
 
 describe("summary", () => {
-  it("is blank before the course arrives", () => expect(summary(null, 0, 0)).toBe(""));
+  it("is blank before the course arrives", () => expect(summary(null, 0)).toBe(""));
   it("says what it is doing between stages", () =>
-    expect(summary(210, 0, 0)).toBe("210 nm · scoring checkpoints…"));
-  it("reports the selection against what it chose from", () =>
-    expect(summary(210, 206, 21)).toBe("210 nm · 21 checkpoints from 206 candidates"));
+    expect(summary(210, 0)).toBe("210 nm · scoring checkpoints…"));
+  it("goes blank once checkpoints are scored", () => expect(summary(210, 21)).toBe(""));
 });
 
 describe("totalsParts", () => {

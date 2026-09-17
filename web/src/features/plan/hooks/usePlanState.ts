@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { ApiError, api } from "../../../lib/api/client";
 import type { Briefing, BuiltRoute, Candidate, Course, Leg, NavLog, Totals } from "../../../lib/api/types";
@@ -92,6 +92,12 @@ interface PlanState {
   narrative: string | null;
   narrativeError: string | null;
   loadingNarrative: boolean;
+  /** Whether `window.speechSynthesis` is currently reading `narrative`
+   *  aloud -- lives here, not as local state inside whichever button
+   *  triggered it, since both the Flight Briefing page's own "Listen"
+   *  button and the nav log's floating one (see `NavLogActions`) need
+   *  to agree on it. */
+  speaking: boolean;
 }
 
 function initialState(): PlanState {
@@ -101,7 +107,7 @@ function initialState(): PlanState {
     routes: [], stage: null, navStage: null, error: null, navError: null, needsBuild: null, building: null,
     selectedPoint: null, showCandidates: true,
     briefing: null, briefingError: null, loadingBriefing: false,
-    narrative: null, narrativeError: null, loadingNarrative: false,
+    narrative: null, narrativeError: null, loadingNarrative: false, speaking: false,
   };
 }
 
@@ -155,8 +161,9 @@ export function usePlanState() {
       course: null, candidates: [], selected: [], legs: [], totals: null,
       nav: null, descriptions: {}, descriptionError: null, descriptionProgress: null,
       selectedPoint: null, briefing: null, briefingError: null, loadingBriefing: false,
-      narrative: null, narrativeError: null, loadingNarrative: false,
+      narrative: null, narrativeError: null, loadingNarrative: false, speaking: false,
     }));
+    window.speechSynthesis.cancel();
 
     try {
       const course = await api.course(dep, dest);
@@ -384,12 +391,17 @@ export function usePlanState() {
    *  nav, totals, the briefing's own hazards/METARs/forecast, legs) is
    *  already sitting in state by the time this page can even show a
    *  "generate" button. */
-  const loadNarrative = useCallback(async (dep: string, dest: string) => {
+  /** Returns the generated text directly (rather than making every
+   *  caller read it back out of state right after an `await`, which
+   *  would still see the pre-update value) -- `NavLogActions`' own
+   *  "generate, then speak the moment it's ready" button needs the
+   *  text itself, not just the side effect of it landing in state. */
+  const loadNarrative = useCallback(async (dep: string, dest: string): Promise<string | null> => {
     const token = planToken.current;
     const s = ref.current;
     if (!s.course || !s.nav || !s.briefing) {
       setState(st => ({ ...st, narrativeError: "the briefing isn't fully loaded yet" }));
-      return;
+      return null;
     }
     setState(st => ({ ...st, loadingNarrative: true, narrativeError: null }));
     try {
@@ -407,17 +419,45 @@ export function usePlanState() {
         forecast: s.briefing.forecast,
         legs: s.legs,
       });
-      if (token !== planToken.current) return;
+      if (token !== planToken.current) return null;
       setState(st => ({ ...st, narrative: data.narrative, loadingNarrative: false }));
+      return data.narrative;
     } catch (err) {
-      if (token !== planToken.current) return;
+      if (token !== planToken.current) return null;
       const detail = err instanceof Error ? err.message : "could not generate the narrative";
       setState(st => ({ ...st, loadingNarrative: false, narrativeError: detail.split("\n")[0] ?? detail }));
+      return null;
     }
   }, []);
+
+  /** `window.speechSynthesis` rather than a cloud voice, for now --
+   *  free, no new service, no API key; a more natural-sounding voice
+   *  is a later upgrade, not a blocker for having this at all.
+   *  `cancel()` first: speaking over an already-playing utterance
+   *  queues instead of replacing it, so re-triggering this (the nav
+   *  log's own button, after the Briefing page's) would otherwise read
+   *  both back to back rather than restarting. */
+  const speak = useCallback((text: string) => {
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.onend = () => setState(st => ({ ...st, speaking: false }));
+    utterance.onerror = () => setState(st => ({ ...st, speaking: false }));
+    window.speechSynthesis.speak(utterance);
+    setState(st => ({ ...st, speaking: true }));
+  }, []);
+
+  const stopSpeaking = useCallback(() => {
+    window.speechSynthesis.cancel();
+    setState(st => ({ ...st, speaking: false }));
+  }, []);
+
+  // Leaving the plan page (or the browser tab going elsewhere)
+  // shouldn't leave a voice talking to an empty room.
+  useEffect(() => () => window.speechSynthesis.cancel(), []);
 
   return {
     ...state, loadRoutes, plan, build, selectPoint, toggleCandidates,
     describeCheckpoints, stopDescribing, saveDescription, loadBriefing, loadNarrative,
+    speak, stopSpeaking,
   };
 }
