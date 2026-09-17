@@ -219,7 +219,9 @@ test("the site header's nav links actually reach every other page", async ({ pag
   await page.locator("header").getByText("Dev", { exact: true }).click();
   await page.waitForURL("**/app/dev");
 
-  await page.locator("header").getByText("Settings", { exact: true }).click();
+  // Settings is an icon-only link (a gear, no visible text), so its
+  // accessible name -- not text content -- is what finds it.
+  await page.locator("header").getByRole("link", { name: "Settings", exact: true }).click();
   await page.waitForURL("**/app/settings");
 
   // The wordmark itself is the way back to Plan, the app's own

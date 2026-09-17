@@ -56,7 +56,7 @@ export default function RouteForm({
           aria-label="Cruise altitude, feet"
           className="w-28"
         />
-        <Button type="submit" disabled={disabled}>Plan</Button>
+        <Button type="submit" disabled={disabled}>Chart</Button>
       </form>
       <span className="text-muted-foreground">{summary}</span>
     </div>
