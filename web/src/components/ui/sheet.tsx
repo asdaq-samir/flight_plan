@@ -1,3 +1,5 @@
+"use client"
+
 import * as React from "react"
 import { cn } from "cn"
 import { Dialog as SheetPrimitive } from "radix-ui"
@@ -36,11 +38,9 @@ function SheetOverlay({
       data-slot="sheet-overlay"
       className={cn(
         // z-[1000], not the default z-50: Leaflet's own map panes and
-        // controls reach up to z-index 1000 (see GuidePanel.tsx), and
-        // this app's only current Sheet use (the mobile sidebar) sits
-        // right over a Leaflet map -- at z-50 the overlay/content
-        // render correctly in the DOM and pass every layout check, but
-        // visually lose to the map's own GPU-composited layers.
+        // controls reach up to z-index 1000 (see GuidePanel/ScoreLegend),
+        // and this app's only current Sheet use (the mobile sidebar)
+        // sits right over a Leaflet map.
         "fixed inset-0 z-[1000] bg-black/10 duration-100 supports-backdrop-filter:backdrop-blur-xs data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0",
         className
       )}
@@ -76,7 +76,7 @@ function SheetContent({
           <SheetPrimitive.Close data-slot="sheet-close" asChild>
             <Button
               variant="ghost"
-              className="absolute top-3 right-3"
+              className="absolute top-4 right-4"
               size="icon-sm"
             >
               <XIcon
@@ -94,7 +94,7 @@ function SheetHeader({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="sheet-header"
-      className={cn("flex flex-col gap-0.5 p-4", className)}
+      className={cn("flex flex-col gap-1.5 p-4", className)}
       {...props}
     />
   )
@@ -117,10 +117,7 @@ function SheetTitle({
   return (
     <SheetPrimitive.Title
       data-slot="sheet-title"
-      className={cn(
-        "font-heading text-base font-medium text-foreground",
-        className
-      )}
+      className={cn("font-heading font-medium text-foreground", className)}
       {...props}
     />
   )
