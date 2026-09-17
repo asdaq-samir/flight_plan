@@ -7,16 +7,16 @@ import "./index.css";
 
 const queryClient = new QueryClient();
 
-// Four views, one app -- which is the point of the port. As separate
+// Three views, one app -- which is the point of the port. As separate
 // HTML files they drifted: one grew a basemap fix the other never
 // got, and each had its own copy of the course line, the halo and the
 // markers. Now all of them import the same ones.
 //
 // Every route is its own lazy chunk (React Router's own `lazy()`, not
 // `React.lazy()` -- one less concept, and it's what replaces the old
-// catch-all fallback with an explicit route table): Dev and Settings
-// have no map and no reason to pay for Leaflet (or for Plan/Label's
-// own code) just because they share a build.
+// catch-all fallback with an explicit route table): Settings has no
+// map and no reason to pay for Leaflet (or for Plan/Label's own code)
+// just because they share a build.
 // `leaflet/dist/leaflet.css` -- without it Leaflet's tiles, markers and
 // controls have no positioning at all -- lives inside Plan/Label's own
 // view files for the same reason, rather than loading unconditionally
@@ -51,11 +51,6 @@ const router = createBrowserRouter(
       ...noFallback,
     },
     {
-      path: "dev",
-      lazy: () => import("./features/dev/DevView").then(m => ({ Component: m.default })),
-      ...noFallback,
-    },
-    {
       path: "settings",
       lazy: () => import("./features/settings/SettingsView").then(m => ({ Component: m.default })),
       ...noFallback,
@@ -86,11 +81,17 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
           mobileOffset, not just offset: sonner reads a completely
           separate `--mobile-offset-*` custom property below its own
           600px breakpoint (this app's actual viewport), so `offset`
-          alone is silently ignored there. */}
+          alone is silently ignored there.
+          closeButton: off by default in sonner, but the error toast
+          below sets `duration: Infinity` (see usePageStatus) -- with
+          no close button, the only way to dismiss it is for the error
+          condition to clear itself in app state, and a pilot has no
+          way to just get it off their screen while that's still true. */}
       <Toaster
         position="top-center"
         offset={{ top: "90px" }}
         mobileOffset={{ top: "90px" }}
+        closeButton
       />
     </QueryClientProvider>
   </React.StrictMode>,

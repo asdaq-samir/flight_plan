@@ -1,19 +1,23 @@
 # web/
 
-React 19 + Vite 8 + Tailwind v4 + Leaflet front end for four pages:
+React 19 + Vite 8 + Tailwind v4 + Leaflet front end for three pages:
 
 - `/app/plan` — the app's own homepage (bare `/app` redirects here):
   enter a departure/destination, get a charted course, scored
   checkpoints, a dead-reckoning nav log, and a printable Flight
-  Briefing.
+  Briefing. Its own header row folds the site header and the route
+  form into one line (route form + a Settings gear icon), not two --
+  see PlanView's own comment.
 - `/app/label` — walk a route's detected waypoints on a sectional chart
-  and rate each one (ML training data). Linked from Dev rather than
-  its own header link.
-- `/app/dev` — explore how the project actually works: every trained
-  algorithm's accuracy side by side, live scoring, and the full
-  reasoning behind a recommended cruise altitude. No sign-in.
-- `/app/settings` — what the app does, then a signed-in pilot's own
-  aeroplanes and filed flights.
+  and rate each one (ML training data). Linked from Settings rather
+  than its own header link.
+- `/app/settings` — everything that isn't the map: what the app does,
+  the stateless "explore how this project works" demos (every trained
+  algorithm's accuracy side by side, live scoring, the full reasoning
+  behind a recommended cruise altitude -- no sign-in needed for any of
+  that), then a signed-in pilot's own aeroplanes and filed flights.
+  One page behind the header's own gear icon, not three behind three
+  separate nav items.
 
 Plan/Label compute nothing themselves — every course, checkpoint,
 detection and nav log comes from `planning-service`; this front end
@@ -149,7 +153,7 @@ and use `vite build` + `docker compose up --build webapp`.
 ## Architecture
 
 **Routing.** `main.tsx` builds a `react-router-dom` `createBrowserRouter`
-with one lazy-loaded route per page (Plan/Label/Dev/Settings), Plan
+with one lazy-loaded route per page (Plan/Label/Settings), Plan
 also being the index route, `basename: "/app"` matching where `webapp`
 serves the bundle. Deep links
 and a hard refresh both work without any change on the Spring Boot

@@ -110,59 +110,86 @@ for (const path of PAGES) {
       expect(overflowing).toBe(false);
     });
 
-    test("action button sits flush bottom-left, guide button flush bottom-right", async ({ page }) => {
+    test("guide button sits flush right, stacked below the sidebar trigger in the top-right corner", async ({ page }) => {
       await page.goto(path);
       await settle(page);
       const viewport = page.viewportSize();
       if (!viewport) throw new Error("no viewport configured");
 
-      const actionBox = await page.getByTestId("map-action-button").boundingBox();
-      expect(actionBox).not.toBeNull();
-      expect(actionBox!.x).toBeLessThan(20);
-      // bottom-6 (24px), not bottom-3: deliberately more clearance than
-      // the 20px tolerance elsewhere in this file, for the thumb-reach
-      // margin.
-      expect(actionBox!.y + actionBox!.height).toBeGreaterThan(viewport.height - 30);
-
       const guideBox = await page.getByTestId("guide-button").boundingBox();
+      const sidebarTriggerBox = await page.locator('[data-slot="sidebar-trigger"]').boundingBox();
       expect(guideBox).not.toBeNull();
+      expect(sidebarTriggerBox).not.toBeNull();
       expect(guideBox!.x + guideBox!.width).toBeGreaterThan(viewport.width - 20);
+      // Below, not overlapping -- both claim the top-right corner now.
+      expect(guideBox!.y).toBeGreaterThan(sidebarTriggerBox!.y + sidebarTriggerBox!.height);
+      expect(guideBox!.y).toBeLessThan(viewport.height / 2);
     });
   });
 }
 
-test("plan page: nav log's listen/print pair sits top-right, print flush against the edge", async ({ page }) => {
+test("label page: action button sits flush bottom-left (Plan's own version moved into its header, next to Chart)", async ({ page }) => {
+  await page.goto("/app/label");
+  await settle(page);
+  const viewport = page.viewportSize();
+  if (!viewport) throw new Error("no viewport configured");
+
+  const actionBox = await page.getByTestId("map-action-button").boundingBox();
+  expect(actionBox).not.toBeNull();
+  expect(actionBox!.x).toBeLessThan(20);
+  // bottom-6 (24px), not bottom-3: deliberately more clearance than the
+  // 20px tolerance elsewhere in this file, for the thumb-reach margin.
+  expect(actionBox!.y + actionBox!.height).toBeGreaterThan(viewport.height - 30);
+});
+
+test("plan page: Flight Briefing sits next to Chart in the header, not floating over the map", async ({ page }) => {
   await page.goto("/app/plan");
   await settle(page);
   const viewport = page.viewportSize();
   if (!viewport) throw new Error("no viewport configured");
 
-  // The persistent site header now takes the top of the viewport --
-  // "flush against the edge" means the map area's own top edge, which
-  // starts below it, not the viewport's.
-  const headerBox = await page.locator("header").boundingBox();
-  expect(headerBox).not.toBeNull();
+  const chartBox = await page.getByRole("button", { name: "Chart" }).boundingBox();
+  const briefingBox = await page.getByTestId("map-action-button").boundingBox();
+  expect(chartBox).not.toBeNull();
+  expect(briefingBox).not.toBeNull();
+  expect(briefingBox!.x).toBeGreaterThan(chartBox!.x);
+  // Same row, not stacked -- and nowhere near the bottom-left corner
+  // MapActionButton would otherwise pin it to.
+  expect(Math.abs(briefingBox!.y - chartBox!.y)).toBeLessThan(10);
+  expect(briefingBox!.y).toBeLessThan(viewport.height - 100);
+});
+
+test("plan page: the briefing view's own header replaces the route form with just its own actions", async ({ page }) => {
+  await page.goto("/app/plan");
+  await settle(page);
 
   await page.getByTestId("map-action-button").click();
   await page.waitForTimeout(300);
   await expect(page).toHaveURL(/[?&]view=briefing/);
 
-  // Two buttons, not the three-button row this used to be -- no more
-  // "back to map" button here at all (see NavLogActions' own comment),
-  // so it's print (the last of the pair) that's actually flush against
-  // the corner, with listen to its left.
+  // One header row, not two -- no more route form (that's the map
+  // view's own header) and no label of its own either: the content
+  // right below already opens with "Flight Briefing" as a real `<h1>`,
+  // so the header doesn't repeat it.
+  expect(await page.getByLabel("Departure").count()).toBe(0);
+  await expect(page.locator("h1").getByText("Flight Briefing", { exact: true })).toBeVisible();
+
+  // Back to map, listen, print, then the same Settings gear every
+  // header ends in -- all four in one row, left to right.
+  const backBox = await page.getByTestId("nav-back-to-map-button").boundingBox();
   const listenBox = await page.getByTestId("listen-button").boundingBox();
   const printBox = await page.getByTestId("print-button").boundingBox();
+  const gearBox = await page.locator("header").getByRole("link", { name: "Settings" }).boundingBox();
+  expect(backBox).not.toBeNull();
   expect(listenBox).not.toBeNull();
   expect(printBox).not.toBeNull();
-  expect(printBox!.x + printBox!.width).toBeGreaterThan(viewport.width - 20);
-  const mapAreaTop = headerBox!.y + headerBox!.height;
-  expect(listenBox!.y).toBeLessThan(mapAreaTop + 20);
-  expect(printBox!.y).toBeLessThan(mapAreaTop + 20);
+  expect(gearBox).not.toBeNull();
+  expect(backBox!.x).toBeLessThan(listenBox!.x);
   expect(listenBox!.x).toBeLessThan(printBox!.x);
+  expect(printBox!.x).toBeLessThan(gearBox!.x);
 });
 
-test("plan page: the header's own Plan link, not a dedicated button, is the way back from the briefing view", async ({ page }) => {
+test("plan page: the briefing header's own back-to-map button, not the wordmark, is the way back", async ({ page }) => {
   await page.goto("/app/plan");
   await settle(page);
 
@@ -171,7 +198,7 @@ test("plan page: the header's own Plan link, not a dedicated button, is the way 
   await expect(page).toHaveURL(/[?&]view=briefing/);
   expect(await page.getByTestId("map-action-button").count()).toBe(0);
 
-  await page.locator("header").getByText("Plan", { exact: true }).click();
+  await page.getByTestId("nav-back-to-map-button").click();
   await page.waitForTimeout(300);
   await expect(page).not.toHaveURL(/[?&]view=briefing/);
   await expect(page.getByTestId("map-action-button")).toBeVisible();
@@ -209,30 +236,32 @@ test("plan page: nav log view scrolls inside its own table, not the page", async
   }
 });
 
-test("the site header's nav links actually reach every other page", async ({ page }) => {
+test("the site header's own two destinations -- the wordmark and the Settings gear -- both work", async ({ page }) => {
   await page.goto("/app/label");
   await page.waitForTimeout(300);
-
-  await page.locator("header").getByText("Plan", { exact: true }).click();
-  await page.waitForURL("**/app/plan");
-
-  await page.locator("header").getByText("Dev", { exact: true }).click();
-  await page.waitForURL("**/app/dev");
 
   // Settings is an icon-only link (a gear, no visible text), so its
   // accessible name -- not text content -- is what finds it.
   await page.locator("header").getByRole("link", { name: "Settings", exact: true }).click();
   await page.waitForURL("**/app/settings");
+  await page.waitForTimeout(300);
 
-  // The wordmark itself is the way back to Plan, the app's own
-  // homepage, from anywhere -- Dev links to Label instead of Label
-  // having its own permanent nav item (see PageHeader's own comment).
+  // Settings has its own "Back to Plan" header instead of the shared
+  // PageHeader (no reason for the gear that leads here to sit on the
+  // page it leads to) -- that's the way back, not the wordmark.
+  await page.getByRole("link", { name: "Back to Plan" }).click();
+  await page.waitForURL("**/app/plan");
+});
+
+test("the wordmark is the way back to Plan from every other page that still shows it", async ({ page }) => {
+  await page.goto("/app/label");
+  await page.waitForTimeout(300);
   await page.locator("header").getByText("VFR Route", { exact: true }).click();
   await page.waitForURL("**/app/plan");
 });
 
-test("Dev's own Label link works, since Label has no header link of its own", async ({ page }) => {
-  await page.goto("/app/dev");
+test("Settings' own Label link works, since Label has no header link of its own", async ({ page }) => {
+  await page.goto("/app/settings");
   await page.waitForTimeout(300);
   await page.getByRole("link", { name: "Label checkpoints" }).click();
   await page.waitForURL("**/app/label");

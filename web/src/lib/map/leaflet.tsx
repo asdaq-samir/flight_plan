@@ -275,12 +275,13 @@ export function dotIcon(fill: string, label?: string | number) {
             // centers the *line box*, not the glyph within it, so that
             // slack still reads as the number sitting off-center
             // within the circle.
-            // text-[10px], not text-xs (12px): a circle has less usable
-            // width near its edges than a square of the same size, so a
-            // two-digit checkpoint number in bold 12px text pokes past
-            // the curve on either side -- 10px is the largest size two
-            // digits actually stay inside it at.
-            ? "grid h-[22px] w-[22px] place-items-center text-[10px] font-bold leading-none text-white"
+            // text-[8px], not text-xs (12px) or text-[10px] (still too
+            // wide once a route's checkpoint count runs to three digits,
+            // not just two) -- a circle has less usable width near its
+            // edges than a square of the same size, so bold digits need
+            // real headroom past their own nominal width to actually
+            // stay inside the curve.
+            ? "grid h-[22px] w-[22px] place-items-center text-[8px] font-bold leading-none text-white"
             : "h-4 w-4"
         }`}
         style={{ backgroundColor: fill }}

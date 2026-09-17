@@ -1,3 +1,4 @@
+import { Info } from "lucide-react";
 import { Button } from "../../../components/ui/button";
 import { Kbd } from "../../../components/ui/kbd";
 import { Popover, PopoverContent, PopoverTrigger } from "../../../components/ui/popover";
@@ -12,29 +13,34 @@ const BUCKETS: [string, string][] = [
 ];
 
 /**
- * What the map's dot colors mean, pinned to the bottom-right corner --
- * shadcn's `Popover` directly, the same corner the label page's own
- * Guide (`RatingLegend`) uses. MapLegend, the card this replaces, went
- * out with the sidebar simplification along with a fit/basemap button
+ * What the map's dot colors mean, stacked below the sidebar trigger in
+ * the map's top-right corner (the same corner the label page's own
+ * Guide (`RatingLegend`) uses) -- shadcn's `Popover` directly.
+ * `top-36`, not `top-1`: `Shell`'s own `SidebarTrigger` already claims
+ * `top-24` there for the exact same reason (clearing the loading
+ * toast's own landing zone, see its comment) -- stacking below it,
+ * not beside it, keeps both clear without needing a second toast
+ * exception of its own. MapLegend, the card this replaces, went out
+ * with the sidebar simplification along with a fit/basemap button
  * pair that keyboard shortcuts already covered -- only the color key
  * itself was worth keeping, and it had nowhere left to live once the
  * sidebar became checkpoints-only.
  */
 export default function ScoreLegend() {
   return (
-    <div className="absolute bottom-1 right-1 z-[1000]">
+    <div className="absolute right-1 top-36 z-[1000]">
       <Popover>
         <PopoverTrigger asChild>
           <Button
-            variant="secondary"
+            size="icon"
+            aria-label="Planning guide"
             data-testid="guide-button"
-            className="h-auto flex-col whitespace-normal py-1.5 text-center text-sm leading-tight shadow-md"
+            className="rounded-full border-2 border-background shadow-[0_2px_10px_rgba(0,0,0,.5)]"
           >
-            <div>Planning</div>
-            <div>Guide</div>
+            <Info className="size-5" />
           </Button>
         </PopoverTrigger>
-        <PopoverContent side="top" align="end" className="w-64 z-[1000] max-h-[70vh] overflow-y-auto">
+        <PopoverContent side="bottom" align="end" className="w-64 z-[1000] max-h-[70vh] overflow-y-auto">
           <div className="space-y-3 text-sm">
             <div className="space-y-1">
               <div className="text-xs font-semibold uppercase text-muted-foreground">Checkpoint score</div>

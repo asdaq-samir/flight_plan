@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
+import { Settings } from "lucide-react";
 import { identSchema } from "../../lib/identSchema";
 // Without this Leaflet's tiles, markers and controls have no
 // positioning at all -- this is the library's own stylesheet, not
-// app styling. Imported here (not in main.tsx) so Dev/Settings, which
-// never touch a map, don't pay for it.
+// app styling. Imported here (not in main.tsx) so Settings, which
+// never touches a map, doesn't pay for it.
 import "leaflet/dist/leaflet.css";
 import Shell from "../../Shell";
-import MapActionButton from "../../components/MapActionButton";
+import { Button } from "../../components/ui/button";
 import { usePageStatus } from "../../lib/usePageStatus";
 import type { Candidate } from "../../lib/api/types";
 import RouteMap from "./components/RouteMap";
@@ -64,12 +65,11 @@ export default function PlanView() {
   // this is true, so `controls` is only ever called while it's
   // actually mounted -- see the keyboard shortcuts below.
   //
-  // Driven by the URL (?view=briefing), not its own useState: there's
-  // no dedicated "back to map" button any more -- the site header's
-  // own "Plan" link is the way back (a plain <Link to="/plan">, no
-  // special-casing in PageHeader), which only actually navigates
-  // anywhere, and so only actually leaves this view, because the URL
-  // is what changes.
+  // Driven by the URL (?view=briefing) rather than its own useState --
+  // this is what makes leaving the view (the briefing header's own
+  // "back to map" button, see `briefingHeader` below) an actual
+  // navigation, not just a prop flip, so a browser back/forward or a
+  // pasted link lands on the right one of the two.
   const showBriefing = searchParams.get("view") === "briefing";
   const setBriefingView = useCallback((open: boolean) => {
     setSearchParams(prev => {
@@ -178,13 +178,33 @@ export default function PlanView() {
     [s.selectPoint],
   );
 
-  // Always visible, not shadcn's Collapsible like Label's own toolbar --
-  // the route form is this page's entire reason for being here, not a
-  // secondary settings drawer worth hiding behind a tap. Same wrapper
-  // treatment as CollapsibleToolbar (border/background/blur) minus the
-  // trigger/collapse machinery that page doesn't need.
-  const toolbar = (
-    <div className="shrink-0 border-b border-border bg-background/95 px-3 py-2 backdrop-blur-sm print:hidden">
+  const settingsButton = (
+    <Button asChild variant="ghost" size="icon" aria-label="Settings" className="shrink-0">
+      <Link to="/settings">
+        <Settings className="size-4" />
+      </Link>
+    </Button>
+  );
+
+  // Generates the narrative if none exists yet, then reads it aloud
+  // the moment it's ready; toggles playback if one's already
+  // generated. The one handler both the briefing header's own Listen
+  // button and the Briefing Narrative section's own "Listen" button
+  // call, so triggering it from either place leaves the other in
+  // agreement.
+  const handleListenClick = async () => {
+    if (s.speaking) { s.stopSpeaking(); return; }
+    if (s.narrative) { s.speak(s.narrative); return; }
+    const text = await s.loadNarrative(dep, dest);
+    if (text) s.speak(text);
+  };
+
+  // Folds PageHeader's own row and the old separate toolbar row into
+  // one -- the route form, not "VFR Route," is this page's actual
+  // title: the thing a pilot is here to use, not a settings drawer or
+  // a brand mark worth a whole line of their own.
+  const mapHeader = (
+    <header className="flex shrink-0 items-start justify-between gap-3 border-b border-border bg-background px-4 py-2 print:hidden">
       <RouteForm
         dep={dep} dest={dest} alt={alt}
         onDepChange={setDep} onDestChange={setDest} onAltChange={setAlt}
@@ -192,8 +212,35 @@ export default function PlanView() {
         disabled={s.stage !== null}
         routes={s.routes}
         summary={s.stage === "course" ? "drawing course…" : summary(s.course?.distance_nm ?? null, s.selected.length)}
+        onOpenBriefing={() => setBriefingView(true)}
+        briefingDisabled={!s.course}
       />
-    </div>
+      {settingsButton}
+    </header>
+  );
+
+  // The briefing view's own header, in place of both PageHeader (the
+  // "VFR Route" wordmark reads oddly once the page is already telling
+  // you which document you're looking at) and NavLogActions' old
+  // floating position over the content -- one row, not two. No label
+  // of its own, unlike `mapHeader` -- the content immediately below
+  // already opens with "Flight Briefing" as a real `<h1>` (see
+  // FlightBriefingView), so repeating it here would just be the same
+  // word twice in a row; this row is purely its own actions (back to
+  // map, listen, print) beside the same Settings gear every header
+  // ends in.
+  const briefingHeader = (
+    <header className="flex h-12 shrink-0 items-center justify-end gap-1 border-b border-border bg-background px-4 print:hidden">
+      <div className="flex items-center gap-1">
+        <NavLogActions
+          onMapClick={() => setBriefingView(false)}
+          onListenClick={() => void handleListenClick()}
+          listenLoading={s.loadingNarrative}
+          listening={s.speaking}
+        />
+        {settingsButton}
+      </div>
+    </header>
   );
 
   // The nav log's own stage (scoring, altitude selection, the live
@@ -222,32 +269,13 @@ export default function PlanView() {
   // on the map view's own toolbar-having layout.
   usePageStatus(progress, error, showBriefing ? "bottom-center" : undefined);
 
-  // Generates the narrative if none exists yet, then reads it aloud
-  // the moment it's ready; toggles playback if one's already
-  // generated. The one handler both the nav log's floating button and
-  // the Briefing Narrative section's own "Listen" button call, so
-  // triggering it from either place leaves the other in agreement.
-  const handleListenClick = async () => {
-    if (s.speaking) { s.stopSpeaking(); return; }
-    if (s.narrative) { s.speak(s.narrative); return; }
-    const text = await s.loadNarrative(dep, dest);
-    if (text) s.speak(text);
-  };
-
-  const mapOverlay = !showBriefing ? (
-    <>
-      {!sidebarOpen && <ScoreLegend />}
-      <MapActionButton onClick={() => setBriefingView(true)} disabled={!s.course}>
-        Flight Briefing
-      </MapActionButton>
-    </>
-  ) : (
-    <NavLogActions
-      onListenClick={() => void handleListenClick()}
-      listenLoading={s.loadingNarrative}
-      listening={s.speaking}
-    />
-  );
+  // No more overlay while looking at the briefing -- its own actions
+  // moved into `briefingHeader` above, in flow rather than floating
+  // over the content. "Flight Briefing" itself lives in `mapHeader`
+  // now too, next to "Chart" (see RouteForm's own comment) rather than
+  // floating bottom-left the way this page's single most-needed action
+  // otherwise would -- Chart already is that.
+  const mapOverlay = showBriefing ? null : !sidebarOpen && <ScoreLegend />;
 
   const navLog = (
     <NavLogView
@@ -274,7 +302,8 @@ export default function PlanView() {
         />
       )}
       <Shell
-        toolbar={showBriefing ? null : toolbar}
+        header={showBriefing ? briefingHeader : mapHeader}
+        toolbar={null}
         mapOverlay={mapOverlay}
         onSidebarOpenChange={setSidebarOpen}
         map={

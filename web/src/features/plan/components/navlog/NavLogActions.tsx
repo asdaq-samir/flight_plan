@@ -1,7 +1,8 @@
-import { Loader2, Printer, Square, Volume2 } from "lucide-react";
+import { Loader2, Map, Printer, Square, Volume2 } from "lucide-react";
 import { Button } from "../../../../components/ui/button";
 
 interface Props {
+  onMapClick: () => void;
   /** Generates the narrative if none exists yet, then reads it aloud
    *  the moment it's ready; toggles playback if one's already
    *  generated. Shares its `speaking` state with the Briefing Narrative
@@ -14,37 +15,40 @@ interface Props {
 }
 
 /**
- * The nav log's own top-right row -- listen to the briefing narrative,
- * or print this. No "back to map" button here any more -- the site
- * header's own "Plan" link is that, now that this view is a real URL
- * state (`?view=briefing`, see PlanView) rather than a page-local
- * toggle a dedicated button was the only way back from. Icon-only, not
- * the text pill `MapActionButton` uses elsewhere: side by side they
- * read more like a toolbar than competing actions once they both say
- * something in words. `print:hidden` throughout (see `NavLogView`'s
- * own print overrides) -- neither belongs in the printed page itself.
+ * The nav log's own actions -- back to the map, listen to the briefing
+ * narrative, print this -- rendered inline in the briefing view's own
+ * header row (alongside its "Flight Briefing" label and the Settings
+ * gear), not floating over the content the way this component used to.
+ * Plain ghost icon buttons to match the gear beside them, not the
+ * heavy-shadow/white-border treatment a button floating *over a map*
+ * needs to read against arbitrary tile colors underneath it -- this
+ * sits on a plain header background instead.
  */
-const buttonClass = "size-10 rounded-lg border-2 border-background shadow-[0_2px_10px_rgba(0,0,0,.5)] print:hidden";
-
-export default function NavLogActions({ onListenClick, listenLoading, listening }: Props) {
+export default function NavLogActions({ onMapClick, onListenClick, listenLoading, listening }: Props) {
   return (
-    <div className="absolute right-3 top-3 z-[1000] flex gap-2 print:hidden">
+    <>
       <Button
-        onClick={onListenClick} disabled={listenLoading}
+        variant="ghost" size="icon" onClick={onMapClick}
+        title="Back to map" aria-label="Back to map" data-testid="nav-back-to-map-button"
+      >
+        <Map className="size-4" />
+      </Button>
+      <Button
+        variant="ghost" size="icon" onClick={onListenClick} disabled={listenLoading}
         title={listening ? "Stop" : "Listen to briefing narrative"}
         aria-label={listening ? "Stop" : "Listen to briefing narrative"}
-        data-testid="listen-button" className={buttonClass}
+        data-testid="listen-button"
       >
         {listenLoading
-          ? <Loader2 className="size-5 animate-spin" />
-          : listening ? <Square className="size-5" /> : <Volume2 className="size-5" />}
+          ? <Loader2 className="size-4 animate-spin" />
+          : listening ? <Square className="size-4" /> : <Volume2 className="size-4" />}
       </Button>
       <Button
-        onClick={() => window.print()} title="Print" aria-label="Print"
-        data-testid="print-button" className={buttonClass}
+        variant="ghost" size="icon" onClick={() => window.print()}
+        title="Print" aria-label="Print" data-testid="print-button"
       >
-        <Printer className="size-5" />
+        <Printer className="size-4" />
       </Button>
-    </div>
+    </>
   );
 }

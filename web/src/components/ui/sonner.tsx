@@ -32,6 +32,16 @@ const Toaster = ({ ...props }: ToasterProps) => {
           "--normal-text": "var(--popover-foreground)",
           "--normal-border": "var(--border)",
           "--border-radius": "var(--radius)",
+          // `--destructive` itself (this theme's own warm red, not a
+          // separately hand-picked one) at the same 10%/20% tint this
+          // app already uses for a soft destructive background
+          // elsewhere (Button's own `destructive` variant) -- a wash,
+          // not a solid block, so the error toast reads as "something's
+          // wrong" without being the sharp, saturated red sonner's own
+          // default error styling would otherwise use unthemed.
+          "--error-bg": "color-mix(in oklab, var(--destructive) 10%, var(--popover))",
+          "--error-text": "var(--destructive)",
+          "--error-border": "color-mix(in oklab, var(--destructive) 20%, var(--border))",
         } as React.CSSProperties
       }
       toastOptions={{

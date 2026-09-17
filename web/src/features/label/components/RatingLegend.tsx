@@ -1,3 +1,4 @@
+import { Info } from "lucide-react";
 import { Badge } from "../../../components/ui/badge";
 import { Button } from "../../../components/ui/button";
 import { Kbd } from "../../../components/ui/kbd";
@@ -24,28 +25,31 @@ const SCALE: [Rating, string, string][] = [
 ];
 
 /**
- * The rating scale and keyboard shortcuts, pinned to the bottom-right
- * corner of the map rather than the sidebar -- it's about the map, so
- * it opens over it. The action button (Start/Resume/Fit line) takes
- * the opposite corner, bottom-left, the same split the planner uses
- * for its own guide/toggle pair. shadcn's `Popover` directly, the
- * same as the planner's own `ScoreLegend`.
+ * The rating scale and keyboard shortcuts, stacked below the sidebar
+ * trigger in the map's own top-right corner rather than the sidebar
+ * itself -- it's about the map, so it opens over it. `top-36`, not
+ * `top-1`: `Shell`'s own `SidebarTrigger` already claims `top-24`
+ * there (clearing the loading toast's own landing zone, see its
+ * comment) -- stacking below it keeps both clear. The action button
+ * (Start/Resume/Fit line) takes the opposite corner, bottom-left.
+ * shadcn's `Popover` directly, the same as the planner's own
+ * `ScoreLegend`.
  */
 export default function RatingLegend() {
   return (
-    <div className="absolute bottom-1 right-1 z-[1000]">
+    <div className="absolute right-1 top-36 z-[1000]">
       <Popover>
         <PopoverTrigger asChild>
           <Button
-            variant="secondary"
+            size="icon"
+            aria-label="Labeling guide"
             data-testid="guide-button"
-            className="h-auto flex-col whitespace-normal py-1.5 text-center text-sm leading-tight shadow-md"
+            className="rounded-full border-2 border-background shadow-[0_2px_10px_rgba(0,0,0,.5)]"
           >
-            <div>Labeling</div>
-            <div>Guide</div>
+            <Info className="size-5" />
           </Button>
         </PopoverTrigger>
-        <PopoverContent side="top" align="end" className="w-72 z-[1000] max-h-[70vh] overflow-y-auto">
+        <PopoverContent side="bottom" align="end" className="w-72 z-[1000] max-h-[70vh] overflow-y-auto">
           <div className="space-y-3 text-sm">
             <p className="italic text-muted-foreground">
               Flying this leg, would I look up and know <i>that&rsquo;s the one</i> — not one like it?
