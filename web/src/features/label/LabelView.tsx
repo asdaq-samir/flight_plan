@@ -1,16 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
+import { identSchema } from "../../lib/identSchema";
 // Without this Leaflet's tiles, markers and controls have no
 // positioning at all -- this is the library's own stylesheet, not
 // app styling. Imported here (not in main.tsx) so Home/Playground/
 // Account, which never touch a map, don't pay for it.
 import "leaflet/dist/leaflet.css";
 import Shell from "../../Shell";
-import CollapsibleToolbar, { TOOLBAR_COLLAPSED_FOOTPRINT } from "../../components/CollapsibleToolbar";
+import CollapsibleToolbar from "../../components/CollapsibleToolbar";
 import MapActionButton from "../../components/MapActionButton";
-import MapArea from "../../components/MapArea";
-import Sidebar, { SIDEBAR_OPEN_AT } from "../../components/Sidebar";
-import PageStatus from "../../components/PageStatus";
-import { getParam, setParams as setUrlParams } from "../../lib/urlParams";
+import { usePageStatus } from "../../lib/usePageStatus";
 import ChartMap from "./components/ChartMap";
 import RouteForm from "./components/RouteForm";
 import FilterBar from "./components/FilterBar";
@@ -26,9 +25,6 @@ import { currentPoint, useLabelState } from "./hooks/useLabelState";
 import { useDocumentTitle } from "../../lib/useDocumentTitle";
 
 const FOCUS_ZOOM = 12;
-// 8px of breathing room over the toolbar's own collapsed footprint, so
-// the status popup doesn't sit flush against the tab row.
-const STATUS_GAP = TOOLBAR_COLLAPSED_FOOTPRINT + 8;
 
 export default function LabelView() {
   useDocumentTitle("Label checkpoints — VFR Route");
@@ -37,9 +33,10 @@ export default function LabelView() {
     () => currentPoint(store),
     [store.selection, store.endpoints, store.detections, store.added],
   );
+  const [searchParams, setSearchParams] = useSearchParams();
   const [map, setMap] = useState<L.Map | null>(null);
-  const [dep, setDep] = useState(getParam("dep")?.toUpperCase() ?? "C81");
-  const [dest, setDest] = useState(getParam("dest")?.toUpperCase() ?? "KDLH");
+  const [dep, setDep] = useState(searchParams.get("dep")?.toUpperCase() ?? "C81");
+  const [dest, setDest] = useState(searchParams.get("dest")?.toUpperCase() ?? "KDLH");
   const [stepDelta, setStepDelta] = useState(1);
   // Tracks the map's own zoom so the one Controls button can read as
   // "Start"/"Resume"/"Fit line" -- Leaflet's zoom lives outside React,
@@ -47,20 +44,17 @@ export default function LabelView() {
   // re-render, not the moment a zoom actually happens.
   const [zoomedIn, setZoomedIn] = useState(false);
   // The Guide panel sits in the same bottom-right corner the sidebar
-  // opens over -- hide it once the sidebar's pulled out at all, rather
-  // than let it float on top of the waypoint list.
-  const [sidebarWidth, setSidebarWidth] = useState(0);
-  const sidebarOpen = sidebarWidth > SIDEBAR_OPEN_AT;
-  // How far the route tab's own drawer is currently pulled down, so
-  // the status popup below tracks it rather than sitting at a fixed
-  // offset sized only for the collapsed state.
-  const [toolbarHeight, setToolbarHeight] = useState(0);
-  // How far the error drawer is currently pulled open, so the map
-  // behind it can actually shrink to clear it rather than just being
-  // covered by it.
-  const [errorHeight, setErrorHeight] = useState(0);
+  // opens over -- hide it once the sidebar's open at all, rather than
+  // let it float on top of the waypoint list.
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  useEffect(() => { void store.load(dep, dest); }, []);
+  // Mount only, deliberately: RouteForm's own onSubmit is the reload
+  // path when dep/dest change later, so this effect must not also fire
+  // on every keystroke that updates them. store.load is still listed
+  // (a stable []-deps callback in useLabelState) so a future refactor
+  // that gave it a real dependency wouldn't silently go stale here.
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- dep/dest omitted on purpose, see above
+  useEffect(() => { void store.load(dep, dest); }, [store.load]);
 
   useEffect(() => {
     if (!map) return;
@@ -137,10 +131,26 @@ export default function LabelView() {
   // render -- including one for each block of a streaming detection --
   // and ChartMap's halo effect depends on it, so an unrelated re-render
   // would tear the popup down and remount it, not just re-render it.
+  // Written after render (an effect), read during it (inside the
+  // useMemo below) -- reading and writing the same ref inside the memo
+  // itself would mutate it as a side effect of a supposedly pure
+  // calculation, which React is free to invoke more than once per
+  // commit (Strict Mode does, today) or skip and reuse a prior result.
+  useEffect(() => {
+    lastTotal.current = waypoints.length;
+  }, [waypoints.length]);
+
   const selectedContent = useMemo(() => {
     if (!point) return null;
+    // Reads lastTotal.current as it stood after the PREVIOUS commit --
+    // the write above only ever happens in an effect, strictly after a
+    // render finishes, so this can never observe a value written by
+    // the render currently in progress. Safe in practice; the
+    // react-hooks/refs rule can't prove that statically across two
+    // separate hooks, only warn that ref reads during render aren't
+    // generally guaranteed to be.
+    // eslint-disable-next-line react-hooks/refs
     const countChanged = lastTotal.current !== null && lastTotal.current !== waypoints.length;
-    lastTotal.current = waypoints.length;
     // Same idea as the arrow keys: which screen side is "forward" (step
     // +1) depends on which way the course actually runs, not a fixed
     // left-back/right-forward assumption -- a route heading roughly
@@ -153,6 +163,9 @@ export default function LabelView() {
       <PointPopup
         point={point}
         place={place}
+        // Same ref-read this rule already flagged above, propagated to
+        // its one use site -- see the comment there.
+        // eslint-disable-next-line react-hooks/refs
         countChanged={countChanged}
         bearingDeg={bearing}
         departureIdent={store.course?.departure.ident ?? ""}
@@ -234,19 +247,31 @@ export default function LabelView() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [store, point, step, stepList, stepDelta, toggleView, fitLine]);
+    // store.rate/removeSelected/setFilter are stable ([]-deps callbacks
+    // in useLabelState, reading fresh state through a ref rather than
+    // closing over it) -- listed by field rather than the whole `store`
+    // object so this doesn't tear down and rebind the listener on every
+    // unrelated store change (a streamed-in detection, say), only on
+    // the two fields the handler actually reads a fresh value from.
+  }, [store.course, store.filters, store.rate, store.removeSelected, store.setFilter, point, step, stepList, stepDelta, toggleView, fitLine]);
+
+  const submitRoute = useCallback(() => {
+    const d = identSchema.safeParse(dep).data, a = identSchema.safeParse(dest).data;
+    if (!d || !a) return;
+    setSearchParams({ dep: d, dest: a }, { replace: true });
+    void store.load(d, a);
+  }, [dep, dest, setSearchParams, store.load]);
 
   const toolbar = (
     <CollapsibleToolbar
       title="VFR labeler"
       label={dep && dest ? `Route: ${dep} → ${dest}` : "Route & view"}
-      onHeightChange={setToolbarHeight}
     >
       <div>
         <span className="text-xs font-semibold uppercase text-slate-400">Route</span>
         <RouteForm
           dep={dep} dest={dest} onDepChange={setDep} onDestChange={setDest}
-          onSubmit={() => { setUrlParams({ dep, dest }); void store.load(dep, dest); }}
+          onSubmit={submitRoute}
           course={store.course}
         />
       </div>
@@ -257,14 +282,12 @@ export default function LabelView() {
     </CollapsibleToolbar>
   );
 
+  usePageStatus(store.progress, store.error);
+
   const mapOverlay = (
     <>
-      <PageStatus
-        progress={store.progress} error={store.error}
-        top={toolbarHeight + STATUS_GAP} onErrorHeightChange={setErrorHeight}
-      />
-      {!sidebarOpen && <RatingLegend bottomOffset={errorHeight} />}
-      <MapActionButton onClick={toggleView} disabled={!walk.length} bottomOffset={errorHeight}>
+      {!sidebarOpen && <RatingLegend />}
+      <MapActionButton onClick={toggleView} disabled={!walk.length}>
         {!point ? "Start" : zoomedIn ? "Fit line" : "Resume"}
       </MapActionButton>
     </>
@@ -272,11 +295,11 @@ export default function LabelView() {
 
   return (
     <Shell
-      active="label"
       toolbar={toolbar}
       mapOverlay={mapOverlay}
+      onSidebarOpenChange={setSidebarOpen}
       map={
-        <MapArea errorHeight={errorHeight}>
+        <div className="h-full w-full">
           <ChartMap
             course={store.course}
             endpoints={store.endpoints}
@@ -291,10 +314,10 @@ export default function LabelView() {
             onAddAt={(lat, lon) => void store.addPick(lat, lon)}
             onMapReady={setMap}
           />
-        </MapArea>
+        </div>
       }
       sidebar={
-        <Sidebar label={`Waypoints: ${visiblePicks.length}`} onWidthChange={setSidebarWidth}>
+        <>
           <ProgressCard
             visiblePicks={visiblePicks}
             canUndo={store.canUndo}
@@ -306,7 +329,7 @@ export default function LabelView() {
             bearingDeg={store.course?.bearing_deg ?? 0}
             departureIdent={store.course?.departure.ident ?? ""}
           />
-        </Sidebar>
+        </>
       }
     />
   );

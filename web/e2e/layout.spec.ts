@@ -4,20 +4,21 @@ import { test, expect, type Page } from "@playwright/test";
  * The regressions this file exists to catch (see playwright.config.ts
  * for why these need a real browser rather than the vitest suite):
  *
- *  - a handle's grab zone or a corner-pinned button not actually flush
- *    against the edge it's meant to sit on, because a wider sibling
- *    (a collapsed panel, a fixed-width card) was silently deciding the
- *    shared container's own shrink-to-fit width
- *  - a `width:0`/`height:0` collapsed panel that wasn't really zero,
- *    because padding lived on the same border-box element instead of
- *    an inner wrapper, or a flex item's default `min-width:auto`
- *    refused to shrink below its content
+ *  - a corner-pinned button not actually flush against the edge it's
+ *    meant to sit on, because a wider sibling was silently deciding
+ *    the shared container's own shrink-to-fit width
+ *  - the toolbar drawer or the sidebar (shadcn's own `Collapsible`/
+ *    `Sidebar`) not actually starting closed, or not actually opening
+ *    from its trigger
  *  - wide content (the nav log table) pushing the whole page into
  *    horizontal scroll instead of scrolling inside its own container,
  *    because an ancestor flex item was missing `min-w-0`
  *
  * None of these are about what a component renders -- only about
  * where things actually land once a real layout engine gets to them.
+ * The default viewport here (see playwright.config.ts) is phone-sized,
+ * which is deliberate: it's what exercises the sidebar's own mobile
+ * `Sheet` path, not just the desktop push-layout one.
  */
 
 const PAGES = ["/app/plan", "/app/label"] as const;
@@ -36,30 +37,36 @@ for (const path of PAGES) {
       await page.goto(path);
       await settle(page);
 
-      const sidebarWidth = await page.getByTestId("sidebar").evaluate(
-        el => el.getBoundingClientRect().width,
-      );
-      expect(sidebarWidth).toBe(0);
-
-      const toolbarHeight = await page.getByTestId("toolbar-content").evaluate(
-        el => el.getBoundingClientRect().height,
-      );
-      expect(toolbarHeight).toBe(0);
+      // Radix's Collapsible doesn't render closed content at all (no
+      // box to measure), and the mobile Sidebar is a Sheet that isn't
+      // even mounted until its trigger opens it -- "collapsed" for
+      // both now means "not there," not "there at width/height 0."
+      await expect(page.getByTestId("toolbar-content")).not.toBeVisible();
+      expect(await page.locator('[data-mobile="true"]').count()).toBe(0);
     });
 
-    test("drag handles' grab zones are the same thickness on both pages", async ({ page }) => {
+    test("toolbar and sidebar open from their own trigger, closed by default", async ({ page }) => {
       await page.goto(path);
       await settle(page);
 
-      const toolbarHandle = await page.getByTestId("toolbar-handle").boundingBox();
-      const sidebarHandle = await page.getByTestId("sidebar-handle").boundingBox();
-      expect(toolbarHandle).not.toBeNull();
-      expect(sidebarHandle).not.toBeNull();
-      // The toolbar's is measured by height (it resizes vertically),
-      // the sidebar's by width (it resizes horizontally) -- the two
-      // should still be the same thickness across their own drag axis,
-      // the dimension that matters for how easy each is to grab.
-      expect(toolbarHandle!.height).toBe(sidebarHandle!.width);
+      const toolbarTrigger = page.getByTestId("toolbar-trigger");
+      const toolbarContent = page.getByTestId("toolbar-content");
+      await toolbarTrigger.click();
+      await expect(toolbarContent).toBeVisible();
+      await toolbarTrigger.click();
+      await expect(toolbarContent).not.toBeVisible();
+
+      const sidebarTrigger = page.locator('[data-slot="sidebar-trigger"]');
+      const mobileSidebar = page.locator('[data-mobile="true"]');
+      await sidebarTrigger.click();
+      await expect(mobileSidebar).toBeVisible();
+      // Closed via Escape, not a second click on the trigger -- the
+      // Sheet's own full-viewport overlay sits on top of everything
+      // (including the trigger's own screen position) while open, the
+      // same as any other modal dialog; Escape is the one dismissal
+      // path that doesn't depend on what's currently on top.
+      await page.keyboard.press("Escape");
+      await expect(mobileSidebar).not.toBeVisible();
     });
 
     test("no page-level horizontal overflow", async ({ page }) => {
@@ -88,32 +95,6 @@ for (const path of PAGES) {
       const guideBox = await page.getByTestId("guide-button").boundingBox();
       expect(guideBox).not.toBeNull();
       expect(guideBox!.x + guideBox!.width).toBeGreaterThan(viewport.width - 20);
-    });
-
-    test("both drag handles open and close from the keyboard alone", async ({ page }) => {
-      await page.goto(path);
-      await settle(page);
-
-      const toolbarHandle = page.getByTestId("toolbar-handle");
-      await toolbarHandle.focus();
-      await toolbarHandle.press("ArrowRight");
-      const heightAfterOne = await page.getByTestId("toolbar-content").evaluate(el => el.getBoundingClientRect().height);
-      expect(heightAfterOne).toBeGreaterThan(0);
-      await toolbarHandle.press("Home");
-      const heightAfterHome = await page.getByTestId("toolbar-content").evaluate(el => el.getBoundingClientRect().height);
-      expect(heightAfterHome).toBe(0);
-      await toolbarHandle.press("End");
-      const heightAfterEnd = await page.getByTestId("toolbar-content").evaluate(el => el.getBoundingClientRect().height);
-      expect(heightAfterEnd).toBeGreaterThan(heightAfterOne);
-
-      const sidebarHandle = page.getByTestId("sidebar-handle");
-      await sidebarHandle.focus();
-      await sidebarHandle.press("ArrowRight");
-      const widthAfterOne = await page.getByTestId("sidebar").evaluate(el => el.getBoundingClientRect().width);
-      expect(widthAfterOne).toBeGreaterThan(0);
-      await sidebarHandle.press("Home");
-      const widthAfterHome = await page.getByTestId("sidebar").evaluate(el => el.getBoundingClientRect().width);
-      expect(widthAfterHome).toBe(0);
     });
   });
 }

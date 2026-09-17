@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useRef, useState } from "react";
+import clsx from "clsx";
 import type { Candidate, Leg, NavLog, Totals } from "../../../../lib/api/types";
 import { type Description, descriptionKey } from "../../hooks/usePlanState";
 import { altFt, deg, one, signed, totalsParts } from "../../format";
@@ -64,8 +65,18 @@ function DescriptionCell({
   const [draft, setDraft] = useState(description?.text ?? "");
   // A fresh arrival from the stream (or someone else's edit) should
   // overwrite an untouched draft -- but not fight typing in progress,
-  // which is why this only runs when the underlying text itself changes.
-  useEffect(() => { setDraft(description?.text ?? ""); }, [description?.text]);
+  // which is why this only resets when the underlying text itself
+  // changes. Compared and reset during render, not in a useEffect: an
+  // effect only runs after the stale draft has already committed and
+  // painted, which is a visible one-frame flash of the old text every
+  // time a fresh description arrives; this react-hooks-docs-recommended
+  // "adjust state while rendering" pattern applies the reset before
+  // that first paint instead.
+  const [lastSeenText, setLastSeenText] = useState(description?.text);
+  if (description?.text !== lastSeenText) {
+    setLastSeenText(description?.text);
+    setDraft(description?.text ?? "");
+  }
 
   if (!description) {
     return <span className="italic text-slate-400">Generating description…</span>;
@@ -226,9 +237,17 @@ export default function NavLogView({
               <tr
                 ref={isSelected(depLat, depLon) ? selectedRef : undefined}
                 onClick={() => onSelectPoint(depLat, depLon)}
-                className={`cursor-pointer border-b border-slate-100 text-slate-400 hover:bg-slate-50 ${
-                  isSelected(depLat, depLon) ? "bg-blue-50" : ""
-                }`}
+                tabIndex={0}
+                onKeyDown={e => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    onSelectPoint(depLat, depLon);
+                  }
+                }}
+                className={clsx(
+                  "cursor-pointer border-b border-slate-100 text-slate-400 hover:bg-slate-50 focus:outline-none focus-visible:bg-blue-50",
+                  isSelected(depLat, depLon) && "bg-blue-50",
+                )}
               >
                 <td className="px-2 py-1 text-left">{dep}</td>
                 <td className="border-l border-slate-200 px-2 py-1">{altFt(depElevationFt)}</td>
@@ -252,9 +271,19 @@ export default function NavLogView({
                 <tr
                   ref={isSelected(lat, lon) ? selectedRef : undefined}
                   onClick={() => onSelectPoint(lat, lon)}
-                  className={`cursor-pointer hover:bg-slate-50 ${cp && showDescriptions ? "" : "border-b border-slate-100"} ${
-                    leg?.wind ? "" : "text-slate-400"
-                  } ${isSelected(lat, lon) ? "bg-blue-50" : ""}`}
+                  tabIndex={0}
+                  onKeyDown={e => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      onSelectPoint(lat, lon);
+                    }
+                  }}
+                  className={clsx(
+                    "cursor-pointer hover:bg-slate-50 focus:outline-none focus-visible:bg-blue-50",
+                    !(cp && showDescriptions) && "border-b border-slate-100",
+                    !leg?.wind && "text-slate-400",
+                    isSelected(lat, lon) && "bg-blue-50",
+                  )}
                 >
                   <td className="px-2 py-1 text-left">{name}</td>
                   {/* The last row lands at the destination -- shows its

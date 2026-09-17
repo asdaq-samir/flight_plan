@@ -1,4 +1,4 @@
-import Button from "../../../components/Button";
+import { Button } from "../../../components/ui/button";
 import { FIELD_INPUT } from "../../../components/fieldInput";
 import type { BuiltRoute } from "../../../lib/api/types";
 

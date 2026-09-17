@@ -1,16 +1,23 @@
 # web/
 
-React 19 + Vite 8 + Tailwind v4 + Leaflet front end for two pages:
+React 19 + Vite 8 + Tailwind v4 + Leaflet front end for five pages:
 
+- `/app/home` — links to every other page.
 - `/app/plan` — enter a departure/destination, get a charted course,
-  scored checkpoints, and a dead-reckoning nav log.
+  scored checkpoints, a dead-reckoning nav log, and a printable Flight
+  Briefing.
 - `/app/label` — walk a route's detected waypoints on a sectional chart
   and rate each one (ML training data).
+- `/app/playground` — explore how the project actually works: every
+  trained algorithm's accuracy side by side, live scoring, and the
+  full reasoning behind a recommended cruise altitude. No sign-in.
+- `/app/account` — a signed-in pilot's own aeroplanes and filed
+  flights.
 
-This app computes nothing itself. Every course, checkpoint, detection
-and nav log comes from `planning-service`; this front end only draws
-it and sends back writes (ratings, added picks, corridor-build
-requests).
+Plan/Label compute nothing themselves — every course, checkpoint,
+detection and nav log comes from `planning-service`; this front end
+only draws it and sends back writes (ratings, added picks, corridor-build
+requests, filed flights).
 
 ## Contents
 
@@ -79,7 +86,6 @@ src/
     api/types.ts            API request/response shapes
     map/leaflet.tsx          Shared Leaflet drawing primitives (course line, halo, markers)
     map/useLeafletMap.ts     Shared map-creation/teardown hook
-    urlParams.ts             Read/write ?dep=&dest= query params
   features/
     label/
       LabelView.tsx                    Page: wiring only
@@ -141,9 +147,12 @@ and use `vite build` + `docker compose up --build webapp`.
 
 ## Architecture
 
-**Routing.** `main.tsx` checks `location.pathname` directly — no
-router. There are exactly two pages and nothing navigates between
-them at runtime.
+**Routing.** `main.tsx` builds a `react-router-dom` `createBrowserRouter`
+with one lazy-loaded route per page (Home/Plan/Label/Playground/Account),
+`basename: "/app"` matching where `webapp` serves the bundle. Deep links
+and a hard refresh both work without any change on the Spring Boot
+side — `WebMvcConfig`'s resource resolver already falls back to
+`index.html` for any path under `/app/**` that isn't a real file.
 
 **State.** Each page has one hook (`useLabelState` / `usePlanState`)
 holding all of that page's state as a plain object, returned alongside
@@ -205,11 +214,9 @@ container for this front end in production.
 
 ## What's intentionally not here
 
-- No client-side router (`react-router-dom` or similar)
-- No global state library (`zustand`/Redux/etc.)
+- No global state library (`zustand`/Redux/etc.) — `@tanstack/react-query`
+  (see below) owns server-cache state; there's no separate client-side
+  app state that needs one
 - No CSS beyond Tailwind's utilities — no CSS-in-JS, no component
-  library
-- No ESLint — `tsc --noEmit` with strict settings
-  (`noUncheckedIndexedAccess` included) is the only lint step
-- No data-fetching library — `fetch` + two state hooks cover three
-  endpoints
+  library (`clsx` just composes class strings, it doesn't generate
+  styles)

@@ -1,55 +1,100 @@
-import React, { Suspense, lazy } from "react";
+import React from "react";
 import ReactDOM from "react-dom/client";
+import { createBrowserRouter, Navigate, RouterProvider } from "react-router-dom";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { Toaster } from "./components/ui/sonner";
 import "./index.css";
+
+const queryClient = new QueryClient();
 
 // Five views, one app -- which is the point of the port. As separate
 // HTML files they drifted: one grew a basemap fix the other never
 // got, and each had its own copy of the course line, the halo and the
 // markers. Now all of them import the same ones.
 //
-// Every view is a separate lazy chunk, not a static import: Home,
-// Playground and Account have no map and no reason to pay for
-// Leaflet (or for Plan/Label's own code) just because they share a
-// build. `leaflet/dist/leaflet.css` -- without it Leaflet's tiles,
-// markers and controls have no positioning at all -- moves inside
-// Plan/Label's own view files for the same reason, rather than
-// loading unconditionally here for pages that never touch a map.
+// Every route is its own lazy chunk (React Router's own `lazy()`, not
+// `React.lazy()` -- one less concept, and it's what replaces the old
+// catch-all fallback with an explicit route table): Home, Playground
+// and Account have no map and no reason to pay for Leaflet (or for
+// Plan/Label's own code) just because they share a build.
+// `leaflet/dist/leaflet.css` -- without it Leaflet's tiles, markers and
+// controls have no positioning at all -- lives inside Plan/Label's own
+// view files for the same reason, rather than loading unconditionally
+// here for pages that never touch a map.
 //
-// No router: each page is loaded by typing its own URL, and (each
-// page's own header links aside) nothing navigates to another via
-// client-side state. A plain path check is the whole feature --
-// checked before the catch-all so a later page doesn't fall through
-// to it. Bare `/app` (or `/app/`) redirects server-side (WebMvcConfig)
-// to `/app/home`, since a bare root is a real 500 there, not just an
-// unhandled case here.
-const HomeView = lazy(() => import("./features/home/HomeView"));
-const LabelView = lazy(() => import("./features/label/LabelView"));
-const PlanView = lazy(() => import("./features/plan/PlanView"));
-const PlaygroundView = lazy(() => import("./features/playground/PlaygroundView"));
-const AccountView = lazy(() => import("./features/account/AccountView"));
+// basename "/app": the app is served under that prefix (webapp's
+// WebMvcConfig), not at the domain root. Bare "/app"/"/app/" already
+// redirect server-side to "/app/home" (a real 500 otherwise -- see that
+// config's own comment) -- the index route below handles it too, for
+// any in-app `<Link to="/app">` that never leaves the client.
+// Each lazy route's own chunk hasn't downloaded yet the first time its
+// path loads, and the router wants something to render for that gap --
+// `null`, matching this app's own long-standing call (see the removed
+// `<Suspense fallback={null}>` this replaced): a loading flash for
+// something usually faster than the page's own map tiles isn't worth a
+// skeleton.
+const noFallback = { HydrateFallback: () => null };
 
-const path = window.location.pathname.replace(/\/+$/, "");
-const View = path.endsWith("/label")
-  ? LabelView
-  : path.endsWith("/playground")
-  ? PlaygroundView
-  : path.endsWith("/account")
-  ? AccountView
-  : path.endsWith("/plan")
-  ? PlanView
-  : path.endsWith("/home")
-  ? HomeView
-  : PlanView;
+const router = createBrowserRouter(
+  [
+    { index: true, element: <Navigate to="/home" replace /> },
+    {
+      path: "home",
+      lazy: () => import("./features/home/HomeView").then(m => ({ Component: m.default })),
+      ...noFallback,
+    },
+    {
+      path: "plan",
+      lazy: () => import("./features/plan/PlanView").then(m => ({ Component: m.default })),
+      ...noFallback,
+    },
+    {
+      path: "label",
+      lazy: () => import("./features/label/LabelView").then(m => ({ Component: m.default })),
+      ...noFallback,
+    },
+    {
+      path: "playground",
+      lazy: () => import("./features/playground/PlaygroundView").then(m => ({ Component: m.default })),
+      ...noFallback,
+    },
+    {
+      path: "account",
+      lazy: () => import("./features/account/AccountView").then(m => ({ Component: m.default })),
+      ...noFallback,
+    },
+  ],
+  { basename: "/app" },
+);
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    {/* No fallback UI -- the lazy chunk for whichever single page
-        this document load is for starts fetching immediately
-        alongside the rest of the bundle's own network requests, and
-        a loading flash for something usually faster than the page's
-        own map tiles isn't worth a skeleton. */}
-    <Suspense fallback={null}>
-      <View />
-    </Suspense>
+    <QueryClientProvider client={queryClient}>
+      <RouterProvider router={router} />
+      {/* One instance for the whole app -- PageStatus's progress line
+          (across every page that has one) renders through it via
+          toast.loading/dismiss, rather than each page mounting its own
+          floating status element.
+          Every page that shows one also has a corner action button
+          (MapActionButton bottom-left, GuidePanel bottom-right) and a
+          toolbar trigger up top -- and sonner deliberately makes
+          toasts full-width below a 600px viewport (its own mobile
+          breakpoint, not something a `--width` override can beat), so
+          a bottom toast unavoidably overlaps one of those bottom
+          buttons and a bare top one covers the toolbar's own trigger.
+          offset clears PageHeader (48px) plus the toolbar's own
+          collapsed header row (~36px) on every page that has one,
+          landing the toast over the map/content below instead -- the
+          one thing on screen safe to briefly sit on top of.
+          mobileOffset, not just offset: sonner reads a completely
+          separate `--mobile-offset-*` custom property below its own
+          600px breakpoint (this app's actual viewport), so `offset`
+          alone is silently ignored there. */}
+      <Toaster
+        position="top-center"
+        offset={{ top: "90px" }}
+        mobileOffset={{ top: "90px" }}
+      />
+    </QueryClientProvider>
   </React.StrictMode>,
 );

@@ -1,16 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
+import { identSchema } from "../../lib/identSchema";
 // Without this Leaflet's tiles, markers and controls have no
 // positioning at all -- this is the library's own stylesheet, not
 // app styling. Imported here (not in main.tsx) so Home/Playground/
 // Account, which never touch a map, don't pay for it.
 import "leaflet/dist/leaflet.css";
 import Shell from "../../Shell";
-import CollapsibleToolbar, { TOOLBAR_COLLAPSED_FOOTPRINT } from "../../components/CollapsibleToolbar";
+import CollapsibleToolbar from "../../components/CollapsibleToolbar";
 import MapActionButton from "../../components/MapActionButton";
-import MapArea from "../../components/MapArea";
-import Sidebar, { SIDEBAR_OPEN_AT } from "../../components/Sidebar";
-import PageStatus from "../../components/PageStatus";
-import { getParam, setParams as setUrlParams } from "../../lib/urlParams";
+import { usePageStatus } from "../../lib/usePageStatus";
 import type { Candidate } from "../../lib/api/types";
 import RouteMap from "./components/RouteMap";
 import RouteForm from "./components/RouteForm";
@@ -30,17 +29,6 @@ import { useDocumentTitle } from "../../lib/useDocumentTitle";
 const STAGE_PERCENT: Record<"course" | "checkpoints" | "navlog", number> = {
   course: 25, checkpoints: 60, navlog: 90,
 };
-// 8px of breathing room over the toolbar's own collapsed footprint, so
-// the status popup doesn't sit flush against the tab row.
-const STATUS_GAP = TOOLBAR_COLLAPSED_FOOTPRINT + 8;
-// The nav log view's own header has no draggable drawer to track --
-// this is just its fixed, single-row height.
-const NAVLOG_HEADER_HEIGHT = 52;
-// The nav log lives in the sidebar now, not a card stack -- draggable
-// almost all the way to the opposite edge (0.95, not 1: a sliver of
-// map and the handle itself should always stay reachable), well past
-// the 640px/70% both pages' card-stack sidebar still caps at.
-const NAVLOG_SIDEBAR_MAX_RATIO = 0.95;
 
 /**
  * The planner: two idents in, a charted course with checkpoints and a
@@ -55,10 +43,19 @@ const NAVLOG_SIDEBAR_MAX_RATIO = 0.95;
 export default function PlanView() {
   useDocumentTitle("Plan a route — VFR Route");
   const s = usePlanState();
-  const [dep, setDep] = useState(getParam("dep")?.toUpperCase() ?? "");
-  const [dest, setDest] = useState(getParam("dest")?.toUpperCase() ?? "");
-  const [alt, setAlt] = useState(getParam("altitude_ft") ?? "");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [dep, setDep] = useState(searchParams.get("dep")?.toUpperCase() ?? "");
+  const [dest, setDest] = useState(searchParams.get("dest")?.toUpperCase() ?? "");
+  const [alt, setAlt] = useState(searchParams.get("altitude_ft") ?? "");
   const controls = useRef<{ fit: () => void; toggleBasemap: () => string } | null>(null);
+  // A stable identity, not an inline arrow at the RouteMap call site --
+  // that map's own course-load effect lists onReady as a dependency,
+  // and a fresh function every render would re-run it (tearing down and
+  // rebuilding every map layer) on every unrelated PlanView re-render,
+  // not just when the course actually changes.
+  const handleMapReady = useCallback((c: { fit: () => void; toggleBasemap: () => string }) => {
+    controls.current = c;
+  }, []);
   const started = useRef(false);
   // The "Flight Briefing" full-page view (a wider, print-styled swap
   // of the same NavLogView the sidebar already shows) replaces the
@@ -69,18 +66,9 @@ export default function PlanView() {
   // actually mounted -- see the keyboard shortcuts below.
   const [showBriefing, setShowBriefing] = useState(false);
   // The Guide panel sits in the same bottom-right corner the sidebar
-  // opens over -- hide it once the sidebar's pulled out at all, rather
-  // than let it float on top of the nav log.
-  const [sidebarWidth, setSidebarWidth] = useState(0);
-  const sidebarOpen = sidebarWidth > SIDEBAR_OPEN_AT;
-  // How far the route tab's own drawer is currently pulled down, so
-  // the status popup below tracks it rather than sitting at a fixed
-  // offset sized only for the collapsed case.
-  const [toolbarHeight, setToolbarHeight] = useState(0);
-  // How far the error drawer is currently pulled open, so the map (or
-  // the briefing page) behind it can actually shrink to clear it
-  // rather than just being covered by it.
-  const [errorHeight, setErrorHeight] = useState(0);
+  // opens over -- hide it once the sidebar's open at all, rather than
+  // let it float on top of the nav log.
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   // The pilot's own opt-in for the per-checkpoint LLM descriptions --
   // off by default, since each generation is a real API call and
   // the nav log is visible (in the sidebar) from the moment a route's
@@ -95,13 +83,18 @@ export default function PlanView() {
     void (async () => {
       const routes = await s.loadRoutes();
       const first = routes[0] ?? { departure_ident: "C81", destination_ident: "KDLH" };
-      const d = getParam("dep")?.toUpperCase() || first.departure_ident;
-      const a = getParam("dest")?.toUpperCase() || first.destination_ident;
+      const d = searchParams.get("dep")?.toUpperCase() || first.departure_ident;
+      const a = searchParams.get("dest")?.toUpperCase() || first.destination_ident;
       setDep(d);
       setDest(a);
-      void s.plan(d, a, getParam("altitude_ft") ?? undefined);
+      void s.plan(d, a, searchParams.get("altitude_ft") ?? undefined);
     })();
-  }, []);
+    // started.current makes this genuinely run-once on mount regardless
+    // of the deps array below; s.loadRoutes/s.plan/searchParams are
+    // still listed (loadRoutes/plan are stable, []-deps callbacks in
+    // usePlanState; searchParams only matters at this first read) so a
+    // future refactor wouldn't silently go stale here undetected.
+  }, [s.loadRoutes, s.plan, searchParams]);
 
   // The nav log (and so the description stream) is always visible in
   // the sidebar now, not opened by a click -- so a fresh route's own
@@ -135,13 +128,13 @@ export default function PlanView() {
   }, [dep, dest, alt, s.describeCheckpoints, s.stopDescribing]);
 
   const submit = useCallback(() => {
-    const d = dep.trim().toUpperCase(), a = dest.trim().toUpperCase();
+    const d = identSchema.safeParse(dep).data, a = identSchema.safeParse(dest).data;
     if (!d || !a || d === a) return;
     const next: Record<string, string> = { dep: d, dest: a };
     if (alt.trim()) next.altitude_ft = alt.trim();
-    setUrlParams(next);
+    setSearchParams(next, { replace: true });
     void s.plan(d, a, alt.trim() || undefined);
-  }, [dep, dest, alt]);
+  }, [dep, dest, alt, s.plan, setSearchParams]);
 
   // Shortcuts, skipped while an ident is being typed -- or, just as
   // much, while a checkpoint description is: that field is a
@@ -175,7 +168,6 @@ export default function PlanView() {
     <CollapsibleToolbar
       title="VFR planner"
       label={dep && dest ? `Route: ${dep} → ${dest}` : "Route"}
-      onHeightChange={setToolbarHeight}
     >
       <RouteForm
         dep={dep} dest={dest} alt={alt}
@@ -209,30 +201,17 @@ export default function PlanView() {
   const narrativeErrorMsg = s.narrativeError && `Couldn't generate the narrative: ${s.narrativeError}`;
   const descError = s.descriptionError && `Couldn't generate checkpoint descriptions: ${s.descriptionError}`;
   const error = s.error ?? (briefingErrorMsg || narrativeErrorMsg || descError || null);
+  usePageStatus(progress, error);
 
-  const mapOverlay = (
+  const mapOverlay = !showBriefing ? (
     <>
-      {!showBriefing ? (
-        <>
-          <PageStatus
-            progress={progress} error={error}
-            top={toolbarHeight + STATUS_GAP} onErrorHeightChange={setErrorHeight}
-          />
-          {!sidebarOpen && <ScoreLegend bottomOffset={errorHeight} />}
-          <MapActionButton onClick={() => setShowBriefing(true)} disabled={!s.course} bottomOffset={errorHeight}>
-            Flight Briefing
-          </MapActionButton>
-        </>
-      ) : (
-        <>
-          <PageStatus
-            progress={progress} error={error}
-            top={NAVLOG_HEADER_HEIGHT} onErrorHeightChange={setErrorHeight}
-          />
-          <NavLogActions onMapClick={() => setShowBriefing(false)} />
-        </>
-      )}
+      {!sidebarOpen && <ScoreLegend />}
+      <MapActionButton onClick={() => setShowBriefing(true)} disabled={!s.course}>
+        Flight Briefing
+      </MapActionButton>
     </>
+  ) : (
+    <NavLogActions onMapClick={() => setShowBriefing(false)} />
   );
 
   const navLog = (
@@ -260,11 +239,11 @@ export default function PlanView() {
         />
       )}
       <Shell
-        active="plan"
         toolbar={showBriefing ? null : toolbar}
         mapOverlay={mapOverlay}
+        onSidebarOpenChange={setSidebarOpen}
         map={
-          <MapArea errorHeight={errorHeight}>
+          <div className="h-full w-full">
             {showBriefing ? (
               <FlightBriefingView
                 course={s.course} totals={s.totals} nav={s.nav} legs={s.legs} navError={s.navError}
@@ -284,21 +263,12 @@ export default function PlanView() {
                 showCandidates={s.showCandidates}
                 focus={s.selectedPoint}
                 onSelectCandidate={selectCandidate}
-                onReady={c => { controls.current = c; }}
+                onReady={handleMapReady}
               />
             )}
-          </MapArea>
+          </div>
         }
-        sidebar={
-          showBriefing ? null : (
-            <Sidebar
-              label="Nav log" onWidthChange={setSidebarWidth}
-              maxWidthRatio={NAVLOG_SIDEBAR_MAX_RATIO} maxWidthCap={Infinity}
-            >
-              {navLog}
-            </Sidebar>
-          )
-        }
+        sidebar={showBriefing ? null : navLog}
       />
     </>
   );

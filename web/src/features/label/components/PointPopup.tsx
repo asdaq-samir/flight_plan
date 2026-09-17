@@ -1,4 +1,4 @@
-import Badge from "../../../components/Badge";
+import { Badge } from "../../../components/ui/badge";
 import { isEndpoint, type Point, type Rating } from "../../../lib/api/types";
 import { CATEGORIES, COLORS, compassPoint, roleOf, sourceOf } from "../logic";
 
@@ -94,7 +94,9 @@ export default function PointPopup({
       <div className="space-y-2 text-sm">
         {arrows}
         <div>
-          <Badge color="#142430">{point.category === "departure" ? "DEP" : "DEST"}</Badge>{" "}
+          <Badge style={{ backgroundColor: "#142430", color: "white" }}>
+            {point.category === "departure" ? "DEP" : "DEST"}
+          </Badge>{" "}
           <b>{point.ident}</b>
           <div className="text-slate-500">{point.name}</div>
         </div>

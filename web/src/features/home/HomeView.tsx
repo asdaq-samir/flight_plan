@@ -1,4 +1,4 @@
-import Card from "../../components/Card";
+import { Card, CardHeader, CardTitle, CardContent } from "../../components/ui/card";
 import Footer from "../../components/Footer";
 import PageHeader from "../../components/PageHeader";
 import { useDocumentTitle } from "../../lib/useDocumentTitle";
@@ -43,14 +43,19 @@ export default function HomeView() {
   useDocumentTitle("VFR Route");
   return (
     <div className="flex h-dvh flex-col overflow-y-auto bg-white">
-      <PageHeader active="home" />
+      <PageHeader />
       <div className="mx-auto w-full max-w-2xl flex-1 px-4 py-10">
         <p className="text-sm text-slate-500">Pick a page.</p>
         <div className="mt-6 space-y-3">
           {PAGES.map(p => (
             <a key={p.href} href={p.href} className="block">
-              <Card title={p.title} className="hover:border-slate-400 hover:bg-slate-50">
-                <p className="text-sm text-slate-500">{p.description}</p>
+              <Card size="sm" className="hover:bg-muted/50">
+                <CardHeader>
+                  <CardTitle>{p.title}</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-muted-foreground">{p.description}</p>
+                </CardContent>
               </Card>
             </a>
           ))}

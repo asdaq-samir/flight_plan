@@ -23,7 +23,17 @@ const Row = forwardRef<HTMLDivElement, Props>(function Row({ selected, onClick, 
     <div
       ref={ref}
       tabIndex={0}
+      role="button"
+      aria-pressed={selected}
       onClick={e => { e.currentTarget.focus(); onClick?.(); }}
+      onKeyDown={e => {
+        // Enter/Space activate it, matching a real <button> -- tabIndex
+        // alone makes a div focusable, not actionable, from the keyboard.
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onClick?.();
+        }
+      }}
       className={`cursor-pointer border-b border-slate-100 py-2 last:border-0 hover:bg-slate-50 focus:outline-none focus-visible:bg-blue-50 ${
         selected ? "bg-blue-50 font-semibold" : ""
       }`}

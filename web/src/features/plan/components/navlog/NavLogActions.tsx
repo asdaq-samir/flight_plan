@@ -1,4 +1,4 @@
-import { DARK_BUTTON } from "../../../../components/darkButton";
+import { Button } from "../../../../components/ui/button";
 
 interface Props {
   onMapClick: () => void;
@@ -33,23 +33,23 @@ function PrintIcon() {
  * (see `NavLogView`'s own print overrides) -- neither belongs in the
  * printed page itself.
  */
-export default function NavLogActions({ onMapClick }: Props) {
-  const button = `flex h-10 w-10 items-center justify-center rounded-lg print:hidden ${DARK_BUTTON}`;
+const buttonClass = "size-10 rounded-lg border-2 border-white shadow-[0_2px_10px_rgba(0,0,0,.5)] print:hidden";
 
+export default function NavLogActions({ onMapClick }: Props) {
   return (
     <div className="absolute right-3 top-3 z-[1000] flex gap-2 print:hidden">
-      <button
-        type="button" onClick={onMapClick} title="Back to map" aria-label="Back to map"
-        data-testid="map-action-button" className={button}
+      <Button
+        onClick={onMapClick} title="Back to map" aria-label="Back to map"
+        data-testid="map-action-button" className={buttonClass}
       >
         <MapIcon />
-      </button>
-      <button
-        type="button" onClick={() => window.print()} title="Print" aria-label="Print"
-        data-testid="print-button" className={button}
+      </Button>
+      <Button
+        onClick={() => window.print()} title="Print" aria-label="Print"
+        data-testid="print-button" className={buttonClass}
       >
         <PrintIcon />
-      </button>
+      </Button>
     </div>
   );
 }

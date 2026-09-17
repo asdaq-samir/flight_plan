@@ -1,4 +1,4 @@
-import Button from "../../../components/Button";
+import { Button } from "../../../components/ui/button";
 import type { Course } from "../../../lib/api/types";
 
 interface Props {

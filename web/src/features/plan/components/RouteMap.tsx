@@ -63,7 +63,10 @@ export default function RouteMap(props: Props) {
       fit,
       toggleBasemap: () => basemaps.current?.toggle() ?? "faa",
     });
-  }, [props.course]);
+    // props.onReady must be a stable identity at every call site (see
+    // PlanView's own handleMapReady) -- an inline arrow here would
+    // re-run this whole layer-setup effect on every unrelated re-render.
+  }, [props.course, props.onReady]);
 
   // Candidates: every point the model scored, small and dim. The
   // selection is only judgable next to what it was selecting from.

@@ -1,16 +1,19 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import CollapsibleSection from "../../components/CollapsibleSection";
 import Footer from "../../components/Footer";
 import PageHeader from "../../components/PageHeader";
-import StatusTag from "../../components/StatusTag";
-import Button from "../../components/Button";
+import { Badge } from "../../components/ui/badge";
+import { Button } from "../../components/ui/button";
 import { FIELD_INPUT as FIELD } from "../../components/fieldInput";
 import { ApiError, api } from "../../lib/api/client";
+import { identSchema } from "../../lib/identSchema";
 import { useDocumentTitle } from "../../lib/useDocumentTitle";
-import type { AltitudeBreakdown, ModelComparison, ScoredCheckpoint } from "../../lib/api/types";
 
 const ft = (n: number | null) => (n == null ? "—" : `${Math.round(n).toLocaleString()} ft`);
 const mae = (n: number) => n.toFixed(4);
+const errorMessage = (err: unknown, fallback: string) =>
+  err instanceof ApiError ? err.message : err ? fallback : null;
 
 /** Every algorithm anyone has actually trained for this problem, not
  *  just the sklearn family retrain() grid-searches -- PyTorch/
@@ -19,15 +22,7 @@ const mae = (n: number) => n.toFixed(4);
  *  metric rather than implying they're all on the same footing (see
  *  the backend's own reasoning in planning-service's docstring). */
 function ModelComparisonPanel() {
-  const [data, setData] = useState<ModelComparison | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    api.modelComparison().then(setData).catch(err => {
-      setError(err instanceof ApiError ? err.message : "could not load the model comparison");
-    });
-  }, []);
-
+  const { data, error } = useQuery({ queryKey: ["modelComparison"], queryFn: api.modelComparison });
   const rows = data ? [...data.models].sort((a, b) => a.score - b.score) : null;
 
   return (
@@ -37,7 +32,9 @@ function ModelComparisonPanel() {
         better. Every algorithm this project has actually trained, not just the one serving
         predictions.
       </p>
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {errorMessage(error, "could not load the model comparison") && (
+        <p className="text-sm text-red-600">{errorMessage(error, "could not load the model comparison")}</p>
+      )}
       {!error && !rows && <p className="text-sm text-slate-400">Loading…</p>}
       {rows && (
         <table className="text-sm">
@@ -53,7 +50,9 @@ function ModelComparisonPanel() {
               <tr key={m.name} className="border-b border-slate-100">
                 <td className="py-1 pr-4">
                   {m.name}
-                  {m.promoted && <span className="ml-2"><StatusTag tone="success">promoted</StatusTag></span>}
+                  {m.promoted && (
+                    <Badge className="ml-2 border-transparent bg-emerald-100 text-emerald-700">promoted</Badge>
+                  )}
                 </td>
                 <td className="py-1 pr-4 font-mono">{mae(m.score)}</td>
                 <td className="py-1 pr-4 text-slate-400">{m.metric === "cv_mae" ? "5-fold CV" : "held-out split"}</td>
@@ -76,20 +75,14 @@ function AlgorithmPickerPanel() {
   const [dep, setDep] = useState("C81");
   const [dest, setDest] = useState("KDLH");
   const [model, setModel] = useState("current");
-  const [checkpoints, setCheckpoints] = useState<ScoredCheckpoint[] | null>(null);
-  const [modelType, setModelType] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const score = useMutation({
+    mutationFn: ({ d, a, m }: { d: string; a: string; m: string }) => api.playgroundScore(d, a, m),
+  });
 
   const run = () => {
-    const d = dep.trim().toUpperCase(), a = dest.trim().toUpperCase();
+    const d = identSchema.safeParse(dep).data, a = identSchema.safeParse(dest).data;
     if (!d || !a) return;
-    setLoading(true);
-    setError(null);
-    api.playgroundScore(d, a, model)
-      .then(result => { setCheckpoints(result.checkpoints); setModelType(result.model_type); })
-      .catch(err => setError(err instanceof ApiError ? err.message : "could not score this route"))
-      .finally(() => setLoading(false));
+    score.mutate({ d, a, m: model });
   };
 
   return (
@@ -115,12 +108,14 @@ function AlgorithmPickerPanel() {
           <option value="tensorflow">TensorFlow MLP</option>
           <option value="spark">Spark GBT</option>
         </select>
-        <Button type="submit" disabled={loading}>{loading ? "Scoring…" : "Score checkpoints"}</Button>
+        <Button type="submit" disabled={score.isPending}>{score.isPending ? "Scoring…" : "Score checkpoints"}</Button>
       </form>
-      {error && <p className="text-sm text-red-600">{error}</p>}
-      {checkpoints && (
+      {errorMessage(score.error, "could not score this route") && (
+        <p className="text-sm text-red-600">{errorMessage(score.error, "could not score this route")}</p>
+      )}
+      {score.data && (
         <>
-          <p className="mb-1 text-xs text-slate-500">Scored by: {modelType}</p>
+          <p className="mb-1 text-xs text-slate-500">Scored by: {score.data.model_type}</p>
           <table className="text-sm">
             <thead>
               <tr className="border-b border-slate-200 text-left text-slate-500">
@@ -131,7 +126,7 @@ function AlgorithmPickerPanel() {
               </tr>
             </thead>
             <tbody>
-              {checkpoints.map(c => (
+              {score.data.checkpoints.map(c => (
                 <tr key={c.osm_id} className="border-b border-slate-100">
                   <td className="py-1 pr-4">{c.name}</td>
                   <td className="py-1 pr-4">{c.category}</td>
@@ -153,20 +148,17 @@ function AlgorithmPickerPanel() {
 function AltitudeBreakdownPanel() {
   const [dep, setDep] = useState("C81");
   const [dest, setDest] = useState("KDLH");
-  const [result, setResult] = useState<AltitudeBreakdown | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const breakdown = useMutation({
+    mutationFn: ({ d, a }: { d: string; a: string }) => api.altitudeBreakdown(d, a),
+  });
 
   const run = () => {
-    const d = dep.trim().toUpperCase(), a = dest.trim().toUpperCase();
+    const d = identSchema.safeParse(dep).data, a = identSchema.safeParse(dest).data;
     if (!d || !a) return;
-    setLoading(true);
-    setError(null);
-    api.altitudeBreakdown(d, a)
-      .then(setResult)
-      .catch(err => setError(err instanceof ApiError ? err.message : "could not compute the breakdown"))
-      .finally(() => setLoading(false));
+    breakdown.mutate({ d, a });
   };
+
+  const result = breakdown.data;
 
   return (
     <CollapsibleSection title="Altitude Selection Breakdown">
@@ -186,9 +178,11 @@ function AltitudeBreakdownPanel() {
           value={dest} onChange={e => setDest(e.target.value)} placeholder="DEST" spellCheck={false}
           aria-label="Destination" className={`w-20 text-center font-mono uppercase ${FIELD}`}
         />
-        <Button type="submit" disabled={loading}>{loading ? "Computing…" : "Show breakdown"}</Button>
+        <Button type="submit" disabled={breakdown.isPending}>{breakdown.isPending ? "Computing…" : "Show breakdown"}</Button>
       </form>
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {errorMessage(breakdown.error, "could not compute the breakdown") && (
+        <p className="text-sm text-red-600">{errorMessage(breakdown.error, "could not compute the breakdown")}</p>
+      )}
       {result && (
         <div className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
           <div>
@@ -216,7 +210,7 @@ function AltitudeBreakdownPanel() {
             <div className="font-semibold">
               {ft(result.min_ceiling_ft)}, {result.min_visibility_sm ?? "—"} sm
               {result.low_ceiling_or_visibility && (
-                <span className="ml-1"><StatusTag tone="warning">low</StatusTag></span>
+                <Badge className="ml-1 border-transparent bg-amber-100 text-amber-700">low</Badge>
               )}
             </div>
           </div>
@@ -257,7 +251,7 @@ export default function PlaygroundView() {
   useDocumentTitle("Playground — VFR Route");
   return (
     <div className="flex h-dvh flex-col overflow-y-auto bg-white">
-      <PageHeader active="playground" />
+      <PageHeader />
       <div className="border-b border-slate-200 px-4 py-3">
         <p className="text-sm text-slate-500">How this project actually works, underneath the map.</p>
       </div>

@@ -1,6 +1,7 @@
 import { Fragment, useCallback, useEffect, useState } from "react";
-import Badge from "../../../../components/Badge";
-import Button from "../../../../components/Button";
+import clsx from "clsx";
+import { Badge } from "../../../../components/ui/badge";
+import { Button } from "../../../../components/ui/button";
 import CollapsibleSection from "../../../../components/CollapsibleSection";
 import { FIELD_INPUT } from "../../../../components/fieldInput";
 import { ApiError, api } from "../../../../lib/api/client";
@@ -109,7 +110,7 @@ function NavLogTable({
           const description = cp && descriptions[descriptionKey(cp.lat, cp.lon)];
           return (
             <Fragment key={i}>
-              <tr className={`${description ? "" : "border-b border-slate-100"} ${leg?.wind ? "" : "text-slate-400"}`}>
+              <tr className={clsx(!description && "border-b border-slate-100", !leg?.wind && "text-slate-400")}>
                 <td className="px-2 py-1 text-left">{name}</td>
                 <td className="border-l border-slate-200 px-2 py-1">{altFt(cp ? nav?.altitude_ft : destElevationFt)}</td>
                 <td className="border-l border-slate-200 px-2 py-1">{leg ? leg.distance_nm.toFixed(1) : "—"}</td>
@@ -481,7 +482,7 @@ export default function FlightBriefingView({
                     <div className="flex items-baseline justify-between gap-2">
                       <span className="font-semibold">{ident}</span>
                       {metar?.flight_category && (
-                        <Badge color={FLIGHT_CATEGORY_COLOR[metar.flight_category] ?? "#5b6b76"}>
+                        <Badge style={{ backgroundColor: FLIGHT_CATEGORY_COLOR[metar.flight_category] ?? "#5b6b76", color: "white" }}>
                           {metar.flight_category}
                         </Badge>
                       )}

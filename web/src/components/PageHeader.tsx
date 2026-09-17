@@ -1,10 +1,11 @@
-type Page = "home" | "plan" | "label" | "playground" | "account";
+import type { ReactNode } from "react";
+import { Link, useLocation } from "react-router-dom";
 
-const LINKS: { page: Page; href: string; label: string }[] = [
-  { page: "plan", href: "/app/plan", label: "Plan" },
-  { page: "label", href: "/app/label", label: "Label" },
-  { page: "playground", href: "/app/playground", label: "Playground" },
-  { page: "account", href: "/app/account", label: "Account" },
+const LINKS: { page: string; to: string; label: string }[] = [
+  { page: "plan", to: "/plan", label: "Plan" },
+  { page: "label", to: "/label", label: "Label" },
+  { page: "playground", to: "/playground", label: "Playground" },
+  { page: "account", to: "/account", label: "Account" },
 ];
 
 /**
@@ -14,30 +15,38 @@ const LINKS: { page: Page; href: string; label: string }[] = [
  * this has no place on the printed Flight Briefing page, the one
  * document this app ever produces that leaves the browser.
  *
- * Plain `<a href>`s, not a router -- this project deliberately has
- * none (see web/README.md); every "navigation" here is a full page
- * load, the same as how Home's own links already worked before this
- * component existed.
+ * Which page is "active" comes from the route itself
+ * (`useLocation().pathname`, basename-stripped by the router already)
+ * rather than a prop every view had to pass down and keep in sync with
+ * its own route.
+ *
+ * `trailing` is Shell's own `SidebarTrigger` -- only Plan/Label ever
+ * have a sidebar to toggle, so this stays empty everywhere else rather
+ * than every page needing to know about it.
  */
-export default function PageHeader({ active }: { active: Page }) {
+export default function PageHeader({ trailing }: { trailing?: ReactNode }) {
+  const { pathname } = useLocation();
   return (
     <header className="flex h-12 shrink-0 items-center justify-between border-b border-slate-200 bg-white px-4 print:hidden">
-      <a href="/app" className="text-sm font-bold tracking-tight text-slate-900">
+      <Link to="/home" className="text-sm font-bold tracking-tight text-slate-900">
         VFR Route
-      </a>
-      <nav className="flex items-center gap-4 text-sm">
-        {LINKS.map(link =>
-          link.page === active ? (
-            <span key={link.page} className="font-semibold text-slate-900">
-              {link.label}
-            </span>
-          ) : (
-            <a key={link.page} href={link.href} className="text-slate-500 hover:text-slate-900">
-              {link.label}
-            </a>
-          ),
-        )}
-      </nav>
+      </Link>
+      <div className="flex items-center gap-4">
+        <nav className="flex items-center gap-4 text-sm">
+          {LINKS.map(link =>
+            pathname === link.to ? (
+              <span key={link.page} className="font-semibold text-slate-900">
+                {link.label}
+              </span>
+            ) : (
+              <Link key={link.page} to={link.to} className="text-slate-500 hover:text-slate-900">
+                {link.label}
+              </Link>
+            ),
+          )}
+        </nav>
+        {trailing}
+      </div>
     </header>
   );
 }

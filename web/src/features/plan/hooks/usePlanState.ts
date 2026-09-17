@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { ApiError, api } from "../../../lib/api/client";
 import type { Briefing, BuiltRoute, Candidate, Course, Leg, NavLog, Totals } from "../../../lib/api/types";
 import { elapsed } from "../format";
@@ -108,6 +109,16 @@ export function usePlanState() {
   const [state, setState] = useState<PlanState>(initialState);
   const ref = useRef(state);
   ref.current = state;
+  // TanStack Query's cache is used directly (fetchQuery), not its
+  // useQuery/useMutation hooks -- loadRoutes/loadBriefing are the only
+  // two operations here that are genuinely independent, cacheable GETs.
+  // Everything else in this file either streams (plan's nav-log legs,
+  // describeCheckpoints) or shares mutable state with something that
+  // does (saveDescription writes into the same `descriptions` object
+  // describeCheckpoints streams into -- splitting just the mutation
+  // half into Query's own cache would leave two sources of truth for
+  // one field), so it stays exactly as hand-rolled as it already was.
+  const queryClient = useQueryClient();
   // One in-flight plan at a time. A second submit while the nav log of
   // the first is still outstanding would otherwise merge two routes'
   // legs.
@@ -125,13 +136,13 @@ export function usePlanState() {
 
   const loadRoutes = useCallback(async () => {
     try {
-      const { routes } = await api.routes();
+      const { routes } = await queryClient.fetchQuery({ queryKey: ["routes"], queryFn: api.routes });
       setState(s => ({ ...s, routes }));
       return routes;
     } catch {
       return [];   // the datalist is a convenience; its absence is not an error
     }
-  }, []);
+  }, [queryClient]);
 
   const plan = useCallback(async (dep: string, dest: string, altitudeFt?: string) => {
     const token = ++planToken.current;
@@ -349,7 +360,15 @@ export function usePlanState() {
     const token = planToken.current;
     setState(s => ({ ...s, loadingBriefing: true, briefingError: null }));
     try {
-      const data = await api.briefing(dep, dest);
+      // Cached by dep/dest: re-opening the same route's briefing later
+      // in the session (nav log -> map -> briefing again) serves the
+      // already-fetched hazards/METAR/forecast instantly instead of
+      // re-querying aviationweather.gov, without changing anything
+      // about the planToken-guarded loading/error wiring around it.
+      const data = await queryClient.fetchQuery({
+        queryKey: ["briefing", dep, dest],
+        queryFn: () => api.briefing(dep, dest),
+      });
       if (token !== planToken.current) return;
       setState(s => ({ ...s, briefing: data, loadingBriefing: false }));
     } catch (err) {
@@ -357,7 +376,7 @@ export function usePlanState() {
       const detail = err instanceof Error ? err.message : "could not load the briefing";
       setState(s => ({ ...s, loadingBriefing: false, briefingError: detail.split("\n")[0] ?? detail }));
     }
-  }, []);
+  }, [queryClient]);
 
   /** The narrative's own generation -- a pilot's own click, reading
    *  from `ref.current` rather than taking every piece as an argument
