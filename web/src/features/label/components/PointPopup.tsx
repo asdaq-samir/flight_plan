@@ -1,4 +1,7 @@
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Badge } from "../../../components/ui/badge";
+import { Button } from "../../../components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../../components/ui/select";
 import { isEndpoint, type Point, type Rating } from "../../../lib/api/types";
 import { CATEGORIES, COLORS, compassPoint, roleOf, sourceOf } from "../logic";
 
@@ -30,21 +33,6 @@ interface Props {
 
 const RATINGS: Rating[] = [0, 1, 2, 3, 4, 5];
 
-/** A plain chevron, not a font glyph -- no icon package here (this
- *  project adds a dependency deliberately, not for two arrows), and an
- *  SVG stroke reads bolder and crisper at this size than "‹"/"›" do. */
-function Chevron({ direction }: { direction: "left" | "right" }) {
-  return (
-    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth={3}>
-      <path
-        d={direction === "left" ? "M15 5l-7 7 7 7" : "M9 5l7 7-7 7"}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
 /**
  * Everything about the selected point, in one Leaflet popup pinned above
  * it -- the info that used to be a separate tooltip, and the rating/
@@ -61,15 +49,17 @@ export default function PointPopup({
   // which meant landing on departure via "Start" had no way forward).
   const arrows = (place || onLeft || onRight) && (
     <div className="flex items-center justify-between gap-1">
-      <button
+      <Button
         type="button"
+        variant="outline"
+        size="icon-lg"
         onClick={onLeft}
         disabled={!onLeft || !canLeft}
         aria-label="Step left"
-        className="grid h-11 w-11 flex-shrink-0 place-items-center rounded-full border-2 border-slate-400 text-muted-foreground disabled:opacity-30 enabled:hover:bg-accent enabled:active:bg-accent"
+        className="flex-shrink-0 rounded-full"
       >
-        <Chevron direction="left" />
-      </button>
+        <ChevronLeft className="size-5" strokeWidth={3} />
+      </Button>
       {place && (
         <div className={`rounded px-0.5 text-muted-foreground ${
           countChanged ? "animate-[count-flash_0.8s_ease-out]" : ""
@@ -77,15 +67,17 @@ export default function PointPopup({
           #{place}
         </div>
       )}
-      <button
+      <Button
         type="button"
+        variant="outline"
+        size="icon-lg"
         onClick={onRight}
         disabled={!onRight || !canRight}
         aria-label="Step right"
-        className="grid h-11 w-11 flex-shrink-0 place-items-center rounded-full border-2 border-slate-400 text-muted-foreground disabled:opacity-30 enabled:hover:bg-accent enabled:active:bg-accent"
+        className="flex-shrink-0 rounded-full"
       >
-        <Chevron direction="right" />
-      </button>
+        <ChevronRight className="size-5" strokeWidth={3} />
+      </Button>
     </div>
   );
 
@@ -126,27 +118,29 @@ export default function PointPopup({
           trusting a pixel constant tuned on a different one. */}
       <div className="flex gap-1" data-rating-row>
         {RATINGS.map(r => (
-          <button
+          <Button
             key={r}
             type="button"
+            variant="ghost"
             onClick={() => onRate(r)}
-            className={`h-9 rounded px-2.5 text-sm font-bold text-white ${
-              rating === r ? "ring-2 ring-offset-1 ring-slate-800" : "opacity-70 hover:opacity-100"
+            className={`h-9 px-2.5 font-bold text-white hover:text-white ${
+              rating === r ? "ring-2 ring-offset-1 ring-foreground" : "opacity-70 hover:opacity-100"
             }`}
             style={{ backgroundColor: COLORS[r] }}
           >
             {r}
-          </button>
+          </Button>
         ))}
       </div>
 
-      <select
-        value={category}
-        onChange={e => onCategoryChange(e.target.value)}
-        className="w-full rounded border border-input px-1.5 py-1"
-      >
-        {options.map(c => <option key={c} value={c}>{c}</option>)}
-      </select>
+      <Select value={category} onValueChange={onCategoryChange}>
+        <SelectTrigger className="w-full">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {options.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+        </SelectContent>
+      </Select>
 
       <div className="space-y-0.5 text-muted-foreground">
         <div>{point.along_track_nm.toFixed(1)} nm {compassPoint(bearingDeg)} of {departureIdent}</div>
@@ -156,16 +150,12 @@ export default function PointPopup({
         {roleOf(point) === "visual" && <div>{Math.abs(cross).toFixed(2)} nm off course</div>}
       </div>
 
-      <button
-        type="button"
-        onClick={onRemove}
-        className="w-full rounded border border-destructive px-2 py-1 text-destructive hover:bg-destructive/10"
-      >
+      <Button type="button" variant="destructive" onClick={onRemove} className="w-full">
         {/* A detected point is still a detection either way -- this
             only ever unrates it. An added point exists purely as a
             pick, so the same action really does delete it. */}
         {sourceOf(point) === "added" ? "Remove point" : "Reset rating"}
-      </button>
+      </Button>
     </div>
   );
 }
