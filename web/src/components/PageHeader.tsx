@@ -1,5 +1,8 @@
 import type { ReactNode } from "react";
 import { Link, useLocation } from "react-router-dom";
+import {
+  NavigationMenu, NavigationMenuItem, NavigationMenuLink, NavigationMenuList,
+} from "./ui/navigation-menu";
 
 const LINKS: { page: string; to: string; label: string }[] = [
   { page: "plan", to: "/plan", label: "Plan" },
@@ -10,10 +13,12 @@ const LINKS: { page: string; to: string; label: string }[] = [
 
 /**
  * The one piece of chrome every page shares -- "VFR Route" (linking
- * home) on the left, the other three pages on the right, the current
- * one shown plain rather than as a link to itself. `print:hidden`:
- * this has no place on the printed Flight Briefing page, the one
- * document this app ever produces that leaves the browser.
+ * home) on the left, the other three pages on the right via shadcn's
+ * `NavigationMenu` (Radix), the current one styled via its own
+ * `active` prop rather than a hand-rolled span/link branch.
+ * `print:hidden`: this has no place on the printed Flight Briefing
+ * page, the one document this app ever produces that leaves the
+ * browser.
  *
  * Which page is "active" comes from the route itself
  * (`useLocation().pathname`, basename-stripped by the router already)
@@ -31,20 +36,18 @@ export default function PageHeader({ trailing }: { trailing?: ReactNode }) {
       <Link to="/home" className="text-sm font-bold tracking-tight text-slate-900">
         VFR Route
       </Link>
-      <div className="flex items-center gap-4">
-        <nav className="flex items-center gap-4 text-sm">
-          {LINKS.map(link =>
-            pathname === link.to ? (
-              <span key={link.page} className="font-semibold text-slate-900">
-                {link.label}
-              </span>
-            ) : (
-              <Link key={link.page} to={link.to} className="text-slate-500 hover:text-slate-900">
-                {link.label}
-              </Link>
-            ),
-          )}
-        </nav>
+      <div className="flex items-center gap-2">
+        <NavigationMenu viewport={false}>
+          <NavigationMenuList>
+            {LINKS.map(link => (
+              <NavigationMenuItem key={link.page}>
+                <NavigationMenuLink asChild active={pathname === link.to}>
+                  <Link to={link.to}>{link.label}</Link>
+                </NavigationMenuLink>
+              </NavigationMenuItem>
+            ))}
+          </NavigationMenuList>
+        </NavigationMenu>
         {trailing}
       </div>
     </header>

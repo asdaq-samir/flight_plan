@@ -448,55 +448,74 @@ export default function FlightBriefingView({
         </div>
       </CollapsibleSection>
 
-      {briefing && (
-        <>
-          <BriefingNarrativeSection
-            narrative={narrative} loadingNarrative={loadingNarrative} onGenerate={onGenerateNarrative}
-          />
+      {/* Not gated behind `briefing` -- narrative is its own separate,
+          user-triggered fetch, and NOTAMs/Winds Aloft need only
+          `legs`/`nav`, already loaded well before the briefing fetch
+          even starts. Each section below that DOES need `briefing`
+          still renders immediately (a pilot can see and open every
+          section from the moment the page mounts) and shows its own
+          loading line in place of real content until that one fetch
+          resolves -- rather than the whole batch of them staying
+          entirely absent from the page until every field of one
+          response is in, which is what made this page read as slow
+          to populate. */}
+      <BriefingNarrativeSection
+        narrative={narrative} loadingNarrative={loadingNarrative} onGenerate={onGenerateNarrative}
+      />
 
-          <CollapsibleSection title="Adverse Conditions">
-            {briefing.hazards.length === 0 ? (
-              <p className="text-sm text-slate-600">No SIGMETs or AIRMETs reported along this route.</p>
-            ) : (
-              <ul className="space-y-2">
-                {briefing.hazards.map((h, i) => (
-                  <li key={i} className="rounded border border-amber-300 bg-amber-50 px-2 py-1.5 text-sm">
-                    <div className="font-semibold text-amber-800">
-                      {h.hazard ?? h.type ?? "Hazard"}
-                      {hazardAltitudeRange(h.altitude_low_ft, h.altitude_high_ft) &&
-                        ` — ${hazardAltitudeRange(h.altitude_low_ft, h.altitude_high_ft)}`}
-                    </div>
-                    {h.raw && <div className="mt-0.5 whitespace-pre-wrap font-mono text-xs text-slate-600">{h.raw}</div>}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </CollapsibleSection>
+      <CollapsibleSection title="Adverse Conditions">
+        {!briefing ? (
+          <p className="text-sm text-slate-400">Loading…</p>
+        ) : briefing.hazards.length === 0 ? (
+          <p className="text-sm text-slate-600">No SIGMETs or AIRMETs reported along this route.</p>
+        ) : (
+          <ul className="space-y-2">
+            {briefing.hazards.map((h, i) => (
+              <li key={i} className="rounded border border-amber-300 bg-amber-50 px-2 py-1.5 text-sm">
+                <div className="font-semibold text-amber-800">
+                  {h.hazard ?? h.type ?? "Hazard"}
+                  {hazardAltitudeRange(h.altitude_low_ft, h.altitude_high_ft) &&
+                    ` — ${hazardAltitudeRange(h.altitude_low_ft, h.altitude_high_ft)}`}
+                </div>
+                {h.raw && <div className="mt-0.5 whitespace-pre-wrap font-mono text-xs text-slate-600">{h.raw}</div>}
+              </li>
+            ))}
+          </ul>
+        )}
+      </CollapsibleSection>
 
-          <CollapsibleSection title="Current Conditions">
-            <div className="grid gap-2 sm:grid-cols-2">
-              {[dep, dest].map(ident => {
-                const metar = briefing.metars[ident];
-                return (
-                  <div key={ident} className="rounded border border-slate-200 px-2 py-1.5">
-                    <div className="flex items-baseline justify-between gap-2">
-                      <span className="font-semibold">{ident}</span>
-                      {metar?.flight_category && (
-                        <Badge style={{ backgroundColor: FLIGHT_CATEGORY_COLOR[metar.flight_category] ?? "#5b6b76", color: "white" }}>
-                          {metar.flight_category}
-                        </Badge>
-                      )}
-                    </div>
-                    <div className="mt-0.5 whitespace-pre-wrap font-mono text-xs text-slate-600">
-                      {metar?.raw ?? "No current report available."}
-                    </div>
+      <CollapsibleSection title="Current Conditions">
+        {!briefing ? (
+          <p className="text-sm text-slate-400">Loading…</p>
+        ) : (
+          <div className="grid gap-2 sm:grid-cols-2">
+            {[dep, dest].map(ident => {
+              const metar = briefing.metars[ident];
+              return (
+                <div key={ident} className="rounded border border-slate-200 px-2 py-1.5">
+                  <div className="flex items-baseline justify-between gap-2">
+                    <span className="font-semibold">{ident}</span>
+                    {metar?.flight_category && (
+                      <Badge style={{ backgroundColor: FLIGHT_CATEGORY_COLOR[metar.flight_category] ?? "#5b6b76", color: "white" }}>
+                        {metar.flight_category}
+                      </Badge>
+                    )}
                   </div>
-                );
-              })}
-            </div>
-          </CollapsibleSection>
+                  <div className="mt-0.5 whitespace-pre-wrap font-mono text-xs text-slate-600">
+                    {metar?.raw ?? "No current report available."}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </CollapsibleSection>
 
-          <CollapsibleSection title="Forecast">
+      <CollapsibleSection title="Forecast">
+        {!briefing ? (
+          <p className="text-sm text-slate-400">Loading…</p>
+        ) : (
+          <>
             <p className="text-sm text-slate-600">
               Along the route: ceiling {altFt(briefing.forecast.min_ceiling_ft)} ft,
               visibility {briefing.forecast.min_visibility_sm ?? "—"} sm (worst nearby TAF period).
@@ -510,74 +529,78 @@ export default function FlightBriefingView({
                 ))}
               </ul>
             )}
-          </CollapsibleSection>
+          </>
+        )}
+      </CollapsibleSection>
 
-          <CollapsibleSection title="Winds Aloft">
-            {winds.length === 0 ? (
-              <p className="text-sm text-slate-600">No winds-aloft data available for this route.</p>
-            ) : (
-              <p className="text-sm text-slate-600">
-                {winds.map(w => `${deg(w.dir)}/${w.speed}kt`).join(", ")} at {altFt(nav?.altitude_ft)} ft
-              </p>
-            )}
-          </CollapsibleSection>
+      <CollapsibleSection title="Winds Aloft">
+        {winds.length === 0 ? (
+          <p className="text-sm text-slate-600">No winds-aloft data available for this route.</p>
+        ) : (
+          <p className="text-sm text-slate-600">
+            {winds.map(w => `${deg(w.dir)}/${w.speed}kt`).join(", ")} at {altFt(nav?.altitude_ft)} ft
+          </p>
+        )}
+      </CollapsibleSection>
 
-          <CollapsibleSection title="NOTAMs">
-            <p className="text-sm text-slate-600">
-              Not fetched here (the official FAA NOTAM API requires operator credentials) --
-              check current NOTAMs directly before you fly:{" "}
-              <a
-                href="https://www.1800wxbrief.com" target="_blank" rel="noreferrer"
-                className="text-blue-600 underline print:text-slate-600"
-              >
-                1800wxbrief.com
-              </a>{" "}or{" "}
-              <a
-                href="https://notams.aim.faa.gov/notamSearch/" target="_blank" rel="noreferrer"
-                className="text-blue-600 underline print:text-slate-600"
-              >
-                notams.aim.faa.gov
-              </a>.
-            </p>
-          </CollapsibleSection>
+      <CollapsibleSection title="NOTAMs">
+        <p className="text-sm text-slate-600">
+          Not fetched here (the official FAA NOTAM API requires operator credentials) --
+          check current NOTAMs directly before you fly:{" "}
+          <a
+            href="https://www.1800wxbrief.com" target="_blank" rel="noreferrer"
+            className="text-blue-600 underline print:text-slate-600"
+          >
+            1800wxbrief.com
+          </a>{" "}or{" "}
+          <a
+            href="https://notams.aim.faa.gov/notamSearch/" target="_blank" rel="noreferrer"
+            className="text-blue-600 underline print:text-slate-600"
+          >
+            notams.aim.faa.gov
+          </a>.
+        </p>
+      </CollapsibleSection>
 
-          <CollapsibleSection title="Airport Information">
-            <div className="grid gap-3 sm:grid-cols-2">
-              {[dep, dest].map(ident => {
-                const info = briefing.airports[ident];
-                return (
-                  <div key={ident} className="rounded border border-slate-200 px-2 py-1.5 text-sm">
-                    <div className="mb-1 font-semibold">{ident}</div>
-                    {info?.frequencies.length ? (
-                      <ul className="space-y-0.5">
-                        {info.frequencies.map((f, i) => (
-                          <li key={i} className="text-slate-600">
-                            {f.type ?? "—"}{f.description ? ` (${f.description})` : ""}: {f.frequency_mhz ?? "—"}
-                          </li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <p className="text-slate-500">No published frequencies.</p>
-                    )}
-                    {info?.runways.length ? (
-                      <ul className="mt-1 space-y-0.5">
-                        {info.runways.map((r, i) => (
-                          <li key={i} className="text-slate-600">
-                            {r.ends ?? "—"}: {r.length_ft ?? "—"}×{r.width_ft ?? "—"} ft, {r.surface ?? "unknown surface"}
-                            {r.lighted ? ", lighted" : ""}{r.closed ? " (closed)" : ""}
-                          </li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <p className="mt-1 text-slate-500">No published runway data.</p>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </CollapsibleSection>
-        </>
-      )}
+      <CollapsibleSection title="Airport Information">
+        {!briefing ? (
+          <p className="text-sm text-slate-400">Loading…</p>
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2">
+            {[dep, dest].map(ident => {
+              const info = briefing.airports[ident];
+              return (
+                <div key={ident} className="rounded border border-slate-200 px-2 py-1.5 text-sm">
+                  <div className="mb-1 font-semibold">{ident}</div>
+                  {info?.frequencies.length ? (
+                    <ul className="space-y-0.5">
+                      {info.frequencies.map((f, i) => (
+                        <li key={i} className="text-slate-600">
+                          {f.type ?? "—"}{f.description ? ` (${f.description})` : ""}: {f.frequency_mhz ?? "—"}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-slate-500">No published frequencies.</p>
+                  )}
+                  {info?.runways.length ? (
+                    <ul className="mt-1 space-y-0.5">
+                      {info.runways.map((r, i) => (
+                        <li key={i} className="text-slate-600">
+                          {r.ends ?? "—"}: {r.length_ft ?? "—"}×{r.width_ft ?? "—"} ft, {r.surface ?? "unknown surface"}
+                          {r.lighted ? ", lighted" : ""}{r.closed ? " (closed)" : ""}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="mt-1 text-slate-500">No published runway data.</p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </CollapsibleSection>
     </div>
   );
 }

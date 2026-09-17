@@ -1,7 +1,8 @@
 import { useEffect, useRef } from "react";
-import { Card, CardHeader, CardTitle, CardContent } from "../../../components/ui/card";
-import Row from "../../../components/Row";
 import { Badge } from "../../../components/ui/badge";
+import { Button } from "../../../components/ui/button";
+import { Card, CardHeader, CardTitle, CardContent } from "../../../components/ui/card";
+import { cn } from "../../../lib/utils";
 import { isEndpoint, type Point, type Rating } from "../../../lib/api/types";
 import { COLORS, compassPoint, roleOf, type WalkEntry } from "../logic";
 
@@ -14,10 +15,22 @@ interface Props {
   departureIdent: string;
 }
 
+// shadcn's own Button, not a hand-rolled focusable/keyboard-handled
+// <div> (this list's own Row used to be exactly that) -- a real
+// <button> already gets tabIndex, Enter/Space activation and a
+// meaningful default role for free, so the only thing left to own
+// here is this list's own multi-line, left-aligned, bordered-row
+// look, which Button's own default (centered, single-line, rounded)
+// classes don't have.
+const ROW_CLASS = (selected: boolean) => cn(
+  "h-auto w-full flex-col items-start whitespace-normal rounded-none border-b border-slate-100 py-2 text-left last:border-0 focus-visible:bg-blue-50",
+  selected && "bg-blue-50 font-semibold",
+);
+
 export default function WaypointList({
   entries, selected, onFocus, hidden, bearingDeg, departureIdent,
 }: Props) {
-  const selectedRef = useRef<HTMLDivElement>(null);
+  const selectedRef = useRef<HTMLButtonElement>(null);
 
   // Selecting a point on the map (or by stepping) should be as visible
   // here as clicking the row itself would have been -- otherwise the
@@ -58,11 +71,13 @@ export default function WaypointList({
         const selectedHere = p === selected;
         if (isEndpoint(p)) {
           return (
-            <Row
+            <Button
               key={`e${entry.index}`}
               ref={selectedHere ? selectedRef : undefined}
-              selected={selectedHere}
-              onClick={() => onFocus(entry)}
+              variant="ghost"
+              aria-pressed={selectedHere}
+              onClick={e => { e.currentTarget.focus(); onFocus(entry); }}
+              className={ROW_CLASS(selectedHere)}
             >
               <div className="flex items-baseline justify-between gap-2">
                 <span>{p.ident}</span>
@@ -71,16 +86,18 @@ export default function WaypointList({
                 </Badge>
               </div>
               <div className="text-sm text-slate-500">{p.name}</div>
-            </Row>
+            </Button>
           );
         }
         const rating = (p as { rating: Rating }).rating;
         return (
-          <Row
+          <Button
             key={`${entry.kind}${entry.index}`}
             ref={selectedHere ? selectedRef : undefined}
-            selected={selectedHere}
-            onClick={() => onFocus(entry)}
+            variant="ghost"
+            aria-pressed={selectedHere}
+            onClick={e => { e.currentTarget.focus(); onFocus(entry); }}
+            className={ROW_CLASS(selectedHere)}
           >
             <div className="flex items-baseline justify-between gap-2">
               <span>
@@ -100,7 +117,7 @@ export default function WaypointList({
               {p.along_track_nm.toFixed(1)} nm {compassPoint(bearingDeg)} of {departureIdent}
             </div>
             <div className="text-sm text-slate-500">{p.lat.toFixed(4)}, {p.lon.toFixed(4)}</div>
-          </Row>
+          </Button>
         );
       })}
       </div>

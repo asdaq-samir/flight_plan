@@ -201,7 +201,12 @@ export default function PlanView() {
   const narrativeErrorMsg = s.narrativeError && `Couldn't generate the narrative: ${s.narrativeError}`;
   const descError = s.descriptionError && `Couldn't generate checkpoint descriptions: ${s.descriptionError}`;
   const error = s.error ?? (briefingErrorMsg || narrativeErrorMsg || descError || null);
-  usePageStatus(progress, error);
+  // The briefing sub-view has no toolbar row to clear (Shell's own
+  // toolbar prop is null there) but does have real, clickable content
+  // starting right at the top -- bottom-center is the one position
+  // safe on that view, the same way top-center (the default) is safe
+  // on the map view's own toolbar-having layout.
+  usePageStatus(progress, error, showBriefing ? "bottom-center" : undefined);
 
   const mapOverlay = !showBriefing ? (
     <>
