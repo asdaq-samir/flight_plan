@@ -117,5 +117,10 @@ export default function RouteMap(props: Props) {
               Math.max(m.getZoom(), props.course?.max_zoom ?? 12));
   }, [props.focus]);
 
-  return <div ref={el} className="h-full w-full" />;
+  // bg-slate-100: purely cosmetic, so the gap before the course loads
+  // (and its own fit() gives the map a real view to fetch tiles for)
+  // reads as "a map is about to be here" rather than a blank white
+  // rectangle -- zero network cost, unlike fetching placeholder tiles
+  // would be (see useLeafletMap's own comment for why that's not done).
+  return <div ref={el} className="h-full w-full bg-slate-100" />;
 }

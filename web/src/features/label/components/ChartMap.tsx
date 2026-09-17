@@ -139,5 +139,9 @@ export default function ChartMap(props: Props) {
     halo.current = { ...created, lat, lon, onClose: props.onDeselect };
   }, [props.selected, props.selectedContent, props.showMenu]);
 
-  return <div ref={el} className="h-full w-full" />;
+  // bg-slate-100: purely cosmetic, so the gap before the course loads
+  // reads as "a map is about to be here" rather than a blank white
+  // rectangle -- see RouteMap/useLeafletMap's own comments for why an
+  // actual placeholder tile fetch isn't done instead.
+  return <div ref={el} className="h-full w-full bg-slate-100" />;
 }

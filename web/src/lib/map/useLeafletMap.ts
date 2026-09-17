@@ -26,18 +26,20 @@ export function useLeafletMap(onReady?: (map: L.Map) => void) {
     // is edge to edge under the toolbar.
     map.current = L.map(el.current, { zoomControl: false, minZoom: 4, keyboard: false });
     map.current.attributionControl.setPrefix(false);
-    // A tile layer has nothing to render without a view -- Leaflet
-    // computes which tiles it needs from the map's own current center
-    // and zoom, and neither exists until something calls setView (or
-    // fitBounds, which calls it internally). Each map's own course
-    // data does that once it arrives, via RouteMap/ChartMap's own fit,
-    // but that left the map centered on nothing at all -- not even the
-    // base OpenStreetMap layer had a viewport to fetch tiles for -- for
-    // however long the course fetch took. A generic CONUS view here
-    // means there's always something to actually show tiles for from
-    // the moment the map exists, the same way createBaseLayer's own
-    // OSM layer no longer waits on a course either.
-    map.current.setView([39.8283, -98.5795], 4);
+    // Deliberately no setView here. A generic default (say, a CONUS
+    // view) sounds like it would give a pilot something to look at
+    // immediately, but Leaflet can't reuse those tiles once the real
+    // course arrives and fits to it -- a different center *and* a
+    // different zoom means a completely different tile set, so it
+    // doubles real tile-fetch traffic (measured: 24 wasted requests
+    // for the placeholder view, then 24 more once the actual route
+    // fit ran) rather than showing the real map any sooner. Left with
+    // no view at all, the tile layer createBaseLayer adds just sits
+    // registered and inert -- Leaflet defers fetching anything until
+    // a view exists -- so the very first tiles it ever requests are
+    // the real route's own, the moment course data's own fit() sets
+    // one. The container's own background (see RouteMap/ChartMap)
+    // covers the cosmetic gap until then, at zero network cost.
     onReady?.(map.current);
     const stopObserving = observeResize(map.current, el.current);
     return () => { stopObserving(); map.current?.remove(); map.current = null; };
