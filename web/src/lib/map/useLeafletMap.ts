@@ -26,6 +26,18 @@ export function useLeafletMap(onReady?: (map: L.Map) => void) {
     // is edge to edge under the toolbar.
     map.current = L.map(el.current, { zoomControl: false, minZoom: 4, keyboard: false });
     map.current.attributionControl.setPrefix(false);
+    // A tile layer has nothing to render without a view -- Leaflet
+    // computes which tiles it needs from the map's own current center
+    // and zoom, and neither exists until something calls setView (or
+    // fitBounds, which calls it internally). Each map's own course
+    // data does that once it arrives, via RouteMap/ChartMap's own fit,
+    // but that left the map centered on nothing at all -- not even the
+    // base OpenStreetMap layer had a viewport to fetch tiles for -- for
+    // however long the course fetch took. A generic CONUS view here
+    // means there's always something to actually show tiles for from
+    // the moment the map exists, the same way createBaseLayer's own
+    // OSM layer no longer waits on a course either.
+    map.current.setView([39.8283, -98.5795], 4);
     onReady?.(map.current);
     const stopObserving = observeResize(map.current, el.current);
     return () => { stopObserving(); map.current?.remove(); map.current = null; };

@@ -1,7 +1,7 @@
 import L from "leaflet";
 import { useEffect, useRef } from "react";
 import type { Candidate, Course } from "../../../lib/api/types";
-import { createBasemaps, createCourseLine, createHalo, dotIcon, endLabelIcon, mountReact } from "../../../lib/map/leaflet";
+import { createBaseLayer, createBasemaps, createCourseLine, createHalo, dotIcon, endLabelIcon, mountReact } from "../../../lib/map/leaflet";
 import { useLeafletMap } from "../../../lib/map/useLeafletMap";
 import { scoreColor } from "../format";
 
@@ -29,7 +29,7 @@ interface Props {
  * them ever got the basemap fix.
  */
 export default function RouteMap(props: Props) {
-  const { el, map } = useLeafletMap();
+  const { el, map } = useLeafletMap(createBaseLayer);
   const layers = useRef<Record<string, L.Layer | null>>({});
   const basemaps = useRef<ReturnType<typeof createBasemaps> | null>(null);
 

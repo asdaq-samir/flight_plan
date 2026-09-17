@@ -77,13 +77,26 @@ export function observeResize(map: L.Map, el: HTMLElement): () => void {
   return () => observer.disconnect();
 }
 
-/** Sectional tiles stop at zoom 12 and 404 below 8, so the chart alone can
- *  never frame a long leg. OpenStreetMap sits underneath for that. */
-export function createBasemaps(map: L.Map, cfg: Course) {
+/** The always-present OpenStreetMap backdrop -- added the moment the
+ *  map itself is created, independent of any route. Without this, the
+ *  map sat completely blank (no tiles at all, not even a world map)
+ *  for as long as the course/checkpoints/nav-log fetch took, because
+ *  `createBasemaps` below -- the only thing that ever added a tile
+ *  layer -- couldn't run until `course` existed. A pilot should see a
+ *  map immediately, with the route layering in on top of it as it
+ *  arrives, not a grey rectangle until it does. */
+export function createBaseLayer(map: L.Map) {
   L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
     attribution: "&copy; OpenStreetMap contributors", maxZoom: 19, opacity: 0.85,
   }).addTo(map);
+}
 
+/** Sectional tiles stop at zoom 12 and 404 below 8, so the chart alone can
+ *  never frame a long leg. `createBaseLayer`'s own OpenStreetMap layer
+ *  sits underneath for that; this only adds the toggleable FAA/OSM
+ *  pair on top of it, which needs the course's own tile_url and zoom
+ *  limits and so can't exist before a course does. */
+export function createBasemaps(map: L.Map, cfg: Course) {
   const layers = {
     // maxNativeZoom upscales chart tiles past their real limit rather than
     // showing blanks when the map is zoomed in.

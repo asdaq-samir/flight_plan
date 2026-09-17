@@ -4,7 +4,7 @@ import type { Course, Point } from "../../../lib/api/types";
 import { isEndpoint } from "../../../lib/api/types";
 import { COLORS, hasRating, isVisible, type Filters } from "../logic";
 import {
-  createBasemaps, createCourseLine, createHalo, dotIcon, endLabelIcon,
+  createBaseLayer, createBasemaps, createCourseLine, createHalo, dotIcon, endLabelIcon,
   setHaloMenuOpen, updateHaloContent,
 } from "../../../lib/map/leaflet";
 import { useLeafletMap } from "../../../lib/map/useLeafletMap";
@@ -35,7 +35,7 @@ interface Props {
  * calls.
  */
 export default function ChartMap(props: Props) {
-  const { el, map } = useLeafletMap(props.onMapReady);
+  const { el, map } = useLeafletMap(m => { createBaseLayer(m); props.onMapReady?.(m); });
   const layers = useRef<Record<string, L.Layer | null>>({});
   const basemaps = useRef<ReturnType<typeof createBasemaps> | null>(null);
   const halo = useRef<
