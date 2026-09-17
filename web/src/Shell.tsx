@@ -78,9 +78,18 @@ export default function Shell({ toolbar, map, mapOverlay, sidebar, onSidebarOpen
               same corner-button treatment as MapActionButton/GuidePanel
               (a plain shadcn Button, absolutely positioned, nothing
               hand-rolled), just the top-right corner instead of the
-              bottom two those already claim. */}
+              bottom two those already claim.
+              top-24, not top-1: main.tsx's own Toaster lands its own
+              toasts right at this area's top edge (deliberately, see
+              its comment -- the map is "the one thing on screen safe
+              to sit on top of"), full-width below sonner's 600px
+              breakpoint. That's every phone this app runs on, so a
+              button pinned any higher here sits right under a loading
+              toast, unclickable (and unreachable by Playwright) for
+              as long as one's showing -- confirmed by measuring a real
+              toast's own rendered height, not guessed. */}
           {sidebar && (
-            <SidebarTrigger className="absolute right-1 top-1 z-[1000] border-2 border-background bg-primary text-primary-foreground shadow-[0_2px_10px_rgba(0,0,0,.5)] hover:bg-primary/90 print:hidden" />
+            <SidebarTrigger className="absolute right-1 top-24 z-[1000] border-2 border-background bg-primary text-primary-foreground shadow-[0_2px_10px_rgba(0,0,0,.5)] hover:bg-primary/90 print:hidden" />
           )}
         </div>
       </SidebarInset>
