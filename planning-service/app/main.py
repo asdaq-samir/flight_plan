@@ -25,6 +25,7 @@ same vfr.pipeline functions the Airflow DAG calls, so there is one
 implementation, not two.
 """
 import json
+import logging
 import os
 import threading
 import traceback
@@ -67,6 +68,7 @@ GLOBAL_ANTHROPIC_ERRORS = (
 )
 PROCESSED_DIR = DATA_DIR / "processed"
 DEFAULT_AIRCRAFT = "c172"
+log = logging.getLogger(__name__)
 
 
 class AnthropicNotConfiguredError(RuntimeError):
@@ -1191,7 +1193,8 @@ def describe_checkpoints(
                 yield checkpoint_line(cp, None, "error", global_error)
                 continue
             except Exception as err:  # noqa: BLE001 -- one bad LLM call must not stop the rest
-                yield checkpoint_line(cp, None, "error", str(err))
+                log.exception("Checkpoint note generation failed")
+                yield checkpoint_line(cp, None, "error", "Checkpoint note generation failed")
                 continue
             yield checkpoint_line(cp, description, "generated")
         yield json.dumps({"type": "done"}) + "\n"
