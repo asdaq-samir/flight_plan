@@ -213,29 +213,29 @@ test("label page: the toggle-view action sits in the header next to Load, not fl
   }
 });
 
-test("plan page: Flight Briefing sits in the header with Chart, not floating over the map", async ({ page }, testInfo) => {
+test("plan page: Flight Briefing sits in the header with Load, not floating over the map", async ({ page }, testInfo) => {
   await page.goto("/app/plan");
   await settle(page);
   const viewport = page.viewportSize();
   if (!viewport) throw new Error("no viewport configured");
 
-  const chartBox = await page.getByRole("button", { name: "Chart" }).boundingBox();
+  const loadBox = await page.getByRole("button", { name: "Load" }).boundingBox();
   const briefingBox = await page.getByTestId("map-action-button").boundingBox();
-  expect(chartBox).not.toBeNull();
+  expect(loadBox).not.toBeNull();
   expect(briefingBox).not.toBeNull();
   // Nowhere near the bottom-left corner MapActionButton would
   // otherwise pin it to -- true regardless of viewport.
   expect(briefingBox!.y).toBeLessThan(viewport.height - 100);
 
-  // To Chart's right, same row -- only guaranteed once the header's
+  // To Load's right, same row -- only guaranteed once the header's
   // own flex-wrap has room to keep them on one line. DEP/DEST keep
   // their full, legible width even when it doesn't (a clipped ident
   // is worse than a second line -- see RouteForm's own comment), so a
-  // narrow phone wraps Briefing onto its own line below Chart instead
+  // narrow phone wraps Briefing onto its own line below Load instead
   // of shrinking anything to force one.
   if (testInfo.project.name === "desktop") {
-    expect(briefingBox!.x).toBeGreaterThan(chartBox!.x);
-    expect(Math.abs(briefingBox!.y - chartBox!.y)).toBeLessThan(10);
+    expect(briefingBox!.x).toBeGreaterThan(loadBox!.x);
+    expect(Math.abs(briefingBox!.y - loadBox!.y)).toBeLessThan(10);
   }
 });
 
@@ -257,19 +257,35 @@ test("plan page: the briefing view's own header holds its back button and its ac
   await expect(backButton).toHaveText(/Back to Map/);
   await expect(page.locator("header h1")).toBeHidden();
 
-  // Back to map, listen, print, then the same Settings gear every
-  // header ends in -- all four in one row, left to right.
+  // Back to map, the narrative split button, print, then the same
+  // Settings gear every header ends in -- all four in one row, left
+  // to right. Its own dropdown ("listen-button"/"generate-narrative-
+  // button") is unmounted until opened -- see the test below for that.
   const backBox = await backButton.boundingBox();
-  const listenBox = await page.getByTestId("listen-button").boundingBox();
+  const narrativeBox = await page.getByTestId("narrative-primary-button").boundingBox();
   const printBox = await page.getByTestId("print-button").boundingBox();
   const gearBox = await page.locator("header").getByRole("link", { name: "Settings" }).boundingBox();
   expect(backBox).not.toBeNull();
-  expect(listenBox).not.toBeNull();
+  expect(narrativeBox).not.toBeNull();
   expect(printBox).not.toBeNull();
   expect(gearBox).not.toBeNull();
-  expect(backBox!.x).toBeLessThan(listenBox!.x);
-  expect(listenBox!.x).toBeLessThan(printBox!.x);
+  expect(backBox!.x).toBeLessThan(narrativeBox!.x);
+  expect(narrativeBox!.x).toBeLessThan(printBox!.x);
   expect(printBox!.x).toBeLessThan(gearBox!.x);
+});
+
+test("plan page: the narrative split button's chevron opens generate/listen as explicit choices", async ({ page }) => {
+  await page.goto("/app/plan");
+  await settle(page);
+
+  await page.getByTestId("map-action-button").click();
+  await page.waitForTimeout(300);
+  await expect(page).toHaveURL(/[?&]view=briefing/);
+
+  await expect(page.getByTestId("generate-narrative-button")).toHaveCount(0);
+  await page.getByTestId("narrative-menu-trigger").click();
+  await expect(page.getByTestId("generate-narrative-button")).toBeVisible();
+  await expect(page.getByTestId("listen-button")).toBeVisible();
 });
 
 test("plan page: the briefing header's own back-to-map button, not the wordmark, is the way back", async ({ page }) => {

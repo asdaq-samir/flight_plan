@@ -8,6 +8,8 @@
  * this catches it without a browser or a backend.
  */
 import { act, renderHook } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { createElement, type ReactNode } from "react";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import type { Course, Detection, LoosePick, StreamMessage } from "../../../lib/api/types";
 import { useLabelState } from "./useLabelState";
@@ -34,7 +36,7 @@ function courseFixture(): Course {
     destination: { ident: "KDLH", name: "Duluth", lat: 46.8, lon: -92.2, elevation_ft: 1428 },
     distance_nm: 323.4, bearing_deg: 328,
     course_line: [[42.1, -88.1], [46.8, -92.2]],
-    tile_url: "", max_zoom: 12, min_zoom: 4,
+    map_service_url: "", max_zoom: 12, min_zoom: 4,
   };
 }
 
@@ -67,6 +69,13 @@ function savedPickResponse(pick: LoosePick) {
   } };
 }
 
+function renderLabelState() {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const wrapper = ({ children }: { children: ReactNode }) =>
+    createElement(QueryClientProvider, { client: queryClient }, children);
+  return renderHook(() => useLabelState(), { wrapper });
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
 });
@@ -76,7 +85,7 @@ describe("useLabelState", () => {
     mockCourse.mockResolvedValue(courseFixture());
     mockDetect.mockReturnValue(streamOf([detectionFixture()], [loosePickFixture()]));
 
-    const { result } = renderHook(() => useLabelState());
+    const { result } = renderLabelState();
     await act(async () => { await result.current.load("C81", "KDLH"); });
 
     expect(mockCourse).toHaveBeenCalledWith("C81", "KDLH");
@@ -89,7 +98,7 @@ describe("useLabelState", () => {
   test("load surfaces a failed course fetch as an error, not a thrown exception", async () => {
     mockCourse.mockRejectedValue(new Error("no such airport"));
 
-    const { result } = renderHook(() => useLabelState());
+    const { result } = renderLabelState();
     await act(async () => { await result.current.load("ZZZZ", "KDLH"); });
 
     expect(result.current.error).toBe("no such airport");
@@ -101,7 +110,7 @@ describe("useLabelState", () => {
     mockDetect.mockReturnValue(streamOf([detectionFixture()], []));
     mockSavePick.mockResolvedValue(savedPickResponse(loosePickFixture({ rating: 5, rated: true, role: "dr" })));
 
-    const { result } = renderHook(() => useLabelState());
+    const { result } = renderLabelState();
     await act(async () => { await result.current.load("C81", "KDLH"); });
     act(() => result.current.select({ kind: "detected", index: 0 }));
     await act(async () => { await result.current.rate(5); });
@@ -112,6 +121,26 @@ describe("useLabelState", () => {
     expect(result.current.canUndo).toBe(true);
   });
 
+  test("a rate that fails to save surfaces an error instead of silently doing nothing", async () => {
+    // Every call site fires this with `void store.rate(...)`, so nothing
+    // else ever sees the rejection -- this failure is only visible at
+    // all through the hook's own error field.
+    mockCourse.mockResolvedValue(courseFixture());
+    mockDetect.mockReturnValue(streamOf([detectionFixture()], []));
+    mockSavePick.mockRejectedValue(new Error("network error"));
+
+    const { result } = renderLabelState();
+    await act(async () => { await result.current.load("C81", "KDLH"); });
+    act(() => result.current.select({ kind: "detected", index: 0 }));
+    await act(async () => { await result.current.rate(5); });
+
+    expect(result.current.error).toBe("Couldn't save that rating: network error");
+    // The write never landed, so the point is still unrated -- and
+    // there is nothing real to step back to, unlike a genuine undo.
+    expect(result.current.detections[0]!.rating).toBeNull();
+    expect(result.current.canUndo).toBe(false);
+  });
+
   test("undo reverts the most recent rate on a previously-unrated point", async () => {
     mockCourse.mockResolvedValue(courseFixture());
     mockDetect.mockReturnValue(streamOf([detectionFixture()], []));
@@ -120,7 +149,7 @@ describe("useLabelState", () => {
       total: 0, accepted: 0, rejected: 0, added: 0, by_rating: {}, by_role: { dr: 0, visual: 0 },
     } });
 
-    const { result } = renderHook(() => useLabelState());
+    const { result } = renderLabelState();
     await act(async () => { await result.current.load("C81", "KDLH"); });
     act(() => result.current.select({ kind: "detected", index: 0 }));
     await act(async () => { await result.current.rate(3); });
@@ -145,7 +174,7 @@ describe("useLabelState", () => {
     } });
     mockSavePick.mockResolvedValue(savedPickResponse(pick));
 
-    const { result } = renderHook(() => useLabelState());
+    const { result } = renderLabelState();
     await act(async () => { await result.current.load("C81", "KDLH"); });
     act(() => result.current.select({ kind: "added", index: 0 }));
     await act(async () => { await result.current.removeSelected(); });
@@ -172,7 +201,7 @@ describe("useLabelState", () => {
       total: 0, accepted: 0, rejected: 0, added: 0, by_rating: {}, by_role: { dr: 0, visual: 0 },
     } });
 
-    const { result } = renderHook(() => useLabelState());
+    const { result } = renderLabelState();
     await act(async () => { await result.current.load("C81", "KDLH"); });
     await act(async () => { await result.current.resetAll(); });
 
@@ -184,11 +213,26 @@ describe("useLabelState", () => {
     expect(result.current.canUndo).toBe(false);
   });
 
+  test("a resetAll that fails to delete surfaces an error rather than pretending it worked", async () => {
+    mockCourse.mockResolvedValue(courseFixture());
+    mockDetect.mockReturnValue(streamOf([detectionFixture({ rating: 5, rated: true })], []));
+    mockDeletePick.mockRejectedValue(new Error("server unavailable"));
+
+    const { result } = renderLabelState();
+    await act(async () => { await result.current.load("C81", "KDLH"); });
+    await act(async () => { await result.current.resetAll(); });
+
+    expect(result.current.error).toBe("Couldn't reset every rating: server unavailable");
+    // The delete never landed, so the rating is left exactly as it was
+    // rather than clearing it locally out of step with the server.
+    expect(result.current.detections[0]!.rating).toBe(5);
+  });
+
   test("a fresh load clears whatever the previous route left behind", async () => {
     mockCourse.mockResolvedValue(courseFixture());
     mockDetect.mockReturnValue(streamOf([detectionFixture()], []));
 
-    const { result } = renderHook(() => useLabelState());
+    const { result } = renderLabelState();
     await act(async () => { await result.current.load("C81", "KDLH"); });
     expect(result.current.detections).toHaveLength(1);
 

@@ -3,6 +3,6 @@
 FROM node:26-slim AS build
 WORKDIR /web
 COPY web/package.json web/package-lock.json* ./
-RUN npm install
+RUN npm ci
 COPY web/ ./
 RUN npm run build

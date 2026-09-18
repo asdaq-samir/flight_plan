@@ -15,7 +15,7 @@ interface Props {
    *  map header's route form, since this is where the *result*
    *  (`nav.altitude_ft`/`nav.altitude_selection`) already shows: typing
    *  a new one and seeing what it changes is one place, not two. Wired
-   *  to the same `onSubmit` PlanView's own "Chart" button calls, so
+   *  to the same `onSubmit` PlanView's own "Load" button calls, so
    *  Enter here re-plans the exact same way that button does. */
   alt: string;
   onAltChange: (v: string) => void;

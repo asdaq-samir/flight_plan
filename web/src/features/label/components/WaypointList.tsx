@@ -84,7 +84,7 @@ export default function WaypointList({
     <Card size="sm" className="min-h-0 flex-1 overflow-y-auto">
       <CardHeader>
         <CardTitle className="flex items-baseline gap-2">
-          Waypoints
+          Rated <span className="font-normal text-muted-foreground">{waypointCount}</span>
           {distanceNm !== null && (
             <span className="text-sm font-normal text-muted-foreground">
               <b className="font-semibold text-foreground">{distanceNm}</b> nm ·{" "}

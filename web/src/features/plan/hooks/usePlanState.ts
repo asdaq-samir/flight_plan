@@ -116,14 +116,21 @@ export function usePlanState() {
   const ref = useRef(state);
   ref.current = state;
   // TanStack Query's cache is used directly (fetchQuery), not its
-  // useQuery/useMutation hooks -- loadRoutes/loadBriefing are the only
-  // two operations here that are genuinely independent, cacheable GETs.
-  // Everything else in this file either streams (plan's nav-log legs,
-  // describeCheckpoints) or shares mutable state with something that
-  // does (saveDescription writes into the same `descriptions` object
-  // describeCheckpoints streams into -- splitting just the mutation
-  // half into Query's own cache would leave two sources of truth for
-  // one field), so it stays exactly as hand-rolled as it already was.
+  // useQuery/useMutation hooks -- loadRoutes, plan's own course/
+  // checkpoints stages, and loadBriefing are the genuinely independent,
+  // cacheable GETs here, each with its own staleTime picked for what
+  // it actually is, not one default for all of them: course/checkpoints
+  // (chart-reading plus a model inference, the same answer however long
+  // ago it last ran) are staleTime: Infinity; briefing (live METAR/
+  // forecast) keeps the client's own default of effectively always
+  // revalidating. Everything else in this file either streams (plan's
+  // nav-log legs -- live winds, deliberately refetched every time --
+  // and describeCheckpoints) or shares mutable state with something
+  // that does (saveDescription writes into the same `descriptions`
+  // object describeCheckpoints streams into -- splitting just the
+  // mutation half into Query's own cache would leave two sources of
+  // truth for one field), so it stays exactly as hand-rolled as it
+  // already was.
   const queryClient = useQueryClient();
   // One in-flight plan at a time. A second submit while the nav log of
   // the first is still outstanding would otherwise merge two routes'
@@ -167,11 +174,25 @@ export function usePlanState() {
     window.speechSynthesis.cancel();
 
     try {
-      const course = await api.course(dep, dest);
+      // Through the query cache, staleTime: Infinity -- unlike the nav
+      // log below (live wind, refetched every time on purpose), the
+      // course and its scored checkpoints are chart-reading and a
+      // model inference over a fixed corridor: the same answer today
+      // as an hour ago, and the slower of this page's two stages to
+      // redo. Keyed on dep/dest, so navigating away (Settings, Label)
+      // and back to the *same* route serves this instantly from cache
+      // instead of paying for it again -- a different route is a
+      // different key, still a real fetch. Explicit fetchQuery, not
+      // useQuery -- see this file's own comment above on why.
+      const course = await queryClient.fetchQuery({
+        queryKey: ["course", dep, dest], queryFn: () => api.course(dep, dest), staleTime: Infinity,
+      });
       if (token !== planToken.current) return;
       setState(s => ({ ...s, course, stage: "checkpoints" }));
 
-      const cp = await api.checkpoints(dep, dest);
+      const cp = await queryClient.fetchQuery({
+        queryKey: ["checkpoints", dep, dest], queryFn: () => api.checkpoints(dep, dest), staleTime: Infinity,
+      });
       if (token !== planToken.current) return;
       setState(s => ({ ...s, candidates: cp.candidates, selected: cp.selected, stage: "navlog" }));
     } catch (err) {
@@ -336,11 +357,15 @@ export function usePlanState() {
       setState(s => ({ ...s, descriptions: { ...s.descriptions, [key]: { text, source: "saved" } } }));
       try {
         await api.saveCheckpointNote(dep, dest, lat, lon, text);
-      } catch {
+      } catch (err) {
+        // Reverting silently left a pilot's own edit just vanishing off
+        // the checkpoint with nothing on screen saying why -- same gap
+        // as an unguarded `void` call elsewhere, just via a caught
+        // error instead of an uncaught one.
         setState(s => {
           const next = { ...s.descriptions };
           if (previous) next[key] = previous; else delete next[key];
-          return { ...s, descriptions: next };
+          return { ...s, descriptions: next, error: `Couldn't save that description: ${(err as Error).message}` };
         });
       }
     },

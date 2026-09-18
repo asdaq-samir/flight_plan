@@ -3,8 +3,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { toast } from "sonner";
 import { Link, useLocation } from "react-router-dom";
-import { ArrowLeft, MapPin, MoveRight, NotebookPen, PlaneTakeoff, Route, ListChecks } from "lucide-react";
+import { ArrowLeft, ListChecks } from "lucide-react";
 import CollapsibleSection from "../../components/CollapsibleSection";
 import Footer from "../../components/Footer";
 import { Badge } from "../../components/ui/badge";
@@ -17,43 +18,6 @@ import { ApiError, api } from "../../lib/api/client";
 import { identSchema } from "../../lib/identSchema";
 import { useDocumentTitle } from "../../lib/useDocumentTitle";
 import type { Aircraft, AircraftRequest, Pilot } from "../../lib/api/types";
-
-/** Departure/destination in, printable Flight Briefing out -- the
- *  actual pipeline every route walks through. Was the front door's own
- *  content (a separate Home page) before Plan became the app's
- *  homepage; lives here now as the one place that still explains what
- *  the app does, rather than duplicating that on every page. */
-const STEPS: { icon: typeof MapPin; label: string }[] = [
-  { icon: MapPin, label: "Pick two airports" },
-  { icon: Route, label: "Charted course" },
-  { icon: ListChecks, label: "Scored checkpoints" },
-  { icon: NotebookPen, label: "Nav log + briefing" },
-];
-
-function OverviewPanel() {
-  return (
-    <div className="border-b border-border px-4 py-6">
-      <PlaneTakeoff className="size-8 text-primary" />
-      <h1 className="mt-3 text-2xl font-bold tracking-tight text-foreground">
-        Plan a real VFR cross-country, checkpoint by checkpoint
-      </h1>
-      <p className="mt-2 max-w-xl text-muted-foreground">
-        Two airport idents in; a charted course, ML-scored visual checkpoints,
-        a dead-reckoning nav log and a printable flight briefing out --
-        backed by the same model this project trains on hand-labeled charts.
-      </p>
-      <div className="mt-4 flex flex-wrap items-center gap-x-2 gap-y-3 rounded-lg border border-border bg-card px-4 py-3 text-sm">
-        {STEPS.map((s, i) => (
-          <div key={s.label} className="flex items-center gap-2">
-            {i > 0 && <MoveRight className="size-4 shrink-0 text-muted-foreground" aria-hidden />}
-            <s.icon className="size-4 shrink-0 text-primary" aria-hidden />
-            <span>{s.label}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
 
 /** Introduces the "explore the project" panels below (Model Comparison
  *  through Altitude Breakdown) -- was its own Dev page's intro row
@@ -410,7 +374,14 @@ function AircraftPanel({ pilot }: { pilot: PilotState }) {
   const save = useMutation({
     mutationFn: (request: AircraftRequest) =>
       editingId ? api.aircraft.update(editingId, request) : api.aircraft.add(request),
+    // The only other feedback a save gets is a row quietly changing in
+    // a table below the form -- easy to miss with your eyes still on
+    // the inputs you just submitted, unlike Plan/Label's own toasts
+    // (usePageStatus), which confirm something already big and visible
+    // (a route, a rating). This is the one place in the app a genuine
+    // list-editing success has nothing else to announce it.
     onSuccess: () => {
+      toast.success(editingId ? "Aircraft updated" : "Aircraft added");
       cancelEdit();
       void queryClient.invalidateQueries({ queryKey: ["aircraft"] });
     },
@@ -418,7 +389,10 @@ function AircraftPanel({ pilot }: { pilot: PilotState }) {
 
   const remove = useMutation({
     mutationFn: (id: number) => api.aircraft.remove(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["aircraft"] }),
+    onSuccess: () => {
+      toast.success("Aircraft deleted");
+      void queryClient.invalidateQueries({ queryKey: ["aircraft"] });
+    },
   });
 
   const edit = (a: Aircraft) => {
@@ -646,7 +620,6 @@ export default function SettingsView() {
       <SectionHeading>Account</SectionHeading>
       <AircraftPanel pilot={pilotState} />
       <FlightsPanel pilot={pilotState} />
-      <OverviewPanel />
       <SectionHeading>Developer tools</SectionHeading>
       <DevIntro />
       <ModelComparisonPanel />

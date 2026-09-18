@@ -44,7 +44,7 @@ from vfr import airports, altitude as altitude_module, checkpoints as checkpoint
 from vfr import chartlabels, chartvision, checkpoint_notes, faa_data, geo, model_registry, navlog, pipeline, weather
 from vfr.config import (
     DATA_DIR,
-    FAA_VFR_SECTIONAL_URL,
+    VFR_SECTIONAL_MAP_SERVICE_URL,
     VFR_SECTIONAL_MAX_ZOOM,
     VFR_SECTIONAL_MIN_ZOOM,
 )
@@ -386,7 +386,7 @@ def plan(
         "altitude_ft": altitude_ft,
         "altitude_selection": altitude_selection,
         "aircraft": {"name": aircraft, **profile},
-        "tile_url": FAA_VFR_SECTIONAL_URL,
+        "map_service_url": VFR_SECTIONAL_MAP_SERVICE_URL,
         "max_zoom": VFR_SECTIONAL_MAX_ZOOM,
         "min_zoom": VFR_SECTIONAL_MIN_ZOOM,
     }
@@ -502,7 +502,7 @@ def course(dep: str, dest: str) -> dict:
         "distance_nm": round(geo.distance_nm(start[0], start[1], end[0], end[1]), 1),
         "bearing_deg": round(geo.bearing_deg(start[0], start[1], end[0], end[1])),
         "course_line": _course_line(start, end),
-        "tile_url": FAA_VFR_SECTIONAL_URL,
+        "map_service_url": VFR_SECTIONAL_MAP_SERVICE_URL,
         "max_zoom": VFR_SECTIONAL_MAX_ZOOM,
         "min_zoom": VFR_SECTIONAL_MIN_ZOOM,
     }

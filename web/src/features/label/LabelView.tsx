@@ -11,14 +11,13 @@ import SettingsButton from "../../components/SettingsButton";
 import { usePageStatus } from "../../lib/usePageStatus";
 import ChartMap from "./components/ChartMap";
 import RouteForm from "./components/RouteForm";
-import FilterBar from "./components/FilterBar";
 import ProgressCard from "./components/ProgressCard";
 import WaypointList from "./components/WaypointList";
 import PointPopup from "./components/PointPopup";
 import RatingLegend from "./components/RatingLegend";
 import { isEndpoint, type Point, type Rating } from "../../lib/api/types";
 import {
-  forwardIsLeft, forwardIsUp, hasRating, hiddenCount, isVisible, orderedPoints,
+  filterCounts, forwardIsLeft, forwardIsUp, hasRating, hiddenCount, isVisible, orderedPoints,
 } from "./logic";
 import { currentPoint, useLabelState } from "./hooks/useLabelState";
 import { useDocumentTitle } from "../../lib/useDocumentTitle";
@@ -73,6 +72,10 @@ export default function LabelView() {
   const shown = useMemo(
     () => [...store.detections, ...store.added].filter(p => isVisible(p, store.filters)).length,
     [store.detections, store.added, store.filters],
+  );
+  const counts = useMemo(
+    () => filterCounts([...store.detections, ...store.added]),
+    [store.detections, store.added],
   );
   const picks = useMemo(
     () => [...store.detections, ...store.added].filter(hasRating),
@@ -266,7 +269,7 @@ export default function LabelView() {
   // an extra click, which the view filters -- genuinely optional --
   // don't need to avoid. The toggle-view button (Start/Resume/Fit
   // line) folds in here too, the same way Plan's own single
-  // most-needed map action ("Brief") sits next to "Chart" rather than
+  // most-needed map action ("Brief") sits next to "Load" rather than
   // floating over the map -- these two pages are meant to look like
   // the same shell around a different sidebar, not two designs that
   // happen to share a Shell component.
@@ -317,15 +320,17 @@ export default function LabelView() {
       sidebar={
         <>
           {/* The view filters used to live in their own collapsible
-              toolbar row, collapsed by default -- moved here instead
-              of dropped, since Plan's own sidebar (NavLogView) already
-              has this exact slot: a compact control row at the very
-              top of the sidebar, above its main list/table. */}
-          <div className="border-b border-border p-2">
-            <FilterBar filters={store.filters} onChange={store.setFilter} shown={shown} />
-          </div>
+              toolbar row, collapsed by default, then their own bar
+              above this card -- folded into it now, since each
+              checkbox's count and the "Rated" total above it are the
+              same kind of fact and read better together than split
+              across two panels. */}
           <ProgressCard
             visiblePicks={visiblePicks}
+            filters={store.filters}
+            onFilterChange={store.setFilter}
+            filterCounts={counts}
+            shown={shown}
             canUndo={store.canUndo}
             onUndo={() => void store.undo()}
             onResetAll={() => void store.resetAll()}

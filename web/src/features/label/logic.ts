@@ -139,3 +139,24 @@ export function forwardIsLeft(bearingDeg: number): boolean {
 export function hiddenCount(picks: Point[], filters: Filters): number {
   return picks.filter(p => !isVisible(p, filters)).length;
 }
+
+/**
+ * How many candidates exist in each filter bucket, independent of any
+ * checkbox's own on/off state -- a checkbox that counted only among
+ * what its own filter already lets through would read 0 the moment it
+ * was unchecked, telling a labeler nothing about what turning it back
+ * on would surface. Counted over every candidate (rated or not), the
+ * same set the "Showing" total is counted over -- not `picks`, which
+ * only includes already-rated points and would make `unrated` read 0
+ * forever.
+ */
+export function filterCounts(candidates: Point[]): Record<FilterKey, number> {
+  return {
+    dr: candidates.filter(p => roleOf(p) === "dr").length,
+    visual: candidates.filter(p => roleOf(p) === "visual").length,
+    detected: candidates.filter(p => sourceOf(p) === "detected").length,
+    added: candidates.filter(p => sourceOf(p) === "added").length,
+    rated: candidates.filter(hasRating).length,
+    unrated: candidates.filter(p => !hasRating(p)).length,
+  };
+}

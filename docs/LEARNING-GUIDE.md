@@ -217,7 +217,9 @@ volume: `vfr_route_pgdata` holds the application rows and the agent's
 vector memory, and `docker system prune --volumes` — the command everyone
 reaches for when a disk fills — takes it with everything else.
 [`docker/tidy.sh`](../docker/tidy.sh) exists to be the safe version:
-build cache, stopped containers and dangling images, never a volume.
+unused build cache, stopped containers, and images unused by a container,
+never a volume. It retains images backing running services and keeps a 15GB
+build-cache budget, so the next build can still reuse recent layers.
 
 The disk filled anyway, twice, and neither cause was the images:
 

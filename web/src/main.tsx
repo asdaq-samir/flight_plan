@@ -73,9 +73,10 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
           600px viewport (its own mobile breakpoint, not something a
           `--width` override can beat), so a bottom toast would
           unavoidably overlap one of those. offset clears Plan/Label's
-          own merged header row (route form + Settings gear, ~56px),
-          landing the toast over the map/content below instead -- the
-          one thing on screen safe to briefly sit on top of.
+          own merged header row (route form + Settings gear, a measured
+          53px) with a small margin rather than a round guess -- 90px
+          was landing the toast a visible gap of bare map below the
+          header instead of snug against it.
           mobileOffset, not just offset: sonner reads a completely
           separate `--mobile-offset-*` custom property below its own
           600px breakpoint (this app's actual viewport), so `offset`
@@ -87,8 +88,8 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
           way to just get it off their screen while that's still true. */}
       <Toaster
         position="top-center"
-        offset={{ top: "90px" }}
-        mobileOffset={{ top: "90px" }}
+        offset={{ top: "61px" }}
+        mobileOffset={{ top: "61px" }}
         closeButton
       />
     </QueryClientProvider>

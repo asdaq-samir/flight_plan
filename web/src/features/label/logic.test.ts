@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import type { Detection, Endpoint, LoosePick, Point } from "../../lib/api/types";
 import {
-  DEFAULT_FILTERS, forwardIsLeft, forwardIsUp, hasRating, hiddenCount,
+  DEFAULT_FILTERS, filterCounts, forwardIsLeft, forwardIsUp, hasRating, hiddenCount,
   isVisible, orderedPoints, ratedOf, roleOf, sourceOf, type Filters,
 } from "./logic";
 
@@ -119,5 +119,18 @@ describe("hidden count", () => {
   test("a pick failing three boxes is hidden once, not three times", () => {
     const awkward = loose({ cross_track_nm: 3, role: "visual", source: "added", rating: 4 });
     expect(hiddenCount([awkward], filters({ added: false }))).toBe(1);
+  });
+});
+
+describe("filter counts", () => {
+  test("each bucket counts every candidate, not just what its own checkbox lets through", () => {
+    const candidates = [
+      det({ rating: 4 }), // dr, detected, rated
+      loose({ role: "visual" }), // visual, added, rated
+      det({ rating: null }), // dr, detected, unrated
+    ];
+    expect(filterCounts(candidates)).toEqual({
+      dr: 2, visual: 1, detected: 2, added: 1, rated: 2, unrated: 1,
+    });
   });
 });

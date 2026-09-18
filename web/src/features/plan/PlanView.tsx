@@ -186,10 +186,9 @@ export default function PlanView() {
 
   // Generates the narrative if none exists yet, then reads it aloud
   // the moment it's ready; toggles playback if one's already
-  // generated. The one handler both the briefing header's own Listen
-  // button and the Briefing Narrative section's own "Listen" button
-  // call, so triggering it from either place leaves the other in
-  // agreement.
+  // generated. The one handler both the briefing header's own primary
+  // narrative button and its dropdown's own "Listen" item call, so
+  // triggering it from either place leaves the other in agreement.
   const handleListenClick = async () => {
     if (s.speaking) { s.stopSpeaking(); return; }
     if (s.narrative) { s.speak(s.narrative); return; }
@@ -252,9 +251,9 @@ export default function PlanView() {
   // No more overlay while looking at the briefing -- its own actions
   // moved into FlightBriefingView's own title panel, in flow rather
   // than floating over the content. The "Briefing" button itself
-  // lives in `mapHeader` now too, next to "Chart" (see RouteForm's own
+  // lives in `mapHeader` now too, next to "Load" (see RouteForm's own
   // comment) rather than floating bottom-left the way this page's
-  // single most-needed action otherwise would -- Chart already is
+  // single most-needed action otherwise would -- Load already is
   // that. Stays up even once the sidebar opens -- the guide button
   // now lives bottom-left, the sidebar pushes in from the right, and
   // the two corners don't actually overlap.

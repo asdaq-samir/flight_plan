@@ -1,25 +1,16 @@
-import { Loader2, Printer, Sparkles, Square, Volume2 } from "lucide-react";
+import { ChevronDown, Loader2, Printer, ScrollText, Sparkles, Square, Volume2 } from "lucide-react";
 import { Button } from "../../../../components/ui/button";
 import { ButtonGroup } from "../../../../components/ui/button-group";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from "../../../../components/ui/dropdown-menu";
+import { Popover, PopoverContent, PopoverTrigger } from "../../../../components/ui/popover";
 
 interface Props {
-  /** Generates the narrative -- disabled once one already exists,
-   *  since generating again would be a second real, billed Claude call
-   *  for text already sitting right there. The Briefing Narrative
-   *  section further down the page used to have its own separate
-   *  "Generate narrative" button that did exactly this same thing --
-   *  removed once this one existed, rather than two controls a pilot
-   *  has to notice are the same control. */
   onGenerateNarrative: () => void;
   narrativeLoading: boolean;
   hasNarrative: boolean;
-  /** Plays the narrative if one exists; generates it first (then
-   *  plays) if a pilot reaches for this before ever clicking Generate
-   *  -- toggles to stop once actually playing. Shares its `speaking`
-   *  state with the Briefing Narrative section's own Listen button
-   *  (see `usePlanState`'s own `speak`/`stopSpeaking`) rather than each
-   *  owning an independent one, so the two can't disagree about
-   *  whether a voice is playing. */
+  narrative: string | null;
   onListenClick: () => void;
   listening: boolean;
 }
@@ -34,39 +25,92 @@ interface Props {
  * needs to read against arbitrary tile colors underneath it -- this
  * sits on a plain panel background instead.
  *
- * Generate and Listen are a `ButtonGroup` (shadcn's own split-button
- * primitive, visually one joined control), not two separate icon
- * buttons scattered across the row -- they're two steps of one task
- * (write it, then hear it), not two unrelated actions, and grouping
- * them says so at a glance. Not a dropdown *menu* -- there's nothing
- * to choose between, just the two fixed steps, always both visible.
- * "Back to map" used to live here too, as a third icon button -- moved
- * out into its own text button in the header's own title slot instead
- * of staying a second, redundant way to say the same thing.
+ * A split button (shadcn's own pattern, primary action + a chevron
+ * opening a `DropdownMenu`), not two equal icon buttons side by side --
+ * generate and listen are two steps of one task, not two unrelated
+ * actions, so the main click does whichever one is next (generate while
+ * there's no narrative yet, then listen once there is), and the menu
+ * behind the chevron holds both as explicit choices for whichever one
+ * a pilot actually wants right now (re-hear it after already reading
+ * it, say). "Back to map" used to live here too, as a third icon
+ * button -- moved out into its own text button in the header's own
+ * title slot instead of staying a second, redundant way to say the
+ * same thing.
+ *
+ * The narrative's own text used to have a permanent home further down
+ * the page (a "Briefing Narrative" `CollapsibleSection`) -- moved into
+ * this `Popover` instead, next to the buttons that produce it, so
+ * reading it back doesn't mean scrolling away from them. On screen
+ * only: a closed Popover renders nothing, so `FlightBriefingView` also
+ * keeps a `hidden print:block` block with the same text for a printed
+ * copy, which needs it sitting in the page rather than behind a click
+ * that a piece of paper can't make.
  */
 export default function NavLogActions({
-  onGenerateNarrative, narrativeLoading, hasNarrative, onListenClick, listening,
+  onGenerateNarrative, narrativeLoading, hasNarrative, narrative, onListenClick, listening,
 }: Props) {
+  const primaryAction = hasNarrative ? onListenClick : onGenerateNarrative;
+  const primaryLabel = narrativeLoading
+    ? "Generating…"
+    : hasNarrative
+      ? (listening ? "Stop" : "Listen to briefing narrative")
+      : "Generate briefing narrative";
+  const primaryIcon = narrativeLoading
+    ? <Loader2 className="size-4 animate-spin" />
+    : hasNarrative
+      ? (listening ? <Square className="size-4" /> : <Volume2 className="size-4" />)
+      : <Sparkles className="size-4" />;
+
   return (
     <>
       <ButtonGroup>
         <Button
-          variant="ghost" size="icon" onClick={onGenerateNarrative}
-          disabled={narrativeLoading || hasNarrative}
-          title={hasNarrative ? "Narrative already generated" : "Generate briefing narrative"}
-          aria-label={hasNarrative ? "Narrative already generated" : "Generate briefing narrative"}
-          data-testid="generate-narrative-button"
+          variant="ghost" size="icon" onClick={primaryAction} disabled={narrativeLoading}
+          title={primaryLabel} aria-label={primaryLabel}
+          data-testid="narrative-primary-button"
         >
-          {narrativeLoading ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
+          {primaryIcon}
         </Button>
-        <Button
-          variant="ghost" size="icon" onClick={onListenClick} disabled={narrativeLoading}
-          title={listening ? "Stop" : "Listen to briefing narrative"}
-          aria-label={listening ? "Stop" : "Listen to briefing narrative"}
-          data-testid="listen-button"
-        >
-          {listening ? <Square className="size-4" /> : <Volume2 className="size-4" />}
-        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost" size="icon" disabled={narrativeLoading}
+              aria-label="More narrative actions" data-testid="narrative-menu-trigger"
+            >
+              <ChevronDown className="size-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent>
+            <DropdownMenuItem
+              onSelect={onGenerateNarrative}
+              disabled={narrativeLoading || hasNarrative}
+              data-testid="generate-narrative-button"
+            >
+              <Sparkles /> {hasNarrative ? "Narrative already generated" : "Generate narrative"}
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onSelect={onListenClick}
+              disabled={narrativeLoading}
+              data-testid="listen-button"
+            >
+              {listening ? <Square /> : <Volume2 />} {listening ? "Stop" : "Listen to narrative"}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button
+              variant="ghost" size="icon" disabled={!narrative}
+              title="Read briefing narrative" aria-label="Read briefing narrative"
+              data-testid="narrative-text-button"
+            >
+              <ScrollText className="size-4" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-80 text-sm text-muted-foreground">
+            {narrative}
+          </PopoverContent>
+        </Popover>
       </ButtonGroup>
       <Button
         variant="ghost" size="icon" onClick={() => window.print()}

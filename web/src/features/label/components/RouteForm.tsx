@@ -9,7 +9,7 @@ interface Props {
   onSubmit: () => void;
   /** The page's own single most-needed map action -- Start/Resume/Fit
    *  line -- folded in here as a sibling `type="button"`, the same
-   *  shape Plan's own RouteForm holds "Brief" next to "Chart" in. One
+   *  shape Plan's own RouteForm holds "Brief" next to "Load" in. One
    *  merged header row for both pages now, not a form here and a
    *  floating corner button over the map there. */
   onToggleView: () => void;
@@ -45,14 +45,14 @@ export default function RouteForm({
           value={dep}
           onChange={e => onDepChange(e.target.value.toUpperCase())}
           aria-label="Departure"
-          className="w-20 text-center font-mono uppercase"
+          className="w-[75px] text-center font-mono uppercase"
         />
         <span>&rarr;</span>
         <Input
           value={dest}
           onChange={e => onDestChange(e.target.value.toUpperCase())}
           aria-label="Destination"
-          className="w-20 text-center font-mono uppercase"
+          className="w-[75px] text-center font-mono uppercase"
         />
       </div>
       <Button type="submit">Load</Button>

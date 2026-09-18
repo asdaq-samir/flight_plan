@@ -40,6 +40,23 @@ input, select, textarea {
   line-height: 1.3;
 }
 
+/* The sectional chart is a dynamic map service (esri-leaflet's
+   dynamicMapLayer), not a tile pyramid -- every pan/zoom re-renders
+   the whole viewport as one image rather than filling in a few new
+   edge tiles, and esri-leaflet's own RasterLayer already loads that
+   next image at opacity 0 in the background and only swaps once it's
+   ready (see RasterLayer.js's own _renderImage), so there's never a
+   blank gap. What it doesn't do on its own is animate that swap --
+   the new image jumps straight from invisible to fully opaque the
+   instant it's ready, which reads as a hard snap even though nothing
+   was ever missing. This is the one property RasterLayer's own image
+   elements all carry (leaflet-image-layer) -- the same opacity flip
+   the library already does, just eased instead of instant, with
+   nothing about the dynamic-image approach itself touched. */
+.leaflet-image-layer {
+  transition: opacity 200ms ease-out;
+}
+
 /* The Flight Briefing page's own sections (<details>) are collapsed
    by default on screen -- a pilot skims titles and opens what they
    need. A printed page is the opposite: every section has to be

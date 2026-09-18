@@ -96,21 +96,29 @@ public class SecurityConfig {
                 // Spring Security already writes X-Content-Type-Options
                 // and a frame-options header by default; this makes both
                 // explicit and adds a CSP. Everything the app actually
-                // loads is same-origin except the OSM tile images
-                // (web/src/lib/map/leaflet.tsx) -- style-src keeps
-                // 'unsafe-inline' for Swagger UI's own inline styles.
-                // HSTS is a no-op locally (Spring Security only sends it
-                // over a request it sees as secure) and only takes effect
-                // once behind a TLS-terminating ALB with
+                // loads is same-origin except two map sources
+                // (web/src/lib/map/leaflet.tsx): OSM's own tile images,
+                // and the sectional chart mirror twcgis.tamu.edu --
+                // that one needs connect-src too, not just img-src,
+                // since esri-leaflet's dynamicMapLayer fetches its
+                // export image via a JSON API call (and always pings
+                // the service's own metadata endpoint on add, whether
+                // or not this app uses what it returns) rather than a
+                // plain <img> src the way a tile layer's own requests
+                // are. style-src keeps 'unsafe-inline' for Swagger UI's
+                // own inline styles. HSTS is a no-op locally (Spring
+                // Security only sends it over a request it sees as
+                // secure) and only takes effect once behind a
+                // TLS-terminating ALB with
                 // server.forward-headers-strategy: framework set.
                 .headers(headers -> headers
                         .frameOptions(frame -> frame.deny())
                         .contentSecurityPolicy(csp -> csp.policyDirectives(
                                 "default-src 'self'; "
-                                        + "img-src 'self' data: https://tile.openstreetmap.org; "
+                                        + "img-src 'self' data: https://tile.openstreetmap.org https://twcgis.tamu.edu; "
                                         + "style-src 'self' 'unsafe-inline'; "
                                         + "script-src 'self'; "
-                                        + "connect-src 'self'; "
+                                        + "connect-src 'self' https://twcgis.tamu.edu; "
                                         + "object-src 'none'; "
                                         + "base-uri 'self'; "
                                         + "frame-ancestors 'none'")));

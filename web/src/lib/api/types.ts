@@ -65,7 +65,7 @@ export interface Course {
   distance_nm: number;
   bearing_deg: number;
   course_line: [number, number][];
-  tile_url: string;
+  map_service_url: string;
   max_zoom: number;
   min_zoom: number;
 }

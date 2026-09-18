@@ -1,32 +1,33 @@
 import { Card, CardHeader, CardTitle, CardContent } from "../../../components/ui/card";
 import type { Point } from "../../../lib/api/types";
-import { roleOf, sourceOf } from "../logic";
+import FilterBar from "./FilterBar";
+import type { FilterKey, Filters } from "../logic";
 
 interface Props {
   visiblePicks: Point[];
+  filters: Filters;
+  onFilterChange: (key: FilterKey, on: boolean) => void;
+  filterCounts: Record<FilterKey, number>;
+  shown: number;
   canUndo: boolean;
   onUndo: () => void;
   onResetAll: () => void;
 }
 
-export default function ProgressCard({ visiblePicks, canUndo, onUndo, onResetAll }: Props) {
-  const count = (pred: (p: Point) => boolean) => visiblePicks.filter(pred).length;
+export default function ProgressCard({
+  visiblePicks, filters, onFilterChange, filterCounts, shown, canUndo, onUndo, onResetAll,
+}: Props) {
   return (
     <Card size="sm">
       <CardHeader>
-        <CardTitle>Rated <span className="font-normal text-muted-foreground">{visiblePicks.length}</span></CardTitle>
+        <CardTitle>Selected <span className="font-normal text-muted-foreground">{shown}</span></CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="flex gap-6 text-sm">
-          <div>
-            <div><b>{count(p => roleOf(p) === "dr")}</b> DR</div>
-            <div><b>{count(p => roleOf(p) === "visual")}</b> visual</div>
-          </div>
-          <div>
-            <div><b>{count(p => sourceOf(p) === "detected")}</b> detected</div>
-            <div><b>{count(p => sourceOf(p) === "added")}</b> added</div>
-          </div>
-        </div>
+        {/* The view filters used to sit in their own row above this
+            card -- moved in here instead, since a checkbox and the
+            count it decides between are one fact, not two things a
+            reader has to line up across two panels themselves. */}
+        <FilterBar filters={filters} onChange={onFilterChange} counts={filterCounts} />
         <div className="mt-2 flex gap-2 border-t border-border pt-2 text-sm">
           <button
             type="button"

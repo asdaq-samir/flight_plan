@@ -170,32 +170,23 @@ function NavLogTable({
 }
 
 /**
- * The narrative's own section: a pure display, nothing here to click.
- * Generating and listening both used to have their own second copy of
- * that control here (a "Generate narrative" button, a "Listen" toggle)
- * -- both removed once the header's own `NavLogActions` grew the exact
- * same pair as a proper `ButtonGroup`, rather than leave two places
- * that do the same thing for a pilot to notice are the same thing.
+ * The narrative's own text, print only. On screen it lives in
+ * `NavLogActions`' own `Popover` instead (next to the buttons that
+ * produce it, in the header, not a scroll away) -- but a closed
+ * Popover renders nothing, so a printed copy needs its own text
+ * sitting directly in the page. Same `hidden print:block` pattern this
+ * page's own title uses just above, for the same reason.
  * `window.speechSynthesis` rather than a cloud voice, for now -- free,
  * no new service, no API key; a more natural-sounding voice is a later
  * upgrade, not a blocker for having this at all.
  */
-function BriefingNarrativeSection({
-  narrative, loadingNarrative,
-}: {
-  narrative: string | null;
-  loadingNarrative: boolean;
-}) {
+function BriefingNarrativePrintBlock({ narrative }: { narrative: string | null }) {
+  if (!narrative) return null;
   return (
-    <CollapsibleSection title="Briefing Narrative">
-      {!narrative && !loadingNarrative && (
-        <p className="text-sm text-muted-foreground">
-          Use the AI button above to generate a spoken-style summary of this briefing.
-        </p>
-      )}
-      {loadingNarrative && <p className="text-sm text-muted-foreground">Generating…</p>}
-      {narrative && <p className="text-sm text-muted-foreground">{narrative}</p>}
-    </CollapsibleSection>
+    <div className="hidden break-inside-avoid-page border-b border-border px-4 py-3 print:block print:break-inside-avoid">
+      <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Briefing Narrative</h2>
+      <p className="mt-2 text-sm text-muted-foreground">{narrative}</p>
+    </div>
   );
 }
 
@@ -454,6 +445,7 @@ export default function FlightBriefingView({
             onGenerateNarrative={onGenerateNarrative}
             narrativeLoading={loadingNarrative}
             hasNarrative={narrative !== null}
+            narrative={narrative}
             onListenClick={onListenClick}
             listening={speaking}
           />
@@ -531,7 +523,7 @@ export default function FlightBriefingView({
           entirely absent from the page until every field of one
           response is in, which is what made this page read as slow
           to populate. */}
-      <BriefingNarrativeSection narrative={narrative} loadingNarrative={loadingNarrative} />
+      <BriefingNarrativePrintBlock narrative={narrative} />
 
       <CollapsibleSection title="Adverse Conditions">
         {!briefing ? (

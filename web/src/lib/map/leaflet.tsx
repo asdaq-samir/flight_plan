@@ -1,4 +1,5 @@
 import L from "leaflet";
+import { dynamicMapLayer } from "esri-leaflet";
 import { flushSync } from "react-dom";
 import { createRoot } from "react-dom/client";
 import type { ReactNode } from "react";
@@ -91,18 +92,34 @@ export function createBaseLayer(map: L.Map) {
   }).addTo(map);
 }
 
-/** Sectional tiles stop at zoom 12 and 404 below 8, so the chart alone can
- *  never frame a long leg. `createBaseLayer`'s own OpenStreetMap layer
- *  sits underneath for that; this only adds the toggleable FAA/OSM
- *  pair on top of it, which needs the course's own tile_url and zoom
- *  limits and so can't exist before a course does. */
+/** Sectional coverage stops making sense past zoom 12 and stays empty
+ *  below 8, so the chart alone can never frame a long leg.
+ *  `createBaseLayer`'s own OpenStreetMap layer sits underneath for
+ *  that; this only adds the toggleable FAA/OSM pair on top of it,
+ *  which needs the course's own map_service_url and zoom limits and so
+ *  can't exist before a course does. */
 export function createBasemaps(map: L.Map, cfg: Course) {
   const layers = {
-    // maxNativeZoom upscales chart tiles past their real limit rather than
-    // showing blanks when the map is zoomed in.
-    faa: L.tileLayer(cfg.tile_url, {
-      attribution: "FAA Aeronautical Information Services",
-      maxNativeZoom: cfg.max_zoom, maxZoom: 18, minZoom: cfg.min_zoom,
+    // A dynamic (uncached) map service, not a native tile pyramid --
+    // esri-leaflet's dynamicMapLayer re-renders a bbox image export on
+    // every pan/zoom rather than fetching pre-baked {z}/{x}/{y} tiles
+    // the way `osm` below does. See VFR_SECTIONAL_MAP_SERVICE_URL's
+    // own comment in src/vfr/config.py for why this isn't FAA's own
+    // tile cache any more. maxZoom stays well past the chart's real
+    // max_zoom (unlike a cached layer, there's no native-tile ceiling
+    // to fall off of past it -- it keeps rendering, just softer).
+    faa: dynamicMapLayer({
+      url: cfg.map_service_url,
+      attribution: "FAA Sectional Charts, Texas A&amp;M",
+      format: "png32", transparent: true,
+      minZoom: cfg.min_zoom, maxZoom: 18,
+      // f: "image" -- esri-leaflet's own default (f: "json") asks the
+      // service for a JSON blob naming a second URL to then fetch the
+      // actual export image from, a two-hop round trip on every single
+      // pan/zoom. This skips straight to that second request, the one
+      // that actually mattered, and was the visible "sectional renders
+      // slowly" lag on both map pages.
+      f: "image",
     }),
     osm: L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
       attribution: "&copy; OpenStreetMap contributors", maxZoom: 19,

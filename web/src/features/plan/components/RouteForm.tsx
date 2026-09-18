@@ -12,7 +12,7 @@ interface Props {
   routes: BuiltRoute[];
   /** Opens the Flight Briefing view for whatever route is currently
    *  charted (labeled "Brief" here, not "Flight Briefing" -- next to
-   *  "Chart," the short form reads fine) -- a second action beside it,
+   *  "Load," the short form reads fine) -- a second action beside it,
    *  not a submit, so it's `type="button"` in the same row rather than
    *  its own form. Lives in the header, not floating over the map --
    *  the same place Label's own single most-needed action (Start/
@@ -44,7 +44,7 @@ export default function RouteForm({
         placeholder="DEP"
         spellCheck={false}
         aria-label="Departure"
-        className="w-20 text-center font-mono uppercase"
+        className="w-[75px] text-center font-mono uppercase"
       />
       <span>→</span>
       <Input
@@ -54,13 +54,13 @@ export default function RouteForm({
         placeholder="DEST"
         spellCheck={false}
         aria-label="Destination"
-        className="w-20 text-center font-mono uppercase"
+        className="w-[75px] text-center font-mono uppercase"
       />
       <datalist id="built">
         {[...new Set(routes.flatMap(r => [r.departure_ident, r.destination_ident]))]
           .sort().map(id => <option key={id} value={id} />)}
       </datalist>
-      <Button type="submit" disabled={disabled}>Chart</Button>
+      <Button type="submit" disabled={disabled}>Load</Button>
       <Button type="button" onClick={onOpenBriefing} disabled={briefingDisabled} data-testid="map-action-button">
         Brief
       </Button>
