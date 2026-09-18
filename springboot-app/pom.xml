@@ -22,7 +22,7 @@
              parse a Java 26 class file yet ("Unsupported class file major
              version 70" at repackage). 25 is the newest it supports. -->
         <java.version>25</java.version>
-        <aws-sdk.version>2.46.7</aws-sdk.version>
+        <aws-sdk.version>2.54.18</aws-sdk.version>
     </properties>
 
     <dependencyManagement>
