@@ -88,13 +88,24 @@
             <groupId>org.flywaydb</groupId>
             <artifactId>flyway-database-postgresql</artifactId>
         </dependency>
-        <!-- Sign-in with Google. Pulls in spring-boot-starter-security
+        <!-- Sign-in with Google/Apple. Pulls in spring-boot-starter-security
              transitively, which is what secures the pilot-scoped
              endpoints; sessions are the servlet container's, so there is
-             no token handling of our own to get wrong. -->
+             no token handling of our own to get wrong. Also the source
+             of the Nimbus JOSE+JWT library OAuthClientsConfig uses to
+             sign Apple's own client-secret JWT, a transitive dependency
+             of spring-security-oauth2-jose, not declared separately. -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-oauth2-client</artifactId>
+        </dependency>
+        <!-- The magic-link email flow's own sender. Configured, or left
+             unconfigured (see application.yml's MAIL_HOST default), the
+             same way Google/Apple's credentials are: present and working,
+             or absent and failing closed, never a build-time requirement. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-mail</artifactId>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>

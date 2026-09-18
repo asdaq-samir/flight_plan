@@ -136,8 +136,9 @@ export function usePlanState() {
   // every time the page toggles to the nav log view and back.
   const describeStarted = useRef<number | null>(null);
   // The in-flight description stream's own cancel switch -- present
-  // only while one is actually running, which is also how
-  // stopDescribing tells whether there is anything to abort at all.
+  // only while one is actually running; a fresh plan() aborts whatever
+  // this points to rather than let a stale route's checkpoints keep
+  // streaming in.
   const describeAbort = useRef<AbortController | null>(null);
 
   const loadRoutes = useCallback(async () => {
@@ -275,11 +276,11 @@ export function usePlanState() {
   /**
    * Streams one "how to spot it" line per checkpoint, filling
    * `descriptions` in as each arrives rather than waiting for all of
-   * them -- called once the nav log view is actually opened, not as
-   * part of `plan()`, so a route that's never viewed as a nav log
-   * never spends an LLM call on it. A pilot turning the feature off
-   * (or on again) is `stopDescribing`'s job, not this one's -- this
-   * is only ever a fresh start.
+   * them -- a pilot's own one-shot "generate now" (the nav log's AI
+   * button), not something that starts on its own, so a route whose
+   * descriptions are never asked for never spends an LLM call on it.
+   * Already in flight (or already done) for this route is a no-op, so
+   * a second click before the first finishes costs nothing.
    */
   const describeCheckpoints = useCallback(async (dep: string, dest: string, altitudeFt?: string) => {
     const token = planToken.current;
@@ -322,18 +323,6 @@ export function usePlanState() {
     } finally {
       if (describeAbort.current === controller) describeAbort.current = null;
     }
-  }, []);
-
-  /** Stops an in-flight description stream and allows a later
-   *  `describeCheckpoints` call for the same route to start a fresh
-   *  one -- the "turn off the agent's checkpoint info" switch. Notes
-   *  already received (or saved earlier) stay exactly as they are;
-   *  this only stops asking for more. */
-  const stopDescribing = useCallback(() => {
-    describeAbort.current?.abort();
-    describeAbort.current = null;
-    describeStarted.current = null;
-    setState(s => ({ ...s, descriptionError: null, descriptionProgress: null }));
   }, []);
 
   /** A pilot's own edit, reflected locally right away rather than
@@ -457,7 +446,7 @@ export function usePlanState() {
 
   return {
     ...state, loadRoutes, plan, build, selectPoint, toggleCandidates,
-    describeCheckpoints, stopDescribing, saveDescription, loadBriefing, loadNarrative,
+    describeCheckpoints, saveDescription, loadBriefing, loadNarrative,
     speak, stopSpeaking,
   };
 }

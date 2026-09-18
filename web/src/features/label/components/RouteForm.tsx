@@ -1,6 +1,5 @@
 import { Button } from "../../../components/ui/button";
 import { Input } from "../../../components/ui/input";
-import type { Course } from "../../../lib/api/types";
 
 interface Props {
   dep: string;
@@ -8,49 +7,61 @@ interface Props {
   onDepChange: (v: string) => void;
   onDestChange: (v: string) => void;
   onSubmit: () => void;
-  course: Course | null;
+  /** The page's own single most-needed map action -- Start/Resume/Fit
+   *  line -- folded in here as a sibling `type="button"`, the same
+   *  shape Plan's own RouteForm holds "Brief" next to "Chart" in. One
+   *  merged header row for both pages now, not a form here and a
+   *  floating corner button over the map there. */
+  onToggleView: () => void;
+  toggleViewDisabled: boolean;
+  toggleViewLabel: string;
 }
 
-export default function RouteForm({ dep, dest, onDepChange, onDestChange, onSubmit, course }: Props) {
+export default function RouteForm({
+  dep, dest, onDepChange, onDestChange, onSubmit,
+  onToggleView, toggleViewDisabled, toggleViewLabel,
+}: Props) {
   return (
-    <div className="flex flex-wrap items-center gap-3">
-      <form
-        className="flex items-center gap-2"
-        onSubmit={e => {
-          e.preventDefault();
-          // Without this, focus stays on whichever input was last
-          // typed in, and the keyboard handler ignores every key while
-          // an input has focus -- so Space wouldn't start the walk
-          // right after loading a route, only after clicking the map.
-          (document.activeElement as HTMLElement | null)?.blur();
-          onSubmit();
-        }}
-      >
-        {/* h-10, not shadcn's own h-9 default -- deliberately larger
-            tap targets for a workflow that's otherwise all one-handed
-            map taps and keyboard shortcuts, matching the "Load"
-            button's own `size="lg"` next to it. */}
+    <form
+      className="flex flex-wrap items-center gap-1.5"
+      onSubmit={e => {
+        e.preventDefault();
+        // Without this, focus stays on whichever input was last
+        // typed in, and the keyboard handler ignores every key while
+        // an input has focus -- so Space wouldn't start the walk
+        // right after loading a route, only after clicking the map.
+        (document.activeElement as HTMLElement | null)?.blur();
+        onSubmit();
+      }}
+    >
+      <div className="flex items-center gap-2">
+        {/* Same size as Plan's own DEP/DEST inputs now (see that
+            RouteForm's own comment on why the width is what it is) --
+            this page used to run these taller (h-10, deliberately
+            bigger tap targets) than Plan's did, one more place the two
+            pages looked like different designs rather than the same
+            shell around a different sidebar. */}
         <Input
           value={dep}
           onChange={e => onDepChange(e.target.value.toUpperCase())}
           aria-label="Departure"
-          className="h-10 w-20 text-center font-mono uppercase"
+          className="w-20 text-center font-mono uppercase"
         />
         <span>&rarr;</span>
         <Input
           value={dest}
           onChange={e => onDestChange(e.target.value.toUpperCase())}
           aria-label="Destination"
-          className="h-10 w-20 text-center font-mono uppercase"
+          className="w-20 text-center font-mono uppercase"
         />
-        <Button type="submit" size="lg">Load</Button>
-      </form>
-      {course && (
-        <div className="text-sm leading-tight text-muted-foreground">
-          <div><b className="text-foreground">{course.distance_nm}</b> nm</div>
-          <div>{String(course.bearing_deg).padStart(3, "0")}°T</div>
-        </div>
-      )}
-    </div>
+      </div>
+      <Button type="submit">Load</Button>
+      <Button
+        type="button" onClick={onToggleView} disabled={toggleViewDisabled}
+        data-testid="map-action-button"
+      >
+        {toggleViewLabel}
+      </Button>
+    </form>
   );
 }

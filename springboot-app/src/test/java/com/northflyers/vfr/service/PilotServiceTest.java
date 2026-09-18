@@ -56,11 +56,12 @@ class PilotServiceTest {
         String subject = UUID.randomUUID().toString();
         String email = subject + "@example.com";
 
-        Pilot pilot = pilotService.fromOidcUser(oidcUser(subject, email, "A. Pilot"));
+        Pilot pilot = pilotService.fromOidcUser(oidcUser(subject, email, "A. Pilot"), "google");
 
         assertThat(pilot.getId()).isNotNull();
         assertThat(pilot.getEmail()).isEqualTo(email);
         assertThat(pilot.getDisplayName()).isEqualTo("A. Pilot");
+        assertThat(pilot.getGoogleSubject()).isEqualTo(subject);
     }
 
     @Test
@@ -68,8 +69,8 @@ class PilotServiceTest {
         String subject = UUID.randomUUID().toString();
         String email = subject + "@example.com";
 
-        Pilot first = pilotService.fromOidcUser(oidcUser(subject, email, "A. Pilot"));
-        Pilot second = pilotService.fromOidcUser(oidcUser(subject, email, "A. Pilot"));
+        Pilot first = pilotService.fromOidcUser(oidcUser(subject, email, "A. Pilot"), "google");
+        Pilot second = pilotService.fromOidcUser(oidcUser(subject, email, "A. Pilot"), "google");
 
         assertThat(second.getId()).isEqualTo(first.getId());
     }
@@ -81,9 +82,9 @@ class PilotServiceTest {
     @Test
     void aChangedEmailAddressKeepsTheSamePilot() {
         String subject = UUID.randomUUID().toString();
-        Pilot before = pilotService.fromOidcUser(oidcUser(subject, subject + "@old.example.com", "A. Pilot"));
+        Pilot before = pilotService.fromOidcUser(oidcUser(subject, subject + "@old.example.com", "A. Pilot"), "google");
 
-        Pilot after = pilotService.fromOidcUser(oidcUser(subject, subject + "@new.example.com", "A. Pilot"));
+        Pilot after = pilotService.fromOidcUser(oidcUser(subject, subject + "@new.example.com", "A. Pilot"), "google");
 
         assertThat(after.getId()).isEqualTo(before.getId());
     }
@@ -98,7 +99,7 @@ class PilotServiceTest {
         Pilot preexisting = pilots.save(new Pilot(email, "A. Pilot", null));
         String subject = UUID.randomUUID().toString();
 
-        Pilot signedIn = pilotService.fromOidcUser(oidcUser(subject, email, "A. Pilot"));
+        Pilot signedIn = pilotService.fromOidcUser(oidcUser(subject, email, "A. Pilot"), "google");
 
         assertThat(signedIn.getId()).isEqualTo(preexisting.getId());
         assertThat(pilots.findById(preexisting.getId()).orElseThrow().getGoogleSubject()).isEqualTo(subject);
@@ -109,7 +110,7 @@ class PilotServiceTest {
         String subject = UUID.randomUUID().toString();
         String email = subject + "@example.com";
 
-        Pilot pilot = pilotService.fromOidcUser(oidcUser(subject, email, null));
+        Pilot pilot = pilotService.fromOidcUser(oidcUser(subject, email, null), "google");
 
         assertThat(pilot.getDisplayName()).isEqualTo(email);
     }
@@ -118,7 +119,62 @@ class PilotServiceTest {
     void anAssertionWithoutASubjectIsRejectedRatherThanTreatedAsANewPilot() {
         assertThatThrownBy(() -> pilotService.fromOidcUser(
                 new org.springframework.security.oauth2.core.user.DefaultOAuth2User(
-                        java.util.List.of(), Map.of("email", "nobody@example.com"), "email")))
+                        java.util.List.of(), Map.of("email", "nobody@example.com"), "email"),
+                "google"))
                 .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    /**
+     * Apple gets its own subject column -- a Google sub and an Apple sub
+     * for the same person are unrelated strings, so signing in with each
+     * must not collide or overwrite the other.
+     */
+    @Test
+    void appleSignInWritesTheAppleSubjectColumnNotGoogles() {
+        String subject = UUID.randomUUID().toString();
+        String email = subject + "@example.com";
+
+        Pilot pilot = pilotService.fromOidcUser(oidcUser(subject, email, "A. Pilot"), "apple");
+
+        assertThat(pilot.getAppleSubject()).isEqualTo(subject);
+        assertThat(pilot.getGoogleSubject()).isNull();
+    }
+
+    @Test
+    void googleAndAppleSignInsForTheSameEmailShareOnePilot() {
+        String email = UUID.randomUUID() + "@example.com";
+        String googleSubject = UUID.randomUUID().toString();
+        String appleSubject = UUID.randomUUID().toString();
+
+        Pilot viaGoogle = pilotService.fromOidcUser(oidcUser(googleSubject, email, "A. Pilot"), "google");
+        Pilot viaApple = pilotService.fromOidcUser(oidcUser(appleSubject, email, "A. Pilot"), "apple");
+
+        assertThat(viaApple.getId()).isEqualTo(viaGoogle.getId());
+        assertThat(pilots.findById(viaGoogle.getId()).orElseThrow().getAppleSubject()).isEqualTo(appleSubject);
+    }
+
+    /**
+     * The magic-link flow's own find-or-create -- no subject at all,
+     * email is already the strongest thing it can match on.
+     */
+    @Test
+    void verifiedEmailCreatesAPilotOnFirstUse() {
+        String email = UUID.randomUUID() + "@example.com";
+
+        Pilot pilot = pilotService.fromVerifiedEmail(email);
+
+        assertThat(pilot.getId()).isNotNull();
+        assertThat(pilot.getEmail()).isEqualTo(email);
+        assertThat(pilot.getDisplayName()).isEqualTo(email);
+    }
+
+    @Test
+    void verifiedEmailReturnsTheExistingPilotRatherThanASecond() {
+        String email = UUID.randomUUID() + "@example.com";
+        Pilot preexisting = pilots.save(new Pilot(email, "A. Pilot", null));
+
+        Pilot signedIn = pilotService.fromVerifiedEmail(email);
+
+        assertThat(signedIn.getId()).isEqualTo(preexisting.getId());
     }
 }

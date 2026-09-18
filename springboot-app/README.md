@@ -117,16 +117,17 @@ them one at a time is the only way to see which one did what.
 
 | Package | What lives there |
 |---|---|
-| `controller/` | HTTP endpoints. `PlannerProxyController` forwards `/api/planner/*` to `planning-service`; `GlobalExceptionHandler` turns exceptions into JSON. |
+| `controller/` | HTTP endpoints. `PlannerProxyController` forwards `/api/planner/*` to `planning-service`; `GlobalExceptionHandler` turns exceptions into JSON; `MagicLinkController` is the email sign-in flow's own two steps (request, verify). |
 | `service/` | Business logic, and the outbound call to the model (`ModelServiceClient`, which switches to SageMaker Runtime when `SAGEMAKER_ENDPOINT_NAME` is set). |
 | `repository/` | Spring Data interfaces. No implementations — Spring writes them. |
-| `domain/` | JPA entities: `Pilot`, `Aircraft`, `Flight`, `FlightCheckpoint`, `Route`, `Checkpoint`. |
+| `domain/` | JPA entities: `Pilot`, `Aircraft`, `Flight`, `FlightCheckpoint`, `Route`, `Checkpoint`, `MagicLink`. |
 | `dto/` | Request and response shapes, kept separate from entities so the API and the schema can change independently. |
-| `security/` | `SecurityConfig` (what is public), `Http401EntryPoint` (an API answers 401, it does not redirect to a login page), and `CsrfCookieFilter` (forces the `XSRF-TOKEN` cookie to actually be written — see below). |
+| `security/` | `SecurityConfig` (what is public), `OAuthClientsConfig` (builds Google/Apple's client registrations in Java, not YAML — Apple's own secret is a signed JWT no static property could hold), `MagicLinkAuthenticationToken` (the session's own principal after a magic-link sign-in), `Http401EntryPoint` (an API answers 401, it does not redirect to a login page), and `CsrfCookieFilter` (forces the `XSRF-TOKEN` cookie to actually be written — see below). |
 | `config/` | `WebMvcConfig` — static-resource and SPA routing. |
 
-Three migrations, in `resources/db/migration/`: routes, then normalised
-checkpoints, then pilots/aircraft/flights.
+Four migrations, in `resources/db/migration/`: routes, then normalised
+checkpoints, then pilots/aircraft/flights, then Apple's own subject
+column plus the magic-link table.
 
 ## Things that are not obvious
 
@@ -142,10 +143,15 @@ env var name must match `application.yml` exactly — Spring's relaxed
 binding does *not* map `PLANNER_SERVICE_BASE_URL` onto a property with a
 hyphen in it.
 
-**Sign-in is conditional.** `oauth2Login` registers only when a Google
-client-id is present, so local development needs no credentials and the
-pages open without a login wall. Deploy with the id set and the same code
-requires sign-in.
+**Sign-in is conditional, and now three-way.** `oauth2Login` registers
+only when `OAuthClientsConfig` actually produced a client registration
+(real Google or Apple credentials, `oauth` profile active), so local
+development needs no credentials and the pages open without a login
+wall. Deploy with credentials set and the same code requires sign-in.
+The magic-link flow (`MagicLinkController`) is separate from all of
+that -- no profile, no OIDC registration, just email address in,
+one-time link out -- and works (or fails to send, logged rather than
+thrown) independent of whether OIDC is configured at all.
 
 **`GET /api/routes` returns 500.** `RouteController` maps only POST
 there, which is fine, but `GlobalExceptionHandler` swallows

@@ -12,13 +12,35 @@ spring:
     open-in-view: false
   flyway:
     enabled: true
+  # The magic-link email flow's own sender (MagicLinkController).
+  # Declared unconditionally, unlike Google/Apple's own credentials --
+  # spring-boot-starter-mail only auto-configures a JavaMailSender bean
+  # once `spring.mail.host` exists as a property at all, even blank, so
+  # this has to be here (not left absent) for that bean to exist for the
+  # controller to inject in the first place. Unconfigured, sending just
+  # fails at the point of use (logged, not thrown -- see the
+  # controller's own comment), the same fail-closed shape as every
+  # other optional integration in this app.
+  mail:
+    host: ${MAIL_HOST:}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
 
-# Sign-in with Google lives in the `oauth` profile
-# (application-oauth.yml), not here. Spring Boot validates the client
-# registration eagerly and refuses to start on an empty client id, so
-# declaring it unconditionally would make credentials a requirement for
-# running the app at all. Absent the profile, SecurityConfig registers no
-# login and the pilot-scoped endpoints answer 401 -- closed, not open.
+# Sign-in with Google/Apple lives in OAuthClientsConfig (a Java
+# @Configuration, @Profile("oauth")), not YAML here -- Apple's own
+# client secret is a signed, expiring JWT, not a static string
+# Spring Boot's declarative registration properties could ever hold.
+# Absent the profile (or absent real credentials within it),
+# SecurityConfig registers no oauth2Login and the pilot-scoped
+# endpoints answer 401 -- closed, not open. The magic-link flow above
+# is independent of this profile entirely.
 
 # The Python planner: chart vision, course, checkpoints and nav log.
 # Reached only through this service, which is what lets it publish no port
@@ -69,3 +91,12 @@ management:
       enabled: true
     readinessstate:
       enabled: true
+    # Actuator auto-registers a mail health indicator the moment
+    # spring-boot-starter-mail is on the classpath, and by default it
+    # feeds into the aggregate /actuator/health -- which docker-compose's
+    # own health check (and every service that waits on it) depends on.
+    # An unconfigured or unreachable MAIL_HOST must not fail that check
+    # the way an unreachable database correctly does; mail is optional,
+    # the database is not.
+    mail:
+      enabled: false

@@ -1,50 +1,45 @@
-import { useEffect, type ReactNode } from "react";
-import PageHeader from "./components/PageHeader";
+import type { ReactNode } from "react";
 import {
-  Sidebar, SidebarContent, SidebarInset, SidebarProvider, SidebarTrigger, useSidebar,
+  Sidebar, SidebarContent, SidebarInset, SidebarProvider, SidebarTrigger,
 } from "./components/ui/sidebar";
 
+// The nav log's own table is wide (twelve columns, all whitespace-nowrap)
+// -- comfortably too wide for the default sidebar to show without its
+// own horizontal scroll. min() rather than a bare rem value so this
+// still fits a narrower desktop window instead of overflowing it.
+const SIDEBAR_WIDTH = "22rem";
+const SIDEBAR_WIDTH_EXPANDED = "min(52rem, 92vw)";
+
 interface Props {
-  /** Defaults to the plain `<PageHeader/>` (wordmark + Settings gear).
-   *  Plan overrides this with its own merged row (route form + the
-   *  same gear) while looking at the map, falling back to the default
-   *  while looking at the Flight Briefing view -- see PlanView's own
-   *  comment on why the route form doesn't belong there too. */
-  header?: ReactNode;
-  /** `CollapsibleToolbar`'s own rendered output -- `null` hides the
-   *  row entirely (the Flight Briefing page has no toolbar). */
-  toolbar: ReactNode;
+  /** Required, not defaulted -- there's no longer a generic fallback
+   *  header (see the removed `PageHeader`): Plan and Label each fold
+   *  their own route form and the Settings gear into one row, and
+   *  Settings has its own back button, so every caller already has an
+   *  opinion about what belongs here. `null` while looking at the
+   *  Flight Briefing view specifically -- that page renders its own
+   *  header inline instead, see PlanView's own comment. */
+  header: ReactNode;
   map: ReactNode;
   /** Floats over the map's own area (progress, errors) rather than
    *  pushing it down. */
   mapOverlay?: ReactNode;
   /** The sidebar's own content -- plain content, not a pre-wrapped
    *  `<Sidebar>`: this component owns the shadcn `Sidebar`/
-   *  `SidebarProvider` shell itself, the same way it already owns
-   *  `PageHeader`. `null` hides the sidebar (and its toggle button)
-   *  entirely. */
+   *  `SidebarProvider` shell itself. `null` hides the sidebar (and its
+   *  toggle button) entirely. */
   sidebar: ReactNode;
-  /** Reports the shadcn sidebar's own open/collapsed state -- a page
-   *  needs this to know when to get its own floating Guide panel out
-   *  of the way, the one thing that still lives outside this
-   *  component's own tree. */
-  onSidebarOpenChange?: (open: boolean) => void;
-}
-
-/** Bridges shadcn's own `useSidebar()` context back out to a plain
- *  callback prop -- `Shell`'s caller isn't a descendant of the
- *  `SidebarProvider` this component renders, so it can't call the
- *  hook itself. */
-function SidebarOpenReporter({ onChange }: { onChange?: (open: boolean) => void }) {
-  const { open } = useSidebar();
-  useEffect(() => { onChange?.(open); }, [open, onChange]);
-  return null;
+  /** Widens the sidebar enough to show the nav log's own table without
+   *  its own horizontal scroll -- the toggle button itself lives in
+   *  that table's own header (it's that content's own width being
+   *  changed), so this is just the state driving the CSS var here.
+   *  Pages with no such toggle (Label) simply never pass it. */
+  sidebarWide?: boolean;
 }
 
 /**
- * The one structural layout every page mounts into: `header` (the
- * plain `<PageHeader/>` by default) at the top, a toolbar row below
- * it, then the map with an optional shadcn `Sidebar` alongside --
+ * The one structural layout every page mounts into: `header` (each
+ * page's own, there's no generic default anymore) at the top, then the
+ * map with an optional shadcn `Sidebar` alongside --
  * pushed in from the right (`side="right"`), off-canvas by default
  * (`defaultOpen={false}`, so every load starts with it closed, not
  * whatever a prior session's cookie remembered), toggled from a
@@ -62,7 +57,9 @@ function SidebarOpenReporter({ onChange }: { onChange?: (open: boolean) => void 
  * page's own `header` and the sidebar are both `print:hidden` and so
  * contribute nothing to that printed page at all.
  */
-export default function Shell({ header = <PageHeader />, toolbar, map, mapOverlay, sidebar, onSidebarOpenChange }: Props) {
+export default function Shell({
+  header, map, mapOverlay, sidebar, sidebarWide,
+}: Props) {
   return (
     <SidebarProvider
       defaultOpen={false}
@@ -71,32 +68,31 @@ export default function Shell({ header = <PageHeader />, toolbar, map, mapOverla
       // than a typical nav menu does. Still the library's own
       // supported customization point (a CSS var it already reads),
       // not a style this component fights against.
-      style={{ "--sidebar-width": "22rem" } as React.CSSProperties}
+      style={{ "--sidebar-width": sidebarWide ? SIDEBAR_WIDTH_EXPANDED : SIDEBAR_WIDTH } as React.CSSProperties}
       className="h-dvh overflow-hidden bg-background print:!h-auto print:!overflow-visible"
     >
-      <SidebarOpenReporter onChange={onSidebarOpenChange} />
       <SidebarInset className="overflow-hidden print:!h-auto print:!overflow-visible">
         {header}
-        {toolbar}
         <div className="relative min-h-0 flex-1 overflow-hidden print:!h-auto print:!overflow-visible">
           {map}
           {mapOverlay}
           {/* Floating over the map instead of sitting in the header --
-              same corner-button treatment as MapActionButton/GuidePanel
+              same corner-button treatment as `MapGuideButton`
               (a plain shadcn Button, absolutely positioned, nothing
-              hand-rolled), just the top-right corner instead of the
-              bottom two those already claim.
-              top-24, not top-1: main.tsx's own Toaster lands its own
-              toasts right at this area's top edge (deliberately, see
-              its comment -- the map is "the one thing on screen safe
-              to sit on top of"), full-width below sonner's 600px
-              breakpoint. That's every phone this app runs on, so a
-              button pinned any higher here sits right under a loading
-              toast, unclickable (and unreachable by Playwright) for
-              as long as one's showing -- confirmed by measuring a real
-              toast's own rendered height, not guessed. */}
+              hand-rolled), bottom-right, horizontally level with
+              `MapGuideButton`'s own default on the opposite corner
+              (same `bottom-8`, same `size="icon"` -- shadcn's own
+              default for `SidebarTrigger` is the slightly smaller
+              `icon-sm`, overridden here so the two actually match).
+              bottom-8, not flush: Leaflet's own attribution control
+              (the OSM/FAA credit, required by their tile usage policy
+              -- see index.css) already claims that exact corner, and
+              sits underneath anything pinned any lower here. */}
           {sidebar && (
-            <SidebarTrigger className="absolute right-1 top-24 z-[1000] border-2 border-background bg-primary text-primary-foreground shadow-[0_2px_10px_rgba(0,0,0,.5)] hover:bg-primary/90 print:hidden" />
+            <SidebarTrigger
+              size="icon"
+              className="absolute right-1 bottom-8 z-[1000] border-2 border-background bg-primary text-primary-foreground shadow-[0_2px_10px_rgba(0,0,0,.5)] hover:bg-primary/90 print:hidden"
+            />
           )}
         </div>
       </SidebarInset>

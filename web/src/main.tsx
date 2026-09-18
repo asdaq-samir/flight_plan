@@ -67,15 +67,13 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
           (across every page that has one) renders through it via
           toast.loading/dismiss, rather than each page mounting its own
           floating status element.
-          Every page that shows one also has a corner action button
-          (MapActionButton bottom-left, GuidePanel bottom-right) and a
-          toolbar trigger up top -- and sonner deliberately makes
-          toasts full-width below a 600px viewport (its own mobile
-          breakpoint, not something a `--width` override can beat), so
-          a bottom toast unavoidably overlaps one of those bottom
-          buttons and a bare top one covers the toolbar's own trigger.
-          offset clears PageHeader (48px) plus the toolbar's own
-          collapsed header row (~36px) on every page that has one,
+          Every page that shows one also has its own corner buttons
+          (MapGuideButton bottom-left, the sidebar trigger bottom-right)
+          -- and sonner deliberately makes toasts full-width below a
+          600px viewport (its own mobile breakpoint, not something a
+          `--width` override can beat), so a bottom toast would
+          unavoidably overlap one of those. offset clears Plan/Label's
+          own merged header row (route form + Settings gear, ~56px),
           landing the toast over the map/content below instead -- the
           one thing on screen safe to briefly sit on top of.
           mobileOffset, not just offset: sonner reads a completely

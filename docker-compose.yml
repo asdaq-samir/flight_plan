@@ -185,15 +185,30 @@ services:
       SPRING_DATASOURCE_PASSWORD: vfr
       MODEL_SERVICE_URL: http://model-service:8000
       PLANNER_SERVICE_URL: http://planning-service:8000
-      # Sign-in with Google, optional unlike ANTHROPIC_API_KEY above:
-      # `docker compose up` must still work with none of these set (the
-      # `oauth` Spring profile stays inactive and sign-in is just not
-      # offered), but a real client id/secret in the shell or a .env
-      # file now actually reaches Spring Security instead of going
-      # nowhere. See application-oauth.yml.
+      # Sign-in with Google/Apple, optional unlike ANTHROPIC_API_KEY
+      # above: `docker compose up` must still work with none of these
+      # set (the `oauth` Spring profile stays inactive and OIDC sign-in
+      # is just not offered), but real values in the shell or a .env
+      # file now actually reach OAuthClientsConfig instead of going
+      # nowhere. Apple needs all four of its own to activate -- see that
+      # class's own javadoc for what each one is and where it comes from
+      # in Apple's developer portal.
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      APPLE_TEAM_ID: ${APPLE_TEAM_ID:-}
+      APPLE_KEY_ID: ${APPLE_KEY_ID:-}
+      APPLE_SERVICES_ID: ${APPLE_SERVICES_ID:-}
+      APPLE_PRIVATE_KEY: ${APPLE_PRIVATE_KEY:-}
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-}
+      # The magic-link email flow's own sender -- independent of the
+      # `oauth` profile above (see application.yml's own comment);
+      # unset, MagicLinkController still runs, it just logs instead of
+      # actually sending on every request.
+      MAIL_HOST: ${MAIL_HOST:-}
+      MAIL_PORT: ${MAIL_PORT:-587}
+      MAIL_USERNAME: ${MAIL_USERNAME:-}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+      MAIL_FROM: ${MAIL_FROM:-no-reply@northflyers.com}
 
 volumes:
   # Neither pgdata nor airflow_home is referenced by any service anymore

@@ -11,12 +11,15 @@ import java.time.Instant;
 /**
  * Someone who flies. Identity for everything else in the schema.
  *
- * <p>{@code googleSubject} rather than email is what a sign-in matches
- * on. Google's {@code sub} claim is stable for the life of the account;
- * an email address is not, and matching on one would either lose a pilot
- * their flights when they change it or hand them someone else's when it
- * is reassigned. It is nullable so a record can exist before a first
- * sign-in.
+ * <p>{@code googleSubject}/{@code appleSubject} rather than email are
+ * what a sign-in matches on. Each provider's {@code sub} claim is stable
+ * for the life of the account; an email address is not, and matching on
+ * one would either lose a pilot their flights when they change it or
+ * hand them someone else's when it is reassigned. Both are nullable so a
+ * record can exist before a first sign-in, or be signed into by only one
+ * of the two providers (or neither, for a pilot who only ever uses the
+ * magic-link email flow, which matches on email directly and needs no
+ * subject column of its own).
  */
 @Entity
 @Table(name = "pilots")
@@ -35,6 +38,9 @@ public class Pilot {
     @Column(unique = true)
     private String googleSubject;
 
+    @Column(unique = true)
+    private String appleSubject;
+
     @Column(nullable = false)
     private Instant createdAt;
 
@@ -47,6 +53,13 @@ public class Pilot {
         this.displayName = displayName;
         this.googleSubject = googleSubject;
         this.createdAt = Instant.now();
+    }
+
+    /** For a pilot's first sign-in via a provider other than Google
+     *  (Apple, or the email magic link, which passes {@code null}). */
+    public Pilot(String email, String displayName, String googleSubject, String appleSubject) {
+        this(email, displayName, googleSubject);
+        this.appleSubject = appleSubject;
     }
 
     public Long getId() {
@@ -65,9 +78,20 @@ public class Pilot {
         return googleSubject;
     }
 
-    /** Set on first sign-in for a pilot created before they had signed in. */
+    public String getAppleSubject() {
+        return appleSubject;
+    }
+
+    /** Set on first Google sign-in for a pilot created before they had
+     *  signed in through it. */
     public void linkGoogleSubject(String subject) {
         this.googleSubject = subject;
+    }
+
+    /** Set on first Apple sign-in for a pilot created before they had
+     *  signed in through it. */
+    public void linkAppleSubject(String subject) {
+        this.appleSubject = subject;
     }
 
     public Instant getCreatedAt() {

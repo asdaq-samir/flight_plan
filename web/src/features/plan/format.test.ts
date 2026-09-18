@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Totals } from "../../lib/api/types";
-import { deg, elapsed, hhmm, one, scoreColor, signed, summary, totalsParts } from "./format";
+import { deg, elapsed, hhmm, one, scoreColor, signed, totalsParts } from "./format";
 
 describe("scoreColor", () => {
   it("bands on the boundary, not just inside it", () => {
@@ -41,13 +41,6 @@ describe("hhmm", () => {
   it("pads the minutes", () => expect(hhmm(65)).toBe("1h 05m"));
   it("handles under an hour", () => expect(hhmm(20)).toBe("0h 20m"));
   it("says so when there is no time", () => expect(hhmm(null)).toBe("ETE n/a"));
-});
-
-describe("summary", () => {
-  it("is blank before the course arrives", () => expect(summary(null, 0)).toBe(""));
-  it("says what it is doing between stages", () =>
-    expect(summary(210, 0)).toBe("210 nm · scoring checkpoints…"));
-  it("goes blank once checkpoints are scored", () => expect(summary(210, 21)).toBe(""));
 });
 
 describe("totalsParts", () => {

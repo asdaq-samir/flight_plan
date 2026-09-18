@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
-import { Settings } from "lucide-react";
+import { useSearchParams } from "react-router-dom";
 import { identSchema } from "../../lib/identSchema";
 // Without this Leaflet's tiles, markers and controls have no
 // positioning at all -- this is the library's own stylesheet, not
@@ -8,18 +7,16 @@ import { identSchema } from "../../lib/identSchema";
 // never touches a map, doesn't pay for it.
 import "leaflet/dist/leaflet.css";
 import Shell from "../../Shell";
-import { Button } from "../../components/ui/button";
+import SettingsButton from "../../components/SettingsButton";
 import { usePageStatus } from "../../lib/usePageStatus";
 import type { Candidate } from "../../lib/api/types";
 import RouteMap from "./components/RouteMap";
 import RouteForm from "./components/RouteForm";
 import BuildNotice from "./components/BuildNotice";
-import NavLogActions from "./components/navlog/NavLogActions";
 import NavLogView from "./components/navlog/NavLogView";
 import FlightBriefingView from "./components/briefing/FlightBriefingView";
 import ScoreLegend from "./components/ScoreLegend";
-import { summary } from "./format";
-import { usePlanState } from "./hooks/usePlanState";
+import { usePlanState, descriptionKey } from "./hooks/usePlanState";
 import { useDocumentTitle } from "../../lib/useDocumentTitle";
 
 // The three stages a plan actually goes through, in order -- there's
@@ -66,10 +63,10 @@ export default function PlanView() {
   // actually mounted -- see the keyboard shortcuts below.
   //
   // Driven by the URL (?view=briefing) rather than its own useState --
-  // this is what makes leaving the view (the briefing header's own
-  // "back to map" button, see `briefingHeader` below) an actual
-  // navigation, not just a prop flip, so a browser back/forward or a
-  // pasted link lands on the right one of the two.
+  // this is what makes leaving the view (FlightBriefingView's own
+  // "back to map" button, in its title panel) an actual navigation,
+  // not just a prop flip, so a browser back/forward or a pasted link
+  // lands on the right one of the two.
   const showBriefing = searchParams.get("view") === "briefing";
   const setBriefingView = useCallback((open: boolean) => {
     setSearchParams(prev => {
@@ -79,15 +76,11 @@ export default function PlanView() {
       return next;
     }, { replace: true });
   }, [setSearchParams]);
-  // The Guide panel sits in the same bottom-right corner the sidebar
-  // opens over -- hide it once the sidebar's open at all, rather than
-  // let it float on top of the nav log.
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  // The pilot's own opt-in for the per-checkpoint LLM descriptions --
-  // off by default, since each generation is a real API call and
-  // the nav log is visible (in the sidebar) from the moment a route's
-  // checkpoints are scored, well before a pilot's asked for one.
-  const [showDescriptions, setShowDescriptions] = useState(false);
+  // The nav log's own width toggle -- off by default, since the
+  // narrower sidebar is the right tradeoff against the map for
+  // everyday use, and only the table's own twelve columns ever need
+  // the wider, scroll-free view a pilot opts into.
+  const [navLogExpanded, setNavLogExpanded] = useState(false);
 
   // Open on whatever corridor exists, so the page is never an empty form
   // with no hint of what it accepts.
@@ -110,19 +103,6 @@ export default function PlanView() {
     // future refactor wouldn't silently go stale here undetected.
   }, [s.loadRoutes, s.plan, searchParams]);
 
-  // The nav log (and so the description stream) is always visible in
-  // the sidebar now, not opened by a click -- so a fresh route's own
-  // checkpoints arriving is what has to (re)start the stream for a
-  // pilot who already has the checkbox on, the same restart `openNavLog`
-  // used to trigger by hand. describeCheckpoints is a no-op for a
-  // route it's already running (or finished) for, so this firing again
-  // on every unrelated re-render costs nothing.
-  useEffect(() => {
-    if (showDescriptions && s.selected.length > 0) {
-      void s.describeCheckpoints(dep, dest, alt.trim() || undefined);
-    }
-  }, [s.selected, showDescriptions, dep, dest, alt, s.describeCheckpoints]);
-
   // The briefing's own data (hazards, METAR, forecast, runways/
   // frequencies) is only worth fetching once a pilot actually opens
   // the Flight Briefing page -- not on every plan(), which is why this
@@ -131,15 +111,16 @@ export default function PlanView() {
     if (showBriefing && dep && dest) void s.loadBriefing(dep, dest);
   }, [showBriefing, dep, dest, s.loadBriefing]);
 
-  // The checkbox's own handler: flips the preference and actually
-  // starts/stops the stream to match, rather than just changing what
-  // gets displayed -- "turn it off" should mean the calls stop, not
-  // only that the text is hidden.
-  const toggleShowDescriptions = useCallback((checked: boolean) => {
-    setShowDescriptions(checked);
-    if (checked) void s.describeCheckpoints(dep, dest, alt.trim() || undefined);
-    else s.stopDescribing();
-  }, [dep, dest, alt, s.describeCheckpoints, s.stopDescribing]);
+  // The nav log's AI button: a pilot-triggered "generate now" for
+  // every checkpoint's description at once. Descriptions are visible
+  // (and editable) in every row regardless of whether this has ever
+  // been clicked -- this just fills the blank ones in, and
+  // describeCheckpoints is already a no-op for a route it's running
+  // (or finished) for, so a second click before the first finishes
+  // costs nothing.
+  const generateDescriptions = useCallback(() => {
+    void s.describeCheckpoints(dep, dest, alt.trim() || undefined);
+  }, [dep, dest, alt, s.describeCheckpoints]);
 
   const submit = useCallback(() => {
     const d = identSchema.safeParse(dep).data, a = identSchema.safeParse(dest).data;
@@ -149,6 +130,36 @@ export default function PlanView() {
     setSearchParams(next, { replace: true });
     void s.plan(d, a, alt.trim() || undefined);
   }, [dep, dest, alt, s.plan, setSearchParams]);
+
+  // The map's own half of point selection -- clicking a checkpoint
+  // marker focuses the same point the matching nav log row would.
+  const selectCandidate = useCallback(
+    (c: Candidate) => s.selectPoint({ lat: c.lat, lon: c.lon }),
+    [s.selectPoint],
+  );
+
+  // Up/Down walks the nav log top to bottom -- departure, each scored
+  // checkpoint, destination -- the same list order the sidebar already
+  // renders in, syncing the map to whatever it lands on exactly the
+  // way clicking that row would (RouteMap's own `focus` prop, and
+  // NavLogView's own scrollIntoView effect, both already key off
+  // `selectedPoint`). The same list-stepping Label's own keyboard
+  // handling does for its waypoint list, ported here since this
+  // page's nav log has an equally obvious top-to-bottom order and no
+  // single-leg "course-relative" concept of its own to step by instead.
+  const stepWaypoint = useCallback((delta: number) => {
+    if (!s.course) return;
+    const points = [
+      { lat: s.course.departure.lat, lon: s.course.departure.lon },
+      ...s.selected.map(c => ({ lat: c.lat, lon: c.lon })),
+      { lat: s.course.destination.lat, lon: s.course.destination.lon },
+    ];
+    const at = s.selectedPoint
+      ? points.findIndex(p => descriptionKey(p.lat, p.lon) === descriptionKey(s.selectedPoint!.lat, s.selectedPoint!.lon))
+      : -1;
+    const next = points[Math.max(0, Math.min(points.length - 1, (at < 0 ? 0 : at + delta)))];
+    if (next) s.selectPoint(next);
+  }, [s.course, s.selected, s.selectedPoint, s.selectPoint]);
 
   // Shortcuts, skipped while an ident is being typed -- or, just as
   // much, while a checkpoint description is: that field is a
@@ -166,25 +177,12 @@ export default function PlanView() {
       if (e.key === "a") s.toggleCandidates();
       if (!showBriefing && e.key === "f") controls.current?.fit();
       if (!showBriefing && e.key === "t") controls.current?.toggleBasemap();
+      if (!showBriefing && e.key === "ArrowDown") { e.preventDefault(); stepWaypoint(1); }
+      if (!showBriefing && e.key === "ArrowUp") { e.preventDefault(); stepWaypoint(-1); }
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [showBriefing, setBriefingView]);
-
-  // The map's own half of point selection -- clicking a checkpoint
-  // marker focuses the same point the matching nav log row would.
-  const selectCandidate = useCallback(
-    (c: Candidate) => s.selectPoint({ lat: c.lat, lon: c.lon }),
-    [s.selectPoint],
-  );
-
-  const settingsButton = (
-    <Button asChild variant="ghost" size="icon" aria-label="Settings" className="shrink-0">
-      <Link to="/settings">
-        <Settings className="size-4" />
-      </Link>
-    </Button>
-  );
+  }, [showBriefing, setBriefingView, stepWaypoint]);
 
   // Generates the narrative if none exists yet, then reads it aloud
   // the moment it's ready; toggles playback if one's already
@@ -204,58 +202,40 @@ export default function PlanView() {
   // title: the thing a pilot is here to use, not a settings drawer or
   // a brand mark worth a whole line of their own.
   const mapHeader = (
-    <header className="flex shrink-0 items-start justify-between gap-3 border-b border-border bg-background px-4 py-2 print:hidden">
+    <header className="flex shrink-0 items-center justify-between gap-2 border-b border-border bg-background px-3 py-2 print:hidden">
       <RouteForm
-        dep={dep} dest={dest} alt={alt}
-        onDepChange={setDep} onDestChange={setDest} onAltChange={setAlt}
+        dep={dep} dest={dest}
+        onDepChange={setDep} onDestChange={setDest}
         onSubmit={submit}
         disabled={s.stage !== null}
         routes={s.routes}
-        summary={s.stage === "course" ? "drawing course…" : summary(s.course?.distance_nm ?? null, s.selected.length)}
         onOpenBriefing={() => setBriefingView(true)}
         briefingDisabled={!s.course}
       />
-      {settingsButton}
-    </header>
-  );
-
-  // The briefing view's own header, in place of both PageHeader (the
-  // "VFR Route" wordmark reads oddly once the page is already telling
-  // you which document you're looking at) and NavLogActions' old
-  // floating position over the content -- one row, not two. No label
-  // of its own, unlike `mapHeader` -- the content immediately below
-  // already opens with "Flight Briefing" as a real `<h1>` (see
-  // FlightBriefingView), so repeating it here would just be the same
-  // word twice in a row; this row is purely its own actions (back to
-  // map, listen, print) beside the same Settings gear every header
-  // ends in.
-  const briefingHeader = (
-    <header className="flex h-12 shrink-0 items-center justify-end gap-1 border-b border-border bg-background px-4 print:hidden">
-      <div className="flex items-center gap-1">
-        <NavLogActions
-          onMapClick={() => setBriefingView(false)}
-          onListenClick={() => void handleListenClick()}
-          listenLoading={s.loadingNarrative}
-          listening={s.speaking}
-        />
-        {settingsButton}
-      </div>
+      <SettingsButton />
     </header>
   );
 
   // The nav log's own stage (scoring, altitude selection, the live
-  // aviationweather.gov fetch) takes priority over the plan's bare
-  // percentage and the checkpoint description count while it's
-  // running -- all three are the same floating status, never two at
-  // once. The Flight Briefing page's own fetch goes first: it's the
-  // only thing that can be running while that page is open (the other
-  // three are all map-view stages), and it's the reason this floating
-  // popup -- not an inline line in the page body -- is how the
-  // briefing shows "Loading briefing…" too, the same as every other
-  // background fetch in this app.
+  // aviationweather.gov fetch) takes priority over the plan's own
+  // course/checkpoints stages and the checkpoint description count
+  // while it's running -- all four are the same floating status,
+  // never two at once. This used to be two things -- this same
+  // floating popup, plus a second, separate "drawing course…"/
+  // "scoring checkpoints…" line inline in the header -- until both
+  // ends of that redundancy got noticed at once; there's exactly one
+  // place this app reports background progress, this is it. The
+  // Flight Briefing page's own fetch goes first: it's the only thing
+  // that can be running while that page is open (the other three are
+  // all map-view stages), and it's the reason this floating popup --
+  // not an inline line in the page body -- is how the briefing shows
+  // "Loading briefing…" too, the same as every other background fetch
+  // in this app.
   const progress = (s.loadingBriefing ? "Loading briefing…" : null)
     ?? (s.loadingNarrative ? "Generating narrative…" : null)
     ?? s.navStage
+    ?? (s.stage === "course" ? "Drawing course…" : null)
+    ?? (s.stage === "checkpoints" ? "Scoring checkpoints…" : null)
     ?? (s.stage ? `Planning… ${STAGE_PERCENT[s.stage]}%` : null)
     ?? (s.descriptionProgress ? `Generating ${s.descriptionProgress.done}/${s.descriptionProgress.total}` : null);
   const briefingErrorMsg = s.briefingError && `Couldn't load the briefing: ${s.briefingError}`;
@@ -270,17 +250,21 @@ export default function PlanView() {
   usePageStatus(progress, error, showBriefing ? "bottom-center" : undefined);
 
   // No more overlay while looking at the briefing -- its own actions
-  // moved into `briefingHeader` above, in flow rather than floating
-  // over the content. "Flight Briefing" itself lives in `mapHeader`
-  // now too, next to "Chart" (see RouteForm's own comment) rather than
-  // floating bottom-left the way this page's single most-needed action
-  // otherwise would -- Chart already is that.
-  const mapOverlay = showBriefing ? null : !sidebarOpen && <ScoreLegend />;
+  // moved into FlightBriefingView's own title panel, in flow rather
+  // than floating over the content. The "Briefing" button itself
+  // lives in `mapHeader` now too, next to "Chart" (see RouteForm's own
+  // comment) rather than floating bottom-left the way this page's
+  // single most-needed action otherwise would -- Chart already is
+  // that. Stays up even once the sidebar opens -- the guide button
+  // now lives bottom-left, the sidebar pushes in from the right, and
+  // the two corners don't actually overlap.
+  const mapOverlay = showBriefing ? null : <ScoreLegend />;
 
   const navLog = (
     <NavLogView
       totals={s.totals} nav={s.nav} legs={s.legs} navError={s.navError}
       dep={dep} dest={dest}
+      depName={s.course?.departure.name ?? null} destName={s.course?.destination.name ?? null}
       depLat={s.course?.departure.lat ?? 0} depLon={s.course?.departure.lon ?? 0}
       destLat={s.course?.destination.lat ?? 0} destLon={s.course?.destination.lon ?? 0}
       selected={s.selected}
@@ -288,8 +272,11 @@ export default function PlanView() {
       destElevationFt={s.course?.destination.elevation_ft ?? null}
       descriptions={s.descriptions}
       onSaveDescription={(lat, lon, text) => s.saveDescription(dep, dest, lat, lon, text)}
-      showDescriptions={showDescriptions} onToggleShowDescriptions={toggleShowDescriptions}
+      onGenerateDescriptions={generateDescriptions}
+      descriptionsLoading={s.descriptionProgress !== null}
+      expanded={navLogExpanded} onToggleExpanded={() => setNavLogExpanded(e => !e)}
       selectedPoint={s.selectedPoint} onSelectPoint={(lat, lon) => s.selectPoint({ lat, lon })}
+      alt={alt} onAltChange={setAlt} onSubmit={submit}
     />
   );
 
@@ -302,10 +289,9 @@ export default function PlanView() {
         />
       )}
       <Shell
-        header={showBriefing ? briefingHeader : mapHeader}
-        toolbar={null}
+        header={showBriefing ? null : mapHeader}
         mapOverlay={mapOverlay}
-        onSidebarOpenChange={setSidebarOpen}
+        sidebarWide={navLogExpanded}
         map={
           <div className="h-full w-full">
             {showBriefing ? (
@@ -319,6 +305,7 @@ export default function PlanView() {
                 narrative={s.narrative} loadingNarrative={s.loadingNarrative}
                 onGenerateNarrative={() => void s.loadNarrative(dep, dest)}
                 speaking={s.speaking} onListenClick={() => void handleListenClick()}
+                onMapClick={() => setBriefingView(false)}
               />
             ) : (
               <RouteMap

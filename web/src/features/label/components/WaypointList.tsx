@@ -13,6 +13,14 @@ interface Props {
   hidden: number;
   bearingDeg: number;
   departureIdent: string;
+  /** The route's own total distance -- shown beside the title, the
+   *  same spot NavLogView's own header shows distance/time/fuel next
+   *  to "Nav log" on Plan. Used to live in this page's own header
+   *  instead (RouteForm's own trailing readout); moved here so the
+   *  header stays identical to Plan's, and this app's one other
+   *  page-specific summary number lands in the one place Plan already
+   *  has a slot for it. null before a course has loaded. */
+  distanceNm: number | null;
 }
 
 // shadcn's own Button, not a hand-rolled focusable/keyboard-handled
@@ -22,13 +30,30 @@ interface Props {
 // here is this list's own multi-line, left-aligned, bordered-row
 // look, which Button's own default (centered, single-line, rounded)
 // classes don't have.
+//
+// Selected inverts (bg-foreground/text-background), not just a tint
+// -- the same treatment the nav log's own selected row uses on Plan
+// (see NavLogView's SelectableRow), for the same reason: "this one
+// thing stands apart" should look the same way on both pages.
+// hover:bg-foreground cancels Button's own ghost-variant hover tint
+// while selected, the same fix SelectableRow needed for the same
+// flicker-on-hover reason.
 const ROW_CLASS = (selected: boolean) => cn(
-  "h-auto w-full flex-col items-start whitespace-normal rounded-none border-b border-border py-2 text-left last:border-0 focus-visible:bg-accent",
-  selected && "bg-accent font-semibold",
+  "h-auto w-full flex-col items-start whitespace-normal rounded-none border-b border-border py-2 text-left last:border-0",
+  selected
+    ? "bg-foreground text-background hover:bg-foreground focus-visible:bg-foreground"
+    : "focus-visible:bg-accent",
 );
 
+// The row's own subtitle lines (name, lat/lon, distance-off-course) --
+// muted gray reads fine against this row's usual light background, but
+// not against the dark one selected inverts it to, so this only
+// applies while *not* selected, the same carve-out SelectableRow's own
+// mutedWhenUnselected makes on Plan.
+const MUTED_UNLESS_SELECTED = (selected: boolean) => !selected && "text-muted-foreground";
+
 export default function WaypointList({
-  entries, selected, onFocus, hidden, bearingDeg, departureIdent,
+  entries, selected, onFocus, hidden, bearingDeg, departureIdent, distanceNm,
 }: Props) {
   const selectedRef = useRef<HTMLButtonElement>(null);
 
@@ -58,7 +83,15 @@ export default function WaypointList({
   return (
     <Card size="sm" className="min-h-0 flex-1 overflow-y-auto">
       <CardHeader>
-        <CardTitle>Waypoints</CardTitle>
+        <CardTitle className="flex items-baseline gap-2">
+          Waypoints
+          {distanceNm !== null && (
+            <span className="text-sm font-normal text-muted-foreground">
+              <b className="font-semibold text-foreground">{distanceNm}</b> nm ·{" "}
+              {String(bearingDeg).padStart(3, "0")}°T
+            </span>
+          )}
+        </CardTitle>
       </CardHeader>
       <CardContent>
       {/* Marks the scope the keyboard handler checks to tell "arrows
@@ -85,7 +118,7 @@ export default function WaypointList({
                   {p.category === "departure" ? "DEP" : "DEST"}
                 </Badge>
               </div>
-              <div className="text-sm text-muted-foreground">{p.name}</div>
+              <div className={cn("text-sm", MUTED_UNLESS_SELECTED(selectedHere))}>{p.name}</div>
             </Button>
           );
         }
@@ -101,7 +134,9 @@ export default function WaypointList({
           >
             <div className="flex items-baseline justify-between gap-2">
               <span>
-                <span className="text-xs text-muted-foreground">{waypointNumbers.get(entry)}.</span>{" "}
+                <span className={cn("text-xs", MUTED_UNLESS_SELECTED(selectedHere))}>
+                  {waypointNumbers.get(entry)}.
+                </span>{" "}
                 {(p as { category: string }).category}
               </span>
               <span className="flex items-center gap-1">
@@ -113,10 +148,12 @@ export default function WaypointList({
                 <Badge style={{ backgroundColor: COLORS[rating], color: "white" }}>{rating}</Badge>
               </span>
             </div>
-            <div className="text-sm text-muted-foreground">
+            <div className={cn("text-sm", MUTED_UNLESS_SELECTED(selectedHere))}>
               {p.along_track_nm.toFixed(1)} nm {compassPoint(bearingDeg)} of {departureIdent}
             </div>
-            <div className="text-sm text-muted-foreground">{p.lat.toFixed(4)}, {p.lon.toFixed(4)}</div>
+            <div className={cn("text-sm", MUTED_UNLESS_SELECTED(selectedHere))}>
+              {p.lat.toFixed(4)}, {p.lon.toFixed(4)}
+            </div>
           </Button>
         );
       })}

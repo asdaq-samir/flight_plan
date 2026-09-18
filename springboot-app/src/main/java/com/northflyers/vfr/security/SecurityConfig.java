@@ -1,17 +1,17 @@
 package com.northflyers.vfr.security;
 
-import org.springframework.beans.factory.annotation.Value;
+import java.util.Optional;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.security.web.csrf.CsrfFilter;
 import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
-import org.springframework.util.StringUtils;
 
 /**
  * Who may call what.
@@ -21,22 +21,26 @@ import org.springframework.util.StringUtils;
  * and stays public. A pilot's aeroplanes and filed flights are theirs,
  * and require a session.
  *
- * <p>Sign-in is Google, and the session is the servlet container's --
- * there is no token minting, refreshing or revocation of our own here,
- * which is the point of choosing OIDC over rolling it. {@code oauth2Login}
- * is registered only when a client id is actually configured, and the
- * failure mode when it is not is that protected endpoints return 401 with
- * no way to log in. That is deliberate: an unconfigured deployment should
- * refuse callers, not admit them.
+ * <p>Sign-in is Google, Apple, or a magic link, and the session is the
+ * servlet container's -- there is no token minting, refreshing or
+ * revocation of our own here, which is the point of choosing OIDC (and,
+ * for email, a one-time link rather than a password) over rolling it.
+ * {@code oauth2Login} is registered only when {@link OAuthClientsConfig}
+ * actually produced a {@link ClientRegistrationRepository} -- i.e. at
+ * least one of Google/Apple has real credentials -- and the failure mode
+ * when neither does is that protected endpoints return 401 with no OIDC
+ * way to log in (the magic-link endpoints below are separate from this
+ * and work independently). That is deliberate: an unconfigured
+ * deployment should refuse callers, not admit them.
  */
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
 
-    private final boolean googleConfigured;
+    private final boolean oauthConfigured;
 
-    SecurityConfig(@Value("${spring.security.oauth2.client.registration.google.client-id:}") String clientId) {
-        this.googleConfigured = StringUtils.hasText(clientId);
+    SecurityConfig(Optional<ClientRegistrationRepository> clientRegistrations) {
+        this.oauthConfigured = clientRegistrations.isPresent();
     }
 
     @Bean
@@ -58,6 +62,13 @@ public class SecurityConfig {
                         // is taken.
                         .requestMatchers("/app", "/app/**").permitAll()
                         .requestMatchers("/api/planner/**").permitAll()
+                        // The magic-link flow's own two steps -- request
+                        // and verify -- happen before any session exists,
+                        // the same reason /oauth2/authorization/** and
+                        // /login/oauth2/code/** (Spring Security's own
+                        // routes for Google/Apple) are never matched
+                        // against "anyRequest" here either.
+                        .requestMatchers("/api/auth/magic-link/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/", "/error").permitAll()
                         // Everything else that exists is pilot-scoped.
                         .anyRequest().authenticated())
@@ -104,9 +115,15 @@ public class SecurityConfig {
                                         + "base-uri 'self'; "
                                         + "frame-ancestors 'none'")));
 
-        if (googleConfigured) {
+        // logout() is unconditional -- it is plain session invalidation,
+        // not specific to OIDC, and a magic-link sign-in (which needs no
+        // ClientRegistrationRepository at all) still needs the same
+        // /logout endpoint the front end always calls. oauth2Login()
+        // alone requires a real registration to exist, which is what
+        // stays conditional.
+        http.logout(Customizer.withDefaults());
+        if (oauthConfigured) {
             http.oauth2Login(Customizer.withDefaults());
-            http.logout(Customizer.withDefaults());
         }
         return http.build();
     }

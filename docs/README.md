@@ -217,12 +217,17 @@ service discovery at `planning-service.vfr-route.internal`.
 - Actuator health probes at `/actuator/health/liveness` and `/actuator/health/readiness`
 - Calls `model-service` over plain HTTP locally; on AWS, the identical `ModelServiceClient` calls SageMaker Runtime's `InvokeEndpoint` instead — same build either way, switched automatically by whether `SAGEMAKER_ENDPOINT_NAME` is set
 - Bean Validation on `RouteRequest` + a global exception handler turn a bad request or a downed `model-service` into a clean `400`/`502`, not an opaque `500`
-- Sign-in with Google (OIDC) — inactive by default; activate with the
-  `oauth` Spring profile once `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`
-  are set (see `application-oauth.yml`). `/api/me` reports who's signed
-  in; `/api/aircraft` and `/api/flights` are that pilot's own
-  aeroplanes and filed flights, each pilot-scoped so one can never read
-  or edit another's by guessing an id
+- Sign-in with Google or Apple (OIDC), or a passwordless email magic
+  link — OIDC is inactive by default; activate with the `oauth` Spring
+  profile once `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` or all four
+  `APPLE_*` vars are set (client registration itself is built in Java,
+  `security/OAuthClientsConfig.java`, since Apple's client secret is a
+  signed, expiring JWT no static YAML value could hold). The magic
+  link (`/api/auth/magic-link`) needs no profile and works whether or
+  not OIDC is configured, though sending needs a real `MAIL_HOST` too.
+  `/api/me` reports who's signed in; `/api/aircraft` and `/api/flights`
+  are that pilot's own aeroplanes and filed flights, each pilot-scoped
+  so one can never read or edit another's by guessing an id
 - Interactive API docs (springdoc-openapi) at `http://localhost:8080/swagger-ui/index.html`, raw spec at `/v3/api-docs`
 
 **`nav-log-agent`** — a LangGraph agent wrapped as an MCP server.

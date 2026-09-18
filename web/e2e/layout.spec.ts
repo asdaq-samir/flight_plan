@@ -1,4 +1,4 @@
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect, type Page, type TestInfo } from "@playwright/test";
 
 /**
  * The regressions this file exists to catch (see playwright.config.ts
@@ -15,13 +15,30 @@ import { test, expect, type Page } from "@playwright/test";
  *    because an ancestor flex item was missing `min-w-0`
  *
  * None of these are about what a component renders -- only about
- * where things actually land once a real layout engine gets to them.
- * The default viewport here (see playwright.config.ts) is phone-sized,
- * which is deliberate: it's what exercises the sidebar's own mobile
- * `Sheet` path, not just the desktop push-layout one.
+ * where things actually land once a real layout engine gets to them,
+ * which is why the whole file runs under both of playwright.config.ts's
+ * own projects (a phone size and a desktop one) rather than picking
+ * one -- most tests here compute their own thresholds off
+ * `page.viewportSize()`, so the same assertion holds at either size
+ * unmodified.
  */
 
 const PAGES = ["/app/plan", "/app/label"] as const;
+
+/** shadcn's Sidebar swaps to a Sheet overlay below its own mobile
+ *  breakpoint -- a real behavior change (a different component
+ *  entirely, per `useIsMobile()`), not just a resize, so the handful
+ *  of tests asserting on that Sheet specifically (`data-mobile`,
+ *  `openMobileSidebar`) skip themselves on the "desktop" project
+ *  rather than failing on a DOM shape that page was never going to
+ *  have. Desktop's own equivalent (`data-state="collapsed"` on the
+ *  plain, non-Sheet Sidebar) has its own test further down.  */
+function mobileOnly(testInfo: TestInfo) {
+  test.skip(
+    testInfo.project.name !== "mobile",
+    "Sheet sidebar only exists below shadcn's own mobile breakpoint",
+  );
+}
 
 async function settle(page: Page) {
   // Long enough for the initial course/checkpoint fetch to resolve (or
@@ -46,9 +63,10 @@ async function openMobileSidebar(page: Page) {
 }
 
 test.describe("/app/plan", () => {
-  // No collapsible toolbar here -- the route form is the whole reason
-  // a pilot opened this page, not a settings drawer worth a tap to
-  // reveal (see PlanView's own comment on its toolbar).
+  // No collapsible toolbar anywhere in this app anymore -- the route
+  // form is the whole reason a pilot opened either map page, not a
+  // settings drawer worth a tap to reveal (see PlanView's/LabelView's
+  // own comments on their headers).
   test("the route form is visible immediately, not behind a trigger", async ({ page }) => {
     await page.goto("/app/plan");
     await settle(page);
@@ -56,7 +74,8 @@ test.describe("/app/plan", () => {
     expect(await page.getByTestId("toolbar-trigger").count()).toBe(0);
   });
 
-  test("sidebar starts collapsed on load, every load", async ({ page }) => {
+  test("sidebar starts collapsed on load, every load", async ({ page }, testInfo) => {
+    mobileOnly(testInfo);
     await page.goto("/app/plan");
     await settle(page);
     // The mobile Sidebar is a Sheet that isn't even mounted until its
@@ -64,38 +83,67 @@ test.describe("/app/plan", () => {
     expect(await page.locator('[data-mobile="true"]').count()).toBe(0);
   });
 
-  test("sidebar opens from its own trigger, closed by default", async ({ page }) => {
+  test("sidebar opens from its own trigger, closed by default", async ({ page }, testInfo) => {
+    mobileOnly(testInfo);
     await page.goto("/app/plan");
     await settle(page);
     await openMobileSidebar(page);
   });
+
+  test("desktop: sidebar starts collapsed, opens and closes from its own trigger", async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== "desktop", "mobile's own version is above");
+    await page.goto("/app/plan");
+    await settle(page);
+    const sidebar = page.locator('[data-slot="sidebar"]');
+    await expect(sidebar).toHaveAttribute("data-state", "collapsed");
+    await page.locator('[data-slot="sidebar-trigger"]').click();
+    await expect(sidebar).toHaveAttribute("data-state", "expanded");
+    await page.locator('[data-slot="sidebar-trigger"]').click();
+    await expect(sidebar).toHaveAttribute("data-state", "collapsed");
+  });
 });
 
+// Deliberately the same shape as the /app/plan describe block above --
+// Plan and Label are meant to look and behave like the same shell
+// around a different sidebar now (see LabelView's own comment on its
+// header), not two pages that happen to share components, so their own
+// layout tests are the same tests, not analogous ones. The view
+// filters used to live behind their own collapsible toolbar trigger;
+// that's gone now (moved into the sidebar's own top, see LabelView),
+// so there's nothing toolbar-specific left to test here that Plan's
+// own suite doesn't already cover for both.
 test.describe("/app/label", () => {
-  test("sidebar and toolbar start collapsed on load, every load", async ({ page }) => {
+  test("the route form is visible immediately, not behind a trigger", async ({ page }) => {
     await page.goto("/app/label");
     await settle(page);
+    await expect(page.getByLabel("Departure")).toBeVisible();
+    expect(await page.getByTestId("toolbar-trigger").count()).toBe(0);
+  });
 
-    // Radix's Collapsible doesn't render closed content at all (no
-    // box to measure), and the mobile Sidebar is a Sheet that isn't
-    // even mounted until its trigger opens it -- "collapsed" for
-    // both now means "not there," not "there at width/height 0."
-    await expect(page.getByTestId("toolbar-content")).not.toBeVisible();
+  test("sidebar starts collapsed on load, every load", async ({ page }, testInfo) => {
+    mobileOnly(testInfo);
+    await page.goto("/app/label");
+    await settle(page);
     expect(await page.locator('[data-mobile="true"]').count()).toBe(0);
   });
 
-  test("toolbar and sidebar open from their own trigger, closed by default", async ({ page }) => {
+  test("sidebar opens from its own trigger, closed by default", async ({ page }, testInfo) => {
+    mobileOnly(testInfo);
     await page.goto("/app/label");
     await settle(page);
-
-    const toolbarTrigger = page.getByTestId("toolbar-trigger");
-    const toolbarContent = page.getByTestId("toolbar-content");
-    await toolbarTrigger.click();
-    await expect(toolbarContent).toBeVisible();
-    await toolbarTrigger.click();
-    await expect(toolbarContent).not.toBeVisible();
-
     await openMobileSidebar(page);
+  });
+
+  test("desktop: sidebar starts collapsed, opens and closes from its own trigger", async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== "desktop", "mobile's own version is above");
+    await page.goto("/app/label");
+    await settle(page);
+    const sidebar = page.locator('[data-slot="sidebar"]');
+    await expect(sidebar).toHaveAttribute("data-state", "collapsed");
+    await page.locator('[data-slot="sidebar-trigger"]').click();
+    await expect(sidebar).toHaveAttribute("data-state", "expanded");
+    await page.locator('[data-slot="sidebar-trigger"]').click();
+    await expect(sidebar).toHaveAttribute("data-state", "collapsed");
   });
 });
 
@@ -110,7 +158,13 @@ for (const path of PAGES) {
       expect(overflowing).toBe(false);
     });
 
-    test("guide button sits flush right, stacked below the sidebar trigger in the top-right corner", async ({ page }) => {
+    // Plan and Label share the exact same bottom-corner layout now --
+    // neither page has anything else floating over the map (each
+    // page's own single most-needed action lives in the header
+    // instead), so the guide button and the sidebar trigger land on
+    // the same `bottom-8` on both, opposite corners, actually level
+    // with each other rather than just "somewhere in the bottom half."
+    test("guide button sits flush bottom-left, the sidebar trigger flush bottom-right, both level with each other", async ({ page }) => {
       await page.goto(path);
       await settle(page);
       const viewport = page.viewportSize();
@@ -120,29 +174,46 @@ for (const path of PAGES) {
       const sidebarTriggerBox = await page.locator('[data-slot="sidebar-trigger"]').boundingBox();
       expect(guideBox).not.toBeNull();
       expect(sidebarTriggerBox).not.toBeNull();
-      expect(guideBox!.x + guideBox!.width).toBeGreaterThan(viewport.width - 20);
-      // Below, not overlapping -- both claim the top-right corner now.
-      expect(guideBox!.y).toBeGreaterThan(sidebarTriggerBox!.y + sidebarTriggerBox!.height);
-      expect(guideBox!.y).toBeLessThan(viewport.height / 2);
+
+      expect(guideBox!.x).toBeLessThan(20);
+      expect(sidebarTriggerBox!.x + sidebarTriggerBox!.width).toBeGreaterThan(viewport.width - 20);
+
+      // Same bottom-8, same size="icon" -- top edges within a few px
+      // of each other, not just both loosely "in the bottom half."
+      expect(Math.abs(guideBox!.y - sidebarTriggerBox!.y)).toBeLessThan(4);
+
+      // Both sit just above Leaflet's own attribution control, not
+      // flush against the very bottom edge.
+      expect(sidebarTriggerBox!.y + sidebarTriggerBox!.height).toBeLessThan(viewport.height - 4);
     });
   });
 }
 
-test("label page: action button sits flush bottom-left (Plan's own version moved into its header, next to Chart)", async ({ page }) => {
+test("label page: the toggle-view action sits in the header next to Load, not floating over the map", async ({ page }, testInfo) => {
   await page.goto("/app/label");
   await settle(page);
   const viewport = page.viewportSize();
   if (!viewport) throw new Error("no viewport configured");
 
+  const loadBox = await page.getByRole("button", { name: "Load" }).boundingBox();
   const actionBox = await page.getByTestId("map-action-button").boundingBox();
+  expect(loadBox).not.toBeNull();
   expect(actionBox).not.toBeNull();
-  expect(actionBox!.x).toBeLessThan(20);
-  // bottom-6 (24px), not bottom-3: deliberately more clearance than the
-  // 20px tolerance elsewhere in this file, for the thumb-reach margin.
-  expect(actionBox!.y + actionBox!.height).toBeGreaterThan(viewport.height - 30);
+  // Nowhere near the bottom-left corner a floating action button would
+  // otherwise pin it to -- true regardless of viewport.
+  expect(actionBox!.y).toBeLessThan(viewport.height - 100);
+
+  // To Load's right, same row -- mirrors Plan's own Chart/Brief pair,
+  // including the same desktop-only guarantee (see that test's own
+  // comment): a narrow phone wraps this onto its own line below Load
+  // rather than shrinking DEP/DEST to force one.
+  if (testInfo.project.name === "desktop") {
+    expect(actionBox!.x).toBeGreaterThan(loadBox!.x);
+    expect(Math.abs(actionBox!.y - loadBox!.y)).toBeLessThan(10);
+  }
 });
 
-test("plan page: Flight Briefing sits next to Chart in the header, not floating over the map", async ({ page }) => {
+test("plan page: Flight Briefing sits in the header with Chart, not floating over the map", async ({ page }, testInfo) => {
   await page.goto("/app/plan");
   await settle(page);
   const viewport = page.viewportSize();
@@ -152,14 +223,23 @@ test("plan page: Flight Briefing sits next to Chart in the header, not floating 
   const briefingBox = await page.getByTestId("map-action-button").boundingBox();
   expect(chartBox).not.toBeNull();
   expect(briefingBox).not.toBeNull();
-  expect(briefingBox!.x).toBeGreaterThan(chartBox!.x);
-  // Same row, not stacked -- and nowhere near the bottom-left corner
-  // MapActionButton would otherwise pin it to.
-  expect(Math.abs(briefingBox!.y - chartBox!.y)).toBeLessThan(10);
+  // Nowhere near the bottom-left corner MapActionButton would
+  // otherwise pin it to -- true regardless of viewport.
   expect(briefingBox!.y).toBeLessThan(viewport.height - 100);
+
+  // To Chart's right, same row -- only guaranteed once the header's
+  // own flex-wrap has room to keep them on one line. DEP/DEST keep
+  // their full, legible width even when it doesn't (a clipped ident
+  // is worse than a second line -- see RouteForm's own comment), so a
+  // narrow phone wraps Briefing onto its own line below Chart instead
+  // of shrinking anything to force one.
+  if (testInfo.project.name === "desktop") {
+    expect(briefingBox!.x).toBeGreaterThan(chartBox!.x);
+    expect(Math.abs(briefingBox!.y - chartBox!.y)).toBeLessThan(10);
+  }
 });
 
-test("plan page: the briefing view's own header replaces the route form with just its own actions", async ({ page }) => {
+test("plan page: the briefing view's own header holds its back button and its actions in one panel", async ({ page }) => {
   await page.goto("/app/plan");
   await settle(page);
 
@@ -167,16 +247,19 @@ test("plan page: the briefing view's own header replaces the route form with jus
   await page.waitForTimeout(300);
   await expect(page).toHaveURL(/[?&]view=briefing/);
 
-  // One header row, not two -- no more route form (that's the map
-  // view's own header) and no label of its own either: the content
-  // right below already opens with "Flight Briefing" as a real `<h1>`,
-  // so the header doesn't repeat it.
+  // One panel, not two -- no more route form (that's the map view's
+  // own header). "Flight Briefing" is print-only now (see
+  // FlightBriefingView's own comment) -- a "Back to Map" button takes
+  // its place on screen instead, one clear way back rather than two.
   expect(await page.getByLabel("Departure").count()).toBe(0);
-  await expect(page.locator("h1").getByText("Flight Briefing", { exact: true })).toBeVisible();
+  const backButton = page.getByTestId("nav-back-to-map-button");
+  await expect(backButton).toBeVisible();
+  await expect(backButton).toHaveText(/Back to Map/);
+  await expect(page.locator("header h1")).toBeHidden();
 
   // Back to map, listen, print, then the same Settings gear every
   // header ends in -- all four in one row, left to right.
-  const backBox = await page.getByTestId("nav-back-to-map-button").boundingBox();
+  const backBox = await backButton.boundingBox();
   const listenBox = await page.getByTestId("listen-button").boundingBox();
   const printBox = await page.getByTestId("print-button").boundingBox();
   const gearBox = await page.locator("header").getByRole("link", { name: "Settings" }).boundingBox();
@@ -236,28 +319,25 @@ test("plan page: nav log view scrolls inside its own table, not the page", async
   }
 });
 
-test("the site header's own two destinations -- the wordmark and the Settings gear -- both work", async ({ page }) => {
+test("the Settings gear leads there, and its own back button leads back to where it was clicked from", async ({ page }) => {
   await page.goto("/app/label");
   await page.waitForTimeout(300);
 
   // Settings is an icon-only link (a gear, no visible text), so its
-  // accessible name -- not text content -- is what finds it.
+  // accessible name -- not text content -- is what finds it. No shared
+  // PageHeader/wordmark left to test alongside it -- Plan, Label and
+  // Settings each own a fully custom header now (route form + gear,
+  // route form + gear, back button + sign-in), and none of them show
+  // one.
   await page.locator("header").getByRole("link", { name: "Settings", exact: true }).click();
   await page.waitForURL("**/app/settings");
   await page.waitForTimeout(300);
 
-  // Settings has its own "Back to Plan" header instead of the shared
-  // PageHeader (no reason for the gear that leads here to sit on the
-  // page it leads to) -- that's the way back, not the wordmark.
-  await page.getByRole("link", { name: "Back to Plan" }).click();
-  await page.waitForURL("**/app/plan");
-});
-
-test("the wordmark is the way back to Plan from every other page that still shows it", async ({ page }) => {
-  await page.goto("/app/label");
-  await page.waitForTimeout(300);
-  await page.locator("header").getByText("VFR Route", { exact: true }).click();
-  await page.waitForURL("**/app/plan");
+  // Settings' own back button, not a wordmark, is the way back --
+  // reads "Back to Label" specifically because that's where the gear
+  // was actually clicked from (SettingsButton's own state.from).
+  await page.getByRole("link", { name: "Back to Label" }).click();
+  await page.waitForURL("**/app/label");
 });
 
 test("Settings' own Label link works, since Label has no header link of its own", async ({ page }) => {

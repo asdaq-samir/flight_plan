@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { ArrowLeft, MapPin, MoveRight, NotebookPen, PlaneTakeoff, Route, ListChecks } from "lucide-react";
 import CollapsibleSection from "../../components/CollapsibleSection";
 import Footer from "../../components/Footer";
@@ -12,6 +12,7 @@ import { Button } from "../../components/ui/button";
 import { Field, FieldError } from "../../components/ui/field";
 import { Input } from "../../components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/ui/select";
+import SignInModal from "./SignInModal";
 import { ApiError, api } from "../../lib/api/client";
 import { identSchema } from "../../lib/identSchema";
 import { useDocumentTitle } from "../../lib/useDocumentTitle";
@@ -71,6 +72,23 @@ function DevIntro() {
           Label checkpoints
         </Link>
       </Button>
+    </div>
+  );
+}
+
+/** A named group of panels -- Account, Developer tools -- rather than
+ *  one flat stack where a pilot's own aircraft sat between an
+ *  algorithm picker and a marketing blurb with nothing marking any of
+ *  it apart. Small-caps muted label, the same convention Label's own
+ *  toolbar already uses for "Route"/"View" ("settings page UX best
+ *  practices": grouping by category and labeling the groups is what
+ *  makes a page like this scannable rather than a flat list to hunt
+ *  through -- see https://baymard.com/blog/current-state-accounts-selfservice
+ *  and https://www.setproduct.com/blog/settings-ui-design). */
+function SectionHeading({ children }: { children: string }) {
+  return (
+    <div className="border-b border-border bg-muted/30 px-4 py-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+      {children}
     </div>
   );
 }
@@ -330,37 +348,36 @@ const EMPTY_AIRCRAFT_FORM: AircraftFormValues = {
 };
 
 /**
- * Signed-in status, always visible (not a collapsible panel like the
- * rest of this page) -- it's identity, not content to skim past. A
- * 401 from `api.me()` is the ordinary signed-out case, not an error.
- * `pilot` is lifted to the parent rather than owned here, since the
- * Aircraft and Flights panels below also need to know whether anyone's
- * signed in; the ["pilot"] query itself is shared cache, not re-fetched
- * per panel.
+ * Signed-in status, in the header's own top-right corner rather than a
+ * full-width row in the page body -- identity reads as chrome, the same
+ * place any other app puts it, not content to scroll past. `pilot` is
+ * lifted to the parent rather than owned here, since the Aircraft and
+ * Flights panels below also need to know whether anyone's signed in;
+ * the ["pilot"] query itself is shared cache, not re-fetched per panel.
+ * Signed out, this is just `SignInModal`'s own trigger button -- the
+ * three-provider prompt lives entirely in that component.
  */
-function SignInPanel({ pilot }: { pilot: PilotState }) {
+function SignInStatus({ pilot }: { pilot: PilotState }) {
   const queryClient = useQueryClient();
   const logout = useMutation({
     mutationFn: api.logout,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["pilot"] }),
   });
 
+  if (pilot === "loading") {
+    return <span className="text-sm text-muted-foreground">Checking sign-in…</span>;
+  }
+  if (pilot === null) {
+    return <SignInModal />;
+  }
   return (
-    <div className="flex items-center gap-3 border-b border-border px-4 py-3 text-sm">
-      {pilot === "loading" && <span className="text-muted-foreground">Checking sign-in…</span>}
-      {pilot === null && (
-        <Button asChild>
-          <a href="/oauth2/authorization/google">Sign in with Google</a>
-        </Button>
-      )}
-      {pilot && pilot !== "loading" && (
-        <>
-          <span>
-            Signed in as <span className="font-semibold">{pilot.displayName}</span>
-          </span>
-          <Button onClick={() => logout.mutate()} disabled={logout.isPending}>Log out</Button>
-        </>
-      )}
+    <div className="flex items-center gap-2 text-sm">
+      <span className="text-muted-foreground">
+        Signed in as <span className="font-semibold text-foreground">{pilot.displayName}</span>
+      </span>
+      <Button variant="ghost" size="sm" onClick={() => logout.mutate()} disabled={logout.isPending}>
+        Log out
+      </Button>
     </div>
   );
 }
@@ -568,44 +585,73 @@ function FlightsPanel({ pilot }: { pilot: PilotState }) {
 }
 
 /**
- * Everything that isn't the map: what the app does (moved here from
- * the old standalone Home page once Plan became the homepage), the
- * stateless "explore how this project works" demos (moved here from
- * the old standalone Dev page -- model comparison, algorithm picker,
- * altitude breakdown, none of it needing a pilot signed in), then a
- * signed-in pilot's own data (aeroplanes, filed flights). One page
- * behind the header's own gear icon now, not three behind three
- * separate nav items -- Plan is the only page anyone opens this app
- * to actually use; everything else is either read-only context or an
- * occasional errand.
+ * Where the gear that led here should lead back to -- the map, the
+ * Flight Briefing sub-view, or Label, matching whichever one actually
+ * sent the pilot here (`SettingsButton`'s own `state.from`) rather than
+ * always landing back on the plain map view regardless of where they
+ * started. No state at all (Settings opened directly, a bookmark or a
+ * fresh tab) falls back to the map -- always a valid destination, never
+ * a dead link.
+ */
+function backDestination(from: string | undefined): { to: string; label: string } {
+  if (!from) return { to: "/plan", label: "Back to Map" };
+  if (from.includes("view=briefing")) return { to: from, label: "Back to Brief" };
+  if (from.startsWith("/label")) return { to: from, label: "Back to Label" };
+  return { to: from, label: "Back to Map" };
+}
+
+/**
+ * Everything that isn't the map, grouped rather than one flat stack
+ * (see `SectionHeading`'s own comment for why): a signed-in pilot's own
+ * data (aeroplanes, filed flights) first -- the actual reason a
+ * "Settings" page's own gear icon exists, and standard UX research on
+ * settings pages agrees the frequently-needed content belongs at the
+ * top, not buried under three developer demos -- then what the app
+ * does (moved here from the old standalone Home page once Plan became
+ * the homepage), then the stateless "explore how this project works"
+ * demos (moved here from the old standalone Dev page -- model
+ * comparison, algorithm picker, altitude breakdown, none of it needing
+ * a pilot signed in) last, under their own "Developer tools" heading
+ * rather than mixed in with account data. One page behind the header's
+ * own gear icon now, not three behind three separate nav items -- Plan
+ * is the only page anyone opens this app to actually use; everything
+ * else here is either read-only context or an occasional errand.
  */
 export default function SettingsView() {
   useDocumentTitle("Settings — VFR Route");
   const { data: pilot, isLoading } = useQuery({ queryKey: ["pilot"], queryFn: api.me });
   const pilotState: PilotState = isLoading ? "loading" : (pilot ?? null);
+  const location = useLocation();
+  const back = backDestination((location.state as { from?: string } | null)?.from);
 
   return (
     <div className="flex h-dvh flex-col overflow-y-auto bg-background">
       {/* Not the shared PageHeader ("VFR Route" + the gear that would
-          point right back here) -- a bare "back to Plan" reads better
+          point right back here) -- a bare back button reads better
           once you're already on the page the gear leads to; nothing
-          else on this page is worth a second header row for. */}
-      <header className="flex h-12 shrink-0 items-center border-b border-border bg-background px-4 print:hidden">
+          else on this page is worth a second header row for.
+          justify-between: the back button on the left, sign-in status
+          (or the Sign in prompt itself) on the right -- the one other
+          thing in this app's own top-right corner slot, the same one
+          the Settings gear itself occupies everywhere else. */}
+      <header className="flex h-12 shrink-0 items-center justify-between border-b border-border bg-background px-4 print:hidden">
         <Button asChild variant="ghost" size="sm">
-          <Link to="/plan">
+          <Link to={back.to}>
             <ArrowLeft className="size-4" />
-            Back to Plan
+            {back.label}
           </Link>
         </Button>
+        <SignInStatus pilot={pilotState} />
       </header>
+      <SectionHeading>Account</SectionHeading>
+      <AircraftPanel pilot={pilotState} />
+      <FlightsPanel pilot={pilotState} />
       <OverviewPanel />
+      <SectionHeading>Developer tools</SectionHeading>
       <DevIntro />
       <ModelComparisonPanel />
       <AlgorithmPickerPanel />
       <AltitudeBreakdownPanel />
-      <SignInPanel pilot={pilotState} />
-      <AircraftPanel pilot={pilotState} />
-      <FlightsPanel pilot={pilotState} />
       <Footer />
     </div>
   );

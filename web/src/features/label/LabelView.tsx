@@ -7,8 +7,7 @@ import { identSchema } from "../../lib/identSchema";
 // Account, which never touch a map, don't pay for it.
 import "leaflet/dist/leaflet.css";
 import Shell from "../../Shell";
-import CollapsibleToolbar from "../../components/CollapsibleToolbar";
-import MapActionButton from "../../components/MapActionButton";
+import SettingsButton from "../../components/SettingsButton";
 import { usePageStatus } from "../../lib/usePageStatus";
 import ChartMap from "./components/ChartMap";
 import RouteForm from "./components/RouteForm";
@@ -43,10 +42,6 @@ export default function LabelView() {
   // so without this the label would only update on some unrelated
   // re-render, not the moment a zoom actually happens.
   const [zoomedIn, setZoomedIn] = useState(false);
-  // The Guide panel sits in the same bottom-right corner the sidebar
-  // opens over -- hide it once the sidebar's open at all, rather than
-  // let it float on top of the waypoint list.
-  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // Mount only, deliberately: RouteForm's own onSubmit is the reload
   // path when dep/dest change later, so this effect must not also fire
@@ -262,41 +257,45 @@ export default function LabelView() {
     void store.load(d, a);
   }, [dep, dest, setSearchParams, store.load]);
 
-  const toolbar = (
-    <CollapsibleToolbar
-      label={dep && dest ? `Route: ${dep} → ${dest}` : "Route & view"}
-    >
-      <div>
-        <span className="text-xs font-semibold uppercase text-muted-foreground">Route</span>
-        <RouteForm
-          dep={dep} dest={dest} onDepChange={setDep} onDestChange={setDest}
-          onSubmit={submitRoute}
-          course={store.course}
-        />
-      </div>
-      <div className="flex flex-wrap items-center gap-3">
-        <span className="w-16 flex-shrink-0 text-xs font-semibold uppercase text-muted-foreground">View</span>
-        <FilterBar filters={store.filters} onChange={store.setFilter} shown={shown} />
-      </div>
-    </CollapsibleToolbar>
+  // Folds the shared PageHeader's own row into this page's own route
+  // form, the same way Plan's mapHeader does -- the route being worked
+  // on, not "VFR Route," is this page's actual title too. RouteForm
+  // used to sit inside the collapsible toolbar below, collapsed by
+  // default like the view filters beside it; that hid the one thing
+  // this page can't do anything useful without (a route to walk) behind
+  // an extra click, which the view filters -- genuinely optional --
+  // don't need to avoid. The toggle-view button (Start/Resume/Fit
+  // line) folds in here too, the same way Plan's own single
+  // most-needed map action ("Brief") sits next to "Chart" rather than
+  // floating over the map -- these two pages are meant to look like
+  // the same shell around a different sidebar, not two designs that
+  // happen to share a Shell component.
+  const header = (
+    <header className="flex shrink-0 items-center justify-between gap-2 border-b border-border bg-background px-3 py-2 print:hidden">
+      <RouteForm
+        dep={dep} dest={dest} onDepChange={setDep} onDestChange={setDest}
+        onSubmit={submitRoute}
+        onToggleView={toggleView}
+        toggleViewDisabled={!walk.length}
+        toggleViewLabel={!point ? "Start" : zoomedIn ? "Fit line" : "Resume"}
+      />
+      <SettingsButton />
+    </header>
   );
 
   usePageStatus(store.progress, store.error);
 
-  const mapOverlay = (
-    <>
-      {!sidebarOpen && <RatingLegend />}
-      <MapActionButton onClick={toggleView} disabled={!walk.length}>
-        {!point ? "Start" : zoomedIn ? "Fit line" : "Resume"}
-      </MapActionButton>
-    </>
-  );
+  // No toolbar row and no floating MapActionButton -- both of this
+  // page's own extras (the toggle-view action, the view filters) now
+  // live somewhere Plan's own layout already has a slot for: the
+  // header (above) and the sidebar's own top (below), rather than two
+  // more pieces of chrome Plan's page doesn't have at all.
+  const mapOverlay = <RatingLegend />;
 
   return (
     <Shell
-      toolbar={toolbar}
+      header={header}
       mapOverlay={mapOverlay}
-      onSidebarOpenChange={setSidebarOpen}
       map={
         <div className="h-full w-full">
           <ChartMap
@@ -317,6 +316,14 @@ export default function LabelView() {
       }
       sidebar={
         <>
+          {/* The view filters used to live in their own collapsible
+              toolbar row, collapsed by default -- moved here instead
+              of dropped, since Plan's own sidebar (NavLogView) already
+              has this exact slot: a compact control row at the very
+              top of the sidebar, above its main list/table. */}
+          <div className="border-b border-border p-2">
+            <FilterBar filters={store.filters} onChange={store.setFilter} shown={shown} />
+          </div>
           <ProgressCard
             visiblePicks={visiblePicks}
             canUndo={store.canUndo}
@@ -327,6 +334,7 @@ export default function LabelView() {
             entries={listEntries} selected={point} onFocus={focus} hidden={hidden}
             bearingDeg={store.course?.bearing_deg ?? 0}
             departureIdent={store.course?.departure.ident ?? ""}
+            distanceNm={store.course?.distance_nm ?? null}
           />
         </>
       }

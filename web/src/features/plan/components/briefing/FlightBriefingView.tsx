@@ -1,9 +1,12 @@
 import { Fragment, useCallback, useEffect, useState } from "react";
 import clsx from "clsx";
+import { ArrowLeft } from "lucide-react";
 import { Badge } from "../../../../components/ui/badge";
 import { Button } from "../../../../components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../../../components/ui/select";
 import CollapsibleSection from "../../../../components/CollapsibleSection";
+import SettingsButton from "../../../../components/SettingsButton";
+import NavLogActions from "../navlog/NavLogActions";
 import { ApiError, api } from "../../../../lib/api/client";
 import type {
   Aircraft, Briefing, Candidate, Course, Leg, NavLog, Pilot, SaveFlightRequest, Totals,
@@ -41,11 +44,16 @@ interface Props {
   /** Whether `window.speechSynthesis` is currently reading `narrative`
    *  aloud, and the one handler that starts/stops it -- owned by
    *  `usePlanState` (see its own `speak`/`stopSpeaking`), not local
-   *  state here, since the nav log's own floating Listen button
-   *  (`NavLogActions`) triggers the exact same playback and the two
-   *  need to agree on whether it's currently running. */
+   *  state here, since the Briefing Narrative section further down
+   *  the page triggers the exact same playback and the two need to
+   *  agree on whether it's currently running. */
   speaking: boolean;
   onListenClick: () => void;
+  /** Leaves the briefing view, back to the map -- the one action
+   *  `NavLogActions` needs that isn't already a `usePlanState` value
+   *  passed straight through (it reuses `loadingNarrative`/`speaking`/
+   *  `onListenClick` above for its own Listen button). */
+  onMapClick: () => void;
 }
 
 const FLIGHT_CATEGORY_COLOR: Record<string, string> = {
@@ -162,37 +170,31 @@ function NavLogTable({
 }
 
 /**
- * The narrative's own section: a "Generate" button until one exists,
- * then the text plus a browser-TTS "Listen" toggle. `window.speechSynthesis`
- * rather than a cloud voice, for now -- free, no new service, no API
- * key; a more natural-sounding voice is a later upgrade, not a
- * blocker for having this at all. `speaking`/`onListenClick` come from
- * the page above (see `Props`'s own comment) rather than owning the
- * playback state locally, so this stays in sync with the nav log's own
- * floating Listen button.
+ * The narrative's own section: a pure display, nothing here to click.
+ * Generating and listening both used to have their own second copy of
+ * that control here (a "Generate narrative" button, a "Listen" toggle)
+ * -- both removed once the header's own `NavLogActions` grew the exact
+ * same pair as a proper `ButtonGroup`, rather than leave two places
+ * that do the same thing for a pilot to notice are the same thing.
+ * `window.speechSynthesis` rather than a cloud voice, for now -- free,
+ * no new service, no API key; a more natural-sounding voice is a later
+ * upgrade, not a blocker for having this at all.
  */
 function BriefingNarrativeSection({
-  narrative, loadingNarrative, onGenerate, speaking, onListenClick,
+  narrative, loadingNarrative,
 }: {
   narrative: string | null;
   loadingNarrative: boolean;
-  onGenerate: () => void;
-  speaking: boolean;
-  onListenClick: () => void;
 }) {
   return (
     <CollapsibleSection title="Briefing Narrative">
-      {!narrative && (
-        <Button onClick={onGenerate} disabled={loadingNarrative} className="print:hidden">
-          {loadingNarrative ? "Generating…" : "Generate narrative"}
-        </Button>
+      {!narrative && !loadingNarrative && (
+        <p className="text-sm text-muted-foreground">
+          Use the AI button above to generate a spoken-style summary of this briefing.
+        </p>
       )}
-      {narrative && (
-        <div className="space-y-2">
-          <p className="text-sm text-muted-foreground">{narrative}</p>
-          <Button onClick={onListenClick} className="print:hidden">{speaking ? "Stop" : "Listen"}</Button>
-        </div>
-      )}
+      {loadingNarrative && <p className="text-sm text-muted-foreground">Generating…</p>}
+      {narrative && <p className="text-sm text-muted-foreground">{narrative}</p>}
     </CollapsibleSection>
   );
 }
@@ -205,6 +207,35 @@ function hazardAltitudeRange(lowFt: number | null, highFt: number | null): strin
   if (lowFt == null) return `up to ${altFt(highFt)} ft`;
   if (highFt == null) return `${altFt(lowFt)} ft and above`;
   return `${altFt(lowFt)}-${altFt(highFt)} ft`;
+}
+
+/**
+ * "VFR Flight Not Recommended" -- its own named, standard element of
+ * an FAA briefing (AIM 7-1-5), not something this app was inventing:
+ * a standard briefing states it explicitly whenever conditions warrant
+ * it, separate from (and before) the adverse-conditions/current/
+ * forecast detail a pilot would have to read closely to reach the same
+ * conclusion themselves. Computed from data this page already has --
+ * either endpoint's current METAR reporting IFR/LIFR, or the along-
+ * route forecast dropping below basic VFR minimums (14 CFR 91.155:
+ * 3 sm visibility, 1,000 ft ceiling) -- not a second fetch.
+ */
+function vfrNotRecommendedReasons(briefing: Briefing, dep: string, dest: string): string[] {
+  const reasons: string[] = [];
+  for (const ident of [dep, dest]) {
+    const category = briefing.metars[ident]?.flight_category;
+    if (category === "IFR" || category === "LIFR") {
+      reasons.push(`${ident} currently reporting ${category}`);
+    }
+  }
+  const { min_ceiling_ft, min_visibility_sm } = briefing.forecast;
+  if (min_ceiling_ft !== null && min_ceiling_ft < 1000) {
+    reasons.push(`forecast ceiling as low as ${altFt(min_ceiling_ft)} ft along the route`);
+  }
+  if (min_visibility_sm !== null && min_visibility_sm < 3) {
+    reasons.push(`forecast visibility as low as ${min_visibility_sm} sm along the route`);
+  }
+  return reasons;
 }
 
 /** The distinct (direction, speed) pairs actually present among the
@@ -338,21 +369,24 @@ function SaveFlightSection({
 
 /**
  * The Flight Briefing page: the FAA's own standard-briefing sequence
- * (AIM/FAA-H-8083-25) -- adverse conditions, current conditions,
- * forecast, winds aloft, NOTAMs, airport information -- around the
- * nav log, laid out to print cleanly. Two pieces of that sequence are
- * deliberately absent rather than faked: a synoptic narrative (needs
- * real meteorological analysis, not a data fetch) and embedded NOTAMs
- * (the official FAA NOTAM API is gated to certain commercial/public
- * operators via emailed credentials -- this links out to a real
- * briefing service instead).
+ * (AIM 7-1-5) -- VFR-not-recommended, adverse conditions, current
+ * conditions, destination and en route forecast, winds aloft, NOTAMs,
+ * ATC delays, airport information -- around the nav log, laid out to
+ * print cleanly. One element of that sequence is genuinely absent
+ * rather than faked: a synoptic narrative (needs real meteorological
+ * analysis, not a data fetch). NOTAMs and ATC delays are both named
+ * but not embedded -- the official NOTAM API and ATC flow-control data
+ * are both gated to certain commercial/public operators, so each
+ * section says so and links out to a real briefing service instead of
+ * silently disappearing the way an unnamed gap would.
  */
 export default function FlightBriefingView({
   course, totals, nav, legs, navError, dep, dest, selected, depElevationFt, destElevationFt, descriptions,
-  briefing, narrative, loadingNarrative, onGenerateNarrative, speaking, onListenClick,
+  briefing, narrative, loadingNarrative, onGenerateNarrative, speaking, onListenClick, onMapClick,
 }: Props) {
   const parts = totals ? totalsParts(totals) : null;
   const winds = windsAloftSummary(legs);
+  const vnrReasons = briefing ? vfrNotRecommendedReasons(briefing, dep, dest) : [];
 
   // A collapsed <details> renders nothing to print, `print:` overrides
   // on its own children notwithstanding -- Chromium's own closed-state
@@ -392,10 +426,54 @@ export default function FlightBriefingView({
 
   return (
     <div className="h-full overflow-y-auto bg-background print:h-auto print:overflow-visible">
-      <div className="border-b border-border px-4 py-3">
-        <h1 className="text-lg font-bold tracking-tight text-foreground">Flight Briefing</h1>
-        <p className="text-sm text-muted-foreground">{dep} → {dest}</p>
-      </div>
+      {/* A real <header>, not a <div> -- this is exactly what the map
+          view's own `mapHeader` (PlanView) is, just this page's own
+          version of it. On screen, "Back to Map" replaces the old
+          "Flight Briefing" title entirely -- one clear way back, not
+          two (this button and NavLogActions' own Map icon used to say
+          the same thing twice). The title itself doesn't disappear,
+          it's just print-only now: a printed page has no "back"
+          anywhere to go, but still needs its own identifying title,
+          which is why this is the one thing here that inverts the
+          usual print:hidden -- hidden on screen, the only thing left
+          once actually printed. */}
+      <header className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
+        <div className="hidden print:block">
+          <h1 className="text-lg font-bold tracking-tight text-foreground">Flight Briefing</h1>
+          <p className="text-sm text-muted-foreground">{dep} → {dest}</p>
+        </div>
+        <Button
+          variant="ghost" size="sm" onClick={onMapClick}
+          className="print:hidden" data-testid="nav-back-to-map-button"
+        >
+          <ArrowLeft className="size-4" />
+          Back to Map
+        </Button>
+        <div className="flex items-center gap-1 print:hidden">
+          <NavLogActions
+            onGenerateNarrative={onGenerateNarrative}
+            narrativeLoading={loadingNarrative}
+            hasNarrative={narrative !== null}
+            onListenClick={onListenClick}
+            listening={speaking}
+          />
+          <SettingsButton />
+        </div>
+      </header>
+
+      {/* Its own standard element (AIM 7-1-5(b)), stated up front and
+          impossible to collapse away by accident -- not one more
+          CollapsibleSection a pilot might skim past, the way a live
+          briefer states it out loud before working through the detail
+          that justifies it. */}
+      {vnrReasons.length > 0 && (
+        <div className="border-b border-destructive/30 bg-destructive/10 px-4 py-2 text-sm text-destructive">
+          <p className="font-semibold">VFR flight not recommended</p>
+          <ul className="mt-0.5 list-inside list-disc">
+            {vnrReasons.map(reason => <li key={reason}>{reason}</li>)}
+          </ul>
+        </div>
+      )}
 
       <CollapsibleSection title="Flight Plan Summary">
         <div className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
@@ -453,10 +531,7 @@ export default function FlightBriefingView({
           entirely absent from the page until every field of one
           response is in, which is what made this page read as slow
           to populate. */}
-      <BriefingNarrativeSection
-        narrative={narrative} loadingNarrative={loadingNarrative} onGenerate={onGenerateNarrative}
-        speaking={speaking} onListenClick={onListenClick}
-      />
+      <BriefingNarrativeSection narrative={narrative} loadingNarrative={loadingNarrative} />
 
       <CollapsibleSection title="Adverse Conditions">
         {!briefing ? (
@@ -506,7 +581,27 @@ export default function FlightBriefingView({
         )}
       </CollapsibleSection>
 
-      <CollapsibleSection title="Forecast">
+      {/* Split into its own two standard elements (AIM 7-1-5(e)/(f))
+          rather than one blended list -- a briefer states the
+          destination's own forecast as its own line, not one entry
+          among however many en route stations happen to have a TAF,
+          since it's the one that actually decides go/no-go on arrival. */}
+      <CollapsibleSection title="Destination Forecast">
+        {!briefing ? (
+          <p className="text-sm text-muted-foreground">Loading…</p>
+        ) : (() => {
+          const destStation = briefing.forecast.stations.find(st => st.icaoId === dest);
+          return destStation ? (
+            <p className="text-sm text-muted-foreground">
+              {dest}: ceiling {altFt(destStation.ceiling_ft)} ft, visibility {destStation.visibility_sm ?? "—"} sm.
+            </p>
+          ) : (
+            <p className="text-sm text-muted-foreground">No TAF published for {dest}.</p>
+          );
+        })()}
+      </CollapsibleSection>
+
+      <CollapsibleSection title="En Route Forecast">
         {!briefing ? (
           <p className="text-sm text-muted-foreground">Loading…</p>
         ) : (
@@ -515,9 +610,9 @@ export default function FlightBriefingView({
               Along the route: ceiling {altFt(briefing.forecast.min_ceiling_ft)} ft,
               visibility {briefing.forecast.min_visibility_sm ?? "—"} sm (worst nearby TAF period).
             </p>
-            {briefing.forecast.stations.length > 0 && (
+            {briefing.forecast.stations.filter(st => st.icaoId !== dest).length > 0 && (
               <ul className="mt-1 space-y-0.5 text-xs text-muted-foreground">
-                {briefing.forecast.stations.map(st => (
+                {briefing.forecast.stations.filter(st => st.icaoId !== dest).map(st => (
                   <li key={st.icaoId}>
                     {st.icaoId}: ceiling {altFt(st.ceiling_ft)} ft, visibility {st.visibility_sm ?? "—"} sm
                   </li>
@@ -553,6 +648,25 @@ export default function FlightBriefingView({
             className="text-blue-600 underline print:text-muted-foreground"
           >
             notams.aim.faa.gov
+          </a>.
+        </p>
+      </CollapsibleSection>
+
+      {/* The last of the AIM 7-1-5 standard elements this page can name
+          but not actually fetch -- ATC flow-control advisories need a
+          live feed this app has no access to, the same reasoning
+          NOTAMs above already explains. Named and pointed somewhere
+          real rather than silently dropped, which is the one thing
+          that made those two elements different from every other one
+          on this page before this section existed. */}
+      <CollapsibleSection title="ATC Delays">
+        <p className="text-sm text-muted-foreground">
+          Not fetched here -- check current delays and flow-control advisories:{" "}
+          <a
+            href="https://www.fly.faa.gov" target="_blank" rel="noreferrer"
+            className="text-blue-600 underline print:text-muted-foreground"
+          >
+            fly.faa.gov
           </a>.
         </p>
       </CollapsibleSection>

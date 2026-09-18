@@ -221,6 +221,22 @@ export const api = {
    *  JSON -- session cookies are cleared either way. */
   logout: () => fetch("/logout", { method: "POST", headers: csrfHeader() }),
 
+  /**
+   * Starts a magic-link sign-in -- always resolves (202) regardless of
+   * whether the address has ever signed in before, the server's own
+   * enumeration-safe answer (see MagicLinkController's own comment).
+   * Throws only on a genuine failure (a malformed address the server's
+   * own validation rejects with 400), not on "check your email" itself.
+   */
+  requestMagicLink: (email: string) =>
+    fetch("/api/auth/magic-link", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...csrfHeader() },
+      body: JSON.stringify({ email }),
+    }).then(res => {
+      if (!res.ok) throw new ApiError("could not send a sign-in link", res.status);
+    }),
+
   /** How the currently promoted model was actually chosen -- every
    *  algorithm retrain() tried, not just the winner. */
   modelComparison: () => json<ModelComparison>(`${PLANNER}/model-comparison`),

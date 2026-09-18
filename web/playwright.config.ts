@@ -25,6 +25,17 @@ export default defineConfig({
   reporter: "list",
   use: {
     baseURL: process.env.BASE_URL ?? "http://localhost:8080",
-    viewport: { width: 390, height: 844 },
   },
+  // Both projects run the whole suite -- most of it (corner-flush
+  // checks, overflow checks, nav links) computes its assertions off
+  // `page.viewportSize()` rather than a hard-coded number, so it holds
+  // at either size unmodified. The handful of tests that are
+  // genuinely mobile-only (shadcn's Sidebar swaps to a Sheet overlay
+  // below its own breakpoint, a real behavior change, not just a
+  // resize) skip themselves on "desktop" -- see layout.spec.ts's own
+  // `mobileOnly` helper.
+  projects: [
+    { name: "mobile", use: { viewport: { width: 390, height: 844 } } },
+    { name: "desktop", use: { viewport: { width: 1280, height: 800 } } },
+  ],
 });
