@@ -21,8 +21,8 @@ docker compose up -d --build webapp
 # http://localhost:8080/swagger-ui/index.html
 ```
 
-`webapp` brings up `db` and `model-service` with it, but **not**
-`planning-service` — start that too or the pages render empty.
+`webapp` brings up `db`, `model-service` and `planning-service` with it,
+so the browser pages have everything they need on one `docker compose up`.
 
 ```bash
 # The JUnit suite, including Testcontainers' real Postgres. No native
@@ -153,11 +153,10 @@ that -- no profile, no OIDC registration, just email address in,
 one-time link out -- and works (or fails to send, logged rather than
 thrown) independent of whether OIDC is configured at all.
 
-**`GET /api/routes` returns 500.** `RouteController` maps only POST
-there, which is fine, but `GlobalExceptionHandler` swallows
-`HttpRequestMethodNotSupportedException` and reports it as a 500 — so a
-client cannot tell "wrong method" from "server broke". It should pass 405
-through. Unfixed.
+**`GET /api/routes` returns 405, not a fake 500.** `RouteController` maps
+only POST there, and `GlobalExceptionHandler` now preserves
+`HttpRequestMethodNotSupportedException` as the correct "method not
+allowed" response rather than collapsing it into the generic fallback.
 
 **Testcontainers needs the Docker socket.** That is why the `mvn test`
 command above mounts `/var/run/docker.sock`; without it the persistence

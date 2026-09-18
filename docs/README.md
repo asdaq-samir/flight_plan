@@ -587,7 +587,7 @@ CI job breakdown is in the [Appendix](#appendix).
 |---|---|---|
 | `docker compose up db` | PostgreSQL + pgvector | `5432` |
 | `docker compose up model-service` | FastAPI model serving; needs a promoted model | `8000` |
-| `docker compose up webapp` | Spring Boot API **and both browser UIs**; brings up `db`+`model-service` too | `8080` |
+| `docker compose up webapp` | Spring Boot API **and both browser UIs**; brings up `db` + `model-service` + `planning-service` too | `8080` |
 | `docker compose up ml` | Jupyter, for notebooks 01-08 | `8888` (token `vfr`) |
 | `docker compose run --rm pipeline-processing collect` | Runs `pipeline.collect()` | — |
 | `docker compose run --rm pipeline-processing engineer-features` | Runs `pipeline.engineer_features()` | — |
@@ -596,7 +596,7 @@ CI job breakdown is in the [Appendix](#appendix).
 | `docker compose up airflow` | Orchestrates the full pipeline as a DAG | `8081` |
 | `docker compose up nav-log-agent` | LangGraph MCP server (needs `ANTHROPIC_API_KEY`) | `8082` |
 | `docker compose run --rm crewai-agent --departure-ident C81 --destination-ident KDLH` | One-shot CrewAI CLI (needs `ANTHROPIC_API_KEY`) | — |
-| `docker compose up planning-service` | Planning + chart-vision API. `webapp` proxies to it; start it for the UIs to do anything | `8084` |
+| `docker compose up planning-service` | Planning + chart-vision API. `webapp` proxies to it; run it directly when you want its docs/debug port | `8084` |
 
 Notes:
 

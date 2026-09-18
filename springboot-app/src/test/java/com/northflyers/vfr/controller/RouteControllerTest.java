@@ -112,4 +112,11 @@ class RouteControllerTest {
 
         mockMvc.perform(get("/api/routes/999")).andExpect(status().isNotFound());
     }
+
+    @Test
+    void getRoutesCollection_returns405_whenTheMethodHasNoMapping() throws Exception {
+        mockMvc.perform(get("/api/routes"))
+                .andExpect(status().isMethodNotAllowed())
+                .andExpect(jsonPath("$.error").value("Method not allowed"));
+    }
 }
