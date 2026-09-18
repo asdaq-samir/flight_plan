@@ -94,7 +94,7 @@ services:
       MODEL_SERVICE_URL: http://model-service:8000
       # /api/checkpoint-notes: one Claude call per checkpoint that has
       # no saved note yet.
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:?Set ANTHROPIC_API_KEY in your shell or a .env file}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
     depends_on:
       model-service:
         condition: service_healthy

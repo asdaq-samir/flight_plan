@@ -69,6 +69,17 @@ PROCESSED_DIR = DATA_DIR / "processed"
 DEFAULT_AIRCRAFT = "c172"
 
 
+class AnthropicNotConfiguredError(RuntimeError):
+    """Raised when an Anthropic-backed endpoint is called without an API key."""
+
+
+def _anthropic_client() -> anthropic.Anthropic:
+    api_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
+    if not api_key:
+        raise AnthropicNotConfiguredError("Anthropic API key is not configured for this service")
+    return anthropic.Anthropic(api_key=api_key)
+
+
 @asynccontextmanager
 async def _lifespan(app: FastAPI):
     yield
@@ -1051,11 +1062,13 @@ def briefing_narrative(req: BriefingNarrativeRequest) -> dict:
     """
     prompt = _briefing_narrative_prompt(req)
     try:
-        resp = anthropic.Anthropic().messages.create(
+        resp = _anthropic_client().messages.create(
             model=BRIEFING_NARRATIVE_MODEL,
             max_tokens=400,
             messages=[{"role": "user", "content": prompt}],
         )
+    except AnthropicNotConfiguredError as exc:
+        raise HTTPException(503, str(exc)) from exc
     except GLOBAL_ANTHROPIC_ERRORS as exc:
         raise HTTPException(502, str(exc)) from exc
     return {"narrative": resp.content[0].text.strip()}
@@ -1103,7 +1116,7 @@ def _describe_checkpoint(
         "category and position -- don't invent specific geographic "
         "details (which shore, which bend) you can't know."
     )
-    resp = anthropic.Anthropic().messages.create(
+    resp = _anthropic_client().messages.create(
         model=CHECKPOINT_NOTE_MODEL,
         max_tokens=128,
         messages=[{"role": "user", "content": prompt}],
@@ -1172,7 +1185,7 @@ def describe_checkpoints(
                 next_name = (next_cp["name"] or next_cp["category"]) if next_cp else None
                 description = _describe_checkpoint(cp, dep_ident, prev_name, next_name)
                 checkpoint_notes.save_note(route, cp["lat"], cp["lon"], description)
-            except GLOBAL_ANTHROPIC_ERRORS as err:
+            except (AnthropicNotConfiguredError, *GLOBAL_ANTHROPIC_ERRORS) as err:
                 global_error = str(err)
                 yield json.dumps({"type": "error", "detail": global_error}) + "\n"
                 yield checkpoint_line(cp, None, "error", global_error)

@@ -21,6 +21,21 @@ from vfr.weather import WeatherServiceError
 client = TestClient(app)
 
 
+def _briefing_payload() -> dict:
+    return {
+        "departure_ident": "C81",
+        "destination_ident": "KDLH",
+        "distance_nm": 320.0,
+        "bearing_deg": 330.0,
+        "altitude_ft": 5500.0,
+        "aircraft_name": "c172",
+        "hazards": [],
+        "metars": {},
+        "forecast": {},
+        "legs": [],
+    }
+
+
 # --- /api/model-comparison ---
 
 
@@ -159,3 +174,12 @@ def test_altitude_breakdown_surfaces_a_weather_outage_as_502(monkeypatch):
     resp = client.get("/api/altitude-breakdown", params={"dep": "C81", "dest": "KDLH"})
 
     assert resp.status_code == 502
+
+
+def test_briefing_narrative_returns_503_when_anthropic_is_unconfigured(monkeypatch):
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+
+    resp = client.post("/api/briefing/narrative", json=_briefing_payload())
+
+    assert resp.status_code == 503
+    assert resp.json()["detail"] == "Anthropic API key is not configured for this service"
