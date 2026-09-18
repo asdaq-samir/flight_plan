@@ -146,7 +146,7 @@ services:
         condition: service_healthy
     environment:
       PYTHONPATH: /workspace/src
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:?Set ANTHROPIC_API_KEY in your shell or a .env file}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       MODEL_SERVICE_URL: http://model-service:8000
       DATABASE_URL: postgresql://vfr:vfr@db:5432/vfr_route
 
@@ -161,7 +161,7 @@ services:
         condition: service_healthy
     environment:
       PYTHONPATH: /workspace/src
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:?Set ANTHROPIC_API_KEY in your shell or a .env file}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       MODEL_SERVICE_URL: http://model-service:8000
 
   webapp:
