@@ -193,9 +193,10 @@ service discovery at `planning-service.vfr-route.internal`.
   would mean handing this service the Docker socket, a far larger grant
   than it needs
 - The front end is a React + TypeScript app in `web/`, built by Vite into
-  `app/web/` and served from `/app`. Both views share one set of chart
-  primitives and one API client; the decisions they make are pure
-  functions, covered along with a typecheck by the `test-web` CI job
+  `app/web/` and served from `/app`. Its map-heavy Plan and Label routes
+  share one set of chart primitives and one API client; the decisions they
+  make are pure functions, covered along with a typecheck by the `test-web`
+  CI job
 
 **`model-service`** — FastAPI model-serving endpoint.
 

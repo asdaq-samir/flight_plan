@@ -953,7 +953,7 @@ deterministic, and worth having because the math is genuinely easy to get
 subtly wrong.
 
 **Browser logic counts as pure logic.** This one was learned the hard
-way. The planner has two pages of JavaScript and had no tests at all,
+way. The planner's two map-heavy pages had no tests at all,
 while the Python side had a hundred — and nearly every fault in a day of
 building was in the browser: a `TypeError` on every selection because
 `L.layerGroup` has no `bringToFront` (only `FeatureGroup` does), a
@@ -976,7 +976,7 @@ hard to test, it is often because a decision and its rendering are
 tangled together, and separating them is what makes both better.
 
 The one fault this did *not* catch is worth recording next to it. After
-the port, both pages drew the whole United States instead of the leg: the
+the port, both map pages drew the whole United States instead of the leg: the
 CSS was written when the layout rows were children of `<body>`, which is
 a flex column, and React mounts them inside `#root`, which is not, so the
 map inherited no height and Leaflet fitted the route against a container
