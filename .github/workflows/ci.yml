@@ -190,7 +190,7 @@ jobs:
         working-directory: springboot-app
         run: mvn -q javadoc:javadoc
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version: "1.25"
       - name: godoc (lambda-retrain-trigger)
