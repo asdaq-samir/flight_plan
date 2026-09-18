@@ -1,7 +1,7 @@
 # VFR Nav Log Platform
 
 ![Python](https://img.shields.io/badge/Python%203.12-3776AB?style=flat-square&logo=python&logoColor=white)
-![Java](https://img.shields.io/badge/Java%2021-437291?style=flat-square&logo=openjdk&logoColor=white)
+![Java](https://img.shields.io/badge/Java%2025-437291?style=flat-square&logo=openjdk&logoColor=white)
 ![Go](https://img.shields.io/badge/Go-00ADD8?style=flat-square&logo=go&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker%20Compose-2496ED?style=flat-square&logo=docker&logoColor=white)
 ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-6DB33F?style=flat-square&logo=springboot&logoColor=white)
@@ -488,11 +488,10 @@ stack. Anything not listed here does not exist.
 | Airflow DAG UI | [`localhost:8081`](http://localhost:8081) | `airflow` |
 | Jupyter | [`localhost:8888`](http://localhost:8888) (token `vfr`) | `ml` |
 
-Both browser pages are served by `webapp`, not by `planning-service`: the React
+All three browser routes are served by `webapp`, not by `planning-service`: the React
 app in [`web/`](../web) is built into the Spring Boot jar, and the browser
 reaches the Python service only through `webapp`'s `/api/planner/*` proxy.
-So `docker compose up webapp` alone renders the pages but leaves them
-empty — `planning-service` must be up for a route to plan. Hitting port 8084
+So `docker compose up webapp` brings up the backing services too. Hitting port 8084
 directly works and is useful when debugging, but nothing in the front end
 does it.
 
@@ -587,7 +586,7 @@ CI job breakdown is in the [Appendix](#appendix).
 |---|---|---|
 | `docker compose up db` | PostgreSQL + pgvector | `5432` |
 | `docker compose up model-service` | FastAPI model serving; needs a promoted model | `8000` |
-| `docker compose up webapp` | Spring Boot API **and both browser UIs**; brings up `db` + `model-service` + `planning-service` too | `8080` |
+| `docker compose up webapp` | Spring Boot API **and all three browser routes**; brings up `db` + `model-service` + `planning-service` too | `8080` |
 | `docker compose up ml` | Jupyter, for notebooks 01-08 | `8888` (token `vfr`) |
 | `docker compose run --rm pipeline-processing collect` | Runs `pipeline.collect()` | — |
 | `docker compose run --rm pipeline-processing engineer-features` | Runs `pipeline.engineer_features()` | — |

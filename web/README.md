@@ -48,13 +48,15 @@ docker run --rm -v "$PWD/web":/w -w /w node:26-slim sh -c "npm ci && npx tsc --n
 docker run --rm -v "$PWD":/p -w /p/web node:26-slim sh -c "npm ci && npx vite build"
 
 # bring up the full stack and open the pages
-docker compose up -d --build webapp planning-service
+docker compose up -d --build webapp
 # http://localhost:8080/app/plan
 # http://localhost:8080/app/label
+# http://localhost:8080/app/settings
 ```
 
-`planning-service` must be running for either page to do anything —
-`webapp` only serves the static bundle and proxies `/api/planner/*`.
+`webapp` serves the static bundle and proxies `/api/planner/*`; Compose
+brings up `planning-service` with it so the app's planner routes have
+their backing API.
 
 ## Where it sits
 
@@ -75,9 +77,9 @@ there is one origin, one session, and one set of access rules.
 playwright.config.ts     Playwright config for e2e/
 e2e/layout.spec.ts       Real-browser layout tests (see Commands)
 src/
-  main.tsx                Entry point: picks LabelView or PlanView by URL path
+  main.tsx                Entry point: routes /app/plan, /app/label and /app/settings
   index.css               @import "tailwindcss" + a few global resets
-  Shell.tsx               Full-screen layout both pages mount into
+  Shell.tsx               Full-screen layout the app's routes mount into
   components/             Shared UI
     Card.tsx, Badge.tsx, Row.tsx      Titled container, colour pill, clickable list row
     Sidebar.tsx                       Draggable right-hand panel
@@ -113,6 +115,9 @@ src/
         NavLogView.tsx                 Full-screen nav log table (replaces the map view)
         NavLogActions.tsx              Map/print icon buttons for the nav log view
         ScoreLegend.tsx                Guide content: checkpoint score key + shortcuts
+    settings/
+      SettingsView.tsx                 Page: project demos, sign-in, aircraft and flights
+      SignInModal.tsx                  Email / Google / Apple sign-in dialog
 ```
 
 ## Commands
@@ -130,7 +135,7 @@ repo root at `/p` for the build, since Vite writes outside `web/`).
 | E2E / layout tests | see below |
 
 **E2E tests** need the app actually running (`docker compose up -d
---build webapp planning-service` first) and a real browser — they
+--build webapp` first) and a real browser — they
 check things a DOM-only test can't see, like whether an element is
 really flush against a screen edge or a collapsed panel is really
 zero width:
