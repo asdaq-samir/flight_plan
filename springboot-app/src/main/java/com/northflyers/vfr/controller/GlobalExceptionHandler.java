@@ -9,6 +9,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -17,8 +18,9 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
  * Turns failure classes into a uniform ErrorResponse instead of an
  * opaque 500 (or, for validation, Spring's own default problem-detail
  * shape) -- a bad request body, an unresolvable aircraft reference, a
- * unique-constraint clash, model-service being unreachable, and
- * everything else. Ordered most-specific to least-specific, matching how
+ * unique-constraint clash, model-service being unreachable, the wrong
+ * HTTP method, and everything else. Ordered most-specific to
+ * least-specific, matching how
  * {@code @ExceptionHandler} resolution actually works.
  */
 @RestControllerAdvice
@@ -78,6 +80,20 @@ public class GlobalExceptionHandler {
         log.error("model-service call failed", ex);
         return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
                 .body(new ErrorResponse("The model-scoring service is currently unavailable"));
+    }
+
+    /**
+     * Handles a request using a method the path doesn't map, such as
+     * {@code GET /api/routes}. Without this the catch-all below would
+     * report it as a 500, and a caller could not tell "wrong method"
+     * from "server broke".
+     *
+     * @param ex names the unsupported method
+     * @return 405 with that detail
+     */
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<ErrorResponse> handleMethodNotSupported(HttpRequestMethodNotSupportedException ex) {
+        return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED).body(new ErrorResponse(ex.getMessage()));
     }
 
     /**

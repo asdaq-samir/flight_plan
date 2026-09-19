@@ -18,9 +18,8 @@
 
 A teaching document; `README.md` is the reference. This explains *why*
 the repo is built the way it is, concept by concept, so you walk away
-able to rebuild something like it yourself, no AI pairing required. Each
-section introduces an idea, then shows exactly where in this repo that
-idea shows up.
+able to rebuild something like it yourself. Each section introduces an
+idea, then shows exactly where in this repo that idea shows up.
 
 Read it top to bottom the first time; come back to individual sections
 later as a refresher while you build.
@@ -128,30 +127,31 @@ an argument to a fixed `python3 -m vfr.pipeline` — see
 ### Multi-stage builds
 
 [`springboot-app/Dockerfile`](../springboot-app/Dockerfile) is the one
-multi-stage build in this repo:
+multi-stage build in this repo, trimmed here to its shape:
 
 ```dockerfile
+FROM node:26-slim AS web
+COPY web/ ./
+RUN npx vite build --outDir /springboot-app/src/main/resources/static/app
+
 FROM maven:3.9.16-eclipse-temurin-25 AS build
-WORKDIR /build
-COPY pom.xml .
-RUN mvn -q dependency:go-offline
-COPY src ./src
+COPY springboot-app/src ./src
+COPY --from=web /springboot-app/src/main/resources/static/app ./src/main/resources/static/app
 RUN mvn -q package -DskipTests
 
-FROM eclipse-temurin:21-jre
-WORKDIR /app
+FROM eclipse-temurin:25-jre
 COPY --from=build /build/target/*.jar app.jar
-EXPOSE 8080
 CMD ["java", "-jar", "app.jar"]
 ```
 
-Two `FROM` lines means two stages. The first stage has the full Maven
-toolchain (hundreds of MB) and compiles a JAR. The second stage starts
-completely fresh from a *much* smaller JRE-only base image and copies just
-the compiled JAR out of the first stage (`COPY --from=build`) — none of
-Maven, the `.m2` cache, or the `.java` source files make it into the final
-image. This is the standard pattern for any compiled language in Docker:
-build fat, ship thin.
+Three `FROM` lines means three stages. The first has Node and builds the
+React bundle; the second has the full Maven toolchain (hundreds of MB),
+copies that bundle into Spring Boot's static resources and compiles a
+JAR; the third starts fresh from a much smaller JRE-only base image and
+copies in just the JAR (`COPY --from=build`). None of Node, Maven, the
+`.m2` cache or the source files make it into the final image. This is
+the standard pattern for any compiled language in Docker: build fat,
+ship thin.
 
 ### Every Dockerfile in this repo, and why it's shaped that way
 
@@ -160,86 +160,55 @@ build fat, ship thin.
 | [`docker/Dockerfile.ml`](../docker/Dockerfile.ml) | `python:3.13-slim` + a JDK | PySpark (notebook 06) needs a JVM even from Python, hence `apt-get install default-jdk-headless`. Installs the CPU-only PyTorch wheel explicitly (`--index-url .../cpu`) — the default wheel bundles several GB of CUDA libraries this machine has no GPU to use. |
 | [`docker/Dockerfile.processing`](../docker/Dockerfile.processing) | `python:3.13-slim` | Deliberately thin: pandas/requests/pyarrow only, no scikit-learn. Mirrors what a SageMaker *Processing Job* container needs. |
 | [`docker/Dockerfile.training`](../docker/Dockerfile.training) | `python:3.13-slim` | Adds scikit-learn/joblib on top. Kept as a *separate* image from `.processing` rather than one shared image, because Processing and Training are different constructs on AWS with different container contracts — see [Section 2](#2-the-ml-pipeline). |
-| [`docker/Dockerfile.airflow`](../docker/Dockerfile.airflow) | `apache/airflow:2.10.4-python3.12` | Adds one provider package (`apache-airflow-providers-docker`) so its DAGs can launch sibling containers. Doesn't need pandas/scikit-learn itself — see [Section 3](#3-orchestration-with-airflow) for why. |
-| [`docker/Dockerfile.airflow.aws`](../docker/Dockerfile.airflow.aws) | `apache/airflow:2.10.4-python3.12` | The AWS-hosted counterpart: `apache-airflow-providers-amazon` instead of `-docker`, and it `COPY`s the AWS DAG and `src/` in rather than relying on a bind mount that Fargate has no way to provide. See [Section 3](#the-same-dag-twice-local-and-aws). |
+| [`docker/Dockerfile.airflow`](../docker/Dockerfile.airflow) | `apache/airflow:3.3.1-python3.13` | Adds one provider package (`apache-airflow-providers-docker`) so its DAGs can launch sibling containers. Doesn't need pandas/scikit-learn itself — see [Section 3](#3-orchestration-with-airflow) for why. |
+| [`docker/Dockerfile.airflow.aws`](../docker/Dockerfile.airflow.aws) | `apache/airflow:3.3.1-python3.13` | The AWS-hosted counterpart: `apache-airflow-providers-amazon` instead of `-docker`, and it `COPY`s the AWS DAG and `src/` in rather than relying on a bind mount that Fargate has no way to provide. See [Section 3](#the-same-dag-twice-local-and-aws). |
 | [`model-service/Dockerfile`](../model-service/Dockerfile) | `python:3.13-slim` | A plain FastAPI service: install deps, copy `app/`, run `uvicorn`. |
-| [`springboot-app/Dockerfile`](../springboot-app/Dockerfile) | `maven:...` → `eclipse-temurin:21-jre` | Multi-stage, see above. |
-| [`nav-log-agent/Dockerfile`](../nav-log-agent/Dockerfile) / [`crewai-agent/Dockerfile`](../crewai-agent/Dockerfile) | `python:3.13-slim` | Both set `PYTHONPATH=/workspace/src` so `import vfr...` resolves inside the container without installing `vfr` as a package — the bind-mounted repo is just put on the path directly. `nav-log-agent` also installs the CPU-only PyTorch wheel before its requirements, for the reason `Dockerfile.ml` does; see [the images section](#the-images-those-dockerfiles-produce) for what it cost to learn that twice. |
+| [`planning-service/Dockerfile`](../planning-service/Dockerfile) | `python:3.13-slim` | FastAPI plus the chart-vision stack (numpy, Pillow, shapely). Bind-mounts the repo, so a `src/vfr` edit needs a restart, not a rebuild. |
+| [`springboot-app/Dockerfile`](../springboot-app/Dockerfile) | `node:26-slim` → `maven:...` → `eclipse-temurin:25-jre` | Multi-stage, see above. |
+| [`nav-log-agent/Dockerfile`](../nav-log-agent/Dockerfile) / [`crewai-agent/Dockerfile`](../crewai-agent/Dockerfile) | `python:3.13-slim` | Both set `PYTHONPATH=/workspace/src` so `import vfr...` resolves inside the container without installing `vfr` as a package — the bind-mounted repo is just put on the path directly. `nav-log-agent` also installs the CPU-only PyTorch wheel before its requirements, for the reason `Dockerfile.ml` does (see [the disk lesson](#the-disk-lesson)). |
 
 ### The images those Dockerfiles produce
 
 A Dockerfile is a recipe; an image is the baked result sitting on your
-disk. Running `docker images` on a working copy of this repo shows
-seventeen of them, which looks alarming until you see that they are three
-different kinds of thing.
+disk. `docker images` on a working copy of this repo shows two kinds.
 
-**The nine built from this repo.** Compose names them after the project
-directory (`flight_plan/`, this repo's own current name/location, not
-the `vfr_route` it started as), hence the `flight_plan-` prefix.
+**The nine built from this repo**, named after the project directory
+(`flight_plan-webapp`, `flight_plan-ml`, and so on). `ml` is by far the
+largest, and legitimately so: scikit-learn, PyTorch, TensorFlow, PySpark
+and a JVM in one place. `model-service` is next, because it serves the
+PyTorch and TensorFlow candidates as well as the promoted scikit-learn
+model. Only four of the nine run the application — `webapp`,
+`planning-service`, `model-service` and the database's own image below;
+the rest exist for building, training, orchestrating or testing.
 
-| Image | Size | What it is |
-|---|---|---|
-| `flight_plan-ml` | 6.9 GB | The Jupyter environment for [the notebooks](../notebooks). Easily the largest, and legitimately so: scikit-learn, PyTorch, TensorFlow, PySpark and a JVM in one place. |
-| `flight_plan-model-service` | 4.85 GB | [FastAPI inference](../model-service). See [Section 4](#model-service-fastapi). Remeasured after this image gained its own pinned PyTorch/TensorFlow CPU wheels (2026-09-10) so it can serve `vfr.model_candidates`' PyTorch/TensorFlow models directly, not just the promoted scikit-learn one — the same runtimes `ml` carries, which is most of the jump from the 926 MB this row used to read. |
-| `flight_plan-airflow` | 3.2 GB | [Orchestration](../docker/Dockerfile.airflow). See [Section 3](#3-orchestration-with-airflow). |
-| `flight_plan-nav-log-agent` | 2.3 GB | The [LangGraph agent](../nav-log-agent), served over MCP. See [Section 5](#5-the-gen-ai-layer). |
-| `flight_plan-crewai-agent` | 1.6 GB | [The same task in CrewAI](../crewai-agent), for comparison. See [Section 5](#crewai--agent-driven-tool-selection). |
-| `flight_plan-webapp` | 800 MB | [Spring Boot](../springboot-app) — the public surface, and what serves the front end. Smaller than the Maven image that builds it, which is the multi-stage build working. |
-| `flight_plan-planning-service` | 914 MB | [The planner API and chart-vision detector](../planning-service). |
-| `flight_plan-pipeline-training` | 876 MB | [Training as an isolated job](../docker/Dockerfile.training). |
-| `flight_plan-pipeline-processing` | 627 MB | [Collection and feature engineering](../docker/Dockerfile.processing). |
-
-**The six pulled, not built.** These look like clutter and are not:
-deleting one only forces a re-download on the next build.
-
-| Image | Size | Who needs it |
-|---|---|---|
-| `python:3.13-slim` | 187 MB | The base for seven of the nine above. One copy, shared — which is why the sizes in the first table are not additive. |
-| `node:26-slim` | 290 MB | Builds [the React app](../web), both on its own and inside the webapp build. |
-| `maven:3.9.16-eclipse-temurin-25` | 677 MB | Compiles the Spring Boot JAR. Build-only; never ships. |
-| `pgvector/pgvector:pg16` | 621 MB | The actual database: Postgres plus the vector extension for [agent memory](#vector-memory-rag-in-miniature). |
-| `postgres:16` | 636 MB | *Not* a duplicate of the above. Testcontainers starts it for the JUnit suite — see [Section 8](#8-what-gets-tested-and-what-deliberately-doesnt). |
-| `testcontainers/ryuk` | 28 MB | The janitor that removes leftover test containers when a run dies part-way. |
-| `golang:1.25-alpine` | 329 MB | Builds [the retrain-trigger Lambda](../infra/lambda-retrain-trigger). See [Section 7](#7-infrastructure-as-code-cloudformation). |
-
-Two things are worth noticing. `eclipse-temurin:21-jre` is the base of the
-running `webapp` image but does not appear in `docker images` at all —
-intermediate build stages are not listed under the containerd image store.
-And only four of the seventeen run the application: `webapp`,
-`planning-service`, `model-service` and the database. Everything else exists for
-building, training, orchestrating or testing.
+**The ones pulled, not built.** These look like clutter and are not;
+deleting one only forces a re-download on the next build. `python:3.13-slim`
+is the base for most of the nine above, stored once, which is why image
+sizes are not additive. `node:26-slim` and `maven:...` are build-only and
+never ship. `pgvector/pgvector` is the database. `postgres` and
+`testcontainers/ryuk` are started by the JUnit suite ([Section 8](#8-what-gets-tested-and-what-deliberately-doesnt)),
+and `golang:1.25-alpine` builds the Lambda ([Section 7](#7-infrastructure-as-code-cloudformation)).
+Intermediate build stages such as `eclipse-temurin:25-jre` do not appear
+in the list at all under the containerd image store.
 
 #### The disk lesson
 
-No image is permanently *needed*. Each one is a cache of a build that this
-repo can reproduce, so deleting one costs rebuild time and never data.
-That distinction matters, because the thing you must not delete is a named
-volume: `vfr_route_pgdata` holds the application rows and the agent's
-vector memory, and `docker system prune --volumes` — the command everyone
-reaches for when a disk fills — takes it with everything else.
-[`docker/tidy.sh`](../docker/tidy.sh) exists to be the safe version:
-by default it removes stopped containers and only build-cache entries unused
-for seven days, never volumes or images. That preserves recently used
-dependency layers needed for fast rebuilds.
-Use `sh docker/tidy.sh --aggressive --yes` only when disk pressure justifies
-removing unused images and limiting build cache to 15GB; the next build may
-need to download dependencies again.
+No image is permanently *needed*. Each one is a cache of a build this
+repo can reproduce, so deleting one costs rebuild time, never data. The
+thing you must not delete is the named Postgres volume (`pgdata_pg18` in
+`docker-compose.yml`), which holds the application rows and the agent's
+vector memory — and `docker system prune --volumes`, the command everyone
+reaches for when a disk fills, takes it with everything else.
+[`docker/tidy.sh`](../docker/tidy.sh) is the safe version: by default it
+removes stopped containers and build-cache entries unused for seven
+days, never volumes or images; `--aggressive` also removes unused images.
 
-The disk filled anyway, twice, and neither cause was the images:
-
-- **Build cache, 28.8 GB.** `docker system df` reported it as 1.7 GB.
-  That figure under-reports badly; do not size a cleanup from it. A
-  `docker builder prune -af` returned the real number.
-- **CUDA libraries nobody could use, 4.4 GB.** `sentence-transformers`
-  pulls `torch`, and the default wheel is a GPU build — 3.2 GB of
-  `nvidia/` plus a 1.2 GB `torch`, inside an image that runs on a laptop
-  and deploys to Fargate. `Dockerfile.ml` had already solved this, with a
-  comment saying why. The fix never reached `nav-log-agent`, which stayed
-  9.9 GB until it was measured. One line took it to 2.3 GB.
-
-The second is the more useful lesson: a fix recorded in one Dockerfile did
-not propagate to the next one someone wrote. Writing the reason down was
-necessary and not sufficient.
+Two things fill the disk that are not the images. Build cache, which
+`docker system df` under-reports badly (`docker builder prune` shows the
+real number). And the default GPU build of `torch`, which
+`sentence-transformers` pulls in: several GB of CUDA libraries in an image
+that runs on a laptop and deploys to Fargate. Every Dockerfile here that
+needs torch installs the CPU wheel explicitly for that reason.
 
 ### Reading `docker-compose.yml`
 
@@ -377,7 +346,7 @@ individually). Result: `data/processed/features_c81_kdlh.parquet`.
 ### Retrain → model selection
 
 This is the part worth slowing down on if machine learning is new to you.
-`retrain()` ([`src/vfr/pipeline.py:221`](../src/vfr/pipeline.py#L221))
+`retrain()` ([`src/vfr/pipeline.py`](../src/vfr/pipeline.py))
 does five things, in order, and each is a standard ML pattern you'll see
 in any serious project:
 
@@ -580,7 +549,7 @@ there, so identical code serves locally and on AWS.
 One thing it deliberately refuses to do: score an arbitrary route.
 Building features for a new corridor means Overpass queries, FAA
 downloads and a per-candidate elevation lookup — minutes of network I/O.
-That is a batch job, so a request for an unknown route returns 400 rather
+That is a batch job, so a request for an unknown route returns 404 rather
 than pretending. On AWS the same split holds: a Processing Job builds
 features, an endpoint scores them.
 
@@ -722,11 +691,11 @@ so you can compare two different ways of building an LLM agent.
 
 ### What "an agent" actually means here
 
-Both builds do the same five things: fetch model-predicted checkpoints,
-compute a recommended cruising altitude from real terrain/airspace/weather
-constraints, compute dead-reckoning legs between checkpoints, retrieve
-similar past routes from memory, and ask an LLM to turn all of that into a
-natural-language briefing. The *only* place either build actually calls an
+Both builds do the same things: fetch model-scored checkpoints, select
+the ones worth flying, compute a recommended cruising altitude from real
+terrain/airspace/weather constraints, compute dead-reckoning legs between
+checkpoints, retrieve similar past routes from memory, and ask an LLM to
+turn all of that into a natural-language briefing. The *only* place either build actually calls an
 LLM is that last step — everything else is deterministic Python you could
 run without any AI involved at all. That's worth internalizing: "agent"
 doesn't mean "the LLM does everything," it usually means "deterministic
@@ -743,7 +712,8 @@ of new/updated keys:
 
 ```python
 graph.add_edge(START, "fetch_checkpoints")
-graph.add_edge("fetch_checkpoints", "select_altitude")
+graph.add_edge("fetch_checkpoints", "select_checkpoints")
+graph.add_edge("select_checkpoints", "select_altitude")
 graph.add_edge("select_altitude", "assemble_legs")
 graph.add_edge("assemble_legs", "retrieve_memory")
 graph.add_edge("retrieve_memory", "generate_briefing")
@@ -751,18 +721,19 @@ graph.add_edge("generate_briefing", "store_memory")
 graph.add_edge("store_memory", END)
 ```
 
-Six nodes, six edges, no branching — control flow is decided by *you*,
-the developer, at graph-build time, not by the LLM at runtime. This is the
-right choice whenever you actually know the steps your task needs; you're
-using LangGraph here for state management and observability, not because
-you need an LLM to decide what to do next. Same six nodes, with what each
-one actually touches outside the graph itself:
+Seven nodes in a straight line, no branching — control flow is decided
+by *you*, the developer, at graph-build time, not by the LLM at runtime.
+This is the right choice whenever you actually know the steps your task
+needs; you're using LangGraph here for state management and
+observability, not because you need an LLM to decide what to do next.
+The same seven nodes, with what each one touches outside the graph:
 
 ```mermaid
 flowchart TD
     START([START]) --> fetch[fetch_checkpoints]
     fetch -.->|/invocations| model[("model-service /\nSageMaker")]
-    fetch --> altitude[select_altitude]
+    fetch --> select[select_checkpoints]
+    select --> altitude[select_altitude]
     altitude -.->|vfr.altitude| terrain[("terrain/airspace/\nweather data")]
     altitude --> legs[assemble_legs]
     legs -.->|vfr.navlog| wind[("live winds-aloft,\nmagnetic variation")]
@@ -775,10 +746,9 @@ flowchart TD
     store --> END([END])
 ```
 
-Only two nodes (`fetch_checkpoints`, `generate_briefing`) call something
-that can meaningfully fail at runtime over the network — that's the graph
-telling you where to expect retries/error-handling to matter most, not an
-accident of how it was drawn.
+The dashed edges are where the graph leaves the process — a model
+endpoint, live weather, the database, the Claude API. Those are where
+retries and error handling matter, and the diagram shows it.
 
 ### MCP (Model Context Protocol)
 
@@ -948,7 +918,7 @@ Most projects this shape have a testing story that's either "everything is
 mocked" or "there are no tests." This one draws the line by asking what a
 given test would actually prove.
 
-**Pure logic gets unit tests.** `tests/` (pytest, 103 tests) covers the
+**Pure logic gets unit tests.** `tests/` (pytest) covers the
 parts of `src/vfr` that are functions of their inputs and nothing else:
 great-circle math in `vfr.geo`, engineered features, the
 wind-correction-angle math in `vfr.navlog`, `model_registry`'s
@@ -956,39 +926,24 @@ evaluate/promote decision, and the remote-URI guards. These are fast,
 deterministic, and worth having because the math is genuinely easy to get
 subtly wrong.
 
-**Browser logic counts as pure logic.** This one was learned the hard
-way. The planner has two pages of JavaScript and had no tests at all,
-while the Python side had a hundred — and nearly every fault in a day of
-building was in the browser: a `TypeError` on every selection because
-`L.layerGroup` has no `bringToFront` (only `FeatureGroup` does), a
-function written and never called because the edit that was meant to wire
-it in matched nothing, page state maintained on one of two code paths so
-the surviving path never set it.
-
-The fix was not to reach for a browser-automation harness. It was to
-notice that the faults were *decisions*, not drawing: which points a
-filter admits, what counts as rated, which way the arrows step, which leg
-leaves a checkpoint. Those are functions of plain objects, so
+**Browser logic counts as pure logic.** The decisions the pages make —
+which points a filter admits, what counts as rated, which way the arrows
+step, which leg leaves a checkpoint — are functions of plain objects, so
 [`web/src/features/label/logic.ts`](../web/src/features/label/logic.ts) and
-[`web/src/features/plan/format.ts`](../web/src/features/plan/format.ts) hold them and
-`vitest` covers them in well under a second with no browser anywhere.
+[`web/src/features/plan/format.ts`](../web/src/features/plan/format.ts)
+hold them and `vitest` covers them in under a second with no browser.
 What is left in the components — binding Leaflet layers, rendering rows —
-is the part where a test would mostly restate the code.
+is the part where a test would mostly restate the code. The general
+lesson is worth more than the JavaScript: when something is hard to
+test, it is often because a decision and its rendering are tangled
+together, and separating them is what makes both better.
 
-The general lesson is worth more than the JavaScript: when something is
-hard to test, it is often because a decision and its rendering are
-tangled together, and separating them is what makes both better.
-
-The one fault this did *not* catch is worth recording next to it. After
-the port, both pages drew the whole United States instead of the leg: the
-CSS was written when the layout rows were children of `<body>`, which is
-a flex column, and React mounts them inside `#root`, which is not, so the
-map inherited no height and Leaflet fitted the route against a container
-it had measured wrong. No pure function was wrong and no test could have
-failed. It was found by rendering the pages headless and *looking* at
-them — which is the other half of the lesson: separating decisions from
-rendering makes the decisions testable, and leaves rendering as the part
-you still have to go and look at.
+**Rendering still has to be looked at.** A layout fault — the map
+inheriting no height, so Leaflet fits the route against a container it
+measured wrong — breaks no pure function and fails no unit test. So
+`web/e2e/` renders the pages in a real browser, at a phone and a desktop
+viewport, and checks what the DOM alone cannot: nothing overflows, the
+header controls sit where they should, the sidebar starts closed.
 
 **Contracts get slice tests.** `RouteControllerTest` uses `@WebMvcTest`
 with the service layer mocked, because what it's testing is the *HTTP

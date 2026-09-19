@@ -107,6 +107,11 @@ class RouteControllerTest {
     }
 
     @Test
+    void listRoutes_returns405_becauseOnlyPostIsMapped() throws Exception {
+        mockMvc.perform(get("/api/routes")).andExpect(status().isMethodNotAllowed());
+    }
+
+    @Test
     void getRoute_returns404_whenTheRouteIsAbsent() throws Exception {
         given(routeService.getRoute(any())).willReturn(Optional.empty());
 

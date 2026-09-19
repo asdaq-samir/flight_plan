@@ -129,7 +129,7 @@ works too. AWS counterpart: `architecture-aws.drawio`, rendered in
 
 **Front end**
 
-![React](https://img.shields.io/badge/React%2018-61DAFB?style=flat-square&logo=react&logoColor=black)
+![React](https://img.shields.io/badge/React%2019-61DAFB?style=flat-square&logo=react&logoColor=black)
 ![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=flat-square&logo=typescript&logoColor=white)
 ![Vite](https://img.shields.io/badge/Vite-646CFF?style=flat-square&logo=vite&logoColor=white)
 ![TanStack Query](https://img.shields.io/badge/TanStack%20Query-FF4154?style=flat-square&logo=reactquery&logoColor=white)
@@ -168,39 +168,27 @@ port on AWS either — it sits behind `webapp` in a private subnet, found by
 service discovery at `planning-service.vfr-route.internal`.
 
 - `/api/course`, `/api/checkpoints`, `/api/navlog`, `/api/detect/stream`,
-  `/api/picks` — reached by the browser as `/api/planner/*` on `webapp`,
-  never directly. Its own OpenAPI page is at
-  [`localhost:8084/docs`](http://localhost:8084/docs)
-- `/api/briefing` — the FAA-sequence weather/NOTAM briefing behind the
-  Brief tab on `/app/plan` (the narrative itself is a separate call,
-  through `webapp`'s own `/api/comparison` — see that section below)
+  `/api/picks`, `/api/sectional-tile` — reached by the browser as
+  `/api/planner/*` on `webapp`, never directly. Its own OpenAPI page is at
+  [`localhost:8084/docs`](http://localhost:8084/docs); the full endpoint
+  list is in [`planning-service/README.md`](../planning-service/README.md)
+- `/api/briefing` — the FAA-sequence weather briefing behind the Brief
+  tab on `/app/plan` (the narrative itself comes through `webapp`'s own
+  `/api/comparison`, below)
 - `/api/model-comparison`, `/api/playground/score` — Settings' Dev ML
   tab: every algorithm's accuracy side by side, and live scoring from a
   chosen one
 - `/api/altitude-breakdown` — the full reasoning behind a recommended
-  cruise altitude, for any route independent of session state; the
-  same computation `/api/navlog`'s own "altitude" message already
-  carries for whichever route is actually loaded, which is what the
-  Brief tab's own "Cruise Altitude" section shows a pilot -- this
-  endpoint has no current UI caller of its own, but stays as a real,
-  documented, tested read
-- The pages it used to serve are now
-  [`/app/plan`](http://localhost:8080/app/plan) and
-  [`/app/label`](http://localhost:8080/app/label) on `webapp` — see
-  [Where things live](#where-things-live)
+  cruise altitude for any route; the Brief tab's "Cruise Altitude" section
+  shows the same computation for the loaded route
 - `vfr.chartvision` reads the corridor's tiles and segments them by the
   chart's own palette, streaming results block by block from the departure
   end. `vfr.chartlabels` stores what a pilot decides about them, keyed by
-  route and position rather than by an OSM id, because for a hand-placed
-  point there is no OSM feature involved
+  route and position rather than by an OSM id
 - Collection for an uncollected corridor runs here, in-process on a
   background thread, rather than by launching a pipeline container — that
   would mean handing this service the Docker socket, a far larger grant
   than it needs
-- The front end is a React + TypeScript app in `web/`, built by Vite into
-  `app/web/` and served from `/app`. Both views share one set of chart
-  primitives and one API client; the decisions they make are pure
-  functions, covered along with a typecheck by the `test-web` CI job
 
 **`model-service`** — FastAPI model-serving endpoint.
 
@@ -237,17 +225,15 @@ service discovery at `planning-service.vfr-route.internal`.
   LangGraph build and/or `crewai-agent`'s CrewAI build on the same route
   and returns each framework's own narrative, or `{"error": "..."}` for
   whichever one is down/erroring; `framework=langgraph`/`framework=crewai`
-  runs one (the Brief tab's own AI popover, each a real billed Claude
-  call), omitted runs both (no current UI caller for that mode -- used
-  to be Settings' own Agent Framework Comparison panel, dropped as
-  redundant once the Brief tab's own popover offered the same choice
-  in context). Neither agent is required for `webapp` itself to start
+  runs one (the Brief tab's AI popover, each a real billed Claude call),
+  omitted runs both. Neither agent is required for `webapp` itself to
+  start
 - Interactive API docs (springdoc-openapi) at `http://localhost:8080/swagger-ui/index.html`, raw spec at `/v3/api-docs`
 
 **`nav-log-agent`** — a LangGraph agent wrapped as an MCP server.
 
 - One tool: `generate_nav_log_briefing(departure_ident, destination_ident, altitude_ft=None, aircraft_name="c172")`
-- Graph: `fetch_checkpoints` → `select_altitude` (`vfr.altitude`) → `assemble_legs` (`vfr.navlog`) → `retrieve_memory` (pgvector, embedded locally with `sentence-transformers/all-MiniLM-L6-v2`) → `generate_briefing` (Claude API) → `store_memory`
+- Graph: `fetch_checkpoints` → `select_checkpoints` (`vfr.checkpoints`) → `select_altitude` (`vfr.altitude`) → `assemble_legs` (`vfr.navlog`) → `retrieve_memory` (pgvector, embedded locally with `sentence-transformers/all-MiniLM-L6-v2`) → `generate_briefing` (Claude API) → `store_memory`
 - Served over SSE at `/mcp/sse`
 - Same model-service/SageMaker dual path as webapp
 
@@ -292,7 +278,8 @@ erDiagram
         bigint id PK
         varchar email
         varchar display_name
-        varchar google_subject "nullable until first sign-in"
+        varchar google_subject "nullable"
+        varchar apple_subject "nullable"
         timestamptz created_at
     }
     AIRCRAFT {
@@ -336,7 +323,7 @@ erDiagram
   — Flyway. `routes` and its scored checkpoints are a normalized
   parent/child pair, shared by everyone who plans that corridor;
   `pilots`/`aircraft`/`flights`/`flight_checkpoints` (added in `V3`) are
-  one pilot's own data, populated once Google sign-in is active (see
+  one pilot's own data, populated once a pilot signs in (see
   [Services in detail](#services-in-detail)) — `aircraft_id`/`route_id`
   on `flights` are both nullable and `ON DELETE SET NULL` rather than
   `CASCADE`, since a flown flight is a record that must survive selling
@@ -432,8 +419,7 @@ an engineering gap:
 **Prerequisites:**
 
 - **Docker Desktop** with Docker Compose v2. This project is Docker-only —
-  there is no native Python virtualenv (see [Appendix](#appendix) if
-  you're on an older Intel Mac).
+  there is no native Python virtualenv.
 - **Git.**
 - **An Anthropic API key** (`ANTHROPIC_API_KEY`) — only required to run
   `nav-log-agent` or `crewai-agent`. Everything else works without one.
@@ -476,7 +462,7 @@ bring up only what you need. Full command reference is in the
 [Appendix](#appendix); the essentials:
 
 ```bash
-docker compose up db webapp                        # API + both UIs at :8080
+docker compose up webapp                           # UI + API at :8080; brings up db, model-service, planning-service
 docker compose up ml                               # Jupyter at :8888 (token "vfr")
 docker compose up airflow                          # DAG UI at :8081
 docker compose up nav-log-agent                    # MCP server at :8082
@@ -502,13 +488,12 @@ stack. Anything not listed here does not exist.
 | Airflow DAG UI | [`localhost:8081`](http://localhost:8081) | `airflow` |
 | Jupyter | [`localhost:8888`](http://localhost:8888) (token `vfr`) | `ml` |
 
-Both browser pages are served by `webapp`, not by `planning-service`: the React
-app in [`web/`](../web) is built into the Spring Boot jar, and the browser
-reaches the Python service only through `webapp`'s `/api/planner/*` proxy.
-So `docker compose up webapp` alone renders the pages but leaves them
-empty — `planning-service` must be up for a route to plan. Hitting port 8084
-directly works and is useful when debugging, but nothing in the front end
-does it.
+All three pages are served by `webapp`, not by `planning-service`: the
+React app in [`web/`](../web) is built into the Spring Boot jar, and the
+browser reaches the Python service only through `webapp`'s
+`/api/planner/*` proxy. `docker compose up webapp` starts
+`planning-service` with it. Hitting port 8084 directly works and is
+useful when debugging, but nothing in the front end does it.
 
 A request crosses four services, each with one job:
 
@@ -534,24 +519,23 @@ compose up ml`. Full per-notebook breakdown is in the
 ### Testing & CI
 
 ```bash
-# Python (src/vfr) — 113 tests
-# The pipeline images carry no test tooling -- these run what CI runs,
-# from requirements-dev.txt.
+# Python (src/vfr). The pipeline images carry no test tooling -- this
+# runs what CI runs, from requirements-dev.txt.
 docker run --rm -v "$PWD":/w -w /w -e PYTHONPATH=/w/src python:3.13-slim \
   sh -c "pip install -q -r requirements-dev.txt && ruff check src/vfr tests && pytest tests/ -q"
 
-# planning-service (its own FastAPI-layer suite, separate from the two
+# planning-service (its own FastAPI-layer suite, separate from the one
 # above since it needs the service's own requirements on top of pytest)
-docker run --rm -v "$PWD/planning-service":/w -w /w python:3.13-slim \
-  sh -c "pip install -q -r requirements-dev.txt && ruff check tests && pytest tests/ -q"
+docker run --rm -v "$PWD":/w -w /w/planning-service python:3.13-slim \
+  sh -c "pip install -q -r requirements-dev.txt && ruff check app tests && pytest tests/ -q"
 
-# Web front end (web/) — 46 tests plus a typecheck. No browser needed:
+# Web front end (web/): typecheck plus unit tests. No browser needed:
 # the filters, ordering, rating and nav-log rules are pure functions.
 docker run --rm -v "$PWD/web":/w -w /w node:26-slim \
   sh -c "npm ci && npx tsc --noEmit && npx vitest run"
 
-# Java (webapp) — 39 tests. No native Maven needed, matching the rest of
-# this project; the Docker socket is mounted through so Testcontainers can
+# Java (webapp). No native Maven needed, matching the rest of this
+# project; the Docker socket is mounted through so Testcontainers can
 # start its Postgres as a sibling container.
 docker run --rm -v "$PWD/springboot-app":/build -w /build \
   -v /var/run/docker.sock:/var/run/docker.sock \
@@ -601,7 +585,7 @@ CI job breakdown is in the [Appendix](#appendix).
 |---|---|---|
 | `docker compose up db` | PostgreSQL + pgvector | `5432` |
 | `docker compose up model-service` | FastAPI model serving; needs a promoted model | `8000` |
-| `docker compose up webapp` | Spring Boot API **and both browser UIs**; brings up `db`+`model-service` too | `8080` |
+| `docker compose up webapp` | Spring Boot API and the three browser pages; brings up `db`, `model-service` and `planning-service` too | `8080` |
 | `docker compose up ml` | Jupyter, for notebooks 01-08 | `8888` (token `vfr`) |
 | `docker compose run --rm pipeline-processing collect` | Runs `pipeline.collect()` | — |
 | `docker compose run --rm pipeline-processing engineer-features` | Runs `pipeline.engineer_features()` | — |
@@ -610,7 +594,7 @@ CI job breakdown is in the [Appendix](#appendix).
 | `docker compose up airflow` | Orchestrates the full pipeline as a DAG | `8081` |
 | `docker compose up nav-log-agent` | LangGraph MCP server (needs `ANTHROPIC_API_KEY`) | `8082` |
 | `docker compose run --rm crewai-agent --departure-ident C81 --destination-ident KDLH` | One-shot CrewAI CLI (needs `ANTHROPIC_API_KEY`) | — |
-| `docker compose up planning-service` | Planning + chart-vision API. `webapp` proxies to it; start it for the UIs to do anything | `8084` |
+| `docker compose up planning-service` | Planning + chart-vision API; `webapp` proxies to it and starts it | `8084` |
 
 Notes:
 
@@ -651,15 +635,16 @@ data/
 | 06 | `spark_mllib` | Spark MLlib GBTRegressor, same comparison | Comparison only |
 | 08 | `altitude_selection` | Terrain/obstacle floor, Class B/C/D airspace, weather, aircraft ceiling → recommended cruise altitude | `vfr.altitude` |
 
-(No 07 — a deliberate numbering skip.)
+(There is no 07.)
 
 ### CI, in full
 
-`.github/workflows/ci.yml` — seven jobs:
+`.github/workflows/ci.yml` — eight jobs:
 
 | Job | What it does |
 |---|---|
 | `test` | ruff + pytest over `src/vfr` |
+| `changes` | On pull requests, a path filter that tells `build-images` which service images the PR touched |
 | `test-web` | `tsc --noEmit`, `vitest` and a production build over `web/` — filters, ordering, what counts as rated, and which leg leaves a checkpoint, all pure functions needing no browser |
 | `test-webapp` | `mvn test` — webapp's JUnit suite, including the Testcontainers Postgres test |
 | `test-planning-service` | ruff + pytest over `planning-service/tests/` — its own dependency set (`planning-service/requirements-dev.txt`), separate from `test`'s unrelated `src/vfr` ones |
@@ -696,16 +681,8 @@ Non-obvious things worth knowing up front:
   explicitly (`nav-log-agent/app/main.py`).
 - **A Maven `pom.xml` XML comment containing a literal `--`** breaks
   Maven's POM parser with an opaque `Non-parseable POM` error.
-- **On an Intel Mac on macOS 12 (Monterey) or older**: Docker Desktop
-  4.41.2 is the last confirmed-working version; Homebrew is effectively
-  unsupported. Recent numpy/pandas/scipy/pyarrow wheels have also dropped
-  Intel-macOS support, which is why this project runs entirely in Docker.
-- **Docker Desktop's VM disk image
-  (`~/Library/Containers/com.docker.docker/Data/vms/0/data/Docker.raw`)
-  only grows, never shrinks.** If Docker won't relaunch after a
-  crash, check for a stale zombie `com.docker.backend`/
-  `com.docker.virtualization` process by PID before assuming the relaunch
-  mechanism itself is broken.
+- **Recent numpy/pandas/scipy/pyarrow wheels have dropped Intel-macOS
+  support**, one reason this project runs entirely in Docker.
 - **`data/raw/` (~600MB) must stay in `.dockerignore`** — these services
   mount the project directory at runtime, well after any build step.
 

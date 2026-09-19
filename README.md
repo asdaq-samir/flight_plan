@@ -52,7 +52,7 @@ cd flight_plan
 
 export ANTHROPIC_API_KEY=sk-...   # only needed for nav-log-agent / crewai-agent
 
-docker compose up db webapp       # API + UI at http://localhost:8080/app
+docker compose up webapp          # UI + API at http://localhost:8080/app
 ```
 
 Everything else — `ml`, `airflow`, `nav-log-agent`, `crewai-agent`, and the full prerequisite/setup guide — is in [`docs/README.md#getting-started`](docs/README.md#getting-started). No native Python, Node, or Java toolchain is required; every service builds its own image.

@@ -20,7 +20,7 @@ task and a LangGraph tool, unchanged.
 ## Running it
 
 ```bash
-# 113 tests and the linter, exactly what CI runs
+# The test suite and the linter, exactly what CI runs
 docker run --rm -v "$PWD":/w -w /w -e PYTHONPATH=/w/src python:3.13-slim \
   sh -c "pip install -q -r requirements-dev.txt && ruff check src/vfr tests && pytest tests/ -q"
 ```
@@ -31,9 +31,7 @@ run in a plain `python:3.13-slim` against `requirements-dev.txt`.
 
 Keep that file in step with `tests/`. A test module importing something
 missing from it fails at *collection*, which takes the whole suite down
-rather than one test: `test_airspace.py` and `test_chartvision.py` sat
-broken that way, needing shapely, pyshp, Pillow and scipy that were never
-added.
+rather than one test.
 
 There is no `pip install -e .`. Containers put `src/` on `PYTHONPATH`
 directly (`ENV PYTHONPATH=/workspace/src`), so `import vfr` resolves
@@ -109,48 +107,50 @@ that way, and the order above is roughly the order they were written.
 
 ## The module map
 
-4,276 lines. Grouped by what they are for, not alphabetically.
+Grouped by what they are for, not alphabetically.
 
 **Geometry and dead reckoning** — pure functions, no I/O, fastest tests.
 
-| Module | Lines | What it does |
-|---|---|---|
-| `geo.py` | 118 | Great-circle distance, bearing, cross/along-track. Spherical Earth. |
-| `navlog.py` | 95 | Wind correction angle, heading, ground speed, ETE, fuel. |
-| `magnetic.py` | 67 | Magnetic variation, for true → magnetic. |
-| `aircraft.py` | 27 | Performance profiles (a C172, by default). |
+| Module | What it does |
+|---|---|
+| `geo.py` | Great-circle distance, bearing, cross/along-track. Spherical Earth. |
+| `navlog.py` | Wind correction angle, heading, ground speed, ETE, fuel. |
+| `magnetic.py` | Magnetic variation, for true → magnetic. |
+| `aircraft.py` | Performance profiles (a C172, by default). |
 
 **Reading the world** — each wraps one external source.
 
-| Module | Lines | Source |
-|---|---|---|
-| `chartvision.py` | 901 | FAA VFR sectional raster tiles, read by colour. The largest module here. |
-| `osm.py` | 528 | Overpass API, for candidate landmarks. |
-| `faa_data.py` | 354 | NASR airports/navaids and the Digital Obstacle File. |
-| `weather.py` | 351 | Live winds aloft and hazards. |
-| `airspace.py` | 322 | FAA Class B/C/D shapefiles. |
-| `elevation.py` | 108 | USGS 3DEP point elevations. |
-| `terrain.py` | 85 | Terrain and obstacle floor for a route. |
-| `airports.py` | 59 | Identifier → coordinates. |
+| Module | Source |
+|---|---|
+| `chartvision.py` | FAA VFR sectional raster tiles, read by colour. The largest module here. |
+| `osm.py` | Overpass API, for candidate landmarks. |
+| `faa_data.py` | NASR airports/navaids and the Digital Obstacle File. |
+| `weather.py` | Live winds aloft and hazards. |
+| `airspace.py` | FAA Class B/C/D shapefiles. |
+| `elevation.py` | USGS 3DEP point elevations. |
+| `terrain.py` | Terrain and obstacle floor for a route. |
+| `airports.py` | Identifier → coordinates, and the route form's search. |
 
 **Deciding things**
 
-| Module | Lines | What it decides |
-|---|---|---|
-| `altitude.py` | 123 | The VFR cruising altitude to file. |
-| `checkpoints.py` | 92 | Which scored candidates actually become checkpoints. |
+| Module | What it decides |
+|---|---|
+| `altitude.py` | The VFR cruising altitude to file. |
+| `checkpoints.py` | Which scored candidates actually become checkpoints. |
+| `checkpoint_notes.py` | A pilot's own "how to spot it" note per checkpoint, kept apart from the training labels. |
 
 **The ML pipeline**
 
-| Module | Lines | Role |
-|---|---|---|
-| `pipeline.py` | 431 | collect → engineer → retrain, callable and non-interactive. |
-| `chartlabels.py` | 180 | Checkpoints marked by hand on the chart. |
-| `model_registry.py` | 132 | Evaluate a retrained model, promote it if better. |
-| `chartfeatures.py` | 132 | Features for a chart-vision scorer. |
-| `chartlabels_join.py` | 83 | Bootstraps a training set by position. |
-| `features.py` | 46 | Feature engineering for the tabular model. |
-| `config.py` | 42 | Paths and thresholds, free of heavy imports. |
+| Module | Role |
+|---|---|
+| `pipeline.py` | collect → engineer → retrain, callable and non-interactive. |
+| `model_registry.py` | Evaluate a retrained model, promote it if better. |
+| `model_candidates.py`, `torch_model.py` | The same regression in PyTorch, TensorFlow and Spark MLlib, each a re-runnable entry point that persists an artifact. |
+| `chartlabels.py` | Checkpoints marked by hand on the chart. |
+| `chartfeatures.py` | Features for a chart-vision scorer. |
+| `chartlabels_join.py` | Bootstraps a training set by position. |
+| `features.py` | Feature engineering for the tabular model. |
+| `config.py` | Paths and thresholds, free of heavy imports. |
 
 ## Things that are not obvious
 

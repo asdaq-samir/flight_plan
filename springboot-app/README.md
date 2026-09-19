@@ -21,8 +21,7 @@ docker compose up -d --build webapp
 # http://localhost:8080/swagger-ui/index.html
 ```
 
-`webapp` brings up `db` and `model-service` with it, but **not**
-`planning-service` — start that too or the pages render empty.
+`webapp` brings up `db`, `model-service` and `planning-service` with it.
 
 ```bash
 # The JUnit suite, including Testcontainers' real Postgres. No native
@@ -113,7 +112,7 @@ them one at a time is the only way to see which one did what.
 
 ## The package map
 
-28 classes, one job each.
+One job per class.
 
 | Package | What lives there |
 |---|---|
@@ -143,50 +142,34 @@ env var name must match `application.yml` exactly — Spring's relaxed
 binding does *not* map `PLANNER_SERVICE_BASE_URL` onto a property with a
 hyphen in it.
 
-**Sign-in is conditional, and now three-way.** `oauth2Login` registers
+**Sign-in is conditional, and three-way.** `oauth2Login` registers
 only when `OAuthClientsConfig` actually produced a client registration
 (real Google or Apple credentials, `oauth` profile active), so local
 development needs no credentials and the pages open without a login
 wall. Deploy with credentials set and the same code requires sign-in.
 The magic-link flow (`MagicLinkController`) is separate from all of
-that -- no profile, no OIDC registration, just email address in,
-one-time link out -- and works (or fails to send, logged rather than
-thrown) independent of whether OIDC is configured at all.
-
-**`GET /api/routes` returns 500.** `RouteController` maps only POST
-there, which is fine, but `GlobalExceptionHandler` swallows
-`HttpRequestMethodNotSupportedException` and reports it as a 500 — so a
-client cannot tell "wrong method" from "server broke". It should pass 405
-through. Unfixed.
+that — no profile, no OIDC registration, just email address in,
+one-time link out — and works (or fails to send, logged rather than
+thrown) whether or not OIDC is configured.
 
 **Testcontainers needs the Docker socket.** That is why the `mvn test`
 command above mounts `/var/run/docker.sock`; without it the persistence
 tests cannot start their Postgres.
 
-**The `XSRF-TOKEN` cookie was never actually being set — fixed.**
-`SecurityConfig` uses `CookieCsrfTokenRepository` with
-`CsrfTokenRequestAttributeHandler`, the standard setup, but that
-handler resolves the token *lazily*: the cookie is only written once
-something reads `csrfToken.getToken()` during the request, which a
-server-rendered page does by referencing `${_csrf}` in a template.
-Nothing here does — every response is JSON — so the cookie was never
-set on any response, `web/`'s `client.ts` never had a token to echo
-back, and every POST/DELETE (saving a pick, deleting one, starting a
-build) failed CSRF validation. Because the caller is anonymous, Spring
-reports that as 401 "authentication required" via `Http401EntryPoint`
-rather than 403 via an access-denied handler, which is a doubly
-misleading way to hear "your cookie never arrived." `CsrfCookieFilter`
-forces the token to materialise on every request; it's the pattern
-Spring's own docs recommend for exactly this SPA scenario.
+**`CsrfCookieFilter` exists because the `XSRF-TOKEN` cookie is written
+lazily.** `CookieCsrfTokenRepository` with
+`CsrfTokenRequestAttributeHandler` — the standard setup — only writes the
+cookie once something reads `csrfToken.getToken()` during the request,
+which a server-rendered template does and a JSON-only API never does.
+Without the filter no response carried the cookie, `web/`'s `client.ts`
+had no token to echo back, and every POST/DELETE failed CSRF validation —
+reported as a 401 via `Http401EntryPoint`, since the caller is anonymous.
+The filter forces the token to materialise on every request, the pattern
+Spring's own docs recommend for an SPA.
 
-**The planner proxy's `HttpClient` was corrupting POST bodies — fixed.**
-`PlannerProxyController`'s JDK `HttpClient` defaulted to attempting an
-HTTP/2 upgrade against `planning-service` (uvicorn, HTTP/1.1 only).
-Observed as uvicorn logging `Unsupported upgrade request` followed by
-`Invalid HTTP request received` for the *next* request on a reused
-connection, which FastAPI then saw as a request with no body at all —
-a 422 "field required" with `input: null`, for a body Spring itself had
-received intact. Fixed by pinning `.version(HttpClient.Version.HTTP_1_1)`
-on the shared client. Both of these were found the same way: `web/`
-grew a feature that actually exercised a write path nothing had
-exercised end to end before.
+**The planner proxy pins HTTP/1.1.** The JDK `HttpClient` defaults to
+attempting an HTTP/2 upgrade, which uvicorn (HTTP/1.1 only) rejects with
+`Unsupported upgrade request`; on a reused connection the *next* request
+then arrives with no body, and FastAPI answers 422 for a body Spring
+received intact. `.version(HttpClient.Version.HTTP_1_1)` on the shared
+client is what prevents it.

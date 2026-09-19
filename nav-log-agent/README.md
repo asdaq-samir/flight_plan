@@ -118,8 +118,3 @@ to 2.31 GB.
 **Embeddings are local, not an API call.** Anthropic has no embeddings
 endpoint. `sentence-transformers` runs the model in-process, which is
 most of this image's size.
-
-**A 401 from Claude is a working integration.** During development the
-graph ran end to end and the Claude request was confirmed correctly
-built — the 401 came from a placeholder key, not from a malformed call.
-Knowing which failure you are looking at matters.

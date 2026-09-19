@@ -3,14 +3,12 @@
 The aviation work, over HTTP. Reads FAA sectional tiles, walks great
 circles, selects checkpoints and computes the dead-reckoning nav log.
 
-It serves no pages, despite four files and a name that used to say
-otherwise. The front end is in [`web/`](../web) and ships inside
+It serves no pages. The front end is in [`web/`](../web) and ships inside
 `webapp`'s jar; the browser reaches this service only through `webapp`'s
 `/api/planner/*` proxy. On AWS it has no load-balancer route at all.
 
 Almost all of the thinking lives in [`src/vfr`](../src). This is a thin
-HTTP layer over it — `app/main.py` is 637 lines of request handling, and
-the library behind it is 4,276.
+HTTP layer over it.
 
 ## Contents
 
@@ -101,13 +99,19 @@ once in ten.
 | `GET /` | Says the service is up and where the UI went. |
 | `GET /api/course` | The leg itself. Sub-second, so the map draws immediately. |
 | `GET /api/checkpoints` | Scored candidates and the subset worth flying. |
-| `GET /api/navlog` | Altitude and the dead-reckoning legs. The slow one. |
+| `GET /api/navlog` | Altitude and the dead-reckoning legs, streamed as NDJSON. The slow one. |
 | `GET /api/plan` | All three at once, for non-browser callers. |
+| `GET /api/briefing` | The FAA-sequence weather briefing behind the Brief tab. |
+| `GET /api/altitude-breakdown` | The reasoning behind a recommended cruise altitude. |
 | `GET /api/detect/stream` | Chart-vision detections, streamed as NDJSON. |
 | `GET /api/classify` | What the chart draws at one point. |
+| `GET /api/sectional-tile/{z}/{x}/{y}.png` | The sectional as a cached tile pyramid, for the map. |
 | `GET/POST/DELETE /api/picks` | Hand-marked checkpoints. |
+| `GET/POST /api/checkpoint-notes` | A pilot's "how to spot it" note per checkpoint. |
+| `GET /api/airports/search` | Identifier and name lookup for the route form. |
 | `POST /api/build`, `GET /api/build/{id}` | Start and poll a corridor collection. |
 | `GET /api/routes` | Corridors the feature store already covers. |
+| `GET /api/model-comparison`, `GET /api/playground/score` | Settings' Dev ML tab: every algorithm's accuracy, and live scoring from a chosen one. |
 
 ## Things that are not obvious
 
