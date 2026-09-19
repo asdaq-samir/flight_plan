@@ -208,8 +208,8 @@ service discovery at `planning-service.vfr-route.internal`.
 
 - Schema owned by Flyway migrations; JPA's `ddl-auto` only validates against them
 - Actuator health probes at `/actuator/health/liveness` and `/actuator/health/readiness`
-- Calls `model-service` over plain HTTP locally; on AWS, the identical `ModelServiceClient` calls SageMaker Runtime's `InvokeEndpoint` instead — same build either way, switched automatically by whether `SAGEMAKER_ENDPOINT_NAME` is set
-- Bean Validation on `RouteRequest` + a global exception handler turn a bad request or a downed `model-service` into a clean `400`/`502`, not an opaque `500`
+- Bean Validation on request bodies (`AircraftRequest`, `SaveFlightRequest`) + a global exception handler turn a bad request into a clean `400`, a wrong method into `405` and a duplicate tail number into `409`, not an opaque `500`
+- Never calls `model-service` itself: scoring belongs to `planning-service`, which it proxies (`/api/planner/*`)
 - Sign-in with Google or Apple (OIDC), or a passwordless email magic
   link — OIDC is inactive by default; activate with the `oauth` Spring
   profile once `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` or all four
@@ -240,7 +240,7 @@ service discovery at `planning-service.vfr-route.internal`.
 **`crewai-agent`** — the identical task (checkpoints → altitude → legs → briefing), built in CrewAI instead of LangGraph, for framework comparison.
 
 - Same underlying calls as `nav-log-agent`; different control-flow model — an `Agent` reasoning over `tools` rather than an explicit function sequence
-- A one-shot CLI, unlike `nav-log-agent`'s standing server
+- Run by hand as a one-shot CLI (`python -m app.main`); `docker compose up` runs a thin HTTP wrapper around the same crew so the Brief tab can call it
 - No pgvector memory store of its own
 
 ### Database & migrations
@@ -251,28 +251,9 @@ auto-generating schema from code:
 
 ```mermaid
 erDiagram
-    ROUTES ||--o{ CHECKPOINTS : has
-    ROUTES {
-        bigint id PK
-        varchar departure_ident
-        varchar destination_ident
-        timestamptz created_at
-    }
-    CHECKPOINTS {
-        bigint id PK
-        bigint route_id FK
-        varchar osm_id
-        varchar category
-        varchar name
-        double lat
-        double lon
-        double along_track_nm
-        double predicted_score
-    }
     PILOTS ||--o{ AIRCRAFT : owns
     PILOTS ||--o{ FLIGHTS : files
     AIRCRAFT |o--o{ FLIGHTS : "flown in (nullable)"
-    ROUTES |o--o{ FLIGHTS : "planned on (nullable)"
     FLIGHTS ||--o{ FLIGHT_CHECKPOINTS : "nav log"
     PILOTS {
         bigint id PK
@@ -294,7 +275,6 @@ erDiagram
         bigint id PK
         bigint pilot_id FK
         bigint aircraft_id FK "nullable, ON DELETE SET NULL"
-        bigint route_id FK "nullable, ON DELETE SET NULL"
         varchar departure_ident
         varchar destination_ident
         integer cruise_altitude_ft
@@ -319,15 +299,14 @@ erDiagram
     }
 ```
 
-- **`webapp`** (`routes`/`checkpoints`/`pilots`/`aircraft`/`flights`/`flight_checkpoints`)
-  — Flyway. `routes` and its scored checkpoints are a normalized
-  parent/child pair, shared by everyone who plans that corridor;
-  `pilots`/`aircraft`/`flights`/`flight_checkpoints` (added in `V3`) are
-  one pilot's own data, populated once a pilot signs in (see
-  [Services in detail](#services-in-detail)) — `aircraft_id`/`route_id`
-  on `flights` are both nullable and `ON DELETE SET NULL` rather than
-  `CASCADE`, since a flown flight is a record that must survive selling
-  the aeroplane or re-collecting the corridor. Add a migration as
+- **`webapp`** (`pilots`/`aircraft`/`flights`/`flight_checkpoints`)
+  — Flyway. One pilot's own data, populated once they sign in (see
+  [Services in detail](#services-in-detail)) — `aircraft_id` on
+  `flights` is nullable and `ON DELETE SET NULL` rather than `CASCADE`,
+  since a flown flight is a record that must survive selling the
+  aeroplane. Scored corridors are not persisted here at all: they come
+  from `planning-service` on demand and are the same for everyone. Add
+  a migration as
   `springboot-app/src/main/resources/db/migration/V<N>__description.sql`
   and it runs automatically on next startup. `ddl-auto` is `validate`, so
   drift between the JPA entities and the actual schema fails loudly at
@@ -466,7 +445,7 @@ docker compose up webapp                           # UI + API at :8080; brings u
 docker compose up ml                               # Jupyter at :8888 (token "vfr")
 docker compose up airflow                          # DAG UI at :8081
 docker compose up nav-log-agent                    # MCP server at :8082
-docker compose run --rm crewai-agent \
+docker compose run --rm crewai-agent python -m app.main \
   --departure-ident C81 --destination-ident KDLH   # one-shot CLI
 ```
 
@@ -560,8 +539,8 @@ Three suites, split by what each can actually prove:
   `WeatherServiceError` anywhere underneath reaches the caller as a
   clean `502`, not a raw `500`.
 - **`springboot-app/src/test/`** (JUnit) — the HTTP contract via
-  `@WebMvcTest` (validation `400`s, the `502` on an unreachable
-  model-service, the `409` on a duplicate tail number), Mockito-backed
+  `@WebMvcTest` (validation `400`s, `405` for a wrong method, the `409`
+  on a duplicate tail number), Mockito-backed
   service tests for the pilot-scoping guards (`AircraftServiceTest`,
   `FlightServiceTest`), the DTO→entity conversion, and a
   Testcontainers-backed test that boots a real Postgres to verify
@@ -593,7 +572,7 @@ CI job breakdown is in the [Appendix](#appendix).
 | `docker compose run --rm pipeline-training python -m vfr.model_registry evaluate` | Runs `evaluate`/`promote` | — |
 | `docker compose up airflow` | Orchestrates the full pipeline as a DAG | `8081` |
 | `docker compose up nav-log-agent` | LangGraph MCP server (needs `ANTHROPIC_API_KEY`) | `8082` |
-| `docker compose run --rm crewai-agent --departure-ident C81 --destination-ident KDLH` | One-shot CrewAI CLI (needs `ANTHROPIC_API_KEY`) | — |
+| `docker compose run --rm crewai-agent python -m app.main --departure-ident C81 --destination-ident KDLH` | One-shot CrewAI CLI (needs `ANTHROPIC_API_KEY`) | — |
 | `docker compose up planning-service` | Planning + chart-vision API; `webapp` proxies to it and starts it | `8084` |
 
 Notes:

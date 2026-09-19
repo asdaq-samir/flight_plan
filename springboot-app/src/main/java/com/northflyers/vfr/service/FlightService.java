@@ -4,12 +4,10 @@ import com.northflyers.vfr.domain.Aircraft;
 import com.northflyers.vfr.domain.Flight;
 import com.northflyers.vfr.domain.FlightCheckpoint;
 import com.northflyers.vfr.domain.Pilot;
-import com.northflyers.vfr.domain.Route;
 import com.northflyers.vfr.dto.SaveFlightCheckpointRequest;
 import com.northflyers.vfr.dto.SaveFlightRequest;
 import com.northflyers.vfr.repository.AircraftRepository;
 import com.northflyers.vfr.repository.FlightRepository;
-import com.northflyers.vfr.repository.RouteRepository;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.stereotype.Service;
@@ -23,12 +21,10 @@ public class FlightService {
 
     private final FlightRepository flights;
     private final AircraftRepository aircraft;
-    private final RouteRepository routes;
 
-    public FlightService(FlightRepository flights, AircraftRepository aircraft, RouteRepository routes) {
+    public FlightService(FlightRepository flights, AircraftRepository aircraft) {
         this.flights = flights;
         this.aircraft = aircraft;
-        this.routes = routes;
     }
 
     public List<Flight> list(Pilot pilot) {
@@ -44,17 +40,15 @@ public class FlightService {
      *  pilot-scoped way {@link #get} is. Naming an id that doesn't
      *  resolve throws rather than silently filing with no aircraft:
      *  a request naming an id explicitly is asserting it should
-     *  attach, not offering a hint that can be dropped. The route
-     *  (shared, not pilot-owned) is looked up unscoped. */
+     *  attach, not offering a hint that can be dropped. */
     @Transactional
     public Flight save(Pilot pilot, SaveFlightRequest request) {
         Aircraft flownIn = request.aircraftId() == null
                 ? null
                 : aircraft.findByIdAndPilotId(request.aircraftId(), pilot.getId())
                         .orElseThrow(() -> new NoSuchAircraftException(request.aircraftId()));
-        Route route = request.routeId() == null ? null : routes.findById(request.routeId()).orElse(null);
 
-        Flight flight = new Flight(pilot, flownIn, route, request.departureIdent(), request.destinationIdent());
+        Flight flight = new Flight(pilot, flownIn, request.departureIdent(), request.destinationIdent());
         List<SaveFlightCheckpointRequest> requestedCheckpoints =
                 request.checkpoints() == null ? List.of() : request.checkpoints();
         List<FlightCheckpoint> navLog = requestedCheckpoints.stream()

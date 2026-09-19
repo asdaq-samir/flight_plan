@@ -52,9 +52,6 @@ public class SecurityConfig {
                         // neither of which can hold a session.
                         .requestMatchers("/actuator/health", "/actuator/health/**", "/actuator/info").permitAll()
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
-                        // Shared, not personal: the same corridor scores
-                        // the same for everyone.
-                        .requestMatchers("/api/routes/**").permitAll()
                         // The front end itself, and the planner API it
                         // runs on. Open for now because planning a route
                         // needs no account -- the sign-in is for saving

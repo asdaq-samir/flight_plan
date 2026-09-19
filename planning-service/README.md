@@ -8,7 +8,11 @@ It serves no pages. The front end is in [`web/`](../web) and ships inside
 `/api/planner/*` proxy. On AWS it has no load-balancer route at all.
 
 Almost all of the thinking lives in [`src/vfr`](../src). This is a thin
-HTTP layer over it.
+HTTP layer over it: `app/main.py` builds the app, `app/routers/` holds
+the endpoints one module per concern (plan, chart, build, briefing,
+notes, devml), and the work they share -- resolving a route
+(`common.py`), scoring it (`scoring.py`), the nav-log arithmetic
+(`planning.py`), the corridor read (`detection.py`) -- sits beside them.
 
 ## Contents
 

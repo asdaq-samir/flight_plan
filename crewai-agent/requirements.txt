@@ -9,7 +9,7 @@
 crewai[anthropic]==1.15.22
 pandas==3.0.6
 requests==2.34.2
-boto3==1.43.98    # model_client's SageMaker Runtime path, used only when SAGEMAKER_ENDPOINT_NAME is set (AWS)
+boto3==1.43.98    # vfr.model_client's SageMaker Runtime path, used only when SAGEMAKER_ENDPOINT_NAME is set (AWS)
 shapely==2.1.2
 pyshp==3.1.6
 fastapi==0.141.1  # app.server: `docker compose up`'s default now, see main.py's own comment

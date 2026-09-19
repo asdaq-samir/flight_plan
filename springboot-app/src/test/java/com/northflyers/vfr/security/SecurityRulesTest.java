@@ -71,18 +71,9 @@ class SecurityRulesTest {
                 .andExpect(jsonPath("$.googleSubject").doesNotExist());
     }
 
-    @Test
-    void scoredRoutesStayPublicBecauseTheyAreTheSameForEveryone() throws Exception {
-        // Not 401. It may 404 or 500 here since RouteController is not in
-        // this slice -- what matters is that security did not refuse it.
-        mockMvc.perform(get("/api/routes/1"))
-                .andExpect(result -> assertThat(result.getResponse().getStatus()).isNotEqualTo(401));
-    }
-
-    /** Aircraft and flights are the opposite case from routes: unlike a
-     *  scored corridor, they are private to whoever owns them, so a
+    /** Aircraft and flights are private to whoever owns them, so a
      *  caller with no session is refused before AircraftController --
-     *  not in this slice either -- ever runs. */
+     *  not in this slice -- ever runs. */
     @Test
     void aircraftAndFlightsRequireASession() throws Exception {
         mockMvc.perform(get("/api/aircraft")).andExpect(status().isUnauthorized());
@@ -102,13 +93,13 @@ class SecurityRulesTest {
      *  token is refused even when the caller is signed in. */
     @Test
     void aStateChangingCallWithoutACsrfTokenIsRefused() throws Exception {
-        mockMvc.perform(post("/api/routes").with(oidcLogin()))
+        mockMvc.perform(post("/api/aircraft").with(oidcLogin()))
                 .andExpect(status().isForbidden());
     }
 
     @Test
     void theSameCallWithACsrfTokenIsNotRefusedByCsrf() throws Exception {
-        mockMvc.perform(post("/api/routes").with(oidcLogin()).with(csrf()))
+        mockMvc.perform(post("/api/aircraft").with(oidcLogin()).with(csrf()))
                 .andExpect(result -> assertThat(result.getResponse().getStatus()).isNotEqualTo(403));
     }
 }

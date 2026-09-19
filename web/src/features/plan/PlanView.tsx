@@ -17,7 +17,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "../../components/ui/too
 import { usePageStatus } from "../../lib/usePageStatus";
 import type { Candidate } from "../../lib/api/types";
 import RouteMap from "./components/RouteMap";
-import RouteForm from "./components/RouteForm";
+import RouteForm from "../../components/RouteForm";
 import BuildNotice from "./components/BuildNotice";
 import NavLogView from "./components/navlog/NavLogView";
 import NavLogActions from "./components/navlog/NavLogActions";

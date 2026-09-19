@@ -585,82 +585,85 @@ rather than hidden.
 Standard Spring Boot layering, and worth knowing even outside this
 project since it's close to an industry-default shape:
 
-- **Controller** ([`RouteController.java`](../springboot-app/src/main/java/com/northflyers/vfr/controller/RouteController.java)) —
-  the HTTP boundary. `@RestController` + `@RequestMapping("/api/routes")`;
-  each method maps to one route+verb (`@PostMapping`, `@GetMapping`).
-  Controllers should stay thin — this one just calls into `RouteService`
-  and wraps the result in a `ResponseEntity`, no business logic.
-- **Service** ([`RouteService.java`](../springboot-app/src/main/java/com/northflyers/vfr/service/RouteService.java)) —
-  the actual logic: call `model-service`, build a `Route`, save it.
-- **Repository** (`RouteRepository.java`) — a Spring Data JPA interface;
+- **Controller** ([`AircraftController.java`](../springboot-app/src/main/java/com/northflyers/vfr/controller/AircraftController.java)) —
+  the HTTP boundary. `@RestController` + `@RequestMapping("/api/aircraft")`;
+  each method maps to one route+verb (`@GetMapping`, `@PostMapping`,
+  `@PutMapping("/{id}")`, `@DeleteMapping("/{id}")`). Controllers should
+  stay thin — this one resolves the signed-in pilot, calls into
+  `AircraftService` and wraps the result in a `ResponseEntity`, no
+  business logic.
+- **Service** ([`AircraftService.java`](../springboot-app/src/main/java/com/northflyers/vfr/service/AircraftService.java)) —
+  the actual logic, and where pilot-scoping lives: every lookup goes
+  through `findByIdAndPilotId`, so one pilot can never read or edit
+  another's aeroplane by guessing an id.
+- **Repository** (`AircraftRepository.java`) — a Spring Data JPA interface;
   you don't implement it, Spring generates the implementation at startup
   from the method names/annotations.
-- **Domain** (`Route.java`, `Checkpoint.java`) — the JPA entities, mapped
+- **Domain** (`Aircraft.java`, `Pilot.java`) — the JPA entities, mapped
   to actual database tables.
-- **DTO** (`RouteRequest.java`, `ModelServiceRequest`/`Response.java`,
-  `CheckpointDto.java`) — plain data-carrying objects for what crosses a
-  boundary (an HTTP request/response), kept separate from the JPA
-  entities so your API shape and your database shape are free to diverge.
-  `CheckpointDto` (what `model-service` returns) and `Checkpoint` (what
-  gets persisted) look almost identical, but staying two classes is the
-  point: `Route`'s constructor converts one into the other, so a change
-  to model-service's response shape doesn't silently ripple into the
-  database schema, and vice versa.
+- **DTO** (`AircraftRequest.java`, `AircraftDto.java`) — plain
+  data-carrying objects for what crosses a boundary (an HTTP
+  request/response), kept separate from the JPA entities so your API
+  shape and your database shape are free to diverge. `AircraftDto` and
+  `Aircraft` look almost identical, but staying two classes is the
+  point: the entity carries its owning `Pilot` and the DTO deliberately
+  does not, so a change to what the API exposes never silently ripples
+  into the schema, and vice versa.
 
 ```mermaid
 classDiagram
-    RouteController --> RouteService
-    RouteService --> ModelServiceClient
-    RouteService --> RouteRepository
-    RouteRepository ..> Route : persists
-    Route "1" *-- "many" Checkpoint : owns
-    ModelServiceClient --> ModelServiceResponse : returns
-    ModelServiceResponse --> CheckpointDto
-    RouteService ..> CheckpointDto : converts to Checkpoint
+    AircraftController --> PilotService : who is signed in
+    AircraftController --> AircraftService
+    AircraftService --> AircraftRepository
+    AircraftRepository ..> Aircraft : persists
+    Pilot "1" *-- "many" Aircraft : owns
+    AircraftController ..> AircraftRequest : validates
+    AircraftController ..> AircraftDto : returns
 
-    class RouteController {
-        +createRoute(RouteRequest) Route
-        +getRoute(Long) Route
+    class AircraftController {
+        +list(Authentication) List~AircraftDto~
+        +add(Authentication, AircraftRequest) AircraftDto
+        +update(Authentication, Long, AircraftRequest) AircraftDto
+        +delete(Authentication, Long)
     }
-    class RouteService {
-        +createRoute(String, String) Route
-        +getRoute(Long) Route
+    class AircraftService {
+        +list(Pilot) List~Aircraft~
+        +add(Pilot, String, String, double, double) Aircraft
+        +update(Pilot, Long, String, String, double, double) Optional~Aircraft~
+        +delete(Pilot, Long) boolean
     }
-    class ModelServiceClient {
-        +invoke(String, String) ModelServiceResponse
-    }
-    class RouteRepository {
+    class AircraftRepository {
         <<interface>>
+        +findByIdAndPilotId(Long, Long) Optional~Aircraft~
     }
-    class Route {
+    class Aircraft {
         <<JPA entity>>
         Long id
-        String departureIdent
-        String destinationIdent
+        Pilot pilot
+        String tailNumber
+        double cruiseTasKt
     }
-    class Checkpoint {
-        <<JPA entity>>
-        Long id
-        String osmId
-        double predictedScore
-    }
-    class ModelServiceResponse {
+    class AircraftRequest {
         <<record>>
     }
-    class CheckpointDto {
+    class AircraftDto {
         <<record>>
     }
 ```
 
-[`ModelServiceClient.java`](../springboot-app/src/main/java/com/northflyers/vfr/service/ModelServiceClient.java)
-has two invocation paths behind one method, `invoke()`: a `WebClient` HTTP
-call to `model-service`'s `/invocations` locally, or SageMaker Runtime's
-`InvokeEndpoint` API on AWS, where `model-service`'s image *is* the
-SageMaker Endpoint's serving container rather than a plain HTTP service.
-Which path runs is decided by whether `SAGEMAKER_ENDPOINT_NAME` is set —
-true only on AWS — not a separate build or profile; both paths send/parse
-the identical JSON contract, since SageMaker's `InvokeEndpoint` just
-proxies the request body straight to the same `/invocations` route.
+Where the model gets called is worth noticing by its absence: nowhere in
+this service. Scoring a route belongs to `planning-service`, which
+`webapp` only proxies (`PlannerProxyController`, `/api/planner/*`), and
+planning-service reaches the model through one shared module,
+[`vfr.model_client`](../src/vfr/model_client.py): an HTTP call to
+`model-service`'s `/invocations` locally, or SageMaker Runtime's
+`InvokeEndpoint` on AWS, where `model-service`'s image *is* the SageMaker
+Endpoint's serving container rather than a plain HTTP service. Which path
+runs is decided by whether `SAGEMAKER_ENDPOINT_NAME` is set — true only on
+AWS — not a separate build; both paths send the identical JSON, since
+`InvokeEndpoint` just proxies the body straight to the same
+`/invocations` route. Both Gen AI agents import the same module, so there
+is exactly one client to get right.
 
 **Schema ownership**: this app does *not* let Hibernate auto-generate or
 alter its schema in a real environment (`ddl-auto: validate`, not
@@ -945,20 +948,21 @@ measured wrong — breaks no pure function and fails no unit test. So
 viewport, and checks what the DOM alone cannot: nothing overflows, the
 header controls sit where they should, the sidebar starts closed.
 
-**Contracts get slice tests.** `RouteControllerTest` uses `@WebMvcTest`
+**Contracts get slice tests.** `AircraftControllerTest` uses `@WebMvcTest`
 with the service layer mocked, because what it's testing is the *HTTP
-contract* — does a blank ident produce a 400 with usable field errors,
-does an unreachable model-service produce a 502 rather than a leaky 500.
-Booting a database to answer those questions would only slow them down.
+contract* — does a signed-out caller get a 401 rather than a redirect,
+does a bad body produce a 400 with usable field errors, does a wrong
+method produce a 405 rather than a leaky 500. Booting a database to
+answer those questions would only slow them down.
 
 **Integration points get real infrastructure.**
-[`RoutePersistenceTest`](../springboot-app/src/test/java/com/northflyers/vfr/RoutePersistenceTest.java)
+[`FlightPersistenceTest`](../springboot-app/src/test/java/com/northflyers/vfr/FlightPersistenceTest.java)
 starts an actual Postgres via Testcontainers, because the things it
 verifies can only be verified against a real database: that Flyway's
 migrations apply in order, that `ddl-auto: validate` agrees the JPA
-entities match the schema those migrations produced, and that the
-normalized route→checkpoints mapping round-trips with cascade and
-ordering intact. An in-memory H2 would happily pass while the real
+entities match the schema those migrations produced, that the unique
+constraints hold, and that selling an aeroplane leaves the flights
+flown in it behind (`ON DELETE SET NULL`). An in-memory H2 would happily pass while the real
 Postgres rejected the same SQL — which would make the test worse than
 useless, since it would produce false confidence.
 

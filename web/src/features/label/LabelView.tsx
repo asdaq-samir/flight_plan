@@ -18,7 +18,7 @@ import { Button } from "../../components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../../components/ui/tooltip";
 import { usePageStatus } from "../../lib/usePageStatus";
 import ChartMap from "./components/ChartMap";
-import RouteForm from "./components/RouteForm";
+import RouteForm from "../../components/RouteForm";
 import ProgressCard from "./components/ProgressCard";
 import WaypointList from "./components/WaypointList";
 import PointPopup from "./components/PointPopup";

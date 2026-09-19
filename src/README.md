@@ -130,6 +130,7 @@ Grouped by what they are for, not alphabetically.
 | `elevation.py` | USGS 3DEP point elevations. |
 | `terrain.py` | Terrain and obstacle floor for a route. |
 | `airports.py` | Identifier → coordinates, and the route form's search. |
+| `model_client.py` | model-service's `/invocations`, or the SageMaker endpoint on AWS. The one client every service scores through. |
 
 **Deciding things**
 

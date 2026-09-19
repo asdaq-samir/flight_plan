@@ -7,12 +7,9 @@ import com.northflyers.vfr.domain.Aircraft;
 import com.northflyers.vfr.domain.Flight;
 import com.northflyers.vfr.domain.FlightCheckpoint;
 import com.northflyers.vfr.domain.Pilot;
-import com.northflyers.vfr.domain.Route;
-import com.northflyers.vfr.dto.CheckpointDto;
 import com.northflyers.vfr.repository.AircraftRepository;
 import com.northflyers.vfr.repository.FlightRepository;
 import com.northflyers.vfr.repository.PilotRepository;
-import com.northflyers.vfr.repository.RouteRepository;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -27,12 +24,12 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 /**
  * The pilot/aircraft/flight half of the schema, against a real Postgres.
  *
- * <p>Worth a container rather than a mock for the same reasons as
- * {@code RoutePersistenceTest}, plus two specific to these tables: the
- * unique constraints are enforced by the database and nowhere else, and
- * the {@code ON DELETE SET NULL} behaviour that keeps a flown flight
- * after its aeroplane is sold is a property of the DDL, not of the
- * entities.
+ * <p>Worth a container rather than a mock: Flyway's migrations have to
+ * apply and {@code ddl-auto: validate} has to accept the entities against
+ * the result, the unique constraints are enforced by the database and
+ * nowhere else, and the {@code ON DELETE SET NULL} behaviour that keeps a
+ * flown flight after its aeroplane is sold is a property of the DDL, not
+ * of the entities.
  */
 @SpringBootTest
 @Testcontainers
@@ -50,9 +47,6 @@ class FlightPersistenceTest {
 
     @Autowired
     private FlightRepository flights;
-
-    @Autowired
-    private RouteRepository routes;
 
     private Pilot newPilot() {
         String unique = UUID.randomUUID().toString();
@@ -72,7 +66,7 @@ class FlightPersistenceTest {
     @Test
     void aFiledNavLogRoundTripsInOrder() {
         Pilot pilot = newPilot();
-        Flight saved = flights.save(new Flight(pilot, null, null, "C81", "KDLH")
+        Flight saved = flights.save(new Flight(pilot, null, "C81", "KDLH")
                 .fileNavLog(navLog(), 2500, 323.6, 171.0, 24.2));
 
         Flight found = flights.findById(saved.getId()).orElseThrow();
@@ -91,7 +85,7 @@ class FlightPersistenceTest {
     @Test
     void theDestinationKeepsNullLegNumbers() {
         Pilot pilot = newPilot();
-        Flight saved = flights.save(new Flight(pilot, null, null, "C81", "KDLH")
+        Flight saved = flights.save(new Flight(pilot, null, "C81", "KDLH")
                 .fileNavLog(navLog(), 2500, 323.6, 171.0, 24.2));
 
         FlightCheckpoint last = flights.findById(saved.getId()).orElseThrow().getCheckpoints().get(2);
@@ -104,7 +98,7 @@ class FlightPersistenceTest {
     @Test
     void refilingANavLogReplacesItRatherThanAppending() {
         Pilot pilot = newPilot();
-        Flight saved = flights.save(new Flight(pilot, null, null, "C81", "KDLH")
+        Flight saved = flights.save(new Flight(pilot, null, "C81", "KDLH")
                 .fileNavLog(navLog(), 2500, 323.6, 171.0, 24.2));
 
         Flight refiled = flights.findById(saved.getId()).orElseThrow();
@@ -144,7 +138,7 @@ class FlightPersistenceTest {
     void deletingAnAircraftKeepsTheFlightsFlownInIt() {
         Pilot pilot = newPilot();
         Aircraft plane = aircraft.saveAndFlush(new Aircraft(pilot, "N54321", "C172", 110.0, 8.5));
-        Flight saved = flights.saveAndFlush(new Flight(pilot, plane, null, "C81", "KDLH"));
+        Flight saved = flights.saveAndFlush(new Flight(pilot, plane, "C81", "KDLH"));
 
         aircraft.deleteById(plane.getId());
         aircraft.flush();
@@ -154,28 +148,11 @@ class FlightPersistenceTest {
         assertThat(found.getAircraft()).isNull();
     }
 
-    /** Likewise for the shared route: re-collecting a corridor must not
-     *  delete anyone's filed flights on it. */
-    @Test
-    void deletingARouteKeepsTheFlightsPlannedOnIt() {
-        Pilot pilot = newPilot();
-        Route route = routes.saveAndFlush(new Route("C81", "KDLH", List.of(
-                new CheckpointDto("153546173", "town", "Round Lake", 42.3534, -88.0934, 1.9, 0.72))));
-        Flight saved = flights.saveAndFlush(new Flight(pilot, null, route, "C81", "KDLH"));
-
-        routes.deleteById(route.getId());
-        routes.flush();
-
-        Flight found = flights.findById(saved.getId()).orElseThrow();
-        assertThat(found.getRoute()).isNull();
-        assertThat(found.getDestinationIdent()).isEqualTo("KDLH");
-    }
-
     /** Deleting the pilot does cascade -- their flights are theirs. */
     @Test
     void deletingAPilotRemovesTheirFlights() {
         Pilot pilot = newPilot();
-        Flight saved = flights.saveAndFlush(new Flight(pilot, null, null, "C81", "KDLH"));
+        Flight saved = flights.saveAndFlush(new Flight(pilot, null, "C81", "KDLH"));
 
         pilots.deleteById(pilot.getId());
         pilots.flush();
@@ -187,7 +164,7 @@ class FlightPersistenceTest {
     void flightsAndAircraftAreScopedToTheirPilot() {
         Pilot mine = newPilot();
         Pilot theirs = newPilot();
-        Flight flight = flights.saveAndFlush(new Flight(mine, null, null, "C81", "KDLH"));
+        Flight flight = flights.saveAndFlush(new Flight(mine, null, "C81", "KDLH"));
 
         assertThat(flights.findByIdAndPilotId(flight.getId(), mine.getId())).isPresent();
         assertThat(flights.findByIdAndPilotId(flight.getId(), theirs.getId())).isEmpty();

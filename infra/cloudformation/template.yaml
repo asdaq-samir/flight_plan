@@ -287,7 +287,7 @@ Resources:
   EcsTaskRole:
     Type: AWS::IAM::Role
     Properties:
-      Description: Assumed by the running webapp container itself -- needs to call the SageMaker endpoint.
+      Description: Assumed by the webapp and planning-service containers. planning-service scores routes through the SageMaker endpoint (vfr.model_client) and reads the data bucket.
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
         Statement:
@@ -306,7 +306,7 @@ Resources:
   GenAiTaskRole:
     Type: AWS::IAM::Role
     Properties:
-      Description: Assumed by nav-log-agent and crewai-agent -- both call the SageMaker endpoint for checkpoints, same as webapp (see model_client.py in each).
+      Description: Assumed by nav-log-agent and crewai-agent -- both call the SageMaker endpoint for checkpoints, same as planning-service (vfr.model_client).
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
         Statement:
@@ -607,11 +607,6 @@ Resources:
               Value: !Sub "jdbc:postgresql://${Database.Endpoint.Address}:${Database.Endpoint.Port}/${DBName}"
             - Name: SPRING_DATASOURCE_USERNAME
               Value: !Ref DBUsername
-            - Name: SAGEMAKER_ENDPOINT_NAME
-              Value: !GetAtt SageMakerEndpoint.EndpointName
-              # Presence alone switches ModelServiceClient.java from a plain
-              # HTTP call to SageMaker Runtime's InvokeEndpoint API -- see
-              # that class. Unset locally, so local dev is unaffected.
             - Name: PLANNER_SERVICE_URL
               Value: http://planning-service.vfr-route.internal:8000
               # The name application.yml reads -- planner-service.base-url
@@ -696,8 +691,8 @@ Resources:
               Value: !Ref DataS3BucketName
             - Name: SAGEMAKER_ENDPOINT_NAME
               Value: !GetAtt SageMakerEndpoint.EndpointName
-              # Same switch as webapp: presence alone routes scoring to
-              # SageMaker Runtime instead of a local model-service HTTP call.
+              # Presence alone switches vfr.model_client from the local
+              # model-service HTTP call to SageMaker Runtime's InvokeEndpoint.
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -817,6 +812,11 @@ Resources:
       ContainerDefinitions:
         - Name: crewai-agent
           Image: !Ref CrewaiAgentImageUri
+          # The image's own command is the HTTP wrapper the local Brief
+          # tab calls; nothing calls it here, so run-task runs the
+          # one-shot CLI instead and the task exits once the briefing
+          # is printed.
+          Command: ["python3", "-m", "app.main"]
           Environment:
             - Name: SAGEMAKER_ENDPOINT_NAME
               Value: !GetAtt SageMakerEndpoint.EndpointName

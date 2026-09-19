@@ -4,7 +4,8 @@ The same nav-log task as [`nav-log-agent/`](../nav-log-agent), built in
 CrewAI instead of LangGraph. It exists to make a comparison concrete:
 two frameworks, one task, same domain library underneath.
 
-It is a one-shot CLI, not a server — which is itself part of the finding.
+Run by hand it is a one-shot CLI; the webapp reaches it through a thin
+HTTP wrapper around the same crew.
 
 ## Contents
 
@@ -17,11 +18,14 @@ It is a one-shot CLI, not a server — which is itself part of the finding.
 ```bash
 export ANTHROPIC_API_KEY=sk-ant-...
 docker compose run --rm crewai-agent \
-  --departure-ident C81 --destination-ident KDLH
+  python -m app.main --departure-ident C81 --destination-ident KDLH
 ```
 
-No port and no standing service. On AWS it is registered as a task
-definition and run with `aws ecs run-task`, matching that role.
+That is the one-shot CLI. `docker compose up crewai-agent` instead runs
+the image's own command, a small FastAPI wrapper (`app/server.py`)
+around the same crew on the internal network only, so the Brief tab's
+AI popover can call it. On AWS only the CLI exists: a task definition
+run with `aws ecs run-task`, no standing service.
 
 ## Learning this from zero
 
@@ -79,6 +83,6 @@ That is not a verdict on CrewAI. It is a verdict on using a
 model-directed framework for a procedure you can already draw — which is
 the point worth taking away.
 
-Both share `model_client.py`, and both call the same `src/vfr`
-functions, so the comparison is of the frameworks and not of two
-different implementations.
+Both call the same `src/vfr` functions, `vfr.model_client` included, so
+the comparison is of the frameworks and not of two different
+implementations.

@@ -16,6 +16,7 @@ pandas==3.0.5
 numpy==2.5.3
 pyarrow==25.0.1
 requests==2.34.2    # Overpass/FAA/NOAA, and the model-service call
+boto3==1.43.98      # vfr.model_client's SageMaker Runtime path, used only when SAGEMAKER_ENDPOINT_NAME is set (AWS)
 shapely==2.1.2     # vfr.osm._representative_point, vfr.airspace polygons
 pyshp==3.1.6       # vfr.airspace reads the FAA Class Airspace shapefile
 pillow==12.3.0     # vfr.chartvision decodes sectional tiles

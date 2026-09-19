@@ -46,7 +46,7 @@ class FlightControllerTest {
     }
 
     private static Flight sampleFlight() {
-        Flight flight = new Flight(samplePilot(), null, null, "C81", "KDLH");
+        Flight flight = new Flight(samplePilot(), null, "C81", "KDLH");
         FlightCheckpoint checkpoint = new FlightCheckpoint(0, "C81", "departure", 42.0, -88.0, 0.0);
         flight.fileNavLog(List.of(checkpoint), 2500, 323.4, 205.0, 29.0);
         return flight;

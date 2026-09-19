@@ -116,8 +116,8 @@ is in the picture.
 template focused on the application layer rather than also reinventing a
 VPC/subnet/NAT-gateway layout most orgs already have):
 
-- **`webapp`** — ECS Fargate behind an ALB, calling RDS and (via
-  `ModelServiceClient`'s dual HTTP/SageMaker path) the model endpoint.
+- **`webapp`** — ECS Fargate behind an ALB, calling RDS and proxying
+  the planner.
 - **`planning-service`** — ECS Fargate, and the one service with *no*
   path into it from the load balancer. The browser never calls it: the
   front end calls `webapp`, which proxies `/api/planner/*` onward, so its
@@ -324,9 +324,12 @@ The runbook, in order.
     `nav-log-agent` (`healthy` confirms Flyway's migrations applied and
     the MCP SSE endpoint responds); `aws sagemaker describe-endpoint`
     shows `InService`; `curl -X POST <RetrainApiUrl>` reaches the Lambda.
-12. **Smoke test**: `POST /api/routes` against the ALB/domain, confirm
-    persistence via `GET /api/routes/{id}`, then trigger a retrain via the
-    API Gateway URL and confirm Airflow received the DAG-run request.
+12. **Smoke test**: `GET /api/planner/course?dep=C81&dest=KDLH` against
+    the ALB/domain (the webapp → planning-service hop),
+    `GET /api/planner/checkpoints?dep=C81&dest=KDLH` (planning-service →
+    the SageMaker endpoint), `GET /actuator/health/readiness` (RDS), then
+    trigger a retrain via the API Gateway URL and confirm Airflow received
+    the DAG-run request.
 
 ### Rollback / teardown
 

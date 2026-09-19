@@ -60,19 +60,10 @@ spring:
 planner-service:
   base-url: ${PLANNER_SERVICE_URL:http://localhost:8084}
 
-model-service:
-  base-url: ${MODEL_SERVICE_URL:http://localhost:8000}
-  # Set only on AWS (see WebappTaskDefinition in
-  # infra/cloudformation/template.yaml) -- its presence is what switches
-  # ModelServiceClient from a plain HTTP call to SageMaker Runtime's
-  # InvokeEndpoint API. Empty locally, so base-url above is what's used.
-  sagemaker-endpoint-name: ${SAGEMAKER_ENDPOINT_NAME:}
-
 # The two Gen AI comparison builds (ComparisonProxyController), behind
 # the Brief tab's own AI popover -- neither is required for the app to
-# start (see that controller's own
-# per-framework error handling), unlike planner-service/model-service
-# above.
+# start (see that controller's own per-framework error handling),
+# unlike planner-service above.
 nav-log-agent:
   base-url: ${NAV_LOG_AGENT_URL:http://localhost:8082}
   # nav-log-agent's own MCP endpoint has no auth other than this bearer

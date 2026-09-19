@@ -13,4 +13,6 @@ RUN useradd -m appuser
 USER appuser
 
 ENV PYTHONPATH=/workspace/src
-ENTRYPOINT ["python3", "-m", "app.main"]
+# The HTTP wrapper the webapp's Brief tab calls. The one-shot CLI is
+# `python3 -m app.main ...`, passed as the command instead.
+CMD ["uvicorn", "app.server:app", "--host", "0.0.0.0", "--port", "8000"]

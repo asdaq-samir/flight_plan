@@ -177,10 +177,11 @@ services:
     build:
       context: .
       dockerfile: crewai-agent/Dockerfile
-    # No published port -- app.server (what `docker compose up` runs by
-    # default, see app/main.py's own comment) is only ever called by
-    # webapp over the internal docker network (crewai-agent:8000), the
-    # same reasoning as planning-service's own no-auth-of-its-own design.
+    # No published port -- the image's own command is app.server, a thin
+    # HTTP wrapper only ever called by webapp over the internal docker
+    # network (crewai-agent:8000), the same no-auth-of-its-own design as
+    # planning-service. The one-shot CLI is
+    # `docker compose run --rm crewai-agent python -m app.main ...`.
     volumes:
       - .:/workspace
     depends_on:
@@ -205,15 +206,12 @@ services:
     depends_on:
       db:
         condition: service_healthy
-      model-service:
-        condition: service_healthy
       planning-service:
         condition: service_healthy
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/vfr_route
       SPRING_DATASOURCE_USERNAME: vfr
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-vfr}
-      MODEL_SERVICE_URL: http://model-service:8000
       PLANNER_SERVICE_URL: http://planning-service:8000
       # The Brief tab's own AI popover (ComparisonProxyController) --
       # neither is in `depends_on` above, unlike planning-service: that

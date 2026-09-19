@@ -1,5 +1,5 @@
 """CrewAI tools wrapping the exact same underlying logic nav-log-agent's
-LangGraph nodes use (vfr.altitude, vfr.navlog, model_client) -- the point of
+LangGraph nodes use (vfr.altitude, vfr.navlog, vfr.model_client) -- the point of
 this build is comparing frameworks on the same task, not a different task.
 Each tool is self-contained (re-fetches checkpoints internally as needed)
 rather than relying on the agent passing complex structured data between
@@ -10,9 +10,7 @@ import json
 from crewai.tools import tool
 
 from vfr import aircraft as aircraft_module, checkpoints as checkpoint_selection
-from vfr import airports, altitude, navlog
-
-from . import model_client
+from vfr import airports, altitude, model_client, navlog
 
 
 @tool("get_route_checkpoints")

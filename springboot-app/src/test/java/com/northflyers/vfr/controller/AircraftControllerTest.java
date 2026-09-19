@@ -10,6 +10,7 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -51,6 +52,14 @@ class AircraftControllerTest {
 
     private static Aircraft sampleAircraft() {
         return new Aircraft(samplePilot(), "N12345", "C172", 110, 8.5);
+    }
+
+    /** A method the path doesn't map is a 405, not the catch-all 500 --
+     *  see {@code GlobalExceptionHandler}. */
+    @Test
+    void put_returns405_becauseTheCollectionOnlyListsAndCreates() throws Exception {
+        mockMvc.perform(put("/api/aircraft").with(oidcLogin()).with(csrf()))
+                .andExpect(status().isMethodNotAllowed());
     }
 
     @Test

@@ -14,9 +14,10 @@ import requests
 from fastapi.testclient import TestClient
 from vfr import airports
 from vfr import altitude as altitude_module
+from vfr import model_registry
 from vfr.weather import WeatherServiceError
 
-from app.main import app, model_registry
+from app.main import app
 
 client = TestClient(app)
 

@@ -12,9 +12,9 @@ from typing import TypedDict
 import anthropic
 from langgraph.graph import END, START, StateGraph
 
-from vfr import aircraft, airports, altitude, checkpoints as checkpoint_selection, navlog
+from vfr import aircraft, airports, altitude, checkpoints as checkpoint_selection, model_client, navlog
 
-from . import db, model_client
+from . import db
 
 CLAUDE_MODEL = os.environ.get("NAV_LOG_AGENT_MODEL", "claude-sonnet-5")
 
@@ -40,7 +40,7 @@ class NavLogState(TypedDict, total=False):
 
 def fetch_checkpoints(state: NavLogState) -> dict:
     """Graph entry node: gets the trained model's scored checkpoints for
-    the requested route from model_client (HTTP locally, SageMaker on AWS).
+    the requested route from vfr.model_client (HTTP locally, SageMaker on AWS).
     """
     checkpoints = model_client.get_checkpoints(state["departure_ident"], state["destination_ident"])
     return {"checkpoints": checkpoints}

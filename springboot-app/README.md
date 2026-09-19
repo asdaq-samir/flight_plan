@@ -79,7 +79,7 @@ solving a problem the previous rung creates.
    watch Hibernate silently alter your table — which is why
    `ddl-auto: validate` is set here and Flyway owns the schema instead.
 
-5. **Version the schema** (`flyway-core`). `V1__create_routes_table.sql`.
+5. **Version the schema** (`flyway-core`). `V3__create_pilots_aircraft_flights.sql`.
    Migrations are ordinary SQL, applied in order, recorded in a table.
    Once this is in place `ddl-auto: validate` means the app refuses to
    start if the code and the schema disagree — a good failure.
@@ -90,9 +90,10 @@ solving a problem the previous rung creates.
    real Postgres in a container for persistence. An H2 in-memory database
    would be faster and would not catch Postgres-specific SQL.
 
-7. **Call another service** (`RestClient`). `ModelServiceClient.java`.
-   Now you need timeouts, and a decision about what happens when the
-   other service is down.
+7. **Call another service** (the JDK `HttpClient`).
+   `PlannerProxyController.java` forwards `/api/planner/*` to
+   `planning-service`. Now you need timeouts, and a decision about what
+   happens when the other service is down.
 
 8. **Add sign-in** (`spring-boot-starter-security` +
    `-oauth2-client`). The moment you add the starter, *everything* is
@@ -117,16 +118,17 @@ One job per class.
 | Package | What lives there |
 |---|---|
 | `controller/` | HTTP endpoints. `PlannerProxyController` forwards `/api/planner/*` to `planning-service`; `GlobalExceptionHandler` turns exceptions into JSON; `MagicLinkController` is the email sign-in flow's own two steps (request, verify). |
-| `service/` | Business logic, and the outbound call to the model (`ModelServiceClient`, which switches to SageMaker Runtime when `SAGEMAKER_ENDPOINT_NAME` is set). |
+| `service/` | Business logic: `PilotService`, `AircraftService`, `FlightService`, each scoped to the signed-in pilot. |
 | `repository/` | Spring Data interfaces. No implementations — Spring writes them. |
-| `domain/` | JPA entities: `Pilot`, `Aircraft`, `Flight`, `FlightCheckpoint`, `Route`, `Checkpoint`, `MagicLink`. |
+| `domain/` | JPA entities: `Pilot`, `Aircraft`, `Flight`, `FlightCheckpoint`, `MagicLink`. |
 | `dto/` | Request and response shapes, kept separate from entities so the API and the schema can change independently. |
 | `security/` | `SecurityConfig` (what is public), `OAuthClientsConfig` (builds Google/Apple's client registrations in Java, not YAML — Apple's own secret is a signed JWT no static property could hold), `MagicLinkAuthenticationToken` (the session's own principal after a magic-link sign-in), `Http401EntryPoint` (an API answers 401, it does not redirect to a login page), and `CsrfCookieFilter` (forces the `XSRF-TOKEN` cookie to actually be written — see below). |
 | `config/` | `WebMvcConfig` — static-resource and SPA routing. |
 
-Four migrations, in `resources/db/migration/`: routes, then normalised
+Five migrations, in `resources/db/migration/`: routes, then normalised
 checkpoints, then pilots/aircraft/flights, then Apple's own subject
-column plus the magic-link table.
+column plus the magic-link table, then dropping the routes pair again
+once `planning-service` owned scoring and nothing here read them.
 
 ## Things that are not obvious
 

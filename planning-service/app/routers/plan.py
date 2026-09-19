@@ -1,0 +1,224 @@
+"""The plan, in the three pieces it naturally falls into. /api/plan still
+returns all of it at once for anything that wants one call, but a page
+should ask for these in order: the course draws immediately, the
+checkpoints land a tenth of a second later, and the nav log -- which
+needs terrain, obstacles, airspace and weather -- arrives when it can
+without holding up the map."""
+import json
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FuturesTimeoutError
+from itertools import pairwise
+
+from fastapi import APIRouter, HTTPException
+from fastapi.responses import StreamingResponse
+from vfr import aircraft as aircraft_module
+from vfr import checkpoints as checkpoint_selection
+from vfr import geo
+from vfr.config import VFR_SECTIONAL_MAX_ZOOM, VFR_SECTIONAL_MIN_ZOOM
+
+from ..common import DEFAULT_AIRCRAFT, load_route, ndjson
+from ..planning import assemble_leg, course_line, cruise_altitude, fixes, legs, no_altitude_detail, totals
+from ..scoring import score
+
+router = APIRouter()
+
+
+@router.get("/api/course")
+def course(dep: str, dest: str) -> dict:
+    """Just the course line and its endpoints.
+
+    Separate from detection so the chart can draw a line the instant two
+    idents are entered. Reading tiles takes seconds even on the fast
+    path, and there is no reason a pilot should watch an empty map for
+    them.
+    """
+    r = load_route(dep, dest)
+    return {
+        "departure": r.departure,
+        "destination": r.destination,
+        "distance_nm": round(geo.distance_nm(*r.start, *r.end), 1),
+        "bearing_deg": round(geo.bearing_deg(*r.start, *r.end)),
+        "course_line": course_line(r.start, r.end),
+        "max_zoom": VFR_SECTIONAL_MAX_ZOOM,
+        "min_zoom": VFR_SECTIONAL_MIN_ZOOM,
+    }
+
+
+def _scored_and_selected(dep_ident: str, dest_ident: str) -> tuple:
+    scored = score(dep_ident, dest_ident)
+    selected = checkpoint_selection.select_checkpoints(scored)
+    keys = {(c["osm_id"], c["category"]) for c in selected}
+    for c in scored:
+        c["selected"] = (c["osm_id"], c["category"]) in keys
+    return scored, selected
+
+
+@router.get("/api/checkpoints")
+def checkpoints(dep: str, dest: str) -> dict:
+    """Scored candidates and the subset worth flying. Fast: the model is
+    already loaded and the features are already built."""
+    r = load_route(dep, dest)
+    scored, selected = _scored_and_selected(r.dep_ident, r.dest_ident)
+    return {
+        "departure": r.departure,
+        "destination": r.destination,
+        "candidates": scored,
+        "selected": selected,
+    }
+
+
+@router.get("/api/altitude-breakdown")
+def altitude_breakdown(dep: str, dest: str, aircraft: str = DEFAULT_AIRCRAFT) -> dict:
+    """The full select_cruise_altitude() breakdown for any route -- floor,
+    ceiling band and each of its own components (airspace/freezing
+    level/aircraft service ceiling), and the weather go/no-go flags.
+    /api/navlog's "altitude" line carries the same dict for the route a
+    pilot has open; this is a standalone read of it for any pair."""
+    r = load_route(dep, dest)
+    profile = aircraft_module.load_aircraft_profile(aircraft)
+    return cruise_altitude(r.start, r.end, profile, aircraft)
+
+
+@router.get("/api/plan")
+def plan(
+    dep: str,
+    dest: str,
+    altitude_ft: float | None = None,
+    aircraft: str = DEFAULT_AIRCRAFT,
+) -> dict:
+    """The whole plan: course line, every scored candidate, the selected
+    checkpoints, and a nav log leg between each consecutive pair.
+
+    altitude_ft is optional. Omitted, vfr.altitude picks one that clears
+    terrain and obstacles, respects the hemispheric rule for the course,
+    stays under the aircraft's service ceiling and dodges controlled
+    airspace -- and the reasoning comes back with it, since "why am I at
+    6,500" is a question a pilot will actually ask.
+    """
+    r = load_route(dep, dest)
+    scored, selected = _scored_and_selected(r.dep_ident, r.dest_ident)
+    profile = aircraft_module.load_aircraft_profile(aircraft)
+
+    altitude_selection = None
+    if altitude_ft is None:
+        altitude_selection = cruise_altitude(r.start, r.end, profile, aircraft)
+        altitude_ft = altitude_selection.get("recommended_ft")
+        if altitude_ft is None:
+            raise HTTPException(422, no_altitude_detail(altitude_selection))
+
+    leg_list = legs(fixes(r.dep_ident, r.dest_ident, r.start, r.end, selected), altitude_ft, profile)
+
+    return {
+        "departure": r.departure,
+        "destination": r.destination,
+        "distance_nm": round(geo.distance_nm(*r.start, *r.end), 1),
+        "course_line": course_line(r.start, r.end),
+        "candidates": scored,
+        "selected": selected,
+        "legs": leg_list,
+        "totals": totals(leg_list),
+        "altitude_ft": altitude_ft,
+        "altitude_selection": altitude_selection,
+        "aircraft": {"name": aircraft, **profile},
+        "max_zoom": VFR_SECTIONAL_MAX_ZOOM,
+        "min_zoom": VFR_SECTIONAL_MIN_ZOOM,
+    }
+
+
+@router.get("/api/navlog")
+def navlog_stream(
+    dep: str,
+    dest: str,
+    altitude_ft: float | None = None,
+    aircraft: str = DEFAULT_AIRCRAFT,
+) -> StreamingResponse:
+    """Altitude and the dead-reckoning legs, as newline-delimited JSON --
+    the slow half, because it reads terrain, the obstacle file, the
+    airspace shapefile and live winds; asked for separately so none of
+    that delays the chart.
+
+    Streamed rather than a single blocking response so a pilot sees the
+    table fill in as it goes rather than a blank screen: a "stage" line
+    before each real piece of work (scoring, altitude selection, the
+    live aviationweather.gov fetch), an "altitude" line the moment
+    that's decided, one "leg" line per leg as each is computed, then one
+    "done" line with the totals, which need every leg in before they
+    mean anything. Its own implementation, not a wrapper over /api/plan:
+    that one commits to a single synchronous JSON response, and mixing a
+    streaming and a non-streaming contract into one function would
+    compromise both. The overlap is the same handful of calls into
+    app.planning either way.
+
+    An unflyable route (no legal cruising altitude at all) is reported
+    as an "error" line, not an HTTP error status -- by the time that's
+    known, a 200 and a stream of NDJSON have already gone out, and an
+    HTTP status can't change after that.
+    """
+    r = load_route(dep, dest)
+
+    def lines():
+        yield json.dumps({"type": "stage", "detail": "Scoring checkpoints…"}) + "\n"
+        scored = score(r.dep_ident, r.dest_ident)
+        selected = checkpoint_selection.select_checkpoints(scored)
+
+        profile = aircraft_module.load_aircraft_profile(aircraft)
+
+        nav_altitude_ft = altitude_ft
+        altitude_selection = None
+        if nav_altitude_ft is None:
+            yield json.dumps({
+                "type": "stage",
+                "detail": "Selecting a cruise altitude (terrain, obstacles, airspace)…",
+            }) + "\n"
+            # On a side thread with a heartbeat, not inline: an uncached
+            # selection on a bad aviationweather.gov day was observed
+            # taking over two minutes, all of it silent -- and the
+            # webapp proxy cuts a stream that has been silent that long,
+            # so the browser saw the nav log simply end with no legs and
+            # no error. A stage line every few seconds keeps the
+            # connection visibly alive (and tells the pilot what it's
+            # still waiting on) for however long the fetch takes.
+            with ThreadPoolExecutor(max_workers=1) as altitude_pool:
+                future = altitude_pool.submit(cruise_altitude, r.start, r.end, profile, aircraft)
+                while True:
+                    try:
+                        altitude_selection = future.result(timeout=8)
+                        break
+                    except FuturesTimeoutError:
+                        yield json.dumps({
+                            "type": "stage",
+                            "detail": "Selecting a cruise altitude (still waiting on aviationweather.gov)…",
+                        }) + "\n"
+            nav_altitude_ft = altitude_selection.get("recommended_ft")
+            if nav_altitude_ft is None:
+                yield json.dumps({"type": "error", "detail": no_altitude_detail(altitude_selection)}) + "\n"
+                return
+
+        # Sent the moment it's decided, well before any leg -- the
+        # checkpoints already on screen from /api/checkpoints can show
+        # their own cruise altitude immediately rather than waiting on
+        # the first leg to carry it.
+        yield json.dumps({
+            "type": "altitude",
+            "altitude_ft": nav_altitude_ft,
+            "altitude_selection": altitude_selection,
+            "aircraft": {"name": aircraft, **profile},
+        }) + "\n"
+
+        yield json.dumps({
+            "type": "stage", "detail": "Fetching winds aloft from aviationweather.gov…",
+        }) + "\n"
+        leg_list = []
+        for a, b in pairwise(fixes(r.dep_ident, r.dest_ident, r.start, r.end, selected)):
+            leg = assemble_leg(a, b, nav_altitude_ft, profile)
+            leg_list.append(leg)
+            # The first leg's own wind lookup is the one that actually
+            # pays for the aviationweather.gov round trip (later legs
+            # hit vfr.weather's own 15-minute cache) -- yielding this
+            # leg right away, rather than batching all of them into the
+            # final "done" line, is most of why this streams at all.
+            yield json.dumps({"type": "leg", **leg}) + "\n"
+
+        yield json.dumps({"type": "done", "totals": totals(leg_list)}) + "\n"
+
+    return ndjson(lines())

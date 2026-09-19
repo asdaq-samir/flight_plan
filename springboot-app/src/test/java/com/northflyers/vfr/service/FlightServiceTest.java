@@ -12,7 +12,6 @@ import com.northflyers.vfr.domain.Pilot;
 import com.northflyers.vfr.dto.SaveFlightRequest;
 import com.northflyers.vfr.repository.AircraftRepository;
 import com.northflyers.vfr.repository.FlightRepository;
-import com.northflyers.vfr.repository.RouteRepository;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
@@ -36,9 +35,6 @@ class FlightServiceTest {
     @Mock
     private AircraftRepository aircraftRepository;
 
-    @Mock
-    private RouteRepository routeRepository;
-
     @InjectMocks
     private FlightService flightService;
 
@@ -51,7 +47,7 @@ class FlightServiceTest {
     }
 
     private static SaveFlightRequest request(Long aircraftId) {
-        return new SaveFlightRequest(aircraftId, null, "C81", "KDLH", null, null, null, null, null, List.of());
+        return new SaveFlightRequest(aircraftId, "C81", "KDLH", null, null, null, null, null, List.of());
     }
 
     @Test

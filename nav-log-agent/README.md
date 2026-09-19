@@ -99,7 +99,7 @@ Only `generate_briefing` calls Claude. The rest is `src/vfr` and Postgres.
 | `app/graph.py` | The state machine and its nodes. |
 | `app/mcp_server.py` | MCP wrapper, so other clients can call it. |
 | `app/db.py` | Postgres + pgvector access. |
-| `app/model_client.py` | Checkpoint scores, over HTTP or SageMaker Runtime. |
+| `vfr.model_client` (in `src/`) | Checkpoint scores, over HTTP or SageMaker Runtime -- shared with planning-service and crewai-agent. |
 | `app/migrations.py` + `migrations/` | Its own schema, applied at startup. |
 
 ## Things that are not obvious

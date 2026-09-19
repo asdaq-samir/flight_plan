@@ -85,10 +85,10 @@ src/
   Shell.tsx              The header / map / sidebar-drawer layout every page mounts into
   components/            Shared UI
     TwoRowHeader.tsx       Route form and trailing icons on row one, tabs and tab actions on row two
-    RouteInputGroup.tsx, IdentPairInputs.tsx, AirportSearchInput.tsx   The DEP → DEST route form
+    RouteForm.tsx, RouteInputGroup.tsx, AirportSearchInput.tsx   The DEP → DEST form and its Load button, shared by Plan and Label
     MapGuideButton.tsx     The Info popover button (Plan's ScoreLegend, Label's RatingLegend)
     SidebarToggleButton.tsx, SettingsButton.tsx   The header's icon buttons
-    CollapsibleSection.tsx, Footer.tsx
+    IdentPairInputs.tsx, CollapsibleSection.tsx, Footer.tsx
     ui/                    shadcn/ui primitives (components.json), stock unless a comment says why not
   lib/
     api/client.ts          Every network call, one function per endpoint
@@ -97,10 +97,10 @@ src/
     map/useLeafletMap.ts   Map creation and teardown
   features/
     plan/                  PlanView.tsx (wiring), hooks/usePlanState.ts (state), format.ts (pure, tested),
-                           components/: RouteMap, RouteForm, BuildNotice, ScoreLegend, navlog/, briefing/
+                           components/: RouteMap, BuildNotice, ScoreLegend, navlog/, briefing/
     label/                 LabelView.tsx (wiring), hooks/useLabelState.ts (state, tested), logic.ts (pure, tested),
-                           components/: ChartMap, RouteForm, FilterBar, ProgressCard, WaypointList, PointPopup, RatingLegend
-    settings/              SettingsView.tsx (Account / Dev ML / Dev Label tabs), SignInModal.tsx
+                           components/: ChartMap, FilterBar, ProgressCard, WaypointList, PointPopup, RatingLegend
+    settings/              SettingsView.tsx (tab wiring), AccountTab.tsx, DevMlDrawer.tsx, SignInModal.tsx
 ```
 
 ## Architecture

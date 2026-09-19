@@ -341,7 +341,6 @@ function SaveFlightSection({
     setError(null);
     api.flights.save({
       aircraftId: aircraftId ? Number(aircraftId) : null,
-      routeId: null,
       departureIdent: dep,
       destinationIdent: dest,
       cruiseAltitudeFt: nav?.altitude_ft ?? null,

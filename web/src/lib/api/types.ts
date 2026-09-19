@@ -427,7 +427,6 @@ export interface Flight extends FlightSummary {
  *  log for a route this pilot planned. */
 export interface SaveFlightRequest {
   aircraftId: number | null;
-  routeId: number | null;
   departureIdent: string;
   destinationIdent: string;
   cruiseAltitudeFt: number | null;
