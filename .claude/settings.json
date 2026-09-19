@@ -2,6 +2,12 @@
 { "permissions":
     { "defaultMode": "bypassPermissions",
       "allow": [
+        "Bash",
+        "Edit",
+        "Write",
+        "NotebookEdit",
+        "WebFetch",
+        "WebSearch",
         "Bash(docker *)",
         "Bash(open *)",
         "Bash(python3 *)",
@@ -16,7 +22,24 @@
         "Bash(tail *)",
         "Bash(find *)",
         "Bash(if *)",
-        "Bash(rm *)"
+        "Bash(rm *)",
+        "Bash(sed *)",
+        "Bash(awk *)",
+        "Bash(mkdir *)",
+        "Bash(wc *)",
+        "Bash(ls *)",
+        "Bash(head *)",
+        "Bash(tr *)",
+        "Bash(cut *)",
+        "Bash(xargs *)",
+        "Bash(diff *)",
+        "Bash(printf *)",
+        "Bash(sleep *)",
+        "Bash(test *)",
+        "Bash(true *)",
+        "Bash(npx *)",
+        "Bash(npm *)",
+        "Bash(node *)"
       ]
     }
 }
