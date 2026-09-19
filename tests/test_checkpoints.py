@@ -1,5 +1,3 @@
-import pytest
-
 from vfr.checkpoints import select_checkpoints, selection_gaps_nm
 
 

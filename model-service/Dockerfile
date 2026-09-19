@@ -1,11 +1,19 @@
+# syntax=docker/dockerfile:1
 FROM python:3.13-slim
 
 WORKDIR /service
 
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# --mount=type=cache: pip's own wheel/download cache, keyed by this
+# image -- survives across builds so an unrelated app/ change doesn't
+# force re-downloading the same wheels (torch/tensorflow chief among
+# them; see docker/tidy.sh's own comments on how expensive that is).
+RUN --mount=type=cache,target=/root/.cache/pip pip install -r requirements.txt
 
 COPY app ./app
+
+RUN useradd -m appuser
+USER appuser
 
 EXPOSE 8000
 

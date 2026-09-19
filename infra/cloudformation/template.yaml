@@ -44,6 +44,7 @@ Metadata:
           default: Gen AI (nav-log-agent / crewai-agent)
         Parameters:
           - AnthropicApiKeySecretArn
+          - NavLogAgentApiKeySecretArn
       - Label:
           default: Pipeline data (read/written by SageMaker Processing/Training Jobs)
         Parameters:
@@ -113,6 +114,9 @@ Parameters:
   AnthropicApiKeySecretArn:
     Type: String
     Description: ARN of an existing Secrets Manager secret holding the raw Anthropic API key as its secret value (plaintext, not JSON) -- used by nav-log-agent and crewai-agent.
+  NavLogAgentApiKeySecretArn:
+    Type: String
+    Description: ARN of an existing Secrets Manager secret holding the shared bearer token nav-log-agent's own MCP endpoint checks (nav-log-agent/app/main.py's BearerAuthMiddleware) -- the ALB routes /mcp/* to it with no auth of its own in front, so this is the only thing stopping an unauthenticated caller from running billed Claude calls and writing to the briefing store.
 
   DataS3BucketName:
     Type: String
@@ -278,6 +282,7 @@ Resources:
                 Resource:
                   - !GetAtt Database.MasterUserSecret.SecretArn
                   - !Ref AnthropicApiKeySecretArn
+                  - !Ref NavLogAgentApiKeySecretArn
 
   EcsTaskRole:
     Type: AWS::IAM::Role
@@ -758,6 +763,8 @@ Resources:
               ValueFrom: !Sub "${Database.MasterUserSecret.SecretArn}:password::"
             - Name: ANTHROPIC_API_KEY
               ValueFrom: !Ref AnthropicApiKeySecretArn
+            - Name: NAV_LOG_AGENT_API_KEY
+              ValueFrom: !Ref NavLogAgentApiKeySecretArn
           LogConfiguration:
             LogDriver: awslogs
             Options:

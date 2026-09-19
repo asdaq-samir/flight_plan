@@ -25,14 +25,14 @@ const SCALE: [Rating, string, string][] = [
 /**
  * The rating scale and keyboard shortcuts -- `MapGuideButton`'s own
  * shell (shared with the planner's own `ScoreLegend`) around this
- * page's own content. The Start/Resume/Fit line action moved into the
- * header (see LabelView's own comment), so nothing else claims this
- * corner anymore and this uses `MapGuideButton`'s own flush default,
- * the same as ScoreLegend does on Plan.
+ * page's own content, inline next to the sidebar trigger in the header
+ * (see LabelView's own comment on where the Start/Resume/Fit line
+ * action sits), the same way Plan's `ScoreLegend` does for its own Map
+ * tab.
  */
 export default function RatingLegend() {
   return (
-    <MapGuideButton ariaLabel="Labeling guide" contentClassName="w-72">
+    <MapGuideButton ariaLabel="Info" contentClassName="w-72">
       <p className="italic text-muted-foreground">
         Flying this leg, would I look up and know <i>that&rsquo;s the one</i> — not one like it?
       </p>

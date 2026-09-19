@@ -1,7 +1,7 @@
 # VFR Nav Log Platform
 
 ![Python](https://img.shields.io/badge/Python%203.12-3776AB?style=flat-square&logo=python&logoColor=white)
-![Java](https://img.shields.io/badge/Java%2021-437291?style=flat-square&logo=openjdk&logoColor=white)
+![Java](https://img.shields.io/badge/Java%2025-437291?style=flat-square&logo=openjdk&logoColor=white)
 ![Go](https://img.shields.io/badge/Go-00ADD8?style=flat-square&logo=go&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker%20Compose-2496ED?style=flat-square&logo=docker&logoColor=white)
 ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-6DB33F?style=flat-square&logo=springboot&logoColor=white)
@@ -132,7 +132,7 @@ works too. AWS counterpart: `architecture-aws.drawio`, rendered in
 ![React](https://img.shields.io/badge/React%2018-61DAFB?style=flat-square&logo=react&logoColor=black)
 ![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=flat-square&logo=typescript&logoColor=white)
 ![Vite](https://img.shields.io/badge/Vite-646CFF?style=flat-square&logo=vite&logoColor=white)
-![Zustand](https://img.shields.io/badge/Zustand-2D3748?style=flat-square)
+![TanStack Query](https://img.shields.io/badge/TanStack%20Query-FF4154?style=flat-square&logo=reactquery&logoColor=white)
 ![Leaflet](https://img.shields.io/badge/Leaflet-199900?style=flat-square&logo=leaflet&logoColor=white)
 ![Vitest](https://img.shields.io/badge/Vitest-6E9F18?style=flat-square&logo=vitest&logoColor=white)
 
@@ -171,14 +171,19 @@ service discovery at `planning-service.vfr-route.internal`.
   `/api/picks` — reached by the browser as `/api/planner/*` on `webapp`,
   never directly. Its own OpenAPI page is at
   [`localhost:8084/docs`](http://localhost:8084/docs)
-- `/api/briefing` and `/api/briefing/narrative` — the FAA-sequence
-  weather/NOTAM briefing behind the Flight Briefing section of
-  `/app/plan`, and a Claude-generated narrative of it for text/voice
-  playback
-- `/api/model-comparison`, `/api/playground/score`, `/api/altitude-breakdown`
-  — Settings' own demos: every algorithm's accuracy side by
-  side, live scoring from a chosen one, and the full reasoning behind a
-  recommended cruise altitude
+- `/api/briefing` — the FAA-sequence weather/NOTAM briefing behind the
+  Brief tab on `/app/plan` (the narrative itself is a separate call,
+  through `webapp`'s own `/api/comparison` — see that section below)
+- `/api/model-comparison`, `/api/playground/score` — Settings' Dev ML
+  tab: every algorithm's accuracy side by side, and live scoring from a
+  chosen one
+- `/api/altitude-breakdown` — the full reasoning behind a recommended
+  cruise altitude, for any route independent of session state; the
+  same computation `/api/navlog`'s own "altitude" message already
+  carries for whichever route is actually loaded, which is what the
+  Brief tab's own "Cruise Altitude" section shows a pilot -- this
+  endpoint has no current UI caller of its own, but stays as a real,
+  documented, tested read
 - The pages it used to serve are now
   [`/app/plan`](http://localhost:8080/app/plan) and
   [`/app/label`](http://localhost:8080/app/label) on `webapp` — see
@@ -228,6 +233,15 @@ service discovery at `planning-service.vfr-route.internal`.
   `/api/me` reports who's signed in; `/api/aircraft` and `/api/flights`
   are that pilot's own aeroplanes and filed flights, each pilot-scoped
   so one can never read or edit another's by guessing an id
+- `/api/comparison` (`ComparisonProxyController`) — runs `nav-log-agent`'s
+  LangGraph build and/or `crewai-agent`'s CrewAI build on the same route
+  and returns each framework's own narrative, or `{"error": "..."}` for
+  whichever one is down/erroring; `framework=langgraph`/`framework=crewai`
+  runs one (the Brief tab's own AI popover, each a real billed Claude
+  call), omitted runs both (no current UI caller for that mode -- used
+  to be Settings' own Agent Framework Comparison panel, dropped as
+  redundant once the Brief tab's own popover offered the same choice
+  in context). Neither agent is required for `webapp` itself to start
 - Interactive API docs (springdoc-openapi) at `http://localhost:8080/swagger-ui/index.html`, raw spec at `/v3/api-docs`
 
 **`nav-log-agent`** — a LangGraph agent wrapped as an MCP server.
@@ -430,7 +444,7 @@ an engineering gap:
 
 ```bash
 git clone <repo-url>
-cd vfr_route
+cd flight_plan
 
 # Only needed for nav-log-agent / crewai-agent:
 export ANTHROPIC_API_KEY=sk-...
@@ -477,9 +491,9 @@ stack. Anything not listed here does not exist.
 
 | What | URL | Needs |
 |---|---|---|
-| **Route planner** (map, nav log, Flight Briefing) — also the app's homepage, bare `/app` redirects here | [`localhost:8080/app/plan`](http://localhost:8080/app/plan) | `webapp` + `planning-service` |
-| **Labeling page** (linked from Settings, not its own nav item) | [`localhost:8080/app/label`](http://localhost:8080/app/label) | `webapp` + `planning-service` |
-| **Settings** (what the app does; model comparison, algorithm picker, altitude breakdown; sign in, your aeroplanes, your filed flights) | [`localhost:8080/app/settings`](http://localhost:8080/app/settings) | `webapp` + `planning-service` |
+| **Route planner** (Map and Brief tabs — the map/nav log, and the FAA-sequence briefing with its own LangGraph/CrewAI narrative popover) — also the app's homepage, bare `/app` redirects here | [`localhost:8080/app/plan`](http://localhost:8080/app/plan) | `webapp` + `planning-service` |
+| **Labeling page**, standalone | [`localhost:8080/app/label`](http://localhost:8080/app/label) | `webapp` + `planning-service` |
+| **Settings** — three tabs: Account (sign in, your aeroplanes, your filed flights), Dev ML (model comparison, algorithm picker), and Dev Label (the same labeling page above, embedded live rather than linked out to) | [`localhost:8080/app/settings`](http://localhost:8080/app/settings) | `webapp` + `planning-service` |
 | Spring Boot API docs | [`localhost:8080/swagger-ui/index.html`](http://localhost:8080/swagger-ui/index.html) | `webapp` |
 | Spring Boot OpenAPI spec | [`localhost:8080/v3/api-docs`](http://localhost:8080/v3/api-docs) | `webapp` |
 | Health / readiness | [`localhost:8080/actuator/health`](http://localhost:8080/actuator/health) | `webapp` |
@@ -651,7 +665,7 @@ data/
 | `test-planning-service` | ruff + pytest over `planning-service/tests/` — its own dependency set (`planning-service/requirements-dev.txt`), separate from `test`'s unrelated `src/vfr` ones |
 | `docs` | Regenerates Javadoc + godoc on every push/PR; the `pdoc` steps, which need this repo's heavy ML images, run only on pushes to `main` so PRs aren't charged minutes for them. Output uploads as a `documentation` artifact. |
 | `build-images` | Builds every service Dockerfile, publishes each to GHCR on push to `main` |
-| `push-ecr` | Pushes the five images the CloudFormation stack deploys (`webapp`, `model-service`, `nav-log-agent`, `crewai-agent`, `airflow`) to ECR via OIDC, reusing `build-images`' cache; activates automatically once `AWS_ROLE_ARN`/`AWS_REGION` repo variables exist |
+| `push-ecr` | Pushes the six images the CloudFormation stack deploys (`webapp`, `planning-service`, `model-service`, `nav-log-agent`, `crewai-agent`, `airflow`) to ECR via OIDC, reusing `build-images`' cache; activates automatically once `AWS_ROLE_ARN`/`AWS_REGION` repo variables exist |
 
 `build-images` gates on the test jobs, so a failing test never produces a
 published image.

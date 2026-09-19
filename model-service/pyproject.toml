@@ -1,0 +1,6 @@
+[tool.pytest.ini_options]
+# "." so `from app.main import ...` resolves the same way the
+# Dockerfile's own WORKDIR does -- this service has no dependency on
+# the shared vfr package (unlike planning-service), so there's no
+# second entry here.
+pythonpath = ["."]

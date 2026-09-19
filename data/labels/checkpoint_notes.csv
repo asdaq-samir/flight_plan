@@ -1,3 +1,22 @@
 route,lat,lon,description,created_at
-C81->KDLH,42.3747091,-88.13313382568754,SYNC-TEST-NOTE-v2,2026-09-15T17:44:59+00:00
 C81->KDLH,46.0972015,-91.45679609355356,Another nice lake,2026-09-18T04:41:16+00:00
+C81->KDLH,42.52326665,-88.25761251936056,Look for a distinct lake-shaped water body matching Lake Mary's charted position between Long Lake and the WI 11/120 junction.,2026-09-19T04:36:42+00:00
+C81->KDLH,42.6912394,-88.404694,"Look for the actual highway junction where WI 11 crosses WI 120, confirming route numbers via signage or chart alignment before proceeding to Mill Pond.",2026-09-19T04:36:44+00:00
+C81->KDLH,42.977957700000005,-88.60628574800847,"Look for a small, distinctly shaped pond along the route between WI 11/120 and Clyman Subdivision, confirming position by surrounding roads or terrain rather than the water body alone.",2026-09-19T04:36:45+00:00
+C81->KDLH,43.13398143140434,-88.75827387781644,"Look for a distinct railroad line/track junction on the ground, matching its charted position between Mill Pond and Watertown Subdivision.",2026-09-19T04:36:47+00:00
+C81->KDLH,43.32921903550405,-88.92655064739878,"Look for a distinct railroad line/track corridor on the ground, matching the route's expected position 71.0 nm from C81.",2026-09-19T04:36:49+00:00
+C81->KDLH,43.58123259836066,-89.14342834918033,"Look for a large cluster of exactly 61 turbines in grid-like rows, distinct from any smaller nearby wind installations.",2026-09-19T04:36:51+00:00
+C81->KDLH,43.8061561,-89.34193324655578,"Look for a small, distinctly shaped lake near Wisconsin's Montello area, confirmed by its outline matching the chart symbol, not just any nearby pond.",2026-09-19T04:36:52+00:00
+C81->KDLH,44.3417184,-89.82538038487967,Look for a small lake matching Nepco Lake's charted shape and position between Lake Montello and the WI 186/CTH C/CTH HH junction.,2026-09-19T04:36:54+00:00
+C81->KDLH,44.4819827,-89.9640491,"Look for the distinct three-way road junction where WI 186, CTH C, and CTH HH converge, matching the charted intersection pattern.",2026-09-19T04:36:56+00:00
+C81->KDLH,44.64375194400297,-90.09450313879395,"Look for the single CN rail line itself—confirm by its track alignment and any adjacent junctions, not surrounding terrain.",2026-09-19T04:36:59+00:00
+C81->KDLH,44.885351028237466,-90.31611322999494,Look for a distinct railroad line/track corridor on the ground matching the Medford Subdivision's charted position between the two adjacent checkpoints.,2026-09-19T04:37:03+00:00
+C81->KDLH,45.14249781121991,-90.55448003085344,"Look for a distinct river channel matching the Black River's course on your chart, confirming position between Medford Subdivision and Jump River.",2026-09-19T04:37:05+00:00
+C81->KDLH,45.3626451729067,-90.7606364416613,"Look for a distinct winding river channel matching Jump River's course on the sectional, confirming position via nearby landmarks—not just any similar waterway.",2026-09-19T04:37:07+00:00
+C81->KDLH,45.5727091,-90.94735096602554,"Look for a distinct lake or pond shape along your route, matching its charted position between Jump River and Chippewa River.",2026-09-19T04:37:08+00:00
+C81->KDLH,45.786809191555896,-91.16341536857254,"Look for a wide, winding river matching the Chippewa's course between Big Falls Flowage and Sunfish Lake, confirming via GPS/chart position.",2026-09-19T04:37:10+00:00
+C81->KDLH,45.93645135,-91.28993451204336,"Look for a small, roughly round lake matching Sunfish Lake's charted position between Chippewa River and Nelson Lake, distinct from nearby similarly sized ponds.",2026-09-19T04:37:11+00:00
+C81->KDLH,46.25113432628844,-91.6130193340556,"Look for a distinct winding river crossing your route; confirm by matching its bends/width to the chart, not nearby streams.",2026-09-19T04:42:53+00:00
+C81->KDLH,46.50178698184006,-91.85962891368968,Look for the distinct rail line/yard itself and match its track alignment and any junction pattern to the chart symbol.,2026-09-19T04:42:54+00:00
+C81->KDLH,46.7693027,-92.1186979,"Look for the actual highway interchange where two I-35 segments cross or merge, confirming via route numbers/signage if visible.",2026-09-19T04:42:56+00:00
+C81->KDLH,42.3747091,-88.13313382568754,Big red barn on the left,2026-09-19T12:14:39+00:00

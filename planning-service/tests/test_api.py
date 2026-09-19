@@ -12,11 +12,11 @@ import json
 
 import requests
 from fastapi.testclient import TestClient
+from vfr import airports
+from vfr import altitude as altitude_module
+from vfr.weather import WeatherServiceError
 
 from app.main import app, model_registry
-from vfr import altitude as altitude_module
-from vfr import airports
-from vfr.weather import WeatherServiceError
 
 client = TestClient(app)
 

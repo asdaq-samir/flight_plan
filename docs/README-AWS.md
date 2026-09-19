@@ -166,7 +166,7 @@ once after deploy — see [Deployment Guide](#deployment-guide).
 **What's verified**, without needing an AWS account:
 
 - `cfn-lint` passes with zero errors/warnings
-- Every image the template references (`webapp`, `model-service`, `nav-log-agent`, `crewai-agent`, the AWS-mode `airflow`) builds cleanly
+- Every image the template references (`webapp`, `planning-service`, `model-service`, `nav-log-agent`, `crewai-agent`, the AWS-mode `airflow`) builds cleanly
 - The Lambda compiles (`GOOS=linux GOARCH=arm64`) and passes `go vet`
 - The AWS-mode DAG parses with zero import errors and the correct five-task order
 
@@ -230,9 +230,9 @@ The runbook, in order.
 
 ### Deploy runbook
 
-1. **Create the five ECR repositories:**
+1. **Create the six ECR repositories:**
    ```bash
-   for repo in webapp model-service nav-log-agent crewai-agent airflow; do
+   for repo in webapp planning-service model-service nav-log-agent crewai-agent airflow; do
      aws ecr create-repository --repository-name vfr-route/$repo
    done
    ```
@@ -244,8 +244,9 @@ The runbook, in order.
    aws ecr get-login-password | docker login --username AWS --password-stdin <account>.dkr.ecr.<region>.amazonaws.com
    docker build -t <account>.dkr.ecr.<region>.amazonaws.com/vfr-route/webapp:latest ./springboot-app
    docker push <account>.dkr.ecr.<region>.amazonaws.com/vfr-route/webapp:latest
-   # repeat for model-service, nav-log-agent, crewai-agent, and
-   # airflow (built from docker/Dockerfile.airflow.aws, not Dockerfile.airflow)
+   # repeat for planning-service, model-service, nav-log-agent,
+   # crewai-agent, and airflow (built from
+   # docker/Dockerfile.airflow.aws, not Dockerfile.airflow)
    ```
 3. **Package and upload the model artifact**, once a real one exists (see
    `README.md`'s Status):
@@ -264,11 +265,15 @@ The runbook, in order.
    zip bootstrap.zip bootstrap
    aws s3 cp bootstrap.zip s3://<your-bucket>/retrain-trigger/bootstrap.zip
    ```
-6. **Create the two secrets** the template reads (it doesn't create
-   either):
+6. **Create the three secrets** the template reads (it doesn't create
+   any of them):
    ```bash
    aws secretsmanager create-secret --name anthropic-api-key --secret-string '<your key>'
    aws secretsmanager create-secret --name airflow-rest-api-creds --secret-string '{"username":"...","password":"..."}'
+   # The bearer token nav-log-agent's own MCP endpoint checks (its ALB
+   # route has no other auth in front of it) -- generate one, don't
+   # reuse another secret's value:
+   aws secretsmanager create-secret --name nav-log-agent-api-key --secret-string "$(openssl rand -base64 32)"
    ```
 7. **Verify the RDS engine version is still valid** — the template pins
    `EngineVersion: "17.4"` with a documented lint suppression:
@@ -286,6 +291,7 @@ The runbook, in order.
        PublicSubnetIds=subnet-...,subnet-... \
        PrivateSubnetIds=subnet-...,subnet-... \
        WebappImageUri=<account>.dkr.ecr.<region>.amazonaws.com/vfr-route/webapp:latest \
+       PlanningServiceImageUri=<account>.dkr.ecr.<region>.amazonaws.com/vfr-route/planning-service:latest \
        ModelServiceImageUri=<account>.dkr.ecr.<region>.amazonaws.com/vfr-route/model-service:latest \
        NavLogAgentImageUri=<account>.dkr.ecr.<region>.amazonaws.com/vfr-route/nav-log-agent:latest \
        CrewaiAgentImageUri=<account>.dkr.ecr.<region>.amazonaws.com/vfr-route/crewai-agent:latest \
@@ -293,6 +299,7 @@ The runbook, in order.
        ModelArtifactS3Uri=s3://<DataS3BucketName>/model.tar.gz \
        DataS3BucketName=<DataS3BucketName> \
        AnthropicApiKeySecretArn=arn:aws:secretsmanager:... \
+       NavLogAgentApiKeySecretArn=arn:aws:secretsmanager:... \
        LambdaCodeS3Bucket=<your-bucket> \
        AirflowCredentialsSecretArn=arn:aws:secretsmanager:...
    ```

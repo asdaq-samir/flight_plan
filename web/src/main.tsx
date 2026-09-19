@@ -3,6 +3,7 @@ import ReactDOM from "react-dom/client";
 import { createBrowserRouter, Navigate, RouterProvider } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "./components/ui/sonner";
+import { TooltipProvider } from "./components/ui/tooltip";
 import "./index.css";
 
 const queryClient = new QueryClient();
@@ -62,35 +63,52 @@ const router = createBrowserRouter(
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>
-      <RouterProvider router={router} />
+      {/* One instance for the whole app, the same as sonner's own
+          Toaster below -- every icon-only button's own Tooltip shares
+          this one delay/grouping context (hover one, then another
+          shows instantly) instead of each re-running its own
+          default-delay timer independently. */}
+      <TooltipProvider>
+        <RouterProvider router={router} />
+      </TooltipProvider>
       {/* One instance for the whole app -- PageStatus's progress line
           (across every page that has one) renders through it via
           toast.loading/dismiss, rather than each page mounting its own
           floating status element.
-          Every page that shows one also has its own corner buttons
-          (MapGuideButton bottom-left, the sidebar trigger bottom-right)
-          -- and sonner deliberately makes toasts full-width below a
-          600px viewport (its own mobile breakpoint, not something a
-          `--width` override can beat), so a bottom toast would
-          unavoidably overlap one of those. offset clears Plan/Label's
-          own merged header row (route form + Settings gear, a measured
-          53px) with a small margin rather than a round guess -- 90px
-          was landing the toast a visible gap of bare map below the
-          header instead of snug against it.
-          mobileOffset, not just offset: sonner reads a completely
-          separate `--mobile-offset-*` custom property below its own
-          600px breakpoint (this app's actual viewport), so `offset`
-          alone is silently ignored there.
+          bottom-center everywhere now -- Plan's own header row used to
+          need `offset` to clear (a toast top-anchored there would sit
+          right under the route form), but nothing floats at the bottom
+          of Plan's or Settings' own content any more (every corner
+          button that used to live there has moved into a header), so
+          there's no header row's own height to measure and clear the
+          way the old top-anchored offset did. Standalone Label
+          (`/app/label`) is the one page that still floats its own
+          guide button and sidebar trigger at the bottom -- sonner's own
+          default bottom margin already clears Leaflet's attribution
+          control there the same way the old top offset cleared a
+          header, without this needing a page-specific number.
           closeButton: off by default in sonner, but the error toast
           below sets `duration: Infinity` (see usePageStatus) -- with
           no close button, the only way to dismiss it is for the error
           condition to clear itself in app state, and a pilot has no
-          way to just get it off their screen while that's still true. */}
+          way to just get it off their screen while that's still true.
+          richColors: every icon here (success/info/warning/error) is
+          drawn with `fill="currentColor"` in sonner's own source, so
+          without this they're all the same neutral text color --
+          error and warning only actually READ as red/amber, distinct
+          from a plain status toast, once this is on. Colors the
+          toast's own background/border along with the icon (sonner's
+          one built-in switch for both, not two separate settings).
+          Nothing else set here -- position/closeButton/richColors are
+          this app's only real requirements (a bottom-anchored spot,
+          a way to dismiss an `Infinity`-duration error, colors that
+          tell success/warning/error apart); everything else is
+          sonner's own plain default, same as its own docs' own basic
+          example. */}
       <Toaster
-        position="top-center"
-        offset={{ top: "61px" }}
-        mobileOffset={{ top: "61px" }}
+        position="bottom-center"
         closeButton
+        richColors
       />
     </QueryClientProvider>
   </React.StrictMode>,

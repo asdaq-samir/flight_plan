@@ -27,21 +27,34 @@ implementation, not two.
 import json
 import os
 import threading
+import time
 import traceback
 import uuid
 from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FuturesTimeoutError
 from contextlib import asynccontextmanager
-from pathlib import Path
+from itertools import pairwise
 
 import anthropic
 import requests
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import JSONResponse, Response, StreamingResponse
 from pydantic import BaseModel
-
 from vfr import aircraft as aircraft_module
-from vfr import airports, altitude as altitude_module, checkpoints as checkpoint_selection
-from vfr import chartlabels, chartvision, checkpoint_notes, faa_data, geo, model_registry, navlog, pipeline, weather
+from vfr import (
+    airports,
+    chartlabels,
+    chartvision,
+    checkpoint_notes,
+    faa_data,
+    geo,
+    model_registry,
+    navlog,
+    pipeline,
+    weather,
+)
+from vfr import altitude as altitude_module
+from vfr import checkpoints as checkpoint_selection
 from vfr.config import (
     DATA_DIR,
     VFR_SECTIONAL_MAP_SERVICE_URL,
@@ -53,7 +66,6 @@ MODEL_SERVICE_URL = os.environ.get("MODEL_SERVICE_URL", "http://model-service:80
 # Same env-var convention as nav-log-agent's NAV_LOG_AGENT_MODEL -- this
 # is the only other place in the repo that names a Claude model.
 CHECKPOINT_NOTE_MODEL = os.environ.get("CHECKPOINT_NOTE_MODEL", "claude-sonnet-5")
-BRIEFING_NARRATIVE_MODEL = os.environ.get("BRIEFING_NARRATIVE_MODEL", "claude-sonnet-5")
 # These fail the same way for every checkpoint in the route, not just
 # the one that happened to hit it first -- a bad key or an exhausted
 # rate limit does not get better by trying the next 20 checkpoints the
@@ -160,15 +172,26 @@ def built_routes() -> dict:
         raise HTTPException(502, f"Could not reach model-service: {err}") from err
 
 
+@app.get("/api/airports/search")
+def airport_search(q: str = "") -> dict:
+    """DEP/DEST's own autocomplete -- every airport whose ident or name
+    starts with `q`, for the route inputs to suggest as a pilot types.
+    Runs against the same in-memory OurAirports table `_resolve` above
+    already uses for the real lookup, not a second data source that
+    could drift from it.
+    """
+    return {"airports": airports.search_airports(q)}
+
+
 @app.get("/api/model-comparison")
 def model_comparison() -> dict:
     """Every algorithm anyone has actually trained for this problem,
     not just the sklearn family retrain() grid-searches: the promoted
     model's own comparison against Ridge/GradientBoosting/a dummy
     "predict the mean" baseline, plus PyTorch/TensorFlow/Spark's own
-    candidates (vfr.model_candidates), when they exist. For the
-    Playground page's comparison panel, not anything the planner
-    itself uses.
+    candidates (vfr.model_candidates), when they exist. For Settings'
+    Dev ML tab's comparison panel, not anything the planner itself
+    uses.
 
     Each entry names its own metric rather than pretending they are
     all the same number: the sklearn family's own selection already
@@ -210,8 +233,8 @@ def model_comparison() -> dict:
 
 @app.get("/api/playground/score")
 def playground_score(dep: str, dest: str, model: str = "current") -> dict:
-    """Scored checkpoints from one specific algorithm -- the
-    Playground's own model-comparison demo, kept deliberately separate
+    """Scored checkpoints from one specific algorithm -- Settings' Dev
+    ML tab's own model-comparison demo, kept deliberately separate
     from _score()/the planner's real scoring path (used by
     /api/checkpoints etc.), which never needs to choose an algorithm:
     it always uses whatever is currently promoted. A thin passthrough
@@ -238,21 +261,52 @@ def altitude_breakdown(dep: str, dest: str, aircraft: str = DEFAULT_AIRCRAFT) ->
     """The full altitude_module.select_cruise_altitude() breakdown for
     any route -- floor, ceiling band and each of its own components
     (airspace/freezing level/aircraft service ceiling), and the
-    weather go/no-go flags -- for the Playground page's own "how is
-    this number actually decided" panel.
+    weather go/no-go flags.
 
     /api/navlog's own "altitude" stream message already carries this
-    exact dict, but only for whichever route a pilot happens to have
-    open on the Plan page right now; this is a standalone read so the
-    Playground can explore any dep/dest pair on its own, independent
-    of that page's session state.
+    exact dict, which is what the Brief tab's own "Cruise Altitude"
+    section actually shows a pilot -- for whichever route they have
+    open on the Plan page right now. This is a standalone read of the
+    same computation for any dep/dest pair, independent of a session's
+    own state; no current UI calls it directly (it used to be Settings'
+    own Altitude Selection Breakdown panel, before that panel moved to
+    the Brief tab and became a read of already-loaded nav-log data
+    instead of a second fetch), but it stays as a real, documented
+    endpoint in its own right.
     """
     dep_ident, dest_ident = _route_key(dep, dest)
     dep_airport, dest_airport = _resolve(dep_ident, dest_ident)
     start = (dep_airport["lat"], dep_airport["lon"])
     end = (dest_airport["lat"], dest_airport["lon"])
     profile = aircraft_module.load_aircraft_profile(aircraft)
-    return altitude_module.select_cruise_altitude(start, end, profile)
+    return _cruise_altitude(start, end, profile, aircraft)
+
+
+# The altitude selection re-ran its whole stack -- terrain sampling
+# (USGS EPQS, network), the airspace shapefile, and three separate
+# aviationweather.gov calls -- on every single nav-log request, for a
+# result that only moves when the weather does. The terrain and airspace
+# halves are static per route outright; the weather half already runs on
+# aviationweather.gov products reissued a few times a day, and
+# vfr.weather's own winds cache uses this same 15-minute TTL. On a bad
+# aviationweather.gov day (504s, retries) one uncached selection was
+# observed taking over two minutes -- a price worth paying once per
+# route per quarter hour, not on every page load.
+_ALTITUDE_CACHE: dict = {}
+_ALTITUDE_TTL_S = 900
+_ALTITUDE_CACHE_LOCK = threading.Lock()
+
+
+def _cruise_altitude(start: tuple, end: tuple, profile: dict, aircraft: str) -> dict:
+    key = (round(start[0], 4), round(start[1], 4), round(end[0], 4), round(end[1], 4), aircraft)
+    with _ALTITUDE_CACHE_LOCK:
+        hit = _ALTITUDE_CACHE.get(key)
+        if hit is not None and time.time() - hit[0] < _ALTITUDE_TTL_S:
+            return hit[1]
+    selection = altitude_module.select_cruise_altitude(start, end, profile)
+    with _ALTITUDE_CACHE_LOCK:
+        _ALTITUDE_CACHE[key] = (time.time(), selection)
+    return selection
 
 
 def _course_line(start: tuple, end: tuple, step_nm: float = 5.0) -> list:
@@ -277,7 +331,38 @@ def _course_line(start: tuple, end: tuple, step_nm: float = 5.0) -> list:
     return points
 
 
+# Scored checkpoints per route, keyed by what actually changes the
+# result: the features file and the promoted model. /api/checkpoints and
+# /api/navlog each call _score for the same route on every single page
+# load -- two full model-service round trips (features parquet read +
+# inference) for one screen, and the second one always returned exactly
+# what the first just had.
+_SCORE_CACHE: dict = {}
+_SCORE_CACHE_LOCK = threading.Lock()
+
+
+def _mtime_or_none(path) -> float | None:
+    try:
+        return path.stat().st_mtime
+    except OSError:
+        return None
+
+
 def _score(dep: str, dest: str) -> list:
+    _, features_path = _paths(dep, dest)
+    key = (
+        dep, dest,
+        _mtime_or_none(features_path),
+        _mtime_or_none(model_registry.CURRENT_MODEL_DIR / "metrics.json"),
+    )
+    with _SCORE_CACHE_LOCK:
+        cached = _SCORE_CACHE.get((dep, dest))
+        if cached is not None and cached["key"] == key:
+            # Copies, not the cached dicts themselves -- /api/checkpoints
+            # writes a "selected" flag onto every entry it returns, and
+            # two requests doing that to one shared list is a data race.
+            return [dict(c) for c in cached["checkpoints"]]
+
     try:
         resp = requests.post(
             f"{MODEL_SERVICE_URL}/invocations",
@@ -290,7 +375,10 @@ def _score(dep: str, dest: str) -> list:
         raise HTTPException(404, f"{dep}->{dest} has not been collected yet")
     if resp.status_code != 200:
         raise HTTPException(resp.status_code, resp.json().get("detail", resp.text))
-    return resp.json()["checkpoints"]
+    checkpoints = resp.json()["checkpoints"]
+    with _SCORE_CACHE_LOCK:
+        _SCORE_CACHE[(dep, dest)] = {"key": key, "checkpoints": [dict(c) for c in checkpoints]}
+    return checkpoints
 
 
 @app.get("/api/plan")
@@ -324,7 +412,7 @@ def plan(
 
     altitude_selection = None
     if altitude_ft is None:
-        altitude_selection = altitude_module.select_cruise_altitude(start, end, profile)
+        altitude_selection = _cruise_altitude(start, end, profile, aircraft)
         altitude_ft = altitude_selection.get("recommended_ft")
         if altitude_ft is None:
             raise HTTPException(
@@ -344,7 +432,7 @@ def plan(
         + [{"name": dest_ident, "category": "destination", "lat": end[0], "lon": end[1]}]
     )
     legs = []
-    for a, b in zip(fixes, fixes[1:]):
+    for a, b in pairwise(fixes):
         leg = navlog.assemble_leg((a["lat"], a["lon"]), (b["lat"], b["lon"]), altitude_ft, profile)
         leg["from"] = a["name"] or a["category"]
         leg["to"] = b["name"] or b["category"]
@@ -574,6 +662,42 @@ def classify(lat: float, lon: float) -> dict:
     return chartvision.classify_point(lat, lon)
 
 
+# One chart cycle, in seconds -- how long a browser (or a CDN in front
+# of this app) may keep a tile before asking again. PlannerProxyController
+# forwards Cache-Control for this path alone; see its own comment.
+_SECTIONAL_TILE_MAX_AGE_S = 28 * 24 * 3600
+
+
+@app.get("/api/sectional-tile/{z}/{x}/{y}.png")
+def sectional_tile(z: int, x: int, y: int) -> Response:
+    """The sectional as a {z}/{x}/{y} tile pyramid, built from the TAMU
+    dynamic map service one tile-sized export at a time and cached on
+    disk (vfr.chartvision's own tile cache -- the same files the
+    detector reads, so a corridor planned once has its map tiles ready,
+    and a map browsed once has its detection tiles ready).
+
+    This is what makes the map's sectional layer a plain Leaflet tile
+    layer again: edge-only fetches on a pan, the previous zoom's tiles
+    scaled under the zoom animation, a prefetch ring -- everything a
+    tile pyramid gets for free that a one-image-per-view dynamic layer
+    (the previous approach) structurally could not, however it was
+    padded or faded. Outside the chart's own useful zoom range there is
+    nothing worth rendering: the tile layer's maxNativeZoom keeps the
+    browser from asking, and this keeps anyone else from making TAMU
+    render it.
+    """
+    if not (VFR_SECTIONAL_MIN_ZOOM <= z <= VFR_SECTIONAL_MAX_ZOOM):
+        raise HTTPException(404, f"sectional tiles exist for zoom {VFR_SECTIONAL_MIN_ZOOM}-{VFR_SECTIONAL_MAX_ZOOM}")
+    png = chartvision.sectional_tile_png(x, y, z)
+    if png is None:
+        raise HTTPException(404, "no chart coverage for this tile")
+    return Response(
+        content=png,
+        media_type="image/png",
+        headers={"Cache-Control": f"public, max-age={_SECTIONAL_TILE_MAX_AGE_S}"},
+    )
+
+
 _APT_CACHE: dict = {}
 
 
@@ -620,6 +744,86 @@ def _faa_airports(start, end, half_width_nm, dep_ident, dest_ident) -> list:
     return landmarks
 
 
+# One corridor detection per route, shared and remembered -- not one per
+# request. Reading the chart is the most CPU-expensive thing this service
+# does (a mosaic build plus numpy segmentation per block, ~40 blocks on a
+# 300 nm route), and it used to run from scratch on every single Label
+# page load: open the page five times, pay for five full corridor reads,
+# each grinding on in its worker thread long after its own client had
+# navigated away. That pile-up is what pegged this service's CPU for
+# minutes with no traffic at all. Now the first request starts one
+# background job, every concurrent request follows the same job's blocks
+# as they land, and later requests replay the finished result until the
+# TTL says the chart is worth re-reading.
+_DETECT_TTL_S = 3600
+_DETECT_JOBS: dict = {}
+_DETECT_JOBS_GUARD = threading.Lock()
+
+
+def _detect_job(key: tuple, start: tuple, end: tuple, half_width_nm: float) -> dict:
+    with _DETECT_JOBS_GUARD:
+        job = _DETECT_JOBS.get(key)
+        if job is not None:
+            fresh = not job["done"] or (time.time() - job["at"]) < _DETECT_TTL_S
+            if fresh and job["error"] is None:
+                return job
+        # Stale entries for other routes cost nothing to keep except
+        # memory; prune the finished ones while we're holding the lock
+        # anyway so the dict tracks routes actually in use.
+        for k in [k for k, j in _DETECT_JOBS.items() if j["done"] and (time.time() - j["at"]) >= _DETECT_TTL_S]:
+            del _DETECT_JOBS[k]
+        job = {
+            "blocks": [], "done": False, "error": None,
+            "at": time.time(), "cond": threading.Condition(),
+        }
+        _DETECT_JOBS[key] = job
+        threading.Thread(
+            target=_run_detect, args=(job, start, end, half_width_nm), daemon=True,
+        ).start()
+        return job
+
+
+def _run_detect(job: dict, start: tuple, end: tuple, half_width_nm: float) -> None:
+    """The corridor read itself, off on its own thread so it finishes
+    (and caches) once regardless of how many clients started, followed
+    or abandoned it. Dedupe lives here, not per-request: blocks overlap
+    by a column so a feature on a seam is seen whole by one of them,
+    which means the same feature is detected twice -- streaming showed
+    350 candidates against the batched path's 288 before this."""
+    try:
+        emitted: list = []
+        for batch in chartvision.iter_landmarks_along_route(
+            start, end, half_width_nm=half_width_nm
+        ):
+            fresh = []
+            for landmark in batch["landmarks"]:
+                if any(
+                    other.category == landmark.category
+                    and geo.distance_nm(other.lat, other.lon, landmark.lat, landmark.lon)
+                    < chartvision.DEDUPE_NM
+                    for other in emitted
+                ):
+                    continue
+                emitted.append(landmark)
+                fresh.append(landmark)
+            with job["cond"]:
+                job["blocks"].append({
+                    "block": batch["block"], "blocks": batch["blocks"],
+                    "tiles": batch["tiles"], "missing": batch["missing"],
+                    "landmarks": fresh,
+                })
+                job["cond"].notify_all()
+        with job["cond"]:
+            job["done"] = True
+            job["at"] = time.time()
+            job["cond"].notify_all()
+    except Exception as err:  # noqa: BLE001 -- carried to every follower verbatim
+        with job["cond"]:
+            job["error"] = f"{type(err).__name__}: {err}"
+            job["done"] = True
+            job["cond"].notify_all()
+
+
 @app.get("/api/detect/stream")
 def detect_stream(dep: str, dest: str, half_width_nm: float = 4.0) -> StreamingResponse:
     """Detections as newline-delimited JSON, one line per block.
@@ -630,6 +834,10 @@ def detect_stream(dep: str, dest: str, half_width_nm: float = 4.0) -> StreamingR
     miles while the rest of the corridor is still being read. Airports
     come first, in their own line, because they are a local file lookup
     and cost nothing to produce.
+
+    The landmarks come from the shared per-route job above; only the
+    pick-matching is per-request, because picks change between requests
+    and the chart does not.
     """
     dep_ident, dest_ident = _route_key(dep, dest)
     dep_airport, dest_airport = _resolve(dep_ident, dest_ident)
@@ -664,6 +872,8 @@ def detect_stream(dep: str, dest: str, half_width_nm: float = 4.0) -> StreamingR
             "rated": pick is not None and pick["rating"] is not None,
         }
 
+    job = _detect_job((route, half_width_nm), start, end, half_width_nm)
+
     def lines():
         # The picks cannot be sorted into matched and unmatched until
         # every block has been read, so they arrive at the end rather
@@ -676,35 +886,34 @@ def detect_stream(dep: str, dest: str, half_width_nm: float = 4.0) -> StreamingR
             "detections": [as_detection(a) for a in airports_found],
         }) + "\n"
 
-        # Blocks overlap by a column so a feature on a seam is seen whole
-        # by one of them, which means the same feature arrives twice.
-        # The batched path dedupes at the end; a stream has to do it as it
-        # goes or the duplicates are already on the map. Streaming
-        # produced 350 candidates against the batched 288 before this.
-        emitted, seen = [], 0
-        for batch in chartvision.iter_landmarks_along_route(
-            start, end, half_width_nm=half_width_nm
-        ):
-            fresh = []
-            for landmark in batch["landmarks"]:
-                if any(
-                    other.category == landmark.category
-                    and geo.distance_nm(other.lat, other.lon, landmark.lat, landmark.lon)
-                    < chartvision.DEDUPE_NM
-                    for other in emitted
-                ):
-                    continue
-                emitted.append(landmark)
-                fresh.append(landmark)
-            seen += len(fresh)
-            yield json.dumps({
-                "type": "block",
-                "block": batch["block"],
-                "blocks": batch["blocks"],
-                "tiles": batch["tiles"],
-                "missing": batch["missing"],
-                "detections": [as_detection(l) for l in fresh],
-            }) + "\n"
+        # Follow the shared job's blocks as they land -- instant when the
+        # corridor was already read, progressive when this request is the
+        # one (or one of the ones) waiting on a fresh read.
+        seen, at = 0, 0
+        while True:
+            with job["cond"]:
+                job["cond"].wait_for(lambda: len(job["blocks"]) > at or job["done"])
+                fresh_blocks = job["blocks"][at:]
+                done, error = job["done"], job["error"]
+            at += len(fresh_blocks)
+            for block in fresh_blocks:
+                seen += len(block["landmarks"])
+                yield json.dumps({
+                    "type": "block",
+                    "block": block["block"],
+                    "blocks": block["blocks"],
+                    "tiles": block["tiles"],
+                    "missing": block["missing"],
+                    "detections": [as_detection(l) for l in block["landmarks"]],
+                }) + "\n"
+            if done and at >= len(job["blocks"]):
+                if error is not None:
+                    # Same outcome an in-generator exception always had
+                    # here: the stream truncates. The job records it so
+                    # every follower fails the same way, not just the
+                    # request that happened to run the corridor read.
+                    raise RuntimeError(f"corridor detection failed: {error}")
+                break
 
         # Whatever no landmark claimed: the detector's misses, plus picks
         # that have drifted apart from the detection they were made
@@ -816,7 +1025,25 @@ def navlog_only(
                 "type": "stage",
                 "detail": "Selecting a cruise altitude (terrain, obstacles, airspace)…",
             }) + "\n"
-            altitude_selection = altitude_module.select_cruise_altitude(start, end, profile)
+            # On a side thread with a heartbeat, not inline: an uncached
+            # selection on a bad aviationweather.gov day was observed
+            # taking over two minutes, all of it silent -- and the
+            # webapp proxy cuts a stream that has been silent that long,
+            # so the browser saw the nav log simply end with no legs and
+            # no error. A stage line every few seconds keeps the
+            # connection visibly alive (and tells the pilot what it's
+            # still waiting on) for however long the fetch takes.
+            with ThreadPoolExecutor(max_workers=1) as altitude_pool:
+                future = altitude_pool.submit(_cruise_altitude, start, end, profile, aircraft)
+                while True:
+                    try:
+                        altitude_selection = future.result(timeout=8)
+                        break
+                    except FuturesTimeoutError:
+                        yield json.dumps({
+                            "type": "stage",
+                            "detail": "Selecting a cruise altitude (still waiting on aviationweather.gov)…",
+                        }) + "\n"
             nav_altitude_ft = altitude_selection.get("recommended_ft")
             if nav_altitude_ft is None:
                 yield json.dumps({
@@ -853,7 +1080,7 @@ def navlog_only(
             "type": "stage", "detail": "Fetching winds aloft from aviationweather.gov…",
         }) + "\n"
         legs = []
-        for a, b in zip(fixes, fixes[1:]):
+        for a, b in pairwise(fixes):
             leg = navlog.assemble_leg((a["lat"], a["lon"]), (b["lat"], b["lon"]), nav_altitude_ft, profile)
             leg["from"] = a["name"] or a["category"]
             leg["to"] = b["name"] or b["category"]
@@ -940,12 +1167,36 @@ def briefing(dep: str, dest: str) -> dict:
     # weather round trip, and were previously paying that cost after
     # the weather pool had already finished instead of alongside it.
     with ThreadPoolExecutor(max_workers=7) as pool:
-        hazards = pool.submit(weather.hazards_along_route, start, end)
-        forecast = pool.submit(weather.ceiling_visibility_along_route, start, end)
-        metars = pool.submit(weather.metar_for_idents, [dep_ident, dest_ident])
+        hazards_future = pool.submit(weather.hazards_along_route, start, end)
+        forecast_future = pool.submit(weather.ceiling_visibility_along_route, start, end)
+        metars_future = pool.submit(weather.metar_for_idents, [dep_ident, dest_ident])
         runways = {ident: pool.submit(airports.get_runways, ident) for ident in (dep_ident, dest_ident)}
         frequencies = {ident: pool.submit(airports.get_frequencies, ident) for ident in (dep_ident, dest_ident)}
-        hazards, forecast, metars = hazards.result(), forecast.result(), metars.result()
+
+        # Same reasoning as vfr.altitude.select_cruise_altitude: these are
+        # three independent live aviationweather.gov calls, and a transient
+        # failure on any one of them (a 504 on a slow bbox query, observed
+        # 2026-09-18) used to take the whole briefing down even though the
+        # other two -- plus runways/frequencies, unaffected local lookups --
+        # had already succeeded. Each is now caught on its own and recorded
+        # in weather_unavailable, so the page can say "hazards unavailable"
+        # instead of failing to load at all.
+        weather_unavailable = []
+        try:
+            hazards = hazards_future.result()
+        except weather.WeatherServiceError:
+            hazards = []
+            weather_unavailable.append("hazards")
+        try:
+            forecast = forecast_future.result()
+        except weather.WeatherServiceError:
+            forecast = {"min_ceiling_ft": None, "min_visibility_sm": None, "stations": []}
+            weather_unavailable.append("forecast")
+        try:
+            metars = metars_future.result()
+        except weather.WeatherServiceError:
+            metars = {ident: None for ident in (dep_ident, dest_ident)}
+            weather_unavailable.append("metars")
         runways = {ident: f.result() for ident, f in runways.items()}
         frequencies = {ident: f.result() for ident, f in frequencies.items()}
 
@@ -953,112 +1204,12 @@ def briefing(dep: str, dest: str) -> dict:
         "hazards": hazards,
         "forecast": forecast,
         "metars": metars,
+        "weather_unavailable": weather_unavailable,
         "airports": {
             ident: {"runways": runways[ident], "frequencies": frequencies[ident]}
             for ident in (dep_ident, dest_ident)
         },
     }
-
-
-# ---------------------------------------------------------------------
-# The Flight Briefing page's own spoken/read narrative: one Claude call
-# that turns data /api/briefing already gathered into the short prose
-# paragraph a real weather briefer would read out loud -- the
-# "synopsis" piece the rest of that page deliberately leaves out (it
-# would need real synoptic analysis, not a data fetch), reframed as
-# "summarize what's already known," which is exactly what an LLM is
-# good for. This is why the request carries the already-fetched
-# hazards/METARs/forecast/legs rather than idents alone: the job here
-# is writing prose about known facts, not a second data fetch.
-#
-# Pilot-triggered (a button, not automatic on page load) for the same
-# reason /api/checkpoint-notes' own descriptions are opt-in: every call
-# is a real, billed Claude request.
-# ---------------------------------------------------------------------
-
-
-class BriefingNarrativeRequest(BaseModel):
-    departure_ident: str
-    destination_ident: str
-    distance_nm: float
-    bearing_deg: float
-    altitude_ft: float
-    aircraft_name: str
-    total_time_min: float | None = None
-    total_fuel_gal: float | None = None
-    hazards: list[dict] = []
-    metars: dict = {}
-    forecast: dict = {}
-    # One {wind: {wind_dir_true_deg, wind_speed_kt}} per leg -- the raw
-    # per-leg data the nav log already has, deduplicated below into the
-    # distinct readings actually present rather than sent to Claude as
-    # 21 near-identical lines.
-    legs: list[dict] = []
-
-
-def _narrative_winds_aloft(legs: list[dict]) -> list[dict]:
-    seen: set[tuple[int, int]] = set()
-    distinct = []
-    for leg in legs:
-        wind = leg.get("wind")
-        if not wind:
-            continue
-        direction = round(wind["wind_dir_true_deg"])
-        speed = round(wind["wind_speed_kt"])
-        key = (direction, speed)
-        if key in seen:
-            continue
-        seen.add(key)
-        distinct.append({"dir": direction, "speed": speed})
-    return distinct
-
-
-def _briefing_narrative_prompt(req: BriefingNarrativeRequest) -> str:
-    winds = _narrative_winds_aloft(req.legs)
-    winds_text = ", ".join(f"{w['dir']:03d} at {w['speed']} kt" for w in winds) or "no winds-aloft data available"
-    hazards_text = "none reported" if not req.hazards else "; ".join(
-        h.get("hazard") or h.get("type") or "an unspecified hazard" for h in req.hazards
-    )
-
-    def metar_text(ident: str) -> str:
-        m = req.metars.get(ident)
-        return m["raw"] if m and m.get("raw") else "no current report available"
-
-    return (
-        "You are a weather briefer reading a short VFR flight briefing out "
-        "loud to a pilot before departure. Write two to four sentences of "
-        "plain, natural spoken prose -- no headers, no bullet points, no "
-        "markdown -- covering, in order: any adverse conditions, current "
-        "conditions at the departure and destination, the forecast trend, "
-        "and winds aloft. State only what's given below; don't invent "
-        "details you weren't given.\n\n"
-        f"Route: {req.departure_ident} to {req.destination_ident}, "
-        f"{req.distance_nm:.0f} nautical miles, cruising at {req.altitude_ft:.0f} feet in a {req.aircraft_name}.\n"
-        f"Adverse conditions (SIGMET/AIRMET): {hazards_text}.\n"
-        f"Current conditions at {req.departure_ident}: {metar_text(req.departure_ident)}\n"
-        f"Current conditions at {req.destination_ident}: {metar_text(req.destination_ident)}\n"
-        f"Forecast along the route: ceiling {req.forecast.get('min_ceiling_ft', 'unknown')} ft, "
-        f"visibility {req.forecast.get('min_visibility_sm', 'unknown')} statute miles (worst nearby TAF period).\n"
-        f"Winds aloft: {winds_text}."
-    )
-
-
-@app.post("/api/briefing/narrative")
-def briefing_narrative(req: BriefingNarrativeRequest) -> dict:
-    """A short spoken-style paragraph synthesizing the briefing data the
-    page already has -- not a second data fetch, just the one thing an
-    LLM is actually good for here.
-    """
-    prompt = _briefing_narrative_prompt(req)
-    try:
-        resp = anthropic.Anthropic().messages.create(
-            model=BRIEFING_NARRATIVE_MODEL,
-            max_tokens=400,
-            messages=[{"role": "user", "content": prompt}],
-        )
-    except GLOBAL_ANTHROPIC_ERRORS as exc:
-        raise HTTPException(502, str(exc)) from exc
-    return {"narrative": resp.content[0].text.strip()}
 
 
 # ---------------------------------------------------------------------

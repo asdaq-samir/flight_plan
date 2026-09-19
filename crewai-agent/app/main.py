@@ -2,10 +2,16 @@
 nav-log-agent/app/graph.py) in CrewAI instead of LangGraph -- the "CrewAI
 Agent (comparison build, same task, different framework)" box in
 docs/architecture-aws.svg. Not a fallback for the LangGraph build and not
-part of the request pipeline: it exists purely to compare the two
+part of the request pipeline proper: it exists purely to compare the two
 frameworks on identical work (same tools, same model-service, same Claude
-API), which is why it's a one-shot CLI rather than a standing MCP server,
-and doesn't duplicate the pgvector memory store.
+API), and doesn't duplicate the pgvector memory store.
+
+Two ways to run it, both in this same file: `--departure-ident ...`
+flags mean a one-shot CLI comparison, the documented way to run this by
+hand (see docs/README.md's command reference). No flags at all means
+`docker compose up` started it, in which case it runs app.server's small
+FastAPI wrapper instead, so the webapp's own comparison panel always has
+something to call on demand -- see main()'s own comment and app/server.py.
 
 Where this differs structurally from the LangGraph build: LangGraph's
 graph is an explicit sequence of plain Python functions (deterministic
@@ -17,6 +23,7 @@ That difference in control-flow philosophy is the actual point of comparison.
 """
 import argparse
 import os
+import sys
 
 from crewai import Agent, Crew, Task
 
@@ -59,7 +66,21 @@ def build_crew(departure_ident: str, destination_ident: str, aircraft_name: str)
 
 def main() -> None:
     """CLI entry point: parses --departure-ident/--destination-ident/
-    --aircraft-name, builds the crew, runs it once, and prints the briefing."""
+    --aircraft-name, builds the crew, runs it once, and prints the briefing.
+
+    With no flags at all (`docker compose up`, as opposed to `docker
+    compose run --rm crewai-agent --departure-ident ...`), starts
+    app.server's FastAPI app instead -- see that module's own docstring
+    for why. sys.argv has just the script name in that case; any flag at
+    all, even one that only repeats a default, means a real one-shot CLI
+    invocation was intended, so this only checks length, not values.
+    """
+    if len(sys.argv) == 1:
+        import uvicorn
+
+        uvicorn.run("app.server:app", host="0.0.0.0", port=8000)
+        return
+
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--departure-ident", default="C81")
     parser.add_argument("--destination-ident", default="KDLH")

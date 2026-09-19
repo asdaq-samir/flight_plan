@@ -1,0 +1,7 @@
+[tool.pytest.ini_options]
+# Same pythonpath pattern as planning-service's own pyproject.toml:
+# "." (this directory) so `from app.main import ...` resolves the same
+# way the Dockerfile's WORKDIR does, and "../src" so `from vfr import
+# ...` (graph.py's own import) resolves the way it does inside the
+# container (PYTHONPATH=/workspace/src).
+pythonpath = [".", "../src"]

@@ -1,10 +1,34 @@
+# Shared, not copy-pasted into each service below -- three of the
+# Python services (planning-service, model-service, crewai-agent) had
+# byte-identical healthcheck timing and the identical required-env
+# line for ANTHROPIC_API_KEY, which meant a change to either (say, a
+# longer start_period, or a reworded failure message) only actually
+# landing wherever someone remembered to also paste it. `x-` prefixed
+# keys are Compose's own convention for a block that exists purely to
+# be referenced by anchor -- ignored as a service definition, kept for
+# `<<`/`*` to pull from.
+x-python-healthcheck: &python-healthcheck
+  interval: 5s
+  timeout: 5s
+  retries: 10
+  start_period: 10s
+
+x-anthropic-api-key: &anthropic-api-key ${ANTHROPIC_API_KEY:?Set ANTHROPIC_API_KEY in your shell or a .env file}
+
 services:
   ml:
     build:
       context: .
       dockerfile: docker/Dockerfile.ml
     ports:
-      - "8888:8888"
+      # 127.0.0.1-bound, not 0.0.0.0 -- this and every other non-webapp
+      # port below are local-debugging conveniences, not a public surface
+      # (webapp is the only intended front door, see
+      # PlannerProxyController.java's own docstring). Binding to
+      # localhost keeps `docker compose up` safe to run on a shared or
+      # internet-reachable host without also publishing an
+      # unauthenticated Jupyter/DB/service port to it.
+      - "127.0.0.1:8888:8888"
     volumes:
       - .:/workspace
 
@@ -27,7 +51,7 @@ services:
       context: .
       dockerfile: docker/Dockerfile.airflow
     ports:
-      - "8081:8080"
+      - "127.0.0.1:8081:8080"
     volumes:
       - .:/opt/airflow/project
       # airflow_home_v3, not airflow_home: the 2.x airflow.cfg this volume
@@ -53,9 +77,9 @@ services:
     environment:
       POSTGRES_DB: vfr_route
       POSTGRES_USER: vfr
-      POSTGRES_PASSWORD: vfr
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-vfr}
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U vfr -d vfr_route"]
       interval: 5s
@@ -86,7 +110,7 @@ services:
       context: .
       dockerfile: planning-service/Dockerfile
     ports:
-      - "8084:8000"
+      - "127.0.0.1:8084:8000"
     volumes:
       - .:/workspace
     environment:
@@ -94,21 +118,18 @@ services:
       MODEL_SERVICE_URL: http://model-service:8000
       # /api/checkpoint-notes: one Claude call per checkpoint that has
       # no saved note yet.
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:?Set ANTHROPIC_API_KEY in your shell or a .env file}
+      ANTHROPIC_API_KEY: *anthropic-api-key
     depends_on:
       model-service:
         condition: service_healthy
     healthcheck:
+      <<: *python-healthcheck
       test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/')"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-      start_period: 10s
 
   model-service:
     build: ./model-service
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     # Mounted at SageMaker's own paths rather than at the project layout:
     # /opt/ml/model is where SageMaker places a model artifact for an
     # inference container, so the service reads the same location locally
@@ -125,18 +146,15 @@ services:
     # needs neither, and /ping is the same real "did the model actually
     # load" check SageMaker itself would use.
     healthcheck:
+      <<: *python-healthcheck
       test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/ping')"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-      start_period: 10s
 
   nav-log-agent:
     build:
       context: .
       dockerfile: nav-log-agent/Dockerfile
     ports:
-      - "8082:8000"
+      - "127.0.0.1:8082:8000"
     volumes:
       - .:/workspace
     depends_on:
@@ -146,7 +164,12 @@ services:
         condition: service_healthy
     environment:
       PYTHONPATH: /workspace/src
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:?Set ANTHROPIC_API_KEY in your shell or a .env file}
+      ANTHROPIC_API_KEY: *anthropic-api-key
+      # The MCP server's own bearer-token gate -- see app/main.py's
+      # BearerAuthMiddleware. Required for the same reason
+      # ANTHROPIC_API_KEY is: fail at compose-parse time, not with a
+      # confusing 401 once an MCP client tries to connect.
+      NAV_LOG_AGENT_API_KEY: ${NAV_LOG_AGENT_API_KEY:?Set NAV_LOG_AGENT_API_KEY in your shell or a .env file}
       MODEL_SERVICE_URL: http://model-service:8000
       DATABASE_URL: postgresql://vfr:vfr@db:5432/vfr_route
 
@@ -154,6 +177,10 @@ services:
     build:
       context: .
       dockerfile: crewai-agent/Dockerfile
+    # No published port -- app.server (what `docker compose up` runs by
+    # default, see app/main.py's own comment) is only ever called by
+    # webapp over the internal docker network (crewai-agent:8000), the
+    # same reasoning as planning-service's own no-auth-of-its-own design.
     volumes:
       - .:/workspace
     depends_on:
@@ -161,8 +188,11 @@ services:
         condition: service_healthy
     environment:
       PYTHONPATH: /workspace/src
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:?Set ANTHROPIC_API_KEY in your shell or a .env file}
+      ANTHROPIC_API_KEY: *anthropic-api-key
       MODEL_SERVICE_URL: http://model-service:8000
+    healthcheck:
+      <<: *python-healthcheck
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/')"]
 
   webapp:
     # Context is the repo root: the image builds web/ and bakes the
@@ -182,9 +212,23 @@ services:
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/vfr_route
       SPRING_DATASOURCE_USERNAME: vfr
-      SPRING_DATASOURCE_PASSWORD: vfr
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-vfr}
       MODEL_SERVICE_URL: http://model-service:8000
       PLANNER_SERVICE_URL: http://planning-service:8000
+      # The Brief tab's own AI popover (ComparisonProxyController) --
+      # neither is in `depends_on` above, unlike planning-service: that
+      # popover is a developer-facing extra, not core to planning a
+      # route, so webapp must still start cleanly with nav-log-agent/
+      # crewai-agent down (it just reports
+      # "unavailable" per-framework, same 502-on-unreachable pattern
+      # PlannerProxyController already uses).
+      NAV_LOG_AGENT_URL: http://nav-log-agent:8000
+      # Optional here unlike nav-log-agent's own copy of this var (that
+      # one still fails fast -- an unprotected MCP server would be a
+      # real regression, not a degraded feature): blank just means the
+      # comparison panel's LangGraph call 401s and reports unavailable.
+      NAV_LOG_AGENT_API_KEY: ${NAV_LOG_AGENT_API_KEY:-}
+      CREWAI_AGENT_URL: http://crewai-agent:8000
       # Sign-in with Google/Apple, optional unlike ANTHROPIC_API_KEY
       # above: `docker compose up` must still work with none of these
       # set (the `oauth` Spring profile stays inactive and OIDC sign-in

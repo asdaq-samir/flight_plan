@@ -2,14 +2,21 @@
 # sentence-transformers (not an Anthropic embeddings API -- there isn't one)
 # embeds route briefings for pgvector similarity search; it's already an
 # established dependency in this project (notebook 05), not a new choice.
-langgraph
-anthropic
-mcp
-psycopg[binary]
-pgvector
-sentence-transformers
-requests
-boto3    # model_client's SageMaker Runtime path, used only when SAGEMAKER_ENDPOINT_NAME is set (AWS)
-pandas   # vfr.navlog -> vfr.weather -> vfr.airports needs it (airport lat/lon lookup)
-shapely  # vfr.altitude -> vfr.airspace (Class B/C/D polygons) + vfr.weather.hazards_along_route
-pyshp    # vfr.altitude -> vfr.airspace (reads the FAA Class Airspace shapefile)
+#
+# PINNED, matching planning-service/model-service's own convention -- this
+# and crewai-agent/requirements.txt were the two unpinned service
+# requirements files in the repo, with no lockfile behind either, so a
+# plain rebuild could silently pull a newer langgraph/anthropic/mcp
+# between one build and the next. Pinned to what python:3.13-slim
+# currently resolves.
+langgraph==1.2.11
+anthropic==1.7.0
+mcp==2.2.0
+psycopg[binary]==3.3.6
+pgvector==0.5.0
+sentence-transformers==6.1.0
+requests==2.34.2
+boto3==1.43.98    # model_client's SageMaker Runtime path, used only when SAGEMAKER_ENDPOINT_NAME is set (AWS)
+pandas==3.0.6      # vfr.navlog -> vfr.weather -> vfr.airports needs it (airport lat/lon lookup)
+shapely==2.1.2     # vfr.altitude -> vfr.airspace (Class B/C/D polygons) + vfr.weather.hazards_along_route
+pyshp==3.1.6       # vfr.altitude -> vfr.airspace (reads the FAA Class Airspace shapefile)

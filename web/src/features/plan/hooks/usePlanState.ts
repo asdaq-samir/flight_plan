@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { ApiError, api } from "../../../lib/api/client";
 import type { Briefing, BuiltRoute, Candidate, Course, Leg, NavLog, Totals } from "../../../lib/api/types";
@@ -84,21 +84,26 @@ interface PlanState {
   briefingError: string | null;
   loadingBriefing: boolean;
 
-  /** The Flight Briefing page's own spoken/read narrative -- a short
-   *  paragraph one Claude call writes from the data already loaded
-   *  above. Pilot-triggered (a button), not fetched alongside
-   *  `briefing`: every call is a real, billed request, the same
-   *  reasoning `descriptions` already follows. */
-  narrative: string | null;
-  narrativeError: string | null;
-  loadingNarrative: boolean;
-  /** Whether `window.speechSynthesis` is currently reading `narrative`
-   *  aloud -- lives here, not as local state inside whichever button
-   *  triggered it, since both the Flight Briefing page's own "Listen"
-   *  button and the nav log's floating one (see `NavLogActions`) need
-   *  to agree on it. */
-  speaking: boolean;
+  /** The Flight Briefing page's own two narrative buttons -- the
+   *  identical briefing task, written by nav-log-agent's LangGraph
+   *  build and crewai-agent's CrewAI build (see NavLogActions), each
+   *  independently pilot-triggered since every generation is a real,
+   *  billed Claude call a pilot picking one framework shouldn't also
+   *  pay for the other. Replaced the old single narrative +
+   *  window.speechSynthesis "Listen" flow entirely. */
+  langgraphNarrative: FrameworkNarrative;
+  crewaiNarrative: FrameworkNarrative;
 }
+
+/** One framework's own narrative-generation state -- see
+ *  `PlanState.langgraphNarrative`/`crewaiNarrative`. */
+export interface FrameworkNarrative {
+  text: string | null;
+  error: string | null;
+  loading: boolean;
+}
+
+const EMPTY_NARRATIVE: FrameworkNarrative = { text: null, error: null, loading: false };
 
 function initialState(): PlanState {
   return {
@@ -107,7 +112,7 @@ function initialState(): PlanState {
     routes: [], stage: null, navStage: null, error: null, navError: null, needsBuild: null, building: null,
     selectedPoint: null, showCandidates: true,
     briefing: null, briefingError: null, loadingBriefing: false,
-    narrative: null, narrativeError: null, loadingNarrative: false, speaking: false,
+    langgraphNarrative: EMPTY_NARRATIVE, crewaiNarrative: EMPTY_NARRATIVE,
   };
 }
 
@@ -169,9 +174,8 @@ export function usePlanState() {
       course: null, candidates: [], selected: [], legs: [], totals: null,
       nav: null, descriptions: {}, descriptionError: null, descriptionProgress: null,
       selectedPoint: null, briefing: null, briefingError: null, loadingBriefing: false,
-      narrative: null, narrativeError: null, loadingNarrative: false, speaking: false,
+      langgraphNarrative: EMPTY_NARRATIVE, crewaiNarrative: EMPTY_NARRATIVE,
     }));
-    window.speechSynthesis.cancel();
 
     try {
       // Through the query cache, staleTime: Infinity -- unlike the nav
@@ -399,79 +403,45 @@ export function usePlanState() {
     }
   }, [queryClient]);
 
-  /** The narrative's own generation -- a pilot's own click, reading
-   *  from `ref.current` rather than taking every piece as an argument
-   *  the way `saveDescription` already does, since all of it (course,
-   *  nav, totals, the briefing's own hazards/METARs/forecast, legs) is
-   *  already sitting in state by the time this page can even show a
-   *  "generate" button. */
-  /** Returns the generated text directly (rather than making every
-   *  caller read it back out of state right after an `await`, which
-   *  would still see the pre-update value) -- `NavLogActions`' own
-   *  "generate, then speak the moment it's ready" button needs the
-   *  text itself, not just the side effect of it landing in state. */
-  const loadNarrative = useCallback(async (dep: string, dest: string): Promise<string | null> => {
+  /** One framework's narrative -- a pilot's own click (NavLogActions'
+   *  own LangGraph/CrewAI menu items), reading the aircraft name from
+   *  `ref.current` rather than taking it as an argument, since it's
+   *  already sitting in state (`nav.aircraft`) by the time this page
+   *  can show a narrative button at all. Independent per framework
+   *  (see `FrameworkNarrative`): generating one doesn't touch the
+   *  other's own text/loading/error, and each is its own real, billed
+   *  Claude call -- picking one framework shouldn't also fetch, or pay
+   *  for, the other.
+   */
+  const loadFrameworkNarrative = useCallback(async (framework: "langgraph" | "crewai", dep: string, dest: string) => {
     const token = planToken.current;
     const s = ref.current;
-    if (!s.course || !s.nav || !s.briefing) {
-      setState(st => ({ ...st, narrativeError: "the briefing isn't fully loaded yet" }));
-      return null;
+    const slot = framework === "langgraph" ? "langgraphNarrative" : "crewaiNarrative";
+    if (!s.nav) {
+      setState(st => ({ ...st, [slot]: { text: null, error: "the nav log isn't fully loaded yet", loading: false } }));
+      return;
     }
-    setState(st => ({ ...st, loadingNarrative: true, narrativeError: null }));
+    setState(st => ({ ...st, [slot]: { text: null, error: null, loading: true } }));
     try {
-      const data = await api.briefingNarrative({
-        departure_ident: dep,
-        destination_ident: dest,
-        distance_nm: s.course.distance_nm,
-        bearing_deg: s.course.bearing_deg,
-        altitude_ft: s.nav.altitude_ft,
-        aircraft_name: s.nav.aircraft.name,
-        total_time_min: s.totals?.ete_min ?? null,
-        total_fuel_gal: s.totals?.fuel_gal ?? null,
-        hazards: s.briefing.hazards,
-        metars: s.briefing.metars,
-        forecast: s.briefing.forecast,
-        legs: s.legs,
-      });
-      if (token !== planToken.current) return null;
-      setState(st => ({ ...st, narrative: data.narrative, loadingNarrative: false }));
-      return data.narrative;
+      const data = await api.frameworkComparison(dep, dest, s.nav.aircraft.name, framework);
+      if (token !== planToken.current) return;
+      const result = data[framework];
+      if (!result) {
+        setState(st => ({ ...st, [slot]: { text: null, error: "no result returned", loading: false } }));
+      } else if ("error" in result) {
+        setState(st => ({ ...st, [slot]: { text: null, error: result.error, loading: false } }));
+      } else {
+        setState(st => ({ ...st, [slot]: { text: result.briefing, error: null, loading: false } }));
+      }
     } catch (err) {
-      if (token !== planToken.current) return null;
-      const detail = err instanceof Error ? err.message : "could not generate the narrative";
-      setState(st => ({ ...st, loadingNarrative: false, narrativeError: detail.split("\n")[0] ?? detail }));
-      return null;
+      if (token !== planToken.current) return;
+      const detail = err instanceof Error ? err.message : `could not generate the ${framework} narrative`;
+      setState(st => ({ ...st, [slot]: { text: null, error: detail.split("\n")[0] ?? detail, loading: false } }));
     }
   }, []);
-
-  /** `window.speechSynthesis` rather than a cloud voice, for now --
-   *  free, no new service, no API key; a more natural-sounding voice
-   *  is a later upgrade, not a blocker for having this at all.
-   *  `cancel()` first: speaking over an already-playing utterance
-   *  queues instead of replacing it, so re-triggering this (the nav
-   *  log's own button, after the Briefing page's) would otherwise read
-   *  both back to back rather than restarting. */
-  const speak = useCallback((text: string) => {
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.onend = () => setState(st => ({ ...st, speaking: false }));
-    utterance.onerror = () => setState(st => ({ ...st, speaking: false }));
-    window.speechSynthesis.speak(utterance);
-    setState(st => ({ ...st, speaking: true }));
-  }, []);
-
-  const stopSpeaking = useCallback(() => {
-    window.speechSynthesis.cancel();
-    setState(st => ({ ...st, speaking: false }));
-  }, []);
-
-  // Leaving the plan page (or the browser tab going elsewhere)
-  // shouldn't leave a voice talking to an empty room.
-  useEffect(() => () => window.speechSynthesis.cancel(), []);
 
   return {
     ...state, loadRoutes, plan, build, selectPoint, toggleCandidates,
-    describeCheckpoints, saveDescription, loadBriefing, loadNarrative,
-    speak, stopSpeaking,
+    describeCheckpoints, saveDescription, loadBriefing, loadFrameworkNarrative,
   };
 }

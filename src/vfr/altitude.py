@@ -88,12 +88,38 @@ def select_cruise_altitude(
         cv_future = pool.submit(weather.ceiling_visibility_along_route, route_start, route_end)
         hazards_future = pool.submit(weather.hazards_along_route, route_start, route_end)
 
+        # Terrain and airspace are structural safety inputs -- without
+        # them there is no floor/ceiling to recommend an altitude from at
+        # all, so those two still propagate a failure normally. The three
+        # aviationweather.gov calls are live current-conditions context on
+        # top of that: a slow bbox query there returning a 504 (observed
+        # 2026-09-18, ~30s before the error surfaced) used to take the
+        # whole recommendation down with it even though terrain/airspace
+        # had already succeeded. Each is now caught on its own and
+        # recorded in weather_unavailable instead -- callers get a real
+        # recommendation with a note about what's missing, not a rewritten
+        # icing/ceiling/hazard verdict pretending the missing source
+        # means "no concern found."
         floor_ft = floor_future.result()
         airspace_ceiling_ft = airspace_ceiling_future.result()
         transits = transits_future.result()
-        freezing_level_ft = freezing_future.result()
-        cv = cv_future.result()
-        hazards = hazards_future.result()
+
+        weather_unavailable = []
+        try:
+            freezing_level_ft = freezing_future.result()
+        except weather.WeatherServiceError:
+            freezing_level_ft = None
+            weather_unavailable.append("freezing_level")
+        try:
+            cv = cv_future.result()
+        except weather.WeatherServiceError:
+            cv = {"min_ceiling_ft": None, "min_visibility_sm": None, "stations": []}
+            weather_unavailable.append("ceiling_visibility")
+        try:
+            hazards = hazards_future.result()
+        except weather.WeatherServiceError:
+            hazards = []
+            weather_unavailable.append("hazards")
 
     ceilings = [c for c in [airspace_ceiling_ft, freezing_level_ft, aircraft_profile["service_ceiling_ft"]] if c is not None]
     band_ceiling_ft = min(ceilings) if ceilings else None
@@ -120,8 +146,13 @@ def select_cruise_altitude(
         if band_ceiling_ft is None or candidate_ft <= band_ceiling_ft:
             recommended_ft = candidate_ft
 
-    low_ceiling_vis = (cv["min_ceiling_ft"] is not None and cv["min_ceiling_ft"] < 1000) or (
-        cv["min_visibility_sm"] is not None and cv["min_visibility_sm"] < 3
+    # None (not False) when ceiling_visibility_along_route itself failed --
+    # "unknown" must not read as "confirmed VFR-favorable" to a caller
+    # deciding whether to flag the route.
+    low_ceiling_vis = None if "ceiling_visibility" in weather_unavailable else (
+        (cv["min_ceiling_ft"] is not None and cv["min_ceiling_ft"] < 1000) or (
+            cv["min_visibility_sm"] is not None and cv["min_visibility_sm"] < 3
+        )
     )
 
     return {
@@ -135,4 +166,5 @@ def select_cruise_altitude(
         "min_visibility_sm": cv["min_visibility_sm"],
         "hazards": hazards,
         "low_ceiling_or_visibility": low_ceiling_vis,
+        "weather_unavailable": weather_unavailable,
     }

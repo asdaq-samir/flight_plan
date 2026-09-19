@@ -20,7 +20,7 @@ three route-position columns removed 2026-09-10 for overfitting reasons
 features_c81_kdlh.parquet, not each notebook's own divergent feature set
 (04 kept the position columns; 06 rebuilt features from the raw
 candidates CSV in Spark and dropped elevation_prominence_m). Without
-that, the Playground's model-comparison table would be comparing
+that, the Dev ML tab's model-comparison table would be comparing
 algorithms trained on different information, not comparing algorithms.
 """
 import json
@@ -65,7 +65,6 @@ def train_pytorch(
     and `metrics.json`.
     """
     import joblib
-    import numpy as np
     import torch
     from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
     from sklearn.model_selection import train_test_split
@@ -224,7 +223,7 @@ def train_spark(
     """
     from pyspark.ml import Pipeline
     from pyspark.ml.evaluation import RegressionEvaluator
-    from pyspark.ml.feature import OneHotEncoder, StringIndexer, VectorAssembler
+    from pyspark.ml.feature import VectorAssembler
     from pyspark.ml.regression import GBTRegressor
     from pyspark.ml.tuning import CrossValidator, ParamGridBuilder
     from pyspark.sql import SparkSession

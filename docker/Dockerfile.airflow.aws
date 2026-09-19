@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 # The AWS-hosted Airflow image (see AirflowTaskDefinition in
 # infra/cloudformation/template.yaml) -- separate from Dockerfile.airflow
 # because that one relies on docker-compose's bind mount (.:/opt/airflow/project)
@@ -7,7 +8,9 @@
 # instead of sibling containers) and the src/vfr package it imports.
 FROM apache/airflow:3.3.1-python3.13
 
-RUN pip install --no-cache-dir \
+# Constraints URL pinned in Dockerfile.airflow too -- keep both in sync
+# with the FROM tag's own version (see that file's own comment).
+RUN --mount=type=cache,target=/root/.cache/pip,uid=50000,gid=0 pip install \
     "apache-airflow-providers-amazon" \
     "apache-airflow-providers-standard" \
     --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-3.3.1/constraints-3.13.txt"

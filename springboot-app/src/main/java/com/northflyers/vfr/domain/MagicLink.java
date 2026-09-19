@@ -74,14 +74,4 @@ public class MagicLink {
     public Instant getConsumedAt() {
         return consumedAt;
     }
-
-    /** True once, and forever after -- a second click on the same link
-     *  must not sign in again. */
-    public boolean isUsable(Instant now) {
-        return consumedAt == null && now.isBefore(expiresAt);
-    }
-
-    public void consume() {
-        this.consumedAt = Instant.now();
-    }
 }

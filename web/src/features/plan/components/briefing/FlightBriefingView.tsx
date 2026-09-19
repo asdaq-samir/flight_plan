@@ -1,17 +1,18 @@
-import { Fragment, useCallback, useEffect, useState } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import clsx from "clsx";
-import { ArrowLeft } from "lucide-react";
+import { toast } from "sonner";
 import { Badge } from "../../../../components/ui/badge";
 import { Button } from "../../../../components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../../../components/ui/select";
+import {
+  Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow,
+} from "../../../../components/ui/table";
 import CollapsibleSection from "../../../../components/CollapsibleSection";
-import SettingsButton from "../../../../components/SettingsButton";
-import NavLogActions from "../navlog/NavLogActions";
 import { ApiError, api } from "../../../../lib/api/client";
 import type {
   Aircraft, Briefing, Candidate, Course, Leg, NavLog, Pilot, SaveFlightRequest, Totals,
 } from "../../../../lib/api/types";
-import { type Description, descriptionKey } from "../../hooks/usePlanState";
+import { type Description, type FrameworkNarrative, descriptionKey } from "../../hooks/usePlanState";
 import { altFt, deg, one, signed, totalsParts } from "../../format";
 
 interface Props {
@@ -28,32 +29,24 @@ interface Props {
   /** Whatever the sidebar's own per-checkpoint "how to spot it" notes
    *  currently hold -- copied over read-only, not re-editable here. */
   descriptions: Record<string, Description>;
-  /** Null while the fetch is still in flight or has failed -- both
-   *  cases are reported through the floating status popup (the same
-   *  place every other background fetch in this app reports), not
-   *  inline here, so this page just renders nothing past Flight Plan
-   *  Summary until it actually arrives. */
+  /** Null while the fetch is still in flight or has failed. The page
+   *  keeps its standard sections visible and identifies which state
+   *  applies, rather than making a failed briefing indistinguishable
+   *  from a slow response. */
   briefing: Briefing | null;
-  /** The spoken/read narrative -- generated on a pilot's own click
-   *  (`onGenerateNarrative`), not automatically: every generation is a
-   *  real, billed Claude call. Loading/error both surface through the
-   *  floating status popup, the same as `briefing` itself. */
-  narrative: string | null;
-  loadingNarrative: boolean;
-  onGenerateNarrative: () => void;
-  /** Whether `window.speechSynthesis` is currently reading `narrative`
-   *  aloud, and the one handler that starts/stops it -- owned by
-   *  `usePlanState` (see its own `speak`/`stopSpeaking`), not local
-   *  state here, since the Briefing Narrative section further down
-   *  the page triggers the exact same playback and the two need to
-   *  agree on whether it's currently running. */
-  speaking: boolean;
-  onListenClick: () => void;
-  /** Leaves the briefing view, back to the map -- the one action
-   *  `NavLogActions` needs that isn't already a `usePlanState` value
-   *  passed straight through (it reuses `loadingNarrative`/`speaking`/
-   *  `onListenClick` above for its own Listen button). */
-  onMapClick: () => void;
+  briefingError: string | null;
+  loadingBriefing: boolean;
+  onRetryBriefing: () => void;
+  /** LangGraph's (nav-log-agent) and CrewAI's (crewai-agent) own
+   *  briefing narratives -- read-only here, only for
+   *  `BriefingNarrativePrintBlock` below. Generating them is
+   *  `NavLogActions`' own job now, from PlanView's persistent header
+   *  (trailing content next to the Map/Brief tabs while Brief is
+   *  active), not this component's -- this page no longer draws its
+   *  own separate header at all, see this component's own top-level
+   *  comment. */
+  langgraphNarrative: FrameworkNarrative;
+  crewaiNarrative: FrameworkNarrative;
 }
 
 const FLIGHT_CATEGORY_COLOR: Record<string, string> = {
@@ -89,103 +82,126 @@ function NavLogTable({
   }));
 
   return (
-    <table className="border-collapse text-right text-xs whitespace-nowrap">
-      <thead>
-        <tr className="border-b border-border">
-          <th className="px-2 py-1 text-left">Waypoint</th>
-          <th className="border-l border-border px-2 py-1">Alt</th>
-          <th className="border-l border-border px-2 py-1">Dist</th>
-          <th className="border-l border-border px-2 py-1">TC</th>
-          <th className="border-l border-border px-2 py-1">Wind</th>
-          <th className="border-l border-border px-2 py-1">WCA</th>
-          <th className="border-l border-border px-2 py-1">TH</th>
-          <th className="border-l border-border px-2 py-1">Var</th>
-          <th className="border-l border-border px-2 py-1">MH</th>
-          <th className="border-l border-border px-2 py-1">GS</th>
-          <th className="border-l border-border px-2 py-1">ETE</th>
-          <th className="border-l border-border px-2 py-1">Fuel</th>
-        </tr>
-      </thead>
-      <tbody>
+    // print:overflow-visible, not the stock `overflow-x-auto` alone --
+    // this page's own outer scroller (`flight-briefing`, further down)
+    // is deliberately y-only (print pagination needs every column
+    // actually laid out, not clipped to a scrollable viewport a printed
+    // page can't scroll), but that means on screen this table needs its
+    // own scroll for anything narrower than all twelve columns, since
+    // nothing else here provides one.
+    <Table containerClassName="overflow-x-auto print:overflow-visible" className="text-right text-xs whitespace-nowrap">
+      <TableCaption className="sr-only">
+        Navigation log from {dep} to {dest}
+      </TableCaption>
+      <TableHeader>
+        <TableRow className="hover:bg-transparent">
+          <TableHead className="text-left">Waypoint</TableHead>
+          <TableHead className="border-l border-border">Alt</TableHead>
+          <TableHead className="border-l border-border">Dist</TableHead>
+          <TableHead className="border-l border-border">TC</TableHead>
+          <TableHead className="border-l border-border">Wind</TableHead>
+          <TableHead className="border-l border-border">WCA</TableHead>
+          <TableHead className="border-l border-border">TH</TableHead>
+          <TableHead className="border-l border-border">Var</TableHead>
+          <TableHead className="border-l border-border">MH</TableHead>
+          <TableHead className="border-l border-border">GS</TableHead>
+          <TableHead className="border-l border-border">ETE</TableHead>
+          <TableHead className="border-l border-border">Fuel</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
         {navError && (
-          <tr><td className="px-2 py-1 text-left text-destructive" colSpan={12}>{navError}</td></tr>
+          <TableRow><TableCell className="text-left text-destructive" colSpan={12}>{navError}</TableCell></TableRow>
         )}
         {!navError && selected.length === 0 && (
-          <tr><td className="px-2 py-1 text-left text-muted-foreground" colSpan={12}>No route planned yet</td></tr>
+          <TableRow><TableCell className="text-left text-muted-foreground" colSpan={12}>No route planned yet</TableCell></TableRow>
         )}
         {selected.length > 0 && (
-          <tr className="border-b border-border text-muted-foreground">
-            <td className="px-2 py-1 text-left">{dep}</td>
-            <td className="border-l border-border px-2 py-1">{altFt(depElevationFt)}</td>
+          <TableRow className="text-muted-foreground">
+            <TableCell className="text-left">{dep}</TableCell>
+            <TableCell className="border-l border-border">{altFt(depElevationFt)}</TableCell>
             {Array.from({ length: 10 }, (_, i) => (
-              <td key={i} className="border-l border-border px-2 py-1">—</td>
+              <TableCell key={i} className="border-l border-border">—</TableCell>
             ))}
-          </tr>
+          </TableRow>
         )}
         {waypoints.map(({ cp, name, leg }, i) => {
           const description = cp && descriptions[descriptionKey(cp.lat, cp.lon)];
           return (
             <Fragment key={i}>
-              <tr className={clsx(!description && "border-b border-border", !leg?.wind && "text-muted-foreground")}>
-                <td className="px-2 py-1 text-left">{name}</td>
-                <td className="border-l border-border px-2 py-1">{altFt(cp ? nav?.altitude_ft : destElevationFt)}</td>
-                <td className="border-l border-border px-2 py-1">{leg ? leg.distance_nm.toFixed(1) : "—"}</td>
-                <td className="border-l border-border px-2 py-1">{leg ? deg(leg.true_course_deg) : "—"}</td>
-                <td className="border-l border-border px-2 py-1">{leg
+              <TableRow className={clsx(!leg?.wind && "text-muted-foreground")}>
+                <TableCell className="text-left">{name}</TableCell>
+                <TableCell className="border-l border-border">{altFt(cp ? nav?.altitude_ft : destElevationFt)}</TableCell>
+                <TableCell className="border-l border-border">{leg ? leg.distance_nm.toFixed(1) : "—"}</TableCell>
+                <TableCell className="border-l border-border">{leg ? deg(leg.true_course_deg) : "—"}</TableCell>
+                <TableCell className="border-l border-border">{leg
                   ? (leg.wind ? `${deg(leg.wind.wind_dir_true_deg)}/${Math.round(leg.wind.wind_speed_kt)}` : "no data")
-                  : "—"}</td>
-                <td className="border-l border-border px-2 py-1">{leg ? signed(leg.wca_deg) : "—"}</td>
-                <td className="border-l border-border px-2 py-1">{leg ? deg(leg.true_heading_deg) : "—"}</td>
-                <td className="border-l border-border px-2 py-1">{leg ? signed(leg.magnetic_variation_deg) : "—"}</td>
-                <td className="border-l border-border px-2 py-1">{leg ? deg(leg.magnetic_heading_deg) : "—"}</td>
-                <td className="border-l border-border px-2 py-1">
+                  : "—"}</TableCell>
+                <TableCell className="border-l border-border">{leg ? signed(leg.wca_deg) : "—"}</TableCell>
+                <TableCell className="border-l border-border">{leg ? deg(leg.true_heading_deg) : "—"}</TableCell>
+                <TableCell className="border-l border-border">{leg ? signed(leg.magnetic_variation_deg) : "—"}</TableCell>
+                <TableCell className="border-l border-border">{leg ? deg(leg.magnetic_heading_deg) : "—"}</TableCell>
+                <TableCell className="border-l border-border">
                   {leg ? (leg.groundspeed_kt === null ? "—" : Math.round(leg.groundspeed_kt)) : "—"}
-                </td>
-                <td className="border-l border-border px-2 py-1">
+                </TableCell>
+                <TableCell className="border-l border-border">
                   {leg ? (leg.ete_min === null ? "unflyable" : one(leg.ete_min)) : "—"}
-                </td>
-                <td className="border-l border-border px-2 py-1">{leg ? one(leg.fuel_gal) : "—"}</td>
-              </tr>
+                </TableCell>
+                <TableCell className="border-l border-border">{leg ? one(leg.fuel_gal) : "—"}</TableCell>
+              </TableRow>
               {/* Copied over from the sidebar's own nav log, read-only --
                   a pilot's typed (or generated) "how to spot it" note is
                   worth having on the printed page, but isn't editable
                   here: this page is a document to hand over or print,
                   not the workspace that note was written in. */}
               {description && description.text && (
-                <tr className="border-b border-border">
+                <TableRow>
                   {/* pl-6, not px-2 like the waypoint cell above it --
                       indented so it reads as that row's own note, not
                       another row at the same level. */}
-                  <td colSpan={12} className="bg-muted/60 py-1 pl-6 pr-2 text-left whitespace-normal italic text-muted-foreground">
+                  <TableCell colSpan={12} className="bg-muted/60 pl-6 text-left whitespace-normal italic text-muted-foreground">
                     {description.text}
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               )}
             </Fragment>
           );
         })}
-      </tbody>
-    </table>
+      </TableBody>
+    </Table>
   );
 }
 
 /**
- * The narrative's own text, print only. On screen it lives in
- * `NavLogActions`' own `Popover` instead (next to the buttons that
- * produce it, in the header, not a scroll away) -- but a closed
- * Popover renders nothing, so a printed copy needs its own text
- * sitting directly in the page. Same `hidden print:block` pattern this
- * page's own title uses just above, for the same reason.
- * `window.speechSynthesis` rather than a cloud voice, for now -- free,
- * no new service, no API key; a more natural-sounding voice is a later
- * upgrade, not a blocker for having this at all.
+ * Whichever narrative(s) a pilot actually generated, print only. On
+ * screen each lives in `NavLogActions`' own `Popover` instead (next to
+ * the buttons that produce it, in the header, not a scroll away) -- but
+ * a closed Popover renders nothing, so a printed copy needs its own
+ * text sitting directly in the page. Same `hidden print:block` pattern
+ * this page's own title uses just above, for the same reason. Prints
+ * neither, one, or both, whichever the pilot actually asked for on
+ * screen -- generating a framework's narrative just to have it for a
+ * printout nobody asked for would be a real, billed Claude call spent
+ * on nothing.
  */
-function BriefingNarrativePrintBlock({ narrative }: { narrative: string | null }) {
-  if (!narrative) return null;
+function BriefingNarrativePrintBlock({ langgraph, crewai }: { langgraph: string | null; crewai: string | null }) {
+  if (!langgraph && !crewai) return null;
   return (
     <div className="hidden break-inside-avoid-page border-b border-border px-4 py-3 print:block print:break-inside-avoid">
-      <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Briefing Narrative</h2>
-      <p className="mt-2 text-sm text-muted-foreground">{narrative}</p>
+      {langgraph && (
+        <>
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">LangGraph Narrative</h2>
+          <p className="mt-2 text-sm text-muted-foreground">{langgraph}</p>
+        </>
+      )}
+      {crewai && (
+        <>
+          <h2 className={clsx("text-sm font-semibold uppercase tracking-wide text-muted-foreground", langgraph && "mt-3")}>
+            CrewAI Narrative
+          </h2>
+          <p className="mt-2 text-sm text-muted-foreground">{crewai}</p>
+        </>
+      )}
     </div>
   );
 }
@@ -204,12 +220,14 @@ function hazardAltitudeRange(lowFt: number | null, highFt: number | null): strin
  * "VFR Flight Not Recommended" -- its own named, standard element of
  * an FAA briefing (AIM 7-1-5), not something this app was inventing:
  * a standard briefing states it explicitly whenever conditions warrant
- * it, separate from (and before) the adverse-conditions/current/
- * forecast detail a pilot would have to read closely to reach the same
- * conclusion themselves. Computed from data this page already has --
- * either endpoint's current METAR reporting IFR/LIFR, or the along-
- * route forecast dropping below basic VFR minimums (14 CFR 91.155:
- * 3 sm visibility, 1,000 ft ceiling) -- not a second fetch.
+ * it, stated plainly rather than something a pilot has to read the
+ * Current Conditions detail closely to work out themselves -- which is
+ * where it's shown, first thing inside that section, since that's the
+ * data it's actually computed from. Computed from data this page
+ * already has -- either endpoint's current METAR reporting IFR/LIFR,
+ * or the along-route forecast dropping below basic VFR minimums
+ * (14 CFR 91.155: 3 sm visibility, 1,000 ft ceiling) -- not a second
+ * fetch.
  */
 function vfrNotRecommendedReasons(briefing: Briefing, dep: string, dest: string): string[] {
   const reasons: string[] = [];
@@ -373,11 +391,22 @@ function SaveFlightSection({
  */
 export default function FlightBriefingView({
   course, totals, nav, legs, navError, dep, dest, selected, depElevationFt, destElevationFt, descriptions,
-  briefing, narrative, loadingNarrative, onGenerateNarrative, speaking, onListenClick, onMapClick,
+  briefing, briefingError, loadingBriefing, onRetryBriefing,
+  langgraphNarrative, crewaiNarrative,
 }: Props) {
   const parts = totals ? totalsParts(totals) : null;
   const winds = windsAloftSummary(legs);
   const vnrReasons = briefing ? vfrNotRecommendedReasons(briefing, dep, dest) : [];
+  const briefingContainer = useRef<HTMLDivElement>(null);
+  // On the very first render after mount, loadingBriefing is still false --
+  // PlanView's own effect (which calls loadBriefing) hasn't run yet -- so
+  // "not loading" alone can't mean "unavailable". Only briefingError (a
+  // fetch that actually finished and failed), or having no dep/dest to
+  // fetch with at all, means there is truly nothing pending.
+  const briefingNotStarted = !briefing && !briefingError && !!dep && !!dest;
+  const briefingPendingMessage = loadingBriefing || briefingNotStarted
+    ? "Loading briefing data…"
+    : "Briefing data is unavailable.";
 
   // A collapsed <details> renders nothing to print, `print:` overrides
   // on its own children notwithstanding -- Chromium's own closed-state
@@ -391,13 +420,13 @@ export default function FlightBriefingView({
   useEffect(() => {
     const openBeforePrint = new WeakMap<HTMLDetailsElement, boolean>();
     const beforePrint = () => {
-      document.querySelectorAll<HTMLDetailsElement>("details").forEach(d => {
+      briefingContainer.current?.querySelectorAll<HTMLDetailsElement>("details").forEach(d => {
         openBeforePrint.set(d, d.open);
         d.open = true;
       });
     };
     const afterPrint = () => {
-      document.querySelectorAll<HTMLDetailsElement>("details").forEach(d => {
+      briefingContainer.current?.querySelectorAll<HTMLDetailsElement>("details").forEach(d => {
         // `?? false`, not `?? d.open` -- by this point every details
         // has already been forced open, so reading its own `open` as
         // the fallback would just keep it open forever. `false` is the
@@ -415,57 +444,44 @@ export default function FlightBriefingView({
     };
   }, []);
 
-  return (
-    <div className="h-full overflow-y-auto bg-background print:h-auto print:overflow-visible">
-      {/* A real <header>, not a <div> -- this is exactly what the map
-          view's own `mapHeader` (PlanView) is, just this page's own
-          version of it. On screen, "Back to Map" replaces the old
-          "Flight Briefing" title entirely -- one clear way back, not
-          two (this button and NavLogActions' own Map icon used to say
-          the same thing twice). The title itself doesn't disappear,
-          it's just print-only now: a printed page has no "back"
-          anywhere to go, but still needs its own identifying title,
-          which is why this is the one thing here that inverts the
-          usual print:hidden -- hidden on screen, the only thing left
-          once actually printed. */}
-      <header className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
-        <div className="hidden print:block">
-          <h1 className="text-lg font-bold tracking-tight text-foreground">Flight Briefing</h1>
-          <p className="text-sm text-muted-foreground">{dep} → {dest}</p>
-        </div>
-        <Button
-          variant="ghost" size="sm" onClick={onMapClick}
-          className="print:hidden" data-testid="nav-back-to-map-button"
-        >
-          <ArrowLeft className="size-4" />
-          Back to Map
-        </Button>
-        <div className="flex items-center gap-1 print:hidden">
-          <NavLogActions
-            onGenerateNarrative={onGenerateNarrative}
-            narrativeLoading={loadingNarrative}
-            hasNarrative={narrative !== null}
-            narrative={narrative}
-            onListenClick={onListenClick}
-            listening={speaking}
-          />
-          <SettingsButton />
-        </div>
-      </header>
+  // "Planning aid only" used to be a permanently docked banner at the
+  // top of this page, pushing every section below it down a line
+  // whether a pilot needed the reminder again or not. A toast instead
+  // -- same sonner instance (main.tsx) PlanView's own progress/error
+  // toasts use, so the same bottom-center position without having to
+  // say so again here -- says it once, prominently, each time this
+  // view mounts (opening the Brief tab), then gets out of the way
+  // rather than sitting there for the whole session.
+  useEffect(() => {
+    toast.warning("Planning aid only.", {
+      id: "briefing-planning-aid-only",
+      description: "Before flight, obtain an official briefing and verify current weather, NOTAMs, TFRs, airport status, aircraft performance, and applicable regulations.",
+      duration: 8000,
+    });
+    // sonner's own Toaster is mounted once at the app root (main.tsx),
+    // not inside this view -- without this, its 8s duration keeps
+    // counting down regardless of navigation, so leaving this page
+    // (back to Map, or away to Label/Settings entirely) within that
+    // window still shows a "Brief"-specific warning on whatever page
+    // you land on next.
+    return () => { toast.dismiss("briefing-planning-aid-only"); };
+  }, []);
 
-      {/* Its own standard element (AIM 7-1-5(b)), stated up front and
-          impossible to collapse away by accident -- not one more
-          CollapsibleSection a pilot might skim past, the way a live
-          briefer states it out loud before working through the detail
-          that justifies it. */}
-      {vnrReasons.length > 0 && (
-        <div className="border-b border-destructive/30 bg-destructive/10 px-4 py-2 text-sm text-destructive">
-          <p className="font-semibold">VFR flight not recommended</p>
-          <ul className="mt-0.5 list-inside list-disc">
-            {vnrReasons.map(reason => <li key={reason}>{reason}</li>)}
-          </ul>
-        </div>
-      )}
+  return (
+    <div ref={briefingContainer} className="flight-briefing h-full overflow-y-auto bg-background print:h-auto print:overflow-visible">
+      {/* No header of this page's own any more -- PlanView's persistent
+          header (route form, Map/Brief tabs, NavLogActions while Brief
+          is active) covers what this used to draw itself (a "Back to
+          Map" button, Settings, the narrative actions), and having both
+          on screen at once read as two headers stacked rather than one
+          page with two views. This print-only title is what's left:
+          a printed page has no tabs to switch or button to click back
+          with, but still needs its own identifying title, since the
+          persistent header above is `print:hidden` in its entirety. */}
+      <div className="hidden border-b border-border px-4 py-3 print:block">
+        <h1 className="text-lg font-bold tracking-tight text-foreground">Flight Briefing</h1>
+        <p className="text-sm text-muted-foreground">{dep} → {dest}</p>
+      </div>
 
       <CollapsibleSection title="Flight Plan Summary">
         <div className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
@@ -523,11 +539,38 @@ export default function FlightBriefingView({
           entirely absent from the page until every field of one
           response is in, which is what made this page read as slow
           to populate. */}
-      <BriefingNarrativePrintBlock narrative={narrative} />
+      <BriefingNarrativePrintBlock langgraph={langgraphNarrative.text} crewai={crewaiNarrative.text} />
+
+      {/* Loading has no banner of its own here any more -- PlanView's
+          own floating toast already says "Loading briefing…" the
+          moment `loadingBriefing` goes true (see its own comment on
+          why that's the one place this app reports background
+          progress), so a second, inline copy of the same fact was
+          just noise sitting between Flight Plan Summary and Adverse
+          Conditions. A real failure stays inline, since unlike a
+          transient loading state it needs a Retry button that has to
+          stick around until a pilot acts on it, not a toast that
+          times out or gets buried under the next one. */}
+      {!briefing && briefingError && (
+        <section
+          aria-label="Briefing data status"
+          className="border-b border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive"
+          role="alert"
+        >
+          <p>Couldn’t load briefing data: {briefingError}</p>
+          <Button variant="outline" size="sm" className="mt-2" onClick={onRetryBriefing}>
+            Try again
+          </Button>
+        </section>
+      )}
 
       <CollapsibleSection title="Adverse Conditions">
         {!briefing ? (
-          <p className="text-sm text-muted-foreground">Loading…</p>
+          <p className="text-sm text-muted-foreground">{briefingPendingMessage}</p>
+        ) : briefing.weather_unavailable.includes("hazards") ? (
+          <p className="text-sm text-amber-700">
+            SIGMET/AIRMET data could not be checked — aviationweather.gov didn’t respond. Verify separately before flight.
+          </p>
         ) : briefing.hazards.length === 0 ? (
           <p className="text-sm text-muted-foreground">No SIGMETs or AIRMETs reported along this route.</p>
         ) : (
@@ -547,8 +590,27 @@ export default function FlightBriefingView({
       </CollapsibleSection>
 
       <CollapsibleSection title="Current Conditions">
+        {/* Its own standard element (AIM 7-1-5(b)), stated up front
+            inside the section it's actually drawn from (current METAR
+            categories, plus the route's own forecast minimums) rather
+            than a separate banner above every other section --
+            impossible to miss while this one's open, the way a live
+            briefer states it before working through the detail that
+            justifies it. */}
+        {vnrReasons.length > 0 && (
+          <div role="alert" className="mb-2 rounded border border-destructive/30 bg-destructive/10 px-2 py-1.5 text-sm text-destructive">
+            <p className="font-semibold">VFR flight not recommended</p>
+            <ul className="mt-0.5 list-inside list-disc">
+              {vnrReasons.map(reason => <li key={reason}>{reason}</li>)}
+            </ul>
+          </div>
+        )}
         {!briefing ? (
-          <p className="text-sm text-muted-foreground">Loading…</p>
+          <p className="text-sm text-muted-foreground">{briefingPendingMessage}</p>
+        ) : briefing.weather_unavailable.includes("metars") ? (
+          <p className="text-sm text-amber-700">
+            Current conditions could not be checked — aviationweather.gov didn’t respond. Verify separately before flight.
+          </p>
         ) : (
           <div className="grid gap-2 sm:grid-cols-2">
             {[dep, dest].map(ident => {
@@ -580,7 +642,11 @@ export default function FlightBriefingView({
           since it's the one that actually decides go/no-go on arrival. */}
       <CollapsibleSection title="Destination Forecast">
         {!briefing ? (
-          <p className="text-sm text-muted-foreground">Loading…</p>
+          <p className="text-sm text-muted-foreground">{briefingPendingMessage}</p>
+        ) : briefing.weather_unavailable.includes("forecast") ? (
+          <p className="text-sm text-amber-700">
+            Forecast data could not be checked — aviationweather.gov didn’t respond. Verify separately before flight.
+          </p>
         ) : (() => {
           const destStation = briefing.forecast.stations.find(st => st.icaoId === dest);
           return destStation ? (
@@ -595,7 +661,11 @@ export default function FlightBriefingView({
 
       <CollapsibleSection title="En Route Forecast">
         {!briefing ? (
-          <p className="text-sm text-muted-foreground">Loading…</p>
+          <p className="text-sm text-muted-foreground">{briefingPendingMessage}</p>
+        ) : briefing.weather_unavailable.includes("forecast") ? (
+          <p className="text-sm text-amber-700">
+            Forecast data could not be checked — aviationweather.gov didn’t respond. Verify separately before flight.
+          </p>
         ) : (
           <>
             <p className="text-sm text-muted-foreground">
@@ -612,6 +682,89 @@ export default function FlightBriefingView({
               </ul>
             )}
           </>
+        )}
+      </CollapsibleSection>
+
+      {/* Not gated behind `briefing` -- everything here comes from
+          `nav.altitude_selection`, the same "altitude" stream message
+          the Flight Plan Summary's own headline figure above already
+          used, not a second fetch. Grouped here with Winds Aloft/NOTAMs
+          rather than right after Flight Plan Summary, for the same
+          reason those two sit down here: none of the three depend on
+          `briefing`, so none of them belong next to the "loading
+          briefing data" status banner above (which IS about the
+          briefing fetch) -- placing this one there read as if that
+          banner were reporting on it too, even though this section's
+          own data had already arrived by the time the banner showed.
+          Used to live behind Settings' own "Altitude Selection
+          Breakdown" demo panel (type any route in, see the reasoning
+          for it) -- moved here instead, since a pilot wants this
+          reasoning for the route they're actually flying, not a
+          one-off lookup independent of it. */}
+      <CollapsibleSection title="Cruise Altitude">
+        {!nav ? (
+          <p className="text-sm text-muted-foreground">Loading…</p>
+        ) : !nav.altitude_selection ? (
+          <p className="text-sm text-muted-foreground">
+            This route's cruise altitude was set manually -- nothing was auto-selected to break down.
+          </p>
+        ) : (
+          <div className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
+            <div>
+              <div className="text-xs text-muted-foreground">Recommended</div>
+              <div className="font-semibold">{altFt(nav.altitude_selection.recommended_ft)} ft</div>
+            </div>
+            <div>
+              <div className="text-xs text-muted-foreground">Terrain/obstacle floor</div>
+              <div className="font-semibold">{altFt(nav.altitude_selection.floor_ft)} ft</div>
+            </div>
+            <div>
+              <div className="text-xs text-muted-foreground">Airspace ceiling</div>
+              <div className="font-semibold">{altFt(nav.altitude_selection.airspace_ceiling_ft)} ft</div>
+            </div>
+            <div>
+              <div className="text-xs text-muted-foreground">Freezing level</div>
+              <div className="font-semibold">{altFt(nav.altitude_selection.freezing_level_ft)} ft</div>
+            </div>
+            <div>
+              <div className="text-xs text-muted-foreground">Combined ceiling band</div>
+              <div className="font-semibold">{altFt(nav.altitude_selection.band_ceiling_ft)} ft</div>
+            </div>
+            <div>
+              <div className="text-xs text-muted-foreground">Forecast ceiling/visibility</div>
+              <div className="font-semibold">
+                {altFt(nav.altitude_selection.min_ceiling_ft)} ft, {nav.altitude_selection.min_visibility_sm ?? "—"} sm
+                {nav.altitude_selection.weather_unavailable.includes("ceiling_visibility") ? (
+                  <Badge className="ml-1 border-transparent bg-muted text-muted-foreground">unknown</Badge>
+                ) : nav.altitude_selection.low_ceiling_or_visibility && (
+                  <Badge className="ml-1 border-transparent bg-amber-100 text-amber-700">low</Badge>
+                )}
+              </div>
+            </div>
+            <div>
+              <div className="text-xs text-muted-foreground">Hazards along route</div>
+              <div className="font-semibold">
+                {nav.altitude_selection.hazards.length === 0 ? "none" : nav.altitude_selection.hazards.length}
+              </div>
+            </div>
+            <div>
+              <div className="text-xs text-muted-foreground">Airspace transits</div>
+              <div className="font-semibold">
+                {nav.altitude_selection.airspace_transits.length === 0
+                  ? "none" : nav.altitude_selection.airspace_transits.length}
+              </div>
+            </div>
+            {nav.altitude_selection.airspace_transits.length > 0 && (
+              <ul className="col-span-full mt-1 space-y-0.5 text-xs text-muted-foreground">
+                {nav.altitude_selection.airspace_transits.map((t, i) => (
+                  <li key={i}>
+                    {t.name} (Class {t.class}), floor {altFt(t.floor_ft_msl)} ft, {t.along_track_nm} nm along route --
+                    requires {t.requires}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         )}
       </CollapsibleSection>
 
@@ -665,7 +818,7 @@ export default function FlightBriefingView({
 
       <CollapsibleSection title="Airport Information">
         {!briefing ? (
-          <p className="text-sm text-muted-foreground">Loading…</p>
+          <p className="text-sm text-muted-foreground">{briefingPendingMessage}</p>
         ) : (
           <div className="grid gap-3 sm:grid-cols-2">
             {[dep, dest].map(ident => {

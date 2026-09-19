@@ -1,5 +1,7 @@
-import { Button } from "../../../components/ui/button";
-import { Input } from "../../../components/ui/input";
+import { ArrowRight } from "lucide-react";
+import RouteInputGroup from "../../../components/RouteInputGroup";
+import { InputGroupButton } from "../../../components/ui/input-group";
+import { Tooltip, TooltipContent, TooltipTrigger } from "../../../components/ui/tooltip";
 import type { BuiltRoute } from "../../../lib/api/types";
 
 interface Props {
@@ -10,20 +12,10 @@ interface Props {
   onSubmit: () => void;
   disabled: boolean;
   routes: BuiltRoute[];
-  /** Opens the Flight Briefing view for whatever route is currently
-   *  charted (labeled "Brief" here, not "Flight Briefing" -- next to
-   *  "Load," the short form reads fine) -- a second action beside it,
-   *  not a submit, so it's `type="button"` in the same row rather than
-   *  its own form. Lives in the header, not floating over the map --
-   *  the same place Label's own single most-needed action (Start/
-   *  Resume/Fit line) lives too now, see Label's own RouteForm. */
-  onOpenBriefing: () => void;
-  briefingDisabled: boolean;
 }
 
 export default function RouteForm({
   dep, dest, onDepChange, onDestChange, onSubmit, disabled, routes,
-  onOpenBriefing, briefingDisabled,
 }: Props) {
   return (
     // flex-wrap, not a fixed single line -- DEP/DEST need their full
@@ -37,33 +29,21 @@ export default function RouteForm({
       autoComplete="off"
       onSubmit={e => { e.preventDefault(); onSubmit(); }}
     >
-      <Input
-        value={dep}
-        onChange={e => onDepChange(e.target.value)}
-        list="built"
-        placeholder="DEP"
-        spellCheck={false}
-        aria-label="Departure"
-        className="w-[75px] text-center font-mono uppercase"
-      />
-      <span>→</span>
-      <Input
-        value={dest}
-        onChange={e => onDestChange(e.target.value)}
-        list="built"
-        placeholder="DEST"
-        spellCheck={false}
-        aria-label="Destination"
-        className="w-[75px] text-center font-mono uppercase"
-      />
+      <RouteInputGroup dep={dep} dest={dest} onDepChange={onDepChange} onDestChange={onDestChange} listId="built">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <InputGroupButton type="submit" variant="default" size="icon-sm" disabled={disabled}>
+              <ArrowRight />
+              <span className="sr-only">Load</span>
+            </InputGroupButton>
+          </TooltipTrigger>
+          <TooltipContent>Load</TooltipContent>
+        </Tooltip>
+      </RouteInputGroup>
       <datalist id="built">
         {[...new Set(routes.flatMap(r => [r.departure_ident, r.destination_ident]))]
           .sort().map(id => <option key={id} value={id} />)}
       </datalist>
-      <Button type="submit" disabled={disabled}>Load</Button>
-      <Button type="button" onClick={onOpenBriefing} disabled={briefingDisabled} data-testid="map-action-button">
-        Brief
-      </Button>
     </form>
   );
 }

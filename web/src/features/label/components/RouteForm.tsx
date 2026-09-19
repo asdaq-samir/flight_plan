@@ -1,5 +1,7 @@
-import { Button } from "../../../components/ui/button";
-import { Input } from "../../../components/ui/input";
+import { ArrowRight } from "lucide-react";
+import RouteInputGroup from "../../../components/RouteInputGroup";
+import { InputGroupButton } from "../../../components/ui/input-group";
+import { Tooltip, TooltipContent, TooltipTrigger } from "../../../components/ui/tooltip";
 
 interface Props {
   dep: string;
@@ -7,19 +9,10 @@ interface Props {
   onDepChange: (v: string) => void;
   onDestChange: (v: string) => void;
   onSubmit: () => void;
-  /** The page's own single most-needed map action -- Start/Resume/Fit
-   *  line -- folded in here as a sibling `type="button"`, the same
-   *  shape Plan's own RouteForm holds "Brief" next to "Load" in. One
-   *  merged header row for both pages now, not a form here and a
-   *  floating corner button over the map there. */
-  onToggleView: () => void;
-  toggleViewDisabled: boolean;
-  toggleViewLabel: string;
 }
 
 export default function RouteForm({
   dep, dest, onDepChange, onDestChange, onSubmit,
-  onToggleView, toggleViewDisabled, toggleViewLabel,
 }: Props) {
   return (
     <form
@@ -34,34 +27,26 @@ export default function RouteForm({
         onSubmit();
       }}
     >
-      <div className="flex items-center gap-2">
-        {/* Same size as Plan's own DEP/DEST inputs now (see that
-            RouteForm's own comment on why the width is what it is) --
-            this page used to run these taller (h-10, deliberately
-            bigger tap targets) than Plan's did, one more place the two
-            pages looked like different designs rather than the same
-            shell around a different sidebar. */}
-        <Input
-          value={dep}
-          onChange={e => onDepChange(e.target.value.toUpperCase())}
-          aria-label="Departure"
-          className="w-[75px] text-center font-mono uppercase"
-        />
-        <span>&rarr;</span>
-        <Input
-          value={dest}
-          onChange={e => onDestChange(e.target.value.toUpperCase())}
-          aria-label="Destination"
-          className="w-[75px] text-center font-mono uppercase"
-        />
-      </div>
-      <Button type="submit">Load</Button>
-      <Button
-        type="button" onClick={onToggleView} disabled={toggleViewDisabled}
-        data-testid="map-action-button"
+      {/* Same shape as Plan's own DEP/DEST/Load now (`RouteInputGroup`)
+          -- this page used to run its own inputs taller (h-10,
+          deliberately bigger tap targets) than Plan's did, one more
+          place the two pages looked like different designs rather
+          than the same shell around a different sidebar. */}
+      <RouteInputGroup
+        dep={dep} dest={dest}
+        onDepChange={v => onDepChange(v.toUpperCase())}
+        onDestChange={v => onDestChange(v.toUpperCase())}
       >
-        {toggleViewLabel}
-      </Button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <InputGroupButton type="submit" variant="default" size="icon-sm">
+              <ArrowRight />
+              <span className="sr-only">Load</span>
+            </InputGroupButton>
+          </TooltipTrigger>
+          <TooltipContent>Load</TooltipContent>
+        </Tooltip>
+      </RouteInputGroup>
     </form>
   );
 }

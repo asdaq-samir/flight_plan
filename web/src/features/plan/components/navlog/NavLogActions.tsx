@@ -1,123 +1,145 @@
-import { ChevronDown, Loader2, Printer, ScrollText, Sparkles, Square, Volume2 } from "lucide-react";
+import { Loader2, Printer, Sparkles } from "lucide-react";
+import { useState } from "react";
 import { Button } from "../../../../components/ui/button";
-import { ButtonGroup } from "../../../../components/ui/button-group";
-import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
-} from "../../../../components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "../../../../components/ui/popover";
+import { ScrollArea } from "../../../../components/ui/scroll-area";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../../../components/ui/tabs";
+import { Tooltip, TooltipContent, TooltipTrigger } from "../../../../components/ui/tooltip";
+import type { FrameworkNarrative } from "../../hooks/usePlanState";
+
+type Framework = "langgraph" | "crewai";
+
+const FRAMEWORK_LABEL: Record<Framework, string> = {
+  langgraph: "LangGraph",
+  crewai: "CrewAI",
+};
+
+/** One framework's own tab body -- loading line, error, or the
+ *  narrative text itself, whichever the fetch for that framework
+ *  currently holds. Scrolls internally (a full CrewAI narrative runs
+ *  well past a screenful) rather than pushing the popover past the
+ *  viewport. */
+function NarrativeTabBody({ framework, narrative }: { framework: Framework; narrative: FrameworkNarrative }) {
+  return (
+    <ScrollArea className="max-h-[60vh]">
+      <div className="p-3 pt-2">
+        {narrative.loading && <p className="text-muted-foreground">Generating {FRAMEWORK_LABEL[framework]} narrative…</p>}
+        {narrative.error && <p className="text-destructive" role="alert">{narrative.error}</p>}
+        {narrative.text && <p className="whitespace-pre-wrap text-popover-foreground">{narrative.text}</p>}
+      </div>
+    </ScrollArea>
+  );
+}
 
 interface Props {
-  onGenerateNarrative: () => void;
-  narrativeLoading: boolean;
-  hasNarrative: boolean;
-  narrative: string | null;
-  onListenClick: () => void;
-  listening: boolean;
+  onGenerateNarrative: (framework: Framework) => void;
+  langgraphNarrative: FrameworkNarrative;
+  crewaiNarrative: FrameworkNarrative;
 }
 
 /**
- * The nav log's own actions -- generate and listen to the briefing
- * narrative, print this -- rendered inline in `FlightBriefingView`'s
- * own title panel (alongside its own "Back to Map" button and the
- * Settings gear), not floating over the content the way this component
- * used to. Ghost icon buttons to match the gear beside them, not the
- * heavy-shadow/white-border treatment a button floating *over a map*
- * needs to read against arbitrary tile colors underneath it -- this
- * sits on a plain panel background instead.
+ * The nav log's own actions -- generate a briefing narrative, print
+ * this -- rendered inline in PlanView's own persistent header, as
+ * trailing content next to the Map/Brief tabs while Brief is the
+ * active tab.
  *
- * A split button (shadcn's own pattern, primary action + a chevron
- * opening a `DropdownMenu`), not two equal icon buttons side by side --
- * generate and listen are two steps of one task, not two unrelated
- * actions, so the main click does whichever one is next (generate while
- * there's no narrative yet, then listen once there is), and the menu
- * behind the chevron holds both as explicit choices for whichever one
- * a pilot actually wants right now (re-hear it after already reading
- * it, say). "Back to map" used to live here too, as a third icon
- * button -- moved out into its own text button in the header's own
- * title slot instead of staying a second, redundant way to say the
- * same thing.
+ * One AI button next to Print, not two named ones -- LangGraph and
+ * CrewAI live as two tabs inside the single popover it opens instead
+ * of each framework claiming its own trigger in the header. Opening
+ * the popover (or switching to a tab with nothing loaded yet) is what
+ * actually fires that framework's own real, billed Claude call --
+ * same restraint the old two-button layout had (nothing generates
+ * until asked for), just behind one shared entry point instead of two.
  *
  * The narrative's own text used to have a permanent home further down
  * the page (a "Briefing Narrative" `CollapsibleSection`) -- moved into
- * this `Popover` instead, next to the buttons that produce it, so
- * reading it back doesn't mean scrolling away from them. On screen
- * only: a closed Popover renders nothing, so `FlightBriefingView` also
- * keeps a `hidden print:block` block with the same text for a printed
- * copy, which needs it sitting in the page rather than behind a click
- * that a piece of paper can't make.
+ * this popover instead, next to the button that produces it, so
+ * reading it back doesn't mean scrolling away. On screen only: a
+ * closed Popover renders nothing, so `FlightBriefingView` also keeps a
+ * `hidden print:block` block with whichever narrative(s) were
+ * generated, for a printed copy, which needs the text sitting in the
+ * page rather than behind a click a piece of paper can't make.
  */
-export default function NavLogActions({
-  onGenerateNarrative, narrativeLoading, hasNarrative, narrative, onListenClick, listening,
-}: Props) {
-  const primaryAction = hasNarrative ? onListenClick : onGenerateNarrative;
-  const primaryLabel = narrativeLoading
-    ? "Generating…"
-    : hasNarrative
-      ? (listening ? "Stop" : "Listen to briefing narrative")
-      : "Generate briefing narrative";
-  const primaryIcon = narrativeLoading
-    ? <Loader2 className="size-4 animate-spin" />
-    : hasNarrative
-      ? (listening ? <Square className="size-4" /> : <Volume2 className="size-4" />)
-      : <Sparkles className="size-4" />;
+export default function NavLogActions({ onGenerateNarrative, langgraphNarrative, crewaiNarrative }: Props) {
+  const [open, setOpen] = useState(false);
+  const [tab, setTab] = useState<Framework>("langgraph");
+  const narratives: Record<Framework, FrameworkNarrative> = {
+    langgraph: langgraphNarrative,
+    crewai: crewaiNarrative,
+  };
+  const activeNarrative = narratives[tab];
+
+  const ensureGenerated = (framework: Framework) => {
+    const n = narratives[framework];
+    if (!n.text && !n.loading) onGenerateNarrative(framework);
+  };
 
   return (
-    <>
-      <ButtonGroup>
-        <Button
-          variant="ghost" size="icon" onClick={primaryAction} disabled={narrativeLoading}
-          title={primaryLabel} aria-label={primaryLabel}
-          data-testid="narrative-primary-button"
-        >
-          {primaryIcon}
-        </Button>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="ghost" size="icon" disabled={narrativeLoading}
-              aria-label="More narrative actions" data-testid="narrative-menu-trigger"
-            >
-              <ChevronDown className="size-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent>
-            <DropdownMenuItem
-              onSelect={onGenerateNarrative}
-              disabled={narrativeLoading || hasNarrative}
-              data-testid="generate-narrative-button"
-            >
-              <Sparkles /> {hasNarrative ? "Narrative already generated" : "Generate narrative"}
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onSelect={onListenClick}
-              disabled={narrativeLoading}
-              data-testid="listen-button"
-            >
-              {listening ? <Square /> : <Volume2 />} {listening ? "Stop" : "Listen to narrative"}
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button
-              variant="ghost" size="icon" disabled={!narrative}
-              title="Read briefing narrative" aria-label="Read briefing narrative"
-              data-testid="narrative-text-button"
-            >
-              <ScrollText className="size-4" />
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-80 text-sm text-muted-foreground">
-            {narrative}
-          </PopoverContent>
-        </Popover>
-      </ButtonGroup>
-      <Button
-        variant="ghost" size="icon" onClick={() => window.print()}
-        title="Print" aria-label="Print" data-testid="print-button"
+    // A single flex item, not a bare Fragment -- PlanView's own header
+    // row places this next to the Map/Brief tabs under `justify-
+    // between`, which only pushes its first and last child apart and
+    // spaces any child in between evenly rather than grouping it
+    // against either edge. A Fragment here flattens into two top-level
+    // children of that row (this Popover, then Print), landing the AI
+    // button somewhere in the middle instead of flush right next to
+    // Print -- wrapping both in one div is what keeps them together at
+    // the row's trailing edge, the same treatment the Map view's own
+    // info-button-plus-sidebar-trigger pair already gets.
+    <div className="flex items-center gap-2">
+      <Popover
+        open={open}
+        onOpenChange={next => {
+          setOpen(next);
+          if (next) ensureGenerated(tab);
+        }}
       >
-        <Printer className="size-4" />
-      </Button>
-    </>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <PopoverTrigger asChild>
+              <Button
+                variant="ghost" size="icon"
+                aria-label="Briefing narrative"
+                data-testid="ai-narrative-button"
+              >
+                {activeNarrative.loading ? <Loader2 className="size-5 animate-spin" /> : <Sparkles className="size-5" />}
+              </Button>
+            </PopoverTrigger>
+          </TooltipTrigger>
+          <TooltipContent>Briefing narrative</TooltipContent>
+        </Tooltip>
+        <PopoverContent align="end" className="w-80 p-0 text-sm">
+          <Tabs
+            value={tab}
+            onValueChange={value => {
+              const framework = value as Framework;
+              setTab(framework);
+              ensureGenerated(framework);
+            }}
+          >
+            <TabsList className="mx-3 mt-3">
+              <TabsTrigger value="langgraph" data-testid="langgraph-narrative-tab">LangGraph</TabsTrigger>
+              <TabsTrigger value="crewai" data-testid="crewai-narrative-tab">CrewAI</TabsTrigger>
+            </TabsList>
+            <TabsContent value="langgraph">
+              <NarrativeTabBody framework="langgraph" narrative={langgraphNarrative} />
+            </TabsContent>
+            <TabsContent value="crewai">
+              <NarrativeTabBody framework="crewai" narrative={crewaiNarrative} />
+            </TabsContent>
+          </Tabs>
+        </PopoverContent>
+      </Popover>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant="ghost" size="icon" onClick={() => window.print()}
+            aria-label="Print" data-testid="print-button"
+          >
+            <Printer className="size-5" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>Print</TooltipContent>
+      </Tooltip>
+    </div>
   );
 }

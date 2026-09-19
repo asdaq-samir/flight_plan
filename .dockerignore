@@ -8,3 +8,16 @@ __pycache__/
 # any service using `context: .`. Found 2026-09-08 after repeated
 # unexplained build hangs on this Intel Mac's Docker VM.
 data/raw/
+# Same reasoning as data/raw/ above -- generated/large, not needed at
+# build time, and was still being tarred into the build context for
+# every service using `context: .` (webapp, ml, the agents...).
+data/processed/
+data/models/
+# Build output/dependency dirs for the two toolchains built *inside*
+# their own Dockerfile stages: a local `npm install`/`mvn package` run
+# outside Docker (e.g. for editor tooling, tests) leaves these on disk,
+# and without this they'd get copied into the build context on every
+# `context: .` build even though the Dockerfile never reads them (it
+# does its own npm ci/mvn package from source instead).
+web/node_modules/
+springboot-app/target/

@@ -184,7 +184,13 @@ export interface NavLog {
   legs: Leg[];
   totals: Totals;
   altitude_ft: number;
-  altitude_selection: { floor_ft: number } | null;
+  /** The full breakdown (same shape /api/altitude-breakdown returns,
+   *  see AltitudeBreakdown below -- the "altitude" stream message
+   *  already carries every field, not just floor_ft) when this route's
+   *  altitude was auto-selected; null when a pilot supplied their own
+   *  altitude_ft instead, since nothing was actually computed to break
+   *  down in that case. */
+  altitude_selection: AltitudeBreakdown | null;
   aircraft: { name: string };
 }
 
@@ -255,25 +261,12 @@ export interface Briefing {
    *  report for. */
   metars: Record<string, Metar | null>;
   airports: Record<string, { runways: Runway[]; frequencies: Frequency[] }>;
-}
-
-/** What the briefing narrative endpoint needs to write prose about --
- *  the data the Flight Briefing page already has, not idents alone:
- *  that endpoint's job is turning known facts into a spoken-style
- *  paragraph, not a second fetch of its own. */
-export interface BriefingNarrativeRequest {
-  departure_ident: string;
-  destination_ident: string;
-  distance_nm: number;
-  bearing_deg: number;
-  altitude_ft: number;
-  aircraft_name: string;
-  total_time_min: number | null;
-  total_fuel_gal: number | null;
-  hazards: Hazard[];
-  metars: Record<string, Metar | null>;
-  forecast: Forecast;
-  legs: Leg[];
+  /** Which of hazards/forecast/metars come from a call that actually
+   *  failed (aviationweather.gov timed out or 5xx'd) rather than one
+   *  that succeeded and simply found nothing -- an empty `hazards` here
+   *  must not read the same as "no hazards reported," so callers should
+   *  show a real gap for anything named here instead of staying silent. */
+  weather_unavailable: ("hazards" | "forecast" | "metars")[];
 }
 
 /** `GET /api/me` -- a Spring Boot endpoint, not proxied through the
@@ -348,7 +341,34 @@ export interface AltitudeBreakdown {
   min_ceiling_ft: number | null;
   min_visibility_sm: number | null;
   hazards: Hazard[];
-  low_ceiling_or_visibility: boolean;
+  /** null, not false, when the forecast call itself failed -- "unknown"
+   *  must not read as "confirmed fine." See vfr.altitude's own comment. */
+  low_ceiling_or_visibility: boolean | null;
+  /** Which of freezing_level/ceiling_visibility/hazards came from a
+   *  call that actually failed rather than one that succeeded and found
+   *  nothing -- same shape and reasoning as Briefing's own field. */
+  weather_unavailable: ("freezing_level" | "ceiling_visibility" | "hazards")[];
+}
+
+/** One framework's own result from ComparisonProxyController -- either
+ *  shape can come back for either framework, independent of the other
+ *  (nav-log-agent down doesn't stop crewai-agent's own result from
+ *  showing, and vice versa). */
+export type FrameworkResult =
+  | { altitude_selection: AltitudeBreakdown; legs: unknown[]; briefing: string }
+  | { briefing: string }
+  | { error: string };
+
+/** The identical nav-log-briefing task, run through nav-log-agent's
+ *  LangGraph build and/or crewai-agent's CrewAI build -- Settings >
+ *  Playground's side-by-side comparison panel requests both; the
+ *  Flight Briefing page's own two narrative buttons
+ *  (`api.frameworkComparison`'s `framework` param) request one at a
+ *  time, so only that key comes back -- a pilot picking one shouldn't
+ *  also pay for (or wait on) the other. */
+export interface FrameworkComparison {
+  langgraph?: FrameworkResult;
+  crewai?: FrameworkResult;
 }
 
 /** A pilot's own aeroplane -- from Spring Boot's `/api/aircraft`, so
@@ -429,4 +449,15 @@ export interface BuildJob {
   state: "queued" | "running" | "done" | "failed";
   step: string;
   detail?: string | null;
+}
+
+/** One DEP/DEST autocomplete suggestion -- just enough to show and
+ *  fill an ident from, not `Airport`'s own coordinates/elevation
+ *  (the real lookup, once a pilot actually picks one, already refetches
+ *  those through the normal course/navlog flow). */
+export interface AirportSuggestion {
+  ident: string;
+  name: string;
+  municipality: string | null;
+  region: string | null;
 }

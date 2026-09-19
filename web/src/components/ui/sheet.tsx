@@ -39,8 +39,9 @@ function SheetOverlay({
       className={cn(
         // z-[1000], not the default z-50: Leaflet's own map panes and
         // controls reach up to z-index 1000 (see GuidePanel/ScoreLegend),
-        // and this app's only current Sheet use (the mobile sidebar)
-        // sits right over a Leaflet map.
+        // and this app's only current Sheet use (Settings' own Dev ML
+        // drawer) sits right over a Leaflet map (Label's own, embedded
+        // in that same Dev tab).
         "fixed inset-0 z-[1000] bg-black/10 duration-100 supports-backdrop-filter:backdrop-blur-xs data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0",
         className
       )}

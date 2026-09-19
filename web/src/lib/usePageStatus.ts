@@ -1,41 +1,71 @@
-import { useEffect } from "react";
-import { toast, type ExternalToast } from "sonner";
+import { useEffect, useRef } from "react";
+import { toast } from "sonner";
 
-// One id each, reused on every call -- sonner treats a second
-// `toast.loading`/`toast.error` with the same id as an update to the
-// existing toast (new text, timer restarted) rather than a second
-// toast stacking underneath it.
 const PROGRESS_ID = "page-progress";
-const ERROR_ID = "page-error";
+const errorToastId = (key: string) => `page-error-${key}`;
 
 /**
- * The progress toast and the error toast every page with a live
- * course/stream has -- both go through sonner's own global toast
- * stack (`<Toaster>` in main.tsx) rather than a bespoke floating
- * status line and full-width error drawer. A toast floats over the
- * map instead of reserving space and shrinking it the way the old
- * drawer did -- traded away on purpose (see the session that replaced
- * `ErrorTab`/`MapArea`'s own `errorHeight` threading with this) for
- * not having to hand-maintain that threading through every page and
- * every floating element that needed to dodge it.
+ * The progress toast and the error toasts every page with a live
+ * course/stream has -- all go through sonner's own global toast stack
+ * (`<Toaster>` in main.tsx) rather than a bespoke floating status line
+ * and full-width error drawer. A toast floats over the map instead of
+ * reserving space and shrinking it the way the old drawer did -- traded
+ * away on purpose (see the session that replaced `ErrorTab`/`MapArea`'s
+ * own `errorHeight` threading with this) for not having to hand-maintain
+ * that threading through every page and every floating element that
+ * needed to dodge it.
  *
- * `position` defaults to the Toaster's own default (`top-center` in
- * main.tsx, clear of every page's toolbar) -- a caller only needs to
- * override it when its own layout doesn't match that default, e.g.
- * PlanView's Flight Briefing sub-view has no toolbar row to clear but
- * does have real content starting right at the top, so it passes
- * "bottom-center" instead (nothing floats at the bottom of that view).
+ * `errors` is a named map, not one pre-combined string -- PlanView's
+ * own three sources (a general plan error, a briefing failure, a
+ * checkpoint-description failure) used to be squashed into one slot
+ * via a `??`/`||` chain, so only whichever happened to win was ever
+ * visible; two unrelated failures are two different things a pilot
+ * needs to see and act on, not one silently hiding the other. Each key
+ * gets its own toast, keyed by name so that source's own message
+ * updates in place (not a fresh stacked duplicate) when it changes,
+ * while two different keys never replace each other. `progress` stays
+ * a single slot on purpose, unlike `errors` -- a route's own sequence
+ * ("Drawing course…" -> "Scoring checkpoints…" -> "Planning… 60%") is
+ * one operation's status narrating itself over time, not several
+ * concurrent ones, and should keep updating in place rather than
+ * piling up a toast per stage.
+ *
+ * No `position` override here -- every page that calls this shares one
+ * `<Toaster>` (main.tsx), already anchored bottom-center for the whole
+ * app, so there's nothing left for an individual toast to override.
  */
-export function usePageStatus(progress: string | null, error: string | null, position?: ExternalToast["position"]) {
+export function usePageStatus(
+  progress: string | null,
+  errors: Record<string, string | null>,
+) {
   useEffect(() => {
-    if (progress) toast.loading(progress, { id: PROGRESS_ID, duration: 4000, position });
+    if (progress) toast.loading(progress, { id: PROGRESS_ID, duration: 4000 });
     else toast.dismiss(PROGRESS_ID);
-  }, [progress, position]);
+  }, [progress]);
+
+  // Every error-toast id this hook has ever actually shown, across
+  // renders -- not just whichever are active on the render that
+  // happens to unmount -- so the cleanup effect below can dismiss all
+  // of them even if a caller's own set of named sources changed
+  // during its lifetime.
+  const shownIds = useRef(new Set<string>());
+  const serializedErrors = JSON.stringify(errors);
 
   useEffect(() => {
-    if (error) toast.error(error, { id: ERROR_ID, duration: Infinity, position });
-    else toast.dismiss(ERROR_ID);
-  }, [error, position]);
+    for (const [key, message] of Object.entries(errors)) {
+      const id = errorToastId(key);
+      if (message) {
+        toast.error(message, { id, duration: Infinity });
+        shownIds.current.add(id);
+      } else {
+        toast.dismiss(id);
+      }
+    }
+    // `errors` is a fresh object every render; `serializedErrors` (its
+    // own content, not its identity) is what should actually
+    // re-trigger this.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [serializedErrors]);
 
   // A separate, mount-once effect purely for its cleanup -- the two
   // above already dismiss on every value change, but neither runs
@@ -46,6 +76,6 @@ export function usePageStatus(progress: string | null, error: string | null, pos
   // idea a "page" went away at all). This is what actually clears it.
   useEffect(() => () => {
     toast.dismiss(PROGRESS_ID);
-    toast.dismiss(ERROR_ID);
+    shownIds.current.forEach(id => toast.dismiss(id));
   }, []);
 }

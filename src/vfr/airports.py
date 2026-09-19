@@ -77,9 +77,80 @@ def get_airport(ident: str, cache_path: Path = DEFAULT_CACHE_PATH) -> dict:
     }
 
 
+_US_AIRPORTS_CACHE: dict[int, pd.DataFrame] = {}
+
+
+def _us_airports(cache_path: Path) -> pd.DataFrame:
+    """The US-only, pre-uppercased slice `search_airports` filters --
+    keyed by `id()` of `load_airports`'s own cached frame (itself
+    already keyed by path+mtime), so this is built once per process,
+    not on every keystroke. Building it fresh each call -- filtering
+    the full 80,000-row table to US-only, then `.str.upper()` over
+    three string columns of the result -- was cheap in isolation but
+    added up to real, measurable CPU under a burst of concurrent
+    searches (every DEP/DEST field firing one on mount), which is
+    exactly the kind of load a page full of Playwright tests, or a
+    pilot just loading the app, produces.
+    """
+    df = load_airports(cache_path)
+    key = id(df)
+    if key not in _US_AIRPORTS_CACHE:
+        # This app plans against FAA sectional charts and
+        # aviationweather.gov data alone -- there's no route it could
+        # actually fly outside the US, so a non-US match here would
+        # just be a dead end once picked, not a real suggestion.
+        us = df[df["iso_country"] == "US"].copy()
+        us["_ident_upper"] = us["ident"].astype(str).str.upper()
+        us["_local_upper"] = us["local_code"].astype(str).str.upper()
+        us["_name_upper"] = us["name"].astype(str).str.upper()
+        # OurAirports' own `ident` column is a synthesized ICAO-style
+        # code (usually "K" + `local_code`) it assigns even to airports
+        # that were never actually issued one -- C81 (a real, local-use
+        # FAA identifier, no K) shows up there as "KC81". `icao_code` is
+        # how OurAirports itself marks the difference: populated when
+        # `ident` is a real, assigned code (KDLH, a towered airport
+        # pilots do call that), empty when `ident` is its own guess --
+        # `local_code` (the one pilots, and the rest of this app, use
+        # for those) wins only in that second case.
+        has_icao = us["icao_code"].notna() & (us["icao_code"] != "")
+        has_local = us["local_code"].notna() & (us["local_code"] != "")
+        us["_display_ident"] = us["ident"].where(has_icao, us["local_code"].where(has_local, us["ident"]))
+        _US_AIRPORTS_CACHE[key] = us
+    return _US_AIRPORTS_CACHE[key]
+
+
+def search_airports(query: str, limit: int = 8, cache_path: Path = DEFAULT_CACHE_PATH) -> list[dict]:
+    """Airports whose ident, local code, or name starts with `query` --
+    the DEP/DEST inputs' own autocomplete, so a pilot who doesn't have
+    an ident memorized can find it by typing the airport's name instead.
+
+    Ident/local-code matches sort first and name matches second, each
+    group alphabetical by ident within itself -- typing "KDL" is almost
+    always hunting for an ident, not a name that happens to start the
+    same way, so those should never be buried under name matches.
+    """
+    query = query.strip().upper()
+    if not query:
+        return []
+    df = _us_airports(cache_path)
+    ident_hit = df["_ident_upper"].str.startswith(query) | df["_local_upper"].str.startswith(query)
+    name_hit = ~ident_hit & df["_name_upper"].str.startswith(query)
+    matches = pd.concat([df[ident_hit].assign(_rank=0), df[name_hit].assign(_rank=1)])
+    matches = matches.sort_values(["_rank", "_display_ident"]).head(limit)
+    return [
+        {
+            "ident": row["_display_ident"],
+            "name": row["name"],
+            "municipality": row["municipality"] if pd.notna(row.get("municipality")) else None,
+            "region": row["iso_region"] if pd.notna(row.get("iso_region")) else None,
+        }
+        for _, row in matches.iterrows()
+    ]
+
+
 def get_runways(ident: str, cache_path: Path = RUNWAYS_CACHE_PATH) -> list[dict]:
-    """This airport's runways, for the Flight Briefing page's own
-    airport-information section. Keyed by `airport_ident` directly --
+    """This airport's runways, for the Brief tab's own airport-
+    information section. Keyed by `airport_ident` directly --
     OurAirports' runways.csv carries the ident string alongside its own
     numeric `airport_ref`, so no join against airports.csv is needed.
     """

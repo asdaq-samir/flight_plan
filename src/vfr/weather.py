@@ -32,13 +32,23 @@ class WeatherServiceError(RuntimeError):
     """
 
 
-def _get(url: str, params: dict) -> requests.Response:
-    try:
-        resp = requests.get(url, params=params, headers=HEADERS, timeout=30)
-        resp.raise_for_status()
-    except requests.RequestException as e:
-        raise WeatherServiceError(f"aviationweather.gov request to {url} failed: {e}") from e
-    return resp
+def _get(url: str, params: dict, retries: int = 3) -> requests.Response:
+    """Same retry/backoff shape as vfr.osm._post_overpass_query and
+    vfr.elevation._fetch_elevation_m -- unlike either of those, this one
+    had none at all, so a transient blip (a slow bbox query 504ing, seen
+    2026-09-18) raised WeatherServiceError on the first and only attempt
+    instead of quietly succeeding on a retry a few seconds later."""
+    last_err = None
+    for attempt in range(retries):
+        try:
+            resp = requests.get(url, params=params, headers=HEADERS, timeout=30)
+            resp.raise_for_status()
+            return resp
+        except requests.RequestException as e:
+            last_err = e
+            if attempt < retries - 1:
+                time.sleep(2 * (attempt + 1))
+    raise WeatherServiceError(f"aviationweather.gov request to {url} failed after {retries} attempts: {last_err}") from last_err
 
 
 # --- Freezing level, from the winds/temps-aloft ("FD") text product ---

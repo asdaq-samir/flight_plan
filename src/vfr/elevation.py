@@ -10,7 +10,7 @@ candidates takes several minutes the first time and is instant after.
 """
 import csv
 import time
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 import requests
@@ -58,6 +58,48 @@ def _save_cache(cache: dict, cache_path: Path) -> None:
             writer.writerow([lat, lon, elev])
 
 
+def _fetch_many(keys: list, max_workers: int) -> dict:
+    """Fetches every key's elevation, collecting all results even if some
+    fail -- unlike ThreadPoolExecutor.map, which raises (abandoning every
+    still-in-flight lookup) as soon as it reaches a failed one in submit
+    order, discarding whatever the other workers had already fetched. A
+    burst of `max_workers` concurrent requests against a public,
+    unauthenticated EPQS endpoint can transiently rate-limit or drop one
+    request among many that otherwise succeed (this is the terrain-floor
+    analogue of the aviationweather.gov 504 fixed in vfr.altitude --
+    except unlike weather, a route's terrain floor is not optional
+    context, so the fix here cannot be "proceed without it"). Points that
+    fail get one more attempt, serially, outside the burst, before this
+    gives up -- only then does it raise, naming exactly which point(s)
+    never resolved.
+    """
+    results: dict = {}
+    failed: dict = {}
+    with ThreadPoolExecutor(max_workers=max_workers) as ex:
+        future_to_key = {ex.submit(_fetch_elevation_m, *k): k for k in keys}
+        for future in as_completed(future_to_key):
+            key = future_to_key[future]
+            try:
+                results[key] = future.result()
+            except RuntimeError as err:
+                failed[key] = err
+
+    for key in list(failed):
+        try:
+            results[key] = _fetch_elevation_m(*key)
+            del failed[key]
+        except RuntimeError as err:
+            failed[key] = err
+
+    if failed:
+        points = ", ".join(f"({lat}, {lon})" for lat, lon in failed)
+        raise RuntimeError(
+            f"EPQS elevation lookup failed for {len(failed)} point(s) after retry: {points}"
+        ) from next(iter(failed.values()))
+
+    return results
+
+
 def get_elevations_m(points: list, cache_path: Path = DEFAULT_CACHE_PATH, max_workers: int = 20) -> dict:
     """Look up elevation (meters) for a list of (lat, lon) points, using an
     on-disk cache so repeat notebook runs don't re-hit the network for
@@ -69,9 +111,7 @@ def get_elevations_m(points: list, cache_path: Path = DEFAULT_CACHE_PATH, max_wo
     to_fetch = sorted(set(k for k in keys if k not in cache))
 
     if to_fetch:
-        with ThreadPoolExecutor(max_workers=max_workers) as ex:
-            fetched = list(ex.map(lambda k: _fetch_elevation_m(*k), to_fetch))
-        cache.update(dict(zip(to_fetch, fetched)))
+        cache.update(_fetch_many(to_fetch, max_workers))
         _save_cache(cache, cache_path)
 
     return {point: cache[key] for point, key in zip(points, keys)}

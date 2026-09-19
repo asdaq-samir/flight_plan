@@ -1,7 +1,7 @@
 import type {
-  Aircraft, AircraftRequest, AltitudeBreakdown, Briefing, BriefingNarrativeRequest, BuildJob, BuiltRoute,
-  CheckpointDescriptionMessage, Checkpoints, Course, Flight, FlightSummary, LoosePick, ModelComparison,
-  NavLogMessage, PickSummary, Pilot, PlaygroundScore, Rating, Role, SaveFlightRequest, StreamMessage,
+  Aircraft, AircraftRequest, AirportSuggestion, Briefing, BuildJob, BuiltRoute,
+  CheckpointDescriptionMessage, Checkpoints, Course, Flight, FlightSummary, FrameworkComparison, LoosePick,
+  ModelComparison, NavLogMessage, PickSummary, Pilot, PlaygroundScore, Rating, Role, SaveFlightRequest, StreamMessage,
 } from "./types";
 
 /**
@@ -109,17 +109,6 @@ export const api = {
   briefing: (dep: string, dest: string) =>
     json<Briefing>(`${PLANNER}/briefing?dep=${dep}&dest=${dest}`),
 
-  /** The Flight Briefing page's own spoken/read narrative -- a single
-   *  Claude call turning data the page already has into a short
-   *  paragraph, not a second fetch. Pilot-triggered, not automatic:
-   *  every call is a real, billed request. */
-  briefingNarrative: (payload: BriefingNarrativeRequest) =>
-    json<{ narrative: string }>(`${PLANNER}/briefing/narrative`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    }),
-
   /** Corridors the feature store already covers. */
   routes: () => json<{ routes: BuiltRoute[] }>(`${PLANNER}/routes`),
 
@@ -219,7 +208,10 @@ export const api = {
    *  re-checks `me()` afterward rather than trusting this call's own
    *  response shape, which is a redirect (a login page's HTML), not
    *  JSON -- session cookies are cleared either way. */
-  logout: () => fetch("/logout", { method: "POST", headers: csrfHeader() }),
+  async logout(): Promise<void> {
+    const res = await fetch("/logout", { method: "POST", headers: csrfHeader() });
+    if (!res.ok) throw new ApiError("could not log out", res.status);
+  },
 
   /**
    * Starts a magic-link sign-in -- always resolves (202) regardless of
@@ -241,18 +233,33 @@ export const api = {
    *  algorithm retrain() tried, not just the winner. */
   modelComparison: () => json<ModelComparison>(`${PLANNER}/model-comparison`),
 
-  /** The full reasoning behind one recommended cruise altitude, for
-   *  any route -- independent of whatever the Plan page has open. */
-  altitudeBreakdown: (dep: string, dest: string, aircraft?: string) => {
-    const params = new URLSearchParams({ dep, dest });
-    if (aircraft) params.set("aircraft", aircraft);
-    return json<AltitudeBreakdown>(`${PLANNER}/altitude-breakdown?${params}`);
-  },
+  /** DEP/DEST's own autocomplete -- airports whose ident or name
+   *  starts with `q`. Empty `q` short-circuits server-side to `[]`
+   *  (see `airport_search`'s own doc), so this is safe to call on
+   *  every keystroke including the first, no client-side guard needed. */
+  airportSearch: (q: string) =>
+    json<{ airports: AirportSuggestion[] }>(`${PLANNER}/airports/search?${new URLSearchParams({ q })}`)
+      .then(r => r.airports),
 
   /** Scored checkpoints from one specific algorithm -- current
    *  (whatever's promoted) / pytorch / tensorflow / spark. */
   playgroundScore: (dep: string, dest: string, model: string) =>
     json<PlaygroundScore>(`${PLANNER}/playground/score?${new URLSearchParams({ dep, dest, model })}`),
+
+  /** The same route through one or both agent frameworks -- not under
+   *  PLANNER, a separate top-level controller
+   *  (ComparisonProxyController), since neither nav-log-agent nor
+   *  crewai-agent is planning-service's concern. `framework` omitted
+   *  (Settings > Playground) runs both; given (the Flight Briefing
+   *  page's own two narrative buttons, `NavLogActions`) runs one, so
+   *  only its key comes back. Can take tens of seconds (a real agent
+   *  run); no client-side timeout here beyond the browser's own
+   *  default, matching how long ComparisonProxyController itself is
+   *  willing to wait. */
+  frameworkComparison: (dep: string, dest: string, aircraft: string, framework?: "langgraph" | "crewai") =>
+    json<FrameworkComparison>(
+      `/api/comparison?${new URLSearchParams({ dep, dest, aircraft, ...(framework ? { framework } : {}) })}`,
+    ),
 
   /** A signed-in pilot's own aeroplanes -- also a direct Spring Boot
    *  call, like `me()`: nothing here is planning-service's concern. */

@@ -16,6 +16,13 @@ interface Props {
    *  is the other direction, clicking the marker itself. */
   onSelectCandidate: (candidate: Candidate) => void;
   onReady: (controls: { fit: () => void; toggleBasemap: () => string }) => void;
+  /** Whether the map is currently zoomed to at least a focused point's
+   *  own level (`course.max_zoom`, the same threshold the halo effect
+   *  below zooms to) -- PlanView's own zoom toggle button reads this to
+   *  decide whether a click should zoom in to a point or back out to
+   *  the whole route, the same "Start/Resume" vs "Fit line" choice
+   *  Label's own zoom button makes off its map's real zoom level. */
+  onZoomChange?: (zoomedIn: boolean) => void;
 }
 
 /**
@@ -116,6 +123,21 @@ export default function RouteMap(props: Props) {
     m.setView([props.focus.lat, props.focus.lon],
               Math.max(m.getZoom(), props.course?.max_zoom ?? 12));
   }, [props.focus]);
+
+  // Reports the map's own real zoom level back up rather than PlanView
+  // guessing at it from whichever action last ran -- scroll/pinch/
+  // double-click zoom (all untouched, see useLeafletMap's own comment)
+  // change it too, and the toggle button's own icon needs to track
+  // whichever of those actually happened.
+  useEffect(() => {
+    const m = map.current;
+    if (!m || !props.onZoomChange) return;
+    const threshold = props.course?.max_zoom ?? 12;
+    const onZoom = () => props.onZoomChange?.(m.getZoom() >= threshold);
+    onZoom();
+    m.on("zoomend", onZoom);
+    return () => { m.off("zoomend", onZoom); };
+  }, [props.course?.max_zoom, props.onZoomChange]);
 
   // bg-slate-100: purely cosmetic, so the gap before the course loads
   // (and its own fit() gives the map a real view to fetch tiles for)

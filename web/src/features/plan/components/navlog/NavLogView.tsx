@@ -1,12 +1,57 @@
 import { Fragment, useEffect, useRef, useState, type Ref } from "react";
 import clsx from "clsx";
 import { Loader2, Maximize2, Minimize2, Sparkles } from "lucide-react";
+import {
+  type CellData, type ColumnDef, type RowData, type TableFeatures,
+  flexRender, tableFeatures, useTable,
+} from "@tanstack/react-table";
 import { Button } from "../../../../components/ui/button";
 import { Input } from "../../../../components/ui/input";
+import {
+  Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow,
+} from "../../../../components/ui/table";
+import { Tooltip, TooltipContent, TooltipTrigger } from "../../../../components/ui/tooltip";
 import { useIsMobile } from "../../../../hooks/use-mobile";
 import type { Candidate, Leg, NavLog, Totals } from "../../../../lib/api/types";
 import { type Description, descriptionKey } from "../../hooks/usePlanState";
 import { altFt, deg, one, signed, totalsParts } from "../../format";
+
+// TanStack Table's own extension point for arbitrary per-column data --
+// used below to carry each numeric column's shared className (bordered,
+// right-aligned) instead of repeating it on every column definition's
+// own `cell`/`header`, the same way `meta` is meant to be used.
+declare module "@tanstack/react-table" {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- signature must match the real ColumnMeta's own type params for the module augmentation to merge
+  interface ColumnMeta<TFeatures extends TableFeatures, TData extends RowData, TValue extends CellData = CellData> {
+    className?: string;
+  }
+}
+
+// No sorting/filtering/pagination/selection/visibility -- a nav log's
+// own row order IS its meaning (waypoints in the order a pilot
+// actually flies them), so this table opts into none of TanStack
+// Table's v9 feature modules; `tableFeatures({})` is its own
+// documented way to say "just the core row/column/header model," not
+// a placeholder waiting to be filled in.
+const navLogTableFeatures = tableFeatures({});
+
+/** One row of the nav log's own data -- the departure, every scored
+ *  checkpoint, and the destination all end up here in this same shape
+ *  (unified from three previously-separate cases) since every numeric
+ *  column already reduces to "—" whenever `leg` is undefined, which is
+ *  true for the departure row the same way it's true for a checkpoint
+ *  whose own leg hasn't streamed in yet -- the one column that
+ *  genuinely needs to know it's the departure specifically is Alt,
+ *  handled in that column's own `cell` below. */
+interface WaypointRow {
+  key: string;
+  isDeparture: boolean;
+  cp: Candidate | null;
+  name: string;
+  lat: number;
+  lon: number;
+  leg: Leg | undefined;
+}
 
 interface Props {
   totals: Totals | null;
@@ -167,7 +212,7 @@ function SelectableRow({
   children: React.ReactNode;
 }) {
   return (
-    <tr
+    <TableRow
       ref={scrollRef}
       onClick={onSelect}
       tabIndex={0}
@@ -186,12 +231,12 @@ function SelectableRow({
         // than layering them underneath: both would fight the
         // inversion for the same background/text-color properties.
         selected
-          ? "bg-foreground text-background"
+          ? "bg-foreground text-background hover:bg-foreground"
           : clsx(mutedWhenUnselected && "text-muted-foreground", "hover:bg-accent focus-visible:bg-accent"),
       )}
     >
       {children}
-    </tr>
+    </TableRow>
   );
 }
 
@@ -204,14 +249,14 @@ function SelectableRow({
  */
 function NoteRow({ selected, children }: { selected: boolean; children: React.ReactNode }) {
   return (
-    <tr className={clsx("border-b border-border", selected && "bg-foreground text-background")}>
-      <td
+    <TableRow className={clsx(selected && "bg-foreground text-background hover:bg-foreground")}>
+      <TableCell
         className={clsx("py-1 pr-2 pl-4 text-left text-xs", !selected && "bg-muted/60 text-muted-foreground")}
         colSpan={12}
       >
         {children}
-      </td>
-    </tr>
+      </TableCell>
+    </TableRow>
   );
 }
 
@@ -251,6 +296,119 @@ export default function NavLogView({
     leg: legs[i] as Leg | undefined,
   }));
 
+  // The departure and every waypoint below it, unified into one data
+  // array TanStack Table can drive the header/cells from -- see
+  // `WaypointRow`'s own comment on why the departure's own special
+  // cases collapse into the same shape as everything else. Column
+  // defs are declared here, not module scope, since Alt's own header
+  // cell is a live form bound to this render's own `alt`/`onAltChange`
+  // -- the same reason `nav`/`destElevationFt`/`depElevationFt` are
+  // just closed over below rather than threaded through as TanStack's
+  // own per-column `meta`.
+  const data: WaypointRow[] = [
+    ...(selected.length > 0
+      ? [{ key: "departure", isDeparture: true, cp: null, name: dep, lat: depLat, lon: depLon, leg: undefined }]
+      : []),
+    ...waypoints.map(({ cp, name, lat, lon, leg }, i) => ({ key: String(i), isDeparture: false, cp, name, lat, lon, leg })),
+  ];
+  const columns: ColumnDef<typeof navLogTableFeatures, WaypointRow>[] = [
+    {
+      id: "waypoint",
+      header: "Waypoint",
+      cell: ({ row }) => row.original.name,
+      meta: { className: "text-left" },
+    },
+    {
+      id: "alt",
+      header: () => (
+        <form onSubmit={e => { e.preventDefault(); onSubmit(); }}>
+          <Input
+            value={alt}
+            onChange={e => onAltChange(e.target.value)}
+            placeholder="Alt"
+            spellCheck={false}
+            aria-label="Cruise altitude, feet"
+            className="h-6 w-14 px-1 text-right text-xs print:hidden"
+          />
+          <span className="hidden print:inline">Alt</span>
+        </form>
+      ),
+      // The last row lands at the destination -- shows its field
+      // elevation, known immediately, rather than the cruise altitude
+      // every checkpoint before it flies at (which isn't known until
+      // the "altitude" message arrives, either -- hence `nav?.`).
+      cell: ({ row }) => {
+        const { isDeparture, cp } = row.original;
+        return altFt(isDeparture ? depElevationFt : (cp ? nav?.altitude_ft : destElevationFt));
+      },
+    },
+    {
+      id: "dist",
+      header: "Dist",
+      cell: ({ row }) => (row.original.leg ? row.original.leg.distance_nm.toFixed(1) : "—"),
+    },
+    {
+      id: "tc",
+      header: "TC",
+      cell: ({ row }) => (row.original.leg ? deg(row.original.leg.true_course_deg) : "—"),
+    },
+    {
+      id: "wind",
+      header: "Wind",
+      cell: ({ row }) => {
+        const { leg } = row.original;
+        return leg ? (leg.wind ? `${deg(leg.wind.wind_dir_true_deg)}/${Math.round(leg.wind.wind_speed_kt)}` : "no data") : "—";
+      },
+    },
+    {
+      id: "wca",
+      header: "WCA",
+      cell: ({ row }) => (row.original.leg ? signed(row.original.leg.wca_deg) : "—"),
+    },
+    {
+      id: "th",
+      header: "TH",
+      cell: ({ row }) => (row.original.leg ? deg(row.original.leg.true_heading_deg) : "—"),
+    },
+    {
+      id: "var",
+      header: "Var",
+      cell: ({ row }) => (row.original.leg ? signed(row.original.leg.magnetic_variation_deg) : "—"),
+    },
+    {
+      id: "mh",
+      header: "MH",
+      cell: ({ row }) => (row.original.leg ? deg(row.original.leg.magnetic_heading_deg) : "—"),
+    },
+    {
+      id: "gs",
+      header: "GS",
+      cell: ({ row }) => {
+        const { leg } = row.original;
+        return leg ? (leg.groundspeed_kt === null ? "—" : Math.round(leg.groundspeed_kt)) : "—";
+      },
+    },
+    {
+      id: "ete",
+      header: "ETE",
+      cell: ({ row }) => {
+        const { leg } = row.original;
+        return leg ? (leg.ete_min === null ? "unflyable" : one(leg.ete_min)) : "—";
+      },
+    },
+    {
+      id: "fuel",
+      header: "Fuel",
+      cell: ({ row }) => (row.original.leg ? one(row.original.leg.fuel_gal) : "—"),
+    },
+  ];
+  // No sorting/filtering/pagination -- a nav log's own row order IS
+  // its meaning (waypoints in the order a pilot actually flies them),
+  // and `navLogTableFeatures`'s own core model is the only row model
+  // this needs; a sortable column here would let a pilot reorder the
+  // log into something unflyable (e.g. by Fuel).
+  const table = useTable({ features: navLogTableFeatures, data, columns, getRowId: row => row.key });
+
   const selectedRef = useRef<HTMLTableRowElement>(null);
   // Selecting a point on the map should be as visible here as
   // clicking the row itself would have been -- otherwise the
@@ -263,12 +421,12 @@ export default function NavLogView({
 
   const isSelected = (lat: number, lon: number) =>
     !!selectedPoint && descriptionKey(lat, lon) === descriptionKey(selectedPoint.lat, selectedPoint.lon);
-  // The expand toggle changes `--sidebar-width`, a CSS var the mobile
-  // Sheet ignores -- it hardcodes its own width regardless (see
-  // Shell's own Sidebar usage) -- so the button would sit there doing
-  // nothing visible below shadcn's own mobile breakpoint. Same check
-  // shadcn's own Sidebar uses to decide Sheet vs. plain panel in the
-  // first place, not a separate guess at the same breakpoint.
+  // The expand toggle widens Shell's own sidebar Sheet past its default
+  // `sm:max-w-[22rem]` -- inert below that same `sm` breakpoint, where
+  // the Sheet is already `w-full` regardless, so the button would sit
+  // there doing nothing visible. `useIsMobile`'s own breakpoint doesn't
+  // match Tailwind's `sm` exactly, but it's close enough that this stays
+  // a "don't show a dead button" check, not a pixel-precise one.
   const isMobile = useIsMobile();
 
   return (
@@ -282,24 +440,33 @@ export default function NavLogView({
         <div className="flex items-center gap-2">
           <span className="font-semibold text-muted-foreground">Nav log</span>
           <div className="ml-auto flex items-center gap-1 print:hidden">
-            <Button
-              variant="ghost" size="icon"
-              onClick={onGenerateDescriptions} disabled={descriptionsLoading || selected.length === 0}
-              title="Generate checkpoint descriptions" aria-label="Generate checkpoint descriptions"
-              data-testid="generate-descriptions-button"
-            >
-              {descriptionsLoading ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost" size="icon"
+                  onClick={onGenerateDescriptions} disabled={descriptionsLoading || selected.length === 0}
+                  aria-label="Generate checkpoint descriptions"
+                  data-testid="generate-descriptions-button"
+                >
+                  {descriptionsLoading ? <Loader2 className="size-5 animate-spin" /> : <Sparkles className="size-5" />}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Generate checkpoint descriptions</TooltipContent>
+            </Tooltip>
             {!isMobile && (
-              <Button
-                variant="ghost" size="icon"
-                onClick={onToggleExpanded}
-                title={expanded ? "Shrink nav log" : "Expand nav log"}
-                aria-label={expanded ? "Shrink nav log" : "Expand nav log"}
-                data-testid="sidebar-expand-toggle"
-              >
-                {expanded ? <Minimize2 className="size-4" /> : <Maximize2 className="size-4" />}
-              </Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost" size="icon"
+                    onClick={onToggleExpanded}
+                    aria-label={expanded ? "Shrink nav log" : "Expand nav log"}
+                    data-testid="sidebar-expand-toggle"
+                  >
+                    {expanded ? <Minimize2 className="size-5" /> : <Maximize2 className="size-5" />}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>{expanded ? "Shrink nav log" : "Expand nav log"}</TooltipContent>
+              </Tooltip>
             )}
           </div>
         </div>
@@ -321,135 +488,82 @@ export default function NavLogView({
         </div>
       </div>
       <div className="min-h-0 flex-1 overflow-auto p-3 print:h-auto print:overflow-visible" data-testid="navlog-scroller">
-        {/* border-collapse plus a left border per cell (none on the
-            first) reads as one ruled line per column boundary instead
-            of the double-thick line adjacent borders would otherwise
-            draw -- twelve columns of numbers is a lot to track by
-            eye-position alone without them. Padding is a Tailwind class
-            on every cell, not the legacy `cellPadding` attribute --
-            Preflight resets `td, th { padding: 0 }`, which is CSS and
-            wins over that attribute, so the attribute alone rendered
-            every column crammed flush against the next. */}
-        <table className="border-collapse text-right text-xs whitespace-nowrap">
-          <thead>
-            <tr className="border-b border-border">
-              <th className="px-2 py-1 text-left">Waypoint</th>
-              <th className="border-l border-border px-2 py-1 font-normal">
-                <form onSubmit={e => { e.preventDefault(); onSubmit(); }}>
-                  <Input
-                    value={alt}
-                    onChange={e => onAltChange(e.target.value)}
-                    placeholder="Alt"
-                    spellCheck={false}
-                    aria-label="Cruise altitude, feet"
-                    className="h-6 w-14 px-1 text-right text-xs print:hidden"
-                  />
-                  <span className="hidden print:inline">Alt</span>
-                </form>
-              </th>
-              <th className="border-l border-border px-2 py-1">Dist</th>
-              <th className="border-l border-border px-2 py-1">TC</th>
-              <th className="border-l border-border px-2 py-1">Wind</th>
-              <th className="border-l border-border px-2 py-1">WCA</th>
-              <th className="border-l border-border px-2 py-1">TH</th>
-              <th className="border-l border-border px-2 py-1">Var</th>
-              <th className="border-l border-border px-2 py-1">MH</th>
-              <th className="border-l border-border px-2 py-1">GS</th>
-              <th className="border-l border-border px-2 py-1">ETE</th>
-              <th className="border-l border-border px-2 py-1">Fuel</th>
-            </tr>
-          </thead>
-          <tbody>
+        <Table containerClassName="overflow-visible" className="text-right text-xs whitespace-nowrap">
+          <TableCaption className="sr-only">
+            Navigation log from {dep} to {dest}
+          </TableCaption>
+          <TableHeader>
+            {table.getHeaderGroups().map(headerGroup => (
+              <TableRow key={headerGroup.id}>
+                {headerGroup.headers.map(header => (
+                  <TableHead
+                    key={header.id}
+                    // font-normal only for Alt -- it holds a live
+                    // input, not a label, so the bold weight every
+                    // other header (a plain column name) keeps
+                    // doesn't belong on it.
+                    className={clsx(
+                      header.column.id === "alt" && "font-normal",
+                      header.column.columnDef.meta?.className,
+                    )}
+                  >
+                    {flexRender(header.column.columnDef.header, header.getContext())}
+                  </TableHead>
+                ))}
+              </TableRow>
+            ))}
+          </TableHeader>
+          <TableBody>
             {navError && (
-              <tr><td className="px-2 py-1 text-left text-destructive" colSpan={12}>{navError}</td></tr>
+              <TableRow><TableCell className="text-left text-destructive" colSpan={columns.length}>{navError}</TableCell></TableRow>
             )}
             {!navError && selected.length === 0 && (
-              <tr><td className="px-2 py-1 text-left text-muted-foreground" colSpan={12}>No route planned yet</td></tr>
+              <TableRow><TableCell className="text-left text-muted-foreground" colSpan={columns.length}>No route planned yet</TableCell></TableRow>
             )}
-            {/* A real nav log runs down the page one waypoint at a time,
-                not one leg with both its ends spelled out on the same
-                row -- the departure gets its own row with nothing to
-                its right (no leg has been flown yet), and every row
-                after that is the leg it took to reach that waypoint.
-                Drawn from `dep`/`depElevationFt` directly, not the
-                first leg: the departure is known the instant a route
-                is chosen, well before its own leg (the one that pays
-                for the aviationweather.gov round trip) streams in. */}
-            {selected.length > 0 && (() => {
-              const depSelected = isSelected(depLat, depLon);
-              return (
-                <>
-                  <SelectableRow
-                    selected={depSelected}
-                    mutedWhenUnselected
-                    onSelect={() => onSelectPoint(depLat, depLon)}
-                    scrollRef={depSelected ? selectedRef : undefined}
-                  >
-                    <td className="px-2 py-1 text-left">{dep}</td>
-                    <td className="border-l border-border px-2 py-1">{altFt(depElevationFt)}</td>
-                    {Array.from({ length: 10 }, (_, i) => (
-                      <td key={i} className="border-l border-border px-2 py-1">—</td>
-                    ))}
-                  </SelectableRow>
-                  {/* The airport's own name, not editable and never
-                      AI-generated -- there's no "how to spot it" for an
-                      airport and no LLM service behind this one, just a
-                      fact the course response already carries. Same
-                      slot a checkpoint's own description sits in, and
-                      inverts the same way when selected, so the pair
-                      still reads as one group. */}
-                  <NoteRow selected={depSelected}>{depName ?? "—"}</NoteRow>
-                </>
-              );
-            })()}
             {/* One row per waypoint the plan already knows about, not
                 one per leg that's actually arrived -- `leg` is
                 undefined until its own line streams in, and every cell
-                that depends on it shows a dash rather than waiting. */}
-            {waypoints.map(({ cp, name, lat, lon, leg }, i) => {
+                that depends on it shows a dash rather than waiting. The
+                departure (when present) is `table`'s own first row,
+                unified with the rest -- see `WaypointRow`'s comment. */}
+            {table.getRowModel().rows.map(row => {
+              const { isDeparture, cp, lat, lon } = row.original;
               const rowSelected = isSelected(lat, lon);
+              const leg = row.original.leg;
               return (
-                <Fragment key={i}>
+                <Fragment key={row.id}>
                   {/* A leg with no nearby winds-aloft station is a
                       no-wind estimate, not a calm one. Shading keeps
                       that visible rather than letting it read as a
                       confident zero -- the same shade a leg that simply
                       hasn't arrived yet gets, for the same reason: both
-                      are "no data (yet)," not a confident answer. */}
+                      are "no data (yet)," not a confident answer. The
+                      departure is always muted this way instead --
+                      it never has wind data of its own to judge. */}
                   <SelectableRow
                     selected={rowSelected}
-                    mutedWhenUnselected={!leg?.wind}
+                    mutedWhenUnselected={isDeparture || !leg?.wind}
                     onSelect={() => onSelectPoint(lat, lon)}
                     scrollRef={rowSelected ? selectedRef : undefined}
                   >
-                    <td className="px-2 py-1 text-left">{name}</td>
-                    {/* The last row lands at the destination -- shows its
-                        field elevation, known immediately, rather than
-                        the cruise altitude every checkpoint before it
-                        flies at (which isn't known until the "altitude"
-                        message arrives, either -- hence `nav?.`). */}
-                    <td className="border-l border-border px-2 py-1">
-                      {altFt(cp ? nav?.altitude_ft : destElevationFt)}
-                    </td>
-                    <td className="border-l border-border px-2 py-1">{leg ? leg.distance_nm.toFixed(1) : "—"}</td>
-                    <td className="border-l border-border px-2 py-1">{leg ? deg(leg.true_course_deg) : "—"}</td>
-                    <td className="border-l border-border px-2 py-1">{leg
-                      ? (leg.wind ? `${deg(leg.wind.wind_dir_true_deg)}/${Math.round(leg.wind.wind_speed_kt)}` : "no data")
-                      : "—"}</td>
-                    <td className="border-l border-border px-2 py-1">{leg ? signed(leg.wca_deg) : "—"}</td>
-                    <td className="border-l border-border px-2 py-1">{leg ? deg(leg.true_heading_deg) : "—"}</td>
-                    <td className="border-l border-border px-2 py-1">{leg ? signed(leg.magnetic_variation_deg) : "—"}</td>
-                    <td className="border-l border-border px-2 py-1">{leg ? deg(leg.magnetic_heading_deg) : "—"}</td>
-                    <td className="border-l border-border px-2 py-1">
-                      {leg ? (leg.groundspeed_kt === null ? "—" : Math.round(leg.groundspeed_kt)) : "—"}
-                    </td>
-                    <td className="border-l border-border px-2 py-1">
-                      {leg ? (leg.ete_min === null ? "unflyable" : one(leg.ete_min)) : "—"}
-                    </td>
-                    <td className="border-l border-border px-2 py-1">{leg ? one(leg.fuel_gal) : "—"}</td>
+                    {row.getAllCells().map(cell => (
+                      <TableCell key={cell.id} className={cell.column.columnDef.meta?.className}>
+                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      </TableCell>
+                    ))}
                   </SelectableRow>
                   <NoteRow selected={rowSelected}>
-                    {cp ? (
+                    {isDeparture ? (
+                      // The departure airport's own name, not editable
+                      // and never AI-generated -- there's no "how to
+                      // spot it" for an airport and no LLM service
+                      // behind this one, just a fact the course
+                      // response already carries. Same slot a
+                      // checkpoint's own description sits in, and
+                      // inverts the same way when selected, so the
+                      // pair still reads as one group.
+                      (depName ?? "—")
+                    ) : cp ? (
                       <DescriptionCell
                         description={descriptions[descriptionKey(cp.lat, cp.lon)]}
                         onSave={text => onSaveDescription(cp.lat, cp.lon, text)}
@@ -467,8 +581,8 @@ export default function NavLogView({
                 </Fragment>
               );
             })}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </div>
     </div>
   );

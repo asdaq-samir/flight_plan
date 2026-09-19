@@ -8,6 +8,7 @@ import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger,
 } from "../../components/ui/dialog";
 import { Input } from "../../components/ui/input";
+import { Tooltip, TooltipContent, TooltipTrigger } from "../../components/ui/tooltip";
 import { api } from "../../lib/api/client";
 
 /**
@@ -27,13 +28,21 @@ export default function SignInModal() {
   const [open, setOpen] = useState(false);
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState<string | null>(null);
+  const trimmedEmail = email.trim();
   const magicLink = useMutation({
-    mutationFn: () => api.requestMagicLink(email.trim()),
-    onSuccess: () => setSent(email.trim()),
+    mutationFn: () => api.requestMagicLink(trimmedEmail),
+    onSuccess: () => setSent(trimmedEmail),
   });
 
   return (
-    <Dialog open={open} onOpenChange={o => { setOpen(o); if (!o) { setSent(null); magicLink.reset(); } }}>
+    <Dialog open={open} onOpenChange={o => {
+      setOpen(o);
+      if (!o) {
+        setEmail("");
+        setSent(null);
+        magicLink.reset();
+      }
+    }}>
       <DialogTrigger asChild>
         <Button variant="outline" size="sm">Sign in</Button>
       </DialogTrigger>
@@ -60,7 +69,7 @@ export default function SignInModal() {
           or
         </div>
         {sent ? (
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-muted-foreground" role="status">
             Check <span className="font-semibold text-foreground">{sent}</span> for a sign-in link.
             It expires in 15 minutes.
           </p>
@@ -75,15 +84,28 @@ export default function SignInModal() {
                 required
                 placeholder="you@example.com"
                 aria-label="Email address"
+                autoComplete="email"
                 value={email}
                 onChange={e => setEmail(e.target.value)}
               />
-              <Button type="submit" size="icon" disabled={magicLink.isPending} aria-label="Send sign-in link">
-                <Mail className="size-4" />
-              </Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="submit"
+                    size="icon"
+                    disabled={magicLink.isPending || !trimmedEmail}
+                    aria-label="Send sign-in link"
+                  >
+                    <Mail className="size-5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Send sign-in link</TooltipContent>
+              </Tooltip>
             </div>
             {magicLink.isError && (
-              <p className="text-sm text-destructive">Couldn't send that link. Try again in a moment.</p>
+              <p className="text-sm text-destructive" role="alert">
+                Couldn't send that link. Check the address and try again.
+              </p>
             )}
           </form>
         )}

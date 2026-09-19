@@ -174,19 +174,20 @@ seventeen of them, which looks alarming until you see that they are three
 different kinds of thing.
 
 **The nine built from this repo.** Compose names them after the project
-directory, hence the `vfr_route-` prefix.
+directory (`flight_plan/`, this repo's own current name/location, not
+the `vfr_route` it started as), hence the `flight_plan-` prefix.
 
 | Image | Size | What it is |
 |---|---|---|
-| `vfr_route-ml` | 6.9 GB | The Jupyter environment for [the notebooks](../notebooks). Easily the largest, and legitimately so: scikit-learn, PyTorch, TensorFlow, PySpark and a JVM in one place. |
-| `vfr_route-model-service` | 4.85 GB | [FastAPI inference](../model-service). See [Section 4](#model-service-fastapi). Remeasured after this image gained its own pinned PyTorch/TensorFlow CPU wheels (2026-09-10) so it can serve `vfr.model_candidates`' PyTorch/TensorFlow models directly, not just the promoted scikit-learn one — the same runtimes `ml` carries, which is most of the jump from the 926 MB this row used to read. |
-| `vfr_route-nav-log-agent` | 2.3 GB | The [LangGraph agent](../nav-log-agent), served over MCP. See [Section 5](#5-the-gen-ai-layer). |
-| `vfr_route-airflow` | 2.1 GB | [Orchestration](../docker/Dockerfile.airflow). See [Section 3](#3-orchestration-with-airflow). |
-| `vfr_route-crewai-agent` | 1.6 GB | [The same task in CrewAI](../crewai-agent), for comparison. See [Section 5](#crewai--agent-driven-tool-selection). |
-| `vfr_route-planning-service` | 902 MB | [The planner API and chart-vision detector](../planning-service). |
-| `vfr_route-pipeline-training` | 878 MB | [Training as an isolated job](../docker/Dockerfile.training). |
-| `vfr_route-webapp` | 633 MB | [Spring Boot](../springboot-app) — the public surface, and what serves the front end. Smaller than the Maven image that builds it, which is the multi-stage build working. |
-| `vfr_route-pipeline-processing` | 628 MB | [Collection and feature engineering](../docker/Dockerfile.processing). |
+| `flight_plan-ml` | 6.9 GB | The Jupyter environment for [the notebooks](../notebooks). Easily the largest, and legitimately so: scikit-learn, PyTorch, TensorFlow, PySpark and a JVM in one place. |
+| `flight_plan-model-service` | 4.85 GB | [FastAPI inference](../model-service). See [Section 4](#model-service-fastapi). Remeasured after this image gained its own pinned PyTorch/TensorFlow CPU wheels (2026-09-10) so it can serve `vfr.model_candidates`' PyTorch/TensorFlow models directly, not just the promoted scikit-learn one — the same runtimes `ml` carries, which is most of the jump from the 926 MB this row used to read. |
+| `flight_plan-airflow` | 3.2 GB | [Orchestration](../docker/Dockerfile.airflow). See [Section 3](#3-orchestration-with-airflow). |
+| `flight_plan-nav-log-agent` | 2.3 GB | The [LangGraph agent](../nav-log-agent), served over MCP. See [Section 5](#5-the-gen-ai-layer). |
+| `flight_plan-crewai-agent` | 1.6 GB | [The same task in CrewAI](../crewai-agent), for comparison. See [Section 5](#crewai--agent-driven-tool-selection). |
+| `flight_plan-webapp` | 800 MB | [Spring Boot](../springboot-app) — the public surface, and what serves the front end. Smaller than the Maven image that builds it, which is the multi-stage build working. |
+| `flight_plan-planning-service` | 914 MB | [The planner API and chart-vision detector](../planning-service). |
+| `flight_plan-pipeline-training` | 876 MB | [Training as an isolated job](../docker/Dockerfile.training). |
+| `flight_plan-pipeline-processing` | 627 MB | [Collection and feature engineering](../docker/Dockerfile.processing). |
 
 **The six pulled, not built.** These look like clutter and are not:
 deleting one only forces a re-download on the next build.
@@ -217,9 +218,12 @@ volume: `vfr_route_pgdata` holds the application rows and the agent's
 vector memory, and `docker system prune --volumes` — the command everyone
 reaches for when a disk fills — takes it with everything else.
 [`docker/tidy.sh`](../docker/tidy.sh) exists to be the safe version:
-unused build cache, stopped containers, and images unused by a container,
-never a volume. It retains images backing running services and keeps a 15GB
-build-cache budget, so the next build can still reuse recent layers.
+by default it removes stopped containers and only build-cache entries unused
+for seven days, never volumes or images. That preserves recently used
+dependency layers needed for fast rebuilds.
+Use `sh docker/tidy.sh --aggressive --yes` only when disk pressure justifies
+removing unused images and limiting build cache to 15GB; the next build may
+need to download dependencies again.
 
 The disk filled anyway, twice, and neither cause was the images:
 

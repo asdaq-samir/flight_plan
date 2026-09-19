@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 # Lighter than it used to be: collect/engineer_features/retrain now run in
 # separate sibling containers (Dockerfile.processing/.training, launched via
 # DockerOperator over the mounted host Docker socket -- the local mirror of
@@ -11,7 +12,12 @@ FROM apache/airflow:3.3.1-python3.13
 # apache-airflow-providers-standard: Airflow 3 split PythonOperator,
 # ShortCircuitOperator etc. out of airflow-core into this provider --
 # it's a hard dependency now, not an extra.
-RUN pip install --no-cache-dir \
+#
+# The constraints URL below is pinned in Dockerfile.airflow.aws too --
+# bump the FROM tag's own version here and that file needs the same
+# constraints-<version> update, or the two images end up resolving
+# different provider versions against the same DAGs.
+RUN --mount=type=cache,target=/root/.cache/pip,uid=50000,gid=0 pip install \
     "apache-airflow-providers-docker" \
     "apache-airflow-providers-standard" \
     --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-3.3.1/constraints-3.13.txt"

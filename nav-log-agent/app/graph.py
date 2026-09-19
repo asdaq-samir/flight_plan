@@ -35,6 +35,7 @@ class NavLogState(TypedDict, total=False):
     legs: list[dict]
     similar_briefings: list[dict]
     briefing: str
+    briefing_failed: bool  # set by generate_briefing's own except branch
 
 
 def fetch_checkpoints(state: NavLogState) -> dict:
@@ -139,11 +140,29 @@ def _format_altitude_selection(sel: dict) -> str:
     return "\n".join(lines)
 
 
+def _response_text(resp: anthropic.types.Message) -> str:
+    """The response's actual prose. Not resp.content[0].text -- extended
+    thinking puts a ThinkingBlock (no .text attribute) first in content
+    when it's on, so index 0 isn't reliably the answer; this finds the
+    first real text block instead. Observed 2026-09-19: an
+    AttributeError here took down the whole graph, discarding the
+    checkpoints/altitude/legs every upstream node had already computed
+    successfully, over the one step (prose) that isn't load-bearing."""
+    for block in resp.content:
+        if block.type == "text":
+            return block.text
+    raise RuntimeError(f"Claude response had no text block (got {[b.type for b in resp.content]})")
+
+
 def generate_briefing(state: NavLogState) -> dict:
     """Turns the altitude selection, legs, and retrieved memory into a
     natural-language pilot briefing via a single Claude API call -- the
     only node that actually needs the LLM; everything upstream is
-    deterministic Python.
+    deterministic Python. A failure here (a bad response shape, a rate
+    limit, an outage) falls back to a plain-text notice instead of
+    raising: unlike every node before this one, losing the narrative
+    doesn't make the briefing useless, so it shouldn't discard the
+    checkpoints/altitude/legs those nodes already computed.
     """
     client = anthropic.Anthropic()
     prompt = (
@@ -154,17 +173,30 @@ def generate_briefing(state: NavLogState) -> dict:
         f"Similar past route briefings (for context/consistency, not to copy verbatim):\n"
         f"{_format_memory(state.get('similar_briefings', []))}"
     )
-    resp = client.messages.create(
-        model=CLAUDE_MODEL,
-        max_tokens=1024,
-        messages=[{"role": "user", "content": prompt}],
-    )
-    return {"briefing": resp.content[0].text}
+    try:
+        resp = client.messages.create(
+            model=CLAUDE_MODEL,
+            max_tokens=1024,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        return {"briefing": _response_text(resp)}
+    except (anthropic.APIError, RuntimeError) as err:
+        return {
+            "briefing": f"Narrative generation failed ({err}). Checkpoints, altitude, and legs above are still valid.",
+            "briefing_failed": True,
+        }
 
 
 def store_memory(state: NavLogState) -> dict:
     """Embeds and saves this run's briefing, so retrieve_memory can find
-    it as precedent for a future similar route."""
+    it as precedent for a future similar route. Skipped when
+    generate_briefing fell back to its own failure notice -- that text
+    is not a real briefing, and retrieve_memory has no way to tell the
+    two apart later, so storing it would surface as false "precedent"
+    for the next pilot on a similar route.
+    """
+    if state.get("briefing_failed"):
+        return {}
     db.store_briefing(state["departure_ident"], state["destination_ident"], state["briefing"])
     return {}
 

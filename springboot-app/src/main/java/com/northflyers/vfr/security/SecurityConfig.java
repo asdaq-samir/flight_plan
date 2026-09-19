@@ -12,6 +12,7 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.security.web.csrf.CsrfFilter;
 import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
+import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter.ReferrerPolicy;
 
 /**
  * Who may call what.
@@ -62,6 +63,11 @@ public class SecurityConfig {
                         // is taken.
                         .requestMatchers("/app", "/app/**").permitAll()
                         .requestMatchers("/api/planner/**").permitAll()
+                        // The Brief tab's own AI popover
+                        // (ComparisonProxyController) -- same
+                        // reasoning as /api/planner/** above: read-only,
+                        // no account needed to run it.
+                        .requestMatchers("/api/comparison/**").permitAll()
                         // The magic-link flow's own two steps -- request
                         // and verify -- happen before any session exists,
                         // the same reason /oauth2/authorization/** and
@@ -113,6 +119,14 @@ public class SecurityConfig {
                 // server.forward-headers-strategy: framework set.
                 .headers(headers -> headers
                         .frameOptions(frame -> frame.deny())
+                        // A magic-link verify URL carries its one-time
+                        // token as a query param (?token=...) -- default
+                        // browser behaviour would otherwise forward the
+                        // full URL, token included, as the Referer header
+                        // on the very first outbound request /app/settings
+                        // makes after that redirect. no-referrer drops it
+                        // (and every other page's query string) entirely.
+                        .referrerPolicy(referrer -> referrer.policy(ReferrerPolicy.NO_REFERRER))
                         .contentSecurityPolicy(csp -> csp.policyDirectives(
                                 "default-src 'self'; "
                                         + "img-src 'self' data: https://tile.openstreetmap.org https://twcgis.tamu.edu; "

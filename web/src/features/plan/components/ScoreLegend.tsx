@@ -10,6 +10,22 @@ const BUCKETS: [string, string][] = [
   [scoreColor(0), "below 3.0 — poor"],
 ];
 
+// One row each, key then what it does -- the same shape Label's own
+// `RatingLegend` lists its shortcuts in (`[string | null, string][]`,
+// `null` for a description with no key of its own), rather than two
+// crammed onto one line separated by "·". Kept here as data instead of
+// written inline so this list can't quietly drift from PlanView's own
+// keydown handler the way "n" used to (its own row here read "map /
+// nav log" long after "n" started toggling the Map/Brief tabs instead,
+// and the arrow keys' own waypoint-stepping wasn't listed at all).
+const SHORTCUTS: [string | null, string][] = [
+  ["a", "all candidates"],
+  ["n", "map / brief"],
+  ["f", "fit route"],
+  ["t", "toggle FAA / OSM"],
+  ["↑↓", "step waypoints"],
+];
+
 /**
  * What this page is and what the map's dot colors mean --
  * `MapGuideButton`'s own shell (shared with Label's `RatingLegend`)
@@ -21,7 +37,7 @@ const BUCKETS: [string, string][] = [
  */
 export default function ScoreLegend() {
   return (
-    <MapGuideButton ariaLabel="Planning guide" contentClassName="w-64">
+    <MapGuideButton ariaLabel="Info" contentClassName="w-64">
       {/* What the app does, in one line -- used to be its own hero
           section on the Settings page (a leftover from when Settings
           was Plan's own front door); moved here instead, since a
@@ -43,9 +59,13 @@ export default function ScoreLegend() {
           </div>
         ))}
       </div>
-      <div className="space-y-1 border-t border-border pt-2 text-muted-foreground">
-        <div><Kbd>a</Kbd> all candidates · <Kbd>n</Kbd> map / nav log</div>
-        <div><Kbd>f</Kbd> fit route · <Kbd>t</Kbd> toggle FAA / OSM</div>
+      <div className="space-y-1.5 border-t border-border pt-2 text-muted-foreground">
+        {SHORTCUTS.map(([key, text]) => (
+          <div key={text} className="flex items-center gap-2">
+            {key && <Kbd>{key}</Kbd>}
+            <span>{text}</span>
+          </div>
+        ))}
       </div>
     </MapGuideButton>
   );

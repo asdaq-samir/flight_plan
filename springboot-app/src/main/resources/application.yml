@@ -1,4 +1,16 @@
 spring:
+  mvc:
+    async:
+      # PlannerProxyController's streamed responses (detect/stream,
+      # navlog) run as Spring MVC async requests, and the default async
+      # timeout (30 s) cut any stream still open past that -- observed
+      # as a nav log that simply ended after the altitude stage, no legs
+      # and no error line, whenever aviationweather.gov was slow enough
+      # for the altitude selection to outlast it. Matches the
+      # controller's own 10-minute upstream timeout ("a cold corridor
+      # read is tens of seconds and a collection job is minutes; the
+      # client is what should give up").
+      request-timeout: 600000
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/vfr_route}
     username: ${SPRING_DATASOURCE_USERNAME:vfr}
@@ -55,6 +67,22 @@ model-service:
   # ModelServiceClient from a plain HTTP call to SageMaker Runtime's
   # InvokeEndpoint API. Empty locally, so base-url above is what's used.
   sagemaker-endpoint-name: ${SAGEMAKER_ENDPOINT_NAME:}
+
+# The two Gen AI comparison builds (ComparisonProxyController), behind
+# the Brief tab's own AI popover -- neither is required for the app to
+# start (see that controller's own
+# per-framework error handling), unlike planner-service/model-service
+# above.
+nav-log-agent:
+  base-url: ${NAV_LOG_AGENT_URL:http://localhost:8082}
+  # nav-log-agent's own MCP endpoint has no auth other than this bearer
+  # token (see its BearerAuthMiddleware) -- blank locally is fine, that
+  # call just 401s and the panel reports it unavailable, the same as an
+  # unset ANTHROPIC_API_KEY would.
+  api-key: ${NAV_LOG_AGENT_API_KEY:}
+
+crewai-agent:
+  base-url: ${CREWAI_AGENT_URL:http://localhost:8000}
 
 server:
   port: 8080

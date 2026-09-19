@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 # SageMaker-Processing-Job-shaped: collect / engineer-features only.
 # See requirements-processing.txt for why this is a separate image from
 # Dockerfile.training rather than one shared "pipeline" image.
@@ -6,7 +7,12 @@ FROM python:3.13-slim
 WORKDIR /workspace
 
 COPY docker/requirements-processing.txt .
-RUN pip install --no-cache-dir -r requirements-processing.txt
+RUN --mount=type=cache,target=/root/.cache/pip pip install -r requirements-processing.txt
+
+COPY src ./src
+
+RUN useradd -m appuser
+USER appuser
 
 ENV PYTHONPATH=/workspace/src
 ENTRYPOINT ["python3", "-m", "vfr.pipeline"]

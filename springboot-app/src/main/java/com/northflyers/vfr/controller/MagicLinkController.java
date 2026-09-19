@@ -95,30 +95,30 @@ public class MagicLinkController {
     @GetMapping("/verify")
     public ResponseEntity<String> verify(
             @RequestParam String token, HttpServletRequest request, HttpServletResponse response) {
-        return magicLinks.findByTokenHash(hash(token))
-                .filter(link -> link.isUsable(Instant.now()))
-                .map(link -> {
-                    // Consumed before the pilot lookup, not after: a
-                    // second request racing this one must see it already
-                    // used, not sign in on the same link twice.
-                    link.consume();
-                    magicLinks.save(link);
-                    var pilot = pilots.fromVerifiedEmail(link.getEmail());
-                    SecurityContext context = SecurityContextHolder.createEmptyContext();
-                    context.setAuthentication(new MagicLinkAuthenticationToken(pilot.getEmail()));
-                    SecurityContextHolder.setContext(context);
-                    // Explicit save, not just setContext above -- outside
-                    // Spring Security's own filter chain (there is no
-                    // AuthenticationSuccessHandler here, this endpoint
-                    // *is* the success handler), nothing else persists
-                    // the context into the session for the next request.
-                    securityContextRepository.saveContext(context, request, response);
-                    return ResponseEntity.status(HttpStatus.FOUND)
-                            .location(URI.create("/app/settings"))
-                            .<String>build();
-                })
-                .orElseGet(() -> ResponseEntity.badRequest()
-                        .body("This link has expired or was already used. Request a new one from Settings."));
+        String tokenHash = hash(token);
+        // Atomic consume-if-usable, not find-then-filter-then-save: the
+        // old sequence had a window where two requests racing the same
+        // token could both read "still usable" before either wrote
+        // consumedAt, and both would sign in. See
+        // MagicLinkRepository.consumeIfUsable's own javadoc.
+        if (magicLinks.consumeIfUsable(tokenHash, Instant.now()) == 0) {
+            return ResponseEntity.badRequest()
+                    .body("This link has expired or was already used. Request a new one from Settings.");
+        }
+        MagicLink link = magicLinks.findByTokenHash(tokenHash).orElseThrow();
+        var pilot = pilots.fromVerifiedEmail(link.getEmail());
+        SecurityContext context = SecurityContextHolder.createEmptyContext();
+        context.setAuthentication(new MagicLinkAuthenticationToken(pilot.getEmail()));
+        SecurityContextHolder.setContext(context);
+        // Explicit save, not just setContext above -- outside Spring
+        // Security's own filter chain (there is no
+        // AuthenticationSuccessHandler here, this endpoint *is* the
+        // success handler), nothing else persists the context into the
+        // session for the next request.
+        securityContextRepository.saveContext(context, request, response);
+        return ResponseEntity.status(HttpStatus.FOUND)
+                .location(URI.create("/app/settings"))
+                .build();
     }
 
     private void sendEmail(String to, String verifyUrl) {

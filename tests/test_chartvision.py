@@ -124,7 +124,7 @@ def test_mosaic_maps_its_own_pixels_back_to_the_world():
 
 # --- the course walk must follow the great circle, not a pixel-space line ---
 
-from vfr.chartvision import great_circle_pixels, global_px_to_latlon  # noqa: E402
+from vfr.chartvision import great_circle_pixels  # noqa: E402
 from vfr.geo import cross_track_distance_nm  # noqa: E402
 
 C81, KDLH = (42.3246, -88.0741), (46.8419, -92.1987)

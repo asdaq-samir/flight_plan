@@ -1,13 +1,21 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useSearchParams } from "react-router-dom";
+import { ZoomIn, ZoomOut } from "lucide-react";
 import { identSchema } from "../../lib/identSchema";
 // Without this Leaflet's tiles, markers and controls have no
 // positioning at all -- this is the library's own stylesheet, not
-// app styling. Imported here (not in main.tsx) so Home/Playground/
-// Account, which never touch a map, don't pay for it.
+// app styling. Imported here (not in main.tsx) so Home/Playground
+// pages that never touch a map don't pay for it. Settings' own Dev
+// Label tab now does pay for it (it statically imports this component
+// to embed the real workspace inline, see that tab's own comment), but
+// only as part of Settings' own lazy route chunk, still never on
+// Plan's or the initial app load.
 import "leaflet/dist/leaflet.css";
 import Shell from "../../Shell";
 import SettingsButton from "../../components/SettingsButton";
+import SidebarToggleButton from "../../components/SidebarToggleButton";
+import { Button } from "../../components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "../../components/ui/tooltip";
 import { usePageStatus } from "../../lib/usePageStatus";
 import ChartMap from "./components/ChartMap";
 import RouteForm from "./components/RouteForm";
@@ -24,8 +32,47 @@ import { useDocumentTitle } from "../../lib/useDocumentTitle";
 
 const FOCUS_ZOOM = 12;
 
-export default function LabelView() {
-  useDocumentTitle("Label checkpoints — VFR Route");
+/** The pieces `embedded` mode hands back instead of wrapping them in
+ *  this component's own `Shell`/header -- Settings' own Dev tab
+ *  composes these into ITS OWN single Shell (with its own
+ *  `sidebarOpen` state and its own `SidebarToggleButton`) instead of
+ *  nesting a second Shell inside the first. See SettingsView's own
+ *  comment on why this needs to be one Shell, not two stacked ones. */
+export interface LabelWorkspacePieces {
+  /** DEP/DEST/Load -- Settings' own header shows this at the same
+   *  trailing spot RouteForm sits in Plan's, left-aligned, only while
+   *  Dev is the active tab. */
+  routeForm: ReactNode;
+  /** The rating scale/shortcuts popover -- inline next to the sidebar
+   *  trigger in Settings' own tab row instead of floating over the
+   *  map, the same move Plan's own `ScoreLegend` already made for its
+   *  Map tab. */
+  guideButton: ReactNode;
+  /** Start/Resume/Fit line -- next to the sidebar trigger, mirroring
+   *  Plan's own fit-route button beside its sidebar trigger, not
+   *  folded into `routeForm` (see this page's own comment on why). */
+  zoomButton: ReactNode;
+  /** The chart itself, for Shell's own `map` slot. */
+  mapContent: ReactNode;
+  /** The progress card and waypoint list, for Shell's own `sidebar` slot. */
+  sidebarContent: ReactNode;
+}
+
+interface Props {
+  /** true when this is Settings' own Dev tab rendering the real
+   *  workspace inline (see SettingsView's own comment) rather than the
+   *  standalone `/app/label` route mounting this as the whole page.
+   *  Requires `children`, since embedded mode has nothing of its own
+   *  to render -- everything it would have shown goes through that
+   *  render prop for Settings' own Shell to place instead. */
+  embedded?: boolean;
+  /** Only called (and only meaningful) when `embedded` -- see
+   *  `LabelWorkspacePieces`'s own comment. */
+  children?: (pieces: LabelWorkspacePieces) => ReactNode;
+}
+
+export default function LabelView({ embedded = false, children }: Props) {
+  useDocumentTitle(embedded ? null : "Label checkpoints — VFR Route");
   const store = useLabelState();
   const point = useMemo(
     () => currentPoint(store),
@@ -41,6 +88,11 @@ export default function LabelView() {
   // so without this the label would only update on some unrelated
   // re-render, not the moment a zoom actually happens.
   const [zoomedIn, setZoomedIn] = useState(false);
+  // The waypoint-list sidebar's own open state -- only meaningful (and
+  // only read below) for the standalone page's own `<Shell>` call;
+  // `embedded` mode's own sidebar trigger belongs to Settings' own
+  // Shell instead, which owns its own copy of this same state.
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // Mount only, deliberately: RouteForm's own onSubmit is the reload
   // path when dep/dest change later, so this effect must not also fire
@@ -260,6 +312,97 @@ export default function LabelView() {
     void store.load(d, a);
   }, [dep, dest, setSearchParams, store.load]);
 
+  usePageStatus(store.progress, { general: store.error });
+
+  // The four pieces every version of this page is built from --
+  // standalone wraps them in its own Shell/header below; `embedded`
+  // hands them to Settings' own Dev tab instead, for its own single
+  // Shell to place (see `LabelWorkspacePieces`'s own comment on why
+  // one Shell, not two).
+  const routeForm = (
+    <RouteForm
+      dep={dep} dest={dest} onDepChange={setDep} onDestChange={setDest}
+      onSubmit={submitRoute}
+    />
+  );
+  // Inline next to the sidebar trigger in the header, standalone or
+  // embedded alike -- the same move Plan's own `ScoreLegend` already
+  // made for its Map tab (see `MapGuideButton`'s own comment on why
+  // there's no floating mode left to opt out of any more).
+  const guideButton = <RatingLegend />;
+  // "Fit Route"/"Show Selected" -- the same two-state language Plan's
+  // own zoom toggle uses beside its own sidebar trigger, not this
+  // page's own former three-state "Start"/"Resume"/"Fit line" -- these
+  // two pages read as the same shell around a different sidebar
+  // everywhere else already (see RouteForm's own comment).
+  const toggleViewLabel = zoomedIn ? "Fit Route" : "Show Selected";
+  // Next to the sidebar trigger, not folded into `routeForm` -- it's a
+  // map-view action (what's zoomed into right now), the same category
+  // as the sidebar toggle itself, not part of "the route inputs and
+  // Load button" that component unifies (see `RouteInputGroup`'s own
+  // comment).
+  const zoomButton = (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          type="button" variant="ghost" size="icon" onClick={toggleView} disabled={!walk.length}
+          data-testid="map-action-button"
+        >
+          {zoomedIn ? <ZoomOut className="size-5" /> : <ZoomIn className="size-5" />}
+          <span className="sr-only">{toggleViewLabel}</span>
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>{toggleViewLabel}</TooltipContent>
+    </Tooltip>
+  );
+  const mapContent = (
+    <div className="h-full w-full">
+      <ChartMap
+        course={store.course}
+        endpoints={store.endpoints}
+        detections={store.detections}
+        added={store.added}
+        filters={store.filters}
+        selected={point}
+        selectedContent={selectedContent}
+        showMenu={zoomedIn}
+        onSelect={(kind, index) => store.select({ kind, index })}
+        onDeselect={() => store.select(null)}
+        onAddAt={(lat, lon) => void store.addPick(lat, lon)}
+        onMapReady={setMap}
+      />
+    </div>
+  );
+  // The view filters used to live in their own collapsible toolbar
+  // row, collapsed by default, then their own bar above this card --
+  // folded into it now, since each checkbox's count and the "Rated"
+  // total above it are the same kind of fact and read better together
+  // than split across two panels.
+  const sidebarContent = (
+    <>
+      <ProgressCard
+        visiblePicks={visiblePicks}
+        filters={store.filters}
+        onFilterChange={store.setFilter}
+        filterCounts={counts}
+        shown={shown}
+        canUndo={store.canUndo}
+        onUndo={() => void store.undo()}
+        onResetAll={() => void store.resetAll()}
+      />
+      <WaypointList
+        entries={listEntries} selected={point} onFocus={focus} hidden={hidden}
+        bearingDeg={store.course?.bearing_deg ?? 0}
+        departureIdent={store.course?.departure.ident ?? ""}
+        distanceNm={store.course?.distance_nm ?? null}
+      />
+    </>
+  );
+
+  if (embedded) {
+    return children?.({ routeForm, guideButton, zoomButton, mapContent, sidebarContent }) ?? null;
+  }
+
   // Folds the shared PageHeader's own row into this page's own route
   // form, the same way Plan's mapHeader does -- the route being worked
   // on, not "VFR Route," is this page's actual title too. RouteForm
@@ -267,82 +410,47 @@ export default function LabelView() {
   // default like the view filters beside it; that hid the one thing
   // this page can't do anything useful without (a route to walk) behind
   // an extra click, which the view filters -- genuinely optional --
-  // don't need to avoid. The toggle-view button (Start/Resume/Fit
-  // line) folds in here too, the same way Plan's own single
-  // most-needed map action ("Brief") sits next to "Load" rather than
-  // floating over the map -- these two pages are meant to look like
-  // the same shell around a different sidebar, not two designs that
-  // happen to share a Shell component.
+  // don't need to avoid. `zoomButton` sits next to the sidebar trigger
+  // here too, the same way Plan's own fit-route button sits beside
+  // its -- these two pages are meant to look like the same shell
+  // around a different sidebar, not two designs that happen to share a
+  // Shell component.
   const header = (
-    <header className="flex shrink-0 items-center justify-between gap-2 border-b border-border bg-background px-3 py-2 print:hidden">
-      <RouteForm
-        dep={dep} dest={dest} onDepChange={setDep} onDestChange={setDest}
-        onSubmit={submitRoute}
-        onToggleView={toggleView}
-        toggleViewDisabled={!walk.length}
-        toggleViewLabel={!point ? "Start" : zoomedIn ? "Fit line" : "Resume"}
-      />
-      <SettingsButton />
+    // grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)], not a plain flex
+    // `justify-between` -- matches Plan's own `TwoRowHeader` (see its
+    // own comment): the two flanking columns always match each other's
+    // width, centering the route form against the header's own full
+    // width rather than just against whatever's left over next to the
+    // trailing group's size. `minmax(0, ...)`, not a bare `1fr` --
+    // route form plus four icon buttons is wider than a narrow phone
+    // screen has room for even flush-left (this was already tight
+    // before centering, one more icon than it had before this
+    // session), and a bare `1fr` track won't shrink past its own
+    // content's natural minimum, which pushed the trailing icons (the
+    // Settings gear specifically) off the right edge entirely rather
+    // than just squeezing the centering. `overflow-x-auto` is the
+    // fallback for whatever's still too tight even at that minimum --
+    // a header that needs a sideways scroll to reach every icon beats
+    // one where the last icon is simply unreachable.
+    <header className="grid shrink-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 overflow-x-auto border-b border-border bg-background px-3 py-2 print:hidden">
+      <div />
+      {routeForm}
+      <div className="flex items-center justify-self-end gap-2">
+        {guideButton}
+        {zoomButton}
+        <SidebarToggleButton open={sidebarOpen} onClick={() => setSidebarOpen(o => !o)} label="Waypoints" />
+        <SettingsButton />
+      </div>
     </header>
   );
-
-  usePageStatus(store.progress, store.error);
-
-  // No toolbar row and no floating MapActionButton -- both of this
-  // page's own extras (the toggle-view action, the view filters) now
-  // live somewhere Plan's own layout already has a slot for: the
-  // header (above) and the sidebar's own top (below), rather than two
-  // more pieces of chrome Plan's page doesn't have at all.
-  const mapOverlay = <RatingLegend />;
 
   return (
     <Shell
       header={header}
-      mapOverlay={mapOverlay}
-      map={
-        <div className="h-full w-full">
-          <ChartMap
-            course={store.course}
-            endpoints={store.endpoints}
-            detections={store.detections}
-            added={store.added}
-            filters={store.filters}
-            selected={point}
-            selectedContent={selectedContent}
-            showMenu={zoomedIn}
-            onSelect={(kind, index) => store.select({ kind, index })}
-            onDeselect={() => store.select(null)}
-            onAddAt={(lat, lon) => void store.addPick(lat, lon)}
-            onMapReady={setMap}
-          />
-        </div>
-      }
-      sidebar={
-        <>
-          {/* The view filters used to live in their own collapsible
-              toolbar row, collapsed by default, then their own bar
-              above this card -- folded into it now, since each
-              checkbox's count and the "Rated" total above it are the
-              same kind of fact and read better together than split
-              across two panels. */}
-          <ProgressCard
-            visiblePicks={visiblePicks}
-            filters={store.filters}
-            onFilterChange={store.setFilter}
-            filterCounts={counts}
-            shown={shown}
-            canUndo={store.canUndo}
-            onUndo={() => void store.undo()}
-            onResetAll={() => void store.resetAll()}
-          />
-          <WaypointList
-            entries={listEntries} selected={point} onFocus={focus} hidden={hidden}
-            bearingDeg={store.course?.bearing_deg ?? 0}
-            departureIdent={store.course?.departure.ident ?? ""}
-            distanceNm={store.course?.distance_nm ?? null}
-          />
-        </>
-      }
+      map={mapContent}
+      sidebar={sidebarContent}
+      sidebarOpen={sidebarOpen}
+      onSidebarOpenChange={setSidebarOpen}
     />
   );
 }
