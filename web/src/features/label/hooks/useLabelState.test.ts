@@ -36,7 +36,7 @@ function courseFixture(): Course {
     destination: { ident: "KDLH", name: "Duluth", lat: 46.8, lon: -92.2, elevation_ft: 1428 },
     distance_nm: 323.4, bearing_deg: 328,
     course_line: [[42.1, -88.1], [46.8, -92.2]],
-    map_service_url: "", max_zoom: 12, min_zoom: 4,
+    max_zoom: 12, min_zoom: 4,
   };
 }
 

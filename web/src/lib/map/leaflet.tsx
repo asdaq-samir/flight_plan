@@ -95,8 +95,8 @@ export function createBaseLayer(map: L.Map) {
  *  below 8, so the chart alone can never frame a long leg.
  *  `createBaseLayer`'s own OpenStreetMap layer sits underneath for
  *  that; this only adds the toggleable FAA/OSM pair on top of it,
- *  which needs the course's own map_service_url and zoom limits and so
- *  can't exist before a course does. */
+ *  which needs the course's own zoom limits and so can't exist before
+ *  a course does. */
 export function createBasemaps(map: L.Map, cfg: Course) {
   const layers = {
     // A plain tile layer, the same shape as `osm` below -- but the

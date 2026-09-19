@@ -25,6 +25,7 @@ same vfr.pipeline functions the Airflow DAG calls, so there is one
 implementation, not two.
 """
 import json
+import math
 import os
 import threading
 import time
@@ -57,7 +58,6 @@ from vfr import altitude as altitude_module
 from vfr import checkpoints as checkpoint_selection
 from vfr.config import (
     DATA_DIR,
-    VFR_SECTIONAL_MAP_SERVICE_URL,
     VFR_SECTIONAL_MAX_ZOOM,
     VFR_SECTIONAL_MIN_ZOOM,
 )
@@ -309,6 +309,15 @@ def _cruise_altitude(start: tuple, end: tuple, profile: dict, aircraft: str) -> 
     return selection
 
 
+def _no_altitude_detail(selection: dict) -> str:
+    return (
+        "No legal VFR cruising altitude exists for this route and aircraft "
+        f"(floor {selection.get('floor_ft')} ft, ceiling "
+        f"{selection.get('band_ceiling_ft')} ft). Supply altitude_ft "
+        "explicitly to plan anyway."
+    )
+
+
 def _course_line(start: tuple, end: tuple, step_nm: float = 5.0) -> list:
     """The course line as [[lat, lon], ...], following the great circle.
 
@@ -329,6 +338,52 @@ def _course_line(start: tuple, end: tuple, step_nm: float = 5.0) -> list:
         points.append(list(current))
     points.append(list(end))
     return points
+
+
+def _fixes(dep_ident: str, dest_ident: str, start: tuple, end: tuple, selected: list) -> list:
+    """The nav log flies departure -> checkpoints -> destination. The
+    airports are the ends of the flight, so they bound the legs even
+    though neither is a checkpoint candidate."""
+    return (
+        [{"name": dep_ident, "category": "departure", "lat": start[0], "lon": start[1]}]
+        + selected
+        + [{"name": dest_ident, "category": "destination", "lat": end[0], "lon": end[1]}]
+    )
+
+
+def _assemble_leg(a: dict, b: dict, altitude_ft: float, profile: dict) -> dict:
+    leg = navlog.assemble_leg((a["lat"], a["lon"]), (b["lat"], b["lon"]), altitude_ft, profile)
+    leg["from"] = a["name"] or a["category"]
+    leg["to"] = b["name"] or b["category"]
+    # assemble_leg returns inf for ETE when groundspeed is zero or
+    # negative -- a headwind at or above cruise TAS. Python's json
+    # emits that as a bare Infinity, which is not valid JSON and
+    # makes JSON.parse throw in the browser, so the whole plan would
+    # fail to render because of one unflyable leg. None says
+    # "unflyable" honestly and the page shows it as such.
+    for field in ("ete_min", "fuel_gal", "groundspeed_kt"):
+        if not math.isfinite(leg[field]):
+            leg[field] = None
+    return leg
+
+
+def _totals(legs: list) -> dict:
+    def _total(field: str):
+        values = [leg[field] for leg in legs if leg[field] is not None]
+        return round(sum(values), 1) if len(values) == len(legs) else None
+
+    return {
+        "distance_nm": round(sum(leg["distance_nm"] for leg in legs), 1),
+        # None rather than a wrong number if any leg is unflyable:
+        # silently summing the flyable ones would understate the trip.
+        "ete_min": _total("ete_min"),
+        "fuel_gal": _total("fuel_gal"),
+        "unflyable_legs": sum(1 for leg in legs if leg["ete_min"] is None),
+        # Surfaced rather than averaged away: a leg with no nearby
+        # winds-aloft station is a no-wind-data estimate, not a calm
+        # one, and a pilot should know which legs those are.
+        "legs_without_wind": sum(1 for leg in legs if leg.get("wind") is None),
+    }
 
 
 # Scored checkpoints per route, keyed by what actually changes the
@@ -415,41 +470,10 @@ def plan(
         altitude_selection = _cruise_altitude(start, end, profile, aircraft)
         altitude_ft = altitude_selection.get("recommended_ft")
         if altitude_ft is None:
-            raise HTTPException(
-                422,
-                "No legal VFR cruising altitude exists for this route and aircraft "
-                f"(floor {altitude_selection.get('floor_ft')} ft, ceiling "
-                f"{altitude_selection.get('band_ceiling_ft')} ft). Supply altitude_ft "
-                "explicitly to plan anyway.",
-            )
+            raise HTTPException(422, _no_altitude_detail(altitude_selection))
 
-    # The nav log flies departure -> checkpoints -> destination. The
-    # airports are the ends of the flight, so they bound the legs even
-    # though neither is a checkpoint candidate.
-    fixes = (
-        [{"name": dep_ident, "category": "departure", "lat": start[0], "lon": start[1]}]
-        + selected
-        + [{"name": dest_ident, "category": "destination", "lat": end[0], "lon": end[1]}]
-    )
-    legs = []
-    for a, b in pairwise(fixes):
-        leg = navlog.assemble_leg((a["lat"], a["lon"]), (b["lat"], b["lon"]), altitude_ft, profile)
-        leg["from"] = a["name"] or a["category"]
-        leg["to"] = b["name"] or b["category"]
-        # assemble_leg returns inf for ETE when groundspeed is zero or
-        # negative -- a headwind at or above cruise TAS. Python's json
-        # emits that as a bare Infinity, which is not valid JSON and
-        # makes JSON.parse throw in the browser, so the whole plan would
-        # fail to render because of one unflyable leg. None says
-        # "unflyable" honestly and the page shows it as such.
-        for field in ("ete_min", "fuel_gal", "groundspeed_kt"):
-            if leg[field] in (float("inf"), float("-inf")) or leg[field] != leg[field]:
-                leg[field] = None
-        legs.append(leg)
-
-    def _total(field: str):
-        values = [l[field] for l in legs if l[field] is not None]
-        return round(sum(values), 1) if len(values) == len(legs) else None
+    fixes = _fixes(dep_ident, dest_ident, start, end, selected)
+    legs = [_assemble_leg(a, b, altitude_ft, profile) for a, b in pairwise(fixes)]
 
     return {
         "departure": {"ident": dep_ident, "name": dep_airport["name"], "lat": start[0], "lon": start[1]},
@@ -459,22 +483,10 @@ def plan(
         "candidates": scored,
         "selected": selected,
         "legs": legs,
-        "totals": {
-            "distance_nm": round(sum(l["distance_nm"] for l in legs), 1),
-            # None rather than a wrong number if any leg is unflyable:
-            # silently summing the flyable ones would understate the trip.
-            "ete_min": _total("ete_min"),
-            "fuel_gal": _total("fuel_gal"),
-            "unflyable_legs": sum(1 for l in legs if l["ete_min"] is None),
-            # Surfaced rather than averaged away: a leg with no nearby
-            # winds-aloft station is a no-wind-data estimate, not a calm
-            # one, and a pilot should know which legs those are.
-            "legs_without_wind": sum(1 for l in legs if l.get("wind") is None),
-        },
+        "totals": _totals(legs),
         "altitude_ft": altitude_ft,
         "altitude_selection": altitude_selection,
         "aircraft": {"name": aircraft, **profile},
-        "map_service_url": VFR_SECTIONAL_MAP_SERVICE_URL,
         "max_zoom": VFR_SECTIONAL_MAX_ZOOM,
         "min_zoom": VFR_SECTIONAL_MIN_ZOOM,
     }
@@ -590,7 +602,6 @@ def course(dep: str, dest: str) -> dict:
         "distance_nm": round(geo.distance_nm(start[0], start[1], end[0], end[1]), 1),
         "bearing_deg": round(geo.bearing_deg(start[0], start[1], end[0], end[1])),
         "course_line": _course_line(start, end),
-        "map_service_url": VFR_SECTIONAL_MAP_SERVICE_URL,
         "max_zoom": VFR_SECTIONAL_MAX_ZOOM,
         "min_zoom": VFR_SECTIONAL_MIN_ZOOM,
     }
@@ -742,6 +753,16 @@ def _faa_airports(start, end, half_width_nm, dep_ident, dest_ident) -> list:
             )
         )
     return landmarks
+
+
+def _ndjson(lines) -> StreamingResponse:
+    """One JSON object per line, sent as each is produced. The headers keep
+    any proxy in between (nginx, the Spring webapp) from buffering lines
+    until the stream ends, which would defeat streaming entirely."""
+    return StreamingResponse(
+        lines, media_type="application/x-ndjson",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 # One corridor detection per route, shared and remembered -- not one per
@@ -904,7 +925,7 @@ def detect_stream(dep: str, dest: str, half_width_nm: float = 4.0) -> StreamingR
                     "blocks": block["blocks"],
                     "tiles": block["tiles"],
                     "missing": block["missing"],
-                    "detections": [as_detection(l) for l in block["landmarks"]],
+                    "detections": [as_detection(landmark) for landmark in block["landmarks"]],
                 }) + "\n"
             if done and at >= len(job["blocks"]):
                 if error is not None:
@@ -932,10 +953,7 @@ def detect_stream(dep: str, dest: str, half_width_nm: float = 4.0) -> StreamingR
 
     # Buffering off: a proxy holding these until the generator finishes
     # would defeat the entire point of streaming them.
-    return StreamingResponse(
-        lines(), media_type="application/x-ndjson",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
-    )
+    return _ndjson(lines())
 
 
 # ---------------------------------------------------------------------
@@ -1046,15 +1064,7 @@ def navlog_only(
                         }) + "\n"
             nav_altitude_ft = altitude_selection.get("recommended_ft")
             if nav_altitude_ft is None:
-                yield json.dumps({
-                    "type": "error",
-                    "detail": (
-                        "No legal VFR cruising altitude exists for this route and aircraft "
-                        f"(floor {altitude_selection.get('floor_ft')} ft, ceiling "
-                        f"{altitude_selection.get('band_ceiling_ft')} ft). Supply altitude_ft "
-                        "explicitly to plan anyway."
-                    ),
-                }) + "\n"
+                yield json.dumps({"type": "error", "detail": _no_altitude_detail(altitude_selection)}) + "\n"
                 return
 
         # Sent the moment it's decided, well before any leg -- the
@@ -1068,31 +1078,13 @@ def navlog_only(
             "aircraft": {"name": aircraft, **profile},
         }) + "\n"
 
-        # The nav log flies departure -> checkpoints -> destination. The
-        # airports are the ends of the flight, so they bound the legs
-        # even though neither is a checkpoint candidate.
-        fixes = (
-            [{"name": dep_ident, "category": "departure", "lat": start[0], "lon": start[1]}]
-            + selected
-            + [{"name": dest_ident, "category": "destination", "lat": end[0], "lon": end[1]}]
-        )
+        fixes = _fixes(dep_ident, dest_ident, start, end, selected)
         yield json.dumps({
             "type": "stage", "detail": "Fetching winds aloft from aviationweather.gov…",
         }) + "\n"
         legs = []
         for a, b in pairwise(fixes):
-            leg = navlog.assemble_leg((a["lat"], a["lon"]), (b["lat"], b["lon"]), nav_altitude_ft, profile)
-            leg["from"] = a["name"] or a["category"]
-            leg["to"] = b["name"] or b["category"]
-            # assemble_leg returns inf for ETE when groundspeed is zero or
-            # negative -- a headwind at or above cruise TAS. Python's json
-            # emits that as a bare Infinity, which is not valid JSON and
-            # makes JSON.parse throw in the browser, so the whole nav log
-            # would fail to render because of one unflyable leg. None
-            # says "unflyable" honestly and the page shows it as such.
-            for field in ("ete_min", "fuel_gal", "groundspeed_kt"):
-                if leg[field] in (float("inf"), float("-inf")) or leg[field] != leg[field]:
-                    leg[field] = None
+            leg = _assemble_leg(a, b, nav_altitude_ft, profile)
             legs.append(leg)
             # The first leg's own wind lookup is the one that actually
             # pays for the aviationweather.gov round trip (later legs
@@ -1101,30 +1093,9 @@ def navlog_only(
             # final "done" line, is most of why this streams at all.
             yield json.dumps({"type": "leg", **leg}) + "\n"
 
-        def _total(field: str):
-            values = [l[field] for l in legs if l[field] is not None]
-            return round(sum(values), 1) if len(values) == len(legs) else None
+        yield json.dumps({"type": "done", "totals": _totals(legs)}) + "\n"
 
-        yield json.dumps({
-            "type": "done",
-            "totals": {
-                "distance_nm": round(sum(l["distance_nm"] for l in legs), 1),
-                # None rather than a wrong number if any leg is unflyable:
-                # silently summing the flyable ones would understate the trip.
-                "ete_min": _total("ete_min"),
-                "fuel_gal": _total("fuel_gal"),
-                "unflyable_legs": sum(1 for l in legs if l["ete_min"] is None),
-                # Surfaced rather than averaged away: a leg with no nearby
-                # winds-aloft station is a no-wind-data estimate, not a
-                # calm one, and a pilot should know which legs those are.
-                "legs_without_wind": sum(1 for l in legs if l.get("wind") is None),
-            },
-        }) + "\n"
-
-    return StreamingResponse(
-        lines(), media_type="application/x-ndjson",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
-    )
+    return _ndjson(lines())
 
 
 # ---------------------------------------------------------------------
@@ -1334,10 +1305,7 @@ def describe_checkpoints(
             yield checkpoint_line(cp, description, "generated")
         yield json.dumps({"type": "done"}) + "\n"
 
-    return StreamingResponse(
-        lines(), media_type="application/x-ndjson",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
-    )
+    return _ndjson(lines())
 
 
 @app.post("/api/checkpoint-notes")

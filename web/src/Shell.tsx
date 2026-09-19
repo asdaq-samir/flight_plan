@@ -83,58 +83,26 @@ export default function Shell({
         {mapOverlay}
       </div>
       {sidebar && (
-        // Covers the header too, not just the map area -- tried scoping
-        // this to just the map area via vaul's own `container` prop, but
-        // that only repositions the portal: the Radix Dialog underneath
-        // still `aria-hide`s and blocks pointer events on *every*
-        // sibling outside wherever the portal lands, header included,
-        // regardless of `container`. Vaul's own `modal={false}` doesn't
-        // fix that either -- it never forwards `modal` to that Dialog at
-        // all, so the aria-hiding stays on unconditionally; it only
-        // turns off vaul's own overlay/scroll-lock, which broke this
-        // trigger's own second click (closing) along with it. A plain,
-        // full-viewport modal Drawer, unscoped, is the one shape that
-        // actually keeps working.
+        // Full-viewport and modal on purpose. Vaul's `container` prop
+        // only moves the portal: the Radix Dialog underneath still
+        // aria-hides and pointer-blocks everything outside it, header
+        // included. And `modal={false}` never reaches that Dialog -- it
+        // only drops vaul's overlay, which also broke closing from the
+        // trigger.
         <Drawer open={sidebarOpen} onOpenChange={onSidebarOpenChange} direction="right">
           <DrawerContent
             overlayClassName="z-[1000]"
-            // Radix's own default on open (vaul's Content wraps a real
-            // Radix Dialog underneath): focus-trap onto the first
-            // focusable element inside -- one of the very buttons this
-            // content holds (the nav log's own Sparkles/Expand, a
-            // waypoint row), which also happens to be a Tooltip
-            // trigger. Opened via keyboard focus rather than hover,
-            // that tooltip's own freshly-mounted DismissableLayer
-            // registers *after* (so: above) this Drawer's own, stealing
-            // Escape's first press the same way SidebarToggleButton's
-            // own tooltip could (see that component's own comment) --
-            // nothing in here is a form a pilot needs focus jumped
-            // into, so there's nothing lost by leaving focus wherever
-            // it already was (the trigger that opened this).
+            // Radix would focus the first focusable child on open -- a
+            // Tooltip trigger, whose tooltip then steals the Drawer's
+            // Escape (see SidebarToggleButton). Nothing in here needs
+            // focus moved into it.
             onOpenAutoFocus={e => e.preventDefault()}
-            // shadcn's own default (z-50) sits below Leaflet's own
-            // controls (`.leaflet-top`/`.leaflet-bottom`, z-index 1000
-            // in Leaflet's own stylesheet) -- z-[1000] is this app's
-            // own established match for that (see MapGuideButton's own
-            // popover), needed here too now that this sidebar is an
-            // overlay sitting on top of the map rather than pushing it
-            // aside the way the old docked Sidebar block did.
-            //
-            // `rounded-l-lg`: shadcn's own drawer.tsx only rounds the
-            // top/bottom direction variants (the one edge that isn't
-            // already flush against a viewport side) -- left/right
-            // ship square. This is always `direction="right"`, so the
-            // left edge is the one actually facing the map rather than
-            // the screen's own edge, the same reasoning extended to
-            // this direction.
+            // z-[1000] clears Leaflet's own controls, as MapGuideButton's
+            // popover does. shadcn only rounds the top/bottom drawer
+            // variants; this one's left edge faces the map, and with
+            // `p-0` the content needs `overflow-hidden` to be clipped to
+            // that corner.
             className={cn(
-              // `overflow-hidden` alongside the rounding above -- this
-              // renders with `p-0` (no inset padding of its own to keep
-              // the sidebar's own content clear of the corner), so
-              // without it the content's own square corners (the nav
-              // log table's own background, flush to every edge) would
-              // sit right on top of the rounding rather than actually
-              // being clipped to it.
               "z-[1000] w-full gap-0 overflow-hidden rounded-l-lg p-0 print:hidden",
               sidebarWide ? "sm:max-w-[min(52rem,92vw)]" : "sm:max-w-[22rem]",
             )}
