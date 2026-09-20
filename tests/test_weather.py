@@ -82,6 +82,20 @@ def test_metar_for_idents_returns_none_for_an_ident_with_no_current_report(mock_
     assert result["KDLH"] is not None
 
 
+@patch("vfr.weather.time.sleep")
+@patch("vfr.weather.requests.get")
+def test_a_certificate_failure_is_not_retried(mock_get, mock_sleep):
+    """An expired or untrusted certificate fails the same way every time;
+    the back-off would only delay the same answer by six seconds."""
+    mock_get.side_effect = requests.exceptions.SSLError("certificate has expired")
+
+    with pytest.raises(WeatherServiceError, match="certificate has expired"):
+        metar_for_idents(["C81"])
+
+    assert mock_get.call_count == 1
+    mock_sleep.assert_not_called()
+
+
 @patch("vfr.weather.requests.get")
 def test_metar_for_idents_wraps_a_network_failure(mock_get):
     mock_get.side_effect = requests.ConnectionError("no route to host")

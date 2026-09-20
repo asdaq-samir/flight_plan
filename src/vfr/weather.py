@@ -44,6 +44,11 @@ def _get(url: str, params: dict, retries: int = 3) -> requests.Response:
             resp = requests.get(url, params=params, headers=HEADERS, timeout=30)
             resp.raise_for_status()
             return resp
+        except requests.exceptions.SSLError as e:
+            # A certificate problem (aviationweather.gov's own expired on
+            # 2026-09-19) fails identically on every attempt; retrying
+            # only delays the answer by the whole back-off.
+            raise WeatherServiceError(f"aviationweather.gov request to {url} failed: {e}") from e
         except requests.RequestException as e:
             last_err = e
             if attempt < retries - 1:
