@@ -508,7 +508,11 @@ export default function FlightBriefingView({
         <p className="text-sm text-muted-foreground">{dep} → {dest}</p>
       </div>
 
-      <CollapsibleSection title="Flight Plan Summary">
+      {/* Open from the start: the route, its totals and the nav log
+          are what a pilot came to the Brief tab for, so they should not
+          be behind a click. Every weather section below stays collapsed
+          -- skim the titles, open what applies. */}
+      <CollapsibleSection title="Flight Plan Summary" defaultOpen>
         <div className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
           <div>
             <div className="text-xs text-muted-foreground">Route</div>

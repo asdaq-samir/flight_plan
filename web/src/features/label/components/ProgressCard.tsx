@@ -1,3 +1,4 @@
+import { Button } from "../../../components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "../../../components/ui/card";
 import type { Point } from "../../../lib/api/types";
 import FilterBar from "./FilterBar";
@@ -28,17 +29,15 @@ export default function ProgressCard({
             count it decides between are one fact, not two things a
             reader has to line up across two panels themselves. */}
         <FilterBar filters={filters} onChange={onFilterChange} counts={filterCounts} />
-        <div className="mt-2 flex gap-2 border-t border-border pt-2 text-sm">
-          <button
-            type="button"
-            onClick={onUndo}
-            disabled={!canUndo}
-            className="rounded px-2 py-1 text-muted-foreground disabled:opacity-30 enabled:hover:bg-accent"
-          >
+        <div className="mt-2 flex gap-2 border-t border-border pt-2">
+          <Button type="button" variant="ghost" size="sm" onClick={onUndo} disabled={!canUndo}>
             Undo
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
+            variant="ghost"
+            size="sm"
+            className="text-destructive hover:bg-destructive/10 hover:text-destructive"
             onClick={() => {
               // Bulk and only reversible one point at a time (this isn't
               // itself an undo step), so a stray tap can't wipe a leg's
@@ -46,10 +45,9 @@ export default function ProgressCard({
               if (window.confirm("Reset every rating on this route? This can't be undone.")) onResetAll();
             }}
             disabled={visiblePicks.length === 0}
-            className="rounded px-2 py-1 text-destructive disabled:opacity-30 enabled:hover:bg-destructive/10"
           >
             Reset all
-          </button>
+          </Button>
         </div>
       </CardContent>
     </Card>

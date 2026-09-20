@@ -174,28 +174,31 @@ export function AircraftPanel({ pilot }: { pilot: PilotState }) {
       {pilot === "loading" || isLoading ? (
         <p className="text-sm text-muted-foreground">Loading…</p>
       ) : list ? (
-        <Table containerClassName="mb-3" className="min-w-[34rem]">
+        // shadcn's own data-table framing (a bordered, rounded container
+        // around stock cells) -- numbers right-aligned in tabular
+        // figures so the units line up down a column.
+        <Table containerClassName="mb-3 rounded-md border" className="min-w-[34rem]">
           <TableCaption className="sr-only">Your saved aircraft</TableCaption>
           <TableHeader>
             <TableRow>
-              <TableHead className="py-1 pr-4 pl-0">Tail #</TableHead>
-              <TableHead className="py-1 pr-4">Type</TableHead>
-              <TableHead className="py-1 pr-4">Cruise TAS</TableHead>
-              <TableHead className="py-1 pr-4">Fuel burn</TableHead>
-              <TableHead className="py-1"><span className="sr-only">Actions</span></TableHead>
+              <TableHead>Tail #</TableHead>
+              <TableHead>Type</TableHead>
+              <TableHead className="text-right">Cruise TAS</TableHead>
+              <TableHead className="text-right">Fuel burn</TableHead>
+              <TableHead className="text-right"><span className="sr-only">Actions</span></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {list?.length === 0 && (
-              <TableRow><TableCell colSpan={5} className="py-1 pl-0 text-muted-foreground">No aircraft yet.</TableCell></TableRow>
+              <TableRow><TableCell colSpan={5} className="h-16 text-center text-muted-foreground">No aircraft yet.</TableCell></TableRow>
             )}
             {list?.map(a => (
               <TableRow key={a.id}>
-                <TableCell className="py-1 pr-4 pl-0 font-mono">{a.tailNumber}</TableCell>
-                <TableCell className="py-1 pr-4">{a.typeDesignator}</TableCell>
-                <TableCell className="py-1 pr-4">{a.cruiseTasKt} kt</TableCell>
-                <TableCell className="py-1 pr-4">{a.fuelBurnGph} gph</TableCell>
-                <TableCell className="py-1 whitespace-nowrap">
+                <TableCell className="font-mono">{a.tailNumber}</TableCell>
+                <TableCell>{a.typeDesignator}</TableCell>
+                <TableCell className="text-right tabular-nums">{a.cruiseTasKt} kt</TableCell>
+                <TableCell className="text-right tabular-nums">{a.fuelBurnGph} gph</TableCell>
+                <TableCell className="text-right">
                   <Button type="button" variant="link" size="sm" onClick={() => edit(a)}>Edit</Button>
                   <Button type="button" variant="link" size="sm" className="text-destructive" onClick={() => setAircraftToDelete(a)}>
                     Delete
@@ -292,25 +295,25 @@ export function FlightsPanel({ pilot }: { pilot: PilotState }) {
           No flights filed yet -- plan a route, open its Flight Briefing, and save it there.
         </p>
       ) : (
-        <Table className="min-w-[32rem]">
+        <Table containerClassName="rounded-md border" className="min-w-[32rem]">
           <TableCaption className="sr-only">Your filed flights</TableCaption>
           <TableHeader>
             <TableRow>
-              <TableHead className="py-1 pr-4 pl-0">Route</TableHead>
-              <TableHead className="py-1 pr-4">Aircraft</TableHead>
-              <TableHead className="py-1 pr-4">Altitude</TableHead>
-              <TableHead className="py-1 pr-4">Distance</TableHead>
-              <TableHead className="py-1 pr-4">Filed</TableHead>
+              <TableHead>Route</TableHead>
+              <TableHead>Aircraft</TableHead>
+              <TableHead className="text-right">Altitude</TableHead>
+              <TableHead className="text-right">Distance</TableHead>
+              <TableHead className="text-right">Filed</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {list?.map(f => (
               <TableRow key={f.id}>
-                <TableCell className="py-1 pr-4 pl-0 font-mono">{f.departureIdent} → {f.destinationIdent}</TableCell>
-                <TableCell className="py-1 pr-4">{f.aircraftTailNumber ?? "—"}</TableCell>
-                <TableCell className="py-1 pr-4">{ft(f.cruiseAltitudeFt)}</TableCell>
-                <TableCell className="py-1 pr-4">{f.totalDistanceNm == null ? "—" : `${f.totalDistanceNm.toFixed(1)} nm`}</TableCell>
-                <TableCell className="py-1 pr-4">{new Date(f.createdAt).toLocaleDateString()}</TableCell>
+                <TableCell className="font-mono">{f.departureIdent} → {f.destinationIdent}</TableCell>
+                <TableCell className="font-mono">{f.aircraftTailNumber ?? "—"}</TableCell>
+                <TableCell className="text-right tabular-nums">{ft(f.cruiseAltitudeFt)}</TableCell>
+                <TableCell className="text-right tabular-nums">{f.totalDistanceNm == null ? "—" : `${f.totalDistanceNm.toFixed(1)} nm`}</TableCell>
+                <TableCell className="text-right tabular-nums">{new Date(f.createdAt).toLocaleDateString()}</TableCell>
               </TableRow>
             ))}
           </TableBody>

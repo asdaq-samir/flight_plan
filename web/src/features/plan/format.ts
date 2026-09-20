@@ -51,10 +51,12 @@ export function signed(n: number): string {
 }
 
 /** Total time as hours and minutes. Minutes are padded so the width does
- *  not jump as the number crosses ten. */
+ *  not jump as the number crosses ten. Rounded to whole minutes first:
+ *  rounding the remainder on its own turned 179.6 minutes into "2h 60m". */
 export function hhmm(minutes: number | null): string {
   if (minutes === null) return "ETE n/a";
-  return `${Math.floor(minutes / 60)}h ${String(Math.round(minutes % 60)).padStart(2, "0")}m`;
+  const whole = Math.round(minutes);
+  return `${Math.floor(whole / 60)}h ${String(whole % 60).padStart(2, "0")}m`;
 }
 
 /** Totals for the nav-log bar. Returns parts rather than markup so the

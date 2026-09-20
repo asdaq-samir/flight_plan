@@ -40,6 +40,10 @@ describe("signed", () => {
 describe("hhmm", () => {
   it("pads the minutes", () => expect(hhmm(65)).toBe("1h 05m"));
   it("handles under an hour", () => expect(hhmm(20)).toBe("0h 20m"));
+  it("carries a rounded-up minute into the hour", () => {
+    expect(hhmm(179.6)).toBe("3h 00m");
+    expect(hhmm(59.6)).toBe("1h 00m");
+  });
   it("says so when there is no time", () => expect(hhmm(null)).toBe("ETE n/a"));
 });
 

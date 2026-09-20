@@ -260,7 +260,8 @@ test("plan page: opening the briefing pops a 'planning aid only' warning toast, 
   // page's progress/error toasts use.
   await expect(page.locator("[data-sonner-toast]", { hasText: "Planning aid only" })).toBeVisible();
 
-  await page.getByText("Flight Plan Summary").click();
+  // "Flight Plan Summary" opens by default (see FlightBriefingView) --
+  // the nav log is on screen without a click.
   await expect(page.getByRole("table", { name: /Navigation log from/i })).toBeVisible();
 });
 
@@ -309,11 +310,9 @@ test("plan page: nav log view scrolls inside its own table, not the page", async
   await page.getByTestId("map-action-button").click();
   await page.waitForTimeout(500);
 
-  // The nav log table sits inside "Flight Plan Summary", collapsed by
-  // default like every other briefing section -- a closed <details>
-  // reports a zero-width scroller regardless of what it holds, so this
-  // check is only meaningful once a pilot has actually opened it.
-  await page.getByText("Flight Plan Summary").click();
+  // The nav log table sits inside "Flight Plan Summary", the one
+  // briefing section that opens by default -- a closed <details> would
+  // report a zero-width scroller regardless of what it holds.
   await page.waitForTimeout(200);
 
   const pageOverflowing = await page.evaluate(

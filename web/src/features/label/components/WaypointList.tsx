@@ -116,9 +116,10 @@ export default function WaypointList({
             >
               <div className="flex items-baseline justify-between gap-2">
                 <span>{p.ident}</span>
-                <Badge style={{ backgroundColor: "#142430", color: "white" }}>
-                  {p.category === "departure" ? "DEP" : "DEST"}
-                </Badge>
+                {/* secondary, not default: readable on the plain row and
+                    on the inverted (selected) one alike, where a
+                    near-black pill would vanish into the row. */}
+                <Badge variant="secondary">{p.category === "departure" ? "DEP" : "DEST"}</Badge>
               </div>
               <div className={cn("text-sm", MUTED_UNLESS_SELECTED(selectedHere))}>{p.name}</div>
             </Button>

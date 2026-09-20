@@ -1,13 +1,12 @@
 import { useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { FlaskConical } from "lucide-react";
-import { Bar, BarChart, Cell, XAxis, YAxis } from "recharts";
+import { Bar, BarChart, Cell, LabelList, XAxis, YAxis } from "recharts";
 import CollapsibleSection from "../../components/CollapsibleSection";
 import IconButton from "../../components/IconButton";
 import IdentPairInputs from "../../components/IdentPairInputs";
 import { Button } from "../../components/ui/button";
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "../../components/ui/chart";
-import { ScrollArea } from "../../components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/ui/select";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "../../components/ui/sheet";
 import {
@@ -62,7 +61,10 @@ function ModelComparisonPanel() {
           className="aspect-auto w-full max-w-xl"
           style={{ height: Math.max(rows.length * 36, 120) }}
         >
-          <BarChart accessibilityLayer data={rows} layout="vertical" margin={{ left: 12 }}>
+          {/* right margin: room for each bar's own MAE label past its
+              end -- the number is the point of the chart, and a hover
+              tooltip alone leaves a phone reader with unlabeled bars. */}
+          <BarChart accessibilityLayer data={rows} layout="vertical" margin={{ left: 12, right: 48 }}>
             <XAxis type="number" dataKey="score" hide />
             <YAxis dataKey="name" type="category" tickLine={false} axisLine={false} tickMargin={8} width={110} />
             <ChartTooltip
@@ -88,6 +90,10 @@ function ModelComparisonPanel() {
               {rows.map(m => (
                 <Cell key={m.name} fill={m.promoted ? PROMOTED_BAR_COLOR : "var(--color-score)"} />
               ))}
+              <LabelList
+                dataKey="score" position="right" offset={8} fontSize={12} className="fill-foreground"
+                formatter={value => (typeof value === "number" ? mae(value) : "")}
+              />
             </Bar>
           </BarChart>
         </ChartContainer>
@@ -157,23 +163,26 @@ function AlgorithmPickerPanel() {
           {score.data.checkpoints.length === 0 ? (
             <p className="text-sm text-muted-foreground">No checkpoints were returned for this route.</p>
           ) : (
-            <Table className="min-w-[32rem]">
+            <Table containerClassName="rounded-md border" className="min-w-[32rem]">
               <TableCaption className="sr-only">Scored checkpoints</TableCaption>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="py-1 pr-4 pl-0">Checkpoint</TableHead>
-                  <TableHead className="py-1 pr-4">Category</TableHead>
-                  <TableHead className="py-1 pr-4">Along track</TableHead>
-                  <TableHead className="py-1 pr-4">Score</TableHead>
+                  <TableHead>Checkpoint</TableHead>
+                  <TableHead>Category</TableHead>
+                  <TableHead className="text-right">Along track</TableHead>
+                  <TableHead className="text-right">Score</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {score.data.checkpoints.map(c => (
                   <TableRow key={c.osm_id}>
-                    <TableCell className="py-1 pr-4 pl-0">{c.name}</TableCell>
-                    <TableCell className="py-1 pr-4">{c.category}</TableCell>
-                    <TableCell className="py-1 pr-4">{c.along_track_nm.toFixed(1)} nm</TableCell>
-                    <TableCell className="py-1 pr-4 font-mono">{c.predicted_score.toFixed(4)}</TableCell>
+                    {/* Names wrap so the four columns fit the drawer
+                        without a sideways scroll on a desktop; a long
+                        road junction name is the one wide thing here. */}
+                    <TableCell className="whitespace-normal">{c.name}</TableCell>
+                    <TableCell className="text-muted-foreground">{c.category}</TableCell>
+                    <TableCell className="text-right tabular-nums">{c.along_track_nm.toFixed(1)} nm</TableCell>
+                    <TableCell className="text-right font-mono">{c.predicted_score.toFixed(4)}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -205,15 +214,18 @@ export default function DevMlDrawer() {
           full-bleed); this content's own widest piece (the model
           comparison table) tops out around 32rem, so 2xl leaves it
           comfortable room without spanning the whole screen behind it. */}
-      <SheetContent side="top" className="mx-auto max-w-2xl">
-        <ScrollArea className="max-h-[85vh]">
-          <SheetHeader>
-            <SheetTitle>Dev ML</SheetTitle>
-            <SheetDescription>How this project actually works, underneath the map.</SheetDescription>
-          </SheetHeader>
-          <ModelComparisonPanel />
-          <AlgorithmPickerPanel />
-        </ScrollArea>
+      {/* The sheet scrolls itself (overflow-y-auto, as shadcn's own long
+          Sheet example does), not through a ScrollArea: Radix's viewport
+          lays its content out as `display: table`, which lets a wide
+          table grow the whole drawer past its edge instead of scrolling
+          inside its own bordered container. */}
+      <SheetContent side="top" className="mx-auto max-h-[85vh] max-w-2xl overflow-y-auto">
+        <SheetHeader>
+          <SheetTitle>Dev ML</SheetTitle>
+          <SheetDescription>How this project actually works, underneath the map.</SheetDescription>
+        </SheetHeader>
+        <ModelComparisonPanel />
+        <AlgorithmPickerPanel />
       </SheetContent>
     </Sheet>
   );

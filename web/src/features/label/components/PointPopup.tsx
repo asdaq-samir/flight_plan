@@ -86,9 +86,7 @@ export default function PointPopup({
       <div className="space-y-2 text-sm">
         {arrows}
         <div>
-          <Badge style={{ backgroundColor: "#142430", color: "white" }}>
-            {point.category === "departure" ? "DEP" : "DEST"}
-          </Badge>{" "}
+          <Badge variant="secondary">{point.category === "departure" ? "DEP" : "DEST"}</Badge>{" "}
           <b>{point.ident}</b>
           <div className="text-muted-foreground">{point.name}</div>
         </div>

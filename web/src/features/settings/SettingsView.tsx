@@ -7,7 +7,6 @@ import Footer from "../../components/Footer";
 import IconButton from "../../components/IconButton";
 import SidebarToggleButton from "../../components/SidebarToggleButton";
 import TwoRowHeader from "../../components/TwoRowHeader";
-import { ScrollArea } from "../../components/ui/scroll-area";
 import { TabsTrigger } from "../../components/ui/tabs";
 import LabelView from "../label/LabelView";
 import { AircraftPanel, FlightsPanel, SignInStatus } from "./AccountTab";
@@ -134,11 +133,16 @@ export default function SettingsView() {
         // without a change. Footer sits outside the scrolling part on
         // purpose, so it lands in the same place whatever the tab's
         // content height.
+        // A plain overflow-y-auto column, not a ScrollArea: Radix's
+        // viewport lays its content out as `display: table`, which
+        // lets the aircraft table (wider than a phone) grow the whole
+        // section card past the screen's edge instead of scrolling
+        // inside its own bordered container.
         <div className="flex h-full flex-col">
-          <ScrollArea className="min-h-0 flex-1">
+          <div className="min-h-0 flex-1 overflow-y-auto">
             <AircraftPanel pilot={pilotState} />
             <FlightsPanel pilot={pilotState} />
-          </ScrollArea>
+          </div>
           <Footer />
         </div>
       }
