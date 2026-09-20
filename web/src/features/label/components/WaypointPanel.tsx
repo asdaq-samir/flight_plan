@@ -166,16 +166,16 @@ export default function WaypointPanel({
                       onSelect={() => onFocus(entry)} scrollRef={isSelected ? selectedRef : undefined}
                     >
                       <TableCell />
-                      <TableCell className="text-left">
-                        <span className="font-medium">{p.ident}</span>
-                        {/* secondary, not default: readable on the plain
-                            row and on the inverted (selected) one alike. */}
-                        <Badge variant="secondary" className="ml-1.5">
-                          {p.category === "departure" ? "DEP" : "DEST"}
-                        </Badge>
-                      </TableCell>
+                      <TableCell className="text-left font-medium">{p.ident}</TableCell>
                       <TableCell className="text-right tabular-nums">{p.along_track_nm.toFixed(1)}</TableCell>
-                      <TableCell className="text-right">—</TableCell>
+                      {/* The end's own badge sits where a waypoint's
+                          rating does: an endpoint is never rated, and
+                          the column reads as one line of badges.
+                          secondary, not default: readable on the plain
+                          row and on the inverted (selected) one alike. */}
+                      <TableCell className="text-right">
+                        <Badge variant="secondary">{p.category === "departure" ? "DEP" : "DEST"}</Badge>
+                      </TableCell>
                     </SelectableRow>
                     <NoteRow selected={isSelected} colSpan={COLUMNS}>{p.name}</NoteRow>
                   </Fragment>
