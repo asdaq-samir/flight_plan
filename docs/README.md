@@ -178,8 +178,13 @@ service discovery at `planning-service.vfr-route.internal`.
   tab on `/app/plan` (the narrative itself comes through `webapp`'s own
   `/api/comparison`, below)
 - `/api/model-comparison` — every trained algorithm's accuracy side by
-  side: Settings' Dev ML panel charts it, and Plan's info popover names
+  side: Settings' Dev ML drawer charts it, and Plan's info popover names
   the promoted one from it
+- `/api/status`, `/api/retrain`, `/api/aircraft-profiles` — the Dev
+  drawer's own snapshot of the stack (services, FAA and weather data
+  freshness, the model registry, collected corridors and their labels),
+  a retrain run through Airflow, and the stock aircraft profiles the nav
+  log's aircraft picker offers
 - `/api/altitude-breakdown` — the full reasoning behind a recommended
   cruise altitude for any route; the Brief tab's "Cruise Altitude" section
   shows the same computation for the loaded route
@@ -459,7 +464,7 @@ stack. Anything not listed here does not exist.
 |---|---|---|
 | **Route planner** (Map and Brief tabs — the map/nav log, and the FAA-sequence briefing with its own LangGraph/CrewAI narrative popover) — also the app's homepage, bare `/app` redirects here | [`localhost:8080/app/plan`](http://localhost:8080/app/plan) | `webapp` + `planning-service` |
 | **Labeling page**, standalone | [`localhost:8080/app/label`](http://localhost:8080/app/label) | `webapp` + `planning-service` |
-| **Settings** — two tabs: Account (sign in, your aeroplanes, your filed flights) and Dev (the same labeling page above, embedded live rather than linked out to, with the Dev ML model-comparison drawer above it) | [`localhost:8080/app/settings`](http://localhost:8080/app/settings) | `webapp` + `planning-service` |
+| **Settings** — two tabs: Account (sign in, your aeroplanes, your filed flights) and Dev (the same labeling page above, embedded live rather than linked out to, with the developer's console -- model registry and retrain, corridors and their labels, service and data status -- in a drawer above it) | [`localhost:8080/app/settings`](http://localhost:8080/app/settings) | `webapp` + `planning-service` |
 | Spring Boot API docs | [`localhost:8080/swagger-ui/index.html`](http://localhost:8080/swagger-ui/index.html) | `webapp` |
 | Spring Boot OpenAPI spec | [`localhost:8080/v3/api-docs`](http://localhost:8080/v3/api-docs) | `webapp` |
 | Health / readiness | [`localhost:8080/actuator/health`](http://localhost:8080/actuator/health) | `webapp` |

@@ -84,6 +84,18 @@ def test_navlog_streams_altitude_then_legs_then_done(messages):
     assert lines[-1]["totals"]["distance_nm"] == 10.0 * len(legs)
 
 
+def test_navlog_flies_a_pilots_own_aeroplane_over_a_stock_profile(messages):
+    resp = client.get("/api/navlog", params={
+        "dep": "C81", "dest": "KDLH", "aircraft": "pa28", "cruise_tas_kt": 118, "fuel_burn_gph": 9.9,
+    })
+
+    assert resp.status_code == 200
+    aircraft = next(m for m in messages(resp) if m["type"] == "altitude")["aircraft"]
+    assert aircraft["name"] == "pa28"
+    assert aircraft["cruise_tas_kt"] == 118 and aircraft["fuel_burn_gph"] == 9.9
+    assert aircraft["service_ceiling_ft"] == 14100   # the profile's own, untouched
+
+
 def test_navlog_reports_an_unflyable_route_as_an_error_line(monkeypatch, altitude, messages):
     monkeypatch.setattr(altitude_module, "select_cruise_altitude",
                         lambda start, end, profile: {**altitude, "recommended_ft": None})

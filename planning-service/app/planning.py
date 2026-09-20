@@ -1,10 +1,25 @@
 """The nav log's own arithmetic: the cruise altitude (remembered per
-route) and the course line. The legs are vfr.navlog's."""
+route), the course line, and the aircraft it is all computed for. The
+legs are vfr.navlog's."""
 import threading
 import time
 
+from vfr import aircraft as aircraft_module
 from vfr import altitude as altitude_module
 from vfr import geo
+
+
+def aircraft_profile(name: str, cruise_tas_kt: float | None = None, fuel_burn_gph: float | None = None) -> dict:
+    """One of data/aircraft's profiles, with a pilot's own aeroplane's
+    numbers on top when given: the profile still supplies the service
+    ceiling the altitude selection needs, the overrides supply what the
+    legs need."""
+    profile = aircraft_module.load_aircraft_profile(name)
+    if cruise_tas_kt is not None:
+        profile["cruise_tas_kt"] = cruise_tas_kt
+    if fuel_burn_gph is not None:
+        profile["fuel_burn_gph"] = fuel_burn_gph
+    return profile
 
 # The altitude selection re-ran its whole stack -- terrain sampling
 # (USGS EPQS, network), the airspace shapefile, and three separate

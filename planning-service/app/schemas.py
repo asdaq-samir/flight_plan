@@ -472,6 +472,124 @@ class ModelComparison(BaseModel):
     n_labeled: int | None
 
 
+class AircraftProfileSummary(BaseModel):
+    """One of data/aircraft/*.json, for the nav log's aircraft picker."""
+
+    name: str
+    type: str
+    cruise_tas_kt: float
+    fuel_burn_gph: float
+    service_ceiling_ft: float
+
+
+class AircraftProfiles(BaseModel):
+    profiles: list[AircraftProfileSummary]
+
+
+# --- /api/status: the whole stack in one snapshot ---
+
+
+class ServiceStatus(BaseModel):
+    up: bool
+    detail: str | None = None
+
+
+class ModelServiceStatus(ServiceStatus):
+    trained_at: str | None = None
+    models: dict[str, bool] = {}
+
+
+class Services(BaseModel):
+    """None for an agent this planner was not told the address of."""
+
+    model_service: ModelServiceStatus
+    nav_log_agent: ServiceStatus | None
+    crewai_agent: ServiceStatus | None
+
+
+class DataFile(BaseModel):
+    name: str
+    downloaded_at: str | None
+
+
+class WeatherDataset(BaseModel):
+    name: str
+    fetched_at: str | None
+    age_s: float | None
+
+
+class ModelSnapshot(BaseModel):
+    model_type: str | None
+    trained_at: str | None
+    cv_mae: float | None
+    held_out_mae: float | None
+    n_labeled: int | None
+    n_features: int
+
+
+class ModelVersion(BaseModel):
+    name: str
+    model_type: str | None
+    trained_at: str | None
+    cv_mae: float | None
+
+
+class CandidateModel(BaseModel):
+    name: str
+    model_type: str | None
+    trained_at: str | None
+    metric: str | None
+    score: float | None
+
+
+class ModelRegistry(BaseModel):
+    current: ModelSnapshot | None
+    versions: list[ModelVersion]
+    candidates: list[CandidateModel]
+
+
+class PipelineRun(BaseModel):
+    dag_run_id: str | None
+    state: str | None
+    start_date: str | None
+    end_date: str | None
+
+
+class PipelineStatus(BaseModel):
+    """configured: this planner knows where Airflow is and how to sign
+    in; reachable: it answered just now."""
+
+    airflow_configured: bool
+    airflow_reachable: bool
+    airflow_url: str | None
+    last_run: PipelineRun | None
+    detail: str | None
+
+
+class CorridorStatus(BaseModel):
+    departure_ident: str
+    destination_ident: str
+    candidates: int | None
+    features_built_at: str | None
+    labels: PickSummary
+    notes: int
+
+
+class Status(BaseModel):
+    checked_at: str
+    services: Services
+    faa_files: list[DataFile]
+    weather: list[WeatherDataset]
+    model: ModelRegistry
+    pipeline: PipelineStatus
+    corridors: list[CorridorStatus]
+
+
+class RetrainStarted(BaseModel):
+    dag_run_id: str | None
+    state: str | None
+
+
 class Index(BaseModel):
     service: str
     ui: str

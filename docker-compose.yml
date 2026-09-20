@@ -113,12 +113,21 @@ services:
       - "127.0.0.1:8084:8000"
     volumes:
       - .:/workspace
+      # Airflow's own home, read-only, for the one file /api/retrain
+      # needs: the admin password Airflow's standalone mode generates.
+      - airflow_home_v3:/airflow-home:ro
     environment:
       PYTHONPATH: /workspace/src
       MODEL_SERVICE_URL: http://model-service:8000
       # /api/checkpoint-notes: one Claude call per checkpoint that has
       # no saved note yet.
       ANTHROPIC_API_KEY: *anthropic-api-key
+      # /api/status probes these; /api/retrain starts the training DAG.
+      # All optional -- the AWS task sets none of them.
+      NAV_LOG_AGENT_URL: http://nav-log-agent:8000
+      CREWAI_AGENT_URL: http://crewai-agent:8000
+      AIRFLOW_URL: http://airflow:8080
+      AIRFLOW_PASSWORDS_FILE: /airflow-home/simple_auth_manager_passwords.json.generated
     depends_on:
       model-service:
         condition: service_healthy

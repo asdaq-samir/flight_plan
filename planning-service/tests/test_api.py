@@ -17,6 +17,7 @@ from vfr import model_client, model_registry
 from vfr.weather import WeatherServiceError
 
 from app.main import app
+from app.routers import system
 
 client = TestClient(app)
 
@@ -85,6 +86,47 @@ def test_checkpoints_translates_a_down_model_service_to_502(monkeypatch):
     resp = client.get("/api/checkpoints", params={"dep": "C81", "dest": "KDLH"})
 
     assert resp.status_code == 502
+
+
+# --- /api/status, /api/retrain, /api/aircraft-profiles ---
+
+
+def test_status_reports_every_service_and_the_data_on_disk(monkeypatch):
+    monkeypatch.setattr(system, "NAV_LOG_AGENT_URL", "http://nav-log-agent:8000")
+    monkeypatch.setattr(system, "CREWAI_AGENT_URL", None)
+    monkeypatch.setattr(system, "AIRFLOW_URL", None)
+    monkeypatch.setattr(system, "probe", lambda url: (True, "HTTP 401"))
+    monkeypatch.setattr(system, "_model_service_status",
+                        lambda: system.ModelServiceStatus(up=False, detail="connection refused"))
+
+    resp = client.get("/api/status")
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["services"]["model_service"] == {"up": False, "detail": "connection refused", "trained_at": None, "models": {}}
+    assert body["services"]["nav_log_agent"] == {"up": True, "detail": "HTTP 401"}
+    assert body["services"]["crewai_agent"] is None
+    assert body["pipeline"]["airflow_configured"] is False
+    assert {w["name"] for w in body["weather"]} == {"metars", "tafs", "airsigmets"}
+    for corridor in body["corridors"]:
+        assert corridor["departure_ident"].isupper() and "by_rating" in corridor["labels"]
+
+
+def test_retrain_says_how_when_airflow_is_not_configured(monkeypatch):
+    monkeypatch.setattr(system, "AIRFLOW_URL", None)
+
+    resp = client.post("/api/retrain")
+
+    assert resp.status_code == 501
+    assert "pipeline-training retrain" in resp.json()["detail"]
+
+
+def test_aircraft_profiles_lists_the_stock_profiles():
+    resp = client.get("/api/aircraft-profiles")
+
+    assert resp.status_code == 200
+    names = {p["name"]: p for p in resp.json()["profiles"]}
+    assert names["c172"]["cruise_tas_kt"] == 110 and names["c172"]["type"] == "Cessna 172"
 
 
 # --- /api/altitude-breakdown ---

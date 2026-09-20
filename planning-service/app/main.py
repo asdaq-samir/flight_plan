@@ -33,7 +33,7 @@ from fastapi.responses import JSONResponse
 from pydantic import TypeAdapter
 from vfr import airspace, altitude, faa_data, weather
 
-from .routers import briefing, build, chart, devml, notes, plan
+from .routers import briefing, build, chart, devml, notes, plan, system
 from .schemas import STREAM_MESSAGES, Index
 
 log = logging.getLogger(__name__)
@@ -90,7 +90,7 @@ def index() -> Index:
     return Index(service="planner", ui="served by the gateway at /app")
 
 
-for module in (plan, chart, build, briefing, notes, devml):
+for module in (plan, chart, build, briefing, notes, devml, system):
     app.include_router(module.router)
 
 

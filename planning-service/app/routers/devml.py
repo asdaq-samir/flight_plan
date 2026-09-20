@@ -6,11 +6,23 @@ Nothing the planner's own scoring path depends on."""
 import json
 
 from fastapi import APIRouter, HTTPException
-from vfr import airports, model_client, model_registry
+from vfr import aircraft, airports, model_client, model_registry
 
-from ..schemas import AirportSearch, BuiltRoutes, ModelComparison
+from ..schemas import AircraftProfiles, AirportSearch, BuiltRoutes, ModelComparison
 
 router = APIRouter()
+
+
+@router.get("/api/aircraft-profiles")
+def aircraft_profiles() -> AircraftProfiles:
+    """The stock performance profiles (data/aircraft/*.json) the nav log
+    can be computed for -- a pilot's own aeroplane overrides the cruise
+    TAS and fuel burn on top of one of these, see /api/navlog."""
+    profiles = []
+    for path in sorted(aircraft.DEFAULT_PROFILE_DIR.glob("*.json")):
+        profile = aircraft.load_aircraft_profile(path)
+        profiles.append({"name": path.stem, **profile})
+    return {"profiles": profiles}
 
 
 @router.get("/api/airports/search")

@@ -10,12 +10,11 @@ from itertools import pairwise
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
-from vfr import aircraft as aircraft_module
 from vfr import geo, navlog
 from vfr.config import VFR_SECTIONAL_MAX_ZOOM, VFR_SECTIONAL_MIN_ZOOM
 
 from ..common import DEFAULT_AIRCRAFT, line, load_route, ndjson
-from ..planning import course_line, cruise_altitude, no_altitude_detail
+from ..planning import aircraft_profile, course_line, cruise_altitude, no_altitude_detail
 from ..schemas import (
     AltitudeBreakdown,
     Checkpoints,
@@ -70,8 +69,7 @@ def altitude_breakdown(dep: str, dest: str, aircraft: str = DEFAULT_AIRCRAFT) ->
     /api/navlog's "altitude" line carries the same dict for the route a
     pilot has open; this is a standalone read of it for any pair."""
     r = load_route(dep, dest)
-    profile = aircraft_module.load_aircraft_profile(aircraft)
-    return cruise_altitude(r.start, r.end, profile, aircraft)
+    return cruise_altitude(r.start, r.end, aircraft_profile(aircraft), aircraft)
 
 
 @router.get("/api/plan")
@@ -80,6 +78,8 @@ def plan(
     dest: str,
     altitude_ft: float | None = None,
     aircraft: str = DEFAULT_AIRCRAFT,
+    cruise_tas_kt: float | None = None,
+    fuel_burn_gph: float | None = None,
 ) -> Plan:
     """The whole plan: course line, every scored candidate, the selected
     checkpoints, and a nav log leg between each consecutive pair.
@@ -89,10 +89,13 @@ def plan(
     stays under the aircraft's service ceiling and dodges controlled
     airspace -- and the reasoning comes back with it, since "why am I at
     6,500" is a question a pilot will actually ask.
+
+    aircraft names a stock profile; cruise_tas_kt and fuel_burn_gph, when
+    given, are a pilot's own aeroplane's numbers laid over it.
     """
     r = load_route(dep, dest)
     scored, selected = scored_and_selected(r.dep_ident, r.dest_ident)
-    profile = aircraft_module.load_aircraft_profile(aircraft)
+    profile = aircraft_profile(aircraft, cruise_tas_kt, fuel_burn_gph)
 
     altitude_selection = None
     if altitude_ft is None:
@@ -126,6 +129,8 @@ def navlog_stream(
     dest: str,
     altitude_ft: float | None = None,
     aircraft: str = DEFAULT_AIRCRAFT,
+    cruise_tas_kt: float | None = None,
+    fuel_burn_gph: float | None = None,
 ) -> StreamingResponse:
     """Altitude and the dead-reckoning legs, as newline-delimited JSON --
     the slow half, because it reads terrain, the obstacle file, the
@@ -155,7 +160,7 @@ def navlog_stream(
         yield line(NavLogStage(detail="Scoring checkpoints…"))
         _, selected = scored_and_selected(r.dep_ident, r.dest_ident)
 
-        profile = aircraft_module.load_aircraft_profile(aircraft)
+        profile = aircraft_profile(aircraft, cruise_tas_kt, fuel_burn_gph)
 
         nav_altitude_ft = altitude_ft
         altitude_selection = None

@@ -26,6 +26,56 @@
         "title": "AircraftProfile",
         "type": "object"
       },
+      "AircraftProfileSummary": {
+        "description": "One of data/aircraft/*.json, for the nav log's aircraft picker.",
+        "properties": {
+          "cruise_tas_kt": {
+            "title": "Cruise Tas Kt",
+            "type": "number"
+          },
+          "fuel_burn_gph": {
+            "title": "Fuel Burn Gph",
+            "type": "number"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "service_ceiling_ft": {
+            "title": "Service Ceiling Ft",
+            "type": "number"
+          },
+          "type": {
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "type",
+          "cruise_tas_kt",
+          "fuel_burn_gph",
+          "service_ceiling_ft"
+        ],
+        "title": "AircraftProfileSummary",
+        "type": "object"
+      },
+      "AircraftProfiles": {
+        "properties": {
+          "profiles": {
+            "items": {
+              "$ref": "#/components/schemas/AircraftProfileSummary"
+            },
+            "title": "Profiles",
+            "type": "array"
+          }
+        },
+        "required": [
+          "profiles"
+        ],
+        "title": "AircraftProfiles",
+        "type": "object"
+      },
       "AirportEnd": {
         "properties": {
           "elevation_ft": {
@@ -558,6 +608,67 @@
         "title": "Candidate",
         "type": "object"
       },
+      "CandidateModel": {
+        "properties": {
+          "metric": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Metric"
+          },
+          "model_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Type"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score"
+          },
+          "trained_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trained At"
+          }
+        },
+        "required": [
+          "name",
+          "model_type",
+          "trained_at",
+          "metric",
+          "score"
+        ],
+        "title": "CandidateModel",
+        "type": "object"
+      },
       "CheckpointNote": {
         "properties": {
           "created_at": {
@@ -731,6 +842,57 @@
         "title": "Classification",
         "type": "object"
       },
+      "CorridorStatus": {
+        "properties": {
+          "candidates": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Candidates"
+          },
+          "departure_ident": {
+            "title": "Departure Ident",
+            "type": "string"
+          },
+          "destination_ident": {
+            "title": "Destination Ident",
+            "type": "string"
+          },
+          "features_built_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Features Built At"
+          },
+          "labels": {
+            "$ref": "#/components/schemas/PickSummary"
+          },
+          "notes": {
+            "title": "Notes",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "departure_ident",
+          "destination_ident",
+          "candidates",
+          "features_built_at",
+          "labels",
+          "notes"
+        ],
+        "title": "CorridorStatus",
+        "type": "object"
+      },
       "Course": {
         "properties": {
           "bearing_deg": {
@@ -783,6 +945,31 @@
           "min_zoom"
         ],
         "title": "Course",
+        "type": "object"
+      },
+      "DataFile": {
+        "properties": {
+          "downloaded_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Downloaded At"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "downloaded_at"
+        ],
+        "title": "DataFile",
         "type": "object"
       },
       "DetectBlock": {
@@ -1496,6 +1683,206 @@
         "title": "ModelComparisonEntry",
         "type": "object"
       },
+      "ModelRegistry": {
+        "properties": {
+          "candidates": {
+            "items": {
+              "$ref": "#/components/schemas/CandidateModel"
+            },
+            "title": "Candidates",
+            "type": "array"
+          },
+          "current": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ModelSnapshot"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "versions": {
+            "items": {
+              "$ref": "#/components/schemas/ModelVersion"
+            },
+            "title": "Versions",
+            "type": "array"
+          }
+        },
+        "required": [
+          "current",
+          "versions",
+          "candidates"
+        ],
+        "title": "ModelRegistry",
+        "type": "object"
+      },
+      "ModelServiceStatus": {
+        "properties": {
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detail"
+          },
+          "models": {
+            "additionalProperties": {
+              "type": "boolean"
+            },
+            "default": {},
+            "title": "Models",
+            "type": "object"
+          },
+          "trained_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trained At"
+          },
+          "up": {
+            "title": "Up",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "up"
+        ],
+        "title": "ModelServiceStatus",
+        "type": "object"
+      },
+      "ModelSnapshot": {
+        "properties": {
+          "cv_mae": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cv Mae"
+          },
+          "held_out_mae": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Held Out Mae"
+          },
+          "model_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Type"
+          },
+          "n_features": {
+            "title": "N Features",
+            "type": "integer"
+          },
+          "n_labeled": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "N Labeled"
+          },
+          "trained_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trained At"
+          }
+        },
+        "required": [
+          "model_type",
+          "trained_at",
+          "cv_mae",
+          "held_out_mae",
+          "n_labeled",
+          "n_features"
+        ],
+        "title": "ModelSnapshot",
+        "type": "object"
+      },
+      "ModelVersion": {
+        "properties": {
+          "cv_mae": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cv Mae"
+          },
+          "model_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Type"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "trained_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trained At"
+          }
+        },
+        "required": [
+          "name",
+          "model_type",
+          "trained_at",
+          "cv_mae"
+        ],
+        "title": "ModelVersion",
+        "type": "object"
+      },
       "NavLogAltitude": {
         "properties": {
           "aircraft": {
@@ -2159,6 +2546,116 @@
         "title": "PicksResponse",
         "type": "object"
       },
+      "PipelineRun": {
+        "properties": {
+          "dag_run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dag Run Id"
+          },
+          "end_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Date"
+          },
+          "start_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Date"
+          },
+          "state": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "State"
+          }
+        },
+        "required": [
+          "dag_run_id",
+          "state",
+          "start_date",
+          "end_date"
+        ],
+        "title": "PipelineRun",
+        "type": "object"
+      },
+      "PipelineStatus": {
+        "description": "configured: this planner knows where Airflow is and how to sign\nin; reachable: it answered just now.",
+        "properties": {
+          "airflow_configured": {
+            "title": "Airflow Configured",
+            "type": "boolean"
+          },
+          "airflow_reachable": {
+            "title": "Airflow Reachable",
+            "type": "boolean"
+          },
+          "airflow_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Airflow Url"
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detail"
+          },
+          "last_run": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PipelineRun"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "airflow_configured",
+          "airflow_reachable",
+          "airflow_url",
+          "last_run",
+          "detail"
+        ],
+        "title": "PipelineStatus",
+        "type": "object"
+      },
       "Plan": {
         "properties": {
           "aircraft": {
@@ -2256,6 +2753,38 @@
         "title": "Plan",
         "type": "object"
       },
+      "RetrainStarted": {
+        "properties": {
+          "dag_run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dag Run Id"
+          },
+          "state": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "State"
+          }
+        },
+        "required": [
+          "dag_run_id",
+          "state"
+        ],
+        "title": "RetrainStarted",
+        "type": "object"
+      },
       "Runway": {
         "properties": {
           "closed": {
@@ -2320,6 +2849,114 @@
           "closed"
         ],
         "title": "Runway",
+        "type": "object"
+      },
+      "ServiceStatus": {
+        "properties": {
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detail"
+          },
+          "up": {
+            "title": "Up",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "up"
+        ],
+        "title": "ServiceStatus",
+        "type": "object"
+      },
+      "Services": {
+        "description": "None for an agent this planner was not told the address of.",
+        "properties": {
+          "crewai_agent": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ServiceStatus"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "model_service": {
+            "$ref": "#/components/schemas/ModelServiceStatus"
+          },
+          "nav_log_agent": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ServiceStatus"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "model_service",
+          "nav_log_agent",
+          "crewai_agent"
+        ],
+        "title": "Services",
+        "type": "object"
+      },
+      "Status": {
+        "properties": {
+          "checked_at": {
+            "title": "Checked At",
+            "type": "string"
+          },
+          "corridors": {
+            "items": {
+              "$ref": "#/components/schemas/CorridorStatus"
+            },
+            "title": "Corridors",
+            "type": "array"
+          },
+          "faa_files": {
+            "items": {
+              "$ref": "#/components/schemas/DataFile"
+            },
+            "title": "Faa Files",
+            "type": "array"
+          },
+          "model": {
+            "$ref": "#/components/schemas/ModelRegistry"
+          },
+          "pipeline": {
+            "$ref": "#/components/schemas/PipelineStatus"
+          },
+          "services": {
+            "$ref": "#/components/schemas/Services"
+          },
+          "weather": {
+            "items": {
+              "$ref": "#/components/schemas/WeatherDataset"
+            },
+            "title": "Weather",
+            "type": "array"
+          }
+        },
+        "required": [
+          "checked_at",
+          "services",
+          "faa_files",
+          "weather",
+          "model",
+          "pipeline",
+          "corridors"
+        ],
+        "title": "Status",
         "type": "object"
       },
       "Totals": {
@@ -2409,6 +3046,43 @@
         "title": "ValidationError",
         "type": "object"
       },
+      "WeatherDataset": {
+        "properties": {
+          "age_s": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Age S"
+          },
+          "fetched_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fetched At"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "fetched_at",
+          "age_s"
+        ],
+        "title": "WeatherDataset",
+        "type": "object"
+      },
       "Wind": {
         "properties": {
           "wind_dir_true_deg": {
@@ -2452,6 +3126,25 @@
           }
         },
         "summary": "Index"
+      }
+    },
+    "/api/aircraft-profiles": {
+      "get": {
+        "description": "The stock performance profiles (data/aircraft/*.json) the nav log\ncan be computed for -- a pilot's own aeroplane overrides the cruise\nTAS and fuel burn on top of one of these, see /api/navlog.",
+        "operationId": "aircraft_profiles_api_aircraft_profiles_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AircraftProfiles"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Aircraft Profiles"
       }
     },
     "/api/airports/search": {
@@ -3062,6 +3755,38 @@
               "title": "Aircraft",
               "type": "string"
             }
+          },
+          {
+            "in": "query",
+            "name": "cruise_tas_kt",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cruise Tas Kt"
+            }
+          },
+          {
+            "in": "query",
+            "name": "fuel_burn_gph",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Fuel Burn Gph"
+            }
           }
         ],
         "responses": {
@@ -3237,7 +3962,7 @@
     },
     "/api/plan": {
       "get": {
-        "description": "The whole plan: course line, every scored candidate, the selected\ncheckpoints, and a nav log leg between each consecutive pair.\n\naltitude_ft is optional. Omitted, vfr.altitude picks one that clears\nterrain and obstacles, respects the hemispheric rule for the course,\nstays under the aircraft's service ceiling and dodges controlled\nairspace -- and the reasoning comes back with it, since \"why am I at\n6,500\" is a question a pilot will actually ask.",
+        "description": "The whole plan: course line, every scored candidate, the selected\ncheckpoints, and a nav log leg between each consecutive pair.\n\naltitude_ft is optional. Omitted, vfr.altitude picks one that clears\nterrain and obstacles, respects the hemispheric rule for the course,\nstays under the aircraft's service ceiling and dodges controlled\nairspace -- and the reasoning comes back with it, since \"why am I at\n6,500\" is a question a pilot will actually ask.\n\naircraft names a stock profile; cruise_tas_kt and fuel_burn_gph, when\ngiven, are a pilot's own aeroplane's numbers laid over it.",
         "operationId": "plan_api_plan_get",
         "parameters": [
           {
@@ -3283,6 +4008,38 @@
               "title": "Aircraft",
               "type": "string"
             }
+          },
+          {
+            "in": "query",
+            "name": "cruise_tas_kt",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cruise Tas Kt"
+            }
+          },
+          {
+            "in": "query",
+            "name": "fuel_burn_gph",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Fuel Burn Gph"
+            }
           }
         ],
         "responses": {
@@ -3308,6 +4065,25 @@
           }
         },
         "summary": "Plan"
+      }
+    },
+    "/api/retrain": {
+      "post": {
+        "description": "Starts one run of the training DAG (collect, engineer features,\nretrain, evaluate, promote) through Airflow's own API -- the same\nthing the AWS retrain-trigger Lambda does. This service has no\nscikit-learn of its own on purpose (see requirements.txt), so it\ncannot train in-process; without Airflow reachable the answer says\nhow to run the pipeline by hand.",
+        "operationId": "retrain_api_retrain_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetrainStarted"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Retrain"
       }
     },
     "/api/routes": {
@@ -3383,6 +4159,25 @@
           }
         },
         "summary": "Sectional Tile"
+      }
+    },
+    "/api/status": {
+      "get": {
+        "description": "One snapshot of the whole stack, for Settings' Dev tab. The\nnetwork probes run side by side so a service that is down costs one\ntimeout, not one per service.",
+        "operationId": "status_api_status_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Status"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Status"
       }
     }
   }
