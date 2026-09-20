@@ -14,7 +14,10 @@ import { beforeEach, describe, expect, test, vi } from "vitest";
 import type { Course, Detection, LoosePick, StreamMessage } from "../../../lib/api/types";
 import { useLabelState } from "./useLabelState";
 
-vi.mock("../../../lib/api/client", () => ({
+// Only the network calls are faked; describeError is the real one, so
+// the messages asserted below are what a pilot would actually read.
+vi.mock("../../../lib/api/client", async importOriginal => ({
+  ...(await importOriginal<typeof import("../../../lib/api/client")>()),
   api: {
     course: vi.fn(),
     detect: vi.fn(),

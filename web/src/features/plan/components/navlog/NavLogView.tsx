@@ -5,12 +5,11 @@ import {
   type CellData, type ColumnDef, type RowData, type TableFeatures,
   flexRender, tableFeatures, useTable,
 } from "@tanstack/react-table";
-import { Button } from "../../../../components/ui/button";
+import IconButton from "../../../../components/IconButton";
 import { Input } from "../../../../components/ui/input";
 import {
   Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow,
 } from "../../../../components/ui/table";
-import { Tooltip, TooltipContent, TooltipTrigger } from "../../../../components/ui/tooltip";
 import { useIsMobile } from "../../../../hooks/use-mobile";
 import type { Candidate, Leg, NavLog, Totals } from "../../../../lib/api/types";
 import { type Description, descriptionKey } from "../../hooks/usePlanState";
@@ -439,33 +438,21 @@ export default function NavLogView({
         <div className="flex items-center gap-2">
           <span className="font-semibold text-muted-foreground">Nav log</span>
           <div className="ml-auto flex items-center gap-1 print:hidden">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost" size="icon"
-                  onClick={onGenerateDescriptions} disabled={descriptionsLoading || selected.length === 0}
-                  aria-label="Generate checkpoint descriptions"
-                  data-testid="generate-descriptions-button"
-                >
-                  {descriptionsLoading ? <Loader2 className="size-5 animate-spin" /> : <Sparkles className="size-5" />}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Generate checkpoint descriptions</TooltipContent>
-            </Tooltip>
+            <IconButton
+              onClick={onGenerateDescriptions} disabled={descriptionsLoading || selected.length === 0}
+              label="Generate checkpoint descriptions"
+              data-testid="generate-descriptions-button"
+            >
+              {descriptionsLoading ? <Loader2 className="size-5 animate-spin" /> : <Sparkles className="size-5" />}
+            </IconButton>
             {!isMobile && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost" size="icon"
-                    onClick={onToggleExpanded}
-                    aria-label={expanded ? "Shrink nav log" : "Expand nav log"}
-                    data-testid="sidebar-expand-toggle"
-                  >
-                    {expanded ? <Minimize2 className="size-5" /> : <Maximize2 className="size-5" />}
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>{expanded ? "Shrink nav log" : "Expand nav log"}</TooltipContent>
-              </Tooltip>
+              <IconButton
+                onClick={onToggleExpanded}
+                label={expanded ? "Shrink nav log" : "Expand nav log"}
+                data-testid="sidebar-expand-toggle"
+              >
+                {expanded ? <Minimize2 className="size-5" /> : <Maximize2 className="size-5" />}
+              </IconButton>
             )}
           </div>
         </div>

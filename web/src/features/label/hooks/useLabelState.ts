@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { api } from "../../../lib/api/client";
+import { api, describeError } from "../../../lib/api/client";
 import type { Course, Detection, Endpoint, LoosePick, Point, Rating, Role } from "../../../lib/api/types";
 import { DEFAULT_FILTERS, FILTER_KEYS, type FilterKey, type Filters } from "../logic";
 
@@ -116,7 +116,7 @@ export function useLabelState() {
         queryKey: ["course", dep, dest], queryFn: () => api.course(dep, dest), staleTime: Infinity,
       });
     } catch (err) {
-      setState(s => ({ ...s, loading: false, error: (err as Error).message }));
+      setState(s => ({ ...s, loading: false, error: describeError(err, "could not load the course") }));
       return;
     }
     // The ends of the leg exist the moment the course does, so they are
@@ -173,7 +173,7 @@ export function useLabelState() {
         setState(s => ({ ...s, loading: false, progress: null, error: "the chart read ended before it was finished" }));
       }
     } catch (err) {
-      setState(s => ({ ...s, loading: false, progress: null, error: (err as Error).message }));
+      setState(s => ({ ...s, loading: false, progress: null, error: describeError(err, "could not read the chart") }));
     }
   }, [queryClient]);
 
@@ -228,7 +228,7 @@ export function useLabelState() {
       // The write never landed, so the row's own state is still
       // accurate -- nothing to walk back to, unlike a real undo step.
       lastUndo.current = null;
-      setState(s => ({ ...s, error: `Couldn't save that rating: ${(err as Error).message}` }));
+      setState(s => ({ ...s, error: `Couldn't save that rating: ${describeError(err)}` }));
     }
   }, []);
 
@@ -271,7 +271,7 @@ export function useLabelState() {
         : { ...s, error: null, added: s.added.map((a, i) =>
               i === selection.index ? { ...a, category, role: saved.pick.role } : a) });
     } catch (err) {
-      setState(s => ({ ...s, error: `Couldn't save that category: ${(err as Error).message}` }));
+      setState(s => ({ ...s, error: `Couldn't save that category: ${describeError(err)}` }));
     }
   }, []);
 
@@ -300,7 +300,7 @@ export function useLabelState() {
             selection: null, canUndo: true });
     } catch (err) {
       lastUndo.current = null;
-      setState(s => ({ ...s, error: `Couldn't remove that point: ${(err as Error).message}` }));
+      setState(s => ({ ...s, error: `Couldn't remove that point: ${describeError(err)}` }));
     }
   }, []);
 
@@ -361,7 +361,7 @@ export function useLabelState() {
     } catch (err) {
       // lastUndo is already cleared above (one-shot) -- a failed undo
       // has nothing further back to step to, same as a failed rate.
-      setState(s => ({ ...s, error: `Couldn't undo that: ${(err as Error).message}` }));
+      setState(s => ({ ...s, error: `Couldn't undo that: ${describeError(err)}` }));
     }
   }, []);
 
@@ -392,7 +392,7 @@ export function useLabelState() {
       // actually got cleared. Good enough to surface the failure at
       // all; reconciling against the server's own state is its own,
       // separate piece of work.
-      setState(s => ({ ...s, error: `Couldn't reset every rating: ${(err as Error).message}` }));
+      setState(s => ({ ...s, error: `Couldn't reset every rating: ${describeError(err)}` }));
     }
   }, []);
 

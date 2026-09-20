@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useSearchParams } from "react-router-dom";
-import { ZoomIn, ZoomOut } from "lucide-react";
 import { identSchema } from "../../lib/identSchema";
 // Without this Leaflet's tiles, markers and controls have no
 // positioning at all -- this is the library's own stylesheet, not
@@ -14,8 +13,7 @@ import "leaflet/dist/leaflet.css";
 import Shell from "../../Shell";
 import SettingsButton from "../../components/SettingsButton";
 import SidebarToggleButton from "../../components/SidebarToggleButton";
-import { Button } from "../../components/ui/button";
-import { Tooltip, TooltipContent, TooltipTrigger } from "../../components/ui/tooltip";
+import ZoomToggleButton from "../../components/ZoomToggleButton";
 import { usePageStatus } from "../../lib/usePageStatus";
 import ChartMap from "./components/ChartMap";
 import RouteForm from "../../components/RouteForm";
@@ -330,30 +328,17 @@ export default function LabelView({ embedded = false, children }: Props) {
   // made for its Map tab (see `MapGuideButton`'s own comment on why
   // there's no floating mode left to opt out of any more).
   const guideButton = <RatingLegend />;
-  // "Fit Route"/"Show Selected" -- the same two-state language Plan's
-  // own zoom toggle uses beside its own sidebar trigger, not this
-  // page's own former three-state "Start"/"Resume"/"Fit line" -- these
-  // two pages read as the same shell around a different sidebar
-  // everywhere else already (see RouteForm's own comment).
-  const toggleViewLabel = zoomedIn ? "Fit Route" : "Show Selected";
-  // Next to the sidebar trigger, not folded into `routeForm` -- it's a
-  // map-view action (what's zoomed into right now), the same category
-  // as the sidebar toggle itself, not part of "the route inputs and
-  // Load button" that component unifies (see `RouteInputGroup`'s own
-  // comment).
+  // The same "Fit Route"/"Show Selected" toggle Plan has beside its own
+  // sidebar trigger, not this page's own former three-state "Start"/
+  // "Resume"/"Fit line" -- these two pages read as the same shell
+  // around a different sidebar everywhere else already (see RouteForm's
+  // own comment). Next to the sidebar trigger, not folded into
+  // `routeForm`: it's a map-view action (what's zoomed into right now),
+  // the same category as the sidebar toggle itself, not part of "the
+  // route inputs and Load button" that component unifies (see
+  // `RouteInputGroup`'s own comment).
   const zoomButton = (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <Button
-          type="button" variant="ghost" size="icon" onClick={toggleView} disabled={!walk.length}
-          data-testid="map-action-button"
-        >
-          {zoomedIn ? <ZoomOut className="size-5" /> : <ZoomIn className="size-5" />}
-          <span className="sr-only">{toggleViewLabel}</span>
-        </Button>
-      </TooltipTrigger>
-      <TooltipContent>{toggleViewLabel}</TooltipContent>
-    </Tooltip>
+    <ZoomToggleButton zoomedIn={zoomedIn} onClick={toggleView} disabled={!walk.length} data-testid="map-action-button" />
   );
   const mapContent = (
     <div className="h-full w-full">

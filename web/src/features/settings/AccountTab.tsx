@@ -12,7 +12,7 @@ import {
   Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow,
 } from "../../components/ui/table";
 import SignInModal from "./SignInModal";
-import { api } from "../../lib/api/client";
+import { api, describeError } from "../../lib/api/client";
 import type { Aircraft, AircraftRequest } from "../../lib/api/types";
 import { useErrorToasts } from "../../lib/usePageStatus";
 import { errorMessage, type PilotState } from "./shared";
@@ -129,7 +129,7 @@ export function AircraftPanel({ pilot }: { pilot: PilotState }) {
       cancelEdit();
       void queryClient.invalidateQueries({ queryKey: ["aircraft"] });
     },
-    onError: err => toast.error(errorMessage(err, "Could not save the aircraft")!),
+    onError: err => toast.error(describeError(err, "Could not save the aircraft")),
   });
 
   const remove = useMutation({
@@ -140,7 +140,7 @@ export function AircraftPanel({ pilot }: { pilot: PilotState }) {
       if (editingId === id) cancelEdit();
       void queryClient.invalidateQueries({ queryKey: ["aircraft"] });
     },
-    onError: err => toast.error(errorMessage(err, "Could not delete the aircraft")!),
+    onError: err => toast.error(describeError(err, "Could not delete the aircraft")),
   });
 
   const edit = (a: Aircraft) => {

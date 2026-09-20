@@ -4,12 +4,12 @@ import { toast } from "sonner";
 import { Mail } from "lucide-react";
 import AppleLogo from "../../components/icons/AppleLogo";
 import GoogleLogo from "../../components/icons/GoogleLogo";
+import IconButton from "../../components/IconButton";
 import { Button } from "../../components/ui/button";
 import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger,
 } from "../../components/ui/dialog";
 import { Input } from "../../components/ui/input";
-import { Tooltip, TooltipContent, TooltipTrigger } from "../../components/ui/tooltip";
 import { api } from "../../lib/api/client";
 
 /**
@@ -90,19 +90,14 @@ export default function SignInModal() {
                 value={email}
                 onChange={e => setEmail(e.target.value)}
               />
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    type="submit"
-                    size="icon"
-                    disabled={magicLink.isPending || !trimmedEmail}
-                    aria-label="Send sign-in link"
-                  >
-                    <Mail className="size-5" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Send sign-in link</TooltipContent>
-              </Tooltip>
+              <IconButton
+                type="submit"
+                variant="default"
+                disabled={magicLink.isPending || !trimmedEmail}
+                label="Send sign-in link"
+              >
+                <Mail className="size-5" />
+              </IconButton>
             </div>
           </form>
         )}

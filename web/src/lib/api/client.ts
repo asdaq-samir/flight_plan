@@ -51,6 +51,17 @@ export class ApiError extends Error {
 }
 
 /**
+ * What to tell the pilot about a failure: the error's own message (an
+ * `ApiError` carries the server's detail) when it has one, the caller's
+ * fallback otherwise. Only the first line -- a server's detail can run
+ * to a traceback, and a toast is not the place for one.
+ */
+export function describeError(err: unknown, fallback = "request failed"): string {
+  const firstLine = err instanceof Error ? err.message.split("\n")[0] : undefined;
+  return firstLine || fallback;
+}
+
+/**
  * Newline-delimited JSON, one line at a time as the bytes arrive --
  * `detect`, `describeCheckpoints` and `navlog` all stream this same
  * shape (a fetch + reader + decoder + buffer, since a chunk can split

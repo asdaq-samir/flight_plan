@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { ApiError, api } from "../../../lib/api/client";
+import { ApiError, api, describeError } from "../../../lib/api/client";
 import type { Briefing, BuiltRoute, Candidate, Course, Leg, NavLog, Totals } from "../../../lib/api/types";
 import { elapsed } from "../format";
 
@@ -201,13 +201,13 @@ export function usePlanState() {
       setState(s => ({ ...s, candidates: cp.candidates, selected: cp.selected, stage: "navlog" }));
     } catch (err) {
       if (token !== planToken.current) return;
-      const detail = err instanceof Error ? err.message : String(err);
+      const detail = describeError(err);
       // The only recoverable failure: the corridor exists, nobody has
       // collected it yet, and the page can start that job itself.
       if (err instanceof ApiError && err.status === 404 && detail.includes("not been collected")) {
         setState(s => ({ ...s, stage: null, needsBuild: { dep, dest }, error: null }));
       } else {
-        setState(s => ({ ...s, stage: null, error: detail.split("\n")[0] ?? "request failed" }));
+        setState(s => ({ ...s, stage: null, error: detail }));
       }
       return;
     }
@@ -251,8 +251,7 @@ export function usePlanState() {
       }
     } catch (err) {
       if (token !== planToken.current) return;
-      const detail = err instanceof Error ? err.message : "could not build the nav log";
-      setState(s => ({ ...s, stage: null, navStage: null, navError: detail.split("\n")[0] ?? "could not build the nav log" }));
+      setState(s => ({ ...s, stage: null, navStage: null, navError: describeError(err, "could not build the nav log") }));
     }
   }, []);
 
@@ -296,7 +295,7 @@ export function usePlanState() {
         }
       }
     } catch (err) {
-      setState(s => ({ ...s, building: err instanceof Error ? err.message : String(err) }));
+      setState(s => ({ ...s, building: describeError(err, "build failed") }));
     }
   }, [plan, loadRoutes]);
 
@@ -378,7 +377,7 @@ export function usePlanState() {
         setState(s => {
           const next = { ...s.descriptions };
           if (previous) next[key] = previous; else delete next[key];
-          return { ...s, descriptions: next, error: `Couldn't save that description: ${(err as Error).message}` };
+          return { ...s, descriptions: next, error: `Couldn't save that description: ${describeError(err)}` };
         });
       }
     },
@@ -407,8 +406,7 @@ export function usePlanState() {
       setState(s => ({ ...s, briefing: data, loadingBriefing: false }));
     } catch (err) {
       if (token !== planToken.current) return;
-      const detail = err instanceof Error ? err.message : "could not load the briefing";
-      setState(s => ({ ...s, loadingBriefing: false, briefingError: detail.split("\n")[0] ?? detail }));
+      setState(s => ({ ...s, loadingBriefing: false, briefingError: describeError(err, "could not load the briefing") }));
     }
   }, [queryClient]);
 
@@ -444,8 +442,8 @@ export function usePlanState() {
       }
     } catch (err) {
       if (token !== planToken.current) return;
-      const detail = err instanceof Error ? err.message : `could not generate the ${framework} narrative`;
-      setState(st => ({ ...st, [slot]: { text: null, error: detail.split("\n")[0] ?? detail, loading: false } }));
+      const detail = describeError(err, `could not generate the ${framework} narrative`);
+      setState(st => ({ ...st, [slot]: { text: null, error: detail, loading: false } }));
     }
   }, []);
 

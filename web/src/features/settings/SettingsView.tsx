@@ -4,12 +4,11 @@ import { Link, useLocation } from "react-router-dom";
 import { Map as MapIcon } from "lucide-react";
 import Shell from "../../Shell";
 import Footer from "../../components/Footer";
+import IconButton from "../../components/IconButton";
 import SidebarToggleButton from "../../components/SidebarToggleButton";
 import TwoRowHeader from "../../components/TwoRowHeader";
-import { Button } from "../../components/ui/button";
 import { ScrollArea } from "../../components/ui/scroll-area";
 import { TabsTrigger } from "../../components/ui/tabs";
-import { Tooltip, TooltipContent, TooltipTrigger } from "../../components/ui/tooltip";
 import LabelView from "../label/LabelView";
 import { AircraftPanel, FlightsPanel, SignInStatus } from "./AccountTab";
 import DevMlDrawer from "./DevMlDrawer";
@@ -33,16 +32,11 @@ const SETTINGS_TABS = (
  *  from rather than always resetting to Plan's default view. */
 function SettingsMapLink({ href }: { href: string }) {
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <Button asChild variant="ghost" size="icon" aria-label="Map">
-          <Link to={href}>
-            <MapIcon className="size-5" />
-          </Link>
-        </Button>
-      </TooltipTrigger>
-      <TooltipContent>Map</TooltipContent>
-    </Tooltip>
+    <IconButton asChild label="Map">
+      <Link to={href}>
+        <MapIcon className="size-5" />
+      </Link>
+    </IconButton>
   );
 }
 

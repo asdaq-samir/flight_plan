@@ -1,8 +1,6 @@
 import { useState } from "react";
 import { PanelLeftIcon } from "lucide-react";
-import { cn } from "cn";
-import { Button } from "./ui/button";
-import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
+import IconButton from "./IconButton";
 
 interface Props {
   onClick: () => void;
@@ -40,20 +38,15 @@ export default function SidebarToggleButton({ onClick, open, label, className, v
   const [tooltipOpen, setTooltipOpen] = useState(false);
 
   return (
-    <Tooltip open={tooltipOpen && !open} onOpenChange={setTooltipOpen}>
-      <TooltipTrigger asChild>
-        <Button
-          variant={variant}
-          size="icon"
-          onClick={onClick}
-          className={cn(className)}
-          data-testid="sidebar-trigger-button"
-        >
-          <PanelLeftIcon className="size-5" />
-          <span className="sr-only">{label}</span>
-        </Button>
-      </TooltipTrigger>
-      <TooltipContent>{label}</TooltipContent>
-    </Tooltip>
+    <IconButton
+      label={label}
+      tooltip={{ open: tooltipOpen && !open, onOpenChange: setTooltipOpen }}
+      variant={variant}
+      onClick={onClick}
+      className={className}
+      data-testid="sidebar-trigger-button"
+    >
+      <PanelLeftIcon className="size-5" />
+    </IconButton>
   );
 }

@@ -1,10 +1,9 @@
 import { Loader2, Printer, Sparkles } from "lucide-react";
 import { useState } from "react";
-import { Button } from "../../../../components/ui/button";
+import IconButton from "../../../../components/IconButton";
 import { Popover, PopoverContent, PopoverTrigger } from "../../../../components/ui/popover";
 import { ScrollArea } from "../../../../components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../../../components/ui/tabs";
-import { Tooltip, TooltipContent, TooltipTrigger } from "../../../../components/ui/tooltip";
 import type { FrameworkNarrative } from "../../hooks/usePlanState";
 
 type Framework = "langgraph" | "crewai";
@@ -93,20 +92,11 @@ export default function NavLogActions({ onGenerateNarrative, langgraphNarrative,
           if (next) ensureGenerated(tab);
         }}
       >
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <PopoverTrigger asChild>
-              <Button
-                variant="ghost" size="icon"
-                aria-label="Briefing narrative"
-                data-testid="ai-narrative-button"
-              >
-                {activeNarrative.loading ? <Loader2 className="size-5 animate-spin" /> : <Sparkles className="size-5" />}
-              </Button>
-            </PopoverTrigger>
-          </TooltipTrigger>
-          <TooltipContent>Briefing narrative</TooltipContent>
-        </Tooltip>
+        <PopoverTrigger asChild>
+          <IconButton label="Briefing narrative" data-testid="ai-narrative-button">
+            {activeNarrative.loading ? <Loader2 className="size-5 animate-spin" /> : <Sparkles className="size-5" />}
+          </IconButton>
+        </PopoverTrigger>
         <PopoverContent align="end" className="w-80 p-0 text-sm">
           <Tabs
             value={tab}
@@ -129,17 +119,9 @@ export default function NavLogActions({ onGenerateNarrative, langgraphNarrative,
           </Tabs>
         </PopoverContent>
       </Popover>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            variant="ghost" size="icon" onClick={() => window.print()}
-            aria-label="Print" data-testid="print-button"
-          >
-            <Printer className="size-5" />
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>Print</TooltipContent>
-      </Tooltip>
+      <IconButton onClick={() => window.print()} label="Print" data-testid="print-button">
+        <Printer className="size-5" />
+      </IconButton>
     </div>
   );
 }

@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { ZoomIn, ZoomOut } from "lucide-react";
 import { identSchema } from "../../lib/identSchema";
 // Without this Leaflet's tiles, markers and controls have no
 // positioning at all -- this is the library's own stylesheet, not
@@ -11,9 +10,8 @@ import Shell from "../../Shell";
 import SettingsButton from "../../components/SettingsButton";
 import SidebarToggleButton from "../../components/SidebarToggleButton";
 import TwoRowHeader from "../../components/TwoRowHeader";
-import { Button } from "../../components/ui/button";
+import ZoomToggleButton from "../../components/ZoomToggleButton";
 import { TabsTrigger } from "../../components/ui/tabs";
-import { Tooltip, TooltipContent, TooltipTrigger } from "../../components/ui/tooltip";
 import { usePageStatus } from "../../lib/usePageStatus";
 import type { Candidate } from "../../lib/api/types";
 import RouteMap from "./components/RouteMap";
@@ -185,7 +183,6 @@ export default function PlanView() {
     if (zoomedIn) { controls.current?.fit(); return; }
     s.selectPoint(s.selectedPoint ?? { lat: s.course.departure.lat, lon: s.course.departure.lon });
   }, [s.course, s.selectedPoint, s.selectPoint, zoomedIn]);
-  const zoomToggleLabel = zoomedIn ? "Fit Route" : "Show Selected";
 
   // Shortcuts, skipped while an ident is being typed -- or, just as
   // much, while a checkpoint description is: that field is a
@@ -277,19 +274,7 @@ export default function PlanView() {
         // Load.
         <div className="flex items-center gap-2">
           <ScoreLegend />
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                type="button" variant="ghost" size="icon"
-                onClick={toggleZoom}
-                disabled={!s.course}
-              >
-                {zoomedIn ? <ZoomOut className="size-5" /> : <ZoomIn className="size-5" />}
-                <span className="sr-only">{zoomToggleLabel}</span>
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>{zoomToggleLabel}</TooltipContent>
-          </Tooltip>
+          <ZoomToggleButton zoomedIn={zoomedIn} onClick={toggleZoom} disabled={!s.course} />
           <SidebarToggleButton open={sidebarOpen} onClick={() => setSidebarOpen(o => !o)} label="Nav Log" />
         </div>
       )}

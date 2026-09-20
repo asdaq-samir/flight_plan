@@ -3,6 +3,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { FlaskConical } from "lucide-react";
 import { Bar, BarChart, Cell, XAxis, YAxis } from "recharts";
 import CollapsibleSection from "../../components/CollapsibleSection";
+import IconButton from "../../components/IconButton";
 import IdentPairInputs from "../../components/IdentPairInputs";
 import { Button } from "../../components/ui/button";
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "../../components/ui/chart";
@@ -12,7 +13,6 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTr
 import {
   Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow,
 } from "../../components/ui/table";
-import { Tooltip, TooltipContent, TooltipTrigger } from "../../components/ui/tooltip";
 import { api } from "../../lib/api/client";
 import { identSchema } from "../../lib/identSchema";
 import type { ModelComparisonEntry } from "../../lib/api/types";
@@ -195,16 +195,11 @@ function AlgorithmPickerPanel() {
 export default function DevMlDrawer() {
   return (
     <Sheet>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <SheetTrigger asChild>
-            <Button variant="ghost" size="icon" aria-label="Dev ML">
-              <FlaskConical className="size-5" />
-            </Button>
-          </SheetTrigger>
-        </TooltipTrigger>
-        <TooltipContent>Dev ML</TooltipContent>
-      </Tooltip>
+      <SheetTrigger asChild>
+        <IconButton label="Dev ML">
+          <FlaskConical className="size-5" />
+        </IconButton>
+      </SheetTrigger>
       {/* mx-auto max-w-2xl -- stock Sheet only caps width for the
           left/right sides (the top/bottom sides ship `inset-x-0` alone,
           full-bleed); this content's own widest piece (the model

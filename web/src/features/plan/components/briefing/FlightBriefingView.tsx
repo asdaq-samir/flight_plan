@@ -8,7 +8,7 @@ import {
   Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow,
 } from "../../../../components/ui/table";
 import CollapsibleSection from "../../../../components/CollapsibleSection";
-import { ApiError, api } from "../../../../lib/api/client";
+import { api, describeError } from "../../../../lib/api/client";
 import type {
   Aircraft, Briefing, Candidate, Course, Leg, NavLog, Pilot, SaveFlightRequest, Totals,
 } from "../../../../lib/api/types";
@@ -356,7 +356,7 @@ function SaveFlightSection({
       .then(() => setStatus("saved"))
       .catch(err => {
         setStatus("error");
-        toast.error(err instanceof ApiError ? err.message : "Could not save this flight");
+        toast.error(describeError(err, "Could not save this flight"));
       });
   };
 
