@@ -10,7 +10,9 @@ once and cached under data/raw/ rather than re-fetched every notebook
 run -- ensure_nasr_data() only downloads if the cache is empty.
 """
 import io
+import json
 import re
+import threading
 import zipfile
 from pathlib import Path
 from urllib.parse import urljoin
@@ -325,29 +327,82 @@ def _parse_dof_line(line: str) -> dict | None:
 
 
 _OBSTACLES_CACHE: dict = {}
+_OBSTACLES_LOCK = threading.Lock()
+_OBSTACLE_CACHE_KEY = b"vfr.dof_key"
 
 
 def _load_all_obstacles(dof_dat_path) -> pd.DataFrame:
-    """Every obstacle in the national DOF.DAT extract, parsed once and
-    held in memory after that -- same idea as `_APT_BASE_CACHE` above,
-    for the same reason: `load_obstacles` used to re-parse this whole
-    national file (well over a million lines) from scratch on every
-    single call regardless of how small the requested bbox was, which
-    was most of what made selecting a cruise altitude feel slow. The
-    two filters (min_agl_ft, bbox) differ per caller, so what's cached
-    here is the parsed-but-unfiltered rows; filtering that afterward is
-    a cheap pandas boolean mask, not a second file read.
+    """Every obstacle in the national DOF.DAT extract, parsed once per
+    process and held in memory: from memory, else from the Parquet copy
+    beside the file, else parsed from the 640,000-line text (about nine
+    seconds) and written back as Parquet, which reads in a fraction of a
+    second. The two filters (min_agl_ft, bbox) differ per caller, so
+    what's cached is the unfiltered rows; filtering that afterward is a
+    cheap pandas boolean mask, not a second file read.
     """
-    key = (str(dof_dat_path), Path(dof_dat_path).stat().st_mtime)
-    if key not in _OBSTACLES_CACHE:
-        rows = []
-        with open(dof_dat_path, encoding="latin-1") as f:
-            for line in f:
-                parsed = _parse_dof_line(line)
-                if parsed is not None:
-                    rows.append(parsed)
-        _OBSTACLES_CACHE[key] = pd.DataFrame(rows, columns=["lat", "lon", "city", "type", "agl_ft", "amsl_ft", "lit"])
-    return _OBSTACLES_CACHE[key]
+    dof_dat_path = Path(dof_dat_path)
+    stat = dof_dat_path.stat()
+    key = (str(dof_dat_path), stat.st_size, stat.st_mtime)
+    with _OBSTACLES_LOCK:
+        if key not in _OBSTACLES_CACHE:
+            df = _read_obstacle_cache(dof_dat_path, key)
+            if df is None:
+                df = _parse_dof(dof_dat_path)
+                _write_obstacle_cache(dof_dat_path, key, df)
+            _OBSTACLES_CACHE[key] = df
+        return _OBSTACLES_CACHE[key]
+
+
+def _parse_dof(dof_dat_path: Path) -> pd.DataFrame:
+    rows = []
+    with open(dof_dat_path, encoding="latin-1") as f:
+        for line in f:
+            parsed = _parse_dof_line(line)
+            if parsed is not None:
+                rows.append(parsed)
+    return pd.DataFrame(rows, columns=["lat", "lon", "city", "type", "agl_ft", "amsl_ft", "lit"])
+
+
+def _obstacle_cache_path(dof_dat_path: Path) -> Path:
+    return dof_dat_path.with_suffix(".parquet")
+
+
+def _read_obstacle_cache(dof_dat_path: Path, key: tuple) -> pd.DataFrame | None:
+    path = _obstacle_cache_path(dof_dat_path)
+    if not path.exists():
+        return None
+    try:
+        import pyarrow.parquet as pq
+        table = pq.read_table(path)
+    except Exception:  # noqa: BLE001 -- no pyarrow here, or a damaged file: parse instead
+        return None
+    stamp = (table.schema.metadata or {}).get(_OBSTACLE_CACHE_KEY, b"null")
+    if json.loads(stamp) != list(key):
+        return None
+    return table.to_pandas()
+
+
+def _write_obstacle_cache(dof_dat_path: Path, key: tuple, df: pd.DataFrame) -> None:
+    path = _obstacle_cache_path(dof_dat_path)
+    part = path.with_suffix(".parquet.part")
+    try:
+        import pyarrow as pa
+        import pyarrow.parquet as pq
+        table = pa.Table.from_pandas(df, preserve_index=False)
+        metadata = {**(table.schema.metadata or {}), _OBSTACLE_CACHE_KEY: json.dumps(key).encode()}
+        pq.write_table(table.replace_schema_metadata(metadata), part)
+        part.replace(path)
+    except (ImportError, OSError):
+        # Without pyarrow, or on a read-only data directory, only the
+        # speed-up is lost: the parse runs again next process.
+        part.unlink(missing_ok=True)
+
+
+def preload_obstacles(cache_dir) -> None:
+    """Parses (or reads back) the obstacle table now, so a service can
+    pay the cold cost at startup rather than on a pilot's first request."""
+    _, _, dof_path = ensure_nasr_data(cache_dir)
+    _load_all_obstacles(dof_path)
 
 
 def load_obstacles(dof_dat_path, bbox: tuple, min_agl_ft: float = 200) -> pd.DataFrame:

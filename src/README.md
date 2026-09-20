@@ -126,7 +126,7 @@ Grouped by what they are for, not alphabetically.
 | `osm.py` | Overpass API, for candidate landmarks. |
 | `faa_data.py` | NASR airports/navaids and the Digital Obstacle File. |
 | `weather.py` | Live winds aloft and hazards. |
-| `airspace.py` | FAA Class B/C/D shapefiles. |
+| `airspace.py` | FAA Class B/C/D shapefiles, parsed once per 28-day cycle into a WKB cache beside them. |
 | `elevation.py` | USGS 3DEP point elevations. |
 | `terrain.py` | Terrain and obstacle floor for a route. |
 | `airports.py` | Identifier → coordinates, and the route form's search. |

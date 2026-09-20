@@ -1,8 +1,11 @@
+import os
 import struct
 
 import pytest
+import shapefile
 from shapely.geometry import Point, Polygon
 
+from vfr import airspace
 from vfr.airspace import _shapefile_is_complete, is_own_surface_area
 
 DEPARTURE = Point(-93.65, 41.53)
@@ -124,3 +127,67 @@ def test_only_class_b_takes_a_clearance():
     radio communication established, B needs a clearance."""
     assert CLEARANCE_CLASSES == ("B",)
     assert set(TWO_WAY_COMMS_CLASSES) == {"C", "D"}
+
+
+# --- the parsed-polygon cache beside the shapefile ---
+
+
+def _write_shapefile(path, extra_polygon: bool = False) -> None:
+    """A two-record stand-in for Class_Airspace.shp: one Class C surface
+    area and one Class E polygon the loader must leave out."""
+    w = shapefile.Writer(str(path))
+    w.field("NAME", "C")
+    w.field("CLASS", "C")
+    w.field("LOWER_VAL", "N", decimal=0)
+    w.field("LOWER_CODE", "C")
+    w.poly([[(-93.9, 41.3), (-93.4, 41.3), (-93.4, 41.8), (-93.9, 41.8), (-93.9, 41.3)]])
+    w.record("DES MOINES", "C", 0, "SFC")
+    w.poly([[(-95.0, 41.0), (-94.5, 41.0), (-94.5, 41.5), (-95.0, 41.5), (-95.0, 41.0)]])
+    w.record("SOMEWHERE E", "E", 700, "MSL")
+    if extra_polygon:
+        w.poly([[(-96.0, 42.0), (-95.5, 42.0), (-95.5, 42.5), (-96.0, 42.5), (-96.0, 42.0)]])
+        w.record("OMAHA", "C", 0, "SFC")
+    w.close()
+
+
+def test_controlled_polygons_round_trip_through_the_wkb_cache(tmp_path, monkeypatch):
+    shp = tmp_path / "Class_Airspace.shp"
+    _write_shapefile(shp)
+    monkeypatch.setattr(airspace, "_ALL_AIRSPACE_CACHE", {})
+
+    parsed = airspace._load_all_controlled_airspace(shp)
+
+    assert [p["name"] for p in parsed] == ["DES MOINES"]  # Class E excluded
+    assert airspace._controlled_cache_path(shp).exists()
+
+    # A fresh process: nothing in memory, the cache beside the file
+    # answers, and the shapefile is not walked again.
+    monkeypatch.setattr(airspace, "_ALL_AIRSPACE_CACHE", {})
+    monkeypatch.setattr(airspace, "_parse_controlled_airspace", lambda path: pytest.fail("parsed instead of reading the cache"))
+    from_cache = airspace._load_all_controlled_airspace(shp)
+
+    assert from_cache[0]["name"] == "DES MOINES" and from_cache[0]["class"] == "C"
+    assert from_cache[0]["floor_ft_msl"] == 0.0
+    assert from_cache[0]["bbox"] == parsed[0]["bbox"]
+    assert from_cache[0]["geometry"].equals(parsed[0]["geometry"])
+
+
+def test_a_new_shapefile_cycle_rebuilds_the_cache(tmp_path, monkeypatch):
+    shp = tmp_path / "Class_Airspace.shp"
+    _write_shapefile(shp)
+    monkeypatch.setattr(airspace, "_ALL_AIRSPACE_CACHE", {})
+    airspace._load_all_controlled_airspace(shp)
+
+    # The next 28-day cycle: a re-downloaded file with different content.
+    _write_shapefile(shp, extra_polygon=True)
+    later = os.stat(shp).st_mtime + 100
+    os.utime(shp, (later, later))
+    parses = []
+    real_parse = airspace._parse_controlled_airspace
+    monkeypatch.setattr(airspace, "_parse_controlled_airspace", lambda path: parses.append(path) or real_parse(path))
+    monkeypatch.setattr(airspace, "_ALL_AIRSPACE_CACHE", {})
+
+    rebuilt = airspace._load_all_controlled_airspace(shp)
+
+    assert parses == [shp]
+    assert [p["name"] for p in rebuilt] == ["DES MOINES", "OMAHA"]

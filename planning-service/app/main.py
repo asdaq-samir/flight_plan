@@ -23,20 +23,42 @@ share -- resolving a route, scoring it, the nav-log arithmetic, the
 corridor read -- is in the modules next to this one, and every shape
 they send is a model in app.schemas.
 """
+import logging
+import threading
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse
 from pydantic import TypeAdapter
-from vfr import weather
+from vfr import airspace, altitude, faa_data, weather
 
 from .routers import briefing, build, chart, devml, notes, plan
 from .schemas import STREAM_MESSAGES, Index
 
+log = logging.getLogger(__name__)
+
+
+def _warm_reference_data() -> None:
+    """Every altitude selection needs the controlled-airspace polygons
+    and the obstacle table, and both are slow to load cold (about thirty
+    and nine seconds from the FAA files, well under a second from the
+    caches vfr keeps beside them), so they are loaded here rather than
+    on the first pilot's request after a restart. A request arriving
+    mid-load waits on the same parse instead of starting another."""
+    for name, load in (
+        ("airspace", lambda: airspace.preload(altitude.DEFAULT_FAA_CACHE_DIR)),
+        ("obstacles", lambda: faa_data.preload_obstacles(altitude.DEFAULT_FAA_CACHE_DIR)),
+    ):
+        try:
+            load()
+        except Exception:  # noqa: BLE001 -- the first altitude selection will load it, and report its own error
+            log.exception("%s warm-up failed", name)
+
 
 @asynccontextmanager
 async def _lifespan(app: FastAPI):
+    threading.Thread(target=_warm_reference_data, name="reference-data-warm-up", daemon=True).start()
     yield
     # uvicorn's graceful SIGTERM shutdown runs this before the process
     # exits.

@@ -23,10 +23,13 @@ Class-C-to-Class-C route left no legal altitude at all.
 Class E is excluded entirely: VFR overflight needs neither clearance nor
 a radio call, just cloud clearance and visibility minimums.
 """
+import pickle
 import struct
+import threading
 from pathlib import Path
 
 import shapefile
+from shapely import from_wkb, to_wkb
 from shapely.geometry import LineString, Point, shape as shapely_shape
 
 from .faa_data import NASR_INDEX_URL, download_and_extract, find_current_cycle_page, find_download_link
@@ -151,45 +154,112 @@ def _floor_ft_msl(record: dict) -> float:
     return 0.0
 
 
-# Parsed polygons, keyed by file, its mtime and the bbox asked for.
-# Reading Class_Airspace.shp means walking 5,612 PolygonZ records of a
-# 394 MB file, about 8 seconds. Planning one route did it twice --
-# max_airspace_altitude_msl and airspace_transits ask for the same bbox
-# and each read it fresh -- so half of that was pure repetition, and
-# planning the same route again paid the whole cost over.
+# The Class B/C/D polygons, parsed once per process and held in memory:
+# every altitude selection needs them, and walking Class_Airspace.shp --
+# 5,612 PolygonZ records, 394 MB, twelve million vertices -- takes about
+# thirty seconds. Held bbox-independent, so every route shares one parse.
 _ALL_AIRSPACE_CACHE: dict = {}
+_ALL_AIRSPACE_LOCK = threading.Lock()
+
+# The same polygons written beside the shapefile as WKB, so a fresh
+# process (every planner restart, every agent run) reads them back in
+# about a second instead of re-walking the shapefile. Keyed by the
+# shapefile's size and mtime, so a new 28-day cycle rebuilds it.
+_CONTROLLED_CACHE_SUFFIX = ".controlled.pkl"
 
 
 def _load_all_controlled_airspace(shp_path) -> list:
-    """Every Class B/C/D polygon in the national shapefile, parsed (and
-    each one's Shapely geometry built) once and held in memory after
-    that. `load_controlled_airspace` used to cache by `(shp_path, bbox)`,
-    which only pays off if the exact same bbox is queried twice -- every
-    other route (a different bbox) re-read and re-built geometry for
-    the entire national file from scratch, the real cost this parse
-    step had. What's cached here is bbox-independent, so a second route
-    against the same 28-day shapefile cycle gets a free hit regardless
-    of its own bbox.
+    """Every Class B/C/D polygon in the national shapefile, with its
+    Shapely geometry built: from memory, else from the WKB cache beside
+    the file, else parsed from the shapefile and cached both ways.
+
+    One loader at a time -- a request arriving while the startup
+    warm-up is parsing waits for its result rather than parsing again.
     """
-    key = (str(shp_path), Path(shp_path).stat().st_mtime)
-    if key not in _ALL_AIRSPACE_CACHE:
-        sf = shapefile.Reader(str(shp_path))
-        polygons = []
-        for sr in sf.iterShapeRecords():
-            record = sr.record.as_dict()
-            if record["CLASS"] not in CONTROLLED_CLASSES:
-                continue
-            polygons.append(
-                {
-                    "name": record["NAME"],
-                    "class": record["CLASS"],
-                    "floor_ft_msl": _floor_ft_msl(record),
-                    "geometry": shapely_shape(sr.shape.__geo_interface__),
-                    "bbox": sr.shape.bbox,  # (min_lon, min_lat, max_lon, max_lat)
-                }
-            )
-        _ALL_AIRSPACE_CACHE[key] = polygons
-    return _ALL_AIRSPACE_CACHE[key]
+    shp_path = Path(shp_path)
+    stat = shp_path.stat()
+    key = (str(shp_path), stat.st_size, stat.st_mtime)
+    with _ALL_AIRSPACE_LOCK:
+        if key not in _ALL_AIRSPACE_CACHE:
+            polygons = _read_controlled_cache(shp_path, key)
+            if polygons is None:
+                polygons = _parse_controlled_airspace(shp_path)
+                _write_controlled_cache(shp_path, key, polygons)
+            _ALL_AIRSPACE_CACHE[key] = polygons
+        return _ALL_AIRSPACE_CACHE[key]
+
+
+def _parse_controlled_airspace(shp_path: Path) -> list:
+    sf = shapefile.Reader(str(shp_path))
+    polygons = []
+    for sr in sf.iterShapeRecords():
+        record = sr.record.as_dict()
+        if record["CLASS"] not in CONTROLLED_CLASSES:
+            continue
+        polygons.append(
+            {
+                "name": record["NAME"],
+                "class": record["CLASS"],
+                "floor_ft_msl": _floor_ft_msl(record),
+                "geometry": shapely_shape(sr.shape.__geo_interface__),
+                "bbox": tuple(sr.shape.bbox),  # (min_lon, min_lat, max_lon, max_lat)
+            }
+        )
+    return polygons
+
+
+def _controlled_cache_path(shp_path: Path) -> Path:
+    return shp_path.with_suffix(_CONTROLLED_CACHE_SUFFIX)
+
+
+def _read_controlled_cache(shp_path: Path, key: tuple) -> list | None:
+    path = _controlled_cache_path(shp_path)
+    if not path.exists():
+        return None
+    try:
+        with path.open("rb") as f:
+            cached = pickle.load(f)
+    except Exception:  # noqa: BLE001 -- a damaged cache is rebuilt, never fatal
+        return None
+    if cached.get("key") != key:
+        return None
+    return [
+        {
+            "name": p["name"], "class": p["class"], "floor_ft_msl": p["floor_ft_msl"],
+            "bbox": tuple(p["bbox"]), "geometry": from_wkb(p["wkb"]),
+        }
+        for p in cached["polygons"]
+    ]
+
+
+def _write_controlled_cache(shp_path: Path, key: tuple, polygons: list) -> None:
+    path = _controlled_cache_path(shp_path)
+    payload = {
+        "key": key,
+        "polygons": [
+            {
+                "name": p["name"], "class": p["class"], "floor_ft_msl": p["floor_ft_msl"],
+                "bbox": p["bbox"], "wkb": to_wkb(p["geometry"]),
+            }
+            for p in polygons
+        ],
+    }
+    part = path.with_suffix(path.suffix + ".part")
+    try:
+        with part.open("wb") as f:
+            pickle.dump(payload, f, protocol=pickle.HIGHEST_PROTOCOL)
+        part.replace(path)
+    except OSError:
+        # A read-only data directory only loses the speed-up, never the
+        # answer: the parse just runs again next process.
+        part.unlink(missing_ok=True)
+
+
+def preload(faa_cache_dir) -> None:
+    """Parses (or reads back) the controlled-airspace polygons now, so a
+    service can pay the cold cost at startup rather than on a pilot's
+    first request."""
+    _load_all_controlled_airspace(ensure_class_airspace_shapefile(faa_cache_dir))
 
 
 def load_controlled_airspace(shp_path, bbox: tuple) -> list:
