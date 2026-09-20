@@ -36,6 +36,12 @@ export default function RouteInputGroup({
   dep, dest, onDepChange, onDestChange, invalid, children,
 }: Props) {
   return (
+    // Below `sm` everything is slimmed so the form shares the header's
+    // one line with its five icon buttons on a phone: each ident box is
+    // just wide enough for four monospace characters at the 16px the
+    // Input keeps on a phone (any smaller and iOS zooms the page on
+    // focus), with the padding closed up to make that fit, and the
+    // arrow and the Load button's addon give up most of theirs.
     <InputGroup className="w-auto">
       <AirportSearchInput
         value={dep}
@@ -43,23 +49,23 @@ export default function RouteInputGroup({
         placeholder="DEP"
         ariaLabel="Departure"
         invalid={invalid}
-        className="w-[75px] text-center font-mono uppercase"
+        className="w-13 px-1 text-center font-mono uppercase sm:w-[75px] sm:px-2.5"
       />
       {/* A plain separator, not an `InputGroupAddon` -- every `align`
           that component offers pins it to the group's own start or end
           (`order-first`/`order-last`), not "stay exactly between these
           two inputs," which is what an arrow that's neither a leading
           nor a trailing addon actually needs. */}
-      <span className="px-1 text-muted-foreground" aria-hidden="true">→</span>
+      <span className="px-0.5 text-muted-foreground sm:px-1" aria-hidden="true">→</span>
       <AirportSearchInput
         value={dest}
         onChange={onDestChange}
         placeholder="DEST"
         ariaLabel="Destination"
         invalid={invalid}
-        className="w-[75px] text-center font-mono uppercase"
+        className="w-13 px-1 text-center font-mono uppercase sm:w-[75px] sm:px-2.5"
       />
-      <InputGroupAddon align="inline-end" className="gap-1.5">
+      <InputGroupAddon align="inline-end" className="gap-1.5 pr-1.5 sm:pr-3">
         {children}
       </InputGroupAddon>
     </InputGroup>

@@ -23,8 +23,10 @@ export default function RouteForm({
     // width to actually show a 4-letter ident (a narrower box clips
     // the text itself, not just the row around it, which is worse:
     // wrong-looking data, not just a layout that needs a scroll or a
-    // second glance). Wrapping onto a second line on a narrow phone
-    // screen costs nothing here; a hidden/clipped identifier would.
+    // second glance). On a phone the group is slimmed to fit the
+    // header's one line beside the icon buttons (see RouteInputGroup);
+    // wrapping is the fallback for a screen narrower than that, and
+    // costs nothing here where a hidden/clipped identifier would.
     <form
       className="flex flex-wrap items-center gap-1.5"
       autoComplete="off"
