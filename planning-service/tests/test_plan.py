@@ -79,12 +79,16 @@ def test_plan_flies_the_plan_the_pilot_chose():
     assert resp.json()["altitude_choice"] == "fastest"
 
 
-def test_plan_with_a_pilots_own_altitude_offers_no_plans():
+def test_plan_with_a_pilots_own_altitude_flies_it_and_still_offers_the_plans():
     resp = client.get("/api/plan", params={"dep": "C81", "dest": "KDLH", "altitude_ft": 3500})
 
     body = resp.json()
-    assert body["altitude_ft"] == 3500.0
-    assert body["altitude_selection"] is None and body["altitude_options"] == [] and body["altitude_choice"] is None
+    assert body["altitude_ft"] == 3500.0 and all(leg["altitude_ft"] == 3500.0 for leg in body["legs"])
+    # No plan is being flown, but the three are there beside the pilot's
+    # own, with the reasoning's floor and ceiling.
+    assert body["altitude_choice"] is None
+    assert [o["kind"] for o in body["altitude_options"]] == ["lowest", "highest", "fastest"]
+    assert body["altitude_selection"]["floor_ft"] == 2200.0
 
 
 def test_plan_refuses_a_route_with_no_legal_altitude(monkeypatch, altitude):

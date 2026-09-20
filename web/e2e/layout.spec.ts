@@ -482,10 +482,32 @@ test("plan page: the nav log's altitude opens the planner's own reasoning, and t
   await popover.getByTestId("altitude-plan-fastest").click();
   await expect(page).toHaveURL(/[?&]altitude_choice=fastest/);
   await expect(page.getByTestId("altitude-why")).toContainText("fastest", { timeout: 30000 });
-  // Escape closes the popover and leaves the drawer open.
   await page.getByTestId("altitude-why").click();
   await expect(popover).toBeVisible();
   await expect(popover.getByTestId("altitude-plan-fastest")).toHaveAttribute("aria-pressed", "true");
+
+  // A custom altitude: the fourth row under the plans. Typed and flown,
+  // the whole log is at it, the header says it is the pilot's own, and
+  // the plans stay offered beside it with none pressed.
+  await popover.getByTestId("custom-altitude").fill("3500");
+  await popover.getByTestId("custom-altitude-fly").click();
+  await expect(page).toHaveURL(/[?&]altitude_ft=3500/);
+  await expect(page.getByTestId("altitude-why")).toContainText("3,500 ft · yours", { timeout: 30000 });
+  await expect(page.locator('[data-slot="map-drawer"] table tbody tr[tabindex="0"]').nth(1).locator("td").nth(1)).toHaveText("3,500", { timeout: 30000 });
+  await page.getByTestId("altitude-why").click();
+  await expect(popover).toBeVisible();
+  await expect(popover.getByTestId("altitude-plan-fastest")).toHaveAttribute("aria-pressed", "false");
+  // Back to a plan: the custom box empties and the URL drops it.
+  await popover.getByTestId("altitude-plan-lowest").click();
+  await expect(page).not.toHaveURL(/[?&]altitude_ft=/);
+  await expect(page.getByTestId("altitude-why")).toContainText("lowest", { timeout: 30000 });
+  // No altitude box in the table's head any more: Alt is a plain heading.
+  await expect(page.locator('[data-slot="map-drawer"] table thead')).not.toContainText("Cruise altitude");
+  expect(await page.locator('[data-slot="map-drawer"] table thead input').count()).toBe(0);
+
+  // Escape closes the popover and leaves the drawer open.
+  await page.getByTestId("altitude-why").click();
+  await expect(popover).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(popover).toHaveCount(0);
   await expect(page.locator('[data-slot="map-drawer"]')).toBeVisible();

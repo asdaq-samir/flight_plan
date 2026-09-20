@@ -64,9 +64,9 @@ interface Props {
   /** The route's true course -- the hemispheric rule in the altitude's
    *  own "why" popover needs it. null before a course has loaded. */
   courseBearingDeg: number | null;
-  /** Which of the three plans the log flies (lowest, highest, fastest)
-   *  -- picked in the altitude's own popover, which re-plans. */
-  altitudeChoice: AltitudeChoice;
+  /** Picks one of the three plans (lowest, highest, fastest) in the
+   *  altitude's own popover, which re-plans; which one is flown is the
+   *  nav log's own `choice`. */
   onAltitudeChoiceChange: (choice: AltitudeChoice) => void;
   /** The pilot's own cruise-altitude override -- lives here, not the
    *  map header's route form, since this is where the *result*
@@ -244,7 +244,7 @@ function DescriptionCell({
  * no leg has been flown yet.
  */
 export default function NavLogView({
-  totals, nav, courseBearingDeg, altitudeChoice, onAltitudeChoiceChange,
+  totals, nav, courseBearingDeg, onAltitudeChoiceChange,
   legs, dep, dest, depName, destName, depLat, depLon, destLat, destLon,
   selected, depElevationFt, destElevationFt, descriptions, onSaveDescription,
   onGenerateDescriptions, descriptionsLoading, expanded, onToggleExpanded, actions, children,
@@ -288,21 +288,10 @@ export default function NavLogView({
     },
     {
       id: "alt",
-      header: () => (
-        <form onSubmit={e => { e.preventDefault(); onSubmit(); }}>
-          <Input
-            value={alt}
-            onChange={e => onAltChange(e.target.value)}
-            placeholder="Alt"
-            spellCheck={false}
-            aria-label="Cruise altitude, feet"
-            // 16px and tall enough to hold it below md -- see the
-            // description box's own comment on iOS zooming on focus.
-            className="h-8 w-14 px-1 text-right text-base print:hidden md:h-6 md:text-xs"
-          />
-          <span className="hidden print:inline">Alt</span>
-        </form>
-      ),
+      // A plain heading: a pilot's own altitude is typed in the
+      // altitude popover's Custom row (see the header below), under
+      // the three plans, not in this column's head.
+      header: "Alt",
       // The last row lands at the destination -- shows its field
       // elevation, known immediately, rather than a cruise altitude.
       // A checkpoint's row shows the altitude of the leg that arrives
@@ -414,17 +403,7 @@ export default function NavLogView({
         {table.getHeaderGroups().map(headerGroup => (
           <TableRow key={headerGroup.id}>
             {headerGroup.headers.map(header => (
-              <TableHead
-                key={header.id}
-                // font-normal only for Alt -- it holds a live
-                // input, not a label, so the bold weight every
-                // other header (a plain column name) keeps
-                // doesn't belong on it.
-                className={clsx(
-                  header.column.id === "alt" && "font-normal",
-                  header.column.columnDef.meta?.className,
-                )}
-              >
+              <TableHead key={header.id} className={header.column.columnDef.meta?.className}>
                 {flexRender(header.column.columnDef.header, header.getContext())}
               </TableHead>
             ))}
@@ -563,7 +542,9 @@ export default function NavLogView({
             const range = altitudes.length > 1 && Math.min(...altitudes) !== Math.max(...altitudes)
               ? `${altFt(Math.min(...altitudes))}–${altFt(Math.max(...altitudes))} ft`
               : `${altFt(altitudes[0])} ft`;
-            const label = `${range} · ${nav.altitude_selection ? (nav.choice ?? "auto") : "yours"}`;
+            // `choice` is null for a typed altitude: the plans are still
+            // offered beside it, but none is being flown.
+            const label = `${range} · ${nav.choice ?? "yours"}`;
             return (
               <>
                 <Popover>
@@ -579,27 +560,56 @@ export default function NavLogView({
                   <PopoverContent align="start" className="max-h-[70vh] w-80 overflow-y-auto">
                     {/* The three plans first, each a button: the pilot
                         picks one and the log re-plans on it. Then why. */}
-                    {nav.options.length > 0 && (
-                      <div className="mb-3 space-y-1.5" role="group" aria-label="Cruise altitude plans">
-                        <div className="text-xs font-semibold uppercase text-muted-foreground">Three plans</div>
-                        {nav.options.map(o => (
-                          <Button
-                            key={o.kind} type="button" size="sm"
-                            variant={o.kind === altitudeChoice ? "default" : "outline"}
-                            aria-pressed={o.kind === altitudeChoice}
-                            className="h-auto w-full justify-between gap-3 whitespace-normal py-1.5 text-left"
-                            onClick={() => onAltitudeChoiceChange(o.kind)}
-                            data-testid={`altitude-plan-${o.kind}`}
-                          >
-                            <span>
-                              <span className="font-semibold capitalize">{o.kind}</span>
-                              <span className="block text-xs font-normal opacity-80">{describeSteps(o)}</span>
-                            </span>
-                            <span className="shrink-0 text-xs tabular-nums">{describeTime(o)}</span>
-                          </Button>
-                        ))}
-                      </div>
-                    )}
+                    <div className="mb-3 space-y-1.5" role="group" aria-label="Cruise altitude plans">
+                      <div className="text-xs font-semibold uppercase text-muted-foreground">Three plans, or your own</div>
+                      {nav.options.map(o => (
+                        <Button
+                          key={o.kind} type="button" size="sm"
+                          variant={o.kind === nav.choice ? "default" : "outline"}
+                          aria-pressed={o.kind === nav.choice}
+                          className="h-auto w-full justify-between gap-3 whitespace-normal py-1.5 text-left"
+                          onClick={() => onAltitudeChoiceChange(o.kind)}
+                          data-testid={`altitude-plan-${o.kind}`}
+                        >
+                          <span>
+                            <span className="font-semibold capitalize">{o.kind}</span>
+                            <span className="block text-xs font-normal opacity-80">{describeSteps(o)}</span>
+                          </span>
+                          <span className="shrink-0 text-xs tabular-nums">{describeTime(o)}</span>
+                        </Button>
+                      ))}
+                      {/* The pilot's own altitude, one number for the
+                          whole route: a fourth row under the three
+                          plans, pressed while it is what the log flies.
+                          Enter or Fly re-plans at it; the stock Input's
+                          16px below md keeps a phone from zooming. */}
+                      <form
+                        className={clsx(
+                          "flex items-center gap-2 rounded-md border px-2 py-1.5",
+                          nav.choice === null ? "border-primary bg-primary text-primary-foreground" : "border-input",
+                        )}
+                        onSubmit={e => { e.preventDefault(); onSubmit(); }}
+                        aria-label="Custom altitude"
+                      >
+                        <span className="text-sm font-semibold">Custom</span>
+                        <Input
+                          value={alt}
+                          onChange={e => onAltChange(e.target.value)}
+                          placeholder="ft"
+                          inputMode="numeric"
+                          spellCheck={false}
+                          aria-label="Cruise altitude, feet"
+                          className="ml-auto h-8 w-24 bg-background text-right text-foreground"
+                          data-testid="custom-altitude"
+                        />
+                        <Button
+                          type="submit" size="sm" variant={nav.choice === null ? "secondary" : "outline"}
+                          disabled={!alt.trim()} data-testid="custom-altitude-fly"
+                        >
+                          Fly
+                        </Button>
+                      </form>
+                    </div>
                     <div className="mb-2 text-xs font-semibold uppercase text-muted-foreground">How the altitude was chosen</div>
                     <AltitudeReasoning nav={nav} bearingDeg={courseBearingDeg} />
                   </PopoverContent>

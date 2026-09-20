@@ -53,12 +53,13 @@ export default function AltitudeReasoning({ nav, bearingDeg }: Props) {
   if (!s) {
     return (
       <p className="text-sm text-muted-foreground">
-        {altFt(nav.altitude_ft)} ft is yours: you typed it in the Alt box, and the planner flew the log at
-        it. Clear the box and press Load, and the planner works out the legal altitudes leg by leg and
-        offers the lowest, the highest and the fastest way through them.
+        {altFt(nav.altitude_ft)} ft is yours: you typed it in the Custom box, and the planner flew the log
+        at it without working out its own plans.
       </p>
     );
   }
+  // A typed altitude: the plans are offered beside it, none flown.
+  const custom = nav.choice === null;
 
   // The profile is the planner's own aircraft file, whatever it holds;
   // the service ceiling is one of its required fields.
@@ -131,7 +132,9 @@ export default function AltitudeReasoning({ nav, bearingDeg }: Props) {
             + (o.tailwind_kt !== null ? `, ${Math.abs(Math.round(o.tailwind_kt))} kt ${o.tailwind_kt >= 0 ? "tailwind" : "headwind"} on average` : "")
             + "."
           )).join(" ")}
-          {chosen && ` Flying the ${KIND_LABEL[chosen.kind].toLowerCase()}.`}
+          {custom
+            ? ` Flying ${altFt(nav.altitude_ft)} ft, your own, the whole way instead.`
+            : chosen && ` Flying the ${KIND_LABEL[chosen.kind].toLowerCase()}.`}
           {needsOxygen && ` Above ${altFt(OXYGEN_FT)} ft for more than 30 minutes needs supplemental oxygen (14 CFR 91.211).`}
         </li>
       ) : (

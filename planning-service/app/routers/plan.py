@@ -125,9 +125,12 @@ def plan(
     profile = aircraft_profile(aircraft, cruise_tas_kt, fuel_burn_gph)
     fix_list = navlog.fixes(r.dep_ident, r.dest_ident, r.start, r.end, selected)
 
-    altitude_selection, options, choice = None, [], None
+    # The plans are worked out either way: beside a pilot's own altitude
+    # they are what the planner would have flown, and the reasoning
+    # still has its floor and ceiling to show.
+    altitude_selection, options, chosen, failure = planned_altitudes(r, fix_list, profile, aircraft, altitude_choice)
+    choice = None
     if altitude_ft is None:
-        altitude_selection, options, chosen, failure = planned_altitudes(r, fix_list, profile, aircraft, altitude_choice)
         if failure is not None:
             raise failure
         if chosen is None:
@@ -197,30 +200,31 @@ def navlog_stream(
         profile = aircraft_profile(aircraft, cruise_tas_kt, fuel_burn_gph)
         fix_list = navlog.fixes(r.dep_ident, r.dest_ident, r.start, r.end, selected)
 
-        altitude_selection, options, choice = None, [], None
+        yield line(NavLogStage(detail="Planning cruise altitudes (airspace, obstacles, aircraft performance and winds)…"))
+        # On a side thread with a heartbeat, not inline: an uncached
+        # selection on a bad aviationweather.gov day was observed
+        # taking over two minutes, all of it silent -- and the webapp
+        # proxy cuts a stream that has been silent that long, so the
+        # browser saw the nav log simply end with no legs and no error.
+        # A stage line every few seconds keeps the connection visibly
+        # alive (and tells the pilot what it's still waiting on) for
+        # however long the fetch takes. The three plans need the winds
+        # at every legal altitude of every leg, so they are made here
+        # too, before the altitude line, rather than leg by leg after
+        # it -- and beside a pilot's own altitude as well, as what the
+        # planner would have flown.
+        with ThreadPoolExecutor(max_workers=1) as altitude_pool:
+            future = altitude_pool.submit(planned_altitudes, r, fix_list, profile, aircraft, altitude_choice)
+            while True:
+                try:
+                    altitude_selection, options, chosen, failure = future.result(timeout=8)
+                    break
+                except FuturesTimeoutError:
+                    yield line(NavLogStage(
+                        detail="Planning cruise altitudes (still waiting on aviationweather.gov)…",
+                    ))
+        choice = None
         if altitude_ft is None:
-            yield line(NavLogStage(detail="Planning cruise altitudes (airspace, obstacles, aircraft performance and winds)…"))
-            # On a side thread with a heartbeat, not inline: an uncached
-            # selection on a bad aviationweather.gov day was observed
-            # taking over two minutes, all of it silent -- and the
-            # webapp proxy cuts a stream that has been silent that long,
-            # so the browser saw the nav log simply end with no legs and
-            # no error. A stage line every few seconds keeps the
-            # connection visibly alive (and tells the pilot what it's
-            # still waiting on) for however long the fetch takes. The
-            # three plans need the winds at every legal altitude of
-            # every leg, so they are made here too, before the altitude
-            # line, rather than leg by leg after it.
-            with ThreadPoolExecutor(max_workers=1) as altitude_pool:
-                future = altitude_pool.submit(planned_altitudes, r, fix_list, profile, aircraft, altitude_choice)
-                while True:
-                    try:
-                        altitude_selection, options, chosen, failure = future.result(timeout=8)
-                        break
-                    except FuturesTimeoutError:
-                        yield line(NavLogStage(
-                            detail="Planning cruise altitudes (still waiting on aviationweather.gov)…",
-                        ))
             if failure is not None:
                 # The selection stands -- terrain, airspace, the legal
                 # altitudes -- even though the winds the plans need did

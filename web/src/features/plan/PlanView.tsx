@@ -242,15 +242,19 @@ export default function PlanView() {
   // the Dev switch carries it, then re-planned right away.
   const changeAltitudeChoice = useCallback((choice: AltitudeChoice) => {
     setAltitudeChoice(choice);
+    // A plan replaces a typed altitude: the Custom box empties and the
+    // URL drops it, so the log flies the plan and nothing else.
+    setAlt("");
     setSearchParams(prev => {
       const next = new URLSearchParams(prev);
+      next.delete("altitude_ft");
       if (choice === "lowest") next.delete("altitude_choice");
       else next.set("altitude_choice", choice);
       return next;
     }, { replace: true });
     const d = identSchema.safeParse(dep).data, a = identSchema.safeParse(dest).data;
-    if (d && a && d !== a) void plan(d, a, alt.trim() || undefined, aircraft, choice);
-  }, [dep, dest, alt, aircraft, plan, setSearchParams]);
+    if (d && a && d !== a) void plan(d, a, undefined, aircraft, choice);
+  }, [dep, dest, aircraft, plan, setSearchParams]);
 
   // The map's own half of point selection -- clicking a checkpoint
   // marker focuses the same point the matching nav log row would.
@@ -406,7 +410,7 @@ export default function PlanView() {
   const navLog = (
     <NavLogView
       totals={s.totals} nav={s.nav} courseBearingDeg={s.course?.bearing_deg ?? null} legs={s.legs}
-      altitudeChoice={altitudeChoice} onAltitudeChoiceChange={changeAltitudeChoice}
+      onAltitudeChoiceChange={changeAltitudeChoice}
       dep={dep} dest={dest}
       depName={s.course?.departure.name ?? null} destName={s.course?.destination.name ?? null}
       depLat={s.course?.departure.lat ?? 0} depLon={s.course?.departure.lon ?? 0}
