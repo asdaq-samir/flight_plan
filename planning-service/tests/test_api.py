@@ -10,11 +10,10 @@ tests in the root tests/ package.
 """
 import json
 
-import requests
 from fastapi.testclient import TestClient
 from vfr import airports
 from vfr import altitude as altitude_module
-from vfr import model_registry
+from vfr import model_client, model_registry
 from vfr.weather import WeatherServiceError
 
 from app.main import app
@@ -63,50 +62,27 @@ def test_model_comparison_lists_the_promoted_model_and_any_trained_candidates(tm
     assert names["pytorch_mlp"]["metric"] == "held_out_mae"
 
 
-# --- /api/playground/score ---
+# --- /api/checkpoints: model-service's failures as HTTP statuses ---
 
 
-class _FakeResponse:
-    def __init__(self, status_code: int, payload: dict):
-        self.status_code = status_code
-        self._payload = payload
-        self.text = json.dumps(payload)
+def test_checkpoints_translates_an_uncollected_route_to_404(monkeypatch):
+    def not_collected(dep, dest):
+        raise model_client.RouteNotCollected(dep, dest)
 
-    def json(self) -> dict:
-        return self._payload
+    monkeypatch.setattr(model_client, "invoke", not_collected)
 
-
-def test_playground_score_passes_the_model_choice_through_to_model_service(monkeypatch):
-    captured = {}
-
-    def fake_post(url, json, timeout):
-        captured["url"], captured["json"] = url, json
-        return _FakeResponse(200, {"checkpoints": [], "model_type": "spark_gbt"})
-
-    monkeypatch.setattr(requests, "post", fake_post)
-
-    resp = client.get("/api/playground/score", params={"dep": "c81", "dest": "kdlh", "model": "spark"})
-
-    assert resp.status_code == 200
-    assert resp.json()["model_type"] == "spark_gbt"
-    assert captured["json"] == {"departure_ident": "C81", "destination_ident": "KDLH", "model": "spark"}
-
-
-def test_playground_score_translates_an_uncollected_route_to_404(monkeypatch):
-    monkeypatch.setattr(requests, "post", lambda url, json, timeout: _FakeResponse(404, {}))
-
-    resp = client.get("/api/playground/score", params={"dep": "C81", "dest": "KDLH"})
+    resp = client.get("/api/checkpoints", params={"dep": "C81", "dest": "KDLH"})
 
     assert resp.status_code == 404
 
 
-def test_playground_score_translates_a_down_model_service_to_502(monkeypatch):
-    def fake_post(url, json, timeout):
-        raise requests.ConnectionError("no route to host")
+def test_checkpoints_translates_a_down_model_service_to_502(monkeypatch):
+    def unreachable(dep, dest):
+        raise model_client.ModelServiceError("Could not reach model-service: no route to host")
 
-    monkeypatch.setattr(requests, "post", fake_post)
+    monkeypatch.setattr(model_client, "invoke", unreachable)
 
-    resp = client.get("/api/playground/score", params={"dep": "C81", "dest": "KDLH"})
+    resp = client.get("/api/checkpoints", params={"dep": "C81", "dest": "KDLH"})
 
     assert resp.status_code == 502
 

@@ -51,6 +51,13 @@ def _get_embedder() -> SentenceTransformer:
     return _embedder
 
 
+def preload_embedder() -> None:
+    """Loads the embedding model at startup so the first request does
+    not. The weights are baked into the image (see the Dockerfile) and
+    read with HF_HUB_OFFLINE set, so this touches no network."""
+    _get_embedder()
+
+
 def embed(text: str) -> list[float]:
     return _get_embedder().encode(text).tolist()
 

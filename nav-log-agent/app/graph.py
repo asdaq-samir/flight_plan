@@ -5,11 +5,16 @@ cruise altitude (vfr.altitude, extracted from notebook 08 -- see
 (vfr.navlog, see [[project-navlog-dr-math]]) -> similar past routes
 (pgvector) -> a Claude-generated briefing -> store that briefing back into
 memory for next time.
+
+The Brief tab already has all of the first four steps' output on screen
+(the planner computed it, cached), so its calls start the graph at
+retrieve_memory with the nav log supplied -- see build_graph.
 """
 import os
 from typing import TypedDict
 
 import anthropic
+from langgraph.config import get_stream_writer
 from langgraph.graph import END, START, StateGraph
 
 from vfr import aircraft, airports, altitude, checkpoints as checkpoint_selection, model_client, navlog
@@ -17,6 +22,11 @@ from vfr import aircraft, airports, altitude, checkpoints as checkpoint_selectio
 from . import db
 
 CLAUDE_MODEL = os.environ.get("NAV_LOG_AGENT_MODEL", "claude-sonnet-5")
+# A briefing a pilot reads in a minute, and one Claude writes in seconds:
+# the narrative used to run to 1,024 tokens of prose, ten seconds or
+# more of generation on its own.
+BRIEFING_WORDS = 200
+BRIEFING_MAX_TOKENS = 512
 
 
 class NavLogState(TypedDict, total=False):
@@ -103,12 +113,23 @@ def retrieve_memory(state: NavLogState) -> dict:
 
 
 def _format_legs(legs: list[dict]) -> str:
-    return "\n".join(
-        f"- {leg['from']} -> {leg['to']}: {leg['distance_nm']:.1f}nm, "
-        f"heading {leg['magnetic_heading_deg']:.0f}M, GS {leg['groundspeed_kt']:.0f}kt, "
-        f"ETE {leg['ete_min']:.0f}min, fuel {leg['fuel_gal']:.1f}gal"
-        for leg in legs
-    )
+    """One line per leg. An unflyable leg (a headwind at or above cruise
+    TAS -- ETE, fuel and groundspeed are None) is named as such rather
+    than formatted as a number."""
+    lines = []
+    for leg in legs:
+        if leg.get("ete_min") is None:
+            lines.append(
+                f"- {leg['from']} -> {leg['to']}: {leg['distance_nm']:.1f}nm, "
+                "UNFLYABLE at this altitude (headwind at or above cruise TAS)"
+            )
+            continue
+        lines.append(
+            f"- {leg['from']} -> {leg['to']}: {leg['distance_nm']:.1f}nm, "
+            f"heading {leg['magnetic_heading_deg']:.0f}M, GS {leg['groundspeed_kt']:.0f}kt, "
+            f"ETE {leg['ete_min']:.0f}min, fuel {leg['fuel_gal']:.1f}gal"
+        )
+    return "\n".join(lines)
 
 
 def _format_memory(similar_briefings: list[dict]) -> str:
@@ -119,61 +140,74 @@ def _format_memory(similar_briefings: list[dict]) -> str:
     )
 
 
-def _format_altitude_selection(sel: dict) -> str:
+def _format_altitude_selection(sel: dict | None) -> str:
+    if not sel:
+        return "(the pilot set this altitude by hand; nothing was auto-selected)"
     lines = [
         f"Terrain/obstacle floor: {sel['floor_ft']:.0f}ft",
         f"Airspace/freezing-level/service-ceiling band: {sel['band_ceiling_ft']}ft",
     ]
-    if sel["low_ceiling_or_visibility"]:
+    if sel.get("low_ceiling_or_visibility"):
         lines.append(
             f"GO/NO-GO: ceiling {sel['min_ceiling_ft']}ft / visibility {sel['min_visibility_sm']}SM "
             "near the route is below typical VFR minimums"
         )
-    if sel["hazards"]:
+    if sel.get("hazards"):
         lines.append(f"GO/NO-GO: {len(sel['hazards'])} SIGMET/AIRMET(s) intersect the route")
     return "\n".join(lines)
 
 
-def _response_text(resp: anthropic.types.Message) -> str:
-    """The response's actual prose. Not resp.content[0].text -- extended
-    thinking puts a ThinkingBlock (no .text attribute) first in content
-    when it's on, so index 0 isn't reliably the answer; this finds the
-    first real text block instead. Observed 2026-09-19: an
-    AttributeError here took down the whole graph, discarding the
-    checkpoints/altitude/legs every upstream node had already computed
-    successfully, over the one step (prose) that isn't load-bearing."""
-    for block in resp.content:
-        if block.type == "text":
-            return block.text
-    raise RuntimeError(f"Claude response had no text block (got {[b.type for b in resp.content]})")
+def briefing_prompt(state: NavLogState) -> str:
+    """The one prompt both agents write from -- crewai-agent hands the
+    same text to its crew, so the two frameworks are compared on the
+    same task, not on two prompts."""
+    return (
+        f"Write a concise VFR pilot briefing, under {BRIEFING_WORDS} words, for a flight from "
+        f"{state['departure_ident']} to {state['destination_ident']} at {state['altitude_ft']:.0f}ft. "
+        "Plain prose in short paragraphs -- no Markdown headings, bold or bullet lists; it is shown as plain text.\n\n"
+        f"Altitude selection:\n{_format_altitude_selection(state.get('altitude_selection'))}\n\n"
+        f"Dead-reckoning legs:\n{_format_legs(state['legs'])}\n\n"
+        f"Similar past route briefings (for context/consistency, not to copy verbatim):\n"
+        f"{_format_memory(state.get('similar_briefings', []))}"
+    )
 
 
 def generate_briefing(state: NavLogState) -> dict:
     """Turns the altitude selection, legs, and retrieved memory into a
     natural-language pilot briefing via a single Claude API call -- the
     only node that actually needs the LLM; everything upstream is
-    deterministic Python. A failure here (a bad response shape, a rate
-    limit, an outage) falls back to a plain-text notice instead of
-    raising: unlike every node before this one, losing the narrative
-    doesn't make the briefing useless, so it shouldn't discard the
-    checkpoints/altitude/legs those nodes already computed.
+    deterministic Python.
+
+    Streamed: every text delta goes to LangGraph's custom stream writer
+    as it arrives, so a caller running the graph with
+    stream_mode="custom" (the /compare route) can show the briefing
+    being written instead of a spinner for the whole of it. Under a
+    plain invoke() (the MCP tool, the CLI) the writer is a no-op and the
+    node just returns the finished text. Thinking blocks, when the model
+    emits them, are not part of text_stream, so nothing here has to
+    skip them.
+
+    A failure here (a rate limit, an outage) falls back to a plain-text
+    notice instead of raising: unlike every node before this one, losing
+    the narrative doesn't make the briefing useless, so it shouldn't
+    discard the checkpoints/altitude/legs those nodes already computed.
     """
     client = anthropic.Anthropic()
-    prompt = (
-        f"Write a concise VFR pilot briefing for a flight from "
-        f"{state['departure_ident']} to {state['destination_ident']} at {state['altitude_ft']:.0f}ft.\n\n"
-        f"Altitude selection:\n{_format_altitude_selection(state['altitude_selection'])}\n\n"
-        f"Dead-reckoning legs:\n{_format_legs(state['legs'])}\n\n"
-        f"Similar past route briefings (for context/consistency, not to copy verbatim):\n"
-        f"{_format_memory(state.get('similar_briefings', []))}"
-    )
+    writer = get_stream_writer()
+    parts: list[str] = []
     try:
-        resp = client.messages.create(
+        with client.messages.stream(
             model=CLAUDE_MODEL,
-            max_tokens=1024,
-            messages=[{"role": "user", "content": prompt}],
-        )
-        return {"briefing": _response_text(resp)}
+            max_tokens=BRIEFING_MAX_TOKENS,
+            messages=[{"role": "user", "content": briefing_prompt(state)}],
+        ) as stream:
+            for text in stream.text_stream:
+                parts.append(text)
+                writer({"type": "delta", "text": text})
+        briefing = "".join(parts).strip()
+        if not briefing:
+            raise RuntimeError("Claude response had no text")
+        return {"briefing": briefing}
     except (anthropic.APIError, RuntimeError) as err:
         return {
             "briefing": f"Narrative generation failed ({err}). Checkpoints, altitude, and legs above are still valid.",
@@ -195,23 +229,33 @@ def store_memory(state: NavLogState) -> dict:
     return {}
 
 
-def build_graph():
-    """Wires the seven nodes above into the fixed sequence described in the
-    module docstring and compiles the graph, ready for .invoke(state)."""
+def build_graph(from_nav_log: bool = False):
+    """Wires the nodes above into the fixed sequence described in the
+    module docstring and compiles the graph, ready for .invoke(state) or
+    .stream(state, stream_mode="custom").
+
+    from_nav_log=True skips the four computing nodes: the caller already
+    has altitude_ft, altitude_selection and legs (the Brief tab, whose
+    planner computed and cached them seconds earlier -- and whose pilot
+    may have overridden the altitude, which a recomputation here would
+    silently ignore), so the graph starts at retrieve_memory.
+    """
     graph = StateGraph(NavLogState)
-    graph.add_node("fetch_checkpoints", fetch_checkpoints)
-    graph.add_node("select_checkpoints", select_checkpoints)
-    graph.add_node("select_altitude", select_altitude)
-    graph.add_node("assemble_legs", assemble_legs)
     graph.add_node("retrieve_memory", retrieve_memory)
     graph.add_node("generate_briefing", generate_briefing)
     graph.add_node("store_memory", store_memory)
-
-    graph.add_edge(START, "fetch_checkpoints")
-    graph.add_edge("fetch_checkpoints", "select_checkpoints")
-    graph.add_edge("select_checkpoints", "select_altitude")
-    graph.add_edge("select_altitude", "assemble_legs")
-    graph.add_edge("assemble_legs", "retrieve_memory")
+    if from_nav_log:
+        graph.add_edge(START, "retrieve_memory")
+    else:
+        graph.add_node("fetch_checkpoints", fetch_checkpoints)
+        graph.add_node("select_checkpoints", select_checkpoints)
+        graph.add_node("select_altitude", select_altitude)
+        graph.add_node("assemble_legs", assemble_legs)
+        graph.add_edge(START, "fetch_checkpoints")
+        graph.add_edge("fetch_checkpoints", "select_checkpoints")
+        graph.add_edge("select_checkpoints", "select_altitude")
+        graph.add_edge("select_altitude", "assemble_legs")
+        graph.add_edge("assemble_legs", "retrieve_memory")
     graph.add_edge("retrieve_memory", "generate_briefing")
     graph.add_edge("generate_briefing", "store_memory")
     graph.add_edge("store_memory", END)

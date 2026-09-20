@@ -177,9 +177,9 @@ service discovery at `planning-service.vfr-route.internal`.
 - `/api/briefing` — the FAA-sequence weather briefing behind the Brief
   tab on `/app/plan` (the narrative itself comes through `webapp`'s own
   `/api/comparison`, below)
-- `/api/model-comparison`, `/api/playground/score` — Settings' Dev ML
-  tab: every algorithm's accuracy side by side, and live scoring from a
-  chosen one
+- `/api/model-comparison` — every trained algorithm's accuracy side by
+  side: Settings' Dev ML panel charts it, and Plan's info popover names
+  the promoted one from it
 - `/api/altitude-breakdown` — the full reasoning behind a recommended
   cruise altitude for any route; the Brief tab's "Cruise Altitude" section
   shows the same computation for the loaded route
@@ -199,8 +199,8 @@ service discovery at `planning-service.vfr-route.internal`.
   promoted model by default (loaded from `/opt/ml/model`, SageMaker's own
   path, bind-mounted from `data/models/current`), or explicitly one of the
   PyTorch/TensorFlow/Spark candidates `vfr.model_candidates` trained
-  (`data/models/candidates/<algo>`) — Settings' own
-  model-comparison and algorithm-picker panels pick between them
+  (`data/models/candidates/<algo>`) — the planner only ever asks for the
+  promoted one; the Dev ML comparison shows how the rest measured up
 - Serves whichever precomputed feature stores exist in `FEATURES_DIR`, keyed by
   route; an uncollected corridor returns 404 carrying the two commands that build
   it, since collection is a batch job rather than an inference call
@@ -223,19 +223,18 @@ service discovery at `planning-service.vfr-route.internal`.
   `/api/me` reports who's signed in; `/api/aircraft` and `/api/flights`
   are that pilot's own aeroplanes and filed flights, each pilot-scoped
   so one can never read or edit another's by guessing an id
-- `/api/comparison` (`ComparisonProxyController`) — runs `nav-log-agent`'s
-  LangGraph build and/or `crewai-agent`'s CrewAI build on the same route
-  and returns each framework's own narrative, or `{"error": "..."}` for
-  whichever one is down/erroring; `framework=langgraph`/`framework=crewai`
-  runs one (the Brief tab's AI popover, each a real billed Claude call),
-  omitted runs both. Neither agent is required for `webapp` itself to
-  start
+- `/api/comparison` (`ComparisonProxyController`) — streams a narrative
+  for the nav log the Brief tab shows, from `nav-log-agent`'s LangGraph
+  build (`framework=langgraph`) or `crewai-agent`'s CrewAI build
+  (`framework=crewai`), each a real billed Claude call, as
+  newline-delimited JSON while Claude writes it. Neither agent is
+  required for `webapp` itself to start
 - Interactive API docs (springdoc-openapi) at `http://localhost:8080/swagger-ui/index.html`, raw spec at `/v3/api-docs`
 
 **`nav-log-agent`** — a LangGraph agent wrapped as an MCP server.
 
 - One tool: `generate_nav_log_briefing(departure_ident, destination_ident, altitude_ft=None, aircraft_name="c172")`
-- Graph: `fetch_checkpoints` → `select_checkpoints` (`vfr.checkpoints`) → `select_altitude` (`vfr.altitude`) → `assemble_legs` (`vfr.navlog`) → `retrieve_memory` (pgvector, embedded locally with `sentence-transformers/all-MiniLM-L6-v2`) → `generate_briefing` (Claude API) → `store_memory`
+- Graph: `fetch_checkpoints` → `select_checkpoints` (`vfr.checkpoints`) → `select_altitude` (`vfr.altitude`) → `assemble_legs` (`vfr.navlog`) → `retrieve_memory` (pgvector, embedded locally with `sentence-transformers/all-MiniLM-L6-v2`, baked into the image) → `generate_briefing` (Claude API, streamed) → `store_memory`. The Brief tab, which already has the nav log, POSTs it to `/compare` and the graph starts at `retrieve_memory`
 - Served over SSE at `/mcp/sse`
 - Same model-service/SageMaker dual path as webapp
 
@@ -460,7 +459,7 @@ stack. Anything not listed here does not exist.
 |---|---|---|
 | **Route planner** (Map and Brief tabs — the map/nav log, and the FAA-sequence briefing with its own LangGraph/CrewAI narrative popover) — also the app's homepage, bare `/app` redirects here | [`localhost:8080/app/plan`](http://localhost:8080/app/plan) | `webapp` + `planning-service` |
 | **Labeling page**, standalone | [`localhost:8080/app/label`](http://localhost:8080/app/label) | `webapp` + `planning-service` |
-| **Settings** — three tabs: Account (sign in, your aeroplanes, your filed flights), Dev ML (model comparison, algorithm picker), and Dev Label (the same labeling page above, embedded live rather than linked out to) | [`localhost:8080/app/settings`](http://localhost:8080/app/settings) | `webapp` + `planning-service` |
+| **Settings** — two tabs: Account (sign in, your aeroplanes, your filed flights) and Dev (the same labeling page above, embedded live rather than linked out to, with the Dev ML model-comparison drawer above it) | [`localhost:8080/app/settings`](http://localhost:8080/app/settings) | `webapp` + `planning-service` |
 | Spring Boot API docs | [`localhost:8080/swagger-ui/index.html`](http://localhost:8080/swagger-ui/index.html) | `webapp` |
 | Spring Boot OpenAPI spec | [`localhost:8080/v3/api-docs`](http://localhost:8080/v3/api-docs) | `webapp` |
 | Health / readiness | [`localhost:8080/actuator/health`](http://localhost:8080/actuator/health) | `webapp` |
@@ -536,7 +535,7 @@ Three suites, split by what each can actually prove:
   METAR parsing and `vfr.airports`' runway/frequency lookups.
 - **`planning-service/tests/`** (pytest, its own suite) — the HTTP
   contract for the endpoints with no coverage anywhere else
-  (`/api/model-comparison`, `/api/playground/score`,
+  (`/api/model-comparison`, `/api/checkpoints`' error translation,
   `/api/altitude-breakdown`): status codes, response shape, and that a
   `WeatherServiceError` anywhere underneath reaches the caller as a
   clean `502`, not a raw `500`; plus that the committed `openapi.json`

@@ -7,8 +7,9 @@ import { test, expect, type Page } from "@playwright/test";
  *  - a corner-pinned button not actually flush against the edge it's
  *    meant to sit on, because a wider sibling was silently deciding
  *    the shared container's own shrink-to-fit width
- *  - the toolbar drawer or the sidebar (a shadcn `Drawer`) not
- *    actually starting closed, or not actually opening from its trigger
+ *  - the sidebar (a `MapDrawer` over the map area) not actually
+ *    starting closed, not opening from its trigger, or covering the
+ *    header it is meant to sit under
  *  - wide content (the nav log table) pushing the whole page into
  *    horizontal scroll instead of scrolling inside its own container,
  *    because an ancestor flex item was missing `min-w-0`
@@ -32,25 +33,31 @@ async function settle(page: Page) {
   await page.waitForTimeout(1500);
 }
 
-/** Shell's own sidebar is one plain `Drawer`, identically on a phone
- *  and a desktop window alike (see Shell's own comment on why it
- *  replaced shadcn's `Sidebar` block, which behaved differently below
- *  its own mobile breakpoint) -- so unlike most things this
- *  `mobile`/`desktop`-project split file has to special-case per
- *  viewport, opening and closing it is one shape, checked once, that
- *  holds at either size unmodified. */
+/** Shell's own sidebar is one `MapDrawer` -- a panel over the map
+ *  area, under the header -- identically on a phone and a desktop
+ *  window alike (full width below `sm`, a fixed width above), so
+ *  unlike most things this `mobile`/`desktop`-project split file has
+ *  to special-case per viewport, opening and closing it is one shape,
+ *  checked once, that holds at either size unmodified. */
 async function openSidebar(page: Page) {
   const sidebarTrigger = page.getByTestId("sidebar-trigger-button");
-  const sidebar = page.locator('[data-slot="drawer-content"]');
+  const sidebar = page.locator('[data-slot="map-drawer"]');
   await sidebarTrigger.click();
   await expect(sidebar).toBeVisible();
-  // Closed via Escape, not a second click on the trigger -- the
-  // Drawer's own full-viewport overlay sits on top of everything
-  // (including the trigger's own screen position) while open, the
-  // same as any other modal dialog; Escape is the one dismissal path
-  // that doesn't depend on what's currently on top.
+  await expect(sidebarTrigger).toHaveAttribute("aria-expanded", "true");
+
+  // In the map area, not over the header: the panel starts where the
+  // header ends, and the header's own buttons stay usable above it.
+  const headerBox = await page.locator("header").boundingBox();
+  const sidebarBox = await sidebar.boundingBox();
+  expect(headerBox).not.toBeNull();
+  expect(sidebarBox).not.toBeNull();
+  expect(sidebarBox!.y).toBeGreaterThanOrEqual(headerBox!.y + headerBox!.height - 1);
+  await expect(sidebarTrigger).toBeEnabled();
+
   await page.keyboard.press("Escape");
   await expect(sidebar).not.toBeVisible();
+  await expect(sidebarTrigger).toHaveAttribute("aria-expanded", "false");
 }
 
 test.describe("/app/plan", () => {
@@ -68,9 +75,9 @@ test.describe("/app/plan", () => {
   test("sidebar starts closed on load, every load", async ({ page }) => {
     await page.goto("/app/plan");
     await settle(page);
-    // Not just hidden -- the Drawer isn't even mounted until its own
+    // Not just hidden -- the panel isn't even mounted until its own
     // trigger opens it, so "closed" means "not there."
-    expect(await page.locator('[data-slot="drawer-content"]').count()).toBe(0);
+    expect(await page.locator('[data-slot="map-drawer"]').count()).toBe(0);
   });
 
   test("sidebar opens from its own trigger, closes on Escape", async ({ page }) => {
@@ -100,7 +107,7 @@ test.describe("/app/label", () => {
   test("sidebar starts closed on load, every load", async ({ page }) => {
     await page.goto("/app/label");
     await settle(page);
-    expect(await page.locator('[data-slot="drawer-content"]').count()).toBe(0);
+    expect(await page.locator('[data-slot="map-drawer"]').count()).toBe(0);
   });
 
   test("sidebar opens from its own trigger, closes on Escape", async ({ page }) => {
@@ -165,7 +172,7 @@ test.describe("/app/plan", () => {
     expect(triggerBox!.x).toBeGreaterThan(tabsBox!.x);
 
     // Actually toggles the sidebar from here, same as it always did.
-    const sidebar = page.locator('[data-slot="drawer-content"]');
+    const sidebar = page.locator('[data-slot="map-drawer"]');
     await page.getByTestId("sidebar-trigger-button").click();
     await expect(sidebar).toBeVisible();
   });
@@ -376,7 +383,7 @@ test("Settings' Dev tab embeds the real Label workspace inline, not a link to a 
   await page.waitForURL("**/app/plan");
 });
 
-test("Settings page: Account and Dev are two separate tabs; Dev ML lives behind a top drawer on Dev", async ({ page }) => {
+test("Settings page: Account and Dev are two separate tabs; Dev ML is a panel over the map on Dev", async ({ page }) => {
   await page.goto("/app/settings");
   await page.waitForTimeout(300);
 
@@ -388,13 +395,39 @@ test("Settings page: Account and Dev are two separate tabs; Dev ML lives behind 
   await page.waitForTimeout(300);
   await expect(devTab).toHaveAttribute("data-state", "active");
   // The labeling workspace is what Dev actually shows -- Dev ML's own
-  // panels stay off screen until its own drawer trigger is opened.
+  // panel stays off screen until its own trigger is opened.
   await expect(page.getByLabel("Departure")).toBeVisible();
   expect(await page.locator("summary", { hasText: "Model Comparison" }).count()).toBe(0);
 
   await page.getByRole("button", { name: "Dev ML" }).click();
-  await expect(page.locator("summary", { hasText: "Model Comparison" })).toBeVisible();
+  const devMl = page.locator('[data-slot="map-drawer"][data-side="top"]');
+  await expect(devMl).toBeVisible();
+  await expect(devMl.getByText("Model comparison")).toBeVisible();
+  // The same kind of drawer as the waypoint list, dropping down from
+  // the top of the map area rather than over the header -- the header
+  // stays usable above it.
+  const headerBox = await page.locator("header").boundingBox();
+  const devMlBox = await devMl.boundingBox();
+  expect(devMlBox!.y).toBeGreaterThanOrEqual(headerBox!.y + headerBox!.height - 1);
 
+  // One drawer at a time over the same map: opening the waypoint list
+  // closes Dev ML, and Escape closes whichever is open.
+  await page.getByTestId("sidebar-trigger-button").click();
+  await expect(page.locator('[data-slot="map-drawer"][data-side="right"]')).toBeVisible();
+  await expect(devMl).toBeHidden();
   await page.keyboard.press("Escape");
-  await expect(page.locator("summary", { hasText: "Model Comparison" })).toBeHidden();
+  await expect(page.locator('[data-slot="map-drawer"]')).toHaveCount(0);
+});
+
+test("plan page: a click on the dimmed map closes the sidebar, and the header above it never dims", async ({ page }) => {
+  await page.goto("/app/plan");
+  await settle(page);
+  await page.getByTestId("sidebar-trigger-button").click();
+  const overlay = page.locator('[data-slot="map-drawer-overlay"]');
+  await expect(overlay).toBeVisible();
+  const headerBox = await page.locator("header").boundingBox();
+  const overlayBox = await overlay.boundingBox();
+  expect(overlayBox!.y).toBeGreaterThanOrEqual(headerBox!.y + headerBox!.height - 1);
+  await overlay.click({ position: { x: 10, y: 10 } });
+  await expect(page.locator('[data-slot="map-drawer"]')).toHaveCount(0);
 });

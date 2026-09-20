@@ -13,16 +13,17 @@ const FRAMEWORK_LABEL: Record<Framework, string> = {
   crewai: "CrewAI",
 };
 
-/** One framework's own tab body -- loading line, error, or the
- *  narrative text itself, whichever the fetch for that framework
- *  currently holds. Scrolls internally (a full CrewAI narrative runs
- *  well past a screenful) rather than pushing the popover past the
- *  viewport. */
+/** One framework's own tab body -- the narrative as it streams in (the
+ *  "generating" line only until the first words arrive), the finished
+ *  text, or a note that the error toast has the details. Scrolls
+ *  internally rather than pushing the popover past the viewport. */
 function NarrativeTabBody({ framework, narrative }: { framework: Framework; narrative: FrameworkNarrative }) {
   return (
     <ScrollArea className="max-h-[60vh]">
       <div className="p-3 pt-2">
-        {narrative.loading && <p className="text-muted-foreground">Generating {FRAMEWORK_LABEL[framework]} narrative…</p>}
+        {narrative.loading && !narrative.text && (
+          <p className="text-muted-foreground">Generating {FRAMEWORK_LABEL[framework]} narrative…</p>
+        )}
         {narrative.error && <p className="text-muted-foreground">Narrative unavailable — see the error toast.</p>}
         {narrative.text && <p className="whitespace-pre-wrap text-popover-foreground">{narrative.text}</p>}
       </div>

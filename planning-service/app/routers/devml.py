@@ -1,15 +1,14 @@
 """Lookups the pages need around the planner itself: the route form's
-airport search, the corridors already collected, and Settings' Dev ML
-tab (every trained algorithm side by side, and scoring from a chosen
-one). Nothing the planner's own scoring path depends on."""
+airport search, the corridors already collected, and every trained
+algorithm side by side (Settings' Dev ML panel, and the one line in
+Plan's own info popover naming the model that scored the checkpoints).
+Nothing the planner's own scoring path depends on."""
 import json
 
 from fastapi import APIRouter, HTTPException
 from vfr import airports, model_client, model_registry
 
-from ..common import route_key
-from ..schemas import AirportSearch, BuiltRoutes, ModelComparison, PlaygroundScore
-from ..scoring import invoke_model
+from ..schemas import AirportSearch, BuiltRoutes, ModelComparison
 
 router = APIRouter()
 
@@ -77,15 +76,3 @@ def model_comparison() -> ModelComparison:
         "trained_at": current_metrics.get("trained_at"),
         "n_labeled": current_metrics.get("n_labeled"),
     }
-
-
-@router.get("/api/playground/score")
-def playground_score(dep: str, dest: str, model: str = "current") -> PlaygroundScore:
-    """Scored checkpoints from one specific algorithm -- the Dev ML
-    tab's demo, kept apart from the planner's real scoring path
-    (app.scoring), which never chooses an algorithm: it always uses
-    whatever is promoted. A thin passthrough to model-service's own
-    `model` selector on /invocations.
-    """
-    dep_ident, dest_ident = route_key(dep, dest)
-    return invoke_model(dep_ident, dest_ident, model=model)

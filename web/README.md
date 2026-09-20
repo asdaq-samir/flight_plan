@@ -11,8 +11,9 @@ end, built into `webapp`'s jar and served from `/app`. Three pages:
 - `/app/label` — walk a route's detected waypoints on the sectional and
   rate each one, producing ML training data. Also embedded live inside
   Settings' Dev Label tab (the same component, not a copy).
-- `/app/settings` — Account (sign in, aircraft, filed flights), Dev ML
-  (model comparison, algorithm picker) and Dev Label.
+- `/app/settings` — Account (sign in, aircraft, filed flights) and Dev:
+  the labeling workspace with the Dev ML drawer (model comparison)
+  above it.
 
 The pages compute nothing themselves. Every course, checkpoint,
 detection and nav log comes from `planning-service`; this front end
@@ -47,9 +48,12 @@ docker run --rm --add-host=host.docker.internal:host-gateway -v "$PWD/web":/w -w
 ```
 
 `vite build` writes into `springboot-app/src/main/resources/static/app`
-(`vite.config.ts`), so the bundle ships inside `webapp`'s jar and the
-page and its API come from one origin. There is no separate front-end
-container; `docker compose up --build webapp` rebuilds the bundle.
+(`vite.config.ts`) for a local `mvn package`; the Docker image builds
+the bundle in its own stage and serves it from a directory beside the
+jar (`APP_STATIC_LOCATION`, see `WebMvcConfig`), so the page and its API
+still come from one origin and a front-end change rebuilds only that
+stage. There is no separate front-end container; `docker compose up
+--build webapp` rebuilds the bundle.
 
 The Playwright image tag must match `@playwright/test`'s version in
 `package.json`. The e2e suite runs every test at a desktop and a phone
@@ -72,9 +76,9 @@ web/ (this folder)      the map, the keyboard, the rows
 
 The front end never calls `planning-service` or `model-service`
 directly. Every request goes through `webapp` at `/api/planner/*`
-(`frameworkComparison()` is the one exception, calling `webapp`'s own
-`/api/comparison`), so there is one origin, one session and one set of
-access rules.
+(`frameworkNarrative()` is the one exception, streaming from `webapp`'s
+own `/api/comparison`), so there is one origin, one session and one set
+of access rules.
 
 ## Project layout
 
@@ -82,8 +86,9 @@ access rules.
 e2e/layout.spec.ts       Real-browser layout tests (Playwright)
 src/
   main.tsx               Entry point: one lazy route per page, basename /app
-  Shell.tsx              The header / map / sidebar-drawer layout every page mounts into
+  Shell.tsx              The header / map / sidebar-panel layout every page mounts into
   components/            Shared UI
+    MapDrawer.tsx          A drawer over the map area, under the header (the sidebar from the right, Dev ML from the top)
     TwoRowHeader.tsx       Route form and trailing icons on row one, tabs and tab actions on row two
     RouteForm.tsx, RouteInputGroup.tsx, AirportSearchInput.tsx   The DEP → DEST form and its Load button, shared by Plan and Label
     IconButton.tsx         An icon-only Button with its label as tooltip and accessible name; every header icon is one
@@ -101,7 +106,7 @@ src/
                            components/: RouteMap, BuildNotice, ScoreLegend, navlog/, briefing/
     label/                 LabelView.tsx (wiring), hooks/useLabelState.ts (state, tested), logic.ts (pure, tested),
                            components/: ChartMap, FilterBar, ProgressCard, WaypointList, PointPopup, RatingLegend
-    settings/              SettingsView.tsx (tab wiring), AccountTab.tsx, DevMlDrawer.tsx, SignInModal.tsx
+    settings/              SettingsView.tsx (tab wiring), AccountTab.tsx, DevMlPanel.tsx, SignInModal.tsx
 ```
 
 ## Architecture
@@ -118,8 +123,11 @@ server data, plus local `useState` for forms. There is no global store.
 
 **Layout (`Shell.tsx`).** A flex column: the page's header, then the
 map or tab content, with the sidebar (nav log on Plan, waypoint list on
-Label) as a right-hand shadcn `Drawer` that overlays the viewport and
-starts closed. Plan and Label share `TwoRowHeader` and the same trailing
+Label) as a right-hand `MapDrawer` that slides in over the map area,
+dims the map behind it, and starts closed. Only the map area is covered:
+the header stays usable above it, and Settings' Dev tab drops its Dev ML
+drawer down from the top the same way. Plan and Label share
+`TwoRowHeader` and the same trailing
 controls — Info, Fit Route / Show Selected, the sidebar toggle, Settings
 — so the two pages behave identically. Settings' Dev Label tab mounts
 `LabelView` with `embedded` and places its pieces in its own `Shell`.

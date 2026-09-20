@@ -472,27 +472,6 @@ class ModelComparison(BaseModel):
     n_labeled: int | None
 
 
-class ScoredCheckpoint(BaseModel):
-    osm_id: str
-    category: str
-    name: str | None = None
-    lat: float
-    lon: float
-    along_track_nm: float
-    predicted_score: float
-
-
-class PlaygroundScore(BaseModel):
-    """model-service's own /invocations response, passed through."""
-
-    model_config = ConfigDict(extra="allow")
-
-    departure_ident: str | None = None
-    destination_ident: str | None = None
-    checkpoints: list[ScoredCheckpoint]
-    model_type: str
-
-
 class Index(BaseModel):
     service: str
     ui: str

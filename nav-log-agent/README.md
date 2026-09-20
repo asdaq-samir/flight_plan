@@ -94,10 +94,18 @@ fetch_checkpoints → select_checkpoints → select_altitude → assemble_legs
 
 Only `generate_briefing` calls Claude. The rest is `src/vfr` and Postgres.
 
+The Brief tab's own calls skip the first four nodes: the page already
+has the nav log the planner computed (a pilot's altitude override
+included), so it POSTs that to `/compare` and the graph starts at
+`retrieve_memory`. The briefing streams back as newline-delimited JSON
+while Claude writes it, the same `delta`/`done`/`error` lines the
+planner's own streams use; the MCP tool and the CLI still run all seven
+nodes and return the finished text.
+
 | File | What it is |
 |---|---|
 | `app/graph.py` | The state machine and its nodes. |
-| `app/mcp_server.py` | MCP wrapper, so other clients can call it. |
+| `app/mcp_server.py` | MCP wrapper, so other clients can call it, and the `/compare` route the Brief tab streams from. |
 | `app/db.py` | Postgres + pgvector access. |
 | `vfr.model_client` (in `src/`) | Checkpoint scores, over HTTP or SageMaker Runtime -- shared with planning-service and crewai-agent. |
 | `app/migrations.py` + `migrations/` | Its own schema, applied at startup. |
@@ -117,4 +125,13 @@ to 2.31 GB.
 
 **Embeddings are local, not an API call.** Anthropic has no embeddings
 endpoint. `sentence-transformers` runs the model in-process, which is
-most of this image's size.
+most of this image's size. The weights are downloaded once, at image
+build time, and read offline from then on (`HF_HUB_OFFLINE`), loaded at
+startup rather than on the first request: before that, every process
+start made a round of huggingface.co requests inside a pilot's own wait
+for a narrative, and a rebuilt image fetched the model again on first
+use.
+
+**The narrative is short on purpose.** Under 200 words and 512 tokens:
+Claude writes that in a few seconds, and it streams as it is written,
+so the first sentence is on screen within a second or two.

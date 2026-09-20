@@ -253,7 +253,7 @@ export function usePlanState() {
       if (token !== planToken.current) return;
       setState(s => ({ ...s, stage: null, navStage: null, navError: describeError(err, "could not build the nav log") }));
     }
-  }, []);
+  }, [queryClient]);
 
   /**
    * Collect a corridor, then plan it.
@@ -411,14 +411,16 @@ export function usePlanState() {
   }, [queryClient]);
 
   /** One framework's narrative -- a pilot's own click (NavLogActions'
-   *  own LangGraph/CrewAI menu items), reading the aircraft name from
-   *  `ref.current` rather than taking it as an argument, since it's
-   *  already sitting in state (`nav.aircraft`) by the time this page
-   *  can show a narrative button at all. Independent per framework
-   *  (see `FrameworkNarrative`): generating one doesn't touch the
-   *  other's own text/loading/error, and each is its own real, billed
-   *  Claude call -- picking one framework shouldn't also fetch, or pay
-   *  for, the other.
+   *  own LangGraph/CrewAI tabs), written about the nav log already in
+   *  state (`nav`, `legs`) rather than one the agent recomputes: it
+   *  describes exactly what the page shows, a pilot's own altitude
+   *  override included, and skips the terrain/airspace/winds work the
+   *  planner already did. Streamed: `text` grows as Claude writes and
+   *  `loading` stays true until the stream's own done line. Independent
+   *  per framework (see `FrameworkNarrative`): generating one doesn't
+   *  touch the other's own text/loading/error, and each is its own
+   *  real, billed Claude call -- picking one framework shouldn't also
+   *  fetch, or pay for, the other.
    */
   const loadFrameworkNarrative = useCallback(async (framework: "langgraph" | "crewai", dep: string, dest: string) => {
     const token = planToken.current;
@@ -429,16 +431,31 @@ export function usePlanState() {
       return;
     }
     setState(st => ({ ...st, [slot]: { text: null, error: null, loading: true } }));
+    const request = {
+      departure_ident: dep, destination_ident: dest, aircraft_name: s.nav.aircraft.name,
+      altitude_ft: s.nav.altitude_ft, altitude_selection: s.nav.altitude_selection, legs: s.legs,
+    };
     try {
-      const data = await api.frameworkComparison(dep, dest, s.nav.aircraft.name, framework);
-      if (token !== planToken.current) return;
-      const result = data[framework];
-      if (!result) {
-        setState(st => ({ ...st, [slot]: { text: null, error: "no result returned", loading: false } }));
-      } else if ("error" in result) {
-        setState(st => ({ ...st, [slot]: { text: null, error: result.error, loading: false } }));
-      } else {
-        setState(st => ({ ...st, [slot]: { text: result.briefing, error: null, loading: false } }));
+      let text = "";
+      let finished = false;
+      for await (const msg of api.frameworkNarrative(framework, request)) {
+        if (token !== planToken.current) return;
+        if (msg.type === "delta") {
+          text += msg.text;
+          const soFar = text;
+          setState(st => ({ ...st, [slot]: { text: soFar, error: null, loading: true } }));
+        } else if (msg.type === "done") {
+          finished = true;
+          setState(st => ({ ...st, [slot]: { text: msg.briefing, error: null, loading: false } }));
+        } else {
+          finished = true;
+          setState(st => ({ ...st, [slot]: { text: null, error: msg.detail, loading: false } }));
+        }
+      }
+      // The agent ends every stream with done or error; one that stops
+      // without either was cut off in transit.
+      if (!finished && token === planToken.current) {
+        setState(st => ({ ...st, [slot]: { text: null, error: "the narrative ended before it was finished", loading: false } }));
       }
     } catch (err) {
       if (token !== planToken.current) return;

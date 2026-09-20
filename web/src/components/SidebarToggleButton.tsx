@@ -19,20 +19,19 @@ interface Props {
 }
 
 /**
- * Opens/closes Shell's own sidebar Drawer -- a plain callback prop,
+ * Opens/closes Shell's own sidebar panel -- a plain callback prop,
  * not a Context: every page that has a sidebar renders one of these
  * itself, inline in its own header, rather than Shell rendering one
  * internally.
  *
- * `open` forces this button's own Tooltip shut once the Drawer is open
+ * `open` forces this button's own Tooltip shut once the panel is open
  * -- a real boolean from this component's first render on, never
  * toggled to/from `undefined` (Radix decides controlled-vs-uncontrolled
  * once, and flip-flopping the prop's own presence later doesn't
  * un-decide that). Clicking this button doesn't move the pointer off
  * it, so without this, Radix's own hover-intent re-opens the tooltip
- * right as the Drawer does; its freshly re-mounted `DismissableLayer`
- * then registers *after* (so: above) the Drawer's own, stealing
- * Escape's first press for itself instead of closing the sidebar.
+ * right as the panel does, and the tooltip's own Escape handling then
+ * competes with the panel's for the first press.
  */
 export default function SidebarToggleButton({ onClick, open, label, className, variant = "ghost" }: Props) {
   const [tooltipOpen, setTooltipOpen] = useState(false);
@@ -43,6 +42,7 @@ export default function SidebarToggleButton({ onClick, open, label, className, v
       tooltip={{ open: tooltipOpen && !open, onOpenChange: setTooltipOpen }}
       variant={variant}
       onClick={onClick}
+      aria-expanded={open}
       className={className}
       data-testid="sidebar-trigger-button"
     >

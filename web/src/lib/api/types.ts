@@ -46,8 +46,6 @@ export type AirportSuggestion = Schemas["AirportSuggestion"];
 export type AirportSearch = Schemas["AirportSearch"];
 export type ModelComparisonEntry = Schemas["ModelComparisonEntry"];
 export type ModelComparison = Schemas["ModelComparison"];
-export type ScoredCheckpoint = Schemas["ScoredCheckpoint"];
-export type PlaygroundScore = Schemas["PlaygroundScore"];
 /** One line of the per-checkpoint description stream. */
 export type CheckpointDescriptionMessage = Schemas["CheckpointNoteMessage"];
 export type CheckpointNoteSaved = Schemas["CheckpointNoteSaved"];
@@ -117,19 +115,23 @@ export interface Pilot {
  *  shape can come back for either framework, independent of the other
  *  (nav-log-agent down doesn't stop crewai-agent's own result from
  *  showing, and vice versa). */
-export type FrameworkResult =
-  | { altitude_selection: AltitudeBreakdown; legs: unknown[]; briefing: string }
-  | { briefing: string }
-  | { error: string };
-
-/** The identical nav-log-briefing task, run through nav-log-agent's
- *  LangGraph build and/or crewai-agent's CrewAI build. The Brief tab's
- *  narrative buttons request one at a time, so only that key comes
- *  back; a pilot picking one shouldn't also pay for the other. */
-export interface FrameworkComparison {
-  langgraph?: FrameworkResult;
-  crewai?: FrameworkResult;
+/** The nav log on screen, handed to an agent to write about -- what
+ *  `/api/comparison` forwards to nav-log-agent or crewai-agent. */
+export interface NarrativeRequest {
+  departure_ident: string;
+  destination_ident: string;
+  aircraft_name: string;
+  altitude_ft: number;
+  altitude_selection: AltitudeBreakdown | null;
+  legs: Leg[];
 }
+
+/** One line of a narrative stream: text as Claude writes it, then the
+ *  whole briefing, or why there is none. */
+export type NarrativeMessage =
+  | { type: "delta"; text: string }
+  | { type: "done"; briefing: string }
+  | { type: "error"; detail: string };
 
 /** A pilot's own aeroplane, from `/api/aircraft`. */
 export interface Aircraft {

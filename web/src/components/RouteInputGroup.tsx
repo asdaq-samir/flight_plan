@@ -20,12 +20,9 @@ interface Props {
 /**
  * DEP `->` DEST plus its own trailing action button(s), as one bordered
  * shadcn `InputGroup` -- Plan's and Label's own `RouteForm` (see
- * https://ui.shadcn.com/docs/components/radix/input-group), not
- * `IdentPairInputs`' plain two-boxes-and-an-arrow shape Settings' own
- * Algorithm Picker panel still uses: that one is a one-off lookup, not
- * "the page's own primary input" the way this is on Plan/Label (see
- * `IdentPairInputs`' own comment), so it doesn't earn the extra visual
- * weight a bordered group carries. `InputGroup`'s own CSS reacts to
+ * https://ui.shadcn.com/docs/components/radix/input-group): the page's
+ * own primary input, which earns the visual weight a bordered group
+ * carries. `InputGroup`'s own CSS reacts to
  * `data-slot="input-group-control"`/`aria-invalid` on ANY input inside
  * it (a `:has()` selector, not a prop this component threads through
  * itself) -- focusing either DEP or DEST highlights the whole group's

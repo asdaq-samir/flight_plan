@@ -5,12 +5,13 @@ import { Map as MapIcon } from "lucide-react";
 import Shell from "../../Shell";
 import Footer from "../../components/Footer";
 import IconButton from "../../components/IconButton";
+import MapDrawer from "../../components/MapDrawer";
 import SidebarToggleButton from "../../components/SidebarToggleButton";
 import TwoRowHeader from "../../components/TwoRowHeader";
 import { TabsTrigger } from "../../components/ui/tabs";
 import LabelView from "../label/LabelView";
 import { AircraftPanel, FlightsPanel, SignInStatus } from "./AccountTab";
-import DevMlDrawer from "./DevMlDrawer";
+import { DevMlButton, DevMlPanel } from "./DevMlPanel";
 import type { PilotState } from "./shared";
 import { api } from "../../lib/api/client";
 import { useDocumentTitle } from "../../lib/useDocumentTitle";
@@ -85,6 +86,19 @@ export default function SettingsView() {
   // this same state (used by the standalone `/app/label` route) is a
   // separate instance, not this one; embedded mode never touches it.
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  // The Dev ML drawer -- the same kind of in-map drawer as the waypoint
+  // list, from the top instead of the right. One at a time: each is a
+  // drawer over the same map, and opening one closes the other rather
+  // than stacking two dimmed layers.
+  const [devMlOpen, setDevMlOpen] = useState(false);
+  const toggleDevMl = useCallback(() => {
+    setDevMlOpen(open => !open);
+    setSidebarOpen(false);
+  }, []);
+  const toggleSidebar = useCallback(() => {
+    setSidebarOpen(open => !open);
+    setDevMlOpen(false);
+  }, []);
 
   if (tab === "dev") {
     return (
@@ -100,14 +114,20 @@ export default function SettingsView() {
                   <div className="flex items-center gap-2">
                     {guideButton}
                     {zoomButton}
-                    <DevMlDrawer />
-                    <SidebarToggleButton open={sidebarOpen} onClick={() => setSidebarOpen(o => !o)} label="Waypoints" />
+                    <DevMlButton open={devMlOpen} onClick={toggleDevMl} />
+                    <SidebarToggleButton open={sidebarOpen} onClick={toggleSidebar} label="Waypoints" />
                   </div>
                 )}
               />
             }
             map={mapContent}
+            panels={(
+              <MapDrawer side="top" open={devMlOpen} onOpenChange={setDevMlOpen} label="Dev ML">
+                <DevMlPanel />
+              </MapDrawer>
+            )}
             sidebar={sidebarContent}
+            sidebarLabel="Waypoints"
             sidebarOpen={sidebarOpen}
             onSidebarOpenChange={setSidebarOpen}
           />

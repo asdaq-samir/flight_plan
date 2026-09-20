@@ -19,21 +19,39 @@ is an Agent reasoning over which tools to call and when -- so here the
 three deterministic steps (checkpoints/altitude/DR-legs) are exposed as
 tools the agent chooses to invoke, rather than hardcoded as call sites.
 That difference in control-flow philosophy is the actual point of comparison.
+
+The Brief tab is the exception: it already has the nav log on screen, so
+its calls hand the crew that data (nav_log below) and no tools at all,
+and the agent's one job is the prose -- the same shortcut the LangGraph
+build takes for the same caller. Every tool call there was one more
+round trip through Claude, and the pilot was paying for the framework
+comparison in wall-clock time.
 """
 import argparse
 import os
 
 from crewai import Agent, Crew, Task
 
+from .prompt import briefing_prompt
 from .tools import compute_dead_reckoning_legs, get_recommended_altitude, get_route_checkpoints
 
 CLAUDE_MODEL = os.environ.get("NAV_LOG_AGENT_MODEL", "claude-sonnet-5")
 
 
-def build_crew(departure_ident: str, destination_ident: str, aircraft_name: str) -> Crew:
+def build_crew(
+    departure_ident: str,
+    destination_ident: str,
+    aircraft_name: str,
+    nav_log: dict | None = None,
+    stream: bool = False,
+) -> Crew:
     """Builds the single-agent Crew for one route: an Agent holding the
     three tools in tools.py, and the Task describing what to produce with
-    them -- see module docstring for how this compares to the LangGraph build."""
+    them -- see module docstring for how this compares to the LangGraph
+    build. With nav_log (altitude_ft, altitude_selection, legs -- what
+    the Brief tab already shows) the agent gets that data in its task
+    and no tools. stream=True makes kickoff() return the crew's own
+    streaming output (text as Claude writes it) instead of the result."""
     briefer = Agent(
         role="VFR Nav Log Briefer",
         goal="Produce an accurate, concise VFR pilot briefing for a route",
@@ -41,25 +59,30 @@ def build_crew(departure_ident: str, destination_ident: str, aircraft_name: str)
             "An experienced VFR flight instructor who assembles nav-log briefings from "
             "checkpoint, altitude, and dead-reckoning data before every cross-country flight."
         ),
-        tools=[get_route_checkpoints, get_recommended_altitude, compute_dead_reckoning_legs],
+        tools=[] if nav_log else [get_route_checkpoints, get_recommended_altitude, compute_dead_reckoning_legs],
         llm=f"anthropic/{CLAUDE_MODEL}",
         verbose=True,
     )
 
-    task = Task(
-        description=(
+    if nav_log:
+        description = briefing_prompt(departure_ident, destination_ident, nav_log)
+    else:
+        description = (
             f"Produce a VFR pilot briefing for a flight from {departure_ident} to "
             f"{destination_ident} in a {aircraft_name} aircraft. First get the recommended "
             "checkpoints, then the recommended cruising altitude, then the dead-reckoning "
-            "legs at that altitude. Write a concise briefing covering the recommended "
-            "altitude and why (terrain/airspace/weather), each leg's heading/groundspeed/"
-            "ETE/fuel, and total distance/time/fuel for the route."
-        ),
-        expected_output="A concise natural-language VFR pilot briefing for the route.",
+            "legs at that altitude. Write a concise briefing, under 200 words, in plain prose "
+            "(no Markdown), covering the recommended altitude and why (terrain/airspace/weather), "
+            "each leg's heading/groundspeed/ETE/fuel, and total distance/time/fuel for the route."
+        )
+
+    task = Task(
+        description=description,
+        expected_output="A concise natural-language VFR pilot briefing for the route, under 200 words.",
         agent=briefer,
     )
 
-    return Crew(agents=[briefer], tasks=[task], verbose=True)
+    return Crew(agents=[briefer], tasks=[task], verbose=True, stream=stream)
 
 
 def main() -> None:

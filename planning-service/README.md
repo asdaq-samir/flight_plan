@@ -125,7 +125,7 @@ once in ten.
 | `GET /api/airports/search` | Identifier and name lookup for the route form. |
 | `POST /api/build`, `GET /api/build/{id}` | Start and poll a corridor collection. |
 | `GET /api/routes` | Corridors the feature store already covers. |
-| `GET /api/model-comparison`, `GET /api/playground/score` | Settings' Dev ML tab: every algorithm's accuracy, and live scoring from a chosen one. |
+| `GET /api/model-comparison` | Every trained algorithm's accuracy side by side, and which one is promoted. |
 
 ## Things that are not obvious
 

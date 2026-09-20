@@ -1,7 +1,7 @@
 import type {
   Aircraft, AircraftRequest, AirportSearch, Briefing, BuildJob, BuiltRoutes,
   CheckpointDescriptionMessage, CheckpointNoteSaved, Checkpoints, Classification, Course, Flight, FlightSummary,
-  FrameworkComparison, ModelComparison, NavLogMessage, PickDeleted, PickSaved, PicksResponse, Pilot, PlaygroundScore,
+  ModelComparison, NarrativeMessage, NarrativeRequest, NavLogMessage, PickDeleted, PickSaved, PicksResponse, Pilot,
   Rating, Role, SaveFlightRequest, StreamMessage,
 } from "./types";
 
@@ -70,9 +70,14 @@ export function describeError(err: unknown, fallback = "request failed"): string
  * apart from each other.
  */
 async function* streamNdjson<T>(
-  url: string, signal: AbortSignal | undefined, failureMessage: string,
+  url: string, signal: AbortSignal | undefined, failureMessage: string, init?: RequestInit,
 ): AsyncGenerator<T> {
-  const res = await fetch(url, { signal });
+  const method = init?.method ?? "GET";
+  const res = await fetch(url, {
+    ...init,
+    signal,
+    headers: method === "GET" ? init?.headers : { ...init?.headers, ...csrfHeader() },
+  });
   if (!res.ok || !res.body) {
     const body = await res.json().catch(() => ({ detail: res.statusText }));
     throw new ApiError(body.detail ?? failureMessage, res.status);
@@ -240,7 +245,8 @@ export const api = {
     }),
 
   /** How the currently promoted model was actually chosen -- every
-   *  algorithm retrain() tried, not just the winner. */
+   *  algorithm retrain() tried, not just the winner. Settings' Dev ML
+   *  panel draws it; Plan's info popover names the winner from it. */
   modelComparison: () => json<ModelComparison>(`${PLANNER}/model-comparison`),
 
   /** DEP/DEST's own autocomplete -- airports whose ident or name
@@ -251,25 +257,24 @@ export const api = {
     json<AirportSearch>(`${PLANNER}/airports/search?${new URLSearchParams({ q })}`)
       .then(r => r.airports),
 
-  /** Scored checkpoints from one specific algorithm -- current
-   *  (whatever's promoted) / pytorch / tensorflow / spark. */
-  playgroundScore: (dep: string, dest: string, model: string) =>
-    json<PlaygroundScore>(`${PLANNER}/playground/score?${new URLSearchParams({ dep, dest, model })}`),
-
-  /** The same route through one or both agent frameworks -- not under
-   *  PLANNER, a separate top-level controller
-   *  (ComparisonProxyController), since neither nav-log-agent nor
-   *  crewai-agent is planning-service's concern. `framework` omitted
-   *  (Settings > Playground) runs both; given (the Flight Briefing
-   *  page's own two narrative buttons, `NavLogActions`) runs one, so
-   *  only its key comes back. Can take tens of seconds (a real agent
-   *  run); no client-side timeout here beyond the browser's own
-   *  default, matching how long ComparisonProxyController itself is
-   *  willing to wait. */
-  frameworkComparison: (dep: string, dest: string, aircraft: string, framework?: "langgraph" | "crewai") =>
-    json<FrameworkComparison>(
-      `/api/comparison?${new URLSearchParams({ dep, dest, aircraft, ...(framework ? { framework } : {}) })}`,
-    ),
+  /**
+   * One framework's narrative for the nav log on screen, streamed as
+   * Claude writes it -- not under PLANNER, a separate top-level
+   * controller (ComparisonProxyController), since neither nav-log-agent
+   * (LangGraph) nor crewai-agent (CrewAI) is planning-service's
+   * concern. The Brief tab's popover asks for one framework at a time;
+   * each is a real, billed Claude call, and a pilot picking one
+   * shouldn't pay for the other. The same NDJSON shape as `navlog`:
+   * text deltas, then `done` or `error`.
+   */
+  frameworkNarrative(
+    framework: "langgraph" | "crewai", request: NarrativeRequest, signal?: AbortSignal,
+  ): AsyncGenerator<NarrativeMessage> {
+    return streamNdjson<NarrativeMessage>(
+      `/api/comparison?${new URLSearchParams({ framework })}`, signal, `generating the ${framework} narrative failed`,
+      { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(request) },
+    );
+  },
 
   /** A signed-in pilot's own aeroplanes -- also a direct Spring Boot
    *  call, like `me()`: nothing here is planning-service's concern. */

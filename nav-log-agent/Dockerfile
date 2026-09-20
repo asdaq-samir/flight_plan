@@ -13,6 +13,18 @@ COPY nav-log-agent/requirements.txt .
 RUN --mount=type=cache,target=/root/.cache/pip pip install torch --index-url https://download.pytorch.org/whl/cpu
 RUN --mount=type=cache,target=/root/.cache/pip pip install -r requirements.txt
 
+# The embedding model's weights, baked in at build time and read offline
+# from then on. Without this the model was fetched on the first request
+# after every image rebuild, and every process start made a round of
+# huggingface.co HEAD requests before embedding anything -- a few seconds
+# of a pilot's own wait for a narrative, and a hard dependency on that
+# site being up. HF_HOME sits outside the bind-mounted /workspace so a
+# local `docker compose up` sees the same baked weights as AWS does.
+ENV HF_HOME=/opt/hf
+RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('all-MiniLM-L6-v2')" \
+    && chmod -R a+rX /opt/hf
+ENV HF_HUB_OFFLINE=1
+
 COPY nav-log-agent/app ./app
 COPY src /workspace/src
 

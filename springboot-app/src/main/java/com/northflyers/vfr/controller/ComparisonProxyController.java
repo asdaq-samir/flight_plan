@@ -3,61 +3,68 @@ package com.northflyers.vfr.controller;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.URI;
-import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-import java.util.concurrent.CompletableFuture;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
 /**
- * The Brief tab's own AI popover calls this, one framework at a time
- * (LangGraph or CrewAI tab, {@code framework=langgraph}/{@code
- * framework=crewai}): runs nav-log-agent's LangGraph build and/or
- * crewai-agent's CrewAI build on an identical route and returns the
- * result, so the comparison the two services exist to make (see
- * crewai-agent/app/main.py's own module docstring) is actually
- * visible somewhere instead of terminal-only. {@code framework}
- * omitted runs both at once (no current caller in the UI -- this used
- * to be Settings' own Agent Framework Comparison panel's own mode,
- * dropped as redundant once the Brief tab's own popover offered the
- * same choice in context -- but the capability itself stays, a
- * generic "compare both" is a reasonable thing for this endpoint to
- * still support).
+ * The Brief tab's own AI popover streams its narrative through this, one
+ * framework at a time ({@code framework=langgraph} runs nav-log-agent's
+ * LangGraph build, {@code framework=crewai} crewai-agent's CrewAI build):
+ * the comparison the two services exist to make (see crewai-agent/app/
+ * main.py's own module docstring) is visible somewhere instead of
+ * terminal-only, and a pilot picking one framework does not pay for the
+ * other.
  *
- * <p>Neither call is required for the other to succeed, and neither is
- * required for this controller (or webapp generally) to be usable --
- * unlike {@link PlannerProxyController}, a real request-path dependency,
- * these two are a developer-facing extra. A framework being down, slow,
- * or erroring reports as {@code {"error": "..."}} for that framework
- * alone, same shape both services already use for their own per-source
- * failures (vfr.altitude's weather_unavailable, /api/briefing's own).
+ * <p>The body is the nav log the page already shows -- idents, aircraft,
+ * cruise altitude and its selection, the legs -- forwarded as-is. Both
+ * agents write about those numbers rather than recomputing them (they
+ * used to: model-service, terrain, airspace and winds all over again,
+ * and a pilot's own altitude override was silently ignored), and both
+ * answer with newline-delimited JSON as Claude writes: {@code delta}
+ * lines carrying text, then {@code done} or {@code error}. Piped, not
+ * buffered, for the same reason {@link PlannerProxyController} pipes:
+ * the point of the stream is that the first sentence arrives in a
+ * second or two rather than the whole briefing after ten.
+ *
+ * <p>Neither agent is required for webapp to be usable -- unlike
+ * {@link PlannerProxyController}, a real request-path dependency, this
+ * is a developer-facing extra. An agent that is down answers as a 502
+ * with a {@code {"detail": ...}} body, the shape the front end's own
+ * stream reader already reports.
  */
 @RestController
 @RequestMapping("/api/comparison")
-@Tag(name = "Comparison", description = "LangGraph vs CrewAI, same route -- the Brief tab's own AI popover")
+@Tag(name = "Comparison", description = "LangGraph vs CrewAI, same nav log -- the Brief tab's own AI popover")
 public class ComparisonProxyController {
 
     private static final Logger log = LoggerFactory.getLogger(ComparisonProxyController.class);
 
-    // Both calls run a full agent loop (checkpoints -> altitude -> legs
-    // -> a real Claude call), tens of seconds each -- long enough that
-    // this needs its own generous timeout, the same reasoning as
-    // PlannerProxyController's.
+    /** A narrative is one Claude call now, tens of seconds at most; the
+     *  margin is for a cold agent, not for the call. */
     private static final Duration TIMEOUT = Duration.ofMinutes(5);
 
+    // HTTP/1.1 pinned, as PlannerProxyController pins it: both agents are
+    // uvicorn, which speaks HTTP/1.1 only.
     private final HttpClient http = HttpClient.newBuilder()
+            .version(HttpClient.Version.HTTP_1_1)
             .connectTimeout(Duration.ofSeconds(10))
             .followRedirects(HttpClient.Redirect.NEVER)
             .build();
@@ -75,70 +82,89 @@ public class ComparisonProxyController {
         this.crewaiAgentBaseUrl = crewaiAgentBaseUrl.replaceAll("/+$", "");
     }
 
-    @Operation(summary = "Run the same route through one or both agent frameworks",
-            description = "Each requested framework's result, or {\"error\": \"...\"} for that framework alone if it's down/erroring. "
-                    + "framework=langgraph or framework=crewai runs one only (the Brief tab's own AI popover, LangGraph/CrewAI tabs "
-                    + "inside it, each a real billed Claude call -- a pilot picking one shouldn't pay for the other); omitted runs "
-                    + "both (no current UI caller for that mode).")
-    @GetMapping
-    public ResponseEntity<String> compare(
-            @RequestParam String dep, @RequestParam String dest,
-            @RequestParam(defaultValue = "c172") String aircraft,
-            @RequestParam(required = false) String framework) {
-        String query = "departure_ident=" + encode(dep) + "&destination_ident=" + encode(dest)
-                + "&aircraft_name=" + encode(aircraft);
-
-        CompletableFuture<String> langgraph = framework == null || "langgraph".equals(framework)
-                ? CompletableFuture.supplyAsync(() -> fetch(navLogAgentBaseUrl + "/compare?" + query, navLogAgentApiKey))
-                : null;
-        CompletableFuture<String> crewai = framework == null || "crewai".equals(framework)
-                ? CompletableFuture.supplyAsync(() -> fetch(crewaiAgentBaseUrl + "/compare?" + query, null))
-                : null;
-
-        StringBuilder body = new StringBuilder("{");
-        if (langgraph != null) {
-            body.append("\"langgraph\":").append(langgraph.join());
+    @Operation(summary = "Stream one framework's narrative for the nav log in the body",
+            description = "framework=langgraph (nav-log-agent) or framework=crewai (crewai-agent), each a real billed "
+                    + "Claude call. The body is the nav log the Brief tab shows (departure_ident, destination_ident, "
+                    + "aircraft_name, altitude_ft, altitude_selection, legs); the response is newline-delimited JSON: "
+                    + "delta lines with text as it is written, then a done line with the whole briefing, or an error line.")
+    @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<StreamingResponseBody> narrative(
+            @RequestParam String framework, @RequestBody String navLog) {
+        String baseUrl;
+        String bearerToken = null;
+        if ("langgraph".equals(framework)) {
+            baseUrl = navLogAgentBaseUrl;
+            bearerToken = navLogAgentApiKey;
+        } else if ("crewai".equals(framework)) {
+            baseUrl = crewaiAgentBaseUrl;
+        } else {
+            return ResponseEntity.badRequest()
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(jsonBody("{\"detail\":\"framework must be langgraph or crewai\"}"));
         }
-        if (crewai != null) {
-            if (langgraph != null) body.append(",");
-            body.append("\"crewai\":").append(crewai.join());
-        }
-        body.append("}");
-        return ResponseEntity.ok().contentType(MediaType.APPLICATION_JSON).body(body.toString());
-    }
 
-    /** Raw JSON on success (passed through, not re-parsed -- this
-     *  controller never inspects the shape either framework returns, it
-     *  just relays it), or a {@code {"error": "..."}} object on any
-     *  failure -- always valid JSON either way, since it's spliced
-     *  straight into the combined response body above. */
-    private String fetch(String url, String bearerToken) {
-        HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(url))
-                .GET().timeout(TIMEOUT);
+        HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(baseUrl + "/compare"))
+                .POST(HttpRequest.BodyPublishers.ofString(navLog, StandardCharsets.UTF_8))
+                .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                .timeout(TIMEOUT);
         if (bearerToken != null && !bearerToken.isBlank()) {
-            builder.header("Authorization", "Bearer " + bearerToken);
+            builder.header(HttpHeaders.AUTHORIZATION, "Bearer " + bearerToken);
         }
+
+        HttpResponse<InputStream> response;
         try {
-            HttpResponse<String> response = http.send(builder.build(), HttpResponse.BodyHandlers.ofString());
-            if (response.statusCode() != 200) {
-                log.warn("comparison call to {} returned {}", url, response.statusCode());
-                return "{\"error\":" + jsonString("upstream returned " + response.statusCode()) + "}";
-            }
-            return response.body();
+            response = http.send(builder.build(), HttpResponse.BodyHandlers.ofInputStream());
         } catch (IOException err) {
-            log.warn("comparison call to {} failed: {}", url, err.toString());
-            return "{\"error\":" + jsonString("unreachable: " + err.getMessage()) + "}";
+            log.warn("{} agent unreachable at {}: {}", framework, baseUrl, err.toString());
+            return ResponseEntity.status(502)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(jsonBody("{\"detail\":\"the " + framework + " agent is unreachable\"}"));
         } catch (InterruptedException err) {
             Thread.currentThread().interrupt();
-            return "{\"error\":" + jsonString("interrupted") + "}";
+            return ResponseEntity.status(504)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(jsonBody("{\"detail\":\"the " + framework + " agent timed out\"}"));
+        }
+        if (response.statusCode() != 200) {
+            log.warn("{} agent at {} returned {}", framework, baseUrl, response.statusCode());
+            try (InputStream body = response.body()) {
+                body.readAllBytes();
+            } catch (IOException ignored) {
+                // Nothing to do with a body that would not even drain.
+            }
+            return ResponseEntity.status(502)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(jsonBody("{\"detail\":\"the " + framework + " agent returned " + response.statusCode() + "\"}"));
+        }
+
+        InputStream upstreamBody = response.body();
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_TYPE, "application/x-ndjson")
+                // Flushed per chunk below; announcing it keeps any
+                // intermediary from deciding to buffer the stream itself.
+                .header("X-Accel-Buffering", "no")
+                .body(out -> pipe(upstreamBody, out));
+    }
+
+    /** Copies upstream to the client, flushing each chunk -- the flush is
+     *  what makes a line arrive when it is written rather than when the
+     *  servlet container's buffer happens to fill. */
+    private static void pipe(InputStream in, OutputStream out) throws IOException {
+        try (in) {
+            byte[] buffer = new byte[8192];
+            int read;
+            while ((read = in.read(buffer)) != -1) {
+                out.write(buffer, 0, read);
+                out.flush();
+            }
         }
     }
 
-    private static String encode(String value) {
-        return URLEncoder.encode(value, StandardCharsets.UTF_8);
-    }
-
-    private static String jsonString(String value) {
-        return "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"") + "\"";
+    private static StreamingResponseBody jsonBody(String json) {
+        byte[] bytes = json.getBytes(StandardCharsets.UTF_8);
+        return out -> {
+            out.write(bytes);
+            out.flush();
+        };
     }
 }

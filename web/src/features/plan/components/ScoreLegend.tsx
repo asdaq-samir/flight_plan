@@ -1,5 +1,7 @@
+import { useQuery } from "@tanstack/react-query";
 import MapGuideButton from "../../../components/MapGuideButton";
 import { Kbd } from "../../../components/ui/kbd";
+import { api } from "../../../lib/api/client";
 import { scoreColor } from "../format";
 
 const BUCKETS: [string, string][] = [
@@ -25,6 +27,26 @@ const SHORTCUTS: [string | null, string][] = [
   ["t", "toggle FAA / OSM"],
   ["↑↓", "step waypoints"],
 ];
+
+/** Which model scored the checkpoints on the map, and how good it is
+ *  -- the one thing about the ML a pilot might reasonably ask. The same
+ *  data Settings' Dev ML panel charts in full; here it is one line,
+ *  and nothing at all while it is loading or when no model has been
+ *  promoted yet (a fresh checkout answers 404). */
+function ModelProvenance() {
+  const { data } = useQuery({
+    queryKey: ["modelComparison"], queryFn: api.modelComparison, retry: false, staleTime: Infinity,
+  });
+  const promoted = data?.models.find(m => m.promoted);
+  if (!data || !promoted) return null;
+  return (
+    <p className="text-xs text-muted-foreground">
+      Scored by {promoted.name}
+      {promoted.score !== null && ` · MAE ${promoted.score.toFixed(2)}`}
+      {data.n_labeled != null && ` on ${data.n_labeled} labelled checkpoints`}
+    </p>
+  );
+}
 
 /**
  * What this page is and what the map's dot colors mean --
@@ -58,6 +80,7 @@ export default function ScoreLegend() {
             <span>{label}</span>
           </div>
         ))}
+        <ModelProvenance />
       </div>
       <div className="space-y-1.5 border-t border-border pt-2 text-muted-foreground">
         {SHORTCUTS.map(([key, text]) => (

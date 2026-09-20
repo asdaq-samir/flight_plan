@@ -2256,51 +2256,6 @@
         "title": "Plan",
         "type": "object"
       },
-      "PlaygroundScore": {
-        "additionalProperties": true,
-        "description": "model-service's own /invocations response, passed through.",
-        "properties": {
-          "checkpoints": {
-            "items": {
-              "$ref": "#/components/schemas/ScoredCheckpoint"
-            },
-            "title": "Checkpoints",
-            "type": "array"
-          },
-          "departure_ident": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Departure Ident"
-          },
-          "destination_ident": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Destination Ident"
-          },
-          "model_type": {
-            "title": "Model Type",
-            "type": "string"
-          }
-        },
-        "required": [
-          "checkpoints",
-          "model_type"
-        ],
-        "title": "PlaygroundScore",
-        "type": "object"
-      },
       "Runway": {
         "properties": {
           "closed": {
@@ -2365,55 +2320,6 @@
           "closed"
         ],
         "title": "Runway",
-        "type": "object"
-      },
-      "ScoredCheckpoint": {
-        "properties": {
-          "along_track_nm": {
-            "title": "Along Track Nm",
-            "type": "number"
-          },
-          "category": {
-            "title": "Category",
-            "type": "string"
-          },
-          "lat": {
-            "title": "Lat",
-            "type": "number"
-          },
-          "lon": {
-            "title": "Lon",
-            "type": "number"
-          },
-          "name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Name"
-          },
-          "osm_id": {
-            "title": "Osm Id",
-            "type": "string"
-          },
-          "predicted_score": {
-            "title": "Predicted Score",
-            "type": "number"
-          }
-        },
-        "required": [
-          "osm_id",
-          "category",
-          "lat",
-          "lon",
-          "along_track_nm",
-          "predicted_score"
-        ],
-        "title": "ScoredCheckpoint",
         "type": "object"
       },
       "Totals": {
@@ -3402,65 +3308,6 @@
           }
         },
         "summary": "Plan"
-      }
-    },
-    "/api/playground/score": {
-      "get": {
-        "description": "Scored checkpoints from one specific algorithm -- the Dev ML\ntab's demo, kept apart from the planner's real scoring path\n(app.scoring), which never chooses an algorithm: it always uses\nwhatever is promoted. A thin passthrough to model-service's own\n`model` selector on /invocations.",
-        "operationId": "playground_score_api_playground_score_get",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "dep",
-            "required": true,
-            "schema": {
-              "title": "Dep",
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "dest",
-            "required": true,
-            "schema": {
-              "title": "Dest",
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "model",
-            "required": false,
-            "schema": {
-              "default": "current",
-              "title": "Model",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PlaygroundScore"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Playground Score"
       }
     },
     "/api/routes": {

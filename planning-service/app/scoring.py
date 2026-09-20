@@ -17,12 +17,12 @@ _SCORE_CACHE: dict = {}
 _SCORE_CACHE_LOCK = threading.Lock()
 
 
-def invoke_model(dep: str, dest: str, model: str | None = None) -> dict:
+def invoke_model(dep: str, dest: str) -> dict:
     """model-service's answer, with its failures as the HTTP statuses a
     browser caller expects: 404 for a corridor nobody has collected, 502
     when the service is unreachable, otherwise whatever it said."""
     try:
-        return model_client.invoke(dep, dest, model=model)
+        return model_client.invoke(dep, dest)
     except model_client.ModelServiceError as err:
         raise HTTPException(err.status, str(err)) from err
 
