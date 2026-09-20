@@ -43,12 +43,15 @@ def _warm_reference_data() -> None:
     """Every altitude selection needs the controlled-airspace polygons
     and the obstacle table, and both are slow to load cold (about thirty
     and nine seconds from the FAA files, well under a second from the
-    caches vfr keeps beside them), so they are loaded here rather than
-    on the first pilot's request after a restart. A request arriving
-    mid-load waits on the same parse instead of starting another."""
+    caches vfr keeps beside them); every briefing needs the current
+    METAR/TAF/SIGMET datasets, a few downloads. All are loaded here
+    rather than on the first pilot's request after a restart. A request
+    arriving mid-load waits on the same parse instead of starting
+    another."""
     for name, load in (
         ("airspace", lambda: airspace.preload(altitude.DEFAULT_FAA_CACHE_DIR)),
         ("obstacles", lambda: faa_data.preload_obstacles(altitude.DEFAULT_FAA_CACHE_DIR)),
+        ("weather", weather.preload),
     ):
         try:
             load()

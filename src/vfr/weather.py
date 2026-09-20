@@ -1,24 +1,39 @@
 """Live weather for VFR altitude selection and dead-reckoning nav-log math:
 winds/temps aloft (freezing level for icing avoidance, and wind_at_altitude
 for wind-correction-angle math), forecast ceiling/visibility along the
-route, and SIGMET/AIRMET hazard advisories -- all from aviationweather.gov's
-public JSON/text APIs.
+route, current METARs, and SIGMET hazard advisories -- all from
+aviationweather.gov.
+
+METARs, TAFs and SIGMETs come from the site's cache files -- the complete
+current national dataset, gzipped, regenerated every minute (TAFs every
+ten) -- rather than per-route API queries. That is what their API terms
+ask heavy users to do: a bounding-box query per route is exactly the
+"large query" the rate limit and the results cap exist for, and one
+download every few minutes replaces all of them. Each dataset is held in
+memory for _DATASET_TTL_S; a refresh that fails keeps serving the
+previous copy for a while, so an outage degrades to "conditions from a
+few minutes ago" rather than a failure per request. The winds/temps
+product is small and stays a direct request, cached the same way.
 
 Unlike the FAA NASR/DOF data in vfr.faa_data, none of this is cached to
-disk: it's live/current-conditions data (a forecast issued hours ago is
-stale, not "the current cycle"), so every call re-fetches.
+disk: it's live/current-conditions data, and a copy older than an hour
+or two is stale, not "the current cycle".
 """
+import gzip
+import logging
 import re
-
+import threading
 import time
+import xml.etree.ElementTree as ET
+from datetime import datetime
 
 import requests
 
+log = logging.getLogger(__name__)
+
 HEADERS = {"User-Agent": "vfr-route-learning-project/0.1"}
 WINDTEMP_URL = "https://aviationweather.gov/api/data/windtemp"
-TAF_URL = "https://aviationweather.gov/api/data/taf"
-AIRSIGMET_URL = "https://aviationweather.gov/api/data/airsigmet"
-METAR_URL = "https://aviationweather.gov/api/data/metar"
+CACHE_BASE_URL = "https://aviationweather.gov/data/cache"
 
 
 class WeatherServiceError(RuntimeError):
@@ -260,50 +275,85 @@ def wind_at_altitude(lat: float, lon: float, altitude_ft: float, fcst_hr: str = 
     return None
 
 
-# --- METAR, from the metar JSON API ---
+# --- The cache files: METARs, TAFs and SIGMETs as whole datasets ---
+
+_DATASET_TTL_S = 300
+# How old a copy may be and still be served when a refresh fails.
+_DATASET_STALE_MAX_S = 3 * 3600
+# How long to wait before trying a failed refresh again while serving
+# the stale copy -- every weather call during an outage must not be a
+# fresh download attempt, with its own retries and time-outs.
+_DATASET_RETRY_AFTER_S = 60
+
+# name -> {"at": fetched_at, "data": parsed, "attempted": last_attempt}
+_DATASETS: dict = {}
+_DATASET_LOCKS = {name: threading.Lock() for name in ("metars", "tafs", "airsigmets")}
 
 
-def metar_for_idents(idents: list) -> dict:
-    """{ident: {...}} for the latest METAR at each ident, or {ident: None}
-    for one aviationweather.gov has nothing current for (a small field
-    with no reporting station). One request for the whole list -- the
-    API accepts a comma-joined ids param -- not one per airport.
-
-    `_ceiling_ft`/`_visibility_sm` (below, written for the TAF response)
-    are reused as-is: a METAR object's own `clouds`/`visib` fields are
-    the same shape as one TAF forecast period's, so there's no separate
-    METAR-specific parsing to write.
-    """
-    resp = _get(METAR_URL, params={"ids": ",".join(idents), "format": "json"})
-    by_ident = {m["icaoId"]: m for m in resp.json() if m.get("icaoId")}
-
-    result = {}
-    for ident in idents:
-        m = by_ident.get(ident)
-        if m is None:
-            result[ident] = None
-            continue
-        result[ident] = {
-            "raw": m.get("rawOb"),
-            "flight_category": m.get("fltCat"),
-            "ceiling_ft": _ceiling_ft(m),
-            "visibility_sm": _visibility_sm(m),
-            "wind_dir_true_deg": m.get("wdir") if isinstance(m.get("wdir"), (int, float)) else None,
-            "wind_speed_kt": m.get("wspd"),
-            "temp_c": m.get("temp"),
-            "dewpoint_c": m.get("dewp"),
-        }
-    return result
+def _dataset(name: str, parse):
+    """The current national `name` dataset, parsed from
+    CACHE_BASE_URL/{name}.cache.xml.gz and held for _DATASET_TTL_S. A
+    refresh that fails keeps serving the previous copy for up to
+    _DATASET_STALE_MAX_S -- a briefing from conditions a few minutes old
+    beats none -- and raises WeatherServiceError only when there is
+    nothing to serve. One fetch at a time per dataset: concurrent
+    callers wait for it rather than each downloading their own."""
+    with _DATASET_LOCKS[name]:
+        cached = _DATASETS.get(name)
+        now = time.time()
+        if cached is not None:
+            if now - cached["at"] < _DATASET_TTL_S:
+                return cached["data"]
+            if now - cached["attempted"] < _DATASET_RETRY_AFTER_S and now - cached["at"] < _DATASET_STALE_MAX_S:
+                return cached["data"]
+            cached["attempted"] = now
+        try:
+            resp = _get(f"{CACHE_BASE_URL}/{name}.cache.xml.gz", params={})
+            data = parse(gzip.decompress(resp.content))
+        except (WeatherServiceError, OSError, ET.ParseError) as err:
+            if cached is not None and now - cached["at"] < _DATASET_STALE_MAX_S:
+                log.warning("%s refresh failed (%s); serving the copy from %.0f minutes ago",
+                            name, err, (now - cached["at"]) / 60)
+                return cached["data"]
+            raise WeatherServiceError(f"aviationweather.gov {name} cache file unavailable: {err}") from err
+        _DATASETS[name] = {"at": now, "data": data, "attempted": now}
+        return data
 
 
-# --- Ceiling/visibility, from the TAF JSON API ---
+def _float(text: str | None) -> float | None:
+    try:
+        return float(text)
+    except (TypeError, ValueError):
+        return None
 
 
-def _current_forecast_period(fcsts: list, now_unix: float) -> dict | None:
-    for period in fcsts:
-        if period["timeFrom"] <= now_unix < period["timeTo"]:
-            return period
-    return fcsts[0] if fcsts else None
+def _int(text: str | None) -> int | None:
+    try:
+        return int(text)
+    except (TypeError, ValueError):
+        return None
+
+
+def _unix(iso: str | None) -> float | None:
+    """2026-09-20T01:41:00.000Z -> seconds since the epoch."""
+    if not iso:
+        return None
+    try:
+        return datetime.fromisoformat(iso.replace("Z", "+00:00")).timestamp()
+    except ValueError:
+        return None
+
+
+def _period(el) -> dict:
+    """A METAR, or one TAF forecast period, as the {"clouds", "visib"}
+    shape _ceiling_ft/_visibility_sm read."""
+    return {
+        "clouds": [
+            {"cover": sc.get("sky_cover"), "base": _int(sc.get("cloud_base_ft_agl"))}
+            for sc in el.findall("sky_condition")
+        ],
+        "visib": el.findtext("visibility_statute_mi"),
+    }
 
 
 def _ceiling_ft(period: dict) -> float | None:
@@ -324,6 +374,84 @@ def _visibility_sm(period: dict) -> float | None:
         return None
 
 
+# --- METAR ---
+
+
+def _parse_metars(xml_bytes: bytes) -> dict:
+    """{station_id: report} -- the newest report per station in the file."""
+    latest: dict = {}
+    for el in ET.fromstring(xml_bytes).iter("METAR"):
+        ident = el.findtext("station_id")
+        if not ident:
+            continue
+        observed = el.findtext("observation_time") or ""
+        if ident in latest and latest[ident][0] >= observed:
+            continue
+        period = _period(el)
+        latest[ident] = (observed, {
+            "raw": el.findtext("raw_text"),
+            "flight_category": el.findtext("flight_category"),
+            "ceiling_ft": _ceiling_ft(period),
+            "visibility_sm": _visibility_sm(period),
+            # "VRB" is a direction the arithmetic can't use.
+            "wind_dir_true_deg": _float(el.findtext("wind_dir_degrees")),
+            "wind_speed_kt": _float(el.findtext("wind_speed_kt")),
+            "temp_c": _float(el.findtext("temp_c")),
+            "dewpoint_c": _float(el.findtext("dewpoint_c")),
+        })
+    return {ident: report for ident, (_, report) in latest.items()}
+
+
+def metar_for_idents(idents: list) -> dict:
+    """{ident: {...}} for the latest METAR at each ident, or {ident: None}
+    for one with nothing current (a small field with no reporting
+    station)."""
+    metars = _dataset("metars", _parse_metars)
+    return {ident: metars.get(ident) for ident in idents}
+
+
+# --- Ceiling/visibility, from the TAFs ---
+
+# Within one start time, the base forecast (FM, or the TAF's own first
+# line) is the conditions to read; BECMG/TEMPO/PROB lines modify it.
+_CHANGE_ORDER = {"": 0, "FM": 0, "BECMG": 1, "TEMPO": 2}
+
+
+def _parse_tafs(xml_bytes: bytes) -> list:
+    """[{"icaoId", "lat", "lon", "fcsts": [...]}] -- one entry per station,
+    its latest issue, periods in time order with the base forecast
+    first."""
+    latest: dict = {}
+    for el in ET.fromstring(xml_bytes).iter("TAF"):
+        ident = el.findtext("station_id")
+        lat, lon = _float(el.findtext("latitude")), _float(el.findtext("longitude"))
+        if not ident or lat is None or lon is None:
+            continue
+        issued = el.findtext("issue_time") or ""
+        if ident in latest and latest[ident][0] >= issued:
+            continue
+        fcsts = []
+        for forecast in el.findall("forecast"):
+            start, end = _unix(forecast.findtext("fcst_time_from")), _unix(forecast.findtext("fcst_time_to"))
+            if start is None or end is None:
+                continue
+            fcsts.append({
+                "timeFrom": start, "timeTo": end,
+                "change": forecast.findtext("change_indicator") or "",
+                **_period(forecast),
+            })
+        fcsts.sort(key=lambda p: (p["timeFrom"], _CHANGE_ORDER.get(p["change"][:5], 3)))
+        latest[ident] = (issued, {"icaoId": ident, "lat": lat, "lon": lon, "fcsts": fcsts})
+    return [station for _, station in latest.values()]
+
+
+def _current_forecast_period(fcsts: list, now_unix: float) -> dict | None:
+    for period in fcsts:
+        if period["timeFrom"] <= now_unix < period["timeTo"]:
+            return period
+    return fcsts[0] if fcsts else None
+
+
 def ceiling_visibility_along_route(route_start: tuple, route_end: tuple, corridor_buffer_nm: float = 10.0) -> dict:
     """Lowest forecast ceiling/visibility among TAF stations near the
     route, for each station's current forecast period. TAFs are only
@@ -339,18 +467,18 @@ def ceiling_visibility_along_route(route_start: tuple, route_end: tuple, corrido
     *what altitude* to fly at -- kept separate from the altitude-band
     constraints (terrain/airspace/aircraft/freezing-level) for that reason.
     """
-    import time
-
     from .geo import corridor_bbox
 
     min_lat, min_lon, max_lat, max_lon = corridor_bbox(route_start, route_end, corridor_buffer_nm)
-    resp = _get(TAF_URL, params={"bbox": f"{min_lat},{min_lon},{max_lat},{max_lon}", "format": "json"})
-    stations = resp.json()
+    stations = [
+        s for s in _dataset("tafs", _parse_tafs)
+        if min_lat <= s["lat"] <= max_lat and min_lon <= s["lon"] <= max_lon
+    ]
 
     now = time.time()
     per_station, ceilings, visibilities = [], [], []
     for station in stations:
-        period = _current_forecast_period(station.get("fcsts", []), now)
+        period = _current_forecast_period(station["fcsts"], now)
         if period is None:
             continue
         ceiling = _ceiling_ft(period)
@@ -368,41 +496,65 @@ def ceiling_visibility_along_route(route_start: tuple, route_end: tuple, corrido
     }
 
 
-# --- SIGMET/AIRMET hazards, from the airsigmet JSON API ---
+# --- SIGMET hazards ---
+
+
+def _parse_airsigmets(xml_bytes: bytes) -> list:
+    advisories = []
+    for el in ET.fromstring(xml_bytes).iter("AIRSIGMET"):
+        altitude, hazard = el.find("altitude"), el.find("hazard")
+        points = [(_float(p.findtext("latitude")), _float(p.findtext("longitude"))) for p in el.iter("point")]
+        advisories.append({
+            "hazard": hazard.get("type") if hazard is not None else None,
+            "type": el.findtext("airsigmet_type"),
+            "altitude_low_ft": _float(altitude.get("min_ft_msl")) if altitude is not None else None,
+            "altitude_high_ft": _float(altitude.get("max_ft_msl")) if altitude is not None else None,
+            "raw": el.findtext("raw_text"),
+            "valid_from": _unix(el.findtext("valid_time_from")),
+            "valid_to": _unix(el.findtext("valid_time_to")),
+            "coords": [(lat, lon) for lat, lon in points if lat is not None and lon is not None],
+        })
+    return advisories
 
 
 def hazards_along_route(route_start: tuple, route_end: tuple, corridor_buffer_nm: float = 25.0) -> list:
-    """SIGMETs/AIRMETs whose hazard polygon the route line actually
-    crosses. corridor_buffer_nm is wider still than the TAF search --
-    these are large-area advisories (convective SIGMETs commonly span
-    multiple states), so the bbox is just a coarse server-side prefilter,
-    and the real filter is the route/polygon intersection below.
+    """SIGMETs whose hazard polygon the route line actually crosses, among
+    those valid right now. The bbox is a coarse prefilter (convective
+    SIGMETs commonly span several states); the real filter is the
+    route/polygon intersection. CONUS AIRMETs were discontinued in
+    January 2025 in favour of G-AIRMETs, which this does not read yet.
     """
     from shapely.geometry import LineString, Polygon
 
     from .geo import corridor_bbox
 
     min_lat, min_lon, max_lat, max_lon = corridor_bbox(route_start, route_end, corridor_buffer_nm)
-    resp = _get(AIRSIGMET_URL, params={"bbox": f"{min_lat},{min_lon},{max_lat},{max_lon}", "format": "json"})
-    advisories = resp.json()
-
+    now = time.time()
     route_line = LineString([(route_start[1], route_start[0]), (route_end[1], route_end[0])])
     hits = []
-    for advisory in advisories:
-        coords = advisory.get("coords")
-        if not coords or len(coords) < 3:
+    for advisory in _dataset("airsigmets", _parse_airsigmets):
+        if advisory["valid_to"] is not None and advisory["valid_to"] <= now:
             continue
-        polygon = Polygon([(c["lon"], c["lat"]) for c in coords])
+        if advisory["valid_from"] is not None and advisory["valid_from"] > now:
+            continue
+        coords = advisory["coords"]
+        if len(coords) < 3:
+            continue
+        lats, lons = [lat for lat, _ in coords], [lon for _, lon in coords]
+        if max(lats) < min_lat or min(lats) > max_lat or max(lons) < min_lon or min(lons) > max_lon:
+            continue
+        polygon = Polygon([(lon, lat) for lat, lon in coords])
         if not polygon.is_valid:
             polygon = polygon.buffer(0)
         if route_line.intersects(polygon):
-            hits.append(
-                {
-                    "hazard": advisory.get("hazard"),
-                    "type": advisory.get("airSigmetType"),
-                    "altitude_low_ft": advisory.get("altitudeLow1"),
-                    "altitude_high_ft": advisory.get("altitudeHi1"),
-                    "raw": advisory.get("rawAirSigmet"),
-                }
-            )
+            hits.append({key: advisory[key] for key in ("hazard", "type", "altitude_low_ft", "altitude_high_ft", "raw")})
     return hits
+
+
+def preload() -> None:
+    """Fetches the three cache files now -- a briefing's worth of data
+    for every route -- so a service's first pilot after a restart doesn't
+    wait on the downloads."""
+    _dataset("metars", _parse_metars)
+    _dataset("tafs", _parse_tafs)
+    _dataset("airsigmets", _parse_airsigmets)

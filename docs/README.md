@@ -154,8 +154,10 @@ works too. AWS counterpart: `architecture-aws.drawio`, rendered in
 comes from): the FAA's own VFR Sectional tile service — which the
 checkpoint detector reads directly — plus FAA NASR airport, navaid and
 obstacle datasets, FAA Class B/C/D airspace shapefiles, NOAA aviation
-weather, the magnetic-declination model, and OpenStreetMap via the
-Overpass API for the tabular feature pipeline.
+weather (METARs, TAFs and SIGMETs from aviationweather.gov's cache
+files, refreshed every few minutes, rather than a query per route),
+the magnetic-declination model, and OpenStreetMap via the Overpass API
+for the tabular feature pipeline.
 
 ## Services & Data Design
 

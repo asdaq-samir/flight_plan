@@ -125,7 +125,7 @@ Grouped by what they are for, not alphabetically.
 | `chartvision.py` | FAA VFR sectional raster tiles, read by colour. The largest module here. |
 | `osm.py` | Overpass API, for candidate landmarks. |
 | `faa_data.py` | NASR airports/navaids and the Digital Obstacle File. |
-| `weather.py` | Live winds aloft and hazards. |
+| `weather.py` | Winds aloft (one small request), and METARs/TAFs/SIGMETs from aviationweather.gov's cache files -- the whole national dataset every five minutes, not a query per route. |
 | `airspace.py` | FAA Class B/C/D shapefiles, parsed once per 28-day cycle into a WKB cache beside them. |
 | `elevation.py` | USGS 3DEP point elevations. |
 | `terrain.py` | Terrain and obstacle floor for a route. |
