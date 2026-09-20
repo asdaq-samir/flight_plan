@@ -153,20 +153,44 @@ def _load_spark() -> dict:
 
 _LOADERS = {"current": _load_current, "pytorch": _load_pytorch, "tensorflow": _load_tensorflow, "spark": _load_spark}
 
+# The files each model is read from, for noticing a change on disk.
+_ARTIFACTS = {
+    "current": lambda: [MODEL_DIR / "model.joblib", MODEL_DIR / "metrics.json"],
+    "pytorch": lambda: [CANDIDATES_DIR / "pytorch" / "model_state.pt", CANDIDATES_DIR / "pytorch" / "metrics.json"],
+    "tensorflow": lambda: [CANDIDATES_DIR / "tensorflow" / "model.keras", CANDIDATES_DIR / "tensorflow" / "metrics.json"],
+    "spark": lambda: [CANDIDATES_DIR / "spark" / "predictions.json", CANDIDATES_DIR / "spark" / "metrics.json"],
+}
+
+
+def _signature(name: str) -> tuple:
+    """When each of a model's files was last written -- what changes
+    when a retrain promotes a new one into the same path."""
+    return tuple(p.stat().st_mtime_ns if p.exists() else None for p in _ARTIFACTS[name]())
+
 
 def _load(name: str = "current") -> dict:
-    """Load one named model's state once, on first *successful* use --
-    same reasoning as the single-model version this replaced: a
-    missing artifact should surface as an unhealthy /ping (or a 503
-    for that one model), not a container that crashloops before it
-    can report why, and one not yet trained when first asked for
-    should start being served the moment it exists rather than staying
-    cached as absent for the life of the container.
+    """Load one named model's state on first *successful* use, and
+    again whenever its files change on disk -- same reasoning as the
+    single-model version this replaced: a missing artifact should
+    surface as an unhealthy /ping (or a 503 for that one model), not a
+    container that crashloops before it can report why, and one not
+    yet trained when first asked for should start being served the
+    moment it exists rather than staying cached as absent for the life
+    of the container. A promotion (vfr.model_registry.promote, from
+    the pipeline or the Dev console's retrain) writes new files into
+    data/models/current; their timestamps are checked on every request,
+    a stat each, so the new model is what scores the next route rather
+    than the one this process happened to start with.
     """
     if name not in _LOADERS:
         return {}
-    if name not in _state or not _state[name]:
-        _state[name] = _LOADERS[name]()
+    signature = _signature(name)
+    loaded = _state.get(name)
+    if not loaded or loaded.get("_signature") != signature:
+        loaded = _LOADERS[name]()
+        if loaded:
+            loaded["_signature"] = signature
+        _state[name] = loaded
     return _state[name]
 
 
