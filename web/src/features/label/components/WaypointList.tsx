@@ -81,7 +81,9 @@ export default function WaypointList({
   }
 
   return (
-    <Card size="sm" className="min-h-0 flex-1 overflow-y-auto">
+    // The list scrolls inside the card, under a header that stays put;
+    // the Card itself keeps shadcn's own overflow-hidden.
+    <Card size="sm" className="min-h-0 flex-1">
       <CardHeader>
         <CardTitle className="flex items-baseline gap-2">
           Rated <span className="font-normal text-muted-foreground">{waypointCount}</span>
@@ -93,7 +95,7 @@ export default function WaypointList({
           )}
         </CardTitle>
       </CardHeader>
-      <CardContent>
+      <CardContent className="min-h-0 flex-1 overflow-y-auto">
       {/* Marks the scope the keyboard handler checks to tell "arrows
           should walk this list" apart from "arrows should walk the
           map" -- set once focus lands inside here (a row is
