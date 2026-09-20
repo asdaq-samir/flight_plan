@@ -147,6 +147,7 @@ export function useLabelState() {
     }
 
     let allDetections: Detection[] = [];
+    let finished = false;
     try {
       for await (const msg of api.detect(dep, dest)) {
         if (msg.type === "block") {
@@ -154,13 +155,22 @@ export function useLabelState() {
           const pct = msg.blocks ? Math.round(((msg.block + 1) / msg.blocks) * 100) : 0;
           setState(s => ({ ...s, detections: allDetections, progress: `Reading the chart ${pct}%` }));
         } else if (msg.type === "done") {
+          finished = true;
           // Picks no detection claimed arrive last: a later block might
           // still have claimed one, so it cannot be known any earlier.
           setState(s => ({ ...s, added: msg.added, progress: null, loading: false }));
           queryClient.setQueryData<CachedDetections>(
             ["detections", dep, dest], { detections: allDetections, added: msg.added },
           );
+        } else if (msg.type === "error") {
+          // The corridor read failed part-way; whatever blocks arrived
+          // stay on the map, and nothing is cached as complete.
+          finished = true;
+          setState(s => ({ ...s, loading: false, progress: null, error: msg.detail }));
         }
+      }
+      if (!finished) {
+        setState(s => ({ ...s, loading: false, progress: null, error: "the chart read ended before it was finished" }));
       }
     } catch (err) {
       setState(s => ({ ...s, loading: false, progress: null, error: (err as Error).message }));

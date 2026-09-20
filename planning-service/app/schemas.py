@@ -323,7 +323,15 @@ class DetectDone(BaseModel):
     summary: PickSummary
 
 
-DetectMessage = Annotated[DetectStart | DetectBlock | DetectDone, Field(discriminator="type")]
+class DetectError(BaseModel):
+    """The corridor read failed after the stream had started; always the
+    last line."""
+
+    type: Literal["error"] = "error"
+    detail: str
+
+
+DetectMessage = Annotated[DetectStart | DetectBlock | DetectDone | DetectError, Field(discriminator="type")]
 
 
 # --- the nav log stream -------------------------------------------------

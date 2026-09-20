@@ -1,12 +1,15 @@
 """What every router starts from: the two idents, the airports behind
 them, and the on-disk paths a corridor's data lives at."""
+import logging
 from dataclasses import dataclass
 
 from fastapi import HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from vfr import airports
+from vfr import airports, weather
 from vfr.config import DATA_DIR
+
+log = logging.getLogger(__name__)
 
 PROCESSED_DIR = DATA_DIR / "processed"
 DEFAULT_AIRCRAFT = "c172"
@@ -83,11 +86,31 @@ def line(message: BaseModel) -> str:
     return message.model_dump_json(by_alias=True) + "\n"
 
 
-def ndjson(lines) -> StreamingResponse:
+def ndjson(lines, on_error) -> StreamingResponse:
     """One JSON object per line, sent as each is produced. The headers keep
     any proxy in between (nginx, the Spring webapp) from buffering lines
-    until the stream ends, which would defeat streaming entirely."""
+    until the stream ends, which would defeat streaming entirely.
+
+    `on_error` builds the stream's "error" message. Once the first line
+    is out the status is fixed at 200, so a failure after that -- a
+    weather fetch, model-service, the corridor read -- cannot become a
+    502 any more; left alone it would simply truncate the body, which a
+    browser cannot tell from a stream still loading. It becomes the last
+    line instead, and the page ends with a message rather than a spinner.
+    """
     return StreamingResponse(
-        lines, media_type="application/x-ndjson",
+        _ending_in_an_error_line(lines, on_error), media_type="application/x-ndjson",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+def _ending_in_an_error_line(lines, on_error):
+    try:
+        yield from lines
+    except HTTPException as err:
+        yield line(on_error(detail=str(err.detail)))
+    except weather.WeatherServiceError as err:
+        yield line(on_error(detail=str(err)))
+    except Exception as err:  # noqa: BLE001 -- the stream is committed; the client gets the line, the log gets the trace
+        log.exception("stream failed after the response had started")
+        yield line(on_error(detail=f"{type(err).__name__}: {err}"))

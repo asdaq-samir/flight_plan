@@ -106,6 +106,36 @@ describe("useLabelState", () => {
     expect(result.current.loading).toBe(false);
   });
 
+  test("load keeps what arrived and shows the error line when the chart read fails part-way", async () => {
+    mockCourse.mockResolvedValue(courseFixture());
+    async function* failing(): AsyncGenerator<StreamMessage> {
+      yield { type: "block", block: 0, blocks: 4, tiles: 1, missing: 0, detections: [detectionFixture()] };
+      yield { type: "error", detail: "corridor detection failed: tile fetch failed" };
+    }
+    mockDetect.mockReturnValue(failing());
+
+    const { result } = renderLabelState();
+    await act(async () => { await result.current.load("C81", "KDLH"); });
+
+    expect(result.current.detections).toHaveLength(1);
+    expect(result.current.error).toBe("corridor detection failed: tile fetch failed");
+    expect(result.current.loading).toBe(false);
+  });
+
+  test("load does not stay loading when the stream stops without done or error", async () => {
+    mockCourse.mockResolvedValue(courseFixture());
+    async function* truncated(): AsyncGenerator<StreamMessage> {
+      yield { type: "start", route: "c81_kdlh" };
+    }
+    mockDetect.mockReturnValue(truncated());
+
+    const { result } = renderLabelState();
+    await act(async () => { await result.current.load("C81", "KDLH"); });
+
+    expect(result.current.loading).toBe(false);
+    expect(result.current.error).toMatch(/ended before it was finished/);
+  });
+
   test("rate saves the pick and marks the selected detection rated", async () => {
     mockCourse.mockResolvedValue(courseFixture());
     mockDetect.mockReturnValue(streamOf([detectionFixture()], []));

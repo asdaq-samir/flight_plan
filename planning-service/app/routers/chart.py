@@ -13,6 +13,7 @@ from ..schemas import (
     Classification,
     DetectBlock,
     DetectDone,
+    DetectError,
     Detection,
     DetectStart,
     PickDeleted,
@@ -200,10 +201,10 @@ def detect_stream(dep: str, dest: str, half_width_nm: float = 4.0) -> StreamingR
                 ))
             if done and at >= len(job["blocks"]):
                 if error is not None:
-                    # Same outcome an in-generator exception always had
-                    # here: the stream truncates. The job records it so
-                    # every follower fails the same way, not just the
-                    # request that happened to run the corridor read.
+                    # Becomes the stream's error line (see ndjson). The
+                    # job records it so every follower fails the same
+                    # way, not just the request that happened to run
+                    # the corridor read.
                     raise RuntimeError(f"corridor detection failed: {error}")
                 break
 
@@ -212,4 +213,4 @@ def detect_stream(dep: str, dest: str, half_width_nm: float = 4.0) -> StreamingR
         # against.
         yield line(DetectDone(total=seen, added=list(unclaimed.values()), summary=chartlabels.summarise(route)))
 
-    return ndjson(lines())
+    return ndjson(lines(), DetectError)

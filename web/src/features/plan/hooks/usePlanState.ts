@@ -212,12 +212,14 @@ export function usePlanState() {
       return;
     }
 
+    let finished = false;
     try {
       for await (const msg of api.navlog(dep, dest, altitudeFt)) {
         if (token !== planToken.current) return;
         if (msg.type === "stage") {
           setState(s => ({ ...s, navStage: msg.detail }));
         } else if (msg.type === "error") {
+          finished = true;
           setState(s => ({
             ...s, stage: null, navStage: null,
             navError: msg.detail.split("\n")[0] ?? "could not build the nav log",
@@ -237,8 +239,15 @@ export function usePlanState() {
           const { type: _type, ...leg } = msg;
           setState(s => ({ ...s, legs: [...s.legs, leg] }));
         } else {
+          finished = true;
           setState(s => ({ ...s, totals: msg.totals, stage: null, navStage: null }));
         }
+      }
+      // The server ends every stream with "done" or "error"; one that
+      // stops without either was cut off in transit, and the page must
+      // not sit on "loading" for it.
+      if (!finished && token === planToken.current) {
+        setState(s => ({ ...s, stage: null, navStage: null, navError: "the nav log ended before it was finished" }));
       }
     } catch (err) {
       if (token !== planToken.current) return;

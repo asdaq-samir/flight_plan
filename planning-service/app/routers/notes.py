@@ -143,7 +143,7 @@ def describe_checkpoints(
             yield checkpoint_line(cp, description, "generated")
         yield line(NoteDone())
 
-    return ndjson(lines())
+    return ndjson(lines(), NoteError)
 
 
 @router.post("/api/checkpoint-notes")

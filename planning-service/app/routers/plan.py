@@ -219,4 +219,4 @@ def navlog_stream(
 
         yield line(NavLogDone(totals=totals(leg_list)))
 
-    return ndjson(lines())
+    return ndjson(lines(), NavLogError)

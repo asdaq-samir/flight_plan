@@ -17,7 +17,10 @@ Every response, streamed lines included, is a model in `app/schemas.py`:
 FastAPI validates against it and publishes it in `openapi.json`,
 committed here and checked by `tests/test_openapi.py`. After changing a
 model, run `python -m app.openapi` and commit the result; `web/`
-generates its TypeScript types from that file.
+generates its TypeScript types from that file. The three NDJSON streams
+always end with a `done` or an `error` line: a failure after the first
+line is out cannot change the status any more, so it is reported as the
+last line rather than as a truncated body.
 
 ## Contents
 

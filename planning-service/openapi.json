@@ -858,11 +858,32 @@
         "title": "DetectDone",
         "type": "object"
       },
+      "DetectError": {
+        "description": "The corridor read failed after the stream had started; always the\nlast line.",
+        "properties": {
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          },
+          "type": {
+            "const": "error",
+            "default": "error",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "detail"
+        ],
+        "title": "DetectError",
+        "type": "object"
+      },
       "DetectMessage": {
         "discriminator": {
           "mapping": {
             "block": "#/components/schemas/DetectBlock",
             "done": "#/components/schemas/DetectDone",
+            "error": "#/components/schemas/DetectError",
             "start": "#/components/schemas/DetectStart"
           },
           "propertyName": "type"
@@ -876,6 +897,9 @@
           },
           {
             "$ref": "#/components/schemas/DetectDone"
+          },
+          {
+            "$ref": "#/components/schemas/DetectError"
           }
         ]
       },
