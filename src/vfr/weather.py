@@ -29,6 +29,8 @@ from datetime import datetime
 
 import requests
 
+from .retry import with_retries
+
 log = logging.getLogger(__name__)
 
 HEADERS = {"User-Agent": "vfr-route-learning-project/0.1"}
@@ -48,27 +50,17 @@ class WeatherServiceError(RuntimeError):
 
 
 def _get(url: str, params: dict, retries: int = 3) -> requests.Response:
-    """Same retry/backoff shape as vfr.osm._post_overpass_query and
-    vfr.elevation._fetch_elevation_m -- unlike either of those, this one
-    had none at all, so a transient blip (a slow bbox query 504ing, seen
-    2026-09-18) raised WeatherServiceError on the first and only attempt
-    instead of quietly succeeding on a retry a few seconds later."""
-    last_err = None
-    for attempt in range(retries):
-        try:
-            resp = requests.get(url, params=params, headers=HEADERS, timeout=30)
-            resp.raise_for_status()
-            return resp
-        except requests.exceptions.SSLError as e:
-            # A certificate problem (aviationweather.gov's own expired on
-            # 2026-09-19) fails identically on every attempt; retrying
-            # only delays the answer by the whole back-off.
-            raise WeatherServiceError(f"aviationweather.gov request to {url} failed: {e}") from e
-        except requests.RequestException as e:
-            last_err = e
-            if attempt < retries - 1:
-                time.sleep(2 * (attempt + 1))
-    raise WeatherServiceError(f"aviationweather.gov request to {url} failed after {retries} attempts: {last_err}") from last_err
+    """A transient blip (a slow bbox query 504ing, seen 2026-09-18) used
+    to raise WeatherServiceError on the first and only attempt instead of
+    quietly succeeding on a retry a few seconds later."""
+    def attempt() -> requests.Response:
+        resp = requests.get(url, params=params, headers=HEADERS, timeout=30)
+        resp.raise_for_status()
+        return resp
+
+    return with_retries(
+        attempt, describe=f"aviationweather.gov request to {url}", retries=retries, error=WeatherServiceError,
+    )
 
 
 # --- Freezing level, from the winds/temps-aloft ("FD") text product ---

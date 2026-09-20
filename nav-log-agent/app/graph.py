@@ -84,7 +84,7 @@ def select_altitude(state: NavLogState) -> dict:
 
 
 def assemble_legs(state: NavLogState) -> dict:
-    """Builds one dead-reckoning leg (vfr.navlog.assemble_leg) between each
+    """Builds one dead-reckoning leg (vfr.navlog.legs) between each
     consecutive pair of *selected* checkpoints, in route order.
 
     Reads selected_checkpoints, not checkpoints -- the full scored list is
@@ -92,13 +92,7 @@ def assemble_legs(state: NavLogState) -> dict:
     """
     profile = aircraft.load_aircraft_profile(state.get("aircraft_name", "c172"))
     checkpoints = sorted(state["selected_checkpoints"], key=lambda c: c["along_track_nm"])
-    legs = []
-    for a, b in zip(checkpoints, checkpoints[1:]):
-        leg = navlog.assemble_leg((a["lat"], a["lon"]), (b["lat"], b["lon"]), state["altitude_ft"], profile)
-        leg["from"] = a["name"] or a["category"]
-        leg["to"] = b["name"] or b["category"]
-        legs.append(leg)
-    return {"legs": legs}
+    return {"legs": navlog.legs(checkpoints, state["altitude_ft"], profile)}
 
 
 def retrieve_memory(state: NavLogState) -> dict:

@@ -4,12 +4,10 @@ selection and the per-leg wind lookup. What this proves is the contract
 -- that a real leg dict validates as a Leg (including the `from` alias),
 that /api/plan and /api/checkpoints serialise, and that the nav-log
 stream's lines are the messages app.schemas declares."""
-import json
-
 import pytest
 from fastapi.testclient import TestClient
-from vfr import airports, navlog
 from vfr import altitude as altitude_module
+from vfr import navlog
 
 from app import scoring
 from app.main import app
@@ -23,18 +21,6 @@ CANDIDATES = [
      "predicted_score": 3.9, "along_track_nm": 22.0},
 ]
 
-ALTITUDE = {
-    "recommended_ft": 4500.0, "floor_ft": 2200.0, "airspace_ceiling_ft": None, "airspace_transits": [],
-    "freezing_level_ft": None, "band_ceiling_ft": None, "min_ceiling_ft": None, "min_visibility_sm": None,
-    "hazards": [], "low_ceiling_or_visibility": False, "weather_unavailable": [],
-}
-
-
-def _airport(ident: str) -> dict:
-    coords = {"C81": (42.3172, -88.0905), "KDLH": (46.8421, -92.1936)}[ident]
-    return {"ident": ident, "name": ident, "lat": coords[0], "lon": coords[1], "elevation_ft": 900.0,
-            "municipality": "", "region": ""}
-
 
 def _leg(start, end, altitude_ft, profile) -> dict:
     """What vfr.navlog.assemble_leg returns, minus the live winds call."""
@@ -47,10 +33,9 @@ def _leg(start, end, altitude_ft, profile) -> dict:
 
 
 @pytest.fixture(autouse=True)
-def _stubbed_world(monkeypatch):
-    monkeypatch.setattr(airports, "get_airport", lambda ident, **kw: _airport(ident.upper()))
+def _stubbed_world(monkeypatch, altitude):
     monkeypatch.setattr(scoring, "invoke_model", lambda dep, dest, model=None: {"checkpoints": [dict(c) for c in CANDIDATES]})
-    monkeypatch.setattr(altitude_module, "select_cruise_altitude", lambda start, end, profile: dict(ALTITUDE))
+    monkeypatch.setattr(altitude_module, "select_cruise_altitude", lambda start, end, profile: dict(altitude))
     monkeypatch.setattr(navlog, "assemble_leg", _leg)
 
 
@@ -77,34 +62,34 @@ def test_plan_returns_legs_with_from_and_to_and_totals():
     assert body["aircraft"]["name"] == "c172" and body["aircraft"]["cruise_tas_kt"] > 0
 
 
-def test_plan_refuses_a_route_with_no_legal_altitude(monkeypatch):
+def test_plan_refuses_a_route_with_no_legal_altitude(monkeypatch, altitude):
     monkeypatch.setattr(altitude_module, "select_cruise_altitude",
-                        lambda start, end, profile: {**ALTITUDE, "recommended_ft": None})
+                        lambda start, end, profile: {**altitude, "recommended_ft": None})
 
     resp = client.get("/api/plan", params={"dep": "C81", "dest": "KDLH"})
 
     assert resp.status_code == 422
 
 
-def test_navlog_streams_altitude_then_legs_then_done():
+def test_navlog_streams_altitude_then_legs_then_done(messages):
     resp = client.get("/api/navlog", params={"dep": "C81", "dest": "KDLH"})
 
     assert resp.status_code == 200
-    messages = [json.loads(line) for line in resp.text.splitlines() if line.strip()]
-    types = [m["type"] for m in messages]
+    lines = messages(resp)
+    types = [m["type"] for m in lines]
     assert types[0] == "stage" and types[-1] == "done"
     assert types.index("altitude") < types.index("leg")
-    legs = [m for m in messages if m["type"] == "leg"]
+    legs = [m for m in lines if m["type"] == "leg"]
     assert legs[0]["from"] == "C81" and legs[0]["wind"]["wind_speed_kt"] == 15.0
-    assert messages[-1]["totals"]["distance_nm"] == 10.0 * len(legs)
+    assert lines[-1]["totals"]["distance_nm"] == 10.0 * len(legs)
 
 
-def test_navlog_reports_an_unflyable_route_as_an_error_line(monkeypatch):
+def test_navlog_reports_an_unflyable_route_as_an_error_line(monkeypatch, altitude, messages):
     monkeypatch.setattr(altitude_module, "select_cruise_altitude",
-                        lambda start, end, profile: {**ALTITUDE, "recommended_ft": None})
+                        lambda start, end, profile: {**altitude, "recommended_ft": None})
 
     resp = client.get("/api/navlog", params={"dep": "C81", "dest": "KDLH"})
 
-    messages = [json.loads(line) for line in resp.text.splitlines() if line.strip()]
-    assert messages[-1]["type"] == "error"
-    assert "No legal VFR cruising altitude" in messages[-1]["detail"]
+    last = messages(resp)[-1]
+    assert last["type"] == "error"
+    assert "No legal VFR cruising altitude" in last["detail"]

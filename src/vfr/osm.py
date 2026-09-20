@@ -15,12 +15,11 @@ navaid network, and DOF obstacle height/lighting data lets "tower"
 candidates be filtered to ones actually significant enough to matter
 from the air, rather than every generic man_made=tower OSM tag.
 """
-import time
-
 import pandas as pd
 import requests
 
 from .geo import cluster_points, cross_track_distance_nm, distance_nm
+from .retry import with_retries
 
 OVERPASS_URL = "https://overpass-api.de/api/interpreter"
 # Overpass rejects requests without an identifiable User-Agent (406 Not Acceptable).
@@ -107,18 +106,15 @@ def build_overpass_query(bbox: tuple, specs: dict = CANDIDATE_SPECS, timeout_s: 
 
 
 def _post_overpass_query(query: str, retries: int = 3) -> dict:
-    last_err = None
-    for attempt in range(retries):
-        try:
-            resp = requests.post(
-                OVERPASS_URL, data={"data": query}, headers=REQUEST_HEADERS, timeout=90
-            )
-            resp.raise_for_status()
-            return resp.json()
-        except (requests.RequestException, ValueError) as err:
-            last_err = err
-            time.sleep(5 * (attempt + 1))
-    raise RuntimeError(f"Overpass query failed after {retries} attempts") from last_err
+    def attempt() -> dict:
+        resp = requests.post(OVERPASS_URL, data={"data": query}, headers=REQUEST_HEADERS, timeout=90)
+        resp.raise_for_status()
+        return resp.json()
+
+    return with_retries(
+        attempt, describe="Overpass query", retries=retries, backoff_s=5.0,
+        transient=(requests.RequestException, ValueError),
+    )
 
 
 def query_overpass(bbox: tuple, specs: dict = CANDIDATE_SPECS, retries: int = 3) -> dict:

@@ -11,12 +11,11 @@ from itertools import pairwise
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from vfr import aircraft as aircraft_module
-from vfr import checkpoints as checkpoint_selection
-from vfr import geo
+from vfr import geo, navlog
 from vfr.config import VFR_SECTIONAL_MAX_ZOOM, VFR_SECTIONAL_MIN_ZOOM
 
 from ..common import DEFAULT_AIRCRAFT, line, load_route, ndjson
-from ..planning import assemble_leg, course_line, cruise_altitude, fixes, legs, no_altitude_detail, totals
+from ..planning import course_line, cruise_altitude, no_altitude_detail
 from ..schemas import (
     AltitudeBreakdown,
     Checkpoints,
@@ -28,7 +27,7 @@ from ..schemas import (
     NavLogStage,
     Plan,
 )
-from ..scoring import score
+from ..scoring import scored_and_selected
 
 router = APIRouter()
 
@@ -54,21 +53,12 @@ def course(dep: str, dest: str) -> Course:
     )
 
 
-def _scored_and_selected(dep_ident: str, dest_ident: str) -> tuple:
-    scored = score(dep_ident, dest_ident)
-    selected = checkpoint_selection.select_checkpoints(scored)
-    keys = {(c["osm_id"], c["category"]) for c in selected}
-    for c in scored:
-        c["selected"] = (c["osm_id"], c["category"]) in keys
-    return scored, selected
-
-
 @router.get("/api/checkpoints")
 def checkpoints(dep: str, dest: str) -> Checkpoints:
     """Scored candidates and the subset worth flying. Fast: the model is
     already loaded and the features are already built."""
     r = load_route(dep, dest)
-    scored, selected = _scored_and_selected(r.dep_ident, r.dest_ident)
+    scored, selected = scored_and_selected(r.dep_ident, r.dest_ident)
     return Checkpoints(departure=r.departure, destination=r.destination, candidates=scored, selected=selected)
 
 
@@ -101,7 +91,7 @@ def plan(
     6,500" is a question a pilot will actually ask.
     """
     r = load_route(dep, dest)
-    scored, selected = _scored_and_selected(r.dep_ident, r.dest_ident)
+    scored, selected = scored_and_selected(r.dep_ident, r.dest_ident)
     profile = aircraft_module.load_aircraft_profile(aircraft)
 
     altitude_selection = None
@@ -111,7 +101,7 @@ def plan(
         if altitude_ft is None:
             raise HTTPException(422, no_altitude_detail(altitude_selection))
 
-    leg_list = legs(fixes(r.dep_ident, r.dest_ident, r.start, r.end, selected), altitude_ft, profile)
+    leg_list = navlog.legs(navlog.fixes(r.dep_ident, r.dest_ident, r.start, r.end, selected), altitude_ft, profile)
 
     return Plan(
         departure=r.departure,
@@ -121,7 +111,7 @@ def plan(
         candidates=scored,
         selected=selected,
         legs=leg_list,
-        totals=totals(leg_list),
+        totals=navlog.totals(leg_list),
         altitude_ft=altitude_ft,
         altitude_selection=altitude_selection,
         aircraft={"name": aircraft, **profile},
@@ -152,7 +142,7 @@ def navlog_stream(
     that one commits to a single synchronous JSON response, and mixing a
     streaming and a non-streaming contract into one function would
     compromise both. The overlap is the same handful of calls into
-    app.planning either way.
+    app.planning and vfr.navlog either way.
 
     An unflyable route (no legal cruising altitude at all) is reported
     as an "error" line, not an HTTP error status -- by the time that's
@@ -163,8 +153,7 @@ def navlog_stream(
 
     def lines():
         yield line(NavLogStage(detail="Scoring checkpoints…"))
-        scored = score(r.dep_ident, r.dest_ident)
-        selected = checkpoint_selection.select_checkpoints(scored)
+        _, selected = scored_and_selected(r.dep_ident, r.dest_ident)
 
         profile = aircraft_module.load_aircraft_profile(aircraft)
 
@@ -207,8 +196,8 @@ def navlog_stream(
 
         yield line(NavLogStage(detail="Fetching winds aloft from aviationweather.gov…"))
         leg_list = []
-        for a, b in pairwise(fixes(r.dep_ident, r.dest_ident, r.start, r.end, selected)):
-            leg = assemble_leg(a, b, nav_altitude_ft, profile)
+        for a, b in pairwise(navlog.fixes(r.dep_ident, r.dest_ident, r.start, r.end, selected)):
+            leg = navlog.leg_between(a, b, nav_altitude_ft, profile)
             leg_list.append(leg)
             # The first leg's own wind lookup is the one that actually
             # pays for the aviationweather.gov round trip (later legs
@@ -217,6 +206,6 @@ def navlog_stream(
             # final "done" line, is most of why this streams at all.
             yield line(NavLogLeg.model_validate(leg))
 
-        yield line(NavLogDone(totals=totals(leg_list)))
+        yield line(NavLogDone(totals=navlog.totals(leg_list)))
 
     return ndjson(lines(), NavLogError)

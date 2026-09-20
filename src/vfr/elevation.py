@@ -9,13 +9,13 @@ cached to disk (keyed by lat/lon rounded to ~1m) -- a fresh run over ~230
 candidates takes several minutes the first time and is instant after.
 """
 import csv
-import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 import requests
 
 from .geo import destination_point
+from .retry import with_retries
 
 EPQS_URL = "https://epqs.nationalmap.gov/v1/json"
 REQUEST_HEADERS = {"User-Agent": "vfr-route-learning-project/0.1"}
@@ -27,16 +27,16 @@ RING_BEARINGS_DEG = (0, 90, 180, 270)  # N, E, S, W
 
 def _fetch_elevation_m(lat: float, lon: float, retries: int = 3) -> float:
     params = {"x": lon, "y": lat, "units": "Meters", "wkid": 4326, "includeDate": "false"}
-    last_err = None
-    for attempt in range(retries):
-        try:
-            resp = requests.get(EPQS_URL, params=params, headers=REQUEST_HEADERS, timeout=30)
-            resp.raise_for_status()
-            return float(resp.json()["value"])
-        except (requests.RequestException, KeyError, ValueError, TypeError) as err:
-            last_err = err
-            time.sleep(2 * (attempt + 1))
-    raise RuntimeError(f"EPQS query failed for ({lat}, {lon}) after {retries} attempts") from last_err
+
+    def attempt() -> float:
+        resp = requests.get(EPQS_URL, params=params, headers=REQUEST_HEADERS, timeout=30)
+        resp.raise_for_status()
+        return float(resp.json()["value"])
+
+    return with_retries(
+        attempt, describe=f"EPQS query for ({lat}, {lon})", retries=retries,
+        transient=(requests.RequestException, KeyError, ValueError, TypeError),
+    )
 
 
 def _load_cache(cache_path: Path) -> dict:

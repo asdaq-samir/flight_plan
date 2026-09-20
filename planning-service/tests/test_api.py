@@ -114,14 +114,7 @@ def test_playground_score_translates_a_down_model_service_to_502(monkeypatch):
 # --- /api/altitude-breakdown ---
 
 
-def _stub_airport(ident: str) -> dict:
-    coords = {"C81": (42.3172, -88.0905), "KDLH": (46.8421, -92.1936)}[ident]
-    return {"ident": ident, "name": ident, "lat": coords[0], "lon": coords[1], "elevation_ft": 900.0,
-            "municipality": "", "region": ""}
-
-
 def test_altitude_breakdown_returns_select_cruise_altitudes_result(monkeypatch):
-    monkeypatch.setattr(airports, "get_airport", lambda ident, **kw: _stub_airport(ident.upper()))
     monkeypatch.setattr(altitude_module, "select_cruise_altitude", lambda start, end, profile: {
         "recommended_ft": 2500.0, "floor_ft": 2200.0, "airspace_ceiling_ft": None, "airspace_transits": [],
         "freezing_level_ft": None, "band_ceiling_ft": None, "min_ceiling_ft": None, "min_visibility_sm": None,
@@ -150,8 +143,6 @@ def test_altitude_breakdown_surfaces_a_weather_outage_as_502(monkeypatch):
     aviationweather.gov failure anywhere inside select_cruise_altitude
     reaches the caller as a clean 502 from the global exception handler,
     not a raw 500."""
-    monkeypatch.setattr(airports, "get_airport", lambda ident, **kw: _stub_airport(ident.upper()))
-
     def raise_weather_error(start, end, profile):
         raise WeatherServiceError("aviationweather.gov request failed: timed out")
 

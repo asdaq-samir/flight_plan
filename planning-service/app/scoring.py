@@ -3,6 +3,7 @@ route until the features or the promoted model change."""
 import threading
 
 from fastapi import HTTPException
+from vfr import checkpoints as checkpoint_selection
 from vfr import model_client, model_registry
 
 from .common import paths
@@ -52,3 +53,14 @@ def score(dep: str, dest: str) -> list:
     with _SCORE_CACHE_LOCK:
         _SCORE_CACHE[(dep, dest)] = {"key": key, "checkpoints": [dict(c) for c in checkpoints]}
     return checkpoints
+
+
+def scored_and_selected(dep: str, dest: str) -> tuple:
+    """Every scored candidate, each flagged "selected" or not, and the
+    subset worth flying, in along-track order."""
+    scored = score(dep, dest)
+    selected = checkpoint_selection.select_checkpoints(scored)
+    keys = {(c["osm_id"], c["category"]) for c in selected}
+    for c in scored:
+        c["selected"] = (c["osm_id"], c["category"]) in keys
+    return scored, selected

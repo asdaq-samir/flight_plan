@@ -55,10 +55,4 @@ def compute_dead_reckoning_legs(
     checkpoints = sorted(
         checkpoint_selection.select_checkpoints(scored), key=lambda c: c["along_track_nm"]
     )
-    legs = []
-    for a, b in zip(checkpoints, checkpoints[1:]):
-        leg = navlog.assemble_leg((a["lat"], a["lon"]), (b["lat"], b["lon"]), altitude_ft, profile)
-        leg["from"] = a["name"] or a["category"]
-        leg["to"] = b["name"] or b["category"]
-        legs.append(leg)
-    return json.dumps(legs)
+    return json.dumps(navlog.legs(checkpoints, altitude_ft, profile))

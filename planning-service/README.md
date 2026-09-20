@@ -11,8 +11,10 @@ Almost all of the thinking lives in [`src/vfr`](../src). This is a thin
 HTTP layer over it: `app/main.py` builds the app, `app/routers/` holds
 the endpoints one module per concern (plan, chart, build, briefing,
 notes, devml), and the work they share -- resolving a route
-(`common.py`), scoring it (`scoring.py`), the nav-log arithmetic
-(`planning.py`), the corridor read (`detection.py`) -- sits beside them.
+(`common.py`), scoring and selecting its checkpoints (`scoring.py`), the
+cruise altitude and course line (`planning.py`), the corridor read
+(`detection.py`) -- sits beside them. The legs themselves are
+`vfr.navlog`'s, the same code both agents build theirs with.
 Every response, streamed lines included, is a model in `app/schemas.py`:
 FastAPI validates against it and publishes it in `openapi.json`,
 committed here and checked by `tests/test_openapi.py`. After changing a

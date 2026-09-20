@@ -20,6 +20,8 @@ from urllib.parse import urljoin
 import pandas as pd
 import requests
 
+from .retry import with_retries
+
 # FAA's site 403s a bare python-requests User-Agent.
 FAA_HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; vfr-route-learning-project/0.1)"}
 NASR_INDEX_URL = "https://www.faa.gov/air_traffic/flight_info/aeronav/aero_data/NASR_Subscription/"
@@ -83,17 +85,17 @@ def download_and_extract(url: str, dest_dir: Path, retries: int = 3) -> None:
     on transient failures -- the FAA's NASR/DOF archives are large enough
     that a single flaky connection isn't unusual."""
     dest_dir.mkdir(parents=True, exist_ok=True)
-    last_err = None
-    for attempt in range(retries):
-        try:
-            resp = requests.get(url, headers=FAA_HEADERS, timeout=180)
-            resp.raise_for_status()
-            with zipfile.ZipFile(io.BytesIO(resp.content)) as zf:
-                zf.extractall(dest_dir)
-            return
-        except (requests.RequestException, zipfile.BadZipFile) as err:
-            last_err = err
-    raise RuntimeError(f"Failed to download {url}") from last_err
+
+    def attempt() -> None:
+        resp = requests.get(url, headers=FAA_HEADERS, timeout=180)
+        resp.raise_for_status()
+        with zipfile.ZipFile(io.BytesIO(resp.content)) as zf:
+            zf.extractall(dest_dir)
+
+    with_retries(
+        attempt, describe=f"Download of {url}", retries=retries,
+        transient=(requests.RequestException, zipfile.BadZipFile),
+    )
 
 
 def _is_icloud_evicted(path: Path) -> bool:

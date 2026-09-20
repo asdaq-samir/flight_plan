@@ -10,11 +10,10 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from vfr import checkpoint_notes
-from vfr import checkpoints as checkpoint_selection
 
 from ..common import DEFAULT_AIRCRAFT, line, ndjson, route_key
 from ..schemas import CheckpointNoteSaved, NoteCheckpoint, NoteDone, NoteError, NoteStart
-from ..scoring import score
+from ..scoring import scored_and_selected
 
 router = APIRouter()
 
@@ -103,8 +102,7 @@ def describe_checkpoints(
     happened to come before the failure.
     """
     dep_ident, dest_ident = route_key(dep, dest)
-    scored = score(dep_ident, dest_ident)
-    selected = checkpoint_selection.select_checkpoints(scored)  # already along-track order
+    _, selected = scored_and_selected(dep_ident, dest_ident)  # already along-track order
     route = checkpoint_notes.route_key(dep_ident, dest_ident)
     existing = checkpoint_notes.load_notes(route)
 

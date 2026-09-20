@@ -16,6 +16,7 @@ import csv
 from datetime import datetime, timezone
 from pathlib import Path
 
+from .chartlabels import route_key as route_key  # the same "DEP->DEST" key as a chart pick's
 from .config import DATA_DIR
 from .geo import distance_nm
 
@@ -27,10 +28,6 @@ COLUMNS = ["route", "lat", "lon", "description", "created_at"]
 # closer than this on the same route are the same place, not two
 # different ones a pilot happened to annotate twice.
 SAME_PLACE_NM = 0.2
-
-
-def route_key(dep_ident: str, dest_ident: str) -> str:
-    return f"{dep_ident.strip().upper()}->{dest_ident.strip().upper()}"
 
 
 def load_notes(route: str | None = None, path: Path = NOTES_PATH) -> list:

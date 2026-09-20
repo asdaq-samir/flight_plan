@@ -114,7 +114,7 @@ Grouped by what they are for, not alphabetically.
 | Module | What it does |
 |---|---|
 | `geo.py` | Great-circle distance, bearing, cross/along-track. Spherical Earth. |
-| `navlog.py` | Wind correction angle, heading, ground speed, ETE, fuel. |
+| `navlog.py` | Wind correction angle, heading, ground speed, ETE, fuel -- per leg, and the legs and totals of a whole route, shared by the planner and both agents. |
 | `magnetic.py` | Magnetic variation, for true → magnetic. |
 | `aircraft.py` | Performance profiles (a C172, by default). |
 
@@ -131,6 +131,7 @@ Grouped by what they are for, not alphabetically.
 | `terrain.py` | Terrain and obstacle floor for a route. |
 | `airports.py` | Identifier → coordinates, and the route form's search. |
 | `model_client.py` | model-service's `/invocations`, or the SageMaker endpoint on AWS. The one client every service scores through. |
+| `retry.py` | The one retry loop the four modules above share for their requests. |
 
 **Deciding things**
 

@@ -10,6 +10,7 @@ deviation card, which isn't data this project has (vfr.aircraft profiles
 don't carry one). Magnetic heading is as far as this goes for now.
 """
 import math
+from itertools import pairwise
 
 from .geo import bearing_deg, distance_nm
 from .magnetic import magnetic_variation_deg
@@ -92,4 +93,59 @@ def assemble_leg(
         "groundspeed_kt": gs_kt,
         "ete_min": ete_min,
         "fuel_gal": fuel_gal,
+    }
+
+
+def fixes(dep_ident: str, dest_ident: str, start: tuple, end: tuple, selected: list) -> list:
+    """The nav log flies departure -> checkpoints -> destination. The
+    airports are the ends of the flight, so they bound the legs even
+    though neither is a checkpoint candidate."""
+    return (
+        [{"name": dep_ident, "category": "departure", "lat": start[0], "lon": start[1]}]
+        + selected
+        + [{"name": dest_ident, "category": "destination", "lat": end[0], "lon": end[1]}]
+    )
+
+
+def leg_between(a: dict, b: dict, altitude_ft: float, profile: dict) -> dict:
+    """assemble_leg between two fixes -- dicts with lat, lon and a name
+    (or a category to fall back on) -- named after them on "from"/"to".
+
+    assemble_leg returns inf for ETE when groundspeed is zero or negative
+    (a headwind at or above cruise TAS). Python's json emits that as a
+    bare Infinity, which is not valid JSON and makes JSON.parse throw in
+    the browser, so a whole plan would fail to render because of one
+    unflyable leg. None says "unflyable" honestly and the page shows it
+    as such.
+    """
+    leg = assemble_leg((a["lat"], a["lon"]), (b["lat"], b["lon"]), altitude_ft, profile)
+    leg["from"] = a["name"] or a["category"]
+    leg["to"] = b["name"] or b["category"]
+    for field in ("ete_min", "fuel_gal", "groundspeed_kt"):
+        if not math.isfinite(leg[field]):
+            leg[field] = None
+    return leg
+
+
+def legs(fix_list: list, altitude_ft: float, profile: dict) -> list:
+    """One leg between each consecutive pair of fixes, in the given order."""
+    return [leg_between(a, b, altitude_ft, profile) for a, b in pairwise(fix_list)]
+
+
+def totals(leg_list: list) -> dict:
+    def _total(field: str):
+        values = [leg[field] for leg in leg_list if leg[field] is not None]
+        return round(sum(values), 1) if len(values) == len(leg_list) else None
+
+    return {
+        "distance_nm": round(sum(leg["distance_nm"] for leg in leg_list), 1),
+        # None rather than a wrong number if any leg is unflyable:
+        # silently summing the flyable ones would understate the trip.
+        "ete_min": _total("ete_min"),
+        "fuel_gal": _total("fuel_gal"),
+        "unflyable_legs": sum(1 for leg in leg_list if leg["ete_min"] is None),
+        # Surfaced rather than averaged away: a leg with no nearby
+        # winds-aloft station is a no-wind-data estimate, not a calm
+        # one, and a pilot should know which legs those are.
+        "legs_without_wind": sum(1 for leg in leg_list if leg.get("wind") is None),
     }
