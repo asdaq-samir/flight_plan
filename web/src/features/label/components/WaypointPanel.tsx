@@ -97,7 +97,10 @@ export default function WaypointPanel({
                   <ListFilter className="size-5" />
                 </IconButton>
               </PopoverTrigger>
-              <PopoverContent align="end" className="w-72">
+              {/* w-80: the widest row ("Source detected (343) added
+                  (13)") needs the room; a narrower popover clipped its
+                  last count. */}
+              <PopoverContent align="end" className="w-80">
                 <FilterBar filters={filters} onChange={onFilterChange} counts={counts} />
               </PopoverContent>
             </Popover>

@@ -271,8 +271,9 @@ test("plan page: opening the briefing pops a 'planning aid only' warning toast, 
 
   // One nav log: the same semantic table the narrow drawer shows, now
   // folded into its own closed section at the top so every section's
-  // title is on screen at once -- "Flight Plan Summary" open by
-  // default, the weather sections collapsed -- and opened on a click.
+  // title is on screen at once, and opened on a click. No summary
+  // section: the drawer's own header already carries the totals, the
+  // altitude and the aeroplane.
   // By CSS, not role: a table inside a closed <details> is out of the
   // accessibility tree, which is the point being checked.
   const drawer = page.locator('[data-slot="map-drawer"][data-side="right"]');
@@ -280,7 +281,7 @@ test("plan page: opening the briefing pops a 'planning aid only' warning toast, 
   await expect(navLog).toHaveCount(1);
   await expect(navLog).toBeHidden();
   await expect(drawer.getByText("Nav log", { exact: true })).toBeVisible();
-  await expect(drawer.getByText("Flight Plan Summary")).toBeVisible();
+  await expect(drawer.getByText("Flight Plan Summary")).toHaveCount(0);
   await expect(drawer.getByText("Adverse Conditions")).toBeVisible();
   await expect(drawer.getByText("Airport Information")).toBeVisible();
   await drawer.getByText("Nav log", { exact: true }).click();
@@ -311,7 +312,7 @@ test("plan page: the briefing narrows back to the nav log from its own toggle, a
 
   await openBriefing(page);
   const drawer = page.locator('[data-slot="map-drawer"][data-side="right"]');
-  await expect(drawer.getByText("Flight Plan Summary")).toBeVisible();
+  await expect(drawer.getByText("Adverse Conditions")).toBeVisible();
 
   // Back to the nav log: the drawer stays open, narrow, the URL no
   // longer says briefing, and the briefing's sections are gone.
@@ -319,7 +320,7 @@ test("plan page: the briefing narrows back to the nav log from its own toggle, a
   await page.waitForTimeout(300);
   await expect(page).not.toHaveURL(/[?&]view=briefing/);
   await expect(drawer).toBeVisible();
-  await expect(drawer.getByText("Flight Plan Summary")).toHaveCount(0);
+  await expect(drawer.getByText("Adverse Conditions")).toHaveCount(0);
   await expect(drawer.getByRole("table", { name: /Navigation log from/i })).toBeVisible();
 
   // Escape from the briefing closes the whole drawer, URL included.

@@ -9,7 +9,7 @@ import type {
   Briefing, Candidate, Course, Leg, NavLog, Pilot, SaveFlightRequest, Totals,
 } from "../../../../lib/api/types";
 import type { FrameworkNarrative } from "../../hooks/usePlanState";
-import { altFt, deg, totalsParts } from "../../format";
+import { altFt, deg } from "../../format";
 
 interface Props {
   course: Course | null;
@@ -230,7 +230,9 @@ function SaveFlightSection({
   };
 
   return (
-    <div className="mt-3 flex flex-wrap items-center gap-2 text-sm print:hidden">
+    // Its own card at the top of the sections, the same chrome as
+    // CollapsibleSection's, without the fold: one line and a button.
+    <div className="mx-2 my-1.5 flex flex-wrap items-center justify-between gap-2 rounded-xl bg-card px-3 py-2 text-sm shadow-xs ring-1 ring-foreground/10 print:hidden">
       {/* The aeroplane is whatever the nav log was computed for (its
           own header's picker), not a second choice made here -- a
           filed flight should record the numbers on the page. */}
@@ -265,7 +267,6 @@ export default function FlightBriefingView({
   briefing, briefingError, loadingBriefing,
   langgraphNarrative, crewaiNarrative, aircraftLabel, aircraftId,
 }: Props) {
-  const parts = totals ? totalsParts(totals) : null;
   const winds = windsAloftSummary(legs);
   const vnrReasons = briefing ? vfrNotRecommendedReasons(briefing, dep, dest) : [];
   // On the very first render after mount, loadingBriefing is still false --
@@ -333,47 +334,16 @@ export default function FlightBriefingView({
     // (and opens every section for the print -- NavLogView's own
     // `useDetailsOpenForPrint`, over the whole scroller).
     <>
-      {/* Open from the start: the course, the aeroplane and "Save this
-          flight" should not be behind a click. Every weather section
+      {/* No summary section: the drawer's own header already carries
+          the route's totals, the altitude and the aeroplane, and a
+          second copy of them behind a fold was the same facts twice.
+          "Save this flight" is what that section had of its own, and it
+          leads the sections on its own line. Every weather section
           below stays collapsed -- skim the titles, open what applies. */}
-      <CollapsibleSection title="Flight Plan Summary" defaultOpen>
-        <div className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
-          <div>
-            <div className="text-xs text-muted-foreground">Route</div>
-            <div className="font-semibold">{course?.departure.ident} → {course?.destination.ident}</div>
-          </div>
-          <div>
-            <div className="text-xs text-muted-foreground">Distance</div>
-            <div className="font-semibold">{course ? `${course.distance_nm} nm, ${deg(course.bearing_deg)}` : "—"}</div>
-          </div>
-          <div>
-            <div className="text-xs text-muted-foreground">Altitude</div>
-            <div className="font-semibold">
-              {nav ? `${altFt(nav.altitude_ft)} ft ${nav.altitude_selection ? "(auto)" : "(set)"}` : "—"}
-            </div>
-          </div>
-          <div>
-            <div className="text-xs text-muted-foreground">Aircraft</div>
-            <div className="font-semibold">{nav ? aircraftLabel : "—"}</div>
-          </div>
-          {parts && (
-            <>
-              <div>
-                <div className="text-xs text-muted-foreground">Total time</div>
-                <div className="font-semibold">{parts.time}</div>
-              </div>
-              <div>
-                <div className="text-xs text-muted-foreground">Fuel</div>
-                <div className="font-semibold">{parts.fuel}</div>
-              </div>
-            </>
-          )}
-        </div>
-        <SaveFlightSection
-          course={course} totals={totals} nav={nav} legs={legs} dep={dep} dest={dest} selected={selected}
-          aircraftId={aircraftId} aircraftLabel={aircraftLabel}
-        />
-      </CollapsibleSection>
+      <SaveFlightSection
+        course={course} totals={totals} nav={nav} legs={legs} dep={dep} dest={dest} selected={selected}
+        aircraftId={aircraftId} aircraftLabel={aircraftLabel}
+      />
 
       {/* Not gated behind `briefing` -- narrative is its own separate,
           user-triggered fetch, and NOTAMs/Winds Aloft need only
@@ -516,10 +486,10 @@ export default function FlightBriefingView({
 
       {/* Not gated behind `briefing` -- everything here comes from
           `nav.altitude_selection`, the same "altitude" stream message
-          the Flight Plan Summary's own headline figure above already
-          used, not a second fetch. Grouped here with Winds Aloft/NOTAMs
-          rather than right after Flight Plan Summary, for the same
-          reason those two sit down here: none of the three depend on
+          the drawer header's own altitude line already used, not a
+          second fetch. Grouped here with Winds Aloft/NOTAMs rather
+          than first, for the same reason those two sit down here:
+          none of the three depend on
           `briefing`, so none of them belong next to the "loading
           briefing data" status banner above (which IS about the
           briefing fetch) -- placing this one there read as if that
