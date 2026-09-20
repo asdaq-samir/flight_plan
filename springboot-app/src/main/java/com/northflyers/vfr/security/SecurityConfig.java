@@ -1,6 +1,7 @@
 package com.northflyers.vfr.security;
 
 import java.util.Optional;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -18,9 +19,11 @@ import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWrite
  * Who may call what.
  *
  * <p>Two kinds of resource, split on whether the answer depends on who is
- * asking. A scored route is the same for everyone who plans that corridor
+ * asking. A planned route is the same for everyone who plans that corridor
  * and stays public. A pilot's aeroplanes and filed flights are theirs,
- * and require a session.
+ * and require a session. Writes through the planner (picks, checkpoint
+ * notes, corridor builds) sit in between: open where nobody can sign in,
+ * a session's job as soon as somebody can.
  *
  * <p>Sign-in is Google, Apple, or a magic link, and the session is the
  * servlet container's -- there is no token minting, refreshing or
@@ -39,42 +42,56 @@ import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWrite
 public class SecurityConfig {
 
     private final boolean oauthConfigured;
+    private final boolean signInPossible;
 
-    SecurityConfig(Optional<ClientRegistrationRepository> clientRegistrations) {
+    SecurityConfig(Optional<ClientRegistrationRepository> clientRegistrations,
+                   @Value("${spring.mail.host:}") String mailHost) {
         this.oauthConfigured = clientRegistrations.isPresent();
+        // A session can be obtained through OIDC, or through the magic
+        // link -- which only ever sends when a mail host is configured.
+        this.signInPossible = oauthConfigured || !mailHost.isBlank();
     }
 
     @Bean
     SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-                .authorizeHttpRequests(auth -> auth
-                        // Health and docs: an orchestrator and a reader,
-                        // neither of which can hold a session.
-                        .requestMatchers("/actuator/health", "/actuator/health/**", "/actuator/info").permitAll()
-                        .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
-                        // The front end itself, and the planner API it
-                        // runs on. Open for now because planning a route
-                        // needs no account -- the sign-in is for saving
-                        // one. Narrowing this is a product decision, and
-                        // the matcher is here so it is one line when it
-                        // is taken.
-                        .requestMatchers("/app", "/app/**").permitAll()
-                        .requestMatchers("/api/planner/**").permitAll()
-                        // The Brief tab's own AI popover
-                        // (ComparisonProxyController) -- same
-                        // reasoning as /api/planner/** above: read-only,
-                        // no account needed to run it.
-                        .requestMatchers("/api/comparison/**").permitAll()
-                        // The magic-link flow's own two steps -- request
-                        // and verify -- happen before any session exists,
-                        // the same reason /oauth2/authorization/** and
-                        // /login/oauth2/code/** (Spring Security's own
-                        // routes for Google/Apple) are never matched
-                        // against "anyRequest" here either.
-                        .requestMatchers("/api/auth/magic-link/**").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/", "/error").permitAll()
-                        // Everything else that exists is pilot-scoped.
-                        .anyRequest().authenticated())
+                .authorizeHttpRequests(auth -> {
+                    auth
+                            // Health and docs: an orchestrator and a reader,
+                            // neither of which can hold a session.
+                            .requestMatchers("/actuator/health", "/actuator/health/**", "/actuator/info").permitAll()
+                            .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
+                            // The front end itself, and reading from the
+                            // planner: planning a route needs no account.
+                            .requestMatchers("/app", "/app/**").permitAll()
+                            .requestMatchers(HttpMethod.GET, "/api/planner/**").permitAll();
+                    // Writing through the planner -- saving a pick or a
+                    // checkpoint note, starting a corridor build (minutes
+                    // of Overpass and FAA I/O per call) -- needs a session
+                    // as soon as this deployment offers any way to get
+                    // one. Locally nothing does, so the Label page keeps
+                    // working signed out.
+                    if (signInPossible) {
+                        auth.requestMatchers("/api/planner/**").authenticated();
+                    } else {
+                        auth.requestMatchers("/api/planner/**").permitAll();
+                    }
+                    auth
+                            // The Brief tab's own AI popover
+                            // (ComparisonProxyController): read-only, no
+                            // account needed to run it.
+                            .requestMatchers("/api/comparison/**").permitAll()
+                            // The magic-link flow's own two steps -- request
+                            // and verify -- happen before any session exists,
+                            // the same reason /oauth2/authorization/** and
+                            // /login/oauth2/code/** (Spring Security's own
+                            // routes for Google/Apple) are never matched
+                            // against "anyRequest" here either.
+                            .requestMatchers("/api/auth/magic-link/**").permitAll()
+                            .requestMatchers(HttpMethod.GET, "/", "/error").permitAll()
+                            // Everything else that exists is pilot-scoped.
+                            .anyRequest().authenticated();
+                })
 
                 // Cookie-based CSRF tokens, readable by script so the
                 // front end can echo them back in a header. Session

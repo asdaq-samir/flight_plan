@@ -8,13 +8,14 @@ from fastapi import APIRouter, HTTPException
 from vfr import airports, model_client, model_registry
 
 from ..common import route_key
+from ..schemas import AirportSearch, BuiltRoutes, ModelComparison, PlaygroundScore
 from ..scoring import invoke_model
 
 router = APIRouter()
 
 
 @router.get("/api/airports/search")
-def airport_search(q: str = "") -> dict:
+def airport_search(q: str = "") -> AirportSearch:
     """DEP/DEST's own autocomplete -- every airport whose ident or name
     starts with `q`, for the route inputs to suggest as a pilot types.
     Runs against the same in-memory OurAirports table the real lookup
@@ -24,7 +25,7 @@ def airport_search(q: str = "") -> dict:
 
 
 @router.get("/api/routes")
-def built_routes() -> dict:
+def built_routes() -> BuiltRoutes:
     """Corridors model-service already has a feature store for."""
     try:
         return model_client.list_routes()
@@ -33,7 +34,7 @@ def built_routes() -> dict:
 
 
 @router.get("/api/model-comparison")
-def model_comparison() -> dict:
+def model_comparison() -> ModelComparison:
     """Every algorithm anyone has actually trained for this problem,
     not just the sklearn family retrain() grid-searches: the promoted
     model's own comparison against Ridge/GradientBoosting/a dummy
@@ -79,7 +80,7 @@ def model_comparison() -> dict:
 
 
 @router.get("/api/playground/score")
-def playground_score(dep: str, dest: str, model: str = "current") -> dict:
+def playground_score(dep: str, dest: str, model: str = "current") -> PlaygroundScore:
     """Scored checkpoints from one specific algorithm -- the Dev ML
     tab's demo, kept apart from the planner's real scoring path
     (app.scoring), which never chooses an algorithm: it always uses

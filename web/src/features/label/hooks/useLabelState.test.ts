@@ -50,7 +50,8 @@ function detectionFixture(over: Partial<Detection> = {}): Detection {
 function loosePickFixture(over: Partial<LoosePick> = {}): LoosePick {
   return {
     lat: 43.5, lon: -89.5, category: "road_or_rail", role: "dr", source: "added",
-    rating: null, rated: false, along_track_nm: 40, cross_track_nm: 0, area_m2: 0, ...over,
+    rating: null, rated: false, along_track_nm: 40, cross_track_nm: 0, area_m2: 0,
+    route: "c81_kdlh", note: null, created_at: null, ...over,
   };
 }
 
@@ -59,13 +60,13 @@ function loosePickFixture(over: Partial<LoosePick> = {}): LoosePick {
 async function* streamOf(detections: Detection[], added: LoosePick[]): AsyncGenerator<StreamMessage> {
   yield { type: "block", block: 0, blocks: 1, tiles: 1, missing: 0, detections };
   yield { type: "done", total: detections.length + added.length, added, summary: {
-    total: 0, accepted: 0, rejected: 0, added: added.length, by_rating: {}, by_role: { dr: 0, visual: 0 },
+    total: 0, accepted: 0, rejected: 0, added: added.length, by_rating: {}, by_role: { dr: 0, visual: 0 }, added_categories: [],
   } };
 }
 
 function savedPickResponse(pick: LoosePick) {
   return { ok: true, pick, summary: {
-    total: 0, accepted: 0, rejected: 0, added: 0, by_rating: {}, by_role: { dr: 0, visual: 0 },
+    total: 0, accepted: 0, rejected: 0, added: 0, by_rating: {}, by_role: { dr: 0, visual: 0 }, added_categories: [],
   } };
 }
 
@@ -146,7 +147,7 @@ describe("useLabelState", () => {
     mockDetect.mockReturnValue(streamOf([detectionFixture()], []));
     mockSavePick.mockResolvedValue(savedPickResponse(loosePickFixture({ rating: 3, rated: true })));
     mockDeletePick.mockResolvedValue({ ok: true, summary: {
-      total: 0, accepted: 0, rejected: 0, added: 0, by_rating: {}, by_role: { dr: 0, visual: 0 },
+      total: 0, accepted: 0, rejected: 0, added: 0, by_rating: {}, by_role: { dr: 0, visual: 0 }, added_categories: [],
     } });
 
     const { result } = renderLabelState();
@@ -170,7 +171,7 @@ describe("useLabelState", () => {
     const pick = loosePickFixture({ rating: 4, rated: true });
     mockDetect.mockReturnValue(streamOf([], [pick]));
     mockDeletePick.mockResolvedValue({ ok: true, summary: {
-      total: 0, accepted: 0, rejected: 0, added: 0, by_rating: {}, by_role: { dr: 0, visual: 0 },
+      total: 0, accepted: 0, rejected: 0, added: 0, by_rating: {}, by_role: { dr: 0, visual: 0 }, added_categories: [],
     } });
     mockSavePick.mockResolvedValue(savedPickResponse(pick));
 
@@ -198,7 +199,7 @@ describe("useLabelState", () => {
       [loosePickFixture({ rating: 2, rated: true })],
     ));
     mockDeletePick.mockResolvedValue({ ok: true, summary: {
-      total: 0, accepted: 0, rejected: 0, added: 0, by_rating: {}, by_role: { dr: 0, visual: 0 },
+      total: 0, accepted: 0, rejected: 0, added: 0, by_rating: {}, by_role: { dr: 0, visual: 0 }, added_categories: [],
     } });
 
     const { result } = renderLabelState();

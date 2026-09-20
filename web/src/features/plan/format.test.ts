@@ -44,7 +44,7 @@ describe("hhmm", () => {
 });
 
 describe("totalsParts", () => {
-  const base: Totals = { distance_nm: 210, ete_min: 125, fuel_gal: 17.5, legs_without_wind: 0 };
+  const base: Totals = { distance_nm: 210, ete_min: 125, fuel_gal: 17.5, unflyable_legs: 0, legs_without_wind: 0 };
 
   it("has no warning when every leg has wind", () =>
     expect(totalsParts(base).warning).toBeNull());

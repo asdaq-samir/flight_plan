@@ -20,12 +20,13 @@ from fastapi import APIRouter
 from vfr import airports, weather
 
 from ..common import load_route
+from ..schemas import Briefing
 
 router = APIRouter()
 
 
 @router.get("/api/briefing")
-def briefing(dep: str, dest: str) -> dict:
+def briefing(dep: str, dest: str) -> Briefing:
     """Everything the nav log's own leg math doesn't cover: adverse
     conditions (SIGMET/AIRMET), current conditions (METAR) and
     forecast (TAF-derived ceiling/visibility) along the route, and

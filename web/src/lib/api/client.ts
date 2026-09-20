@@ -1,7 +1,8 @@
 import type {
-  Aircraft, AircraftRequest, AirportSuggestion, Briefing, BuildJob, BuiltRoute,
-  CheckpointDescriptionMessage, Checkpoints, Course, Flight, FlightSummary, FrameworkComparison, LoosePick,
-  ModelComparison, NavLogMessage, PickSummary, Pilot, PlaygroundScore, Rating, Role, SaveFlightRequest, StreamMessage,
+  Aircraft, AircraftRequest, AirportSearch, Briefing, BuildJob, BuiltRoutes,
+  CheckpointDescriptionMessage, CheckpointNoteSaved, Checkpoints, Classification, Course, Flight, FlightSummary,
+  FrameworkComparison, ModelComparison, NavLogMessage, PickDeleted, PickSaved, PicksResponse, Pilot, PlaygroundScore,
+  Rating, Role, SaveFlightRequest, StreamMessage,
 } from "./types";
 
 /**
@@ -110,7 +111,7 @@ export const api = {
     json<Briefing>(`${PLANNER}/briefing?dep=${dep}&dest=${dest}`),
 
   /** Corridors the feature store already covers. */
-  routes: () => json<{ routes: BuiltRoute[] }>(`${PLANNER}/routes`),
+  routes: () => json<BuiltRoutes>(`${PLANNER}/routes`),
 
   /** Start collecting a corridor: minutes of Overpass, FAA and elevation
    *  calls, so it returns a job id rather than holding the request open. */
@@ -126,12 +127,10 @@ export const api = {
   /** What the chart draws at a point, so an added pick is categorised from
    *  the pixels rather than from whatever a dropdown was left on. */
   classify: (lat: number, lon: number) =>
-    json<{ category: string | null }>(`${PLANNER}/classify?lat=${lat}&lon=${lon}`),
+    json<Classification>(`${PLANNER}/classify?lat=${lat}&lon=${lon}`),
 
   picks: (dep: string, dest: string) =>
-    json<{ picks: LoosePick[]; summary: PickSummary }>(
-      `${PLANNER}/picks?dep=${dep}&dest=${dest}`,
-    ),
+    json<PicksResponse>(`${PLANNER}/picks?dep=${dep}&dest=${dest}`),
 
   savePick: (pick: {
     departure_ident: string;
@@ -144,14 +143,14 @@ export const api = {
     rating: Rating | null;
     area_m2?: number | null;
   }) =>
-    json<{ ok: boolean; pick: LoosePick; summary: PickSummary }>(`${PLANNER}/picks`, {
+    json<PickSaved>(`${PLANNER}/picks`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(pick),
     }),
 
   deletePick: (dep: string, dest: string, lat: number, lon: number) =>
-    json<{ ok: boolean; summary: PickSummary }>(
+    json<PickDeleted>(
       `${PLANNER}/picks?dep=${dep}&dest=${dest}&lat=${lat}&lon=${lon}`,
       { method: "DELETE" },
     ),
@@ -182,7 +181,7 @@ export const api = {
 
   /** A pilot's own edit to one checkpoint's identification note. */
   saveCheckpointNote: (dep: string, dest: string, lat: number, lon: number, description: string) =>
-    json<{ ok: boolean; note: { description: string } }>(`${PLANNER}/checkpoint-notes`, {
+    json<CheckpointNoteSaved>(`${PLANNER}/checkpoint-notes`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -238,7 +237,7 @@ export const api = {
    *  (see `airport_search`'s own doc), so this is safe to call on
    *  every keystroke including the first, no client-side guard needed. */
   airportSearch: (q: string) =>
-    json<{ airports: AirportSuggestion[] }>(`${PLANNER}/airports/search?${new URLSearchParams({ q })}`)
+    json<AirportSearch>(`${PLANNER}/airports/search?${new URLSearchParams({ q })}`)
       .then(r => r.airports),
 
   /** Scored checkpoints from one specific algorithm -- current

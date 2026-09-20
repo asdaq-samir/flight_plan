@@ -232,6 +232,7 @@ export function useLabelState() {
       added: s.added.concat({
         lat, lon, category: category ?? "other", role: "dr", source: "added",
         rating: null, rated: false, along_track_nm: 0, cross_track_nm: 0, area_m2: 0,
+        route: null, note: null, created_at: null,
       }),
       selection: { kind: "added", index: s.added.length },
     }));

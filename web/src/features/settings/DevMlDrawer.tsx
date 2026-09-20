@@ -42,7 +42,8 @@ function ModelComparisonPanel() {
   const {
     data, error, refetch,
   } = useQuery({ queryKey: ["modelComparison"], queryFn: api.modelComparison, enabled: isOpen });
-  const rows = data ? [...data.models].sort((a, b) => a.score - b.score) : null;
+  // A candidate whose metrics file has no score sorts last, not first.
+  const rows = data ? [...data.models].sort((a, b) => (a.score ?? Infinity) - (b.score ?? Infinity)) : null;
 
   return (
     <CollapsibleSection title="Model Comparison" onOpenChange={setIsOpen}>

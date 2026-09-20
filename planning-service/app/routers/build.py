@@ -13,6 +13,7 @@ from pydantic import BaseModel
 from vfr import pipeline
 
 from ..common import paths, resolve, route_key
+from ..schemas import BuildJob
 
 router = APIRouter()
 
@@ -66,7 +67,7 @@ def _run_build(job_id: str, dep: str, dest: str) -> None:
 
 
 @router.post("/api/build")
-def build(request: BuildRequest) -> dict:
+def build(request: BuildRequest) -> BuildJob:
     """Start collecting a corridor. Returns a job id to poll.
 
     Asynchronous because this is minutes of network I/O -- Overpass, the
@@ -99,7 +100,7 @@ def build(request: BuildRequest) -> dict:
 
 
 @router.get("/api/build/{job_id}")
-def build_status(job_id: str) -> dict:
+def build_status(job_id: str) -> BuildJob:
     with _builds_lock:
         job = _builds.get(job_id)
     if job is None:

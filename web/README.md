@@ -38,7 +38,7 @@ docker compose up -d --build webapp       # full stack; pages at http://localhos
 
 # typecheck, lint and unit tests
 docker run --rm -v "$PWD/web":/w -w /w node:26-slim \
-  sh -c "npm ci && npx tsc -b && npx eslint . && npx vitest run"
+  sh -c "npm ci && npm run types && npx tsc -b && npx eslint . && npx vitest run"
 
 # real-browser layout tests, against the running stack
 docker run --rm --add-host=host.docker.internal:host-gateway -v "$PWD/web":/w -w /w \
@@ -131,7 +131,13 @@ The FAA sectional is an ordinary tile layer served by `planning-service`
 
 **API.** In `lib/api/client.ts`, `navlog()`, `detect()` and
 `describeCheckpoints()` stream newline-delimited JSON through one
-`streamNdjson()` helper; everything else is a plain JSON request.
+`streamNdjson()` helper; everything else is a plain JSON request. Every
+planner shape in `lib/api/types.ts` is re-exported from `schema.d.ts`,
+which `npm run types` generates from `planning-service/openapi.json`
+(the `pre*` scripts run it before build, test, typecheck and lint), so a
+field renamed in `planning-service/app/schemas.py` is a compile error
+here rather than a silent `undefined`. Only the Spring Boot shapes are
+still typed by hand.
 
 **Styling.** Tailwind utilities and stock shadcn components. The only
 inline styles are colours computed from data (a rating, a score).

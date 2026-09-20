@@ -209,7 +209,7 @@ service discovery at `planning-service.vfr-route.internal`.
 - Schema owned by Flyway migrations; JPA's `ddl-auto` only validates against them
 - Actuator health probes at `/actuator/health/liveness` and `/actuator/health/readiness`
 - Bean Validation on request bodies (`AircraftRequest`, `SaveFlightRequest`) + a global exception handler turn a bad request into a clean `400`, a wrong method into `405` and a duplicate tail number into `409`, not an opaque `500`
-- Never calls `model-service` itself: scoring belongs to `planning-service`, which it proxies (`/api/planner/*`)
+- Never calls `model-service` itself: scoring belongs to `planning-service`, which it proxies (`/api/planner/*`). Reads through that proxy are public; writes (picks, checkpoint notes, corridor builds) need a session as soon as the deployment offers a way to sign in (OIDC credentials or a mail host), and stay open locally where neither is set
 - Sign-in with Google or Apple (OIDC), or a passwordless email magic
   link — OIDC is inactive by default; activate with the `oauth` Spring
   profile once `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` or all four
@@ -510,8 +510,8 @@ docker run --rm -v "$PWD":/w -w /w/planning-service python:3.13-slim \
 
 # Web front end (web/): typecheck plus unit tests. No browser needed:
 # the filters, ordering, rating and nav-log rules are pure functions.
-docker run --rm -v "$PWD/web":/w -w /w node:26-slim \
-  sh -c "npm ci && npx tsc --noEmit && npx vitest run"
+docker run --rm -v "$PWD":/w -w /w/web node:26-slim \
+  sh -c "npm ci && npm run types && npx tsc --noEmit && npx vitest run"
 
 # Java (webapp). No native Maven needed, matching the rest of this
 # project; the Docker socket is mounted through so Testcontainers can
@@ -537,7 +537,8 @@ Three suites, split by what each can actually prove:
   (`/api/model-comparison`, `/api/playground/score`,
   `/api/altitude-breakdown`): status codes, response shape, and that a
   `WeatherServiceError` anywhere underneath reaches the caller as a
-  clean `502`, not a raw `500`.
+  clean `502`, not a raw `500`; plus that the committed `openapi.json`
+  (which `web/` generates its API types from) matches the app.
 - **`springboot-app/src/test/`** (JUnit) — the HTTP contract via
   `@WebMvcTest` (validation `400`s, `405` for a wrong method, the `409`
   on a duplicate tail number), Mockito-backed

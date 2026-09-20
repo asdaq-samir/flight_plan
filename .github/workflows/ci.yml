@@ -50,6 +50,9 @@ jobs:
           cache: npm
           cache-dependency-path: web/package-lock.json
       - run: npm ci
+      # The API types, generated from planning-service/openapi.json --
+      # test-planning-service proves that file matches the running app.
+      - run: npm run types
       - run: npx tsc --noEmit
       - run: npx eslint .
       - run: npx vitest run

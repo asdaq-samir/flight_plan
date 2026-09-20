@@ -20,15 +20,19 @@ Split of responsibility, and why it falls this way:
 
 The endpoints live in app.routers, one module per concern; the work they
 share -- resolving a route, scoring it, the nav-log arithmetic, the
-corridor read -- is in the modules next to this one.
+corridor read -- is in the modules next to this one, and every shape
+they send is a model in app.schemas.
 """
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
+from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse
+from pydantic import TypeAdapter
 from vfr import weather
 
 from .routers import briefing, build, chart, devml, notes, plan
+from .schemas import STREAM_MESSAGES, Index
 
 
 @asynccontextmanager
@@ -53,13 +57,34 @@ async def _weather_service_error(request: Request, exc: weather.WeatherServiceEr
 
 
 @app.get("/")
-def index() -> dict:
+def index() -> Index:
     """This service has no pages. The front end is built into the Spring
     Boot gateway's jar and served from there, which is also the only
     thing that calls this -- so this answers a health probe and says
     where the UI went."""
-    return {"service": "planner", "ui": "served by the gateway at /app"}
+    return Index(service="planner", ui="served by the gateway at /app")
 
 
 for module in (plan, chart, build, briefing, notes, devml):
     app.include_router(module.router)
+
+
+def _openapi() -> dict:
+    """FastAPI's own document, plus the NDJSON stream message unions. No
+    route returns those, so FastAPI would never publish them, and web/
+    needs them typed as much as any JSON response."""
+    if app.openapi_schema:
+        return app.openapi_schema
+    document = get_openapi(title=app.title, version=app.version, routes=app.routes)
+    components = document.setdefault("components", {}).setdefault("schemas", {})
+    for name, union in STREAM_MESSAGES.items():
+        piece = TypeAdapter(union).json_schema(
+            mode="serialization", ref_template="#/components/schemas/{model}",
+        )
+        components.update(piece.pop("$defs", {}))
+        components[name] = piece
+    app.openapi_schema = document
+    return document
+
+
+app.openapi = _openapi

@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 from fastapi import HTTPException
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
 from vfr import airports
 from vfr.config import DATA_DIR
 
@@ -74,6 +75,12 @@ def load_route(dep: str, dest: str) -> Route:
     dep_ident, dest_ident = route_key(dep, dest)
     dep_airport, dest_airport = resolve(dep_ident, dest_ident)
     return Route(dep_ident, dest_ident, dep_airport, dest_airport)
+
+
+def line(message: BaseModel) -> str:
+    """One NDJSON line, serialised through the message's own model so
+    the stream can only ever carry the shapes app.schemas declares."""
+    return message.model_dump_json(by_alias=True) + "\n"
 
 
 def ndjson(lines) -> StreamingResponse:

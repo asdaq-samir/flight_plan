@@ -13,6 +13,11 @@ the endpoints one module per concern (plan, chart, build, briefing,
 notes, devml), and the work they share -- resolving a route
 (`common.py`), scoring it (`scoring.py`), the nav-log arithmetic
 (`planning.py`), the corridor read (`detection.py`) -- sits beside them.
+Every response, streamed lines included, is a model in `app/schemas.py`:
+FastAPI validates against it and publishes it in `openapi.json`,
+committed here and checked by `tests/test_openapi.py`. After changing a
+model, run `python -m app.openapi` and commit the result; `web/`
+generates its TypeScript types from that file.
 
 ## Contents
 

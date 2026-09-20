@@ -3,7 +3,6 @@ spot it" sentence, streamed one checkpoint at a time rather than making
 the whole nav log wait on N sequential LLM calls. Persisted separately
 from chart_picks.csv (that file is ML training data); this is an
 operational annotation a pilot edits, not a label."""
-import json
 import os
 
 import anthropic
@@ -13,7 +12,8 @@ from pydantic import BaseModel
 from vfr import checkpoint_notes
 from vfr import checkpoints as checkpoint_selection
 
-from ..common import DEFAULT_AIRCRAFT, ndjson, route_key
+from ..common import DEFAULT_AIRCRAFT, line, ndjson, route_key
+from ..schemas import CheckpointNoteSaved, NoteCheckpoint, NoteDone, NoteError, NoteStart
 from ..scoring import score
 
 router = APIRouter()
@@ -34,7 +34,7 @@ GLOBAL_ANTHROPIC_ERRORS = (
 )
 
 
-class CheckpointNote(BaseModel):
+class CheckpointNoteRequest(BaseModel):
     departure_ident: str
     destination_ident: str
     lat: float
@@ -83,8 +83,9 @@ def describe_checkpoints(
     aircraft: str = DEFAULT_AIRCRAFT,
 ) -> StreamingResponse:
     """One "how to spot it" line per checkpoint, as newline-delimited
-    JSON, so a slow LLM call on checkpoint 3 does not hold up
-    checkpoints 1 and 2 that already arrived.
+    JSON (each line one app.schemas.CheckpointNoteMessage), so a slow
+    LLM call on checkpoint 3 does not hold up checkpoints 1 and 2 that
+    already arrived.
 
     Two different kinds of failure, reported two different ways. A
     single checkpoint's own LLM call failing for a reason specific to
@@ -108,17 +109,13 @@ def describe_checkpoints(
     existing = checkpoint_notes.load_notes(route)
 
     def checkpoint_line(cp: dict, description: str | None, source: str, detail: str | None = None) -> str:
-        line = {
-            "type": "checkpoint",
-            "lat": cp["lat"], "lon": cp["lon"], "osm_id": cp["osm_id"],
-            "description": description, "source": source,
-        }
-        if detail is not None:
-            line["detail"] = detail
-        return json.dumps(line) + "\n"
+        return line(NoteCheckpoint(
+            lat=cp["lat"], lon=cp["lon"], osm_id=cp["osm_id"],
+            description=description, source=source, detail=detail,
+        ))
 
     def lines():
-        yield json.dumps({"type": "start", "count": len(selected)}) + "\n"
+        yield line(NoteStart(count=len(selected)))
         global_error: str | None = None
         for i, cp in enumerate(selected):
             saved = checkpoint_notes.find_note(existing, cp["lat"], cp["lon"])
@@ -137,20 +134,20 @@ def describe_checkpoints(
                 checkpoint_notes.save_note(route, cp["lat"], cp["lon"], description)
             except GLOBAL_ANTHROPIC_ERRORS as err:
                 global_error = str(err)
-                yield json.dumps({"type": "error", "detail": global_error}) + "\n"
+                yield line(NoteError(detail=global_error))
                 yield checkpoint_line(cp, None, "error", global_error)
                 continue
             except Exception as err:  # noqa: BLE001 -- one bad LLM call must not stop the rest
                 yield checkpoint_line(cp, None, "error", str(err))
                 continue
             yield checkpoint_line(cp, description, "generated")
-        yield json.dumps({"type": "done"}) + "\n"
+        yield line(NoteDone())
 
     return ndjson(lines())
 
 
 @router.post("/api/checkpoint-notes")
-def save_checkpoint_note(note: CheckpointNote) -> dict:
+def save_checkpoint_note(note: CheckpointNoteRequest) -> CheckpointNoteSaved:
     """A pilot's own edit to a checkpoint's identification note --
     replaces whatever was saved at that place, generated or not."""
     if not note.description.strip():
@@ -158,4 +155,4 @@ def save_checkpoint_note(note: CheckpointNote) -> dict:
     dep_ident, dest_ident = route_key(note.departure_ident, note.destination_ident)
     route = checkpoint_notes.route_key(dep_ident, dest_ident)
     saved = checkpoint_notes.save_note(route, note.lat, note.lon, note.description.strip())
-    return {"ok": True, "note": saved}
+    return CheckpointNoteSaved(ok=True, note=saved)

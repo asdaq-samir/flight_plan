@@ -4,7 +4,6 @@ should ask for these in order: the course draws immediately, the
 checkpoints land a tenth of a second later, and the nav log -- which
 needs terrain, obstacles, airspace and weather -- arrives when it can
 without holding up the map."""
-import json
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FuturesTimeoutError
 from itertools import pairwise
@@ -16,15 +15,26 @@ from vfr import checkpoints as checkpoint_selection
 from vfr import geo
 from vfr.config import VFR_SECTIONAL_MAX_ZOOM, VFR_SECTIONAL_MIN_ZOOM
 
-from ..common import DEFAULT_AIRCRAFT, load_route, ndjson
+from ..common import DEFAULT_AIRCRAFT, line, load_route, ndjson
 from ..planning import assemble_leg, course_line, cruise_altitude, fixes, legs, no_altitude_detail, totals
+from ..schemas import (
+    AltitudeBreakdown,
+    Checkpoints,
+    Course,
+    NavLogAltitude,
+    NavLogDone,
+    NavLogError,
+    NavLogLeg,
+    NavLogStage,
+    Plan,
+)
 from ..scoring import score
 
 router = APIRouter()
 
 
 @router.get("/api/course")
-def course(dep: str, dest: str) -> dict:
+def course(dep: str, dest: str) -> Course:
     """Just the course line and its endpoints.
 
     Separate from detection so the chart can draw a line the instant two
@@ -33,15 +43,15 @@ def course(dep: str, dest: str) -> dict:
     them.
     """
     r = load_route(dep, dest)
-    return {
-        "departure": r.departure,
-        "destination": r.destination,
-        "distance_nm": round(geo.distance_nm(*r.start, *r.end), 1),
-        "bearing_deg": round(geo.bearing_deg(*r.start, *r.end)),
-        "course_line": course_line(r.start, r.end),
-        "max_zoom": VFR_SECTIONAL_MAX_ZOOM,
-        "min_zoom": VFR_SECTIONAL_MIN_ZOOM,
-    }
+    return Course(
+        departure=r.departure,
+        destination=r.destination,
+        distance_nm=round(geo.distance_nm(*r.start, *r.end), 1),
+        bearing_deg=round(geo.bearing_deg(*r.start, *r.end)),
+        course_line=course_line(r.start, r.end),
+        max_zoom=VFR_SECTIONAL_MAX_ZOOM,
+        min_zoom=VFR_SECTIONAL_MIN_ZOOM,
+    )
 
 
 def _scored_and_selected(dep_ident: str, dest_ident: str) -> tuple:
@@ -54,21 +64,16 @@ def _scored_and_selected(dep_ident: str, dest_ident: str) -> tuple:
 
 
 @router.get("/api/checkpoints")
-def checkpoints(dep: str, dest: str) -> dict:
+def checkpoints(dep: str, dest: str) -> Checkpoints:
     """Scored candidates and the subset worth flying. Fast: the model is
     already loaded and the features are already built."""
     r = load_route(dep, dest)
     scored, selected = _scored_and_selected(r.dep_ident, r.dest_ident)
-    return {
-        "departure": r.departure,
-        "destination": r.destination,
-        "candidates": scored,
-        "selected": selected,
-    }
+    return Checkpoints(departure=r.departure, destination=r.destination, candidates=scored, selected=selected)
 
 
 @router.get("/api/altitude-breakdown")
-def altitude_breakdown(dep: str, dest: str, aircraft: str = DEFAULT_AIRCRAFT) -> dict:
+def altitude_breakdown(dep: str, dest: str, aircraft: str = DEFAULT_AIRCRAFT) -> AltitudeBreakdown:
     """The full select_cruise_altitude() breakdown for any route -- floor,
     ceiling band and each of its own components (airspace/freezing
     level/aircraft service ceiling), and the weather go/no-go flags.
@@ -85,7 +90,7 @@ def plan(
     dest: str,
     altitude_ft: float | None = None,
     aircraft: str = DEFAULT_AIRCRAFT,
-) -> dict:
+) -> Plan:
     """The whole plan: course line, every scored candidate, the selected
     checkpoints, and a nav log leg between each consecutive pair.
 
@@ -108,21 +113,21 @@ def plan(
 
     leg_list = legs(fixes(r.dep_ident, r.dest_ident, r.start, r.end, selected), altitude_ft, profile)
 
-    return {
-        "departure": r.departure,
-        "destination": r.destination,
-        "distance_nm": round(geo.distance_nm(*r.start, *r.end), 1),
-        "course_line": course_line(r.start, r.end),
-        "candidates": scored,
-        "selected": selected,
-        "legs": leg_list,
-        "totals": totals(leg_list),
-        "altitude_ft": altitude_ft,
-        "altitude_selection": altitude_selection,
-        "aircraft": {"name": aircraft, **profile},
-        "max_zoom": VFR_SECTIONAL_MAX_ZOOM,
-        "min_zoom": VFR_SECTIONAL_MIN_ZOOM,
-    }
+    return Plan(
+        departure=r.departure,
+        destination=r.destination,
+        distance_nm=round(geo.distance_nm(*r.start, *r.end), 1),
+        course_line=course_line(r.start, r.end),
+        candidates=scored,
+        selected=selected,
+        legs=leg_list,
+        totals=totals(leg_list),
+        altitude_ft=altitude_ft,
+        altitude_selection=altitude_selection,
+        aircraft={"name": aircraft, **profile},
+        max_zoom=VFR_SECTIONAL_MAX_ZOOM,
+        min_zoom=VFR_SECTIONAL_MIN_ZOOM,
+    )
 
 
 @router.get("/api/navlog")
@@ -135,7 +140,7 @@ def navlog_stream(
     """Altitude and the dead-reckoning legs, as newline-delimited JSON --
     the slow half, because it reads terrain, the obstacle file, the
     airspace shapefile and live winds; asked for separately so none of
-    that delays the chart.
+    that delays the chart. Each line is one app.schemas.NavLogMessage.
 
     Streamed rather than a single blocking response so a pilot sees the
     table fill in as it goes rather than a blank screen: a "stage" line
@@ -157,7 +162,7 @@ def navlog_stream(
     r = load_route(dep, dest)
 
     def lines():
-        yield json.dumps({"type": "stage", "detail": "Scoring checkpoints…"}) + "\n"
+        yield line(NavLogStage(detail="Scoring checkpoints…"))
         scored = score(r.dep_ident, r.dest_ident)
         selected = checkpoint_selection.select_checkpoints(scored)
 
@@ -166,10 +171,7 @@ def navlog_stream(
         nav_altitude_ft = altitude_ft
         altitude_selection = None
         if nav_altitude_ft is None:
-            yield json.dumps({
-                "type": "stage",
-                "detail": "Selecting a cruise altitude (terrain, obstacles, airspace)…",
-            }) + "\n"
+            yield line(NavLogStage(detail="Selecting a cruise altitude (terrain, obstacles, airspace)…"))
             # On a side thread with a heartbeat, not inline: an uncached
             # selection on a bad aviationweather.gov day was observed
             # taking over two minutes, all of it silent -- and the
@@ -185,29 +187,25 @@ def navlog_stream(
                         altitude_selection = future.result(timeout=8)
                         break
                     except FuturesTimeoutError:
-                        yield json.dumps({
-                            "type": "stage",
-                            "detail": "Selecting a cruise altitude (still waiting on aviationweather.gov)…",
-                        }) + "\n"
+                        yield line(NavLogStage(
+                            detail="Selecting a cruise altitude (still waiting on aviationweather.gov)…",
+                        ))
             nav_altitude_ft = altitude_selection.get("recommended_ft")
             if nav_altitude_ft is None:
-                yield json.dumps({"type": "error", "detail": no_altitude_detail(altitude_selection)}) + "\n"
+                yield line(NavLogError(detail=no_altitude_detail(altitude_selection)))
                 return
 
         # Sent the moment it's decided, well before any leg -- the
         # checkpoints already on screen from /api/checkpoints can show
         # their own cruise altitude immediately rather than waiting on
         # the first leg to carry it.
-        yield json.dumps({
-            "type": "altitude",
-            "altitude_ft": nav_altitude_ft,
-            "altitude_selection": altitude_selection,
-            "aircraft": {"name": aircraft, **profile},
-        }) + "\n"
+        yield line(NavLogAltitude(
+            altitude_ft=nav_altitude_ft,
+            altitude_selection=altitude_selection,
+            aircraft={"name": aircraft, **profile},
+        ))
 
-        yield json.dumps({
-            "type": "stage", "detail": "Fetching winds aloft from aviationweather.gov…",
-        }) + "\n"
+        yield line(NavLogStage(detail="Fetching winds aloft from aviationweather.gov…"))
         leg_list = []
         for a, b in pairwise(fixes(r.dep_ident, r.dest_ident, r.start, r.end, selected)):
             leg = assemble_leg(a, b, nav_altitude_ft, profile)
@@ -217,8 +215,8 @@ def navlog_stream(
             # hit vfr.weather's own 15-minute cache) -- yielding this
             # leg right away, rather than batching all of them into the
             # final "done" line, is most of why this streams at all.
-            yield json.dumps({"type": "leg", **leg}) + "\n"
+            yield line(NavLogLeg.model_validate(leg))
 
-        yield json.dumps({"type": "done", "totals": totals(leg_list)}) + "\n"
+        yield line(NavLogDone(totals=totals(leg_list)))
 
     return ndjson(lines())

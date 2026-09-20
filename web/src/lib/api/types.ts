@@ -1,45 +1,88 @@
 /**
- * The shapes the API actually returns. Written from the responses rather
- * than from the Python source, so a field that is documented but absent
- * cannot be typed into existence.
+ * The shapes the API returns.
  *
- * These types are the reason for TypeScript here. The costliest bug in
- * this page's history was renaming `judged` to `rated` and missing a
- * call site -- silent at runtime, a compile error now.
+ * Everything the Python planner sends is generated from
+ * planning-service/openapi.json into ./schema.d.ts (`npm run types`)
+ * and re-exported here under the names the pages use, so a field
+ * renamed in planning-service/app/schemas.py is a compile error at
+ * every call site rather than a silent `undefined` at runtime. The
+ * Spring Boot shapes at the bottom are still written by hand.
  */
+import type { components } from "./schema";
 
-export type Role = "dr" | "visual";
-export type Source = "detected" | "added";
-export type Rating = 0 | 1 | 2 | 3 | 4 | 5;
+type Schemas = components["schemas"];
 
-/** A point the chart-vision detector found. */
-export interface Detection {
-  lat: number;
-  lon: number;
-  category: string;
-  area_m2: number;
-  score: number;
-  along_track_nm: number;
-  cross_track_nm: number;
-  /** null until a pick claims it. The rating is the fact; `rated` is derived. */
-  rating: Rating | null;
-  role: Role | null;
-  rated: boolean;
+// ---------------------------------------------------------------------
+// The planner.
+
+export type Airport = Schemas["AirportEnd"];
+export type Course = Schemas["Course"];
+/** A scored OSM candidate. `selected` is set by the server's greedy pass. */
+export type Candidate = Schemas["Candidate"];
+export type Checkpoints = Schemas["Checkpoints"];
+export type Wind = Schemas["Wind"];
+/** One dead-reckoning leg. `wind` is null when no winds-aloft station is
+ *  near enough, which is not the same as calm; groundspeed/ETE/fuel are
+ *  null when the wind exceeds true airspeed and the leg cannot be flown. */
+export type Leg = Schemas["Leg"];
+export type Totals = Schemas["Totals"];
+export type Hazard = Schemas["Hazard"];
+export type AirspaceTransit = Schemas["AirspaceTransit"];
+export type AltitudeBreakdown = Schemas["AltitudeBreakdown"];
+export type AircraftProfile = Schemas["AircraftProfile"];
+/** One line of the nav log's stream: "stage" before each piece of work,
+ *  "altitude" the moment that's decided, one "leg" per leg, then "done"
+ *  with the totals; "error" for an unflyable route. */
+export type NavLogMessage = Schemas["NavLogMessage"];
+export type Forecast = Schemas["Forecast"];
+export type Metar = Schemas["Metar"];
+export type Runway = Schemas["Runway"];
+export type Frequency = Schemas["Frequency"];
+export type Briefing = Schemas["Briefing"];
+export type BuildJob = Schemas["BuildJob"];
+export type BuiltRoute = Schemas["BuiltRoute"];
+export type BuiltRoutes = Schemas["BuiltRoutes"];
+export type AirportSuggestion = Schemas["AirportSuggestion"];
+export type AirportSearch = Schemas["AirportSearch"];
+export type ModelComparisonEntry = Schemas["ModelComparisonEntry"];
+export type ModelComparison = Schemas["ModelComparison"];
+export type ScoredCheckpoint = Schemas["ScoredCheckpoint"];
+export type PlaygroundScore = Schemas["PlaygroundScore"];
+/** One line of the per-checkpoint description stream. */
+export type CheckpointDescriptionMessage = Schemas["CheckpointNoteMessage"];
+export type CheckpointNoteSaved = Schemas["CheckpointNoteSaved"];
+
+/** Legs and totals plus what the "altitude" message carried: the page's
+ *  own assembled nav log. `altitude_selection` is null when a pilot
+ *  supplied their own altitude, since nothing was computed to break
+ *  down. */
+export interface NavLog {
+  legs: Leg[];
+  totals: Totals;
+  altitude_ft: number;
+  altitude_selection: AltitudeBreakdown | null;
+  aircraft: AircraftProfile;
 }
 
+// ---------------------------------------------------------------------
+// The chart: what the detector found and what a pilot marked.
+
+/** A point the chart-vision detector found. `rating` is null until a
+ *  pick claims it; `rated` is derived from it. */
+export type Detection = Schemas["Detection"];
 /** A pick no detection claimed: a miss, or one whose detection has moved. */
-export interface LoosePick {
-  lat: number;
-  lon: number;
-  category: string;
-  role: Role;
-  source: Source;
-  rating: Rating | null;
-  rated: boolean;
-  along_track_nm: number;
-  cross_track_nm: number;
-  area_m2: number;
-}
+export type LoosePick = Schemas["Pick"];
+export type PickSummary = Schemas["PickSummary"];
+export type PicksResponse = Schemas["PicksResponse"];
+export type PickSaved = Schemas["PickSaved"];
+export type PickDeleted = Schemas["PickDeleted"];
+export type Classification = Schemas["Classification"];
+/** One line of the detection stream. */
+export type StreamMessage = Schemas["DetectMessage"];
+
+export type Role = NonNullable<Detection["role"]>;
+export type Source = LoosePick["source"];
+export type Rating = NonNullable<Detection["rating"]>;
 
 /** The ends of the leg. Steppable and described, but never rated. */
 export interface Endpoint {
@@ -59,294 +102,15 @@ export function isEndpoint(p: Point): p is Endpoint {
   return (p as Endpoint).endpoint === true;
 }
 
-export interface Course {
-  departure: { ident: string; name: string; lat: number; lon: number; elevation_ft: number | null };
-  destination: { ident: string; name: string; lat: number; lon: number; elevation_ft: number | null };
-  distance_nm: number;
-  bearing_deg: number;
-  course_line: [number, number][];
-  max_zoom: number;
-  min_zoom: number;
-}
-
-export interface PickSummary {
-  total: number;
-  accepted: number;
-  rejected: number;
-  added: number;
-  by_rating: Record<string, number>;
-  by_role: Record<Role, number>;
-}
-
-/** One line of the detection stream. */
-export type StreamMessage =
-  | { type: "start"; route: string }
-  | {
-      type: "block";
-      block: number;
-      blocks: number;
-      tiles: number;
-      missing: number;
-      detections: Detection[];
-    }
-  | { type: "done"; total: number; added: LoosePick[]; summary: PickSummary };
-
 // ---------------------------------------------------------------------
-// The planner. Separate from the labeling types above because it is a
-// different pipeline: these come from the OSM feature store and the
-// model, not from reading chart pixels.
+// Spring Boot's own endpoints, camelCase (Jackson's default) and typed
+// by hand.
 
-export interface Airport {
-  ident: string;
-  name: string;
-  lat: number;
-  lon: number;
-}
-
-/** A scored OSM candidate. `selected` is set by the server's greedy pass. */
-export interface Candidate {
-  osm_id: number;
-  name: string | null;
-  category: string;
-  lat: number;
-  lon: number;
-  predicted_score: number;
-  along_track_nm: number;
-  selected: boolean;
-}
-
-/** One line of the per-checkpoint description stream. "saved" means it
- *  came back from a pilot's own earlier edit, not a fresh LLM call. */
-export type CheckpointDescriptionMessage =
-  | { type: "start"; count: number }
-  | {
-      type: "checkpoint";
-      lat: number;
-      lon: number;
-      osm_id: number;
-      // null on "error" -- that one checkpoint's own LLM call failed
-      // for a reason specific to it, but every other checkpoint is
-      // independent and the stream keeps going regardless.
-      description: string | null;
-      source: "generated" | "saved" | "error";
-    }
-  // A failure that applies to every checkpoint the same way (a bad
-  // key, an exhausted rate limit) rather than to one of them -- sent
-  // once instead of as 21 identical per-checkpoint "error" lines, and
-  // the stream ends right after it.
-  | { type: "error"; detail: string }
-  | { type: "done" };
-
-export interface Wind {
-  wind_dir_true_deg: number;
-  wind_speed_kt: number;
-}
-
-/**
- * One dead-reckoning leg.
- *
- * `wind` is null when no winds-aloft station is near enough, and that is
- * not the same as calm -- groundspeed then falls back to true airspeed.
- * The table shades those rows for exactly that reason.
- */
-export interface Leg {
-  from: string;
-  to: string;
-  distance_nm: number;
-  true_course_deg: number;
-  wind: Wind | null;
-  wca_deg: number;
-  true_heading_deg: number;
-  magnetic_variation_deg: number;
-  magnetic_heading_deg: number;
-  /** null when the wind exceeds true airspeed: the leg cannot be flown. */
-  groundspeed_kt: number | null;
-  ete_min: number | null;
-  fuel_gal: number | null;
-}
-
-export interface Totals {
-  distance_nm: number;
-  ete_min: number | null;
-  fuel_gal: number | null;
-  legs_without_wind: number;
-}
-
-export interface Checkpoints {
-  departure: Airport;
-  destination: Airport;
-  candidates: Candidate[];
-  selected: Candidate[];
-}
-
-export interface NavLog {
-  legs: Leg[];
-  totals: Totals;
-  altitude_ft: number;
-  /** The full breakdown (same shape /api/altitude-breakdown returns,
-   *  see AltitudeBreakdown below -- the "altitude" stream message
-   *  already carries every field, not just floor_ft) when this route's
-   *  altitude was auto-selected; null when a pilot supplied their own
-   *  altitude_ft instead, since nothing was actually computed to break
-   *  down in that case. */
-  altitude_selection: AltitudeBreakdown | null;
-  aircraft: { name: string };
-}
-
-/** One line of the nav log's own stream -- a "stage" line before each
- *  real piece of work (scoring, altitude selection, the live
- *  aviationweather.gov fetch) so a pilot sees what's actually taking
- *  the time, an "altitude" line the moment that's decided (well
- *  before any leg -- the checkpoints already on screen from
- *  /api/checkpoints can show it immediately), one "leg" line per leg
- *  as it's actually computed, then one "done" line with the totals,
- *  which need every leg in before they mean anything. */
-export type NavLogMessage =
-  | { type: "stage"; detail: string }
-  | { type: "error"; detail: string }
-  | ({ type: "altitude" } & Pick<NavLog, "altitude_ft" | "altitude_selection" | "aircraft">)
-  | ({ type: "leg" } & Leg)
-  | ({ type: "done"; totals: Totals });
-
-/** A SIGMET/AIRMET whose hazard polygon the route line actually
- *  crosses. */
-export interface Hazard {
-  hazard: string | null;
-  type: string | null;
-  altitude_low_ft: number | null;
-  altitude_high_ft: number | null;
-  raw: string | null;
-}
-
-export interface Forecast {
-  min_ceiling_ft: number | null;
-  min_visibility_sm: number | null;
-  stations: { icaoId: string; ceiling_ft: number | null; visibility_sm: number | null }[];
-}
-
-export interface Metar {
-  raw: string | null;
-  flight_category: "VFR" | "MVFR" | "IFR" | "LIFR" | null;
-  ceiling_ft: number | null;
-  visibility_sm: number | null;
-  wind_dir_true_deg: number | null;
-  wind_speed_kt: number | null;
-  temp_c: number | null;
-  dewpoint_c: number | null;
-}
-
-export interface Runway {
-  ends: string | null;
-  length_ft: number | null;
-  width_ft: number | null;
-  surface: string | null;
-  lighted: boolean;
-  closed: boolean;
-}
-
-export interface Frequency {
-  type: string | null;
-  description: string | null;
-  frequency_mhz: number | null;
-}
-
-/** Everything the nav log's own leg math doesn't cover -- the Flight
- *  Briefing page's own data, fetched once (not streamed: every piece
- *  here is one quick independent call, not a slow per-leg loop). */
-export interface Briefing {
-  hazards: Hazard[];
-  forecast: Forecast;
-  /** Keyed by ident; null for one aviationweather.gov has no current
-   *  report for. */
-  metars: Record<string, Metar | null>;
-  airports: Record<string, { runways: Runway[]; frequencies: Frequency[] }>;
-  /** Which of hazards/forecast/metars come from a call that actually
-   *  failed (aviationweather.gov timed out or 5xx'd) rather than one
-   *  that succeeded and simply found nothing -- an empty `hazards` here
-   *  must not read the same as "no hazards reported," so callers should
-   *  show a real gap for anything named here instead of staying silent. */
-  weather_unavailable: ("hazards" | "forecast" | "metars")[];
-}
-
-/** `GET /api/me` -- a Spring Boot endpoint, not proxied through the
- *  planner, so the client calls it directly. 401 (not this shape)
- *  when signed out. */
+/** `GET /api/me`. 401 (not this shape) when signed out. */
 export interface Pilot {
   id: number;
   email: string;
   displayName: string;
-}
-
-/** What retrain() actually compared before picking the currently
- *  promoted model -- Playground's own "why this algorithm" panel. */
-/** One algorithm's own comparison entry -- `metric` names which
- *  number `score` actually is (cv_mae for the sklearn family and
- *  Spark, whose own CrossValidator produces one too; held_out_mae for
- *  PyTorch/TensorFlow, which don't) rather than pretending every
- *  entry is on the same footing. Lower is better either way. */
-export interface ModelComparisonEntry {
-  name: string;
-  metric: "cv_mae" | "held_out_mae";
-  score: number;
-  promoted: boolean;
-}
-
-export interface ModelComparison {
-  models: ModelComparisonEntry[];
-  trained_at: string | null;
-  n_labeled: number | null;
-}
-
-/** One checkpoint as scored by a specific algorithm -- the
- *  Playground's own algorithm picker, via /api/playground/score. */
-export interface ScoredCheckpoint {
-  osm_id: string;
-  category: string;
-  name: string;
-  lat: number;
-  lon: number;
-  along_track_nm: number;
-  predicted_score: number;
-}
-
-export interface PlaygroundScore {
-  departure_ident: string;
-  destination_ident: string;
-  checkpoints: ScoredCheckpoint[];
-  model_type: string;
-}
-
-/** Controlled airspace the route passes through -- informational (a
- *  radio call to make), not a ceiling constraint. */
-export interface AirspaceTransit {
-  name: string;
-  class: string;
-  floor_ft_msl: number | null;
-  requires: string;
-  along_track_nm: number;
-}
-
-/** The full reasoning behind one recommended cruise altitude --
- *  Playground's "how is this number actually decided" panel. Also
- *  exactly what /api/navlog's own "altitude" message carries, just
- *  reachable independent of a Plan-page session. */
-export interface AltitudeBreakdown {
-  recommended_ft: number | null;
-  floor_ft: number;
-  airspace_ceiling_ft: number | null;
-  airspace_transits: AirspaceTransit[];
-  freezing_level_ft: number | null;
-  band_ceiling_ft: number | null;
-  min_ceiling_ft: number | null;
-  min_visibility_sm: number | null;
-  hazards: Hazard[];
-  /** null, not false, when the forecast call itself failed -- "unknown"
-   *  must not read as "confirmed fine." See vfr.altitude's own comment. */
-  low_ceiling_or_visibility: boolean | null;
-  /** Which of freezing_level/ceiling_visibility/hazards came from a
-   *  call that actually failed rather than one that succeeded and found
-   *  nothing -- same shape and reasoning as Briefing's own field. */
-  weather_unavailable: ("freezing_level" | "ceiling_visibility" | "hazards")[];
 }
 
 /** One framework's own result from ComparisonProxyController -- either
@@ -359,20 +123,15 @@ export type FrameworkResult =
   | { error: string };
 
 /** The identical nav-log-briefing task, run through nav-log-agent's
- *  LangGraph build and/or crewai-agent's CrewAI build -- Settings >
- *  Playground's side-by-side comparison panel requests both; the
- *  Flight Briefing page's own two narrative buttons
- *  (`api.frameworkComparison`'s `framework` param) request one at a
- *  time, so only that key comes back -- a pilot picking one shouldn't
- *  also pay for (or wait on) the other. */
+ *  LangGraph build and/or crewai-agent's CrewAI build. The Brief tab's
+ *  narrative buttons request one at a time, so only that key comes
+ *  back; a pilot picking one shouldn't also pay for the other. */
 export interface FrameworkComparison {
   langgraph?: FrameworkResult;
   crewai?: FrameworkResult;
 }
 
-/** A pilot's own aeroplane -- from Spring Boot's `/api/aircraft`, so
- *  camelCase (Jackson's default), unlike every snake_case type above
- *  this one that comes from the Python planner. */
+/** A pilot's own aeroplane, from `/api/aircraft`. */
 export interface Aircraft {
   id: number;
   tailNumber: string;
@@ -435,27 +194,4 @@ export interface SaveFlightRequest {
   totalFuelGal: number | null;
   plannedFor: string | null;
   checkpoints: FlightCheckpointRequest[];
-}
-
-export interface BuiltRoute {
-  departure_ident: string;
-  destination_ident: string;
-}
-
-export interface BuildJob {
-  job_id: string | null;
-  state: "queued" | "running" | "done" | "failed";
-  step: string;
-  detail?: string | null;
-}
-
-/** One DEP/DEST autocomplete suggestion -- just enough to show and
- *  fill an ident from, not `Airport`'s own coordinates/elevation
- *  (the real lookup, once a pilot actually picks one, already refetches
- *  those through the normal course/navlog flow). */
-export interface AirportSuggestion {
-  ident: string;
-  name: string;
-  municipality: string | null;
-  region: string | null;
 }

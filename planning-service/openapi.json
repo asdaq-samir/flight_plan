@@ -1,0 +1,3518 @@
+{
+  "components": {
+    "schemas": {
+      "AircraftProfile": {
+        "additionalProperties": true,
+        "description": "The aircraft's name plus its performance profile, whatever the\nprofile file holds.",
+        "properties": {
+          "cruise_tas_kt": {
+            "title": "Cruise Tas Kt",
+            "type": "number"
+          },
+          "fuel_burn_gph": {
+            "title": "Fuel Burn Gph",
+            "type": "number"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "cruise_tas_kt",
+          "fuel_burn_gph"
+        ],
+        "title": "AircraftProfile",
+        "type": "object"
+      },
+      "AirportEnd": {
+        "properties": {
+          "elevation_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Elevation Ft"
+          },
+          "ident": {
+            "title": "Ident",
+            "type": "string"
+          },
+          "lat": {
+            "title": "Lat",
+            "type": "number"
+          },
+          "lon": {
+            "title": "Lon",
+            "type": "number"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "ident",
+          "name",
+          "lat",
+          "lon"
+        ],
+        "title": "AirportEnd",
+        "type": "object"
+      },
+      "AirportFacilities": {
+        "properties": {
+          "frequencies": {
+            "items": {
+              "$ref": "#/components/schemas/Frequency"
+            },
+            "title": "Frequencies",
+            "type": "array"
+          },
+          "runways": {
+            "items": {
+              "$ref": "#/components/schemas/Runway"
+            },
+            "title": "Runways",
+            "type": "array"
+          }
+        },
+        "required": [
+          "runways",
+          "frequencies"
+        ],
+        "title": "AirportFacilities",
+        "type": "object"
+      },
+      "AirportSearch": {
+        "properties": {
+          "airports": {
+            "items": {
+              "$ref": "#/components/schemas/AirportSuggestion"
+            },
+            "title": "Airports",
+            "type": "array"
+          }
+        },
+        "required": [
+          "airports"
+        ],
+        "title": "AirportSearch",
+        "type": "object"
+      },
+      "AirportSuggestion": {
+        "properties": {
+          "ident": {
+            "title": "Ident",
+            "type": "string"
+          },
+          "municipality": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Municipality"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "region": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Region"
+          }
+        },
+        "required": [
+          "ident",
+          "name"
+        ],
+        "title": "AirportSuggestion",
+        "type": "object"
+      },
+      "AirspaceTransit": {
+        "description": "Controlled airspace the route passes through: a radio call to\nmake, not a ceiling constraint.",
+        "properties": {
+          "along_track_nm": {
+            "title": "Along Track Nm",
+            "type": "number"
+          },
+          "class": {
+            "title": "Class",
+            "type": "string"
+          },
+          "floor_ft_msl": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Floor Ft Msl"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "requires": {
+            "title": "Requires",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "class",
+          "requires",
+          "along_track_nm"
+        ],
+        "title": "AirspaceTransit",
+        "type": "object"
+      },
+      "AltitudeBreakdown": {
+        "description": "The full reasoning behind one recommended cruise altitude.\n`low_ceiling_or_visibility` is None, not False, when the forecast\ncall itself failed: unknown must not read as confirmed fine.",
+        "properties": {
+          "airspace_ceiling_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Airspace Ceiling Ft"
+          },
+          "airspace_transits": {
+            "items": {
+              "$ref": "#/components/schemas/AirspaceTransit"
+            },
+            "title": "Airspace Transits",
+            "type": "array"
+          },
+          "band_ceiling_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Band Ceiling Ft"
+          },
+          "floor_ft": {
+            "title": "Floor Ft",
+            "type": "number"
+          },
+          "freezing_level_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Freezing Level Ft"
+          },
+          "hazards": {
+            "items": {
+              "$ref": "#/components/schemas/Hazard"
+            },
+            "title": "Hazards",
+            "type": "array"
+          },
+          "low_ceiling_or_visibility": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Low Ceiling Or Visibility"
+          },
+          "min_ceiling_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Ceiling Ft"
+          },
+          "min_visibility_sm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Visibility Sm"
+          },
+          "recommended_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recommended Ft"
+          },
+          "weather_unavailable": {
+            "default": [],
+            "items": {
+              "enum": [
+                "freezing_level",
+                "ceiling_visibility",
+                "hazards"
+              ],
+              "type": "string"
+            },
+            "title": "Weather Unavailable",
+            "type": "array"
+          }
+        },
+        "required": [
+          "recommended_ft",
+          "floor_ft",
+          "airspace_ceiling_ft",
+          "airspace_transits",
+          "freezing_level_ft",
+          "band_ceiling_ft",
+          "min_ceiling_ft",
+          "min_visibility_sm",
+          "hazards",
+          "low_ceiling_or_visibility"
+        ],
+        "title": "AltitudeBreakdown",
+        "type": "object"
+      },
+      "Briefing": {
+        "description": "`weather_unavailable` names which of hazards/forecast/metars come\nfrom a call that failed rather than one that found nothing: an empty\n`hazards` must not read the same as \"no hazards reported\".",
+        "properties": {
+          "airports": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/AirportFacilities"
+            },
+            "title": "Airports",
+            "type": "object"
+          },
+          "forecast": {
+            "$ref": "#/components/schemas/Forecast"
+          },
+          "hazards": {
+            "items": {
+              "$ref": "#/components/schemas/Hazard"
+            },
+            "title": "Hazards",
+            "type": "array"
+          },
+          "metars": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/Metar"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "title": "Metars",
+            "type": "object"
+          },
+          "weather_unavailable": {
+            "items": {
+              "enum": [
+                "hazards",
+                "forecast",
+                "metars"
+              ],
+              "type": "string"
+            },
+            "title": "Weather Unavailable",
+            "type": "array"
+          }
+        },
+        "required": [
+          "hazards",
+          "forecast",
+          "metars",
+          "airports",
+          "weather_unavailable"
+        ],
+        "title": "Briefing",
+        "type": "object"
+      },
+      "BuildJob": {
+        "properties": {
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detail"
+          },
+          "job_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Id"
+          },
+          "route": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Route"
+          },
+          "state": {
+            "enum": [
+              "queued",
+              "running",
+              "done",
+              "failed"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "step": {
+            "title": "Step",
+            "type": "string"
+          },
+          "traceback": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Traceback"
+          }
+        },
+        "required": [
+          "job_id",
+          "state",
+          "step"
+        ],
+        "title": "BuildJob",
+        "type": "object"
+      },
+      "BuildRequest": {
+        "properties": {
+          "departure_ident": {
+            "title": "Departure Ident",
+            "type": "string"
+          },
+          "destination_ident": {
+            "title": "Destination Ident",
+            "type": "string"
+          }
+        },
+        "required": [
+          "departure_ident",
+          "destination_ident"
+        ],
+        "title": "BuildRequest",
+        "type": "object"
+      },
+      "BuiltRoute": {
+        "additionalProperties": true,
+        "properties": {
+          "departure_ident": {
+            "title": "Departure Ident",
+            "type": "string"
+          },
+          "destination_ident": {
+            "title": "Destination Ident",
+            "type": "string"
+          }
+        },
+        "required": [
+          "departure_ident",
+          "destination_ident"
+        ],
+        "title": "BuiltRoute",
+        "type": "object"
+      },
+      "BuiltRoutes": {
+        "properties": {
+          "features_dir": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Features Dir"
+          },
+          "routes": {
+            "items": {
+              "$ref": "#/components/schemas/BuiltRoute"
+            },
+            "title": "Routes",
+            "type": "array"
+          }
+        },
+        "required": [
+          "routes"
+        ],
+        "title": "BuiltRoutes",
+        "type": "object"
+      },
+      "Candidate": {
+        "description": "A scored OSM candidate. `selected` is set by the server's greedy pass.",
+        "properties": {
+          "along_track_nm": {
+            "title": "Along Track Nm",
+            "type": "number"
+          },
+          "category": {
+            "title": "Category",
+            "type": "string"
+          },
+          "lat": {
+            "title": "Lat",
+            "type": "number"
+          },
+          "lon": {
+            "title": "Lon",
+            "type": "number"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "osm_id": {
+            "title": "Osm Id",
+            "type": "string"
+          },
+          "predicted_score": {
+            "title": "Predicted Score",
+            "type": "number"
+          },
+          "selected": {
+            "title": "Selected",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "osm_id",
+          "category",
+          "lat",
+          "lon",
+          "predicted_score",
+          "along_track_nm",
+          "selected"
+        ],
+        "title": "Candidate",
+        "type": "object"
+      },
+      "CheckpointNote": {
+        "properties": {
+          "created_at": {
+            "title": "Created At",
+            "type": "string"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "lat": {
+            "title": "Lat",
+            "type": "number"
+          },
+          "lon": {
+            "title": "Lon",
+            "type": "number"
+          },
+          "route": {
+            "title": "Route",
+            "type": "string"
+          }
+        },
+        "required": [
+          "route",
+          "lat",
+          "lon",
+          "description",
+          "created_at"
+        ],
+        "title": "CheckpointNote",
+        "type": "object"
+      },
+      "CheckpointNoteMessage": {
+        "discriminator": {
+          "mapping": {
+            "checkpoint": "#/components/schemas/NoteCheckpoint",
+            "done": "#/components/schemas/NoteDone",
+            "error": "#/components/schemas/NoteError",
+            "start": "#/components/schemas/NoteStart"
+          },
+          "propertyName": "type"
+        },
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/NoteStart"
+          },
+          {
+            "$ref": "#/components/schemas/NoteCheckpoint"
+          },
+          {
+            "$ref": "#/components/schemas/NoteError"
+          },
+          {
+            "$ref": "#/components/schemas/NoteDone"
+          }
+        ]
+      },
+      "CheckpointNoteRequest": {
+        "properties": {
+          "departure_ident": {
+            "title": "Departure Ident",
+            "type": "string"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "destination_ident": {
+            "title": "Destination Ident",
+            "type": "string"
+          },
+          "lat": {
+            "title": "Lat",
+            "type": "number"
+          },
+          "lon": {
+            "title": "Lon",
+            "type": "number"
+          }
+        },
+        "required": [
+          "departure_ident",
+          "destination_ident",
+          "lat",
+          "lon",
+          "description"
+        ],
+        "title": "CheckpointNoteRequest",
+        "type": "object"
+      },
+      "CheckpointNoteSaved": {
+        "properties": {
+          "note": {
+            "$ref": "#/components/schemas/CheckpointNote"
+          },
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ok",
+          "note"
+        ],
+        "title": "CheckpointNoteSaved",
+        "type": "object"
+      },
+      "Checkpoints": {
+        "properties": {
+          "candidates": {
+            "items": {
+              "$ref": "#/components/schemas/Candidate"
+            },
+            "title": "Candidates",
+            "type": "array"
+          },
+          "departure": {
+            "$ref": "#/components/schemas/AirportEnd"
+          },
+          "destination": {
+            "$ref": "#/components/schemas/AirportEnd"
+          },
+          "selected": {
+            "items": {
+              "$ref": "#/components/schemas/Candidate"
+            },
+            "title": "Selected",
+            "type": "array"
+          }
+        },
+        "required": [
+          "departure",
+          "destination",
+          "candidates",
+          "selected"
+        ],
+        "title": "Checkpoints",
+        "type": "object"
+      },
+      "Classification": {
+        "additionalProperties": true,
+        "description": "What the chart draws at one point; None where it has no coverage.",
+        "properties": {
+          "category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "required": [
+          "category"
+        ],
+        "title": "Classification",
+        "type": "object"
+      },
+      "Course": {
+        "properties": {
+          "bearing_deg": {
+            "title": "Bearing Deg",
+            "type": "number"
+          },
+          "course_line": {
+            "items": {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            "title": "Course Line",
+            "type": "array"
+          },
+          "departure": {
+            "$ref": "#/components/schemas/AirportEnd"
+          },
+          "destination": {
+            "$ref": "#/components/schemas/AirportEnd"
+          },
+          "distance_nm": {
+            "title": "Distance Nm",
+            "type": "number"
+          },
+          "max_zoom": {
+            "title": "Max Zoom",
+            "type": "integer"
+          },
+          "min_zoom": {
+            "title": "Min Zoom",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "departure",
+          "destination",
+          "distance_nm",
+          "bearing_deg",
+          "course_line",
+          "max_zoom",
+          "min_zoom"
+        ],
+        "title": "Course",
+        "type": "object"
+      },
+      "DetectBlock": {
+        "properties": {
+          "block": {
+            "title": "Block",
+            "type": "integer"
+          },
+          "blocks": {
+            "title": "Blocks",
+            "type": "integer"
+          },
+          "detections": {
+            "items": {
+              "$ref": "#/components/schemas/Detection"
+            },
+            "title": "Detections",
+            "type": "array"
+          },
+          "missing": {
+            "default": 0,
+            "title": "Missing",
+            "type": "integer"
+          },
+          "tiles": {
+            "default": 0,
+            "title": "Tiles",
+            "type": "integer"
+          },
+          "type": {
+            "const": "block",
+            "default": "block",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "block",
+          "blocks",
+          "detections"
+        ],
+        "title": "DetectBlock",
+        "type": "object"
+      },
+      "DetectDone": {
+        "properties": {
+          "added": {
+            "items": {
+              "$ref": "#/components/schemas/Pick"
+            },
+            "title": "Added",
+            "type": "array"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/PickSummary"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          },
+          "type": {
+            "const": "done",
+            "default": "done",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "total",
+          "added",
+          "summary"
+        ],
+        "title": "DetectDone",
+        "type": "object"
+      },
+      "DetectMessage": {
+        "discriminator": {
+          "mapping": {
+            "block": "#/components/schemas/DetectBlock",
+            "done": "#/components/schemas/DetectDone",
+            "start": "#/components/schemas/DetectStart"
+          },
+          "propertyName": "type"
+        },
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/DetectStart"
+          },
+          {
+            "$ref": "#/components/schemas/DetectBlock"
+          },
+          {
+            "$ref": "#/components/schemas/DetectDone"
+          }
+        ]
+      },
+      "DetectStart": {
+        "properties": {
+          "route": {
+            "title": "Route",
+            "type": "string"
+          },
+          "type": {
+            "const": "start",
+            "default": "start",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "route"
+        ],
+        "title": "DetectStart",
+        "type": "object"
+      },
+      "Detection": {
+        "description": "A point the chart-vision detector found. `rating`/`role` are None\nuntil a pick claims it.",
+        "properties": {
+          "along_track_nm": {
+            "title": "Along Track Nm",
+            "type": "number"
+          },
+          "area_m2": {
+            "title": "Area M2",
+            "type": "number"
+          },
+          "category": {
+            "title": "Category",
+            "type": "string"
+          },
+          "cross_track_nm": {
+            "title": "Cross Track Nm",
+            "type": "number"
+          },
+          "lat": {
+            "title": "Lat",
+            "type": "number"
+          },
+          "lon": {
+            "title": "Lon",
+            "type": "number"
+          },
+          "rated": {
+            "title": "Rated",
+            "type": "boolean"
+          },
+          "rating": {
+            "anyOf": [
+              {
+                "enum": [
+                  0,
+                  1,
+                  2,
+                  3,
+                  4,
+                  5
+                ],
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rating"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "enum": [
+                  "dr",
+                  "visual"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role"
+          },
+          "score": {
+            "title": "Score",
+            "type": "number"
+          }
+        },
+        "required": [
+          "lat",
+          "lon",
+          "category",
+          "area_m2",
+          "score",
+          "along_track_nm",
+          "cross_track_nm",
+          "rating",
+          "role",
+          "rated"
+        ],
+        "title": "Detection",
+        "type": "object"
+      },
+      "Forecast": {
+        "properties": {
+          "min_ceiling_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Ceiling Ft"
+          },
+          "min_visibility_sm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Visibility Sm"
+          },
+          "stations": {
+            "items": {
+              "$ref": "#/components/schemas/ForecastStation"
+            },
+            "title": "Stations",
+            "type": "array"
+          }
+        },
+        "required": [
+          "min_ceiling_ft",
+          "min_visibility_sm",
+          "stations"
+        ],
+        "title": "Forecast",
+        "type": "object"
+      },
+      "ForecastStation": {
+        "properties": {
+          "ceiling_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ceiling Ft"
+          },
+          "icaoId": {
+            "title": "Icaoid",
+            "type": "string"
+          },
+          "visibility_sm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Visibility Sm"
+          }
+        },
+        "required": [
+          "icaoId",
+          "ceiling_ft",
+          "visibility_sm"
+        ],
+        "title": "ForecastStation",
+        "type": "object"
+      },
+      "Frequency": {
+        "properties": {
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "frequency_mhz": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Frequency Mhz"
+          },
+          "type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Type"
+          }
+        },
+        "title": "Frequency",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "Hazard": {
+        "description": "A SIGMET/AIRMET whose polygon the route line crosses.",
+        "properties": {
+          "altitude_high_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Altitude High Ft"
+          },
+          "altitude_low_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Altitude Low Ft"
+          },
+          "hazard": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Hazard"
+          },
+          "raw": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Raw"
+          },
+          "type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Type"
+          }
+        },
+        "title": "Hazard",
+        "type": "object"
+      },
+      "Index": {
+        "properties": {
+          "service": {
+            "title": "Service",
+            "type": "string"
+          },
+          "ui": {
+            "title": "Ui",
+            "type": "string"
+          }
+        },
+        "required": [
+          "service",
+          "ui"
+        ],
+        "title": "Index",
+        "type": "object"
+      },
+      "Leg": {
+        "description": "One dead-reckoning leg. `wind` is None when no winds-aloft station\nis near enough, which is not the same as calm: groundspeed then falls\nback to true airspeed. groundspeed/ETE/fuel are None when the wind\nexceeds true airspeed, i.e. the leg cannot be flown.",
+        "properties": {
+          "altitude_ft": {
+            "title": "Altitude Ft",
+            "type": "number"
+          },
+          "distance_nm": {
+            "title": "Distance Nm",
+            "type": "number"
+          },
+          "ete_min": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ete Min"
+          },
+          "from": {
+            "title": "From",
+            "type": "string"
+          },
+          "fuel_gal": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fuel Gal"
+          },
+          "groundspeed_kt": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Groundspeed Kt"
+          },
+          "magnetic_heading_deg": {
+            "title": "Magnetic Heading Deg",
+            "type": "number"
+          },
+          "magnetic_variation_deg": {
+            "title": "Magnetic Variation Deg",
+            "type": "number"
+          },
+          "to": {
+            "title": "To",
+            "type": "string"
+          },
+          "true_course_deg": {
+            "title": "True Course Deg",
+            "type": "number"
+          },
+          "true_heading_deg": {
+            "title": "True Heading Deg",
+            "type": "number"
+          },
+          "wca_deg": {
+            "title": "Wca Deg",
+            "type": "number"
+          },
+          "wind": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Wind"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "from",
+          "to",
+          "distance_nm",
+          "altitude_ft",
+          "true_course_deg",
+          "wind",
+          "wca_deg",
+          "true_heading_deg",
+          "magnetic_variation_deg",
+          "magnetic_heading_deg",
+          "groundspeed_kt",
+          "ete_min",
+          "fuel_gal"
+        ],
+        "title": "Leg",
+        "type": "object"
+      },
+      "Metar": {
+        "properties": {
+          "ceiling_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ceiling Ft"
+          },
+          "dewpoint_c": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dewpoint C"
+          },
+          "flight_category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Flight Category"
+          },
+          "raw": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Raw"
+          },
+          "temp_c": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Temp C"
+          },
+          "visibility_sm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Visibility Sm"
+          },
+          "wind_dir_true_deg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wind Dir True Deg"
+          },
+          "wind_speed_kt": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wind Speed Kt"
+          }
+        },
+        "title": "Metar",
+        "type": "object"
+      },
+      "ModelComparison": {
+        "properties": {
+          "models": {
+            "items": {
+              "$ref": "#/components/schemas/ModelComparisonEntry"
+            },
+            "title": "Models",
+            "type": "array"
+          },
+          "n_labeled": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "N Labeled"
+          },
+          "trained_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trained At"
+          }
+        },
+        "required": [
+          "models",
+          "trained_at",
+          "n_labeled"
+        ],
+        "title": "ModelComparison",
+        "type": "object"
+      },
+      "ModelComparisonEntry": {
+        "description": "`metric` names which number `score` is: cv_mae for the sklearn\nfamily and Spark, held_out_mae for PyTorch/TensorFlow. Lower is\nbetter either way.",
+        "properties": {
+          "metric": {
+            "enum": [
+              "cv_mae",
+              "held_out_mae"
+            ],
+            "title": "Metric",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "promoted": {
+            "title": "Promoted",
+            "type": "boolean"
+          },
+          "score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score"
+          }
+        },
+        "required": [
+          "name",
+          "metric",
+          "score",
+          "promoted"
+        ],
+        "title": "ModelComparisonEntry",
+        "type": "object"
+      },
+      "NavLogAltitude": {
+        "properties": {
+          "aircraft": {
+            "$ref": "#/components/schemas/AircraftProfile"
+          },
+          "altitude_ft": {
+            "title": "Altitude Ft",
+            "type": "number"
+          },
+          "altitude_selection": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AltitudeBreakdown"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "type": {
+            "const": "altitude",
+            "default": "altitude",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "altitude_ft",
+          "altitude_selection",
+          "aircraft"
+        ],
+        "title": "NavLogAltitude",
+        "type": "object"
+      },
+      "NavLogDone": {
+        "properties": {
+          "totals": {
+            "$ref": "#/components/schemas/Totals"
+          },
+          "type": {
+            "const": "done",
+            "default": "done",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "totals"
+        ],
+        "title": "NavLogDone",
+        "type": "object"
+      },
+      "NavLogError": {
+        "properties": {
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          },
+          "type": {
+            "const": "error",
+            "default": "error",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "detail"
+        ],
+        "title": "NavLogError",
+        "type": "object"
+      },
+      "NavLogLeg": {
+        "properties": {
+          "altitude_ft": {
+            "title": "Altitude Ft",
+            "type": "number"
+          },
+          "distance_nm": {
+            "title": "Distance Nm",
+            "type": "number"
+          },
+          "ete_min": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ete Min"
+          },
+          "from": {
+            "title": "From",
+            "type": "string"
+          },
+          "fuel_gal": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fuel Gal"
+          },
+          "groundspeed_kt": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Groundspeed Kt"
+          },
+          "magnetic_heading_deg": {
+            "title": "Magnetic Heading Deg",
+            "type": "number"
+          },
+          "magnetic_variation_deg": {
+            "title": "Magnetic Variation Deg",
+            "type": "number"
+          },
+          "to": {
+            "title": "To",
+            "type": "string"
+          },
+          "true_course_deg": {
+            "title": "True Course Deg",
+            "type": "number"
+          },
+          "true_heading_deg": {
+            "title": "True Heading Deg",
+            "type": "number"
+          },
+          "type": {
+            "const": "leg",
+            "default": "leg",
+            "title": "Type",
+            "type": "string"
+          },
+          "wca_deg": {
+            "title": "Wca Deg",
+            "type": "number"
+          },
+          "wind": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Wind"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "from",
+          "to",
+          "distance_nm",
+          "altitude_ft",
+          "true_course_deg",
+          "wind",
+          "wca_deg",
+          "true_heading_deg",
+          "magnetic_variation_deg",
+          "magnetic_heading_deg",
+          "groundspeed_kt",
+          "ete_min",
+          "fuel_gal"
+        ],
+        "title": "NavLogLeg",
+        "type": "object"
+      },
+      "NavLogMessage": {
+        "discriminator": {
+          "mapping": {
+            "altitude": "#/components/schemas/NavLogAltitude",
+            "done": "#/components/schemas/NavLogDone",
+            "error": "#/components/schemas/NavLogError",
+            "leg": "#/components/schemas/NavLogLeg",
+            "stage": "#/components/schemas/NavLogStage"
+          },
+          "propertyName": "type"
+        },
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/NavLogStage"
+          },
+          {
+            "$ref": "#/components/schemas/NavLogError"
+          },
+          {
+            "$ref": "#/components/schemas/NavLogAltitude"
+          },
+          {
+            "$ref": "#/components/schemas/NavLogLeg"
+          },
+          {
+            "$ref": "#/components/schemas/NavLogDone"
+          }
+        ]
+      },
+      "NavLogStage": {
+        "properties": {
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          },
+          "type": {
+            "const": "stage",
+            "default": "stage",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "detail"
+        ],
+        "title": "NavLogStage",
+        "type": "object"
+      },
+      "NoteCheckpoint": {
+        "description": "`source` says where the text came from: \"saved\" is a pilot's own\nearlier edit, \"generated\" a fresh model call, \"error\" that call\nfailing for this checkpoint alone (`description` is None then).",
+        "properties": {
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Detail"
+          },
+          "lat": {
+            "title": "Lat",
+            "type": "number"
+          },
+          "lon": {
+            "title": "Lon",
+            "type": "number"
+          },
+          "osm_id": {
+            "title": "Osm Id",
+            "type": "string"
+          },
+          "source": {
+            "enum": [
+              "generated",
+              "saved",
+              "error"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "type": {
+            "const": "checkpoint",
+            "default": "checkpoint",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "lat",
+          "lon",
+          "osm_id",
+          "description",
+          "source"
+        ],
+        "title": "NoteCheckpoint",
+        "type": "object"
+      },
+      "NoteDone": {
+        "properties": {
+          "type": {
+            "const": "done",
+            "default": "done",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "title": "NoteDone",
+        "type": "object"
+      },
+      "NoteError": {
+        "description": "A failure that applies to every checkpoint the same way (a bad\nkey, an exhausted rate limit), sent once.",
+        "properties": {
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          },
+          "type": {
+            "const": "error",
+            "default": "error",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "detail"
+        ],
+        "title": "NoteError",
+        "type": "object"
+      },
+      "NoteStart": {
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "type": {
+            "const": "start",
+            "default": "start",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "count"
+        ],
+        "title": "NoteStart",
+        "type": "object"
+      },
+      "Pick": {
+        "description": "A pilot's own mark on the chart. `rated` is derived from the\nrating, so a rated point can never describe itself as unrated.",
+        "properties": {
+          "along_track_nm": {
+            "title": "Along Track Nm",
+            "type": "number"
+          },
+          "area_m2": {
+            "default": 0.0,
+            "title": "Area M2",
+            "type": "number"
+          },
+          "category": {
+            "title": "Category",
+            "type": "string"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Created At"
+          },
+          "cross_track_nm": {
+            "title": "Cross Track Nm",
+            "type": "number"
+          },
+          "lat": {
+            "title": "Lat",
+            "type": "number"
+          },
+          "lon": {
+            "title": "Lon",
+            "type": "number"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Note"
+          },
+          "rated": {
+            "readOnly": true,
+            "title": "Rated",
+            "type": "boolean"
+          },
+          "rating": {
+            "anyOf": [
+              {
+                "enum": [
+                  0,
+                  1,
+                  2,
+                  3,
+                  4,
+                  5
+                ],
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Rating"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "enum": [
+                  "dr",
+                  "visual"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Role"
+          },
+          "route": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Route"
+          },
+          "source": {
+            "enum": [
+              "detected",
+              "added"
+            ],
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source",
+          "category",
+          "lat",
+          "lon",
+          "along_track_nm",
+          "cross_track_nm",
+          "rated"
+        ],
+        "title": "Pick",
+        "type": "object"
+      },
+      "PickDeleted": {
+        "properties": {
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/PickSummary"
+          }
+        },
+        "required": [
+          "ok",
+          "summary"
+        ],
+        "title": "PickDeleted",
+        "type": "object"
+      },
+      "PickRequest": {
+        "properties": {
+          "area_m2": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Area M2"
+          },
+          "category": {
+            "default": "water",
+            "title": "Category",
+            "type": "string"
+          },
+          "departure_ident": {
+            "title": "Departure Ident",
+            "type": "string"
+          },
+          "destination_ident": {
+            "title": "Destination Ident",
+            "type": "string"
+          },
+          "lat": {
+            "title": "Lat",
+            "type": "number"
+          },
+          "lon": {
+            "title": "Lon",
+            "type": "number"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "rating": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rating"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role"
+          },
+          "source": {
+            "default": "detected",
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "departure_ident",
+          "destination_ident",
+          "lat",
+          "lon"
+        ],
+        "title": "PickRequest",
+        "type": "object"
+      },
+      "PickSaved": {
+        "properties": {
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          },
+          "pick": {
+            "$ref": "#/components/schemas/Pick"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/PickSummary"
+          }
+        },
+        "required": [
+          "ok",
+          "pick",
+          "summary"
+        ],
+        "title": "PickSaved",
+        "type": "object"
+      },
+      "PickSummary": {
+        "properties": {
+          "accepted": {
+            "title": "Accepted",
+            "type": "integer"
+          },
+          "added": {
+            "title": "Added",
+            "type": "integer"
+          },
+          "added_categories": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Added Categories",
+            "type": "array"
+          },
+          "by_rating": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "By Rating",
+            "type": "object"
+          },
+          "by_role": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "By Role",
+            "type": "object"
+          },
+          "rejected": {
+            "title": "Rejected",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total",
+          "accepted",
+          "rejected",
+          "added",
+          "by_rating",
+          "by_role"
+        ],
+        "title": "PickSummary",
+        "type": "object"
+      },
+      "PicksResponse": {
+        "properties": {
+          "picks": {
+            "items": {
+              "$ref": "#/components/schemas/Pick"
+            },
+            "title": "Picks",
+            "type": "array"
+          },
+          "route": {
+            "title": "Route",
+            "type": "string"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/PickSummary"
+          }
+        },
+        "required": [
+          "route",
+          "picks",
+          "summary"
+        ],
+        "title": "PicksResponse",
+        "type": "object"
+      },
+      "Plan": {
+        "properties": {
+          "aircraft": {
+            "$ref": "#/components/schemas/AircraftProfile"
+          },
+          "altitude_ft": {
+            "title": "Altitude Ft",
+            "type": "number"
+          },
+          "altitude_selection": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AltitudeBreakdown"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "candidates": {
+            "items": {
+              "$ref": "#/components/schemas/Candidate"
+            },
+            "title": "Candidates",
+            "type": "array"
+          },
+          "course_line": {
+            "items": {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            "title": "Course Line",
+            "type": "array"
+          },
+          "departure": {
+            "$ref": "#/components/schemas/AirportEnd"
+          },
+          "destination": {
+            "$ref": "#/components/schemas/AirportEnd"
+          },
+          "distance_nm": {
+            "title": "Distance Nm",
+            "type": "number"
+          },
+          "legs": {
+            "items": {
+              "$ref": "#/components/schemas/Leg"
+            },
+            "title": "Legs",
+            "type": "array"
+          },
+          "max_zoom": {
+            "title": "Max Zoom",
+            "type": "integer"
+          },
+          "min_zoom": {
+            "title": "Min Zoom",
+            "type": "integer"
+          },
+          "selected": {
+            "items": {
+              "$ref": "#/components/schemas/Candidate"
+            },
+            "title": "Selected",
+            "type": "array"
+          },
+          "totals": {
+            "$ref": "#/components/schemas/Totals"
+          }
+        },
+        "required": [
+          "departure",
+          "destination",
+          "distance_nm",
+          "course_line",
+          "candidates",
+          "selected",
+          "legs",
+          "totals",
+          "altitude_ft",
+          "altitude_selection",
+          "aircraft",
+          "max_zoom",
+          "min_zoom"
+        ],
+        "title": "Plan",
+        "type": "object"
+      },
+      "PlaygroundScore": {
+        "additionalProperties": true,
+        "description": "model-service's own /invocations response, passed through.",
+        "properties": {
+          "checkpoints": {
+            "items": {
+              "$ref": "#/components/schemas/ScoredCheckpoint"
+            },
+            "title": "Checkpoints",
+            "type": "array"
+          },
+          "departure_ident": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Departure Ident"
+          },
+          "destination_ident": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Destination Ident"
+          },
+          "model_type": {
+            "title": "Model Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "checkpoints",
+          "model_type"
+        ],
+        "title": "PlaygroundScore",
+        "type": "object"
+      },
+      "Runway": {
+        "properties": {
+          "closed": {
+            "title": "Closed",
+            "type": "boolean"
+          },
+          "ends": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ends"
+          },
+          "length_ft": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Length Ft"
+          },
+          "lighted": {
+            "title": "Lighted",
+            "type": "boolean"
+          },
+          "surface": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Surface"
+          },
+          "width_ft": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Width Ft"
+          }
+        },
+        "required": [
+          "ends",
+          "length_ft",
+          "width_ft",
+          "surface",
+          "lighted",
+          "closed"
+        ],
+        "title": "Runway",
+        "type": "object"
+      },
+      "ScoredCheckpoint": {
+        "properties": {
+          "along_track_nm": {
+            "title": "Along Track Nm",
+            "type": "number"
+          },
+          "category": {
+            "title": "Category",
+            "type": "string"
+          },
+          "lat": {
+            "title": "Lat",
+            "type": "number"
+          },
+          "lon": {
+            "title": "Lon",
+            "type": "number"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "osm_id": {
+            "title": "Osm Id",
+            "type": "string"
+          },
+          "predicted_score": {
+            "title": "Predicted Score",
+            "type": "number"
+          }
+        },
+        "required": [
+          "osm_id",
+          "category",
+          "lat",
+          "lon",
+          "along_track_nm",
+          "predicted_score"
+        ],
+        "title": "ScoredCheckpoint",
+        "type": "object"
+      },
+      "Totals": {
+        "properties": {
+          "distance_nm": {
+            "title": "Distance Nm",
+            "type": "number"
+          },
+          "ete_min": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ete Min"
+          },
+          "fuel_gal": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fuel Gal"
+          },
+          "legs_without_wind": {
+            "title": "Legs Without Wind",
+            "type": "integer"
+          },
+          "unflyable_legs": {
+            "title": "Unflyable Legs",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "distance_nm",
+          "ete_min",
+          "fuel_gal",
+          "unflyable_legs",
+          "legs_without_wind"
+        ],
+        "title": "Totals",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      },
+      "Wind": {
+        "properties": {
+          "wind_dir_true_deg": {
+            "title": "Wind Dir True Deg",
+            "type": "number"
+          },
+          "wind_speed_kt": {
+            "title": "Wind Speed Kt",
+            "type": "number"
+          }
+        },
+        "required": [
+          "wind_dir_true_deg",
+          "wind_speed_kt"
+        ],
+        "title": "Wind",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "title": "vfr-route planner",
+    "version": "0.1.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/": {
+      "get": {
+        "description": "This service has no pages. The front end is built into the Spring\nBoot gateway's jar and served from there, which is also the only\nthing that calls this -- so this answers a health probe and says\nwhere the UI went.",
+        "operationId": "index__get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Index"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Index"
+      }
+    },
+    "/api/airports/search": {
+      "get": {
+        "description": "DEP/DEST's own autocomplete -- every airport whose ident or name\nstarts with `q`, for the route inputs to suggest as a pilot types.\nRuns against the same in-memory OurAirports table the real lookup\nuses, not a second data source that could drift from it.",
+        "operationId": "airport_search_api_airports_search_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Q",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AirportSearch"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Airport Search"
+      }
+    },
+    "/api/altitude-breakdown": {
+      "get": {
+        "description": "The full select_cruise_altitude() breakdown for any route -- floor,\nceiling band and each of its own components (airspace/freezing\nlevel/aircraft service ceiling), and the weather go/no-go flags.\n/api/navlog's \"altitude\" line carries the same dict for the route a\npilot has open; this is a standalone read of it for any pair.",
+        "operationId": "altitude_breakdown_api_altitude_breakdown_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "dep",
+            "required": true,
+            "schema": {
+              "title": "Dep",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "dest",
+            "required": true,
+            "schema": {
+              "title": "Dest",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "aircraft",
+            "required": false,
+            "schema": {
+              "default": "c172",
+              "title": "Aircraft",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AltitudeBreakdown"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Altitude Breakdown"
+      }
+    },
+    "/api/briefing": {
+      "get": {
+        "description": "Everything the nav log's own leg math doesn't cover: adverse\nconditions (SIGMET/AIRMET), current conditions (METAR) and\nforecast (TAF-derived ceiling/visibility) along the route, and\neach airport's runways and radio frequencies.",
+        "operationId": "briefing_api_briefing_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "dep",
+            "required": true,
+            "schema": {
+              "title": "Dep",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "dest",
+            "required": true,
+            "schema": {
+              "title": "Dest",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Briefing"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Briefing"
+      }
+    },
+    "/api/build": {
+      "post": {
+        "description": "Start collecting a corridor. Returns a job id to poll.\n\nAsynchronous because this is minutes of network I/O -- Overpass, the\nFAA subscription, and an elevation lookup per candidate -- not\nsomething to hold an HTTP request open for.",
+        "operationId": "build_api_build_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BuildRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BuildJob"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Build"
+      }
+    },
+    "/api/build/{job_id}": {
+      "get": {
+        "operationId": "build_status_api_build__job_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "title": "Job Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BuildJob"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Build Status"
+      }
+    },
+    "/api/checkpoint-notes": {
+      "get": {
+        "description": "One \"how to spot it\" line per checkpoint, as newline-delimited\nJSON (each line one app.schemas.CheckpointNoteMessage), so a slow\nLLM call on checkpoint 3 does not hold up checkpoints 1 and 2 that\nalready arrived.\n\nTwo different kinds of failure, reported two different ways. A\nsingle checkpoint's own LLM call failing for a reason specific to\nit does not take the rest of the stream down -- every other\ncheckpoint is independent and still worth generating, so that one\ngets its own per-checkpoint \"error\" line and the loop moves on.\nGLOBAL_ANTHROPIC_ERRORS is the opposite case: a bad key or an\nexhausted rate limit fails identically for every checkpoint, so\nit's reported once as a single stream-level \"error\" (for one\nbanner instead of the same text repeated per row) -- but the\nstream itself keeps going: every remaining checkpoint still gets\nits own per-checkpoint \"error\" line too, just without spending a\ncall to learn what's already known. A pilot still gets a row to\ntype a note into for every checkpoint, not just the ones that\nhappened to come before the failure.",
+        "operationId": "describe_checkpoints_api_checkpoint_notes_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "dep",
+            "required": true,
+            "schema": {
+              "title": "Dep",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "dest",
+            "required": true,
+            "schema": {
+              "title": "Dest",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "altitude_ft",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Altitude Ft"
+            }
+          },
+          {
+            "in": "query",
+            "name": "aircraft",
+            "required": false,
+            "schema": {
+              "default": "c172",
+              "title": "Aircraft",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Describe Checkpoints"
+      },
+      "post": {
+        "description": "A pilot's own edit to a checkpoint's identification note --\nreplaces whatever was saved at that place, generated or not.",
+        "operationId": "save_checkpoint_note_api_checkpoint_notes_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CheckpointNoteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CheckpointNoteSaved"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Save Checkpoint Note"
+      }
+    },
+    "/api/checkpoints": {
+      "get": {
+        "description": "Scored candidates and the subset worth flying. Fast: the model is\nalready loaded and the features are already built.",
+        "operationId": "checkpoints_api_checkpoints_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "dep",
+            "required": true,
+            "schema": {
+              "title": "Dep",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "dest",
+            "required": true,
+            "schema": {
+              "title": "Dest",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Checkpoints"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Checkpoints"
+      }
+    },
+    "/api/classify": {
+      "get": {
+        "description": "What the chart draws at a point, so a hand-marked checkpoint is\ncategorised from the pixels rather than from whatever the dropdown\nhappened to be left on.",
+        "operationId": "classify_api_classify_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "lat",
+            "required": true,
+            "schema": {
+              "title": "Lat",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "lon",
+            "required": true,
+            "schema": {
+              "title": "Lon",
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Classification"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Classify"
+      }
+    },
+    "/api/course": {
+      "get": {
+        "description": "Just the course line and its endpoints.\n\nSeparate from detection so the chart can draw a line the instant two\nidents are entered. Reading tiles takes seconds even on the fast\npath, and there is no reason a pilot should watch an empty map for\nthem.",
+        "operationId": "course_api_course_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "dep",
+            "required": true,
+            "schema": {
+              "title": "Dep",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "dest",
+            "required": true,
+            "schema": {
+              "title": "Dest",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Course"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Course"
+      }
+    },
+    "/api/detect/stream": {
+      "get": {
+        "description": "Detections as newline-delimited JSON, one line per block; each\nline is one app.schemas.DetectMessage.\n\nBlocks advance along the course, so the map fills from the departure\nend and a pilot can start judging the first thirty miles while the\nrest of the corridor is still being read. Airports come first, in\ntheir own line, because they are a local file lookup and cost\nnothing to produce.\n\nThe landmarks come from the shared per-route job (app.detection);\nonly the pick-matching is per-request, because picks change between\nrequests and the chart does not.",
+        "operationId": "detect_stream_api_detect_stream_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "dep",
+            "required": true,
+            "schema": {
+              "title": "Dep",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "dest",
+            "required": true,
+            "schema": {
+              "title": "Dest",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "half_width_nm",
+            "required": false,
+            "schema": {
+              "default": 4.0,
+              "title": "Half Width Nm",
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Detect Stream"
+      }
+    },
+    "/api/model-comparison": {
+      "get": {
+        "description": "Every algorithm anyone has actually trained for this problem,\nnot just the sklearn family retrain() grid-searches: the promoted\nmodel's own comparison against Ridge/GradientBoosting/a dummy\n\"predict the mean\" baseline, plus PyTorch/TensorFlow/Spark's own\ncandidates (vfr.model_candidates), when they exist.\n\nEach entry names its own metric rather than pretending they are\nall the same number: the sklearn family's own selection already\nruns 5-fold CV (cv_mae), while the new candidates report a single\nheld-out split's MAE (held_out_mae) -- except Spark, whose own\nCrossValidator gives it a real cv_mae too. Blending these into one\nunlabeled column would overstate how comparable they actually are.",
+        "operationId": "model_comparison_api_model_comparison_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelComparison"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Model Comparison"
+      }
+    },
+    "/api/navlog": {
+      "get": {
+        "description": "Altitude and the dead-reckoning legs, as newline-delimited JSON --\nthe slow half, because it reads terrain, the obstacle file, the\nairspace shapefile and live winds; asked for separately so none of\nthat delays the chart. Each line is one app.schemas.NavLogMessage.\n\nStreamed rather than a single blocking response so a pilot sees the\ntable fill in as it goes rather than a blank screen: a \"stage\" line\nbefore each real piece of work (scoring, altitude selection, the\nlive aviationweather.gov fetch), an \"altitude\" line the moment\nthat's decided, one \"leg\" line per leg as each is computed, then one\n\"done\" line with the totals, which need every leg in before they\nmean anything. Its own implementation, not a wrapper over /api/plan:\nthat one commits to a single synchronous JSON response, and mixing a\nstreaming and a non-streaming contract into one function would\ncompromise both. The overlap is the same handful of calls into\napp.planning either way.\n\nAn unflyable route (no legal cruising altitude at all) is reported\nas an \"error\" line, not an HTTP error status -- by the time that's\nknown, a 200 and a stream of NDJSON have already gone out, and an\nHTTP status can't change after that.",
+        "operationId": "navlog_stream_api_navlog_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "dep",
+            "required": true,
+            "schema": {
+              "title": "Dep",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "dest",
+            "required": true,
+            "schema": {
+              "title": "Dest",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "altitude_ft",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Altitude Ft"
+            }
+          },
+          {
+            "in": "query",
+            "name": "aircraft",
+            "required": false,
+            "schema": {
+              "default": "c172",
+              "title": "Aircraft",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Navlog Stream"
+      }
+    },
+    "/api/picks": {
+      "delete": {
+        "operationId": "remove_pick_api_picks_delete",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "dep",
+            "required": true,
+            "schema": {
+              "title": "Dep",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "dest",
+            "required": true,
+            "schema": {
+              "title": "Dest",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "lat",
+            "required": true,
+            "schema": {
+              "title": "Lat",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "lon",
+            "required": true,
+            "schema": {
+              "title": "Lon",
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PickDeleted"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Remove Pick"
+      },
+      "get": {
+        "operationId": "list_picks_api_picks_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "dep",
+            "required": true,
+            "schema": {
+              "title": "Dep",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "dest",
+            "required": true,
+            "schema": {
+              "title": "Dest",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PicksResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Picks"
+      },
+      "post": {
+        "operationId": "add_pick_api_picks_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PickRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PickSaved"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Add Pick"
+      }
+    },
+    "/api/plan": {
+      "get": {
+        "description": "The whole plan: course line, every scored candidate, the selected\ncheckpoints, and a nav log leg between each consecutive pair.\n\naltitude_ft is optional. Omitted, vfr.altitude picks one that clears\nterrain and obstacles, respects the hemispheric rule for the course,\nstays under the aircraft's service ceiling and dodges controlled\nairspace -- and the reasoning comes back with it, since \"why am I at\n6,500\" is a question a pilot will actually ask.",
+        "operationId": "plan_api_plan_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "dep",
+            "required": true,
+            "schema": {
+              "title": "Dep",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "dest",
+            "required": true,
+            "schema": {
+              "title": "Dest",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "altitude_ft",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Altitude Ft"
+            }
+          },
+          {
+            "in": "query",
+            "name": "aircraft",
+            "required": false,
+            "schema": {
+              "default": "c172",
+              "title": "Aircraft",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Plan"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Plan"
+      }
+    },
+    "/api/playground/score": {
+      "get": {
+        "description": "Scored checkpoints from one specific algorithm -- the Dev ML\ntab's demo, kept apart from the planner's real scoring path\n(app.scoring), which never chooses an algorithm: it always uses\nwhatever is promoted. A thin passthrough to model-service's own\n`model` selector on /invocations.",
+        "operationId": "playground_score_api_playground_score_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "dep",
+            "required": true,
+            "schema": {
+              "title": "Dep",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "dest",
+            "required": true,
+            "schema": {
+              "title": "Dest",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "model",
+            "required": false,
+            "schema": {
+              "default": "current",
+              "title": "Model",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlaygroundScore"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Playground Score"
+      }
+    },
+    "/api/routes": {
+      "get": {
+        "description": "Corridors model-service already has a feature store for.",
+        "operationId": "built_routes_api_routes_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BuiltRoutes"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Built Routes"
+      }
+    },
+    "/api/sectional-tile/{z}/{x}/{y}.png": {
+      "get": {
+        "description": "The sectional as a {z}/{x}/{y} tile pyramid, built from the TAMU\ndynamic map service one tile-sized export at a time and cached on\ndisk (vfr.chartvision's own tile cache -- the same files the\ndetector reads, so a corridor planned once has its map tiles ready,\nand a map browsed once has its detection tiles ready).\n\nThis is what makes the map's sectional layer a plain Leaflet tile\nlayer: edge-only fetches on a pan, the previous zoom's tiles scaled\nunder the zoom animation, a prefetch ring -- everything a tile\npyramid gets for free that a one-image-per-view dynamic layer\nstructurally could not. Outside the chart's own useful zoom range\nthere is nothing worth rendering: the tile layer's maxNativeZoom\nkeeps the browser from asking, and this keeps anyone else from\nmaking TAMU render it.",
+        "operationId": "sectional_tile_api_sectional_tile__z___x___y__png_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "z",
+            "required": true,
+            "schema": {
+              "title": "Z",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "x",
+            "required": true,
+            "schema": {
+              "title": "X",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "y",
+            "required": true,
+            "schema": {
+              "title": "Y",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Sectional Tile"
+      }
+    }
+  }
+}

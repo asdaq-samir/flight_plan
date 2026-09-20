@@ -14,7 +14,8 @@ const det = (over: Partial<Detection> = {}): Detection => ({
 
 const loose = (over: Partial<LoosePick> = {}): LoosePick => ({
   lat: 44, lon: -89, category: "river", role: "dr", source: "added",
-  rating: 5, rated: true, along_track_nm: 20, cross_track_nm: 0, area_m2: 0, ...over,
+  rating: 5, rated: true, along_track_nm: 20, cross_track_nm: 0, area_m2: 0,
+  route: "c81_kdlh", note: null, created_at: null, ...over,
 });
 
 const end = (ident: string, nm: number): Endpoint => ({

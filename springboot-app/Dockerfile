@@ -12,10 +12,14 @@ COPY web/package.json web/package-lock.json ./
 # `npm ci` doesn't re-download the same packages every time.
 RUN --mount=type=cache,target=/root/.npm npm ci
 COPY web/ ./
+# The planner's OpenAPI document, from which `npm run types` generates
+# the front end's API types (web/src/lib/api/schema.d.ts, not committed).
+COPY planning-service/openapi.json /planning-service/openapi.json
 # Vite's outDir points outside the app directory (into Spring Boot's
 # static resources), so build with that layout present and collect the
 # result from there.
-RUN mkdir -p /springboot-app/src/main/resources/static \
+RUN npm run types \
+    && mkdir -p /springboot-app/src/main/resources/static \
     && npx vite build --outDir /springboot-app/src/main/resources/static/app --emptyOutDir
 
 # 25, not the truly-latest 26: spring-boot-maven-plugin 3.5.3's bundled

@@ -1,16 +1,24 @@
 """The chart-vision path: the sectional's own tiles, what the detector
 finds in a corridor, and what a pilot marks on it. Nothing here touches
 Overpass, the FAA subscription or the elevation service."""
-import json
-
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel
 from vfr import chartlabels, chartvision, geo
 from vfr.config import VFR_SECTIONAL_MAX_ZOOM, VFR_SECTIONAL_MIN_ZOOM
 
-from ..common import load_route, ndjson, route_key
+from ..common import line, load_route, ndjson, route_key
 from ..detection import detect_job, faa_airports
+from ..schemas import (
+    Classification,
+    DetectBlock,
+    DetectDone,
+    Detection,
+    DetectStart,
+    PickDeleted,
+    PickSaved,
+    PicksResponse,
+)
 
 router = APIRouter()
 
@@ -50,14 +58,14 @@ def sectional_tile(z: int, x: int, y: int) -> Response:
 
 
 @router.get("/api/classify")
-def classify(lat: float, lon: float) -> dict:
+def classify(lat: float, lon: float) -> Classification:
     """What the chart draws at a point, so a hand-marked checkpoint is
     categorised from the pixels rather than from whatever the dropdown
     happened to be left on."""
     return chartvision.classify_point(lat, lon)
 
 
-class Pick(BaseModel):
+class PickRequest(BaseModel):
     departure_ident: str
     destination_ident: str
     lat: float
@@ -71,7 +79,7 @@ class Pick(BaseModel):
 
 
 @router.post("/api/picks")
-def add_pick(pick: Pick) -> dict:
+def add_pick(pick: PickRequest) -> PickSaved:
     r = load_route(pick.departure_ident, pick.destination_ident)
 
     if pick.source not in ("detected", "added"):
@@ -100,26 +108,26 @@ def add_pick(pick: Pick) -> dict:
             "note": pick.note,
         }
     )
-    return {"ok": True, "pick": saved, "summary": chartlabels.summarise(route)}
+    return PickSaved(ok=True, pick=saved, summary=chartlabels.summarise(route))
 
 
 @router.delete("/api/picks")
-def remove_pick(dep: str, dest: str, lat: float, lon: float) -> dict:
+def remove_pick(dep: str, dest: str, lat: float, lon: float) -> PickDeleted:
     route = chartlabels.route_key(*route_key(dep, dest))
     removed = chartlabels.delete_pick(route, lat, lon)
-    return {"ok": removed, "summary": chartlabels.summarise(route)}
+    return PickDeleted(ok=removed, summary=chartlabels.summarise(route))
 
 
 @router.get("/api/picks")
-def list_picks(dep: str, dest: str) -> dict:
+def list_picks(dep: str, dest: str) -> PicksResponse:
     route = chartlabels.route_key(*route_key(dep, dest))
-    return {"route": route, "picks": chartlabels.load_picks(route),
-            "summary": chartlabels.summarise(route)}
+    return PicksResponse(route=route, picks=chartlabels.load_picks(route), summary=chartlabels.summarise(route))
 
 
 @router.get("/api/detect/stream")
 def detect_stream(dep: str, dest: str, half_width_nm: float = 4.0) -> StreamingResponse:
-    """Detections as newline-delimited JSON, one line per block.
+    """Detections as newline-delimited JSON, one line per block; each
+    line is one app.schemas.DetectMessage.
 
     Blocks advance along the course, so the map fills from the departure
     end and a pilot can start judging the first thirty miles while the
@@ -140,25 +148,25 @@ def detect_stream(dep: str, dest: str, half_width_nm: float = 4.0) -> StreamingR
     # whose detection has moved out of range with no marker at all.
     unclaimed = {id(p): p for p in chartlabels.load_picks(route)}
 
-    def as_detection(landmark) -> dict:
+    def as_detection(landmark) -> Detection:
         best, best_nm = None, chartlabels.SAME_PLACE_NM
         for key, pick in unclaimed.items():
             gap = geo.distance_nm(pick["lat"], pick["lon"], landmark.lat, landmark.lon)
             if gap < best_nm:
                 best, best_nm = key, gap
         pick = unclaimed.pop(best) if best is not None else None
-        return {
-            "lat": landmark.lat,
-            "lon": landmark.lon,
-            "category": landmark.category,
-            "area_m2": round(landmark.area_m2, 1),
-            "score": landmark.score,
-            "along_track_nm": round(landmark.extras["along_track_nm"], 2),
-            "cross_track_nm": round(landmark.extras["cross_track_nm"], 3),
-            "rating": pick["rating"] if pick else None,
-            "role": pick.get("role") if pick else None,
-            "rated": pick is not None and pick["rating"] is not None,
-        }
+        return Detection(
+            lat=landmark.lat,
+            lon=landmark.lon,
+            category=landmark.category,
+            area_m2=round(landmark.area_m2, 1),
+            score=landmark.score,
+            along_track_nm=round(landmark.extras["along_track_nm"], 2),
+            cross_track_nm=round(landmark.extras["cross_track_nm"], 3),
+            rating=pick["rating"] if pick else None,
+            role=pick.get("role") if pick else None,
+            rated=pick is not None and pick["rating"] is not None,
+        )
 
     job = detect_job((route, half_width_nm), r.start, r.end, half_width_nm)
 
@@ -166,13 +174,10 @@ def detect_stream(dep: str, dest: str, half_width_nm: float = 4.0) -> StreamingR
         # The picks cannot be sorted into matched and unmatched until
         # every block has been read, so they arrive at the end rather
         # than the start.
-        yield json.dumps({"type": "start", "route": route}) + "\n"
+        yield line(DetectStart(route=route))
 
         airports_found = faa_airports(r.start, r.end, half_width_nm, r.dep_ident, r.dest_ident)
-        yield json.dumps({
-            "type": "block", "block": -1, "blocks": 0,
-            "detections": [as_detection(a) for a in airports_found],
-        }) + "\n"
+        yield line(DetectBlock(block=-1, blocks=0, detections=[as_detection(a) for a in airports_found]))
 
         # Follow the shared job's blocks as they land -- instant when the
         # corridor was already read, progressive when this request is the
@@ -186,14 +191,13 @@ def detect_stream(dep: str, dest: str, half_width_nm: float = 4.0) -> StreamingR
             at += len(fresh_blocks)
             for block in fresh_blocks:
                 seen += len(block["landmarks"])
-                yield json.dumps({
-                    "type": "block",
-                    "block": block["block"],
-                    "blocks": block["blocks"],
-                    "tiles": block["tiles"],
-                    "missing": block["missing"],
-                    "detections": [as_detection(landmark) for landmark in block["landmarks"]],
-                }) + "\n"
+                yield line(DetectBlock(
+                    block=block["block"],
+                    blocks=block["blocks"],
+                    tiles=block["tiles"],
+                    missing=block["missing"],
+                    detections=[as_detection(landmark) for landmark in block["landmarks"]],
+                ))
             if done and at >= len(job["blocks"]):
                 if error is not None:
                     # Same outcome an in-generator exception always had
@@ -205,17 +209,7 @@ def detect_stream(dep: str, dest: str, half_width_nm: float = 4.0) -> StreamingR
 
         # Whatever no landmark claimed: the detector's misses, plus picks
         # that have drifted apart from the detection they were made
-        # against. Each carries rated derived from its own rating, so a
-        # rated point cannot describe itself as unrated.
-        yield json.dumps({
-            "type": "done",
-            "total": seen,
-            "added": [
-                {**pick, "rated": pick["rating"] is not None,
-                 "area_m2": pick.get("area_m2") or 0.0}
-                for pick in unclaimed.values()
-            ],
-            "summary": chartlabels.summarise(route),
-        }) + "\n"
+        # against.
+        yield line(DetectDone(total=seen, added=list(unclaimed.values()), summary=chartlabels.summarise(route)))
 
     return ndjson(lines())

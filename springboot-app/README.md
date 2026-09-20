@@ -154,6 +154,14 @@ that — no profile, no OIDC registration, just email address in,
 one-time link out — and works (or fails to send, logged rather than
 thrown) whether or not OIDC is configured.
 
+**Planner writes need a session once anyone can sign in.**
+`GET /api/planner/**` is always public; `POST`/`DELETE` through the
+proxy (picks, checkpoint notes, corridor builds) require a session
+whenever `SecurityConfig` sees a way to obtain one -- OIDC credentials
+or a configured `MAIL_HOST` for the magic link. Locally neither is set,
+so the Label page keeps working signed out; deployed with sign-in, an
+anonymous caller can no longer start a minutes-long corridor build.
+
 **Testcontainers needs the Docker socket.** That is why the `mvn test`
 command above mounts `/var/run/docker.sock`; without it the persistence
 tests cannot start their Postgres.

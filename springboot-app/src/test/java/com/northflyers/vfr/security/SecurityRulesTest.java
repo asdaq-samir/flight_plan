@@ -71,6 +71,17 @@ class SecurityRulesTest {
                 .andExpect(jsonPath("$.googleSubject").doesNotExist());
     }
 
+    /** This slice has neither OIDC credentials nor a mail host, so no
+     *  session can exist and planner writes must stay open -- the local
+     *  labeling page depends on it. It may 404 here (the proxy is not in
+     *  this slice); what matters is that security did not refuse it. See
+     *  {@link SecurityRulesWithSignInTest} for the other half. */
+    @Test
+    void plannerWritesStayOpenWhileNobodyCanSignIn() throws Exception {
+        mockMvc.perform(post("/api/planner/picks").with(csrf()))
+                .andExpect(result -> assertThat(result.getResponse().getStatus()).isNotEqualTo(401));
+    }
+
     /** Aircraft and flights are private to whoever owns them, so a
      *  caller with no session is refused before AircraftController --
      *  not in this slice -- ever runs. */
