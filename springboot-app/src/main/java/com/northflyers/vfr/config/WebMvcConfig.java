@@ -1,6 +1,7 @@
 package com.northflyers.vfr.config;
 
 import java.io.IOException;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.Resource;
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
@@ -22,9 +23,22 @@ import org.springframework.web.servlet.resource.PathResourceResolver;
  * routes also catches that forward, and the request forwards to itself
  * until the stack runs out. Resolving the resource directly has no such
  * loop to fall into.
+ *
+ * <p>Where the bundle lives is {@code app.static-location}: the classpath
+ * by default (a local {@code mvn package} after {@code vite build} wrote
+ * into {@code src/main/resources/static/app}), a directory beside the jar
+ * in the Docker image ({@code file:/app/static/app/}, see the
+ * Dockerfile) -- so a front-end change rebuilds the bundle without
+ * rebuilding the jar.
  */
 @Configuration
 public class WebMvcConfig implements WebMvcConfigurer {
+
+    private final String staticLocation;
+
+    public WebMvcConfig(@Value("${app.static-location:classpath:/static/app/}") String staticLocation) {
+        this.staticLocation = staticLocation;
+    }
 
     /**
      * The bare app root ({@code /app} or {@code /app/}) is a real 500,
@@ -53,13 +67,17 @@ public class WebMvcConfig implements WebMvcConfigurer {
     @Override
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
         registry.addResourceHandler("/app/**")
-                .addResourceLocations("classpath:/static/app/")
+                .addResourceLocations(staticLocation)
                 .resourceChain(true)
                 .addResolver(new PathResourceResolver() {
                     @Override
                     protected Resource getResource(String resourcePath, Resource location) throws IOException {
                         Resource requested = location.createRelative(resourcePath);
-                        if (requested.exists() && requested.isReadable()) {
+                        // checkResource is the resolver's own guard that
+                        // the file is under the location -- it matters
+                        // now that the location can be a directory on
+                        // disk, not only a path inside the jar.
+                        if (requested.isReadable() && checkResource(requested, location)) {
                             return requested;
                         }
                         // A client-side route. Never a missing asset:

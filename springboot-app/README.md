@@ -100,9 +100,10 @@ solving a problem the previous rung creates.
    locked including your health endpoint, and you have to say what is
    public. `security/SecurityConfig.java` is that list.
 
-9. **Serve the front end.** Put the built bundle in
-   `src/main/resources/static/` and one origin serves page and API — one
-   session, one set of rules, no CORS.
+9. **Serve the front end.** Point `app.static-location` at the built
+   bundle (the classpath for a local build, a directory beside the jar in
+   the image) and one origin serves page and API — one session, one set
+   of rules, no CORS.
 
 ### The method
 

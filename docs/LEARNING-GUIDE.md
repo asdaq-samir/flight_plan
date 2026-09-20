@@ -132,26 +132,30 @@ multi-stage build in this repo, trimmed here to its shape:
 ```dockerfile
 FROM node:26-slim AS web
 COPY web/ ./
-RUN npx vite build --outDir /springboot-app/src/main/resources/static/app
+RUN npx vite build --outDir /web/dist
 
 FROM maven:3.9.16-eclipse-temurin-25 AS build
 COPY springboot-app/src ./src
-COPY --from=web /springboot-app/src/main/resources/static/app ./src/main/resources/static/app
 RUN mvn -q package -DskipTests
 
 FROM eclipse-temurin:25-jre
 COPY --from=build /build/target/*.jar app.jar
+COPY --from=web /web/dist ./static/app
+ENV APP_STATIC_LOCATION=file:/app/static/app/
 CMD ["java", "-jar", "app.jar"]
 ```
 
 Three `FROM` lines means three stages. The first has Node and builds the
-React bundle; the second has the full Maven toolchain (hundreds of MB),
-copies that bundle into Spring Boot's static resources and compiles a
-JAR; the third starts fresh from a much smaller JRE-only base image and
-copies in just the JAR (`COPY --from=build`). None of Node, Maven, the
-`.m2` cache or the source files make it into the final image. This is
-the standard pattern for any compiled language in Docker: build fat,
-ship thin.
+React bundle; the second has the full Maven toolchain (hundreds of MB)
+and compiles a JAR; the third starts fresh from a much smaller JRE-only
+base image and copies in just the JAR and the bundle (`COPY
+--from=build`, `COPY --from=web`), which Spring serves from that
+directory. None of Node, Maven, the `.m2` cache or the source files make
+it into the final image. This is the standard pattern for any compiled
+language in Docker: build fat, ship thin. The first two stages are
+independent of each other, so a front-end change never re-runs Maven and
+a Java change never re-runs Vite -- BuildKit replays the untouched stage
+from its cache.
 
 ### Every Dockerfile in this repo, and why it's shaped that way
 

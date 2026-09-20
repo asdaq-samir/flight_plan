@@ -1,7 +1,13 @@
 # syntax=docker/dockerfile:1
-# Build context is the repository root, because the jar carries the front
-# end: Spring Boot is the only public surface, so the bundle and the API
-# it calls ship together and are served from one origin.
+# Build context is the repository root, because the image carries the
+# front end: Spring Boot is the only public surface, so the bundle and
+# the API it calls ship together and are served from one origin.
+#
+# Two independent build stages, one runtime stage. The bundle is copied
+# beside the jar rather than into it (WebMvcConfig serves it from
+# APP_STATIC_LOCATION), so a front-end change rebuilds only the `web`
+# stage and a Java change only the `build` stage -- neither waits on the
+# other's toolchain.
 
 FROM node:26-slim AS web
 WORKDIR /web
@@ -15,12 +21,7 @@ COPY web/ ./
 # The planner's OpenAPI document, from which `npm run types` generates
 # the front end's API types (web/src/lib/api/schema.d.ts, not committed).
 COPY planning-service/openapi.json /planning-service/openapi.json
-# Vite's outDir points outside the app directory (into Spring Boot's
-# static resources), so build with that layout present and collect the
-# result from there.
-RUN npm run types \
-    && mkdir -p /springboot-app/src/main/resources/static \
-    && npx vite build --outDir /springboot-app/src/main/resources/static/app --emptyOutDir
+RUN npm run types && npx vite build --outDir /web/dist --emptyOutDir
 
 # 25, not the truly-latest 26: spring-boot-maven-plugin 3.5.3's bundled
 # ASM can't yet parse a Java 26 class file (major version 70) --
@@ -31,13 +32,18 @@ WORKDIR /build
 COPY springboot-app/pom.xml .
 RUN --mount=type=cache,target=/root/.m2/repository mvn -q dependency:go-offline
 COPY springboot-app/src ./src
-COPY --from=web /springboot-app/src/main/resources/static/app ./src/main/resources/static/app
 RUN --mount=type=cache,target=/root/.m2/repository mvn -q package -DskipTests
 
 FROM eclipse-temurin:25-jre
 WORKDIR /app
 COPY --from=build /build/target/*.jar app.jar
-RUN useradd -m appuser && chown appuser /app/app.jar
+COPY --from=web /web/dist ./static/app
+ENV APP_STATIC_LOCATION=file:/app/static/app/
+# /cds: where the JVM keeps its class-data-sharing archive when
+# docker-compose.yml asks for one (-XX:+AutoCreateSharedArchive) -- a
+# named volume, so it outlives the container and the next start of the
+# same jar skips class loading and verification it already did.
+RUN useradd -m appuser && chown appuser /app/app.jar && mkdir /cds && chown appuser /cds
 USER appuser
 EXPOSE 8080
 CMD ["java", "-jar", "app.jar"]

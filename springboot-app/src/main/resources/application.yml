@@ -119,3 +119,10 @@ management:
     # the database is not.
     mail:
       enabled: false
+
+# Where the front-end bundle is served from -- see WebMvcConfig. The
+# Docker image sets APP_STATIC_LOCATION to a directory beside the jar
+# (front-end changes rebuild the bundle without rebuilding the jar); a
+# local `mvn package` after `vite build` finds it on the classpath.
+app:
+  static-location: ${APP_STATIC_LOCATION:classpath:/static/app/}
