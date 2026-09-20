@@ -72,7 +72,7 @@ class FlightServiceTest {
 
     @Test
     void savingWithThisPilotsOwnAircraftIdAttachesIt() {
-        Aircraft plane = new Aircraft(pilot, "N12345", "C172", 110.0, 8.5);
+        Aircraft plane = new Aircraft(pilot, "N12345", "C172", 110.0, 8.5, null);
         given(aircraftRepository.findByIdAndPilotId(7L, pilot.getId())).willReturn(Optional.of(plane));
         given(flightRepository.save(any(Flight.class))).willAnswer(invocation -> invocation.getArgument(0));
 

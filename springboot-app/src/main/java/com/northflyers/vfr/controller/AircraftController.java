@@ -52,14 +52,16 @@ public class AircraftController {
     @PostMapping
     public ResponseEntity<AircraftDto> add(Authentication authentication, @Valid @RequestBody AircraftRequest request) {
         return withPilot(authentication, pilot -> ResponseEntity.ok(toDto(aircraftService.add(
-                pilot, request.tailNumber(), request.typeDesignator(), request.cruiseTasKt(), request.fuelBurnGph()))));
+                pilot, request.tailNumber(), request.typeDesignator(), request.cruiseTasKt(), request.fuelBurnGph(),
+                request.usableFuelGal()))));
     }
 
     @PutMapping("/{id}")
     public ResponseEntity<AircraftDto> update(
             Authentication authentication, @PathVariable Long id, @Valid @RequestBody AircraftRequest request) {
         return withPilot(authentication, pilot -> aircraftService
-                .update(pilot, id, request.tailNumber(), request.typeDesignator(), request.cruiseTasKt(), request.fuelBurnGph())
+                .update(pilot, id, request.tailNumber(), request.typeDesignator(), request.cruiseTasKt(), request.fuelBurnGph(),
+                        request.usableFuelGal())
                 .map(a -> ResponseEntity.ok(toDto(a)))
                 .orElse(ResponseEntity.notFound().build()));
     }
@@ -76,6 +78,6 @@ public class AircraftController {
 
     private static AircraftDto toDto(Aircraft a) {
         return new AircraftDto(a.getId(), a.getTailNumber(), a.getTypeDesignator(), a.getCruiseTasKt(),
-                a.getFuelBurnGph(), a.getCreatedAt());
+                a.getFuelBurnGph(), a.getUsableFuelGal(), a.getCreatedAt());
     }
 }

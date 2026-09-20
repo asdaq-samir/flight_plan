@@ -66,6 +66,10 @@ public class FlightCheckpoint {
     private Double groundspeedKt;
     private Double eteMin;
     private Double fuelGal;
+    /** The altitude of the leg arriving here -- a plan may step, so the
+     *  flight's one cruise altitude is not the whole story. Null on the
+     *  departure row and on flights filed before this was recorded. */
+    private Double altitudeFt;
 
     protected FlightCheckpoint() {
         // JPA
@@ -90,6 +94,11 @@ public class FlightCheckpoint {
         this.groundspeedKt = groundspeedKt;
         this.eteMin = eteMin;
         this.fuelGal = fuelGal;
+        return this;
+    }
+
+    public FlightCheckpoint atAltitude(Double altitudeFt) {
+        this.altitudeFt = altitudeFt;
         return this;
     }
 
@@ -151,5 +160,9 @@ public class FlightCheckpoint {
 
     public Double getFuelGal() {
         return fuelGal;
+    }
+
+    public Double getAltitudeFt() {
+        return altitudeFt;
     }
 }

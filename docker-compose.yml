@@ -70,6 +70,11 @@ services:
       # so they need the HOST's path to this project, not this container's
       # own /opt/airflow/project view of it.
       PROJECT_HOST_PATH: ${PWD}
+      # The DAG's DockerOperator tasks run the pipeline images Compose
+      # built for this project -- named <project>-pipeline-processing
+      # and <project>-pipeline-training, the project being this
+      # directory's name unless COMPOSE_PROJECT_NAME says otherwise.
+      PIPELINE_IMAGE_PREFIX: ${COMPOSE_PROJECT_NAME:-flight_plan}
     command: standalone
 
   db:

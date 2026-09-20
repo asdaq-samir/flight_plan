@@ -96,3 +96,34 @@ def test_a_shelf_over_the_first_leg_makes_the_plans_step(monkeypatch):
 def test_a_leg_with_no_legal_altitude_means_no_plan(monkeypatch):
     monkeypatch.setattr(navlog, "wind_at_altitude", _winds({}))
     assert navlog.altitude_profiles(FIXES, _segments([[3500.0], []]), PROFILE) == {}
+
+
+def _cruise_leg(distance_nm, altitude_ft, gs_kt=100.0):
+    return {
+        "distance_nm": distance_nm, "altitude_ft": altitude_ft, "groundspeed_kt": gs_kt,
+        "ete_min": distance_nm / gs_kt * 60, "fuel_gal": distance_nm / gs_kt * PROFILE["fuel_burn_gph"], "wind": None,
+    }
+
+
+def test_the_climb_from_the_field_is_flown_on_the_first_leg():
+    # 3,000 ft at 600 fpm is five minutes, at 70 kt over the ground:
+    # 5.8 nm of the first 60 nm leg climbing, the rest at cruise.
+    legs = navlog.with_climbs([_cruise_leg(60.0, 3500.0), _cruise_leg(60.0, 3500.0)], 500.0, PROFILE)
+    assert legs[0]["climb_min"] == 5.0
+    assert legs[0]["ete_min"] == pytest.approx(5.0 + (60.0 - 5.83) / 100 * 60, abs=0.05)
+    assert legs[0]["fuel_gal"] > _cruise_leg(60.0, 3500.0)["fuel_gal"]
+    assert legs[1]["climb_min"] == 0.0 and legs[1]["ete_min"] == pytest.approx(36.0)
+
+
+def test_a_step_up_mid_route_is_climbed_on_the_leg_that_steps():
+    legs = navlog.with_climbs([_cruise_leg(60.0, 3500.0), _cruise_leg(60.0, 5500.0)], None, PROFILE)
+    assert legs[0]["climb_min"] == 0.0            # started level at the first leg's altitude
+    assert legs[1]["climb_min"] == pytest.approx(2000.0 / 600.0, abs=0.05)
+
+
+def test_a_climb_longer_than_a_leg_carries_into_the_next():
+    # 9,000 ft at 600 fpm is fifteen minutes; a 10 nm first leg at 70 kt
+    # takes 8.6 of them, the rest lands on the second leg.
+    legs = navlog.with_climbs([_cruise_leg(10.0, 9500.0), _cruise_leg(60.0, 9500.0)], 500.0, PROFILE)
+    assert legs[0]["climb_min"] == pytest.approx(8.6, abs=0.05)
+    assert legs[1]["climb_min"] == pytest.approx(15.0 - 8.57, abs=0.05)

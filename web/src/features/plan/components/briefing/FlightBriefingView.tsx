@@ -39,6 +39,9 @@ interface Props {
    *  own, or null for a stock profile -- for the saved flight. */
   aircraftLabel: string;
   aircraftId: number | null;
+  /** The departure time as an ISO instant, or "" -- what a saved
+   *  flight is planned for. */
+  depart: string;
 }
 
 const FLIGHT_CATEGORY_COLOR: Record<string, string> = {
@@ -157,7 +160,7 @@ function windsAloftSummary(legs: Leg[]): { dir: number; speed: number }[] {
  * as broken rather than as "sign in first."
  */
 function SaveFlightSection({
-  course, totals, nav, legs, dep, dest, selected, aircraftId, aircraftLabel,
+  course, totals, nav, legs, dep, dest, selected, aircraftId, aircraftLabel, depart,
 }: {
   course: Course | null;
   totals: Totals | null;
@@ -168,6 +171,7 @@ function SaveFlightSection({
   selected: Candidate[];
   aircraftId: number | null;
   aircraftLabel: string;
+  depart: string;
 }) {
   const [pilot, setPilot] = useState<Pilot | null | "loading">("loading");
   const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
@@ -184,7 +188,7 @@ function SaveFlightSection({
       sequenceNo: 0, name: dep, category: "departure",
       lat: course.departure.lat, lon: course.departure.lon, alongTrackNm: 0,
       legDistanceNm: null, trueCourseDeg: null, magneticHeadingDeg: null,
-      groundspeedKt: null, eteMin: null, fuelGal: null,
+      groundspeedKt: null, eteMin: null, fuelGal: null, altitudeFt: null,
     }];
     selected.forEach((cp, i) => {
       const leg = legs[i];
@@ -194,6 +198,9 @@ function SaveFlightSection({
         legDistanceNm: leg?.distance_nm ?? null, trueCourseDeg: leg?.true_course_deg ?? null,
         magneticHeadingDeg: leg?.magnetic_heading_deg ?? null, groundspeedKt: leg?.groundspeed_kt ?? null,
         eteMin: leg?.ete_min ?? null, fuelGal: leg?.fuel_gal ?? null,
+        // Each leg's own altitude: a plan may step, so the flight's one
+        // cruise altitude is not the whole story.
+        altitudeFt: leg?.altitude_ft ?? null,
       });
     });
     const finalLeg = legs[selected.length];
@@ -203,6 +210,7 @@ function SaveFlightSection({
       legDistanceNm: finalLeg?.distance_nm ?? null, trueCourseDeg: finalLeg?.true_course_deg ?? null,
       magneticHeadingDeg: finalLeg?.magnetic_heading_deg ?? null, groundspeedKt: finalLeg?.groundspeed_kt ?? null,
       eteMin: finalLeg?.ete_min ?? null, fuelGal: finalLeg?.fuel_gal ?? null,
+      altitudeFt: finalLeg?.altitude_ft ?? null,
     });
     return rows;
   }, [course, dep, dest, selected, legs]);
@@ -220,7 +228,7 @@ function SaveFlightSection({
       totalDistanceNm: totals?.distance_nm ?? null,
       totalEteMin: totals?.ete_min ?? null,
       totalFuelGal: totals?.fuel_gal ?? null,
-      plannedFor: null,
+      plannedFor: depart || null,
       checkpoints: buildCheckpoints(),
     })
       .then(() => setStatus("saved"))
@@ -266,7 +274,7 @@ function SaveFlightSection({
 export default function FlightBriefingView({
   course, totals, nav, legs, dep, dest, selected,
   briefing, briefingError, loadingBriefing,
-  langgraphNarrative, crewaiNarrative, aircraftLabel, aircraftId,
+  langgraphNarrative, crewaiNarrative, aircraftLabel, aircraftId, depart,
 }: Props) {
   const winds = windsAloftSummary(legs);
   const vnrReasons = briefing ? vfrNotRecommendedReasons(briefing, dep, dest) : [];
@@ -343,7 +351,7 @@ export default function FlightBriefingView({
           below stays collapsed -- skim the titles, open what applies. */}
       <SaveFlightSection
         course={course} totals={totals} nav={nav} legs={legs} dep={dep} dest={dest} selected={selected}
-        aircraftId={aircraftId} aircraftLabel={aircraftLabel}
+        aircraftId={aircraftId} aircraftLabel={aircraftLabel} depart={depart}
       />
 
       {/* Not gated behind `briefing` -- narrative is its own separate,

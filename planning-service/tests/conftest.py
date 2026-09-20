@@ -47,7 +47,7 @@ def select_cruise_altitude_stub(altitude: dict):
     nav log's fixes, one segment per leg with the recommended altitude
     as its only legal one -- or none at all when there is no
     recommendation, which is what makes a route unflyable."""
-    def select(start, end, profile, faa_cache_dir=None, fixes=None):
+    def select(start, end, profile, faa_cache_dir=None, fixes=None, fcst_hr="06"):
         candidates = [] if altitude["recommended_ft"] is None else [altitude["recommended_ft"]]
         segments = [
             {"from_nm": 0.0, "to_nm": 10.0, "floor_ft": altitude["floor_ft"], "airspace_ceiling_ft": None,

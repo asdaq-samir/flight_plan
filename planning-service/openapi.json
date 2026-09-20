@@ -276,6 +276,18 @@
             "title": "Candidates Ft",
             "type": "array"
           },
+          "course_magnetic_deg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Course Magnetic Deg"
+          },
           "floor_ft": {
             "title": "Floor Ft",
             "type": "number"
@@ -380,7 +392,7 @@
         "type": "object"
       },
       "AltitudeOption": {
-        "description": "One of the three plans -- lowest, highest, fastest -- as its steps\nand what it costs. `total_min` is the flying time plus what the\nclimbs cost (`climb_penalty_min`), the figure the plans are compared\non; `tailwind_kt` the distance-weighted wind component along the\ncourse, positive helping, over the legs that had wind data.",
+        "description": "One of the three plans -- lowest, highest, fastest -- as its steps\nand what it costs. `total_min` is the flying time with every climb\nflown (`climb_penalty_min` is how many of those minutes are climb),\nthe figure the plans are compared on; `tailwind_kt` the\ndistance-weighted wind component along the course, positive helping,\nover the legs that had wind data.",
         "properties": {
           "climb_penalty_min": {
             "title": "Climb Penalty Min",
@@ -1606,6 +1618,11 @@
             "title": "Altitude Ft",
             "type": "number"
           },
+          "climb_min": {
+            "default": 0.0,
+            "title": "Climb Min",
+            "type": "number"
+          },
           "distance_nm": {
             "title": "Distance Nm",
             "type": "number"
@@ -2124,6 +2141,11 @@
             "default": "altitude",
             "title": "Type",
             "type": "string"
+          },
+          "winds_forecast_hr": {
+            "default": "06",
+            "title": "Winds Forecast Hr",
+            "type": "string"
           }
         },
         "required": [
@@ -2175,6 +2197,11 @@
         "properties": {
           "altitude_ft": {
             "title": "Altitude Ft",
+            "type": "number"
+          },
+          "climb_min": {
+            "default": 0.0,
+            "title": "Climb Min",
             "type": "number"
           },
           "distance_nm": {
@@ -2974,6 +3001,11 @@
           },
           "totals": {
             "$ref": "#/components/schemas/Totals"
+          },
+          "winds_forecast_hr": {
+            "default": "06",
+            "title": "Winds Forecast Hr",
+            "type": "string"
           }
         },
         "required": [
@@ -3201,6 +3233,7 @@
         "type": "object"
       },
       "Totals": {
+        "description": "The trip's sums, and the fuel check: the legs' fuel plus the VFR\nreserve (30 minutes by day, 45 at night -- `night` is None when no\ndeparture time said which) against the aeroplane's usable fuel,\nwhen it has one. `fuel_margin_gal` below zero is a flight the tanks\ndo not hold.",
         "properties": {
           "distance_nm": {
             "title": "Distance Nm",
@@ -3228,13 +3261,85 @@
             ],
             "title": "Fuel Gal"
           },
+          "fuel_margin_gal": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Fuel Margin Gal"
+          },
+          "fuel_required_gal": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Fuel Required Gal"
+          },
           "legs_without_wind": {
             "title": "Legs Without Wind",
             "type": "integer"
           },
+          "night": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Night"
+          },
+          "reserve_gal": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Reserve Gal"
+          },
+          "reserve_min": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Reserve Min"
+          },
           "unflyable_legs": {
             "title": "Unflyable Legs",
             "type": "integer"
+          },
+          "usable_fuel_gal": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Usable Fuel Gal"
           }
         },
         "required": [
@@ -4043,6 +4148,39 @@
               ],
               "title": "Fuel Burn Gph"
             }
+          },
+          {
+            "in": "query",
+            "name": "usable_fuel_gal",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Usable Fuel Gal"
+            }
+          },
+          {
+            "in": "query",
+            "name": "depart",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Depart"
+            }
           }
         ],
         "responses": {
@@ -4218,7 +4356,7 @@
     },
     "/api/plan": {
       "get": {
-        "description": "The whole plan: course line, every scored candidate, the selected\ncheckpoints, and a nav log leg between each consecutive pair.\n\naltitude_ft is optional. Omitted, vfr.altitude works out each leg's\nown legal altitudes -- clear of terrain and obstacles, under the\nClass B shelf over that leg alone, the freezing level and the\naircraft's service ceiling, on the hemispheric rule for the course\n-- and vfr.navlog makes three plans of them: the lowest, the\nhighest, and the fastest for the winds aloft. altitude_choice picks\nwhich one the legs fly, and the reasoning comes back with it, since\n\"why am I at 6,500\" is a question a pilot will actually ask.\n\naircraft names a stock profile; cruise_tas_kt and fuel_burn_gph, when\ngiven, are a pilot's own aeroplane's numbers laid over it.",
+        "description": "The whole plan: course line, every scored candidate, the selected\ncheckpoints, and a nav log leg between each consecutive pair.\n\naltitude_ft is optional. Omitted, vfr.altitude works out each leg's\nown legal altitudes -- clear of terrain and obstacles, under the\nClass B shelf over that leg alone, the freezing level and the\naircraft's service ceiling, on the hemispheric rule for the course\n-- and vfr.navlog makes three plans of them: the lowest, the\nhighest, and the fastest for the winds aloft. altitude_choice picks\nwhich one the legs fly, and the reasoning comes back with it, since\n\"why am I at 6,500\" is a question a pilot will actually ask.\n\naircraft names a stock profile; cruise_tas_kt, fuel_burn_gph and\nusable_fuel_gal, when given, are a pilot's own aeroplane's numbers\nlaid over it. depart, an ISO time (UTC when naive), picks the\nwinds-aloft forecast period the legs are flown on -- the 6-, 12- or\n24-hour product, whichever is valid closest to the departure;\nwithout it, the 6-hour product, i.e. about now -- and whether the\nfuel reserve is the day or the night one.",
         "operationId": "plan_api_plan_get",
         "parameters": [
           {
@@ -4310,6 +4448,39 @@
                 }
               ],
               "title": "Fuel Burn Gph"
+            }
+          },
+          {
+            "in": "query",
+            "name": "usable_fuel_gal",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Usable Fuel Gal"
+            }
+          },
+          {
+            "in": "query",
+            "name": "depart",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Depart"
             }
           }
         ],

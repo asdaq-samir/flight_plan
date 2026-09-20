@@ -107,9 +107,11 @@ def fixes(dep_ident: str, dest_ident: str, start: tuple, end: tuple, selected: l
     )
 
 
-def leg_between(a: dict, b: dict, altitude_ft: float, profile: dict) -> dict:
+def leg_between(a: dict, b: dict, altitude_ft: float, profile: dict, fcst_hr: str = "06") -> dict:
     """assemble_leg between two fixes -- dicts with lat, lon and a name
     (or a category to fall back on) -- named after them on "from"/"to".
+    `fcst_hr` picks the winds-aloft forecast period (06, 12 or 24 hours
+    out) -- see vfr.weather.forecast_hour for which fits a departure.
 
     assemble_leg returns inf for ETE when groundspeed is zero or negative
     (a headwind at or above cruise TAS). Python's json emits that as a
@@ -118,7 +120,7 @@ def leg_between(a: dict, b: dict, altitude_ft: float, profile: dict) -> dict:
     unflyable leg. None says "unflyable" honestly and the page shows it
     as such.
     """
-    leg = assemble_leg((a["lat"], a["lon"]), (b["lat"], b["lon"]), altitude_ft, profile)
+    leg = assemble_leg((a["lat"], a["lon"]), (b["lat"], b["lon"]), altitude_ft, profile, fcst_hr)
     leg["from"] = a["name"] or a["category"]
     leg["to"] = b["name"] or b["category"]
     for field in ("ete_min", "fuel_gal", "groundspeed_kt"):
@@ -127,9 +129,9 @@ def leg_between(a: dict, b: dict, altitude_ft: float, profile: dict) -> dict:
     return leg
 
 
-def legs(fix_list: list, altitude_ft: float, profile: dict) -> list:
+def legs(fix_list: list, altitude_ft: float, profile: dict, fcst_hr: str = "06") -> list:
     """One leg between each consecutive pair of fixes, in the given order."""
-    return [leg_between(a, b, altitude_ft, profile) for a, b in pairwise(fix_list)]
+    return [leg_between(a, b, altitude_ft, profile, fcst_hr) for a, b in pairwise(fix_list)]
 
 
 def totals(leg_list: list) -> dict:
@@ -151,6 +153,36 @@ def totals(leg_list: list) -> dict:
     }
 
 
+# --- Fuel: the trip plus the reserve, against the tanks -----------------
+
+# 14 CFR 91.151: VFR needs fuel to the destination plus 30 minutes at
+# normal cruise by day, 45 at night.
+DAY_RESERVE_MIN = 30.0
+NIGHT_RESERVE_MIN = 45.0
+
+
+def fuel_plan(total_fuel_gal: float | None, aircraft_profile: dict, night: bool | None) -> dict:
+    """The fuel the flight needs -- the legs' own total plus the VFR
+    reserve at the profile's cruise burn -- against the profile's usable
+    fuel when it has one. `night` None means no departure time was
+    given, so the day reserve is assumed and said so. Every figure None
+    that cannot be known: no total while a leg is unflyable, no margin
+    without a usable-fuel figure."""
+    reserve_min = NIGHT_RESERVE_MIN if night else DAY_RESERVE_MIN
+    reserve_gal = round(reserve_min / 60 * aircraft_profile["fuel_burn_gph"], 2)
+    required = None if total_fuel_gal is None else round(total_fuel_gal + reserve_gal, 1)
+    usable = aircraft_profile.get("usable_fuel_gal")
+    margin = None if required is None or usable is None else round(usable - required, 1)
+    return {
+        "reserve_min": reserve_min,
+        "reserve_gal": reserve_gal,
+        "fuel_required_gal": required,
+        "usable_fuel_gal": usable,
+        "fuel_margin_gal": margin,
+        "night": night,
+    }
+
+
 # --- Three plans: lowest, highest, fastest --------------------------------
 
 DEFAULT_CLIMB_RATE_FPM = 500.0
@@ -166,6 +198,65 @@ DEFAULT_CLIMB_TAS_FRACTION = 0.7
 # for a leg's worth of slightly lower floor.
 STEP_PENALTY_FT_NM = 10_000.0
 PLAN_KINDS = ("lowest", "highest", "fastest")
+# Above 12,500 ft, more than 30 minutes needs supplemental oxygen
+# (14 CFR 91.211): no plan goes there unless the profile says the
+# aeroplane carries it or is pressurised. The lowest plan cannot reach
+# it anyway; highest and fastest are held under it.
+OXYGEN_CAP_FT = 12500.0
+
+
+# A climb at full power burns more than cruise; the book figure for a
+# light single is around a third more.
+CLIMB_FUEL_FACTOR = 1.3
+
+
+def _climb_performance(aircraft_profile: dict) -> tuple:
+    rate_fpm = aircraft_profile.get("climb_rate_fpm_sea_level", DEFAULT_CLIMB_RATE_FPM) * CLIMB_RATE_FACTOR
+    cruise_tas = aircraft_profile["cruise_tas_kt"]
+    climb_tas = aircraft_profile.get("climb_tas_kt", DEFAULT_CLIMB_TAS_FRACTION * cruise_tas)
+    return rate_fpm, cruise_tas, climb_tas
+
+
+def with_climbs(leg_list: list, start_altitude_ft: float | None, aircraft_profile: dict) -> list:
+    """The legs with their climbs flown: from `start_altitude_ft` (the
+    departure field, or None to start level at the first leg's own
+    altitude) up to each leg's altitude, and up again wherever a plan
+    steps up, at the profile's climb rate and climb speed and at
+    CLIMB_FUEL_FACTOR times the cruise burn. A climb's minutes are
+    flown over the ground at the climb speed scaled by the leg's own
+    wind, the rest of the leg at cruise, and a climb longer than the
+    leg carries into the next one. Each leg says how much of its time
+    is climb (`climb_min`); a descent costs nothing here, since at
+    cruise power it is if anything faster. The cruise-only legs are not
+    changed in place."""
+    rate_fpm, cruise_tas, climb_tas = _climb_performance(aircraft_profile)
+    burn_gph = aircraft_profile["fuel_burn_gph"]
+    level_ft = start_altitude_ft
+    climb_left_min = 0.0
+    out = []
+    for leg in leg_list:
+        leg = dict(leg)
+        target_ft = leg["altitude_ft"]
+        if level_ft is not None and target_ft > level_ft:
+            climb_left_min += (target_ft - level_ft) / rate_fpm
+        level_ft = target_ft if level_ft is None else max(level_ft, target_ft)
+        leg["climb_min"] = 0.0
+        if climb_left_min > 0 and leg["groundspeed_kt"] and leg["ete_min"] is not None:
+            climb_gs = max(1.0, leg["groundspeed_kt"] * climb_tas / cruise_tas)
+            climb_nm = climb_gs * climb_left_min / 60
+            if climb_nm >= leg["distance_nm"]:
+                climb_min = leg["distance_nm"] / climb_gs * 60
+                cruise_min = 0.0
+                climb_left_min -= climb_min
+            else:
+                climb_min = climb_left_min
+                cruise_min = (leg["distance_nm"] - climb_nm) / leg["groundspeed_kt"] * 60
+                climb_left_min = 0.0
+            leg["climb_min"] = round(climb_min, 1)
+            leg["ete_min"] = climb_min + cruise_min
+            leg["fuel_gal"] = (climb_min / 60) * burn_gph * CLIMB_FUEL_FACTOR + (cruise_min / 60) * burn_gph
+        out.append(leg)
+    return out
 
 
 def climb_penalty_min(delta_ft: float, aircraft_profile: dict) -> float:
@@ -178,9 +269,7 @@ def climb_penalty_min(delta_ft: float, aircraft_profile: dict) -> float:
     """
     if delta_ft <= 0:
         return 0.0
-    rate_fpm = aircraft_profile.get("climb_rate_fpm_sea_level", DEFAULT_CLIMB_RATE_FPM) * CLIMB_RATE_FACTOR
-    cruise_tas = aircraft_profile["cruise_tas_kt"]
-    climb_tas = aircraft_profile.get("climb_tas_kt", DEFAULT_CLIMB_TAS_FRACTION * cruise_tas)
+    rate_fpm, cruise_tas, climb_tas = _climb_performance(aircraft_profile)
     return (delta_ft / rate_fpm) * (1 - climb_tas / cruise_tas)
 
 
@@ -222,7 +311,10 @@ def _steps(fix_list: list, altitudes: list, leg_list: list) -> list:
     return steps
 
 
-def altitude_profiles(fix_list: list, segments: list, aircraft_profile: dict) -> dict:
+def altitude_profiles(
+    fix_list: list, segments: list, aircraft_profile: dict, fcst_hr: str = "06",
+    departure_elevation_ft: float | None = None,
+) -> dict:
     """The lowest, highest and fastest ways to fly the fixes, each as a
     per-leg altitude plan: {"lowest"|"highest"|"fastest": {"legs",
     "totals", "steps", "climb_penalty_min", "total_min", "tailwind_kt",
@@ -243,6 +335,11 @@ def altitude_profiles(fix_list: list, segments: list, aircraft_profile: dict) ->
     if len(segments) != leg_count or any(not s["candidates_ft"] for s in segments):
         return {}
     candidates = [list(s["candidates_ft"]) for s in segments]
+    if not (aircraft_profile.get("supplemental_oxygen") or aircraft_profile.get("pressurized")):
+        # Held under the oxygen altitude where a leg has a choice; a
+        # leg whose only legal altitudes are above it keeps them, since
+        # the alternative is no plan at all.
+        candidates = [([a for a in options if a <= OXYGEN_CAP_FT] or options) for options in candidates]
     base_ft = min(a for options in candidates for a in options)
     cruise_tas = aircraft_profile["cruise_tas_kt"]
 
@@ -250,7 +347,7 @@ def altitude_profiles(fix_list: list, segments: list, aircraft_profile: dict) ->
 
     def leg_at(i: int, altitude_ft: float) -> dict:
         if (i, altitude_ft) not in cache:
-            cache[(i, altitude_ft)] = leg_between(fix_list[i], fix_list[i + 1], altitude_ft, aircraft_profile)
+            cache[(i, altitude_ft)] = leg_between(fix_list[i], fix_list[i + 1], altitude_ft, aircraft_profile, fcst_hr)
         return cache[(i, altitude_ft)]
 
     def climb_step(prev, a):
@@ -269,11 +366,15 @@ def altitude_profiles(fix_list: list, segments: list, aircraft_profile: dict) ->
         "fastest": _best_path(candidates, minutes, climb_step),
     }
 
+    # The plans' own legs carry their climbs -- from the field to the
+    # first altitude, and up again at every step -- so the times and
+    # fuel compared, and then flown, are the climbs' included. The DP
+    # above used the quicker penalty to choose; the legs are the truth.
     plans = {}
     for kind, altitudes in paths.items():
-        leg_list = [leg_at(i, a) for i, a in enumerate(altitudes)]
+        leg_list = with_climbs([leg_at(i, a) for i, a in enumerate(altitudes)], departure_elevation_ft, aircraft_profile)
         plan_totals = totals(leg_list)
-        penalty = sum(climb_step(None if i == 0 else altitudes[i - 1], a) for i, a in enumerate(altitudes))
+        climb_min = round(sum(leg["climb_min"] for leg in leg_list), 1)
         with_wind = [leg for leg in leg_list if leg.get("wind") is not None and leg["groundspeed_kt"] is not None]
         tailwind = (
             sum((leg["groundspeed_kt"] - cruise_tas) * leg["distance_nm"] for leg in with_wind)
@@ -285,8 +386,8 @@ def altitude_profiles(fix_list: list, segments: list, aircraft_profile: dict) ->
             "steps": _steps(fix_list, altitudes, leg_list),
             "ete_min": plan_totals["ete_min"],
             "fuel_gal": plan_totals["fuel_gal"],
-            "climb_penalty_min": round(penalty, 1),
-            "total_min": None if plan_totals["ete_min"] is None else round(plan_totals["ete_min"] + penalty, 1),
+            "climb_penalty_min": climb_min,
+            "total_min": plan_totals["ete_min"],
             "tailwind_kt": None if tailwind is None else round(tailwind, 1),
             "unflyable_legs": plan_totals["unflyable_legs"],
             "legs_without_wind": plan_totals["legs_without_wind"],

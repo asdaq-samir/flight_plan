@@ -4,7 +4,8 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Positive;
 
 /** Inbound request body for adding or editing one of a pilot's own
- *  aeroplanes -- POST/PUT /api/aircraft. */
+ *  aeroplanes -- POST/PUT /api/aircraft. `usableFuelGal` may be left
+ *  out; given, it must be positive. */
 public record AircraftRequest(
         @NotBlank(message = "tailNumber is required")
         String tailNumber,
@@ -13,5 +14,7 @@ public record AircraftRequest(
         @Positive(message = "cruiseTasKt must be a positive number")
         double cruiseTasKt,
         @Positive(message = "fuelBurnGph must be a positive number")
-        double fuelBurnGph) {
+        double fuelBurnGph,
+        @Positive(message = "usableFuelGal must be a positive number")
+        Double usableFuelGal) {
 }

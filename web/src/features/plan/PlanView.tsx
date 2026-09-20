@@ -96,6 +96,10 @@ export default function PlanView() {
   const [dest, setDest] = useState(searchParams.get("dest")?.toUpperCase() ?? "");
   const [alt, setAlt] = useState(searchParams.get("altitude_ft") ?? "");
   const [altitudeChoice, setAltitudeChoice] = useState<AltitudeChoice>(() => altitudeChoiceOf(searchParams.get("altitude_choice")));
+  // The departure time as an ISO instant, or "" for about now. It picks
+  // the winds forecast period the planner flies the legs on, gives
+  // every checkpoint an ETA, and is what a saved flight is planned for.
+  const [depart, setDepart] = useState(searchParams.get("depart") ?? "");
   const [aircraft, setAircraft] = useState<AircraftChoice>(storedAircraft);
   // The stock profiles, plus a signed-in pilot's own aeroplanes on top
   // of them -- the same ["pilot"]/["aircraft"] queries the pilot
@@ -108,7 +112,8 @@ export default function PlanView() {
       ...(profiles ?? []).map(p => ({ profile: p.name, label: `${p.name.toUpperCase()} · ${p.type}` })),
       ...(myAircraft ?? []).map(a => ({
         profile: baseProfile(a.typeDesignator, profiles ?? []), label: `${a.tailNumber} · ${a.typeDesignator}`,
-        cruiseTasKt: a.cruiseTasKt, fuelBurnGph: a.fuelBurnGph, aircraftId: a.id,
+        cruiseTasKt: a.cruiseTasKt, fuelBurnGph: a.fuelBurnGph, usableFuelGal: a.usableFuelGal ?? undefined,
+        aircraftId: a.id,
       })),
     ];
     // The remembered choice stays selectable while the lists load, and
@@ -183,7 +188,10 @@ export default function PlanView() {
       const a = searchParams.get("dest")?.toUpperCase() || first.destination_ident;
       setDep(d);
       setDest(a);
-      void plan(d, a, searchParams.get("altitude_ft") ?? undefined, aircraft, altitudeChoiceOf(searchParams.get("altitude_choice")));
+      void plan(
+        d, a, searchParams.get("altitude_ft") ?? undefined, aircraft,
+        altitudeChoiceOf(searchParams.get("altitude_choice")), searchParams.get("depart") ?? undefined,
+      );
     })();
     // started.current makes this genuinely run-once on mount regardless
     // of the deps array below; loadRoutes/plan/searchParams/aircraft are
@@ -221,10 +229,11 @@ export default function PlanView() {
     const next: Record<string, string> = { dep: d, dest: a };
     if (alt.trim()) next.altitude_ft = alt.trim();
     if (altitudeChoice !== "lowest") next.altitude_choice = altitudeChoice;
+    if (depart) next.depart = depart;
     if (briefing) next.view = "briefing";
     setSearchParams(next, { replace: true });
-    void plan(d, a, alt.trim() || undefined, aircraft, altitudeChoice);
-  }, [dep, dest, alt, altitudeChoice, briefing, plan, setSearchParams, aircraft]);
+    void plan(d, a, alt.trim() || undefined, aircraft, altitudeChoice, depart || undefined);
+  }, [dep, dest, alt, altitudeChoice, depart, briefing, plan, setSearchParams, aircraft]);
 
   // A different aeroplane means different legs: remembered, then
   // re-planned right away for the route on screen.
@@ -234,8 +243,22 @@ export default function PlanView() {
     setAircraft(next);
     try { localStorage.setItem(AIRCRAFT_KEY, JSON.stringify(next)); } catch { /* storage refused */ }
     const d = identSchema.safeParse(dep).data, a = identSchema.safeParse(dest).data;
-    if (d && a && d !== a) void plan(d, a, alt.trim() || undefined, next, altitudeChoice);
-  }, [aircraftOptions, dep, dest, alt, altitudeChoice, plan]);
+    if (d && a && d !== a) void plan(d, a, alt.trim() || undefined, next, altitudeChoice, depart || undefined);
+  }, [aircraftOptions, dep, dest, alt, altitudeChoice, depart, plan]);
+
+  // A different departure time may mean a different winds forecast,
+  // so the legs are re-planned; kept in the URL like the rest.
+  const changeDepart = useCallback((iso: string) => {
+    setDepart(iso);
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      if (iso) next.set("depart", iso);
+      else next.delete("depart");
+      return next;
+    }, { replace: true });
+    const d = identSchema.safeParse(dep).data, a = identSchema.safeParse(dest).data;
+    if (d && a && d !== a) void plan(d, a, alt.trim() || undefined, aircraft, altitudeChoice, iso || undefined);
+  }, [dep, dest, alt, aircraft, altitudeChoice, plan, setSearchParams]);
 
   // A different plan -- lowest, highest, fastest -- means different
   // legs too: kept in the URL like the altitude itself, so a link or
@@ -253,8 +276,8 @@ export default function PlanView() {
       return next;
     }, { replace: true });
     const d = identSchema.safeParse(dep).data, a = identSchema.safeParse(dest).data;
-    if (d && a && d !== a) void plan(d, a, undefined, aircraft, choice);
-  }, [dep, dest, aircraft, plan, setSearchParams]);
+    if (d && a && d !== a) void plan(d, a, undefined, aircraft, choice, depart || undefined);
+  }, [dep, dest, aircraft, depart, plan, setSearchParams]);
 
   // The map's own half of point selection -- clicking a checkpoint
   // marker focuses the same point the matching nav log row would.
@@ -411,6 +434,7 @@ export default function PlanView() {
     <NavLogView
       totals={s.totals} nav={s.nav} courseBearingDeg={s.course?.bearing_deg ?? null} legs={s.legs}
       onAltitudeChoiceChange={changeAltitudeChoice}
+      depart={depart} onDepartChange={changeDepart}
       dep={dep} dest={dest}
       depName={s.course?.departure.name ?? null} destName={s.course?.destination.name ?? null}
       depLat={s.course?.departure.lat ?? 0} depLon={s.course?.departure.lon ?? 0}
@@ -443,6 +467,7 @@ export default function PlanView() {
           briefing={s.briefing} briefingError={s.briefingError} loadingBriefing={s.loadingBriefing}
           langgraphNarrative={s.langgraphNarrative} crewaiNarrative={s.crewaiNarrative}
           aircraftLabel={aircraft.label} aircraftId={aircraft.aircraftId ?? null}
+          depart={depart}
         />
       )}
     </NavLogView>

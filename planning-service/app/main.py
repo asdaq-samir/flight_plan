@@ -25,6 +25,7 @@ they send is a model in app.schemas.
 """
 import logging
 import threading
+import time
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
@@ -37,6 +38,10 @@ from .routers import briefing, build, chart, devml, notes, plan, system
 from .schemas import STREAM_MESSAGES, Index
 
 log = logging.getLogger(__name__)
+
+# Inside the datasets' own five-minute time-to-live, so a held copy is
+# replaced before a request could find it stale.
+WEATHER_REFRESH_S = 240
 
 
 def _warm_reference_data() -> None:
@@ -57,6 +62,20 @@ def _warm_reference_data() -> None:
             load()
         except Exception:  # noqa: BLE001 -- the first altitude selection will load it, and report its own error
             log.exception("%s warm-up failed", name)
+
+    # Then keep the weather warm: the METAR/TAF/SIGMET files and the
+    # winds product are fetched again every few minutes, inside their
+    # own time-to-live, so no pilot's request ever pays for a download
+    # -- on a slow aviationweather.gov day the first plan after an
+    # expiry was observed waiting close to a minute. A refresh that
+    # fails is logged and the held copies go on being served.
+    while True:
+        time.sleep(WEATHER_REFRESH_S)
+        try:
+            weather.refresh()
+            log.info("weather refreshed")
+        except Exception:  # noqa: BLE001 -- the next tick tries again; requests serve what is held
+            log.warning("weather refresh failed", exc_info=True)
 
 
 @asynccontextmanager

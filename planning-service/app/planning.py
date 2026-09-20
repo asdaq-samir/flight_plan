@@ -3,23 +3,47 @@ route), the course line, and the aircraft it is all computed for. The
 legs are vfr.navlog's."""
 import threading
 import time
+from datetime import datetime, timedelta, timezone
 
 from vfr import aircraft as aircraft_module
 from vfr import altitude as altitude_module
-from vfr import geo, navlog
+from vfr import geo, navlog, sun, weather
 
 
-def aircraft_profile(name: str, cruise_tas_kt: float | None = None, fuel_burn_gph: float | None = None) -> dict:
+def aircraft_profile(
+    name: str, cruise_tas_kt: float | None = None, fuel_burn_gph: float | None = None,
+    usable_fuel_gal: float | None = None,
+) -> dict:
     """One of data/aircraft's profiles, with a pilot's own aeroplane's
     numbers on top when given: the profile still supplies the service
     ceiling the altitude selection needs, the overrides supply what the
-    legs need."""
+    legs and the fuel check need."""
     profile = aircraft_module.load_aircraft_profile(name)
     if cruise_tas_kt is not None:
         profile["cruise_tas_kt"] = cruise_tas_kt
     if fuel_burn_gph is not None:
         profile["fuel_burn_gph"] = fuel_burn_gph
+    if usable_fuel_gal is not None:
+        profile["usable_fuel_gal"] = usable_fuel_gal
     return profile
+
+
+def flight_totals(leg_list: list, profile: dict, r, depart: datetime | None) -> dict:
+    """navlog.totals plus the fuel check. Night is judged at both ends
+    -- the departure at the departure time, the arrival at the
+    destination that many minutes later -- and unknown without a
+    departure time, when the day reserve is assumed and said so."""
+    t = navlog.totals(leg_list)
+    night = None
+    if depart is not None:
+        if depart.tzinfo is None:
+            depart = depart.replace(tzinfo=timezone.utc)
+        night = sun.is_night(r.start[0], r.start[1], depart)
+        if t["ete_min"] is not None:
+            arrival = depart + timedelta(minutes=t["ete_min"])
+            night = night or sun.is_night(r.end[0], r.end[1], arrival)
+    t.update(navlog.fuel_plan(t["fuel_gal"], profile, night))
+    return t
 
 # The altitude selection re-ran its whole stack -- terrain sampling
 # (USGS EPQS, network), the airspace shapefile, and three separate
@@ -36,21 +60,30 @@ _ALTITUDE_TTL_S = 900
 _ALTITUDE_CACHE_LOCK = threading.Lock()
 
 
-def cruise_altitude(start: tuple, end: tuple, profile: dict, aircraft: str, fixes: list | None = None) -> dict:
+def cruise_altitude(
+    start: tuple, end: tuple, profile: dict, aircraft: str, fixes: list | None = None, fcst_hr: str = "06",
+) -> dict:
     """`fixes`, the nav log's own (lat, lon) fixes, add the leg-by-leg
     segments the stepped plans need; they are part of the key, since a
-    different set of checkpoints is a different set of legs."""
+    different set of checkpoints is a different set of legs. So is the
+    forecast period, since the freezing level is read from it."""
     key = (
         round(start[0], 4), round(start[1], 4), round(end[0], 4), round(end[1], 4), aircraft,
-        tuple((round(lat, 4), round(lon, 4)) for lat, lon in fixes) if fixes else None,
+        tuple((round(lat, 4), round(lon, 4)) for lat, lon in fixes) if fixes else None, fcst_hr,
     )
     with _ALTITUDE_CACHE_LOCK:
         hit = _ALTITUDE_CACHE.get(key)
         if hit is not None and time.time() - hit[0] < _ALTITUDE_TTL_S:
             return hit[1]
-    # The keyword only when there are fixes: the route-wide callers
-    # (/api/altitude-breakdown, the agents) keep the original call.
-    selection = altitude_module.select_cruise_altitude(start, end, profile, **({"fixes": fixes} if fixes else {}))
+    # The keywords only when they differ from the defaults: the
+    # route-wide callers (/api/altitude-breakdown, the agents) keep the
+    # original call.
+    extra = {}
+    if fixes:
+        extra["fixes"] = fixes
+    if fcst_hr != "06":
+        extra["fcst_hr"] = fcst_hr
+    selection = altitude_module.select_cruise_altitude(start, end, profile, **extra)
     with _ALTITUDE_CACHE_LOCK:
         _ALTITUDE_CACHE[key] = (time.time(), selection)
     return selection
@@ -64,9 +97,12 @@ _PLANS_CACHE: dict = {}
 _PLANS_CACHE_LOCK = threading.Lock()
 
 
-def altitude_plans(fix_list: list, selection: dict, profile: dict, aircraft: str) -> dict:
+def altitude_plans(
+    fix_list: list, selection: dict, profile: dict, aircraft: str, fcst_hr: str = "06",
+    departure_elevation_ft: float | None = None,
+) -> dict:
     key = (
-        aircraft, profile.get("cruise_tas_kt"), profile.get("fuel_burn_gph"),
+        aircraft, profile.get("cruise_tas_kt"), profile.get("fuel_burn_gph"), fcst_hr, departure_elevation_ft,
         tuple((round(f["lat"], 4), round(f["lon"], 4)) for f in fix_list),
         tuple(tuple(s["candidates_ft"]) for s in selection.get("segments", [])),
     )
@@ -74,10 +110,22 @@ def altitude_plans(fix_list: list, selection: dict, profile: dict, aircraft: str
         hit = _PLANS_CACHE.get(key)
         if hit is not None and time.time() - hit[0] < _ALTITUDE_TTL_S:
             return hit[1]
-    plans = navlog.altitude_profiles(fix_list, selection.get("segments", []), profile)
+    plans = navlog.altitude_profiles(
+        fix_list, selection.get("segments", []), profile, fcst_hr, departure_elevation_ft=departure_elevation_ft,
+    )
     with _PLANS_CACHE_LOCK:
         _PLANS_CACHE[key] = (time.time(), plans)
     return plans
+
+
+def forecast_hour_for(depart: datetime | None) -> str:
+    """The winds forecast period for a departure time -- now, when none
+    is given. A naive time is taken as UTC, the way the API documents."""
+    if depart is None:
+        return weather.forecast_hour(None)
+    if depart.tzinfo is None:
+        depart = depart.replace(tzinfo=timezone.utc)
+    return weather.forecast_hour((depart - datetime.now(timezone.utc)).total_seconds() / 3600)
 
 
 def no_altitude_detail(selection: dict) -> str:

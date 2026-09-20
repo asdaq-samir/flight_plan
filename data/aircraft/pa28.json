@@ -4,5 +4,6 @@
   "climb_rate_fpm_sea_level": 700,
   "cruise_tas_kt": 125,
   "fuel_burn_gph": 9.5,
-  "climb_tas_kt": 76
+  "climb_tas_kt": 76,
+  "usable_fuel_gal": 48
 }

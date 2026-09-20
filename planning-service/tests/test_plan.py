@@ -24,7 +24,7 @@ CANDIDATES = [
 ]
 
 
-def _leg(start, end, altitude_ft, profile) -> dict:
+def _leg(start, end, altitude_ft, profile, fcst_hr="06") -> dict:
     """What vfr.navlog.assemble_leg returns, minus the live winds call."""
     return {
         "true_course_deg": 320.0, "distance_nm": 10.0, "altitude_ft": altitude_ft,
@@ -114,6 +114,50 @@ def test_navlog_streams_altitude_then_legs_then_done(messages):
     altitude = next(m for m in lines if m["type"] == "altitude")
     assert [o["kind"] for o in altitude["options"]] == ["lowest", "highest", "fastest"]
     assert altitude["choice"] == "lowest" and altitude["altitude_ft"] == 4500.0
+
+
+def test_a_departure_time_picks_the_winds_forecast_period(messages):
+    from datetime import datetime, timedelta, timezone
+
+    soon = (datetime.now(timezone.utc) + timedelta(hours=2)).isoformat()
+    later = (datetime.now(timezone.utc) + timedelta(hours=14)).isoformat()
+    tomorrow = (datetime.now(timezone.utc) + timedelta(hours=30)).isoformat()
+
+    for depart, expected in ((None, "06"), (soon, "06"), (later, "12"), (tomorrow, "24")):
+        params = {"dep": "C81", "dest": "KDLH", **({"depart": depart} if depart else {})}
+        altitude = next(m for m in messages(client.get("/api/navlog", params=params)) if m["type"] == "altitude")
+        assert altitude["winds_forecast_hr"] == expected, depart
+    assert client.get("/api/plan", params={"dep": "C81", "dest": "KDLH", "depart": later}).json()["winds_forecast_hr"] == "12"
+
+
+def test_totals_carry_the_fuel_check(messages):
+    from datetime import datetime, timezone
+
+    lines = messages(client.get("/api/navlog", params={"dep": "C81", "dest": "KDLH"}))
+    t = lines[-1]["totals"]
+    # The day reserve at the C172's 8.5 gph is 4.25 gal on top of the
+    # legs' own fuel (the first leg's climb from the field included);
+    # the profile holds 40 usable. No departure time: the day reserve is
+    # assumed and `night` says so by being null.
+    assert t["reserve_min"] == 30 and t["reserve_gal"] == 4.25 and t["night"] is None
+    assert t["fuel_required_gal"] == round(t["fuel_gal"] + 4.25, 1)
+    assert t["usable_fuel_gal"] == 40 and t["fuel_margin_gal"] == round(40 - t["fuel_required_gal"], 1)
+    # The climb from the 900 ft field to 4,500 ft is on the first leg.
+    legs = [m for m in lines if m["type"] == "leg"]
+    assert legs[0]["climb_min"] > 0 and legs[1]["climb_min"] == 0
+    assert legs[0]["ete_min"] > legs[1]["ete_min"] and legs[0]["fuel_gal"] > legs[1]["fuel_gal"]
+
+    # A pilot's own tanks, too small: the margin goes negative.
+    short = messages(client.get("/api/navlog", params={"dep": "C81", "dest": "KDLH", "usable_fuel_gal": 5}))[-1]
+    assert short["totals"]["fuel_margin_gal"] == round(5 - short["totals"]["fuel_required_gal"], 1) < 0
+
+    # Departing Chicago at 03:00 local (08:00 UTC) is night: 45 minutes.
+    at_night = datetime(2026, 9, 22, 8, 0, tzinfo=timezone.utc).isoformat()
+    night = messages(client.get("/api/navlog", params={"dep": "C81", "dest": "KDLH", "depart": at_night}))[-1]
+    assert night["totals"]["night"] is True and night["totals"]["reserve_min"] == 45
+    by_day = datetime(2026, 9, 22, 17, 0, tzinfo=timezone.utc).isoformat()
+    day = messages(client.get("/api/navlog", params={"dep": "C81", "dest": "KDLH", "depart": by_day}))[-1]
+    assert day["totals"]["night"] is False and day["totals"]["reserve_min"] == 30
 
 
 def test_navlog_flies_the_chosen_plan_and_says_so(messages):

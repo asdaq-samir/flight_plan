@@ -321,22 +321,25 @@ _DATASETS: dict = {}
 _DATASET_LOCKS = {name: threading.Lock() for name in ("metars", "tafs", "airsigmets")}
 
 
-def _dataset(name: str, parse):
+def _dataset(name: str, parse, force: bool = False):
     """The current national `name` dataset, parsed from
     CACHE_BASE_URL/{name}.cache.xml.gz and held for _DATASET_TTL_S. A
     refresh that fails keeps serving the previous copy for up to
     _DATASET_STALE_MAX_S -- a briefing from conditions a few minutes old
     beats none -- and raises WeatherServiceError only when there is
     nothing to serve. One fetch at a time per dataset: concurrent
-    callers wait for it rather than each downloading their own."""
+    callers wait for it rather than each downloading their own.
+    `force` fetches now whatever the held copy's age (the server's own
+    periodic refresh), still falling back to it if the fetch fails."""
     with _DATASET_LOCKS[name]:
         cached = _DATASETS.get(name)
         now = time.time()
-        if cached is not None:
+        if cached is not None and not force:
             if now - cached["at"] < _DATASET_TTL_S:
                 return cached["data"]
             if now - cached["attempted"] < _DATASET_RETRY_AFTER_S and now - cached["at"] < _DATASET_STALE_MAX_S:
                 return cached["data"]
+        if cached is not None:
             cached["attempted"] = now
         try:
             resp = _get(f"{CACHE_BASE_URL}/{name}.cache.xml.gz", params={})
@@ -589,3 +592,34 @@ def preload() -> None:
     _dataset("metars", _parse_metars)
     _dataset("tafs", _parse_tafs)
     _dataset("airsigmets", _parse_airsigmets)
+
+
+def refresh() -> None:
+    """The same three files fetched again now, whatever their age, plus
+    the winds product -- for the server's own periodic refresh, so the
+    held copies never expire on a pilot's request: the first plan after
+    an expiry used to pay for the downloads, on a slow aviationweather.gov
+    day close to a minute. A fetch that fails leaves the held copy in
+    place, to be served stale as before."""
+    for name, parse in (("metars", _parse_metars), ("tafs", _parse_tafs), ("airsigmets", _parse_airsigmets)):
+        _dataset(name, parse, force=True)
+    for fcst_hr in list(_FD_CACHE) or ["06"]:
+        text = _fetch_fd_text_uncached(fcst_hr)
+        _FD_CACHE[fcst_hr] = (time.time(), text)
+        _FD_STATIONS.pop(fcst_hr, None)
+
+
+# The winds/temperatures-aloft product comes in three forecast periods.
+FD_FORECAST_HOURS = ("06", "12", "24")
+
+
+def forecast_hour(hours_ahead: float | None) -> str:
+    """Which FD forecast period fits a departure `hours_ahead` hours from
+    now: the 6-hour product up to nine hours out, the 12-hour product
+    to eighteen, the 24-hour product beyond -- each period's own valid
+    time sits mid-way to the next. None (no departure time) is now."""
+    if hours_ahead is None or hours_ahead <= 9:
+        return "06"
+    if hours_ahead <= 18:
+        return "12"
+    return "24"

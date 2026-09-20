@@ -19,7 +19,10 @@ import {
 } from "../../../../components/ui/table";
 import type { AltitudeChoice, Candidate, Leg, NavLog, Totals } from "../../../../lib/api/types";
 import { type Description, descriptionKey } from "../../hooks/usePlanState";
-import { altFt, deg, describeSteps, describeTime, one, signed, totalsParts } from "../../format";
+import {
+  altFt, clockTime, deg, describeSteps, describeTime, etaAt, fromLocalInputValue, one, signed, toLocalInputValue,
+  totalsParts,
+} from "../../format";
 
 // TanStack Table's own extension point for arbitrary per-column data --
 // used below to carry each numeric column's shared className (bordered,
@@ -68,6 +71,11 @@ interface Props {
    *  altitude's own popover, which re-plans; which one is flown is the
    *  nav log's own `choice`. */
   onAltitudeChoiceChange: (choice: AltitudeChoice) => void;
+  /** The departure time as an ISO instant, or "" for about now --
+   *  set here, where its ETAs show; changing it re-plans, since the
+   *  winds forecast period follows it. */
+  depart: string;
+  onDepartChange: (iso: string) => void;
   /** The pilot's own cruise-altitude override -- lives here, not the
    *  map header's route form, since this is where the *result*
    *  (`nav.altitude_ft`/`nav.altitude_selection`) already shows: typing
@@ -244,7 +252,7 @@ function DescriptionCell({
  * no leg has been flown yet.
  */
 export default function NavLogView({
-  totals, nav, courseBearingDeg, onAltitudeChoiceChange,
+  totals, nav, courseBearingDeg, onAltitudeChoiceChange, depart, onDepartChange,
   legs, dep, dest, depName, destName, depLat, depLon, destLat, destLon,
   selected, depElevationFt, destElevationFt, descriptions, onSaveDescription,
   onGenerateDescriptions, descriptionsLoading, expanded, onToggleExpanded, actions, children,
@@ -362,6 +370,35 @@ export default function NavLogView({
       cell: ({ row }) => (row.original.leg ? one(row.original.leg.fuel_gal) : "—"),
     },
   ];
+  // With a departure time, every row gets its ETA: the departure's
+  // own time, then the time each leg ends -- the minutes flown so far,
+  // unknown from the first leg that is not in yet or cannot be flown.
+  const minutesTo: (number | null)[] = [];
+  let flown: number | null = 0;
+  for (const leg of legs) {
+    flown = flown === null || leg.ete_min === null ? null : flown + leg.ete_min;
+    minutesTo.push(flown);
+  }
+  const etaColumn: ColumnDef<typeof navLogTableFeatures, WaypointRow> = {
+    id: "eta",
+    header: "ETA",
+    cell: ({ row }) => {
+      const { isDeparture, key } = row.original;
+      if (isDeparture) return clockTime(new Date(depart));
+      return etaAt(depart, minutesTo[Number(key)] ?? null);
+    },
+  };
+  if (depart) columns.push(etaColumn);
+  // On paper only: the two columns a pilot fills in by hand in flight,
+  // the actual time over each fix and the fuel left -- what makes the
+  // printed page a nav log to fly with rather than a table to read.
+  for (const [id, header] of [["ata", "ATA"], ["fuel_rem", "Fuel rem."]] as const) {
+    columns.push({
+      id, header,
+      cell: () => "",
+      meta: { className: "hidden w-14 border-l border-border print:table-cell" },
+    });
+  }
   // No sorting/filtering/pagination -- a nav log's own row order IS
   // its meaning (waypoints in the order a pilot actually flies them),
   // and `navLogTableFeatures`'s own core model is the only row model
@@ -525,6 +562,7 @@ export default function NavLogView({
           {parts && (
             <span>
               <b>{parts.distance}</b> · <b>{parts.time}</b> · <b>{parts.fuel}</b>
+              {depart && totals && totals.ete_min !== null && <> · ETA <b>{etaAt(depart, totals.ete_min)}</b></>}
               {parts.warning && <> · <span className="text-destructive">{parts.warning}</span></>}
             </span>
           )}
@@ -631,7 +669,48 @@ export default function NavLogView({
           <span className="hidden text-muted-foreground print:inline">
             {aircraftOptions.find(o => o.value === aircraftValue)?.label}
           </span>
+          {/* When the flight leaves: gives every row an ETA, is what a
+              saved flight is planned for, and picks the winds forecast
+              period the legs are flown on -- named here so a pilot
+              knows the winds are the 12-hour forecast, say, not now's.
+              Empty means about now. The stock Input keeps 16px below
+              md, so a phone does not zoom on it. */}
+          <Input
+            type="datetime-local"
+            value={toLocalInputValue(depart)}
+            onChange={e => onDepartChange(fromLocalInputValue(e.target.value))}
+            aria-label="Departure time"
+            className="h-8 w-[12.5rem] px-2 print:hidden"
+            data-testid="depart-input"
+          />
+          {depart && (
+            <span className="text-xs text-muted-foreground" data-testid="winds-forecast">
+              <span className="hidden print:inline">departing {clockTime(new Date(depart))} · </span>
+              winds: {nav ? `${Number(nav.winds_forecast_hr)}-hour forecast` : "…"}
+            </span>
+          )}
         </div>
+        {/* The fuel check (14 CFR 91.151): the legs' fuel plus the
+            reserve -- 30 minutes by day, 45 at night, the day one
+            assumed and said so without a departure time -- against the
+            aeroplane's usable fuel when it has one, red when the tanks
+            do not hold it. */}
+        {totals && totals.fuel_required_gal != null && (
+          <div
+            className={clsx(
+              "text-xs",
+              totals.fuel_margin_gal != null && totals.fuel_margin_gal < 0
+                ? "font-semibold text-destructive"
+                : "text-muted-foreground",
+            )}
+            data-testid="fuel-check"
+          >
+            Fuel required {one(totals.fuel_required_gal)} gal
+            {` (${totals.reserve_min} min ${totals.night == null ? "day reserve, no departure time" : totals.night ? "night reserve" : "day reserve"})`}
+            {totals.usable_fuel_gal != null && ` of ${totals.usable_fuel_gal} usable`}
+            {totals.fuel_margin_gal != null && totals.fuel_margin_gal < 0 && ` · short by ${one(-totals.fuel_margin_gal)} gal`}
+          </div>
+        )}
       </div>
       {/* `flight-briefing` while wide: index.css's print rules force
           every <details> under it open on paper -- the nav log's own

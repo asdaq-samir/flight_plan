@@ -167,6 +167,7 @@ export function usePlanState() {
 
   const plan = useCallback(async (
     dep: string, dest: string, altitudeFt?: string, aircraft?: AircraftChoice, altitudeChoice?: AltitudeChoice,
+    depart?: string,
   ) => {
     const token = ++planToken.current;
     describeStarted.current = null;
@@ -218,7 +219,7 @@ export function usePlanState() {
 
     let finished = false;
     try {
-      for await (const msg of api.navlog(dep, dest, altitudeFt, aircraft, altitudeChoice)) {
+      for await (const msg of api.navlog(dep, dest, altitudeFt, aircraft, altitudeChoice, depart)) {
         if (token !== planToken.current) return;
         if (msg.type === "stage") {
           setState(s => ({ ...s, navStage: msg.detail }));

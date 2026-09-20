@@ -54,7 +54,8 @@ public class FlightService {
         List<FlightCheckpoint> navLog = requestedCheckpoints.stream()
                 .map(c -> new FlightCheckpoint(c.sequenceNo(), c.name(), c.category(), c.lat(), c.lon(), c.alongTrackNm())
                         .withLeg(c.legDistanceNm(), c.trueCourseDeg(), c.magneticHeadingDeg(),
-                                c.groundspeedKt(), c.eteMin(), c.fuelGal()))
+                                c.groundspeedKt(), c.eteMin(), c.fuelGal())
+                        .atAltitude(c.altitudeFt()))
                 .toList();
         flight.fileNavLog(navLog, request.cruiseAltitudeFt(), request.totalDistanceNm(),
                 request.totalEteMin(), request.totalFuelGal());

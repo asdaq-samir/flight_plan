@@ -4,7 +4,9 @@ import jakarta.validation.constraints.NotBlank;
 
 /** One line of the nav log a POST /api/flights body files -- the leg
  *  fields are nullable for the same reasons the entity's are (see
- *  {@link com.northflyers.vfr.domain.FlightCheckpoint}). */
+ *  {@link com.northflyers.vfr.domain.FlightCheckpoint}); `altitudeFt`
+ *  is the altitude of the leg arriving here, which a stepped plan
+ *  varies row by row. */
 public record SaveFlightCheckpointRequest(
         int sequenceNo,
         @NotBlank(message = "name is required")
@@ -19,5 +21,6 @@ public record SaveFlightCheckpointRequest(
         Double magneticHeadingDeg,
         Double groundspeedKt,
         Double eteMin,
-        Double fuelGal) {
+        Double fuelGal,
+        Double altitudeFt) {
 }

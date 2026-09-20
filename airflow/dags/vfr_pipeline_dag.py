@@ -37,6 +37,14 @@ if str(PROJECT_SRC) not in sys.path:
 PROJECT_HOST_PATH = os.environ["PROJECT_HOST_PATH"]
 PROJECT_MOUNT = Mount(source=PROJECT_HOST_PATH, target="/workspace", type="bind")
 
+# Compose names the images it builds <project>-<service>, and the project
+# is the directory's name unless COMPOSE_PROJECT_NAME says otherwise --
+# docker-compose.yml passes that in, so a checkout under another name
+# still finds its own pipeline images. The old hard-coded "vfr_route-"
+# prefix was the repo's previous name, and every task failed to find its
+# image once it was renamed.
+IMAGE_PREFIX = os.environ.get("PIPELINE_IMAGE_PREFIX", "flight_plan")
+
 
 def _docker_task(task_id: str, image: str, command: list[str]) -> DockerOperator:
     return DockerOperator(
@@ -59,9 +67,9 @@ def _docker_task(task_id: str, image: str, command: list[str]) -> DockerOperator
     tags=["vfr", "ml"],
 )
 def vfr_pipeline():
-    collect = _docker_task("collect", "vfr_route-pipeline-processing", ["collect"])
-    feature_engineer = _docker_task("feature_engineer", "vfr_route-pipeline-processing", ["engineer-features"])
-    retrain = _docker_task("retrain", "vfr_route-pipeline-training", ["retrain"])
+    collect = _docker_task("collect", f"{IMAGE_PREFIX}-pipeline-processing", ["collect"])
+    feature_engineer = _docker_task("feature_engineer", f"{IMAGE_PREFIX}-pipeline-processing", ["engineer-features"])
+    retrain = _docker_task("retrain", f"{IMAGE_PREFIX}-pipeline-training", ["retrain"])
 
     def _metrics_pass() -> bool:
         from vfr import model_registry

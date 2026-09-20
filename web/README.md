@@ -8,7 +8,12 @@ end, built into `webapp`'s jar and served from `/app`. Three pages:
   and the nav log, in a drawer beside the map. Walk its checkpoints
   with the arrow keys or a click and the map follows. The altitude
   in its header opens the planner's reasoning and its three plans,
-  lowest, highest and fastest for the winds, one click to fly another.
+  lowest, highest and fastest for the winds, one click to fly another,
+  or a custom altitude. A departure time beside it gives every row an
+  ETA, picks the winds forecast the legs are flown on, and sets the
+  fuel reserve (30 minutes by day, 45 at night) the fuel check under
+  the totals holds the tanks against. Printed, the log is a landscape
+  page with blank ATA and fuel-remaining columns to fill in in flight.
   Opened wide
   (`?view=briefing`, or `n`), the same drawer is the FAA-sequence
   briefing: the nav log with the briefing's sections under it, an AI

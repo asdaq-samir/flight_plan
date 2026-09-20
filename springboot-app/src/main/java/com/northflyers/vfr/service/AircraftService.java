@@ -27,16 +27,18 @@ public class AircraftService {
         return aircraft.findByIdAndPilotId(id, pilot.getId());
     }
 
-    public Aircraft add(Pilot pilot, String tailNumber, String typeDesignator, double cruiseTasKt, double fuelBurnGph) {
-        return aircraft.save(new Aircraft(pilot, tailNumber, typeDesignator, cruiseTasKt, fuelBurnGph));
+    public Aircraft add(Pilot pilot, String tailNumber, String typeDesignator, double cruiseTasKt, double fuelBurnGph,
+                        Double usableFuelGal) {
+        return aircraft.save(new Aircraft(pilot, tailNumber, typeDesignator, cruiseTasKt, fuelBurnGph, usableFuelGal));
     }
 
     /** Empty when no such aircraft exists for this pilot -- not
      *  distinguished from "belongs to someone else," which reads
      *  identically to a caller guessing ids on purpose. */
     public Optional<Aircraft> update(Pilot pilot, Long id, String tailNumber, String typeDesignator,
-                                     double cruiseTasKt, double fuelBurnGph) {
-        return get(pilot, id).map(a -> aircraft.save(a.update(tailNumber, typeDesignator, cruiseTasKt, fuelBurnGph)));
+                                     double cruiseTasKt, double fuelBurnGph, Double usableFuelGal) {
+        return get(pilot, id).map(a -> aircraft.save(
+                a.update(tailNumber, typeDesignator, cruiseTasKt, fuelBurnGph, usableFuelGal)));
     }
 
     /** @return true if an aircraft was actually deleted */

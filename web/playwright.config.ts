@@ -21,6 +21,12 @@ import { defineConfig } from "@playwright/test";
 export default defineConfig({
   testDir: "./e2e",
   timeout: 30_000,
+  // One retry: a handful of tests wait on the planner's live nav log,
+  // and under two workers on a busy machine one has missed a wait once
+  // and passed every run since. A retry keeps a transient miss from
+  // failing the run without hiding a real regression, which fails
+  // twice.
+  retries: 1,
   fullyParallel: true,
   reporter: "list",
   use: {

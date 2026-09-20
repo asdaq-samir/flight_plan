@@ -51,7 +51,7 @@ class AircraftControllerTest {
     }
 
     private static Aircraft sampleAircraft() {
-        return new Aircraft(samplePilot(), "N12345", "C172", 110, 8.5);
+        return new Aircraft(samplePilot(), "N12345", "C172", 110, 8.5, 40.0);
     }
 
     /** A method the path doesn't map is a 405, not the catch-all 500 --
@@ -103,7 +103,7 @@ class AircraftControllerTest {
     @Test
     void add_returns200_forAValidRequest() throws Exception {
         given(pilotService.current(any())).willReturn(Optional.of(samplePilot()));
-        given(aircraftService.add(any(), anyString(), anyString(), anyDouble(), anyDouble()))
+        given(aircraftService.add(any(), anyString(), anyString(), anyDouble(), anyDouble(), any()))
                 .willReturn(sampleAircraft());
 
         mockMvc.perform(post("/api/aircraft").with(oidcLogin()).with(csrf())

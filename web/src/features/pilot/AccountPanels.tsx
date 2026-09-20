@@ -39,10 +39,16 @@ const aircraftSchema = z.object({
   typeDesignator: z.string().trim().min(1, "Type designator is required"),
   cruiseTasKt: positiveNumber("Cruise TAS"),
   fuelBurnGph: positiveNumber("Fuel burn"),
+  // Optional: blank means the owner has not said, and the nav log then
+  // makes no fuel check rather than a wrong one.
+  usableFuelGal: z.string().trim().refine(
+    value => value === "" || (Number.isFinite(Number(value)) && Number(value) > 0),
+    "Usable fuel must be a positive number",
+  ),
 });
 type AircraftFormValues = z.infer<typeof aircraftSchema>;
 const EMPTY_AIRCRAFT_FORM: AircraftFormValues = {
-  tailNumber: "", typeDesignator: "", cruiseTasKt: "", fuelBurnGph: "",
+  tailNumber: "", typeDesignator: "", cruiseTasKt: "", fuelBurnGph: "", usableFuelGal: "",
 };
 
 /**
@@ -150,12 +156,14 @@ export function AircraftPanel({ pilot }: { pilot: PilotState }) {
     reset({
       tailNumber: a.tailNumber, typeDesignator: a.typeDesignator,
       cruiseTasKt: String(a.cruiseTasKt), fuelBurnGph: String(a.fuelBurnGph),
+      usableFuelGal: a.usableFuelGal == null ? "" : String(a.usableFuelGal),
     });
   };
 
   const onSubmit = (values: AircraftFormValues) => save.mutate({
     tailNumber: values.tailNumber.trim(), typeDesignator: values.typeDesignator.trim(),
     cruiseTasKt: Number(values.cruiseTasKt), fuelBurnGph: Number(values.fuelBurnGph),
+    usableFuelGal: values.usableFuelGal.trim() ? Number(values.usableFuelGal) : null,
   });
 
   const listMessage = errorMessage(listError, "Could not load your aircraft");
@@ -184,12 +192,13 @@ export function AircraftPanel({ pilot }: { pilot: PilotState }) {
                   <TableHead>Type</TableHead>
                   <TableHead className="text-right">Cruise TAS</TableHead>
                   <TableHead className="text-right">Fuel burn</TableHead>
+                  <TableHead className="text-right">Usable fuel</TableHead>
                   <TableHead className="text-right"><span className="sr-only">Actions</span></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {list.length === 0 && (
-                  <TableRow><TableCell colSpan={5} className="h-16 text-center text-muted-foreground">No aircraft yet.</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={6} className="h-16 text-center text-muted-foreground">No aircraft yet.</TableCell></TableRow>
                 )}
                 {list.map(a => (
                   <TableRow key={a.id}>
@@ -197,6 +206,7 @@ export function AircraftPanel({ pilot }: { pilot: PilotState }) {
                     <TableCell>{a.typeDesignator}</TableCell>
                     <TableCell className="text-right tabular-nums">{a.cruiseTasKt} kt</TableCell>
                     <TableCell className="text-right tabular-nums">{a.fuelBurnGph} gph</TableCell>
+                    <TableCell className="text-right tabular-nums">{a.usableFuelGal == null ? "—" : `${a.usableFuelGal} gal`}</TableCell>
                     <TableCell className="text-right">
                       <Button type="button" variant="link" size="sm" onClick={() => edit(a)}>Edit</Button>
                       <Button type="button" variant="link" size="sm" className="text-destructive" onClick={() => setAircraftToDelete(a)}>
@@ -247,6 +257,13 @@ export function AircraftPanel({ pilot }: { pilot: PilotState }) {
                 aria-label="Fuel burn in gallons per hour" inputMode="decimal" aria-invalid={!!errors.fuelBurnGph}
               />
               <FieldError errors={[errors.fuelBurnGph]} />
+            </Field>
+            <Field data-invalid={!!errors.usableFuelGal} className="w-32">
+              <Input
+                {...register("usableFuelGal")} placeholder="Usable fuel (gal)"
+                aria-label="Usable fuel in gallons" inputMode="decimal" aria-invalid={!!errors.usableFuelGal}
+              />
+              <FieldError errors={[errors.usableFuelGal]} />
             </Field>
             <Button type="submit" disabled={save.isPending}>{editingId ? "Save changes" : "Add aircraft"}</Button>
             {editingId && (

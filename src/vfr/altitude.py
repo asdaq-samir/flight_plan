@@ -24,6 +24,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 from . import airspace, terrain, weather
 from .geo import along_track_distance_nm, bearing_deg, distance_nm
+from .magnetic import magnetic_variation_deg
 from .terrain import DEFAULT_FAA_CACHE_DIR
 
 # Class A begins at 18,000 ft: no VFR cruising above 17,500.
@@ -35,11 +36,12 @@ def lowest_vfr_cruising_altitude(floor_ft: float, route_bearing_deg: float) -> f
     course of route_bearing_deg.
 
     The hemispheric rule (14 CFR 91.159): magnetic course 0-179 flies odd
-    thousands plus 500, 180-359 flies even thousands plus 500. Applied
-    here to true course, which is what the rest of this module works in;
-    the difference is magnetic variation, at most a couple of degrees
-    across this project's routes and only mattering for a course sitting
-    within that much of 000 or 180.
+    thousands plus 500, 180-359 flies even thousands plus 500. The
+    course passed in should be magnetic -- select_cruise_altitude takes
+    the variation at mid-route off the true course before calling this,
+    which only ever matters for a course within a few degrees of 000 or
+    180, and falls back to true course when the variation service is
+    unreachable.
 
     Lowest above the floor rather than highest under the ceiling. That
     distinction was invisible while every Class B/C/D shelf imposed a
@@ -88,6 +90,7 @@ def select_cruise_altitude(
     aircraft_profile: dict,
     faa_cache_dir=DEFAULT_FAA_CACHE_DIR,
     fixes: list | None = None,
+    fcst_hr: str = "06",
 ) -> dict:
     """Returns a dict with the recommended altitude (None if no legal VFR
     altitude exists for this route/aircraft) plus the floor/ceiling
@@ -96,7 +99,9 @@ def select_cruise_altitude(
     `fixes`, the nav log's (lat, lon) fixes from departure to destination,
     adds `segments`: the floor, ceiling and legal altitudes of each leg
     between them, for the stepped plans. Without them the route is one
-    segment, as it always was.
+    segment, as it always was. `fcst_hr` picks the winds/temperatures
+    forecast period the freezing level is read from (see
+    vfr.weather.forecast_hour).
     """
     route_bearing_deg = bearing_deg(*route_start, *route_end)
     total_nm = distance_nm(*route_start, *route_end)
@@ -127,7 +132,8 @@ def select_cruise_altitude(
         # Class C/D along the way are not a ceiling -- two-way comms is
         # all they take -- but a pilot still wants to know they are coming.
         transits_future = pool.submit(airspace.airspace_transits, route_start, route_end, shp_path)
-        freezing_future = pool.submit(weather.freezing_level_ft, mid_lat, mid_lon)
+        variation_future = pool.submit(magnetic_variation_deg, mid_lat, mid_lon)
+        freezing_future = pool.submit(weather.freezing_level_ft, mid_lat, mid_lon, fcst_hr)
         cv_future = pool.submit(weather.ceiling_visibility_along_route, route_start, route_end)
         hazards_future = pool.submit(weather.hazards_along_route, route_start, route_end)
 
@@ -147,6 +153,16 @@ def select_cruise_altitude(
         airspace_result = airspace_future.result()
         airspace_ceilings_ft = airspace_result if fixes else [airspace_result]
         transits = transits_future.result()
+        # The hemispheric rule is written for magnetic course. The
+        # variation comes from NOAA's declination service, cached on
+        # disk per point; if that is unreachable the true course stands
+        # in, which only misplaces a course within a few degrees of
+        # north or south.
+        try:
+            variation_deg = variation_future.result()
+        except Exception:
+            variation_deg = 0.0
+        course_magnetic_deg = (route_bearing_deg - variation_deg) % 360
 
         weather_unavailable = []
         try:
@@ -175,7 +191,7 @@ def select_cruise_altitude(
     shelf_floors = [c for c in airspace_ceilings_ft if c is not None]
     airspace_ceiling_ft = min(shelf_floors) if shelf_floors else None
     band_ceiling_ft = band_ceiling(airspace_ceiling_ft)
-    candidates_ft = legal_cruising_altitudes(floor_ft, band_ceiling_ft, route_bearing_deg)
+    candidates_ft = legal_cruising_altitudes(floor_ft, band_ceiling_ft, course_magnetic_deg)
 
     # The lowest legal VFR cruising altitude at or above the floor, not
     # the highest one under the ceiling.
@@ -207,7 +223,7 @@ def select_cruise_altitude(
                 "floor_ft": floors_ft[i],
                 "airspace_ceiling_ft": airspace_ceilings_ft[i],
                 "band_ceiling_ft": segment_ceiling_ft,
-                "candidates_ft": legal_cruising_altitudes(floors_ft[i], segment_ceiling_ft, route_bearing_deg),
+                "candidates_ft": legal_cruising_altitudes(floors_ft[i], segment_ceiling_ft, course_magnetic_deg),
             })
 
     # None (not False) when ceiling_visibility_along_route itself failed --
@@ -222,6 +238,7 @@ def select_cruise_altitude(
     return {
         "recommended_ft": recommended_ft,
         "candidates_ft": candidates_ft,
+        "course_magnetic_deg": round(course_magnetic_deg, 1),
         "floor_ft": floor_ft,
         "airspace_ceiling_ft": airspace_ceiling_ft,
         "airspace_transits": transits,

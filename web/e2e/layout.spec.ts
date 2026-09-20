@@ -68,7 +68,7 @@ test.describe("/app/plan", () => {
   test("the route form is visible immediately, not behind a trigger", async ({ page }) => {
     await page.goto("/app/plan");
     await settle(page);
-    await expect(page.getByLabel("Departure")).toBeVisible();
+    await expect(page.getByLabel("Departure", { exact: true })).toBeVisible();
     expect(await page.getByTestId("toolbar-trigger").count()).toBe(0);
   });
 
@@ -100,7 +100,7 @@ test.describe("/app/dev", () => {
   test("the route form is visible immediately, not behind a trigger", async ({ page }) => {
     await page.goto("/app/dev");
     await settle(page);
-    await expect(page.getByLabel("Departure")).toBeVisible();
+    await expect(page.getByLabel("Departure", { exact: true })).toBeVisible();
     expect(await page.getByTestId("toolbar-trigger").count()).toBe(0);
   });
 
@@ -243,7 +243,7 @@ test("plan page: the nav log drawer opens wide as the briefing, with the narrati
 
   // The page's own header is still there above it: the route form,
   // and the one Dev-mode switch this page has.
-  await expect(page.getByLabel("Departure")).toBeVisible();
+  await expect(page.getByLabel("Departure", { exact: true })).toBeVisible();
   await expect(page.locator("header").getByRole("switch", { name: "Dev mode" })).toHaveCount(1);
 
   // The briefing's actions live in the drawer's own header: the AI
@@ -519,6 +519,40 @@ test("plan page: the nav log's altitude opens the planner's own reasoning, and t
   await expect(drawer.getByText("14 CFR 91.159")).toBeVisible();
 });
 
+test("plan page: a departure time gives every checkpoint an ETA and picks the winds forecast period", async ({ page }) => {
+  await page.goto("/app/plan?dep=C81&dest=KDLH");
+  await settle(page);
+  await page.getByTestId("sidebar-trigger-button").click();
+  const table = page.getByRole("table", { name: /Navigation log from/i });
+  await expect(table.locator("thead")).not.toContainText("ETA");
+
+  // The day after tomorrow at 15:00 in the browser's own zone: always
+  // more than 18 hours out, so the 24-hour winds product, and daytime
+  // in Chicago whether the browser keeps UTC (a test container) or
+  // Central time, so the day reserve.
+  const when = new Date();
+  when.setDate(when.getDate() + 2);
+  when.setHours(15, 0, 0, 0);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const local = `${when.getFullYear()}-${pad(when.getMonth() + 1)}-${pad(when.getDate())}T15:00`;
+  await page.getByTestId("depart-input").fill(local);
+  await expect(page).toHaveURL(/[?&]depart=/);
+  await expect(table.locator("thead")).toContainText("ETA");
+  // The ETA column by its heading: the print-only ATA and fuel columns
+  // sit after it, empty on screen.
+  const etaIndex = (await table.locator("thead th").allTextContents()).indexOf("ETA");
+  expect(etaIndex).toBeGreaterThan(0);
+  // The departure row's own ETA is the departure time itself.
+  await expect(table.locator("tbody tr[tabindex='0']").first().locator("td").nth(etaIndex)).toHaveText("15:00");
+  await expect(page.getByTestId("winds-forecast")).toContainText("24-hour forecast", { timeout: 60000 });
+  // Every later row has a time once its leg is in.
+  await expect.poll(async () => (await table.locator("tbody tr[tabindex='0']").last().locator("td").nth(etaIndex).textContent())?.trim(), { timeout: 60000 }).toMatch(/^\d\d:\d\d$/);
+  // And the fuel check, against the stock C172's 40 usable gallons,
+  // with the day reserve for a mid-afternoon flight.
+  await expect(page.getByTestId("fuel-check")).toContainText("of 40 usable", { timeout: 60000 });
+  await expect(page.getByTestId("fuel-check")).toContainText("30 min day reserve");
+});
+
 test("dev page opened on its own: the switch falls back to the planner with the dev page's own route", async ({ page }) => {
   await page.goto("/app/dev?dep=C81&dest=KDLH");
   await settle(page);
@@ -561,7 +595,7 @@ test("dev page: the dev console drops down over the chart, one drawer at a time 
   await settle(page);
   // The labeling workspace is the page -- the console stays off screen
   // until its own trigger is opened.
-  await expect(page.getByLabel("Departure")).toBeVisible();
+  await expect(page.getByLabel("Departure", { exact: true })).toBeVisible();
   expect(await page.locator('[data-slot="map-drawer"]').count()).toBe(0);
 
   await page.getByTestId("dev-console-button").click();

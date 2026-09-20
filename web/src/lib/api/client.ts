@@ -122,9 +122,13 @@ export const api = {
    */
   navlog(
     dep: string, dest: string, altitudeFt?: string, aircraft?: AircraftChoice, altitudeChoice?: AltitudeChoice,
+    depart?: string,
   ): AsyncGenerator<NavLogMessage> {
     const params = new URLSearchParams({ dep, dest });
     if (altitudeFt) params.set("altitude_ft", altitudeFt);
+    // The departure time, an ISO instant: picks the winds forecast
+    // period the legs are flown on. Absent means about now.
+    if (depart) params.set("depart", depart);
     // Which of the planner's three plans the legs fly; only meaningful
     // without a typed altitude, and the planner's default is lowest.
     if (altitudeChoice && altitudeChoice !== "lowest") params.set("altitude_choice", altitudeChoice);
@@ -132,6 +136,7 @@ export const api = {
       params.set("aircraft", aircraft.profile);
       if (aircraft.cruiseTasKt != null) params.set("cruise_tas_kt", String(aircraft.cruiseTasKt));
       if (aircraft.fuelBurnGph != null) params.set("fuel_burn_gph", String(aircraft.fuelBurnGph));
+      if (aircraft.usableFuelGal != null) params.set("usable_fuel_gal", String(aircraft.usableFuelGal));
     }
     return streamNdjson<NavLogMessage>(`${PLANNER}/navlog?${params}`, undefined, "building the nav log failed");
   },

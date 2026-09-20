@@ -85,6 +85,35 @@ export function describeTime(option: AltitudeOption): string {
   return option.total_min === null ? "unflyable" : hhmm(option.total_min);
 }
 
+/** A clock time, "09:05", in the browser's own zone -- an ETA. */
+export function clockTime(at: Date): string {
+  return at.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
+}
+
+/** When a leg ends: the departure instant plus the minutes flown to
+ *  it -- "—" while the minutes are unknown (a leg not yet in, or one
+ *  that cannot be flown). */
+export function etaAt(departIso: string, minutes: number | null): string {
+  if (minutes === null) return "—";
+  return clockTime(new Date(new Date(departIso).getTime() + minutes * 60_000));
+}
+
+/** An ISO instant as the `datetime-local` input's own local value,
+ *  "2026-09-21T09:00", and back. */
+export function toLocalInputValue(iso: string): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+export function fromLocalInputValue(value: string): string {
+  if (!value) return "";
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? "" : d.toISOString();
+}
+
 /** Elapsed time on a build job, as m:ss. */
 export function elapsed(ms: number): string {
   const secs = Math.floor(ms / 1000);

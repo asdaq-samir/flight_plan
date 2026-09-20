@@ -83,14 +83,30 @@ class Leg(BaseModel):
     groundspeed_kt: float | None
     ete_min: float | None
     fuel_gal: float | None
+    # How much of the leg's time is climb -- from the field on the first
+    # leg, and up to a new level where a plan steps -- flown at climb
+    # speed and burn, and already in `ete_min` and `fuel_gal`.
+    climb_min: float = 0.0
 
 
 class Totals(BaseModel):
+    """The trip's sums, and the fuel check: the legs' fuel plus the VFR
+    reserve (30 minutes by day, 45 at night -- `night` is None when no
+    departure time said which) against the aeroplane's usable fuel,
+    when it has one. `fuel_margin_gal` below zero is a flight the tanks
+    do not hold."""
+
     distance_nm: float
     ete_min: float | None
     fuel_gal: float | None
     unflyable_legs: int
     legs_without_wind: int
+    reserve_min: float | None = None
+    reserve_gal: float | None = None
+    fuel_required_gal: float | None = None
+    usable_fuel_gal: float | None = None
+    fuel_margin_gal: float | None = None
+    night: bool | None = None
 
 
 class Hazard(BaseModel):
@@ -139,6 +155,8 @@ class AltitudeBreakdown(BaseModel):
 
     recommended_ft: float | None
     candidates_ft: list[float] = []
+    # The magnetic course the hemispheric rule was applied to.
+    course_magnetic_deg: float | None = None
     floor_ft: float
     airspace_ceiling_ft: float | None
     airspace_transits: list[AirspaceTransit]
@@ -168,10 +186,11 @@ class AltitudeStep(BaseModel):
 
 class AltitudeOption(BaseModel):
     """One of the three plans -- lowest, highest, fastest -- as its steps
-    and what it costs. `total_min` is the flying time plus what the
-    climbs cost (`climb_penalty_min`), the figure the plans are compared
-    on; `tailwind_kt` the distance-weighted wind component along the
-    course, positive helping, over the legs that had wind data."""
+    and what it costs. `total_min` is the flying time with every climb
+    flown (`climb_penalty_min` is how many of those minutes are climb),
+    the figure the plans are compared on; `tailwind_kt` the
+    distance-weighted wind component along the course, positive helping,
+    over the legs that had wind data."""
 
     kind: AltitudeChoice
     steps: list[AltitudeStep]
@@ -208,6 +227,9 @@ class Plan(BaseModel):
     altitude_selection: AltitudeBreakdown | None
     altitude_options: list[AltitudeOption] = []
     altitude_choice: AltitudeChoice | None = None
+    # Which winds-aloft forecast period the legs were flown on: 06, 12
+    # or 24 hours out, from the departure time given.
+    winds_forecast_hr: str = "06"
     aircraft: AircraftProfile
     max_zoom: int
     min_zoom: int
@@ -409,6 +431,7 @@ class NavLogAltitude(BaseModel):
     altitude_selection: AltitudeBreakdown | None
     options: list[AltitudeOption] = []
     choice: AltitudeChoice | None = None
+    winds_forecast_hr: str = "06"
     aircraft: AircraftProfile
 
 

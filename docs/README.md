@@ -190,9 +190,13 @@ service discovery at `planning-service.vfr-route.internal`.
   cruise altitude for any route; the nav log works the same floor and
   ceiling out leg by leg (a Class B shelf caps only the legs under it)
   and offers three plans of the legal altitudes -- the lowest, the
-  highest, and the fastest for the winds aloft, each climb charged --
-  and the nav log header's own "why" popover and the briefing's
-  "Cruise Altitude" section walk the pilot through it, step by step
+  highest, and the fastest for the winds aloft, every climb flown on
+  the leg that makes it, none above 12,500 ft without oxygen -- and
+  the nav log header's own "why" popover and the briefing's "Cruise
+  Altitude" section walk the pilot through it, step by step. A
+  departure time picks the winds forecast period, gives every row an
+  ETA, and sets the fuel reserve (day or night, by civil twilight at
+  either end) the totals hold the aeroplane's usable fuel against
 - `vfr.chartvision` reads the corridor's tiles and segments them by the
   chart's own palette, streaming results block by block from the departure
   end. `vfr.chartlabels` stores what a pilot decides about them, keyed by
@@ -210,7 +214,10 @@ service discovery at `planning-service.vfr-route.internal`.
   path, bind-mounted from `data/models/current`), or explicitly one of the
   PyTorch/TensorFlow/Spark candidates `vfr.model_candidates` trained
   (`data/models/candidates/<algo>`) — the planner only ever asks for the
-  promoted one; the Dev ML comparison shows how the rest measured up
+  promoted one; the Dev ML comparison shows how the rest measured up.
+  A promotion (the pipeline's, or the Dev console's retrain) writes new
+  files into that directory, and the service notices their timestamps
+  on its next request and serves the new model without a restart
 - Serves whichever precomputed feature stores exist in `FEATURES_DIR`, keyed by
   route; an uncollected corridor returns 404 carrying the two commands that build
   it, since collection is a batch job rather than an inference call

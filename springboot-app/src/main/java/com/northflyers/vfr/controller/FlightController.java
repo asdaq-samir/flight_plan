@@ -85,6 +85,6 @@ public class FlightController {
     private static FlightCheckpointDto toCheckpointDto(FlightCheckpoint c) {
         return new FlightCheckpointDto(c.getSequenceNo(), c.getName(), c.getCategory(), c.getLat(), c.getLon(),
                 c.getAlongTrackNm(), c.getLegDistanceNm(), c.getTrueCourseDeg(), c.getMagneticHeadingDeg(),
-                c.getGroundspeedKt(), c.getEteMin(), c.getFuelGal());
+                c.getGroundspeedKt(), c.getEteMin(), c.getFuelGal(), c.getAltitudeFt());
     }
 }

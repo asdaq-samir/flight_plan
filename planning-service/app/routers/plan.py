@@ -6,7 +6,7 @@ needs terrain, obstacles, airspace and weather -- arrives when it can
 without holding up the map."""
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FuturesTimeoutError
-from itertools import pairwise
+from datetime import datetime
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
@@ -15,7 +15,10 @@ from vfr.config import VFR_SECTIONAL_MAX_ZOOM, VFR_SECTIONAL_MIN_ZOOM
 from vfr.weather import WeatherServiceError
 
 from ..common import DEFAULT_AIRCRAFT, line, load_route, ndjson
-from ..planning import aircraft_profile, altitude_plans, course_line, cruise_altitude, no_altitude_detail
+from ..planning import (
+    aircraft_profile, altitude_plans, course_line, cruise_altitude, flight_totals, forecast_hour_for,
+    no_altitude_detail,
+)
 from ..schemas import (
     AltitudeBreakdown,
     AltitudeChoice,
@@ -34,17 +37,27 @@ from ..scoring import scored_and_selected
 router = APIRouter()
 
 
-def planned_altitudes(r, fix_list: list, profile: dict, aircraft: str, choice: AltitudeChoice) -> tuple:
+def departure_elevation(r) -> float | None:
+    """The field the climb starts from, when the airports table knows
+    it; None starts the log level at the first leg's altitude."""
+    return r.departure.get("elevation_ft")
+
+
+def planned_altitudes(
+    r, fix_list: list, profile: dict, aircraft: str, choice: AltitudeChoice, fcst_hr: str = "06",
+) -> tuple:
     """The altitude selection for the route's own fixes, the three plans
     it allows, and the one chosen: (selection, options, plan, failure).
     `plan` is None when no plan can fly the route -- some leg has no
     legal altitude at all, and the selection says why -- or when the
     winds the plans need could not be read, in which case `failure` is
     that WeatherServiceError: the selection itself still stands, and a
-    caller can report it before the failure."""
-    selection = cruise_altitude(r.start, r.end, profile, aircraft, fixes=[(f["lat"], f["lon"]) for f in fix_list])
+    caller can report it before the failure. `fcst_hr` is the winds
+    forecast period for the departure (see forecast_hour_for)."""
+    fixes = [(f["lat"], f["lon"]) for f in fix_list]
+    selection = cruise_altitude(r.start, r.end, profile, aircraft, fixes=fixes, fcst_hr=fcst_hr)
     try:
-        plans = altitude_plans(fix_list, selection, profile, aircraft)
+        plans = altitude_plans(fix_list, selection, profile, aircraft, fcst_hr, departure_elevation(r))
     except WeatherServiceError as err:
         return selection, [], None, err
     if not plans:
@@ -104,6 +117,8 @@ def plan(
     aircraft: str = DEFAULT_AIRCRAFT,
     cruise_tas_kt: float | None = None,
     fuel_burn_gph: float | None = None,
+    usable_fuel_gal: float | None = None,
+    depart: datetime | None = None,
 ) -> Plan:
     """The whole plan: course line, every scored candidate, the selected
     checkpoints, and a nav log leg between each consecutive pair.
@@ -117,18 +132,26 @@ def plan(
     which one the legs fly, and the reasoning comes back with it, since
     "why am I at 6,500" is a question a pilot will actually ask.
 
-    aircraft names a stock profile; cruise_tas_kt and fuel_burn_gph, when
-    given, are a pilot's own aeroplane's numbers laid over it.
+    aircraft names a stock profile; cruise_tas_kt, fuel_burn_gph and
+    usable_fuel_gal, when given, are a pilot's own aeroplane's numbers
+    laid over it. depart, an ISO time (UTC when naive), picks the
+    winds-aloft forecast period the legs are flown on -- the 6-, 12- or
+    24-hour product, whichever is valid closest to the departure;
+    without it, the 6-hour product, i.e. about now -- and whether the
+    fuel reserve is the day or the night one.
     """
     r = load_route(dep, dest)
     scored, selected = scored_and_selected(r.dep_ident, r.dest_ident)
-    profile = aircraft_profile(aircraft, cruise_tas_kt, fuel_burn_gph)
+    profile = aircraft_profile(aircraft, cruise_tas_kt, fuel_burn_gph, usable_fuel_gal)
     fix_list = navlog.fixes(r.dep_ident, r.dest_ident, r.start, r.end, selected)
+    fcst_hr = forecast_hour_for(depart)
 
     # The plans are worked out either way: beside a pilot's own altitude
     # they are what the planner would have flown, and the reasoning
     # still has its floor and ceiling to show.
-    altitude_selection, options, chosen, failure = planned_altitudes(r, fix_list, profile, aircraft, altitude_choice)
+    altitude_selection, options, chosen, failure = planned_altitudes(
+        r, fix_list, profile, aircraft, altitude_choice, fcst_hr,
+    )
     choice = None
     if altitude_ft is None:
         if failure is not None:
@@ -138,7 +161,7 @@ def plan(
         leg_list, choice = chosen["legs"], altitude_choice
         altitude_ft = leg_list[0]["altitude_ft"]
     else:
-        leg_list = navlog.legs(fix_list, altitude_ft, profile)
+        leg_list = navlog.with_climbs(navlog.legs(fix_list, altitude_ft, profile, fcst_hr), departure_elevation(r), profile)
 
     return Plan(
         departure=r.departure,
@@ -148,11 +171,12 @@ def plan(
         candidates=scored,
         selected=selected,
         legs=leg_list,
-        totals=navlog.totals(leg_list),
+        totals=flight_totals(leg_list, profile, r, depart),
         altitude_ft=altitude_ft,
         altitude_selection=altitude_selection,
         altitude_options=options,
         altitude_choice=choice,
+        winds_forecast_hr=fcst_hr,
         aircraft={"name": aircraft, **profile},
         max_zoom=VFR_SECTIONAL_MAX_ZOOM,
         min_zoom=VFR_SECTIONAL_MIN_ZOOM,
@@ -168,6 +192,8 @@ def navlog_stream(
     aircraft: str = DEFAULT_AIRCRAFT,
     cruise_tas_kt: float | None = None,
     fuel_burn_gph: float | None = None,
+    usable_fuel_gal: float | None = None,
+    depart: datetime | None = None,
 ) -> StreamingResponse:
     """Altitude and the dead-reckoning legs, as newline-delimited JSON --
     the slow half, because it reads terrain, the obstacle file, the
@@ -197,8 +223,9 @@ def navlog_stream(
         yield line(NavLogStage(detail="Scoring checkpoints…"))
         _, selected = scored_and_selected(r.dep_ident, r.dest_ident)
 
-        profile = aircraft_profile(aircraft, cruise_tas_kt, fuel_burn_gph)
+        profile = aircraft_profile(aircraft, cruise_tas_kt, fuel_burn_gph, usable_fuel_gal)
         fix_list = navlog.fixes(r.dep_ident, r.dest_ident, r.start, r.end, selected)
+        fcst_hr = forecast_hour_for(depart)
 
         yield line(NavLogStage(detail="Planning cruise altitudes (airspace, obstacles, aircraft performance and winds)…"))
         # On a side thread with a heartbeat, not inline: an uncached
@@ -214,7 +241,7 @@ def navlog_stream(
         # it -- and beside a pilot's own altitude as well, as what the
         # planner would have flown.
         with ThreadPoolExecutor(max_workers=1) as altitude_pool:
-            future = altitude_pool.submit(planned_altitudes, r, fix_list, profile, aircraft, altitude_choice)
+            future = altitude_pool.submit(planned_altitudes, r, fix_list, profile, aircraft, altitude_choice, fcst_hr)
             while True:
                 try:
                     altitude_selection, options, chosen, failure = future.result(timeout=8)
@@ -232,6 +259,7 @@ def navlog_stream(
                 yield line(NavLogAltitude(
                     altitude_ft=altitude_selection.get("recommended_ft") or 0.0,
                     altitude_selection=altitude_selection,
+                    winds_forecast_hr=fcst_hr,
                     aircraft={"name": aircraft, **profile},
                 ))
                 yield line(NavLogError(detail=str(failure)))
@@ -252,6 +280,7 @@ def navlog_stream(
             altitude_selection=altitude_selection,
             options=options,
             choice=choice,
+            winds_forecast_hr=fcst_hr,
             aircraft={"name": aircraft, **profile},
         ))
 
@@ -259,18 +288,13 @@ def navlog_stream(
             for leg in leg_list:
                 yield line(NavLogLeg.model_validate(leg))
         else:
-            yield line(NavLogStage(detail="Fetching winds aloft from aviationweather.gov…"))
-            leg_list = []
-            for a, b in pairwise(fix_list):
-                leg = navlog.leg_between(a, b, altitude_ft, profile)
-                leg_list.append(leg)
-                # The first leg's own wind lookup is the one that actually
-                # pays for the aviationweather.gov round trip (later legs
-                # hit vfr.weather's own 15-minute cache) -- yielding this
-                # leg right away, rather than batching all of them into
-                # the final "done" line, is most of why this streams.
+            # A pilot's own altitude: the legs at it, the climb from the
+            # field flown on the first of them. The winds were read for
+            # the plans a moment ago, so this is quick.
+            leg_list = navlog.with_climbs(navlog.legs(fix_list, altitude_ft, profile, fcst_hr), departure_elevation(r), profile)
+            for leg in leg_list:
                 yield line(NavLogLeg.model_validate(leg))
 
-        yield line(NavLogDone(totals=navlog.totals(leg_list)))
+        yield line(NavLogDone(totals=flight_totals(leg_list, profile, r, depart)))
 
     return ndjson(lines(), NavLogError)

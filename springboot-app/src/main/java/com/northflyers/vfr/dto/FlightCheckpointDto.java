@@ -2,7 +2,8 @@ package com.northflyers.vfr.dto;
 
 /** One line of a filed nav log -- see {@link com.northflyers.vfr.domain.FlightCheckpoint}
  *  for why the leg fields are nullable (the destination row has none,
- *  and an unflyable leg has no groundspeed/ETE/fuel answer). */
+ *  and an unflyable leg has no groundspeed/ETE/fuel answer), and why
+ *  each row carries its own altitude. */
 public record FlightCheckpointDto(
         int sequenceNo,
         String name,
@@ -15,5 +16,6 @@ public record FlightCheckpointDto(
         Double magneticHeadingDeg,
         Double groundspeedKt,
         Double eteMin,
-        Double fuelGal) {
+        Double fuelGal,
+        Double altitudeFt) {
 }

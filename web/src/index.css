@@ -70,6 +70,14 @@ input, select, textarea {
   .flight-briefing details > *:not(summary) {
     display: block !important;
   }
+  /* The nav log is a wide table -- twelve columns, plus the blank ATA
+     and fuel-remaining columns a pilot fills in by hand in flight --
+     and reads as one on a landscape page; portrait squeezes it to
+     unreadable. Tight margins for the same reason. */
+  @page {
+    size: landscape;
+    margin: 10mm;
+  }
 }
 
 @theme inline {

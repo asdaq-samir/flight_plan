@@ -64,7 +64,11 @@ export default function AltitudeReasoning({ nav, bearingDeg }: Props) {
   // The profile is the planner's own aircraft file, whatever it holds;
   // the service ceiling is one of its required fields.
   const serviceCeilingFt = (nav.aircraft as { service_ceiling_ft?: number }).service_ceiling_ft ?? null;
-  const eastbound = bearingDeg !== null && ((bearingDeg % 360) + 360) % 360 < 180;
+  // The rule is written for magnetic course; the planner reports the
+  // one it used, and the true course stands in for an older planner.
+  const courseDeg = s.course_magnetic_deg ?? bearingDeg;
+  const courseKind = s.course_magnetic_deg !== null && s.course_magnetic_deg !== undefined ? "magnetic" : "true";
+  const eastbound = courseDeg !== null && ((courseDeg % 360) + 360) % 360 < 180;
 
   const ceilingParts: string[] = [
     s.airspace_ceiling_ft !== null ? `the Class B shelf at ${altFt(s.airspace_ceiling_ft)} ft` : "no Class B shelf across the route",
@@ -113,7 +117,7 @@ export default function AltitudeReasoning({ nav, bearingDeg }: Props) {
       </li>
       <li>
         <b>The rule.</b>{" "}
-        {bearingDeg !== null ? `A true course of ${deg(bearingDeg)} is ` : "The course is "}
+        {courseDeg !== null ? `A ${courseKind} course of ${deg(courseDeg)} is ` : "The course is "}
         {eastbound ? "eastbound (000–179°): odd thousands plus 500 ft" : "westbound (180–359°): even thousands plus 500 ft"}
         {" "}(14 CFR 91.159).{" "}
         {s.candidates_ft.length > 0
@@ -128,7 +132,7 @@ export default function AltitudeReasoning({ nav, bearingDeg }: Props) {
           <b>Three plans.</b>{" "}
           {nav.options.map(o => (
             `${KIND_LABEL[o.kind]}: ${describeSteps(o)}, ${describeTime(o)}`
-            + (o.climb_penalty_min > 0 ? ` with ${Math.round(o.climb_penalty_min)} min of climb charged` : "")
+            + (o.climb_penalty_min > 0 ? `, ${Math.round(o.climb_penalty_min)} min of it climbing` : "")
             + (o.tailwind_kt !== null ? `, ${Math.abs(Math.round(o.tailwind_kt))} kt ${o.tailwind_kt >= 0 ? "tailwind" : "headwind"} on average` : "")
             + "."
           )).join(" ")}

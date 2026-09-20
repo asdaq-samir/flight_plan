@@ -64,6 +64,7 @@ export interface AircraftChoice {
   label: string;
   cruiseTasKt?: number;
   fuelBurnGph?: number;
+  usableFuelGal?: number;
   aircraftId?: number;
 }
 /** One line of the per-checkpoint description stream. */
@@ -84,6 +85,9 @@ export interface NavLog {
    *  the pilot supplied the altitude. */
   options: AltitudeOption[];
   choice: AltitudeChoice | null;
+  /** Which winds-aloft forecast period the legs were flown on: "06",
+   *  "12" or "24" hours out, from the departure time. */
+  winds_forecast_hr: string;
   aircraft: AircraftProfile;
 }
 
@@ -165,6 +169,9 @@ export interface Aircraft {
   typeDesignator: string;
   cruiseTasKt: number;
   fuelBurnGph: number;
+  /** What the tanks hold for the trip and the reserve; null when the
+   *  owner has not said, and then the nav log makes no fuel check. */
+  usableFuelGal: number | null;
   createdAt: string;
 }
 
@@ -173,6 +180,7 @@ export interface AircraftRequest {
   typeDesignator: string;
   cruiseTasKt: number;
   fuelBurnGph: number;
+  usableFuelGal: number | null;
 }
 
 /** One row of "My Flights" -- totals only; `Flight` (below) carries
@@ -203,6 +211,8 @@ export interface FlightCheckpointRequest {
   groundspeedKt: number | null;
   eteMin: number | null;
   fuelGal: number | null;
+  /** The altitude of the leg arriving here -- a plan may step. */
+  altitudeFt: number | null;
 }
 
 export interface Flight extends FlightSummary {
