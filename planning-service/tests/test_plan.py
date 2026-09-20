@@ -12,6 +12,8 @@ from vfr import navlog
 from app import scoring
 from app.main import app
 
+from .conftest import select_cruise_altitude_stub
+
 client = TestClient(app)
 
 CANDIDATES = [
@@ -35,7 +37,7 @@ def _leg(start, end, altitude_ft, profile) -> dict:
 @pytest.fixture(autouse=True)
 def _stubbed_world(monkeypatch, altitude):
     monkeypatch.setattr(scoring, "invoke_model", lambda dep, dest, model=None: {"checkpoints": [dict(c) for c in CANDIDATES]})
-    monkeypatch.setattr(altitude_module, "select_cruise_altitude", lambda start, end, profile: dict(altitude))
+    monkeypatch.setattr(altitude_module, "select_cruise_altitude", select_cruise_altitude_stub(altitude))
     monkeypatch.setattr(navlog, "assemble_leg", _leg)
 
 
@@ -60,11 +62,34 @@ def test_plan_returns_legs_with_from_and_to_and_totals():
     assert body["totals"]["unflyable_legs"] == 0
     assert body["altitude_ft"] == 4500.0
     assert body["aircraft"]["name"] == "c172" and body["aircraft"]["cruise_tas_kt"] > 0
+    # The three plans, the lowest flown unless asked otherwise. One legal
+    # altitude here, so all three are the same plan.
+    assert [o["kind"] for o in body["altitude_options"]] == ["lowest", "highest", "fastest"]
+    assert body["altitude_choice"] == "lowest"
+    assert body["altitude_options"][0]["steps"] == [
+        {"from": "C81", "to": "KDLH", "altitude_ft": 4500.0, "distance_nm": 30.0},
+    ]
+    assert body["altitude_options"][2]["total_min"] >= body["altitude_options"][2]["ete_min"]
+
+
+def test_plan_flies_the_plan_the_pilot_chose():
+    resp = client.get("/api/plan", params={"dep": "C81", "dest": "KDLH", "altitude_choice": "fastest"})
+
+    assert resp.status_code == 200
+    assert resp.json()["altitude_choice"] == "fastest"
+
+
+def test_plan_with_a_pilots_own_altitude_offers_no_plans():
+    resp = client.get("/api/plan", params={"dep": "C81", "dest": "KDLH", "altitude_ft": 3500})
+
+    body = resp.json()
+    assert body["altitude_ft"] == 3500.0
+    assert body["altitude_selection"] is None and body["altitude_options"] == [] and body["altitude_choice"] is None
 
 
 def test_plan_refuses_a_route_with_no_legal_altitude(monkeypatch, altitude):
     monkeypatch.setattr(altitude_module, "select_cruise_altitude",
-                        lambda start, end, profile: {**altitude, "recommended_ft": None})
+                        select_cruise_altitude_stub({**altitude, "recommended_ft": None}))
 
     resp = client.get("/api/plan", params={"dep": "C81", "dest": "KDLH"})
 
@@ -82,6 +107,16 @@ def test_navlog_streams_altitude_then_legs_then_done(messages):
     legs = [m for m in lines if m["type"] == "leg"]
     assert legs[0]["from"] == "C81" and legs[0]["wind"]["wind_speed_kt"] == 15.0
     assert lines[-1]["totals"]["distance_nm"] == 10.0 * len(legs)
+    altitude = next(m for m in lines if m["type"] == "altitude")
+    assert [o["kind"] for o in altitude["options"]] == ["lowest", "highest", "fastest"]
+    assert altitude["choice"] == "lowest" and altitude["altitude_ft"] == 4500.0
+
+
+def test_navlog_flies_the_chosen_plan_and_says_so(messages):
+    resp = client.get("/api/navlog", params={"dep": "C81", "dest": "KDLH", "altitude_choice": "highest"})
+
+    altitude = next(m for m in messages(resp) if m["type"] == "altitude")
+    assert altitude["choice"] == "highest"
 
 
 def test_navlog_flies_a_pilots_own_aeroplane_over_a_stock_profile(messages):
@@ -98,7 +133,7 @@ def test_navlog_flies_a_pilots_own_aeroplane_over_a_stock_profile(messages):
 
 def test_navlog_reports_an_unflyable_route_as_an_error_line(monkeypatch, altitude, messages):
     monkeypatch.setattr(altitude_module, "select_cruise_altitude",
-                        lambda start, end, profile: {**altitude, "recommended_ft": None})
+                        select_cruise_altitude_stub({**altitude, "recommended_ft": None}))
 
     resp = client.get("/api/navlog", params={"dep": "C81", "dest": "KDLH"})
 

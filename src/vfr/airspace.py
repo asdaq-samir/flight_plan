@@ -352,6 +352,36 @@ def max_airspace_altitude_msl(route_start: tuple, route_end: tuple, shp_path) ->
     return min(floors) if floors else None
 
 
+def airspace_ceiling_profile(route_start: tuple, route_end: tuple, fixes: list, shp_path) -> list:
+    """max_airspace_altitude_msl for each leg of the nav log -- the lowest
+    Class B shelf floor the leg between consecutive `fixes` ((lat, lon)
+    pairs, the route's ends included) passes laterally under, or None
+    where it passes under none. Where the whole route's ceiling is the
+    lowest shelf anywhere along it, this is the shelf over each leg, so
+    a route can cruise low under the Bravo by the departure and climb
+    once past it. The route's own surface areas are excluded on the
+    whole route's ends, as in max_airspace_altitude_msl: a leg that
+    starts at the departure begins inside that airport's airspace just
+    as the route does.
+    """
+    from .geo import corridor_bbox
+
+    bbox = corridor_bbox(route_start, route_end, buffer_nm=2.0)
+    start_point = Point(route_start[1], route_start[0])
+    end_point = Point(route_end[1], route_end[0])
+    shelves = [
+        p for p in load_controlled_airspace(shp_path, bbox)
+        if p["class"] in CLEARANCE_CLASSES and not is_own_surface_area(p, start_point, end_point)
+    ]
+
+    ceilings = []
+    for (lat1, lon1), (lat2, lon2) in zip(fixes, fixes[1:]):
+        leg_line = LineString([(lon1, lat1), (lon2, lat2)])
+        floors = [p["floor_ft_msl"] for p in shelves if leg_line.intersects(p["geometry"])]
+        ceilings.append(min(floors) if floors else None)
+    return ceilings
+
+
 def airspace_transits(route_start: tuple, route_end: tuple, shp_path) -> list:
     """Controlled airspace the route line passes laterally through, in
     along-route order, as {"name", "class", "floor_ft_msl", "requires"}.

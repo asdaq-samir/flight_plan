@@ -113,7 +113,7 @@ once in ten.
 | `GET /` | Says the service is up and where the UI went. |
 | `GET /api/course` | The leg itself. Sub-second, so the map draws immediately. |
 | `GET /api/checkpoints` | Scored candidates and the subset worth flying. |
-| `GET /api/navlog` | Altitude and the dead-reckoning legs, streamed as NDJSON. The slow one. |
+| `GET /api/navlog` | The three altitude plans (lowest, highest, fastest for the winds, each stepping under a Class B shelf and up past it), the one chosen (`altitude_choice`), and the dead-reckoning legs, streamed as NDJSON. The slow one. |
 | `GET /api/plan` | All three at once, for non-browser callers. |
 | `GET /api/briefing` | The FAA-sequence weather briefing behind Plan's briefing (the nav log drawer opened wide). |
 | `GET /api/altitude-breakdown` | The reasoning behind a recommended cruise altitude. |

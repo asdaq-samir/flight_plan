@@ -1,5 +1,6 @@
 import type {
-  Aircraft, AircraftChoice, AircraftProfileSummary, AircraftRequest, AirportSearch, Briefing, BuildJob, BuiltRoutes,
+  Aircraft, AircraftChoice, AircraftProfileSummary, AircraftRequest, AirportSearch, AltitudeChoice, Briefing, BuildJob,
+  BuiltRoutes,
   CheckpointDescriptionMessage, CheckpointNoteSaved, Checkpoints, Classification, Course, Flight, FlightSummary,
   ModelComparison, NarrativeMessage, NarrativeRequest, NavLogMessage, PickDeleted, PickSaved, PicksResponse, Pilot,
   Rating, RetrainStarted, Role, SaveFlightRequest, Status, StreamMessage,
@@ -119,9 +120,14 @@ export const api = {
    * chart, and streamed rather than one blocking response so a pilot
    * sees which of those it's actually doing right now.
    */
-  navlog(dep: string, dest: string, altitudeFt?: string, aircraft?: AircraftChoice): AsyncGenerator<NavLogMessage> {
+  navlog(
+    dep: string, dest: string, altitudeFt?: string, aircraft?: AircraftChoice, altitudeChoice?: AltitudeChoice,
+  ): AsyncGenerator<NavLogMessage> {
     const params = new URLSearchParams({ dep, dest });
     if (altitudeFt) params.set("altitude_ft", altitudeFt);
+    // Which of the planner's three plans the legs fly; only meaningful
+    // without a typed altitude, and the planner's default is lowest.
+    if (altitudeChoice && altitudeChoice !== "lowest") params.set("altitude_choice", altitudeChoice);
     if (aircraft) {
       params.set("aircraft", aircraft.profile);
       if (aircraft.cruiseTasKt != null) params.set("cruise_tas_kt", String(aircraft.cruiseTasKt));

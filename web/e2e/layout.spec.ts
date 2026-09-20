@@ -463,16 +463,29 @@ test("plan page: the nav log's altitude opens the planner's own reasoning, and t
   await page.getByTestId("sidebar-trigger-button").click();
   // The altitude arrives with the nav log stream, after the checkpoints.
   const why = page.getByTestId("altitude-why");
-  await expect(why).toBeVisible({ timeout: 30000 });
-  await expect(why).toContainText(/\d ft · auto/);
+  await expect(why).toBeVisible({ timeout: 60000 });
+  await expect(why).toContainText(/\d ft · lowest/);
   await why.click();
   const popover = page.locator("[data-slot=popover-content]");
   await expect(popover).toBeVisible();
   await expect(popover).toContainText("Floor");
   await expect(popover).toContainText("Ceiling");
   await expect(popover).toContainText("14 CFR 91.159");
+  await expect(popover).toContainText("Three plans");
   await expect(popover).toContainText("Checked, not part of the choice");
+  // The three plans are buttons, the flown one pressed; picking another
+  // re-plans on it and the URL carries the choice.
+  for (const kind of ["lowest", "highest", "fastest"]) {
+    await expect(popover.getByTestId(`altitude-plan-${kind}`)).toBeVisible();
+  }
+  await expect(popover.getByTestId("altitude-plan-lowest")).toHaveAttribute("aria-pressed", "true");
+  await popover.getByTestId("altitude-plan-fastest").click();
+  await expect(page).toHaveURL(/[?&]altitude_choice=fastest/);
+  await expect(page.getByTestId("altitude-why")).toContainText("fastest", { timeout: 30000 });
   // Escape closes the popover and leaves the drawer open.
+  await page.getByTestId("altitude-why").click();
+  await expect(popover).toBeVisible();
+  await expect(popover.getByTestId("altitude-plan-fastest")).toHaveAttribute("aria-pressed", "true");
   await page.keyboard.press("Escape");
   await expect(popover).toHaveCount(0);
   await expect(page.locator('[data-slot="map-drawer"]')).toBeVisible();

@@ -6,7 +6,10 @@ end, built into `webapp`'s jar and served from `/app`. Three pages:
 - `/app/plan` — the app's homepage (bare `/app` redirects here). Enter a
   departure and destination; get the charted course, scored checkpoints
   and the nav log, in a drawer beside the map. Walk its checkpoints
-  with the arrow keys or a click and the map follows. Opened wide
+  with the arrow keys or a click and the map follows. The altitude
+  in its header opens the planner's reasoning and its three plans,
+  lowest, highest and fastest for the winds, one click to fly another.
+  Opened wide
   (`?view=briefing`, or `n`), the same drawer is the FAA-sequence
   briefing: the nav log with the briefing's sections under it, an AI
   narrative popover (LangGraph or CrewAI, each a real Claude call) and

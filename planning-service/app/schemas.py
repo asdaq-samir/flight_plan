@@ -116,12 +116,29 @@ class AirspaceTransit(BaseModel):
     along_track_nm: float
 
 
+class AltitudeSegment(BaseModel):
+    """One leg's own band: its floor, the shelf over it alone, and the
+    legal cruising altitudes between -- what lets a plan step down under
+    a Class B shelf and climb again past it."""
+
+    from_nm: float
+    to_nm: float
+    floor_ft: float
+    airspace_ceiling_ft: float | None
+    band_ceiling_ft: float | None
+    candidates_ft: list[float]
+
+
 class AltitudeBreakdown(BaseModel):
     """The full reasoning behind one recommended cruise altitude.
     `low_ceiling_or_visibility` is None, not False, when the forecast
-    call itself failed: unknown must not read as confirmed fine."""
+    call itself failed: unknown must not read as confirmed fine.
+    `candidates_ft` are every legal altitude for the whole route;
+    `segments` the same leg by leg, present when the nav log's fixes
+    were known."""
 
     recommended_ft: float | None
+    candidates_ft: list[float] = []
     floor_ft: float
     airspace_ceiling_ft: float | None
     airspace_transits: list[AirspaceTransit]
@@ -132,6 +149,39 @@ class AltitudeBreakdown(BaseModel):
     hazards: list[Hazard]
     low_ceiling_or_visibility: bool | None
     weather_unavailable: list[Literal["freezing_level", "ceiling_visibility", "hazards"]] = []
+    segments: list[AltitudeSegment] = []
+
+
+AltitudeChoice = Literal["lowest", "highest", "fastest"]
+
+
+class AltitudeStep(BaseModel):
+    """Consecutive legs flown at one altitude."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    from_: str = Field(alias="from")
+    to: str
+    altitude_ft: float
+    distance_nm: float
+
+
+class AltitudeOption(BaseModel):
+    """One of the three plans -- lowest, highest, fastest -- as its steps
+    and what it costs. `total_min` is the flying time plus what the
+    climbs cost (`climb_penalty_min`), the figure the plans are compared
+    on; `tailwind_kt` the distance-weighted wind component along the
+    course, positive helping, over the legs that had wind data."""
+
+    kind: AltitudeChoice
+    steps: list[AltitudeStep]
+    ete_min: float | None
+    fuel_gal: float | None
+    climb_penalty_min: float
+    total_min: float | None
+    tailwind_kt: float | None
+    unflyable_legs: int
+    legs_without_wind: int
 
 
 class AircraftProfile(BaseModel):
@@ -156,6 +206,8 @@ class Plan(BaseModel):
     totals: Totals
     altitude_ft: float
     altitude_selection: AltitudeBreakdown | None
+    altitude_options: list[AltitudeOption] = []
+    altitude_choice: AltitudeChoice | None = None
     aircraft: AircraftProfile
     max_zoom: int
     min_zoom: int
@@ -348,9 +400,15 @@ class NavLogError(BaseModel):
 
 
 class NavLogAltitude(BaseModel):
+    """`altitude_ft` is the first leg's; a plan may step. `options` are
+    the three plans and `choice` the one the legs that follow fly --
+    both empty when the pilot supplied an altitude."""
+
     type: Literal["altitude"] = "altitude"
     altitude_ft: float
     altitude_selection: AltitudeBreakdown | None
+    options: list[AltitudeOption] = []
+    choice: AltitudeChoice | None = None
     aircraft: AircraftProfile
 
 

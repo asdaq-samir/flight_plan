@@ -13,12 +13,21 @@ project's whole point is hands-on practice, so that structure is worth the
 small amount of duplication against this module -- verified this module's
 output matches the notebook's exactly (2200ft floor / 3600ft ceiling /
 2500ft recommended on the live C81->KDLH route) rather than assuming it.
+
+Given the nav log's fixes, the same floor and ceiling are also worked out
+leg by leg (`segments`), so a route can step down under a Class B shelf
+and climb again past it rather than fly the whole way at the lowest
+altitude the lowest shelf allows -- vfr.navlog.altitude_profiles turns
+those per-leg bands into the lowest, highest and fastest plans.
 """
 from concurrent.futures import ThreadPoolExecutor
 
 from . import airspace, terrain, weather
-from .geo import bearing_deg
+from .geo import along_track_distance_nm, bearing_deg, distance_nm
 from .terrain import DEFAULT_FAA_CACHE_DIR
+
+# Class A begins at 18,000 ft: no VFR cruising above 17,500.
+CLASS_A_FLOOR_FT = 18000.0
 
 
 def lowest_vfr_cruising_altitude(floor_ft: float, route_bearing_deg: float) -> float:
@@ -41,7 +50,8 @@ def lowest_vfr_cruising_altitude(floor_ft: float, route_bearing_deg: float) -> f
     terrain and obstacle clearance, so the first legal altitude above it
     is a real cruising altitude, and climbing past it costs time and fuel
     on a short leg for nothing the pilot asked for. Anyone wanting to be
-    higher -- smoother air, glide range, a tailwind aloft -- can say so.
+    higher -- smoother air, glide range, a tailwind aloft -- can say so,
+    or take the highest or fastest of the three plans the nav log offers.
     """
     is_eastbound = 0 <= route_bearing_deg % 360 < 180
     thousands = int(floor_ft // 1000)
@@ -55,17 +65,47 @@ def lowest_vfr_cruising_altitude(floor_ft: float, route_bearing_deg: float) -> f
     return float(candidate_ft)
 
 
+def legal_cruising_altitudes(floor_ft: float, ceiling_ft: float | None, route_bearing_deg: float) -> list:
+    """Every legal VFR cruising altitude for the course from the floor up
+    to the ceiling, ascending -- the hemispheric altitudes 2,000 ft
+    apart, capped under Class A when there is no ceiling. Empty when the
+    first legal altitude above the floor is already above the ceiling.
+    """
+    top = CLASS_A_FLOOR_FT - 500
+    if ceiling_ft is not None:
+        top = min(top, ceiling_ft)
+    altitudes = []
+    candidate_ft = lowest_vfr_cruising_altitude(floor_ft, route_bearing_deg)
+    while candidate_ft <= top:
+        altitudes.append(candidate_ft)
+        candidate_ft += 2000
+    return altitudes
+
+
 def select_cruise_altitude(
     route_start: tuple,
     route_end: tuple,
     aircraft_profile: dict,
     faa_cache_dir=DEFAULT_FAA_CACHE_DIR,
+    fixes: list | None = None,
 ) -> dict:
     """Returns a dict with the recommended altitude (None if no legal VFR
     altitude exists for this route/aircraft) plus the floor/ceiling
     components and weather go/no-go flags that produced it.
+
+    `fixes`, the nav log's (lat, lon) fixes from departure to destination,
+    adds `segments`: the floor, ceiling and legal altitudes of each leg
+    between them, for the stepped plans. Without them the route is one
+    segment, as it always was.
     """
     route_bearing_deg = bearing_deg(*route_start, *route_end)
+    total_nm = distance_nm(*route_start, *route_end)
+    # Along-track breakpoints for the floor: the fixes' own positions
+    # projected onto the direct line, pinned to the route's ends.
+    breaks_nm = [0.0, total_nm]
+    if fixes and len(fixes) > 2:
+        inner = [along_track_distance_nm(lat, lon, route_start, route_end) for lat, lon in fixes[1:-1]]
+        breaks_nm = [0.0] + [min(max(b, 0.0), total_nm) for b in inner] + [total_nm]
 
     # ensure_class_airspace_shapefile runs first, on its own -- both
     # airspace calls below need its result, so there's nothing to gain
@@ -79,8 +119,11 @@ def select_cruise_altitude(
     mid_lon = (route_start[1] + route_end[1]) / 2
 
     with ThreadPoolExecutor(max_workers=5) as pool:
-        floor_future = pool.submit(terrain.min_safe_altitude_msl, route_start, route_end, faa_cache_dir=faa_cache_dir)
-        airspace_ceiling_future = pool.submit(airspace.max_airspace_altitude_msl, route_start, route_end, shp_path)
+        floor_future = pool.submit(terrain.floor_profile, route_start, route_end, breaks_nm, faa_cache_dir=faa_cache_dir)
+        if fixes:
+            airspace_future = pool.submit(airspace.airspace_ceiling_profile, route_start, route_end, fixes, shp_path)
+        else:
+            airspace_future = pool.submit(airspace.max_airspace_altitude_msl, route_start, route_end, shp_path)
         # Class C/D along the way are not a ceiling -- two-way comms is
         # all they take -- but a pilot still wants to know they are coming.
         transits_future = pool.submit(airspace.airspace_transits, route_start, route_end, shp_path)
@@ -100,8 +143,9 @@ def select_cruise_altitude(
         # recommendation with a note about what's missing, not a rewritten
         # icing/ceiling/hazard verdict pretending the missing source
         # means "no concern found."
-        floor_ft = floor_future.result()
-        airspace_ceiling_ft = airspace_ceiling_future.result()
+        floors_ft = floor_future.result()
+        airspace_result = airspace_future.result()
+        airspace_ceilings_ft = airspace_result if fixes else [airspace_result]
         transits = transits_future.result()
 
         weather_unavailable = []
@@ -121,8 +165,17 @@ def select_cruise_altitude(
             hazards = []
             weather_unavailable.append("hazards")
 
-    ceilings = [c for c in [airspace_ceiling_ft, freezing_level_ft, aircraft_profile["service_ceiling_ft"]] if c is not None]
-    band_ceiling_ft = min(ceilings) if ceilings else None
+    def band_ceiling(airspace_ceiling_ft):
+        ceilings = [c for c in [airspace_ceiling_ft, freezing_level_ft, aircraft_profile["service_ceiling_ft"]] if c is not None]
+        return min(ceilings) if ceilings else None
+
+    # The whole route's own band: the highest floor and the lowest
+    # shelf anywhere along it -- the altitude that works everywhere.
+    floor_ft = max(floors_ft)
+    shelf_floors = [c for c in airspace_ceilings_ft if c is not None]
+    airspace_ceiling_ft = min(shelf_floors) if shelf_floors else None
+    band_ceiling_ft = band_ceiling(airspace_ceiling_ft)
+    candidates_ft = legal_cruising_altitudes(floor_ft, band_ceiling_ft, route_bearing_deg)
 
     # The lowest legal VFR cruising altitude at or above the floor, not
     # the highest one under the ceiling.
@@ -140,11 +193,22 @@ def select_cruise_altitude(
     # leg and buys nothing a pilot asked for. Anyone who wants to be
     # higher -- smoother air, better glide range, a tailwind aloft -- can
     # say so; the planner takes an explicit altitude.
-    recommended_ft = None
-    if band_ceiling_ft is None or floor_ft <= band_ceiling_ft:
-        candidate_ft = lowest_vfr_cruising_altitude(floor_ft, route_bearing_deg)
-        if band_ceiling_ft is None or candidate_ft <= band_ceiling_ft:
-            recommended_ft = candidate_ft
+    recommended_ft = candidates_ft[0] if candidates_ft else None
+
+    # Leg by leg, for the stepped plans: each leg's own floor and the
+    # shelf over it alone, so a leg past the Bravo is free of it.
+    segments = []
+    if fixes:
+        for i, (a, b) in enumerate(zip(breaks_nm, breaks_nm[1:])):
+            segment_ceiling_ft = band_ceiling(airspace_ceilings_ft[i])
+            segments.append({
+                "from_nm": round(a, 1),
+                "to_nm": round(b, 1),
+                "floor_ft": floors_ft[i],
+                "airspace_ceiling_ft": airspace_ceilings_ft[i],
+                "band_ceiling_ft": segment_ceiling_ft,
+                "candidates_ft": legal_cruising_altitudes(floors_ft[i], segment_ceiling_ft, route_bearing_deg),
+            })
 
     # None (not False) when ceiling_visibility_along_route itself failed --
     # "unknown" must not read as "confirmed VFR-favorable" to a caller
@@ -157,6 +221,7 @@ def select_cruise_altitude(
 
     return {
         "recommended_ft": recommended_ft,
+        "candidates_ft": candidates_ft,
         "floor_ft": floor_ft,
         "airspace_ceiling_ft": airspace_ceiling_ft,
         "airspace_transits": transits,
@@ -167,4 +232,5 @@ def select_cruise_altitude(
         "hazards": hazards,
         "low_ceiling_or_visibility": low_ceiling_vis,
         "weather_unavailable": weather_unavailable,
+        "segments": segments,
     }

@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
 import { cn } from "cn";
 import { api } from "../../lib/api/client";
-import type { AircraftChoice, AircraftProfileSummary, Candidate } from "../../lib/api/types";
+import type { AircraftChoice, AircraftProfileSummary, AltitudeChoice, Candidate } from "../../lib/api/types";
 import { identSchema } from "../../lib/identSchema";
 // Without this Leaflet's tiles, markers and controls have no
 // positioning at all -- this is the library's own stylesheet, not
@@ -52,6 +52,12 @@ function storedAircraft(): AircraftChoice {
   return DEFAULT_AIRCRAFT;
 }
 
+/** Which of the three altitude plans the log flies -- lowest unless the
+ *  URL says otherwise, since it is the predictable one. */
+function altitudeChoiceOf(value: string | null): AltitudeChoice {
+  return value === "highest" || value === "fastest" ? value : "lowest";
+}
+
 /** One value per choice for the Select: a pilot's own by id, a stock
  *  profile by name. */
 function aircraftKey(a: AircraftChoice): string {
@@ -89,6 +95,7 @@ export default function PlanView() {
   const [dep, setDep] = useState(searchParams.get("dep")?.toUpperCase() ?? "");
   const [dest, setDest] = useState(searchParams.get("dest")?.toUpperCase() ?? "");
   const [alt, setAlt] = useState(searchParams.get("altitude_ft") ?? "");
+  const [altitudeChoice, setAltitudeChoice] = useState<AltitudeChoice>(() => altitudeChoiceOf(searchParams.get("altitude_choice")));
   const [aircraft, setAircraft] = useState<AircraftChoice>(storedAircraft);
   // The stock profiles, plus a signed-in pilot's own aeroplanes on top
   // of them -- the same ["pilot"]/["aircraft"] queries the pilot
@@ -176,7 +183,7 @@ export default function PlanView() {
       const a = searchParams.get("dest")?.toUpperCase() || first.destination_ident;
       setDep(d);
       setDest(a);
-      void plan(d, a, searchParams.get("altitude_ft") ?? undefined, aircraft);
+      void plan(d, a, searchParams.get("altitude_ft") ?? undefined, aircraft, altitudeChoiceOf(searchParams.get("altitude_choice")));
     })();
     // started.current makes this genuinely run-once on mount regardless
     // of the deps array below; loadRoutes/plan/searchParams/aircraft are
@@ -213,10 +220,11 @@ export default function PlanView() {
     if (!d || !a || d === a) return;
     const next: Record<string, string> = { dep: d, dest: a };
     if (alt.trim()) next.altitude_ft = alt.trim();
+    if (altitudeChoice !== "lowest") next.altitude_choice = altitudeChoice;
     if (briefing) next.view = "briefing";
     setSearchParams(next, { replace: true });
-    void plan(d, a, alt.trim() || undefined, aircraft);
-  }, [dep, dest, alt, briefing, plan, setSearchParams, aircraft]);
+    void plan(d, a, alt.trim() || undefined, aircraft, altitudeChoice);
+  }, [dep, dest, alt, altitudeChoice, briefing, plan, setSearchParams, aircraft]);
 
   // A different aeroplane means different legs: remembered, then
   // re-planned right away for the route on screen.
@@ -226,8 +234,23 @@ export default function PlanView() {
     setAircraft(next);
     try { localStorage.setItem(AIRCRAFT_KEY, JSON.stringify(next)); } catch { /* storage refused */ }
     const d = identSchema.safeParse(dep).data, a = identSchema.safeParse(dest).data;
-    if (d && a && d !== a) void plan(d, a, alt.trim() || undefined, next);
-  }, [aircraftOptions, dep, dest, alt, plan]);
+    if (d && a && d !== a) void plan(d, a, alt.trim() || undefined, next, altitudeChoice);
+  }, [aircraftOptions, dep, dest, alt, altitudeChoice, plan]);
+
+  // A different plan -- lowest, highest, fastest -- means different
+  // legs too: kept in the URL like the altitude itself, so a link or
+  // the Dev switch carries it, then re-planned right away.
+  const changeAltitudeChoice = useCallback((choice: AltitudeChoice) => {
+    setAltitudeChoice(choice);
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      if (choice === "lowest") next.delete("altitude_choice");
+      else next.set("altitude_choice", choice);
+      return next;
+    }, { replace: true });
+    const d = identSchema.safeParse(dep).data, a = identSchema.safeParse(dest).data;
+    if (d && a && d !== a) void plan(d, a, alt.trim() || undefined, aircraft, choice);
+  }, [dep, dest, alt, aircraft, plan, setSearchParams]);
 
   // The map's own half of point selection -- clicking a checkpoint
   // marker focuses the same point the matching nav log row would.
@@ -383,6 +406,7 @@ export default function PlanView() {
   const navLog = (
     <NavLogView
       totals={s.totals} nav={s.nav} courseBearingDeg={s.course?.bearing_deg ?? null} legs={s.legs}
+      altitudeChoice={altitudeChoice} onAltitudeChoiceChange={changeAltitudeChoice}
       dep={dep} dest={dest}
       depName={s.course?.departure.name ?? null} destName={s.course?.destination.name ?? null}
       depLat={s.course?.departure.lat ?? 0} depLon={s.course?.departure.lon ?? 0}

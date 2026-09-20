@@ -6,7 +6,7 @@ import time
 
 from vfr import aircraft as aircraft_module
 from vfr import altitude as altitude_module
-from vfr import geo
+from vfr import geo, navlog
 
 
 def aircraft_profile(name: str, cruise_tas_kt: float | None = None, fuel_burn_gph: float | None = None) -> dict:
@@ -36,16 +36,48 @@ _ALTITUDE_TTL_S = 900
 _ALTITUDE_CACHE_LOCK = threading.Lock()
 
 
-def cruise_altitude(start: tuple, end: tuple, profile: dict, aircraft: str) -> dict:
-    key = (round(start[0], 4), round(start[1], 4), round(end[0], 4), round(end[1], 4), aircraft)
+def cruise_altitude(start: tuple, end: tuple, profile: dict, aircraft: str, fixes: list | None = None) -> dict:
+    """`fixes`, the nav log's own (lat, lon) fixes, add the leg-by-leg
+    segments the stepped plans need; they are part of the key, since a
+    different set of checkpoints is a different set of legs."""
+    key = (
+        round(start[0], 4), round(start[1], 4), round(end[0], 4), round(end[1], 4), aircraft,
+        tuple((round(lat, 4), round(lon, 4)) for lat, lon in fixes) if fixes else None,
+    )
     with _ALTITUDE_CACHE_LOCK:
         hit = _ALTITUDE_CACHE.get(key)
         if hit is not None and time.time() - hit[0] < _ALTITUDE_TTL_S:
             return hit[1]
-    selection = altitude_module.select_cruise_altitude(start, end, profile)
+    # The keyword only when there are fixes: the route-wide callers
+    # (/api/altitude-breakdown, the agents) keep the original call.
+    selection = altitude_module.select_cruise_altitude(start, end, profile, **({"fixes": fixes} if fixes else {}))
     with _ALTITUDE_CACHE_LOCK:
         _ALTITUDE_CACHE[key] = (time.time(), selection)
     return selection
+
+
+# The three plans read the winds at every legal altitude of every leg,
+# and the winds product is reissued a few times a day and held by
+# vfr.weather for the same 15 minutes -- so the plans are held as long,
+# per route, fixes and aeroplane, and switching between them is free.
+_PLANS_CACHE: dict = {}
+_PLANS_CACHE_LOCK = threading.Lock()
+
+
+def altitude_plans(fix_list: list, selection: dict, profile: dict, aircraft: str) -> dict:
+    key = (
+        aircraft, profile.get("cruise_tas_kt"), profile.get("fuel_burn_gph"),
+        tuple((round(f["lat"], 4), round(f["lon"], 4)) for f in fix_list),
+        tuple(tuple(s["candidates_ft"]) for s in selection.get("segments", [])),
+    )
+    with _PLANS_CACHE_LOCK:
+        hit = _PLANS_CACHE.get(key)
+        if hit is not None and time.time() - hit[0] < _ALTITUDE_TTL_S:
+            return hit[1]
+    plans = navlog.altitude_profiles(fix_list, selection.get("segments", []), profile)
+    with _PLANS_CACHE_LOCK:
+        _PLANS_CACHE[key] = (time.time(), plans)
+    return plans
 
 
 def no_altitude_detail(selection: dict) -> str:

@@ -2,7 +2,7 @@ import { useCallback, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { ApiError, api, describeError } from "../../../lib/api/client";
 import type {
-  AircraftChoice, Briefing, BuiltRoute, Candidate, Course, Leg, NavLog, Totals,
+  AircraftChoice, AltitudeChoice, Briefing, BuiltRoute, Candidate, Course, Leg, NavLog, Totals,
 } from "../../../lib/api/types";
 import { elapsed } from "../format";
 
@@ -165,7 +165,9 @@ export function usePlanState() {
     }
   }, [queryClient]);
 
-  const plan = useCallback(async (dep: string, dest: string, altitudeFt?: string, aircraft?: AircraftChoice) => {
+  const plan = useCallback(async (
+    dep: string, dest: string, altitudeFt?: string, aircraft?: AircraftChoice, altitudeChoice?: AltitudeChoice,
+  ) => {
     const token = ++planToken.current;
     describeStarted.current = null;
     describeAbort.current?.abort();
@@ -216,7 +218,7 @@ export function usePlanState() {
 
     let finished = false;
     try {
-      for await (const msg of api.navlog(dep, dest, altitudeFt, aircraft)) {
+      for await (const msg of api.navlog(dep, dest, altitudeFt, aircraft, altitudeChoice)) {
         if (token !== planToken.current) return;
         if (msg.type === "stage") {
           setState(s => ({ ...s, navStage: msg.detail }));

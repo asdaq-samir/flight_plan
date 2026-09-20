@@ -29,6 +29,11 @@ export type Totals = Schemas["Totals"];
 export type Hazard = Schemas["Hazard"];
 export type AirspaceTransit = Schemas["AirspaceTransit"];
 export type AltitudeBreakdown = Schemas["AltitudeBreakdown"];
+export type AltitudeSegment = Schemas["AltitudeSegment"];
+/** One of the three plans: lowest, highest, fastest for the winds. */
+export type AltitudeOption = Schemas["AltitudeOption"];
+export type AltitudeStep = Schemas["AltitudeStep"];
+export type AltitudeChoice = AltitudeOption["kind"];
 export type AircraftProfile = Schemas["AircraftProfile"];
 /** One line of the nav log's stream: "stage" before each piece of work,
  *  "altitude" the moment that's decided, one "leg" per leg, then "done"
@@ -72,8 +77,13 @@ export type CheckpointNoteSaved = Schemas["CheckpointNoteSaved"];
 export interface NavLog {
   legs: Leg[];
   totals: Totals;
+  /** The first leg's -- a plan may step; each leg carries its own. */
   altitude_ft: number;
   altitude_selection: AltitudeBreakdown | null;
+  /** The three plans and the one the legs fly -- empty and null when
+   *  the pilot supplied the altitude. */
+  options: AltitudeOption[];
+  choice: AltitudeChoice | null;
   aircraft: AircraftProfile;
 }
 

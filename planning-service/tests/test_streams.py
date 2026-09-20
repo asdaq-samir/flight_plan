@@ -13,12 +13,14 @@ from app import scoring
 from app.main import app
 from app.routers import chart
 
+from .conftest import select_cruise_altitude_stub
+
 client = TestClient(app)
 
 
 def test_a_weather_failure_mid_navlog_is_the_streams_last_line(monkeypatch, altitude, messages):
     monkeypatch.setattr(scoring, "invoke_model", lambda dep, dest, model=None: {"checkpoints": []})
-    monkeypatch.setattr(altitude_module, "select_cruise_altitude", lambda start, end, profile: dict(altitude))
+    monkeypatch.setattr(altitude_module, "select_cruise_altitude", select_cruise_altitude_stub(altitude))
 
     def no_winds(*args, **kwargs):
         raise WeatherServiceError("aviationweather.gov request failed: timed out")

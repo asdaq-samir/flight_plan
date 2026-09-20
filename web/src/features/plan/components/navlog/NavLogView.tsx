@@ -17,9 +17,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import {
   Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow,
 } from "../../../../components/ui/table";
-import type { Candidate, Leg, NavLog, Totals } from "../../../../lib/api/types";
+import type { AltitudeChoice, Candidate, Leg, NavLog, Totals } from "../../../../lib/api/types";
 import { type Description, descriptionKey } from "../../hooks/usePlanState";
-import { altFt, deg, one, signed, totalsParts } from "../../format";
+import { altFt, deg, describeSteps, describeTime, one, signed, totalsParts } from "../../format";
 
 // TanStack Table's own extension point for arbitrary per-column data --
 // used below to carry each numeric column's shared className (bordered,
@@ -64,6 +64,10 @@ interface Props {
   /** The route's true course -- the hemispheric rule in the altitude's
    *  own "why" popover needs it. null before a course has loaded. */
   courseBearingDeg: number | null;
+  /** Which of the three plans the log flies (lowest, highest, fastest)
+   *  -- picked in the altitude's own popover, which re-plans. */
+  altitudeChoice: AltitudeChoice;
+  onAltitudeChoiceChange: (choice: AltitudeChoice) => void;
   /** The pilot's own cruise-altitude override -- lives here, not the
    *  map header's route form, since this is where the *result*
    *  (`nav.altitude_ft`/`nav.altitude_selection`) already shows: typing
@@ -240,7 +244,8 @@ function DescriptionCell({
  * no leg has been flown yet.
  */
 export default function NavLogView({
-  totals, nav, courseBearingDeg, legs, dep, dest, depName, destName, depLat, depLon, destLat, destLon,
+  totals, nav, courseBearingDeg, altitudeChoice, onAltitudeChoiceChange,
+  legs, dep, dest, depName, destName, depLat, depLon, destLat, destLon,
   selected, depElevationFt, destElevationFt, descriptions, onSaveDescription,
   onGenerateDescriptions, descriptionsLoading, expanded, onToggleExpanded, actions, children,
   selectedPoint, onSelectPoint, alt, onAltChange, onSubmit,
@@ -299,12 +304,13 @@ export default function NavLogView({
         </form>
       ),
       // The last row lands at the destination -- shows its field
-      // elevation, known immediately, rather than the cruise altitude
-      // every checkpoint before it flies at (which isn't known until
-      // the "altitude" message arrives, either -- hence `nav?.`).
+      // elevation, known immediately, rather than a cruise altitude.
+      // A checkpoint's row shows the altitude of the leg that arrives
+      // at it -- a plan may step, so each leg carries its own -- and
+      // the plan's first altitude until that leg streams in.
       cell: ({ row }) => {
-        const { isDeparture, cp } = row.original;
-        return altFt(isDeparture ? depElevationFt : (cp ? nav?.altitude_ft : destElevationFt));
+        const { isDeparture, cp, leg } = row.original;
+        return altFt(isDeparture ? depElevationFt : (cp ? (leg?.altitude_ft ?? nav?.altitude_ft) : destElevationFt));
       },
     },
     {
@@ -549,28 +555,61 @@ export default function NavLogView({
               weather checked -- rather than a bare "(auto)". Printed,
               the plain figure; the briefing's Cruise Altitude section
               carries the same steps onto the paper. */}
-          {nav && (
-            <>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="ghost" size="sm" className="px-1.5 font-normal text-muted-foreground print:hidden"
-                    aria-label="How the altitude was chosen" data-testid="altitude-why"
-                  >
-                    {altFt(nav.altitude_ft)} ft · {nav.altitude_selection ? "auto" : "yours"}
-                    <CircleHelp className="size-4" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent align="start" className="max-h-[70vh] w-80 overflow-y-auto">
-                  <div className="mb-2 text-xs font-semibold uppercase text-muted-foreground">How the altitude was chosen</div>
-                  <AltitudeReasoning nav={nav} bearingDeg={courseBearingDeg} />
-                </PopoverContent>
-              </Popover>
-              <span className="hidden text-muted-foreground print:inline">
-                {altFt(nav.altitude_ft)} ft {nav.altitude_selection ? "(the planner's choice)" : "(the pilot's choice)"}
-              </span>
-            </>
-          )}
+          {nav && (() => {
+            // "2,500 ft · lowest", or "2,500–6,500 ft · fastest" for a
+            // plan that steps; "· yours" for a typed altitude.
+            const flown = nav.options.find(o => o.kind === nav.choice);
+            const altitudes = flown ? flown.steps.map(st => st.altitude_ft) : [nav.altitude_ft];
+            const range = altitudes.length > 1 && Math.min(...altitudes) !== Math.max(...altitudes)
+              ? `${altFt(Math.min(...altitudes))}–${altFt(Math.max(...altitudes))} ft`
+              : `${altFt(altitudes[0])} ft`;
+            const label = `${range} · ${nav.altitude_selection ? (nav.choice ?? "auto") : "yours"}`;
+            return (
+              <>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="ghost" size="sm" className="px-1.5 font-normal text-muted-foreground print:hidden"
+                      aria-label="How the altitude was chosen" data-testid="altitude-why"
+                    >
+                      {label}
+                      <CircleHelp className="size-4" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent align="start" className="max-h-[70vh] w-80 overflow-y-auto">
+                    {/* The three plans first, each a button: the pilot
+                        picks one and the log re-plans on it. Then why. */}
+                    {nav.options.length > 0 && (
+                      <div className="mb-3 space-y-1.5" role="group" aria-label="Cruise altitude plans">
+                        <div className="text-xs font-semibold uppercase text-muted-foreground">Three plans</div>
+                        {nav.options.map(o => (
+                          <Button
+                            key={o.kind} type="button" size="sm"
+                            variant={o.kind === altitudeChoice ? "default" : "outline"}
+                            aria-pressed={o.kind === altitudeChoice}
+                            className="h-auto w-full justify-between gap-3 whitespace-normal py-1.5 text-left"
+                            onClick={() => onAltitudeChoiceChange(o.kind)}
+                            data-testid={`altitude-plan-${o.kind}`}
+                          >
+                            <span>
+                              <span className="font-semibold capitalize">{o.kind}</span>
+                              <span className="block text-xs font-normal opacity-80">{describeSteps(o)}</span>
+                            </span>
+                            <span className="shrink-0 text-xs tabular-nums">{describeTime(o)}</span>
+                          </Button>
+                        ))}
+                      </div>
+                    )}
+                    <div className="mb-2 text-xs font-semibold uppercase text-muted-foreground">How the altitude was chosen</div>
+                    <AltitudeReasoning nav={nav} bearingDeg={courseBearingDeg} />
+                  </PopoverContent>
+                </Popover>
+                <span className="hidden text-muted-foreground print:inline">
+                  {label}
+                </span>
+              </>
+            );
+          })()}
           <Select value={aircraftValue} onValueChange={onAircraftChange}>
             <SelectTrigger size="sm" aria-label="Aircraft" className="print:hidden" data-testid="aircraft-select">
               <SelectValue />

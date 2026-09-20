@@ -27,6 +27,7 @@ import time
 import xml.etree.ElementTree as ET
 from datetime import datetime
 
+import numpy as np
 import requests
 
 from .retry import with_retries
@@ -80,7 +81,24 @@ def _fetch_fd_text(fcst_hr: str = "06") -> str:
         return cached[1]
     text = _fetch_fd_text_uncached(fcst_hr)
     _FD_CACHE[fcst_hr] = (time.time(), text)
+    _FD_STATIONS.pop(fcst_hr, None)
     return text
+
+
+# The parsed product, one per fetched text: the three altitude plans
+# look the winds up at every legal altitude of every leg -- well over a
+# hundred lookups for one route -- and re-parsing the whole product for
+# each was most of what they cost.
+_FD_STATIONS: dict = {}
+
+
+def _fd_stations(fcst_hr: str = "06") -> dict:
+    text = _fetch_fd_text(fcst_hr)
+    cached = _FD_STATIONS.get(fcst_hr)
+    if cached is None or cached[0] is not text:
+        cached = (text, parse_fd_text(text))
+        _FD_STATIONS[fcst_hr] = cached
+    return cached[1]
 
 
 def _fetch_fd_text_uncached(fcst_hr: str = "06") -> str:
@@ -172,17 +190,38 @@ def parse_fd_text(text: str) -> dict:
     return stations
 
 
-def _nearest_station(lat: float, lon: float, station_ids, airports_df) -> str | None:
-    from .geo import distance_nm
+# The FD stations' own rows of the airports table, per set of station
+# ids: filtering 80,000 rows for the same two hundred stations on every
+# wind lookup was the other half of what a plan cost.
+_STATION_ROWS: dict = {}
 
-    # local_code isn't globally unique (e.g. "MSP" also matches airports
-    # in Argentina and Colombia by coincidence) -- FD stations are US-only,
-    # so restrict the match accordingly.
-    candidates = airports_df[airports_df["local_code"].isin(station_ids) & (airports_df["iso_country"] == "US")]
-    if candidates.empty:
+
+def _station_rows(station_ids, airports_df):
+    key = (frozenset(station_ids), id(airports_df))
+    rows = _STATION_ROWS.get(key)
+    if rows is None:
+        # local_code isn't globally unique (e.g. "MSP" also matches
+        # airports in Argentina and Colombia by coincidence) -- FD
+        # stations are US-only, so restrict the match accordingly.
+        candidates = airports_df[airports_df["local_code"].isin(station_ids) & (airports_df["iso_country"] == "US")]
+        rows = (
+            candidates["local_code"].to_numpy(),
+            np.radians(candidates["latitude_deg"].to_numpy(dtype=float)),
+            np.radians(candidates["longitude_deg"].to_numpy(dtype=float)),
+        )
+        _STATION_ROWS[key] = rows
+    return rows
+
+
+def _nearest_station(lat: float, lon: float, station_ids, airports_df) -> str | None:
+    codes, lats, lons = _station_rows(station_ids, airports_df)
+    if len(codes) == 0:
         return None
-    dists = candidates.apply(lambda r: distance_nm(lat, lon, r["latitude_deg"], r["longitude_deg"]), axis=1)
-    return candidates.loc[dists.idxmin(), "local_code"]
+    # Great-circle distance to every station at once, the same formula
+    # as vfr.geo.distance_nm; the radius cancels out of an argmin.
+    lat0, lon0 = np.radians(lat), np.radians(lon)
+    a = np.sin((lats - lat0) / 2) ** 2 + np.cos(lat0) * np.cos(lats) * np.sin((lons - lon0) / 2) ** 2
+    return str(codes[int(np.argmin(a))])
 
 
 def freezing_level_ft(lat: float, lon: float, fcst_hr: str = "06") -> float | None:
@@ -196,7 +235,7 @@ def freezing_level_ft(lat: float, lon: float, fcst_hr: str = "06") -> float | No
     """
     from . import airports
 
-    stations = parse_fd_text(_fetch_fd_text(fcst_hr))
+    stations = _fd_stations(fcst_hr)
     airports_df = airports.load_airports()
     station_id = _nearest_station(lat, lon, set(stations.keys()), airports_df)
     if station_id is None:
@@ -236,7 +275,7 @@ def wind_at_altitude(lat: float, lon: float, altitude_ft: float, fcst_hr: str = 
     """
     from . import airports
 
-    stations = parse_fd_text(_fetch_fd_text(fcst_hr))
+    stations = _fd_stations(fcst_hr)
     airports_df = airports.load_airports()
     station_id = _nearest_station(lat, lon, set(stations.keys()), airports_df)
     if station_id is None:

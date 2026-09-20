@@ -65,21 +65,56 @@ def min_safe_altitude_msl(
     than combining a separately-sampled terrain point with obstacle AGL,
     since the DOF data already gives the obstacle's true top elevation.
     """
+    total_nm = geo.distance_nm(*route_start, *route_end)
+    return max(floor_profile(
+        route_start, route_end, [0.0, total_nm], sample_interval_nm, corridor_half_width_nm, faa_cache_dir,
+    ))
+
+
+def floor_profile(
+    route_start: tuple,
+    route_end: tuple,
+    breaks_nm: list,
+    sample_interval_nm: float = SAMPLE_INTERVAL_NM,
+    corridor_half_width_nm: float = CORRIDOR_HALF_WIDTH_NM,
+    faa_cache_dir=DEFAULT_FAA_CACHE_DIR,
+) -> list:
+    """The MEF-style floor of each segment of the route, in feet MSL: one
+    per consecutive pair of `breaks_nm` (along-track distances from
+    route_start, ascending, from 0 to the route's length -- a nav log's
+    fixes, say). The same samples, obstacles and margins as
+    min_safe_altitude_msl, read once for the whole route and split by
+    along-track distance, so a leg under a low airspace shelf gets its
+    own floor rather than the whole route's: that is what lets a nav log
+    step down under the shelf and back up past it. Each segment also
+    sees one terrain sample beyond either end, and obstacles up to the
+    corridor's half-width beyond, so what sits at a boundary counts for
+    both legs.
+    """
+    from itertools import pairwise
+
+    total_nm = geo.distance_nm(*route_start, *route_end)
     sample_points = _route_sample_points(route_start, route_end, sample_interval_nm)
+    spacing_nm = total_nm / (len(sample_points) - 1)
     elevations_m = elevation.get_elevations_m(sample_points)
-    highest_terrain_ft = max(elevations_m.values()) * M_TO_FT
+    terrain_ft = [(i * spacing_nm, elevations_m[p] * M_TO_FT) for i, p in enumerate(sample_points)]
 
     bbox = geo.corridor_bbox(route_start, route_end, buffer_nm=corridor_half_width_nm + 2)
     *_, dof_path = faa_data.ensure_nasr_data(faa_cache_dir)
     obstacles = faa_data.load_obstacles(dof_path, bbox, min_agl_ft=0)
-
-    obstacle_amsl_fts = [
-        tags["amsl_ft"]
+    obstacle_ft = [
+        (geo.along_track_distance_nm(lat, lon, route_start, route_end), tags["amsl_ft"])
         for lat, lon, tags in zip(obstacles["lat"], obstacles["lon"], obstacles["tags"])
         if abs(geo.cross_track_distance_nm(lat, lon, route_start, route_end)) <= corridor_half_width_nm
     ]
-    highest_obstacle_ft = max(obstacle_amsl_fts) if obstacle_amsl_fts else 0
 
-    terrain_mef = highest_terrain_ft + TERRAIN_MARGIN_FT
-    obstacle_mef = highest_obstacle_ft + OBSTACLE_MARGIN_FT if obstacle_amsl_fts else 0
-    return _round_up_100(max(terrain_mef, obstacle_mef))
+    floors = []
+    for a, b in pairwise(breaks_nm):
+        terrain_here = [ft for at, ft in terrain_ft if a - spacing_nm <= at <= b + spacing_nm]
+        obstacles_here = [
+            ft for at, ft in obstacle_ft if a - corridor_half_width_nm <= at <= b + corridor_half_width_nm
+        ]
+        terrain_mef = max(terrain_here) + TERRAIN_MARGIN_FT
+        obstacle_mef = max(obstacles_here) + OBSTACLE_MARGIN_FT if obstacles_here else 0
+        floors.append(_round_up_100(max(terrain_mef, obstacle_mef)))
+    return floors

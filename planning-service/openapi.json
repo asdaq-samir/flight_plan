@@ -237,7 +237,7 @@
         "type": "object"
       },
       "AltitudeBreakdown": {
-        "description": "The full reasoning behind one recommended cruise altitude.\n`low_ceiling_or_visibility` is None, not False, when the forecast\ncall itself failed: unknown must not read as confirmed fine.",
+        "description": "The full reasoning behind one recommended cruise altitude.\n`low_ceiling_or_visibility` is None, not False, when the forecast\ncall itself failed: unknown must not read as confirmed fine.\n`candidates_ft` are every legal altitude for the whole route;\n`segments` the same leg by leg, present when the nav log's fixes\nwere known.",
         "properties": {
           "airspace_ceiling_ft": {
             "anyOf": [
@@ -267,6 +267,14 @@
               }
             ],
             "title": "Band Ceiling Ft"
+          },
+          "candidates_ft": {
+            "default": [],
+            "items": {
+              "type": "number"
+            },
+            "title": "Candidates Ft",
+            "type": "array"
           },
           "floor_ft": {
             "title": "Floor Ft",
@@ -334,6 +342,14 @@
             ],
             "title": "Recommended Ft"
           },
+          "segments": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/AltitudeSegment"
+            },
+            "title": "Segments",
+            "type": "array"
+          },
           "weather_unavailable": {
             "default": [],
             "items": {
@@ -361,6 +377,181 @@
           "low_ceiling_or_visibility"
         ],
         "title": "AltitudeBreakdown",
+        "type": "object"
+      },
+      "AltitudeOption": {
+        "description": "One of the three plans -- lowest, highest, fastest -- as its steps\nand what it costs. `total_min` is the flying time plus what the\nclimbs cost (`climb_penalty_min`), the figure the plans are compared\non; `tailwind_kt` the distance-weighted wind component along the\ncourse, positive helping, over the legs that had wind data.",
+        "properties": {
+          "climb_penalty_min": {
+            "title": "Climb Penalty Min",
+            "type": "number"
+          },
+          "ete_min": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ete Min"
+          },
+          "fuel_gal": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fuel Gal"
+          },
+          "kind": {
+            "enum": [
+              "lowest",
+              "highest",
+              "fastest"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "legs_without_wind": {
+            "title": "Legs Without Wind",
+            "type": "integer"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/AltitudeStep"
+            },
+            "title": "Steps",
+            "type": "array"
+          },
+          "tailwind_kt": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tailwind Kt"
+          },
+          "total_min": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Min"
+          },
+          "unflyable_legs": {
+            "title": "Unflyable Legs",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "kind",
+          "steps",
+          "ete_min",
+          "fuel_gal",
+          "climb_penalty_min",
+          "total_min",
+          "tailwind_kt",
+          "unflyable_legs",
+          "legs_without_wind"
+        ],
+        "title": "AltitudeOption",
+        "type": "object"
+      },
+      "AltitudeSegment": {
+        "description": "One leg's own band: its floor, the shelf over it alone, and the\nlegal cruising altitudes between -- what lets a plan step down under\na Class B shelf and climb again past it.",
+        "properties": {
+          "airspace_ceiling_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Airspace Ceiling Ft"
+          },
+          "band_ceiling_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Band Ceiling Ft"
+          },
+          "candidates_ft": {
+            "items": {
+              "type": "number"
+            },
+            "title": "Candidates Ft",
+            "type": "array"
+          },
+          "floor_ft": {
+            "title": "Floor Ft",
+            "type": "number"
+          },
+          "from_nm": {
+            "title": "From Nm",
+            "type": "number"
+          },
+          "to_nm": {
+            "title": "To Nm",
+            "type": "number"
+          }
+        },
+        "required": [
+          "from_nm",
+          "to_nm",
+          "floor_ft",
+          "airspace_ceiling_ft",
+          "band_ceiling_ft",
+          "candidates_ft"
+        ],
+        "title": "AltitudeSegment",
+        "type": "object"
+      },
+      "AltitudeStep": {
+        "description": "Consecutive legs flown at one altitude.",
+        "properties": {
+          "altitude_ft": {
+            "title": "Altitude Ft",
+            "type": "number"
+          },
+          "distance_nm": {
+            "title": "Distance Nm",
+            "type": "number"
+          },
+          "from": {
+            "title": "From",
+            "type": "string"
+          },
+          "to": {
+            "title": "To",
+            "type": "string"
+          }
+        },
+        "required": [
+          "from",
+          "to",
+          "altitude_ft",
+          "distance_nm"
+        ],
+        "title": "AltitudeStep",
         "type": "object"
       },
       "Briefing": {
@@ -1884,6 +2075,7 @@
         "type": "object"
       },
       "NavLogAltitude": {
+        "description": "`altitude_ft` is the first leg's; a plan may step. `options` are\nthe three plans and `choice` the one the legs that follow fly --\nboth empty when the pilot supplied an altitude.",
         "properties": {
           "aircraft": {
             "$ref": "#/components/schemas/AircraftProfile"
@@ -1901,6 +2093,31 @@
                 "type": "null"
               }
             ]
+          },
+          "choice": {
+            "anyOf": [
+              {
+                "enum": [
+                  "lowest",
+                  "highest",
+                  "fastest"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Choice"
+          },
+          "options": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/AltitudeOption"
+            },
+            "title": "Options",
+            "type": "array"
           },
           "type": {
             "const": "altitude",
@@ -2661,9 +2878,33 @@
           "aircraft": {
             "$ref": "#/components/schemas/AircraftProfile"
           },
+          "altitude_choice": {
+            "anyOf": [
+              {
+                "enum": [
+                  "lowest",
+                  "highest",
+                  "fastest"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Altitude Choice"
+          },
           "altitude_ft": {
             "title": "Altitude Ft",
             "type": "number"
+          },
+          "altitude_options": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/AltitudeOption"
+            },
+            "title": "Altitude Options",
+            "type": "array"
           },
           "altitude_selection": {
             "anyOf": [
@@ -3709,7 +3950,7 @@
     },
     "/api/navlog": {
       "get": {
-        "description": "Altitude and the dead-reckoning legs, as newline-delimited JSON --\nthe slow half, because it reads terrain, the obstacle file, the\nairspace shapefile and live winds; asked for separately so none of\nthat delays the chart. Each line is one app.schemas.NavLogMessage.\n\nStreamed rather than a single blocking response so a pilot sees the\ntable fill in as it goes rather than a blank screen: a \"stage\" line\nbefore each real piece of work (scoring, altitude selection, the\nlive aviationweather.gov fetch), an \"altitude\" line the moment\nthat's decided, one \"leg\" line per leg as each is computed, then one\n\"done\" line with the totals, which need every leg in before they\nmean anything. Its own implementation, not a wrapper over /api/plan:\nthat one commits to a single synchronous JSON response, and mixing a\nstreaming and a non-streaming contract into one function would\ncompromise both. The overlap is the same handful of calls into\napp.planning and vfr.navlog either way.\n\nAn unflyable route (no legal cruising altitude at all) is reported\nas an \"error\" line, not an HTTP error status -- by the time that's\nknown, a 200 and a stream of NDJSON have already gone out, and an\nHTTP status can't change after that.",
+        "description": "Altitude and the dead-reckoning legs, as newline-delimited JSON --\nthe slow half, because it reads terrain, the obstacle file, the\nairspace shapefile and live winds; asked for separately so none of\nthat delays the chart. Each line is one app.schemas.NavLogMessage.\n\nStreamed rather than a single blocking response so a pilot sees the\ntable fill in as it goes rather than a blank screen: a \"stage\" line\nbefore each real piece of work (scoring, the altitude plans), an\n\"altitude\" line the moment those are decided -- the three plans and\nthe one chosen (altitude_choice, see /api/plan) with it -- one \"leg\"\nline per leg, then one \"done\" line with the totals, which need\nevery leg in before they mean anything. Its own implementation, not\na wrapper over /api/plan: that one commits to a single synchronous\nJSON response, and mixing a streaming and a non-streaming contract\ninto one function would compromise both. The overlap is the same\nhandful of calls into app.planning and vfr.navlog either way.\n\nAn unflyable route (some leg with no legal cruising altitude at all)\nis reported as an \"error\" line, not an HTTP error status -- by the\ntime that's known, a 200 and a stream of NDJSON have already gone\nout, and an HTTP status can't change after that.",
         "operationId": "navlog_stream_api_navlog_get",
         "parameters": [
           {
@@ -3744,6 +3985,21 @@
                 }
               ],
               "title": "Altitude Ft"
+            }
+          },
+          {
+            "in": "query",
+            "name": "altitude_choice",
+            "required": false,
+            "schema": {
+              "default": "lowest",
+              "enum": [
+                "lowest",
+                "highest",
+                "fastest"
+              ],
+              "title": "Altitude Choice",
+              "type": "string"
             }
           },
           {
@@ -3962,7 +4218,7 @@
     },
     "/api/plan": {
       "get": {
-        "description": "The whole plan: course line, every scored candidate, the selected\ncheckpoints, and a nav log leg between each consecutive pair.\n\naltitude_ft is optional. Omitted, vfr.altitude picks one that clears\nterrain and obstacles, respects the hemispheric rule for the course,\nstays under the aircraft's service ceiling and dodges controlled\nairspace -- and the reasoning comes back with it, since \"why am I at\n6,500\" is a question a pilot will actually ask.\n\naircraft names a stock profile; cruise_tas_kt and fuel_burn_gph, when\ngiven, are a pilot's own aeroplane's numbers laid over it.",
+        "description": "The whole plan: course line, every scored candidate, the selected\ncheckpoints, and a nav log leg between each consecutive pair.\n\naltitude_ft is optional. Omitted, vfr.altitude works out each leg's\nown legal altitudes -- clear of terrain and obstacles, under the\nClass B shelf over that leg alone, the freezing level and the\naircraft's service ceiling, on the hemispheric rule for the course\n-- and vfr.navlog makes three plans of them: the lowest, the\nhighest, and the fastest for the winds aloft. altitude_choice picks\nwhich one the legs fly, and the reasoning comes back with it, since\n\"why am I at 6,500\" is a question a pilot will actually ask.\n\naircraft names a stock profile; cruise_tas_kt and fuel_burn_gph, when\ngiven, are a pilot's own aeroplane's numbers laid over it.",
         "operationId": "plan_api_plan_get",
         "parameters": [
           {
@@ -3997,6 +4253,21 @@
                 }
               ],
               "title": "Altitude Ft"
+            }
+          },
+          {
+            "in": "query",
+            "name": "altitude_choice",
+            "required": false,
+            "schema": {
+              "default": "lowest",
+              "enum": [
+                "lowest",
+                "highest",
+                "fastest"
+              ],
+              "title": "Altitude Choice",
+              "type": "string"
             }
           },
           {

@@ -1,4 +1,4 @@
-import type { Totals } from "../../lib/api/types";
+import type { AltitudeOption, Totals } from "../../lib/api/types";
 import { compassPoint } from "../../lib/compass";
 
 export { compassPoint };
@@ -70,6 +70,19 @@ export function totalsParts(t: Totals) {
       ? `${t.legs_without_wind} leg${t.legs_without_wind === 1 ? "" : "s"} without wind data`
       : null,
   };
+}
+
+/** One altitude plan's steps: "2,500 ft all the way", or "2,500 ft to
+ *  Mill Pond, 6,500 ft to Big Falls Flowage, 2,500 ft to KDLH". */
+export function describeSteps(option: AltitudeOption): string {
+  if (option.steps.length <= 1) return `${altFt(option.steps[0]?.altitude_ft)} ft all the way`;
+  return option.steps.map(s => `${altFt(s.altitude_ft)} ft to ${s.to}`).join(", ");
+}
+
+/** One altitude plan's time: the flying time plus what its climbs
+ *  cost, which is what the plans are compared on. */
+export function describeTime(option: AltitudeOption): string {
+  return option.total_min === null ? "unflyable" : hhmm(option.total_min);
 }
 
 /** Elapsed time on a build job, as m:ss. */

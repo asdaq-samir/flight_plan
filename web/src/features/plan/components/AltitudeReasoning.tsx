@@ -1,9 +1,9 @@
-import type { NavLog } from "../../../lib/api/types";
-import { altFt, deg } from "../format";
+import type { AltitudeOption, AltitudeSegment, NavLog } from "../../../lib/api/types";
+import { altFt, deg, describeSteps, describeTime } from "../format";
 
 interface Props {
   /** The nav log's own altitude and, unless the pilot typed one, the
-   *  planner's breakdown of how it chose it. */
+   *  planner's breakdown of how it chose it and the three plans. */
   nav: Omit<NavLog, "legs" | "totals">;
   /** The route's true course, for the hemispheric rule. */
   bearingDeg: number | null;
@@ -15,15 +15,38 @@ function join(parts: string[]): string {
   return `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`;
 }
 
+const KIND_LABEL: Record<AltitudeOption["kind"], string> = {
+  lowest: "Lowest", highest: "Highest", fastest: "Fastest",
+};
+
+// Above this, more than 30 minutes needs supplemental oxygen (14 CFR
+// 91.211) -- worth a word beside a plan that goes there.
+const OXYGEN_FT = 12500;
+
+/** Consecutive segments under the same shelf, for "the ceiling leg by
+ *  leg": [{from_nm, to_nm, airspace_ceiling_ft, band_ceiling_ft}]. */
+function ceilingRuns(segments: AltitudeSegment[]): AltitudeSegment[] {
+  const runs: AltitudeSegment[] = [];
+  for (const s of segments) {
+    const last = runs[runs.length - 1];
+    if (last && last.band_ceiling_ft === s.band_ceiling_ft) last.to_nm = s.to_nm;
+    else runs.push({ ...s });
+  }
+  return runs;
+}
+
 /**
  * How the cruise altitude was chosen, step by step, in the planner's
- * own order (`vfr.altitude.select_cruise_altitude`): the floor from
- * terrain and obstacles, the ceiling from airspace, the freezing level
- * and the aeroplane, the hemispheric rule that picks the lowest legal
- * altitude in between, and the weather that was checked but does not
- * move the number. Every figure is the planner's own, so the pilot can
- * check each one against the chart -- the nav log header's "why"
- * popover and the briefing's Cruise Altitude section are both this.
+ * own order (`vfr.altitude.select_cruise_altitude` and
+ * `vfr.navlog.altitude_profiles`): the floor from terrain and
+ * obstacles, the ceiling from airspace, the freezing level and the
+ * aeroplane -- leg by leg, since a Class B shelf caps only the legs
+ * under it -- the hemispheric rule that gives the legal altitudes in
+ * between, the three plans made of them and the one being flown, and
+ * the weather that was checked but does not move the numbers. Every
+ * figure is the planner's own, so the pilot can check each one against
+ * the chart -- the nav log header's "why" popover and the briefing's
+ * Cruise Altitude section are both this.
  */
 export default function AltitudeReasoning({ nav, bearingDeg }: Props) {
   const s = nav.altitude_selection;
@@ -31,8 +54,8 @@ export default function AltitudeReasoning({ nav, bearingDeg }: Props) {
     return (
       <p className="text-sm text-muted-foreground">
         {altFt(nav.altitude_ft)} ft is yours: you typed it in the Alt box, and the planner flew the log at
-        it. Clear the box and press Load, and the planner picks the lowest legal VFR cruising altitude
-        above the terrain and obstacle floor, under any Class B shelf and the freezing level.
+        it. Clear the box and press Load, and the planner works out the legal altitudes leg by leg and
+        offers the lowest, the highest and the fastest way through them.
       </p>
     );
   }
@@ -51,6 +74,18 @@ export default function AltitudeReasoning({ nav, bearingDeg }: Props) {
         : "no freezing level in range (the forecast stays above 0 °C)",
   ];
   if (serviceCeilingFt !== null) ceilingParts.push(`the ${nav.aircraft.name.toUpperCase()}'s service ceiling of ${altFt(serviceCeilingFt)} ft`);
+  const runs = ceilingRuns(s.segments);
+  const runsText = runs.length > 1
+    ? runs.map((r, i) => {
+      const why = r.airspace_ceiling_ft !== null && r.airspace_ceiling_ft === r.band_ceiling_ft
+        ? "the Class B shelf"
+        : r.band_ceiling_ft !== null && r.band_ceiling_ft === s.freezing_level_ft
+          ? "the freezing level"
+          : "the service ceiling";
+      const where = i === 0 ? `for the first ${r.to_nm} nm` : i === runs.length - 1 ? "the rest of the way" : `from ${r.from_nm} to ${r.to_nm} nm`;
+      return `${r.band_ceiling_ft === null ? "none" : `${altFt(r.band_ceiling_ft)} ft`} (${why}) ${where}`;
+    }).join(", then ")
+    : null;
 
   const hazards = s.weather_unavailable.includes("hazards")
     ? "SIGMETs and AIRMETs could not be checked"
@@ -58,26 +93,53 @@ export default function AltitudeReasoning({ nav, bearingDeg }: Props) {
       ? "no SIGMET or AIRMET along the route"
       : `${s.hazards.length} SIGMET/AIRMET${s.hazards.length === 1 ? "" : "s"} along the route`;
 
+  const highestLegal = Math.max(...s.segments.flatMap(seg => seg.candidates_ft), ...s.candidates_ft);
+  const chosen = nav.options.find(o => o.kind === nav.choice);
+  const needsOxygen = nav.options.some(o => o.steps.some(st => st.altitude_ft > OXYGEN_FT));
+
   return (
     <ol className="list-decimal space-y-2 pl-5 text-sm">
       <li>
         <b>Floor {altFt(s.floor_ft)} ft.</b> The highest ground within 5 nm of the course plus 300 ft, or the
         tallest charted obstacle plus 100 ft, whichever is higher, rounded up to the next 100 ft: the same rule
-        as a sectional's maximum elevation figure.
+        as a sectional's maximum elevation figure. Worked out leg by leg as well, so a leg over lower ground
+        may fly lower.
       </li>
       <li>
-        <b>Ceiling {s.band_ceiling_ft !== null ? `${altFt(s.band_ceiling_ft)} ft` : "none"}.</b>{" "}
+        <b>Ceiling {s.band_ceiling_ft !== null ? `${altFt(s.band_ceiling_ft)} ft` : "none"} for the whole route.</b>{" "}
         The lowest of {join(ceilingParts)}.
+        {runsText && ` Leg by leg: ${runsText} -- a shelf caps only the legs under it.`}
       </li>
       <li>
         <b>The rule.</b>{" "}
         {bearingDeg !== null ? `A true course of ${deg(bearingDeg)} is ` : "The course is "}
         {eastbound ? "eastbound (000–179°): odd thousands plus 500 ft" : "westbound (180–359°): even thousands plus 500 ft"}
         {" "}(14 CFR 91.159).{" "}
-        {s.recommended_ft !== null
-          ? `The lowest such altitude at or above the floor is ${altFt(s.recommended_ft)} ft, and it is under the ceiling: that is the nav log's altitude.`
-          : "No such altitude fits between the floor and the ceiling. Type one in the Alt box, or plan under or around the airspace."}
+        {s.candidates_ft.length > 0
+          ? `Legal for the whole route: ${s.candidates_ft.map(a => altFt(a)).join(", ")} ft`
+          : "No one altitude is legal for the whole route"}
+        {Number.isFinite(highestLegal) && highestLegal > (s.candidates_ft[s.candidates_ft.length - 1] ?? -Infinity)
+          ? `; leg by leg, up to ${altFt(highestLegal)} ft.`
+          : "."}
       </li>
+      {nav.options.length > 0 ? (
+        <li>
+          <b>Three plans.</b>{" "}
+          {nav.options.map(o => (
+            `${KIND_LABEL[o.kind]}: ${describeSteps(o)}, ${describeTime(o)}`
+            + (o.climb_penalty_min > 0 ? ` with ${Math.round(o.climb_penalty_min)} min of climb charged` : "")
+            + (o.tailwind_kt !== null ? `, ${Math.abs(Math.round(o.tailwind_kt))} kt ${o.tailwind_kt >= 0 ? "tailwind" : "headwind"} on average` : "")
+            + "."
+          )).join(" ")}
+          {chosen && ` Flying the ${KIND_LABEL[chosen.kind].toLowerCase()}.`}
+          {needsOxygen && ` Above ${altFt(OXYGEN_FT)} ft for more than 30 minutes needs supplemental oxygen (14 CFR 91.211).`}
+        </li>
+      ) : (
+        <li>
+          <b>No plan.</b> Some leg has no legal altitude between its floor and its ceiling. Type an altitude in
+          the Alt box, or plan under or around the airspace.
+        </li>
+      )}
       <li>
         <b>Checked, not part of the choice.</b>{" "}
         {s.weather_unavailable.includes("ceiling_visibility")
