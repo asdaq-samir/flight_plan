@@ -12,8 +12,8 @@ import { identSchema } from "../../lib/identSchema";
 import "leaflet/dist/leaflet.css";
 import Shell from "../../Shell";
 import MapDrawer from "../../components/MapDrawer";
+import DevSwitch from "../../components/DevSwitch";
 import MapHeader from "../../components/MapHeader";
-import { DevLink } from "../../components/PageLinks";
 import SidebarToggleButton from "../../components/SidebarToggleButton";
 import ZoomToggleButton from "../../components/ZoomToggleButton";
 import { usePageStatus } from "../../lib/usePageStatus";
@@ -300,14 +300,15 @@ export default function PlanView() {
     return () => document.removeEventListener("keydown", onKey);
   }, [briefing, setBriefingView, stepWaypoint, toggleCandidates]);
 
-  // One row, the same shape as Dev's: the route form -- not "VFR
-  // Route," the thing a pilot is here to use -- in the middle, and at
-  // the end the guide, the zoom toggle, the pilot console, the nav log
-  // drawer's toggle and the Dev link, in the order Dev's own five sit
-  // in. No tabs row: the briefing is the nav log drawer opened wide,
-  // not a second view of the page.
+  // One row, the same shape as Dev's: the Dev-mode switch leading, the
+  // route form -- not "VFR Route," the thing a pilot is here to use --
+  // in the middle, and at the end the guide, the zoom toggle, the pilot
+  // console and the nav log drawer's toggle, in the order Dev's own
+  // four sit in. No tabs row: the briefing is the nav log drawer opened
+  // wide, not a second view of the page.
   const header = (
     <MapHeader
+      leading={<DevSwitch />}
       form={(
         <RouteForm
           dep={dep} dest={dest}
@@ -322,7 +323,6 @@ export default function PlanView() {
           <ZoomToggleButton zoomedIn={zoomedIn} onClick={toggleZoom} disabled={!s.course} />
           <PilotButton open={pilotOpen} onClick={togglePilot} />
           <SidebarToggleButton open={sidebarOpen} onClick={toggleSidebar} label="Nav Log" />
-          <DevLink />
         </>
       )}
     />

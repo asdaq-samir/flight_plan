@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { cn } from "cn";
-import { CircleAlert } from "lucide-react";
+import { Info } from "lucide-react";
 import IconButton from "./IconButton";
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 import { ScrollArea } from "./ui/scroll-area";
@@ -35,8 +35,11 @@ export default function MapGuideButton({ ariaLabel, contentClassName, children }
   return (
     <Popover>
       <PopoverTrigger asChild>
+        {/* An "i", not the exclamation mark this used to be: the popover
+            is a key and the shortcuts, and an exclamation reads as a
+            warning about the map. */}
         <IconButton label={ariaLabel} data-testid="guide-button">
-          <CircleAlert className="size-5" />
+          <Info className="size-5" />
         </IconButton>
       </PopoverTrigger>
       {/* align="end", not Popover's own default "center"/a leading

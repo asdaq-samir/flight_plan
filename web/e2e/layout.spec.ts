@@ -242,9 +242,9 @@ test("plan page: the nav log drawer opens wide as the briefing, with the narrati
   else expect(wideBox!.width).toBeLessThan(viewport.width);
 
   // The page's own header is still there above it: the route form,
-  // and the one Dev link this page has.
+  // and the one Dev-mode switch this page has.
   await expect(page.getByLabel("Departure")).toBeVisible();
-  await expect(page.locator("header").getByRole("link", { name: "Dev" })).toHaveCount(1);
+  await expect(page.locator("header").getByRole("switch", { name: "Dev mode" })).toHaveCount(1);
 
   // The briefing's actions live in the drawer's own header: the AI
   // button (LangGraph/CrewAI are tabs inside the popover it opens),
@@ -405,23 +405,40 @@ test("plan page: the briefing's nav log scrolls inside the drawer, not the page"
   }
 });
 
-test("the Dev link leads to the dev page, and its Plan link leads back to where it was clicked from", async ({ page }) => {
-  await page.goto("/app/plan");
+test("the Dev-mode switch leads the route form, flips to the dev page with the route, and back to where it was flipped from", async ({ page }) => {
+  await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
   await openBriefing(page);
 
-  // Both are icon-only links, so their accessible names -- not text
-  // content -- are what find them.
-  await page.locator("header").getByRole("link", { name: "Dev", exact: true }).click();
-  await page.waitForURL("**/app/dev");
-  await page.waitForTimeout(300);
+  // Off on Plan, and on the route form's left -- the one control that
+  // switches roles, in the same place on both pages.
+  const devSwitch = page.locator("header").getByRole("switch", { name: "Dev mode" });
+  await expect(devSwitch).toHaveAttribute("aria-checked", "false");
+  const switchBox = await devSwitch.boundingBox();
+  const loadBox = await page.getByRole("button", { name: "Load" }).boundingBox();
+  expect(switchBox).not.toBeNull();
+  expect(loadBox).not.toBeNull();
+  expect(switchBox!.x).toBeLessThan(loadBox!.x);
 
-  // A plain map icon, but the destination it points at is `state.from`
-  // (PageLinks' own): the exact page the Dev link was clicked from, the
-  // open briefing included, not a flat, always-/app/plan link.
-  await page.getByRole("link", { name: "Plan", exact: true }).click();
-  await page.waitForURL(/\/app\/plan\?view=briefing/);
+  // On: the dev page, with the route on screen carried along and
+  // Plan's own briefing parameter left behind.
+  await devSwitch.click();
+  await page.waitForURL(/\/app\/dev\?dep=C81&dest=KDLH$/);
+  await page.waitForTimeout(300);
+  await expect(page.locator("header").getByRole("switch", { name: "Dev mode" })).toHaveAttribute("aria-checked", "true");
+
+  // Off again: back to exactly where it was flipped from (`state.from`,
+  // DevSwitch's own), the open briefing included, not a flat /app/plan.
+  await page.locator("header").getByRole("switch", { name: "Dev mode" }).click();
+  await page.waitForURL(/\/app\/plan\?dep=C81&dest=KDLH&view=briefing$/);
   await expect(page.locator('[data-slot="map-drawer"][data-side="right"]').getByTestId("print-button")).toBeVisible();
+});
+
+test("dev page opened on its own: the switch falls back to the planner with the dev page's own route", async ({ page }) => {
+  await page.goto("/app/dev?dep=C81&dest=KDLH");
+  await settle(page);
+  await page.locator("header").getByRole("switch", { name: "Dev mode" }).click();
+  await page.waitForURL(/\/app\/plan\?dep=C81&dest=KDLH$/);
 });
 
 test("the old Settings address lands on the planner", async ({ page }) => {
@@ -533,4 +550,27 @@ test("plan page: a click on the dimmed map closes the sidebar, and the header ab
   expect(overlayBox!.y).toBeGreaterThanOrEqual(headerBox!.y + headerBox!.height - 1);
   await overlay.click({ position: { x: 10, y: 10 } });
   await expect(page.locator('[data-slot="map-drawer"]')).toHaveCount(0);
+});
+
+test("plan page: every text field is at least 16px on a phone, so iOS never zooms the page in on focus", async ({ page }) => {
+  // iOS Safari zooms the whole page in when a field under 16px takes
+  // focus, and leaves it zoomed once the field blurs and the drawer
+  // closes -- with the header and the route form off the top of the
+  // screen. Chromium never does this, so the check is on the computed
+  // font size itself, over every field the page can show: the route
+  // form, and the nav log's altitude box and description boxes.
+  const viewport = page.viewportSize();
+  if (!viewport || viewport.width >= 768) return;   // `md` and up keep the small type
+  await page.goto("/app/plan?dep=C81&dest=KDLH");
+  await settle(page);
+  await page.getByTestId("sidebar-trigger-button").click();
+  await expect.poll(() => page.locator("textarea").count(), { timeout: 15000 }).toBeGreaterThan(0);
+  const small = await page.evaluate(() =>
+    [...document.querySelectorAll<HTMLElement>("input, textarea, select")]
+      .map(el => ({
+        field: el.getAttribute("aria-label") ?? el.getAttribute("placeholder") ?? el.tagName,
+        px: parseFloat(getComputedStyle(el).fontSize),
+      }))
+      .filter(f => f.px < 16));
+  expect(small).toEqual([]);
 });

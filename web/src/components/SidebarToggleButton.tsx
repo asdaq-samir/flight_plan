@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { PanelLeftIcon } from "lucide-react";
+import { PanelRightIcon } from "lucide-react";
 import IconButton from "./IconButton";
 
 interface Props {
@@ -46,7 +46,10 @@ export default function SidebarToggleButton({ onClick, open, label, className, v
       className={className}
       data-testid="sidebar-trigger-button"
     >
-      <PanelLeftIcon className="size-5" />
+      {/* The drawer slides in from the right, so the panel is drawn on
+          the right -- shadcn's own sidebar trigger uses PanelLeft for
+          its left sidebar, the same convention mirrored. */}
+      <PanelRightIcon className="size-5" />
     </IconButton>
   );
 }

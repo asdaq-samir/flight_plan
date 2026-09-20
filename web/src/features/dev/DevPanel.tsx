@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
-import { FlaskConical } from "lucide-react";
+import { SquareTerminal } from "lucide-react";
 import { toast } from "sonner";
 import { Bar, BarChart, Cell, LabelList, XAxis, YAxis } from "recharts";
 import { cn } from "cn";
@@ -37,11 +37,13 @@ function ago(iso: string | null | undefined): string {
 const LOCAL_HOSTS = ["localhost", "127.0.0.1"];
 
 /** The header button that opens the console -- `aria-expanded` so the
- *  state is readable, the same as the sidebar's own toggle. */
+ *  state is readable, the same as the sidebar's own toggle. A console
+ *  glyph, not the flask: the flask is the Dev page's own mark (the Dev
+ *  link on Plan carries it), and one glyph should mean one thing. */
 export function DevButton({ open, onClick }: { open: boolean; onClick: () => void }) {
   return (
     <IconButton label="Dev console" aria-expanded={open} onClick={onClick} data-testid="dev-console-button">
-      <FlaskConical className="size-5" />
+      <SquareTerminal className="size-5" />
     </IconButton>
   );
 }

@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useRef, useState, type ReactNode, type Ref } from "react";
 import clsx from "clsx";
-import { Loader2, Maximize2, Minimize2, Sparkles } from "lucide-react";
+import { BookOpenText, Loader2, Minimize2, WandSparkles } from "lucide-react";
 import {
   type CellData, type ColumnDef, type RowData, type TableFeatures,
   flexRender, tableFeatures, useTable,
@@ -190,8 +190,13 @@ function DescriptionCell({
       }}
       rows={1}
       placeholder={description?.source === "error" ? "Couldn't auto-generate — type one" : "How to spot it…"}
+      // text-base below md, like the stock Input: iOS Safari zooms the
+      // whole page in on focusing any field under 16px, and stays
+      // zoomed after the drawer closes -- the header and the route
+      // form off the top of the screen. The same 16px floor on a phone
+      // that shadcn's own Input keeps, for the same reason.
       className={clsx(
-        "w-full resize-none rounded border py-0.5 pr-1 pl-0.5 text-left align-top text-xs focus:outline-none",
+        "w-full resize-none rounded border py-0.5 pr-1 pl-0.5 text-left align-top text-base focus:outline-none md:text-xs",
         // The box itself stays light even when its row is selected --
         // only the surrounding row inverts, so this reads as an
         // editable field sitting on a highlighted row, not one more
@@ -347,7 +352,9 @@ export default function NavLogView({
             placeholder="Alt"
             spellCheck={false}
             aria-label="Cruise altitude, feet"
-            className="h-6 w-14 px-1 text-right text-xs print:hidden"
+            // 16px and tall enough to hold it below md -- see the
+            // description box's own comment on iOS zooming on focus.
+            className="h-8 w-14 px-1 text-right text-base print:hidden md:h-6 md:text-xs"
           />
           <span className="hidden print:inline">Alt</span>
         </form>
@@ -456,23 +463,30 @@ export default function NavLogView({
           <span className="font-semibold text-muted-foreground">{expanded ? "Flight briefing" : "Nav log"}</span>
           <span className="hidden text-muted-foreground print:inline">{dep} → {dest}</span>
           <div className="ml-auto flex items-center gap-1 print:hidden">
+            {/* A wand, not the narrative's own sparkles: with the
+                briefing open the two AI buttons sit side by side, and
+                this one acts on the rows -- it fills the blank notes
+                in -- where the narrative writes a text of its own. */}
             <IconButton
               onClick={onGenerateDescriptions} disabled={descriptionsLoading || selected.length === 0}
               label="Generate checkpoint descriptions"
               data-testid="generate-descriptions-button"
             >
-              {descriptionsLoading ? <Loader2 className="size-5 animate-spin" /> : <Sparkles className="size-5" />}
+              {descriptionsLoading ? <Loader2 className="size-5 animate-spin" /> : <WandSparkles className="size-5" />}
             </IconButton>
             {actions}
             {/* Wide is the briefing, narrow is the nav log beside the
                 map -- on a phone too, where wide means the whole map
-                area rather than three quarters of it. */}
+                area rather than three quarters of it. An open book to
+                open the briefing (the document a pilot is looking for,
+                not "make this bigger"), and the shrink arrows to come
+                back, which is all that step is. */}
             <IconButton
               onClick={onToggleExpanded}
               label={expanded ? "Back to the nav log" : "Open the briefing"}
               data-testid="sidebar-expand-toggle"
             >
-              {expanded ? <Minimize2 className="size-5" /> : <Maximize2 className="size-5" />}
+              {expanded ? <Minimize2 className="size-5" /> : <BookOpenText className="size-5" />}
             </IconButton>
           </div>
         </div>

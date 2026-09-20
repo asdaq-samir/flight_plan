@@ -1,8 +1,8 @@
 import { useCallback, useState } from "react";
 import Shell from "../../Shell";
+import DevSwitch from "../../components/DevSwitch";
 import MapDrawer from "../../components/MapDrawer";
 import MapHeader from "../../components/MapHeader";
-import { PlanLink } from "../../components/PageLinks";
 import SidebarToggleButton from "../../components/SidebarToggleButton";
 import { useDocumentTitle } from "../../lib/useDocumentTitle";
 import LabelView from "../label/LabelView";
@@ -35,6 +35,7 @@ export default function DevView() {
         <Shell
           header={(
             <MapHeader
+              leading={<DevSwitch />}
               form={routeForm}
               actions={(
                 <>
@@ -42,7 +43,6 @@ export default function DevView() {
                   {zoomButton}
                   <DevButton open={consoleOpen} onClick={toggleConsole} />
                   <SidebarToggleButton open={sidebarOpen} onClick={toggleSidebar} label="Waypoints" />
-                  <PlanLink />
                 </>
               )}
             />

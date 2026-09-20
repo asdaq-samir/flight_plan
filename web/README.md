@@ -101,7 +101,7 @@ src/
     RouteForm.tsx, RouteInputGroup.tsx, AirportSearchInput.tsx   The DEP → DEST form and its Load button, shared by Plan and Label
     IconButton.tsx         An icon-only Button with its label as tooltip and accessible name; every header icon is one
     MapGuideButton.tsx     The Info popover button (Plan's ScoreLegend, Label's RatingLegend)
-    SidebarToggleButton.tsx, ZoomToggleButton.tsx, ThemeToggle.tsx, PageLinks.tsx   The header's icon buttons and the Plan/Dev links
+    SidebarToggleButton.tsx, ZoomToggleButton.tsx, ThemeToggle.tsx, DevSwitch.tsx   The header's icon buttons and the Dev-mode switch (the flask, empty on Plan and full on Dev)
     IdentPairInputs.tsx, CollapsibleSection.tsx, Footer.tsx
     ui/                    shadcn/ui primitives (components.json), stock unless a comment says why not
   lib/
