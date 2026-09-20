@@ -2,7 +2,6 @@ import { ArrowRight } from "lucide-react";
 import RouteInputGroup from "./RouteInputGroup";
 import { InputGroupButton } from "./ui/input-group";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
-import type { BuiltRoute } from "../lib/api/types";
 
 interface Props {
   dep: string;
@@ -11,14 +10,13 @@ interface Props {
   onDestChange: (v: string) => void;
   onSubmit: () => void;
   disabled?: boolean;
-  /** Corridors already built, offered as a native datalist on both
-   *  inputs. Plan passes them; Label has no equivalent list. */
-  routes?: BuiltRoute[];
 }
 
-/** DEP → DEST and its Load button, the same on Plan and Label. */
+/** DEP → DEST and its Load button, the same on Plan and Label. Each
+ *  field is an `AirportSearchInput`, whose own dropdown suggests idents
+ *  and names as a pilot types. */
 export default function RouteForm({
-  dep, dest, onDepChange, onDestChange, onSubmit, disabled = false, routes,
+  dep, dest, onDepChange, onDestChange, onSubmit, disabled = false,
 }: Props) {
   return (
     // flex-wrap, not a fixed single line -- DEP/DEST need their full
@@ -43,7 +41,6 @@ export default function RouteForm({
         dep={dep} dest={dest}
         onDepChange={v => onDepChange(v.toUpperCase())}
         onDestChange={v => onDestChange(v.toUpperCase())}
-        listId={routes ? "built" : undefined}
       >
         <Tooltip>
           <TooltipTrigger asChild>
@@ -55,12 +52,6 @@ export default function RouteForm({
           <TooltipContent>Load</TooltipContent>
         </Tooltip>
       </RouteInputGroup>
-      {routes && (
-        <datalist id="built">
-          {[...new Set(routes.flatMap(r => [r.departure_ident, r.destination_ident]))]
-            .sort().map(id => <option key={id} value={id} />)}
-        </datalist>
-      )}
     </form>
   );
 }

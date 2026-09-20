@@ -416,26 +416,15 @@ export default function LabelView({ embedded = false, children }: Props) {
   // around a different sidebar, not two designs that happen to share a
   // Shell component.
   const header = (
-    // grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)], not a plain flex
-    // `justify-between` -- matches Plan's own `TwoRowHeader` (see its
-    // own comment): the two flanking columns always match each other's
-    // width, centering the route form against the header's own full
-    // width rather than just against whatever's left over next to the
-    // trailing group's size. `minmax(0, ...)`, not a bare `1fr` --
-    // route form plus four icon buttons is wider than a narrow phone
-    // screen has room for even flush-left (this was already tight
-    // before centering, one more icon than it had before this
-    // session), and a bare `1fr` track won't shrink past its own
-    // content's natural minimum, which pushed the trailing icons (the
-    // Settings gear specifically) off the right edge entirely rather
-    // than just squeezing the centering. `overflow-x-auto` is the
-    // fallback for whatever's still too tight even at that minimum --
-    // a header that needs a sideways scroll to reach every icon beats
-    // one where the last icon is simply unreachable.
-    <header className="grid shrink-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 overflow-x-auto border-b border-border bg-background px-3 py-2 print:hidden">
-      <div />
+    // The same row shape as `TwoRowHeader`'s first row (see its comment):
+    // a centering grid from `sm` up, a wrapping flex row below it, where
+    // the route form plus four icon buttons is wider than a phone and
+    // the icons drop to a second line rather than overlapping the form
+    // or scrolling sideways.
+    <header className="flex shrink-0 flex-wrap items-center gap-2 border-b border-border bg-background px-3 py-2 sm:grid sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] print:hidden">
+      <div className="hidden sm:block" />
       {routeForm}
-      <div className="flex items-center justify-self-end gap-2">
+      <div className="ml-auto flex items-center gap-2 sm:ml-0 sm:justify-self-end">
         {guideButton}
         {zoomButton}
         <SidebarToggleButton open={sidebarOpen} onClick={() => setSidebarOpen(o => !o)} label="Waypoints" />

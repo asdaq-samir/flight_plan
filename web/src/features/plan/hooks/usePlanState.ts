@@ -159,7 +159,7 @@ export function usePlanState() {
       setState(s => ({ ...s, routes }));
       return routes;
     } catch {
-      return [];   // the datalist is a convenience; its absence is not an error
+      return [];   // the built-routes list is a convenience; its absence is not an error
     }
   }, [queryClient]);
 

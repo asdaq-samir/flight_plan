@@ -12,11 +12,6 @@ interface Props {
   ariaLabel: string;
   invalid?: boolean;
   className?: string;
-  /** Plan's own built-route datalist, wired to the same `<input>`
-   *  alongside this component's own live search -- the two aren't
-   *  mutually exclusive: a datalist's own native dropdown and this
-   *  Popover can both be reachable off the same field. */
-  listId?: string;
 }
 
 /** 200ms, not on every keystroke -- a lookup this app already treats
@@ -54,7 +49,7 @@ function useDebounced<T>(value: T, delayMs: number): T {
  * sibling field.
  */
 export default function AirportSearchInput({
-  value, onChange, placeholder, ariaLabel, invalid, className, listId,
+  value, onChange, placeholder, ariaLabel, invalid, className,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [highlighted, setHighlighted] = useState(0);
@@ -115,7 +110,6 @@ export default function AirportSearchInput({
               setOpen(false);
             }
           }}
-          list={listId}
           placeholder={placeholder}
           spellCheck={false}
           aria-label={ariaLabel}

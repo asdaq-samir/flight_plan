@@ -8,9 +8,8 @@ interface Props {
   onDestChange: (v: string) => void;
   /** Whether a route error should mark these invalid -- the one
    *  difference from a plain pair of inputs this component still
-   *  needs a prop for, now that its other former callers (which also
-   *  varied uppercasing and a datalist) have moved to
-   *  `RouteInputGroup` instead. */
+   *  needs a prop for, now that its other former callers have moved
+   *  to `RouteInputGroup` instead. */
   invalid?: boolean;
   /** Settings' own Algorithm Picker panel runs these narrower (`w-20`)
    *  than its own former `w-[75px]` default -- a route there is a

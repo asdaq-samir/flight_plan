@@ -34,24 +34,21 @@ export default function TwoRowHeader({
 }: Props) {
   return (
     <header className="flex shrink-0 flex-col gap-2 border-b border-border bg-background px-3 py-2 print:hidden">
-      {/* grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)], not a plain flex
-          `justify-between` -- the two flanking columns always match
-          each other's width (one empty, one holding the real trailing
-          content), which is what actually centers the middle column
-          against the header's own full width rather than just against
-          whatever's left over next to the trailing content's own size.
-          `minmax(0, ...)`, not a bare `1fr` -- a bare `1fr` track won't
-          shrink past its own content's natural minimum, so on a narrow
-          phone the trailing content (icon buttons that can't compress
-          any further) pushed past the screen edge instead of just
-          squeezing the centering; `overflow-x-auto` below is the
-          fallback for whatever's still too tight even at that minimum. */}
-      <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 overflow-x-auto">
-        <div />
+      {/* From `sm` up, a three-column grid whose flanking columns match
+          each other's width (one empty, one holding the trailing
+          content), which is what centers the route form against the
+          header's full width rather than against whatever is left next
+          to the trailing content. Below `sm` there is no room to
+          center: a plain wrapping flex row puts the form first and the
+          trailing content at the right, on its own line if it must.
+          Never a scroll container -- one that overflows by a pixel
+          grows a scrollbar the moment a mouse is attached. */}
+      <div className="flex flex-wrap items-center gap-2 sm:grid sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]">
+        <div className="hidden sm:block" />
         {rowOneStart}
-        <div className="justify-self-end">{rowOneEnd}</div>
+        <div className="ml-auto sm:ml-0 sm:justify-self-end">{rowOneEnd}</div>
       </div>
-      <div className="flex items-center justify-between gap-2 overflow-x-auto">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <Tabs value={tab} onValueChange={onTabChange}>
           <TabsList>{tabs}</TabsList>
         </Tabs>

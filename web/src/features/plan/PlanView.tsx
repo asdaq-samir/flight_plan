@@ -243,7 +243,6 @@ export default function PlanView() {
           onDepChange={setDep} onDestChange={setDest}
           onSubmit={submit}
           disabled={s.stage !== null}
-          routes={s.routes}
         />
       }
       rowOneEnd={<SettingsButton />}

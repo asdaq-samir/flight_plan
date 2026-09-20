@@ -8,10 +8,6 @@ interface Props {
   onDepChange: (v: string) => void;
   onDestChange: (v: string) => void;
   invalid?: boolean;
-  /** A `<datalist id>` to wire both inputs to, via the native `list`
-   *  attribute -- Plan's own built-route autocomplete; omitted on
-   *  Label. */
-  listId?: string;
   /** The trailing "Load" button -- an `InputGroupButton`, not this
    *  app's usual `Button`, so it sits inside the same bordered shell
    *  as the inputs rather than beside it. Label's own Start/Resume/Fit
@@ -40,14 +36,13 @@ interface Props {
  * name instead and pick it from a live dropdown.
  */
 export default function RouteInputGroup({
-  dep, dest, onDepChange, onDestChange, invalid, listId, children,
+  dep, dest, onDepChange, onDestChange, invalid, children,
 }: Props) {
   return (
     <InputGroup className="w-auto">
       <AirportSearchInput
         value={dep}
         onChange={onDepChange}
-        listId={listId}
         placeholder="DEP"
         ariaLabel="Departure"
         invalid={invalid}
@@ -62,7 +57,6 @@ export default function RouteInputGroup({
       <AirportSearchInput
         value={dest}
         onChange={onDestChange}
-        listId={listId}
         placeholder="DEST"
         ariaLabel="Destination"
         invalid={invalid}
