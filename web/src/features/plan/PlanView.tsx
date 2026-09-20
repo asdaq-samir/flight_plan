@@ -45,6 +45,12 @@ const STAGE_PERCENT: Record<"course" | "checkpoints" | "navlog", number> = {
 export default function PlanView() {
   useDocumentTitle("Plan a route — VFR Route");
   const s = usePlanState();
+  // Named, not read as `s.x` inside the hooks below: each hook then
+  // lists exactly what it reads, and the callbacks are stable
+  // (`useCallback([])` in usePlanState) so listing them costs nothing.
+  const {
+    course, selected, selectedPoint, loadRoutes, plan, loadBriefing, describeCheckpoints, selectPoint, toggleCandidates,
+  } = s;
   const [searchParams, setSearchParams] = useSearchParams();
   const [dep, setDep] = useState(searchParams.get("dep")?.toUpperCase() ?? "");
   const [dest, setDest] = useState(searchParams.get("dest")?.toUpperCase() ?? "");
@@ -98,28 +104,28 @@ export default function PlanView() {
     if (started.current) return;
     started.current = true;
     void (async () => {
-      const routes = await s.loadRoutes();
+      const routes = await loadRoutes();
       const first = routes[0] ?? { departure_ident: "C81", destination_ident: "KDLH" };
       const d = searchParams.get("dep")?.toUpperCase() || first.departure_ident;
       const a = searchParams.get("dest")?.toUpperCase() || first.destination_ident;
       setDep(d);
       setDest(a);
-      void s.plan(d, a, searchParams.get("altitude_ft") ?? undefined);
+      void plan(d, a, searchParams.get("altitude_ft") ?? undefined);
     })();
     // started.current makes this genuinely run-once on mount regardless
-    // of the deps array below; s.loadRoutes/s.plan/searchParams are
-    // still listed (loadRoutes/plan are stable, []-deps callbacks in
+    // of the deps array below; loadRoutes/plan/searchParams are still
+    // listed (loadRoutes/plan are stable, []-deps callbacks in
     // usePlanState; searchParams only matters at this first read) so a
     // future refactor wouldn't silently go stale here undetected.
-  }, [s.loadRoutes, s.plan, searchParams]);
+  }, [loadRoutes, plan, searchParams]);
 
   // The briefing's own data (hazards, METAR, forecast, runways/
   // frequencies) is only worth fetching once a pilot actually opens
   // the Flight Briefing page -- not on every plan(), which is why this
   // is a separate effect from the course/checkpoints/navlog load above.
   useEffect(() => {
-    if (showBriefing && dep && dest) void s.loadBriefing(dep, dest);
-  }, [showBriefing, dep, dest, s.loadBriefing]);
+    if (showBriefing && dep && dest) void loadBriefing(dep, dest);
+  }, [showBriefing, dep, dest, loadBriefing]);
 
   // The nav log's AI button: a pilot-triggered "generate now" for
   // every checkpoint's description at once. Descriptions are visible
@@ -129,8 +135,8 @@ export default function PlanView() {
   // (or finished) for, so a second click before the first finishes
   // costs nothing.
   const generateDescriptions = useCallback(() => {
-    void s.describeCheckpoints(dep, dest, alt.trim() || undefined);
-  }, [dep, dest, alt, s.describeCheckpoints]);
+    void describeCheckpoints(dep, dest, alt.trim() || undefined);
+  }, [dep, dest, alt, describeCheckpoints]);
 
   const submit = useCallback(() => {
     const d = identSchema.safeParse(dep).data, a = identSchema.safeParse(dest).data;
@@ -138,14 +144,14 @@ export default function PlanView() {
     const next: Record<string, string> = { dep: d, dest: a };
     if (alt.trim()) next.altitude_ft = alt.trim();
     setSearchParams(next, { replace: true });
-    void s.plan(d, a, alt.trim() || undefined);
-  }, [dep, dest, alt, s.plan, setSearchParams]);
+    void plan(d, a, alt.trim() || undefined);
+  }, [dep, dest, alt, plan, setSearchParams]);
 
   // The map's own half of point selection -- clicking a checkpoint
   // marker focuses the same point the matching nav log row would.
   const selectCandidate = useCallback(
-    (c: Candidate) => s.selectPoint({ lat: c.lat, lon: c.lon }),
-    [s.selectPoint],
+    (c: Candidate) => selectPoint({ lat: c.lat, lon: c.lon }),
+    [selectPoint],
   );
 
   // Up/Down walks the nav log top to bottom -- departure, each scored
@@ -158,18 +164,18 @@ export default function PlanView() {
   // page's nav log has an equally obvious top-to-bottom order and no
   // single-leg "course-relative" concept of its own to step by instead.
   const stepWaypoint = useCallback((delta: number) => {
-    if (!s.course) return;
+    if (!course) return;
     const points = [
-      { lat: s.course.departure.lat, lon: s.course.departure.lon },
-      ...s.selected.map(c => ({ lat: c.lat, lon: c.lon })),
-      { lat: s.course.destination.lat, lon: s.course.destination.lon },
+      { lat: course.departure.lat, lon: course.departure.lon },
+      ...selected.map(c => ({ lat: c.lat, lon: c.lon })),
+      { lat: course.destination.lat, lon: course.destination.lon },
     ];
-    const at = s.selectedPoint
-      ? points.findIndex(p => descriptionKey(p.lat, p.lon) === descriptionKey(s.selectedPoint!.lat, s.selectedPoint!.lon))
+    const at = selectedPoint
+      ? points.findIndex(p => descriptionKey(p.lat, p.lon) === descriptionKey(selectedPoint.lat, selectedPoint.lon))
       : -1;
     const next = points[Math.max(0, Math.min(points.length - 1, (at < 0 ? 0 : at + delta)))];
-    if (next) s.selectPoint(next);
-  }, [s.course, s.selected, s.selectedPoint, s.selectPoint]);
+    if (next) selectPoint(next);
+  }, [course, selected, selectedPoint, selectPoint]);
 
   // Mirrors Label's own zoom button: zoomed out, this zooms in to
   // whatever's selected (or departure, the first point, if nothing is
@@ -179,10 +185,10 @@ export default function PlanView() {
   // comment), not which of these two actions last ran.
   const [zoomedIn, setZoomedIn] = useState(false);
   const toggleZoom = useCallback(() => {
-    if (!s.course) return;
+    if (!course) return;
     if (zoomedIn) { controls.current?.fit(); return; }
-    s.selectPoint(s.selectedPoint ?? { lat: s.course.departure.lat, lon: s.course.departure.lon });
-  }, [s.course, s.selectedPoint, s.selectPoint, zoomedIn]);
+    selectPoint(selectedPoint ?? { lat: course.departure.lat, lon: course.departure.lon });
+  }, [course, selectedPoint, selectPoint, zoomedIn]);
 
   // Shortcuts, skipped while an ident is being typed -- or, just as
   // much, while a checkpoint description is: that field is a
@@ -197,7 +203,7 @@ export default function PlanView() {
       const tag = (e.target as HTMLElement)?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA") return;
       if (e.key === "n") setBriefingView(!showBriefing);
-      if (e.key === "a") s.toggleCandidates();
+      if (e.key === "a") toggleCandidates();
       if (!showBriefing && e.key === "f") controls.current?.fit();
       if (!showBriefing && e.key === "t") controls.current?.toggleBasemap();
       if (!showBriefing && e.key === "ArrowDown") { e.preventDefault(); stepWaypoint(1); }
@@ -205,7 +211,7 @@ export default function PlanView() {
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [showBriefing, setBriefingView, stepWaypoint]);
+  }, [showBriefing, setBriefingView, stepWaypoint, toggleCandidates]);
 
 
   // Folds PageHeader's own row and the old separate toolbar row into
@@ -359,6 +365,7 @@ export default function PlanView() {
       )}
       <Shell
         header={mapHeader}
+        sidebarLabel="Nav log"
         sidebarWide={navLogExpanded}
         sidebarOpen={sidebarOpen}
         onSidebarOpenChange={setSidebarOpen}

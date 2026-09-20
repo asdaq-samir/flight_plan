@@ -795,13 +795,13 @@ export default function FlightBriefingView({
           check current NOTAMs directly before you fly:{" "}
           <a
             href="https://www.1800wxbrief.com" target="_blank" rel="noreferrer"
-            className="text-blue-600 underline print:text-muted-foreground"
+            className="text-foreground underline underline-offset-4"
           >
             1800wxbrief.com
           </a>{" "}or{" "}
           <a
             href="https://notams.aim.faa.gov/notamSearch/" target="_blank" rel="noreferrer"
-            className="text-blue-600 underline print:text-muted-foreground"
+            className="text-foreground underline underline-offset-4"
           >
             notams.aim.faa.gov
           </a>.
@@ -820,7 +820,7 @@ export default function FlightBriefingView({
           Not fetched here -- check current delays and flow-control advisories:{" "}
           <a
             href="https://www.fly.faa.gov" target="_blank" rel="noreferrer"
-            className="text-blue-600 underline print:text-muted-foreground"
+            className="text-foreground underline underline-offset-4"
           >
             fly.faa.gov
           </a>.

@@ -17,6 +17,13 @@ import { observeResize } from "./leaflet";
 export function useLeafletMap(onReady?: (map: L.Map) => void) {
   const el = useRef<HTMLDivElement>(null);
   const map = useRef<L.Map | null>(null);
+  // The latest onReady, read once when the map is created -- a ref
+  // rather than a dependency, so a caller passing a fresh arrow every
+  // render (ChartMap does) never tears the map down to rebuild it.
+  const ready = useRef(onReady);
+  useEffect(() => {
+    ready.current = onReady;
+  });
 
   useEffect(() => {
     if (map.current || !el.current) return;
@@ -40,11 +47,9 @@ export function useLeafletMap(onReady?: (map: L.Map) => void) {
     // the real route's own, the moment course data's own fit() sets
     // one. The container's own background (see RouteMap/ChartMap)
     // covers the cosmetic gap until then, at zero network cost.
-    onReady?.(map.current);
+    ready.current?.(map.current);
     const stopObserving = observeResize(map.current, el.current);
     return () => { stopObserving(); map.current?.remove(); map.current = null; };
-    // Deliberately []: this runs once, the same as it did inline in
-    // each component before -- onReady is read at creation time only.
   }, []);
 
   return { el, map };

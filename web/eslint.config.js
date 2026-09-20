@@ -40,4 +40,14 @@ export default tseslint.config(
       globals: globals.node,
     },
   },
+  {
+    // shadcn's generated primitives export their cva variants
+    // (buttonVariants, badgeVariants) beside the component, which is
+    // how the registry ships them and how other components compose
+    // them -- kept stock rather than split to please Fast Refresh.
+    files: ["src/components/ui/**"],
+    rules: {
+      "react-refresh/only-export-components": "off",
+    },
+  },
 );

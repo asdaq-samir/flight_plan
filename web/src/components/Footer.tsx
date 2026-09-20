@@ -20,11 +20,11 @@ export default function Footer() {
   return (
     <footer className="border-t border-border px-4 py-4 text-xs text-muted-foreground">
       <span className="mr-3">API docs:</span>
-      <a href="/swagger-ui.html" className="mr-3 text-blue-600 underline">webapp</a>
+      <a href="/swagger-ui.html" className="mr-3 underline underline-offset-4 hover:text-foreground">webapp</a>
       {isLocalDev && (
         <>
-          <a href={`http://${host}:8084/docs`} className="mr-3 text-blue-600 underline">planning-service</a>
-          <a href={`http://${host}:8000/docs`} className="text-blue-600 underline">model-service</a>
+          <a href={`http://${host}:8084/docs`} className="mr-3 underline underline-offset-4 hover:text-foreground">planning-service</a>
+          <a href={`http://${host}:8000/docs`} className="underline underline-offset-4 hover:text-foreground">model-service</a>
         </>
       )}
     </footer>

@@ -34,17 +34,23 @@ interface Props {
  * is most of the reason for the port. As two HTML files these had
  * drifted into two implementations of the same look, and only one of
  * them ever got the basemap fix.
+ *
+ * Every callback prop must be a stable identity at its call site (see
+ * PlanView's own handleMapReady, selectCandidate): each effect below
+ * lists exactly what it reads, so an inline arrow would re-run the
+ * whole layer setup on every unrelated re-render.
  */
-export default function RouteMap(props: Props) {
+export default function RouteMap({
+  course, candidates, selected, showCandidates, focus, onSelectCandidate, onReady, onZoomChange,
+}: Props) {
   const { el, map } = useLeafletMap(createBaseLayer);
   const layers = useRef<Record<string, L.Layer | null>>({});
   const basemaps = useRef<ReturnType<typeof createBasemaps> | null>(null);
 
   useEffect(() => {
     const m = map.current;
-    if (!m || !props.course) return;
-    if (!basemaps.current) basemaps.current = createBasemaps(m, props.course);
-    const course = props.course;
+    if (!m || !course) return;
+    if (!basemaps.current) basemaps.current = createBasemaps(m, course);
 
     if (layers.current.course) m.removeLayer(layers.current.course);
     layers.current.course = createCourseLine(m, course.course_line, {
@@ -66,14 +72,11 @@ export default function RouteMap(props: Props) {
       m.fitBounds(L.latLngBounds(course.course_line), { padding: [30, 30] });
     };
     fit();
-    props.onReady({
+    onReady({
       fit,
       toggleBasemap: () => basemaps.current?.toggle() ?? "faa",
     });
-    // props.onReady must be a stable identity at every call site (see
-    // PlanView's own handleMapReady) -- an inline arrow here would
-    // re-run this whole layer-setup effect on every unrelated re-render.
-  }, [props.course, props.onReady]);
+  }, [map, course, onReady]);
 
   // Candidates: every point the model scored, small and dim. The
   // selection is only judgable next to what it was selecting from.
@@ -82,7 +85,7 @@ export default function RouteMap(props: Props) {
     if (!m) return;
     if (layers.current.candidates) m.removeLayer(layers.current.candidates);
     layers.current.candidates = L.layerGroup(
-      props.candidates.filter(c => !c.selected).map(c =>
+      candidates.filter(c => !c.selected).map(c =>
         L.circleMarker([c.lat, c.lon], {
           radius: 4, color: "#5b6b76", weight: 1, opacity: 0.65,
           fillColor: scoreColor(c.predicted_score), fillOpacity: 0.5,
@@ -93,15 +96,15 @@ export default function RouteMap(props: Props) {
           </>,
         ))),
     );
-    if (props.showCandidates) layers.current.candidates.addTo(m);
-  }, [props.candidates, props.showCandidates]);
+    if (showCandidates) layers.current.candidates.addTo(m);
+  }, [map, candidates, showCandidates]);
 
   useEffect(() => {
     const m = map.current;
     if (!m) return;
     if (layers.current.selected) m.removeLayer(layers.current.selected);
     layers.current.selected = L.layerGroup(
-      props.selected.map((c, i) =>
+      selected.map((c, i) =>
         L.marker([c.lat, c.lon], { icon: dotIcon(scoreColor(c.predicted_score), i + 1) })
           .bindPopup(mountReact(
             <>
@@ -109,20 +112,20 @@ export default function RouteMap(props: Props) {
               score {c.predicted_score.toFixed(2)} · {c.along_track_nm.toFixed(1)} nm along
             </>,
           ))
-          .on("click", ev => { L.DomEvent.stopPropagation(ev); props.onSelectCandidate(c); })),
+          .on("click", ev => { L.DomEvent.stopPropagation(ev); onSelectCandidate(c); })),
     ).addTo(m);
-  }, [props.selected, props.onSelectCandidate]);
+  }, [map, selected, onSelectCandidate]);
 
   // The ring follows the panel selection, and the map comes to it.
+  const focusZoom = course?.max_zoom ?? 12;
   useEffect(() => {
     const m = map.current;
     if (!m) return;
     if (layers.current.halo) { m.removeLayer(layers.current.halo); layers.current.halo = null; }
-    if (!props.focus) return;
-    layers.current.halo = createHalo(m, [props.focus.lat, props.focus.lon]).ring;
-    m.setView([props.focus.lat, props.focus.lon],
-              Math.max(m.getZoom(), props.course?.max_zoom ?? 12));
-  }, [props.focus]);
+    if (!focus) return;
+    layers.current.halo = createHalo(m, [focus.lat, focus.lon]).ring;
+    m.setView([focus.lat, focus.lon], Math.max(m.getZoom(), focusZoom));
+  }, [map, focus, focusZoom]);
 
   // Reports the map's own real zoom level back up rather than PlanView
   // guessing at it from whichever action last ran -- scroll/pinch/
@@ -131,13 +134,12 @@ export default function RouteMap(props: Props) {
   // whichever of those actually happened.
   useEffect(() => {
     const m = map.current;
-    if (!m || !props.onZoomChange) return;
-    const threshold = props.course?.max_zoom ?? 12;
-    const onZoom = () => props.onZoomChange?.(m.getZoom() >= threshold);
+    if (!m || !onZoomChange) return;
+    const onZoom = () => onZoomChange(m.getZoom() >= focusZoom);
     onZoom();
     m.on("zoomend", onZoom);
     return () => { m.off("zoomend", onZoom); };
-  }, [props.course?.max_zoom, props.onZoomChange]);
+  }, [map, focusZoom, onZoomChange]);
 
   // bg-slate-100: purely cosmetic, so the gap before the course loads
   // (and its own fit() gives the map a real view to fetch tiles for)

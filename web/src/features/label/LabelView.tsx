@@ -25,7 +25,7 @@ import { isEndpoint, type Point, type Rating } from "../../lib/api/types";
 import {
   filterCounts, forwardIsLeft, forwardIsUp, hasRating, hiddenCount, isVisible, orderedPoints,
 } from "./logic";
-import { currentPoint, useLabelState } from "./hooks/useLabelState";
+import { currentPoint, useLabelState, type Selection } from "./hooks/useLabelState";
 import { useDocumentTitle } from "../../lib/useDocumentTitle";
 
 const FOCUS_ZOOM = 12;
@@ -72,9 +72,16 @@ interface Props {
 export default function LabelView({ embedded = false, children }: Props) {
   useDocumentTitle(embedded ? null : "Label checkpoints — VFR Route");
   const store = useLabelState();
+  // Named, not read as `store.x` inside the hooks below: each hook then
+  // lists exactly what it reads, and the actions are stable
+  // (`useCallback([])` in useLabelState) so listing them costs nothing.
+  const {
+    selection, endpoints, detections, added, filters, course,
+    load, select, rate, setCategory, removeSelected, addPick, setFilter,
+  } = store;
   const point = useMemo(
-    () => currentPoint(store),
-    [store.selection, store.endpoints, store.detections, store.added],
+    () => currentPoint({ selection, endpoints, detections, added }),
+    [selection, endpoints, detections, added],
   );
   const [searchParams, setSearchParams] = useSearchParams();
   const [map, setMap] = useState<L.Map | null>(null);
@@ -94,11 +101,11 @@ export default function LabelView({ embedded = false, children }: Props) {
 
   // Mount only, deliberately: RouteForm's own onSubmit is the reload
   // path when dep/dest change later, so this effect must not also fire
-  // on every keystroke that updates them. store.load is still listed
-  // (a stable []-deps callback in useLabelState) so a future refactor
+  // on every keystroke that updates them. load is still listed (a
+  // stable []-deps callback in useLabelState) so a future refactor
   // that gave it a real dependency wouldn't silently go stale here.
   // eslint-disable-next-line react-hooks/exhaustive-deps -- dep/dest omitted on purpose, see above
-  useEffect(() => { void store.load(dep, dest); }, [store.load]);
+  useEffect(() => { void load(dep, dest); }, [load]);
 
   useEffect(() => {
     if (!map) return;
@@ -161,8 +168,8 @@ export default function LabelView({ embedded = false, children }: Props) {
 
   const focus = useCallback((entry: (typeof walk)[number]) => {
     map?.setView([entry.point.lat, entry.point.lon], Math.max(map.getZoom(), FOCUS_ZOOM));
-    store.select({ kind: entry.kind, index: entry.index });
-  }, [map, store]);
+    select({ kind: entry.kind, index: entry.index });
+  }, [map, select]);
 
   const step = useCallback((delta: number) => {
     setStepDelta(delta);
@@ -203,7 +210,7 @@ export default function LabelView({ embedded = false, children }: Props) {
     // +1) depends on which way the course actually runs, not a fixed
     // left-back/right-forward assumption -- a route heading roughly
     // west has forward on the left.
-    const bearing = store.course?.bearing_deg ?? 0;
+    const bearing = course?.bearing_deg ?? 0;
     const leftIsForward = forwardIsLeft(bearing);
     const canPrev = walkIndex > 0;
     const canNext = walkIndex >= 0 && walkIndex < walk.length - 1;
@@ -216,10 +223,10 @@ export default function LabelView({ embedded = false, children }: Props) {
         // eslint-disable-next-line react-hooks/refs
         countChanged={countChanged}
         bearingDeg={bearing}
-        departureIdent={store.course?.departure.ident ?? ""}
-        onRate={r => void store.rate(r)}
-        onCategoryChange={c => void store.setCategory(c)}
-        onRemove={() => void store.removeSelected()}
+        departureIdent={course?.departure.ident ?? ""}
+        onRate={r => void rate(r)}
+        onCategoryChange={c => void setCategory(c)}
+        onRemove={() => void removeSelected()}
         onLeft={() => step(leftIsForward ? 1 : -1)}
         onRight={() => step(leftIsForward ? -1 : 1)}
         canLeft={leftIsForward ? canNext : canPrev}
@@ -227,8 +234,8 @@ export default function LabelView({ embedded = false, children }: Props) {
       />
     );
   }, [
-    point, place, waypoints.length, store.course?.bearing_deg, store.course?.departure.ident,
-    store.rate, store.setCategory, store.removeSelected, step, walkIndex, walk.length,
+    point, place, waypoints.length, course?.bearing_deg, course?.departure.ident,
+    rate, setCategory, removeSelected, step, walkIndex, walk.length,
   ]);
 
   /** Walks the waypoint list top to bottom (not the course-relative
@@ -245,10 +252,10 @@ export default function LabelView({ embedded = false, children }: Props) {
   /** Zooms out to see the whole leg -- Escape, and its own toolbar
    *  button for touch, which has no Escape key. */
   const fitLine = useCallback(() => {
-    if (!store.course || !map) return;
+    if (!course || !map) return;
     map.invalidateSize();
-    map.fitBounds(store.course.course_line as [number, number][], { padding: [30, 30] });
-  }, [store.course, map]);
+    map.fitBounds(course.course_line as [number, number][], { padding: [30, 30] });
+  }, [course, map]);
 
   /** Zooms into the point you're on, or the first one if you haven't
    *  started yet -- "Start" and "Resume" are the same action, the
@@ -270,7 +277,7 @@ export default function LabelView({ embedded = false, children }: Props) {
     const onKey = (e: KeyboardEvent) => {
       const el = e.target as HTMLElement;
       if (el.tagName === "INPUT" || el.tagName === "SELECT") return;
-      const bearing = store.course?.bearing_deg ?? 0;
+      const bearing = course?.bearing_deg ?? 0;
       if (e.key === "Enter" || e.key === " ") { e.preventDefault(); return toggleView(); }
       if (e.key === "Escape") { e.preventDefault(); return fitLine(); }
       // Up/Down inside the waypoint list walks the list itself, top to
@@ -288,27 +295,34 @@ export default function LabelView({ embedded = false, children }: Props) {
       if (e.key === "ArrowLeft") { e.preventDefault(); return step(forwardIsLeft(bearing) ? 1 : -1); }
       if (e.key === "ArrowRight") { e.preventDefault(); return step(forwardIsLeft(bearing) ? -1 : 1); }
       if (/^[0-5]$/.test(e.key) && point && !isEndpoint(point)) {
-        void store.rate(Number(e.key) as Rating).then(() => step(stepDelta));
+        void rate(Number(e.key) as Rating).then(() => step(stepDelta));
       }
-      if (e.key === "Delete" || e.key === "Backspace") { e.preventDefault(); void store.removeSelected(); }
-      if (e.key === "v") store.setFilter("visual", !store.filters.visual);
+      if (e.key === "Delete" || e.key === "Backspace") { e.preventDefault(); void removeSelected(); }
+      if (e.key === "v") setFilter("visual", !filters.visual);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-    // store.rate/removeSelected/setFilter are stable ([]-deps callbacks
-    // in useLabelState, reading fresh state through a ref rather than
-    // closing over it) -- listed by field rather than the whole `store`
-    // object so this doesn't tear down and rebind the listener on every
-    // unrelated store change (a streamed-in detection, say), only on
-    // the two fields the handler actually reads a fresh value from.
-  }, [store.course, store.filters, store.rate, store.removeSelected, store.setFilter, point, step, stepList, stepDelta, toggleView, fitLine]);
+    // rate/removeSelected/setFilter are stable ([]-deps callbacks in
+    // useLabelState, reading fresh state through a ref rather than
+    // closing over it), so this only tears down and rebinds the
+    // listener on the fields the handler actually reads a fresh value
+    // from, not on every unrelated store change (a streamed-in
+    // detection, say).
+  }, [course, filters, rate, removeSelected, setFilter, point, step, stepList, stepDelta, toggleView, fitLine]);
 
   const submitRoute = useCallback(() => {
     const d = identSchema.safeParse(dep).data, a = identSchema.safeParse(dest).data;
     if (!d || !a) return;
     setSearchParams({ dep: d, dest: a }, { replace: true });
-    void store.load(d, a);
-  }, [dep, dest, setSearchParams, store.load]);
+    void load(d, a);
+  }, [dep, dest, setSearchParams, load]);
+
+  // Stable identities for ChartMap's own effects, which list them as
+  // dependencies (see its comment) -- an inline arrow at the call site
+  // would redraw every marker on every render of this page.
+  const onSelect = useCallback((kind: Selection["kind"], index: number) => select({ kind, index }), [select]);
+  const onDeselect = useCallback(() => select(null), [select]);
+  const onAddAt = useCallback((lat: number, lon: number) => { void addPick(lat, lon); }, [addPick]);
 
   usePageStatus(store.progress, { general: store.error });
 
@@ -351,9 +365,9 @@ export default function LabelView({ embedded = false, children }: Props) {
         selected={point}
         selectedContent={selectedContent}
         showMenu={zoomedIn}
-        onSelect={(kind, index) => store.select({ kind, index })}
-        onDeselect={() => store.select(null)}
-        onAddAt={(lat, lon) => void store.addPick(lat, lon)}
+        onSelect={onSelect}
+        onDeselect={onDeselect}
+        onAddAt={onAddAt}
         onMapReady={setMap}
       />
     </div>
@@ -423,6 +437,7 @@ export default function LabelView({ embedded = false, children }: Props) {
       header={header}
       map={mapContent}
       sidebar={sidebarContent}
+      sidebarLabel="Waypoints"
       sidebarOpen={sidebarOpen}
       onSidebarOpenChange={setSidebarOpen}
     />
