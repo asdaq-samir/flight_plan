@@ -80,12 +80,15 @@ export default function MapDrawer({
   if (!open) return null;
   return (
     <>
-      {/* z-[999]/z-[1000] clear Leaflet's own controls, as
-          MapGuideButton's popover does. */}
+      {/* z-20/z-30: above the map (Shell's `isolate` keeps Leaflet's
+          own z-indexes inside it) and below every Radix layer, which
+          portals to the body at z-50 -- the aircraft picker's list,
+          the narrative popover, a tooltip, the sign-in dialog all open
+          from inside a drawer and have to paint over it. */}
       <div
         data-slot="map-drawer-overlay"
         aria-hidden
-        className="absolute inset-0 z-[999] bg-black/30 animate-in fade-in duration-200 print:hidden"
+        className="absolute inset-0 z-20 bg-black/30 animate-in fade-in duration-200 print:hidden"
         onClick={() => onOpenChange(false)}
       />
       <aside
@@ -93,7 +96,7 @@ export default function MapDrawer({
         data-side={side}
         aria-label={label}
         className={cn(
-          "absolute z-[1000] flex flex-col overflow-hidden bg-background shadow-lg animate-in duration-200",
+          "absolute z-30 flex flex-col overflow-hidden bg-background shadow-lg animate-in duration-200",
           printable
             ? "print:static print:h-auto print:max-h-none print:w-full print:max-w-none print:overflow-visible print:rounded-none print:border-0 print:shadow-none"
             : "print:hidden",

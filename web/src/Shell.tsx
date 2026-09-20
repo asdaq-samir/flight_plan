@@ -72,7 +72,16 @@ export default function Shell({
     >
       {header}
       <div className="relative min-h-0 flex-1 overflow-hidden print:!h-auto print:!overflow-visible">
-        {map}
+        {/* `isolate`: Leaflet's own panes and controls carry z-indexes
+            up to 1000, and without a stacking context of their own
+            they compete with everything else on the page -- which is
+            why the drawers used to sit at z-1000 too, and every Radix
+            layer opened from inside one (a select's list, a popover,
+            a tooltip, the sign-in dialog, all z-50 in a portal) then
+            painted behind the drawer. Contained here, the map is one
+            flat layer under the drawers (z-20/30) and the portals
+            (z-50), in that order. */}
+        <div className="isolate h-full w-full print:!h-auto print:!overflow-visible">{map}</div>
         {panels}
         {sidebar && (
           <MapDrawer

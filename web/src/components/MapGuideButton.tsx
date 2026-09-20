@@ -48,7 +48,7 @@ export default function MapGuideButton({ ariaLabel, contentClassName, children }
           (or centered under it) runs off the right side of the screen;
           anchoring to its right edge instead keeps it on screen
           regardless of viewport width. */}
-      <PopoverContent side="bottom" align="end" className={cn("z-[1000]", contentClassName)}>
+      <PopoverContent side="bottom" align="end" className={cn(contentClassName)}>
         <ScrollArea className="max-h-[70vh]">
           <div className="space-y-3 text-sm">{children}</div>
         </ScrollArea>

@@ -123,14 +123,9 @@ export default function AirportSearchInput({
       </PopoverAnchor>
       <PopoverContent
         align="start"
-        // z-[1000], not PopoverContent's own default z-50 -- this sits
-        // directly over Leaflet's own map panes/markers/attribution
-        // (see MapGuideButton's own popover, the other place in this
-        // app that needed the same override), which reach z-index 1000
-        // themselves; left at the default, the dropdown's own opaque
-        // background painted *underneath* those panes instead of over
-        // them, reading as see-through rather than actually being so.
-        className="z-[1000] w-64 p-1"
+        // The stock z-50: this used to need z-[1000] to paint over
+        // Leaflet's own panes, until Shell's `isolate` contained them.
+        className="w-64 p-1"
         onOpenAutoFocus={e => e.preventDefault()}
         // Losing focus to a click inside this popover already closes
         // it via the input's own onBlur above -- Radix's own default
