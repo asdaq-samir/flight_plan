@@ -3,6 +3,7 @@ import ReactDOM from "react-dom/client";
 import { createBrowserRouter, Navigate, RouterProvider } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider } from "next-themes";
+import RedirectKeepingSearch from "./components/RedirectKeepingSearch";
 import { Toaster } from "./components/ui/sonner";
 import { TooltipProvider } from "./components/ui/tooltip";
 import "./index.css";
@@ -39,6 +40,12 @@ const queryClient = new QueryClient();
 // skeleton.
 const noFallback = { HydrateFallback: () => null };
 
+// Two pages, one for each role, the same shell around a different map
+// and drawers: Plan (the pilot's -- the route, the nav log, the pilot's
+// own console) and Dev (the developer's -- the labeling workspace and
+// the dev console). The two older addresses keep working: the labeling
+// page is the Dev page now, and everything Settings held lives in
+// Plan's pilot console.
 const router = createBrowserRouter(
   [
     { index: true, element: <Navigate to="/plan" replace /> },
@@ -48,22 +55,19 @@ const router = createBrowserRouter(
       ...noFallback,
     },
     {
-      path: "label",
-      lazy: () => import("./features/label/LabelView").then(m => ({ Component: m.default })),
+      path: "dev",
+      lazy: () => import("./features/dev/DevView").then(m => ({ Component: m.default })),
       ...noFallback,
     },
-    {
-      path: "settings",
-      lazy: () => import("./features/settings/SettingsView").then(m => ({ Component: m.default })),
-      ...noFallback,
-    },
+    { path: "label", element: <RedirectKeepingSearch to="/dev" /> },
+    { path: "settings", element: <Navigate to="/plan" replace /> },
   ],
   { basename: "/app" },
 );
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    {/* Light, dark, or the OS's own choice -- Settings' ThemeToggle
+    {/* Light, dark, or the OS's own choice -- the consoles' ThemeToggle
         sets it, next-themes keeps it and puts the `dark` class on
         <html>, which is what every colour token in index.css keys off
         (and what the Toaster below already reads). */}
@@ -81,18 +85,10 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
           (across every page that has one) renders through it via
           toast.loading/dismiss, rather than each page mounting its own
           floating status element.
-          bottom-center everywhere now -- Plan's own header row used to
-          need `offset` to clear (a toast top-anchored there would sit
-          right under the route form), but nothing floats at the bottom
-          of Plan's or Settings' own content any more (every corner
-          button that used to live there has moved into a header), so
-          there's no header row's own height to measure and clear the
-          way the old top-anchored offset did. Standalone Label
-          (`/app/label`) is the one page that still floats its own
-          guide button and sidebar trigger at the bottom -- sonner's own
-          default bottom margin already clears Leaflet's attribution
-          control there the same way the old top offset cleared a
-          header, without this needing a page-specific number.
+          bottom-center everywhere -- nothing floats at the bottom of
+          either page's own content (every corner button lives in a
+          header now), and sonner's own default bottom margin clears
+          Leaflet's attribution control without a page-specific number.
           closeButton: off by default in sonner, but the error toast
           below sets `duration: Infinity` (see usePageStatus) -- with
           no close button, the only way to dismiss it is for the error

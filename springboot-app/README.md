@@ -160,7 +160,7 @@ thrown) whether or not OIDC is configured.
 proxy (picks, checkpoint notes, corridor builds) require a session
 whenever `SecurityConfig` sees a way to obtain one -- OIDC credentials
 or a configured `MAIL_HOST` for the magic link. Locally neither is set,
-so the Label page keeps working signed out; deployed with sign-in, an
+so the Dev page keeps working signed out; deployed with sign-in, an
 anonymous caller can no longer start a minutes-long corridor build.
 
 **Testcontainers needs the Docker socket.** That is why the `mvn test`

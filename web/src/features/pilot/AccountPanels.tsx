@@ -5,7 +5,6 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
-import CollapsibleSection from "../../components/CollapsibleSection";
 import { Button } from "../../components/ui/button";
 import { Field, FieldError } from "../../components/ui/field";
 import { Input } from "../../components/ui/input";
@@ -13,10 +12,13 @@ import {
   Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow,
 } from "../../components/ui/table";
 import SignInModal from "./SignInModal";
-import { api, describeError } from "../../lib/api/client";
-import type { Aircraft, AircraftRequest, FlightSummary } from "../../lib/api/types";
+import { api, describeError, errorMessage } from "../../lib/api/client";
+import type { Aircraft, AircraftRequest, FlightSummary, Pilot } from "../../lib/api/types";
 import { useErrorToasts } from "../../lib/usePageStatus";
-import { errorMessage, type PilotState } from "./shared";
+
+/** Who is signed in, or why nobody is: null signed out, "loading"
+ *  while the check is in flight, "error" when it failed. */
+export type PilotState = Pilot | null | "loading" | "error";
 
 const ft = (n: number | null) => (n == null ? "—" : `${Math.round(n).toLocaleString()} ft`);
 
@@ -44,14 +46,12 @@ const EMPTY_AIRCRAFT_FORM: AircraftFormValues = {
 };
 
 /**
- * Signed-in status, in the header's own top-right corner rather than a
- * full-width row in the page body -- identity reads as chrome, the same
- * place any other app puts it, not content to scroll past. `pilot` is
+ * Signed-in status, at the top of the pilot console. `pilot` is
  * lifted to the parent rather than owned here, since the Aircraft and
  * Flights panels below also need to know whether anyone's signed in;
- * the ["pilot"] query itself is shared cache, not re-fetched per panel.
- * Signed out, this is just `SignInModal`'s own trigger button -- the
- * three-provider prompt lives entirely in that component.
+ * the ["pilot"] query itself is shared cache, not re-fetched per
+ * panel. Signed out, this is just `SignInModal`'s own trigger button --
+ * the three-provider prompt lives entirely in that component.
  */
 export function SignInStatus({ pilot, onRetry }: { pilot: PilotState; onRetry: () => void }) {
   const queryClient = useQueryClient();
@@ -88,19 +88,20 @@ export function SignInStatus({ pilot, onRetry }: { pilot: PilotState; onRetry: (
 }
 
 /** A signed-in pilot's own aeroplanes -- list, add, edit (the same
- *  form, switched into "editing" mode by clicking a row), delete.
- *  Nothing here means anything while signed out, so the panel says
- *  that plainly rather than showing an empty list that looks broken. */
+ *  form, switched into "editing" mode by clicking a row), delete. The
+ *  nav log's own aircraft picker offers these; this is where the list
+ *  is kept. Nothing here means anything while signed out, so the panel
+ *  says that plainly rather than showing an empty list that looks
+ *  broken. */
 export function AircraftPanel({ pilot }: { pilot: PilotState }) {
   const signedIn = pilot !== null && pilot !== "loading" && pilot !== "error";
   const queryClient = useQueryClient();
-  const [isOpen, setIsOpen] = useState(false);
   const {
     data: list, isLoading, error: listError, refetch,
   } = useQuery({
     queryKey: ["aircraft"],
     queryFn: api.aircraft.list,
-    enabled: signedIn && isOpen,
+    enabled: signedIn,
   });
   const [editingId, setEditingId] = useState<number | null>(null);
   const [aircraftToDelete, setAircraftToDelete] = useState<Aircraft | null>(null);
@@ -160,104 +161,101 @@ export function AircraftPanel({ pilot }: { pilot: PilotState }) {
   const listMessage = errorMessage(listError, "Could not load your aircraft");
   useErrorToasts({ aircraftList: listMessage && { message: listMessage, retry: () => void refetch() } });
 
-  if (pilot === null || pilot === "error") {
-    return (
-      <CollapsibleSection title="Aircraft">
-        <p className="text-sm text-muted-foreground">
-          {pilot === "error" ? "Your sign-in status could not be checked." : "Sign in to manage your own aeroplanes."}
-        </p>
-      </CollapsibleSection>
-    );
-  }
-
   return (
-    <CollapsibleSection title="Aircraft" onOpenChange={setIsOpen}>
-      {pilot === "loading" || isLoading ? (
-        <p className="text-sm text-muted-foreground">Loading…</p>
-      ) : list ? (
-        // shadcn's own data-table framing (a bordered, rounded container
-        // around stock cells) -- numbers right-aligned in tabular
-        // figures so the units line up down a column.
-        <Table containerClassName="mb-3 rounded-md border" className="min-w-[34rem]">
-          <TableCaption className="sr-only">Your saved aircraft</TableCaption>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Tail #</TableHead>
-              <TableHead>Type</TableHead>
-              <TableHead className="text-right">Cruise TAS</TableHead>
-              <TableHead className="text-right">Fuel burn</TableHead>
-              <TableHead className="text-right"><span className="sr-only">Actions</span></TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {list?.length === 0 && (
-              <TableRow><TableCell colSpan={5} className="h-16 text-center text-muted-foreground">No aircraft yet.</TableCell></TableRow>
-            )}
-            {list?.map(a => (
-              <TableRow key={a.id}>
-                <TableCell className="font-mono">{a.tailNumber}</TableCell>
-                <TableCell>{a.typeDesignator}</TableCell>
-                <TableCell className="text-right tabular-nums">{a.cruiseTasKt} kt</TableCell>
-                <TableCell className="text-right tabular-nums">{a.fuelBurnGph} gph</TableCell>
-                <TableCell className="text-right">
-                  <Button type="button" variant="link" size="sm" onClick={() => edit(a)}>Edit</Button>
-                  <Button type="button" variant="link" size="sm" className="text-destructive" onClick={() => setAircraftToDelete(a)}>
-                    Delete
-                  </Button>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      ) : null}
-      {aircraftToDelete && (
-        <div className="mb-3 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm" role="alert">
-          <p>Delete {aircraftToDelete.tailNumber}? This cannot be undone.</p>
-          <div className="mt-2 flex gap-2">
-            <Button type="button" variant="destructive" size="sm" onClick={() => remove.mutate(aircraftToDelete.id)} disabled={remove.isPending}>
-              {remove.isPending ? "Deleting…" : "Delete aircraft"}
-            </Button>
-            <Button type="button" variant="outline" size="sm" onClick={() => setAircraftToDelete(null)} disabled={remove.isPending}>Cancel</Button>
-          </div>
-        </div>
-      )}
-      {signedIn && (
-        <form className="flex flex-wrap items-start gap-2" onSubmit={handleSubmit(onSubmit)} noValidate>
-          <Field data-invalid={!!errors.tailNumber} className="w-24">
-            <Input
-              {...register("tailNumber")} placeholder="Tail #"
-              aria-label="Tail number" aria-invalid={!!errors.tailNumber}
-            />
-            <FieldError errors={[errors.tailNumber]} />
-          </Field>
-          <Field data-invalid={!!errors.typeDesignator} className="w-32">
-            <Input
-              {...register("typeDesignator")} placeholder="Type (e.g. C172)"
-              aria-label="Type designator" aria-invalid={!!errors.typeDesignator}
-            />
-            <FieldError errors={[errors.typeDesignator]} />
-          </Field>
-          <Field data-invalid={!!errors.cruiseTasKt} className="w-32">
-            <Input
-              {...register("cruiseTasKt")} placeholder="Cruise TAS (kt)"
-              aria-label="Cruise TAS in knots" inputMode="decimal" aria-invalid={!!errors.cruiseTasKt}
-            />
-            <FieldError errors={[errors.cruiseTasKt]} />
-          </Field>
-          <Field data-invalid={!!errors.fuelBurnGph} className="w-32">
-            <Input
-              {...register("fuelBurnGph")} placeholder="Fuel burn (gph)"
-              aria-label="Fuel burn in gallons per hour" inputMode="decimal" aria-invalid={!!errors.fuelBurnGph}
-            />
-            <FieldError errors={[errors.fuelBurnGph]} />
-          </Field>
-          <Button type="submit" disabled={save.isPending}>{editingId ? "Save changes" : "Add aircraft"}</Button>
-          {editingId && (
-            <Button type="button" variant="link" size="sm" onClick={cancelEdit}>Cancel</Button>
+    <section>
+      <h3 className="text-sm font-semibold">Aircraft</h3>
+      {pilot === null || pilot === "error" ? (
+        <p className="mt-1 text-sm text-muted-foreground">
+          {pilot === "error" ? "Your sign-in status could not be checked." : "Sign in to keep your own aeroplanes; the nav log then flies them."}
+        </p>
+      ) : pilot === "loading" || isLoading ? (
+        <p className="mt-1 text-sm text-muted-foreground">Loading…</p>
+      ) : (
+        <>
+          {list && (
+            // shadcn's own data-table framing (a bordered, rounded container
+            // around stock cells) -- numbers right-aligned in tabular
+            // figures so the units line up down a column.
+            <Table containerClassName="mt-2 mb-3 rounded-md border" className="min-w-[34rem]">
+              <TableCaption className="sr-only">Your saved aircraft</TableCaption>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Tail #</TableHead>
+                  <TableHead>Type</TableHead>
+                  <TableHead className="text-right">Cruise TAS</TableHead>
+                  <TableHead className="text-right">Fuel burn</TableHead>
+                  <TableHead className="text-right"><span className="sr-only">Actions</span></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {list.length === 0 && (
+                  <TableRow><TableCell colSpan={5} className="h-16 text-center text-muted-foreground">No aircraft yet.</TableCell></TableRow>
+                )}
+                {list.map(a => (
+                  <TableRow key={a.id}>
+                    <TableCell className="font-mono">{a.tailNumber}</TableCell>
+                    <TableCell>{a.typeDesignator}</TableCell>
+                    <TableCell className="text-right tabular-nums">{a.cruiseTasKt} kt</TableCell>
+                    <TableCell className="text-right tabular-nums">{a.fuelBurnGph} gph</TableCell>
+                    <TableCell className="text-right">
+                      <Button type="button" variant="link" size="sm" onClick={() => edit(a)}>Edit</Button>
+                      <Button type="button" variant="link" size="sm" className="text-destructive" onClick={() => setAircraftToDelete(a)}>
+                        Delete
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           )}
-        </form>
+          {aircraftToDelete && (
+            <div className="mb-3 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm" role="alert">
+              <p>Delete {aircraftToDelete.tailNumber}? This cannot be undone.</p>
+              <div className="mt-2 flex gap-2">
+                <Button type="button" variant="destructive" size="sm" onClick={() => remove.mutate(aircraftToDelete.id)} disabled={remove.isPending}>
+                  {remove.isPending ? "Deleting…" : "Delete aircraft"}
+                </Button>
+                <Button type="button" variant="outline" size="sm" onClick={() => setAircraftToDelete(null)} disabled={remove.isPending}>Cancel</Button>
+              </div>
+            </div>
+          )}
+          <form className="flex flex-wrap items-start gap-2" onSubmit={handleSubmit(onSubmit)} noValidate>
+            <Field data-invalid={!!errors.tailNumber} className="w-24">
+              <Input
+                {...register("tailNumber")} placeholder="Tail #"
+                aria-label="Tail number" aria-invalid={!!errors.tailNumber}
+              />
+              <FieldError errors={[errors.tailNumber]} />
+            </Field>
+            <Field data-invalid={!!errors.typeDesignator} className="w-32">
+              <Input
+                {...register("typeDesignator")} placeholder="Type (e.g. C172)"
+                aria-label="Type designator" aria-invalid={!!errors.typeDesignator}
+              />
+              <FieldError errors={[errors.typeDesignator]} />
+            </Field>
+            <Field data-invalid={!!errors.cruiseTasKt} className="w-32">
+              <Input
+                {...register("cruiseTasKt")} placeholder="Cruise TAS (kt)"
+                aria-label="Cruise TAS in knots" inputMode="decimal" aria-invalid={!!errors.cruiseTasKt}
+              />
+              <FieldError errors={[errors.cruiseTasKt]} />
+            </Field>
+            <Field data-invalid={!!errors.fuelBurnGph} className="w-32">
+              <Input
+                {...register("fuelBurnGph")} placeholder="Fuel burn (gph)"
+                aria-label="Fuel burn in gallons per hour" inputMode="decimal" aria-invalid={!!errors.fuelBurnGph}
+              />
+              <FieldError errors={[errors.fuelBurnGph]} />
+            </Field>
+            <Button type="submit" disabled={save.isPending}>{editingId ? "Save changes" : "Add aircraft"}</Button>
+            {editingId && (
+              <Button type="button" variant="link" size="sm" onClick={cancelEdit}>Cancel</Button>
+            )}
+          </form>
+        </>
       )}
-    </CollapsibleSection>
+    </section>
   );
 }
 
@@ -267,14 +265,13 @@ export function AircraftPanel({ pilot }: { pilot: PilotState }) {
 export function FlightsPanel({ pilot }: { pilot: PilotState }) {
   const signedIn = pilot !== null && pilot !== "loading" && pilot !== "error";
   const queryClient = useQueryClient();
-  const [isOpen, setIsOpen] = useState(false);
   const [flightToDelete, setFlightToDelete] = useState<FlightSummary | null>(null);
   const {
     data: list, isLoading, error, refetch,
   } = useQuery({
     queryKey: ["flights"],
     queryFn: api.flights.list,
-    enabled: signedIn && isOpen,
+    enabled: signedIn,
   });
 
   const remove = useMutation({
@@ -296,26 +293,21 @@ export function FlightsPanel({ pilot }: { pilot: PilotState }) {
     ...(f.cruiseAltitudeFt != null ? { altitude_ft: String(f.cruiseAltitudeFt) } : {}),
   })}`;
 
-  if (pilot === null || pilot === "error") {
-    return (
-      <CollapsibleSection title="My Flights">
-        <p className="text-sm text-muted-foreground">
+  return (
+    <section>
+      <h3 className="text-sm font-semibold">My Flights</h3>
+      {pilot === null || pilot === "error" ? (
+        <p className="mt-1 text-sm text-muted-foreground">
           {pilot === "error" ? "Your sign-in status could not be checked." : "Sign in to see flights you've filed."}
         </p>
-      </CollapsibleSection>
-    );
-  }
-
-  return (
-    <CollapsibleSection title="My Flights" onOpenChange={setIsOpen}>
-      {pilot === "loading" || isLoading ? (
-        <p className="text-sm text-muted-foreground">Loading…</p>
+      ) : pilot === "loading" || isLoading ? (
+        <p className="mt-1 text-sm text-muted-foreground">Loading…</p>
       ) : error ? null : list?.length === 0 ? (
-        <p className="text-sm text-muted-foreground">
-          No flights filed yet -- plan a route, open its Flight Briefing, and save it there.
+        <p className="mt-1 text-sm text-muted-foreground">
+          No flights filed yet -- plan a route, open its Brief tab, and save it there.
         </p>
       ) : (
-        <Table containerClassName="rounded-md border" className="min-w-[32rem]">
+        <Table containerClassName="mt-2 rounded-md border" className="min-w-[36rem]">
           <TableCaption className="sr-only">Your filed flights</TableCaption>
           <TableHeader>
             <TableRow>
@@ -357,6 +349,6 @@ export function FlightsPanel({ pilot }: { pilot: PilotState }) {
           </div>
         </div>
       )}
-    </CollapsibleSection>
+    </section>
   );
 }

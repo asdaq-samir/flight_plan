@@ -63,6 +63,10 @@ export function describeError(err: unknown, fallback = "request failed"): string
   return firstLine || fallback;
 }
 
+/** `describeError` for a query's `error` field, which is null while
+ *  nothing has failed -- and so is this. */
+export const errorMessage = (err: unknown, fallback: string) => (err ? describeError(err, fallback) : null);
+
 /**
  * Newline-delimited JSON, one line at a time as the bytes arrive --
  * `detect`, `describeCheckpoints` and `navlog` all stream this same

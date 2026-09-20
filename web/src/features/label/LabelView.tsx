@@ -3,16 +3,9 @@ import { useSearchParams } from "react-router-dom";
 import { identSchema } from "../../lib/identSchema";
 // Without this Leaflet's tiles, markers and controls have no
 // positioning at all -- this is the library's own stylesheet, not
-// app styling. Imported here (not in main.tsx) so Home/Playground
-// pages that never touch a map don't pay for it. Settings' own Dev
-// Label tab now does pay for it (it statically imports this component
-// to embed the real workspace inline, see that tab's own comment), but
-// only as part of Settings' own lazy route chunk, still never on
-// Plan's or the initial app load.
+// app styling. Imported here (not in main.tsx) so it loads with the
+// Dev page's own lazy chunk, never on Plan's or the initial app load.
 import "leaflet/dist/leaflet.css";
-import Shell from "../../Shell";
-import SettingsButton from "../../components/SettingsButton";
-import SidebarToggleButton from "../../components/SidebarToggleButton";
 import ZoomToggleButton from "../../components/ZoomToggleButton";
 import { usePageStatus } from "../../lib/usePageStatus";
 import ChartMap from "./components/ChartMap";
@@ -26,29 +19,23 @@ import {
   filterCounts, forwardIsLeft, forwardIsUp, hasRating, hiddenCount, isVisible, orderedPoints,
 } from "./logic";
 import { currentPoint, useLabelState, type Selection } from "./hooks/useLabelState";
-import { useDocumentTitle } from "../../lib/useDocumentTitle";
 
 const FOCUS_ZOOM = 12;
 
-/** The pieces `embedded` mode hands back instead of wrapping them in
- *  this component's own `Shell`/header -- Settings' own Dev tab
- *  composes these into ITS OWN single Shell (with its own
- *  `sidebarOpen` state and its own `SidebarToggleButton`) instead of
- *  nesting a second Shell inside the first. See SettingsView's own
- *  comment on why this needs to be one Shell, not two stacked ones. */
+/** The pieces this workspace hands its page -- DevView composes them
+ *  into its own single Shell, with its own `sidebarOpen` state and its
+ *  own `SidebarToggleButton`, rather than this component nesting a
+ *  second Shell inside the page's. */
 export interface LabelWorkspacePieces {
-  /** DEP/DEST/Load -- Settings' own header shows this at the same
-   *  trailing spot RouteForm sits in Plan's, left-aligned, only while
-   *  Dev is the active tab. */
+  /** DEP/DEST/Load, for the header's centre. */
   routeForm: ReactNode;
   /** The rating scale/shortcuts popover -- inline next to the sidebar
-   *  trigger in Settings' own tab row instead of floating over the
-   *  map, the same move Plan's own `ScoreLegend` already made for its
-   *  Map tab. */
+   *  trigger in the header instead of floating over the map, the same
+   *  move Plan's own `ScoreLegend` already made for its Map tab. */
   guideButton: ReactNode;
-  /** Start/Resume/Fit line -- next to the sidebar trigger, mirroring
-   *  Plan's own fit-route button beside its sidebar trigger, not
-   *  folded into `routeForm` (see this page's own comment on why). */
+  /** Fit Route / Show Selected -- next to the sidebar trigger, mirroring
+   *  Plan's own zoom toggle beside its sidebar trigger, not folded into
+   *  `routeForm` (see this page's own comment on why). */
   zoomButton: ReactNode;
   /** The chart itself, for Shell's own `map` slot. */
   mapContent: ReactNode;
@@ -57,20 +44,12 @@ export interface LabelWorkspacePieces {
 }
 
 interface Props {
-  /** true when this is Settings' own Dev tab rendering the real
-   *  workspace inline (see SettingsView's own comment) rather than the
-   *  standalone `/app/label` route mounting this as the whole page.
-   *  Requires `children`, since embedded mode has nothing of its own
-   *  to render -- everything it would have shown goes through that
-   *  render prop for Settings' own Shell to place instead. */
-  embedded?: boolean;
-  /** Only called (and only meaningful) when `embedded` -- see
-   *  `LabelWorkspacePieces`'s own comment. */
-  children?: (pieces: LabelWorkspacePieces) => ReactNode;
+  /** The page renders the pieces; this component has no shell of its
+   *  own to render them in. */
+  children: (pieces: LabelWorkspacePieces) => ReactNode;
 }
 
-export default function LabelView({ embedded = false, children }: Props) {
-  useDocumentTitle(embedded ? null : "Label checkpoints — VFR Route");
+export default function LabelView({ children }: Props) {
   const store = useLabelState();
   // Named, not read as `store.x` inside the hooks below: each hook then
   // lists exactly what it reads, and the actions are stable
@@ -93,11 +72,6 @@ export default function LabelView({ embedded = false, children }: Props) {
   // so without this the label would only update on some unrelated
   // re-render, not the moment a zoom actually happens.
   const [zoomedIn, setZoomedIn] = useState(false);
-  // The waypoint-list sidebar's own open state -- only meaningful (and
-  // only read below) for the standalone page's own `<Shell>` call;
-  // `embedded` mode's own sidebar trigger belongs to Settings' own
-  // Shell instead, which owns its own copy of this same state.
-  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // Mount only, deliberately: RouteForm's own onSubmit is the reload
   // path when dep/dest change later, so this effect must not also fire
@@ -326,21 +300,19 @@ export default function LabelView({ embedded = false, children }: Props) {
 
   usePageStatus(store.progress, { general: store.error });
 
-  // The four pieces every version of this page is built from --
-  // standalone wraps them in its own Shell/header below; `embedded`
-  // hands them to Settings' own Dev tab instead, for its own single
-  // Shell to place (see `LabelWorkspacePieces`'s own comment on why
-  // one Shell, not two).
+  // The pieces the page is built from, handed to DevView for its own
+  // single Shell to place (see `LabelWorkspacePieces`'s own comment on
+  // why one Shell, not two).
   const routeForm = (
     <RouteForm
       dep={dep} dest={dest} onDepChange={setDep} onDestChange={setDest}
       onSubmit={submitRoute}
     />
   );
-  // Inline next to the sidebar trigger in the header, standalone or
-  // embedded alike -- the same move Plan's own `ScoreLegend` already
-  // made for its Map tab (see `MapGuideButton`'s own comment on why
-  // there's no floating mode left to opt out of any more).
+  // Inline next to the sidebar trigger in the header -- the same move
+  // Plan's own `ScoreLegend` already made for its Map tab (see
+  // `MapGuideButton`'s own comment on why there's no floating mode left
+  // to opt out of any more).
   const guideButton = <RatingLegend />;
   // The same "Fit Route"/"Show Selected" toggle Plan has beside its own
   // sidebar trigger, not this page's own former three-state "Start"/
@@ -398,48 +370,5 @@ export default function LabelView({ embedded = false, children }: Props) {
     </>
   );
 
-  if (embedded) {
-    return children?.({ routeForm, guideButton, zoomButton, mapContent, sidebarContent }) ?? null;
-  }
-
-  // Folds the shared PageHeader's own row into this page's own route
-  // form, the same way Plan's mapHeader does -- the route being worked
-  // on, not "VFR Route," is this page's actual title too. RouteForm
-  // used to sit inside the collapsible toolbar below, collapsed by
-  // default like the view filters beside it; that hid the one thing
-  // this page can't do anything useful without (a route to walk) behind
-  // an extra click, which the view filters -- genuinely optional --
-  // don't need to avoid. `zoomButton` sits next to the sidebar trigger
-  // here too, the same way Plan's own fit-route button sits beside
-  // its -- these two pages are meant to look like the same shell
-  // around a different sidebar, not two designs that happen to share a
-  // Shell component.
-  const header = (
-    // The same row shape as `TwoRowHeader`'s first row (see its comment):
-    // a centering grid from `sm` up, a wrapping flex row below it, where
-    // the route form plus four icon buttons is wider than a phone and
-    // the icons drop to a second line rather than overlapping the form
-    // or scrolling sideways.
-    <header className="flex shrink-0 flex-wrap items-center gap-2 border-b border-border bg-background px-3 py-2 sm:grid sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] print:hidden">
-      <div className="hidden sm:block" />
-      {routeForm}
-      <div className="ml-auto flex items-center gap-2 sm:ml-0 sm:justify-self-end">
-        {guideButton}
-        {zoomButton}
-        <SidebarToggleButton open={sidebarOpen} onClick={() => setSidebarOpen(o => !o)} label="Waypoints" />
-        <SettingsButton />
-      </div>
-    </header>
-  );
-
-  return (
-    <Shell
-      header={header}
-      map={mapContent}
-      sidebar={sidebarContent}
-      sidebarLabel="Waypoints"
-      sidebarOpen={sidebarOpen}
-      onSidebarOpenChange={setSidebarOpen}
-    />
-  );
+  return children({ routeForm, guideButton, zoomButton, mapContent, sidebarContent });
 }

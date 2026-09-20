@@ -10,9 +10,9 @@ interface Props {
    *  opinion about what belongs here. */
   header: ReactNode;
   map: ReactNode;
-  /** Anything else that lives in the map area -- another `MapDrawer`
-   *  (Settings' own Dev ML drawer), a floating notice -- rendered over
-   *  the map, under the header, beside the sidebar. */
+  /** Anything else that lives in the map area -- the console drawer
+   *  (the pilot's on Plan, the developer's on Dev), a floating notice
+   *  -- rendered over the map, under the header, beside the sidebar. */
   panels?: ReactNode;
   /** The sidebar's own content -- plain content, not a pre-wrapped
    *  panel: this component owns that shell itself. `null` hides the
@@ -36,10 +36,9 @@ interface Props {
   sidebarWide?: boolean;
   /** false fits this within its parent's own height instead of
    *  claiming the full viewport (`h-dvh`) -- for a caller embedding
-   *  this inside another page's own layout (LabelView embedded in
-   *  Settings' own Dev tab) rather than mounting it as the page
-   *  itself. Defaults to true: every other caller (Plan, standalone
-   *  Label) is the whole page. */
+   *  this inside another layout rather than mounting it as the page
+   *  itself. Defaults to true: both pages (Plan, Dev) are the whole
+   *  page. */
   fullHeight?: boolean;
 }
 

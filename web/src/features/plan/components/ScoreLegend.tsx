@@ -30,7 +30,7 @@ const SHORTCUTS: [string | null, string][] = [
 
 /** Which model scored the checkpoints on the map, and how good it is
  *  -- the one thing about the ML a pilot might reasonably ask. The same
- *  data Settings' Dev ML panel charts in full; here it is one line,
+ *  data the dev console charts in full; here it is one line,
  *  and nothing at all while it is loading or when no model has been
  *  promoted yet (a fresh checkout answers 404). */
 function ModelProvenance() {

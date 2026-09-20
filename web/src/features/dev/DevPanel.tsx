@@ -7,18 +7,18 @@ import { Bar, BarChart, Cell, LabelList, XAxis, YAxis } from "recharts";
 import { cn } from "cn";
 import IconButton from "../../components/IconButton";
 import RouteForm from "../../components/RouteForm";
+import ThemeToggle from "../../components/ThemeToggle";
 import { Button } from "../../components/ui/button";
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "../../components/ui/chart";
 import {
   Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow,
 } from "../../components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../components/ui/tabs";
-import { api, describeError } from "../../lib/api/client";
+import { api, describeError, errorMessage } from "../../lib/api/client";
 import { identSchema } from "../../lib/identSchema";
 import type { ModelComparisonEntry, Status } from "../../lib/api/types";
 import { useErrorToasts } from "../../lib/usePageStatus";
 import { elapsed } from "../plan/format";
-import { errorMessage } from "./shared";
 
 const mae = (n: number) => n.toFixed(4);
 
@@ -36,28 +36,30 @@ function ago(iso: string | null | undefined): string {
 
 const LOCAL_HOSTS = ["localhost", "127.0.0.1"];
 
-/** The header button that opens the drawer -- `aria-expanded` so the
+/** The header button that opens the console -- `aria-expanded` so the
  *  state is readable, the same as the sidebar's own toggle. */
-export function DevMlButton({ open, onClick }: { open: boolean; onClick: () => void }) {
+export function DevButton({ open, onClick }: { open: boolean; onClick: () => void }) {
   return (
-    <IconButton label="Dev ML" aria-expanded={open} onClick={onClick}>
+    <IconButton label="Dev console" aria-expanded={open} onClick={onClick} data-testid="dev-console-button">
       <FlaskConical className="size-5" />
     </IconButton>
   );
 }
 
 /**
- * The developer's own console, in a `MapDrawer` dropping down over
- * Settings' labeling map (see SettingsView): what the repo does that a
- * pilot never sees, one tab each. Model -- every algorithm trained, the
- * promoted one and the registry behind it, and a retrain through
- * Airflow. Corridors -- what has been collected, how far its labels
- * have come, and a form to collect another. System -- which services
- * answer, how fresh the FAA and weather data is, and the doors into
- * the rest of the stack (API docs, Jupyter, Airflow, the MCP server).
- * All of it from one `/api/status` snapshot, refreshed while open.
+ * The developer's own console, in a `MapDrawer` dropping down over the
+ * labeling map (see DevView): what the repo does that a pilot never
+ * sees, one tab each. Model -- every algorithm trained, the promoted
+ * one and the registry behind it, and a retrain through Airflow.
+ * Corridors -- what has been collected, how far its labels have come,
+ * and a form to collect another. System -- which services answer, how
+ * fresh the FAA and weather data is, and the doors into the rest of
+ * the stack (API docs, Jupyter, Airflow, the MCP server). All of it
+ * from one `/api/status` snapshot, refreshed while open. The pilot's
+ * page has the same drawer in the same place, holding the pilot's
+ * things instead (see PilotPanel).
  */
-export function DevMlPanel() {
+export function DevPanel() {
   const { data: status, error, refetch } = useQuery({
     queryKey: ["status"], queryFn: api.status, refetchInterval: 30000, retry: false,
   });
@@ -74,7 +76,10 @@ export function DevMlPanel() {
               <TabsTrigger value="corridors">Corridors</TabsTrigger>
               <TabsTrigger value="system">System</TabsTrigger>
             </TabsList>
-            {status && <span className="text-xs text-muted-foreground">Checked {ago(status.checked_at)}</span>}
+            <div className="flex items-center gap-2">
+              {status && <span className="text-xs text-muted-foreground">Checked {ago(status.checked_at)}</span>}
+              <ThemeToggle />
+            </div>
           </div>
           <TabsContent value="model" className="mt-3"><ModelTab status={status} /></TabsContent>
           <TabsContent value="corridors" className="mt-3"><CorridorsTab status={status} /></TabsContent>
@@ -370,7 +375,7 @@ function CorridorsTab({ status }: { status: Status | undefined }) {
                   <TableCell className="text-muted-foreground">{ago(c.features_built_at)}</TableCell>
                   <TableCell className="text-right">
                     <Button asChild variant="link" size="sm"><Link to={`/plan?${route}`}>Plan</Link></Button>
-                    <Button asChild variant="link" size="sm"><Link to={`/label?${route}`}>Label</Link></Button>
+                    <Button asChild variant="link" size="sm"><Link to={`/dev?${route}`}>Label</Link></Button>
                   </TableCell>
                 </TableRow>
               );

@@ -23,7 +23,7 @@ import { test, expect, type Page } from "@playwright/test";
  * unmodified.
  */
 
-const PAGES = ["/app/plan", "/app/label"] as const;
+const PAGES = ["/app/plan", "/app/dev"] as const;
 
 async function settle(page: Page) {
   // Long enough for the initial course/checkpoint fetch to resolve (or
@@ -96,24 +96,29 @@ test.describe("/app/plan", () => {
 // that's gone now (moved into the sidebar's own top, see LabelView),
 // so there's nothing toolbar-specific left to test here that Plan's
 // own suite doesn't already cover for both.
-test.describe("/app/label", () => {
+test.describe("/app/dev", () => {
   test("the route form is visible immediately, not behind a trigger", async ({ page }) => {
-    await page.goto("/app/label");
+    await page.goto("/app/dev");
     await settle(page);
     await expect(page.getByLabel("Departure")).toBeVisible();
     expect(await page.getByTestId("toolbar-trigger").count()).toBe(0);
   });
 
   test("sidebar starts closed on load, every load", async ({ page }) => {
-    await page.goto("/app/label");
+    await page.goto("/app/dev");
     await settle(page);
     expect(await page.locator('[data-slot="map-drawer"]').count()).toBe(0);
   });
 
   test("sidebar opens from its own trigger, closes on Escape", async ({ page }) => {
-    await page.goto("/app/label");
+    await page.goto("/app/dev");
     await settle(page);
     await openSidebar(page);
+  });
+
+  test("the old labeling address still lands here, route and all", async ({ page }) => {
+    await page.goto("/app/label?dep=C81&dest=KDLH");
+    await page.waitForURL("**/app/dev?dep=C81&dest=KDLH");
   });
 });
 
@@ -178,8 +183,8 @@ test.describe("/app/plan", () => {
   });
 });
 
-test("label page: the toggle-view action sits in the header next to the sidebar trigger, not floating over the map", async ({ page }) => {
-  await page.goto("/app/label");
+test("dev page: the toggle-view action sits in the header next to the sidebar trigger, not floating over the map", async ({ page }) => {
+  await page.goto("/app/dev");
   await settle(page);
   const viewport = page.viewportSize();
   if (!viewport) throw new Error("no viewport configured");
@@ -252,9 +257,9 @@ test("plan page: the persistent header stays on screen in the Brief view, with n
   // Same row as the tabs, not stacked below them.
   expect(Math.abs(tabsBox!.y - printBox!.y)).toBeLessThan(10);
 
-  // The one Settings gear this page has, still in its own row above --
-  // not duplicated down here next to the narrative actions.
-  await expect(page.locator("header").getByRole("link", { name: "Settings" })).toHaveCount(1);
+  // The one Dev link this page has, still in its own row above -- not
+  // duplicated down here next to the narrative actions.
+  await expect(page.locator("header").getByRole("link", { name: "Dev" })).toHaveCount(1);
 });
 
 test("plan page: opening the briefing pops a 'planning aid only' warning toast, and its semantic nav log is available", async ({ page }) => {
@@ -340,66 +345,65 @@ test("plan page: nav log view scrolls inside its own table, not the page", async
   }
 });
 
-test("the Settings gear leads there, and its own Map icon leads back to where it was clicked from", async ({ page }) => {
-  await page.goto("/app/label");
+test("the Dev link leads to the dev page, and its Plan link leads back to where it was clicked from", async ({ page }) => {
+  await page.goto("/app/plan");
+  await settle(page);
+  await page.getByRole("tab", { name: "Brief" }).click();
+  await page.waitForTimeout(300);
+  await expect(page).toHaveURL(/[?&]view=briefing/);
+
+  // Both are icon-only links, so their accessible names -- not text
+  // content -- are what find them.
+  await page.locator("header").getByRole("link", { name: "Dev", exact: true }).click();
+  await page.waitForURL("**/app/dev");
   await page.waitForTimeout(300);
 
-  // Settings is an icon-only link (a gear, no visible text), so its
-  // accessible name -- not text content -- is what finds it. No shared
-  // PageHeader/wordmark left to test alongside it -- Plan, Label and
-  // Settings each own a fully custom header now, and none of them show
-  // one.
-  await page.locator("header").getByRole("link", { name: "Settings", exact: true }).click();
-  await page.waitForURL("**/app/settings");
-  await page.waitForTimeout(300);
-
-  // A plain Map icon now, not a context-sensitive "Back to Label"/
-  // "Back to Brief" text label -- but the destination it actually
-  // points at is still `state.from` (SettingsButton's own), the exact
-  // page the gear was clicked from, not a flat, always-/app/plan link.
-  await page.getByRole("link", { name: "Map", exact: true }).click();
-  await page.waitForURL("**/app/label");
+  // A plain map icon, but the destination it points at is `state.from`
+  // (PageLinks' own): the exact page the Dev link was clicked from, the
+  // Brief tab included, not a flat, always-/app/plan link.
+  await page.getByRole("link", { name: "Plan", exact: true }).click();
+  await page.waitForURL(/\/app\/plan\?view=briefing/);
 });
 
-test("Settings' Dev tab embeds the real Label workspace inline, not a link to a separate page", async ({ page }) => {
+test("the old Settings address lands on the planner", async ({ page }) => {
   await page.goto("/app/settings");
-  await page.waitForTimeout(300);
-  // Lives in its own Dev tab, not visible on the default Account tab
-  // (Radix Tabs doesn't mount an inactive TabsContent).
-  await page.getByRole("tab", { name: "Dev" }).click();
-  await page.waitForTimeout(500);
-
-  // The actual workspace -- its own route form, right there, the same
-  // as clicking Plan's own Map tab shows the real map immediately
-  // rather than a button that navigates away to get it.
-  await expect(page.getByLabel("Departure")).toBeVisible();
-
-  // Its own header ends in a Map icon here, not Settings' own gear
-  // (which would just point right back at the page already showing
-  // it) -- and it actually works.
-  const mapLink = page.getByRole("link", { name: "Map", exact: true });
-  await expect(mapLink).toBeVisible();
-  await mapLink.click();
   await page.waitForURL("**/app/plan");
 });
 
-test("Settings page: Account and Dev are two separate tabs; Dev ML is a panel over the map on Dev", async ({ page }) => {
-  await page.goto("/app/settings");
-  await page.waitForTimeout(300);
+test("plan page: the pilot console drops down over the map with sign-in, aeroplanes and flights, one drawer at a time with the nav log", async ({ page }) => {
+  await page.goto("/app/plan");
+  await settle(page);
+  expect(await page.locator('[data-slot="map-drawer"]').count()).toBe(0);
 
-  const accountTab = page.getByRole("tab", { name: "Account" });
-  const devTab = page.getByRole("tab", { name: "Dev" });
-  await expect(accountTab).toHaveAttribute("data-state", "active");
+  await page.getByTestId("pilot-button").click();
+  const pilot = page.locator('[data-slot="map-drawer"][data-side="top"]');
+  await expect(pilot).toBeVisible();
+  await expect(pilot.getByRole("button", { name: "Sign in" })).toBeVisible();
+  await expect(pilot.getByRole("heading", { name: "Aircraft" })).toBeVisible();
+  await expect(pilot.getByRole("heading", { name: "My Flights" })).toBeVisible();
+  // Under the header, like every drawer: the route form and tabs above
+  // it stay usable. Polled: a top drawer slides down into place, and
+  // a box measured mid-slide sits above where it ends up.
+  const headerBox = await page.locator("header").boundingBox();
+  await expect.poll(async () => (await pilot.boundingBox())!.y).toBeGreaterThanOrEqual(headerBox!.y + headerBox!.height - 1);
 
-  await devTab.click();
-  await page.waitForTimeout(300);
-  await expect(devTab).toHaveAttribute("data-state", "active");
-  // The labeling workspace is what Dev actually shows -- Dev ML's own
-  // panel stays off screen until its own trigger is opened.
+  // The nav log takes its place; Escape clears whichever is open.
+  await page.getByTestId("sidebar-trigger-button").click();
+  await expect(page.locator('[data-slot="map-drawer"][data-side="right"]')).toBeVisible();
+  await expect(pilot).toBeHidden();
+  await page.keyboard.press("Escape");
+  await expect(page.locator('[data-slot="map-drawer"]')).toHaveCount(0);
+});
+
+test("dev page: the dev console drops down over the chart, one drawer at a time with the waypoint list", async ({ page }) => {
+  await page.goto("/app/dev");
+  await settle(page);
+  // The labeling workspace is the page -- the console stays off screen
+  // until its own trigger is opened.
   await expect(page.getByLabel("Departure")).toBeVisible();
-  expect(await page.locator("summary", { hasText: "Model Comparison" }).count()).toBe(0);
+  expect(await page.locator('[data-slot="map-drawer"]').count()).toBe(0);
 
-  await page.getByRole("button", { name: "Dev ML" }).click();
+  await page.getByTestId("dev-console-button").click();
   const devMl = page.locator('[data-slot="map-drawer"][data-side="top"]');
   await expect(devMl).toBeVisible();
   await expect(devMl.getByText("Model comparison")).toBeVisible();
@@ -415,8 +419,7 @@ test("Settings page: Account and Dev are two separate tabs; Dev ML is a panel ov
   // the top of the map area rather than over the header -- the header
   // stays usable above it.
   const headerBox = await page.locator("header").boundingBox();
-  const devMlBox = await devMl.boundingBox();
-  expect(devMlBox!.y).toBeGreaterThanOrEqual(headerBox!.y + headerBox!.height - 1);
+  await expect.poll(async () => (await devMl.boundingBox())!.y).toBeGreaterThanOrEqual(headerBox!.y + headerBox!.height - 1);
 
   // One drawer at a time over the same map: opening the waypoint list
   // closes Dev ML, and Escape closes whichever is open.
@@ -427,9 +430,10 @@ test("Settings page: Account and Dev are two separate tabs; Dev ML is a panel ov
   await expect(page.locator('[data-slot="map-drawer"]')).toHaveCount(0);
 });
 
-test("Settings: the theme toggle cycles system, light, dark, and the choice survives a reload", async ({ page }) => {
-  await page.goto("/app/settings");
-  await page.waitForTimeout(300);
+test("plan page: the pilot console's theme toggle cycles system, light, dark, and the choice survives a reload", async ({ page }) => {
+  await page.goto("/app/plan");
+  await settle(page);
+  await page.getByTestId("pilot-button").click();
   const html = page.locator("html");
   const toggle = page.getByTestId("theme-toggle");
   await expect(html).not.toHaveClass(/dark/);   // "system", and the test browser prefers light

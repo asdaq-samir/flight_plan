@@ -178,8 +178,8 @@ service discovery at `planning-service.vfr-route.internal`.
   tab on `/app/plan` (the narrative itself comes through `webapp`'s own
   `/api/comparison`, below)
 - `/api/model-comparison` — every trained algorithm's accuracy side by
-  side: Settings' Dev ML drawer charts it, and Plan's info popover names
-  the promoted one from it
+  side: the dev console charts it, and Plan's info popover names the
+  promoted one from it
 - `/api/status`, `/api/retrain`, `/api/aircraft-profiles` — the Dev
   drawer's own snapshot of the stack (services, FAA and weather data
   freshness, the model registry, collected corridors and their labels),
@@ -374,7 +374,7 @@ an engineering gap:
   So rating a detection `0` is the judgment the detector most needs and
   the one the data has none of, and a labeling pass over C81→KDLH at
   `docker compose up webapp` and
-  [`/app/label`](http://localhost:8080/app/label) is the next step — this time deliberately rating poor landmarks as poor. Until the
+  [`/app/dev`](http://localhost:8080/app/dev) is the next step — this time deliberately rating poor landmarks as poor. Until the
   target has spread, the palette constants are the better scorer and the
   honest one.
 
@@ -463,8 +463,7 @@ stack. Anything not listed here does not exist.
 | What | URL | Needs |
 |---|---|---|
 | **Route planner** (Map and Brief tabs — the map/nav log, and the FAA-sequence briefing with its own LangGraph/CrewAI narrative popover) — also the app's homepage, bare `/app` redirects here | [`localhost:8080/app/plan`](http://localhost:8080/app/plan) | `webapp` + `planning-service` |
-| **Labeling page**, standalone | [`localhost:8080/app/label`](http://localhost:8080/app/label) | `webapp` + `planning-service` |
-| **Settings** — two tabs: Account (sign in, your aeroplanes, your filed flights) and Dev (the same labeling page above, embedded live rather than linked out to, with the developer's console -- model registry and retrain, corridors and their labels, service and data status -- in a drawer above it) | [`localhost:8080/app/settings`](http://localhost:8080/app/settings) | `webapp` + `planning-service` |
+| **Dev** — the developer's page: the labeling page above, with the developer's console (model registry and retrain, corridors and their labels, service and data status) in a drawer over the chart. `/app/label` and `/app/settings` redirect to Dev and Plan | [`localhost:8080/app/dev`](http://localhost:8080/app/dev) | `webapp` + `planning-service` |
 | Spring Boot API docs | [`localhost:8080/swagger-ui/index.html`](http://localhost:8080/swagger-ui/index.html) | `webapp` |
 | Spring Boot OpenAPI spec | [`localhost:8080/v3/api-docs`](http://localhost:8080/v3/api-docs) | `webapp` |
 | Health / readiness | [`localhost:8080/actuator/health`](http://localhost:8080/actuator/health) | `webapp` |

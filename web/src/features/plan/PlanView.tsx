@@ -10,7 +10,8 @@ import { identSchema } from "../../lib/identSchema";
 // never touches a map, doesn't pay for it.
 import "leaflet/dist/leaflet.css";
 import Shell from "../../Shell";
-import SettingsButton from "../../components/SettingsButton";
+import MapDrawer from "../../components/MapDrawer";
+import { DevLink } from "../../components/PageLinks";
 import SidebarToggleButton from "../../components/SidebarToggleButton";
 import TwoRowHeader from "../../components/TwoRowHeader";
 import ZoomToggleButton from "../../components/ZoomToggleButton";
@@ -25,6 +26,7 @@ import NavLogActions from "./components/navlog/NavLogActions";
 import FlightBriefingView from "./components/briefing/FlightBriefingView";
 import ScoreLegend from "./components/ScoreLegend";
 import { usePlanState, descriptionKey } from "./hooks/usePlanState";
+import { PilotButton, PilotPanel } from "../pilot/PilotPanel";
 import { useDocumentTitle } from "../../lib/useDocumentTitle";
 
 // The three stages a plan actually goes through, in order -- there's
@@ -148,6 +150,18 @@ export default function PlanView() {
   // comment) since the button that toggles it lives in this page's own
   // header, a sibling of Shell rather than something inside it.
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  // The pilot's own console, a drawer from the top of the map area --
+  // the developer's page has the dev console in the same place. One
+  // drawer at a time over the same map: opening one closes the other.
+  const [pilotOpen, setPilotOpen] = useState(false);
+  const togglePilot = useCallback(() => {
+    setPilotOpen(open => !open);
+    setSidebarOpen(false);
+  }, []);
+  const toggleSidebar = useCallback(() => {
+    setSidebarOpen(open => !open);
+    setPilotOpen(false);
+  }, []);
 
   // Open on whatever corridor exists, so the page is never an empty form
   // with no hint of what it accepts.
@@ -310,7 +324,12 @@ export default function PlanView() {
           disabled={s.stage !== null}
         />
       }
-      rowOneEnd={<SettingsButton />}
+      rowOneEnd={(
+        <div className="flex items-center gap-2">
+          <PilotButton open={pilotOpen} onClick={togglePilot} />
+          <DevLink />
+        </div>
+      )}
       tab={showBriefing ? "brief" : "map"}
       onTabChange={value => setBriefingView(value === "brief")}
       tabs={
@@ -343,7 +362,7 @@ export default function PlanView() {
         <div className="flex items-center gap-2">
           <ScoreLegend />
           <ZoomToggleButton zoomedIn={zoomedIn} onClick={toggleZoom} disabled={!s.course} />
-          <SidebarToggleButton open={sidebarOpen} onClick={() => setSidebarOpen(o => !o)} label="Nav Log" />
+          <SidebarToggleButton open={sidebarOpen} onClick={toggleSidebar} label="Nav Log" />
         </div>
       )}
     />
@@ -430,6 +449,11 @@ export default function PlanView() {
       )}
       <Shell
         header={mapHeader}
+        panels={(
+          <MapDrawer side="top" open={pilotOpen} onOpenChange={setPilotOpen} label="Pilot">
+            <PilotPanel />
+          </MapDrawer>
+        )}
         sidebarLabel="Nav log"
         sidebarWide={navLogExpanded}
         sidebarOpen={sidebarOpen}

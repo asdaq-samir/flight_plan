@@ -2,11 +2,10 @@ import type { ReactNode } from "react";
 import { Tabs, TabsList } from "./ui/tabs";
 
 interface Props {
-  /** Row one's own left/right content -- a route form and a trailing
-   *  icon button on both callers today (Plan's own `RouteForm` +
-   *  `SettingsButton`, Settings' own Dev-Label-only route form + Map
-   *  icon), but this component doesn't assume either is specifically
-   *  that -- just two things sharing a row, same as row two below. */
+  /** Row one's own left/right content -- Plan's route form and its
+   *  trailing icons (the pilot console, the Dev link) today, but this
+   *  component doesn't assume either is specifically that -- just two
+   *  things sharing a row, same as row two below. */
   rowOneStart: ReactNode;
   rowOneEnd: ReactNode;
   tab: string;

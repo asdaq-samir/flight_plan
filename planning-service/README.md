@@ -127,7 +127,7 @@ once in ten.
 | `GET /api/routes` | Corridors the feature store already covers. |
 | `GET /api/model-comparison` | Every trained algorithm's accuracy side by side, and which one is promoted. |
 | `GET /api/aircraft-profiles` | The stock performance profiles the nav log can be computed for. `/api/plan` and `/api/navlog` take `aircraft` plus optional `cruise_tas_kt`/`fuel_burn_gph` for a pilot's own aeroplane. |
-| `GET /api/status` | The whole stack in one snapshot for Settings' Dev tab: which services answer, how fresh the FAA and weather data is, the model registry, and every collected corridor with its label counts. |
+| `GET /api/status` | The whole stack in one snapshot for the dev console: which services answer, how fresh the FAA and weather data is, the model registry, and every collected corridor with its label counts. |
 | `POST /api/retrain` | One run of the training DAG through Airflow, or a 501 that says how to run it by hand. |
 
 ## Things that are not obvious

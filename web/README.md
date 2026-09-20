@@ -8,17 +8,17 @@ end, built into `webapp`'s jar and served from `/app`. Three pages:
   and the nav log. A Map tab and a Brief tab share one persistent
   header. Brief is the FAA-sequence briefing, with an AI narrative
   popover (LangGraph or CrewAI, each a real Claude call) and print.
-- `/app/label` — walk a route's detected waypoints on the sectional and
-  rate each one, producing ML training data. Also embedded live inside
-  Settings' Dev Label tab (the same component, not a copy).
-- `/app/settings` — Account (sign in, aircraft, filed flights -- each
-  opens back on the planner or deletes) and Dev: the labeling workspace
-  with the Dev ML drawer above it, the developer's console in three
-  tabs -- Model (every algorithm trained, the registry, a retrain
-  through Airflow), Corridors (what is collected, how far its labels
-  have come, collect another) and System (which services answer, how
-  fresh the FAA and weather data is, the doors into Jupyter, Airflow and
-  the API docs). The header's theme toggle cycles system, light, dark.
+  The pilot console drops down over the map from the header: sign-in,
+  the pilot's own aeroplanes (the nav log flies the one picked), filed
+  flights (open one back on the planner, or delete it) and the theme.
+- `/app/dev` — the developer's page: walk a route's detected waypoints
+  on the sectional and rate each one, producing ML training data, with
+  the dev console dropping down over the chart in three tabs -- Model
+  (every algorithm trained, the registry, a retrain through Airflow),
+  Corridors (what is collected, how far its labels have come, collect
+  another) and System (which services answer, how fresh the FAA and
+  weather data is, the doors into Jupyter, Airflow and the API docs).
+  `/app/label` and `/app/settings` redirect here and to Plan.
 
 The pages compute nothing themselves. Every course, checkpoint,
 detection and nav log comes from `planning-service`; this front end
@@ -98,7 +98,7 @@ src/
     RouteForm.tsx, RouteInputGroup.tsx, AirportSearchInput.tsx   The DEP → DEST form and its Load button, shared by Plan and Label
     IconButton.tsx         An icon-only Button with its label as tooltip and accessible name; every header icon is one
     MapGuideButton.tsx     The Info popover button (Plan's ScoreLegend, Label's RatingLegend)
-    SidebarToggleButton.tsx, SettingsButton.tsx, ZoomToggleButton.tsx, ThemeToggle.tsx   The header's icon buttons
+    SidebarToggleButton.tsx, ZoomToggleButton.tsx, ThemeToggle.tsx, PageLinks.tsx   The header's icon buttons and the Plan/Dev links
     IdentPairInputs.tsx, CollapsibleSection.tsx, Footer.tsx
     ui/                    shadcn/ui primitives (components.json), stock unless a comment says why not
   lib/
@@ -111,7 +111,8 @@ src/
                            components/: RouteMap, BuildNotice, ScoreLegend, navlog/, briefing/
     label/                 LabelView.tsx (wiring), hooks/useLabelState.ts (state, tested), logic.ts (pure, tested),
                            components/: ChartMap, FilterBar, ProgressCard, WaypointList, PointPopup, RatingLegend
-    settings/              SettingsView.tsx (tab wiring), AccountTab.tsx, DevMlPanel.tsx, SignInModal.tsx
+    pilot/                 PilotPanel.tsx (the pilot console), AccountPanels.tsx (sign-in, aircraft, flights), SignInModal.tsx
+    dev/                   DevView.tsx (the page: LabelView plus the console), DevPanel.tsx (Model, Corridors, System)
 ```
 
 ## Architecture
@@ -123,19 +124,21 @@ for any `/app/**` path that is not a real file.
 
 **State.** Plan and Label each have one hook (`usePlanState`,
 `useLabelState`) holding the page's state as a plain object alongside
-its actions. Settings uses `@tanstack/react-query` directly for its
-server data, plus local `useState` for forms. There is no global store.
+its actions. The pilot and dev consoles use `@tanstack/react-query`
+directly for their server data, plus local `useState` for forms. There
+is no global store.
 
 **Layout (`Shell.tsx`).** A flex column: the page's header, then the
-map or tab content, with the sidebar (nav log on Plan, waypoint list on
-Label) as a right-hand `MapDrawer` that slides in over the map area,
-dims the map behind it, and starts closed. Only the map area is covered:
-the header stays usable above it, and Settings' Dev tab drops its Dev ML
-drawer down from the top the same way. Plan and Label share
-`TwoRowHeader` and the same trailing
-controls — Info, Fit Route / Show Selected, the sidebar toggle, Settings
-— so the two pages behave identically. Settings' Dev Label tab mounts
-`LabelView` with `embedded` and places its pieces in its own `Shell`.
+map, and two `MapDrawer`s over the map area that start closed and dim
+the map behind them: a console from the top (the pilot's on Plan, the
+developer's on Dev) and the list for that map from the right (the nav
+log on Plan, the waypoint list on Dev). Only the map area is covered,
+so the header stays usable above either, and one drawer is open at a
+time. The two pages keep the same trailing controls in the same places
+— Info, Fit Route / Show Selected, the console toggle, the sidebar
+toggle, the link to the other page — so switching roles changes what
+the drawers hold, not where anything is. `DevView` mounts `LabelView`
+and places its pieces in its own `Shell`.
 
 **Leaflet.** `lib/map/` holds everything `RouteMap` and `ChartMap`
 share. Leaflet stays imperative — no React binding — except that popup
