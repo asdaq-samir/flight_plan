@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
 import clsx from "clsx";
-import { BookOpenText, Loader2, Minimize2, WandSparkles } from "lucide-react";
+import { BookOpenText, CircleHelp, Loader2, Minimize2, WandSparkles } from "lucide-react";
 import {
   type CellData, type ColumnDef, type RowData, type TableFeatures,
   flexRender, tableFeatures, useTable,
@@ -9,7 +9,10 @@ import CollapsibleSection from "../../../../components/CollapsibleSection";
 import IconButton from "../../../../components/IconButton";
 import { NoteRow, SelectableRow } from "../../../../components/SelectableRows";
 import { useDetailsOpenForPrint } from "../../../../lib/useDetailsOpenForPrint";
+import { Button } from "../../../../components/ui/button";
 import { Input } from "../../../../components/ui/input";
+import { Popover, PopoverContent, PopoverTrigger } from "../../../../components/ui/popover";
+import AltitudeReasoning from "../AltitudeReasoning";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../../../components/ui/select";
 import {
   Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow,
@@ -58,6 +61,9 @@ interface WaypointRow {
 interface Props {
   totals: Totals | null;
   nav: Omit<NavLog, "legs" | "totals"> | null;
+  /** The route's true course -- the hemispheric rule in the altitude's
+   *  own "why" popover needs it. null before a course has loaded. */
+  courseBearingDeg: number | null;
   /** The pilot's own cruise-altitude override -- lives here, not the
    *  map header's route form, since this is where the *result*
    *  (`nav.altitude_ft`/`nav.altitude_selection`) already shows: typing
@@ -234,7 +240,7 @@ function DescriptionCell({
  * no leg has been flown yet.
  */
 export default function NavLogView({
-  totals, nav, legs, dep, dest, depName, destName, depLat, depLon, destLat, destLon,
+  totals, nav, courseBearingDeg, legs, dep, dest, depName, destName, depLat, depLon, destLat, destLon,
   selected, depElevationFt, destElevationFt, descriptions, onSaveDescription,
   onGenerateDescriptions, descriptionsLoading, expanded, onToggleExpanded, actions, children,
   selectedPoint, onSelectPoint, alt, onAltChange, onSubmit,
@@ -537,11 +543,33 @@ export default function NavLogView({
               {parts.warning && <> · <span className="text-destructive">{parts.warning}</span></>}
             </span>
           )}
+          {/* The altitude, and why: a pilot should never have to take a
+              cruise altitude on trust, so the figure itself opens the
+              planner's own reasoning -- floor, ceiling, the rule, the
+              weather checked -- rather than a bare "(auto)". Printed,
+              the plain figure; the briefing's Cruise Altitude section
+              carries the same steps onto the paper. */}
           {nav && (
-            <span className="text-muted-foreground">
-              {nav.altitude_ft} ft{" "}
-              {nav.altitude_selection ? `(auto: floor ${nav.altitude_selection.floor_ft} ft)` : "(you set this)"}
-            </span>
+            <>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="ghost" size="sm" className="px-1.5 font-normal text-muted-foreground print:hidden"
+                    aria-label="How the altitude was chosen" data-testid="altitude-why"
+                  >
+                    {altFt(nav.altitude_ft)} ft · {nav.altitude_selection ? "auto" : "yours"}
+                    <CircleHelp className="size-4" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent align="start" className="max-h-[70vh] w-80 overflow-y-auto">
+                  <div className="mb-2 text-xs font-semibold uppercase text-muted-foreground">How the altitude was chosen</div>
+                  <AltitudeReasoning nav={nav} bearingDeg={courseBearingDeg} />
+                </PopoverContent>
+              </Popover>
+              <span className="hidden text-muted-foreground print:inline">
+                {altFt(nav.altitude_ft)} ft {nav.altitude_selection ? "(the planner's choice)" : "(the pilot's choice)"}
+              </span>
+            </>
           )}
           <Select value={aircraftValue} onValueChange={onAircraftChange}>
             <SelectTrigger size="sm" aria-label="Aircraft" className="print:hidden" data-testid="aircraft-select">

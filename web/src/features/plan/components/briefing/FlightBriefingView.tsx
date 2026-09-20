@@ -5,6 +5,7 @@ import { Badge } from "../../../../components/ui/badge";
 import { Button } from "../../../../components/ui/button";
 import CollapsibleSection from "../../../../components/CollapsibleSection";
 import { api, describeError } from "../../../../lib/api/client";
+import AltitudeReasoning from "../AltitudeReasoning";
 import type {
   Briefing, Candidate, Course, Leg, NavLog, Pilot, SaveFlightRequest, Totals,
 } from "../../../../lib/api/types";
@@ -500,70 +501,17 @@ export default function FlightBriefingView({
           for it) -- moved here instead, since a pilot wants this
           reasoning for the route they're actually flying, not a
           one-off lookup independent of it. */}
+      {/* The planner's own reasoning, step by step -- the same steps
+          the nav log header's "why" popover shows, here for the paper
+          (a popover prints nothing) and for a pilot reading the
+          briefing top to bottom. A grid of bare figures used to sit
+          here; the steps carry every one of those figures with the
+          rule that used it. */}
       <CollapsibleSection title="Cruise Altitude">
         {!nav ? (
           <p className="text-sm text-muted-foreground">Loading…</p>
-        ) : !nav.altitude_selection ? (
-          <p className="text-sm text-muted-foreground">
-            This route's cruise altitude was set manually -- nothing was auto-selected to break down.
-          </p>
         ) : (
-          <div className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
-            <div>
-              <div className="text-xs text-muted-foreground">Recommended</div>
-              <div className="font-semibold">{altFt(nav.altitude_selection.recommended_ft)} ft</div>
-            </div>
-            <div>
-              <div className="text-xs text-muted-foreground">Terrain/obstacle floor</div>
-              <div className="font-semibold">{altFt(nav.altitude_selection.floor_ft)} ft</div>
-            </div>
-            <div>
-              <div className="text-xs text-muted-foreground">Airspace ceiling</div>
-              <div className="font-semibold">{altFt(nav.altitude_selection.airspace_ceiling_ft)} ft</div>
-            </div>
-            <div>
-              <div className="text-xs text-muted-foreground">Freezing level</div>
-              <div className="font-semibold">{altFt(nav.altitude_selection.freezing_level_ft)} ft</div>
-            </div>
-            <div>
-              <div className="text-xs text-muted-foreground">Combined ceiling band</div>
-              <div className="font-semibold">{altFt(nav.altitude_selection.band_ceiling_ft)} ft</div>
-            </div>
-            <div>
-              <div className="text-xs text-muted-foreground">Forecast ceiling/visibility</div>
-              <div className="font-semibold">
-                {altFt(nav.altitude_selection.min_ceiling_ft)} ft, {nav.altitude_selection.min_visibility_sm ?? "—"} sm
-                {nav.altitude_selection.weather_unavailable.includes("ceiling_visibility") ? (
-                  <Badge className="ml-1 border-transparent bg-muted text-muted-foreground">unknown</Badge>
-                ) : nav.altitude_selection.low_ceiling_or_visibility && (
-                  <Badge className="ml-1 border-transparent bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-200">low</Badge>
-                )}
-              </div>
-            </div>
-            <div>
-              <div className="text-xs text-muted-foreground">Hazards along route</div>
-              <div className="font-semibold">
-                {nav.altitude_selection.hazards.length === 0 ? "none" : nav.altitude_selection.hazards.length}
-              </div>
-            </div>
-            <div>
-              <div className="text-xs text-muted-foreground">Airspace transits</div>
-              <div className="font-semibold">
-                {nav.altitude_selection.airspace_transits.length === 0
-                  ? "none" : nav.altitude_selection.airspace_transits.length}
-              </div>
-            </div>
-            {nav.altitude_selection.airspace_transits.length > 0 && (
-              <ul className="col-span-full mt-1 space-y-0.5 text-xs text-muted-foreground">
-                {nav.altitude_selection.airspace_transits.map((t, i) => (
-                  <li key={i}>
-                    {t.name} (Class {t.class}), floor {altFt(t.floor_ft_msl)} ft, {t.along_track_nm} nm along route --
-                    requires {t.requires}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
+          <AltitudeReasoning nav={nav} bearingDeg={course?.bearing_deg ?? null} />
         )}
       </CollapsibleSection>
 

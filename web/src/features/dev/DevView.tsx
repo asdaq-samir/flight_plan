@@ -35,6 +35,7 @@ export default function DevView() {
         <Shell
           header={(
             <MapHeader
+              dev
               leading={<DevSwitch />}
               form={routeForm}
               actions={(

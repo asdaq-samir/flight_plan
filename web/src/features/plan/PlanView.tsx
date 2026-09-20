@@ -382,7 +382,7 @@ export default function PlanView() {
   // its header and the briefing's sections follow the table.
   const navLog = (
     <NavLogView
-      totals={s.totals} nav={s.nav} legs={s.legs}
+      totals={s.totals} nav={s.nav} courseBearingDeg={s.course?.bearing_deg ?? null} legs={s.legs}
       dep={dep} dest={dest}
       depName={s.course?.departure.name ?? null} destName={s.course?.destination.name ?? null}
       depLat={s.course?.departure.lat ?? 0} depLon={s.course?.departure.lon ?? 0}

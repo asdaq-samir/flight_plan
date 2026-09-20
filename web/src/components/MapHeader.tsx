@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { cn } from "cn";
 
 interface Props {
   /** Leads the row, on the route form's left: the Dev-mode switch,
@@ -11,6 +12,9 @@ interface Props {
    *  the guide, the zoom toggle, the console and the sidebar toggle --
    *  the same four, in the same order, on both pages. */
   actions: ReactNode;
+  /** Dev mode: the header goes grey, so which page this is shows
+   *  from across the room, not only from the switch's own flask. */
+  dev?: boolean;
 }
 
 /**
@@ -33,9 +37,15 @@ interface Props {
  * Hidden in print: on paper the page is the briefing (see `MapDrawer`'s
  * `printable`), which carries its own title.
  */
-export default function MapHeader({ leading, form, actions }: Props) {
+export default function MapHeader({ leading, form, actions, dev = false }: Props) {
   return (
-    <header className="flex shrink-0 flex-wrap items-center gap-1.5 border-b border-border bg-background px-2 py-2 sm:grid sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] sm:gap-2 sm:px-3 print:hidden">
+    <header
+      data-mode={dev ? "dev" : "pilot"}
+      className={cn(
+        "flex shrink-0 flex-wrap items-center gap-1.5 border-b border-border px-2 py-2 sm:grid sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] sm:gap-2 sm:px-3 print:hidden",
+        dev ? "bg-muted" : "bg-background",
+      )}
+    >
       <div className="flex items-center [&>*]:size-8 sm:justify-self-start sm:[&>*]:size-9">{leading}</div>
       {form}
       <div className="ml-auto flex items-center gap-1 [&>*]:size-8 sm:ml-0 sm:justify-self-end sm:gap-2 sm:[&>*]:size-9">

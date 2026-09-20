@@ -187,8 +187,9 @@ service discovery at `planning-service.vfr-route.internal`.
   a retrain run through Airflow, and the stock aircraft profiles the nav
   log's aircraft picker offers
 - `/api/altitude-breakdown` — the full reasoning behind a recommended
-  cruise altitude for any route; the briefing's "Cruise Altitude" section
-  shows the same computation for the loaded route
+  cruise altitude for any route; the nav log header's own "why" popover
+  and the briefing's "Cruise Altitude" section walk the pilot through
+  the same computation for the loaded route, step by step
 - `vfr.chartvision` reads the corridor's tiles and segments them by the
   chart's own palette, streaming results block by block from the departure
   end. `vfr.chartlabels` stores what a pilot decides about them, keyed by

@@ -445,6 +445,45 @@ test("the Dev-mode switch leads the route form, flips to the dev page with the r
   await expect(page.locator('[data-slot="map-drawer"][data-side="right"]').getByTestId("print-button")).toBeVisible();
 });
 
+test("the dev page's header is grey, the planner's is not", async ({ page }) => {
+  await page.goto("/app/plan");
+  await settle(page);
+  const pilotBg = await page.locator("header").evaluate(el => getComputedStyle(el).backgroundColor);
+  await expect(page.locator("header")).toHaveAttribute("data-mode", "pilot");
+  await page.goto("/app/dev");
+  await settle(page);
+  const devBg = await page.locator("header").evaluate(el => getComputedStyle(el).backgroundColor);
+  await expect(page.locator("header")).toHaveAttribute("data-mode", "dev");
+  expect(devBg).not.toBe(pilotBg);
+});
+
+test("plan page: the nav log's altitude opens the planner's own reasoning, and the briefing's Cruise Altitude section carries the same steps", async ({ page }) => {
+  await page.goto("/app/plan?dep=C81&dest=KDLH");
+  await settle(page);
+  await page.getByTestId("sidebar-trigger-button").click();
+  // The altitude arrives with the nav log stream, after the checkpoints.
+  const why = page.getByTestId("altitude-why");
+  await expect(why).toBeVisible({ timeout: 30000 });
+  await expect(why).toContainText(/\d ft · auto/);
+  await why.click();
+  const popover = page.locator("[data-slot=popover-content]");
+  await expect(popover).toBeVisible();
+  await expect(popover).toContainText("Floor");
+  await expect(popover).toContainText("Ceiling");
+  await expect(popover).toContainText("14 CFR 91.159");
+  await expect(popover).toContainText("Checked, not part of the choice");
+  // Escape closes the popover and leaves the drawer open.
+  await page.keyboard.press("Escape");
+  await expect(popover).toHaveCount(0);
+  await expect(page.locator('[data-slot="map-drawer"]')).toBeVisible();
+
+  await page.getByTestId("sidebar-expand-toggle").click();
+  await page.waitForTimeout(300);
+  const drawer = page.locator('[data-slot="map-drawer"][data-side="right"]');
+  await drawer.getByText("Cruise Altitude", { exact: true }).click();
+  await expect(drawer.getByText("14 CFR 91.159")).toBeVisible();
+});
+
 test("dev page opened on its own: the switch falls back to the planner with the dev page's own route", async ({ page }) => {
   await page.goto("/app/dev?dep=C81&dest=KDLH");
   await settle(page);
