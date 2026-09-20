@@ -139,6 +139,14 @@ field renamed in `planning-service/app/schemas.py` is a compile error
 here rather than a silent `undefined`. Only the Spring Boot shapes are
 still typed by hand.
 
+**Messages.** Every info, warning and error message is a sonner toast
+through `lib/usePageStatus.ts` (`usePageStatus` for a page's progress
+line and error sources, `useErrorToasts` for a component's own); an
+error a pilot can act on carries "Try again" as the toast's action.
+Inline text is reserved for content, not status: a printed briefing's
+own caveats and conclusions, an empty table's placeholder, a form
+field's validation, a decision that needs a button of its own.
+
 **Styling.** Tailwind utilities and stock shadcn components. The only
 inline styles are colours computed from data (a rating, a score).
 

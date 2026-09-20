@@ -14,7 +14,7 @@ import {
 import SignInModal from "./SignInModal";
 import { api } from "../../lib/api/client";
 import type { Aircraft, AircraftRequest } from "../../lib/api/types";
-import QueryError from "./QueryError";
+import { useErrorToasts } from "../../lib/usePageStatus";
 import { errorMessage, type PilotState } from "./shared";
 
 const ft = (n: number | null) => (n == null ? "—" : `${Math.round(n).toLocaleString()} ft`);
@@ -129,6 +129,7 @@ export function AircraftPanel({ pilot }: { pilot: PilotState }) {
       cancelEdit();
       void queryClient.invalidateQueries({ queryKey: ["aircraft"] });
     },
+    onError: err => toast.error(errorMessage(err, "Could not save the aircraft")!),
   });
 
   const remove = useMutation({
@@ -139,6 +140,7 @@ export function AircraftPanel({ pilot }: { pilot: PilotState }) {
       if (editingId === id) cancelEdit();
       void queryClient.invalidateQueries({ queryKey: ["aircraft"] });
     },
+    onError: err => toast.error(errorMessage(err, "Could not delete the aircraft")!),
   });
 
   const edit = (a: Aircraft) => {
@@ -154,6 +156,9 @@ export function AircraftPanel({ pilot }: { pilot: PilotState }) {
     cruiseTasKt: Number(values.cruiseTasKt), fuelBurnGph: Number(values.fuelBurnGph),
   });
 
+  const listMessage = errorMessage(listError, "Could not load your aircraft");
+  useErrorToasts({ aircraftList: listMessage && { message: listMessage, retry: () => void refetch() } });
+
   if (pilot === null || pilot === "error") {
     return (
       <CollapsibleSection title="Aircraft">
@@ -164,16 +169,8 @@ export function AircraftPanel({ pilot }: { pilot: PilotState }) {
     );
   }
 
-  const listMessage = errorMessage(listError, "Could not load your aircraft");
-  const mutationMessage = errorMessage(save.error, "Could not save the aircraft")
-    ?? errorMessage(remove.error, "Could not delete the aircraft");
-
   return (
     <CollapsibleSection title="Aircraft" onOpenChange={setIsOpen}>
-      {listMessage && (
-        <QueryError message={listMessage} onRetry={() => void refetch()} />
-      )}
-      {mutationMessage && <p className="mb-2 text-sm text-destructive" role="alert">{mutationMessage}</p>}
       {pilot === "loading" || isLoading ? (
         <p className="text-sm text-muted-foreground">Loading…</p>
       ) : list ? (
@@ -273,6 +270,9 @@ export function FlightsPanel({ pilot }: { pilot: PilotState }) {
     enabled: signedIn && isOpen,
   });
 
+  const listMessage = errorMessage(error, "Could not load your flights");
+  useErrorToasts({ flightsList: listMessage && { message: listMessage, retry: () => void refetch() } });
+
   if (pilot === null || pilot === "error") {
     return (
       <CollapsibleSection title="My Flights">
@@ -285,9 +285,6 @@ export function FlightsPanel({ pilot }: { pilot: PilotState }) {
 
   return (
     <CollapsibleSection title="My Flights" onOpenChange={setIsOpen}>
-      {errorMessage(error, "Could not load your flights") && (
-        <QueryError message={errorMessage(error, "Could not load your flights")!} onRetry={() => void refetch()} />
-      )}
       {pilot === "loading" || isLoading ? (
         <p className="text-sm text-muted-foreground">Loading…</p>
       ) : error ? null : list?.length === 0 ? (

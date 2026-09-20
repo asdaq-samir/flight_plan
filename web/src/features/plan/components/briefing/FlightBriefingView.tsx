@@ -36,7 +36,6 @@ interface Props {
   briefing: Briefing | null;
   briefingError: string | null;
   loadingBriefing: boolean;
-  onRetryBriefing: () => void;
   /** LangGraph's (nav-log-agent) and CrewAI's (crewai-agent) own
    *  briefing narratives -- read-only here, only for
    *  `BriefingNarrativePrintBlock` below. Generating them is
@@ -229,6 +228,12 @@ function hazardAltitudeRange(lowFt: number | null, highFt: number | null): strin
  * (14 CFR 91.155: 3 sm visibility, 1,000 ft ceiling) -- not a second
  * fetch.
  */
+const WEATHER_SOURCE_LABEL: Record<Briefing["weather_unavailable"][number], string> = {
+  hazards: "SIGMETs",
+  forecast: "the TAF forecast",
+  metars: "current METARs",
+};
+
 function vfrNotRecommendedReasons(briefing: Briefing, dep: string, dest: string): string[] {
   const reasons: string[] = [];
   for (const ident of [dep, dest]) {
@@ -293,7 +298,6 @@ function SaveFlightSection({
   const [aircraftList, setAircraftList] = useState<Aircraft[]>([]);
   const [aircraftId, setAircraftId] = useState("");
   const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => { void api.me().then(setPilot); }, []);
   useEffect(() => {
@@ -338,7 +342,6 @@ function SaveFlightSection({
   const save = () => {
     if (!course) return;
     setStatus("saving");
-    setError(null);
     api.flights.save({
       aircraftId: aircraftId ? Number(aircraftId) : null,
       departureIdent: dep,
@@ -353,7 +356,7 @@ function SaveFlightSection({
       .then(() => setStatus("saved"))
       .catch(err => {
         setStatus("error");
-        setError(err instanceof ApiError ? err.message : "could not save this flight");
+        toast.error(err instanceof ApiError ? err.message : "Could not save this flight");
       });
   };
 
@@ -370,7 +373,6 @@ function SaveFlightSection({
       <Button onClick={save} disabled={status === "saving" || !course}>
         {status === "saving" ? "Saving…" : status === "saved" ? "Saved" : "Save this flight"}
       </Button>
-      {error && <span className="text-destructive">{error}</span>}
     </div>
   );
 }
@@ -390,7 +392,7 @@ function SaveFlightSection({
  */
 export default function FlightBriefingView({
   course, totals, nav, legs, navError, dep, dest, selected, depElevationFt, destElevationFt, descriptions,
-  briefing, briefingError, loadingBriefing, onRetryBriefing,
+  briefing, briefingError, loadingBriefing,
   langgraphNarrative, crewaiNarrative,
 }: Props) {
   const parts = totals ? totalsParts(totals) : null;
@@ -466,6 +468,30 @@ export default function FlightBriefingView({
     return () => { toast.dismiss("briefing-planning-aid-only"); };
   }, []);
 
+  // The briefing's own conclusions, announced once when they arrive.
+  // The sections below carry the same facts for the printed page, but a
+  // pilot should not have to scroll to learn that a weather source was
+  // missing or that VFR is not recommended.
+  useEffect(() => {
+    if (!briefing) return;
+    if (briefing.weather_unavailable.length > 0) {
+      const missing = briefing.weather_unavailable.map(source => WEATHER_SOURCE_LABEL[source]).join(", ");
+      toast.warning(`Could not check ${missing}.`, {
+        id: "briefing-weather-gaps",
+        description: "aviationweather.gov didn’t respond. Verify separately before flight.",
+        duration: 10000,
+      });
+    }
+    const reasons = vfrNotRecommendedReasons(briefing, dep, dest);
+    if (reasons.length > 0) {
+      toast.warning("VFR flight not recommended", { id: "briefing-vnr", description: reasons.join(" · "), duration: 10000 });
+    }
+    return () => {
+      toast.dismiss("briefing-weather-gaps");
+      toast.dismiss("briefing-vnr");
+    };
+  }, [briefing, dep, dest]);
+
   return (
     <div ref={briefingContainer} className="flight-briefing h-full overflow-y-auto bg-background print:h-auto print:overflow-visible">
       {/* No header of this page's own any more -- PlanView's persistent
@@ -540,28 +566,10 @@ export default function FlightBriefingView({
           to populate. */}
       <BriefingNarrativePrintBlock langgraph={langgraphNarrative.text} crewai={crewaiNarrative.text} />
 
-      {/* Loading has no banner of its own here any more -- PlanView's
-          own floating toast already says "Loading briefing…" the
-          moment `loadingBriefing` goes true (see its own comment on
-          why that's the one place this app reports background
-          progress), so a second, inline copy of the same fact was
-          just noise sitting between Flight Plan Summary and Adverse
-          Conditions. A real failure stays inline, since unlike a
-          transient loading state it needs a Retry button that has to
-          stick around until a pilot acts on it, not a toast that
-          times out or gets buried under the next one. */}
-      {!briefing && briefingError && (
-        <section
-          aria-label="Briefing data status"
-          className="border-b border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive"
-          role="alert"
-        >
-          <p>Couldn’t load briefing data: {briefingError}</p>
-          <Button variant="outline" size="sm" className="mt-2" onClick={onRetryBriefing}>
-            Try again
-          </Button>
-        </section>
-      )}
+      {/* Neither loading nor a failed fetch has a banner here: PlanView's
+          toasts report both (the failure's toast carries the Try-again
+          action), so the sections below only ever show their own
+          content or a placeholder line. */}
 
       <CollapsibleSection title="Adverse Conditions">
         {!briefing ? (

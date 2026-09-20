@@ -336,11 +336,18 @@ export default function PlanView() {
   // slot (whichever won a `??`/`||` chain), silently hiding the other;
   // now each gets its own stacking toast (see usePageStatus's own
   // comment).
-  usePageStatus(progress, { general: s.error, briefing: briefingErrorMsg, description: descError });
+  usePageStatus(progress, {
+    general: s.error,
+    navLog: s.navError,
+    briefing: briefingErrorMsg && { message: briefingErrorMsg, retry: () => void s.loadBriefing(dep, dest) },
+    description: descError,
+    langgraph: s.langgraphNarrative.error && `LangGraph narrative failed: ${s.langgraphNarrative.error}`,
+    crewai: s.crewaiNarrative.error && `CrewAI narrative failed: ${s.crewaiNarrative.error}`,
+  });
 
   const navLog = (
     <NavLogView
-      totals={s.totals} nav={s.nav} legs={s.legs} navError={s.navError}
+      totals={s.totals} nav={s.nav} legs={s.legs}
       dep={dep} dest={dest}
       depName={s.course?.departure.name ?? null} destName={s.course?.destination.name ?? null}
       depLat={s.course?.departure.lat ?? 0} depLon={s.course?.departure.lon ?? 0}
@@ -381,7 +388,6 @@ export default function PlanView() {
                 destElevationFt={s.course?.destination.elevation_ft ?? null}
                 descriptions={s.descriptions}
                 briefing={s.briefing} briefingError={s.briefingError} loadingBriefing={s.loadingBriefing}
-                onRetryBriefing={() => void s.loadBriefing(dep, dest)}
                 langgraphNarrative={s.langgraphNarrative} crewaiNarrative={s.crewaiNarrative}
               />
             ) : (

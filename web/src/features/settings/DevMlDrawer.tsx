@@ -16,7 +16,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "../../components/ui/too
 import { api } from "../../lib/api/client";
 import { identSchema } from "../../lib/identSchema";
 import type { ModelComparisonEntry } from "../../lib/api/types";
-import QueryError from "./QueryError";
+import { useErrorToasts } from "../../lib/usePageStatus";
 import { errorMessage } from "./shared";
 
 const mae = (n: number) => n.toFixed(4);
@@ -44,6 +44,8 @@ function ModelComparisonPanel() {
   } = useQuery({ queryKey: ["modelComparison"], queryFn: api.modelComparison, enabled: isOpen });
   // A candidate whose metrics file has no score sorts last, not first.
   const rows = data ? [...data.models].sort((a, b) => (a.score ?? Infinity) - (b.score ?? Infinity)) : null;
+  const loadMessage = errorMessage(error, "Could not load the model comparison");
+  useErrorToasts({ modelComparison: loadMessage && { message: loadMessage, retry: () => void refetch() } });
 
   return (
     <CollapsibleSection title="Model Comparison" onOpenChange={setIsOpen}>
@@ -52,12 +54,6 @@ function ModelComparisonPanel() {
         better. Every algorithm this project has actually trained, not just the one serving
         predictions.
       </p>
-      {errorMessage(error, "Could not load the model comparison") && (
-        <QueryError
-          message={errorMessage(error, "Could not load the model comparison")!}
-          onRetry={() => void refetch()}
-        />
-      )}
       {!error && !rows && <p className="text-sm text-muted-foreground">Loading…</p>}
       {rows?.length === 0 && <p className="text-sm text-muted-foreground">No trained models are available.</p>}
       {rows && rows.length > 0 && (
@@ -124,6 +120,8 @@ function AlgorithmPickerPanel() {
     setRouteError(null);
     score.mutate({ d, a, m: model });
   };
+  const scoreMessage = errorMessage(score.error, "Could not score this route");
+  useErrorToasts({ playgroundScore: scoreMessage && { message: scoreMessage, retry: run } });
 
   return (
     <CollapsibleSection title="Algorithm Picker">
@@ -153,9 +151,6 @@ function AlgorithmPickerPanel() {
         <Button type="submit" disabled={score.isPending}>{score.isPending ? "Scoring…" : "Score checkpoints"}</Button>
       </form>
       {routeError && <p className="text-sm text-destructive" role="alert">{routeError}</p>}
-      {errorMessage(score.error, "Could not score this route") && (
-        <QueryError message={errorMessage(score.error, "Could not score this route")!} onRetry={run} />
-      )}
       {score.data && (
         <>
           <p className="mb-1 text-xs text-muted-foreground">Scored by: {score.data.model_type}</p>

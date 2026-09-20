@@ -72,7 +72,6 @@ interface Props {
    *  the destination regardless of how many legs have arrived yet --
    *  the ones without a leg show placeholders rather than waiting. */
   legs: Leg[];
-  navError: string | null;
   dep: string;
   dest: string;
   /** The airport's own full name (e.g. "Osceola Municipal"), not the
@@ -278,7 +277,7 @@ function NoteRow({ selected, children }: { selected: boolean; children: React.Re
  * no leg has been flown yet.
  */
 export default function NavLogView({
-  totals, nav, legs, navError, dep, dest, depName, destName, depLat, depLon, destLat, destLon,
+  totals, nav, legs, dep, dest, depName, destName, depLat, depLon, destLat, destLon,
   selected, depElevationFt, destElevationFt, descriptions, onSaveDescription,
   onGenerateDescriptions, descriptionsLoading, expanded, onToggleExpanded,
   selectedPoint, onSelectPoint, alt, onAltChange, onSubmit,
@@ -514,10 +513,7 @@ export default function NavLogView({
             ))}
           </TableHeader>
           <TableBody>
-            {navError && (
-              <TableRow><TableCell className="text-left text-destructive" colSpan={columns.length}>{navError}</TableCell></TableRow>
-            )}
-            {!navError && selected.length === 0 && (
+            {selected.length === 0 && (
               <TableRow><TableCell className="text-left text-muted-foreground" colSpan={columns.length}>No route planned yet</TableCell></TableRow>
             )}
             {/* One row per waypoint the plan already knows about, not

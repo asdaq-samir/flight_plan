@@ -24,7 +24,7 @@ function NarrativeTabBody({ framework, narrative }: { framework: Framework; narr
     <ScrollArea className="max-h-[60vh]">
       <div className="p-3 pt-2">
         {narrative.loading && <p className="text-muted-foreground">Generating {FRAMEWORK_LABEL[framework]} narrative…</p>}
-        {narrative.error && <p className="text-destructive" role="alert">{narrative.error}</p>}
+        {narrative.error && <p className="text-muted-foreground">Narrative unavailable — see the error toast.</p>}
         {narrative.text && <p className="whitespace-pre-wrap text-popover-foreground">{narrative.text}</p>}
       </div>
     </ScrollArea>

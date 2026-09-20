@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { Mail } from "lucide-react";
 import AppleLogo from "../../components/icons/AppleLogo";
 import GoogleLogo from "../../components/icons/GoogleLogo";
@@ -32,6 +33,7 @@ export default function SignInModal() {
   const magicLink = useMutation({
     mutationFn: () => api.requestMagicLink(trimmedEmail),
     onSuccess: () => setSent(trimmedEmail),
+    onError: () => toast.error("Couldn't send that link. Check the address and try again."),
   });
 
   return (
@@ -102,11 +104,6 @@ export default function SignInModal() {
                 <TooltipContent>Send sign-in link</TooltipContent>
               </Tooltip>
             </div>
-            {magicLink.isError && (
-              <p className="text-sm text-destructive" role="alert">
-                Couldn't send that link. Check the address and try again.
-              </p>
-            )}
           </form>
         )}
       </DialogContent>
