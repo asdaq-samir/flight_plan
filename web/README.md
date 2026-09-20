@@ -5,12 +5,15 @@ end, built into `webapp`'s jar and served from `/app`. Three pages:
 
 - `/app/plan` — the app's homepage (bare `/app` redirects here). Enter a
   departure and destination; get the charted course, scored checkpoints
-  and the nav log. A Map tab and a Brief tab share one persistent
-  header. Brief is the FAA-sequence briefing, with an AI narrative
-  popover (LangGraph or CrewAI, each a real Claude call) and print.
-  The pilot console drops down over the map from the header: sign-in,
-  the pilot's own aeroplanes (the nav log flies the one picked), filed
-  flights (open one back on the planner, or delete it) and the theme.
+  and the nav log, in a drawer beside the map. Walk its checkpoints
+  with the arrow keys or a click and the map follows. Opened wide
+  (`?view=briefing`, or `n`), the same drawer is the FAA-sequence
+  briefing: the nav log with the briefing's sections under it, an AI
+  narrative popover (LangGraph or CrewAI, each a real Claude call) and
+  Print in its header, the map still beside it. The pilot console
+  drops down over the map from the header: sign-in, the pilot's own
+  aeroplanes (the nav log flies the one picked), filed flights (open
+  one back on the planner, or delete it) and the theme.
 - `/app/dev` — the developer's page: walk a route's detected waypoints
   on the sectional and rate each one, producing ML training data, with
   the dev console dropping down over the chart in three tabs -- Model
@@ -93,8 +96,8 @@ src/
   main.tsx               Entry point: one lazy route per page, basename /app
   Shell.tsx              The header / map / sidebar-panel layout every page mounts into
   components/            Shared UI
-    MapDrawer.tsx          A drawer over the map area, under the header (the sidebar from the right, Dev ML from the top)
-    TwoRowHeader.tsx       Route form and trailing icons on row one, tabs and tab actions on row two
+    MapDrawer.tsx          A drawer over the map area, under the header (the sidebar from the right, a console from the top); the wide nav log prints as the page
+    MapHeader.tsx          The one-row header both pages share: the route form centred, the icon buttons trailing
     RouteForm.tsx, RouteInputGroup.tsx, AirportSearchInput.tsx   The DEP → DEST form and its Load button, shared by Plan and Label
     IconButton.tsx         An icon-only Button with its label as tooltip and accessible name; every header icon is one
     MapGuideButton.tsx     The Info popover button (Plan's ScoreLegend, Label's RatingLegend)

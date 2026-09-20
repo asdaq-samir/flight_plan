@@ -115,7 +115,7 @@ once in ten.
 | `GET /api/checkpoints` | Scored candidates and the subset worth flying. |
 | `GET /api/navlog` | Altitude and the dead-reckoning legs, streamed as NDJSON. The slow one. |
 | `GET /api/plan` | All three at once, for non-browser callers. |
-| `GET /api/briefing` | The FAA-sequence weather briefing behind the Brief tab. |
+| `GET /api/briefing` | The FAA-sequence weather briefing behind Plan's briefing (the nav log drawer opened wide). |
 | `GET /api/altitude-breakdown` | The reasoning behind a recommended cruise altitude. |
 | `GET /api/detect/stream` | Chart-vision detections, streamed as NDJSON. |
 | `GET /api/classify` | What the chart draws at one point. |

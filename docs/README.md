@@ -174,9 +174,10 @@ service discovery at `planning-service.vfr-route.internal`.
   `/api/planner/*` on `webapp`, never directly. Its own OpenAPI page is at
   [`localhost:8084/docs`](http://localhost:8084/docs); the full endpoint
   list is in [`planning-service/README.md`](../planning-service/README.md)
-- `/api/briefing` — the FAA-sequence weather briefing behind the Brief
-  tab on `/app/plan` (the narrative itself comes through `webapp`'s own
-  `/api/comparison`, below)
+- `/api/briefing` — the FAA-sequence weather briefing behind the
+  briefing on `/app/plan`, the nav log drawer opened wide (the
+  narrative itself comes through `webapp`'s own `/api/comparison`,
+  below)
 - `/api/model-comparison` — every trained algorithm's accuracy side by
   side: the dev console charts it, and Plan's info popover names the
   promoted one from it
@@ -186,7 +187,7 @@ service discovery at `planning-service.vfr-route.internal`.
   a retrain run through Airflow, and the stock aircraft profiles the nav
   log's aircraft picker offers
 - `/api/altitude-breakdown` — the full reasoning behind a recommended
-  cruise altitude for any route; the Brief tab's "Cruise Altitude" section
+  cruise altitude for any route; the briefing's "Cruise Altitude" section
   shows the same computation for the loaded route
 - `vfr.chartvision` reads the corridor's tiles and segments them by the
   chart's own palette, streaming results block by block from the departure
@@ -229,7 +230,7 @@ service discovery at `planning-service.vfr-route.internal`.
   are that pilot's own aeroplanes and filed flights, each pilot-scoped
   so one can never read or edit another's by guessing an id
 - `/api/comparison` (`ComparisonProxyController`) — streams a narrative
-  for the nav log the Brief tab shows, from `nav-log-agent`'s LangGraph
+  for the nav log the briefing shows, from `nav-log-agent`'s LangGraph
   build (`framework=langgraph`) or `crewai-agent`'s CrewAI build
   (`framework=crewai`), each a real billed Claude call, as
   newline-delimited JSON while Claude writes it. Neither agent is
@@ -239,14 +240,14 @@ service discovery at `planning-service.vfr-route.internal`.
 **`nav-log-agent`** — a LangGraph agent wrapped as an MCP server.
 
 - One tool: `generate_nav_log_briefing(departure_ident, destination_ident, altitude_ft=None, aircraft_name="c172")`
-- Graph: `fetch_checkpoints` → `select_checkpoints` (`vfr.checkpoints`) → `select_altitude` (`vfr.altitude`) → `assemble_legs` (`vfr.navlog`) → `retrieve_memory` (pgvector, embedded locally with `sentence-transformers/all-MiniLM-L6-v2`, baked into the image) → `generate_briefing` (Claude API, streamed) → `store_memory`. The Brief tab, which already has the nav log, POSTs it to `/compare` and the graph starts at `retrieve_memory`
+- Graph: `fetch_checkpoints` → `select_checkpoints` (`vfr.checkpoints`) → `select_altitude` (`vfr.altitude`) → `assemble_legs` (`vfr.navlog`) → `retrieve_memory` (pgvector, embedded locally with `sentence-transformers/all-MiniLM-L6-v2`, baked into the image) → `generate_briefing` (Claude API, streamed) → `store_memory`. The briefing on Plan, which already has the nav log, POSTs it to `/compare` and the graph starts at `retrieve_memory`
 - Served over SSE at `/mcp/sse`
 - Same model-service/SageMaker dual path as webapp
 
 **`crewai-agent`** — the identical task (checkpoints → altitude → legs → briefing), built in CrewAI instead of LangGraph, for framework comparison.
 
 - Same underlying calls as `nav-log-agent`; different control-flow model — an `Agent` reasoning over `tools` rather than an explicit function sequence
-- Run by hand as a one-shot CLI (`python -m app.main`); `docker compose up` runs a thin HTTP wrapper around the same crew so the Brief tab can call it
+- Run by hand as a one-shot CLI (`python -m app.main`); `docker compose up` runs a thin HTTP wrapper around the same crew so the briefing on Plan can call it
 - No pgvector memory store of its own
 
 ### Database & migrations
@@ -462,7 +463,7 @@ stack. Anything not listed here does not exist.
 
 | What | URL | Needs |
 |---|---|---|
-| **Route planner** (Map and Brief tabs — the map/nav log, and the FAA-sequence briefing with its own LangGraph/CrewAI narrative popover) — also the app's homepage, bare `/app` redirects here | [`localhost:8080/app/plan`](http://localhost:8080/app/plan) | `webapp` + `planning-service` |
+| **Route planner** — the map with the nav log in a drawer beside it, walked with the arrow keys or a click; opened wide, the same drawer is the FAA-sequence briefing with its LangGraph/CrewAI narrative popover and Print. Also the app's homepage, bare `/app` redirects here | [`localhost:8080/app/plan`](http://localhost:8080/app/plan) | `webapp` + `planning-service` |
 | **Dev** — the developer's page: the labeling page above, with the developer's console (model registry and retrain, corridors and their labels, service and data status) in a drawer over the chart. `/app/label` and `/app/settings` redirect to Dev and Plan | [`localhost:8080/app/dev`](http://localhost:8080/app/dev) | `webapp` + `planning-service` |
 | Spring Boot API docs | [`localhost:8080/swagger-ui/index.html`](http://localhost:8080/swagger-ui/index.html) | `webapp` |
 | Spring Boot OpenAPI spec | [`localhost:8080/v3/api-docs`](http://localhost:8080/v3/api-docs) | `webapp` |

@@ -1,33 +1,24 @@
-import { Fragment, useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import clsx from "clsx";
 import { toast } from "sonner";
 import { Badge } from "../../../../components/ui/badge";
 import { Button } from "../../../../components/ui/button";
-import {
-  Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow,
-} from "../../../../components/ui/table";
 import CollapsibleSection from "../../../../components/CollapsibleSection";
 import { api, describeError } from "../../../../lib/api/client";
 import type {
   Briefing, Candidate, Course, Leg, NavLog, Pilot, SaveFlightRequest, Totals,
 } from "../../../../lib/api/types";
-import { type Description, type FrameworkNarrative, descriptionKey } from "../../hooks/usePlanState";
-import { altFt, deg, one, signed, totalsParts } from "../../format";
+import type { FrameworkNarrative } from "../../hooks/usePlanState";
+import { altFt, deg, totalsParts } from "../../format";
 
 interface Props {
   course: Course | null;
   totals: Totals | null;
   nav: Omit<NavLog, "legs" | "totals"> | null;
   legs: Leg[];
-  navError: string | null;
   dep: string;
   dest: string;
   selected: Candidate[];
-  depElevationFt: number | null;
-  destElevationFt: number | null;
-  /** Whatever the sidebar's own per-checkpoint "how to spot it" notes
-   *  currently hold -- copied over read-only, not re-editable here. */
-  descriptions: Record<string, Description>;
   /** Null while the fetch is still in flight or has failed. The page
    *  keeps its standard sections visible and identifies which state
    *  applies, rather than making a failed briefing indistinguishable
@@ -38,11 +29,8 @@ interface Props {
   /** LangGraph's (nav-log-agent) and CrewAI's (crewai-agent) own
    *  briefing narratives -- read-only here, only for
    *  `BriefingNarrativePrintBlock` below. Generating them is
-   *  `NavLogActions`' own job now, from PlanView's persistent header
-   *  (trailing content next to the Map/Brief tabs while Brief is
-   *  active), not this component's -- this page no longer draws its
-   *  own separate header at all, see this component's own top-level
-   *  comment. */
+   *  `NavLogActions`' own job, from the nav log drawer's own header
+   *  while it is open wide, not this component's. */
   langgraphNarrative: FrameworkNarrative;
   crewaiNarrative: FrameworkNarrative;
   /** The aeroplane the nav log was computed for (chosen in the nav log's
@@ -57,135 +45,15 @@ const FLIGHT_CATEGORY_COLOR: Record<string, string> = {
 };
 
 /**
- * A plain, read-only copy of the sidebar's own nav log table --
- * deliberately not that component: this page is a document to hand a
- * pilot or print, not a workspace, so there's no click-to-select, no
- * per-checkpoint description column to edit, and no map to link a
- * selection to. Same columns, same formatting, same waypoint-per-row
- * shape as NavLogView's table -- just without any of the interactivity
- * that doesn't belong on a printed page.
- */
-function NavLogTable({
-  nav, legs, selected, dep, dest, depElevationFt, destElevationFt, navError, descriptions,
-}: {
-  nav: Omit<NavLog, "legs" | "totals"> | null;
-  legs: Leg[];
-  selected: Candidate[];
-  dep: string;
-  dest: string;
-  depElevationFt: number | null;
-  destElevationFt: number | null;
-  navError: string | null;
-  descriptions: Record<string, Description>;
-}) {
-  const waypoints = [...selected, null].map((cp, i) => ({
-    cp,
-    name: cp ? (cp.name || cp.category) : dest,
-    leg: legs[i] as Leg | undefined,
-  }));
-
-  return (
-    // print:overflow-visible, not the stock `overflow-x-auto` alone --
-    // this page's own outer scroller (`flight-briefing`, further down)
-    // is deliberately y-only (print pagination needs every column
-    // actually laid out, not clipped to a scrollable viewport a printed
-    // page can't scroll), but that means on screen this table needs its
-    // own scroll for anything narrower than all twelve columns, since
-    // nothing else here provides one.
-    <Table containerClassName="overflow-x-auto print:overflow-visible" className="text-right text-xs whitespace-nowrap">
-      <TableCaption className="sr-only">
-        Navigation log from {dep} to {dest}
-      </TableCaption>
-      <TableHeader>
-        <TableRow className="hover:bg-transparent">
-          <TableHead className="text-left">Waypoint</TableHead>
-          <TableHead className="border-l border-border">Alt</TableHead>
-          <TableHead className="border-l border-border">Dist</TableHead>
-          <TableHead className="border-l border-border">TC</TableHead>
-          <TableHead className="border-l border-border">Wind</TableHead>
-          <TableHead className="border-l border-border">WCA</TableHead>
-          <TableHead className="border-l border-border">TH</TableHead>
-          <TableHead className="border-l border-border">Var</TableHead>
-          <TableHead className="border-l border-border">MH</TableHead>
-          <TableHead className="border-l border-border">GS</TableHead>
-          <TableHead className="border-l border-border">ETE</TableHead>
-          <TableHead className="border-l border-border">Fuel</TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {navError && (
-          <TableRow><TableCell className="text-left text-destructive" colSpan={12}>{navError}</TableCell></TableRow>
-        )}
-        {!navError && selected.length === 0 && (
-          <TableRow><TableCell className="text-left text-muted-foreground" colSpan={12}>No route planned yet</TableCell></TableRow>
-        )}
-        {selected.length > 0 && (
-          <TableRow className="text-muted-foreground">
-            <TableCell className="text-left">{dep}</TableCell>
-            <TableCell className="border-l border-border">{altFt(depElevationFt)}</TableCell>
-            {Array.from({ length: 10 }, (_, i) => (
-              <TableCell key={i} className="border-l border-border">—</TableCell>
-            ))}
-          </TableRow>
-        )}
-        {waypoints.map(({ cp, name, leg }, i) => {
-          const description = cp && descriptions[descriptionKey(cp.lat, cp.lon)];
-          return (
-            <Fragment key={i}>
-              <TableRow className={clsx(!leg?.wind && "text-muted-foreground")}>
-                <TableCell className="text-left">{name}</TableCell>
-                <TableCell className="border-l border-border">{altFt(cp ? nav?.altitude_ft : destElevationFt)}</TableCell>
-                <TableCell className="border-l border-border">{leg ? leg.distance_nm.toFixed(1) : "—"}</TableCell>
-                <TableCell className="border-l border-border">{leg ? deg(leg.true_course_deg) : "—"}</TableCell>
-                <TableCell className="border-l border-border">{leg
-                  ? (leg.wind ? `${deg(leg.wind.wind_dir_true_deg)}/${Math.round(leg.wind.wind_speed_kt)}` : "no data")
-                  : "—"}</TableCell>
-                <TableCell className="border-l border-border">{leg ? signed(leg.wca_deg) : "—"}</TableCell>
-                <TableCell className="border-l border-border">{leg ? deg(leg.true_heading_deg) : "—"}</TableCell>
-                <TableCell className="border-l border-border">{leg ? signed(leg.magnetic_variation_deg) : "—"}</TableCell>
-                <TableCell className="border-l border-border">{leg ? deg(leg.magnetic_heading_deg) : "—"}</TableCell>
-                <TableCell className="border-l border-border">
-                  {leg ? (leg.groundspeed_kt === null ? "—" : Math.round(leg.groundspeed_kt)) : "—"}
-                </TableCell>
-                <TableCell className="border-l border-border">
-                  {leg ? (leg.ete_min === null ? "unflyable" : one(leg.ete_min)) : "—"}
-                </TableCell>
-                <TableCell className="border-l border-border">{leg ? one(leg.fuel_gal) : "—"}</TableCell>
-              </TableRow>
-              {/* Copied over from the sidebar's own nav log, read-only --
-                  a pilot's typed (or generated) "how to spot it" note is
-                  worth having on the printed page, but isn't editable
-                  here: this page is a document to hand over or print,
-                  not the workspace that note was written in. */}
-              {description && description.text && (
-                <TableRow>
-                  {/* pl-6, not px-2 like the waypoint cell above it --
-                      indented so it reads as that row's own note, not
-                      another row at the same level. */}
-                  <TableCell colSpan={12} className="bg-muted/60 pl-6 text-left whitespace-normal italic text-muted-foreground">
-                    {description.text}
-                  </TableCell>
-                </TableRow>
-              )}
-            </Fragment>
-          );
-        })}
-      </TableBody>
-    </Table>
-  );
-}
-
-/**
  * Whichever narrative(s) a pilot actually generated, print only. On
  * screen each lives in `NavLogActions`' own `Popover` instead (next to
- * the buttons that produce it, in the header, not a scroll away) -- but
- * a closed Popover renders nothing, so a printed copy needs its own
- * text sitting directly in the page. Same `hidden print:block` pattern
- * this page's own title uses just above, for the same reason. Prints
- * neither, one, or both, whichever the pilot actually asked for on
- * screen -- generating a framework's narrative just to have it for a
- * printout nobody asked for would be a real, billed Claude call spent
- * on nothing.
+ * the buttons that produce it, in the drawer's header, not a scroll
+ * away) -- but a closed Popover renders nothing, so a printed copy
+ * needs its own text sitting directly in the page. Prints neither,
+ * one, or both, whichever the pilot actually asked for on screen --
+ * generating a framework's narrative just to have it for a printout
+ * nobody asked for would be a real, billed Claude call spent on
+ * nothing.
  */
 function BriefingNarrativePrintBlock({ langgraph, crewai }: { langgraph: string | null; crewai: string | null }) {
   if (!langgraph && !crewai) return null;
@@ -305,7 +173,7 @@ function SaveFlightSection({
 
   useEffect(() => { void api.me().then(setPilot); }, []);
 
-  // Same row shape NavLogTable already builds (departure, no leg --
+  // The same row shape the nav log table draws (departure, no leg --
   // then one row per selected checkpoint and one for the destination,
   // each carrying the leg that arrived there) -- just as a plain
   // request payload instead of table cells.
@@ -377,12 +245,15 @@ function SaveFlightSection({
 }
 
 /**
- * The Flight Briefing page: the FAA's own standard-briefing sequence
+ * The briefing's sections: the FAA's own standard-briefing sequence
  * (AIM 7-1-5) -- VFR-not-recommended, adverse conditions, current
  * conditions, destination and en route forecast, winds aloft, NOTAMs,
- * ATC delays, airport information -- around the nav log, laid out to
- * print cleanly. One element of that sequence is genuinely absent
- * rather than faked: a synoptic narrative (needs real meteorological
+ * ATC delays, airport information -- rendered under the nav log table
+ * inside the nav log drawer once it is opened wide (see `NavLogView`'s
+ * `children`), and laid out to print cleanly with it. Not a page or a
+ * scroller of its own: the drawer scrolls the table and these sections
+ * together. One element of that sequence is genuinely absent rather
+ * than faked: a synoptic narrative (needs real meteorological
  * analysis, not a data fetch). NOTAMs and ATC delays are both named
  * but not embedded -- the official NOTAM API and ATC flow-control data
  * are both gated to certain commercial/public operators, so each
@@ -390,7 +261,7 @@ function SaveFlightSection({
  * silently disappearing the way an unnamed gap would.
  */
 export default function FlightBriefingView({
-  course, totals, nav, legs, navError, dep, dest, selected, depElevationFt, destElevationFt, descriptions,
+  course, totals, nav, legs, dep, dest, selected,
   briefing, briefingError, loadingBriefing,
   langgraphNarrative, crewaiNarrative, aircraftLabel, aircraftId,
 }: Props) {
@@ -445,13 +316,13 @@ export default function FlightBriefingView({
   }, []);
 
   // "Planning aid only" used to be a permanently docked banner at the
-  // top of this page, pushing every section below it down a line
+  // top of the briefing, pushing every section below it down a line
   // whether a pilot needed the reminder again or not. A toast instead
   // -- same sonner instance (main.tsx) PlanView's own progress/error
   // toasts use, so the same bottom-center position without having to
   // say so again here -- says it once, prominently, each time this
-  // view mounts (opening the Brief tab), then gets out of the way
-  // rather than sitting there for the whole session.
+  // mounts (the drawer opening wide), then gets out of the way rather
+  // than sitting there for the whole session.
   useEffect(() => {
     toast.warning("Planning aid only.", {
       id: "briefing-planning-aid-only",
@@ -460,10 +331,10 @@ export default function FlightBriefingView({
     });
     // sonner's own Toaster is mounted once at the app root (main.tsx),
     // not inside this view -- without this, its 8s duration keeps
-    // counting down regardless of navigation, so leaving this page
-    // (back to Map, or away to Label/Settings entirely) within that
-    // window still shows a "Brief"-specific warning on whatever page
-    // you land on next.
+    // counting down regardless of navigation, so narrowing the drawer
+    // back to the nav log (or leaving for Dev) within that window
+    // still shows a briefing-specific warning on whatever is on screen
+    // next.
     return () => { toast.dismiss("briefing-planning-aid-only"); };
   }, []);
 
@@ -492,25 +363,14 @@ export default function FlightBriefingView({
   }, [briefing, dep, dest]);
 
   return (
-    <div ref={briefingContainer} className="flight-briefing h-full overflow-y-auto bg-background print:h-auto print:overflow-visible">
-      {/* No header of this page's own any more -- PlanView's persistent
-          header (route form, Map/Brief tabs, NavLogActions while Brief
-          is active) covers what this used to draw itself (a "Back to
-          Map" button, Settings, the narrative actions), and having both
-          on screen at once read as two headers stacked rather than one
-          page with two views. This print-only title is what's left:
-          a printed page has no tabs to switch or button to click back
-          with, but still needs its own identifying title, since the
-          persistent header above is `print:hidden` in its entirety. */}
-      <div className="hidden border-b border-border px-4 py-3 print:block">
-        <h1 className="text-lg font-bold tracking-tight text-foreground">Flight Briefing</h1>
-        <p className="text-sm text-muted-foreground">{dep} → {dest}</p>
-      </div>
-
-      {/* Open from the start: the route, its totals and the nav log
-          are what a pilot came to the Brief tab for, so they should not
-          be behind a click. Every weather section below stays collapsed
-          -- skim the titles, open what applies. */}
+    // No header, title or scroller of its own: the nav log drawer's own
+    // header (the totals, the altitude, the aeroplane, the narrative
+    // and Print) is the briefing's, on screen and on paper alike, and
+    // the drawer scrolls the table and these sections together.
+    <div ref={briefingContainer} className="flight-briefing">
+      {/* Open from the start: the course, the aeroplane and "Save this
+          flight" should not be behind a click. Every weather section
+          below stays collapsed -- skim the titles, open what applies. */}
       <CollapsibleSection title="Flight Plan Summary" defaultOpen>
         <div className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
           <div>
@@ -548,13 +408,6 @@ export default function FlightBriefingView({
           course={course} totals={totals} nav={nav} legs={legs} dep={dep} dest={dest} selected={selected}
           aircraftId={aircraftId} aircraftLabel={aircraftLabel}
         />
-        <div className="mt-3 overflow-x-auto" data-testid="navlog-scroller">
-          <NavLogTable
-            nav={nav} legs={legs} selected={selected} dep={dep} dest={dest}
-            depElevationFt={depElevationFt} destElevationFt={destElevationFt} navError={navError}
-            descriptions={descriptions}
-          />
-        </div>
       </CollapsibleSection>
 
       {/* Not gated behind `briefing` -- narrative is its own separate,

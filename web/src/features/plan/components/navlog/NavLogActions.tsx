@@ -38,10 +38,9 @@ interface Props {
 }
 
 /**
- * The nav log's own actions -- generate a briefing narrative, print
- * this -- rendered inline in PlanView's own persistent header, as
- * trailing content next to the Map/Brief tabs while Brief is the
- * active tab.
+ * The briefing's own actions -- generate a narrative, print this --
+ * rendered in the nav log drawer's own header while it is open wide
+ * as the briefing (NavLogView's `actions` slot).
  *
  * One AI button next to Print, not two named ones -- LangGraph and
  * CrewAI live as two tabs inside the single popover it opens instead
@@ -75,17 +74,9 @@ export default function NavLogActions({ onGenerateNarrative, langgraphNarrative,
   };
 
   return (
-    // A single flex item, not a bare Fragment -- PlanView's own header
-    // row places this next to the Map/Brief tabs under `justify-
-    // between`, which only pushes its first and last child apart and
-    // spaces any child in between evenly rather than grouping it
-    // against either edge. A Fragment here flattens into two top-level
-    // children of that row (this Popover, then Print), landing the AI
-    // button somewhere in the middle instead of flush right next to
-    // Print -- wrapping both in one div is what keeps them together at
-    // the row's trailing edge, the same treatment the Map view's own
-    // info-button-plus-sidebar-trigger pair already gets.
-    <div className="flex items-center gap-2">
+    // One flex item, so the pair sits together between the drawer
+    // header's other buttons.
+    <div className="flex items-center gap-1">
       <Popover
         open={open}
         onOpenChange={next => {

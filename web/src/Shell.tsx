@@ -3,11 +3,9 @@ import { cn } from "cn";
 import MapDrawer from "./components/MapDrawer";
 
 interface Props {
-  /** Required, not defaulted -- there's no longer a generic fallback
-   *  header (see the removed `PageHeader`): Plan and Label each fold
-   *  their own route form and the Settings gear into one row, and
-   *  Settings has its own back button, so every caller already has an
-   *  opinion about what belongs here. */
+  /** Required, not defaulted -- there's no generic fallback header:
+   *  Plan and Dev each build their own from `MapHeader`, and each has
+   *  an opinion about which buttons belong in it. */
   header: ReactNode;
   map: ReactNode;
   /** Anything else that lives in the map area -- the console drawer
@@ -27,12 +25,14 @@ interface Props {
    *  in that caller's own header, not inside this component. */
   sidebarOpen?: boolean;
   onSidebarOpenChange?: (open: boolean) => void;
-  /** Widens the sidebar enough to show the nav log's own table without
-   *  its own horizontal scroll -- the toggle button itself lives in
-   *  that table's own header (it's that content's own width being
-   *  changed), so this is just the state driving this component's own
-   *  class choice below. Pages with no such toggle (Label) simply
-   *  never pass it. */
+  /** The sidebar opened as the document: Plan's nav log widened into
+   *  the briefing. Wide enough on a desktop for the nav log's own
+   *  twelve columns without a horizontal scroll, the whole map area on
+   *  a phone, and the one thing on the page that prints. The toggle
+   *  itself lives in that content's own header (it's that content's
+   *  own width being changed), so this is just the state driving this
+   *  component's own class choice below. Pages with no such toggle
+   *  (Dev) simply never pass it. */
   sidebarWide?: boolean;
   /** false fits this within its parent's own height instead of
    *  claiming the full viewport (`h-dvh`) -- for a caller embedding
@@ -51,13 +51,13 @@ interface Props {
  * below it.
  *
  * `print:h-auto print:overflow-visible` appears on every ancestor
- * between here and the Flight Briefing page's own content -- an
- * ancestor's `overflow: hidden` still clips a descendant's content
- * when printing regardless of what a `print:overflow-visible` further
- * down declares, and that page is taller than one screen and needs
- * the browser's own pagination across multiple printed pages. Every
- * page's own `header` and the sidebar are both `print:hidden` and so
- * contribute nothing to that printed page at all.
+ * between here and the briefing's own content -- an ancestor's
+ * `overflow: hidden` still clips a descendant's content when printing
+ * regardless of what a `print:overflow-visible` further down declares,
+ * and the briefing is taller than one screen and needs the browser's
+ * own pagination across multiple printed pages. Every page's own
+ * `header` is `print:hidden`, and so is every drawer but the wide
+ * sidebar, which is the printed page.
  */
 export default function Shell({
   header, map, panels, sidebar, sidebarLabel = "Sidebar", sidebarOpen = false, onSidebarOpenChange, sidebarWide,
@@ -79,7 +79,8 @@ export default function Shell({
             open={sidebarOpen}
             onOpenChange={open => onSidebarOpenChange?.(open)}
             label={sidebarLabel}
-            className={sidebarWide ? "sm:max-w-[min(52rem,92vw)]" : "sm:max-w-[22rem]"}
+            className={sidebarWide ? "w-full sm:max-w-[min(52rem,92vw)]" : "sm:max-w-[22rem]"}
+            printable={sidebarWide}
           >
             {sidebar}
           </MapDrawer>

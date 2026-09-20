@@ -94,7 +94,7 @@ fetch_checkpoints → select_checkpoints → select_altitude → assemble_legs
 
 Only `generate_briefing` calls Claude. The rest is `src/vfr` and Postgres.
 
-The Brief tab's own calls skip the first four nodes: the page already
+The briefing's own calls from Plan skip the first four nodes: the page already
 has the nav log the planner computed (a pilot's altitude override
 included), so it POSTs that to `/compare` and the graph starts at
 `retrieve_memory`. The briefing streams back as newline-delimited JSON
@@ -105,7 +105,7 @@ nodes and return the finished text.
 | File | What it is |
 |---|---|
 | `app/graph.py` | The state machine and its nodes. |
-| `app/mcp_server.py` | MCP wrapper, so other clients can call it, and the `/compare` route the Brief tab streams from. |
+| `app/mcp_server.py` | MCP wrapper, so other clients can call it, and the `/compare` route Plan's briefing streams from. |
 | `app/db.py` | Postgres + pgvector access. |
 | `vfr.model_client` (in `src/`) | Checkpoint scores, over HTTP or SageMaker Runtime -- shared with planning-service and crewai-agent. |
 | `app/migrations.py` + `migrations/` | Its own schema, applied at startup. |

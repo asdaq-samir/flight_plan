@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useRef, useState, type Ref } from "react";
+import { Fragment, useEffect, useRef, useState, type ReactNode, type Ref } from "react";
 import clsx from "clsx";
 import { Loader2, Maximize2, Minimize2, Sparkles } from "lucide-react";
 import {
@@ -11,7 +11,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import {
   Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow,
 } from "../../../../components/ui/table";
-import { useIsMobile } from "../../../../hooks/use-mobile";
 import type { Candidate, Leg, NavLog, Totals } from "../../../../lib/api/types";
 import { type Description, descriptionKey } from "../../hooks/usePlanState";
 import { altFt, deg, one, signed, totalsParts } from "../../format";
@@ -113,13 +112,21 @@ interface Props {
    *  been clicked. */
   onGenerateDescriptions: () => void;
   descriptionsLoading: boolean;
-  /** The sidebar's own width toggle -- widened enough to show every
-   *  column of this table without its own horizontal scroll, lives
-   *  here (not floating over the map) since it's this table's own
-   *  width the button actually changes. Shell reads the same
-   *  `expanded` value to size the sidebar itself. */
+  /** Whether the drawer is open wide as the briefing -- this same
+   *  table with the briefing's sections under it (`children`) and the
+   *  briefing's own actions in this header (`actions`), wide enough for
+   *  every column without a horizontal scroll. The toggle lives here
+   *  (not floating over the map) since it's this content's own width
+   *  it changes; Shell reads the same `expanded` value to size the
+   *  drawer itself. */
   expanded: boolean;
   onToggleExpanded: () => void;
+  /** The briefing's own header actions (the narrative popover, Print)
+   *  -- present only while `expanded`. */
+  actions?: ReactNode;
+  /** The briefing's sections, rendered under the table in the same
+   *  scroller -- present only while `expanded`. */
+  children?: ReactNode;
   /** Clicking a row focuses that waypoint on the map (pans/zooms to
    *  it, draws the halo) the same way clicking its marker there
    *  selects this row -- keyed by coordinates rather than a row
@@ -222,6 +229,7 @@ function SelectableRow({
       ref={scrollRef}
       onClick={onSelect}
       tabIndex={0}
+      data-selected={selected || undefined}
       onKeyDown={e => {
         if (e.key === "Enter" || e.key === " ") {
           e.preventDefault();
@@ -267,15 +275,19 @@ function NoteRow({ selected, children }: { selected: boolean; children: React.Re
 }
 
 /**
- * The nav log itself -- the planner's own draggable sidebar content
- * (in place of a plain checkpoint list), so a pilot can walk the
- * route's real dead-reckoning numbers with the chart still visible
- * beside it, and reused as-is for the full-page "Flight Briefing"
- * (there, wider and print-styled, with nothing else competing for the
- * screen). Every row is clickable either way -- selecting one focuses
- * that point on the map, and selecting a point on the map (or another
- * row) scrolls this one into view, the same two-way link the old
- * checkpoint list had.
+ * The nav log itself -- the planner's own drawer content (in place of
+ * a plain checkpoint list), so a pilot can walk the route's real
+ * dead-reckoning numbers with the chart still visible beside it. The
+ * walk is the point: Up/Down (PlanView's own keys) or a click steps
+ * the selection through departure, every checkpoint and the
+ * destination, the map follows to whichever is selected, and selecting
+ * a point on the map (or another row) scrolls this one into view --
+ * the same two-way link the old checkpoint list had.
+ *
+ * The same table, opened wide, is the briefing: PlanView passes the
+ * briefing's sections as `children` and its own actions as `actions`,
+ * and this one component is the nav log in both widths -- the briefing
+ * used to draw its own read-only copy, and the two drifted.
  *
  * One row per waypoint, not one row per leg with both its ends named
  * on it -- a paper nav log runs down the page checkpoint by checkpoint,
@@ -286,7 +298,7 @@ function NoteRow({ selected, children }: { selected: boolean; children: React.Re
 export default function NavLogView({
   totals, nav, legs, dep, dest, depName, destName, depLat, depLon, destLat, destLon,
   selected, depElevationFt, destElevationFt, descriptions, onSaveDescription,
-  onGenerateDescriptions, descriptionsLoading, expanded, onToggleExpanded,
+  onGenerateDescriptions, descriptionsLoading, expanded, onToggleExpanded, actions, children,
   selectedPoint, onSelectPoint, alt, onAltChange, onSubmit,
   aircraftValue, aircraftOptions, onAircraftChange,
 }: Props) {
@@ -428,13 +440,6 @@ export default function NavLogView({
 
   const isSelected = (lat: number, lon: number) =>
     !!selectedPoint && descriptionKey(lat, lon) === descriptionKey(selectedPoint.lat, selectedPoint.lon);
-  // The expand toggle widens Shell's own sidebar Sheet past its default
-  // `sm:max-w-[22rem]` -- inert below that same `sm` breakpoint, where
-  // the Sheet is already `w-full` regardless, so the button would sit
-  // there doing nothing visible. `useIsMobile`'s own breakpoint doesn't
-  // match Tailwind's `sm` exactly, but it's close enough that this stays
-  // a "don't show a dead button" check, not a pixel-precise one.
-  const isMobile = useIsMobile();
 
   return (
     // print:h-auto print:overflow-visible: on screen this fills a fixed
@@ -443,9 +448,13 @@ export default function NavLogView({
     // would otherwise print only whatever page's worth happened to be
     // visible.
     <div className="flex h-full flex-col overflow-hidden bg-background print:h-auto print:overflow-visible">
+      {/* Printed, this header is the briefing's title: the page's own
+          header (the route form) is print:hidden, so the route is
+          named here instead, and the buttons drop out. */}
       <div className="flex flex-col gap-1 border-b border-border p-3 text-sm">
         <div className="flex items-center gap-2">
-          <span className="font-semibold text-muted-foreground">Nav log</span>
+          <span className="font-semibold text-muted-foreground">{expanded ? "Flight briefing" : "Nav log"}</span>
+          <span className="hidden text-muted-foreground print:inline">{dep} → {dest}</span>
           <div className="ml-auto flex items-center gap-1 print:hidden">
             <IconButton
               onClick={onGenerateDescriptions} disabled={descriptionsLoading || selected.length === 0}
@@ -454,15 +463,17 @@ export default function NavLogView({
             >
               {descriptionsLoading ? <Loader2 className="size-5 animate-spin" /> : <Sparkles className="size-5" />}
             </IconButton>
-            {!isMobile && (
-              <IconButton
-                onClick={onToggleExpanded}
-                label={expanded ? "Shrink nav log" : "Expand nav log"}
-                data-testid="sidebar-expand-toggle"
-              >
-                {expanded ? <Minimize2 className="size-5" /> : <Maximize2 className="size-5" />}
-              </IconButton>
-            )}
+            {actions}
+            {/* Wide is the briefing, narrow is the nav log beside the
+                map -- on a phone too, where wide means the whole map
+                area rather than three quarters of it. */}
+            <IconButton
+              onClick={onToggleExpanded}
+              label={expanded ? "Back to the nav log" : "Open the briefing"}
+              data-testid="sidebar-expand-toggle"
+            >
+              {expanded ? <Minimize2 className="size-5" /> : <Maximize2 className="size-5" />}
+            </IconButton>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2 print:ml-0">
@@ -492,7 +503,15 @@ export default function NavLogView({
         </div>
       </div>
       <div className="min-h-0 flex-1 overflow-auto p-3 print:h-auto print:overflow-visible" data-testid="navlog-scroller">
-        <Table containerClassName="overflow-visible" className="text-right text-xs whitespace-nowrap">
+        {/* Narrow, the whole scroller scrolls sideways as one; wide,
+            with the briefing's sections under it, the table scrolls
+            inside its own container on a phone so the sections below
+            stay put. Printed, nothing scrolls: every column is laid out
+            for the browser to paginate. */}
+        <Table
+          containerClassName={children ? "overflow-x-auto print:overflow-visible" : "overflow-visible"}
+          className="text-right text-xs whitespace-nowrap"
+        >
           <TableCaption className="sr-only">
             Navigation log from {dep} to {dest}
           </TableCaption>
@@ -584,6 +603,9 @@ export default function NavLogView({
             })}
           </TableBody>
         </Table>
+        {/* -mx-2 lines the sections' own cards (CollapsibleSection's
+            mx-2) up with the table's edges. */}
+        {children && <div className="-mx-2 mt-3">{children}</div>}
       </div>
     </div>
   );

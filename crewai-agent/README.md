@@ -23,9 +23,9 @@ docker compose run --rm crewai-agent \
 
 That is the one-shot CLI. `docker compose up crewai-agent` instead runs
 the image's own command, a small FastAPI wrapper (`app/server.py`)
-around the same crew on the internal network only, so the Brief tab's
-AI popover can call it. That route takes the nav log the tab already
-shows and runs the crew with no tools at all -- the agent's one job is
+around the same crew on the internal network only, so the briefing's
+AI popover on Plan can call it. That route takes the nav log the page
+already shows and runs the crew with no tools at all -- the agent's one job is
 the prose, streamed as it is written -- since every tool call was one
 more round trip through Claude, paid for in a pilot's wall-clock time;
 `GET /compare` is still the full tool-driven run for anyone comparing

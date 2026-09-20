@@ -111,6 +111,10 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
         position="bottom-center"
         closeButton
         richColors
+        // A toast still on screen ("VFR flight not recommended") was
+        // printing over the briefing's table; the paper is the
+        // briefing alone.
+        className="print:hidden"
       />
     </QueryClientProvider>
     </ThemeProvider>

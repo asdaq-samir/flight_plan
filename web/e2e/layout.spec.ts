@@ -158,25 +158,37 @@ for (const path of PAGES) {
   });
 }
 
+/** The briefing is the nav log drawer opened wide: open the drawer
+ *  from its header toggle, then widen it from its own. */
+async function openBriefing(page: Page) {
+  await page.getByTestId("sidebar-trigger-button").click();
+  await page.getByTestId("sidebar-expand-toggle").click();
+  await page.waitForTimeout(300);
+  await expect(page).toHaveURL(/[?&]view=briefing/);
+}
+
 test.describe("/app/plan", () => {
-  // Plan's own sidebar trigger moved into the header (this session's
-  // own change) -- in the tabs' own trailing slot, the same spot
-  // Brief's Print button sits in one tab over, not floating over the
-  // map at all anymore.
-  test("the sidebar trigger sits in the header, trailing the Map/Brief tabs, not floating over the map", async ({ page }) => {
+  // One header row, the same shape as Dev's: no tabs (the briefing is
+  // the nav log drawer opened wide, not a second view), and the nav
+  // log's toggle in the header's own trailing group, not floating over
+  // the map.
+  test("the header is one row with no tabs, and the sidebar trigger toggles the nav log from it", async ({ page }) => {
     await page.goto("/app/plan");
     await settle(page);
+    const viewport = page.viewportSize();
+    if (!viewport) throw new Error("no viewport configured");
 
-    const tabsBox = await page.getByRole("tab", { name: "Map" }).boundingBox();
+    await expect(page.locator("header").getByRole("tablist")).toHaveCount(0);
+    const loadBox = await page.getByRole("button", { name: "Load" }).boundingBox();
     const triggerBox = await page.getByTestId("sidebar-trigger-button").boundingBox();
-    expect(tabsBox).not.toBeNull();
+    expect(loadBox).not.toBeNull();
     expect(triggerBox).not.toBeNull();
+    expect(triggerBox!.y).toBeLessThan(viewport.height - 100);
+    // Trailing the form: to its right, on its row (a desktop) or the
+    // row under it (a phone), never above it.
+    expect(triggerBox!.x).toBeGreaterThan(loadBox!.x);
+    expect(triggerBox!.y).toBeGreaterThanOrEqual(loadBox!.y - 20);
 
-    // Same row as the tabs, trailing (to the right of) them.
-    expect(Math.abs(tabsBox!.y - triggerBox!.y)).toBeLessThan(10);
-    expect(triggerBox!.x).toBeGreaterThan(tabsBox!.x);
-
-    // Actually toggles the sidebar from here, same as it always did.
     const sidebar = page.locator('[data-slot="map-drawer"]');
     await page.getByTestId("sidebar-trigger-button").click();
     await expect(sidebar).toBeVisible();
@@ -203,94 +215,81 @@ test("dev page: the toggle-view action sits in the header next to the sidebar tr
   expect(Math.abs(actionBox!.y - triggerBox!.y)).toBeLessThan(10);
 });
 
-test("plan page: the Map/Brief tabs sit in their own row below Load, not floating over the map", async ({ page }) => {
+test("plan page: the nav log drawer opens wide as the briefing, with the narrative and Print in its own header, the map still beside it", async ({ page }) => {
   await page.goto("/app/plan");
   await settle(page);
   const viewport = page.viewportSize();
   if (!viewport) throw new Error("no viewport configured");
 
-  const loadBox = await page.getByRole("button", { name: "Load" }).boundingBox();
-  const briefingBox = await page.getByTestId("map-action-button").boundingBox();
-  expect(loadBox).not.toBeNull();
-  expect(briefingBox).not.toBeNull();
-  // Nowhere near the bottom-left corner MapActionButton would
-  // otherwise pin it to -- true regardless of viewport.
-  expect(briefingBox!.y).toBeLessThan(viewport.height - 100);
+  // Narrow first: the table beside the map.
+  await page.getByTestId("sidebar-trigger-button").click();
+  const drawer = page.locator('[data-slot="map-drawer"][data-side="right"]');
+  await expect(drawer).toBeVisible();
+  await expect(page).not.toHaveURL(/[?&]view=briefing/);
+  const narrowBox = await drawer.boundingBox();
+  expect(narrowBox).not.toBeNull();
 
-  // Below Load, its own row -- a Map/Brief tab pair, not a "Brief"
-  // button sharing Load's own row the way it used to (see PlanView's
-  // own comment on why the switch reads better as two tabs than a
-  // one-directional button). Always its own row regardless of
-  // viewport width, unlike the old single-row layout's phone-only wrap.
-  expect(briefingBox!.y).toBeGreaterThan(loadBox!.y);
-});
-
-test("plan page: the persistent header stays on screen in the Brief view, with narrative actions trailing the tabs", async ({ page }) => {
-  await page.goto("/app/plan");
-  await settle(page);
-
-  await page.getByTestId("map-action-button").click();
+  // Wide: the same drawer, the URL says briefing, and it grew -- to the
+  // whole map area on a phone, most of it on a desktop, never all of
+  // it: the map stays visible beside the briefing.
+  await page.getByTestId("sidebar-expand-toggle").click();
   await page.waitForTimeout(300);
   await expect(page).toHaveURL(/[?&]view=briefing/);
+  await expect(drawer).toBeVisible();
+  const wideBox = await drawer.boundingBox();
+  expect(wideBox!.width).toBeGreaterThan(narrowBox!.width);
+  if (viewport.width < 640) expect(wideBox!.width).toBeGreaterThanOrEqual(viewport.width - 1);
+  else expect(wideBox!.width).toBeLessThan(viewport.width);
 
-  // One shared header, not a second page shell -- the route form is
-  // still right there (PlanView's own header is always rendered now,
-  // covering both tabs). "Flight Briefing" is print-only (see
-  // FlightBriefingView's own comment), not an on-screen title this
-  // view draws for itself.
+  // The page's own header is still there above it: the route form,
+  // and the one Dev link this page has.
   await expect(page.getByLabel("Departure")).toBeVisible();
-  await expect(page.locator("header h1")).toBeHidden();
+  await expect(page.locator("header").getByRole("link", { name: "Dev" })).toHaveCount(1);
 
-  // The Brief tab, then the AI button (LangGraph/CrewAI live as tabs
-  // inside the popover it opens, not as their own header buttons),
-  // then Print -- trailing in the tabs' own row, left to right, while
-  // Brief is the active tab.
-  const tabsBox = await page.getByRole("tab", { name: "Brief" }).boundingBox();
-  const aiBox = await page.getByTestId("ai-narrative-button").boundingBox();
-  const printBox = await page.getByTestId("print-button").boundingBox();
-  expect(tabsBox).not.toBeNull();
+  // The briefing's actions live in the drawer's own header: the AI
+  // button (LangGraph/CrewAI are tabs inside the popover it opens),
+  // then Print, left to right on one row.
+  const aiBox = await drawer.getByTestId("ai-narrative-button").boundingBox();
+  const printBox = await drawer.getByTestId("print-button").boundingBox();
   expect(aiBox).not.toBeNull();
   expect(printBox).not.toBeNull();
-  expect(tabsBox!.x).toBeLessThan(aiBox!.x);
   expect(aiBox!.x).toBeLessThan(printBox!.x);
-
-  // Same row as the tabs, not stacked below them.
-  expect(Math.abs(tabsBox!.y - printBox!.y)).toBeLessThan(10);
-
-  // The one Dev link this page has, still in its own row above -- not
-  // duplicated down here next to the narrative actions.
-  await expect(page.locator("header").getByRole("link", { name: "Dev" })).toHaveCount(1);
+  expect(Math.abs(aiBox!.y - printBox!.y)).toBeLessThan(10);
+  // Inside the drawer, not the page header.
+  expect(await page.locator("header").getByTestId("print-button").count()).toBe(0);
 });
 
-test("plan page: opening the briefing pops a 'planning aid only' warning toast, and its semantic nav log is available", async ({ page }) => {
+test("plan page: opening the briefing pops a 'planning aid only' warning toast, with the nav log and the summary on screen", async ({ page }) => {
   await page.goto("/app/plan");
   await settle(page);
 
-  await page.getByTestId("map-action-button").click();
+  await openBriefing(page);
   // No more permanently docked banner -- a toast instead (see
   // FlightBriefingView's own comment), same sonner instance the
   // page's progress/error toasts use.
   await expect(page.locator("[data-sonner-toast]", { hasText: "Planning aid only" })).toBeVisible();
 
-  // "Flight Plan Summary" opens by default (see FlightBriefingView) --
-  // the nav log is on screen without a click.
-  await expect(page.getByRole("table", { name: /Navigation log from/i })).toBeVisible();
+  // One nav log: the same semantic table the narrow drawer shows, with
+  // the briefing's sections under it, "Flight Plan Summary" open by
+  // default and the weather sections collapsed.
+  const drawer = page.locator('[data-slot="map-drawer"][data-side="right"]');
+  await expect(drawer.getByRole("table", { name: /Navigation log from/i })).toBeVisible();
+  await expect(drawer.getByRole("table", { name: /Navigation log from/i })).toHaveCount(1);
+  await expect(drawer.getByText("Flight Plan Summary")).toBeVisible();
+  await expect(drawer.getByText("Adverse Conditions")).toBeVisible();
 });
 
-test("plan page: the briefing header offers one AI button, not a named button per framework", async ({ page }) => {
+test("plan page: the briefing offers one AI button, not a named button per framework", async ({ page }) => {
   await page.goto("/app/plan");
   await settle(page);
 
-  await page.getByTestId("map-action-button").click();
-  await page.waitForTimeout(300);
-  await expect(page).toHaveURL(/[?&]view=briefing/);
+  await openBriefing(page);
 
   // LangGraph and CrewAI (nav-log-agent's and crewai-agent's own real,
   // billed Claude calls) live as two tabs inside the popover this one
-  // button opens, not as their own separate triggers in the header --
-  // checked without opening it, the same restraint the old per-
-  // framework buttons' own test had around not actually triggering
-  // "generate".
+  // button opens, not as their own separate triggers -- checked
+  // without opening it, the same restraint the old per-framework
+  // buttons' own test had around not actually triggering "generate".
   const aiButton = page.getByTestId("ai-narrative-button");
   await expect(aiButton).toBeVisible();
   await expect(aiButton).toBeEnabled();
@@ -298,34 +297,95 @@ test("plan page: the briefing header offers one AI button, not a named button pe
   expect(await page.getByTestId("crewai-narrative-button").count()).toBe(0);
 });
 
-test("plan page: the Map tab, not the wordmark, is the way back to the map", async ({ page }) => {
+test("plan page: the briefing narrows back to the nav log from its own toggle, and Escape closes the drawer", async ({ page }) => {
   await page.goto("/app/plan");
   await settle(page);
 
-  await page.getByTestId("map-action-button").click();
-  await page.waitForTimeout(300);
-  await expect(page).toHaveURL(/[?&]view=briefing/);
+  await openBriefing(page);
+  const drawer = page.locator('[data-slot="map-drawer"][data-side="right"]');
+  await expect(drawer.getByText("Flight Plan Summary")).toBeVisible();
 
-  // The header (and its Map/Brief tabs) never left the screen -- going
-  // back is switching tabs, not clicking a button a separate page drew
-  // for itself.
-  await page.getByRole("tab", { name: "Map" }).click();
+  // Back to the nav log: the drawer stays open, narrow, the URL no
+  // longer says briefing, and the briefing's sections are gone.
+  await page.getByTestId("sidebar-expand-toggle").click();
   await page.waitForTimeout(300);
   await expect(page).not.toHaveURL(/[?&]view=briefing/);
-  await expect(page.getByRole("tab", { name: "Map" })).toHaveAttribute("data-state", "active");
+  await expect(drawer).toBeVisible();
+  await expect(drawer.getByText("Flight Plan Summary")).toHaveCount(0);
+  await expect(drawer.getByRole("table", { name: /Navigation log from/i })).toBeVisible();
+
+  // Escape from the briefing closes the whole drawer, URL included.
+  await page.getByTestId("sidebar-expand-toggle").click();
+  await page.waitForTimeout(300);
+  await expect(page).toHaveURL(/[?&]view=briefing/);
+  await page.keyboard.press("Escape");
+  await expect(page.locator('[data-slot="map-drawer"]')).toHaveCount(0);
+  await expect(page).not.toHaveURL(/[?&]view=briefing/);
 });
 
-test("plan page: nav log view scrolls inside its own table, not the page", async ({ page }) => {
+test("plan page: a pasted briefing link opens the drawer wide, and 'n' toggles it", async ({ page }) => {
+  await page.goto("/app/plan?view=briefing");
+  await settle(page);
+  const drawer = page.locator('[data-slot="map-drawer"][data-side="right"]');
+  await expect(drawer).toBeVisible();
+  await expect(drawer.getByTestId("print-button")).toBeVisible();
+
+  await page.keyboard.press("n");
+  await page.waitForTimeout(300);
+  await expect(page).not.toHaveURL(/[?&]view=briefing/);
+  await expect(drawer).toBeVisible();
+  await expect(drawer.getByTestId("print-button")).toHaveCount(0);
+
+  await page.keyboard.press("n");
+  await page.waitForTimeout(300);
+  await expect(page).toHaveURL(/[?&]view=briefing/);
+  await expect(drawer.getByTestId("print-button")).toBeVisible();
+});
+
+test("plan page: the arrow keys and a click walk the nav log's checkpoints, in the drawer and in the briefing alike", async ({ page }) => {
+  await page.goto("/app/plan?dep=C81&dest=KDLH");
+  await settle(page);
+  await page.getByTestId("sidebar-trigger-button").click();
+  const table = page.getByRole("table", { name: /Navigation log from/i });
+  // The rows arrive with the scored checkpoints; wait for more than
+  // the departure and the destination.
+  await expect.poll(async () => table.locator("tbody tr[data-selected], tbody tr").count(), { timeout: 15000 }).toBeGreaterThan(4);
+  const selectedRow = table.locator("tbody tr[data-selected]");
+  await expect(selectedRow).toHaveCount(0);
+
+  // Down from nothing selects the departure; down again, the first
+  // checkpoint.
+  await page.keyboard.press("ArrowDown");
+  await expect(selectedRow).toHaveCount(1);
+  await expect(selectedRow.first().locator("td").first()).toHaveText("C81");
+  await page.keyboard.press("ArrowDown");
+  await expect(selectedRow.first().locator("td").first()).not.toHaveText("C81");
+  const afterTwo = await selectedRow.first().locator("td").first().textContent();
+
+  // Up goes back to the departure.
+  await page.keyboard.press("ArrowUp");
+  await expect(selectedRow.first().locator("td").first()).toHaveText("C81");
+
+  // A click selects that row directly.
+  const rows = table.locator("tbody tr[tabindex='0']");
+  await rows.nth(2).click();
+  await expect(selectedRow.first().locator("td").first()).toHaveText(await rows.nth(2).locator("td").first().innerText());
+
+  // The same walk with the briefing open: the map is still mounted
+  // beside it, so nothing changes.
+  await page.getByTestId("sidebar-expand-toggle").click();
+  await page.waitForTimeout(300);
+  await expect(page).toHaveURL(/[?&]view=briefing/);
+  await page.keyboard.press("ArrowUp");
+  await expect(selectedRow.first().locator("td").first()).toHaveText(afterTwo ?? "");
+});
+
+test("plan page: the briefing's nav log scrolls inside the drawer, not the page", async ({ page }) => {
   await page.goto("/app/plan");
   await settle(page);
 
-  await page.getByTestId("map-action-button").click();
+  await openBriefing(page);
   await page.waitForTimeout(500);
-
-  // The nav log table sits inside "Flight Plan Summary", the one
-  // briefing section that opens by default -- a closed <details> would
-  // report a zero-width scroller regardless of what it holds.
-  await page.waitForTimeout(200);
 
   const pageOverflowing = await page.evaluate(
     () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
@@ -348,9 +408,7 @@ test("plan page: nav log view scrolls inside its own table, not the page", async
 test("the Dev link leads to the dev page, and its Plan link leads back to where it was clicked from", async ({ page }) => {
   await page.goto("/app/plan");
   await settle(page);
-  await page.getByRole("tab", { name: "Brief" }).click();
-  await page.waitForTimeout(300);
-  await expect(page).toHaveURL(/[?&]view=briefing/);
+  await openBriefing(page);
 
   // Both are icon-only links, so their accessible names -- not text
   // content -- are what find them.
@@ -360,9 +418,10 @@ test("the Dev link leads to the dev page, and its Plan link leads back to where 
 
   // A plain map icon, but the destination it points at is `state.from`
   // (PageLinks' own): the exact page the Dev link was clicked from, the
-  // Brief tab included, not a flat, always-/app/plan link.
+  // open briefing included, not a flat, always-/app/plan link.
   await page.getByRole("link", { name: "Plan", exact: true }).click();
   await page.waitForURL(/\/app\/plan\?view=briefing/);
+  await expect(page.locator('[data-slot="map-drawer"][data-side="right"]').getByTestId("print-button")).toBeVisible();
 });
 
 test("the old Settings address lands on the planner", async ({ page }) => {
@@ -381,9 +440,9 @@ test("plan page: the pilot console drops down over the map with sign-in, aeropla
   await expect(pilot.getByRole("button", { name: "Sign in" })).toBeVisible();
   await expect(pilot.getByRole("heading", { name: "Aircraft" })).toBeVisible();
   await expect(pilot.getByRole("heading", { name: "My Flights" })).toBeVisible();
-  // Under the header, like every drawer: the route form and tabs above
-  // it stay usable. Polled: a top drawer slides down into place, and
-  // a box measured mid-slide sits above where it ends up.
+  // Under the header, like every drawer: the route form above it stays
+  // usable. Polled: a top drawer slides down into place, and a box
+  // measured mid-slide sits above where it ends up.
   const headerBox = await page.locator("header").boundingBox();
   await expect.poll(async () => (await pilot.boundingBox())!.y).toBeGreaterThanOrEqual(headerBox!.y + headerBox!.height - 1);
 
