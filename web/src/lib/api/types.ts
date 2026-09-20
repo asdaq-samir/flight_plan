@@ -46,6 +46,21 @@ export type AirportSuggestion = Schemas["AirportSuggestion"];
 export type AirportSearch = Schemas["AirportSearch"];
 export type ModelComparisonEntry = Schemas["ModelComparisonEntry"];
 export type ModelComparison = Schemas["ModelComparison"];
+export type Status = Schemas["Status"];
+export type CorridorStatus = Schemas["CorridorStatus"];
+export type RetrainStarted = Schemas["RetrainStarted"];
+export type AircraftProfileSummary = Schemas["AircraftProfileSummary"];
+
+/** Which aeroplane the nav log is computed for: a stock profile by
+ *  name, optionally with a pilot's own aeroplane's cruise TAS and fuel
+ *  burn laid over it (and its id, so a saved flight records it). */
+export interface AircraftChoice {
+  profile: string;
+  label: string;
+  cruiseTasKt?: number;
+  fuelBurnGph?: number;
+  aircraftId?: number;
+}
 /** One line of the per-checkpoint description stream. */
 export type CheckpointDescriptionMessage = Schemas["CheckpointNoteMessage"];
 export type CheckpointNoteSaved = Schemas["CheckpointNoteSaved"];

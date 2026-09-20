@@ -26,8 +26,23 @@ input, select, textarea {
    popup around it reads as the selection itself reloading. This is the
    middle ground: the number visibly changed, nothing else moved. */
 @keyframes count-flash {
-  0% { background-color: #fef08a; }
+  0% { background-color: var(--count-flash); }
   100% { background-color: transparent; }
+}
+:root { --count-flash: #fef08a; }
+.dark { --count-flash: #713f12; }
+
+/* Leaflet draws its popups white with its own dark text; in dark mode
+   the app's popover tokens take over so the rating menu and the marker
+   popups match every other surface. */
+.dark .leaflet-popup-content-wrapper,
+.dark .leaflet-popup-tip {
+  background: var(--popover);
+  color: var(--popover-foreground);
+}
+.dark .leaflet-control-attribution {
+  background: rgba(0, 0, 0, 0.6);
+  color: #cbd5e1;
 }
 
 /* Smaller, not gone -- the OpenStreetMap credit here is a real

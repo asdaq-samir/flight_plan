@@ -2,6 +2,7 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import { createBrowserRouter, Navigate, RouterProvider } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { ThemeProvider } from "next-themes";
 import { Toaster } from "./components/ui/sonner";
 import { TooltipProvider } from "./components/ui/tooltip";
 import "./index.css";
@@ -62,6 +63,11 @@ const router = createBrowserRouter(
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
+    {/* Light, dark, or the OS's own choice -- Settings' ThemeToggle
+        sets it, next-themes keeps it and puts the `dark` class on
+        <html>, which is what every colour token in index.css keys off
+        (and what the Toaster below already reads). */}
+    <ThemeProvider attribute="class" defaultTheme="system" enableSystem storageKey="vfr.theme" disableTransitionOnChange>
     <QueryClientProvider client={queryClient}>
       {/* One instance for the whole app, the same as sonner's own
           Toaster below -- every icon-only button's own Tooltip shares
@@ -111,5 +117,6 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
         richColors
       />
     </QueryClientProvider>
+    </ThemeProvider>
   </React.StrictMode>,
 );

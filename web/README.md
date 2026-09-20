@@ -11,9 +11,14 @@ end, built into `webapp`'s jar and served from `/app`. Three pages:
 - `/app/label` — walk a route's detected waypoints on the sectional and
   rate each one, producing ML training data. Also embedded live inside
   Settings' Dev Label tab (the same component, not a copy).
-- `/app/settings` — Account (sign in, aircraft, filed flights) and Dev:
-  the labeling workspace with the Dev ML drawer (model comparison)
-  above it.
+- `/app/settings` — Account (sign in, aircraft, filed flights -- each
+  opens back on the planner or deletes) and Dev: the labeling workspace
+  with the Dev ML drawer above it, the developer's console in three
+  tabs -- Model (every algorithm trained, the registry, a retrain
+  through Airflow), Corridors (what is collected, how far its labels
+  have come, collect another) and System (which services answer, how
+  fresh the FAA and weather data is, the doors into Jupyter, Airflow and
+  the API docs). The header's theme toggle cycles system, light, dark.
 
 The pages compute nothing themselves. Every course, checkpoint,
 detection and nav log comes from `planning-service`; this front end
@@ -93,7 +98,7 @@ src/
     RouteForm.tsx, RouteInputGroup.tsx, AirportSearchInput.tsx   The DEP → DEST form and its Load button, shared by Plan and Label
     IconButton.tsx         An icon-only Button with its label as tooltip and accessible name; every header icon is one
     MapGuideButton.tsx     The Info popover button (Plan's ScoreLegend, Label's RatingLegend)
-    SidebarToggleButton.tsx, SettingsButton.tsx, ZoomToggleButton.tsx   The header's icon buttons
+    SidebarToggleButton.tsx, SettingsButton.tsx, ZoomToggleButton.tsx, ThemeToggle.tsx   The header's icon buttons
     IdentPairInputs.tsx, CollapsibleSection.tsx, Footer.tsx
     ui/                    shadcn/ui primitives (components.json), stock unless a comment says why not
   lib/

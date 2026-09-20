@@ -7,6 +7,7 @@ import {
 } from "@tanstack/react-table";
 import IconButton from "../../../../components/IconButton";
 import { Input } from "../../../../components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../../../components/ui/select";
 import {
   Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow,
 } from "../../../../components/ui/table";
@@ -64,6 +65,13 @@ interface Props {
   alt: string;
   onAltChange: (v: string) => void;
   onSubmit: () => void;
+  /** The aeroplane the log is computed for -- a stock profile or one of
+   *  the pilot's own -- chosen here, where its numbers (TAS, fuel burn)
+   *  show up. Value/label pairs, the current value, and a change handler
+   *  that re-plans. */
+  aircraftValue: string;
+  aircraftOptions: { value: string; label: string }[];
+  onAircraftChange: (value: string) => void;
   /** Streamed in one at a time, in the same order as `selected` --
    *  `legs[i]` is the leg that arrives at `selected[i]`, one short of
    *  `selected.length + 1` until the final leg (to the destination)
@@ -280,6 +288,7 @@ export default function NavLogView({
   selected, depElevationFt, destElevationFt, descriptions, onSaveDescription,
   onGenerateDescriptions, descriptionsLoading, expanded, onToggleExpanded,
   selectedPoint, onSelectPoint, alt, onAltChange, onSubmit,
+  aircraftValue, aircraftOptions, onAircraftChange,
 }: Props) {
   const parts = totals ? totalsParts(totals) : null;
   // One row per waypoint the plan already knows about -- every scored
@@ -466,11 +475,20 @@ export default function NavLogView({
           {nav && (
             <span className="text-muted-foreground">
               {nav.altitude_ft} ft{" "}
-              {nav.altitude_selection
-                ? `(auto: floor ${nav.altitude_selection.floor_ft} ft, ${nav.aircraft.name})`
-                : "(you set this)"}
+              {nav.altitude_selection ? `(auto: floor ${nav.altitude_selection.floor_ft} ft)` : "(you set this)"}
             </span>
           )}
+          <Select value={aircraftValue} onValueChange={onAircraftChange}>
+            <SelectTrigger size="sm" aria-label="Aircraft" className="print:hidden" data-testid="aircraft-select">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {aircraftOptions.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <span className="hidden text-muted-foreground print:inline">
+            {aircraftOptions.find(o => o.value === aircraftValue)?.label}
+          </span>
         </div>
       </div>
       <div className="min-h-0 flex-1 overflow-auto p-3 print:h-auto print:overflow-visible" data-testid="navlog-scroller">

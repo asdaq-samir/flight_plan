@@ -1,8 +1,8 @@
 import type {
-  Aircraft, AircraftRequest, AirportSearch, Briefing, BuildJob, BuiltRoutes,
+  Aircraft, AircraftChoice, AircraftProfileSummary, AircraftRequest, AirportSearch, Briefing, BuildJob, BuiltRoutes,
   CheckpointDescriptionMessage, CheckpointNoteSaved, Checkpoints, Classification, Course, Flight, FlightSummary,
   ModelComparison, NarrativeMessage, NarrativeRequest, NavLogMessage, PickDeleted, PickSaved, PicksResponse, Pilot,
-  Rating, Role, SaveFlightRequest, StreamMessage,
+  Rating, RetrainStarted, Role, SaveFlightRequest, Status, StreamMessage,
 } from "./types";
 
 /**
@@ -39,7 +39,9 @@ async function json<T>(url: string, init?: RequestInit): Promise<T> {
     headers: method === "GET" ? init?.headers : { ...init?.headers, ...csrfHeader() },
   });
   const body = await res.json().catch(() => ({ detail: res.statusText }));
-  if (!res.ok) throw new ApiError(body.detail ?? "request failed", res.status);
+  // `detail` is the planner's (and this client's own) word; `error` is
+  // Spring's, on a 401 from Http401EntryPoint.
+  if (!res.ok) throw new ApiError(body.detail ?? body.error ?? "request failed", res.status);
   return body as T;
 }
 
@@ -113,11 +115,27 @@ export const api = {
    * chart, and streamed rather than one blocking response so a pilot
    * sees which of those it's actually doing right now.
    */
-  navlog(dep: string, dest: string, altitudeFt?: string): AsyncGenerator<NavLogMessage> {
+  navlog(dep: string, dest: string, altitudeFt?: string, aircraft?: AircraftChoice): AsyncGenerator<NavLogMessage> {
     const params = new URLSearchParams({ dep, dest });
     if (altitudeFt) params.set("altitude_ft", altitudeFt);
+    if (aircraft) {
+      params.set("aircraft", aircraft.profile);
+      if (aircraft.cruiseTasKt != null) params.set("cruise_tas_kt", String(aircraft.cruiseTasKt));
+      if (aircraft.fuelBurnGph != null) params.set("fuel_burn_gph", String(aircraft.fuelBurnGph));
+    }
     return streamNdjson<NavLogMessage>(`${PLANNER}/navlog?${params}`, undefined, "building the nav log failed");
   },
+
+  /** The stock performance profiles the nav log can be computed for. */
+  aircraftProfiles: () =>
+    json<{ profiles: AircraftProfileSummary[] }>(`${PLANNER}/aircraft-profiles`).then(r => r.profiles),
+
+  /** The whole stack in one snapshot -- Settings' Dev tab. */
+  status: () => json<Status>(`${PLANNER}/status`),
+
+  /** One run of the training DAG through Airflow; 501 with the CLI
+   *  alternative when the planner has no Airflow to reach. */
+  retrain: () => json<RetrainStarted>(`${PLANNER}/retrain`, { method: "POST" }),
 
   /** Adverse conditions, current/forecast weather, and airport info
    *  for the Flight Briefing page -- one plain response, not a stream:

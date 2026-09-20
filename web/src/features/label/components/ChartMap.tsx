@@ -148,5 +148,5 @@ export default function ChartMap({
   // reads as "a map is about to be here" rather than a blank white
   // rectangle -- see RouteMap/useLeafletMap's own comments for why an
   // actual placeholder tile fetch isn't done instead.
-  return <div ref={el} className="h-full w-full bg-slate-100" />;
+  return <div ref={el} className="h-full w-full bg-slate-100 dark:bg-slate-900" />;
 }

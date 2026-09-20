@@ -7,6 +7,7 @@ import Footer from "../../components/Footer";
 import IconButton from "../../components/IconButton";
 import MapDrawer from "../../components/MapDrawer";
 import SidebarToggleButton from "../../components/SidebarToggleButton";
+import ThemeToggle from "../../components/ThemeToggle";
 import TwoRowHeader from "../../components/TwoRowHeader";
 import { TabsTrigger } from "../../components/ui/tabs";
 import LabelView from "../label/LabelView";
@@ -109,7 +110,7 @@ export default function SettingsView() {
               <TwoRowHeader
                 tab={tab} onTabChange={setTab} tabs={SETTINGS_TABS}
                 rowOneStart={routeForm}
-                rowOneEnd={<SettingsMapLink href={mapHref} />}
+                rowOneEnd={<div className="flex items-center gap-2"><ThemeToggle /><SettingsMapLink href={mapHref} /></div>}
                 trailing={(
                   <div className="flex items-center gap-2">
                     {guideButton}
@@ -142,7 +143,7 @@ export default function SettingsView() {
         <TwoRowHeader
           tab={tab} onTabChange={setTab} tabs={SETTINGS_TABS}
           rowOneStart={<div />}
-          rowOneEnd={<SettingsMapLink href={mapHref} />}
+          rowOneEnd={<div className="flex items-center gap-2"><ThemeToggle /><SettingsMapLink href={mapHref} /></div>}
           trailing={<SignInStatus pilot={pilotState} onRetry={() => void refetchPilot()} />}
         />
       }

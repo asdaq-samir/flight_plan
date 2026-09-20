@@ -403,6 +403,14 @@ test("Settings page: Account and Dev are two separate tabs; Dev ML is a panel ov
   const devMl = page.locator('[data-slot="map-drawer"][data-side="top"]');
   await expect(devMl).toBeVisible();
   await expect(devMl.getByText("Model comparison")).toBeVisible();
+  // The developer's console: one tab per thing the repo does that a
+  // pilot never sees.
+  for (const name of ["Model", "Corridors", "System"]) {
+    await expect(devMl.getByRole("tab", { name })).toBeVisible();
+  }
+  await devMl.getByRole("tab", { name: "System" }).click();
+  await expect(devMl.getByText("planning-service", { exact: true })).toBeVisible();
+  await devMl.getByRole("tab", { name: "Model" }).click();
   // The same kind of drawer as the waypoint list, dropping down from
   // the top of the map area rather than over the header -- the header
   // stays usable above it.
@@ -417,6 +425,38 @@ test("Settings page: Account and Dev are two separate tabs; Dev ML is a panel ov
   await expect(devMl).toBeHidden();
   await page.keyboard.press("Escape");
   await expect(page.locator('[data-slot="map-drawer"]')).toHaveCount(0);
+});
+
+test("Settings: the theme toggle cycles system, light, dark, and the choice survives a reload", async ({ page }) => {
+  await page.goto("/app/settings");
+  await page.waitForTimeout(300);
+  const html = page.locator("html");
+  const toggle = page.getByTestId("theme-toggle");
+  await expect(html).not.toHaveClass(/dark/);   // "system", and the test browser prefers light
+  await toggle.click();
+  await expect(html).not.toHaveClass(/dark/);   // light
+  await toggle.click();
+  await expect(html).toHaveClass(/dark/);       // dark
+  await page.reload();
+  await page.waitForTimeout(300);
+  await expect(html).toHaveClass(/dark/);
+});
+
+test("plan page: the nav log is computed for an aeroplane the pilot picks in its own header", async ({ page }) => {
+  await page.goto("/app/plan");
+  await settle(page);
+  await page.getByTestId("sidebar-trigger-button").click();
+  const picker = page.getByTestId("aircraft-select");
+  await expect(picker).toBeVisible();
+  await expect(picker).toContainText("C172");
+  await picker.click();
+  await page.getByRole("option", { name: /PA28/ }).click();
+  await expect(picker).toContainText("PA28");
+  // Remembered per browser: the same aeroplane after a reload.
+  await page.reload();
+  await settle(page);
+  await page.getByTestId("sidebar-trigger-button").click();
+  await expect(page.getByTestId("aircraft-select")).toContainText("PA28");
 });
 
 test("plan page: a click on the dimmed map closes the sidebar, and the header above it never dims", async ({ page }) => {

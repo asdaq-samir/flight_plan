@@ -1,5 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
+import { api } from "../../lib/api/client";
+import type { AircraftChoice, AircraftProfileSummary } from "../../lib/api/types";
 import { identSchema } from "../../lib/identSchema";
 // Without this Leaflet's tiles, markers and controls have no
 // positioning at all -- this is the library's own stylesheet, not
@@ -32,6 +35,36 @@ const STAGE_PERCENT: Record<"course" | "checkpoints" | "navlog", number> = {
   course: 25, checkpoints: 60, navlog: 90,
 };
 
+// The aeroplane the nav log is computed for. Remembered per browser
+// (localStorage), since a pilot flies the same one for a while; a
+// stock profile until they pick one of their own.
+const DEFAULT_AIRCRAFT: AircraftChoice = { profile: "c172", label: "C172 · Cessna 172" };
+const AIRCRAFT_KEY = "vfr.aircraft";
+
+function storedAircraft(): AircraftChoice {
+  try {
+    const raw = localStorage.getItem(AIRCRAFT_KEY);
+    if (raw) return JSON.parse(raw) as AircraftChoice;
+  } catch {
+    // private window, or storage refused
+  }
+  return DEFAULT_AIRCRAFT;
+}
+
+/** One value per choice for the Select: a pilot's own by id, a stock
+ *  profile by name. */
+function aircraftKey(a: AircraftChoice): string {
+  return a.aircraftId != null ? `mine:${a.aircraftId}` : `profile:${a.profile}`;
+}
+
+/** A pilot's own aeroplane rides on the stock profile whose name
+ *  matches its type designator (a C172 on c172) for the service ceiling
+ *  the altitude selection needs; anything else rides on the default. */
+function baseProfile(typeDesignator: string, profiles: AircraftProfileSummary[]): string {
+  const wanted = typeDesignator.toLowerCase().replace(/[^a-z0-9]/g, "");
+  return profiles.find(p => p.name === wanted)?.name ?? DEFAULT_AIRCRAFT.profile;
+}
+
 /**
  * The planner: two idents in, a charted course with checkpoints and a
  * dead-reckoning nav log out.
@@ -55,6 +88,24 @@ export default function PlanView() {
   const [dep, setDep] = useState(searchParams.get("dep")?.toUpperCase() ?? "");
   const [dest, setDest] = useState(searchParams.get("dest")?.toUpperCase() ?? "");
   const [alt, setAlt] = useState(searchParams.get("altitude_ft") ?? "");
+  const [aircraft, setAircraft] = useState<AircraftChoice>(storedAircraft);
+  // The stock profiles, plus a signed-in pilot's own aeroplanes on top
+  // of them -- the same ["pilot"]/["aircraft"] queries Settings keeps.
+  const { data: profiles } = useQuery({ queryKey: ["aircraftProfiles"], queryFn: api.aircraftProfiles, staleTime: Infinity });
+  const { data: pilot } = useQuery({ queryKey: ["pilot"], queryFn: api.me, retry: false });
+  const { data: myAircraft } = useQuery({ queryKey: ["aircraft"], queryFn: api.aircraft.list, enabled: !!pilot });
+  const aircraftOptions = useMemo<AircraftChoice[]>(() => {
+    const options: AircraftChoice[] = [
+      ...(profiles ?? []).map(p => ({ profile: p.name, label: `${p.name.toUpperCase()} · ${p.type}` })),
+      ...(myAircraft ?? []).map(a => ({
+        profile: baseProfile(a.typeDesignator, profiles ?? []), label: `${a.tailNumber} · ${a.typeDesignator}`,
+        cruiseTasKt: a.cruiseTasKt, fuelBurnGph: a.fuelBurnGph, aircraftId: a.id,
+      })),
+    ];
+    // The remembered choice stays selectable while the lists load, and
+    // an aeroplane deleted since is still what this plan was flown in.
+    return options.some(o => aircraftKey(o) === aircraftKey(aircraft)) ? options : [aircraft, ...options];
+  }, [profiles, myAircraft, aircraft]);
   const controls = useRef<{ fit: () => void; toggleBasemap: () => string } | null>(null);
   // A stable identity, not an inline arrow at the RouteMap call site --
   // that map's own course-load effect lists onReady as a dependency,
@@ -110,14 +161,14 @@ export default function PlanView() {
       const a = searchParams.get("dest")?.toUpperCase() || first.destination_ident;
       setDep(d);
       setDest(a);
-      void plan(d, a, searchParams.get("altitude_ft") ?? undefined);
+      void plan(d, a, searchParams.get("altitude_ft") ?? undefined, aircraft);
     })();
     // started.current makes this genuinely run-once on mount regardless
-    // of the deps array below; loadRoutes/plan/searchParams are still
-    // listed (loadRoutes/plan are stable, []-deps callbacks in
-    // usePlanState; searchParams only matters at this first read) so a
+    // of the deps array below; loadRoutes/plan/searchParams/aircraft are
+    // still listed (loadRoutes/plan are stable, []-deps callbacks in
+    // usePlanState; the others only matter at this first read) so a
     // future refactor wouldn't silently go stale here undetected.
-  }, [loadRoutes, plan, searchParams]);
+  }, [loadRoutes, plan, searchParams, aircraft]);
 
   // The briefing's own data (hazards, METAR, forecast, runways/
   // frequencies) is only worth fetching once a pilot actually opens
@@ -144,8 +195,19 @@ export default function PlanView() {
     const next: Record<string, string> = { dep: d, dest: a };
     if (alt.trim()) next.altitude_ft = alt.trim();
     setSearchParams(next, { replace: true });
-    void plan(d, a, alt.trim() || undefined);
-  }, [dep, dest, alt, plan, setSearchParams]);
+    void plan(d, a, alt.trim() || undefined, aircraft);
+  }, [dep, dest, alt, plan, setSearchParams, aircraft]);
+
+  // A different aeroplane means different legs: remembered, then
+  // re-planned right away for the route on screen.
+  const changeAircraft = useCallback((value: string) => {
+    const next = aircraftOptions.find(o => aircraftKey(o) === value);
+    if (!next) return;
+    setAircraft(next);
+    try { localStorage.setItem(AIRCRAFT_KEY, JSON.stringify(next)); } catch { /* storage refused */ }
+    const d = identSchema.safeParse(dep).data, a = identSchema.safeParse(dest).data;
+    if (d && a && d !== a) void plan(d, a, alt.trim() || undefined, next);
+  }, [aircraftOptions, dep, dest, alt, plan]);
 
   // The map's own half of point selection -- clicking a checkpoint
   // marker focuses the same point the matching nav log row would.
@@ -352,6 +414,9 @@ export default function PlanView() {
       expanded={navLogExpanded} onToggleExpanded={() => setNavLogExpanded(e => !e)}
       selectedPoint={s.selectedPoint} onSelectPoint={(lat, lon) => s.selectPoint({ lat, lon })}
       alt={alt} onAltChange={setAlt} onSubmit={submit}
+      aircraftValue={aircraftKey(aircraft)}
+      aircraftOptions={aircraftOptions.map(o => ({ value: aircraftKey(o), label: o.label }))}
+      onAircraftChange={changeAircraft}
     />
   );
 
@@ -380,6 +445,7 @@ export default function PlanView() {
                 descriptions={s.descriptions}
                 briefing={s.briefing} briefingError={s.briefingError} loadingBriefing={s.loadingBriefing}
                 langgraphNarrative={s.langgraphNarrative} crewaiNarrative={s.crewaiNarrative}
+                aircraftLabel={aircraft.label} aircraftId={aircraft.aircraftId ?? null}
               />
             ) : (
               <RouteMap

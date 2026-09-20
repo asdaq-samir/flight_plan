@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -13,7 +14,7 @@ import {
 } from "../../components/ui/table";
 import SignInModal from "./SignInModal";
 import { api, describeError } from "../../lib/api/client";
-import type { Aircraft, AircraftRequest } from "../../lib/api/types";
+import type { Aircraft, AircraftRequest, FlightSummary } from "../../lib/api/types";
 import { useErrorToasts } from "../../lib/usePageStatus";
 import { errorMessage, type PilotState } from "./shared";
 
@@ -260,11 +261,14 @@ export function AircraftPanel({ pilot }: { pilot: PilotState }) {
   );
 }
 
-/** A signed-in pilot's own filed flights -- read-only here (filing one
- *  happens from the Flight Briefing page's own "Save this flight"). */
+/** A signed-in pilot's own filed flights. Filing one happens from the
+ *  Flight Briefing page's own "Save this flight"; here a flight opens
+ *  back on the planner (same route and altitude) or is deleted. */
 export function FlightsPanel({ pilot }: { pilot: PilotState }) {
   const signedIn = pilot !== null && pilot !== "loading" && pilot !== "error";
+  const queryClient = useQueryClient();
   const [isOpen, setIsOpen] = useState(false);
+  const [flightToDelete, setFlightToDelete] = useState<FlightSummary | null>(null);
   const {
     data: list, isLoading, error, refetch,
   } = useQuery({
@@ -273,8 +277,24 @@ export function FlightsPanel({ pilot }: { pilot: PilotState }) {
     enabled: signedIn && isOpen,
   });
 
+  const remove = useMutation({
+    mutationFn: (id: number) => api.flights.remove(id),
+    onSuccess: () => {
+      toast.success("Flight deleted");
+      setFlightToDelete(null);
+      void queryClient.invalidateQueries({ queryKey: ["flights"] });
+    },
+    onError: err => toast.error(describeError(err, "Could not delete the flight")),
+  });
+
   const listMessage = errorMessage(error, "Could not load your flights");
   useErrorToasts({ flightsList: listMessage && { message: listMessage, retry: () => void refetch() } });
+
+  /** Back to the planner on this flight's route, at its altitude. */
+  const planHref = (f: FlightSummary) => `/plan?${new URLSearchParams({
+    dep: f.departureIdent, dest: f.destinationIdent,
+    ...(f.cruiseAltitudeFt != null ? { altitude_ft: String(f.cruiseAltitudeFt) } : {}),
+  })}`;
 
   if (pilot === null || pilot === "error") {
     return (
@@ -304,6 +324,7 @@ export function FlightsPanel({ pilot }: { pilot: PilotState }) {
               <TableHead className="text-right">Altitude</TableHead>
               <TableHead className="text-right">Distance</TableHead>
               <TableHead className="text-right">Filed</TableHead>
+              <TableHead className="text-right"><span className="sr-only">Actions</span></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -314,10 +335,27 @@ export function FlightsPanel({ pilot }: { pilot: PilotState }) {
                 <TableCell className="text-right tabular-nums">{ft(f.cruiseAltitudeFt)}</TableCell>
                 <TableCell className="text-right tabular-nums">{f.totalDistanceNm == null ? "—" : `${f.totalDistanceNm.toFixed(1)} nm`}</TableCell>
                 <TableCell className="text-right tabular-nums">{new Date(f.createdAt).toLocaleDateString()}</TableCell>
+                <TableCell className="text-right">
+                  <Button asChild variant="link" size="sm"><Link to={planHref(f)}>Open</Link></Button>
+                  <Button type="button" variant="link" size="sm" className="text-destructive" onClick={() => setFlightToDelete(f)}>
+                    Delete
+                  </Button>
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>
         </Table>
+      )}
+      {flightToDelete && (
+        <div className="mt-3 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm" role="alert">
+          <p>Delete the filed flight {flightToDelete.departureIdent} → {flightToDelete.destinationIdent}? This cannot be undone.</p>
+          <div className="mt-2 flex gap-2">
+            <Button type="button" variant="destructive" size="sm" onClick={() => remove.mutate(flightToDelete.id)} disabled={remove.isPending}>
+              {remove.isPending ? "Deleting…" : "Delete flight"}
+            </Button>
+            <Button type="button" variant="outline" size="sm" onClick={() => setFlightToDelete(null)} disabled={remove.isPending}>Cancel</Button>
+          </div>
+        </div>
       )}
     </CollapsibleSection>
   );

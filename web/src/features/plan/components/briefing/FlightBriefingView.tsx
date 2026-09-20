@@ -3,14 +3,13 @@ import clsx from "clsx";
 import { toast } from "sonner";
 import { Badge } from "../../../../components/ui/badge";
 import { Button } from "../../../../components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../../../components/ui/select";
 import {
   Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow,
 } from "../../../../components/ui/table";
 import CollapsibleSection from "../../../../components/CollapsibleSection";
 import { api, describeError } from "../../../../lib/api/client";
 import type {
-  Aircraft, Briefing, Candidate, Course, Leg, NavLog, Pilot, SaveFlightRequest, Totals,
+  Briefing, Candidate, Course, Leg, NavLog, Pilot, SaveFlightRequest, Totals,
 } from "../../../../lib/api/types";
 import { type Description, type FrameworkNarrative, descriptionKey } from "../../hooks/usePlanState";
 import { altFt, deg, one, signed, totalsParts } from "../../format";
@@ -46,6 +45,11 @@ interface Props {
    *  comment. */
   langgraphNarrative: FrameworkNarrative;
   crewaiNarrative: FrameworkNarrative;
+  /** The aeroplane the nav log was computed for (chosen in the nav log's
+   *  own header): its label for the summary, and its id -- a pilot's
+   *  own, or null for a stock profile -- for the saved flight. */
+  aircraftLabel: string;
+  aircraftId: number | null;
 }
 
 const FLIGHT_CATEGORY_COLOR: Record<string, string> = {
@@ -284,7 +288,7 @@ function windsAloftSummary(legs: Leg[]): { dir: number; speed: number }[] {
  * as broken rather than as "sign in first."
  */
 function SaveFlightSection({
-  course, totals, nav, legs, dep, dest, selected,
+  course, totals, nav, legs, dep, dest, selected, aircraftId, aircraftLabel,
 }: {
   course: Course | null;
   totals: Totals | null;
@@ -293,16 +297,13 @@ function SaveFlightSection({
   dep: string;
   dest: string;
   selected: Candidate[];
+  aircraftId: number | null;
+  aircraftLabel: string;
 }) {
   const [pilot, setPilot] = useState<Pilot | null | "loading">("loading");
-  const [aircraftList, setAircraftList] = useState<Aircraft[]>([]);
-  const [aircraftId, setAircraftId] = useState("");
   const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
 
   useEffect(() => { void api.me().then(setPilot); }, []);
-  useEffect(() => {
-    if (pilot && pilot !== "loading") void api.aircraft.list().then(setAircraftList).catch(() => setAircraftList([]));
-  }, [pilot]);
 
   // Same row shape NavLogTable already builds (departure, no leg --
   // then one row per selected checkpoint and one for the destination,
@@ -343,7 +344,7 @@ function SaveFlightSection({
     if (!course) return;
     setStatus("saving");
     api.flights.save({
-      aircraftId: aircraftId ? Number(aircraftId) : null,
+      aircraftId,
       departureIdent: dep,
       destinationIdent: dest,
       cruiseAltitudeFt: nav?.altitude_ft ?? null,
@@ -362,14 +363,12 @@ function SaveFlightSection({
 
   return (
     <div className="mt-3 flex flex-wrap items-center gap-2 text-sm print:hidden">
-      <Select value={aircraftId || undefined} onValueChange={setAircraftId}>
-        <SelectTrigger aria-label="Aircraft flown">
-          <SelectValue placeholder="No aircraft on file" />
-        </SelectTrigger>
-        <SelectContent>
-          {aircraftList.map(a => <SelectItem key={a.id} value={String(a.id)}>{a.tailNumber}</SelectItem>)}
-        </SelectContent>
-      </Select>
+      {/* The aeroplane is whatever the nav log was computed for (its
+          own header's picker), not a second choice made here -- a
+          filed flight should record the numbers on the page. */}
+      <span className="text-muted-foreground">
+        {aircraftId === null ? `Planned for a stock ${aircraftLabel}; no aeroplane of yours on file for it` : `Flown in ${aircraftLabel}`}
+      </span>
       <Button onClick={save} disabled={status === "saving" || !course}>
         {status === "saving" ? "Saving…" : status === "saved" ? "Saved" : "Save this flight"}
       </Button>
@@ -393,7 +392,7 @@ function SaveFlightSection({
 export default function FlightBriefingView({
   course, totals, nav, legs, navError, dep, dest, selected, depElevationFt, destElevationFt, descriptions,
   briefing, briefingError, loadingBriefing,
-  langgraphNarrative, crewaiNarrative,
+  langgraphNarrative, crewaiNarrative, aircraftLabel, aircraftId,
 }: Props) {
   const parts = totals ? totalsParts(totals) : null;
   const winds = windsAloftSummary(legs);
@@ -530,7 +529,7 @@ export default function FlightBriefingView({
           </div>
           <div>
             <div className="text-xs text-muted-foreground">Aircraft</div>
-            <div className="font-semibold">{nav?.aircraft.name ?? "—"}</div>
+            <div className="font-semibold">{nav ? aircraftLabel : "—"}</div>
           </div>
           {parts && (
             <>
@@ -547,6 +546,7 @@ export default function FlightBriefingView({
         </div>
         <SaveFlightSection
           course={course} totals={totals} nav={nav} legs={legs} dep={dep} dest={dest} selected={selected}
+          aircraftId={aircraftId} aircraftLabel={aircraftLabel}
         />
         <div className="mt-3 overflow-x-auto" data-testid="navlog-scroller">
           <NavLogTable
@@ -579,7 +579,7 @@ export default function FlightBriefingView({
         {!briefing ? (
           <p className="text-sm text-muted-foreground">{briefingPendingMessage}</p>
         ) : briefing.weather_unavailable.includes("hazards") ? (
-          <p className="text-sm text-amber-700">
+          <p className="text-sm text-amber-700 dark:text-amber-300">
             SIGMET/AIRMET data could not be checked — aviationweather.gov didn’t respond. Verify separately before flight.
           </p>
         ) : briefing.hazards.length === 0 ? (
@@ -587,8 +587,8 @@ export default function FlightBriefingView({
         ) : (
           <ul className="space-y-2">
             {briefing.hazards.map((h, i) => (
-              <li key={i} className="rounded border border-amber-300 bg-amber-50 px-2 py-1.5 text-sm">
-                <div className="font-semibold text-amber-800">
+              <li key={i} className="rounded border border-amber-300 bg-amber-50 px-2 py-1.5 text-sm dark:border-amber-800 dark:bg-amber-950/40">
+                <div className="font-semibold text-amber-800 dark:text-amber-200">
                   {h.hazard ?? h.type ?? "Hazard"}
                   {hazardAltitudeRange(h.altitude_low_ft, h.altitude_high_ft) &&
                     ` — ${hazardAltitudeRange(h.altitude_low_ft, h.altitude_high_ft)}`}
@@ -619,7 +619,7 @@ export default function FlightBriefingView({
         {!briefing ? (
           <p className="text-sm text-muted-foreground">{briefingPendingMessage}</p>
         ) : briefing.weather_unavailable.includes("metars") ? (
-          <p className="text-sm text-amber-700">
+          <p className="text-sm text-amber-700 dark:text-amber-300">
             Current conditions could not be checked — aviationweather.gov didn’t respond. Verify separately before flight.
           </p>
         ) : (
@@ -655,7 +655,7 @@ export default function FlightBriefingView({
         {!briefing ? (
           <p className="text-sm text-muted-foreground">{briefingPendingMessage}</p>
         ) : briefing.weather_unavailable.includes("forecast") ? (
-          <p className="text-sm text-amber-700">
+          <p className="text-sm text-amber-700 dark:text-amber-300">
             Forecast data could not be checked — aviationweather.gov didn’t respond. Verify separately before flight.
           </p>
         ) : (() => {
@@ -674,7 +674,7 @@ export default function FlightBriefingView({
         {!briefing ? (
           <p className="text-sm text-muted-foreground">{briefingPendingMessage}</p>
         ) : briefing.weather_unavailable.includes("forecast") ? (
-          <p className="text-sm text-amber-700">
+          <p className="text-sm text-amber-700 dark:text-amber-300">
             Forecast data could not be checked — aviationweather.gov didn’t respond. Verify separately before flight.
           </p>
         ) : (
@@ -748,7 +748,7 @@ export default function FlightBriefingView({
                 {nav.altitude_selection.weather_unavailable.includes("ceiling_visibility") ? (
                   <Badge className="ml-1 border-transparent bg-muted text-muted-foreground">unknown</Badge>
                 ) : nav.altitude_selection.low_ceiling_or_visibility && (
-                  <Badge className="ml-1 border-transparent bg-amber-100 text-amber-700">low</Badge>
+                  <Badge className="ml-1 border-transparent bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-200">low</Badge>
                 )}
               </div>
             </div>
