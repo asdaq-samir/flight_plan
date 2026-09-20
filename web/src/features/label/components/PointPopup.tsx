@@ -3,7 +3,7 @@ import { Badge } from "../../../components/ui/badge";
 import { Button } from "../../../components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../../components/ui/select";
 import { isEndpoint, type Point, type Rating } from "../../../lib/api/types";
-import { CATEGORIES, COLORS, compassPoint, roleOf, sourceOf } from "../logic";
+import { CATEGORIES, COLORS, RATINGS, compassPoint, roleOf, sourceOf } from "../logic";
 
 interface Props {
   point: Point;
@@ -31,7 +31,6 @@ interface Props {
   canRight?: boolean;
 }
 
-const RATINGS: Rating[] = [0, 1, 2, 3, 4, 5];
 
 /**
  * Everything about the selected point, in one Leaflet popup pinned above

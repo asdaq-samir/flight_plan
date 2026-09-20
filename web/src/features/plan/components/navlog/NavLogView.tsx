@@ -1,11 +1,14 @@
-import { Fragment, useEffect, useRef, useState, type ReactNode, type Ref } from "react";
+import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
 import clsx from "clsx";
 import { BookOpenText, Loader2, Minimize2, WandSparkles } from "lucide-react";
 import {
   type CellData, type ColumnDef, type RowData, type TableFeatures,
   flexRender, tableFeatures, useTable,
 } from "@tanstack/react-table";
+import CollapsibleSection from "../../../../components/CollapsibleSection";
 import IconButton from "../../../../components/IconButton";
+import { NoteRow, SelectableRow } from "../../../../components/SelectableRows";
+import { useDetailsOpenForPrint } from "../../../../lib/useDetailsOpenForPrint";
 import { Input } from "../../../../components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../../../components/ui/select";
 import {
@@ -210,76 +213,6 @@ function DescriptionCell({
 }
 
 /**
- * A clickable/keyboard-selectable waypoint row -- the departure row and
- * every checkpoint/destination row all select the same way (click,
- * Enter, or Space), invert the same way when selected, and only differ
- * in whether they're muted while *not* selected (the destination and
- * checkpoints missing wind data are; the departure and a checkpoint
- * with real wind data aren't). Extracted once both rows had drifted
- * into carrying the exact same onClick/onKeyDown/inversion logic twice.
- */
-function SelectableRow({
-  selected, mutedWhenUnselected, onSelect, scrollRef, children,
-}: {
-  selected: boolean;
-  mutedWhenUnselected: boolean;
-  onSelect: () => void;
-  /** Only the actually-selected row needs this -- see NavLogView's own
-   *  scrollIntoView effect. */
-  scrollRef?: Ref<HTMLTableRowElement>;
-  children: React.ReactNode;
-}) {
-  return (
-    <TableRow
-      ref={scrollRef}
-      onClick={onSelect}
-      tabIndex={0}
-      data-selected={selected || undefined}
-      onKeyDown={e => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          onSelect();
-        }
-      }}
-      className={clsx(
-        "cursor-pointer focus:outline-none",
-        // Inverted (bg-foreground/text-background), not just a tint --
-        // the same treatment shadcn's own Tooltip uses for "this one
-        // thing stands apart," which a selected row is exactly. Skips
-        // the hover/muted-text classes entirely while selected rather
-        // than layering them underneath: both would fight the
-        // inversion for the same background/text-color properties.
-        selected
-          ? "bg-foreground text-background hover:bg-foreground"
-          : clsx(mutedWhenUnselected && "text-muted-foreground", "hover:bg-accent focus-visible:bg-accent"),
-      )}
-    >
-      {children}
-    </TableRow>
-  );
-}
-
-/**
- * The plain-text or editable-note row directly under a waypoint row --
- * the airport-name row under departure/destination and the
- * `DescriptionCell` row under a checkpoint are the same shape (a single
- * `colSpan={12}` cell, inverted in step with the row above it), just
- * different content.
- */
-function NoteRow({ selected, children }: { selected: boolean; children: React.ReactNode }) {
-  return (
-    <TableRow className={clsx(selected && "bg-foreground text-background hover:bg-foreground")}>
-      <TableCell
-        className={clsx("py-1 pr-2 pl-4 text-left text-xs", !selected && "bg-muted/60 text-muted-foreground")}
-        colSpan={12}
-      >
-        {children}
-      </TableCell>
-    </TableRow>
-  );
-}
-
-/**
  * The nav log itself -- the planner's own drawer content (in place of
  * a plain checkpoint list), so a pilot can walk the route's real
  * dead-reckoning numbers with the chart still visible beside it. The
@@ -444,9 +377,116 @@ export default function NavLogView({
   useEffect(() => {
     selectedRef.current?.scrollIntoView({ block: "nearest" });
   }, [selectedPoint]);
+  // The whole scroller -- the nav log's own section and the briefing's
+  // -- opens for the print and closes back afterwards.
+  const scrollerRef = useRef<HTMLDivElement>(null);
+  useDetailsOpenForPrint(scrollerRef);
 
   const isSelected = (lat: number, lon: number) =>
     !!selectedPoint && descriptionKey(lat, lon) === descriptionKey(selectedPoint.lat, selectedPoint.lon);
+
+  // The table itself. Narrow, the whole scroller scrolls sideways as
+  // one; wide, with the briefing's sections under it, the table
+  // scrolls inside its own container on a phone so the sections below
+  // stay put. Printed, nothing scrolls: every column is laid out for
+  // the browser to paginate.
+  const navLogTable = (
+    <Table
+      containerClassName={children ? "overflow-x-auto print:overflow-visible" : "overflow-visible"}
+      className="text-right text-xs whitespace-nowrap"
+    >
+      <TableCaption className="sr-only">
+        Navigation log from {dep} to {dest}
+      </TableCaption>
+      <TableHeader>
+        {table.getHeaderGroups().map(headerGroup => (
+          <TableRow key={headerGroup.id}>
+            {headerGroup.headers.map(header => (
+              <TableHead
+                key={header.id}
+                // font-normal only for Alt -- it holds a live
+                // input, not a label, so the bold weight every
+                // other header (a plain column name) keeps
+                // doesn't belong on it.
+                className={clsx(
+                  header.column.id === "alt" && "font-normal",
+                  header.column.columnDef.meta?.className,
+                )}
+              >
+                {flexRender(header.column.columnDef.header, header.getContext())}
+              </TableHead>
+            ))}
+          </TableRow>
+        ))}
+      </TableHeader>
+      <TableBody>
+        {selected.length === 0 && (
+          <TableRow><TableCell className="text-left text-muted-foreground" colSpan={columns.length}>No route planned yet</TableCell></TableRow>
+        )}
+        {/* One row per waypoint the plan already knows about, not
+            one per leg that's actually arrived -- `leg` is
+            undefined until its own line streams in, and every cell
+            that depends on it shows a dash rather than waiting. The
+            departure (when present) is `table`'s own first row,
+            unified with the rest -- see `WaypointRow`'s comment. */}
+        {table.getRowModel().rows.map(row => {
+          const { isDeparture, cp, lat, lon } = row.original;
+          const rowSelected = isSelected(lat, lon);
+          const leg = row.original.leg;
+          return (
+            <Fragment key={row.id}>
+              {/* A leg with no nearby winds-aloft station is a
+                  no-wind estimate, not a calm one. Shading keeps
+                  that visible rather than letting it read as a
+                  confident zero -- the same shade a leg that simply
+                  hasn't arrived yet gets, for the same reason: both
+                  are "no data (yet)," not a confident answer. The
+                  departure is always muted this way instead --
+                  it never has wind data of its own to judge. */}
+              <SelectableRow
+                selected={rowSelected}
+                mutedWhenUnselected={isDeparture || !leg?.wind}
+                onSelect={() => onSelectPoint(lat, lon)}
+                scrollRef={rowSelected ? selectedRef : undefined}
+              >
+                {row.getAllCells().map(cell => (
+                  <TableCell key={cell.id} className={cell.column.columnDef.meta?.className}>
+                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                  </TableCell>
+                ))}
+              </SelectableRow>
+              <NoteRow selected={rowSelected} colSpan={columns.length}>
+                {isDeparture ? (
+                  // The departure airport's own name, not editable
+                  // and never AI-generated -- there's no "how to
+                  // spot it" for an airport and no LLM service
+                  // behind this one, just a fact the course
+                  // response already carries. Same slot a
+                  // checkpoint's own description sits in, and
+                  // inverts the same way when selected, so the
+                  // pair still reads as one group.
+                  (depName ?? "—")
+                ) : cp ? (
+                  <DescriptionCell
+                    description={descriptions[descriptionKey(cp.lat, cp.lon)]}
+                    onSave={text => onSaveDescription(cp.lat, cp.lon, text)}
+                    selected={rowSelected}
+                    onFocus={() => onSelectPoint(cp.lat, cp.lon)}
+                  />
+                ) : (
+                  // The destination airport's own name -- same
+                  // plain, non-editable treatment as the
+                  // departure's own row above; see NoteRow's own
+                  // comment.
+                  (destName ?? "—")
+                )}
+              </NoteRow>
+            </Fragment>
+          );
+        })}
+      </TableBody>
+    </Table>
+  );
 
   return (
     // print:h-auto print:overflow-visible: on screen this fills a fixed
@@ -516,110 +556,27 @@ export default function NavLogView({
           </span>
         </div>
       </div>
-      <div className="min-h-0 flex-1 overflow-auto p-3 print:h-auto print:overflow-visible" data-testid="navlog-scroller">
-        {/* Narrow, the whole scroller scrolls sideways as one; wide,
-            with the briefing's sections under it, the table scrolls
-            inside its own container on a phone so the sections below
-            stay put. Printed, nothing scrolls: every column is laid out
-            for the browser to paginate. */}
-        <Table
-          containerClassName={children ? "overflow-x-auto print:overflow-visible" : "overflow-visible"}
-          className="text-right text-xs whitespace-nowrap"
-        >
-          <TableCaption className="sr-only">
-            Navigation log from {dep} to {dest}
-          </TableCaption>
-          <TableHeader>
-            {table.getHeaderGroups().map(headerGroup => (
-              <TableRow key={headerGroup.id}>
-                {headerGroup.headers.map(header => (
-                  <TableHead
-                    key={header.id}
-                    // font-normal only for Alt -- it holds a live
-                    // input, not a label, so the bold weight every
-                    // other header (a plain column name) keeps
-                    // doesn't belong on it.
-                    className={clsx(
-                      header.column.id === "alt" && "font-normal",
-                      header.column.columnDef.meta?.className,
-                    )}
-                  >
-                    {flexRender(header.column.columnDef.header, header.getContext())}
-                  </TableHead>
-                ))}
-              </TableRow>
-            ))}
-          </TableHeader>
-          <TableBody>
-            {selected.length === 0 && (
-              <TableRow><TableCell className="text-left text-muted-foreground" colSpan={columns.length}>No route planned yet</TableCell></TableRow>
-            )}
-            {/* One row per waypoint the plan already knows about, not
-                one per leg that's actually arrived -- `leg` is
-                undefined until its own line streams in, and every cell
-                that depends on it shows a dash rather than waiting. The
-                departure (when present) is `table`'s own first row,
-                unified with the rest -- see `WaypointRow`'s comment. */}
-            {table.getRowModel().rows.map(row => {
-              const { isDeparture, cp, lat, lon } = row.original;
-              const rowSelected = isSelected(lat, lon);
-              const leg = row.original.leg;
-              return (
-                <Fragment key={row.id}>
-                  {/* A leg with no nearby winds-aloft station is a
-                      no-wind estimate, not a calm one. Shading keeps
-                      that visible rather than letting it read as a
-                      confident zero -- the same shade a leg that simply
-                      hasn't arrived yet gets, for the same reason: both
-                      are "no data (yet)," not a confident answer. The
-                      departure is always muted this way instead --
-                      it never has wind data of its own to judge. */}
-                  <SelectableRow
-                    selected={rowSelected}
-                    mutedWhenUnselected={isDeparture || !leg?.wind}
-                    onSelect={() => onSelectPoint(lat, lon)}
-                    scrollRef={rowSelected ? selectedRef : undefined}
-                  >
-                    {row.getAllCells().map(cell => (
-                      <TableCell key={cell.id} className={cell.column.columnDef.meta?.className}>
-                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                      </TableCell>
-                    ))}
-                  </SelectableRow>
-                  <NoteRow selected={rowSelected}>
-                    {isDeparture ? (
-                      // The departure airport's own name, not editable
-                      // and never AI-generated -- there's no "how to
-                      // spot it" for an airport and no LLM service
-                      // behind this one, just a fact the course
-                      // response already carries. Same slot a
-                      // checkpoint's own description sits in, and
-                      // inverts the same way when selected, so the
-                      // pair still reads as one group.
-                      (depName ?? "—")
-                    ) : cp ? (
-                      <DescriptionCell
-                        description={descriptions[descriptionKey(cp.lat, cp.lon)]}
-                        onSave={text => onSaveDescription(cp.lat, cp.lon, text)}
-                        selected={rowSelected}
-                        onFocus={() => onSelectPoint(cp.lat, cp.lon)}
-                      />
-                    ) : (
-                      // The destination airport's own name -- same
-                      // plain, non-editable treatment as the
-                      // departure's own row above; see NoteRow's own
-                      // comment.
-                      (destName ?? "—")
-                    )}
-                  </NoteRow>
-                </Fragment>
-              );
-            })}
-          </TableBody>
-        </Table>
-        {/* -mx-2 lines the sections' own cards (CollapsibleSection's
-            mx-2) up with the table's edges. */}
-        {children && <div className="-mx-2 mt-3">{children}</div>}
+      {/* `flight-briefing` while wide: index.css's print rules force
+          every <details> under it open on paper -- the nav log's own
+          section below and the briefing's alike. */}
+      <div
+        ref={scrollerRef}
+        className={clsx("min-h-0 flex-1 overflow-auto p-3 print:h-auto print:overflow-visible", children && "flight-briefing")}
+        data-testid="navlog-scroller"
+      >
+        {children ? (
+          // Wide is the briefing: the nav log folds into a section of
+          // its own, closed, at the top -- the pilot sees every
+          // section's title at once and opens the log when they want
+          // the numbers, rather than scrolling past twenty rows to
+          // find out what else the briefing holds. Narrow, the table
+          // is the drawer. -mx-2 lines the sections' own cards
+          // (CollapsibleSection's mx-2) up with the drawer's padding.
+          <div className="-mx-2">
+            <CollapsibleSection title="Nav log">{navLogTable}</CollapsibleSection>
+            {children}
+          </div>
+        ) : navLogTable}
       </div>
     </div>
   );

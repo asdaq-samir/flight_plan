@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import clsx from "clsx";
 import { toast } from "sonner";
 import { Badge } from "../../../../components/ui/badge";
@@ -268,7 +268,6 @@ export default function FlightBriefingView({
   const parts = totals ? totalsParts(totals) : null;
   const winds = windsAloftSummary(legs);
   const vnrReasons = briefing ? vfrNotRecommendedReasons(briefing, dep, dest) : [];
-  const briefingContainer = useRef<HTMLDivElement>(null);
   // On the very first render after mount, loadingBriefing is still false --
   // PlanView's own effect (which calls loadBriefing) hasn't run yet -- so
   // "not loading" alone can't mean "unavailable". Only briefingError (a
@@ -278,42 +277,6 @@ export default function FlightBriefingView({
   const briefingPendingMessage = loadingBriefing || briefingNotStarted
     ? "Loading briefing data…"
     : "Briefing data is unavailable.";
-
-  // A collapsed <details> renders nothing to print, `print:` overrides
-  // on its own children notwithstanding -- Chromium's own closed-state
-  // styling for it isn't plain `display:none` on those children (which
-  // an author override could win against) but a zero-size internal
-  // content box the children's own display value doesn't affect. The
-  // one override that reliably works everywhere is opening every
-  // section for the print itself, then restoring whatever the pilot
-  // actually had open -- `beforeprint`/`afterprint` fire around both
-  // this page's own Print button and a browser's native Ctrl+P alike.
-  useEffect(() => {
-    const openBeforePrint = new WeakMap<HTMLDetailsElement, boolean>();
-    const beforePrint = () => {
-      briefingContainer.current?.querySelectorAll<HTMLDetailsElement>("details").forEach(d => {
-        openBeforePrint.set(d, d.open);
-        d.open = true;
-      });
-    };
-    const afterPrint = () => {
-      briefingContainer.current?.querySelectorAll<HTMLDetailsElement>("details").forEach(d => {
-        // `?? false`, not `?? d.open` -- by this point every details
-        // has already been forced open, so reading its own `open` as
-        // the fallback would just keep it open forever. `false` is the
-        // right default for one that didn't exist yet at beforePrint
-        // (the briefing's own async sections mounting between the two
-        // events) -- it was never open in the first place.
-        d.open = openBeforePrint.get(d) ?? false;
-      });
-    };
-    window.addEventListener("beforeprint", beforePrint);
-    window.addEventListener("afterprint", afterPrint);
-    return () => {
-      window.removeEventListener("beforeprint", beforePrint);
-      window.removeEventListener("afterprint", afterPrint);
-    };
-  }, []);
 
   // "Planning aid only" used to be a permanently docked banner at the
   // top of the briefing, pushing every section below it down a line
@@ -366,8 +329,10 @@ export default function FlightBriefingView({
     // No header, title or scroller of its own: the nav log drawer's own
     // header (the totals, the altitude, the aeroplane, the narrative
     // and Print) is the briefing's, on screen and on paper alike, and
-    // the drawer scrolls the table and these sections together.
-    <div ref={briefingContainer} className="flight-briefing">
+    // the drawer scrolls the nav log's own section and these together
+    // (and opens every section for the print -- NavLogView's own
+    // `useDetailsOpenForPrint`, over the whole scroller).
+    <>
       {/* Open from the start: the course, the aeroplane and "Save this
           flight" should not be behind a click. Every weather section
           below stays collapsed -- skim the titles, open what applies. */}
@@ -719,6 +684,6 @@ export default function FlightBriefingView({
           </div>
         )}
       </CollapsibleSection>
-    </div>
+    </>
   );
 }

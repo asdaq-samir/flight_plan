@@ -269,14 +269,22 @@ test("plan page: opening the briefing pops a 'planning aid only' warning toast, 
   // page's progress/error toasts use.
   await expect(page.locator("[data-sonner-toast]", { hasText: "Planning aid only" })).toBeVisible();
 
-  // One nav log: the same semantic table the narrow drawer shows, with
-  // the briefing's sections under it, "Flight Plan Summary" open by
-  // default and the weather sections collapsed.
+  // One nav log: the same semantic table the narrow drawer shows, now
+  // folded into its own closed section at the top so every section's
+  // title is on screen at once -- "Flight Plan Summary" open by
+  // default, the weather sections collapsed -- and opened on a click.
+  // By CSS, not role: a table inside a closed <details> is out of the
+  // accessibility tree, which is the point being checked.
   const drawer = page.locator('[data-slot="map-drawer"][data-side="right"]');
-  await expect(drawer.getByRole("table", { name: /Navigation log from/i })).toBeVisible();
-  await expect(drawer.getByRole("table", { name: /Navigation log from/i })).toHaveCount(1);
+  const navLog = drawer.locator("table");
+  await expect(navLog).toHaveCount(1);
+  await expect(navLog).toBeHidden();
+  await expect(drawer.getByText("Nav log", { exact: true })).toBeVisible();
   await expect(drawer.getByText("Flight Plan Summary")).toBeVisible();
   await expect(drawer.getByText("Adverse Conditions")).toBeVisible();
+  await expect(drawer.getByText("Airport Information")).toBeVisible();
+  await drawer.getByText("Nav log", { exact: true }).click();
+  await expect(drawer.getByRole("table", { name: /Navigation log from/i })).toBeVisible();
 });
 
 test("plan page: the briefing offers one AI button, not a named button per framework", async ({ page }) => {
@@ -371,11 +379,13 @@ test("plan page: the arrow keys and a click walk the nav log's checkpoints, in t
   await rows.nth(2).click();
   await expect(selectedRow.first().locator("td").first()).toHaveText(await rows.nth(2).locator("td").first().innerText());
 
-  // The same walk with the briefing open: the map is still mounted
-  // beside it, so nothing changes.
+  // The same walk with the briefing open and its nav log section
+  // unfolded: the map is still mounted beside it, so nothing changes.
   await page.getByTestId("sidebar-expand-toggle").click();
   await page.waitForTimeout(300);
   await expect(page).toHaveURL(/[?&]view=briefing/);
+  await page.getByText("Nav log", { exact: true }).click();
+  await expect(table).toBeVisible();
   await page.keyboard.press("ArrowUp");
   await expect(selectedRow.first().locator("td").first()).toHaveText(afterTwo ?? "");
 });
@@ -550,6 +560,38 @@ test("plan page: a click on the dimmed map closes the sidebar, and the header ab
   expect(overlayBox!.y).toBeGreaterThanOrEqual(headerBox!.y + headerBox!.height - 1);
   await overlay.click({ position: { x: 10, y: 10 } });
   await expect(page.locator('[data-slot="map-drawer"]')).toHaveCount(0);
+});
+
+test("dev page: the waypoint drawer is a worklist -- every candidate in flight order, walked with the keys, rated from the selected row", async ({ page }) => {
+  await page.goto("/app/dev?dep=C81&dest=KDLH");
+  await settle(page);
+  await page.getByTestId("sidebar-trigger-button").click();
+  const drawer = page.locator('[data-slot="map-drawer"][data-side="right"]');
+  await expect(drawer.getByText("Waypoints", { exact: true })).toBeVisible();
+  const table = drawer.getByRole("table", { name: /Waypoints from/i });
+  const rows = table.locator("tbody tr[tabindex='0']");
+  // Detections stream in: far more rows than the two endpoints, the
+  // unrated ones included -- the old list showed only rated points.
+  await expect.poll(() => rows.count(), { timeout: 30000 }).toBeGreaterThan(10);
+  await expect(drawer.getByText(/of \d+ rated/)).toBeVisible();
+  await expect(rows.first()).toContainText("C81");
+
+  // A click selects the row, and its own rating buttons open under it.
+  await rows.nth(2).click();
+  await expect(rows.nth(2)).toHaveAttribute("data-selected", "true");
+  await expect(drawer.getByRole("button", { name: "Rate 5" })).toBeVisible();
+
+  // Down, with focus in the list, walks the list top to bottom.
+  await page.keyboard.press("ArrowDown");
+  await expect(table.locator("tbody tr[data-selected]")).toHaveCount(1);
+  await expect(rows.nth(3)).toHaveAttribute("data-selected", "true");
+
+  // The filters live in a popover from the drawer's header, one named
+  // row per axis.
+  await drawer.getByTestId("waypoint-filters-button").click();
+  for (const axis of ["Role", "Source", "Status"]) {
+    await expect(page.getByText(axis, { exact: true })).toBeVisible();
+  }
 });
 
 test("plan page: every text field is at least 16px on a phone, so iOS never zooms the page in on focus", async ({ page }) => {

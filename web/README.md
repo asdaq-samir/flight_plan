@@ -113,7 +113,7 @@ src/
     plan/                  PlanView.tsx (wiring), hooks/usePlanState.ts (state), format.ts (pure, tested),
                            components/: RouteMap, BuildNotice, ScoreLegend, navlog/, briefing/
     label/                 LabelView.tsx (wiring), hooks/useLabelState.ts (state, tested), logic.ts (pure, tested),
-                           components/: ChartMap, FilterBar, ProgressCard, WaypointList, PointPopup, RatingLegend
+                           components/: ChartMap, WaypointPanel (the worklist drawer), FilterBar, PointPopup, RatingLegend
     pilot/                 PilotPanel.tsx (the pilot console), AccountPanels.tsx (sign-in, aircraft, flights), SignInModal.tsx
     dev/                   DevView.tsx (the page: LabelView plus the console), DevPanel.tsx (Model, Corridors, System)
 ```

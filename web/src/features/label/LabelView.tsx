@@ -10,13 +10,12 @@ import ZoomToggleButton from "../../components/ZoomToggleButton";
 import { usePageStatus } from "../../lib/usePageStatus";
 import ChartMap from "./components/ChartMap";
 import RouteForm from "../../components/RouteForm";
-import ProgressCard from "./components/ProgressCard";
-import WaypointList from "./components/WaypointList";
+import WaypointPanel from "./components/WaypointPanel";
 import PointPopup from "./components/PointPopup";
 import RatingLegend from "./components/RatingLegend";
 import { isEndpoint, type Point, type Rating } from "../../lib/api/types";
 import {
-  filterCounts, forwardIsLeft, forwardIsUp, hasRating, hiddenCount, isVisible, orderedPoints,
+  filterCounts, forwardIsLeft, forwardIsUp, hasRating, hiddenCount, orderedPoints,
 } from "./logic";
 import { currentPoint, useLabelState, type Selection } from "./hooks/useLabelState";
 
@@ -39,7 +38,7 @@ export interface LabelWorkspacePieces {
   zoomButton: ReactNode;
   /** The chart itself, for Shell's own `map` slot. */
   mapContent: ReactNode;
-  /** The progress card and waypoint list, for Shell's own `sidebar` slot. */
+  /** The waypoint panel (the worklist), for Shell's own `sidebar` slot. */
   sidebarContent: ReactNode;
 }
 
@@ -100,10 +99,6 @@ export default function LabelView({ children }: Props) {
     [store.endpoints, store.detections, store.added, store.filters],
   );
   const waypoints = useMemo(() => walk.filter(e => !isEndpoint(e.point)), [walk]);
-  const shown = useMemo(
-    () => [...store.detections, ...store.added].filter(p => isVisible(p, store.filters)).length,
-    [store.detections, store.added, store.filters],
-  );
   const counts = useMemo(
     () => filterCounts([...store.detections, ...store.added]),
     [store.detections, store.added],
@@ -112,14 +107,7 @@ export default function LabelView({ children }: Props) {
     () => [...store.detections, ...store.added].filter(hasRating),
     [store.detections, store.added],
   );
-  const visiblePicks = useMemo(
-    () => picks.filter(p => isVisible(p, store.filters)), [picks, store.filters],
-  );
   const hidden = hiddenCount(picks, store.filters);
-  const listEntries = useMemo(
-    () => walk.filter(e => isEndpoint(e.point) || hasRating(e.point)),
-    [walk],
-  );
 
   const positionOf = useCallback(
     (p: Point) => waypoints.findIndex(e => e.point === p),
@@ -214,14 +202,15 @@ export default function LabelView({ children }: Props) {
 
   /** Walks the waypoint list top to bottom (not the course-relative
    *  direction `step` uses) and brings the map to whatever it lands
-   *  on, the same as clicking that row would. */
+   *  on, the same as clicking that row would. The list is the walk
+   *  itself -- every point the filters admit, in flight order. */
   const stepList = useCallback((delta: number) => {
-    if (!listEntries.length) return;
-    const at = point ? listEntries.findIndex(e => e.point === point) : -1;
+    if (!walk.length) return;
+    const at = point ? walk.findIndex(e => e.point === point) : -1;
     const next = at < 0 ? 0 : at + delta;
-    const entry = listEntries[Math.max(0, Math.min(listEntries.length - 1, next))];
+    const entry = walk[Math.max(0, Math.min(walk.length - 1, next))];
     if (entry) focus(entry);
-  }, [listEntries, point, focus]);
+  }, [walk, point, focus]);
 
   /** Zooms out to see the whole leg -- Escape, and its own toolbar
    *  button for touch, which has no Escape key. */
@@ -344,30 +333,23 @@ export default function LabelView({ children }: Props) {
       />
     </div>
   );
-  // The view filters used to live in their own collapsible toolbar
-  // row, collapsed by default, then their own bar above this card --
-  // folded into it now, since each checkbox's count and the "Rated"
-  // total above it are the same kind of fact and read better together
-  // than split across two panels.
+  // One panel, the shape of Plan's nav log: the corridor's numbers and
+  // the drawer's actions in a header (the filters in a popover from
+  // it, since a checkbox row used to take a third of the drawer), and
+  // the walk as one table under it. Rating from the selected row moves
+  // on to the next one, the way the digit keys do.
   const sidebarContent = (
-    <>
-      <ProgressCard
-        visiblePicks={visiblePicks}
-        filters={store.filters}
-        onFilterChange={store.setFilter}
-        filterCounts={counts}
-        shown={shown}
-        canUndo={store.canUndo}
-        onUndo={() => void store.undo()}
-        onResetAll={() => void store.resetAll()}
-      />
-      <WaypointList
-        entries={listEntries} selected={point} onFocus={focus} hidden={hidden}
-        bearingDeg={store.course?.bearing_deg ?? 0}
-        departureIdent={store.course?.departure.ident ?? ""}
-        distanceNm={store.course?.distance_nm ?? null}
-      />
-    </>
+    <WaypointPanel
+      entries={walk} selected={point} onFocus={focus}
+      onRate={r => void rate(r).then(() => stepList(1))}
+      distanceNm={store.course?.distance_nm ?? null}
+      bearingDeg={store.course?.bearing_deg ?? 0}
+      departureIdent={store.course?.departure.ident ?? ""}
+      destinationIdent={store.course?.destination.ident ?? ""}
+      rated={picks.length} total={store.detections.length + store.added.length} hidden={hidden}
+      filters={store.filters} counts={counts} onFilterChange={store.setFilter}
+      canUndo={store.canUndo} onUndo={() => void store.undo()} onResetAll={() => void store.resetAll()}
+    />
   );
 
   return children({ routeForm, guideButton, zoomButton, mapContent, sidebarContent });
