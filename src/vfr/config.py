@@ -53,11 +53,13 @@ CHART_TILE_CACHE_DIR = DATA_DIR / "raw" / "chart_tiles.nosync"
 # A sectional is printed at 1:500,000 (about 42 m per pixel in the
 # FAA's raster), which is a web-mercator zoom of 12 at these latitudes;
 # past that there is nothing more to see. It is the map's only base
-# layer, so it is drawn all the way out to zoom 5 (a whole region on a
-# phone), where it is the chart's own colours at a hundredth of its
-# resolution. A terminal area chart is 1:250,000, one zoom further in,
-# and only worth drawing close up.
+# layer, so it is drawn all the way out to zoom 3, where the whole
+# country fits a phone screen (59 degrees of longitude is 335 px
+# there) and the chart is its own colours at a five-hundredth of its
+# resolution: terrain tint, water, and the cities as yellow dots. A
+# terminal area chart is 1:250,000, one zoom further in, and only
+# worth drawing close up.
 VFR_SECTIONAL_MAX_ZOOM = 12
-VFR_SECTIONAL_MIN_ZOOM = 5
+VFR_SECTIONAL_MIN_ZOOM = 3
 VFR_TAC_MAX_ZOOM = 13
 VFR_TAC_MIN_ZOOM = 10

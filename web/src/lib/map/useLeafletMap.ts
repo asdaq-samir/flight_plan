@@ -29,8 +29,10 @@ export function useLeafletMap(onReady?: (map: L.Map) => void) {
     // zoomControl: false drops the +/- buttons, not zooming itself --
     // scroll/pinch/double-click zoom are all untouched, and the top-left
     // corner they used to sit in is prime real estate now that the map
-    // is edge to edge under the toolbar.
-    map.current = L.map(el.current, { zoomControl: false, minZoom: 4, keyboard: false });
+    // is edge to edge under the toolbar. minZoom 3 is where the whole
+    // country fits a phone screen, and as far out as the chart layer
+    // has tiles (VFR_SECTIONAL_MIN_ZOOM in src/vfr/config.py).
+    map.current = L.map(el.current, { zoomControl: false, minZoom: 3, keyboard: false });
     map.current.attributionControl.setPrefix(false);
     // Deliberately no setView here. A generic default (say, a CONUS
     // view) sounds like it would give a pilot something to look at
