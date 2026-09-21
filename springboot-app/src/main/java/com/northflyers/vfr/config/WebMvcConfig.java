@@ -1,9 +1,11 @@
 package com.northflyers.vfr.config;
 
 import java.io.IOException;
+import java.time.Duration;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.Resource;
+import org.springframework.http.CacheControl;
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
 import org.springframework.web.servlet.config.annotation.ViewControllerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
@@ -66,6 +68,15 @@ public class WebMvcConfig implements WebMvcConfigurer {
 
     @Override
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
+        // The bundle's own files carry a content hash in their names
+        // (index-D7d2ktXG.js), so a browser may keep them for as long
+        // as it likes: a new build is new names, and index.html -- the
+        // one file that names them -- is served through the handler
+        // below and keeps Spring Security's no-store. Without this every
+        // page load re-downloaded a megabyte of JavaScript.
+        registry.addResourceHandler("/app/assets/**")
+                .addResourceLocations(staticLocation + "assets/")
+                .setCacheControl(CacheControl.maxAge(Duration.ofDays(365)).cachePublic().immutable());
         registry.addResourceHandler("/app/**")
                 .addResourceLocations(staticLocation)
                 .resourceChain(true)

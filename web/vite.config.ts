@@ -14,7 +14,24 @@ export default defineConfig({
   // components import from "@/lib/utils" etc., and Vite needs this
   // independently of TypeScript's own (type-check-only) path mapping.
   resolve: { alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) } },
-  build: { outDir: "../springboot-app/src/main/resources/static/app", emptyOutDir: true },
+  build: {
+    outDir: "../springboot-app/src/main/resources/static/app",
+    emptyOutDir: true,
+    // The libraries in chunks of their own, so that a change to this
+    // app's code (most deploys) leaves React, the map and the query
+    // client with the same hashed names -- and so still in the
+    // browser's cache, where WebMvcConfig lets hashed assets live for
+    // a year.
+    rollupOptions: {
+      output: {
+        manualChunks(id: string) {
+          if (id.includes("node_modules/leaflet/")) return "leaflet";
+          if (/node_modules\/(react|react-dom|react-router|react-router-dom|@tanstack|scheduler)\//.test(id)) return "react";
+          return undefined;
+        },
+      },
+    },
+  },
   server: {
     port: 5173,
     // The API is not in this process. Proxying in dev means the same

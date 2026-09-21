@@ -83,6 +83,17 @@ server:
   # considers secure) would silently never send HSTS in production. A
   # no-op locally: nothing sends those headers without a proxy in front.
   forward-headers-strategy: framework
+  # gzip for the text the browser downloads: the front-end bundle is
+  # 930 KB of JavaScript and 145 KB after gzip, the difference between
+  # a second and a fraction of one on a phone. Only these types -- the
+  # chart tiles are PNG and already as small as they get, and the
+  # planner's NDJSON streams (application/x-ndjson) are left out so a
+  # line the planner flushes reaches the browser the moment it is
+  # written, not when a gzip block fills.
+  compression:
+    enabled: true
+    mime-types: text/html,text/css,text/javascript,application/javascript,application/json,image/svg+xml
+    min-response-size: 1024
 
 management:
   endpoints:
