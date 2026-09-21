@@ -3,6 +3,7 @@ face in a raster, and rendering tiles from more than one sheet."""
 import datetime as dt
 import io
 import json
+import math
 import re
 
 import numpy as np
@@ -237,11 +238,71 @@ def test_a_straight_bordered_face_reaches_the_bow_of_its_top_edge(tmp_path):
         x, y = transform * (col, row)
         return rasterio.warp.transform(crs, "EPSG:4326", [x], [y])[1][0]
 
-    corner, middle = lat_at(44, 24), lat_at(500, 24)
+    # The ruling lines (rows 19-21 and 228-230) are inside the chart
+    # area, whole, in pooled blocks of four rows: rows 16 to 231.
+    corner, middle = lat_at(36, 16), lat_at(500, 16)
     assert middle > corner + 0.3
     _, face, _ = charts.detect_face(tmp_path / "conic.tif", charts.IFR_LOW)
     assert face[3] == pytest.approx(middle, abs=0.05)
-    assert face[1] == pytest.approx(lat_at(44, 224), abs=0.05)
+    assert face[1] == pytest.approx(lat_at(36, 232), abs=0.05)
+
+
+def _rgb_raster_3857(path, bounds_m, rgb):
+    """A three-band GeoTIFF over web-mercator metre bounds."""
+    height, width = rgb.shape[:2]
+    with rasterio.open(
+        path, "w", driver="GTiff", width=width, height=height, count=3, dtype="uint8",
+        crs="EPSG:3857", transform=from_bounds(*bounds_m, width, height),
+    ) as ds:
+        ds.write(np.moveaxis(rgb, -1, 0))
+
+
+def test_two_straight_bordered_sheets_meet_without_daylight(tmp_path):
+    """Adjacent IFR sheets are cut on the same line: the south ruling
+    line of one is the north ruling line of the next. Across the seam,
+    at the charts' own zoom and at coarser ones where the seam falls
+    inside a pixel, every pixel is drawn."""
+    import rasterio.warp
+
+    west, east = transform_bounds("EPSG:4326", "EPSG:3857", -92.0, 40.0, -88.0, 44.0)[::2]
+    top = transform_bounds("EPSG:4326", "EPSG:3857", -92.0, 40.0, -88.0, 44.0)[3]
+    bottom = transform_bounds("EPSG:4326", "EPSG:3857", -92.0, 36.0, -88.0, 40.0)[1]
+    # Sheet A: 1000 rows down from 44N, its south line on rows 897-899,
+    # so the line's foot is row 900 -- where sheet B's raster starts.
+    a_px = (top - transform_bounds("EPSG:4326", "EPSG:3857", -92.0, 40.0, -88.0, 40.0)[1]) / 1000.0
+    a = np.full((1000, 1000, 3), (216, 232, 206), np.uint8)
+    a[897:900, :, :] = 0
+    a[900:, :, :] = 255                                     # collar below the line
+    a_bottom = top - 1000 * a_px
+    _rgb_raster_3857(tmp_path / "a.tif", (west, a_bottom, east, top), a)
+    b_top = top - 900 * a_px
+    b = np.full((1000, 1000, 3), (255, 0, 0), np.uint8)   # a different tint, to tell the two apart
+    b[0:3, :, :] = 0                                        # its north line
+    _rgb_raster_3857(tmp_path / "b.tif", (west, bottom, east, b_top), b)
+
+    rasters = []
+    for name in ("a", "b"):
+        envelope, face, mask = charts.detect_face(tmp_path / f"{name}.tif", charts.IFR_LOW)
+        rasters.append(charts.Raster(tmp_path / f"{name}.tif", face=face, envelope=envelope, mask=mask))
+    assert rasters[0].face[1] <= rasters[1].face[3]        # the masks meet or overlap
+
+    seam_lat = rasterio.warp.transform("EPSG:3857", "EPSG:4326", [west], [b_top])[1][0]
+    for zoom in (6, 7, 8, 9):
+        n = 2 ** zoom
+        x = int((-89.0 + 180.0) / 360.0 * n)
+        y = int((1.0 - math.log(math.tan(math.radians(seam_lat)) + 1.0 / math.cos(math.radians(seam_lat))) / math.pi) / 2.0 * n)
+        tile = charts.render_tile(rasters, x, y, zoom)
+        assert tile is not None
+        lons, lats = charts._tile_lons(x, zoom), charts._tile_lats(y, zoom)
+        inside = ((lons > -91.9) & (lons < -88.1))[None, :] & ((lats > 36.1) & (lats < 43.9))[:, None]
+        assert (tile[:, :, 3][inside] == 255).all(), f"daylight at zoom {zoom}"
+        # Clear of the line, each side is its own sheet's colour.
+        col = int(np.argmin(np.abs(lons + 89.0)))
+        above, below = np.flatnonzero(lats > seam_lat + 0.05), np.flatnonzero(lats < seam_lat - 0.05)
+        if len(above):
+            assert tuple(tile[above[-1], col, :3]) == (216, 232, 206)
+        if len(below):
+            assert tuple(tile[below[0], col, :3]) == (255, 0, 0)
 
 
 def test_render_leaves_a_sheets_own_leaning_edge_transparent(tmp_path):

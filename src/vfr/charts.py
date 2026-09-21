@@ -841,14 +841,22 @@ _STRAIGHT_CONTINUITY = 0.9
 
 def _widest_gap(continuity: np.ndarray) -> tuple:
     """(start, end) in pooled units of the widest interval between
-    consecutive ruling lines, the raster's edges counting as lines."""
-    ruled = np.flatnonzero(continuity >= _STRAIGHT_CONTINUITY)
-    edges = [0, *ruled.tolist(), len(continuity)]
+    consecutive ruling lines, the raster's edges counting as lines,
+    with each line taken whole: a line thicker than a pooled block, or
+    astride two, is ruled in every block it touches, and the interval
+    runs to the far side of both."""
+    ruled = continuity >= _STRAIGHT_CONTINUITY
+    edges = [0, *np.flatnonzero(ruled).tolist(), len(continuity)]
     best = (edges[0], edges[1])
     for a, b in zip(edges, edges[1:]):
         if b - a > best[1] - best[0]:
             best = (a, b)
-    return best
+    start, end = best
+    while start > 0 and ruled[start - 1]:
+        start -= 1
+    while end + 1 < len(continuity) and ruled[end + 1]:
+        end += 1
+    return start, end
 
 
 def _straight_face(ink: _Ink, crs, transform, mask_path: Path) -> Box:
@@ -858,7 +866,13 @@ def _straight_face(ink: _Ink, crs, transform, mask_path: Path) -> Box:
     renderer warps alongside the sheet, and returned as the lat/lon box
     around the rectangle's whole outline. A conic sheet leans and bows
     in lat/lon, so the box takes in collar at the corners; the mask is
-    what keeps that from being drawn."""
+    what keeps that from being drawn.
+
+    The ruling lines themselves are inside the mask, whole. Two
+    adjacent sheets are cut on the same line (to within a pixel or
+    two), so with the lines left out their masks stood a line's width
+    apart and every seam was a hairline of map background; with them
+    in, the masks overlap by that width."""
     import rasterio
     import rasterio.warp
     from rasterio.transform import Affine
@@ -869,16 +883,18 @@ def _straight_face(ink: _Ink, crs, transform, mask_path: Path) -> Box:
     c0, c1 = _widest_gap(col_continuity)
     r0, r1 = _widest_gap(row_continuity)
 
+    r_lo, r_hi = r0, min(r1 + 1, rows)   # pooled rows [r_lo, r_hi): the chart and its ruling lines
+    c_lo, c_hi = c0, min(c1 + 1, cols)
     inside = np.zeros((rows, cols), dtype=np.uint8)
-    inside[r0 + 1:max(r0 + 2, r1), c0 + 1:max(c0 + 2, c1)] = 255
+    inside[r_lo:r_hi, c_lo:c_hi] = 255
     with rasterio.open(
         mask_path, "w", driver="GTiff", width=cols, height=rows, count=1, dtype="uint8",
         crs=crs, transform=transform * Affine.scale(_POOL_PX), compress="deflate",
     ) as out:
         out.write(inside, 1)
 
-    x0, x1 = (c0 + 1) * _POOL_PX, max((c0 + 2) * _POOL_PX, (c1 - 1) * _POOL_PX)
-    y0, y1 = (r0 + 1) * _POOL_PX, max((r0 + 2) * _POOL_PX, (r1 - 1) * _POOL_PX)
+    x0, x1 = c_lo * _POOL_PX, c_hi * _POOL_PX
+    y0, y1 = r_lo * _POOL_PX, r_hi * _POOL_PX
     # The rectangle's sides are straight on the sheet and arcs in
     # latitude and longitude: a parallel bows toward the pole between
     # two points on it, so the top side is furthest north in its
@@ -946,9 +962,11 @@ def detect_face(path: Path, kind: ChartKind) -> tuple[Box, Box, Path | None]:
 def _warp_rgb(path: Path, bbox_3857: tuple, width: int, height: int, centre_lat: float,
               mask: Path | None = None) -> tuple:
     """Part of a raster, reprojected to web mercator: (height, width,
-    3) RGB and a (height, width) mask of where the raster actually had
-    pixels (and, given a companion `mask` raster, where it is chart
-    rather than collar) -- one tile, or a whole row of them at once.
+    3) RGB and (height, width) float32 coverage, 0 to 1, of how much
+    of each pixel the raster actually had (and, given a companion
+    `mask` raster, how much is chart rather than collar) -- one tile,
+    or a whole row of them at once. The RGB of a partly covered pixel
+    is the average of its covered part alone.
 
     The chart is a palette image, so it is warped as indices
     (nearest-neighbour -- an averaged index is a random colour) and
@@ -957,12 +975,15 @@ def _warp_rgb(path: Path, bbox_3857: tuple, width: int, height: int, centre_lat:
     to four times the requested size and box-filtered down in RGB,
     which is the averaging a palette cannot have.
 
-    The mask matters at a sheet's own edge. A sheet is a rectangle in
-    its conic projection, which in web mercator is a quadrilateral with
-    leaning sides; its face is a lat/lon box, and where the box runs
-    past the leaning edge the warp has nothing to put. Left as index 0
-    that is paper, and paper drawn over the neighbouring sheet showed
-    on the map as a white sliver, widening down the seam."""
+    The coverage matters at a sheet's own edge. A sheet is a rectangle
+    in its conic projection, which in web mercator is a quadrilateral
+    with leaning sides; its face is a lat/lon box, and where the box
+    runs past the leaning edge the warp has nothing to put. Left as
+    index 0 that is paper, and paper drawn over the neighbouring sheet
+    showed on the map as a white sliver, widening down the seam. And
+    it is a fraction rather than a yes or no because two sheets that
+    meet inside one pixel each cover less than half of it: a yes-or-no
+    at half left such a pixel to nobody, a hairline along the seam."""
     import rasterio
     from rasterio.enums import Resampling
     from rasterio.transform import from_bounds
@@ -985,10 +1006,19 @@ def _warp_rgb(path: Path, bbox_3857: tuple, width: int, height: int, centre_lat:
         if mask is not None:
             with rasterio.open(mask) as mask_src, WarpedVRT(mask_src, **grid) as vrt:
                 alpha = np.minimum(alpha, vrt.read(1))
-    if oversample > 1:
-        rgb = np.asarray(Image.fromarray(np.ascontiguousarray(rgb)).reduce(oversample))
-        alpha = np.asarray(Image.fromarray(alpha).reduce(oversample))
-    return rgb, alpha >= 128
+    inside = alpha >= 128
+    if oversample == 1:
+        return rgb, inside.astype(np.float32)
+    # Box-filter the covered samples alone (the others zeroed, the
+    # sum divided by the covered fraction), so that a pixel on the
+    # sheet's edge is the colour of the chart in it, not of the chart
+    # averaged with collar.
+    weighted = np.where(inside[:, :, None], rgb, 0).astype(np.uint8)
+    rgb = np.asarray(Image.fromarray(np.ascontiguousarray(weighted)).reduce(oversample)).astype(np.float32)
+    coverage = np.asarray(Image.fromarray(inside.astype(np.uint8) * 255).reduce(oversample)).astype(np.float32) / 255.0
+    scale = np.where(coverage > 0, 1.0 / np.maximum(coverage, 1e-6), 0.0)
+    rgb = np.clip(rgb * scale[:, :, None] + 0.5, 0, 255).astype(np.uint8)
+    return rgb, coverage
 
 
 def _tile_lats(y: int, zoom: int) -> np.ndarray:
@@ -1009,6 +1039,28 @@ def _face_mask(face: Box, lats: np.ndarray, lons: np.ndarray) -> np.ndarray:
     return ((lats >= south) & (lats <= north))[:, None] & ((lons >= west) & (lons <= east))[None, :]
 
 
+def _composite(rgba: np.ndarray, rgb: np.ndarray, coverage: np.ndarray) -> np.ndarray:
+    """`rgba` with a sheet's `rgb` drawn into whatever part of each
+    pixel is still uncovered, by the sheet's own `coverage` of it: a
+    pixel a sheet covers wholly is drawn once and left alone after
+    (the first sheet wins where two overlap); a pixel two sheets meet
+    inside is the two averaged by their shares. The alpha kept is that
+    total: opaque from half a pixel's worth up, so a seam inside a
+    pixel is a seam and not a hairline of daylight, and the fraction
+    itself below that, so the next sheet knows what is left."""
+    old = rgba[:, :, 3].astype(np.float32) / 255.0
+    weight = coverage * (1.0 - old)
+    touched = weight > 0
+    if not touched.any():
+        return rgba
+    total = old + weight
+    colour = (rgba[:, :, :3].astype(np.float32) * old[:, :, None] + rgb.astype(np.float32) * weight[:, :, None])
+    colour = colour / np.maximum(total, 1e-6)[:, :, None]
+    rgba[touched, :3] = np.clip(colour[touched] + 0.5, 0, 255).astype(np.uint8)
+    rgba[touched, 3] = np.where(total[touched] >= 0.5, 255, total[touched] * 255.0).astype(np.uint8)
+    return rgba
+
+
 def render_tile(rasters: list, x: int, y: int, zoom: int) -> np.ndarray | None:
     """The tile as (TILE_PX, TILE_PX, 4) RGBA, composited from every
     raster whose face covers part of it -- first raster wins where
@@ -1018,13 +1070,11 @@ def render_tile(rasters: list, x: int, y: int, zoom: int) -> np.ndarray | None:
     lats, lons = _tile_lats(y, zoom), _tile_lons(x, zoom)
     out = np.zeros((TILE_PX, TILE_PX, 4), dtype=np.uint8)
     for raster in rasters:
-        covered = _face_mask(raster.face, lats, lons) & (out[:, :, 3] == 0)
+        covered = _face_mask(raster.face, lats, lons) & (out[:, :, 3] < 255)
         if not covered.any():
             continue
-        rgb, valid = _warp_rgb(raster.path, bbox, TILE_PX, TILE_PX, float(lats[TILE_PX // 2]), raster.mask)
-        covered &= valid
-        out[covered, :3] = rgb[covered]
-        out[covered, 3] = 255
+        rgb, coverage = _warp_rgb(raster.path, bbox, TILE_PX, TILE_PX, float(lats[TILE_PX // 2]), raster.mask)
+        out = _composite(out, rgb, coverage * covered)
     return out if out[:, :, 3].any() else None
 
 
@@ -1332,7 +1382,7 @@ def _render_row(args: tuple) -> int:
                 rgba = None
         if rgba is None:
             rgba = np.zeros((TILE_PX, TILE_PX, 4), dtype=np.uint8)
-        fill = covered & (rgba[:, :, 3] == 0)
+        fill = covered & (rgba[:, :, 3] < 255)
         if fill.any():
             owed.append((x, tile_path, rgba, fill))
     if not owed:
@@ -1341,18 +1391,16 @@ def _render_row(args: tuple) -> int:
     xmin = tile_bbox_3857(x0, y, zoom)[0]
     _, ymin, xmax, ymax = tile_bbox_3857(x1, y, zoom)
     width = (x1 - x0 + 1) * TILE_PX
-    strip, valid = _warp_rgb(Path(path), (xmin, ymin, xmax, ymax), width, TILE_PX, float(lats[TILE_PX // 2]),
-                             Path(mask) if mask else None)
+    strip, coverage = _warp_rgb(Path(path), (xmin, ymin, xmax, ymax), width, TILE_PX, float(lats[TILE_PX // 2]),
+                                Path(mask) if mask else None)
 
     written = 0
     for x, tile_path, rgba, fill in owed:
         columns = slice((x - x0) * TILE_PX, (x - x0 + 1) * TILE_PX)
-        fill &= valid[:, columns]
-        if not fill.any():
+        share = coverage[:, columns] * fill
+        if not (share > 0).any():
             continue  # the face runs past this sheet's own edge here; the neighbour draws it
-        rgb = strip[:, columns]
-        rgba[fill, :3] = rgb[fill]
-        rgba[fill, 3] = 255
+        rgba = _composite(rgba, strip[:, columns], share)
         tile_path.parent.mkdir(parents=True, exist_ok=True)
         _write_atomically(tile_path, encode_png(rgba))
         tile_path.with_suffix(".none").unlink(missing_ok=True)
