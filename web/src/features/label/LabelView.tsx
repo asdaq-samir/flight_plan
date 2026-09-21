@@ -6,13 +6,11 @@ import { identSchema } from "../../lib/identSchema";
 // app styling. Imported here (not in main.tsx) so it loads with the
 // Dev page's own lazy chunk, never on Plan's or the initial app load.
 import "leaflet/dist/leaflet.css";
-import ZoomToggleButton from "../../components/ZoomToggleButton";
 import { usePageStatus } from "../../lib/usePageStatus";
 import ChartMap from "./components/ChartMap";
 import RouteForm from "../../components/RouteForm";
 import WaypointPanel from "./components/WaypointPanel";
 import PointPopup from "./components/PointPopup";
-import RatingLegend from "./components/RatingLegend";
 import { isEndpoint, type Point, type Rating } from "../../lib/api/types";
 import {
   filterCounts, forwardIsLeft, forwardIsUp, hasRating, hiddenCount, orderedPoints,
@@ -28,14 +26,9 @@ const FOCUS_ZOOM = 12;
 export interface LabelWorkspacePieces {
   /** DEP/DEST/Load, for the header's centre. */
   routeForm: ReactNode;
-  /** The rating scale/shortcuts popover -- inline next to the sidebar
-   *  trigger in the header instead of floating over the map, the same
-   *  move Plan's own `ScoreLegend` already made for its Map tab. */
-  guideButton: ReactNode;
-  /** Fit Route / Show Selected -- next to the sidebar trigger, mirroring
-   *  Plan's own zoom toggle beside its sidebar trigger, not folded into
+  /** Fit Route / Show Selected -- drawn on the map by `MapControls`,
+   *  the same as Plan's own zoom toggle, not folded into
    *  `routeForm` (see this page's own comment on why). */
-  zoomButton: ReactNode;
   /** The chart itself, for Shell's own `map` slot. */
   mapContent: ReactNode;
   /** The waypoint panel (the worklist), for Shell's own `sidebar` slot. */
@@ -298,13 +291,8 @@ export default function LabelView({ children }: Props) {
       onSubmit={submitRoute}
     />
   );
-  // Inline next to the sidebar trigger in the header -- the same move
-  // Plan's own `ScoreLegend` already made for its Map tab (see
-  // `MapGuideButton`'s own comment on why there's no floating mode left
-  // to opt out of any more).
-  const guideButton = <RatingLegend />;
-  // The same "Fit Route"/"Show Selected" toggle Plan has beside its own
-  // sidebar trigger, not this page's own former three-state "Start"/
+  // The same "Fit Route"/"Show Selected" toggle Plan draws on its own
+  // map, not this page's own former three-state "Start"/
   // "Resume"/"Fit line" -- these two pages read as the same shell
   // around a different sidebar everywhere else already (see RouteForm's
   // own comment). Next to the sidebar trigger, not folded into
@@ -312,12 +300,10 @@ export default function LabelView({ children }: Props) {
   // the same category as the sidebar toggle itself, not part of "the
   // route inputs and Load button" that component unifies (see
   // `RouteInputGroup`'s own comment).
-  const zoomButton = (
-    <ZoomToggleButton zoomedIn={zoomedIn} onClick={toggleView} disabled={!walk.length} data-testid="map-action-button" />
-  );
   const mapContent = (
     <div className="h-full w-full">
       <ChartMap
+        zoom={{ zoomedIn, onToggle: toggleView, disabled: !walk.length }}
         course={store.course}
         endpoints={store.endpoints}
         detections={store.detections}
@@ -352,5 +338,5 @@ export default function LabelView({ children }: Props) {
     />
   );
 
-  return children({ routeForm, guideButton, zoomButton, mapContent, sidebarContent });
+  return children({ routeForm, mapContent, sidebarContent });
 }

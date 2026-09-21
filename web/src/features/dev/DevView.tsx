@@ -31,7 +31,7 @@ export default function DevView() {
 
   return (
     <LabelView>
-      {({ routeForm, guideButton, zoomButton, mapContent, sidebarContent }) => (
+      {({ routeForm, mapContent, sidebarContent }) => (
         <Shell
           header={(
             <MapHeader
@@ -40,22 +40,20 @@ export default function DevView() {
               form={routeForm}
               actions={(
                 <>
-                  {guideButton}
-                  {zoomButton}
                   <DevButton open={consoleOpen} onClick={toggleConsole} />
-                  <SidebarToggleButton open={sidebarOpen} onClick={toggleSidebar} label="Waypoints" />
+                  <SidebarToggleButton open={sidebarOpen} onClick={toggleSidebar} label="Model Training" />
                 </>
               )}
             />
           )}
           map={mapContent}
           panels={(
-            <MapDrawer side="top" open={consoleOpen} onOpenChange={setConsoleOpen} label="Dev console">
+            <MapDrawer side="top" open={consoleOpen} onOpenChange={setConsoleOpen} label="Developer">
               <DevPanel />
             </MapDrawer>
           )}
           sidebar={sidebarContent}
-          sidebarLabel="Waypoints"
+          sidebarLabel="Model Training"
           sidebarOpen={sidebarOpen}
           onSidebarOpenChange={setSidebarOpen}
         />

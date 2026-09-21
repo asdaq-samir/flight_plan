@@ -15,7 +15,6 @@ import MapDrawer from "../../components/MapDrawer";
 import DevSwitch from "../../components/DevSwitch";
 import MapHeader from "../../components/MapHeader";
 import SidebarToggleButton from "../../components/SidebarToggleButton";
-import ZoomToggleButton from "../../components/ZoomToggleButton";
 import { usePageStatus } from "../../lib/usePageStatus";
 import RouteMap from "./components/RouteMap";
 import RouteForm from "../../components/RouteForm";
@@ -23,7 +22,6 @@ import BuildNotice from "./components/BuildNotice";
 import NavLogView from "./components/navlog/NavLogView";
 import NavLogActions from "./components/navlog/NavLogActions";
 import FlightBriefingView from "./components/briefing/FlightBriefingView";
-import ScoreLegend from "./components/ScoreLegend";
 import { usePlanState, descriptionKey } from "./hooks/usePlanState";
 import { PilotButton, PilotPanel } from "../pilot/PilotPanel";
 import { useDocumentTitle } from "../../lib/useDocumentTitle";
@@ -338,7 +336,9 @@ export default function PlanView() {
       const target = e.target instanceof HTMLElement ? e.target : null;
       const tag = target?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA") return;
-      if (e.defaultPrevented || target?.closest('[role="listbox"],[role="dialog"],[role="menu"]')) return;
+      // A modal dialog (the sign-in dialog) owns its keys; the drawers
+      // are dialogs too but non-modal, and the walk goes on inside them.
+      if (e.defaultPrevented || target?.closest('[role="listbox"],[role="dialog"][aria-modal="true"],[role="menu"]')) return;
       if (e.key === "n") setBriefingView(!briefing);
       if (e.key === "a") toggleCandidates();
       if (e.key === "f") controls.current?.fit();
@@ -368,10 +368,8 @@ export default function PlanView() {
       )}
       actions={(
         <>
-          <ScoreLegend course={s.course} />
-          <ZoomToggleButton zoomedIn={zoomedIn} onClick={toggleZoom} disabled={!s.course} />
           <PilotButton open={pilotOpen} onClick={togglePilot} />
-          <SidebarToggleButton open={sidebarOpen} onClick={toggleSidebar} label="Nav Log" />
+          <SidebarToggleButton open={sidebarOpen} onClick={toggleSidebar} label="Flight Planning" />
         </>
       )}
     />
@@ -468,6 +466,7 @@ export default function PlanView() {
         langgraphNarrative={s.langgraphNarrative} crewaiNarrative={s.crewaiNarrative}
         aircraftLabel={aircraft.label} aircraftId={aircraft.aircraftId ?? null}
         depart={depart}
+        expanded={briefing}
       />
     </NavLogView>
   );
@@ -484,10 +483,10 @@ export default function PlanView() {
         header={header}
         panels={(
           <MapDrawer side="top" open={pilotOpen} onOpenChange={setPilotOpen} label="Pilot">
-            <PilotPanel />
+            <PilotPanel course={s.course} />
           </MapDrawer>
         )}
-        sidebarLabel="Nav log"
+        sidebarLabel="Flight Planning"
         sidebarWide={briefing}
         sidebarOpen={sidebarOpen}
         onSidebarOpenChange={open => (open ? setNavOpen(true) : closeSidebar())}
@@ -505,6 +504,7 @@ export default function PlanView() {
               onSelectCandidate={selectCandidate}
               onReady={handleMapReady}
               onZoomChange={setZoomedIn}
+              zoom={{ zoomedIn, onToggle: toggleZoom, disabled: !s.course }}
             />
           </div>
         }

@@ -136,27 +136,13 @@ for (const path of PAGES) {
       expect(overflowing).toBe(false);
     });
 
-    // Guide button: inline in the header next to the sidebar trigger on
-    // both pages, not floating over the map -- see MapGuideButton's own
-    // comment on why there's no floating mode left to opt out of.
-    test("guide button sits in the header next to the sidebar trigger, not floating over the map", async ({ page }) => {
+    // No guide button in either header any more: the planner's guide
+    // lives in the Pilot drawer's Guide tab, the rating guide in the
+    // Developer drawer's own rating step.
+    test("no info button in the header", async ({ page }) => {
       await page.goto(path);
       await settle(page);
-      const viewport = page.viewportSize();
-      if (!viewport) throw new Error("no viewport configured");
-
-      const guideBox = await page.getByTestId("guide-button").boundingBox();
-      const triggerBox = await page.getByTestId("sidebar-trigger-button").boundingBox();
-      expect(guideBox).not.toBeNull();
-      expect(triggerBox).not.toBeNull();
-
-      // Nowhere near the bottom-left corner a floating guide button
-      // would otherwise pin to -- true regardless of viewport.
-      expect(guideBox!.y).toBeLessThan(viewport.height - 100);
-
-      // Same row as the sidebar trigger, leading (to the left of) it.
-      expect(Math.abs(guideBox!.y - triggerBox!.y)).toBeLessThan(10);
-      expect(guideBox!.x).toBeLessThan(triggerBox!.x);
+      expect(await page.getByTestId("guide-button").count()).toBe(0);
     });
   });
 }
@@ -198,25 +184,35 @@ test.describe("/app/plan", () => {
   });
 });
 
-test("dev page: the toggle-view action sits in the header next to the sidebar trigger, not floating over the map", async ({ page }) => {
-  await page.goto("/app/dev");
-  await settle(page);
-  const viewport = page.viewportSize();
-  if (!viewport) throw new Error("no viewport configured");
+for (const path of PAGES) {
+  test(`${path}: the layers button and the zoom toggle sit on the map's top-right corner, under the header`, async ({ page }) => {
+    await page.goto(`${path}?dep=C81&dest=KDLH`);
+    await settle(page);
+    const viewport = page.viewportSize();
+    if (!viewport) throw new Error("no viewport configured");
 
-  const triggerBox = await page.getByTestId("sidebar-trigger-button").boundingBox();
-  const actionBox = await page.getByTestId("map-action-button").boundingBox();
-  expect(triggerBox).not.toBeNull();
-  expect(actionBox).not.toBeNull();
-  // Nowhere near the bottom-left corner a floating action button would
-  // otherwise pin it to -- true regardless of viewport.
-  expect(actionBox!.y).toBeLessThan(viewport.height - 100);
+    const headerBox = await page.locator("header").boundingBox();
+    const layersBox = await page.getByTestId("layers-button").boundingBox();
+    const actionBox = await page.getByTestId("map-action-button").boundingBox();
+    expect(headerBox).not.toBeNull();
+    expect(layersBox).not.toBeNull();
+    expect(actionBox).not.toBeNull();
+    // On the map, below the header, the layers button above the zoom
+    // toggle, both flush with the right edge -- the same on both pages.
+    expect(layersBox!.y).toBeGreaterThanOrEqual(headerBox!.y + headerBox!.height);
+    expect(actionBox!.y).toBeGreaterThan(layersBox!.y + layersBox!.height - 1);
+    expect(viewport.width - (layersBox!.x + layersBox!.width)).toBeLessThan(16);
+    expect(viewport.width - (actionBox!.x + actionBox!.width)).toBeLessThan(16);
+    // Neither is in the header any more.
+    expect(await page.locator("header").getByTestId("map-action-button").count()).toBe(0);
 
-  // To the sidebar trigger's left, same row -- mirrors Plan's own fit-
-  // route button beside its own sidebar trigger.
-  expect(actionBox!.x).toBeLessThan(triggerBox!.x);
-  expect(Math.abs(actionBox!.y - triggerBox!.y)).toBeLessThan(10);
-});
+    // The layers popover holds the chart controls.
+    await page.getByTestId("layers-button").click();
+    await expect(page.getByTestId("base-chart-select")).toBeVisible();
+    await expect(page.getByTestId("tac-toggle")).toBeVisible();
+    await page.keyboard.press("Escape");
+  });
+}
 
 test("plan page: the nav log drawer opens wide as the briefing, with the narrative and Print in its own header, the map still beside it", async ({ page }) => {
   await page.goto("/app/plan");
@@ -234,7 +230,7 @@ test("plan page: the nav log drawer opens wide as the briefing, with the narrati
   await expect(drawer.getByRole("table", { name: /Navigation log from/i })).toBeVisible();
   await expect(drawer.getByText("Adverse Conditions")).toBeAttached();
   await expect(drawer.getByText("Airport Information")).toBeAttached();
-  expect(await drawer.getByText("Nav log", { exact: true }).count()).toBe(1);   // the header's own title only, no fold
+  expect(await drawer.getByText("Nav log", { exact: true }).count()).toBe(0);   // no fold: the table is the drawer
   const narrowBox = await drawer.boundingBox();
   expect(narrowBox).not.toBeNull();
 
@@ -253,7 +249,7 @@ test("plan page: the nav log drawer opens wide as the briefing, with the narrati
   // The page's own header is still there above it: the route form,
   // and the one Dev-mode switch this page has.
   await expect(page.getByLabel("Departure", { exact: true })).toBeVisible();
-  await expect(page.locator("header").getByRole("button", { name: "Dev mode" })).toHaveCount(1);
+  await expect(page.locator("header").getByRole("switch", { name: "Dev mode" })).toHaveCount(1);
 
   // The briefing's actions live in the drawer's own header: the AI
   // button (LangGraph/CrewAI are tabs inside the popover it opens),
@@ -285,14 +281,19 @@ test("plan page: opening the briefing pops a 'planning aid only' warning toast, 
   // altitude and the aeroplane.
   // By CSS, not role: a table inside a closed <details> is out of the
   // accessibility tree, which is the point being checked.
+  // Wide is the whole briefing laid out: the nav log in a section of
+  // its own at the top and every briefing section under it, all open.
   const drawer = page.locator('[data-slot="map-drawer"][data-side="right"]');
   const navLog = drawer.locator("table");
   await expect(navLog).toHaveCount(1);
-  await expect(navLog).toBeHidden();
   await expect(drawer.getByText("Nav log", { exact: true })).toBeVisible();
+  await expect(drawer.getByRole("table", { name: /Navigation log from/i })).toBeVisible();
   await expect(drawer.getByText("Flight Plan Summary")).toHaveCount(0);
   await expect(drawer.getByText("Adverse Conditions")).toBeVisible();
   await expect(drawer.getByText("Airport Information")).toBeVisible();
+  // A section folds on its title and unfolds again.
+  await drawer.getByText("Nav log", { exact: true }).click();
+  await expect(navLog).toBeHidden();
   await drawer.getByText("Nav log", { exact: true }).click();
   await expect(drawer.getByRole("table", { name: /Navigation log from/i })).toBeVisible();
 });
@@ -392,12 +393,11 @@ test("plan page: the arrow keys and a click walk the nav log's checkpoints, in t
   await rows.nth(2).click();
   await expect(selectedRow.first().locator("td").first()).toHaveText(await rows.nth(2).locator("td").first().innerText());
 
-  // The same walk with the briefing open and its nav log section
-  // unfolded: the map is still mounted beside it, so nothing changes.
+  // The same walk with the briefing open (its nav log section starts
+  // unfolded): the map is still mounted beside it, so nothing changes.
   await page.getByTestId("sidebar-expand-toggle").click();
   await page.waitForTimeout(300);
   await expect(page).toHaveURL(/[?&]view=briefing/);
-  await page.getByText("Nav log", { exact: true }).click();
   await expect(table).toBeVisible();
   await page.keyboard.press("ArrowUp");
   await expect(selectedRow.first().locator("td").first()).toHaveText(afterTwo ?? "");
@@ -435,8 +435,8 @@ test("the Dev-mode switch leads the route form, flips to the dev page with the r
 
   // Off on Plan, and on the route form's left -- the one control that
   // switches roles, in the same place on both pages.
-  const devSwitch = page.locator("header").getByRole("button", { name: "Dev mode" });
-  await expect(devSwitch).toHaveAttribute("aria-pressed", "false");
+  const devSwitch = page.locator("header").getByRole("switch", { name: "Dev mode" });
+  await expect(devSwitch).toHaveAttribute("aria-checked", "false");
   const switchBox = await devSwitch.boundingBox();
   const loadBox = await page.getByRole("button", { name: "Load" }).boundingBox();
   expect(switchBox).not.toBeNull();
@@ -448,25 +448,27 @@ test("the Dev-mode switch leads the route form, flips to the dev page with the r
   await devSwitch.click();
   await page.waitForURL(/\/app\/dev\?dep=C81&dest=KDLH$/);
   await page.waitForTimeout(300);
-  await expect(page.locator("header").getByRole("button", { name: "Dev mode" })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator("header").getByRole("switch", { name: "Dev mode" })).toHaveAttribute("aria-checked", "true");
 
   // Off again: back to exactly where it was flipped from (`state.from`,
   // DevSwitch's own), the open briefing included, not a flat /app/plan.
-  await page.locator("header").getByRole("button", { name: "Dev mode" }).click();
+  await page.locator("header").getByRole("switch", { name: "Dev mode" }).click();
   await page.waitForURL(/\/app\/plan\?dep=C81&dest=KDLH&view=briefing$/);
   await expect(page.locator('[data-slot="map-drawer"][data-side="right"]').getByTestId("print-button")).toBeVisible();
 });
 
-test("the dev page's header is grey, the planner's is not", async ({ page }) => {
+test("the DEV switch is the one sign of which page this is: the header itself looks the same on both", async ({ page }) => {
   await page.goto("/app/plan");
   await settle(page);
   const pilotBg = await page.locator("header").evaluate(el => getComputedStyle(el).backgroundColor);
   await expect(page.locator("header")).toHaveAttribute("data-mode", "pilot");
+  await expect(page.locator("header").getByRole("switch", { name: "Dev mode" })).toHaveAttribute("aria-checked", "false");
   await page.goto("/app/dev");
   await settle(page);
   const devBg = await page.locator("header").evaluate(el => getComputedStyle(el).backgroundColor);
   await expect(page.locator("header")).toHaveAttribute("data-mode", "dev");
-  expect(devBg).not.toBe(pilotBg);
+  await expect(page.locator("header").getByRole("switch", { name: "Dev mode" })).toHaveAttribute("aria-checked", "true");
+  expect(devBg).toBe(pilotBg);
 });
 
 test("plan page: the nav log's altitude opens the planner's own reasoning, and the briefing's Cruise Altitude section carries the same steps", async ({ page }) => {
@@ -524,10 +526,12 @@ test("plan page: the nav log's altitude opens the planner's own reasoning, and t
   await expect(popover).toHaveCount(0);
   await expect(page.locator('[data-slot="map-drawer"]')).toBeVisible();
 
+  // Wide, every section starts open: the Cruise Altitude section is
+  // already showing its steps.
   await page.getByTestId("sidebar-expand-toggle").click();
   await page.waitForTimeout(300);
   const drawer = page.locator('[data-slot="map-drawer"][data-side="right"]');
-  await drawer.getByText("Cruise Altitude", { exact: true }).click();
+  await expect(drawer.getByText("Cruise Altitude", { exact: true })).toBeVisible();
   await expect(drawer.getByText("14 CFR 91.159")).toBeVisible();
 });
 
@@ -568,7 +572,7 @@ test("plan page: a departure time gives every checkpoint an ETA and picks the wi
 test("dev page opened on its own: the switch falls back to the planner with the dev page's own route", async ({ page }) => {
   await page.goto("/app/dev?dep=C81&dest=KDLH");
   await settle(page);
-  await page.locator("header").getByRole("button", { name: "Dev mode" }).click();
+  await page.locator("header").getByRole("switch", { name: "Dev mode" }).click();
   await page.waitForURL(/\/app\/plan\?dep=C81&dest=KDLH$/);
 });
 
@@ -587,6 +591,7 @@ test("plan page: the pilot console drops down over the map with sign-in, aeropla
   await expect(pilot).toBeVisible();
   await expect(pilot.getByRole("button", { name: "Sign in" })).toBeVisible();
   await expect(pilot.getByRole("heading", { name: "Aircraft" })).toBeVisible();
+  await pilot.getByRole("tab", { name: "Flights" }).click();
   await expect(pilot.getByRole("heading", { name: "My Flights" })).toBeVisible();
   // Under the header, like every drawer: the route form above it stays
   // usable. Polled: a top drawer slides down into place, and a box
@@ -613,16 +618,23 @@ test("dev page: the dev console drops down over the chart, one drawer at a time 
   await page.getByTestId("dev-console-button").click();
   const devMl = page.locator('[data-slot="map-drawer"][data-side="top"]');
   await expect(devMl).toBeVisible();
-  await expect(devMl.getByText("Model comparison")).toBeVisible();
-  // The developer's console: how good the models are, the three steps
-  // that train one, and the stack itself.
-  for (const name of ["Performance", "Training Model", "System"]) {
+  // The developer's drawer opens on training -- the three steps that
+  // change the model -- then how good the models are, then the stack.
+  await expect(devMl.getByText("Collect a route")).toBeVisible();
+  for (const name of ["Model Training", "Performance", "System"]) {
     await expect(devMl.getByRole("tab", { name })).toBeVisible();
   }
-  await devMl.getByRole("tab", { name: "Training Model" }).click();
-  await expect(devMl.getByText("Collect a corridor")).toBeVisible();
+  await devMl.getByRole("tab", { name: "Performance" }).click();
+  await expect(devMl.getByText("Model comparison")).toBeVisible();
+  await devMl.getByRole("tab", { name: "Model Training" }).click();
+  await expect(devMl.getByText("Collect a route")).toBeVisible();
   await expect(devMl.getByText("Rate its checkpoints")).toBeVisible();
-  await expect(devMl.getByRole("button", { name: /Retrain/ })).toBeVisible();
+  await expect(devMl.getByText("Retrain", { exact: true })).toBeVisible();
+  // No inputs of its own: the header's route form is the one that
+  // loads (and offers to collect) a route, and the Retrain button
+  // lives in the Model Training drawer at the side, beside Undo and Reset.
+  expect(await devMl.locator("input, textarea, [role=combobox]").count()).toBe(0);
+  expect(await devMl.getByRole("button", { name: /Retrain/ }).count()).toBe(0);
   await devMl.getByRole("tab", { name: "System" }).click();
   await expect(devMl.getByText("planning-service", { exact: true })).toBeVisible();
   await devMl.getByRole("tab", { name: "Performance" }).click();
@@ -674,17 +686,24 @@ test("plan page: the nav log is computed for an aeroplane the pilot picks in its
   await expect(page.getByTestId("aircraft-select")).toContainText("PA28");
 });
 
-test("plan page: a click on the dimmed map closes the sidebar, and the header above it never dims", async ({ page }) => {
+test("plan page: a click on the map closes the sidebar, and the header above it stays usable", async ({ page }) => {
   await page.goto("/app/plan");
   await settle(page);
   await page.getByTestId("sidebar-trigger-button").click();
-  const overlay = page.locator('[data-slot="map-drawer-overlay"]');
-  await expect(overlay).toBeVisible();
+  const drawer = page.locator('[data-slot="map-drawer"]');
+  await expect(drawer).toBeVisible();
+  // Non-modal: nothing dims the map, and the header above the drawer
+  // is not covered -- its own toggle closes the drawer and opens it
+  // again, with no click on it counting as a click outside.
+  expect(await page.locator('[data-slot="map-drawer-overlay"], [data-slot="sheet-overlay"]').count()).toBe(0);
+  await page.getByTestId("sidebar-trigger-button").click();
+  await expect(drawer).toHaveCount(0);
+  await page.getByTestId("sidebar-trigger-button").click();
+  await expect(drawer).toBeVisible();
+  // A click on the map itself, away from the drawer, closes it.
   const headerBox = await page.locator("header").boundingBox();
-  const overlayBox = await overlay.boundingBox();
-  expect(overlayBox!.y).toBeGreaterThanOrEqual(headerBox!.y + headerBox!.height - 1);
-  await overlay.click({ position: { x: 10, y: 10 } });
-  await expect(page.locator('[data-slot="map-drawer"]')).toHaveCount(0);
+  await page.mouse.click(12, headerBox!.y + headerBox!.height + 40);
+  await expect(drawer).toHaveCount(0);
 });
 
 test("dev page: the waypoint drawer is a worklist -- every candidate in flight order, walked with the keys, rated from the selected row", async ({ page }) => {
@@ -692,7 +711,7 @@ test("dev page: the waypoint drawer is a worklist -- every candidate in flight o
   await settle(page);
   await page.getByTestId("sidebar-trigger-button").click();
   const drawer = page.locator('[data-slot="map-drawer"][data-side="right"]');
-  await expect(drawer.getByText("Waypoints", { exact: true })).toBeVisible();
+  await expect(drawer.getByTestId("drawer-title")).toHaveText("Model Training");
   const table = drawer.getByRole("table", { name: /Waypoints from/i });
   const rows = table.locator("tbody tr[tabindex='0']");
   // Detections stream in: far more rows than the two endpoints, the
@@ -794,7 +813,7 @@ for (const path of PAGES) {
     // is remembered: a reload still has it pinned.
     await page.reload();
     await settle(page);
-    await page.getByTestId("guide-button").click();
+    await page.getByTestId("layers-button").click();
     const toggle = page.getByTestId("tac-toggle");
     await expect(toggle).toHaveAttribute("aria-checked", "true");
     await toggle.click();
@@ -816,7 +835,7 @@ for (const path of PAGES) {
     await expect(sectionalTiles.first()).toBeAttached({ timeout: 15000 });
     expect(await ifrTiles.count()).toBe(0);
 
-    await page.getByTestId("guide-button").click();
+    await page.getByTestId("layers-button").click();
     await page.getByTestId("base-chart-select").click();
     await page.getByRole("option", { name: "IFR low" }).click();
     await expect(page.getByText("IFR area chart pinned")).toBeVisible();

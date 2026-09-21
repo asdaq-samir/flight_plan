@@ -218,7 +218,10 @@ export function createBasemaps(map: L.Map, cfg: Course) {
 
   const apply = () => { applyBase(); applyOverlay(); };
   apply();
-  const unsubscribe = chartLayers.subscribe(apply);
+  // A change to the setting -- the checkbox, the pin -- is the pilot
+  // deciding, and ends any hover preview along with it: an unpinned
+  // terminal chart must go, whatever the pointer is over.
+  const unsubscribe = chartLayers.subscribe(() => { previewing = false; apply(); });
 
   return {
     get base() { return base?.kind ?? "sec"; },

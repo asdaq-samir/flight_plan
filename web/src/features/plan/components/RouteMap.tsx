@@ -1,5 +1,6 @@
 import L from "leaflet";
 import { useEffect, useRef, useState } from "react";
+import MapControls, { type ZoomControl } from "../../../components/MapControls";
 import OverlayPin from "../../../components/OverlayPin";
 import type { Candidate, Course } from "../../../lib/api/types";
 import {
@@ -28,6 +29,8 @@ interface Props {
    *  the whole route, the same "Start/Resume" vs "Fit line" choice
    *  Label's own zoom button makes off its map's real zoom level. */
   onZoomChange?: (zoomedIn: boolean) => void;
+  /** The fit-route / show-selected toggle, drawn on the map (`MapControls`). */
+  zoom: ZoomControl;
 }
 
 /**
@@ -46,7 +49,7 @@ interface Props {
  * whole layer setup on every unrelated re-render.
  */
 export default function RouteMap({
-  course, candidates, selected, showCandidates, focus, onSelectCandidate, onReady, onZoomChange,
+  course, candidates, selected, showCandidates, focus, onSelectCandidate, onReady, onZoomChange, zoom,
 }: Props) {
   const { el, map } = useLeafletMap();
   const layers = useRef<Record<string, L.Layer | null>>({});
@@ -185,7 +188,9 @@ export default function RouteMap({
   return (
     <div className="relative h-full w-full">
       <div ref={el} className="h-full w-full bg-slate-100 dark:bg-slate-900" />
-      <OverlayPin map={pinTargets?.map ?? null} basemaps={pinTargets?.basemaps ?? null} />
+      <MapControls zoom={zoom} ownShip>
+        <OverlayPin map={pinTargets?.map ?? null} basemaps={pinTargets?.basemaps ?? null} />
+      </MapControls>
     </div>
   );
 }

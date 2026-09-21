@@ -1,6 +1,25 @@
-import type { ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { cn } from "cn";
 import MapDrawer from "./components/MapDrawer";
+
+/** The header's height, kept in `--header-h` on the document for the
+ *  drawers: they are shadcn sheets fixed to the viewport (portaled to
+ *  the body, outside this tree), and this is how they start where the
+ *  header ends -- which moves when the header wraps to two lines on a
+ *  narrow phone, hence an observer rather than a constant. */
+function useHeaderHeight() {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const set = () => document.documentElement.style.setProperty("--header-h", `${el.getBoundingClientRect().height}px`);
+    set();
+    const observer = new ResizeObserver(set);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+  return ref;
+}
 
 interface Props {
   /** Required, not defaulted -- there's no generic fallback header:
@@ -63,6 +82,7 @@ export default function Shell({
   header, map, panels, sidebar, sidebarLabel = "Sidebar", sidebarOpen = false, onSidebarOpenChange, sidebarWide,
   fullHeight = true,
 }: Props) {
+  const headerRef = useHeaderHeight();
   return (
     <div
       className={cn(
@@ -70,7 +90,7 @@ export default function Shell({
         fullHeight ? "h-dvh" : "h-full min-h-0",
       )}
     >
-      {header}
+      <div ref={headerRef} className="shrink-0 print:hidden">{header}</div>
       <div className="relative min-h-0 flex-1 overflow-hidden print:!h-auto print:!overflow-visible">
         {/* `isolate`: Leaflet's own panes and controls carry z-indexes
             up to 1000, and without a stacking context of their own
@@ -88,7 +108,9 @@ export default function Shell({
             open={sidebarOpen}
             onOpenChange={open => onSidebarOpenChange?.(open)}
             label={sidebarLabel}
-            className={sidebarWide ? "w-full sm:max-w-[min(52rem,92vw)]" : "sm:max-w-[22rem]"}
+            className={sidebarWide
+              ? "data-[side=right]:w-full data-[side=right]:sm:max-w-[min(52rem,92vw)]"
+              : "data-[side=right]:sm:max-w-[22rem]"}
             printable={sidebarWide}
           >
             {sidebar}

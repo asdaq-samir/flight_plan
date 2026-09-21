@@ -1,5 +1,3 @@
-import MapGuideButton from "../../../components/MapGuideButton";
-import ChartLayers from "../../../components/ChartLayers";
 import { Badge } from "../../../components/ui/badge";
 import { Kbd } from "../../../components/ui/kbd";
 import type { Rating } from "../../../lib/api/types";
@@ -23,16 +21,15 @@ const SCALE: [Rating, string, string][] = [
 ];
 
 /**
- * The rating scale and keyboard shortcuts -- `MapGuideButton`'s own
- * shell (shared with the planner's own `ScoreLegend`) around this
- * page's own content, inline next to the sidebar trigger in the header
- * (see LabelView's own comment on where the Start/Resume/Fit line
- * action sits), the same way Plan's `ScoreLegend` does for its own Map
- * tab.
+ * The rating scale and the keyboard shortcuts for rating: what a
+ * developer reads before walking a route. It lives in the Developer
+ * drawer's own "rate its checkpoints" step (see DevPanel),
+ * beside the instructions for it, rather than behind an info button
+ * in the header the way the planner's own score key does.
  */
-export default function RatingLegend() {
+export default function RatingGuide() {
   return (
-    <MapGuideButton ariaLabel="Info" contentClassName="w-72">
+    <div className="space-y-3 text-sm">
       <p className="italic text-muted-foreground">
         Flying this leg, would I look up and know <i>that&rsquo;s the one</i> — not one like it?
       </p>
@@ -49,8 +46,7 @@ export default function RatingLegend() {
         1 means it&rsquo;s real but poor. <b>Ignore spacing</b>; selection already enforces
         separation. <b>Judge at this zoom</b>.
       </p>
-      <ChartLayers />
-      <div className="space-y-1.5 border-t border-border pt-2 text-muted-foreground">
+      <div className="flex flex-wrap gap-x-4 gap-y-1.5 text-muted-foreground">
         {SHORTCUTS.map(([key, text]) => (
           <div key={text} className="flex items-center gap-2">
             {key && <Kbd>{key}</Kbd>}
@@ -58,6 +54,6 @@ export default function RatingLegend() {
           </div>
         ))}
       </div>
-    </MapGuideButton>
+    </div>
   );
 }

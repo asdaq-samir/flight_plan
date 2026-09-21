@@ -27,6 +27,10 @@ interface Props {
   briefing: Briefing | null;
   briefingError: string | null;
   loadingBriefing: boolean;
+  /** Whether the drawer is open wide: then every section starts open
+   *  -- the whole briefing laid out, the document -- where the narrow
+   *  drawer, the nav log, keeps them closed under the table. */
+  expanded: boolean;
   /** LangGraph's (nav-log-agent) and CrewAI's (crewai-agent) own
    *  briefing narratives -- read-only here, only for
    *  `BriefingNarrativePrintBlock` below. Generating them is
@@ -274,7 +278,7 @@ function SaveFlightSection({
 export default function FlightBriefingView({
   course, totals, nav, legs, dep, dest, selected,
   briefing, briefingError, loadingBriefing,
-  langgraphNarrative, crewaiNarrative, aircraftLabel, aircraftId, depart,
+  langgraphNarrative, crewaiNarrative, aircraftLabel, aircraftId, depart, expanded,
 }: Props) {
   const winds = windsAloftSummary(legs);
   const vnrReasons = briefing ? vfrNotRecommendedReasons(briefing, dep, dest) : [];
@@ -340,8 +344,8 @@ export default function FlightBriefingView({
     // header (the totals, the altitude, the aeroplane, the narrative
     // and Print) is the briefing's, on screen and on paper alike, and
     // the drawer scrolls the nav log's own section and these together
-    // (and opens every section for the print -- NavLogView's own
-    // `useDetailsOpenForPrint`, over the whole scroller).
+    // (and shows every section for the print -- index.css's own rule
+    // over the whole `.flight-briefing` scroller).
     <>
       {/* No summary section: the drawer's own header already carries
           the route's totals, the altitude and the aeroplane, and a
@@ -372,7 +376,7 @@ export default function FlightBriefingView({
           action), so the sections below only ever show their own
           content or a placeholder line. */}
 
-      <CollapsibleSection title="Adverse Conditions">
+      <CollapsibleSection defaultOpen={expanded} title="Adverse Conditions">
         {!briefing ? (
           <p className="text-sm text-muted-foreground">{briefingPendingMessage}</p>
         ) : briefing.weather_unavailable.includes("hazards") ? (
@@ -397,7 +401,7 @@ export default function FlightBriefingView({
         )}
       </CollapsibleSection>
 
-      <CollapsibleSection title="Current Conditions">
+      <CollapsibleSection defaultOpen={expanded} title="Current Conditions">
         {/* Its own standard element (AIM 7-1-5(b)), stated up front
             inside the section it's actually drawn from (current METAR
             categories, plus the route's own forecast minimums) rather
@@ -448,7 +452,7 @@ export default function FlightBriefingView({
           destination's own forecast as its own line, not one entry
           among however many en route stations happen to have a TAF,
           since it's the one that actually decides go/no-go on arrival. */}
-      <CollapsibleSection title="Destination Forecast">
+      <CollapsibleSection defaultOpen={expanded} title="Destination Forecast">
         {!briefing ? (
           <p className="text-sm text-muted-foreground">{briefingPendingMessage}</p>
         ) : briefing.weather_unavailable.includes("forecast") ? (
@@ -467,7 +471,7 @@ export default function FlightBriefingView({
         })()}
       </CollapsibleSection>
 
-      <CollapsibleSection title="En Route Forecast">
+      <CollapsibleSection defaultOpen={expanded} title="En Route Forecast">
         {!briefing ? (
           <p className="text-sm text-muted-foreground">{briefingPendingMessage}</p>
         ) : briefing.weather_unavailable.includes("forecast") ? (
@@ -515,7 +519,7 @@ export default function FlightBriefingView({
           briefing top to bottom. A grid of bare figures used to sit
           here; the steps carry every one of those figures with the
           rule that used it. */}
-      <CollapsibleSection title="Cruise Altitude">
+      <CollapsibleSection defaultOpen={expanded} title="Cruise Altitude">
         {!nav ? (
           <p className="text-sm text-muted-foreground">Loading…</p>
         ) : (
@@ -523,7 +527,7 @@ export default function FlightBriefingView({
         )}
       </CollapsibleSection>
 
-      <CollapsibleSection title="Winds Aloft">
+      <CollapsibleSection defaultOpen={expanded} title="Winds Aloft">
         {winds.length === 0 ? (
           <p className="text-sm text-muted-foreground">No winds-aloft data available for this route.</p>
         ) : (
@@ -533,7 +537,7 @@ export default function FlightBriefingView({
         )}
       </CollapsibleSection>
 
-      <CollapsibleSection title="NOTAMs">
+      <CollapsibleSection defaultOpen={expanded} title="NOTAMs">
         <p className="text-sm text-muted-foreground">
           Not fetched here (the official FAA NOTAM API requires operator credentials) --
           check current NOTAMs directly before you fly:{" "}
@@ -559,7 +563,7 @@ export default function FlightBriefingView({
           real rather than silently dropped, which is the one thing
           that made those two elements different from every other one
           on this page before this section existed. */}
-      <CollapsibleSection title="ATC Delays">
+      <CollapsibleSection defaultOpen={expanded} title="ATC Delays">
         <p className="text-sm text-muted-foreground">
           Not fetched here -- check current delays and flow-control advisories:{" "}
           <a
@@ -571,7 +575,7 @@ export default function FlightBriefingView({
         </p>
       </CollapsibleSection>
 
-      <CollapsibleSection title="Airport Information">
+      <CollapsibleSection defaultOpen={expanded} title="Airport Information">
         {!briefing ? (
           <p className="text-sm text-muted-foreground">{briefingPendingMessage}</p>
         ) : (

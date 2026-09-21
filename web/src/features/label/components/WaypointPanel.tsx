@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useRef } from "react";
 import clsx from "clsx";
-import { Eraser, ListFilter, Undo2 } from "lucide-react";
+import { BrainCircuit, Eraser, ListFilter, Undo2 } from "lucide-react";
+import { useRetrain } from "../../dev/useRetrain";
 import IconButton from "../../../components/IconButton";
 import { NoteRow, SelectableRow } from "../../../components/SelectableRows";
 import { Badge } from "../../../components/ui/badge";
@@ -68,6 +69,11 @@ export default function WaypointPanel({
   rated, total, hidden, filters, counts, onFilterChange, canUndo, onUndo, onResetAll,
 }: Props) {
   const selectedRef = useRef<HTMLTableRowElement>(null);
+  // Retrain from here, beside Undo and Reset: the ratings this drawer
+  // makes are what a retrain learns from, so the button that starts
+  // one belongs with them. The dev console's Training Model tab
+  // reports the run.
+  const retrain = useRetrain();
   // Selecting a point on the map (or by stepping) should be as visible
   // here as clicking the row itself would have been -- otherwise the
   // highlighted row can be scrolled out of view and looks like nothing
@@ -89,7 +95,7 @@ export default function WaypointPanel({
     <div className="flex h-full flex-col overflow-hidden bg-background">
       <div className="flex flex-col gap-1 border-b border-border p-3 text-sm">
         <div className="flex items-center gap-2">
-          <span className="font-semibold text-muted-foreground">Waypoints</span>
+          <span className="font-semibold text-muted-foreground" data-testid="drawer-title">Model Training</span>
           <div className="ml-auto flex items-center gap-1">
             <Popover>
               <PopoverTrigger asChild>
@@ -119,6 +125,14 @@ export default function WaypointPanel({
               disabled={rated === 0}
             >
               <Eraser className="size-5" />
+            </IconButton>
+            <IconButton
+              label={retrain.running ? "Retraining…" : retrain.reachable ? "Retrain the model on every rating" : "Retrain (Airflow is not reachable)"}
+              onClick={retrain.start}
+              disabled={!retrain.canStart}
+              data-testid="retrain-button"
+            >
+              <BrainCircuit className={retrain.running ? "size-5 animate-pulse" : "size-5"} />
             </IconButton>
           </div>
         </div>

@@ -57,11 +57,8 @@ export default function OverlayPin({ map, basemaps }: Props) {
       aria-pressed={pinned}
       title={pinned ? `Unpin the ${offer.label}` : `Pin the ${offer.label} over the chart`}
       data-testid="overlay-pin"
-      // z-[1000]: over Leaflet's own panes (tiles at 200, markers at
-      // 600, popups at 700), the same level Leaflet gives its controls;
-      // still inside the map's own stacking context, so a drawer
-      // opened over the map covers it along with the map.
-      className="absolute right-2 top-2 z-[1000] shadow-sm"
+      // Placed by `MapControls`, under the map's own buttons.
+      className="shadow-sm"
       // A tap decides; the preview ends with it either way, so an
       // unpin under a resting pointer shows the base chart at once.
       onClick={() => { basemaps?.preview(false); chartLayers.setTac(!pinned); }}

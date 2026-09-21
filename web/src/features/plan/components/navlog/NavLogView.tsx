@@ -8,7 +8,6 @@ import {
 import CollapsibleSection from "../../../../components/CollapsibleSection";
 import IconButton from "../../../../components/IconButton";
 import { NoteRow, SelectableRow } from "../../../../components/SelectableRows";
-import { useDetailsOpenForPrint } from "../../../../lib/useDetailsOpenForPrint";
 import { Button } from "../../../../components/ui/button";
 import { Input } from "../../../../components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "../../../../components/ui/popover";
@@ -414,11 +413,6 @@ export default function NavLogView({
   useEffect(() => {
     selectedRef.current?.scrollIntoView({ block: "nearest" });
   }, [selectedPoint]);
-  // The whole scroller -- the nav log's own section and the briefing's
-  // -- opens for the print and closes back afterwards.
-  const scrollerRef = useRef<HTMLDivElement>(null);
-  useDetailsOpenForPrint(scrollerRef);
-
   const isSelected = (lat: number, lon: number) =>
     !!selectedPoint && descriptionKey(lat, lon) === descriptionKey(selectedPoint.lat, selectedPoint.lon);
 
@@ -527,7 +521,7 @@ export default function NavLogView({
           named here instead, and the buttons drop out. */}
       <div className="flex flex-col gap-1 border-b border-border p-3 text-sm">
         <div className="flex items-center gap-2">
-          <span className="font-semibold text-muted-foreground">{expanded ? "Flight briefing" : "Nav log"}</span>
+          <span className="font-semibold text-muted-foreground" data-testid="drawer-title">Flight Planning</span>
           <span className="hidden text-muted-foreground print:inline">{dep} → {dest}</span>
           <div className="ml-auto flex items-center gap-1 print:hidden">
             {/* A wand, not the narrative's own sparkles: with the
@@ -550,7 +544,7 @@ export default function NavLogView({
                 back, which is all that step is. */}
             <IconButton
               onClick={onToggleExpanded}
-              label={expanded ? "Back to the nav log" : "Open the briefing"}
+              label={expanded ? "Just the nav log" : "The whole briefing"}
               data-testid="sidebar-expand-toggle"
             >
               {expanded ? <Minimize2 className="size-5" /> : <BookOpenText className="size-5" />}
@@ -711,11 +705,10 @@ export default function NavLogView({
           </div>
         )}
       </div>
-      {/* `flight-briefing` while wide: index.css's print rules force
-          every <details> under it open on paper -- the nav log's own
+      {/* `flight-briefing` while wide: index.css's print rules show
+          every closed section under it on paper -- the nav log's own
           section below and the briefing's alike. */}
       <div
-        ref={scrollerRef}
         className={clsx("min-h-0 flex-1 overflow-auto p-3 print:h-auto print:overflow-visible", expanded && "flight-briefing")}
         data-testid="navlog-scroller"
       >
@@ -728,7 +721,7 @@ export default function NavLogView({
           // sections' own cards (CollapsibleSection's mx-2) up with
           // the drawer's padding.
           <div className="-mx-2">
-            <CollapsibleSection title="Nav log">{navLogTable}</CollapsibleSection>
+            <CollapsibleSection title="Nav log" defaultOpen>{navLogTable}</CollapsibleSection>
             {children}
           </div>
         ) : (

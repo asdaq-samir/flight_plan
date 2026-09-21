@@ -1,5 +1,6 @@
 import L from "leaflet";
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import MapControls, { type ZoomControl } from "../../../components/MapControls";
 import OverlayPin from "../../../components/OverlayPin";
 import type { Course, Point } from "../../../lib/api/types";
 import { isEndpoint } from "../../../lib/api/types";
@@ -27,6 +28,8 @@ interface Props {
   onDeselect: () => void;
   onAddAt: (lat: number, lon: number) => void;
   onMapReady?: (map: L.Map) => void;
+  /** The fit-line / show-selected toggle, drawn on the map (`MapControls`). */
+  zoom: ZoomControl;
 }
 
 /**
@@ -42,7 +45,7 @@ interface Props {
  */
 export default function ChartMap({
   course, endpoints, detections, added, filters, selected, selectedContent, showMenu,
-  onSelect, onDeselect, onAddAt, onMapReady,
+  onSelect, onDeselect, onAddAt, onMapReady, zoom,
 }: Props) {
   const { el, map } = useLeafletMap(m => onMapReady?.(m));
   const layers = useRef<Record<string, L.Layer | null>>({});
@@ -166,7 +169,9 @@ export default function ChartMap({
   return (
     <div className="relative h-full w-full">
       <div ref={el} className="h-full w-full bg-slate-100 dark:bg-slate-900" />
-      <OverlayPin map={pinTargets?.map ?? null} basemaps={pinTargets?.basemaps ?? null} />
+      <MapControls zoom={zoom}>
+        <OverlayPin map={pinTargets?.map ?? null} basemaps={pinTargets?.basemaps ?? null} />
+      </MapControls>
     </div>
   );
 }

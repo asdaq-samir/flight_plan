@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useLocation } from "react-router-dom";
 import { ExternalLink, RefreshCw, SquareTerminal } from "lucide-react";
@@ -6,7 +6,6 @@ import { toast } from "sonner";
 import { Bar, BarChart, Cell, LabelList, XAxis, YAxis } from "recharts";
 import { cn } from "cn";
 import IconButton from "../../components/IconButton";
-import RouteForm from "../../components/RouteForm";
 import ThemeToggle from "../../components/ThemeToggle";
 import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
@@ -16,13 +15,14 @@ import {
 } from "../../components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../components/ui/tabs";
 import { api, describeError, errorMessage } from "../../lib/api/client";
-import { identSchema } from "../../lib/identSchema";
 import type { ModelComparisonEntry, Status } from "../../lib/api/types";
 import { useErrorToasts } from "../../lib/usePageStatus";
+import RatingGuide from "../label/components/RatingGuide";
 import { elapsed } from "../plan/format";
+import { useRetrain } from "./useRetrain";
 
 const mae = (n: number) => n.toFixed(4);
-/** Every rating on every collected corridor: what the next retrain reads. */
+/** Every rating on every collected route: what the next retrain reads. */
 const ratings = (status: Status) => status.corridors.reduce((n, c) => n + c.labels.total, 0);
 
 /** "just now", "12 min ago", "3 h ago", or the date -- for a timestamp
@@ -42,10 +42,10 @@ const CHART_KIND_LABELS: Record<string, string> = {
   sec: "Sectional", tac: "TAC", ifr_low: "IFR low", ifr_high: "IFR high", ifr_area: "IFR area",
 };
 // The tab the console was last on, remembered per browser: a developer
-// watching a retrain or a corridor collection reopens the console to
-// the same tab, not to Model every time.
+// watching a retrain or a route being collected reopens the console to
+// the same tab, not to Model Training every time.
 const TAB_KEY = "dev.tab";
-const TABS = ["performance", "training", "system"];
+const TABS = ["training", "performance", "system"];
 
 /** The header button that opens the console -- `aria-expanded` so the
  *  state is readable, the same as the sidebar's own toggle. A console
@@ -53,7 +53,7 @@ const TABS = ["performance", "training", "system"];
  *  link on Plan carries it), and one glyph should mean one thing. */
 export function DevButton({ open, onClick }: { open: boolean; onClick: () => void }) {
   return (
-    <IconButton label="Dev console" aria-expanded={open} onClick={onClick} data-testid="dev-console-button">
+    <IconButton label="Developer" aria-expanded={open} onClick={onClick} data-testid="dev-console-button">
       <SquareTerminal className="size-5" />
     </IconButton>
   );
@@ -62,15 +62,19 @@ export function DevButton({ open, onClick }: { open: boolean; onClick: () => voi
 /**
  * The developer's own console, in a `MapDrawer` dropping down over the
  * labeling map (see DevView): what the repo does that a pilot never
- * sees, one tab each. Model -- every algorithm trained, the promoted
- * one and the registry behind it, and a retrain through Airflow.
- * Corridors -- what has been collected, how far its labels have come,
- * and a form to collect another. System -- which services answer, how
- * fresh the FAA and weather data is, and the doors into the rest of
- * the stack (API docs, Jupyter, Airflow, the MCP server). All of it
- * from one `/api/status` snapshot, refreshed while open. The pilot's
- * page has the same drawer in the same place, holding the pilot's
- * things instead (see PilotPanel).
+ * sees, one tab each. Model Training, first -- the three steps that
+ * change the model (collect a route, rate it, retrain), the routes
+ * collected and how far their ratings have come, the rating guide and
+ * the last training run; no inputs of its own, since the header's
+ * route form loads and collects routes and the Retrain button sits in
+ * the Model Training drawer beside the ratings it learns from.
+ * Performance -- every algorithm trained, the promoted one and the
+ * registry behind it. System -- which
+ * services answer, how fresh the FAA and weather data is, the charts,
+ * and the doors into the rest of the stack. All of it from one
+ * `/api/status` snapshot, refreshed while open. The pilot's page has
+ * the same drawer in the same place, holding the pilot's things
+ * instead (see PilotPanel).
  */
 export function DevPanel() {
   const queryClient = useQueryClient();
@@ -82,9 +86,9 @@ export function DevPanel() {
   const [tab, setTab] = useState(() => {
     try {
       const saved = localStorage.getItem(TAB_KEY);
-      return saved && TABS.includes(saved) ? saved : "performance";
+      return saved && TABS.includes(saved) ? saved : "training";
     } catch {
-      return "performance";
+      return "training";
     }
   });
   const changeTab = (value: string) => {
@@ -104,8 +108,8 @@ export function DevPanel() {
         <Tabs value={tab} onValueChange={changeTab}>
           <div className="flex flex-wrap items-center justify-between gap-2">
             <TabsList>
+              <TabsTrigger value="training">Model Training</TabsTrigger>
               <TabsTrigger value="performance">Performance</TabsTrigger>
-              <TabsTrigger value="training">Training Model</TabsTrigger>
               <TabsTrigger value="system">System</TabsTrigger>
             </TabsList>
             <div className="flex items-center gap-2">
@@ -116,8 +120,8 @@ export function DevPanel() {
               <ThemeToggle />
             </div>
           </div>
-          <TabsContent value="performance" className="mt-3"><PerformanceTab status={status} /></TabsContent>
           <TabsContent value="training" className="mt-3"><TrainingTab status={status} /></TabsContent>
+          <TabsContent value="performance" className="mt-3"><PerformanceTab status={status} /></TabsContent>
           <TabsContent value="system" className="mt-3"><SystemTab status={status} /></TabsContent>
         </Tabs>
       </div>
@@ -289,25 +293,17 @@ function Step({ n, title, description, children }: { n: number; title: string; d
 }
 
 /** The one action that changes the model, laid out as the three steps
- *  it takes: collect a corridor so its candidate landmarks exist, rate
- *  its checkpoints on the Label page (what the model learns from), then
- *  retrain. This planner cannot train in-process (no scikit-learn of
- *  its own, on purpose), so the retrain goes through Airflow, the same
- *  DAG the AWS trigger Lambda starts; without Airflow reachable it says
- *  how to run the pipeline by hand instead. */
+ *  it takes: collect a route so its candidate landmarks exist, rate
+ *  its checkpoints in the side drawer (what the model learns
+ *  from), then retrain -- from the button beside those ratings. No
+ *  inputs here: the header's route form is what loads a route and
+ *  offers to collect it. This planner cannot train in-process (no
+ *  scikit-learn of its own, on purpose), so the retrain goes through
+ *  Airflow, the same DAG the AWS trigger Lambda starts; without Airflow
+ *  reachable the tab says how to run the pipeline by hand instead. */
 function TrainingTab({ status }: { status: Status | undefined }) {
-  const queryClient = useQueryClient();
-  const retrain = useMutation({
-    mutationFn: api.retrain,
-    onSuccess: run => {
-      toast.success("Retrain started", { description: run.dag_run_id ? `Airflow run ${run.dag_run_id}` : undefined });
-      void queryClient.invalidateQueries({ queryKey: ["status"] });
-    },
-    onError: err => toast.error(describeError(err, "Could not start a retrain"), { duration: 10000 }),
-  });
+  const { pipeline, lastRun } = useRetrain();
   const model = status?.model;
-  const pipeline = status?.pipeline;
-  const lastRun = pipeline?.last_run;
   const corridors = status?.corridors ?? [];
   // The route on the map behind the console, to mark its row and to
   // point the rating step at it.
@@ -319,15 +315,14 @@ function TrainingTab({ status }: { status: Status | undefined }) {
     <div className="space-y-6">
       <Step
         n={1}
-        title="Collect a corridor"
-        description="A corridor is the strip along a route that the pipeline has collected: every candidate landmark from OpenStreetMap and the FAA files within it, with the features the model scores them by. The planner can score checkpoints only on a collected corridor. Enter a route to collect one -- Overpass, the FAA files and an elevation lookup per candidate, a few minutes in the background -- or pick one below."
+        title="Collect a route"
+        description="Collecting a route gathers every candidate landmark from OpenStreetMap and the FAA files within ten miles of the course, with the features the model scores them by -- Overpass, the FAA files and an elevation lookup per candidate, a few minutes in the background. The planner can score checkpoints only on a collected route. Load a route in the header above; one not yet collected offers to be. These are collected so far:"
       >
-        <CollectCorridor />
-        <Table containerClassName="mt-3 rounded-md border" className="min-w-[40rem]">
-          <TableCaption className="sr-only">Collected corridors</TableCaption>
+        <Table containerClassName="rounded-md border" className="min-w-[40rem]">
+          <TableCaption className="sr-only">Collected routes</TableCaption>
           <TableHeader>
             <TableRow>
-              <TableHead>Corridor</TableHead>
+              <TableHead>Route</TableHead>
               <TableHead className="text-right">Candidates</TableHead>
               <TableHead className="text-right">Rated</TableHead>
               <TableHead className="text-right">Added</TableHead>
@@ -340,7 +335,7 @@ function TrainingTab({ status }: { status: Status | undefined }) {
             {corridors.length === 0 && (
               <TableRow>
                 <TableCell colSpan={7} className="h-16 text-center text-muted-foreground">
-                  {status ? "No corridor has been collected yet." : "Loading…"}
+                  {status ? "No route has been collected yet." : "Loading…"}
                 </TableCell>
               </TableRow>
             )}
@@ -380,21 +375,24 @@ function TrainingTab({ status }: { status: Status | undefined }) {
       <Step
         n={2}
         title="Rate its checkpoints"
-        description="Close this console and walk the route on the map behind it: every candidate in flight order, rated 0 to 5 for how findable it is from the air (Space starts, the arrow keys step, the digits rate). Each rating is one labelled example; the model learns from nothing else."
+        description="Close this drawer and walk the route on the map behind it, from the Model Training drawer at the side: every candidate in flight order, rated 0 to 5 for how findable it is from the air (Space starts, the arrow keys step, the digits rate). Each rating is one labelled example; the model learns from nothing else."
       >
         {onMap ? (
           <p className="text-sm text-muted-foreground">
             {onMap.departure_ident} → {onMap.destination_ident} is on the map now: {onMap.labels.total} of {onMap.candidates ?? "—"} candidates rated.
           </p>
         ) : (
-          <p className="text-sm text-muted-foreground">Pick a corridor above with Rate to bring it onto the map.</p>
+          <p className="text-sm text-muted-foreground">Pick a route above with Rate to bring it onto the map.</p>
         )}
+        <div className="mt-3 rounded-md border border-border p-3">
+          <RatingGuide />
+        </div>
       </Step>
 
       <Step
         n={3}
         title="Retrain"
-        description="Reads every rating across every corridor, fits every algorithm in the Performance tab's comparison, and promotes the best one only if it beats the model serving now."
+        description="The Retrain button is in the Model Training drawer at the side, beside Undo and Reset. It reads every rating across every route, fits every algorithm in the Performance tab's comparison, and promotes the best one only if it beats the model serving now."
       >
         {pipeline?.airflow_reachable ? (
           <div className="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm">
@@ -428,80 +426,13 @@ function TrainingTab({ status }: { status: Status | undefined }) {
             {" "}-- the registry promotes it if it beats the current model.
           </p>
         )}
-        <div className="mt-2 flex flex-wrap items-center gap-3">
-          <Button
-            type="button" size="sm"
-            onClick={() => retrain.mutate()}
-            disabled={retrain.isPending || !pipeline?.airflow_reachable || lastRun?.state === "running" || lastRun?.state === "queued"}
-          >
-            {retrain.isPending ? "Starting…" : lastRun?.state === "running" || lastRun?.state === "queued" ? "Retraining…" : "Retrain through Airflow"}
-          </Button>
-          {status && (
-            <span className="text-xs text-muted-foreground">
-              {ratings(status)} ratings across {status.corridors.length} corridor{status.corridors.length === 1 ? "" : "s"} to learn from
-              {model?.current?.n_labeled != null && `; the serving model learned from ${model.current.n_labeled}`}.
-            </span>
-          )}
-        </div>
+        {status && (
+          <p className="mt-2 text-xs text-muted-foreground">
+            {ratings(status)} ratings across {status.corridors.length} route{status.corridors.length === 1 ? "" : "s"} to learn from
+            {model?.current?.n_labeled != null && `; the serving model learned from ${model.current.n_labeled}`}.
+          </p>
+        )}
       </Step>
-    </div>
-  );
-}
-
-/** Collect a corridor from here -- the same background job Plan's own
- *  "Collect this route" notice starts, polled the same way. */
-function CollectCorridor() {
-  const queryClient = useQueryClient();
-  const [dep, setDep] = useState("");
-  const [dest, setDest] = useState("");
-  const [progress, setProgress] = useState<string | null>(null);
-  const startedAt = useRef(0);
-  const timer = useRef<number | null>(null);
-  useEffect(() => () => { if (timer.current) window.clearInterval(timer.current); }, []);
-
-  const collect = useCallback(async () => {
-    const d = identSchema.safeParse(dep).data, a = identSchema.safeParse(dest).data;
-    if (!d || !a || d === a) {
-      toast.error("Enter two different airport identifiers.");
-      return;
-    }
-    try {
-      const job = await api.startBuild(d, a);
-      if (job.state === "done" || !job.job_id) {
-        toast.info(`${d} → ${a} is already collected.`);
-        return;
-      }
-      const jobId = job.job_id;
-      startedAt.current = Date.now();
-      setProgress(job.step);
-      timer.current = window.setInterval(async () => {
-        try {
-          const current = await api.buildStatus(jobId);
-          setProgress(`${current.step} — ${elapsed(Date.now() - startedAt.current)} elapsed`);
-          if (current.state === "done" || current.state === "failed") {
-            if (timer.current) window.clearInterval(timer.current);
-            setProgress(null);
-            if (current.state === "done") {
-              toast.success(`${d} → ${a} collected`);
-              void queryClient.invalidateQueries({ queryKey: ["status"] });
-              void queryClient.invalidateQueries({ queryKey: ["routes"] });
-            } else {
-              toast.error(current.detail ?? "collection failed", { duration: 10000 });
-            }
-          }
-        } catch {
-          // a transient blip should not abandon a running job
-        }
-      }, 2000);
-    } catch (err) {
-      toast.error(describeError(err, "Could not start collecting"));
-    }
-  }, [dep, dest, queryClient]);
-
-  return (
-    <div className="flex flex-wrap items-center gap-3">
-      <RouteForm dep={dep} dest={dest} onDepChange={setDep} onDestChange={setDest} onSubmit={() => void collect()} disabled={progress !== null} />
-      {progress && <p className="text-sm text-muted-foreground">{progress}</p>}
     </div>
   );
 }
