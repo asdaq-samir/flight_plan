@@ -108,11 +108,16 @@ export function createBasemaps(map: L.Map, cfg: Course) {
   // stops that three levels later: an 8x upscale is still a legible
   // (if soft) chart, and with no other layer to fall back to there is
   // nothing to show past it -- so it is also as far as the map zooms.
-  const sectional = L.tileLayer("/api/planner/sectional-tile/{z}/{x}/{y}.png", {
-    attribution: "FAA VFR charts",
+  // `?c=<cycle>` on every tile URL: the tiles are cacheable for
+  // weeks, and a browser that cached this {z}/{x}/{y} under an earlier
+  // edition -- or under the hosted map service this app drew before,
+  // whose no-coverage checkerboard a phone kept showing for a day --
+  // must ask again when the edition changes.
+  const sectional = L.tileLayer("/api/planner/sectional-tile/{z}/{x}/{y}.png?c={cycle}", {
+    attribution: "FAA VFR charts", cycle: cfg.chart_cycle,
     minZoom: cfg.min_zoom, maxNativeZoom: cfg.max_zoom, maxZoom: cfg.max_zoom + 3,
     keepBuffer: 4,
-  }).addTo(map);
+  } as L.TileLayerOptions).addTo(map);
 
   // The terminal area chart, over the sectional -- rendered the same
   // way from the FAA's TAC sheets, one zoom finer, and transparent (a
@@ -130,10 +135,11 @@ export function createBasemaps(map: L.Map, cfg: Course) {
     const minZoom = tacOverlay.get() ? cfg.tac_min_zoom : tacAlwaysFrom;
     if (tac && tac.options.minZoom === minZoom) return;
     if (tac) map.removeLayer(tac);
-    tac = L.tileLayer("/api/planner/tac-tile/{z}/{x}/{y}.png", {
+    tac = L.tileLayer("/api/planner/tac-tile/{z}/{x}/{y}.png?c={cycle}", {
+      cycle: cfg.chart_cycle,
       minZoom, maxNativeZoom: cfg.tac_max_zoom, maxZoom: cfg.tac_max_zoom + 3,
       keepBuffer: 2, zIndex: 5,
-    }).addTo(map);
+    } as L.TileLayerOptions).addTo(map);
   };
   applyTac();
   const unsubscribe = tacOverlay.subscribe(applyTac);
@@ -165,9 +171,12 @@ export function fromZoom(map: L.Map, layer: L.Layer, minZoom: number): () => voi
 
 /** Where the checkpoint markers appear (RouteMap's selected
  *  checkpoints, and one level further in the scored candidates and
- *  the labeling page's detections, which are many more). */
-export const MARKERS_FROM_ZOOM = 7;
-export const CROWD_FROM_ZOOM = 8;
+ *  the labeling page's detections, which are many more). Low on
+ *  purpose: a phone fits a 300 nm route at zoom 6, and a pilot who
+ *  opens a route expects to see its checkpoints, so only the
+ *  whole-country zooms go without. */
+export const MARKERS_FROM_ZOOM = 5;
+export const CROWD_FROM_ZOOM = 6;
 
 /**
  * The course: a white casing under an orange-red core, plus a wide

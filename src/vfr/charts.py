@@ -59,8 +59,13 @@ from .config import (
     CHARTS_DIR,
     FAA_CHART_CYCLE_ANCHOR,
     FAA_CHART_CYCLE_DAYS,
-    FAA_CHART_ZIP_URL,
+    FAA_ENROUTE_ZIP_URL,
     FAA_VFR_PRODUCTS_PAGE,
+    FAA_VISUAL_ZIP_URL,
+    IFR_HIGH_MAX_ZOOM,
+    IFR_HIGH_MIN_ZOOM,
+    IFR_LOW_MAX_ZOOM,
+    IFR_LOW_MIN_ZOOM,
     VFR_SECTIONAL_MAX_ZOOM,
     VFR_SECTIONAL_MIN_ZOOM,
     VFR_TAC_MAX_ZOOM,
@@ -84,10 +89,10 @@ Box = tuple[float, float, float, float]  # (west, south, east, north), degrees
 
 @dataclass(frozen=True)
 class ChartKind:
-    key: str            # what the API and the tile cache call it
-    folder: str         # the FAA's folder under a cycle
-    zip_suffix: str     # appended to the chart name in the zip's name
-    raster_suffix: str  # which members of the zip are the chart (a TAC zip also carries the flyway planning chart)
+    key: str                 # what the API and the tile cache call it
+    label: str               # what the map's layer picker calls it
+    zip_url: str             # the FAA's URL template for one chart's zip, with {cycle} and {name}
+    raster_suffixes: tuple   # which members of the zip are the chart (a TAC zip also carries the flyway planning chart)
     min_zoom: int
     max_zoom: int
     # Typical collar widths (west, south, east, north) in degrees, for
@@ -95,22 +100,77 @@ class ChartKind:
     # collar is the legend column, its north one the communication
     # boxes; a TAC carries its legend down both sides.
     fallback_collar: Box
+    # A base layer the map draws one of (sectional, IFR low, IFR high),
+    # or an overlay drawn on top of the sectional (the TAC).
+    base: bool = True
 
 
-SECTIONAL = ChartKind("sec", "sectional-files", "", " SEC.tif", VFR_SECTIONAL_MIN_ZOOM, VFR_SECTIONAL_MAX_ZOOM,
-                      (1.1, 0.2, 0.35, 0.55))
-TAC = ChartKind("tac", "tac-files", "_TAC", " TAC.tif", VFR_TAC_MIN_ZOOM, VFR_TAC_MAX_ZOOM,
-                (0.35, 0.02, 0.35, 0.08))
-KINDS = {kind.key: kind for kind in (SECTIONAL, TAC)}
+SECTIONAL = ChartKind(
+    "sec", "Sectional", FAA_VISUAL_ZIP_URL.replace("{folder}", "sectional-files"), (" SEC.tif", " VFR Chart.tif"),
+    VFR_SECTIONAL_MIN_ZOOM, VFR_SECTIONAL_MAX_ZOOM, (1.1, 0.2, 0.35, 0.55),
+)
+TAC = ChartKind(
+    "tac", "Terminal area", FAA_VISUAL_ZIP_URL.replace("{folder}", "tac-files").replace("{name}", "{name}_TAC"),
+    (" TAC.tif",), VFR_TAC_MIN_ZOOM, VFR_TAC_MAX_ZOOM, (0.35, 0.02, 0.35, 0.08), base=False,
+)
+IFR_LOW = ChartKind(
+    "ifr_low", "IFR low", FAA_ENROUTE_ZIP_URL, (".tif",), IFR_LOW_MIN_ZOOM, IFR_LOW_MAX_ZOOM, (0.3, 0.3, 0.3, 0.3),
+)
+IFR_HIGH = ChartKind(
+    "ifr_high", "IFR high", FAA_ENROUTE_ZIP_URL, (".tif",), IFR_HIGH_MIN_ZOOM, IFR_HIGH_MAX_ZOOM, (0.3, 0.3, 0.3, 0.3),
+)
+KINDS = {kind.key: kind for kind in (SECTIONAL, TAC, IFR_LOW, IFR_HIGH)}
+
+# The two Caribbean VFR charts are sectional-scale sheets published
+# under their own folder with their own naming.
+_ZIP_URL_OVERRIDES = {
+    ("sec", "Caribbean_1_VFR"): FAA_VISUAL_ZIP_URL.replace("{folder}", "Caribbean"),
+    ("sec", "Caribbean_2_VFR"): FAA_VISUAL_ZIP_URL.replace("{folder}", "Caribbean"),
+}
+
+
+def zip_url(kind: ChartKind, name: str, cycle: str) -> str:
+    return _ZIP_URL_OVERRIDES.get((kind.key, name), kind.zip_url).format(cycle=cycle, name=name)
+
+
+def _is_chart_member(kind: ChartKind, member: str) -> bool:
+    """Whether a zip member is a sheet to draw. Insets are not: the
+    Honolulu inset in the Hawaiian Islands zip and the Boston and
+    Wilmington insets in the IFR zips are larger-scale excerpts that
+    would paint over the sheet they sit on."""
+    upper = member.upper()
+    if " INSET " in upper or "_INSET" in upper:
+        return False
+    return any(member.endswith(suffix) for suffix in kind.raster_suffixes)
+
 
 # Every chart's raster envelope (west, south, east, north), collar
 # included, keyed by the name the FAA's zip carries. Read from the FGDC
 # .htm inside each zip of the 09-03-2026 cycle; the sheets do not move
 # between editions. A TAC zip can hold more than one chart (Denver's
 # also carries Colorado Springs, Seattle's carries Portland) -- listed
-# as the union, since the zip is the unit of download.
+# as the union, since the zip is the unit of download. Not listed: the
+# Western Aleutian Islands sheets, which straddle the antimeridian, a
+# case the tile arithmetic here does not handle.
 COVERAGE: dict[str, dict[str, Box]] = {
     "sec": {
+        "Anchorage": (-153.84, 59.43, -139.35, 64.29),
+        "Bethel": (-174.88, 59.44, -160.30, 64.31),
+        "Cape_Lisburne": (-175.38, 67.41, -154.93, 72.29),
+        "Caribbean_1_VFR": (-86.97, 14.81, -71.71, 27.52),
+        "Caribbean_2_VFR": (-74.85, 12.72, -60.23, 22.25),
+        "Cold_Bay": (-165.36, 53.75, -154.08, 56.26),
+        "Dawson": (-147.66, 63.43, -130.71, 68.30),
+        "Dutch_Harbor": (-174.37, 51.44, -163.08, 56.25),
+        "Fairbanks": (-160.71, 63.44, -143.70, 68.31),
+        "Hawaiian_Islands": (-161.76, 17.71, -153.36, 24.02),
+        "Juneau": (-142.36, 55.44, -129.70, 60.29),
+        "Ketchikan": (-140.49, 51.47, -129.24, 56.25),
+        "Kodiak": (-163.38, 55.47, -150.70, 60.28),
+        "McGrath": (-164.22, 59.44, -149.89, 64.27),
+        "Nome": (-173.61, 63.46, -156.64, 68.31),
+        "Point_Barrow": (-159.62, 67.42, -139.13, 72.34),
+        "Seward": (-154.17, 59.03, -139.95, 61.60),
         "Albuquerque": (-110.22, 31.50, -101.76, 36.29),
         "Atlanta": (-89.24, 31.82, -80.75, 36.62),
         "Billings": (-110.59, 44.29, -100.27, 49.10),
@@ -172,11 +232,64 @@ COVERAGE: dict[str, dict[str, Box]] = {
         "Philadelphia": (-76.42, 38.98, -73.86, 40.63),
         "Phoenix": (-113.57, 32.75, -111.15, 34.20),
         "Pittsburgh": (-81.38, 39.92, -78.96, 41.11),
+        "Puerto_Rico-VI": (-67.81, 17.61, -64.22, 18.80),
         "Salt_Lake_City": (-113.32, 40.09, -110.64, 41.55),
         "San_Diego": (-119.04, 32.45, -116.27, 33.65),
         "San_Francisco": (-123.91, 36.86, -121.36, 38.26),
         "Seattle": (-123.70, 45.15, -121.04, 48.17),
         "St_Louis": (-91.46, 38.11, -89.21, 39.33),
+    },
+    "ifr_low": {
+        "enr_l01": (-128.23, 41.30, -118.39, 50.14),
+        "enr_l02": (-126.83, 35.77, -118.93, 44.32),
+        "enr_l03": (-124.28, 31.69, -116.81, 40.79),
+        "enr_l04": (-123.14, 30.45, -113.18, 36.81),
+        "enr_l05": (-119.45, 29.09, -105.95, 36.55),
+        "enr_l06": (-108.38, 28.21, -101.04, 35.11),
+        "enr_l07": (-122.21, 32.74, -112.84, 37.35),
+        "enr_l08": (-115.54, 33.20, -102.74, 38.05),
+        "enr_l09": (-122.95, 34.35, -103.40, 42.92),
+        "enr_l10": (-108.79, 36.73, -92.85, 41.51),
+        "enr_l11": (-124.78, 36.82, -103.58, 46.80),
+        "enr_l12": (-110.58, 39.68, -90.35, 46.02),
+        "enr_l13": (-125.75, 40.83, -99.86, 51.86),
+        "enr_l14": (-107.40, 43.70, -85.91, 49.60),
+        "enr_l15": (-106.48, 34.52, -93.75, 38.42),
+        "enr_l16": (-97.16, 34.61, -84.41, 38.42),
+        "enr_l17": (-103.55, 31.63, -91.32, 35.29),
+        "enr_l18": (-94.60, 31.26, -82.41, 35.29),
+        "enr_l19": (-104.18, 28.46, -92.45, 32.16),
+        "enr_l20": (-102.89, 25.47, -91.60, 29.05),
+        "enr_l21": (-100.52, 22.33, -73.98, 31.80),
+        "enr_l22": (-93.68, 28.08, -81.95, 32.15),
+        "enr_l23": (-86.25, 23.41, -74.95, 28.18),
+        "enr_l24": (-83.91, 25.67, -78.34, 36.02),
+        "enr_l25": (-86.77, 33.84, -77.85, 37.13),
+        "enr_l26": (-85.89, 36.00, -77.42, 39.27),
+        "enr_l27": (-95.55, 37.56, -82.25, 41.56),
+        "enr_l28": (-94.05, 40.50, -80.11, 44.68),
+        "enr_l29": (-84.62, 37.89, -75.13, 41.36),
+        "enr_l30": (-83.90, 39.97, -74.10, 43.51),
+        "enr_l31": (-92.13, 41.53, -73.71, 48.60),
+        "enr_l32": (-83.67, 37.96, -60.26, 51.22),
+        "enr_l33": (-77.60, 38.51, -66.34, 45.31),
+        "enr_l34": (-79.13, 36.18, -70.17, 44.49),
+        "enr_l35": (-81.16, 31.71, -71.82, 39.71),
+        "enr_l36": (-81.86, 32.85, -73.54, 41.04),
+    },
+    "ifr_high": {
+        "enr_h01": (-135.13, 38.78, -103.00, 52.98),
+        "enr_h02": (-110.96, 42.71, -80.58, 50.18),
+        "enr_h03": (-132.60, 32.50, -103.43, 46.67),
+        "enr_h04": (-128.51, 26.59, -101.86, 40.17),
+        "enr_h05": (-109.43, 36.33, -81.97, 43.80),
+        "enr_h06": (-108.59, 29.92, -83.54, 37.35),
+        "enr_h07": (-107.59, 23.64, -84.57, 30.91),
+        "enr_h08": (-92.40, 21.52, -68.94, 32.12),
+        "enr_h09": (-90.50, 27.24, -65.01, 38.59),
+        "enr_h10": (-89.84, 33.28, -61.99, 45.03),
+        "enr_h11": (-89.84, 38.69, -59.58, 50.59),
+        "enr_h12": (-87.96, 27.71, -67.52, 47.37),
     },
 }
 
@@ -373,7 +486,7 @@ def ensure_chart(kind: ChartKind, name: str, cycle: str | None = None) -> Chart 
 def _download_and_prepare(kind: ChartKind, name: str, cycle: str) -> Chart:
     directory = _chart_dir(cycle, kind, name)
     directory.mkdir(parents=True, exist_ok=True)
-    url = FAA_CHART_ZIP_URL.format(cycle=cycle, folder=kind.folder, name=f"{name}{kind.zip_suffix}")
+    url = zip_url(kind, name, cycle)
     archive = directory / "chart.zip.part"
     started = time.time()
     with requests.get(url, headers=REQUEST_HEADERS, timeout=600, stream=True) as resp:
@@ -387,7 +500,7 @@ def _download_and_prepare(kind: ChartKind, name: str, cycle: str) -> Chart:
     paths = []
     with zipfile.ZipFile(archive) as z:
         for member in z.namelist():
-            if not member.endswith(kind.raster_suffix):
+            if not _is_chart_member(kind, member):
                 continue
             target = directory / Path(member).name
             with z.open(member) as src, target.open("wb") as dst:
@@ -395,7 +508,7 @@ def _download_and_prepare(kind: ChartKind, name: str, cycle: str) -> Chart:
             paths.append(target)
     archive.unlink()
     if not paths:
-        raise RuntimeError(f"no '{kind.raster_suffix}' member in {url}")
+        raise RuntimeError(f"no {kind.raster_suffixes} member in {url}")
 
     rasters = []
     for path in paths:
@@ -477,17 +590,26 @@ class _Ink:
     tint: np.ndarray    # pooled: fraction of neither
 
 
-def _palette(src) -> np.ndarray:
-    """The colormap as a (256, 3) RGB lookup."""
+def _palette(src) -> np.ndarray | None:
+    """The colormap as a (256, 3) RGB lookup -- None for a raster that
+    carries its colours as three bands (the IFR enroute charts)."""
+    if src.count >= 3:
+        return None
     cmap = src.colormap(1)
     return np.array([cmap.get(i, (0, 0, 0, 255))[:3] for i in range(256)], dtype=np.uint8)
 
 
+def _read_rgb(src, window=None, out_shape=None) -> np.ndarray:
+    """A window of the raster as (rows, cols, 3) RGB, whichever way the
+    file stores its colours."""
+    lut = _palette(src)
+    if lut is None:
+        shape = None if out_shape is None else (3, *out_shape)
+        return np.moveaxis(src.read([1, 2, 3], window=window, out_shape=shape), 0, -1)
+    return lut[src.read(1, window=window, out_shape=out_shape)]
+
+
 def _ink_maps(src) -> _Ink:
-    lut = _palette(src).astype(np.int16)
-    dark_lut = lut.sum(axis=1) < _DARK_MAX_RGB_SUM
-    white_lut = lut.min(axis=1) >= _WHITE_MIN_CHANNEL
-    tint_lut = ~dark_lut & ~white_lut
     pool = _POOL_PX
     rows, cols = src.height // pool, src.width // pool
     dark = np.zeros((rows, cols), dtype=bool)
@@ -496,11 +618,13 @@ def _ink_maps(src) -> _Ink:
     step = 1024
     for r0 in range(0, rows * pool, step):
         r1 = min(r0 + step, rows * pool)
-        block = src.read(1, window=((r0, r1), (0, cols * pool)))
+        rgb = _read_rgb(src, window=((r0, r1), (0, cols * pool))).astype(np.int16)
+        is_dark = rgb.sum(axis=2) < _DARK_MAX_RGB_SUM
+        is_white = rgb.min(axis=2) >= _WHITE_MIN_CHANNEL
         shape = ((r1 - r0) // pool, pool, cols, pool)
-        dark[r0 // pool:r1 // pool] = dark_lut[block].reshape(shape).any(axis=(1, 3))
-        white[r0 // pool:r1 // pool] = white_lut[block].reshape(shape).mean(axis=(1, 3))
-        tint[r0 // pool:r1 // pool] = tint_lut[block].reshape(shape).mean(axis=(1, 3))
+        dark[r0 // pool:r1 // pool] = is_dark.reshape(shape).any(axis=(1, 3))
+        white[r0 // pool:r1 // pool] = is_white.reshape(shape).mean(axis=(1, 3))
+        tint[r0 // pool:r1 // pool] = (~is_dark & ~is_white).reshape(shape).mean(axis=(1, 3))
     return _Ink(crs=src.crs, transform=src.transform, dark=dark, white=white, tint=tint)
 
 
@@ -654,7 +778,6 @@ def _warp_rgb(path: Path, bbox_3857: tuple, width: int, height: int, centre_lat:
 
     xmin, ymin, xmax, ymax = bbox_3857
     with rasterio.open(path) as src:
-        lut = _palette(src)
         ground_m_per_px = (xmax - xmin) / width * math.cos(math.radians(centre_lat))
         oversample = int(min(4, max(1, round(ground_m_per_px / float(src.res[0])))))
         w, h = width * oversample, height * oversample
@@ -667,10 +790,9 @@ def _warp_rgb(path: Path, bbox_3857: tuple, width: int, height: int, centre_lat:
             src, crs="EPSG:3857", transform=from_bounds(xmin, ymin, xmax, ymax, w, h),
             width=w, height=h, resampling=Resampling.nearest,
         ) as vrt:
-            indices = vrt.read(1)
-    rgb = lut[indices]
+            rgb = _read_rgb(vrt)
     if oversample > 1:
-        rgb = np.asarray(Image.fromarray(rgb).reduce(oversample))
+        rgb = np.asarray(Image.fromarray(np.ascontiguousarray(rgb)).reduce(oversample))
     return rgb
 
 
@@ -810,7 +932,7 @@ def tile_cached(x: int, y: int, zoom: int, kind: str = "sec") -> bool:
     return _tile_path(KINDS[kind], serving_cycle(), x, y, zoom).exists()
 
 
-def prepare_for_bbox(bbox: Box, kinds: tuple = ("sec", "tac")) -> list:
+def prepare_for_bbox(bbox: Box, kinds: tuple = tuple(KINDS)) -> list:
     """Download and prepare every chart of the given kinds whose raster
     touches `bbox` -- the corridor read and the warm-up call this so a
     route's charts are ready before its tiles are asked for."""
@@ -887,12 +1009,16 @@ def status() -> dict:
         }
         for c in prepared_charts()
     ]
-    tiles = sum(1 for _ in CHART_TILE_CACHE_DIR.rglob("*.png")) if CHART_TILE_CACHE_DIR.exists() else 0
     serving, current = serving_cycle(), current_cycle(fetch=False)
+    pyramid = pyramid_status(serving)
+    # What the pyramid wrote, not a walk of the cache: counting three
+    # hundred thousand files on a bind mount took the status endpoint
+    # (and the Dev console behind it) tens of seconds.
+    tiles = sum(p.get("tiles_written", 0) for p in pyramid.values())
     building = pyramid_status(current) if current != serving else {}
     return {
         "cycle": serving, "current_cycle": current, "charts": charts, "tiles_cached": tiles,
-        "pyramid": pyramid_status(serving), "building": building, "refresh_running": refresh_running(),
+        "pyramid": pyramid, "building": building, "refresh_running": refresh_running(),
     }
 
 
@@ -914,7 +1040,7 @@ def status() -> dict:
 _PYRAMID_STATUS = "pyramid.json"
 
 
-def prepare_all(kinds: tuple = ("sec", "tac"), cycle: str | None = None) -> list[Chart]:
+def prepare_all(kinds: tuple = tuple(KINDS), cycle: str | None = None) -> list[Chart]:
     """Every chart of the given kinds, downloaded and prepared: about
     5 GB for the country, twenty-odd seconds of overviews and neatline
     search per sheet on top of the download."""
@@ -1015,7 +1141,7 @@ def pyramid_status(cycle: str) -> dict:
         return {}
 
 
-def pyramid_complete(cycle: str, kinds: tuple = ("sec", "tac")) -> bool:
+def pyramid_complete(cycle: str, kinds: tuple = tuple(KINDS)) -> bool:
     progress = pyramid_status(cycle)
     return all(progress.get(k, {}).get("finished_at") for k in kinds)
 
@@ -1089,7 +1215,7 @@ def render_pyramid(kind: ChartKind, zooms: tuple | None = None, workers: int = 4
 _REFRESH_LOCK = "refresh.lock"
 
 
-def refresh(kinds: tuple = ("sec", "tac"), workers: int = 2, prune: bool = True) -> str:
+def refresh(kinds: tuple = tuple(KINDS), workers: int = 2, prune: bool = True) -> str:
     """Bring the FAA's current cycle to a complete pyramid, then drop
     older cycles. Returns the cycle. Idempotent: a complete cycle
     costs one status read."""

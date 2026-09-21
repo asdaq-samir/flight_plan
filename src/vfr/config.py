@@ -37,7 +37,8 @@ MIN_LABELED_ROWS = 30
 # cycle-dated URL; the anchor date is one such cycle, from which the
 # others are 56-day arithmetic when the page cannot be reached.
 FAA_VFR_PRODUCTS_PAGE = "https://www.faa.gov/air_traffic/flight_info/aeronav/digital_products/vfr/"
-FAA_CHART_ZIP_URL = "https://aeronav.faa.gov/visual/{cycle}/{folder}/{name}.zip"
+FAA_VISUAL_ZIP_URL = "https://aeronav.faa.gov/visual/{cycle}/{folder}/{name}.zip"
+FAA_ENROUTE_ZIP_URL = "https://aeronav.faa.gov/enroute/{cycle}/{name}.zip"
 FAA_CHART_CYCLE_ANCHOR = "2026-09-03"
 FAA_CHART_CYCLE_DAYS = 56
 
@@ -63,3 +64,10 @@ VFR_SECTIONAL_MAX_ZOOM = 12
 VFR_SECTIONAL_MIN_ZOOM = 3
 VFR_TAC_MAX_ZOOM = 13
 VFR_TAC_MIN_ZOOM = 10
+# The IFR enroute charts, as alternative base layers: the low-altitude
+# sheets are 1:1,000,000 or so (65 m per pixel in the FAA's rasters,
+# zoom 11), the high-altitude ones coarser still.
+IFR_LOW_MAX_ZOOM = 11
+IFR_LOW_MIN_ZOOM = 3
+IFR_HIGH_MAX_ZOOM = 10
+IFR_HIGH_MIN_ZOOM = 3

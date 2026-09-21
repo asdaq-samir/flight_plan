@@ -57,12 +57,32 @@ def test_coverage_index_is_well_formed():
     for kind, boxes in charts.COVERAGE.items():
         assert kind in charts.KINDS
         for name, (west, south, east, north) in boxes.items():
-            assert re.fullmatch(r"[A-Za-z][A-Za-z_\-]*", name), name
+            assert re.fullmatch(r"[A-Za-z][A-Za-z0-9_\-]*", name), name
             assert west < east and south < north, name
-            assert -130 < west and east < -60 and 20 < south and north < 50, name
-    # The route this project was built around is covered by both kinds.
-    assert charts._intersects(charts.COVERAGE["sec"]["Chicago"], (C81[1], C81[0], C81[1], C81[0]))
-    assert charts._intersects(charts.COVERAGE["tac"]["Chicago"], (C81[1], C81[0], C81[1], C81[0]))
+            # The Aleutians' western sheets straddle the antimeridian
+            # and are deliberately not listed.
+            assert -180 < west and east < -55 and 12 < south and north < 73, name
+    # The route this project was built around is covered by every kind.
+    here = (C81[1], C81[0], C81[1], C81[0])
+    for kind in charts.KINDS:
+        assert any(charts._intersects(box, here) for box in charts.COVERAGE[kind].values()), kind
+
+
+def test_zip_urls_follow_each_kind_and_the_caribbean_exception():
+    assert charts.zip_url(charts.SECTIONAL, "Green_Bay", "09-03-2026") == \
+        "https://aeronav.faa.gov/visual/09-03-2026/sectional-files/Green_Bay.zip"
+    assert charts.zip_url(charts.TAC, "Chicago", "09-03-2026") == \
+        "https://aeronav.faa.gov/visual/09-03-2026/tac-files/Chicago_TAC.zip"
+    assert charts.zip_url(charts.IFR_LOW, "enr_l12", "09-03-2026") == \
+        "https://aeronav.faa.gov/enroute/09-03-2026/enr_l12.zip"
+    assert charts.zip_url(charts.SECTIONAL, "Caribbean_1_VFR", "09-03-2026") == \
+        "https://aeronav.faa.gov/visual/09-03-2026/Caribbean/Caribbean_1_VFR.zip"
+    assert charts._is_chart_member(charts.SECTIONAL, "Hawaiian Islands SEC.tif")
+    assert not charts._is_chart_member(charts.SECTIONAL, "Honolulu Inset SEC.tif")
+    assert charts._is_chart_member(charts.SECTIONAL, "Caribbean 1 VFR Chart.tif")
+    assert not charts._is_chart_member(charts.TAC, "Chicago FLY.tif")
+    assert charts._is_chart_member(charts.IFR_LOW, "ENR_L34.tif")
+    assert not charts._is_chart_member(charts.IFR_LOW, "ENR_L34_BOST_INSET.tif")
 
 
 def test_snap_pulls_a_sectional_edge_onto_the_quarter_degree():
@@ -90,6 +110,32 @@ def _palette_raster(path, box_deg, data):
     ) as ds:
         ds.write(data, 1)
         ds.write_colormap(1, PALETTE)
+
+
+def _rgb_raster(path, box_deg, rgb):
+    """A three-band GeoTIFF in web mercator, the way the IFR charts come."""
+    height, width = rgb.shape[:2]
+    transform = from_bounds(*transform_bounds("EPSG:4326", "EPSG:3857", *box_deg), width, height)
+    with rasterio.open(
+        path, "w", driver="GTiff", width=width, height=height, count=3, dtype="uint8",
+        crs="EPSG:3857", transform=transform,
+    ) as ds:
+        ds.write(np.moveaxis(rgb, -1, 0))
+
+
+def test_render_and_detect_read_three_band_rasters_too(tmp_path):
+    box = (-92.0, 40.0, -88.0, 44.0)
+    rgb = np.full((1000, 1000, 3), 255, np.uint8)             # paper
+    rgb[100:900, 250:, :] = (216, 232, 206)                  # a face: tinted
+    rgb[899:901, 250:, :] = 0                                # south neatline
+    rgb[100:900, 249:252, :] = 0                             # west neatline
+    _rgb_raster(tmp_path / "ifr.tif", box, rgb)
+    raster = charts.Raster(tmp_path / "ifr.tif", face=box, envelope=box)
+    tile = charts.render_tile([raster], 63, 94, 8)   # 91.4W to 90W, inside the tinted part
+    assert tile is not None and tuple(tile[128, 128]) == (216, 232, 206, 255)
+    envelope, face = charts.detect_face(tmp_path / "ifr.tif", charts.IFR_LOW)
+    assert face[0] == pytest.approx(-91.0, abs=0.02)
+    assert face[1] == pytest.approx(40.4, abs=0.1)
 
 
 def test_render_composites_two_sheets_and_clips_each_to_its_face(tmp_path):
@@ -242,8 +288,8 @@ def test_serving_cycle_is_the_newest_complete_pyramid(tmp_path, monkeypatch):
     assert not charts.refresh_running()
     monkeypatch.setattr(charts, "_RENDER_STALE_S", 600)
 
-    charts._write_pyramid_status("10-29-2026", done)
-    charts._write_pyramid_status("10-29-2026", {**done, "kind": "tac"})
+    for kind in charts.KINDS:
+        charts._write_pyramid_status("10-29-2026", {**done, "kind": kind})
     assert charts.serving_cycle() == "10-29-2026"
     assert not charts.refresh_due()
     assert not charts.refresh_running()
@@ -275,7 +321,7 @@ def test_refresh_prepares_renders_and_prunes_only_when_complete(tmp_path, monkey
     (tmp_path / "tiles" / "09-03-2026").mkdir(parents=True)
 
     assert charts.refresh(workers=1) == "10-29-2026"
-    assert calls == [("prepare", ("sec", "tac"), "10-29-2026"), ("render", "sec", "10-29-2026"), ("render", "tac", "10-29-2026")]
+    assert calls == [("prepare", tuple(charts.KINDS), "10-29-2026")] + [("render", k, "10-29-2026") for k in charts.KINDS]
     assert not (tmp_path / "tiles" / "09-03-2026").exists()   # pruned once the new cycle was complete
     calls.clear()
     assert charts.refresh(workers=1) == "10-29-2026"

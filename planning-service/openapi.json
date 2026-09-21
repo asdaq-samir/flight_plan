@@ -1173,6 +1173,10 @@
             "title": "Bearing Deg",
             "type": "number"
           },
+          "chart_cycle": {
+            "title": "Chart Cycle",
+            "type": "string"
+          },
           "course_line": {
             "items": {
               "maxItems": 2,
@@ -1226,7 +1230,8 @@
           "max_zoom",
           "min_zoom",
           "tac_max_zoom",
-          "tac_min_zoom"
+          "tac_min_zoom",
+          "chart_cycle"
         ],
         "title": "Course",
         "type": "object"
@@ -3031,6 +3036,10 @@
             "title": "Candidates",
             "type": "array"
           },
+          "chart_cycle": {
+            "title": "Chart Cycle",
+            "type": "string"
+          },
           "course_line": {
             "items": {
               "maxItems": 2,
@@ -3112,7 +3121,8 @@
           "max_zoom",
           "min_zoom",
           "tac_max_zoom",
-          "tac_min_zoom"
+          "tac_min_zoom",
+          "chart_cycle"
         ],
         "title": "Plan",
         "type": "object"

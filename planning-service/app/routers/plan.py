@@ -10,7 +10,7 @@ from datetime import datetime
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
-from vfr import geo, navlog
+from vfr import charts, geo, navlog
 from vfr.config import VFR_SECTIONAL_MAX_ZOOM, VFR_SECTIONAL_MIN_ZOOM, VFR_TAC_MAX_ZOOM, VFR_TAC_MIN_ZOOM
 from vfr.weather import WeatherServiceError
 
@@ -87,6 +87,7 @@ def course(dep: str, dest: str) -> Course:
         min_zoom=VFR_SECTIONAL_MIN_ZOOM,
         tac_max_zoom=VFR_TAC_MAX_ZOOM,
         tac_min_zoom=VFR_TAC_MIN_ZOOM,
+        chart_cycle=charts.serving_cycle(),
     )
 
 
@@ -184,6 +185,7 @@ def plan(
         min_zoom=VFR_SECTIONAL_MIN_ZOOM,
         tac_max_zoom=VFR_TAC_MAX_ZOOM,
         tac_min_zoom=VFR_TAC_MIN_ZOOM,
+        chart_cycle=charts.serving_cycle(),
     )
 
 

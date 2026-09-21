@@ -22,6 +22,15 @@ from .geo import cluster_points, cross_track_distance_nm, distance_nm
 from .retry import with_retries
 
 OVERPASS_URL = "https://overpass-api.de/api/interpreter"
+# The public Overpass instances, tried in turn: the main one answers
+# 504 Gateway Timeout for minutes at a time under load (a retrain's
+# collect step died that way three attempts running on 2026-09-21),
+# and the same query on a mirror usually goes through.
+OVERPASS_URLS = (
+    OVERPASS_URL,
+    "https://overpass.kumi.systems/api/interpreter",
+    "https://lz4.overpass-api.de/api/interpreter",
+)
 # Overpass rejects requests without an identifiable User-Agent (406 Not Acceptable).
 REQUEST_HEADERS = {"User-Agent": "vfr-route-learning-project/0.1"}
 
@@ -106,8 +115,14 @@ def build_overpass_query(bbox: tuple, specs: dict = CANDIDATE_SPECS, timeout_s: 
 
 
 def _post_overpass_query(query: str, retries: int = 3) -> dict:
+    attempts = {"n": 0}
+
     def attempt() -> dict:
-        resp = requests.post(OVERPASS_URL, data={"data": query}, headers=REQUEST_HEADERS, timeout=90)
+        # Each retry moves to the next instance, so three attempts are
+        # three servers rather than the same overloaded one three times.
+        url = OVERPASS_URLS[attempts["n"] % len(OVERPASS_URLS)]
+        attempts["n"] += 1
+        resp = requests.post(url, data={"data": query}, headers=REQUEST_HEADERS, timeout=90)
         resp.raise_for_status()
         return resp.json()
 

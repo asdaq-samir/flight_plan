@@ -40,6 +40,12 @@ class Course(BaseModel):
     min_zoom: int
     tac_max_zoom: int
     tac_min_zoom: int
+    # The chart edition the tile endpoints are serving. The map puts it
+    # in every tile URL, so a browser that cached tiles under the same
+    # {z}/{x}/{y} from an earlier edition -- or from the hosted service
+    # this app drew before, whose no-coverage checkerboard one phone
+    # went on showing for a day -- asks afresh when it changes.
+    chart_cycle: str
 
 
 class Candidate(BaseModel):
@@ -240,6 +246,7 @@ class Plan(BaseModel):
     min_zoom: int
     tac_max_zoom: int
     tac_min_zoom: int
+    chart_cycle: str
 
 
 # --- the briefing -------------------------------------------------------
