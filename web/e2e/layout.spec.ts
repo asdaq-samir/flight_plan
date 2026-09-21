@@ -795,7 +795,7 @@ for (const path of PAGES) {
     await page.getByTestId("guide-button").click();
     await page.getByTestId("base-chart-select").click();
     await page.getByRole("option", { name: "IFR low" }).click();
-    await expect(page.getByTestId("tac-toggle")).toBeDisabled();
+    await expect(page.getByText("IFR area chart as soon as it can be drawn")).toBeVisible();
     await expect(ifrTiles.first()).toBeAttached({ timeout: 10000 });
     await expect.poll(
       () => page.evaluate(() =>
@@ -808,6 +808,6 @@ for (const path of PAGES) {
     await page.getByTestId("base-chart-select").click();
     await page.getByRole("option", { name: "Sectional" }).click();
     await expect(sectionalTiles.first()).toBeAttached({ timeout: 10000 });
-    await expect(page.getByTestId("tac-toggle")).toBeEnabled();
+    await expect(page.getByText("Terminal area chart as soon as it can be drawn")).toBeVisible();
   });
 }

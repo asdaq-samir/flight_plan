@@ -6,18 +6,18 @@ import { BASE_CHARTS, chartLayers, useChartLayers, type BaseChart } from "../lib
 /**
  * The map's chart settings: which FAA chart is the base (the sectional,
  * or the IFR low- or high-altitude enroute chart, the way SkyVector
- * offers them), and whether the terminal area chart is drawn over the
- * sectional at every zoom it can be drawn at, wherever one exists
- * (Chicago's covers the first leg out of C81). Past the sectional's own
- * resolution the TAC is drawn regardless (see `createBasemaps`), so the
- * checkbox only decides whether it also replaces the sectional further
- * out; it has no meaning over an IFR chart and is disabled there.
+ * offers them), and whether the terminal-area sheet that belongs over
+ * it -- the TAC over the sectional, the IFR area chart over the IFR
+ * charts -- is drawn at every zoom it can be drawn at, wherever one
+ * exists (Chicago's covers the first leg out of C81). Past the base's
+ * own resolution it is drawn regardless (see `createBasemaps`), so the
+ * checkbox only decides whether it also replaces the base further out.
  *
  * Lives in both pages' info popovers -- Plan's `ScoreLegend` and Label's
  * `RatingLegend` -- next to the shortcut list, since that popover is
  * already where the map's own controls are explained. Sectional and no
- * TAC by default: this is a VFR planner, and a TAC is busier than the
- * sectional.
+ * terminal sheet by default: this is a VFR planner, and a TAC is busier
+ * than the sectional.
  */
 export default function ChartLayers() {
   const { base, tac } = useChartLayers();
@@ -39,14 +39,15 @@ export default function ChartLayers() {
         <Checkbox
           id="tac-overlay"
           checked={tac}
-          disabled={base !== "sec"}
           onCheckedChange={value => chartLayers.setTac(value === true)}
           data-testid="tac-toggle"
         />
-        <Label htmlFor="tac-overlay" className="font-normal">Terminal area chart as soon as it can be drawn</Label>
+        <Label htmlFor="tac-overlay" className="font-normal">
+          {base === "sec" ? "Terminal area chart" : "IFR area chart"} as soon as it can be drawn
+        </Label>
       </div>
       <p className="text-xs text-muted-foreground">
-        Past the sectional&rsquo;s own detail the terminal chart is drawn regardless, where one exists.
+        Past the base chart&rsquo;s own detail the terminal sheet is drawn regardless, where one exists.
       </p>
     </div>
   );

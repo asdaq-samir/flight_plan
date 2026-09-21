@@ -137,10 +137,11 @@ IFR_HIGH = ChartKind(
     straight_border=True,
 )
 # The IFR area charts: the enroute charts' own terminal-area sheets
-# (Atlanta, Chicago, Denver ... fourteen of them, two zips), plus the
-# Boston and Wilmington insets that ride in two of the low-altitude
-# zips. Drawn over the IFR bases the way the TAC is drawn over the
-# sectional.
+# (Atlanta, Chicago, Denver ... fourteen of them, two zips), drawn over
+# the IFR bases the way the TAC is drawn over the sectional. Not the
+# Boston and Wilmington "insets" that ride in two of the low-altitude
+# zips: those rasters are georeferenced as strips of their parent
+# sheets, seven and ten degrees across, not as the excerpts they show.
 IFR_AREA = ChartKind(
     "ifr_area", "IFR area", FAA_ENROUTE_ZIP_URL, (".tif",), IFR_AREA_MIN_ZOOM, IFR_AREA_MAX_ZOOM, (0.2, 0.2, 0.2, 0.2),
     base=False, over=("ifr_low", "ifr_high"), straight_border=True,
@@ -150,19 +151,14 @@ KINDS = {kind.key: kind for kind in (SECTIONAL, TAC, IFR_LOW, IFR_HIGH, IFR_AREA
 # Sheets that come from another kind's zip, or a folder of their own:
 # the two Caribbean VFR charts are sectional-scale sheets published
 # under their own folder; the Honolulu inset is a terminal-area-scale
-# sheet inside the Hawaiian Islands sectional zip; the Boston and
-# Wilmington IFR insets ride in their enroute zips.
+# sheet inside the Hawaiian Islands sectional zip.
 _ZIP_URL_OVERRIDES = {
     ("sec", "Caribbean_1_VFR"): FAA_VISUAL_ZIP_URL.replace("{folder}", "Caribbean"),
     ("sec", "Caribbean_2_VFR"): FAA_VISUAL_ZIP_URL.replace("{folder}", "Caribbean"),
     ("tac", "Honolulu_Inset"): FAA_VISUAL_ZIP_URL.replace("{folder}", "sectional-files").replace("{name}", "Hawaiian_Islands"),
-    ("ifr_area", "enr_l34_inset"): FAA_ENROUTE_ZIP_URL.replace("{name}", "enr_l34"),
-    ("ifr_area", "enr_l23_inset"): FAA_ENROUTE_ZIP_URL.replace("{name}", "enr_l23"),
 }
 _MEMBER_OVERRIDES = {
     ("tac", "Honolulu_Inset"): ("Honolulu Inset SEC.tif",),
-    ("ifr_area", "enr_l34_inset"): ("ENR_L34_BOST_INSET.tif",),
-    ("ifr_area", "enr_l23_inset"): ("ENR_L23_WILM_INSET.tif",),
 }
 
 
@@ -349,10 +345,6 @@ COVERAGE: dict[str, dict] = {
         # sheets' own faces decide which draws where.
         "enr_a01": (-94.14, 25.20, -74.02, 45.53),
         "enr_a02": (-123.29, 31.40, -87.06, 43.40),
-        # The insets carry no metadata of their own; a generous box
-        # around the city, and again the face decides.
-        "enr_l34_inset": (-72.2, 41.6, -70.0, 43.0),
-        "enr_l23_inset": (-78.9, 33.5, -77.2, 34.9),
     },
 }
 

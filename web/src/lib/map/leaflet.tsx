@@ -138,32 +138,36 @@ export function createBasemaps(map: L.Map, cfg: Course) {
     base = { kind, layer: tileLayer(kind, zooms.min_zoom, zooms.max_zoom).addTo(map) };
   };
 
-  // The terminal area chart, over the sectional -- rendered the same
-  // way from the FAA's TAC sheets, one zoom finer, and transparent (a
-  // 404 the layer leaves blank) wherever no TAC exists, so the
-  // sectional shows through everywhere else. Past the sectional's own
-  // resolution it is always drawn: there the sectional is only being
-  // upscaled and the TAC is the chart that still has detail (the way
-  // SkyVector's chart layer turns into the TAC close in). The checkbox
-  // in the info popover extends it out to every zoom it can be drawn
-  // at. Over an IFR chart it makes no sense and is not drawn. Leaflet
+  // The terminal-area chart over the base: the TAC over the sectional,
+  // the IFR area charts over the IFR enroute charts (each overlay kind
+  // names the bases it belongs over) -- rendered the same way from the
+  // FAA's own sheets, one zoom finer, and transparent (a 404 the layer
+  // leaves blank) wherever none exists, so the base shows through
+  // everywhere else. Past the base's own resolution it is always
+  // drawn: there the base is only being upscaled and the terminal
+  // sheet is the chart that still has detail (the way SkyVector's
+  // chart layer turns into the TAC close in). The checkbox in the info
+  // popover extends it out to every zoom it can be drawn at. Leaflet
   // reads a layer's minZoom once, so changing it means a fresh layer.
-  const sec = zoomsOf("sec");
-  const tacZooms = zoomsOf("tac");
-  let tac: { minZoom: number; layer: L.TileLayer } | null = null;
-  const applyTac = () => {
+  let overlay: { kind: string; minZoom: number; layer: L.TileLayer } | null = null;
+  const applyOverlay = () => {
     const { base: baseKind, tac: wanted } = chartLayers.get();
-    if (!sec || !tacZooms || baseKind !== "sec") {
-      if (tac) { map.removeLayer(tac.layer); tac = null; }
+    const baseZooms = zoomsOf(baseKind);
+    const kind = cfg.chart_layers.find(l => !l.base && l.over.includes(baseKind));
+    if (!baseZooms || !kind) {
+      if (overlay) { map.removeLayer(overlay.layer); overlay = null; }
       return;
     }
-    const minZoom = wanted ? tacZooms.min_zoom : Math.max(tacZooms.min_zoom, sec.max_zoom + 1);
-    if (tac?.minZoom === minZoom) return;
-    if (tac) map.removeLayer(tac.layer);
-    tac = { minZoom, layer: tileLayer("tac", minZoom, tacZooms.max_zoom, { keepBuffer: 2, zIndex: 5 }).addTo(map) };
+    const minZoom = wanted ? kind.min_zoom : Math.max(kind.min_zoom, baseZooms.max_zoom + 1);
+    if (overlay?.kind === kind.kind && overlay.minZoom === minZoom) return;
+    if (overlay) map.removeLayer(overlay.layer);
+    overlay = {
+      kind: kind.kind, minZoom,
+      layer: tileLayer(kind.kind, minZoom, kind.max_zoom, { keepBuffer: 2, zIndex: 5 }).addTo(map),
+    };
   };
 
-  const apply = () => { applyBase(); applyTac(); };
+  const apply = () => { applyBase(); applyOverlay(); };
   apply();
   const unsubscribe = chartLayers.subscribe(apply);
 

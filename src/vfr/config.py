@@ -82,7 +82,8 @@ IFR_LOW_MAX_ZOOM = 11
 IFR_LOW_MIN_ZOOM = 3
 IFR_HIGH_MAX_ZOOM = 10
 IFR_HIGH_MIN_ZOOM = 3
-# The IFR area charts, the enroute charts' own terminal-area sheets,
-# as an overlay over the IFR bases close in.
-IFR_AREA_MAX_ZOOM = 12
+# The IFR area charts, the enroute charts' own terminal-area sheets
+# (28 m per pixel, terminal-area scale), as an overlay over the IFR
+# bases close in.
+IFR_AREA_MAX_ZOOM = 13
 IFR_AREA_MIN_ZOOM = 9

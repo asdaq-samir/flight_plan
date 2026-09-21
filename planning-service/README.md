@@ -121,7 +121,7 @@ once in ten.
 | `GET /api/classify` | What the chart draws at one point. |
 | `GET /api/sectional-tile/{z}/{x}/{y}.png` | The sectional as a tile pyramid, for the map -- rendered from the FAA's own GeoTIFF of each sheet (`vfr.charts`), collar clipped away so sheets butt together. Zooms 3-12: the whole country on a phone screen, down to the chart's own print resolution. |
 | `GET /api/tac-tile/{z}/{x}/{y}.png` | The terminal area charts the same way, for the map's optional overlay; 404 wherever no TAC exists. Zooms 10-13. |
-| `GET /api/chart-tile/{kind}/{z}/{x}/{y}.png` | Any chart kind by key -- `sec`, `tac`, `ifr_low`, `ifr_high` (the IFR enroute charts, base layers the map's info popover can switch to). `chart_layers` on the course lists the kinds and their zooms. |
+| `GET /api/chart-tile/{kind}/{z}/{x}/{y}.png` | Any chart kind by key -- `sec`, `tac`, `ifr_low`, `ifr_high` (the IFR enroute charts, base layers the map's info popover can switch to), `ifr_area` (the enroute charts' terminal-area sheets, an overlay over the IFR bases the way the TAC is over the sectional). `chart_layers` on the course lists the kinds, their zooms and which base each overlay belongs over. On AWS the course also carries `chart_tiles_base`, the CloudFront URL the browser fetches tiles from instead (docs/README-AWS.md). |
 
 The tile endpoints render on first request and cache on disk, which is
 fine for one corridor and not for a map with no street layer under it.

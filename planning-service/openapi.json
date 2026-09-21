@@ -894,6 +894,14 @@
           "min_zoom": {
             "title": "Min Zoom",
             "type": "integer"
+          },
+          "over": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Over",
+            "type": "array"
           }
         },
         "required": [

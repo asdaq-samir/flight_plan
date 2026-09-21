@@ -89,11 +89,10 @@ def test_zip_urls_follow_each_kind_and_the_caribbean_exception():
         "https://aeronav.faa.gov/visual/09-03-2026/sectional-files/Hawaiian_Islands.zip"
     assert charts._is_chart_member(charts.TAC, "Honolulu_Inset", "Honolulu Inset SEC.tif")
     assert not charts._is_chart_member(charts.TAC, "Honolulu_Inset", "Hawaiian Islands SEC.tif")
-    assert charts.zip_url(charts.IFR_AREA, "enr_l34_inset", "09-03-2026") == \
-        "https://aeronav.faa.gov/enroute/09-03-2026/enr_l34.zip"
-    assert charts._is_chart_member(charts.IFR_AREA, "enr_l34_inset", "ENR_L34_BOST_INSET.tif")
-    assert not charts._is_chart_member(charts.IFR_AREA, "enr_l34_inset", "ENR_L34.tif")
+    assert charts.zip_url(charts.IFR_AREA, "enr_a02", "09-03-2026") == \
+        "https://aeronav.faa.gov/enroute/09-03-2026/enr_a02.zip"
     assert charts._is_chart_member(charts.IFR_AREA, "enr_a01", "ENR_A01_ATL.tif")
+    assert not charts._is_chart_member(charts.IFR_AREA, "enr_a01", "ENR_A01_ATL.htm")
     assert charts.IFR_AREA.over == ("ifr_low", "ifr_high") and charts.TAC.over == ("sec",)
     # A coverage entry may be several boxes, for a sheet across the antimeridian.
     assert charts._covers(((170.0, 50.0, 180.0, 53.0), (-180.0, 50.0, -172.0, 53.0)), (-175.0, 51.0, -174.0, 52.0))
