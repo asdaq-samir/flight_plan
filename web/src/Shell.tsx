@@ -44,13 +44,13 @@ interface Props {
    *  in that caller's own header, not inside this component. */
   sidebarOpen?: boolean;
   onSidebarOpenChange?: (open: boolean) => void;
-  /** The sidebar opened as the document: Plan's flight planning
-   *  drawer, the briefing. Wide enough on a desktop for the nav log's
-   *  own twelve columns without a horizontal scroll, the whole map
-   *  area on a phone, and the one thing on the page that prints. A
-   *  page whose sidebar is a list beside the map (Dev's waypoints)
-   *  never passes it. */
-  sidebarWide?: boolean;
+  /** The sidebar prints as the page: Plan's flight planning drawer is
+   *  the briefing, the one thing on the page that goes to paper, laid
+   *  out there as flow content at full width (see `MapDrawer`'s
+   *  `printable`). On screen it is the same drawer as Dev's Model
+   *  Training: a panel beside the map, three quarters of a phone,
+   *  22rem from sm up -- the two open the same way. */
+  sidebarPrintable?: boolean;
   /** false fits this within its parent's own height instead of
    *  claiming the full viewport (`h-dvh`) -- for a caller embedding
    *  this inside another layout rather than mounting it as the page
@@ -73,11 +73,11 @@ interface Props {
  * regardless of what a `print:overflow-visible` further down declares,
  * and the briefing is taller than one screen and needs the browser's
  * own pagination across multiple printed pages. Every page's own
- * `header` is `print:hidden`, and so is every drawer but the wide
+ * `header` is `print:hidden`, and so is every drawer but the printable
  * sidebar, which is the printed page.
  */
 export default function Shell({
-  header, map, panels, sidebar, sidebarLabel = "Sidebar", sidebarOpen = false, onSidebarOpenChange, sidebarWide,
+  header, map, panels, sidebar, sidebarLabel = "Sidebar", sidebarOpen = false, onSidebarOpenChange, sidebarPrintable,
   fullHeight = true,
 }: Props) {
   const headerRef = useHeaderHeight();
@@ -106,10 +106,8 @@ export default function Shell({
             open={sidebarOpen}
             onOpenChange={open => onSidebarOpenChange?.(open)}
             label={sidebarLabel}
-            className={sidebarWide
-              ? "data-[side=right]:w-full data-[side=right]:sm:max-w-[min(52rem,92vw)]"
-              : "data-[side=right]:sm:max-w-[22rem]"}
-            printable={sidebarWide}
+            className="data-[side=right]:sm:max-w-[22rem]"
+            printable={sidebarPrintable}
           >
             {sidebar}
           </MapDrawer>

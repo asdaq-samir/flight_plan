@@ -213,27 +213,35 @@ for (const path of PAGES) {
   });
 }
 
-test("plan page: the flight planning drawer opens as the briefing: the two inputs and the narrative and Print in its header, the totals and the descriptions button in the nav log's own section, the map still beside it", async ({ page }) => {
-  await page.goto("/app/plan");
-  await settle(page);
+test("plan page: the flight planning drawer opens the way the Model Training drawer does, the same panel beside the map, with the two inputs and the narrative and Print in its header and the totals and the descriptions button in the nav log's own section", async ({ page }) => {
   const viewport = page.viewportSize();
   if (!viewport) throw new Error("no viewport configured");
 
-  // One width, from the start: the URL says briefing, and the drawer
-  // is the whole map area on a phone, most of it on a desktop, never
-  // all of it -- the map stays visible beside the briefing.
+  // The Model Training drawer first, on the dev page: where it sits
+  // and how wide it is.
+  await page.goto("/app/dev");
+  await settle(page);
+  await page.getByTestId("sidebar-trigger-button").click();
+  const drawer = page.locator('[data-slot="map-drawer"][data-side="right"]');
+  await expect(drawer).toBeVisible();
+  await page.waitForTimeout(300);
+  const devBox = await drawer.boundingBox();
+  expect(devBox).not.toBeNull();
+
+  // The flight planning drawer: the URL says briefing, and it is the
+  // same panel in the same place -- a strip of map beside it, on a
+  // phone too, never the whole map area.
+  await page.goto("/app/plan");
+  await settle(page);
   await page.getByTestId("sidebar-trigger-button").click();
   await page.waitForTimeout(300);
-  const drawer = page.locator('[data-slot="map-drawer"][data-side="right"]');
   await expect(drawer).toBeVisible();
   await expect(page).toHaveURL(/[?&]view=briefing/);
   const box = await drawer.boundingBox();
   expect(box).not.toBeNull();
-  if (viewport.width < 640) expect(box!.width).toBeGreaterThanOrEqual(viewport.width - 1);
-  else {
-    expect(box!.width).toBeGreaterThan(viewport.width * 0.4);
-    expect(box!.width).toBeLessThan(viewport.width);
-  }
+  expect(Math.abs(box!.width - devBox!.width)).toBeLessThan(2);
+  expect(Math.abs(box!.x - devBox!.x)).toBeLessThan(2);
+  expect(box!.width).toBeLessThan(viewport.width);
 
   // The drawer's header holds the two inputs the log is computed
   // from -- the aeroplane and the departure time -- and nothing else
@@ -694,17 +702,8 @@ test("plan page: a click on the map closes the sidebar, and the header above it 
   await expect(drawer).toHaveCount(0);
   await page.getByTestId("sidebar-trigger-button").click();
   await expect(drawer).toBeVisible();
-  // A click on the map itself, away from the drawer, closes it -- on a
-  // desktop, where a strip of map is still beside the drawer. On a
-  // phone the drawer is the whole map area, and there is nothing
-  // beside it to click: the header's toggle and Escape close it.
-  const viewport = page.viewportSize();
-  if (!viewport) throw new Error("no viewport configured");
-  if (viewport.width < 640) {
-    const box = await drawer.boundingBox();
-    expect(box!.width).toBeGreaterThanOrEqual(viewport.width - 1);
-    return;
-  }
+  // A click on the map itself, away from the drawer, closes it: a
+  // strip of map is beside the drawer on a phone too.
   const headerBox = await page.locator("header").boundingBox();
   await page.mouse.click(12, headerBox!.y + headerBox!.height + 40);
   await expect(drawer).toHaveCount(0);

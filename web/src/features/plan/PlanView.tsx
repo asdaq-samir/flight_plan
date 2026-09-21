@@ -131,12 +131,12 @@ export default function PlanView() {
 
   // The flight planning drawer is the briefing: the nav log as its
   // first section, the FAA briefing sections under it, the narrative
-  // and Print in its header, wide over the map with a strip of it
-  // still visible beside. One drawer, one width: the briefing used to
-  // be a separate view that replaced the map and drew its own
-  // read-only copy of the table, and then the drawer had two widths --
-  // the table alone, and the whole briefing -- which held the same
-  // things in two arrangements.
+  // and Print in its header -- the same panel beside the map that
+  // Dev's Model Training drawer is, opened the same way. One drawer,
+  // one width: the briefing used to be a separate view that replaced
+  // the map and drew its own read-only copy of the table, and then
+  // the drawer had two widths -- the table alone, and the whole
+  // briefing -- which held the same things in two arrangements.
   //
   // Open is the URL (?view=briefing), not a useState: a pasted link
   // lands on the briefing, `n` toggles it, the Dev switch brings it
@@ -471,7 +471,7 @@ export default function PlanView() {
           </MapDrawer>
         )}
         sidebarLabel="Flight Planning"
-        sidebarWide
+        sidebarPrintable
         sidebarOpen={sidebarOpen}
         onSidebarOpenChange={setSidebarOpen}
         // The map stays mounted under the briefing (the arrow walk
