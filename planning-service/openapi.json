@@ -1218,6 +1218,17 @@
             "title": "Chart Layers",
             "type": "array"
           },
+          "chart_tiles_base": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chart Tiles Base"
+          },
           "course_line": {
             "items": {
               "maxItems": 2,
@@ -3088,6 +3099,17 @@
             },
             "title": "Chart Layers",
             "type": "array"
+          },
+          "chart_tiles_base": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chart Tiles Base"
           },
           "course_line": {
             "items": {

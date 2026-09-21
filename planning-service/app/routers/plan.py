@@ -41,7 +41,7 @@ router = APIRouter()
 def chart_layers() -> list[ChartLayer]:
     """Every chart kind the map may draw, with its zoom range."""
     return [
-        ChartLayer(kind=k.key, label=k.label, min_zoom=k.min_zoom, max_zoom=k.max_zoom, base=k.base)
+        ChartLayer(kind=k.key, label=k.label, min_zoom=k.min_zoom, max_zoom=k.max_zoom, base=k.base, over=list(k.over))
         for k in charts.KINDS.values()
     ]
 
@@ -97,6 +97,7 @@ def course(dep: str, dest: str) -> Course:
         tac_max_zoom=VFR_TAC_MAX_ZOOM,
         tac_min_zoom=VFR_TAC_MIN_ZOOM,
         chart_cycle=charts.serving_cycle(),
+        chart_tiles_base=charts.tiles_base_url(),
         chart_layers=chart_layers(),
     )
 
@@ -196,6 +197,7 @@ def plan(
         tac_max_zoom=VFR_TAC_MAX_ZOOM,
         tac_min_zoom=VFR_TAC_MIN_ZOOM,
         chart_cycle=charts.serving_cycle(),
+        chart_tiles_base=charts.tiles_base_url(),
         chart_layers=chart_layers(),
     )
 

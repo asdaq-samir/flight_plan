@@ -116,8 +116,14 @@ export function createBasemaps(map: L.Map, cfg: Course) {
   // edition -- or under the hosted map service this app drew before,
   // whose no-coverage checkerboard a phone kept showing for a day --
   // must ask again when the edition changes.
+  // Published to a CDN (the AWS deployment), the tiles come straight
+  // from there and the cycle is a path segment; served by the planner
+  // itself, the cycle is the cache-busting query.
+  const template = (kind: string) => cfg.chart_tiles_base
+    ? `${cfg.chart_tiles_base}/${cfg.chart_cycle}/${kind}/{z}/{x}/{y}.png`
+    : `/api/planner/chart-tile/${kind}/{z}/{x}/{y}.png?c={cycle}`;
   const tileLayer = (kind: string, minZoom: number, maxZoom: number, extra: Partial<L.TileLayerOptions> = {}) =>
-    L.tileLayer(`/api/planner/chart-tile/${kind}/{z}/{x}/{y}.png?c={cycle}`, {
+    L.tileLayer(template(kind), {
       attribution: kind.startsWith("ifr") ? "FAA IFR enroute charts" : "FAA VFR charts",
       cycle: cfg.chart_cycle, minZoom, maxNativeZoom: maxZoom, maxZoom: maxZoom + 3, keepBuffer: 4, ...extra,
     } as L.TileLayerOptions);

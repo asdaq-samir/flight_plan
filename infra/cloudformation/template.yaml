@@ -303,6 +303,29 @@ Resources:
                 Action: sagemaker:InvokeEndpoint
                 Resource: !Ref SageMakerEndpoint
 
+  ChartRefreshTaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Description: Assumed by the scheduled chart refresh task -- it fetches the FAA's sheets, renders every tile and publishes the cycle to the tiles bucket (python -m vfr.charts refresh --bucket).
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: ecs-tasks.amazonaws.com }
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: PublishChartTiles
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:ListBucket
+                Resource:
+                  - !GetAtt ChartTilesBucket.Arn
+                  - !Sub "${ChartTilesBucket.Arn}/*"
+
   GenAiTaskRole:
     Type: AWS::IAM::Role
     Properties:
@@ -613,6 +636,10 @@ Resources:
               # is set from ${PLANNER_SERVICE_URL}. Without this the proxy
               # would fall back to localhost:8084, which on Fargate is the
               # webapp container talking to itself.
+            - Name: APP_CHART_TILES_ORIGIN
+              Value: !Sub "https://${ChartTilesDistribution.DomainName}"
+              # The content security policy must let images load from
+              # the tile CDN (SecurityConfig appends this to img-src).
           Secrets:
             - Name: SPRING_DATASOURCE_PASSWORD
               ValueFrom: !Sub "${Database.MasterUserSecret.SecretArn}:password::"
@@ -693,6 +720,18 @@ Resources:
               Value: !GetAtt SageMakerEndpoint.EndpointName
               # Presence alone switches vfr.model_client from the local
               # model-service HTTP call to SageMaker Runtime's InvokeEndpoint.
+            - Name: CHART_TILES_URL
+              Value: !Sub "https://${ChartTilesDistribution.DomainName}/tiles"
+              # The map's tiles come from CloudFront, not from this
+              # task: the planner reads which cycle is published there
+              # (tiles/serving.json) and tells the browser the base URL
+              # on every course. Its own tile endpoints stay as the
+              # fallback and for the chart reader, which renders the
+              # sheets a corridor needs on demand into ephemeral storage.
+            - Name: CHARTS_AUTO_REFRESH
+              Value: "0"
+              # The scheduled ChartRefreshTask does the fetching and
+              # rendering, on a task sized for it; this one only serves.
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -714,6 +753,170 @@ Resources:
           AssignPublicIp: DISABLED
       ServiceRegistries:
         - RegistryArn: !GetAtt PlanningServiceDiscoveryService.Arn
+
+  # ---------------------------------------------------------------------
+  # The chart tiles: a static pyramid in S3 behind CloudFront.
+  #
+  # The map draws nothing but FAA charts, rendered from the FAA's own
+  # GeoTIFFs into a {z}/{x}/{y} pyramid of some 400,000 tiles per
+  # 56-day cycle (src/vfr/charts.py). Locally the planner serves them
+  # from its own disk; here a static pyramid is exactly what a CDN is
+  # for, and a Fargate task has no disk worth keeping. So a scheduled
+  # task renders the cycle and publishes it to ChartTilesBucket under
+  # tiles/<cycle>/, then points tiles/serving.json at it; the planner
+  # reads that pointer and the browser fetches tiles from CloudFront.
+  # A new cycle goes live for everyone the moment the pointer moves,
+  # and never before every tile of it is there.
+  # ---------------------------------------------------------------------
+  ChartTilesBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      LifecycleConfiguration:
+        Rules:
+          # The refresh task deletes the previous cycle's tiles from its
+          # own disk; here they simply age out, so a browser still on an
+          # old pointer for its five minutes keeps getting tiles.
+          - Id: OldCycles
+            Status: Enabled
+            Prefix: tiles/
+            ExpirationInDays: 120
+
+  ChartTilesOriginAccessControl:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub "${AWS::StackName}-chart-tiles"
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+  ChartTilesBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref ChartTilesBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: cloudfront.amazonaws.com }
+            Action: s3:GetObject
+            Resource: !Sub "${ChartTilesBucket.Arn}/*"
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/${ChartTilesDistribution}"
+
+  ChartTilesDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        Comment: FAA chart tiles for the VFR planner
+        HttpVersion: http2and3
+        PriceClass: PriceClass_100
+        Origins:
+          - Id: tiles
+            DomainName: !GetAtt ChartTilesBucket.RegionalDomainName
+            S3OriginConfig:
+              OriginAccessIdentity: ""
+            OriginAccessControlId: !GetAtt ChartTilesOriginAccessControl.Id
+        DefaultCacheBehavior:
+          TargetOriginId: tiles
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods: [GET, HEAD]
+          CachedMethods: [GET, HEAD]
+          Compress: false
+          # The managed CachingOptimized policy: the objects carry their
+          # own Cache-Control (a month for a tile, five minutes for the
+          # serving pointer), which it honours.
+          CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
+          # The managed CORS-S3Origin origin request policy, so a
+          # browser's cross-origin tile fetch from the app's own domain
+          # is answered with the CORS headers the bucket would send.
+          OriginRequestPolicyId: 88a5eaf4-2fd4-4709-b370-b4c650ea3fcf
+          ResponseHeadersPolicyId: 5cc3b908-e619-4b99-88e5-2cf7f45965bd
+
+  ChartRefreshLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/vfr-route-chart-refresh
+      RetentionInDays: 30
+
+  ChartRefreshTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: vfr-route-chart-refresh
+      RequiresCompatibilities: [FARGATE]
+      NetworkMode: awsvpc
+      # Two workers warping tiles, and the country's sheets plus its
+      # pyramid on the task's own disk: 7 GB of rasters and 5 GB of
+      # tiles, well inside 60 GB with the previous cycle still there.
+      Cpu: "2048"
+      Memory: "8192"
+      EphemeralStorage:
+        SizeInGiB: 60
+      ExecutionRoleArn: !GetAtt EcsTaskExecutionRole.Arn
+      TaskRoleArn: !GetAtt ChartRefreshTaskRole.Arn
+      ContainerDefinitions:
+        - Name: chart-refresh
+          Image: !Ref PlanningServiceImageUri
+          Command: ["python", "-m", "vfr.charts", "refresh", "--workers", "2"]
+          Environment:
+            - Name: CHART_TILES_BUCKET
+              Value: !Ref ChartTilesBucket
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref ChartRefreshLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: chart-refresh
+
+  ChartRefreshSchedulerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Description: Lets EventBridge start the chart refresh task once a day.
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: events.amazonaws.com }
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: RunChartRefreshTask
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: ecs:RunTask
+                Resource: !Ref ChartRefreshTaskDefinition
+              - Effect: Allow
+                Action: iam:PassRole
+                Resource:
+                  - !GetAtt EcsTaskExecutionRole.Arn
+                  - !GetAtt ChartRefreshTaskRole.Arn
+
+  ChartRefreshSchedule:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: Fetch and publish the FAA's current chart cycle if it is not published yet -- a no-op on the other 55 days.
+      ScheduleExpression: rate(1 day)
+      State: ENABLED
+      Targets:
+        - Id: chart-refresh
+          Arn: !GetAtt EcsCluster.Arn
+          RoleArn: !GetAtt ChartRefreshSchedulerRole.Arn
+          EcsParameters:
+            TaskDefinitionArn: !Ref ChartRefreshTaskDefinition
+            LaunchType: FARGATE
+            NetworkConfiguration:
+              AwsVpcConfiguration:
+                Subnets: !Ref PrivateSubnetIds
+                SecurityGroups: [!Ref PlanningServiceSecurityGroup]
+                AssignPublicIp: DISABLED
 
   # ---------------------------------------------------------------------
   # ECS Fargate -- nav-log-agent (LangGraph MCP server). Reached through
@@ -1077,6 +1280,9 @@ Resources:
 Outputs:
   AlbDnsName:
     Value: !GetAtt Alb.DNSName
+  ChartTilesUrl:
+    Description: Where the map fetches its chart tiles from; tiles/serving.json under it names the cycle being served. Empty until the first ChartRefreshTask has run (start one by hand with `aws ecs run-task`, it takes a few hours).
+    Value: !Sub "https://${ChartTilesDistribution.DomainName}/tiles"
   AppUrl:
     Value: !If
       - HasDomainName

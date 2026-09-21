@@ -130,6 +130,27 @@ VPC/subnet/NAT-gateway layout most orgs already have):
   computation that *calls* a model rather than being one. Sized larger
   than `webapp` (1 vCPU / 4 GB) because sectional tiles are decoded into
   numpy arrays block by block.
+- **The chart tiles** — an S3 bucket (`ChartTilesBucket`) behind a
+  CloudFront distribution. The map draws nothing but FAA charts, a
+  static pyramid of some 400,000 tiles per 56-day cycle rendered from
+  the FAA's GeoTIFFs (`src/vfr/charts.py`), which is what a CDN is for
+  and what a Fargate task has no disk to keep. A scheduled task
+  (`ChartRefreshTaskDefinition`, the planner image running
+  `python -m vfr.charts refresh`, 2 vCPU / 8 GB / 60 GB ephemeral,
+  once a day) fetches the sheets, renders the pyramid and publishes it
+  under `tiles/<cycle>/`, then points `tiles/serving.json` at the
+  cycle; the planner reads that pointer (`CHART_TILES_URL`) and hands
+  the browser the base URL on every course, and `webapp`'s content
+  security policy admits the CloudFront origin
+  (`APP_CHART_TILES_ORIGIN`). A new cycle goes live for everyone the
+  moment the pointer moves, never before every tile is there. The
+  planner's own tile endpoints remain as the fallback and for the
+  chart reader, which renders the sheets a corridor needs on demand
+  into the task's ephemeral storage. **The first run is by hand**:
+  `aws ecs run-task --cluster vfr-route --task-definition
+  vfr-route-chart-refresh --launch-type FARGATE --network-configuration
+  ...` (a few hours); until then `ChartTilesUrl` answers nothing and
+  the map renders through the planner.
 - **`nav-log-agent`** — ECS Fargate, reachable through the *same* ALB via
   a path-based route (`/mcp/*` → its own target group), rather than a
   second load balancer.

@@ -137,3 +137,9 @@ management:
 # local `mvn package` after `vite build` finds it on the classpath.
 app:
   static-location: ${APP_STATIC_LOCATION:classpath:/static/app/}
+  # Where the chart tiles come from when they are published to a CDN
+  # (the AWS stack sets this to its CloudFront domain, and the planner
+  # tells the browser the same base): the content security policy has
+  # to let images load from there. Empty locally, where the tiles are
+  # same-origin through the planner proxy.
+  chart-tiles-origin: ${APP_CHART_TILES_ORIGIN:}

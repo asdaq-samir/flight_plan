@@ -9,6 +9,7 @@ pays for pathlib and nothing else.
 vfr.pipeline re-exports these, so `from vfr.pipeline import
 CANDIDATES_PATH` keeps working for the notebooks and the DAG.
 """
+import os
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -42,6 +43,16 @@ FAA_ENROUTE_ZIP_URL = "https://aeronav.faa.gov/enroute/{cycle}/{name}.zip"
 FAA_CHART_CYCLE_ANCHOR = "2026-09-03"
 FAA_CHART_CYCLE_DAYS = 56
 
+# On AWS the tiles are not served by the planner at all: a refresh task
+# publishes each cycle's pyramid to an S3 bucket behind CloudFront, and
+# the map fetches tiles from there. CHART_TILES_URL is the CloudFront
+# base (with the key prefix) the planner tells the browser about and
+# reads the served cycle from; CHART_TILES_BUCKET is where the refresh
+# publishes. Unset locally, where the planner serves its own tiles.
+CHART_TILES_URL = os.environ.get("CHART_TILES_URL", "").rstrip("/") or None
+CHART_TILES_BUCKET = os.environ.get("CHART_TILES_BUCKET") or None
+CHART_TILES_PREFIX = os.environ.get("CHART_TILES_PREFIX", "tiles").strip("/")
+
 # Where the downloaded rasters and the tiles rendered from them live --
 # both under data/raw, which is not tracked. The whole country is 64
 # sheets (about 5 GB with their overviews) and a quarter of a million
@@ -71,3 +82,7 @@ IFR_LOW_MAX_ZOOM = 11
 IFR_LOW_MIN_ZOOM = 3
 IFR_HIGH_MAX_ZOOM = 10
 IFR_HIGH_MIN_ZOOM = 3
+# The IFR area charts, the enroute charts' own terminal-area sheets,
+# as an overlay over the IFR bases close in.
+IFR_AREA_MAX_ZOOM = 12
+IFR_AREA_MIN_ZOOM = 9

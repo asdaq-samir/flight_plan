@@ -43,13 +43,19 @@ public class SecurityConfig {
 
     private final boolean oauthConfigured;
     private final boolean signInPossible;
+    private final String chartTilesOrigin;
 
     SecurityConfig(Optional<ClientRegistrationRepository> clientRegistrations,
-                   @Value("${spring.mail.host:}") String mailHost) {
+                   @Value("${spring.mail.host:}") String mailHost,
+                   @Value("${app.chart-tiles-origin:}") String chartTilesOrigin) {
         this.oauthConfigured = clientRegistrations.isPresent();
         // A session can be obtained through OIDC, or through the magic
         // link -- which only ever sends when a mail host is configured.
         this.signInPossible = oauthConfigured || !mailHost.isBlank();
+        // The CDN the chart tiles come from on AWS (application.yml's
+        // app.chart-tiles-origin), which img-src must allow; blank
+        // locally, where the tiles are same-origin.
+        this.chartTilesOrigin = chartTilesOrigin.isBlank() ? "" : " " + chartTilesOrigin.trim();
     }
 
     @Bean
@@ -140,7 +146,7 @@ public class SecurityConfig {
                         .referrerPolicy(referrer -> referrer.policy(ReferrerPolicy.NO_REFERRER))
                         .contentSecurityPolicy(csp -> csp.policyDirectives(
                                 "default-src 'self'; "
-                                        + "img-src 'self' data:; "
+                                        + "img-src 'self' data:" + chartTilesOrigin + "; "
                                         + "style-src 'self' 'unsafe-inline'; "
                                         + "script-src 'self'; "
                                         + "connect-src 'self'; "

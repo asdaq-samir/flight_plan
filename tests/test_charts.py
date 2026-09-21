@@ -2,6 +2,7 @@
 face in a raster, and rendering tiles from more than one sheet."""
 import datetime as dt
 import io
+import json
 import re
 
 import numpy as np
@@ -54,14 +55,13 @@ def test_tile_bbox_wgs84_contains_a_known_point():
 
 
 def test_coverage_index_is_well_formed():
-    for kind, boxes in charts.COVERAGE.items():
+    for kind, entries in charts.COVERAGE.items():
         assert kind in charts.KINDS
-        for name, (west, south, east, north) in boxes.items():
+        for name, entry in entries.items():
             assert re.fullmatch(r"[A-Za-z][A-Za-z0-9_\-]*", name), name
-            assert west < east and south < north, name
-            # The Aleutians' western sheets straddle the antimeridian
-            # and are deliberately not listed.
-            assert -180 < west and east < -55 and 12 < south and north < 73, name
+            for west, south, east, north in charts._boxes(entry):
+                assert west < east and south < north, name
+                assert -180 <= west and east <= 180 and 12 < south and north < 73, name
     # The route this project was built around is covered by every kind.
     here = (C81[1], C81[0], C81[1], C81[0])
     for kind in charts.KINDS:
@@ -77,12 +77,27 @@ def test_zip_urls_follow_each_kind_and_the_caribbean_exception():
         "https://aeronav.faa.gov/enroute/09-03-2026/enr_l12.zip"
     assert charts.zip_url(charts.SECTIONAL, "Caribbean_1_VFR", "09-03-2026") == \
         "https://aeronav.faa.gov/visual/09-03-2026/Caribbean/Caribbean_1_VFR.zip"
-    assert charts._is_chart_member(charts.SECTIONAL, "Hawaiian Islands SEC.tif")
-    assert not charts._is_chart_member(charts.SECTIONAL, "Honolulu Inset SEC.tif")
-    assert charts._is_chart_member(charts.SECTIONAL, "Caribbean 1 VFR Chart.tif")
-    assert not charts._is_chart_member(charts.TAC, "Chicago FLY.tif")
-    assert charts._is_chart_member(charts.IFR_LOW, "ENR_L34.tif")
-    assert not charts._is_chart_member(charts.IFR_LOW, "ENR_L34_BOST_INSET.tif")
+    assert charts._is_chart_member(charts.SECTIONAL, "Hawaiian_Islands", "Hawaiian Islands SEC.tif")
+    assert not charts._is_chart_member(charts.SECTIONAL, "Hawaiian_Islands", "Honolulu Inset SEC.tif")
+    assert charts._is_chart_member(charts.SECTIONAL, "Caribbean_1_VFR", "Caribbean 1 VFR Chart.tif")
+    assert not charts._is_chart_member(charts.TAC, "Chicago", "Chicago FLY.tif")
+    assert charts._is_chart_member(charts.IFR_LOW, "enr_l34", "ENR_L34.tif")
+    assert not charts._is_chart_member(charts.IFR_LOW, "enr_l34", "ENR_L34_BOST_INSET.tif")
+    # The insets are sheets of their own, under the overlay kinds, out
+    # of the zips they ride in.
+    assert charts.zip_url(charts.TAC, "Honolulu_Inset", "09-03-2026") == \
+        "https://aeronav.faa.gov/visual/09-03-2026/sectional-files/Hawaiian_Islands.zip"
+    assert charts._is_chart_member(charts.TAC, "Honolulu_Inset", "Honolulu Inset SEC.tif")
+    assert not charts._is_chart_member(charts.TAC, "Honolulu_Inset", "Hawaiian Islands SEC.tif")
+    assert charts.zip_url(charts.IFR_AREA, "enr_l34_inset", "09-03-2026") == \
+        "https://aeronav.faa.gov/enroute/09-03-2026/enr_l34.zip"
+    assert charts._is_chart_member(charts.IFR_AREA, "enr_l34_inset", "ENR_L34_BOST_INSET.tif")
+    assert not charts._is_chart_member(charts.IFR_AREA, "enr_l34_inset", "ENR_L34.tif")
+    assert charts._is_chart_member(charts.IFR_AREA, "enr_a01", "ENR_A01_ATL.tif")
+    assert charts.IFR_AREA.over == ("ifr_low", "ifr_high") and charts.TAC.over == ("sec",)
+    # A coverage entry may be several boxes, for a sheet across the antimeridian.
+    assert charts._covers(((170.0, 50.0, 180.0, 53.0), (-180.0, 50.0, -172.0, 53.0)), (-175.0, 51.0, -174.0, 52.0))
+    assert not charts._covers(((170.0, 50.0, 180.0, 53.0), (-180.0, 50.0, -172.0, 53.0)), (-160.0, 51.0, -159.0, 52.0))
 
 
 def test_snap_pulls_a_sectional_edge_onto_the_quarter_degree():
@@ -157,6 +172,40 @@ def test_render_and_detect_read_three_band_rasters_too(tmp_path):
     envelope, face, mask = charts.detect_face(tmp_path / "ifr.tif", charts.SECTIONAL)
     assert face[0] == pytest.approx(-91.0, abs=0.02)
     assert mask is None
+
+
+def test_a_sheet_across_the_antimeridian_is_measured_unwrapped_and_drawn_in_two(tmp_path):
+    """UTM zone 1's central meridian is 177W; a raster reaching west of
+    its zone crosses 180. rasterio reports its bounds wrapped (west >
+    east); the face is found in unwrapped longitudes and split at 180
+    into the two boxes the tile arithmetic draws."""
+    import rasterio.transform
+
+    left, top = 60_000.0, 5_900_000.0   # UTM 1 metres: 640 km from about 176.6E across 180 to 174W
+    size = 1000
+    data = np.zeros((size, size), np.uint8)
+    data[80:920, 80:920] = 8
+    data[80:920, 79:82] = 7
+    data[80:920, 918:921] = 7
+    data[79:82, 80:920] = 7
+    data[918:921, 80:920] = 7
+    with rasterio.open(
+        tmp_path / "aleut.tif", "w", driver="GTiff", width=size, height=size, count=1, dtype="uint8",
+        crs="EPSG:32601", transform=rasterio.transform.from_origin(left, top, 640, 640),
+    ) as ds:
+        ds.write(data, 1)
+        ds.write_colormap(1, PALETTE)
+
+    envelope, face, _ = charts.detect_face(tmp_path / "aleut.tif", charts.SECTIONAL)
+    assert envelope[0] < 180 < envelope[2] < 200          # unwrapped: east carried on past 180
+    assert envelope[0] < face[0] < face[2] < envelope[2]
+    parts = charts.split_antimeridian(face, envelope)
+    assert len(parts) == 2
+    (east_face, _), (west_face, _) = parts
+    assert east_face[2] == 180.0 and west_face[0] == -180.0
+    assert east_face[0] == face[0] and west_face[2] == pytest.approx(face[2] - 360.0)
+    assert charts.split_antimeridian((-90.0, 40.0, -88.0, 44.0), (-90.5, 39.5, -87.5, 44.5)) == \
+        [((-90.0, 40.0, -88.0, 44.0), (-90.5, 39.5, -87.5, 44.5))]
 
 
 def test_render_leaves_a_sheets_own_leaning_edge_transparent(tmp_path):
@@ -355,6 +404,59 @@ def test_serving_cycle_is_the_newest_complete_pyramid(tmp_path, monkeypatch):
     assert not (tmp_path / "charts" / "09-03-2026").exists()
     assert (tmp_path / "charts" / "10-29-2026").exists()
     assert not (tmp_path / "tiles" / "09-03-2026").exists()
+
+
+def test_published_pointer_decides_the_served_cycle_in_the_cloud(tmp_path, monkeypatch):
+    monkeypatch.setattr(charts, "CHART_TILE_CACHE_DIR", tmp_path / "tiles")
+    monkeypatch.setattr(charts, "CHART_TILES_URL", "https://d123.cloudfront.net/tiles")
+    monkeypatch.setattr(charts, "current_cycle", lambda *a, **k: "10-29-2026")
+    monkeypatch.setattr(charts, "_serving_cache", {"value": None, "at": 0.0})
+
+    class Response:
+        ok = True
+
+        def json(self):
+            return {"cycle": "09-03-2026"}
+
+    calls = []
+    monkeypatch.setattr(charts.requests, "get", lambda url, **kw: calls.append(url) or Response())
+    assert charts.serving_cycle() == "09-03-2026"
+    assert calls == ["https://d123.cloudfront.net/tiles/serving.json"]
+    assert charts.tiles_base_url() == "https://d123.cloudfront.net/tiles"
+
+    # Unreachable, the planner falls back to its own disk and the FAA's cycle.
+    monkeypatch.setattr(charts, "_serving_cache", {"value": None, "at": 0.0})
+    monkeypatch.setattr(charts.requests, "get", lambda url, **kw: (_ for _ in ()).throw(charts.requests.ConnectionError()))
+    assert charts.serving_cycle() == "10-29-2026"
+
+
+def test_publish_uploads_every_tile_once_and_points_serving_at_the_cycle(tmp_path, monkeypatch):
+    monkeypatch.setattr(charts, "CHART_TILE_CACHE_DIR", tmp_path / "tiles")
+    root = tmp_path / "tiles" / "09-03-2026"
+    for key in ("sec/8/65/94.png", "sec/8/65/95.png", "tac/11/522/757.png"):
+        (root / key).parent.mkdir(parents=True, exist_ok=True)
+        (root / key).write_bytes(b"\x89PNG" + key.encode())
+    charts._write_pyramid_status("09-03-2026", {"kind": "sec", "zooms": [8], "started_at": "t", "finished_at": "t",
+                                                "rasters_total": 1, "rasters_done": 1, "tiles_written": 2, "current": None})
+
+    class Client:
+        def __init__(self):
+            self.objects = {}
+
+        def put_object(self, Bucket, Key, Body, ContentType, CacheControl):
+            self.objects[(Bucket, Key)] = (Body, ContentType, CacheControl)
+
+    client = Client()
+    assert charts.publish("09-03-2026", "charts-bucket", prefix="tiles", workers=2, client=client) == 3
+    assert client.objects[("charts-bucket", "tiles/09-03-2026/sec/8/65/94.png")][1:] == \
+        ("image/png", "public, max-age=2419200, immutable")
+    pointer = json.loads(client.objects[("charts-bucket", "tiles/serving.json")][0])
+    assert pointer["cycle"] == "09-03-2026" and pointer["kinds"] == {"sec": 2}
+
+    # A second run uploads nothing new but refreshes the pointer.
+    before = len(client.objects)
+    assert charts.publish("09-03-2026", "charts-bucket", prefix="tiles", workers=2, client=client) == 0
+    assert len(client.objects) == before
 
 
 def test_refresh_prepares_renders_and_prunes_only_when_complete(tmp_path, monkeypatch):

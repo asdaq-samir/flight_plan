@@ -57,12 +57,17 @@ from PIL import Image
 
 from .config import (
     CHART_TILE_CACHE_DIR,
+    CHART_TILES_BUCKET,
+    CHART_TILES_PREFIX,
+    CHART_TILES_URL,
     CHARTS_DIR,
     FAA_CHART_CYCLE_ANCHOR,
     FAA_CHART_CYCLE_DAYS,
     FAA_ENROUTE_ZIP_URL,
     FAA_VFR_PRODUCTS_PAGE,
     FAA_VISUAL_ZIP_URL,
+    IFR_AREA_MAX_ZOOM,
+    IFR_AREA_MIN_ZOOM,
     IFR_HIGH_MAX_ZOOM,
     IFR_HIGH_MIN_ZOOM,
     IFR_LOW_MAX_ZOOM,
@@ -102,8 +107,11 @@ class ChartKind:
     # boxes; a TAC carries its legend down both sides.
     fallback_collar: Box
     # A base layer the map draws one of (sectional, IFR low, IFR high),
-    # or an overlay drawn on top of the sectional (the TAC).
+    # or an overlay drawn on top of a base: `over` names the base kinds
+    # it belongs over (the TAC over the sectional, the IFR area charts
+    # over the IFR enroute charts).
     base: bool = True
+    over: tuple = ()
     # How the chart face is found in the raster. A VFR sheet's neatline
     # follows parallels and meridians, which curve and lean across the
     # sheet; an IFR enroute chart's border is the sheet's own rectangle,
@@ -118,7 +126,7 @@ SECTIONAL = ChartKind(
 )
 TAC = ChartKind(
     "tac", "Terminal area", FAA_VISUAL_ZIP_URL.replace("{folder}", "tac-files").replace("{name}", "{name}_TAC"),
-    (" TAC.tif",), VFR_TAC_MIN_ZOOM, VFR_TAC_MAX_ZOOM, (0.35, 0.02, 0.35, 0.08), base=False,
+    (" TAC.tif",), VFR_TAC_MIN_ZOOM, VFR_TAC_MAX_ZOOM, (0.35, 0.02, 0.35, 0.08), base=False, over=("sec",),
 )
 IFR_LOW = ChartKind(
     "ifr_low", "IFR low", FAA_ENROUTE_ZIP_URL, (".tif",), IFR_LOW_MIN_ZOOM, IFR_LOW_MAX_ZOOM, (0.3, 0.3, 0.3, 0.3),
@@ -128,13 +136,33 @@ IFR_HIGH = ChartKind(
     "ifr_high", "IFR high", FAA_ENROUTE_ZIP_URL, (".tif",), IFR_HIGH_MIN_ZOOM, IFR_HIGH_MAX_ZOOM, (0.3, 0.3, 0.3, 0.3),
     straight_border=True,
 )
-KINDS = {kind.key: kind for kind in (SECTIONAL, TAC, IFR_LOW, IFR_HIGH)}
+# The IFR area charts: the enroute charts' own terminal-area sheets
+# (Atlanta, Chicago, Denver ... fourteen of them, two zips), plus the
+# Boston and Wilmington insets that ride in two of the low-altitude
+# zips. Drawn over the IFR bases the way the TAC is drawn over the
+# sectional.
+IFR_AREA = ChartKind(
+    "ifr_area", "IFR area", FAA_ENROUTE_ZIP_URL, (".tif",), IFR_AREA_MIN_ZOOM, IFR_AREA_MAX_ZOOM, (0.2, 0.2, 0.2, 0.2),
+    base=False, over=("ifr_low", "ifr_high"), straight_border=True,
+)
+KINDS = {kind.key: kind for kind in (SECTIONAL, TAC, IFR_LOW, IFR_HIGH, IFR_AREA)}
 
-# The two Caribbean VFR charts are sectional-scale sheets published
-# under their own folder with their own naming.
+# Sheets that come from another kind's zip, or a folder of their own:
+# the two Caribbean VFR charts are sectional-scale sheets published
+# under their own folder; the Honolulu inset is a terminal-area-scale
+# sheet inside the Hawaiian Islands sectional zip; the Boston and
+# Wilmington IFR insets ride in their enroute zips.
 _ZIP_URL_OVERRIDES = {
     ("sec", "Caribbean_1_VFR"): FAA_VISUAL_ZIP_URL.replace("{folder}", "Caribbean"),
     ("sec", "Caribbean_2_VFR"): FAA_VISUAL_ZIP_URL.replace("{folder}", "Caribbean"),
+    ("tac", "Honolulu_Inset"): FAA_VISUAL_ZIP_URL.replace("{folder}", "sectional-files").replace("{name}", "Hawaiian_Islands"),
+    ("ifr_area", "enr_l34_inset"): FAA_ENROUTE_ZIP_URL.replace("{name}", "enr_l34"),
+    ("ifr_area", "enr_l23_inset"): FAA_ENROUTE_ZIP_URL.replace("{name}", "enr_l23"),
+}
+_MEMBER_OVERRIDES = {
+    ("tac", "Honolulu_Inset"): ("Honolulu Inset SEC.tif",),
+    ("ifr_area", "enr_l34_inset"): ("ENR_L34_BOST_INSET.tif",),
+    ("ifr_area", "enr_l23_inset"): ("ENR_L23_WILM_INSET.tif",),
 }
 
 
@@ -142,15 +170,28 @@ def zip_url(kind: ChartKind, name: str, cycle: str) -> str:
     return _ZIP_URL_OVERRIDES.get((kind.key, name), kind.zip_url).format(cycle=cycle, name=name)
 
 
-def _is_chart_member(kind: ChartKind, member: str) -> bool:
-    """Whether a zip member is a sheet to draw. Insets are not: the
-    Honolulu inset in the Hawaiian Islands zip and the Boston and
-    Wilmington insets in the IFR zips are larger-scale excerpts that
-    would paint over the sheet they sit on."""
+def _is_chart_member(kind: ChartKind, name: str, member: str) -> bool:
+    """Whether a zip member is a sheet of chart `name`. Insets are not
+    part of the sheet they ride with -- larger-scale excerpts that
+    would paint over it -- and are listed as sheets of their own
+    (_MEMBER_OVERRIDES) under the overlay kinds instead."""
+    wanted = _MEMBER_OVERRIDES.get((kind.key, name))
+    if wanted is not None:
+        return member in wanted
     upper = member.upper()
     if " INSET " in upper or "_INSET" in upper:
         return False
     return any(member.endswith(suffix) for suffix in kind.raster_suffixes)
+
+
+def _boxes(entry) -> tuple:
+    """A coverage entry as a tuple of boxes: one, or several for a
+    chart that straddles the antimeridian."""
+    return entry if isinstance(entry[0], tuple) else (entry,)
+
+
+def _covers(entry, bbox: Box) -> bool:
+    return any(_intersects(box, bbox) for box in _boxes(entry))
 
 
 # Every chart's raster envelope (west, south, east, north), collar
@@ -158,10 +199,9 @@ def _is_chart_member(kind: ChartKind, member: str) -> bool:
 # .htm inside each zip of the 09-03-2026 cycle; the sheets do not move
 # between editions. A TAC zip can hold more than one chart (Denver's
 # also carries Colorado Springs, Seattle's carries Portland) -- listed
-# as the union, since the zip is the unit of download. Not listed: the
-# Western Aleutian Islands sheets, which straddle the antimeridian, a
-# case the tile arithmetic here does not handle.
-COVERAGE: dict[str, dict[str, Box]] = {
+# as the union, since the zip is the unit of download. An entry is one
+# box, or several for a chart that straddles the antimeridian.
+COVERAGE: dict[str, dict] = {
     "sec": {
         "Anchorage": (-153.84, 59.43, -139.35, 64.29),
         "Bethel": (-174.88, 59.44, -160.30, 64.31),
@@ -216,6 +256,9 @@ COVERAGE: dict[str, dict[str, Box]] = {
         "St_Louis": (-92.65, 35.50, -83.74, 40.30),
         "Twin_Cities": (-102.61, 44.29, -92.26, 49.11),
         "Washington": (-79.95, 35.50, -71.65, 40.28),
+        # Two sheets in one zip; the eastern one straddles the
+        # antimeridian, hence the two boxes.
+        "Western_Aleutian_Islands": ((168.17, 50.75, 180.0, 53.29), (-180.0, 50.75, -172.35, 53.29)),
         "Wichita": (-104.91, 35.51, -96.63, 40.30),
     },
     "tac": {
@@ -240,6 +283,7 @@ COVERAGE: dict[str, dict[str, Box]] = {
         "New_York": (-75.68, 40.17, -72.62, 41.38),
         "Philadelphia": (-76.42, 38.98, -73.86, 40.63),
         "Phoenix": (-113.57, 32.75, -111.15, 34.20),
+        "Honolulu_Inset": (-158.51, 20.73, -157.35, 21.62),
         "Pittsburgh": (-81.38, 39.92, -78.96, 41.11),
         "Puerto_Rico-VI": (-67.81, 17.61, -64.22, 18.80),
         "Salt_Lake_City": (-113.32, 40.09, -110.64, 41.55),
@@ -299,6 +343,16 @@ COVERAGE: dict[str, dict[str, Box]] = {
         "enr_h10": (-89.84, 33.28, -61.99, 45.03),
         "enr_h11": (-89.84, 38.69, -59.58, 50.59),
         "enr_h12": (-87.96, 27.71, -67.52, 47.37),
+    },
+    "ifr_area": {
+        # Each zip is several sheets; the box is their union, and the
+        # sheets' own faces decide which draws where.
+        "enr_a01": (-94.14, 25.20, -74.02, 45.53),
+        "enr_a02": (-123.29, 31.40, -87.06, 43.40),
+        # The insets carry no metadata of their own; a generous box
+        # around the city, and again the face decides.
+        "enr_l34_inset": (-72.2, 41.6, -70.0, 43.0),
+        "enr_l23_inset": (-78.9, 33.5, -77.2, 34.9),
     },
 }
 
@@ -539,7 +593,7 @@ def _download_and_prepare(kind: ChartKind, name: str, cycle: str) -> Chart:
     paths = []
     with zipfile.ZipFile(archive) as z:
         for member in z.namelist():
-            if not _is_chart_member(kind, member):
+            if not _is_chart_member(kind, name, member):
                 continue
             target = directory / Path(member).name
             with z.open(member) as src, target.open("wb") as dst:
@@ -554,7 +608,8 @@ def _download_and_prepare(kind: ChartKind, name: str, cycle: str) -> Chart:
         started = time.time()
         build_overviews(path)
         envelope, face, mask = detect_face(path, kind)
-        rasters.append(Raster(path=path, face=face, envelope=envelope, mask=mask))
+        for part_face, part_envelope in split_antimeridian(face, envelope):
+            rasters.append(Raster(path=path, face=part_face, envelope=part_envelope, mask=mask))
         log.info("prepared %s in %.0f s: face %s within %s", path.name, time.time() - started,
                  tuple(round(v, 3) for v in face), tuple(round(v, 3) for v in envelope))
     chart = Chart(kind=kind, name=name, cycle=cycle, rasters=tuple(rasters),
@@ -627,6 +682,10 @@ class _Ink:
     dark: np.ndarray    # pooled: any ink in the block
     white: np.ndarray   # pooled: fraction of paper in the block
     tint: np.ndarray    # pooled: fraction of neither
+    # A sheet across the antimeridian is worked in unwrapped longitudes
+    # (east of 180 counted on past it) and samples are wrapped back
+    # before they are projected.
+    wrap: bool = False
 
 
 def _palette(src) -> np.ndarray | None:
@@ -673,6 +732,8 @@ def _sample(ink: _Ink, lats: np.ndarray, lons: np.ndarray) -> tuple:
     import rasterio.transform
     import rasterio.warp
 
+    if ink.wrap:
+        lons = ((lons + 180.0) % 360.0) - 180.0
     xs, ys = rasterio.warp.transform("EPSG:4326", ink.crs, lons.tolist(), lats.tolist())
     rows, cols = rasterio.transform.rowcol(ink.transform, xs, ys)
     rows, cols = np.asarray(rows) // _POOL_PX, np.asarray(cols) // _POOL_PX
@@ -765,6 +826,20 @@ def _snap(value: float) -> float:
     return nearest if abs(nearest - value) <= _SNAP_TOLERANCE_DEG else value
 
 
+def split_antimeridian(face: Box, envelope: Box) -> list:
+    """A face measured in unwrapped longitudes (east past 180, see
+    detect_face) as the one or two (face, envelope) pairs the tile
+    arithmetic can draw: the part up to 180, and the part from -180 on."""
+    if face[2] <= 180.0:
+        return [(face, envelope)]
+    west, south, east, north = face
+    e_west, e_south, e_east, e_north = envelope
+    return [
+        ((west, south, 180.0, north), (e_west, e_south, 180.0, e_north)),
+        ((-180.0, south, east - 360.0, north), (-180.0, e_south, e_east - 360.0, e_north)),
+    ]
+
+
 # A straight raster line counts as ruling when this much of it is ink
 # over the middle three-fifths of the sheet; the chart area is the
 # widest stretch of the sheet between two such lines (or the sheet's
@@ -830,6 +905,13 @@ def detect_face(path: Path, kind: ChartKind) -> tuple[Box, Box, Path | None]:
     with rasterio.open(path) as src:
         ink = _ink_maps(src)
         envelope = tuple(float(v) for v in rasterio.warp.transform_bounds(src.crs, "EPSG:4326", *src.bounds))
+        if envelope[0] > envelope[2]:
+            # Across the antimeridian (the western Aleutians): carry on
+            # past 180 so that west is west of east, and wrap samples
+            # back on their way to the raster. The face comes back the
+            # same way; split_antimeridian cuts it in two for drawing.
+            envelope = (envelope[0], envelope[1], envelope[2] + 360.0, envelope[3])
+            ink.wrap = True
         res_m = float(src.res[0])
         if kind.straight_border:
             mask_path = path.with_name(f"{path.stem}.mask.tif")
@@ -979,7 +1061,7 @@ def rasters_covering(kind: ChartKind, bbox: Box, cycle: str | None = None) -> tu
     cycle = cycle or current_cycle()
     rasters, complete = [], True
     for name, envelope in COVERAGE[kind.key].items():
-        if not _intersects(envelope, bbox):
+        if not _covers(envelope, bbox):
             continue
         chart = ensure_chart(kind, name, cycle)
         if chart is None:
@@ -1052,7 +1134,7 @@ def prepare_for_bbox(bbox: Box, kinds: tuple = tuple(KINDS)) -> list:
     for key in kinds:
         kind = KINDS[key]
         for name, envelope in COVERAGE[key].items():
-            if _intersects(envelope, bbox):
+            if _covers(envelope, bbox):
                 chart = ensure_chart(kind, name)
                 if chart is not None:
                     charts.append(chart)
@@ -1094,19 +1176,38 @@ _SERVING_TTL_S = 60
 
 
 def serving_cycle() -> str:
-    """The cycle the tile endpoints draw: the newest on disk whose
-    sectional pyramid is complete, so a new cycle is served only once
-    every one of its tiles is there -- until then the map keeps the
-    previous edition, whole, rather than rendering the new one a tile
-    at a time. With no complete pyramid at all (a fresh checkout) it is
-    the FAA's current cycle, rendered on demand. Held for a minute:
-    this is asked once per tile."""
+    """The cycle the map draws: the newest on disk whose sectional
+    pyramid is complete, so a new cycle is served only once every one
+    of its tiles is there -- until then the map keeps the previous
+    edition, whole, rather than rendering the new one a tile at a
+    time. With no complete pyramid at all (a fresh checkout) it is the
+    FAA's current cycle, rendered on demand. Where the tiles live in
+    the cloud (CHART_TILES_URL) it is whatever the published pointer
+    there says. Held for a minute: this is asked once per tile."""
     if _serving_cache["value"] and time.time() - _serving_cache["at"] < _SERVING_TTL_S:
         return _serving_cache["value"]
-    value = next((c for c in _cycles_on_disk(CHART_TILE_CACHE_DIR) if pyramid_complete(c, ("sec",))), None)
+    value = _published_cycle() if CHART_TILES_URL else None
+    value = value or next((c for c in _cycles_on_disk(CHART_TILE_CACHE_DIR) if pyramid_complete(c, ("sec",))), None)
     value = value or current_cycle()
     _serving_cache.update(value=value, at=time.time())
     return value
+
+
+def _published_cycle() -> str | None:
+    """The cycle the published pyramid's own pointer names, or None
+    when it cannot be read (and the planner falls back to its disk)."""
+    try:
+        resp = requests.get(f"{CHART_TILES_URL}/serving.json", headers=REQUEST_HEADERS, timeout=5)
+        return resp.json()["cycle"] if resp.ok else None
+    except (requests.RequestException, ValueError, KeyError):
+        return None
+
+
+def tiles_base_url() -> str | None:
+    """Where the browser should fetch tiles from instead of this
+    planner, when the pyramid is published: the map appends
+    /<cycle>/<kind>/{z}/{x}/{y}.png."""
+    return CHART_TILES_URL
 
 
 def status() -> dict:
@@ -1180,9 +1281,10 @@ def _redetect(chart: Chart) -> Chart:
     directory = chart.rasters[0].path.parent
     with _lock_for((chart.kind.key, chart.name)), _directory_lock(directory):
         rasters = []
-        for raster in chart.rasters:
-            envelope, face, mask = detect_face(raster.path, chart.kind)
-            rasters.append(Raster(path=raster.path, face=face, envelope=envelope, mask=mask))
+        for path in sorted({r.path for r in chart.rasters}):
+            envelope, face, mask = detect_face(path, chart.kind)
+            for part_face, part_envelope in split_antimeridian(face, envelope):
+                rasters.append(Raster(path=path, face=part_face, envelope=part_envelope, mask=mask))
         chart = Chart(kind=chart.kind, name=chart.name, cycle=chart.cycle, rasters=tuple(rasters),
                       prepared_at=datetime.now(tz=timezone.utc).isoformat())
         _write_ready(directory, chart)
@@ -1355,10 +1457,12 @@ def render_pyramid(kind: ChartKind, zooms: tuple | None = None, workers: int = 4
 _REFRESH_LOCK = "refresh.lock"
 
 
-def refresh(kinds: tuple = tuple(KINDS), workers: int = 2, prune: bool = True) -> str:
-    """Bring the FAA's current cycle to a complete pyramid, then drop
-    older cycles. Returns the cycle. Idempotent: a complete cycle
-    costs one status read."""
+def refresh(kinds: tuple = tuple(KINDS), workers: int = 2, prune: bool = True,
+            publish_bucket: str | None = None) -> str:
+    """Bring the FAA's current cycle to a complete pyramid, publish it
+    to `publish_bucket` if one is given (the AWS refresh task's job),
+    then drop older cycles. Returns the cycle. Idempotent: a complete,
+    published cycle costs one status read and one listing."""
     cycle = current_cycle()
     if not pyramid_complete(cycle, kinds):
         log.info("cycle %s: preparing sheets", cycle)
@@ -1366,9 +1470,67 @@ def refresh(kinds: tuple = tuple(KINDS), workers: int = 2, prune: bool = True) -
         for key in kinds:
             log.info("cycle %s: rendering the %s pyramid", cycle, key)
             render_pyramid(KINDS[key], workers=workers, cycle=cycle)
+    if publish_bucket and pyramid_complete(cycle, kinds):
+        publish(cycle, publish_bucket)
     if prune and pyramid_complete(cycle, kinds):
         prune_cycles(keep=cycle)
     return cycle
+
+
+# ---------------------------------------------------------------------------
+# Publishing to S3
+# ---------------------------------------------------------------------------
+
+_PUBLISHED = "published.json"
+
+
+def publish(cycle: str, bucket: str, prefix: str = CHART_TILES_PREFIX, workers: int = 32, client=None) -> int:
+    """Upload a complete cycle's tiles to s3://bucket/prefix/<cycle>/
+    with the headers a CDN wants, then point prefix/serving.json at
+    the cycle so every planner and browser switches at once. Resumable:
+    what was uploaded is remembered beside the tiles, so a task killed
+    half-way picks up where it stopped. Returns the tiles uploaded."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    if client is None:
+        import boto3
+
+        client = boto3.client("s3")
+    root = CHART_TILE_CACHE_DIR / cycle
+    ledger = root / _PUBLISHED
+    try:
+        done = set(json.loads(ledger.read_text()))
+    except (OSError, ValueError):
+        done = set()
+    todo = [p for p in root.rglob("*.png") if str(p.relative_to(root)) not in done]
+    log.info("publishing cycle %s: %d tiles to upload (%d already there)", cycle, len(todo), len(done))
+
+    def upload(path: Path) -> str:
+        key = str(path.relative_to(root))
+        client.put_object(
+            Bucket=bucket, Key=f"{prefix}/{cycle}/{key}", Body=path.read_bytes(), ContentType="image/png",
+            CacheControl="public, max-age=2419200, immutable",
+        )
+        return key
+
+    uploaded = 0
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        for i, key in enumerate(pool.map(upload, todo), 1):
+            done.add(key)
+            uploaded += 1
+            if i % 5000 == 0:
+                ledger.write_text(json.dumps(sorted(done)))
+                log.info("  %d of %d uploaded", i, len(todo))
+    ledger.write_text(json.dumps(sorted(done)))
+
+    pointer = {"cycle": cycle, "kinds": {k: p.get("tiles_written", 0) for k, p in pyramid_status(cycle).items()},
+               "published_at": datetime.now(tz=timezone.utc).isoformat()}
+    client.put_object(
+        Bucket=bucket, Key=f"{prefix}/serving.json", Body=json.dumps(pointer).encode(),
+        ContentType="application/json", CacheControl="public, max-age=300",
+    )
+    log.info("cycle %s published: %d tiles uploaded, serving.json points at it", cycle, uploaded)
+    return uploaded
 
 
 def prune_cycles(keep: str) -> list[str]:
@@ -1472,7 +1634,7 @@ def _main(argv: list | None = None) -> int:
 
     parser = argparse.ArgumentParser(description="FAA VFR charts: fetch every sheet, render every tile.")
     sub = parser.add_subparsers(dest="command", required=True)
-    for name in ("prepare", "pyramid", "refresh", "check"):
+    for name in ("prepare", "pyramid", "refresh", "check", "publish"):
         p = sub.add_parser(name)
         if name in ("prepare", "pyramid"):
             p.add_argument("--kind", nargs="+", choices=list(KINDS), default=list(KINDS))
@@ -1484,6 +1646,11 @@ def _main(argv: list | None = None) -> int:
             p.add_argument("--zooms", help="e.g. 5-12; the kind's own range by default")
             p.add_argument("--tiles-dir", help="render into this folder instead of the tile cache -- a staging "
                                                "pyramid to swap in whole while the old one keeps serving")
+        if name in ("refresh", "publish"):
+            p.add_argument("--bucket", default=CHART_TILES_BUCKET,
+                           help="S3 bucket to publish the complete cycle to (CHART_TILES_BUCKET by default)")
+        if name == "publish":
+            p.add_argument("--cycle", help="the cycle to publish; the served one by default")
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     if getattr(args, "tiles_dir", None):
@@ -1495,8 +1662,14 @@ def _main(argv: list | None = None) -> int:
         log.info("%d charts ready under %s", len(charts), CHARTS_DIR)
         return 0
     if args.command == "refresh":
-        cycle = refresh(workers=args.workers)
+        cycle = refresh(workers=args.workers, publish_bucket=args.bucket)
         log.info("cycle %s complete; serving %s", cycle, serving_cycle())
+        return 0
+    if args.command == "publish":
+        if not args.bucket:
+            parser.error("publish needs --bucket or CHART_TILES_BUCKET")
+        count = publish(args.cycle or serving_cycle(), args.bucket)
+        log.info("%d tiles uploaded", count)
         return 0
     if args.command == "check":
         gaps = face_gaps()

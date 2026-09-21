@@ -37,6 +37,8 @@ class ChartLayer(BaseModel):
     min_zoom: int
     max_zoom: int
     base: bool
+    # For an overlay, the base kinds it belongs over.
+    over: list[str] = []
 
 
 class Course(BaseModel):
@@ -59,6 +61,11 @@ class Course(BaseModel):
     # this app drew before, whose no-coverage checkerboard one phone
     # went on showing for a day -- asks afresh when it changes.
     chart_cycle: str
+    # Where the map fetches tiles when the pyramid is published to a
+    # CDN (the AWS deployment): a base URL the map appends
+    # /<cycle>/<kind>/{z}/{x}/{y}.png to. None when this planner
+    # serves its own tiles.
+    chart_tiles_base: str | None = None
 
 
 class Candidate(BaseModel):
@@ -260,6 +267,7 @@ class Plan(BaseModel):
     tac_max_zoom: int
     tac_min_zoom: int
     chart_cycle: str
+    chart_tiles_base: str | None = None
     chart_layers: list[ChartLayer]
 
 
