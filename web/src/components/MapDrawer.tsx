@@ -17,7 +17,7 @@ interface Props {
    *  and at most most of the height. */
   className?: string;
   /** Prints as the page. Drawers are hidden on paper -- except the one
-   *  that is the document: Plan's nav log opened wide as the briefing.
+   *  that is the document: Plan's flight planning drawer, the briefing.
    *  Printed, it sheds its sheet styling (position, width, shadow,
    *  the clipped height) and is laid out as ordinary flow content the
    *  browser can paginate. */

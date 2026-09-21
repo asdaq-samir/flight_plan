@@ -14,7 +14,7 @@ const BUCKETS: [string, string][] = [
 ];
 
 const KEYS: [string, string][] = [
-  ["n", "open the nav log wide as the briefing, and back"],
+  ["n", "open the flight planning drawer, and close it"],
   ["f", "fit the whole route"],
   ["a", "show every landmark the model rated, not only the chosen ones"],
   ["↑↓", "step through the checkpoints"],
@@ -53,7 +53,7 @@ export default function PilotGuide({ course }: { course: Course | null }) {
         <ol className="list-decimal space-y-1 pl-5 text-muted-foreground">
           <li>Pick your departure and destination in the header and press the arrow. The course draws at once.</li>
           <li>The numbered dots along the course are your visual checkpoints: landmarks a pilot could pick out from the air, chosen and rated for that.</li>
-          <li>Open the nav log from the header. It has the legs with headings, times and fuel for your aeroplane and the winds, and the briefing sections under it: weather, NOTAMs, the airports. Open it wide to print.</li>
+          <li>Open Flight Planning from the header and pick your aeroplane and departure time at the top. The nav log has the legs with headings, times and fuel for them and the winds, and the briefing sections follow it: weather, NOTAMs, the airports. Print it from there.</li>
           <li>Tap a checkpoint or its row for how to spot it, and add your own note.</li>
         </ol>
       </section>

@@ -1,12 +1,11 @@
 import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
 import clsx from "clsx";
-import { BookOpenText, CircleHelp, Loader2, Minimize2, WandSparkles } from "lucide-react";
+import { CircleHelp, Loader2, WandSparkles } from "lucide-react";
 import {
   type CellData, type ColumnDef, type RowData, type TableFeatures,
   flexRender, tableFeatures, useTable,
 } from "@tanstack/react-table";
 import CollapsibleSection from "../../../../components/CollapsibleSection";
-import IconButton from "../../../../components/IconButton";
 import { NoteRow, SelectableRow } from "../../../../components/SelectableRows";
 import { Button } from "../../../../components/ui/button";
 import { Input } from "../../../../components/ui/input";
@@ -127,26 +126,16 @@ interface Props {
   destElevationFt: number | null;
   descriptions: Record<string, Description>;
   onSaveDescription: (lat: number, lon: number, text: string) => void;
-  /** The AI button's own one-shot "generate now" for every
+  /** The nav log section's own one-shot "generate now" for every
    *  checkpoint's description at once -- descriptions are visible
    *  (and editable) in every row regardless of whether this has ever
    *  been clicked. */
   onGenerateDescriptions: () => void;
   descriptionsLoading: boolean;
-  /** Whether the drawer is open wide as the briefing -- this same
-   *  table with the briefing's sections under it (`children`) and the
-   *  briefing's own actions in this header (`actions`), wide enough for
-   *  every column without a horizontal scroll. The toggle lives here
-   *  (not floating over the map) since it's this content's own width
-   *  it changes; Shell reads the same `expanded` value to size the
-   *  drawer itself. */
-  expanded: boolean;
-  onToggleExpanded: () => void;
-  /** The briefing's own header actions (the narrative popover, Print)
-   *  -- present only while `expanded`. */
+  /** The briefing's own header actions (the narrative popover, Print). */
   actions?: ReactNode;
-  /** The briefing's sections, rendered under the table in the same
-   *  scroller -- present only while `expanded`. */
+  /** The briefing's sections, rendered under the nav log's own
+   *  section in the same scroller. */
   children?: ReactNode;
   /** Clicking a row focuses that waypoint on the map (pans/zooms to
    *  it, draws the halo) the same way clicking its marker there
@@ -238,10 +227,14 @@ function DescriptionCell({
  * a point on the map (or another row) scrolls this one into view --
  * the same two-way link the old checkpoint list had.
  *
- * The same table, opened wide, is the briefing: PlanView passes the
- * briefing's sections as `children` and its own actions as `actions`,
- * and this one component is the nav log in both widths -- the briefing
- * used to draw its own read-only copy, and the two drifted.
+ * This drawer is the briefing: PlanView passes the briefing's sections
+ * as `children` and its own actions as `actions`, and the nav log is
+ * the first section of it, with the totals, the altitude and the fuel
+ * check above the table. The header holds only the two inputs the log
+ * is computed from, the aeroplane and the departure time. The briefing
+ * used to draw its own read-only copy of the table, and the two
+ * drifted; then the drawer had two widths, the table alone and the
+ * whole briefing, which held the same things in two arrangements.
  *
  * One row per waypoint, not one row per leg with both its ends named
  * on it -- a paper nav log runs down the page checkpoint by checkpoint,
@@ -253,7 +246,7 @@ export default function NavLogView({
   totals, nav, courseBearingDeg, onAltitudeChoiceChange, depart, onDepartChange,
   legs, dep, dest, depName, destName, depLat, depLon, destLat, destLon,
   selected, depElevationFt, destElevationFt, descriptions, onSaveDescription,
-  onGenerateDescriptions, descriptionsLoading, expanded, onToggleExpanded, actions, children,
+  onGenerateDescriptions, descriptionsLoading, actions, children,
   selectedPoint, onSelectPoint, alt, onAltChange, onSubmit,
   aircraftValue, aircraftOptions, onAircraftChange,
 }: Props) {
@@ -416,14 +409,13 @@ export default function NavLogView({
   const isSelected = (lat: number, lon: number) =>
     !!selectedPoint && descriptionKey(lat, lon) === descriptionKey(selectedPoint.lat, selectedPoint.lon);
 
-  // The table itself. With the briefing's sections under it (both
-  // widths, now), the table scrolls sideways inside its own container
-  // so the sections below stay put; alone, the whole scroller scrolls
-  // as one. Printed, nothing scrolls: every column is laid out for
+  // The table itself. With the briefing's sections under it, the table
+  // scrolls sideways inside its own container so the sections below
+  // stay put. Printed, nothing scrolls: every column is laid out for
   // the browser to paginate.
   const navLogTable = (
     <Table
-      containerClassName={children ? "overflow-x-auto print:overflow-visible" : "overflow-visible"}
+      containerClassName="overflow-x-auto print:overflow-visible"
       className="text-right text-xs whitespace-nowrap"
     >
       <TableCaption className="sr-only">
@@ -509,6 +501,158 @@ export default function NavLogView({
     </Table>
   );
 
+  // What the log adds up to, and the one action on its rows: the
+  // totals, the altitude and why, the winds period, the fuel check,
+  // and the button that fills the blank notes in. The first thing in
+  // the nav log's own section, above the table, so the header above
+  // holds only what the log is computed from.
+  const summary = (
+    <div className="mb-3 flex flex-col gap-1 text-sm" data-testid="navlog-summary">
+      <div className="flex flex-wrap items-center gap-2">
+        {parts && (
+          <span>
+            <b>{parts.distance}</b> · <b>{parts.time}</b> · <b>{parts.fuel}</b>
+            {depart && totals && totals.ete_min !== null && <> · ETA <b>{etaAt(depart, totals.ete_min)}</b></>}
+            {parts.warning && <> · <span className="text-destructive">{parts.warning}</span></>}
+          </span>
+        )}
+        {/* The altitude, and why: a pilot should never have to take a
+            cruise altitude on trust, so the figure itself opens the
+            planner's own reasoning -- floor, ceiling, the rule, the
+            weather checked -- rather than a bare "(auto)". Printed,
+            the plain figure; the briefing's Cruise Altitude section
+            carries the same steps onto the paper. */}
+        {nav && (() => {
+          // "2,500 ft · lowest", or "2,500–6,500 ft · fastest" for a
+          // plan that steps; "· yours" for a typed altitude.
+          const flown = nav.options.find(o => o.kind === nav.choice);
+          const altitudes = flown ? flown.steps.map(st => st.altitude_ft) : [nav.altitude_ft];
+          const range = altitudes.length > 1 && Math.min(...altitudes) !== Math.max(...altitudes)
+            ? `${altFt(Math.min(...altitudes))}–${altFt(Math.max(...altitudes))} ft`
+            : `${altFt(altitudes[0])} ft`;
+          // `choice` is null for a typed altitude: the plans are still
+          // offered beside it, but none is being flown.
+          const label = `${range} · ${nav.choice ?? "yours"}`;
+          return (
+            <>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="ghost" size="sm" className="px-1.5 font-normal text-muted-foreground print:hidden"
+                    aria-label="How the altitude was chosen" data-testid="altitude-why"
+                  >
+                    {label}
+                    <CircleHelp className="size-4" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent align="start" className="max-h-[70vh] w-80 overflow-y-auto">
+                  {/* The three plans first, each a button: the pilot
+                      picks one and the log re-plans on it. Then why. */}
+                  <div className="mb-3 space-y-1.5" role="group" aria-label="Cruise altitude plans">
+                    <div className="text-xs font-semibold uppercase text-muted-foreground">Three plans, or your own</div>
+                    {nav.options.map(o => (
+                      <Button
+                        key={o.kind} type="button" size="sm"
+                        variant={o.kind === nav.choice ? "default" : "outline"}
+                        aria-pressed={o.kind === nav.choice}
+                        className="h-auto w-full justify-between gap-3 whitespace-normal py-1.5 text-left"
+                        onClick={() => onAltitudeChoiceChange(o.kind)}
+                        data-testid={`altitude-plan-${o.kind}`}
+                      >
+                        <span>
+                          <span className="font-semibold capitalize">{o.kind}</span>
+                          <span className="block text-xs font-normal opacity-80">{describeSteps(o)}</span>
+                        </span>
+                        <span className="shrink-0 text-xs tabular-nums">{describeTime(o)}</span>
+                      </Button>
+                    ))}
+                    {/* The pilot's own altitude, one number for the
+                        whole route: a fourth row under the three
+                        plans, pressed while it is what the log flies.
+                        Enter or Fly re-plans at it; the stock Input's
+                        16px below md keeps a phone from zooming. */}
+                    <form
+                      className={clsx(
+                        "flex items-center gap-2 rounded-md border px-2 py-1.5",
+                        nav.choice === null ? "border-primary bg-primary text-primary-foreground" : "border-input",
+                      )}
+                      onSubmit={e => { e.preventDefault(); onSubmit(); }}
+                      aria-label="Custom altitude"
+                    >
+                      <span className="text-sm font-semibold">Custom</span>
+                      <Input
+                        value={alt}
+                        onChange={e => onAltChange(e.target.value)}
+                        placeholder="ft"
+                        inputMode="numeric"
+                        spellCheck={false}
+                        aria-label="Cruise altitude, feet"
+                        className="ml-auto h-8 w-24 bg-background text-right text-foreground"
+                        data-testid="custom-altitude"
+                      />
+                      <Button
+                        type="submit" size="sm" variant={nav.choice === null ? "secondary" : "outline"}
+                        disabled={!alt.trim()} data-testid="custom-altitude-fly"
+                      >
+                        Fly
+                      </Button>
+                    </form>
+                  </div>
+                  <div className="mb-2 text-xs font-semibold uppercase text-muted-foreground">How the altitude was chosen</div>
+                  <AltitudeReasoning nav={nav} bearingDeg={courseBearingDeg} />
+                </PopoverContent>
+              </Popover>
+              <span className="hidden text-muted-foreground print:inline">
+                {label}
+              </span>
+            </>
+          );
+        })()}
+        {/* Which winds forecast period the legs are flown on -- named
+            so a pilot knows the winds are the 12-hour forecast, say,
+            not now's. Only with a departure time: without one the
+            legs are flown on the nearest period to now. */}
+        {depart && (
+          <span className="text-xs text-muted-foreground" data-testid="winds-forecast">
+            winds: {nav ? `${Number(nav.winds_forecast_hr)}-hour forecast` : "…"}
+          </span>
+        )}
+        {/* A wand, not the narrative's own sparkles: this one acts on
+            the rows -- it fills the blank notes in -- where the
+            narrative in the header writes a text of its own. */}
+        <Button
+          variant="outline" size="sm" className="ml-auto print:hidden"
+          onClick={onGenerateDescriptions} disabled={descriptionsLoading || selected.length === 0}
+          data-testid="generate-descriptions-button"
+        >
+          {descriptionsLoading ? <Loader2 className="animate-spin" /> : <WandSparkles />}
+          Generate descriptions
+        </Button>
+      </div>
+      {/* The fuel check (14 CFR 91.151): the legs' fuel plus the
+          reserve -- 30 minutes by day, 45 at night, the day one
+          assumed and said so without a departure time -- against the
+          aeroplane's usable fuel when it has one, red when the tanks
+          do not hold it. */}
+      {totals && totals.fuel_required_gal != null && (
+        <div
+          className={clsx(
+            "text-xs",
+            totals.fuel_margin_gal != null && totals.fuel_margin_gal < 0
+              ? "font-semibold text-destructive"
+              : "text-muted-foreground",
+          )}
+          data-testid="fuel-check"
+        >
+          Fuel required {one(totals.fuel_required_gal)} gal
+          {` (${totals.reserve_min} min ${totals.night == null ? "day reserve, no departure time" : totals.night ? "night reserve" : "day reserve"})`}
+          {totals.usable_fuel_gal != null && ` of ${totals.usable_fuel_gal} usable`}
+          {totals.fuel_margin_gal != null && totals.fuel_margin_gal < 0 && ` · short by ${one(-totals.fuel_margin_gal)} gal`}
+        </div>
+      )}
+    </div>
+  );
+
   return (
     // print:h-auto print:overflow-visible: on screen this fills a fixed
     // viewport height and clips to it, deliberately -- on paper there
@@ -518,222 +662,62 @@ export default function NavLogView({
     <div className="flex h-full flex-col overflow-hidden bg-background print:h-auto print:overflow-visible">
       {/* Printed, this header is the briefing's title: the page's own
           header (the route form) is print:hidden, so the route is
-          named here instead, and the buttons drop out. */}
-      <div className="flex flex-col gap-1 border-b border-border p-3 text-sm">
+          named here instead, the inputs become a line of text, and
+          the buttons drop out. */}
+      <div className="flex flex-col gap-2 border-b border-border p-3 text-sm">
         <div className="flex items-center gap-2">
           <span className="font-semibold text-muted-foreground" data-testid="drawer-title">Flight Planning</span>
           <span className="hidden text-muted-foreground print:inline">{dep} → {dest}</span>
-          <div className="ml-auto flex items-center gap-1 print:hidden">
-            {/* A wand, not the narrative's own sparkles: with the
-                briefing open the two AI buttons sit side by side, and
-                this one acts on the rows -- it fills the blank notes
-                in -- where the narrative writes a text of its own. */}
-            <IconButton
-              onClick={onGenerateDescriptions} disabled={descriptionsLoading || selected.length === 0}
-              label="Generate checkpoint descriptions"
-              data-testid="generate-descriptions-button"
-            >
-              {descriptionsLoading ? <Loader2 className="size-5 animate-spin" /> : <WandSparkles className="size-5" />}
-            </IconButton>
-            {actions}
-            {/* Wide is the briefing, narrow is the nav log beside the
-                map -- on a phone too, where wide means the whole map
-                area rather than three quarters of it. An open book to
-                open the briefing (the document a pilot is looking for,
-                not "make this bigger"), and the shrink arrows to come
-                back, which is all that step is. */}
-            <IconButton
-              onClick={onToggleExpanded}
-              label={expanded ? "Just the nav log" : "The whole briefing"}
-              data-testid="sidebar-expand-toggle"
-            >
-              {expanded ? <Minimize2 className="size-5" /> : <BookOpenText className="size-5" />}
-            </IconButton>
-          </div>
+          <div className="ml-auto flex items-center gap-1 print:hidden">{actions}</div>
         </div>
-        <div className="flex flex-wrap items-center gap-2 print:ml-0">
-          {parts && (
-            <span>
-              <b>{parts.distance}</b> · <b>{parts.time}</b> · <b>{parts.fuel}</b>
-              {depart && totals && totals.ete_min !== null && <> · ETA <b>{etaAt(depart, totals.ete_min)}</b></>}
-              {parts.warning && <> · <span className="text-destructive">{parts.warning}</span></>}
-            </span>
-          )}
-          {/* The altitude, and why: a pilot should never have to take a
-              cruise altitude on trust, so the figure itself opens the
-              planner's own reasoning -- floor, ceiling, the rule, the
-              weather checked -- rather than a bare "(auto)". Printed,
-              the plain figure; the briefing's Cruise Altitude section
-              carries the same steps onto the paper. */}
-          {nav && (() => {
-            // "2,500 ft · lowest", or "2,500–6,500 ft · fastest" for a
-            // plan that steps; "· yours" for a typed altitude.
-            const flown = nav.options.find(o => o.kind === nav.choice);
-            const altitudes = flown ? flown.steps.map(st => st.altitude_ft) : [nav.altitude_ft];
-            const range = altitudes.length > 1 && Math.min(...altitudes) !== Math.max(...altitudes)
-              ? `${altFt(Math.min(...altitudes))}–${altFt(Math.max(...altitudes))} ft`
-              : `${altFt(altitudes[0])} ft`;
-            // `choice` is null for a typed altitude: the plans are still
-            // offered beside it, but none is being flown.
-            const label = `${range} · ${nav.choice ?? "yours"}`;
-            return (
-              <>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="ghost" size="sm" className="px-1.5 font-normal text-muted-foreground print:hidden"
-                      aria-label="How the altitude was chosen" data-testid="altitude-why"
-                    >
-                      {label}
-                      <CircleHelp className="size-4" />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent align="start" className="max-h-[70vh] w-80 overflow-y-auto">
-                    {/* The three plans first, each a button: the pilot
-                        picks one and the log re-plans on it. Then why. */}
-                    <div className="mb-3 space-y-1.5" role="group" aria-label="Cruise altitude plans">
-                      <div className="text-xs font-semibold uppercase text-muted-foreground">Three plans, or your own</div>
-                      {nav.options.map(o => (
-                        <Button
-                          key={o.kind} type="button" size="sm"
-                          variant={o.kind === nav.choice ? "default" : "outline"}
-                          aria-pressed={o.kind === nav.choice}
-                          className="h-auto w-full justify-between gap-3 whitespace-normal py-1.5 text-left"
-                          onClick={() => onAltitudeChoiceChange(o.kind)}
-                          data-testid={`altitude-plan-${o.kind}`}
-                        >
-                          <span>
-                            <span className="font-semibold capitalize">{o.kind}</span>
-                            <span className="block text-xs font-normal opacity-80">{describeSteps(o)}</span>
-                          </span>
-                          <span className="shrink-0 text-xs tabular-nums">{describeTime(o)}</span>
-                        </Button>
-                      ))}
-                      {/* The pilot's own altitude, one number for the
-                          whole route: a fourth row under the three
-                          plans, pressed while it is what the log flies.
-                          Enter or Fly re-plans at it; the stock Input's
-                          16px below md keeps a phone from zooming. */}
-                      <form
-                        className={clsx(
-                          "flex items-center gap-2 rounded-md border px-2 py-1.5",
-                          nav.choice === null ? "border-primary bg-primary text-primary-foreground" : "border-input",
-                        )}
-                        onSubmit={e => { e.preventDefault(); onSubmit(); }}
-                        aria-label="Custom altitude"
-                      >
-                        <span className="text-sm font-semibold">Custom</span>
-                        <Input
-                          value={alt}
-                          onChange={e => onAltChange(e.target.value)}
-                          placeholder="ft"
-                          inputMode="numeric"
-                          spellCheck={false}
-                          aria-label="Cruise altitude, feet"
-                          className="ml-auto h-8 w-24 bg-background text-right text-foreground"
-                          data-testid="custom-altitude"
-                        />
-                        <Button
-                          type="submit" size="sm" variant={nav.choice === null ? "secondary" : "outline"}
-                          disabled={!alt.trim()} data-testid="custom-altitude-fly"
-                        >
-                          Fly
-                        </Button>
-                      </form>
-                    </div>
-                    <div className="mb-2 text-xs font-semibold uppercase text-muted-foreground">How the altitude was chosen</div>
-                    <AltitudeReasoning nav={nav} bearingDeg={courseBearingDeg} />
-                  </PopoverContent>
-                </Popover>
-                <span className="hidden text-muted-foreground print:inline">
-                  {label}
-                </span>
-              </>
-            );
-          })()}
+        {/* The two inputs the log is computed from, and nothing else
+            of it: the aeroplane (a stock profile or one of the pilot's
+            own; its TAS and burn are what the legs' times and fuel
+            come from) and when the flight leaves, which gives every
+            row an ETA, is what a saved flight is planned for, and
+            picks the winds forecast period. Empty means about now.
+            Both are stock controls that keep 16px below md, so a
+            phone does not zoom on them. */}
+        <div className="flex flex-wrap items-center gap-2 print:hidden">
           <Select value={aircraftValue} onValueChange={onAircraftChange}>
-            <SelectTrigger size="sm" aria-label="Aircraft" className="print:hidden" data-testid="aircraft-select">
+            <SelectTrigger size="sm" aria-label="Aircraft" data-testid="aircraft-select">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               {aircraftOptions.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
             </SelectContent>
           </Select>
-          <span className="hidden text-muted-foreground print:inline">
-            {aircraftOptions.find(o => o.value === aircraftValue)?.label}
-          </span>
-          {/* When the flight leaves: gives every row an ETA, is what a
-              saved flight is planned for, and picks the winds forecast
-              period the legs are flown on -- named here so a pilot
-              knows the winds are the 12-hour forecast, say, not now's.
-              Empty means about now. The stock Input keeps 16px below
-              md, so a phone does not zoom on it. */}
           <Input
             type="datetime-local"
             value={toLocalInputValue(depart)}
             onChange={e => onDepartChange(fromLocalInputValue(e.target.value))}
             aria-label="Departure time"
-            className="h-8 w-[12.5rem] px-2 print:hidden"
+            className="h-8 w-[12.5rem] px-2"
             data-testid="depart-input"
           />
-          {depart && (
-            <span className="text-xs text-muted-foreground" data-testid="winds-forecast">
-              <span className="hidden print:inline">departing {clockTime(new Date(depart))} · </span>
-              winds: {nav ? `${Number(nav.winds_forecast_hr)}-hour forecast` : "…"}
-            </span>
-          )}
         </div>
-        {/* The fuel check (14 CFR 91.151): the legs' fuel plus the
-            reserve -- 30 minutes by day, 45 at night, the day one
-            assumed and said so without a departure time -- against the
-            aeroplane's usable fuel when it has one, red when the tanks
-            do not hold it. */}
-        {totals && totals.fuel_required_gal != null && (
-          <div
-            className={clsx(
-              "text-xs",
-              totals.fuel_margin_gal != null && totals.fuel_margin_gal < 0
-                ? "font-semibold text-destructive"
-                : "text-muted-foreground",
-            )}
-            data-testid="fuel-check"
-          >
-            Fuel required {one(totals.fuel_required_gal)} gal
-            {` (${totals.reserve_min} min ${totals.night == null ? "day reserve, no departure time" : totals.night ? "night reserve" : "day reserve"})`}
-            {totals.usable_fuel_gal != null && ` of ${totals.usable_fuel_gal} usable`}
-            {totals.fuel_margin_gal != null && totals.fuel_margin_gal < 0 && ` · short by ${one(-totals.fuel_margin_gal)} gal`}
-          </div>
-        )}
+        <div className="hidden text-muted-foreground print:block">
+          {aircraftOptions.find(o => o.value === aircraftValue)?.label}
+          {depart && ` · departing ${clockTime(new Date(depart))}`}
+        </div>
       </div>
-      {/* `flight-briefing` while wide: index.css's print rules show
-          every closed section under it on paper -- the nav log's own
-          section below and the briefing's alike. */}
+      {/* `flight-briefing`: index.css's print rules show every closed
+          section under it on paper -- the nav log's own section and
+          the briefing's alike. The nav log is the first section, open:
+          the summary, then the table; the briefing's sections follow.
+          -mx-2 lines the sections' own cards (CollapsibleSection's
+          mx-2) up with the drawer's padding. */}
       <div
-        className={clsx("min-h-0 flex-1 overflow-auto p-3 print:h-auto print:overflow-visible", expanded && "flight-briefing")}
+        className="flight-briefing min-h-0 flex-1 overflow-auto p-3 print:h-auto print:overflow-visible"
         data-testid="navlog-scroller"
       >
-        {expanded ? (
-          // Wide is the briefing: the nav log folds into a section of
-          // its own, closed, at the top -- the pilot sees every
-          // section's title at once and opens the log when they want
-          // the numbers, rather than scrolling past twenty rows to
-          // find out what else the briefing holds. -mx-2 lines the
-          // sections' own cards (CollapsibleSection's mx-2) up with
-          // the drawer's padding.
-          <div className="-mx-2">
-            <CollapsibleSection title="Nav log" defaultOpen>{navLogTable}</CollapsibleSection>
-            {children}
-          </div>
-        ) : (
-          // Narrow, the table leads -- it is what the drawer is for
-          // beside the map -- and the briefing's sections follow it,
-          // closed, so the weather and the airports are a scroll away
-          // without opening the drawer wide.
-          <>
+        <div className="-mx-2">
+          <CollapsibleSection title="Nav log" defaultOpen>
+            {summary}
             {navLogTable}
-            {children && <div className="-mx-2 mt-3">{children}</div>}
-          </>
-        )}
+          </CollapsibleSection>
+          {children}
+        </div>
       </div>
     </div>
   );

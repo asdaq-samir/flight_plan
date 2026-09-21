@@ -178,7 +178,7 @@ service discovery at `planning-service.vfr-route.internal`.
   [`localhost:8084/docs`](http://localhost:8084/docs); the full endpoint
   list is in [`planning-service/README.md`](../planning-service/README.md)
 - `/api/briefing` — the FAA-sequence weather briefing behind the
-  briefing on `/app/plan`, the nav log drawer opened wide (the
+  briefing on `/app/plan`, the flight planning drawer (the
   narrative itself comes through `webapp`'s own `/api/comparison`,
   below)
 - `/api/model-comparison` — every trained algorithm's accuracy side by
@@ -499,7 +499,7 @@ stack. Anything not listed here does not exist.
 
 | What | URL | Needs |
 |---|---|---|
-| **Route planner** — the map with the nav log in a drawer beside it, walked with the arrow keys or a click; opened wide, the same drawer is the FAA-sequence briefing with its LangGraph/CrewAI narrative popover and Print. Also the app's homepage, bare `/app` redirects here | [`localhost:8080/app/plan`](http://localhost:8080/app/plan) | `webapp` + `planning-service` |
+| **Route planner** — the map with the flight planning drawer beside it: the nav log, walked with the arrow keys or a click, and under it the FAA-sequence briefing with its LangGraph/CrewAI narrative popover and Print. Also the app's homepage, bare `/app` redirects here | [`localhost:8080/app/plan`](http://localhost:8080/app/plan) | `webapp` + `planning-service` |
 | **Dev** — the developer's page: the labeling page above, with the developer's console (model registry and retrain, corridors and their labels, service and data status) in a drawer over the chart. `/app/label` and `/app/settings` redirect to Dev and Plan | [`localhost:8080/app/dev`](http://localhost:8080/app/dev) | `webapp` + `planning-service` |
 | Spring Boot API docs | [`localhost:8080/swagger-ui/index.html`](http://localhost:8080/swagger-ui/index.html) | `webapp` |
 | Spring Boot OpenAPI spec | [`localhost:8080/v3/api-docs`](http://localhost:8080/v3/api-docs) | `webapp` |

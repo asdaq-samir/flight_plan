@@ -147,20 +147,19 @@ for (const path of PAGES) {
   });
 }
 
-/** The briefing is the nav log drawer opened wide: open the drawer
- *  from its header toggle, then widen it from its own. */
+/** The briefing is the flight planning drawer: open it from its header
+ *  toggle, and the URL says so. */
 async function openBriefing(page: Page) {
   await page.getByTestId("sidebar-trigger-button").click();
-  await page.getByTestId("sidebar-expand-toggle").click();
   await page.waitForTimeout(300);
   await expect(page).toHaveURL(/[?&]view=briefing/);
 }
 
 test.describe("/app/plan", () => {
   // One header row, the same shape as Dev's: no tabs (the briefing is
-  // the nav log drawer opened wide, not a second view), and the nav
-  // log's toggle in the header's own trailing group, not floating over
-  // the map.
+  // the flight planning drawer, not a second view), and the drawer's
+  // toggle in the header's own trailing group, not floating over the
+  // map.
   test("the header is one row with no tabs, and the sidebar trigger toggles the nav log from it", async ({ page }) => {
     await page.goto("/app/plan");
     await settle(page);
@@ -214,37 +213,44 @@ for (const path of PAGES) {
   });
 }
 
-test("plan page: the nav log drawer opens wide as the briefing, with the narrative and Print in its own header, the map still beside it", async ({ page }) => {
+test("plan page: the flight planning drawer opens as the briefing: the two inputs and the narrative and Print in its header, the totals and the descriptions button in the nav log's own section, the map still beside it", async ({ page }) => {
   await page.goto("/app/plan");
   await settle(page);
   const viewport = page.viewportSize();
   if (!viewport) throw new Error("no viewport configured");
 
-  // Narrow first: the table beside the map, open, with the briefing's
-  // sections following it closed -- the weather and the airports a
-  // scroll away without opening the drawer wide.
+  // One width, from the start: the URL says briefing, and the drawer
+  // is the whole map area on a phone, most of it on a desktop, never
+  // all of it -- the map stays visible beside the briefing.
   await page.getByTestId("sidebar-trigger-button").click();
+  await page.waitForTimeout(300);
   const drawer = page.locator('[data-slot="map-drawer"][data-side="right"]');
   await expect(drawer).toBeVisible();
-  await expect(page).not.toHaveURL(/[?&]view=briefing/);
-  await expect(drawer.getByRole("table", { name: /Navigation log from/i })).toBeVisible();
-  await expect(drawer.getByText("Adverse Conditions")).toBeAttached();
-  await expect(drawer.getByText("Airport Information")).toBeAttached();
-  expect(await drawer.getByText("Nav log", { exact: true }).count()).toBe(0);   // no fold: the table is the drawer
-  const narrowBox = await drawer.boundingBox();
-  expect(narrowBox).not.toBeNull();
-
-  // Wide: the same drawer, the URL says briefing, and it grew -- to the
-  // whole map area on a phone, most of it on a desktop, never all of
-  // it: the map stays visible beside the briefing.
-  await page.getByTestId("sidebar-expand-toggle").click();
-  await page.waitForTimeout(300);
   await expect(page).toHaveURL(/[?&]view=briefing/);
-  await expect(drawer).toBeVisible();
-  const wideBox = await drawer.boundingBox();
-  expect(wideBox!.width).toBeGreaterThan(narrowBox!.width);
-  if (viewport.width < 640) expect(wideBox!.width).toBeGreaterThanOrEqual(viewport.width - 1);
-  else expect(wideBox!.width).toBeLessThan(viewport.width);
+  const box = await drawer.boundingBox();
+  expect(box).not.toBeNull();
+  if (viewport.width < 640) expect(box!.width).toBeGreaterThanOrEqual(viewport.width - 1);
+  else {
+    expect(box!.width).toBeGreaterThan(viewport.width * 0.4);
+    expect(box!.width).toBeLessThan(viewport.width);
+  }
+
+  // The drawer's header holds the two inputs the log is computed
+  // from -- the aeroplane and the departure time -- and nothing else
+  // of the log's: neither is inside a section.
+  await expect(drawer.getByTestId("aircraft-select")).toBeVisible();
+  await expect(drawer.getByTestId("depart-input")).toBeVisible();
+  expect(await drawer.locator('[data-slot="collapsible-content"] [data-testid="aircraft-select"]').count()).toBe(0);
+  expect(await drawer.locator('[data-slot="collapsible-content"] [data-testid="depart-input"]').count()).toBe(0);
+  // The nav log is the first section, open: the totals and the
+  // descriptions button above the table, inside the section rather
+  // than in the header; the briefing's sections follow it, open.
+  await expect(drawer.getByText("Nav log", { exact: true })).toBeVisible();
+  await expect(drawer.getByRole("table", { name: /Navigation log from/i })).toBeVisible();
+  await expect(drawer.locator('[data-slot="collapsible-content"] [data-testid="generate-descriptions-button"]')).toBeVisible();
+  await expect(drawer.locator('[data-slot="collapsible-content"] [data-testid="navlog-summary"]')).toBeVisible();
+  await expect(drawer.getByText("Adverse Conditions")).toBeVisible();
+  await expect(drawer.getByText("Airport Information")).toBeVisible();
 
   // The page's own header is still there above it: the route form,
   // and the one Dev-mode switch this page has.
@@ -274,15 +280,10 @@ test("plan page: opening the briefing pops a 'planning aid only' warning toast, 
   // page's progress/error toasts use.
   await expect(page.locator("[data-sonner-toast]", { hasText: "Planning aid only" })).toBeVisible();
 
-  // One nav log: the same semantic table the narrow drawer shows, now
-  // folded into its own closed section at the top so every section's
-  // title is on screen at once, and opened on a click. No summary
-  // section: the drawer's own header already carries the totals, the
-  // altitude and the aeroplane.
-  // By CSS, not role: a table inside a closed <details> is out of the
-  // accessibility tree, which is the point being checked.
-  // Wide is the whole briefing laid out: the nav log in a section of
-  // its own at the top and every briefing section under it, all open.
+  // One nav log, in a section of its own at the top, and every
+  // briefing section under it, all open. No "Flight Plan Summary"
+  // section: the nav log's own section carries the totals and the
+  // altitude, and the drawer's header the aeroplane.
   const drawer = page.locator('[data-slot="map-drawer"][data-side="right"]');
   const navLog = drawer.locator("table");
   await expect(navLog).toHaveCount(1);
@@ -316,36 +317,22 @@ test("plan page: the briefing offers one AI button, not a named button per frame
   expect(await page.getByTestId("crewai-narrative-button").count()).toBe(0);
 });
 
-test("plan page: the briefing narrows back to the nav log from its own toggle, and Escape closes the drawer", async ({ page }) => {
+test("plan page: Escape closes the briefing drawer, URL included, and no narrower view is left behind", async ({ page }) => {
   await page.goto("/app/plan");
   await settle(page);
 
   await openBriefing(page);
   const drawer = page.locator('[data-slot="map-drawer"][data-side="right"]');
   await expect(drawer.getByText("Adverse Conditions")).toBeVisible();
+  // No toggle to a narrower nav log: the drawer has the one width.
+  expect(await drawer.getByTestId("sidebar-expand-toggle").count()).toBe(0);
 
-  // Back to the nav log: the drawer stays open, narrow, the URL no
-  // longer says briefing, the table leads again (no longer folded into
-  // a section) and the briefing's sections follow it, closed -- with
-  // the briefing's own header actions gone.
-  await page.getByTestId("sidebar-expand-toggle").click();
-  await page.waitForTimeout(300);
-  await expect(page).not.toHaveURL(/[?&]view=briefing/);
-  await expect(drawer).toBeVisible();
-  await expect(drawer.getByRole("table", { name: /Navigation log from/i })).toBeVisible();
-  await expect(drawer.getByText("Adverse Conditions")).toBeAttached();
-  await expect(drawer.getByTestId("print-button")).toHaveCount(0);
-
-  // Escape from the briefing closes the whole drawer, URL included.
-  await page.getByTestId("sidebar-expand-toggle").click();
-  await page.waitForTimeout(300);
-  await expect(page).toHaveURL(/[?&]view=briefing/);
   await page.keyboard.press("Escape");
   await expect(page.locator('[data-slot="map-drawer"]')).toHaveCount(0);
   await expect(page).not.toHaveURL(/[?&]view=briefing/);
 });
 
-test("plan page: a pasted briefing link opens the drawer wide, and 'n' toggles it", async ({ page }) => {
+test("plan page: a pasted briefing link opens the drawer, and 'n' closes and opens it", async ({ page }) => {
   await page.goto("/app/plan?view=briefing");
   await settle(page);
   const drawer = page.locator('[data-slot="map-drawer"][data-side="right"]');
@@ -355,16 +342,16 @@ test("plan page: a pasted briefing link opens the drawer wide, and 'n' toggles i
   await page.keyboard.press("n");
   await page.waitForTimeout(300);
   await expect(page).not.toHaveURL(/[?&]view=briefing/);
-  await expect(drawer).toBeVisible();
-  await expect(drawer.getByTestId("print-button")).toHaveCount(0);
+  await expect(page.locator('[data-slot="map-drawer"]')).toHaveCount(0);
 
   await page.keyboard.press("n");
   await page.waitForTimeout(300);
   await expect(page).toHaveURL(/[?&]view=briefing/);
+  await expect(drawer).toBeVisible();
   await expect(drawer.getByTestId("print-button")).toBeVisible();
 });
 
-test("plan page: the arrow keys and a click walk the nav log's checkpoints, in the drawer and in the briefing alike", async ({ page }) => {
+test("plan page: the arrow keys and a click walk the nav log's checkpoints, with the briefing drawer open over the map", async ({ page }) => {
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
   await page.getByTestId("sidebar-trigger-button").click();
@@ -393,12 +380,8 @@ test("plan page: the arrow keys and a click walk the nav log's checkpoints, in t
   await rows.nth(2).click();
   await expect(selectedRow.first().locator("td").first()).toHaveText(await rows.nth(2).locator("td").first().innerText());
 
-  // The same walk with the briefing open (its nav log section starts
-  // unfolded): the map is still mounted beside it, so nothing changes.
-  await page.getByTestId("sidebar-expand-toggle").click();
-  await page.waitForTimeout(300);
-  await expect(page).toHaveURL(/[?&]view=briefing/);
-  await expect(table).toBeVisible();
+  // And the keys still walk from there: the map is mounted beside the
+  // drawer, and the drawer is non-modal, so a key goes on working.
   await page.keyboard.press("ArrowUp");
   await expect(selectedRow.first().locator("td").first()).toHaveText(afterTwo ?? "");
 });
@@ -526,10 +509,8 @@ test("plan page: the nav log's altitude opens the planner's own reasoning, and t
   await expect(popover).toHaveCount(0);
   await expect(page.locator('[data-slot="map-drawer"]')).toBeVisible();
 
-  // Wide, every section starts open: the Cruise Altitude section is
-  // already showing its steps.
-  await page.getByTestId("sidebar-expand-toggle").click();
-  await page.waitForTimeout(300);
+  // Every section starts open: the Cruise Altitude section is already
+  // showing its steps, under the nav log's own.
   const drawer = page.locator('[data-slot="map-drawer"][data-side="right"]');
   await expect(drawer.getByText("Cruise Altitude", { exact: true })).toBeVisible();
   await expect(drawer.getByText("14 CFR 91.159")).toBeVisible();
@@ -700,7 +681,17 @@ test("plan page: a click on the map closes the sidebar, and the header above it 
   await expect(drawer).toHaveCount(0);
   await page.getByTestId("sidebar-trigger-button").click();
   await expect(drawer).toBeVisible();
-  // A click on the map itself, away from the drawer, closes it.
+  // A click on the map itself, away from the drawer, closes it -- on a
+  // desktop, where a strip of map is still beside the drawer. On a
+  // phone the drawer is the whole map area, and there is nothing
+  // beside it to click: the header's toggle and Escape close it.
+  const viewport = page.viewportSize();
+  if (!viewport) throw new Error("no viewport configured");
+  if (viewport.width < 640) {
+    const box = await drawer.boundingBox();
+    expect(box!.width).toBeGreaterThanOrEqual(viewport.width - 1);
+    return;
+  }
   const headerBox = await page.locator("header").boundingBox();
   await page.mouse.click(12, headerBox!.y + headerBox!.height + 40);
   await expect(drawer).toHaveCount(0);

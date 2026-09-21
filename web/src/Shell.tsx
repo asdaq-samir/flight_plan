@@ -44,14 +44,12 @@ interface Props {
    *  in that caller's own header, not inside this component. */
   sidebarOpen?: boolean;
   onSidebarOpenChange?: (open: boolean) => void;
-  /** The sidebar opened as the document: Plan's nav log widened into
-   *  the briefing. Wide enough on a desktop for the nav log's own
-   *  twelve columns without a horizontal scroll, the whole map area on
-   *  a phone, and the one thing on the page that prints. The toggle
-   *  itself lives in that content's own header (it's that content's
-   *  own width being changed), so this is just the state driving this
-   *  component's own class choice below. Pages with no such toggle
-   *  (Dev) simply never pass it. */
+  /** The sidebar opened as the document: Plan's flight planning
+   *  drawer, the briefing. Wide enough on a desktop for the nav log's
+   *  own twelve columns without a horizontal scroll, the whole map
+   *  area on a phone, and the one thing on the page that prints. A
+   *  page whose sidebar is a list beside the map (Dev's waypoints)
+   *  never passes it. */
   sidebarWide?: boolean;
   /** false fits this within its parent's own height instead of
    *  claiming the full viewport (`h-dvh`) -- for a caller embedding
