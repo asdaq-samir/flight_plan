@@ -2,20 +2,19 @@
 /**
  * The network never runs here -- `api` is replaced with a mock, so what
  * each test actually proves is that the hook calls the right endpoint
- * with the right body and folds the response into state correctly, not
- * that the real planner-service agrees. That's still worth having: it's
- * exactly the kind of bug a rename or a dropped `await` produces, and
- * this catches it without a browser or a backend.
+ * with the right body and lays the response and the session's edits
+ * over each other correctly, not that the real planner-service agrees.
+ * That's still worth having: it's exactly the kind of bug a rename or
+ * a dropped `await` produces, and this catches it without a browser or
+ * a backend.
  */
-import { act, renderHook } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createElement, type ReactNode } from "react";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import type { Course, Detection, LoosePick, StreamMessage } from "../../../lib/api/types";
-import { useLabelState } from "./useLabelState";
+import { useLabels } from "./useLabels";
 
-// Only the network calls are faked; describeError is the real one, so
-// the messages asserted below are what a pilot would actually read.
 vi.mock("../../../lib/api/client", async importOriginal => ({
   ...(await importOriginal<typeof import("../../../lib/api/client")>()),
   api: {
@@ -59,58 +58,60 @@ function loosePickFixture(over: Partial<LoosePick> = {}): LoosePick {
   };
 }
 
-/** One block of detections, then done -- the shape `load` actually
- *  consumes via `for await`. */
+const summary = {
+  total: 0, accepted: 0, rejected: 0, added: 0, by_rating: {}, by_role: { dr: 0, visual: 0 }, added_categories: [],
+};
+
+/** One block of detections, then done -- the shape the stream
+ *  actually carries. */
 async function* streamOf(detections: Detection[], added: LoosePick[]): AsyncGenerator<StreamMessage> {
   yield { type: "block", block: 0, blocks: 1, tiles: 1, missing: 0, detections };
-  yield { type: "done", total: detections.length + added.length, added, summary: {
-    total: 0, accepted: 0, rejected: 0, added: added.length, by_rating: {}, by_role: { dr: 0, visual: 0 }, added_categories: [],
-  } };
+  yield { type: "done", total: detections.length + added.length, added, summary: { ...summary, added: added.length } };
 }
 
-function savedPickResponse(pick: LoosePick) {
-  return { ok: true, pick, summary: {
-    total: 0, accepted: 0, rejected: 0, added: 0, by_rating: {}, by_role: { dr: 0, visual: 0 }, added_categories: [],
-  } };
-}
+const savedPickResponse = (pick: LoosePick) => ({ ok: true, pick, summary });
+const deletedResponse = { ok: true, summary };
 
-function renderLabelState() {
+function renderLabels(initialProps = { dep: "C81", dest: "KDLH" }) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const wrapper = ({ children }: { children: ReactNode }) =>
     createElement(QueryClientProvider, { client: queryClient }, children);
-  return renderHook(() => useLabelState(), { wrapper });
+  return renderHook(({ dep, dest }: { dep: string; dest: string }) => useLabels(dep, dest), { wrapper, initialProps });
+}
+
+/** The course fetched and the chart read through, or failed. */
+async function loaded(result: { current: { loading: boolean } }) {
+  await waitFor(() => expect(result.current.loading).toBe(false));
 }
 
 beforeEach(() => {
   vi.clearAllMocks();
 });
 
-describe("useLabelState", () => {
-  test("load fetches the course, then streams detections and added picks in", async () => {
+describe("useLabels", () => {
+  test("fetches the course, then streams detections and added picks in", async () => {
     mockCourse.mockResolvedValue(courseFixture());
     mockDetect.mockReturnValue(streamOf([detectionFixture()], [loosePickFixture()]));
 
-    const { result } = renderLabelState();
-    await act(async () => { await result.current.load("C81", "KDLH"); });
+    const { result } = renderLabels();
+    await loaded(result);
 
     expect(mockCourse).toHaveBeenCalledWith("C81", "KDLH");
     expect(result.current.course?.departure.ident).toBe("C81");
+    expect(result.current.endpoints).toHaveLength(2);
     expect(result.current.detections).toHaveLength(1);
     expect(result.current.added).toHaveLength(1);
-    expect(result.current.loading).toBe(false);
   });
 
-  test("load surfaces a failed course fetch as an error, not a thrown exception", async () => {
+  test("a failed course fetch is an error to show, not a thrown exception", async () => {
     mockCourse.mockRejectedValue(new Error("no such airport"));
 
-    const { result } = renderLabelState();
-    await act(async () => { await result.current.load("ZZZZ", "KDLH"); });
-
-    expect(result.current.error).toBe("no such airport");
+    const { result } = renderLabels({ dep: "ZZZZ", dest: "KDLH" });
+    await waitFor(() => expect(result.current.error).toBe("no such airport"));
     expect(result.current.loading).toBe(false);
   });
 
-  test("load keeps what arrived and shows the error line when the chart read fails part-way", async () => {
+  test("keeps what arrived and shows the error line when the chart read fails part-way", async () => {
     mockCourse.mockResolvedValue(courseFixture());
     async function* failing(): AsyncGenerator<StreamMessage> {
       yield { type: "block", block: 0, blocks: 4, tiles: 1, missing: 0, detections: [detectionFixture()] };
@@ -118,26 +119,22 @@ describe("useLabelState", () => {
     }
     mockDetect.mockReturnValue(failing());
 
-    const { result } = renderLabelState();
-    await act(async () => { await result.current.load("C81", "KDLH"); });
-
+    const { result } = renderLabels();
+    await waitFor(() => expect(result.current.error).toBe("corridor detection failed: tile fetch failed"));
     expect(result.current.detections).toHaveLength(1);
-    expect(result.current.error).toBe("corridor detection failed: tile fetch failed");
     expect(result.current.loading).toBe(false);
   });
 
-  test("load does not stay loading when the stream stops without done or error", async () => {
+  test("does not stay loading when the stream stops without done or error", async () => {
     mockCourse.mockResolvedValue(courseFixture());
     async function* truncated(): AsyncGenerator<StreamMessage> {
       yield { type: "start", route: "c81_kdlh" };
     }
     mockDetect.mockReturnValue(truncated());
 
-    const { result } = renderLabelState();
-    await act(async () => { await result.current.load("C81", "KDLH"); });
-
+    const { result } = renderLabels();
+    await waitFor(() => expect(result.current.error).toMatch(/ended before it was finished/));
     expect(result.current.loading).toBe(false);
-    expect(result.current.error).toMatch(/ended before it was finished/);
   });
 
   test("rate saves the pick and marks the selected detection rated", async () => {
@@ -145,8 +142,8 @@ describe("useLabelState", () => {
     mockDetect.mockReturnValue(streamOf([detectionFixture()], []));
     mockSavePick.mockResolvedValue(savedPickResponse(loosePickFixture({ rating: 5, rated: true, role: "dr" })));
 
-    const { result } = renderLabelState();
-    await act(async () => { await result.current.load("C81", "KDLH"); });
+    const { result } = renderLabels();
+    await loaded(result);
     act(() => result.current.select({ kind: "detected", index: 0 }));
     await act(async () => { await result.current.rate(5); });
 
@@ -156,20 +153,16 @@ describe("useLabelState", () => {
     expect(result.current.canUndo).toBe(true);
   });
 
-  test("a rate that fails to save surfaces an error instead of silently doing nothing", async () => {
-    // Every call site fires this with `void store.rate(...)`, so nothing
-    // else ever sees the rejection -- this failure is only visible at
-    // all through the hook's own error field.
+  test("a rate that fails to save changes nothing on screen, and leaves nothing to undo", async () => {
     mockCourse.mockResolvedValue(courseFixture());
     mockDetect.mockReturnValue(streamOf([detectionFixture()], []));
     mockSavePick.mockRejectedValue(new Error("network error"));
 
-    const { result } = renderLabelState();
-    await act(async () => { await result.current.load("C81", "KDLH"); });
+    const { result } = renderLabels();
+    await loaded(result);
     act(() => result.current.select({ kind: "detected", index: 0 }));
     await act(async () => { await result.current.rate(5); });
 
-    expect(result.current.error).toBe("Couldn't save that rating: network error");
     // The write never landed, so the point is still unrated -- and
     // there is nothing real to step back to, unlike a genuine undo.
     expect(result.current.detections[0]!.rating).toBeNull();
@@ -180,12 +173,10 @@ describe("useLabelState", () => {
     mockCourse.mockResolvedValue(courseFixture());
     mockDetect.mockReturnValue(streamOf([detectionFixture()], []));
     mockSavePick.mockResolvedValue(savedPickResponse(loosePickFixture({ rating: 3, rated: true })));
-    mockDeletePick.mockResolvedValue({ ok: true, summary: {
-      total: 0, accepted: 0, rejected: 0, added: 0, by_rating: {}, by_role: { dr: 0, visual: 0 }, added_categories: [],
-    } });
+    mockDeletePick.mockResolvedValue(deletedResponse);
 
-    const { result } = renderLabelState();
-    await act(async () => { await result.current.load("C81", "KDLH"); });
+    const { result } = renderLabels();
+    await loaded(result);
     act(() => result.current.select({ kind: "detected", index: 0 }));
     await act(async () => { await result.current.rate(3); });
     expect(result.current.canUndo).toBe(true);
@@ -204,13 +195,11 @@ describe("useLabelState", () => {
     mockCourse.mockResolvedValue(courseFixture());
     const pick = loosePickFixture({ rating: 4, rated: true });
     mockDetect.mockReturnValue(streamOf([], [pick]));
-    mockDeletePick.mockResolvedValue({ ok: true, summary: {
-      total: 0, accepted: 0, rejected: 0, added: 0, by_rating: {}, by_role: { dr: 0, visual: 0 }, added_categories: [],
-    } });
+    mockDeletePick.mockResolvedValue(deletedResponse);
     mockSavePick.mockResolvedValue(savedPickResponse(pick));
 
-    const { result } = renderLabelState();
-    await act(async () => { await result.current.load("C81", "KDLH"); });
+    const { result } = renderLabels();
+    await loaded(result);
     act(() => result.current.select({ kind: "added", index: 0 }));
     await act(async () => { await result.current.removeSelected(); });
 
@@ -220,24 +209,23 @@ describe("useLabelState", () => {
     await act(async () => { await result.current.undo(); });
 
     // It had a rating before deletion, so undo re-persists the pick as
-    // well as putting it back in the list.
+    // well as putting it back in the list, selected again.
     expect(mockSavePick).toHaveBeenCalledWith(expect.objectContaining({ rating: 4 }));
     expect(result.current.added).toHaveLength(1);
     expect(result.current.added[0]!.rating).toBe(4);
+    expect(result.current.selection).toEqual({ kind: "added", index: 0 });
   });
 
   test("resetAll deletes every rated pick and clears the added list", async () => {
     mockCourse.mockResolvedValue(courseFixture());
     mockDetect.mockReturnValue(streamOf(
-      [detectionFixture({ rating: 5, rated: true }), detectionFixture({ rating: null })],
+      [detectionFixture({ rating: 5, rated: true }), detectionFixture({ lat: 44, rating: null })],
       [loosePickFixture({ rating: 2, rated: true })],
     ));
-    mockDeletePick.mockResolvedValue({ ok: true, summary: {
-      total: 0, accepted: 0, rejected: 0, added: 0, by_rating: {}, by_role: { dr: 0, visual: 0 }, added_categories: [],
-    } });
+    mockDeletePick.mockResolvedValue(deletedResponse);
 
-    const { result } = renderLabelState();
-    await act(async () => { await result.current.load("C81", "KDLH"); });
+    const { result } = renderLabels();
+    await loaded(result);
     await act(async () => { await result.current.resetAll(); });
 
     // Two rated picks in the fixture (one detection, one added) -- the
@@ -248,34 +236,39 @@ describe("useLabelState", () => {
     expect(result.current.canUndo).toBe(false);
   });
 
-  test("a resetAll that fails to delete surfaces an error rather than pretending it worked", async () => {
+  test("a resetAll that fails to delete leaves the ratings as they were", async () => {
     mockCourse.mockResolvedValue(courseFixture());
     mockDetect.mockReturnValue(streamOf([detectionFixture({ rating: 5, rated: true })], []));
     mockDeletePick.mockRejectedValue(new Error("server unavailable"));
 
-    const { result } = renderLabelState();
-    await act(async () => { await result.current.load("C81", "KDLH"); });
+    const { result } = renderLabels();
+    await loaded(result);
     await act(async () => { await result.current.resetAll(); });
 
-    expect(result.current.error).toBe("Couldn't reset every rating: server unavailable");
     // The delete never landed, so the rating is left exactly as it was
     // rather than clearing it locally out of step with the server.
     expect(result.current.detections[0]!.rating).toBe(5);
   });
 
-  test("a fresh load clears whatever the previous route left behind", async () => {
+  test("a new route starts clean: nothing of the previous route's edits or points is left behind", async () => {
     mockCourse.mockResolvedValue(courseFixture());
     mockDetect.mockReturnValue(streamOf([detectionFixture()], []));
+    mockSavePick.mockResolvedValue(savedPickResponse(loosePickFixture({ rating: 3, rated: true })));
 
-    const { result } = renderLabelState();
-    await act(async () => { await result.current.load("C81", "KDLH"); });
+    const { result, rerender } = renderLabels();
+    await loaded(result);
+    act(() => result.current.select({ kind: "detected", index: 0 }));
+    await act(async () => { await result.current.rate(3); });
     expect(result.current.detections).toHaveLength(1);
+    expect(result.current.canUndo).toBe(true);
 
     mockDetect.mockReturnValue(streamOf([], []));
-    await act(async () => { await result.current.load("KDSM", "KOMA"); });
+    rerender({ dep: "KDSM", dest: "KOMA" });
+    await loaded(result);
 
     expect(result.current.detections).toHaveLength(0);
     expect(result.current.added).toHaveLength(0);
     expect(result.current.canUndo).toBe(false);
+    expect(result.current.selection).toBeNull();
   });
 });

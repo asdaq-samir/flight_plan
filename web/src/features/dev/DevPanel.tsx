@@ -15,9 +15,8 @@ import {
   Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow,
 } from "../../components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../components/ui/tabs";
-import { api, describeError, errorMessage } from "../../lib/api/client";
+import { api } from "../../lib/api/client";
 import type { ModelComparisonEntry, Status } from "../../lib/api/types";
-import { useErrorToasts } from "../../lib/usePageStatus";
 import RatingGuide from "../label/components/RatingGuide";
 import { elapsed } from "../plan/format";
 import { useRetrain } from "./useRetrain";
@@ -79,11 +78,9 @@ export function DevButton(props: Omit<ComponentProps<typeof IconButton>, "label"
  */
 export function DevPanel() {
   const queryClient = useQueryClient();
-  const { data: status, error, refetch, isFetching } = useQuery({
-    queryKey: ["status"], queryFn: api.status, refetchInterval: 30000, retry: false,
+  const { data: status, isFetching } = useQuery({
+    queryKey: ["status"], queryFn: api.status, refetchInterval: 30000,
   });
-  const statusMessage = errorMessage(error, "Could not read the system status");
-  useErrorToasts({ status: statusMessage && { message: statusMessage, retry: () => void refetch() } });
   // The tab the drawer was last on, remembered per browser.
   const savedTab = usePreferences(s => s.devTab);
   const tab = TABS.includes(savedTab) ? savedTab : "training";
@@ -139,13 +136,9 @@ const modelComparisonChartConfig = {
 const PROMOTED_BAR_COLOR = "#10b981";
 
 function ModelComparisonChart() {
-  const {
-    data, error, refetch,
-  } = useQuery({ queryKey: ["modelComparison"], queryFn: api.modelComparison, retry: false });
+  const { data, error } = useQuery({ queryKey: ["modelComparison"], queryFn: api.modelComparison });
   // A candidate whose metrics file has no score sorts last, not first.
   const rows = data ? [...data.models].sort((a, b) => (a.score ?? Infinity) - (b.score ?? Infinity)) : null;
-  const loadMessage = errorMessage(error, "Could not load the model comparison");
-  useErrorToasts({ modelComparison: loadMessage && { message: loadMessage, retry: () => void refetch() } });
 
   return (
     <section>
@@ -551,7 +544,6 @@ function SystemTab({ status }: { status: Status | undefined }) {
       toast.success(r.started ? `Fetching and rendering cycle ${r.current_cycle} in the background` : "A chart refresh is already running");
       void queryClient.invalidateQueries({ queryKey: ["status"] });
     },
-    onError: err => toast.error(describeError(err, "Could not start a chart refresh"), { duration: 10000 }),
   });
   // webapp and its database answer for themselves through Spring's
   // public actuator: liveness for the process, readiness for the

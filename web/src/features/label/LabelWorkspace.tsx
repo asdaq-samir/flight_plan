@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { identSchema } from "../../lib/identSchema";
+import { identOf, identSchema } from "../../lib/identSchema";
 // Without this Leaflet's tiles, markers and controls have no
 // positioning at all -- this is the library's own stylesheet, not
 // app styling.
 import "leaflet/dist/leaflet.css";
-import { usePageStatus } from "../../lib/usePageStatus";
+import { useProgressToast } from "../../lib/useProgressToast";
 import type { WorkspaceProps } from "../page/workspace";
 import { DevPanel } from "../dev/DevPanel";
 import ChartMap from "./components/ChartMap";
@@ -15,7 +15,7 @@ import { isEndpoint, type Point, type Rating } from "../../lib/api/types";
 import {
   filterCounts, forwardIsLeft, forwardIsUp, hasRating, hiddenCount, orderedPoints,
 } from "./logic";
-import { currentPoint, useLabelState, type Selection } from "./hooks/useLabelState";
+import { currentPoint, useLabels, type Selection } from "./hooks/useLabels";
 
 const FOCUS_ZOOM = 12;
 
@@ -27,19 +27,27 @@ const FOCUS_ZOOM = 12;
  * typed into its form; this owns everything about the labels.
  */
 export default function LabelWorkspace({ dep, dest, children }: WorkspaceProps) {
-  const store = useLabelState();
+  const [searchParams, setSearchParams] = useSearchParams();
+  // The address is the route the labels are for -- what the queries
+  // read, and what a load writes; the header's form is a draft until
+  // then. The default corridor when it names none.
+  const planned = {
+    dep: identOf(searchParams.get("dep")) || "C81",
+    dest: identOf(searchParams.get("dest")) || "KDLH",
+  };
+  const store = useLabels(planned.dep, planned.dest);
   // Named, not read as `store.x` inside the hooks below: each hook then
-  // lists exactly what it reads, and the actions are stable
-  // (`useCallback([])` in useLabelState) so listing them costs nothing.
+  // lists exactly what it reads, and the actions are stable (useLabels
+  // reads its own latest state through a ref) so listing them costs
+  // nothing.
   const {
     selection, endpoints, detections, added, filters, course,
-    load, select, rate, setCategory, removeSelected, addPick, setFilter,
+    select, rate, setCategory, removeSelected, addPick, setFilter,
   } = store;
   const point = useMemo(
     () => currentPoint({ selection, endpoints, detections, added }),
     [selection, endpoints, detections, added],
   );
-  const [, setSearchParams] = useSearchParams();
   const [map, setMap] = useState<L.Map | null>(null);
   const [stepDelta, setStepDelta] = useState(1);
   // Tracks the map's own zoom so the one Controls button can read as
@@ -47,14 +55,6 @@ export default function LabelWorkspace({ dep, dest, children }: WorkspaceProps) 
   // so without this the label would only update on some unrelated
   // re-render, not the moment a zoom actually happens.
   const [zoomedIn, setZoomedIn] = useState(false);
-
-  // Mount only, deliberately: the header's form is the reload path when
-  // dep/dest change later, so this effect must not also fire on every
-  // keystroke that updates them. load is still listed (a stable
-  // []-deps callback in useLabelState) so a future refactor that gave
-  // it a real dependency wouldn't silently go stale here.
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- dep/dest omitted on purpose, see above
-  useEffect(() => { void load(dep, dest); }, [load]);
 
   useEffect(() => {
     if (!map) return;
@@ -250,12 +250,13 @@ export default function LabelWorkspace({ dep, dest, children }: WorkspaceProps) 
     // streamed-in detection, say).
   }, [course, filters, rate, removeSelected, setFilter, point, step, stepList, stepDelta, toggleView, fitLine]);
 
+  // Loading a route writes the address, which is what the queries key
+  // on -- the same route again costs nothing, being kept.
   const submit = useCallback(() => {
     const d = identSchema.safeParse(dep).data, a = identSchema.safeParse(dest).data;
     if (!d || !a) return;
     setSearchParams({ dep: d, dest: a }, { replace: true });
-    void load(d, a);
-  }, [dep, dest, setSearchParams, load]);
+  }, [dep, dest, setSearchParams]);
 
   // Stable identities for ChartMap's own effects, which list them as
   // dependencies (see its comment) -- an inline arrow at the call site
@@ -264,7 +265,9 @@ export default function LabelWorkspace({ dep, dest, children }: WorkspaceProps) 
   const onDeselect = useCallback(() => select(null), [select]);
   const onAddAt = useCallback((lat: number, lon: number) => { void addPick(lat, lon); }, [addPick]);
 
-  usePageStatus(store.progress, { general: store.error });
+  // The chart read's progress; its failures are the query client's to
+  // report (queryClient.ts).
+  useProgressToast(store.progress);
 
   return children({
     map: (

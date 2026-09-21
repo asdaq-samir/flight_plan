@@ -34,6 +34,7 @@ export default function SignInModal() {
     mutationFn: () => api.requestMagicLink(trimmedEmail),
     onSuccess: () => setSent(trimmedEmail),
     onError: () => toast.error("Couldn't send that link. Check the address and try again."),
+    meta: { silent: true },
   });
 
   return (

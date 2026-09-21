@@ -9,7 +9,7 @@ import AltitudeReasoning from "../AltitudeReasoning";
 import type {
   Briefing, Candidate, Course, Leg, NavLog, Pilot, SaveFlightRequest, Totals,
 } from "../../../../lib/api/types";
-import type { FrameworkNarrative } from "../../hooks/usePlanState";
+import type { FrameworkNarrative } from "../../hooks/usePlan";
 import { altFt, deg } from "../../format";
 
 interface Props {

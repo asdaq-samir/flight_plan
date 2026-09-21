@@ -12,9 +12,8 @@ import {
   Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow,
 } from "../../components/ui/table";
 import SignInModal from "./SignInModal";
-import { api, describeError, errorMessage } from "../../lib/api/client";
+import { api } from "../../lib/api/client";
 import type { Aircraft, AircraftRequest, FlightSummary, Pilot } from "../../lib/api/types";
-import { useErrorToasts } from "../../lib/usePageStatus";
 
 /** Who is signed in, or why nobody is: null signed out, "loading"
  *  while the check is in flight, "error" when it failed. */
@@ -69,7 +68,6 @@ export function SignInStatus({ pilot, onRetry }: { pilot: PilotState; onRetry: (
       queryClient.removeQueries({ queryKey: ["flights"] });
       void queryClient.invalidateQueries({ queryKey: ["pilot"] });
     },
-    onError: () => toast.error("Couldn't log out. Try again."),
   });
 
   if (pilot === "loading") {
@@ -102,9 +100,7 @@ export function SignInStatus({ pilot, onRetry }: { pilot: PilotState; onRetry: (
 export function AircraftPanel({ pilot }: { pilot: PilotState }) {
   const signedIn = pilot !== null && pilot !== "loading" && pilot !== "error";
   const queryClient = useQueryClient();
-  const {
-    data: list, isLoading, error: listError, refetch,
-  } = useQuery({
+  const { data: list, isLoading } = useQuery({
     queryKey: ["aircraft"],
     queryFn: api.aircraft.list,
     enabled: signedIn,
@@ -137,7 +133,6 @@ export function AircraftPanel({ pilot }: { pilot: PilotState }) {
       cancelEdit();
       void queryClient.invalidateQueries({ queryKey: ["aircraft"] });
     },
-    onError: err => toast.error(describeError(err, "Could not save the aircraft")),
   });
 
   const remove = useMutation({
@@ -148,7 +143,6 @@ export function AircraftPanel({ pilot }: { pilot: PilotState }) {
       if (editingId === id) cancelEdit();
       void queryClient.invalidateQueries({ queryKey: ["aircraft"] });
     },
-    onError: err => toast.error(describeError(err, "Could not delete the aircraft")),
   });
 
   const edit = (a: Aircraft) => {
@@ -166,8 +160,6 @@ export function AircraftPanel({ pilot }: { pilot: PilotState }) {
     usableFuelGal: values.usableFuelGal.trim() ? Number(values.usableFuelGal) : null,
   });
 
-  const listMessage = errorMessage(listError, "Could not load your aircraft");
-  useErrorToasts({ aircraftList: listMessage && { message: listMessage, retry: () => void refetch() } });
 
   return (
     <section>
@@ -283,9 +275,7 @@ export function FlightsPanel({ pilot }: { pilot: PilotState }) {
   const signedIn = pilot !== null && pilot !== "loading" && pilot !== "error";
   const queryClient = useQueryClient();
   const [flightToDelete, setFlightToDelete] = useState<FlightSummary | null>(null);
-  const {
-    data: list, isLoading, error, refetch,
-  } = useQuery({
+  const { data: list, isLoading, error } = useQuery({
     queryKey: ["flights"],
     queryFn: api.flights.list,
     enabled: signedIn,
@@ -298,11 +288,8 @@ export function FlightsPanel({ pilot }: { pilot: PilotState }) {
       setFlightToDelete(null);
       void queryClient.invalidateQueries({ queryKey: ["flights"] });
     },
-    onError: err => toast.error(describeError(err, "Could not delete the flight")),
   });
 
-  const listMessage = errorMessage(error, "Could not load your flights");
-  useErrorToasts({ flightsList: listMessage && { message: listMessage, retry: () => void refetch() } });
 
   /** Back to the planner on this flight's route, at its altitude. */
   const planHref = (f: FlightSummary) => `/plan?${new URLSearchParams({

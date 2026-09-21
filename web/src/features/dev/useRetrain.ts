@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { api, describeError } from "../../lib/api/client";
+import { api } from "../../lib/api/client";
 
 /**
  * The one action that changes the model, and what a button for it
@@ -24,7 +24,6 @@ export function useRetrain() {
       });
       void queryClient.invalidateQueries({ queryKey: ["status"] });
     },
-    onError: err => toast.error(describeError(err, "Could not start a retrain"), { duration: 10000 }),
   });
   const pipeline = status?.pipeline;
   const lastRun = pipeline?.last_run ?? null;

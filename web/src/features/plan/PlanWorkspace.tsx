@@ -4,13 +4,13 @@ import { useSearchParams } from "react-router-dom";
 import { cn } from "cn";
 import { api } from "../../lib/api/client";
 import type { AircraftChoice, AircraftProfileSummary, AltitudeChoice, Candidate } from "../../lib/api/types";
-import { identSchema } from "../../lib/identSchema";
+import { identOf, identSchema } from "../../lib/identSchema";
 import { DEFAULT_AIRCRAFT, usePreferences } from "../../lib/preferences";
 // Without this Leaflet's tiles, markers and controls have no
 // positioning at all -- this is the library's own stylesheet, not
 // app styling.
 import "leaflet/dist/leaflet.css";
-import { usePageStatus } from "../../lib/usePageStatus";
+import { useProgressToast } from "../../lib/useProgressToast";
 import type { WorkspaceProps } from "../page/workspace";
 import { PilotPanel } from "../pilot/PilotPanel";
 import BuildNotice from "./components/BuildNotice";
@@ -18,11 +18,11 @@ import FlightBriefingView from "./components/briefing/FlightBriefingView";
 import NavLogActions from "./components/navlog/NavLogActions";
 import NavLogView from "./components/navlog/NavLogView";
 import RouteMap from "./components/RouteMap";
-import { descriptionKey, usePlanState } from "./hooks/usePlanState";
+import { descriptionKey, usePlan } from "./hooks/usePlan";
 
 // The three stages a plan actually goes through, in order -- there's
 // no finer-grained number to report while one of them is running, so
-// the status popup shows progress as "whichever of these three just
+// the status toast shows progress as "whichever of these three just
 // finished," not a truly continuous percentage.
 const STAGE_PERCENT: Record<"course" | "checkpoints" | "navlog", number> = {
   course: 25, checkpoints: 60, navlog: 90,
@@ -54,37 +54,57 @@ function baseProfile(typeDesignator: string, profiles: AircraftProfileSummary[])
  * (MapPage), which owns the shell around it and the route typed into
  * it.
  *
- * Everything on screen is derived from the store on each render, which is
- * the difference that matters from the page this replaces. That one kept
- * `data` as a mutable object and re-ran whichever render function the
- * author remembered -- and the checkpoint rows had to be drawn a second
- * time by hand once the legs arrived, because nothing recomputed them.
+ * The address is the plan: the route, the altitude, the plan chosen
+ * and the departure time are its query parameters, and every stage
+ * (usePlan) is a query keyed on the ones it depends on. Loading a
+ * route writes the address; a new aeroplane or departure time changes
+ * a key; and the screen is derived from the queries on each render,
+ * nothing kept in step by hand.
  */
 export default function PlanWorkspace({ dep, dest, onRoute, sidebarOpen, onSidebarOpenChange, children }: WorkspaceProps) {
-  const s = usePlanState();
-  // Named, not read as `s.x` inside the hooks below: each hook then
-  // lists exactly what it reads, and the callbacks are stable
-  // (`useCallback([])` in usePlanState) so listing them costs nothing.
-  const {
-    course, selected, selectedPoint, loadRoutes, plan, loadBriefing, describeCheckpoints, selectPoint, toggleCandidates,
-  } = s;
   const [searchParams, setSearchParams] = useSearchParams();
-  const [alt, setAlt] = useState(searchParams.get("altitude_ft") ?? "");
-  const [altitudeChoice, setAltitudeChoice] = useState<AltitudeChoice>(() => altitudeChoiceOf(searchParams.get("altitude_choice")));
+  const planned = { dep: identOf(searchParams.get("dep")), dest: identOf(searchParams.get("dest")) };
+  const altitudeFt = searchParams.get("altitude_ft") ?? "";
+  const altitudeChoice = altitudeChoiceOf(searchParams.get("altitude_choice"));
   // The departure time as an ISO instant, or "" for about now. It picks
   // the winds forecast period the planner flies the legs on, gives
   // every checkpoint an ETA, and is what a saved flight is planned for.
-  const [depart, setDepart] = useState(searchParams.get("depart") ?? "");
+  const depart = searchParams.get("depart") ?? "";
+  // The Custom altitude box's own draft, sent with the next load.
+  const [alt, setAlt] = useState(altitudeFt);
+  // Load pressed again for the same route: a fresh nav log, fresh winds.
+  const [load, setLoad] = useState(0);
   // The aeroplane the nav log is computed for: remembered per browser
   // (the preferences store), since a pilot flies the same one for a
   // while; a stock profile until they pick one of their own.
   const aircraft = usePreferences(p => p.aircraft);
   const setAircraft = usePreferences(p => p.setAircraft);
+  const s = usePlan({ dep: planned.dep, dest: planned.dest, altitudeFt, altitudeChoice, depart, aircraft, load }, sidebarOpen);
+  const { course, selected } = s;
+
+  // Open on whatever corridor exists, so the page is never an empty
+  // form with no hint of what it accepts: the first collected route
+  // when the address names none, written into the address like a load.
+  const routes = useQuery({ queryKey: ["routes"], queryFn: api.routes, staleTime: Infinity });
+  useEffect(() => {
+    if ((planned.dep && planned.dest) || !routes.data) return;
+    const first = routes.data.routes[0] ?? { departure_ident: "C81", destination_ident: "KDLH" };
+    const d = planned.dep || first.departure_ident;
+    const a = planned.dest || first.destination_ident;
+    onRoute(d, a);
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      next.set("dep", d);
+      next.set("dest", a);
+      return next;
+    }, { replace: true });
+  }, [planned.dep, planned.dest, routes.data, onRoute, setSearchParams]);
+
   // The stock profiles, plus a signed-in pilot's own aeroplanes on top
   // of them -- the same ["pilot"]/["aircraft"] queries the pilot
   // console keeps.
   const { data: profiles } = useQuery({ queryKey: ["aircraftProfiles"], queryFn: api.aircraftProfiles, staleTime: Infinity });
-  const { data: pilot } = useQuery({ queryKey: ["pilot"], queryFn: api.me, retry: false });
+  const { data: pilot } = useQuery({ queryKey: ["pilot"], queryFn: api.me });
   const { data: myAircraft } = useQuery({ queryKey: ["aircraft"], queryFn: api.aircraft.list, enabled: !!pilot });
   const aircraftOptions = useMemo<AircraftChoice[]>(() => {
     const options: AircraftChoice[] = [
@@ -99,6 +119,7 @@ export default function PlanWorkspace({ dep, dest, onRoute, sidebarOpen, onSideb
     // an aeroplane deleted since is still what this plan was flown in.
     return options.some(o => aircraftKey(o) === aircraftKey(aircraft)) ? options : [aircraft, ...options];
   }, [profiles, myAircraft, aircraft]);
+
   const controls = useRef<{ fit: () => void } | null>(null);
   // A stable identity, not an inline arrow at the RouteMap call site --
   // that map's own course-load effect lists onReady as a dependency,
@@ -108,53 +129,19 @@ export default function PlanWorkspace({ dep, dest, onRoute, sidebarOpen, onSideb
   const handleMapReady = useCallback((c: { fit: () => void }) => {
     controls.current = c;
   }, []);
-  const started = useRef(false);
 
-  // Open on whatever corridor exists, so the page is never an empty form
-  // with no hint of what it accepts.
-  useEffect(() => {
-    if (started.current) return;
-    started.current = true;
-    void (async () => {
-      const routes = await loadRoutes();
-      const first = routes[0] ?? { departure_ident: "C81", destination_ident: "KDLH" };
-      const d = searchParams.get("dep")?.toUpperCase() || first.departure_ident;
-      const a = searchParams.get("dest")?.toUpperCase() || first.destination_ident;
-      onRoute(d, a);
-      void plan(
-        d, a, searchParams.get("altitude_ft") ?? undefined, aircraft,
-        altitudeChoiceOf(searchParams.get("altitude_choice")), searchParams.get("depart") ?? undefined,
-      );
-    })();
-    // started.current makes this genuinely run-once on mount regardless
-    // of the deps array below; loadRoutes/plan/searchParams/aircraft are
-    // still listed (loadRoutes/plan are stable, []-deps callbacks in
-    // usePlanState; the others only matter at this first read) so a
-    // future refactor wouldn't silently go stale here undetected.
-  }, [loadRoutes, plan, searchParams, aircraft, onRoute]);
-
-  // The briefing's own data (hazards, METAR, forecast, runways/
-  // frequencies) is only worth fetching once a pilot actually opens
-  // the flight planning drawer, whose sections it fills -- not on
-  // every plan(), which is why this is a separate effect from
-  // the course/checkpoints/navlog load above. Keyed on the planned
-  // course, not the typed idents: a re-plan (a different aeroplane,
-  // say) clears the briefing and this fetches it again for the route
-  // actually on screen, and a half-typed ident never triggers a fetch.
-  useEffect(() => {
-    if (sidebarOpen && course) void loadBriefing(course.departure.ident, course.destination.ident);
-  }, [sidebarOpen, course, loadBriefing]);
-
-  // The nav log's AI button: a pilot-triggered "generate now" for
-  // every checkpoint's description at once. Descriptions are visible
-  // (and editable) in every row regardless of whether this has ever
-  // been clicked -- this just fills the blank ones in, and
-  // describeCheckpoints is already a no-op for a route it's running
-  // (or finished) for, so a second click before the first finishes
-  // costs nothing.
-  const generateDescriptions = useCallback(() => {
-    void describeCheckpoints(dep, dest, alt.trim() || undefined);
-  }, [dep, dest, alt, describeCheckpoints]);
+  // Whichever waypoint is focused -- by its own coordinates, not a row
+  // index, since the map's markers and the nav log's rows are two
+  // orderings of the same points -- and only for the route it was
+  // picked on: a new route starts with nothing selected.
+  const routeKey = `${planned.dep}-${planned.dest}`;
+  const [selection, setSelection] = useState<{ route: string; point: { lat: number; lon: number } } | null>(null);
+  const selectedPoint = selection?.route === routeKey ? selection.point : null;
+  const selectPoint = useCallback(
+    (point: { lat: number; lon: number } | null) => setSelection(point && { route: routeKey, point }),
+    [routeKey],
+  );
+  const [showCandidates, setShowCandidates] = useState(true);
 
   const submit = useCallback(() => {
     const d = identSchema.safeParse(dep).data, a = identSchema.safeParse(dest).data;
@@ -165,40 +152,32 @@ export default function PlanWorkspace({ dep, dest, onRoute, sidebarOpen, onSideb
     if (depart) next.depart = depart;
     if (sidebarOpen) next.view = "briefing";
     setSearchParams(next, { replace: true });
-    void plan(d, a, alt.trim() || undefined, aircraft, altitudeChoice, depart || undefined);
-  }, [dep, dest, alt, altitudeChoice, depart, sidebarOpen, plan, setSearchParams, aircraft]);
+    setLoad(n => n + 1);
+  }, [dep, dest, alt, altitudeChoice, depart, sidebarOpen, setSearchParams]);
 
-  // A different aeroplane means different legs: remembered, then
-  // re-planned right away for the route on screen.
+  // A different aeroplane means different legs: remembered, and the
+  // nav log's own key changes with it.
   const changeAircraft = useCallback((value: string) => {
     const next = aircraftOptions.find(o => aircraftKey(o) === value);
-    if (!next) return;
-    setAircraft(next);
-    const d = identSchema.safeParse(dep).data, a = identSchema.safeParse(dest).data;
-    if (d && a && d !== a) void plan(d, a, alt.trim() || undefined, next, altitudeChoice, depart || undefined);
-  }, [aircraftOptions, dep, dest, alt, altitudeChoice, depart, plan, setAircraft]);
+    if (next) setAircraft(next);
+  }, [aircraftOptions, setAircraft]);
 
-  // A different departure time may mean a different winds forecast,
-  // so the legs are re-planned; kept in the URL like the rest.
+  // A different departure time may mean a different winds forecast:
+  // kept in the address like the rest, which is what re-plans.
   const changeDepart = useCallback((iso: string) => {
-    setDepart(iso);
     setSearchParams(prev => {
       const next = new URLSearchParams(prev);
       if (iso) next.set("depart", iso);
       else next.delete("depart");
       return next;
     }, { replace: true });
-    const d = identSchema.safeParse(dep).data, a = identSchema.safeParse(dest).data;
-    if (d && a && d !== a) void plan(d, a, alt.trim() || undefined, aircraft, altitudeChoice, iso || undefined);
-  }, [dep, dest, alt, aircraft, altitudeChoice, plan, setSearchParams]);
+  }, [setSearchParams]);
 
   // A different plan -- lowest, highest, fastest -- means different
-  // legs too: kept in the URL like the altitude itself, so a link or
-  // the Dev switch carries it, then re-planned right away.
+  // legs too. A plan replaces a typed altitude: the Custom box empties
+  // and the address drops it, so the log flies the plan and nothing
+  // else.
   const changeAltitudeChoice = useCallback((choice: AltitudeChoice) => {
-    setAltitudeChoice(choice);
-    // A plan replaces a typed altitude: the Custom box empties and the
-    // URL drops it, so the log flies the plan and nothing else.
     setAlt("");
     setSearchParams(prev => {
       const next = new URLSearchParams(prev);
@@ -207,9 +186,7 @@ export default function PlanWorkspace({ dep, dest, onRoute, sidebarOpen, onSideb
       else next.set("altitude_choice", choice);
       return next;
     }, { replace: true });
-    const d = identSchema.safeParse(dep).data, a = identSchema.safeParse(dest).data;
-    if (d && a && d !== a) void plan(d, a, undefined, aircraft, choice, depart || undefined);
-  }, [dep, dest, aircraft, depart, plan, setSearchParams]);
+  }, [setSearchParams]);
 
   // The map's own half of point selection -- clicking a checkpoint
   // marker focuses the same point the matching nav log row would.
@@ -221,9 +198,7 @@ export default function PlanWorkspace({ dep, dest, onRoute, sidebarOpen, onSideb
   // Up/Down walks the nav log top to bottom -- departure, each scored
   // checkpoint, destination -- the same list order the drawer renders
   // in, syncing the map to whatever it lands on exactly the way
-  // clicking that row would (RouteMap's own `focus` prop, and
-  // NavLogView's own scrollIntoView effect, both already key off
-  // `selectedPoint`).
+  // clicking that row would.
   const stepWaypoint = useCallback((delta: number) => {
     if (!course) return;
     const points = [
@@ -241,8 +216,8 @@ export default function PlanWorkspace({ dep, dest, onRoute, sidebarOpen, onSideb
   // The map's zoom button: zoomed out, this zooms in to whatever's
   // selected (or departure, the first point, if nothing is yet);
   // zoomed in, it zooms back out to the whole route. `zoomedIn` comes
-  // from RouteMap's own real zoom level (see its own comment), not
-  // which of these two actions last ran.
+  // from RouteMap's own real zoom level, not which of these two actions
+  // last ran.
   const [zoomedIn, setZoomedIn] = useState(false);
   const toggleZoom = useCallback(() => {
     if (!course) return;
@@ -272,84 +247,65 @@ export default function PlanWorkspace({ dep, dest, onRoute, sidebarOpen, onSideb
       const onSectionTitle = !!target?.closest('[data-slot="accordion-trigger"]');
       if ((e.defaultPrevented && !onSectionTitle) || target?.closest('[role="listbox"],[role="dialog"][aria-modal="true"],[role="menu"]')) return;
       if (e.key === "n") onSidebarOpenChange(!sidebarOpen);
-      if (e.key === "a") toggleCandidates();
+      if (e.key === "a") setShowCandidates(v => !v);
       if (e.key === "f") controls.current?.fit();
       if (e.key === "ArrowDown") { e.preventDefault(); stepWaypoint(1); }
       if (e.key === "ArrowUp") { e.preventDefault(); stepWaypoint(-1); }
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [sidebarOpen, onSidebarOpenChange, stepWaypoint, toggleCandidates]);
+  }, [sidebarOpen, onSidebarOpenChange, stepWaypoint]);
 
-  // The nav log's own stage (scoring, altitude selection, the live
-  // aviationweather.gov fetch) takes priority over the plan's own
-  // course/checkpoints stages and the checkpoint description count
-  // while it's running -- all four are the same floating status,
-  // never two at once; there's exactly one place this app reports
-  // background progress, this is it. The briefing's own fetch goes
-  // first: it only runs while the drawer is open. Neither framework
-  // narrative's own loading/error state feeds this -- both show inline
-  // in NavLogActions' own Popover, right next to the button that
-  // triggered them.
-  const progress = (s.loadingBriefing ? "Loading briefing…" : null)
+  // One floating progress line for the whole page: the briefing's own
+  // fetch first (it only runs while the drawer is open), then the nav
+  // log's own stage (scoring, altitude selection, the live
+  // aviationweather.gov fetch), then the plan's own stages, then the
+  // checkpoint description count -- never two at once. Failures are
+  // the query client's to report (queryClient.ts).
+  useProgressToast(
+    (s.loadingBriefing ? "Loading briefing…" : null)
     ?? s.navStage
     ?? (s.stage === "course" ? "Drawing course…" : null)
     ?? (s.stage === "checkpoints" ? "Scoring checkpoints…" : null)
     ?? (s.stage ? `Planning… ${STAGE_PERCENT[s.stage]}%` : null)
-    ?? (s.descriptionProgress ? `Generating ${s.descriptionProgress.done}/${s.descriptionProgress.total}` : null);
-  const briefingErrorMsg = s.briefingError && `Couldn't load the briefing: ${s.briefingError}`;
-  const descError = s.descriptionError && `Couldn't generate checkpoint descriptions: ${s.descriptionError}`;
-  // Named sources, not one combined string -- a briefing failure and
-  // an unrelated checkpoint-description failure used to share one
-  // slot, silently hiding the other; each gets its own stacking toast
-  // (see usePageStatus's own comment).
-  usePageStatus(progress, {
-    general: s.error,
-    navLog: s.navError,
-    briefing: briefingErrorMsg && {
-      message: briefingErrorMsg,
-      retry: () => { if (course) void loadBriefing(course.departure.ident, course.destination.ident); },
-    },
-    description: descError,
-    langgraph: s.langgraphNarrative.error && `LangGraph narrative failed: ${s.langgraphNarrative.error}`,
-    crewai: s.crewaiNarrative.error && `CrewAI narrative failed: ${s.crewaiNarrative.error}`,
-  });
+    ?? (s.descriptionProgress ? `Generating ${s.descriptionProgress.done}/${s.descriptionProgress.total}` : null),
+  );
 
   // The flight planning drawer: the nav log as the first section, the
   // briefing's sections under it, the briefing's own actions in the
   // drawer's header.
   const navLog = (
     <NavLogView
-      totals={s.totals} nav={s.nav} courseBearingDeg={s.course?.bearing_deg ?? null} legs={s.legs}
+      totals={s.totals} nav={s.nav} courseBearingDeg={course?.bearing_deg ?? null} legs={s.legs}
       onAltitudeChoiceChange={changeAltitudeChoice}
       depart={depart} onDepartChange={changeDepart}
-      dep={dep} dest={dest}
-      depName={s.course?.departure.name ?? null} destName={s.course?.destination.name ?? null}
-      depLat={s.course?.departure.lat ?? 0} depLon={s.course?.departure.lon ?? 0}
-      destLat={s.course?.destination.lat ?? 0} destLon={s.course?.destination.lon ?? 0}
-      selected={s.selected}
-      depElevationFt={s.course?.departure.elevation_ft ?? null}
-      destElevationFt={s.course?.destination.elevation_ft ?? null}
+      dep={planned.dep} dest={planned.dest}
+      depName={course?.departure.name ?? null} destName={course?.destination.name ?? null}
+      depLat={course?.departure.lat ?? 0} depLon={course?.departure.lon ?? 0}
+      destLat={course?.destination.lat ?? 0} destLon={course?.destination.lon ?? 0}
+      selected={selected}
+      depElevationFt={course?.departure.elevation_ft ?? null}
+      destElevationFt={course?.destination.elevation_ft ?? null}
       descriptions={s.descriptions}
-      onSaveDescription={(lat, lon, text) => s.saveDescription(dep, dest, lat, lon, text)}
-      onGenerateDescriptions={generateDescriptions}
+      onSaveDescription={s.saveDescription}
+      onGenerateDescriptions={s.generateDescriptions}
       descriptionsLoading={s.descriptionProgress !== null}
       actions={(
         <NavLogActions
-          onGenerateNarrative={framework => void s.loadFrameworkNarrative(framework, dep, dest)}
+          onGenerateNarrative={s.generateNarrative}
           langgraphNarrative={s.langgraphNarrative}
           crewaiNarrative={s.crewaiNarrative}
         />
       )}
-      selectedPoint={s.selectedPoint} onSelectPoint={(lat, lon) => s.selectPoint({ lat, lon })}
+      selectedPoint={selectedPoint} onSelectPoint={(lat, lon) => selectPoint({ lat, lon })}
       alt={alt} onAltChange={setAlt} onSubmit={submit}
       aircraftValue={aircraftKey(aircraft)}
       aircraftOptions={aircraftOptions.map(o => ({ value: aircraftKey(o), label: o.label }))}
       onAircraftChange={changeAircraft}
     >
       <FlightBriefingView
-        course={s.course} totals={s.totals} nav={s.nav} legs={s.legs}
-        dep={dep} dest={dest} selected={s.selected}
+        course={course} totals={s.totals} nav={s.nav} legs={s.legs}
+        dep={planned.dep} dest={planned.dest} selected={selected}
         briefing={s.briefing} briefingError={s.briefingError} loadingBriefing={s.loadingBriefing}
         langgraphNarrative={s.langgraphNarrative} crewaiNarrative={s.crewaiNarrative}
         aircraftLabel={aircraft.label} aircraftId={aircraft.aircraftId ?? null}
@@ -364,27 +320,24 @@ export default function PlanWorkspace({ dep, dest, onRoute, sidebarOpen, onSideb
     map: (
       <div className={cn("h-full w-full", sidebarOpen && "print:hidden")}>
         <RouteMap
-          course={s.course}
+          course={course}
           candidates={s.candidates}
-          selected={s.selected}
-          showCandidates={s.showCandidates}
-          focus={s.selectedPoint}
+          selected={selected}
+          showCandidates={showCandidates}
+          focus={selectedPoint}
           onSelectCandidate={selectCandidate}
           onReady={handleMapReady}
           onZoomChange={setZoomedIn}
-          zoom={{ zoomedIn, onToggle: toggleZoom, disabled: !s.course }}
+          zoom={{ zoomedIn, onToggle: toggleZoom, disabled: !course }}
         />
       </div>
     ),
     sidebar: navLog,
-    console: <PilotPanel course={s.course} />,
+    console: <PilotPanel course={course} />,
     submit,
     loading: s.stage !== null,
     notices: s.needsBuild ? (
-      <BuildNotice
-        dep={s.needsBuild.dep} dest={s.needsBuild.dest} building={s.building}
-        onBuild={() => void s.build(s.needsBuild!.dep, s.needsBuild!.dest)}
-      />
+      <BuildNotice dep={s.needsBuild.dep} dest={s.needsBuild.dest} building={s.building} onBuild={s.build} />
     ) : null,
   });
 }

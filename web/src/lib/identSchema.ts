@@ -10,3 +10,9 @@ import { z } from "zod";
  *  empty string before: don't submit.
  */
 export const identSchema = z.string().trim().toUpperCase().regex(/^[A-Z0-9]{3,4}$/, "must be a 3-4 character airport ident");
+
+/** A valid ident from an address parameter, or "" -- a workspace's
+ *  queries run only on a route both ends of which are real. */
+export function identOf(value: string | null | undefined): string {
+  return identSchema.safeParse(value ?? "").data ?? "";
+}

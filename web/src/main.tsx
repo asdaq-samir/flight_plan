@@ -1,8 +1,9 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { createBrowserRouter, Navigate, RouterProvider } from "react-router-dom";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider } from "next-themes";
+import { queryClient } from "./lib/queryClient";
 import RedirectKeepingSearch from "./components/RedirectKeepingSearch";
 import { Toaster } from "./components/ui/sonner";
 import { TooltipProvider } from "./components/ui/tooltip";
@@ -14,8 +15,6 @@ import "./index.css";
 // the air. It registers only on a secure origin (https, or localhost)
 // and takes a new build over on the next load without asking.
 registerSW({ immediate: true });
-
-const queryClient = new QueryClient();
 
 // Three views, one app -- which is the point of the port. As separate
 // HTML files they drifted: one grew a basemap fix the other never
