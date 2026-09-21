@@ -701,18 +701,21 @@ export default function NavLogView({
           {depart && ` · departing ${clockTime(new Date(depart))}`}
         </div>
       </div>
-      {/* `flight-briefing`: index.css's print rules show every closed
-          section under it on paper -- the nav log's own section and
-          the briefing's alike. The nav log is the first section, open:
-          the summary, then the table; the briefing's sections follow.
-          -mx-2 lines the sections' own cards (CollapsibleSection's
-          mx-2) up with the drawer's padding. */}
+      {/* Every section starts closed, the nav log's own included: the
+          drawer opens as the list of what the briefing holds, and a
+          pilot opens what they want on its title, rather than landing
+          in twenty rows of numbers with the weather somewhere below.
+          Inside the nav log's section, the summary, then the table.
+          `flight-briefing`: index.css's print rules show every closed
+          section under it on paper, so the whole briefing prints
+          whatever is open. -mx-2 lines the sections' own cards
+          (CollapsibleSection's mx-2) up with the drawer's padding. */}
       <div
         className="flight-briefing min-h-0 flex-1 overflow-auto p-3 print:h-auto print:overflow-visible"
         data-testid="navlog-scroller"
       >
         <div className="-mx-2">
-          <CollapsibleSection title="Nav log" defaultOpen>
+          <CollapsibleSection title="Nav log">
             {summary}
             {navLogTable}
           </CollapsibleSection>

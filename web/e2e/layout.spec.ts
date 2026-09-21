@@ -242,15 +242,21 @@ test("plan page: the flight planning drawer opens as the briefing: the two input
   await expect(drawer.getByTestId("depart-input")).toBeVisible();
   expect(await drawer.locator('[data-slot="collapsible-content"] [data-testid="aircraft-select"]').count()).toBe(0);
   expect(await drawer.locator('[data-slot="collapsible-content"] [data-testid="depart-input"]').count()).toBe(0);
-  // The nav log is the first section, open: the totals and the
-  // descriptions button above the table, inside the section rather
-  // than in the header; the briefing's sections follow it, open.
+  // Every section starts closed, the nav log's own first among them:
+  // the drawer opens as the list of what the briefing holds.
   await expect(drawer.getByText("Nav log", { exact: true })).toBeVisible();
+  await expect(drawer.getByText("Adverse Conditions")).toBeVisible();
+  await expect(drawer.getByText("Airport Information")).toBeVisible();
+  expect(await drawer.locator('[data-slot="collapsible-content"][data-state="open"]').count()).toBe(0);
+  await expect(drawer.getByRole("table", { name: /Navigation log from/i })).toBeHidden();
+  // Opened, the nav log's section holds the totals and the
+  // descriptions button above the table -- inside the section, not
+  // the header.
+  await drawer.getByText("Nav log", { exact: true }).click();
   await expect(drawer.getByRole("table", { name: /Navigation log from/i })).toBeVisible();
   await expect(drawer.locator('[data-slot="collapsible-content"] [data-testid="generate-descriptions-button"]')).toBeVisible();
   await expect(drawer.locator('[data-slot="collapsible-content"] [data-testid="navlog-summary"]')).toBeVisible();
-  await expect(drawer.getByText("Adverse Conditions")).toBeVisible();
-  await expect(drawer.getByText("Airport Information")).toBeVisible();
+  expect(await drawer.locator('[data-slot="collapsible-content"][data-state="open"]').count()).toBe(1);
 
   // The page's own header is still there above it: the route form,
   // and the one Dev-mode switch this page has.
@@ -281,22 +287,22 @@ test("plan page: opening the briefing pops a 'planning aid only' warning toast, 
   await expect(page.locator("[data-sonner-toast]", { hasText: "Planning aid only" })).toBeVisible();
 
   // One nav log, in a section of its own at the top, and every
-  // briefing section under it, all open. No "Flight Plan Summary"
-  // section: the nav log's own section carries the totals and the
-  // altitude, and the drawer's header the aeroplane.
+  // briefing section under it, every one closed. No "Flight Plan
+  // Summary" section: the nav log's own section carries the totals
+  // and the altitude, and the drawer's header the aeroplane.
   const drawer = page.locator('[data-slot="map-drawer"][data-side="right"]');
   const navLog = drawer.locator("table");
   await expect(navLog).toHaveCount(1);
+  await expect(navLog).toBeHidden();
   await expect(drawer.getByText("Nav log", { exact: true })).toBeVisible();
-  await expect(drawer.getByRole("table", { name: /Navigation log from/i })).toBeVisible();
   await expect(drawer.getByText("Flight Plan Summary")).toHaveCount(0);
   await expect(drawer.getByText("Adverse Conditions")).toBeVisible();
   await expect(drawer.getByText("Airport Information")).toBeVisible();
-  // A section folds on its title and unfolds again.
-  await drawer.getByText("Nav log", { exact: true }).click();
-  await expect(navLog).toBeHidden();
+  // A section unfolds on its title and folds again.
   await drawer.getByText("Nav log", { exact: true }).click();
   await expect(drawer.getByRole("table", { name: /Navigation log from/i })).toBeVisible();
+  await drawer.getByText("Nav log", { exact: true }).click();
+  await expect(navLog).toBeHidden();
 });
 
 test("plan page: the briefing offers one AI button, not a named button per framework", async ({ page }) => {
@@ -355,6 +361,8 @@ test("plan page: the arrow keys and a click walk the nav log's checkpoints, with
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
   await page.getByTestId("sidebar-trigger-button").click();
+  // The sections start closed: open the nav log's to walk its rows.
+  await page.locator('[data-slot="map-drawer"]').getByText("Nav log", { exact: true }).click();
   const table = page.getByRole("table", { name: /Navigation log from/i });
   // The rows arrive with the scored checkpoints; wait for more than
   // the departure and the destination.
@@ -458,6 +466,8 @@ test("plan page: the nav log's altitude opens the planner's own reasoning, and t
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
   await page.getByTestId("sidebar-trigger-button").click();
+  // The sections start closed: the altitude is in the nav log's own.
+  await page.locator('[data-slot="map-drawer"]').getByText("Nav log", { exact: true }).click();
   // The altitude arrives with the nav log stream, after the checkpoints.
   const why = page.getByTestId("altitude-why");
   await expect(why).toBeVisible({ timeout: 60000 });
@@ -509,10 +519,12 @@ test("plan page: the nav log's altitude opens the planner's own reasoning, and t
   await expect(popover).toHaveCount(0);
   await expect(page.locator('[data-slot="map-drawer"]')).toBeVisible();
 
-  // Every section starts open: the Cruise Altitude section is already
-  // showing its steps, under the nav log's own.
+  // The briefing's Cruise Altitude section, closed like the rest until
+  // its title is clicked, carries the same steps.
   const drawer = page.locator('[data-slot="map-drawer"][data-side="right"]');
   await expect(drawer.getByText("Cruise Altitude", { exact: true })).toBeVisible();
+  await expect(drawer.getByText("14 CFR 91.159")).toBeHidden();
+  await drawer.getByText("Cruise Altitude", { exact: true }).click();
   await expect(drawer.getByText("14 CFR 91.159")).toBeVisible();
 });
 
@@ -520,6 +532,7 @@ test("plan page: a departure time gives every checkpoint an ETA and picks the wi
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
   await page.getByTestId("sidebar-trigger-button").click();
+  await page.locator('[data-slot="map-drawer"]').getByText("Nav log", { exact: true }).click();
   const table = page.getByRole("table", { name: /Navigation log from/i });
   await expect(table.locator("thead")).not.toContainText("ETA");
 

@@ -53,7 +53,7 @@ export default function PilotGuide({ course }: { course: Course | null }) {
         <ol className="list-decimal space-y-1 pl-5 text-muted-foreground">
           <li>Pick your departure and destination in the header and press the arrow. The course draws at once.</li>
           <li>The numbered dots along the course are your visual checkpoints: landmarks a pilot could pick out from the air, chosen and rated for that.</li>
-          <li>Open Flight Planning from the header and pick your aeroplane and departure time at the top. The nav log has the legs with headings, times and fuel for them and the winds, and the briefing sections follow it: weather, NOTAMs, the airports. Print it from there.</li>
+          <li>Open Flight Planning from the header and pick your aeroplane and departure time at the top. Each section opens on its title: the nav log has the legs with headings, times and fuel for them and the winds, and the briefing sections follow it: weather, NOTAMs, the airports. Print it from there.</li>
           <li>Tap a checkpoint or its row for how to spot it, and add your own note.</li>
         </ol>
       </section>
