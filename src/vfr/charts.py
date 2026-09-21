@@ -1654,14 +1654,30 @@ def refresh_due() -> bool:
 def face_gaps(charts: list | None = None) -> list[tuple]:
     """Adjacent sectional faces that fail to meet: (a, b, gap in
     degrees) for every pair whose faces leave daylight between them
-    along a shared edge. The seam check `python -m vfr.charts check`
-    prints; an empty list is what a healthy cycle looks like (the
-    sheets overlap by a tenth of a degree to a degree)."""
+    along a shared edge that no third sheet fills. The seam check
+    `python -m vfr.charts check` prints; an empty list is what a
+    healthy cycle looks like (the sheets overlap by a tenth of a
+    degree to a degree), except that the FAA charts no sheet over the
+    open Gulf between the Caribbean 1 chart and Jacksonville, and that
+    is reported as what it is."""
     charts = charts if charts is not None else prepared_charts(serving_cycle())
     faces = {r.path.stem: r.face for c in charts if c.kind is SECTIONAL for r in c.rasters}
 
     def overlap(a0, a1, b0, b1):
         return min(a1, b1) - max(a0, b0)
+
+    def unfilled(strip: Box, a: str, b: str) -> bool:
+        """Whether some point of the strip between two faces lies in
+        no other face."""
+        west, south, east, north = strip
+        lons = west + (np.arange(24) + 0.5) / 24 * (east - west)
+        lats = south + (np.arange(4) + 0.5) / 4 * (north - south)
+        covered = np.zeros((4, 24), dtype=bool)
+        for name, (w, s, e, n) in faces.items():
+            if name in (a, b):
+                continue
+            covered |= ((lats >= s) & (lats <= n))[:, None] & ((lons >= w) & (lons <= e))[None, :]
+        return not covered.all()
 
     gaps = []
     for a, (aw, as_, ae, an) in faces.items():
@@ -1669,9 +1685,13 @@ def face_gaps(charts: list | None = None) -> list[tuple]:
             if a == b:
                 continue
             if overlap(as_, an, bs, bn) > 0.5 and abs(ae - bw) < 1.5 and bw > aw and be > ae and bw - ae > 0.005:
-                gaps.append((a, b, round(bw - ae, 3)))
+                strip = (ae, max(as_, bs), bw, min(an, bn))
+                if unfilled(strip, a, b):
+                    gaps.append((a, b, round(bw - ae, 3)))
             if overlap(aw, ae, bw, be) > 1.0 and abs(an - bs) < 1.5 and bs > as_ and bn > an and bs - an > 0.005:
-                gaps.append((a, b, round(bs - an, 3)))
+                strip = (max(aw, bw), an, min(ae, be), bs)
+                if unfilled(strip, a, b):
+                    gaps.append((a, b, round(bs - an, 3)))
     return gaps
 
 

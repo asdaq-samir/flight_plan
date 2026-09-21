@@ -458,11 +458,16 @@ def test_render_pyramid_writes_every_tile_of_every_sheet_and_composites_seams(tm
     # A second run finds every tile complete and writes nothing.
     assert charts.render_pyramid(charts.SECTIONAL, zooms=(7, 8), workers=0, charts=sheets) == 0
 
-    # Adjacent faces that meet are no gap; a face pulled back is.
+    # Adjacent faces that meet are no gap; a face pulled back is,
+    # unless a third sheet lies over the strip between them.
     assert charts.face_gaps(sheets) == []
     apart = [sheets[0], charts.Chart(charts.SECTIONAL, "Right", "09-03-2026",
                                      (charts.Raster(tmp_path / "right.tif", face=(-87.9, 41.0, -86.0, 43.0), envelope=right_box),), "now")]
     assert charts.face_gaps(apart) == [("left", "right", 0.1)]
+    over = (-88.5, 40.5, -87.5, 43.5)
+    filler = charts.Chart(charts.SECTIONAL, "Over", "09-03-2026",
+                          (charts.Raster(tmp_path / "over.tif", face=over, envelope=over),), "now")
+    assert charts.face_gaps([*apart, filler]) == []
 
 
 def test_serving_cycle_is_the_newest_complete_pyramid(tmp_path, monkeypatch):
