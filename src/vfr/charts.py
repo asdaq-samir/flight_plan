@@ -856,9 +856,9 @@ def _straight_face(ink: _Ink, crs, transform, mask_path: Path) -> Box:
     rectangle: written to `mask_path` as a small raster (255 inside
     the rectangle, 0 outside, one pixel per pooled block) that the
     renderer warps alongside the sheet, and returned as the lat/lon box
-    around the rectangle's four corners. A conic sheet leans in lat/lon,
-    so the box takes in collar at the corners; the mask is what keeps
-    that from being drawn."""
+    around the rectangle's whole outline. A conic sheet leans and bows
+    in lat/lon, so the box takes in collar at the corners; the mask is
+    what keeps that from being drawn."""
     import rasterio
     import rasterio.warp
     from rasterio.transform import Affine
@@ -879,8 +879,18 @@ def _straight_face(ink: _Ink, crs, transform, mask_path: Path) -> Box:
 
     x0, x1 = (c0 + 1) * _POOL_PX, max((c0 + 2) * _POOL_PX, (c1 - 1) * _POOL_PX)
     y0, y1 = (r0 + 1) * _POOL_PX, max((r0 + 2) * _POOL_PX, (r1 - 1) * _POOL_PX)
-    xs, ys = zip(*(transform * (x, y) for x, y in ((x0, y0), (x1, y0), (x0, y1), (x1, y1))))
-    lons, lats = rasterio.warp.transform(crs, "EPSG:4326", list(xs), list(ys))
+    # The rectangle's sides are straight on the sheet and arcs in
+    # latitude and longitude: a parallel bows toward the pole between
+    # two points on it, so the top side is furthest north in its
+    # middle, not at either corner (on a sheet twenty degrees wide, by
+    # a third of a degree). A box around the corners alone left that
+    # bow to nobody: a strip of map background under the neighbour's
+    # neatline. So the box is around the whole outline.
+    along = np.linspace(0.0, 1.0, 256)
+    xs = np.concatenate([x0 + along * (x1 - x0), x0 + along * (x1 - x0), np.full_like(along, x0), np.full_like(along, x1)])
+    ys = np.concatenate([np.full_like(along, y0), np.full_like(along, y1), y0 + along * (y1 - y0), y0 + along * (y1 - y0)])
+    px, py = transform * (xs, ys)
+    lons, lats = rasterio.warp.transform(crs, "EPSG:4326", list(px), list(py))
     return (min(lons), min(lats), max(lons), max(lats))
 
 

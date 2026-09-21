@@ -207,6 +207,43 @@ def test_a_sheet_across_the_antimeridian_is_measured_unwrapped_and_drawn_in_two(
         [((-90.0, 40.0, -88.0, 44.0), (-90.5, 39.5, -87.5, 44.5))]
 
 
+def test_a_straight_bordered_face_reaches_the_bow_of_its_top_edge(tmp_path):
+    """An IFR sheet is a rectangle in its conic projection, and a
+    parallel bows toward the pole: the rectangle's top side is
+    furthest north in its middle, not at its corners. The face box
+    has to reach the middle, or the strip between is drawn by nobody
+    and shows as a band of map background under the neighbour's
+    neatline."""
+    import rasterio.transform
+    import rasterio.warp
+
+    # A conic sheet 2,000 km wide, centred on the projection's meridian.
+    crs = "EPSG:5070"
+    transform = rasterio.transform.from_origin(-1_000_000.0, 2_700_000.0, 2000.0, 2000.0)
+    width, height = 1000, 250
+    data = np.full((height, width), 8, np.uint8)
+    data[19:22, 40:960] = 7
+    data[228:231, 40:960] = 7
+    data[19:231, 39:42] = 7
+    data[19:231, 958:961] = 7
+    with rasterio.open(
+        tmp_path / "conic.tif", "w", driver="GTiff", width=width, height=height, count=1, dtype="uint8",
+        crs=crs, transform=transform,
+    ) as ds:
+        ds.write(data, 1)
+        ds.write_colormap(1, PALETTE)
+
+    def lat_at(col, row):
+        x, y = transform * (col, row)
+        return rasterio.warp.transform(crs, "EPSG:4326", [x], [y])[1][0]
+
+    corner, middle = lat_at(44, 24), lat_at(500, 24)
+    assert middle > corner + 0.3
+    _, face, _ = charts.detect_face(tmp_path / "conic.tif", charts.IFR_LOW)
+    assert face[3] == pytest.approx(middle, abs=0.05)
+    assert face[1] == pytest.approx(lat_at(44, 224), abs=0.05)
+
+
 def test_render_leaves_a_sheets_own_leaning_edge_transparent(tmp_path):
     """A sheet is a rectangle in its own projection and a leaning
     quadrilateral in web mercator; its lat/lon face can run past the
