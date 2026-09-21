@@ -2,9 +2,11 @@ import { useSyncExternalStore } from "react";
 
 /**
  * Which charts the map draws: the base chart (the sectional, or one of
- * the IFR enroute charts) and whether the terminal area chart is drawn
- * over the sectional at every zoom it exists at. One setting for both
- * map pages, remembered per browser.
+ * the IFR enroute charts) and whether the terminal area chart is
+ * pinned over it (`tac`), drawn at every zoom it exists at -- set
+ * from the pin the map offers over a terminal area (`OverlayPin`) or
+ * the info popover's checkbox. One setting for both map pages,
+ * remembered per browser.
  *
  * A tiny store rather than React state because the thing that acts on
  * it is Leaflet, which lives outside React (`createBasemaps` subscribes

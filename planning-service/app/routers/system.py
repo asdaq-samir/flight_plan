@@ -15,6 +15,7 @@ from vfr import chartlabels, charts, checkpoint_notes, model_registry, weather
 from vfr.terrain import DEFAULT_FAA_CACHE_DIR
 
 from ..common import PROCESSED_DIR
+from ..settings import CHARTS_REFRESH_WINDOW, CHARTS_REFRESH_WORKERS
 from ..schemas import (
     CandidateModel,
     ChartRefreshStarted,
@@ -206,14 +207,20 @@ def _airflow_token(user: str, password: str) -> str:
     return resp.json()["access_token"]
 
 
+def _pipeline_unreachable(detail: str, configured: bool) -> PipelineStatus:
+    return PipelineStatus(
+        airflow_configured=configured, airflow_reachable=False, airflow_url=AIRFLOW_URL,
+        dag_id=AIRFLOW_DAG_ID if AIRFLOW_URL else None, last_run=None, detail=detail,
+    )
+
+
 def _pipeline_status() -> PipelineStatus:
     if not AIRFLOW_URL:
-        return PipelineStatus(airflow_configured=False, airflow_reachable=False, airflow_url=None, last_run=None,
-                              detail="AIRFLOW_URL is not set")
+        return _pipeline_unreachable("AIRFLOW_URL is not set", configured=False)
     creds = _airflow_credentials()
     if creds is None:
-        return PipelineStatus(airflow_configured=False, airflow_reachable=False, airflow_url=AIRFLOW_URL, last_run=None,
-                              detail="no Airflow credentials (AIRFLOW_USERNAME/AIRFLOW_PASSWORD or the passwords file)")
+        return _pipeline_unreachable("no Airflow credentials (AIRFLOW_USERNAME/AIRFLOW_PASSWORD or the passwords file)",
+                                     configured=False)
     try:
         token = _airflow_token(*creds)
         resp = requests.get(
@@ -224,14 +231,12 @@ def _pipeline_status() -> PipelineStatus:
         resp.raise_for_status()
         runs = resp.json().get("dag_runs", [])
     except requests.ConnectionError:
-        return PipelineStatus(airflow_configured=True, airflow_reachable=False, airflow_url=AIRFLOW_URL, last_run=None,
-                              detail=f"Airflow at {AIRFLOW_URL} is not running")
+        return _pipeline_unreachable(f"Airflow at {AIRFLOW_URL} is not running", configured=True)
     except (requests.RequestException, ValueError, KeyError) as err:
-        return PipelineStatus(airflow_configured=True, airflow_reachable=False, airflow_url=AIRFLOW_URL, last_run=None,
-                              detail=f"Airflow did not answer: {str(err).split(chr(10))[0][:160]}")
+        return _pipeline_unreachable(f"Airflow did not answer: {str(err).split(chr(10))[0][:160]}", configured=True)
     last = runs[0] if runs else None
     return PipelineStatus(
-        airflow_configured=True, airflow_reachable=True, airflow_url=AIRFLOW_URL, detail=None,
+        airflow_configured=True, airflow_reachable=True, airflow_url=AIRFLOW_URL, dag_id=AIRFLOW_DAG_ID, detail=None,
         last_run=PipelineRun(
             dag_run_id=last.get("dag_run_id"), state=last.get("state"),
             start_date=last.get("start_date"), end_date=last.get("end_date"),
@@ -258,7 +263,7 @@ def status() -> Status:
             },
             faa_files=_faa_files(),
             weather=_weather_datasets(),
-            charts=charts.status(),
+            charts={**charts.status(), "refresh_window": CHARTS_REFRESH_WINDOW, "refresh_workers": CHARTS_REFRESH_WORKERS},
             model={"current": _current_model(), "versions": _versions(), "candidates": _candidates()},
             pipeline=pipeline.result(),
             corridors=_corridors(),

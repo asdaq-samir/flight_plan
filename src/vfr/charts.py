@@ -190,6 +190,21 @@ def _covers(entry, bbox: Box) -> bool:
     return any(_intersects(box, bbox) for box in _boxes(entry))
 
 
+def sheets(kind: ChartKind) -> list[tuple[str, Box]]:
+    """Every sheet of a kind as (name, box), a chart across the
+    antimeridian counted once per side."""
+    return [(name, box) for name, entry in COVERAGE[kind.key].items() for box in _boxes(entry)]
+
+
+def sheet_label(kind: ChartKind, name: str) -> str:
+    """What to call a sheet on screen: "Chicago TAC", "Dallas-Ft Worth
+    TAC"; the IFR area charts, several sheets to a zip, go by the
+    kind's own name."""
+    if kind is TAC:
+        return f"{name.replace('_', ' ')} TAC"
+    return "IFR area chart" if kind is IFR_AREA else kind.label
+
+
 # Every chart's raster envelope (west, south, east, north), collar
 # included, keyed by the name the FAA's zip carries. Read from the FGDC
 # .htm inside each zip of the 09-03-2026 cycle; the sheets do not move

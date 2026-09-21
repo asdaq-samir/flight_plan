@@ -1,8 +1,10 @@
 import L from "leaflet";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import OverlayPin from "../../../components/OverlayPin";
 import type { Candidate, Course } from "../../../lib/api/types";
 import {
   CROWD_FROM_ZOOM, MARKERS_FROM_ZOOM, createBasemaps, createCourseLine, createHalo, dotIcon, endLabelIcon, fromZoom, mountReact,
+  type Basemaps,
 } from "../../../lib/map/leaflet";
 import { useLeafletMap } from "../../../lib/map/useLeafletMap";
 import { scoreColor } from "../format";
@@ -55,10 +57,18 @@ export default function RouteMap({
   // the map lives; let go of that with the map.
   useEffect(() => () => basemaps.current?.dispose(), []);
 
+  // The map and its basemaps once both exist -- state, not the refs
+  // read during render -- for the pin over the map (`OverlayPin`),
+  // which watches them.
+  const [pinTargets, setPinTargets] = useState<{ map: L.Map; basemaps: Basemaps } | null>(null);
+
   useEffect(() => {
     const m = map.current;
     if (!m || !course) return;
-    if (!basemaps.current) basemaps.current = createBasemaps(m, course);
+    if (!basemaps.current) {
+      basemaps.current = createBasemaps(m, course);
+      setPinTargets({ map: m, basemaps: basemaps.current });
+    }
 
     if (layers.current.course) m.removeLayer(layers.current.course);
     layers.current.course = createCourseLine(m, course.course_line, {
@@ -152,5 +162,10 @@ export default function RouteMap({
   // reads as "a map is about to be here" rather than a blank white
   // rectangle -- zero network cost, unlike fetching placeholder tiles
   // would be (see useLeafletMap's own comment for why that's not done).
-  return <div ref={el} className="h-full w-full bg-slate-100 dark:bg-slate-900" />;
+  return (
+    <div className="relative h-full w-full">
+      <div ref={el} className="h-full w-full bg-slate-100 dark:bg-slate-900" />
+      <OverlayPin map={pinTargets?.map ?? null} basemaps={pinTargets?.basemaps ?? null} />
+    </div>
+  );
 }

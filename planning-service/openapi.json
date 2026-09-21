@@ -902,6 +902,14 @@
             },
             "title": "Over",
             "type": "array"
+          },
+          "sheets": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/ChartSheet"
+            },
+            "title": "Sheets",
+            "type": "array"
           }
         },
         "required": [
@@ -930,6 +938,45 @@
           "current_cycle"
         ],
         "title": "ChartRefreshStarted",
+        "type": "object"
+      },
+      "ChartSheet": {
+        "description": "One sheet of an overlay chart kind and where it is: the map\noffers to pin the terminal area chart when the view is over one.",
+        "properties": {
+          "east": {
+            "title": "East",
+            "type": "number"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "north": {
+            "title": "North",
+            "type": "number"
+          },
+          "south": {
+            "title": "South",
+            "type": "number"
+          },
+          "west": {
+            "title": "West",
+            "type": "number"
+          }
+        },
+        "required": [
+          "name",
+          "label",
+          "west",
+          "south",
+          "east",
+          "north"
+        ],
+        "title": "ChartSheet",
         "type": "object"
       },
       "ChartsStatus": {
@@ -970,6 +1017,16 @@
             "default": false,
             "title": "Refresh Running",
             "type": "boolean"
+          },
+          "refresh_window": {
+            "default": "",
+            "title": "Refresh Window",
+            "type": "string"
+          },
+          "refresh_workers": {
+            "default": 1,
+            "title": "Refresh Workers",
+            "type": "integer"
           },
           "tiles_cached": {
             "title": "Tiles Cached",
@@ -3014,6 +3071,17 @@
               }
             ],
             "title": "Airflow Url"
+          },
+          "dag_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dag Id"
           },
           "detail": {
             "anyOf": [

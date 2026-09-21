@@ -1,11 +1,12 @@
 import L from "leaflet";
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import OverlayPin from "../../../components/OverlayPin";
 import type { Course, Point } from "../../../lib/api/types";
 import { isEndpoint } from "../../../lib/api/types";
 import { COLORS, hasRating, isVisible, type Filters } from "../logic";
 import {
   CROWD_FROM_ZOOM, createBasemaps, createCourseLine, createHalo, dotIcon, endLabelIcon, fromZoom,
-  setHaloMenuOpen, updateHaloContent,
+  setHaloMenuOpen, updateHaloContent, type Basemaps,
 } from "../../../lib/map/leaflet";
 import { useLeafletMap } from "../../../lib/map/useLeafletMap";
 
@@ -55,12 +56,19 @@ export default function ChartMap({
   // The basemaps subscribe to the TAC-overlay setting for as long as
   // the map lives; let go of that with the map.
   useEffect(() => () => basemaps.current?.dispose(), []);
+  // The map and its basemaps once both exist -- state, not the refs
+  // read during render -- for the pin over the map (`OverlayPin`),
+  // which watches them.
+  const [pinTargets, setPinTargets] = useState<{ map: L.Map; basemaps: Basemaps } | null>(null);
 
   // Basemaps and the course line, once the route resolves.
   useEffect(() => {
     const m = map.current;
     if (!m || !course) return;
-    if (!basemaps.current) basemaps.current = createBasemaps(m, course);
+    if (!basemaps.current) {
+      basemaps.current = createBasemaps(m, course);
+      setPinTargets({ map: m, basemaps: basemaps.current });
+    }
 
     if (layers.current.course) m.removeLayer(layers.current.course);
     layers.current.course = createCourseLine(m, course.course_line, {
@@ -155,5 +163,10 @@ export default function ChartMap({
   // reads as "a map is about to be here" rather than a blank white
   // rectangle -- see RouteMap/useLeafletMap's own comments for why an
   // actual placeholder tile fetch isn't done instead.
-  return <div ref={el} className="h-full w-full bg-slate-100 dark:bg-slate-900" />;
+  return (
+    <div className="relative h-full w-full">
+      <div ref={el} className="h-full w-full bg-slate-100 dark:bg-slate-900" />
+      <OverlayPin map={pinTargets?.map ?? null} basemaps={pinTargets?.basemaps ?? null} />
+    </div>
+  );
 }

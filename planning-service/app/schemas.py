@@ -27,6 +27,18 @@ class AirportEnd(BaseModel):
     elevation_ft: float | None = None
 
 
+class ChartSheet(BaseModel):
+    """One sheet of an overlay chart kind and where it is: the map
+    offers to pin the terminal area chart when the view is over one."""
+
+    name: str
+    label: str
+    west: float
+    south: float
+    east: float
+    north: float
+
+
 class ChartLayer(BaseModel):
     """One kind of FAA chart the map can draw and the zooms it has
     tiles for: the sectional and the IFR enroute charts as base layers
@@ -39,6 +51,8 @@ class ChartLayer(BaseModel):
     base: bool
     # For an overlay, the base kinds it belongs over.
     over: list[str] = []
+    # For an overlay, its sheets and their extents.
+    sheets: list[ChartSheet] = []
 
 
 class Course(BaseModel):
@@ -679,6 +693,8 @@ class PipelineStatus(BaseModel):
     airflow_configured: bool
     airflow_reachable: bool
     airflow_url: str | None
+    # The training DAG's id, for a link to it in Airflow's own UI.
+    dag_id: str | None = None
     last_run: PipelineRun | None
     detail: str | None
 
@@ -730,6 +746,10 @@ class ChartsStatus(BaseModel):
     pyramid: dict[str, PyramidProgress] = {}
     building: dict[str, PyramidProgress] = {}
     refresh_running: bool = False
+    # When the planner's own refresh may start a render ("HH:MM-HH:MM"
+    # on its clock, blank for any time) and with how many processes.
+    refresh_window: str = ""
+    refresh_workers: int = 1
 
 
 class ChartRefreshStarted(BaseModel):

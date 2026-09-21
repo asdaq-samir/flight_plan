@@ -124,6 +124,10 @@ services:
     environment:
       PYTHONPATH: /workspace/src
       MODEL_SERVICE_URL: http://model-service:8000
+      # The clock the chart refresh's night-time window (see
+      # planning-service/app/main.py) is read against: the desk this
+      # runs on, not UTC.
+      TZ: ${TZ:-America/Chicago}
       # /api/checkpoint-notes: one Claude call per checkpoint that has
       # no saved note yet.
       ANTHROPIC_API_KEY: *anthropic-api-key

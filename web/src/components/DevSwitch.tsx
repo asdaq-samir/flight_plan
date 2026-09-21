@@ -44,7 +44,12 @@ export default function DevSwitch() {
     }
   };
   return (
-    <IconButton role="switch" aria-checked={on} label="Dev mode" onClick={flip} data-testid="dev-switch">
+    <IconButton
+      role="switch" aria-checked={on} label="Dev mode" onClick={flip} data-testid="dev-switch"
+      // On, the switch is the same amber as the header it sits in,
+      // filled: a switch that is on looks on.
+      className={cn(on && "bg-amber-500 text-black hover:bg-amber-400 hover:text-black")}
+    >
       {/* Full when on: lucide's icons are strokes, and filling the
           flask's own closed body path with the current colour is what
           "full" is. */}

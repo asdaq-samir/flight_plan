@@ -143,27 +143,29 @@ export function createBasemaps(map: L.Map, cfg: Course) {
   // names the bases it belongs over) -- rendered the same way from the
   // FAA's own sheets, one zoom finer, and transparent (a 404 the layer
   // leaves blank) wherever none exists, so the base shows through
-  // everywhere else. Past the base's own resolution it is always
-  // drawn: there the base is only being upscaled and the terminal
-  // sheet is the chart that still has detail (the way SkyVector's
-  // chart layer turns into the TAC close in). The checkbox in the info
-  // popover extends it out to every zoom it can be drawn at. Leaflet
-  // reads a layer's minZoom once, so changing it means a fresh layer.
-  let overlay: { kind: string; minZoom: number; layer: L.TileLayer } | null = null;
+  // everywhere else. Drawn only while pinned (the `tac` setting: the
+  // pin the map offers over a terminal area, or the info popover's
+  // checkbox) or while that pin is being hovered (`preview`). Nothing
+  // replaces the base on its own: past the sectional's own detail the
+  // map upscales the sectional rather than swapping in a busier sheet
+  // the pilot did not ask for (it used to, the way SkyVector does; a
+  // pilot who knows the sectional found the TAC appearing under a
+  // zoom to be the chart changing on its own). Leaflet reads a
+  // layer's minZoom once, so a change of kind means a fresh layer.
+  let overlay: { kind: string; layer: L.TileLayer } | null = null;
+  let previewing = false;
+  const overlayKind = () => cfg.chart_layers.find(l => !l.base && l.over.includes(chartLayers.get().base)) ?? null;
   const applyOverlay = () => {
-    const { base: baseKind, tac: wanted } = chartLayers.get();
-    const baseZooms = zoomsOf(baseKind);
-    const kind = cfg.chart_layers.find(l => !l.base && l.over.includes(baseKind));
-    if (!baseZooms || !kind) {
+    const kind = overlayKind();
+    if (!kind || !(chartLayers.get().tac || previewing)) {
       if (overlay) { map.removeLayer(overlay.layer); overlay = null; }
       return;
     }
-    const minZoom = wanted ? kind.min_zoom : Math.max(kind.min_zoom, baseZooms.max_zoom + 1);
-    if (overlay?.kind === kind.kind && overlay.minZoom === minZoom) return;
+    if (overlay?.kind === kind.kind) return;
     if (overlay) map.removeLayer(overlay.layer);
     overlay = {
-      kind: kind.kind, minZoom,
-      layer: tileLayer(kind.kind, minZoom, kind.max_zoom, { keepBuffer: 2, zIndex: 5 }).addTo(map),
+      kind: kind.kind,
+      layer: tileLayer(kind.kind, kind.min_zoom, kind.max_zoom, { keepBuffer: 2, zIndex: 5 }).addTo(map),
     };
   };
 
@@ -173,9 +175,33 @@ export function createBasemaps(map: L.Map, cfg: Course) {
 
   return {
     get base() { return base?.kind ?? "sec"; },
+    /**
+     * What there is to pin where the map is: the overlay sheet under
+     * the map's centre, once the map is within the overlay's own zooms
+     * ("Chicago TAC", `offered`), or -- with nothing under the centre
+     * -- the overlay kind's own name, for a pin that is already pinned
+     * and may want unpinning from anywhere. null when the base has no
+     * overlay kind at all.
+     */
+    overlayAt(): { label: string; offered: boolean } | null {
+      const kind = overlayKind();
+      if (!kind) return null;
+      const { lat, lng } = map.getCenter();
+      const sheet = map.getZoom() >= kind.min_zoom
+        ? (kind.sheets ?? []).find(s => lng >= s.west && lng <= s.east && lat >= s.south && lat <= s.north)
+        : undefined;
+      return sheet ? { label: sheet.label, offered: true } : { label: kind.label, offered: false };
+    },
+    /** Draws the overlay while `on`, pinned or not: the pin's hover. */
+    preview(on: boolean) {
+      previewing = on;
+      applyOverlay();
+    },
     dispose() { unsubscribe(); },
   };
 }
+
+export type Basemaps = ReturnType<typeof createBasemaps>;
 
 /**
  * Keeps `layer` on the map only from `minZoom` in, and returns the

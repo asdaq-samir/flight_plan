@@ -24,6 +24,7 @@ from ..schemas import (
     AltitudeChoice,
     AltitudeOption,
     ChartLayer,
+    ChartSheet,
     Checkpoints,
     Course,
     NavLogAltitude,
@@ -39,9 +40,17 @@ router = APIRouter()
 
 
 def chart_layers() -> list[ChartLayer]:
-    """Every chart kind the map may draw, with its zoom range."""
+    """Every chart kind the map may draw, with its zoom range -- and,
+    for an overlay, its sheets and where they are, which is how the
+    map knows to offer the Chicago TAC over Chicago."""
     return [
-        ChartLayer(kind=k.key, label=k.label, min_zoom=k.min_zoom, max_zoom=k.max_zoom, base=k.base, over=list(k.over))
+        ChartLayer(
+            kind=k.key, label=k.label, min_zoom=k.min_zoom, max_zoom=k.max_zoom, base=k.base, over=list(k.over),
+            sheets=[] if k.base else [
+                ChartSheet(name=name, label=charts.sheet_label(k, name), west=w, south=s, east=e, north=n)
+                for name, (w, s, e, n) in charts.sheets(k)
+            ],
+        )
         for k in charts.KINDS.values()
     ]
 

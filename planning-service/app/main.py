@@ -39,6 +39,7 @@ from vfr import airspace, altitude, charts, faa_data, weather
 from .common import PROCESSED_DIR
 from .routers import briefing, build, chart, devml, notes, plan, system
 from .schemas import STREAM_MESSAGES, Index
+from .settings import CHARTS_REFRESH_WINDOW, CHARTS_REFRESH_WORKERS
 
 log = logging.getLogger(__name__)
 
@@ -63,8 +64,6 @@ WEATHER_REFRESH_S = 240
 # "refresh now" is a request, and starts at once with two workers.
 CHART_CYCLE_CHECK_S = 3600
 CHARTS_AUTO_REFRESH = os.environ.get("CHARTS_AUTO_REFRESH", "1") != "0"
-CHARTS_REFRESH_WINDOW = os.environ.get("CHARTS_REFRESH_WINDOW", "01:00-06:00").strip()
-CHARTS_REFRESH_WORKERS = int(os.environ.get("CHARTS_REFRESH_WORKERS", "1"))
 
 
 def _in_refresh_window(now: time.struct_time | None = None, window: str = CHARTS_REFRESH_WINDOW) -> bool:

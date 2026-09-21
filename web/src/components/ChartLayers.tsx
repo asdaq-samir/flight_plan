@@ -8,10 +8,10 @@ import { BASE_CHARTS, chartLayers, useChartLayers, type BaseChart } from "../lib
  * or the IFR low- or high-altitude enroute chart, the way SkyVector
  * offers them), and whether the terminal-area sheet that belongs over
  * it -- the TAC over the sectional, the IFR area chart over the IFR
- * charts -- is drawn at every zoom it can be drawn at, wherever one
- * exists (Chicago's covers the first leg out of C81). Past the base's
- * own resolution it is drawn regardless (see `createBasemaps`), so the
- * checkbox only decides whether it also replaces the base further out.
+ * charts -- is pinned: drawn at every zoom it can be drawn at,
+ * wherever one exists (Chicago's covers the first leg out of C81).
+ * The same setting the pin over the map (`OverlayPin`) toggles;
+ * unpinned, the base chart is the chart at every zoom.
  *
  * Lives in both pages' info popovers -- Plan's `ScoreLegend` and Label's
  * `RatingLegend` -- next to the shortcut list, since that popover is
@@ -43,11 +43,12 @@ export default function ChartLayers() {
           data-testid="tac-toggle"
         />
         <Label htmlFor="tac-overlay" className="font-normal">
-          {base === "sec" ? "Terminal area chart" : "IFR area chart"} as soon as it can be drawn
+          {base === "sec" ? "Terminal area chart" : "IFR area chart"} pinned
         </Label>
       </div>
       <p className="text-xs text-muted-foreground">
-        Past the base chart&rsquo;s own detail the terminal sheet is drawn regardless, where one exists.
+        Close in over a terminal area a pin appears on the map: tap it to pin that sheet over the base chart,
+        or hover it to look. Unpinned, the base chart is the chart at every zoom.
       </p>
     </div>
   );

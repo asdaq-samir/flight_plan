@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link } from "react-router-dom";
-import { SquareTerminal } from "lucide-react";
+import { Link, useLocation } from "react-router-dom";
+import { RefreshCw, SquareTerminal } from "lucide-react";
 import { toast } from "sonner";
 import { Bar, BarChart, Cell, LabelList, XAxis, YAxis } from "recharts";
 import { cn } from "cn";
 import IconButton from "../../components/IconButton";
 import RouteForm from "../../components/RouteForm";
 import ThemeToggle from "../../components/ThemeToggle";
+import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "../../components/ui/chart";
 import {
@@ -35,7 +36,14 @@ function ago(iso: string | null | undefined): string {
 }
 
 const LOCAL_HOSTS = ["localhost", "127.0.0.1"];
-const CHART_KIND_LABELS: Record<string, string> = { sec: "sectional", tac: "TAC", ifr_low: "IFR low", ifr_high: "IFR high" };
+const CHART_KIND_LABELS: Record<string, string> = {
+  sec: "Sectional", tac: "TAC", ifr_low: "IFR low", ifr_high: "IFR high", ifr_area: "IFR area",
+};
+// The tab the console was last on, remembered per browser: a developer
+// watching a retrain or a corridor collection reopens the console to
+// the same tab, not to Model every time.
+const TAB_KEY = "dev.tab";
+const TABS = ["model", "corridors", "system"];
 
 /** The header button that opens the console -- `aria-expanded` so the
  *  state is readable, the same as the sidebar's own toggle. A console
@@ -63,16 +71,35 @@ export function DevButton({ open, onClick }: { open: boolean; onClick: () => voi
  * things instead (see PilotPanel).
  */
 export function DevPanel() {
-  const { data: status, error, refetch } = useQuery({
+  const queryClient = useQueryClient();
+  const { data: status, error, refetch, isFetching } = useQuery({
     queryKey: ["status"], queryFn: api.status, refetchInterval: 30000, retry: false,
   });
   const statusMessage = errorMessage(error, "Could not read the system status");
   useErrorToasts({ status: statusMessage && { message: statusMessage, retry: () => void refetch() } });
+  const [tab, setTab] = useState(() => {
+    try {
+      const saved = localStorage.getItem(TAB_KEY);
+      return saved && TABS.includes(saved) ? saved : "model";
+    } catch {
+      return "model";
+    }
+  });
+  const changeTab = (value: string) => {
+    setTab(value);
+    try { localStorage.setItem(TAB_KEY, value); } catch { /* per-browser convenience only */ }
+  };
+  // Everything the console shows, asked for again now rather than at
+  // the next 30-second tick: the snapshot, the model comparison and
+  // the two health probes the System tab runs itself.
+  const refreshAll = () => void queryClient.invalidateQueries({
+    predicate: q => ["status", "modelComparison", "webappHealth", "plannerHealth"].includes(String(q.queryKey[0])),
+  });
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto">
       <div className="mx-auto max-w-3xl p-4">
-        <Tabs defaultValue="model">
+        <Tabs value={tab} onValueChange={changeTab}>
           <div className="flex flex-wrap items-center justify-between gap-2">
             <TabsList>
               <TabsTrigger value="model">Model</TabsTrigger>
@@ -81,6 +108,9 @@ export function DevPanel() {
             </TabsList>
             <div className="flex items-center gap-2">
               {status && <span className="text-xs text-muted-foreground">Checked {ago(status.checked_at)}</span>}
+              <IconButton label="Check again" onClick={refreshAll} disabled={isFetching} data-testid="dev-refresh">
+                <RefreshCw className={cn("size-4", isFetching && "animate-spin")} />
+              </IconButton>
               <ThemeToggle />
             </div>
           </div>
@@ -251,20 +281,44 @@ function ModelTab({ status }: { status: Status | undefined }) {
       </section>
       <section>
         <h3 className="text-sm font-semibold">Pipeline</h3>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {pipeline?.airflow_reachable
-            ? (lastRun
-              ? `Last Airflow run of the training DAG: ${lastRun.state ?? "unknown"}, started ${ago(lastRun.start_date)}.`
-              : "Airflow is reachable; the training DAG has not run yet.")
-            : `${pipeline?.detail ?? "Airflow is not reachable from here"}, so a retrain runs by hand: `
-              + "docker compose run --rm pipeline-training retrain, then the registry promotes it if it beats the current model."}
-        </p>
+        {pipeline?.airflow_reachable ? (
+          <div className="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm">
+            {lastRun ? (
+              <>
+                <StatusDot up={lastRun.state === "success" ? true : lastRun.state === "failed" ? false : undefined}
+                  pending={lastRun.state === "running" || lastRun.state === "queued"} />
+                <span className="font-medium">Last training run: {lastRun.state ?? "unknown"}</span>
+                <span className="text-muted-foreground">
+                  started {ago(lastRun.start_date)}
+                  {lastRun.end_date && lastRun.start_date
+                    && `, took ${elapsed(new Date(lastRun.end_date).getTime() - new Date(lastRun.start_date).getTime())}`}
+                </span>
+              </>
+            ) : (
+              <span className="text-muted-foreground">Airflow is reachable; the training DAG has not run yet.</span>
+            )}
+            {pipeline.dag_id && LOCAL_HOSTS.includes(window.location.hostname) && (
+              <a
+                href={`http://${window.location.hostname}:8081/dags/${pipeline.dag_id}`} target="_blank" rel="noreferrer"
+                className="underline underline-offset-4"
+              >
+                open in Airflow
+              </a>
+            )}
+          </div>
+        ) : (
+          <p className="mt-1 text-sm text-muted-foreground">
+            {pipeline?.detail ?? "Airflow is not reachable from here"}, so a retrain runs by hand:{" "}
+            <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">docker compose run --rm pipeline-training retrain</code>
+            {" "}-- the registry promotes it if it beats the current model.
+          </p>
+        )}
         <Button
           type="button" size="sm" className="mt-2"
           onClick={() => retrain.mutate()}
-          disabled={retrain.isPending || !pipeline?.airflow_reachable}
+          disabled={retrain.isPending || !pipeline?.airflow_reachable || lastRun?.state === "running" || lastRun?.state === "queued"}
         >
-          {retrain.isPending ? "Starting…" : "Retrain through Airflow"}
+          {retrain.isPending ? "Starting…" : lastRun?.state === "running" || lastRun?.state === "queued" ? "Retraining…" : "Retrain through Airflow"}
         </Button>
       </section>
     </div>
@@ -337,13 +391,17 @@ function CollectCorridor() {
 
 function CorridorsTab({ status }: { status: Status | undefined }) {
   const corridors = status?.corridors ?? [];
+  // The route on the map behind the console, to mark its row.
+  const params = new URLSearchParams(useLocation().search);
+  const onMap = `${params.get("dep") ?? ""}-${params.get("dest") ?? ""}`.toUpperCase();
   return (
     <div className="space-y-5">
       <section>
         <h3 className="text-sm font-semibold">Collected corridors</h3>
         <p className="mt-1 mb-3 text-sm text-muted-foreground">
           Every route with a feature store, and how far its labels have come. Rated counts every
-          pick on the chart, 0 included; added are the ones a pilot put on the chart themselves.
+          pick on the chart, 0 included, against the candidates the model scored; added are the
+          ones a pilot put on the chart themselves.
         </p>
         <Table containerClassName="rounded-md border" className="min-w-[40rem]">
           <TableCaption className="sr-only">Collected corridors</TableCaption>
@@ -368,11 +426,20 @@ function CorridorsTab({ status }: { status: Status | undefined }) {
             )}
             {corridors.map(c => {
               const route = new URLSearchParams({ dep: c.departure_ident, dest: c.destination_ident }).toString();
+              const key = `${c.departure_ident}-${c.destination_ident}`;
+              const current = key.toUpperCase() === onMap;
+              const rated = c.candidates ? Math.round((c.labels.total / c.candidates) * 100) : null;
               return (
-                <TableRow key={`${c.departure_ident}-${c.destination_ident}`}>
-                  <TableCell className="font-mono">{c.departure_ident} → {c.destination_ident}</TableCell>
+                <TableRow key={key} data-state={current ? "selected" : undefined}>
+                  <TableCell className="font-mono">
+                    {c.departure_ident} → {c.destination_ident}
+                    {current && <Badge variant="secondary" className="ml-2 font-sans">on the map</Badge>}
+                  </TableCell>
                   <TableCell className="text-right tabular-nums">{c.candidates ?? "—"}</TableCell>
-                  <TableCell className="text-right tabular-nums">{c.labels.total}</TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {c.labels.total}
+                    {rated !== null && <span className="ml-1 text-xs text-muted-foreground">({rated}%)</span>}
+                  </TableCell>
                   <TableCell className="text-right tabular-nums">{c.labels.added}</TableCell>
                   <TableCell className="text-right tabular-nums">{c.notes}</TableCell>
                   <TableCell className="text-muted-foreground">{ago(c.features_built_at)}</TableCell>
@@ -391,15 +458,81 @@ function CorridorsTab({ status }: { status: Status | undefined }) {
   );
 }
 
-function StatusDot({ up }: { up: boolean | undefined }) {
+/** Green up, red down, grey unknown -- and amber, pulsing, for
+ *  something under way (a training run). */
+function StatusDot({ up, pending = false }: { up: boolean | undefined; pending?: boolean }) {
   return (
     <span
       aria-hidden
       className={cn(
         "inline-block size-2.5 shrink-0 rounded-full",
-        up === undefined ? "bg-muted-foreground/40" : up ? "bg-emerald-500" : "bg-destructive",
+        pending ? "animate-pulse bg-amber-500"
+          : up === undefined ? "bg-muted-foreground/40" : up ? "bg-emerald-500" : "bg-destructive",
       )}
     />
+  );
+}
+
+/** The FAA charts on disk and the tile pyramid rendered from them,
+ *  one row per chart kind -- and, while the FAA has moved on to a
+ *  newer cycle, the same rows for the cycle being fetched and
+ *  rendered in the background. Used to be one run-on line naming
+ *  every count, which read as nothing at all. */
+function ChartsSection({ charts, onRefresh, refreshing }: {
+  charts: NonNullable<Status["charts"]>; onRefresh: () => void; refreshing: boolean;
+}) {
+  const sheets = charts.charts.reduce<Record<string, number>>((n, c) => ({ ...n, [c.kind]: (n[c.kind] ?? 0) + 1 }), {});
+  const kinds = Object.keys(CHART_KIND_LABELS).filter(k => sheets[k] || charts.pyramid?.[k] || charts.building?.[k]);
+  const newer = charts.current_cycle !== charts.cycle;
+  const progress = (p: { finished_at: string | null; rasters_done: number; rasters_total: number; current: string | null } | undefined) =>
+    !p ? "—"
+      : p.finished_at ? "complete"
+      : `${p.rasters_done}/${p.rasters_total} sheets${p.current ? `, on ${p.current}` : ""}`;
+  return (
+    <section data-testid="charts-status">
+      <h3 className="text-sm font-semibold">Charts</h3>
+      <p className="mt-1 text-sm text-muted-foreground">
+        FAA GeoTIFFs, cycle {charts.cycle}, {charts.tiles_cached.toLocaleString()} tiles rendered.
+        {newer
+          ? ` The FAA is on cycle ${charts.current_cycle}: ${charts.refresh_running ? "fetching and rendering it now" : "not rendered yet"}.`
+          : " The FAA is on the same cycle."}
+        {" "}A new cycle renders {charts.refresh_window ? `in the ${charts.refresh_window} window` : "as soon as it is seen"}
+        {` with ${charts.refresh_workers} worker${charts.refresh_workers === 1 ? "" : "s"}, or `}
+        <Button
+          variant="link" size="sm" className="h-auto p-0"
+          onClick={onRefresh}
+          disabled={refreshing || charts.refresh_running}
+        >
+          {charts.refresh_running ? "refreshing…" : "now"}
+        </Button>.
+      </p>
+      <Table containerClassName="mt-2 rounded-md border" className="min-w-[24rem]">
+        <TableCaption className="sr-only">Chart kinds on disk and their tile pyramids</TableCaption>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Chart</TableHead>
+            <TableHead className="text-right">Sheets</TableHead>
+            <TableHead className="text-right">Tiles</TableHead>
+            <TableHead>Pyramid</TableHead>
+            {newer && <TableHead>Cycle {charts.current_cycle}</TableHead>}
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {kinds.map(k => (
+            <TableRow key={k}>
+              <TableCell>{CHART_KIND_LABELS[k]}</TableCell>
+              <TableCell className="text-right tabular-nums">{sheets[k] ?? 0}</TableCell>
+              <TableCell className="text-right tabular-nums">{(charts.pyramid?.[k]?.tiles_written ?? 0).toLocaleString()}</TableCell>
+              <TableCell className="text-muted-foreground">{progress(charts.pyramid?.[k])}</TableCell>
+              {newer && <TableCell className="text-muted-foreground">{progress(charts.building?.[k])}</TableCell>}
+            </TableRow>
+          ))}
+          {kinds.length === 0 && (
+            <TableRow><TableCell colSpan={newer ? 5 : 4} className="h-12 text-center text-muted-foreground">No chart prepared yet.</TableCell></TableRow>
+          )}
+        </TableBody>
+      </Table>
+    </section>
   );
 }
 
@@ -497,53 +630,18 @@ function SystemTab({ status }: { status: Status | undefined }) {
               </span>
             </li>
           ))}
-          {status?.charts && (
-            <li className="flex items-baseline gap-2" data-testid="charts-status">
-              <span className="font-mono">VFR charts</span>
-              <span className="text-muted-foreground">
-                FAA GeoTIFFs, cycle {status.charts.cycle}:{" "}
-                {status.charts.charts.length
-                  ? `${status.charts.charts.length} sheets (${Object.entries(
-                      status.charts.charts.reduce<Record<string, number>>((n, c) => ({ ...n, [c.kind]: (n[c.kind] ?? 0) + 1 }), {}),
-                    ).map(([kind, n]) => `${n} ${CHART_KIND_LABELS[kind] ?? kind}`).join(", ")})`
-                  : "none prepared yet"}
-                {` · ${status.charts.tiles_cached} tiles rendered`}
-                {Object.values(status.charts.pyramid ?? {}).map(p => (
-                  <span key={p.kind}>
-                    {` · ${CHART_KIND_LABELS[p.kind] ?? p.kind} pyramid `}
-                    {p.finished_at
-                      ? `complete (${p.rasters_done} sheets, ${p.tiles_written} tiles)`
-                      : `${p.rasters_done}/${p.rasters_total} sheets${p.current ? `, on ${p.current}` : ""}`}
-                  </span>
-                ))}
-                {status.charts.current_cycle !== status.charts.cycle && (
-                  <span>
-                    {` · the FAA is on cycle ${status.charts.current_cycle}`}
-                    {Object.values(status.charts.building ?? {}).map(p => (
-                      <span key={p.kind}>
-                        {`, ${CHART_KIND_LABELS[p.kind] ?? p.kind} ${p.finished_at ? "rendered" : `${p.rasters_done}/${p.rasters_total} sheets`}`}
-                      </span>
-                    ))}
-                    {status.charts.refresh_running ? ", fetching and rendering it now" : ", not fetched yet"}
-                  </span>
-                )}
-                {" "}
-                <Button
-                  variant="link" size="sm" className="h-auto p-0"
-                  onClick={() => refreshCharts.mutate()}
-                  disabled={refreshCharts.isPending || status.charts.refresh_running}
-                >
-                  {status.charts.refresh_running ? "refreshing…" : "refresh now"}
-                </Button>
-              </span>
-            </li>
-          )}
           {!status && <li className="text-muted-foreground">Loading…</li>}
         </ul>
       </section>
+      {status?.charts && <ChartsSection charts={status.charts} onRefresh={() => refreshCharts.mutate()} refreshing={refreshCharts.isPending} />}
       <section>
         <h3 className="text-sm font-semibold">Elsewhere in the stack</h3>
         <ul className="mt-1 space-y-1 text-sm">
+          <li>
+            <a href="/api/planner/status" target="_blank" rel="noreferrer" className="underline underline-offset-4">
+              this snapshot as JSON
+            </a>
+          </li>
           {links.filter(l => local || !l.localOnly).map(l => (
             <li key={l.href}>
               <a href={l.href} target="_blank" rel="noreferrer" className="underline underline-offset-4">{l.label}</a>

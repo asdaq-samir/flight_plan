@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { cn } from "cn";
+import { Badge } from "./ui/badge";
 
 interface Props {
   /** Leads the row, on the route form's left: the Dev-mode switch,
@@ -12,8 +13,10 @@ interface Props {
    *  the guide, the zoom toggle, the console and the sidebar toggle --
    *  the same four, in the same order, on both pages. */
   actions: ReactNode;
-  /** Dev mode: the header goes grey, so which page this is shows
-   *  from across the room, not only from the switch's own flask. */
+  /** Dev mode: the header goes amber, with a stripe along its top and
+   *  a DEV badge beside the switch, so which page this is shows from
+   *  across the room, not only from the switch's own flask. (It used
+   *  to go grey, which read as nothing at all.) */
   dev?: boolean;
 }
 
@@ -43,10 +46,21 @@ export default function MapHeader({ leading, form, actions, dev = false }: Props
       data-mode={dev ? "dev" : "pilot"}
       className={cn(
         "flex shrink-0 flex-wrap items-center gap-1.5 border-b border-border px-2 py-2 sm:grid sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] sm:gap-2 sm:px-3 print:hidden",
-        dev ? "bg-muted" : "bg-background",
+        dev
+          ? "border-t-4 border-t-amber-500 border-b-amber-300 bg-amber-100 dark:border-b-amber-800 dark:bg-amber-950/60"
+          : "bg-background",
       )}
     >
-      <div className="flex items-center [&>*]:size-8 sm:justify-self-start sm:[&>*]:size-9">{leading}</div>
+      {/* The badge only from `sm` up: a phone's one-line header has no
+          room for it, and the amber itself carries the message there. */}
+      <div className="flex items-center gap-1.5 [&>*]:size-8 sm:justify-self-start sm:[&>*]:size-9">
+        {leading}
+        {dev && (
+          <Badge className="hidden !h-5 !w-auto bg-amber-500 px-1.5 font-semibold tracking-wide text-black sm:inline-flex" data-testid="dev-badge">
+            DEV
+          </Badge>
+        )}
+      </div>
       {form}
       <div className="ml-auto flex items-center gap-1 [&>*]:size-8 sm:ml-0 sm:justify-self-end sm:gap-2 sm:[&>*]:size-9">
         {actions}
