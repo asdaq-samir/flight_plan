@@ -2,6 +2,7 @@ import os
 
 from starlette.responses import PlainTextResponse
 
+from . import mcp_server
 from .mcp_server import mcp
 
 # This server has no OAuth authorization server of its own to issue scoped
@@ -12,7 +13,9 @@ from .mcp_server import mcp
 # auth of its own in front of it (unlike planning-service, which is never
 # given an ALB rule at all), so without this, anyone who finds the URL can
 # run real, billed Claude calls and write to the pgvector briefing store.
-API_KEY = os.environ["NAV_LOG_AGENT_API_KEY"]
+# Read when the server starts (below), not when the module is imported:
+# pdoc imports this module to document it, with no secret to hand.
+API_KEY_ENV = "NAV_LOG_AGENT_API_KEY"
 
 
 class BearerAuthMiddleware:
@@ -23,15 +26,16 @@ class BearerAuthMiddleware:
     unbuffered.
     """
 
-    def __init__(self, app):
+    def __init__(self, app, api_key: str):
         self.app = app
+        self.expected = f"Bearer {api_key}".encode()
 
     async def __call__(self, scope, receive, send):
         if scope["type"] != "http":
             await self.app(scope, receive, send)
             return
         headers = dict(scope["headers"])
-        if headers.get(b"authorization") != f"Bearer {API_KEY}".encode():
+        if headers.get(b"authorization") != self.expected:
             response = PlainTextResponse("Unauthorized", status_code=401)
             await response(scope, receive, send)
             return
@@ -40,6 +44,11 @@ class BearerAuthMiddleware:
 
 if __name__ == "__main__":
     import uvicorn
+
+    api_key = os.environ.get(API_KEY_ENV)
+    if not api_key:
+        raise SystemExit(f"{API_KEY_ENV} is not set: the MCP server refuses to start unauthenticated")
+    mcp_server.startup()
 
     # host="0.0.0.0" is required, not cosmetic -- the library's own default
     # (127.0.0.1) is only reachable from inside the container's own network
@@ -50,4 +59,4 @@ if __name__ == "__main__":
     # ALB path-based route (/mcp/*) can target, rather than depending on the
     # library's own unprefixed defaults (/sse, /messages/).
     starlette_app = mcp.sse_app(sse_path="/mcp/sse", message_path="/mcp/messages/", host="0.0.0.0")
-    uvicorn.run(BearerAuthMiddleware(starlette_app), host="0.0.0.0", port=8000)
+    uvicorn.run(BearerAuthMiddleware(starlette_app, api_key), host="0.0.0.0", port=8000)

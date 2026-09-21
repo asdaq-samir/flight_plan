@@ -12,14 +12,22 @@ from starlette.responses import StreamingResponse
 from . import db
 from .graph import build_graph
 
-db.ensure_schema()
-# Loaded now, not on the first request: the first embedding otherwise
-# paid the model load (and, before HF_HUB_OFFLINE, a round of
-# huggingface.co checks) inside a pilot's own wait for a narrative.
-db.preload_embedder()
 mcp = MCPServer("vfr-nav-log-agent")
 _graph = build_graph()
 _graph_from_nav_log = build_graph(from_nav_log=True)
+
+
+def startup() -> None:
+    """What the process does once before it serves: the schema
+    migrations, and the embedding model loaded now rather than on the
+    first request (the first embedding otherwise paid the model load
+    -- and, before HF_HUB_OFFLINE, a round of huggingface.co checks --
+    inside a pilot's own wait for a narrative). Called from `main`,
+    not on import: importing this module must not need a database,
+    or the documentation build (pdoc imports every module) and any
+    test that imports it would."""
+    db.ensure_schema()
+    db.preload_embedder()
 
 
 def _run_graph(departure_ident: str, destination_ident: str, altitude_ft: float | None, aircraft_name: str) -> dict:

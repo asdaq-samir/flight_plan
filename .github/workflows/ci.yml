@@ -293,8 +293,8 @@ jobs:
       - name: pdoc (src/vfr)
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
-          docker run --rm -v "$PWD":/workspace -w /workspace vfr-docs-ml:latest sh -c \
-            "pip install -q pdoc && PYTHONPATH=src pdoc src/vfr -o /tmp/pdoc-vfr --no-show-source"
+          docker run --rm --entrypoint sh -v "$PWD":/workspace -w /workspace vfr-docs-ml:latest -c \
+            "pip install -q pdoc && PYTHONPATH=src python -m pdoc src/vfr -o /tmp/pdoc-vfr --no-show-source"
 
       - name: Build nav-log-agent image (for pdoc's full app dependency set)
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -308,8 +308,8 @@ jobs:
       - name: pdoc (nav-log-agent)
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
-          docker run --rm -v "$PWD":/workspace -w /workspace/nav-log-agent vfr-docs-navlog:latest sh -c \
-            "pip install -q pdoc && PYTHONPATH=/workspace/src pdoc app -o /tmp/pdoc-navlog --no-show-source"
+          docker run --rm --entrypoint sh -v "$PWD":/workspace -w /workspace/nav-log-agent vfr-docs-navlog:latest -c \
+            "pip install -q pdoc && PYTHONPATH=/workspace/src python -m pdoc app -o /tmp/pdoc-navlog --no-show-source"
 
       - name: Build crewai-agent image (for pdoc's full app dependency set)
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -323,8 +323,8 @@ jobs:
       - name: pdoc (crewai-agent)
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
-          docker run --rm -v "$PWD":/workspace -w /workspace/crewai-agent vfr-docs-crewai:latest sh -c \
-            "pip install -q pdoc && PYTHONPATH=/workspace/src pdoc app -o /tmp/pdoc-crewai --no-show-source"
+          docker run --rm --entrypoint sh -v "$PWD":/workspace -w /workspace/crewai-agent vfr-docs-crewai:latest -c \
+            "pip install -q pdoc && PYTHONPATH=/workspace/src python -m pdoc app -o /tmp/pdoc-crewai --no-show-source"
 
       - uses: actions/upload-artifact@v4
         with:
