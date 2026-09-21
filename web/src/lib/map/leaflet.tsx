@@ -3,7 +3,7 @@ import { flushSync } from "react-dom";
 import { createRoot } from "react-dom/client";
 import type { ReactNode } from "react";
 import type { Course } from "../api/types";
-import { tacOverlay } from "./tacOverlay";
+import { chartLayers } from "./chartLayers";
 
 /**
  * Leaflet, kept imperative on purpose.
@@ -78,9 +78,10 @@ export function observeResize(map: L.Map, el: HTMLElement): () => void {
   return () => observer.disconnect();
 }
 
-/** The chart layers: the sectional as the map's one and only base,
- *  and the terminal area chart over it on request. Both need the
- *  course's own zoom limits, so this runs once the course exists --
+/** The chart layers: one FAA chart as the map's base (the sectional,
+ *  or an IFR enroute chart, per the `chartLayers` setting), and the
+ *  terminal area chart over the sectional. All need the course's own
+ *  zoom limits (`chart_layers`), so this runs once the course exists --
  *  which costs nothing visible, since `useLeafletMap` gives the map no
  *  view until the course's own fit sets one, and Leaflet fetches no
  *  tile before it has a view.
@@ -88,13 +89,15 @@ export function observeResize(map: L.Map, el: HTMLElement): () => void {
  *  There is no street map under the chart any more. OpenStreetMap
  *  used to sit underneath for the zooms the sectional had no tiles at
  *  and as a `t`-key alternative; now the sectional is drawn all the
- *  way out to zoom 5, every sheet of the country is rendered ahead of
+ *  way out to zoom 3, every sheet of the country is rendered ahead of
  *  time (`python -m vfr.charts pyramid`), and a pilot looks at the
- *  chart and nothing else, the way vfrmap.com does it. */
+ *  chart and nothing else, the way vfrmap.com and SkyVector do it. */
 export function createBasemaps(map: L.Map, cfg: Course) {
-  // A plain tile layer whose tiles come from this app's own
-  // planning-service (/api/sectional-tile): a {z}/{x}/{y} pyramid
-  // rendered from the FAA's own GeoTIFF of each sectional sheet
+  const zoomsOf = (kind: string) => cfg.chart_layers.find(l => l.kind === kind);
+
+  // Plain tile layers whose tiles come from this app's own
+  // planning-service (/api/chart-tile/<kind>): a {z}/{x}/{y} pyramid
+  // rendered from the FAA's own GeoTIFF of each sheet
   // (src/vfr/charts.py). Tiles fetch only the new edge on a pan, scale
   // the previous zoom's tiles under the zoom animation, and prefetch a
   // ring (keepBuffer) beyond the viewport, all of it Leaflet's own
@@ -113,11 +116,21 @@ export function createBasemaps(map: L.Map, cfg: Course) {
   // edition -- or under the hosted map service this app drew before,
   // whose no-coverage checkerboard a phone kept showing for a day --
   // must ask again when the edition changes.
-  const sectional = L.tileLayer("/api/planner/sectional-tile/{z}/{x}/{y}.png?c={cycle}", {
-    attribution: "FAA VFR charts", cycle: cfg.chart_cycle,
-    minZoom: cfg.min_zoom, maxNativeZoom: cfg.max_zoom, maxZoom: cfg.max_zoom + 3,
-    keepBuffer: 4,
-  } as L.TileLayerOptions).addTo(map);
+  const tileLayer = (kind: string, minZoom: number, maxZoom: number, extra: Partial<L.TileLayerOptions> = {}) =>
+    L.tileLayer(`/api/planner/chart-tile/${kind}/{z}/{x}/{y}.png?c={cycle}`, {
+      attribution: kind.startsWith("ifr") ? "FAA IFR enroute charts" : "FAA VFR charts",
+      cycle: cfg.chart_cycle, minZoom, maxNativeZoom: maxZoom, maxZoom: maxZoom + 3, keepBuffer: 4, ...extra,
+    } as L.TileLayerOptions);
+
+  let base: { kind: string; layer: L.TileLayer } | null = null;
+  const applyBase = () => {
+    const kind = chartLayers.get().base;
+    if (base?.kind === kind) return;
+    const zooms = zoomsOf(kind) ?? zoomsOf("sec");
+    if (!zooms) return;
+    if (base) map.removeLayer(base.layer);
+    base = { kind, layer: tileLayer(kind, zooms.min_zoom, zooms.max_zoom).addTo(map) };
+  };
 
   // The terminal area chart, over the sectional -- rendered the same
   // way from the FAA's TAC sheets, one zoom finer, and transparent (a
@@ -126,26 +139,30 @@ export function createBasemaps(map: L.Map, cfg: Course) {
   // resolution it is always drawn: there the sectional is only being
   // upscaled and the TAC is the chart that still has detail (the way
   // SkyVector's chart layer turns into the TAC close in). The checkbox
-  // in the info popover (`tacOverlay`) extends it out to every zoom it
-  // can be drawn at. Leaflet reads a layer's minZoom once, so changing
-  // it means a fresh layer.
-  const tacAlwaysFrom = Math.max(cfg.tac_min_zoom, cfg.max_zoom + 1);
-  let tac: L.TileLayer | null = null;
+  // in the info popover extends it out to every zoom it can be drawn
+  // at. Over an IFR chart it makes no sense and is not drawn. Leaflet
+  // reads a layer's minZoom once, so changing it means a fresh layer.
+  const sec = zoomsOf("sec");
+  const tacZooms = zoomsOf("tac");
+  let tac: { minZoom: number; layer: L.TileLayer } | null = null;
   const applyTac = () => {
-    const minZoom = tacOverlay.get() ? cfg.tac_min_zoom : tacAlwaysFrom;
-    if (tac && tac.options.minZoom === minZoom) return;
-    if (tac) map.removeLayer(tac);
-    tac = L.tileLayer("/api/planner/tac-tile/{z}/{x}/{y}.png?c={cycle}", {
-      cycle: cfg.chart_cycle,
-      minZoom, maxNativeZoom: cfg.tac_max_zoom, maxZoom: cfg.tac_max_zoom + 3,
-      keepBuffer: 2, zIndex: 5,
-    } as L.TileLayerOptions).addTo(map);
+    const { base: baseKind, tac: wanted } = chartLayers.get();
+    if (!sec || !tacZooms || baseKind !== "sec") {
+      if (tac) { map.removeLayer(tac.layer); tac = null; }
+      return;
+    }
+    const minZoom = wanted ? tacZooms.min_zoom : Math.max(tacZooms.min_zoom, sec.max_zoom + 1);
+    if (tac?.minZoom === minZoom) return;
+    if (tac) map.removeLayer(tac.layer);
+    tac = { minZoom, layer: tileLayer("tac", minZoom, tacZooms.max_zoom, { keepBuffer: 2, zIndex: 5 }).addTo(map) };
   };
-  applyTac();
-  const unsubscribe = tacOverlay.subscribe(applyTac);
+
+  const apply = () => { applyBase(); applyTac(); };
+  apply();
+  const unsubscribe = chartLayers.subscribe(apply);
 
   return {
-    sectional,
+    get base() { return base?.kind ?? "sec"; },
     dispose() { unsubscribe(); },
   };
 }

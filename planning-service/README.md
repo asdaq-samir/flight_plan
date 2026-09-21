@@ -121,6 +121,7 @@ once in ten.
 | `GET /api/classify` | What the chart draws at one point. |
 | `GET /api/sectional-tile/{z}/{x}/{y}.png` | The sectional as a tile pyramid, for the map -- rendered from the FAA's own GeoTIFF of each sheet (`vfr.charts`), collar clipped away so sheets butt together. Zooms 3-12: the whole country on a phone screen, down to the chart's own print resolution. |
 | `GET /api/tac-tile/{z}/{x}/{y}.png` | The terminal area charts the same way, for the map's optional overlay; 404 wherever no TAC exists. Zooms 10-13. |
+| `GET /api/chart-tile/{kind}/{z}/{x}/{y}.png` | Any chart kind by key -- `sec`, `tac`, `ifr_low`, `ifr_high` (the IFR enroute charts, base layers the map's info popover can switch to). `chart_layers` on the course lists the kinds and their zooms. |
 
 The tile endpoints render on first request and cache on disk, which is
 fine for one corridor and not for a map with no street layer under it.
@@ -128,9 +129,12 @@ For the whole country ahead of time (the sectional is the map's only
 base layer, so this is the normal state of a running stack):
 
 ```sh
-docker compose exec planning-service python -m vfr.charts prepare   # every sheet: 64 zips, ~5 GB, ~25 min
-docker compose exec planning-service python -m vfr.charts pyramid   # every tile: ~250k files, ~3 GB, under an hour with --workers 4
+docker compose run --rm --no-deps planning-service python -m vfr.charts prepare   # every sheet: sectionals (the lower 48, Alaska, Hawaii, the Caribbean), TACs, IFR low and high; ~7 GB
+docker compose run --rm --no-deps planning-service python -m vfr.charts pyramid   # every tile of every kind; about two hours with --workers 3
 ```
+
+`run --rm`, not `exec`: a render inside the serving planner's own
+container has had it killed for memory twice.
 
 Both resume where they stopped. The sheets land in
 `data/raw/charts.nosync/<cycle>/`, the tiles in

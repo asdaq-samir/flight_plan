@@ -35,6 +35,7 @@ from the pixels once the raster is here.
 """
 from __future__ import annotations
 
+import contextlib
 import io
 import json
 import logging
@@ -466,8 +467,9 @@ def ensure_chart(kind: ChartKind, name: str, cycle: str | None = None) -> Chart 
     if name not in COVERAGE[kind.key]:
         raise ValueError(f"no such {kind.key} chart: {name}")
     cycle = cycle or current_cycle()
-    with _lock_for((kind.key, name)):
-        chart = _load_ready(_chart_dir(cycle, kind, name), kind, name, cycle)
+    directory = _chart_dir(cycle, kind, name)
+    with _lock_for((kind.key, name)), _directory_lock(directory):
+        chart = _load_ready(directory, kind, name, cycle)
         if chart is not None:
             return chart
         failed_at = _failed.get((kind.key, name))
@@ -481,6 +483,24 @@ def ensure_chart(kind: ChartKind, name: str, cycle: str | None = None) -> Chart 
             return _latest_on_disk(kind, name)
         _failed.pop((kind.key, name), None)
         return chart
+
+
+@contextlib.contextmanager
+def _directory_lock(directory: Path):
+    """An exclusive lock on a chart's folder, held across processes:
+    the serving planner's warm-up and a `prepare` run in another
+    container can want the same sheet at the same moment, and two
+    extractions plus two overview builds on one TIFF is a corrupt
+    TIFF. The second one waits, then finds the sheet ready."""
+    import fcntl
+
+    directory.mkdir(parents=True, exist_ok=True)
+    with (directory / ".lock").open("w") as handle:
+        fcntl.flock(handle, fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(handle, fcntl.LOCK_UN)
 
 
 def _download_and_prepare(kind: ChartKind, name: str, cycle: str) -> Chart:
@@ -761,16 +781,24 @@ def detect_face(path: Path, kind: ChartKind) -> tuple[Box, Box]:
 # Rendering
 # ---------------------------------------------------------------------------
 
-def _warp_rgb(path: Path, bbox_3857: tuple, width: int, height: int, centre_lat: float) -> np.ndarray:
-    """Part of a raster, reprojected to web mercator, as (height,
-    width, 3) RGB -- one tile, or a whole row of them at once.
+def _warp_rgb(path: Path, bbox_3857: tuple, width: int, height: int, centre_lat: float) -> tuple:
+    """Part of a raster, reprojected to web mercator: (height, width,
+    3) RGB and a (height, width) mask of where the raster actually had
+    pixels -- one tile, or a whole row of them at once.
 
     The chart is a palette image, so it is warped as indices
     (nearest-neighbour -- an averaged index is a random colour) and
     coloured afterwards. At zooms coarser than the chart's own
     resolution that alone drops thin lines; so the warp is read at up
     to four times the requested size and box-filtered down in RGB,
-    which is the averaging a palette cannot have."""
+    which is the averaging a palette cannot have.
+
+    The mask matters at a sheet's own edge. A sheet is a rectangle in
+    its conic projection, which in web mercator is a quadrilateral with
+    leaning sides; its face is a lat/lon box, and where the box runs
+    past the leaning edge the warp has nothing to put. Left as index 0
+    that is paper, and paper drawn over the neighbouring sheet showed
+    on the map as a white sliver, widening down the seam."""
     import rasterio
     from rasterio.enums import Resampling
     from rasterio.transform import from_bounds
@@ -781,19 +809,20 @@ def _warp_rgb(path: Path, bbox_3857: tuple, width: int, height: int, centre_lat:
         ground_m_per_px = (xmax - xmin) / width * math.cos(math.radians(centre_lat))
         oversample = int(min(4, max(1, round(ground_m_per_px / float(src.res[0])))))
         w, h = width * oversample, height * oversample
+        bands = src.count
         # No nodata value: with one, GDAL "protects" it by rewriting
         # every source pixel of that index to the next one, and index
-        # 0 is the chart's paper. Where the warp runs past the sheet the
-        # buffer is left at 0, which is paper too -- and outside the
-        # face anyway, which the caller masks.
+        # 0 is the chart's paper. add_alpha gives the mask instead.
         with WarpedVRT(
             src, crs="EPSG:3857", transform=from_bounds(xmin, ymin, xmax, ymax, w, h),
-            width=w, height=h, resampling=Resampling.nearest,
+            width=w, height=h, resampling=Resampling.nearest, add_alpha=True,
         ) as vrt:
             rgb = _read_rgb(vrt)
+            alpha = vrt.read(bands + 1)
     if oversample > 1:
         rgb = np.asarray(Image.fromarray(np.ascontiguousarray(rgb)).reduce(oversample))
-    return rgb
+        alpha = np.asarray(Image.fromarray(alpha).reduce(oversample))
+    return rgb, alpha >= 128
 
 
 def _tile_lats(y: int, zoom: int) -> np.ndarray:
@@ -826,7 +855,8 @@ def render_tile(rasters: list, x: int, y: int, zoom: int) -> np.ndarray | None:
         covered = _face_mask(raster.face, lats, lons) & (out[:, :, 3] == 0)
         if not covered.any():
             continue
-        rgb = _warp_rgb(raster.path, bbox, TILE_PX, TILE_PX, float(lats[TILE_PX // 2]))
+        rgb, valid = _warp_rgb(raster.path, bbox, TILE_PX, TILE_PX, float(lats[TILE_PX // 2]))
+        covered &= valid
         out[covered, :3] = rgb[covered]
         out[covered, 3] = 255
     return out if out[:, :, 3].any() else None
@@ -1108,16 +1138,22 @@ def _render_row(args: tuple) -> int:
     xmin = tile_bbox_3857(x0, y, zoom)[0]
     _, ymin, xmax, ymax = tile_bbox_3857(x1, y, zoom)
     width = (x1 - x0 + 1) * TILE_PX
-    strip = _warp_rgb(Path(path), (xmin, ymin, xmax, ymax), width, TILE_PX, float(lats[TILE_PX // 2]))
+    strip, valid = _warp_rgb(Path(path), (xmin, ymin, xmax, ymax), width, TILE_PX, float(lats[TILE_PX // 2]))
 
+    written = 0
     for x, tile_path, rgba, fill in owed:
-        rgb = strip[:, (x - x0) * TILE_PX:(x - x0 + 1) * TILE_PX]
+        columns = slice((x - x0) * TILE_PX, (x - x0 + 1) * TILE_PX)
+        fill &= valid[:, columns]
+        if not fill.any():
+            continue  # the face runs past this sheet's own edge here; the neighbour draws it
+        rgb = strip[:, columns]
         rgba[fill, :3] = rgb[fill]
         rgba[fill, 3] = 255
         tile_path.parent.mkdir(parents=True, exist_ok=True)
         _write_atomically(tile_path, encode_png(rgba))
         tile_path.with_suffix(".none").unlink(missing_ok=True)
-    return len(owed)
+        written += 1
+    return written
 
 
 def _write_pyramid_status(cycle: str, update: dict) -> None:
@@ -1340,8 +1376,13 @@ def _main(argv: list | None = None) -> int:
             p.add_argument("--workers", type=int, default=4 if name == "pyramid" else 2)
         if name == "pyramid":
             p.add_argument("--zooms", help="e.g. 5-12; the kind's own range by default")
+            p.add_argument("--tiles-dir", help="render into this folder instead of the tile cache -- a staging "
+                                               "pyramid to swap in whole while the old one keeps serving")
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    if getattr(args, "tiles_dir", None):
+        global CHART_TILE_CACHE_DIR
+        CHART_TILE_CACHE_DIR = Path(args.tiles_dir)
 
     if args.command == "prepare":
         charts = prepare_all(tuple(args.kind))

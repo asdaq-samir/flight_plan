@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import MapGuideButton from "../../../components/MapGuideButton";
-import TacOverlayToggle from "../../../components/TacOverlayToggle";
+import ChartLayers from "../../../components/ChartLayers";
 import { Kbd } from "../../../components/ui/kbd";
 import { api } from "../../../lib/api/client";
 import { scoreColor } from "../format";
@@ -82,7 +82,7 @@ export default function ScoreLegend() {
         ))}
         <ModelProvenance />
       </div>
-      <TacOverlayToggle />
+      <ChartLayers />
       <div className="space-y-1.5 border-t border-border pt-2 text-muted-foreground">
         {SHORTCUTS.map(([key, text]) => (
           <div key={text} className="flex items-center gap-2">

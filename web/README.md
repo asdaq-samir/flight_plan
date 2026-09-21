@@ -154,14 +154,16 @@ and places its pieces in its own `Shell`.
 **Leaflet.** `lib/map/` holds everything `RouteMap` and `ChartMap`
 share. Leaflet stays imperative — no React binding — except that popup
 and marker content is JSX mounted into the DOM node Leaflet provides.
-The FAA sectional is the map's only base layer: an ordinary tile layer
-served by `planning-service` (`/api/sectional-tile/{z}/{x}/{y}.png`,
-rendered from the FAA's own GeoTIFFs, zooms 3 to 12 and upscaled to
-15, so the whole country fits a phone screen). There is no street map
-under it. The terminal area chart is a
-second tile layer (`/api/tac-tile/…`) drawn over it when the info
-popover's "Chart layers" checkbox is on (`lib/map/tacOverlay.ts`, one
-setting shared by both map pages and remembered per browser).
+An FAA chart is the map's only base layer: an ordinary tile layer
+served by `planning-service` (`/api/chart-tile/<kind>/{z}/{x}/{y}.png`,
+rendered from the FAA's own GeoTIFFs; the sectional from zoom 3, so
+the whole country fits a phone screen, to 12, upscaled to 15). There
+is no street map under it. The info popover's "Chart layers" section
+picks the base (sectional, IFR low or IFR high) and whether the
+terminal area chart is drawn over the sectional at every zoom it
+exists at; past the sectional's own resolution the TAC is drawn
+regardless (`lib/map/chartLayers.ts`, one setting shared by both map
+pages and remembered per browser).
 
 **API.** In `lib/api/client.ts`, `navlog()`, `detect()` and
 `describeCheckpoints()` stream newline-delimited JSON through one

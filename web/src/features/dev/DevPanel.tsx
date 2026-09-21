@@ -35,6 +35,7 @@ function ago(iso: string | null | undefined): string {
 }
 
 const LOCAL_HOSTS = ["localhost", "127.0.0.1"];
+const CHART_KIND_LABELS: Record<string, string> = { sec: "sectional", tac: "TAC", ifr_low: "IFR low", ifr_high: "IFR high" };
 
 /** The header button that opens the console -- `aria-expanded` so the
  *  state is readable, the same as the sidebar's own toggle. A console
@@ -502,14 +503,14 @@ function SystemTab({ status }: { status: Status | undefined }) {
               <span className="text-muted-foreground">
                 FAA GeoTIFFs, cycle {status.charts.cycle}:{" "}
                 {status.charts.charts.length
-                  ? status.charts.charts
-                      .map(c => `${c.name.replace(/_/g, " ")} ${c.kind === "tac" ? "TAC" : "sectional"}`)
-                      .join(", ")
+                  ? `${status.charts.charts.length} sheets (${Object.entries(
+                      status.charts.charts.reduce<Record<string, number>>((n, c) => ({ ...n, [c.kind]: (n[c.kind] ?? 0) + 1 }), {}),
+                    ).map(([kind, n]) => `${n} ${CHART_KIND_LABELS[kind] ?? kind}`).join(", ")})`
                   : "none prepared yet"}
                 {` · ${status.charts.tiles_cached} tiles rendered`}
                 {Object.values(status.charts.pyramid ?? {}).map(p => (
                   <span key={p.kind}>
-                    {` · ${p.kind === "tac" ? "TAC" : "sectional"} pyramid `}
+                    {` · ${CHART_KIND_LABELS[p.kind] ?? p.kind} pyramid `}
                     {p.finished_at
                       ? `complete (${p.rasters_done} sheets, ${p.tiles_written} tiles)`
                       : `${p.rasters_done}/${p.rasters_total} sheets${p.current ? `, on ${p.current}` : ""}`}
@@ -520,7 +521,7 @@ function SystemTab({ status }: { status: Status | undefined }) {
                     {` · the FAA is on cycle ${status.charts.current_cycle}`}
                     {Object.values(status.charts.building ?? {}).map(p => (
                       <span key={p.kind}>
-                        {`, ${p.kind === "tac" ? "TAC" : "sectional"} ${p.finished_at ? "rendered" : `${p.rasters_done}/${p.rasters_total} sheets`}`}
+                        {`, ${CHART_KIND_LABELS[p.kind] ?? p.kind} ${p.finished_at ? "rendered" : `${p.rasters_done}/${p.rasters_total} sheets`}`}
                       </span>
                     ))}
                     {status.charts.refresh_running ? ", fetching and rendering it now" : ", not fetched yet"}

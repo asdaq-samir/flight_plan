@@ -737,8 +737,8 @@ for (const path of PAGES) {
     test.setTimeout(90000);
     await page.goto(`${path}?dep=C81&dest=KDLH`);
     await settle(page);
-    const tacTiles = page.locator('img.leaflet-tile[src*="/api/planner/tac-tile/"]');
-    const sectionalTiles = page.locator('img.leaflet-tile[src*="/api/planner/sectional-tile/"]');
+    const tacTiles = page.locator('img.leaflet-tile[src*="/api/planner/chart-tile/tac/"]');
+    const sectionalTiles = page.locator('img.leaflet-tile[src*="/api/planner/chart-tile/sec/"]');
     await expect(page.locator("img.leaflet-tile").first()).toBeAttached({ timeout: 15000 });
     expect(await tacTiles.count()).toBe(0);
 
@@ -766,7 +766,7 @@ for (const path of PAGES) {
     await expect(tacTiles.first()).toBeAttached({ timeout: 10000 });
     await expect.poll(
       () => page.evaluate(() =>
-        [...document.querySelectorAll<HTMLImageElement>('img.leaflet-tile[src*="/api/planner/tac-tile/"]')]
+        [...document.querySelectorAll<HTMLImageElement>('img.leaflet-tile[src*="/api/planner/chart-tile/tac/"]')]
           .some(img => img.complete && img.naturalWidth > 0)),
       { timeout: 45000 },
     ).toBe(true);
@@ -777,5 +777,37 @@ for (const path of PAGES) {
     await settle(page);
     await page.getByTestId("guide-button").click();
     await expect(page.getByTestId("tac-toggle")).toHaveAttribute("aria-checked", "true");
+  });
+
+  test(`${path}: the base chart can be the IFR low enroute chart, and back`, async ({ page }) => {
+    // The sectional by default; picking "IFR low" in the info popover
+    // swaps the base layer for the IFR enroute chart's own tiles (and
+    // the TAC checkbox, meaningless over it, is disabled); picking
+    // "Sectional" brings the sectional back.
+    test.setTimeout(90000);
+    await page.goto(`${path}?dep=C81&dest=KDLH`);
+    await settle(page);
+    const ifrTiles = page.locator('img.leaflet-tile[src*="/api/planner/chart-tile/ifr_low/"]');
+    const sectionalTiles = page.locator('img.leaflet-tile[src*="/api/planner/chart-tile/sec/"]');
+    await expect(sectionalTiles.first()).toBeAttached({ timeout: 15000 });
+    expect(await ifrTiles.count()).toBe(0);
+
+    await page.getByTestId("guide-button").click();
+    await page.getByTestId("base-chart-select").click();
+    await page.getByRole("option", { name: "IFR low" }).click();
+    await expect(page.getByTestId("tac-toggle")).toBeDisabled();
+    await expect(ifrTiles.first()).toBeAttached({ timeout: 10000 });
+    await expect.poll(
+      () => page.evaluate(() =>
+        [...document.querySelectorAll<HTMLImageElement>('img.leaflet-tile[src*="/api/planner/chart-tile/ifr_low/"]')]
+          .some(img => img.complete && img.naturalWidth > 0)),
+      { timeout: 45000 },
+    ).toBe(true);
+    expect(await sectionalTiles.count()).toBe(0);
+
+    await page.getByTestId("base-chart-select").click();
+    await page.getByRole("option", { name: "Sectional" }).click();
+    await expect(sectionalTiles.first()).toBeAttached({ timeout: 10000 });
+    await expect(page.getByTestId("tac-toggle")).toBeEnabled();
   });
 }

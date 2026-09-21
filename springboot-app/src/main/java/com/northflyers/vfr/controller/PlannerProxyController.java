@@ -138,7 +138,8 @@ public class PlannerProxyController {
         // ...) depends on saved state or a request body, so a
         // Cache-Control it happened to emit must not be echoed the same
         // way.
-        if (path.startsWith("/api/sectional-tile/") || path.startsWith("/api/tac-tile/")) {
+        if (path.startsWith("/api/sectional-tile/") || path.startsWith("/api/tac-tile/")
+                || path.startsWith("/api/chart-tile/")) {
             response.headers().firstValue(HttpHeaders.CACHE_CONTROL)
                     .ifPresent(value -> builder.header(HttpHeaders.CACHE_CONTROL, value));
         }

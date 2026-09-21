@@ -27,12 +27,25 @@ class AirportEnd(BaseModel):
     elevation_ft: float | None = None
 
 
+class ChartLayer(BaseModel):
+    """One kind of FAA chart the map can draw and the zooms it has
+    tiles for: the sectional and the IFR enroute charts as base layers
+    (`base`), the terminal area chart as an overlay."""
+
+    kind: str
+    label: str
+    min_zoom: int
+    max_zoom: int
+    base: bool
+
+
 class Course(BaseModel):
     departure: AirportEnd
     destination: AirportEnd
     distance_nm: float
     bearing_deg: float
     course_line: list[tuple[float, float]]
+    chart_layers: list[ChartLayer]
     # The zooms the sectional layer draws at, and the ones the optional
     # terminal-area-chart overlay does (one level further in, and only
     # close up).
@@ -247,6 +260,7 @@ class Plan(BaseModel):
     tac_max_zoom: int
     tac_min_zoom: int
     chart_cycle: str
+    chart_layers: list[ChartLayer]
 
 
 # --- the briefing -------------------------------------------------------

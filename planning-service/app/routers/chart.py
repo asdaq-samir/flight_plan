@@ -70,6 +70,17 @@ def tac_tile(z: int, x: int, y: int) -> Response:
     return _chart_tile(charts.TAC, z, x, y)
 
 
+@router.get("/api/chart-tile/{kind}/{z}/{x}/{y}.png")
+def chart_tile(kind: str, z: int, x: int, y: int) -> Response:
+    """Any kind of chart by its key (`chart_layers` on the course lists
+    them): `sec`, `tac`, `ifr_low`, `ifr_high`. What the map's layer
+    picker draws from; the two routes above are the same tiles under
+    their older names."""
+    if kind not in charts.KINDS:
+        raise HTTPException(404, f"no such chart kind: {kind}")
+    return _chart_tile(charts.KINDS[kind], z, x, y)
+
+
 @router.get("/api/classify")
 def classify(lat: float, lon: float) -> Classification:
     """What the chart draws at a point, so a hand-marked checkpoint is

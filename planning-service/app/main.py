@@ -77,7 +77,9 @@ def _prepare_corridor_charts() -> None:
                 except (KeyError, ValueError):
                     continue
         if lats:
-            charts.prepare_for_bbox((min(lons), min(lats), max(lons), max(lats)))
+            # The VFR charts only: the IFR sheets are an optional
+            # layer, and the daily refresh fetches every kind anyway.
+            charts.prepare_for_bbox((min(lons), min(lats), max(lons), max(lats)), kinds=("sec", "tac"))
 
 
 def _warm_reference_data() -> None:

@@ -138,6 +138,39 @@ def test_render_and_detect_read_three_band_rasters_too(tmp_path):
     assert face[1] == pytest.approx(40.4, abs=0.1)
 
 
+def test_render_leaves_a_sheets_own_leaning_edge_transparent(tmp_path):
+    """A sheet is a rectangle in its own projection and a leaning
+    quadrilateral in web mercator; its lat/lon face can run past the
+    lean. Those pixels are the neighbour's to draw, not paper."""
+    import rasterio.transform
+
+    # A palette raster in UTM zone 15 (central meridian 93W): at 88W
+    # its right edge leans a few degrees off the meridian.
+    left, bottom = 900_000.0, 4_600_000.0   # metres, in the zone's east
+    size = 800
+    data = np.full((size, size), 8, np.uint8)
+    with rasterio.open(
+        tmp_path / "utm.tif", "w", driver="GTiff", width=size, height=size, count=1, dtype="uint8",
+        crs="EPSG:32615", transform=rasterio.transform.from_origin(left, bottom + 200_000, 250, 250),
+    ) as ds:
+        ds.write(data, 1)
+        ds.write_colormap(1, PALETTE)
+    with rasterio.open(tmp_path / "utm.tif") as src:
+        envelope = tuple(transform_bounds(src.crs, "EPSG:4326", *src.bounds))
+    raster = charts.Raster(tmp_path / "utm.tif", face=envelope, envelope=envelope)
+
+    # A tile row along the raster's east edge: every pixel there is
+    # either the chart's tint or transparent, never paper.
+    west, south, east, north = envelope
+    x0, x1, y0, y1 = charts._tile_range(envelope, 9)
+    rgba = charts.render_tile([raster], x1, (y0 + y1) // 2, 9)
+    assert rgba is not None
+    opaque = rgba[:, :, 3] == 255
+    assert opaque.any() and not opaque.all()
+    assert (rgba[opaque][:, :3] == (216, 232, 206)).all()
+    assert not (rgba[~opaque][:, :3] == 255).all() or (rgba[~opaque][:, :3] == 0).all()
+
+
 def test_render_composites_two_sheets_and_clips_each_to_its_face(tmp_path):
     left_box, right_box = (-90.0, 41.0, -88.0, 43.0), (-88.0, 41.0, -86.0, 43.0)
     _palette_raster(tmp_path / "left.tif", left_box, np.full((512, 512), 1, np.uint8))
