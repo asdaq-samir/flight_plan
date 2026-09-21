@@ -11,7 +11,7 @@ import {
 } from "../../components/ui/sidebar";
 import { useDocumentTitle } from "../../lib/useDocumentTitle";
 import { DevButton } from "../dev/DevPanel";
-import LabelWorkspace from "../label/LabelWorkspace";
+import TrainWorkspace from "../train/TrainWorkspace";
 import { PilotButton } from "../pilot/PilotPanel";
 import PlanWorkspace from "../plan/PlanWorkspace";
 
@@ -27,13 +27,13 @@ const MODES = {
   },
   dev: {
     title: "Dev — VFR Route", sidebar: "Model Training", console: "Developer",
-    Workspace: LabelWorkspace, ConsoleButton: DevButton, route: ["C81", "KDLH"] as const,
+    Workspace: TrainWorkspace, ConsoleButton: DevButton, route: ["C81", "KDLH"] as const,
   },
 };
 
 /**
  * The one page, in two modes: the pilot's planner and the developer's
- * labeling workspace are the same shell -- shadcn's Sidebar layout,
+ * training workspace are the same shell -- shadcn's Sidebar layout,
  * the header with the DEV switch, the route form and two buttons, the
  * map, a console in a Sheet from the top and the drawer at the side --
  * around a different workspace. Everything the two used to keep

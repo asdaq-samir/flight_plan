@@ -73,7 +73,7 @@ async function openSidebar(page: Page) {
 test.describe("/app/plan", () => {
   // No collapsible toolbar anywhere in this app anymore -- the route
   // form is the whole reason a pilot opened either map page, not a
-  // settings drawer worth a tap to reveal (see PlanView's/LabelView's
+  // settings drawer worth a tap to reveal (see PlanWorkspace's/TrainWorkspace's
   // own comments on their headers).
   test("the route form is visible immediately, not behind a trigger", async ({ page }) => {
     await page.goto("/app/plan");
@@ -97,11 +97,11 @@ test.describe("/app/plan", () => {
 
 // Deliberately the same shape as the /app/plan describe block above --
 // Plan and Label are meant to look and behave like the same shell
-// around a different sidebar now (see LabelView's own comment on its
+// around a different sidebar now (see TrainWorkspace's own comment on its
 // header), not two pages that happen to share components, so their own
 // layout tests are the same tests, not analogous ones. The view
 // filters used to live behind their own collapsible toolbar trigger;
-// that's gone now (moved into the sidebar's own top, see LabelView),
+// that's gone now (moved into the sidebar's own top, see TrainWorkspace),
 // so there's nothing toolbar-specific left to test here that Plan's
 // own suite doesn't already cover for both.
 test.describe("/app/dev", () => {
@@ -640,7 +640,7 @@ test("plan page: the pilot console is a sheet from the top with sign-in, aeropla
 test("dev page: the dev console is a sheet from the top, and the waypoint drawer opens once it is closed", async ({ page }) => {
   await page.goto("/app/dev");
   await settle(page);
-  // The labeling workspace is the page -- the console stays off screen
+  // The training workspace is the page -- the console stays off screen
   // until its own trigger is opened.
   await expect(page.getByLabel("Departure", { exact: true })).toBeVisible();
   await expectDrawerClosed(page);

@@ -4,7 +4,7 @@ import { compassPoint } from "../../lib/compass";
 export { compassPoint };
 
 /**
- * The decisions the labeling view makes, with no map and no document in
+ * The decisions the training workspace makes, with no map and no document in
  * sight -- which is what lets them be tested, and what lets React treat
  * them as derivations rather than state to keep in step.
  *
@@ -147,7 +147,7 @@ export function hiddenCount(picks: Point[], filters: Filters): number {
  * How many candidates exist in each filter bucket, independent of any
  * checkbox's own on/off state -- a checkbox that counted only among
  * what its own filter already lets through would read 0 the moment it
- * was unchecked, telling a labeler nothing about what turning it back
+ * was unchecked, telling a developer nothing about what turning it back
  * on would surface. Counted over every candidate (rated or not), the
  * same set the "Showing" total is counted over -- not `picks`, which
  * only includes already-rated points and would make `unrated` read 0

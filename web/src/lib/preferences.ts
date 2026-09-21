@@ -1,12 +1,12 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { DEFAULT_FILTERS, type FilterKey, type Filters } from "../features/label/logic";
+import { DEFAULT_FILTERS, type FilterKey, type Filters } from "../features/train/logic";
 import type { AircraftChoice } from "./api/types";
 
 /**
  * Everything remembered per browser, in one zustand store persisted to
  * localStorage by its own middleware: which charts the map draws, the
- * aeroplane the nav log is computed for, the labeling filters, and
+ * aeroplane the nav log is computed for, the training filters, and
  * which tab each console was last on. Components read a slice with
  * the hook (`usePreferences(s => s.base)`); code outside React -- the
  * map's chart layers -- reads `getState()` and `subscribe()`.
@@ -34,7 +34,7 @@ interface Preferences {
    *  pinned: drawn at every zoom it exists at. */
   tac: boolean;
   aircraft: AircraftChoice;
-  /** The labeling map's filters: which points are drawn and walked. */
+  /** The training map's filters: which points are drawn and walked. */
   filters: Filters;
   devTab: string;
   pilotTab: string;

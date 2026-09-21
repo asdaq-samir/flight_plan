@@ -12,10 +12,10 @@ export default function BriefingSection({ title, children }: { title: string; ch
   return (
     <AccordionItem value={title}>
       {/* Up and Down walk the route's checkpoints on this page
-          (PlanView's own keys), and a pilot who has just clicked a
+          (PlanWorkspace's own keys), and a pilot who has just clicked a
           title is still on it: the stock accordion's Up/Down between
           titles gives way to that (the default is prevented before
-          Radix sees it; PlanView lets a prevented press through from a
+          Radix sees it; PlanWorkspace lets a prevented press through from a
           title). Home, End and Tab still move between titles. */}
       <AccordionTrigger onKeyDown={e => { if (e.key === "ArrowUp" || e.key === "ArrowDown") e.preventDefault(); }}>
         {title}

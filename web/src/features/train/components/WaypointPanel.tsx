@@ -146,7 +146,7 @@ export default function WaypointPanel({
           </span>
         </div>
       </div>
-      {/* data-waypoint-list marks the scope LabelView's keyboard handler
+      {/* data-waypoint-list marks the scope TrainWorkspace's keyboard handler
           checks to tell "arrows should walk this list" apart from
           "arrows should walk the map" -- set once focus lands inside
           here (a row is focusable), not on hover, so it survives
@@ -225,7 +225,7 @@ export default function WaypointPanel({
                   {/* The selected waypoint's own rating buttons, under
                       it -- the same six the map popup has, and the
                       digit keys' own scale. Rating from here moves on
-                      to the next row (LabelView's onRate), the way the
+                      to the next row (TrainWorkspace's onRate), the way the
                       keys do, so a corridor rates top to bottom. */}
                   {isSelected && (
                     <NoteRow selected colSpan={COLUMNS}>

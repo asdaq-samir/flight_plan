@@ -6,7 +6,7 @@ import type { Course, Detection, Endpoint, LoosePick, Point, Rating, Role } from
 import { usePreferences } from "../../../lib/preferences";
 
 /**
- * The labeling workspace's data: what the chart reader found for the
+ * The training workspace's data: what the chart reader found for the
  * route (two queries -- the course, then the detections streamed a
  * block at a time -- kept for the session), and what the developer
  * has done to it here, kept apart as edits by each point's own place
@@ -68,7 +68,7 @@ const fresh = (route: string): Edits => ({
   route, overrides: {}, added: [], removed: [], undo: null, selection: null, lastFocus: null,
 });
 
-export function useLabels(dep: string, dest: string) {
+export function useTraining(dep: string, dest: string) {
   const route = `${dep}-${dest}`;
   const routeKnown = !!dep && !!dest && dep !== dest;
   const filters = usePreferences(s => s.filters);

@@ -13,7 +13,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createElement, type ReactNode } from "react";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import type { Course, Detection, LoosePick, StreamMessage } from "../../../lib/api/types";
-import { useLabels } from "./useLabels";
+import { useTraining } from "./useTraining";
 
 vi.mock("../../../lib/api/client", async importOriginal => ({
   ...(await importOriginal<typeof import("../../../lib/api/client")>()),
@@ -76,7 +76,7 @@ function renderLabels(initialProps = { dep: "C81", dest: "KDLH" }) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const wrapper = ({ children }: { children: ReactNode }) =>
     createElement(QueryClientProvider, { client: queryClient }, children);
-  return renderHook(({ dep, dest }: { dep: string; dest: string }) => useLabels(dep, dest), { wrapper, initialProps });
+  return renderHook(({ dep, dest }: { dep: string; dest: string }) => useTraining(dep, dest), { wrapper, initialProps });
 }
 
 /** The course fetched and the chart read through, or failed. */
@@ -88,7 +88,7 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
-describe("useLabels", () => {
+describe("useTraining", () => {
   test("fetches the course, then streams detections and added picks in", async () => {
     mockCourse.mockResolvedValue(courseFixture());
     mockDetect.mockReturnValue(streamOf([detectionFixture()], [loosePickFixture()]));

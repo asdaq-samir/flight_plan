@@ -15,7 +15,7 @@ export function useZoomLevel(): number {
 
 /** Where the checkpoint markers appear (the planner's selected
  *  checkpoints, and one level further in the scored candidates and
- *  the labeling page's detections, which are many more). Low on
+ *  the training page's detections, which are many more). Low on
  *  purpose: a phone fits a 300 nm route at zoom 6, and a pilot who
  *  opens a route expects to see its checkpoints. */
 export const MARKERS_FROM_ZOOM = 5;

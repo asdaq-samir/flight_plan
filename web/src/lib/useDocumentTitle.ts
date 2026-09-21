@@ -5,7 +5,7 @@ import { useEffect } from "react";
  *  `<title>Route — pick checkpoints</title>` regardless of which of
  *  the (now five) pages was actually open. `null` leaves whatever
  *  title is already set alone -- for a page component reused
- *  embedded inside another one (LabelView inside Settings' own Dev
+ *  embedded inside another one (TrainWorkspace inside Settings' own Dev
  *  Label tab), where the URL is still the host page's own and its
  *  title should stay put, not flip to the embedded page's own title
  *  the instant that tab mounts. */

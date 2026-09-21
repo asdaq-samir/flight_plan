@@ -15,18 +15,18 @@ import { isEndpoint, type Point, type Rating } from "../../lib/api/types";
 import {
   filterCounts, forwardIsLeft, forwardIsUp, hasRating, hiddenCount, orderedPoints,
 } from "./logic";
-import { currentPoint, useLabels, type Selection } from "./hooks/useLabels";
+import { currentPoint, useTraining, type Selection } from "./hooks/useTraining";
 
 const FOCUS_ZOOM = 12;
 
 /**
- * The developer's labeling workspace on the page (MapPage): the
+ * the developer's training workspace on the page (MapPage): the
  * corridor's candidates on the chart, walked with the keys and rated
  * from the map popup or the Model Training drawer, with the developer
  * console for the training run. The page owns the shell and the route
  * typed into its form; this owns everything about the labels.
  */
-export default function LabelWorkspace({ dep, dest, children }: WorkspaceProps) {
+export default function TrainWorkspace({ dep, dest, children }: WorkspaceProps) {
   const [searchParams, setSearchParams] = useSearchParams();
   // The address is the route the labels are for -- what the queries
   // read, and what a load writes; the header's form is a draft until
@@ -35,9 +35,9 @@ export default function LabelWorkspace({ dep, dest, children }: WorkspaceProps) 
     dep: identOf(searchParams.get("dep")) || "C81",
     dest: identOf(searchParams.get("dest")) || "KDLH",
   };
-  const store = useLabels(planned.dep, planned.dest);
+  const store = useTraining(planned.dep, planned.dest);
   // Named, not read as `store.x` inside the hooks below: each hook then
-  // lists exactly what it reads, and the actions are stable (useLabels
+  // lists exactly what it reads, and the actions are stable (useTraining
   // reads its own latest state through a ref) so listing them costs
   // nothing.
   const {

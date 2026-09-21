@@ -16,7 +16,7 @@ interface Props {
   /** The fit-route / show-selected toggle, when the page has one. */
   zoom?: ZoomControl;
   /** Whether the layers popover also offers own ship (the planner's
-   *  map draws it; the labeling map does not). */
+   *  map draws it; the training map does not). */
   ownShip?: boolean;
   /** Whatever else belongs in the stack -- the terminal chart's pin. */
   children?: ReactNode;

@@ -17,7 +17,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../components/ui/tabs";
 import { api } from "../../lib/api/client";
 import type { ModelComparisonEntry, Status } from "../../lib/api/types";
-import RatingGuide from "../label/components/RatingGuide";
+import RatingGuide from "../train/components/RatingGuide";
 import { elapsed } from "../plan/format";
 import { useRetrain } from "./useRetrain";
 
@@ -61,7 +61,7 @@ export function DevButton(props: Omit<ComponentProps<typeof IconButton>, "label"
 
 /**
  * The developer's own console, in a `MapDrawer` dropping down over the
- * labeling map (see DevView): what the repo does that a pilot never
+ * training map (see MapPage): what the repo does that a pilot never
  * sees, one tab each. Model Training, first -- the three steps that
  * change the model (collect a route, rate it, retrain), the routes
  * collected and how far their ratings have come, the rating guide and
@@ -144,7 +144,7 @@ function ModelComparisonChart() {
     <section>
       <h3 className="text-sm font-semibold">Model comparison</h3>
       <p className="mt-1 mb-3 text-sm text-muted-foreground">
-        Mean absolute error on the {data?.n_labeled ?? "—"} hand-labeled checkpoints -- lower is
+        Mean absolute error on the {data?.n_labeled ?? "—"} hand-rated checkpoints -- lower is
         better. Every algorithm this project has actually trained, not just the one serving
         predictions; the green bar is the one Plan scores checkpoints with.
       </p>
@@ -221,7 +221,7 @@ function PerformanceTab({ status }: { status: Status | undefined }) {
           <div className="mt-1 grid grid-cols-2 gap-2 text-sm sm:grid-cols-3">
             <Fact label="Promoted" value={model.current.model_type ?? "—"} />
             <Fact label="Trained" value={ago(model.current.trained_at)} />
-            <Fact label="Labels it learned from" value={String(model.current.n_labeled ?? "—")} />
+            <Fact label="Ratings it trained on" value={String(model.current.n_labeled ?? "—")} />
             <Fact label="CV MAE" value={model.current.cv_mae == null ? "—" : mae(model.current.cv_mae)} />
             <Fact label="Held-out MAE" value={model.current.held_out_mae == null ? "—" : mae(model.current.held_out_mae)} />
             <Fact label="Features" value={String(model.current.n_features)} />

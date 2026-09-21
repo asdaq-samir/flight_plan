@@ -57,7 +57,7 @@ function Candidates({ detections, added, filters, onSelect }: Pick<Props, "detec
 }
 
 /**
- * The labeling map, as react-leaflet components: the chart tiles, the
+ * The training map, as react-leaflet components: the chart tiles, the
  * course line (a click on it adds a point), the airports, every
  * candidate the filters admit, and the selection ring with the rating
  * menu pinned above it. The markers are a function of state -- the

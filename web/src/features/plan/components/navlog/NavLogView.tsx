@@ -84,7 +84,7 @@ interface Props {
    *  map header's route form, since this is where the *result*
    *  (`nav.altitude_ft`/`nav.altitude_selection`) already shows: typing
    *  a new one and seeing what it changes is one place, not two. Wired
-   *  to the same `onSubmit` PlanView's own "Load" button calls, so
+   *  to the same `onSubmit` PlanWorkspace's own "Load" button calls, so
    *  Enter here re-plans the exact same way that button does. */
   alt: string;
   onAltChange: (v: string) => void;
@@ -119,7 +119,7 @@ interface Props {
   destLat: number;
   destLon: number;
   /** In the same order as `legs` -- the checkpoint leg `i` arrives at
-   *  is `selected[i]`, matching how PlanView already builds the leg
+   *  is `selected[i]`, matching how PlanWorkspace already builds the leg
    *  list itself (fixes = [departure, ...selected, destination]). */
   selected: Candidate[];
   /** Field elevation at each end -- the altitude column's own first
@@ -226,13 +226,13 @@ function DescriptionCell({
  * The nav log itself -- the planner's own drawer content (in place of
  * a plain checkpoint list), so a pilot can walk the route's real
  * dead-reckoning numbers with the chart still visible beside it. The
- * walk is the point: Up/Down (PlanView's own keys) or a click steps
+ * walk is the point: Up/Down (PlanWorkspace's own keys) or a click steps
  * the selection through departure, every checkpoint and the
  * destination, the map follows to whichever is selected, and selecting
  * a point on the map (or another row) scrolls this one into view --
  * the same two-way link the old checkpoint list had.
  *
- * This drawer is the briefing: PlanView passes the briefing's sections
+ * This drawer is the briefing: PlanWorkspace passes the briefing's sections
  * as `children` and its own actions as `actions`, and the nav log is
  * the first section of it, with the totals, the altitude and the fuel
  * check above the table. The header holds only the two inputs the log

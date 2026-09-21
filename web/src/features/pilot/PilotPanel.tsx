@@ -24,7 +24,7 @@ export function PilotButton(props: Omit<ComponentProps<typeof IconButton>, "labe
 const TABS = ["aircraft", "flights", "guide"];
 
 /**
- * The pilot's own drawer, dropping down over the map (see PlanView):
+ * The pilot's own drawer, dropping down over the map (see PlanWorkspace):
  * who is signed in and the theme on its top line, then one tab each
  * for their aeroplanes, their filed flights, and the guide to the
  * planner -- the same shape as the developer's drawer, one thing per

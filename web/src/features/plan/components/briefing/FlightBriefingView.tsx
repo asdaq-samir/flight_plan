@@ -279,7 +279,7 @@ export default function FlightBriefingView({
   const winds = windsAloftSummary(legs);
   const vnrReasons = briefing ? vfrNotRecommendedReasons(briefing, dep, dest) : [];
   // On the very first render after mount, loadingBriefing is still false --
-  // PlanView's own effect (which calls loadBriefing) hasn't run yet -- so
+  // PlanWorkspace's own effect (which calls loadBriefing) hasn't run yet -- so
   // "not loading" alone can't mean "unavailable". Only briefingError (a
   // fetch that actually finished and failed), or having no dep/dest to
   // fetch with at all, means there is truly nothing pending.
@@ -291,7 +291,7 @@ export default function FlightBriefingView({
   // "Planning aid only" used to be a permanently docked banner at the
   // top of the briefing, pushing every section below it down a line
   // whether a pilot needed the reminder again or not. A toast instead
-  // -- same sonner instance (main.tsx) PlanView's own progress/error
+  // -- same sonner instance (main.tsx) PlanWorkspace's own progress/error
   // toasts use, so the same bottom-center position without having to
   // say so again here -- says it once, prominently, each time this
   // mounts (the drawer opening wide), then gets out of the way rather
@@ -367,7 +367,7 @@ export default function FlightBriefingView({
           to populate. */}
       <BriefingNarrativePrintBlock langgraph={langgraphNarrative.text} crewai={crewaiNarrative.text} />
 
-      {/* Neither loading nor a failed fetch has a banner here: PlanView's
+      {/* Neither loading nor a failed fetch has a banner here: PlanWorkspace's
           toasts report both (the failure's toast carries the Try-again
           action), so the sections below only ever show their own
           content or a placeholder line. */}

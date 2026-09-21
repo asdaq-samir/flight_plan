@@ -6,13 +6,13 @@ export { compassPoint };
 /**
  * The planner's pure half: colours and number formatting.
  *
- * Split out for the same reason the labeler's logic was -- these are the
+ * Split out for the same reason the training workspace's logic was -- these are the
  * parts with edge cases (a heading of exactly 360, a leg that cannot be
  * flown, a route whose nav log has not arrived yet), and they are only
  * testable while they have no map and no DOM attached.
  */
 
-/** Score bands, matching the labeling legend so a colour means one thing
+/** Score bands, matching the rating scale so a colour means one thing
  *  across both views. */
 export function scoreColor(s: number): string {
   if (s >= 4.5) return "#1a7f37";
