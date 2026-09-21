@@ -470,6 +470,28 @@ docker compose run --rm crewai-agent python -m app.main \
   --departure-ident C81 --destination-ident KDLH   # one-shot CLI
 ```
 
+**On a phone, on the same Wi-Fi:** `http://<your Mac's address>:8080/app/plan`
+works for planning, but the two things a pilot wants in the air -- their
+own position on the chart, and the route's charts with no connection --
+the browser grants only to a secure origin. So the webapp also listens on
+HTTPS, with HTTP/2, once it has a certificate:
+
+```bash
+infra/local-https/make-certs.sh 10.0.0.218     # your Mac's LAN address; writes infra/local-https/certs/
+docker compose up -d webapp                    # now also https://10.0.0.218:8443
+```
+
+Install `certs/ca.pem` on the phone once (the script prints the steps
+for iPhone and Android), then open `https://<address>:8443/app/plan`.
+From there the map's info popover offers **Show my position** (the GPS as
+a blue arrow, and the map kept on it until you pan) and **Keep this
+route's charts on this device** (every sectional tile within 10 nm of
+the course, whole-route view to full detail, held by the app's service
+worker along with the course, checkpoints, nav log and briefing, so the
+route opens again with the network off). Add the page to the home
+screen and it opens as an app. On AWS the load balancer terminates TLS
+and all of this simply works at the site's own address.
+
 ### Where things live
 
 Every address the running stack answers on, verified against a live

@@ -3,9 +3,10 @@ import { useEffect, useRef, useState } from "react";
 import OverlayPin from "../../../components/OverlayPin";
 import type { Candidate, Course } from "../../../lib/api/types";
 import {
-  CROWD_FROM_ZOOM, MARKERS_FROM_ZOOM, createBasemaps, createCourseLine, createHalo, dotIcon, endLabelIcon, fromZoom, mountReact,
-  type Basemaps,
+  CROWD_FROM_ZOOM, MARKERS_FROM_ZOOM, createBasemaps, createCourseLine, createHalo, createOwnShip, dotIcon, endLabelIcon, fromZoom,
+  mountReact, type Basemaps,
 } from "../../../lib/map/leaflet";
+import { ownShip } from "../../../lib/map/ownShip";
 import { useLeafletMap } from "../../../lib/map/useLeafletMap";
 import { scoreColor } from "../format";
 
@@ -131,6 +132,25 @@ export default function RouteMap({
     );
     detach.current.selected = fromZoom(m, group, MARKERS_FROM_ZOOM);
   }, [map, selected, onSelectCandidate]);
+
+  // Own ship: drawn from the position store while it is on, the map
+  // kept on it while following -- and a pan by the pilot's own finger
+  // is the end of following, until the popover's checkbox again.
+  useEffect(() => {
+    const m = map.current;
+    if (!m) return;
+    const ship = createOwnShip(m);
+    const apply = () => {
+      const { enabled, fix, follow } = ownShip.get();
+      if (enabled && fix) ship.update(fix, follow);
+      else ship.remove();
+    };
+    apply();
+    const unsubscribe = ownShip.subscribe(apply);
+    const stopFollowing = () => { if (ownShip.get().follow) ownShip.setFollow(false); };
+    m.on("dragstart", stopFollowing);
+    return () => { unsubscribe(); m.off("dragstart", stopFollowing); ship.remove(); };
+  }, [map]);
 
   // The ring follows the panel selection, and the map comes to it.
   const focusZoom = course?.max_zoom ?? 12;

@@ -221,8 +221,13 @@ services:
       dockerfile: springboot-app/Dockerfile
     ports:
       - "8080:8080"
+      # HTTPS, for a phone on the same Wi-Fi: only answers once
+      # infra/local-https/make-certs.sh has written the certificate
+      # (see HttpsConnectorConfig); otherwise the port is simply closed.
+      - "8443:8443"
     volumes:
       - webapp-cds:/cds
+      - ./infra/local-https/certs:/certs:ro
     depends_on:
       db:
         condition: service_healthy
@@ -278,6 +283,13 @@ services:
       MAIL_USERNAME: ${MAIL_USERNAME:-}
       MAIL_PASSWORD: ${MAIL_PASSWORD:-}
       MAIL_FROM: ${MAIL_FROM:-no-reply@northflyers.com}
+      # The HTTPS port for a phone on the same Wi-Fi (HttpsConnectorConfig):
+      # the certificate infra/local-https/make-certs.sh writes, read
+      # only once that file exists. HSTS off: this machine's plain port
+      # must keep working after the HTTPS one has been used once.
+      APP_HTTPS_KEYSTORE: ${APP_HTTPS_KEYSTORE:-/certs/webapp.p12}
+      APP_HTTPS_KEYSTORE_PASSWORD: ${WEBAPP_KEYSTORE_PASSWORD:-changeit}
+      APP_HSTS: "false"
 
 volumes:
   # Neither pgdata nor airflow_home is referenced by any service anymore

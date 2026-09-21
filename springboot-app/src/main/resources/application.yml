@@ -137,6 +137,18 @@ management:
 # local `mvn package` after `vite build` finds it on the classpath.
 app:
   static-location: ${APP_STATIC_LOCATION:classpath:/static/app/}
+  # A second, HTTPS port with HTTP/2 for a phone on the same Wi-Fi
+  # (HttpsConnectorConfig) -- only when the keystore is named and the
+  # file exists; docker-compose.yml names it, infra/local-https/
+  # make-certs.sh writes it. Unset on AWS, where the load balancer
+  # terminates TLS.
+  https:
+    keystore: ${APP_HTTPS_KEYSTORE:}
+    keystore-password: ${APP_HTTPS_KEYSTORE_PASSWORD:changeit}
+    port: ${APP_HTTPS_PORT:8443}
+  # HSTS on by default (right behind that load balancer); off locally,
+  # where a browser must not learn to upgrade the plain port.
+  hsts: ${APP_HSTS:true}
   # Where the chart tiles come from when they are published to a CDN
   # (the AWS stack sets this to its CloudFront domain, and the planner
   # tells the browser the same base): the content security policy has

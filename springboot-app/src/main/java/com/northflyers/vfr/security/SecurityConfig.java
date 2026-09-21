@@ -44,10 +44,19 @@ public class SecurityConfig {
     private final boolean oauthConfigured;
     private final boolean signInPossible;
     private final String chartTilesOrigin;
+    // HSTS is right behind a TLS-terminating load balancer and wrong on
+    // the local HTTPS port (HttpsConnectorConfig): a browser that once
+    // opened https://localhost:8443 would remember to upgrade every
+    // http://localhost:8080 after it, and the plain port is the one
+    // everything on this machine uses. Off locally (docker-compose.yml),
+    // on by default.
+    private final boolean hsts;
 
     SecurityConfig(Optional<ClientRegistrationRepository> clientRegistrations,
                    @Value("${spring.mail.host:}") String mailHost,
-                   @Value("${app.chart-tiles-origin:}") String chartTilesOrigin) {
+                   @Value("${app.chart-tiles-origin:}") String chartTilesOrigin,
+                   @Value("${app.hsts:true}") boolean hsts) {
+        this.hsts = hsts;
         this.oauthConfigured = clientRegistrations.isPresent();
         // A session can be obtained through OIDC, or through the magic
         // link -- which only ever sends when a mail host is configured.
@@ -136,6 +145,7 @@ public class SecurityConfig {
                 // server.forward-headers-strategy: framework set.
                 .headers(headers -> headers
                         .frameOptions(frame -> frame.deny())
+                        .httpStrictTransportSecurity(strict -> { if (!hsts) strict.disable(); })
                         // A magic-link verify URL carries its one-time
                         // token as a query param (?token=...) -- default
                         // browser behaviour would otherwise forward the

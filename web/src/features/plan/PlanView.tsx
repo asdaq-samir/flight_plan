@@ -202,15 +202,15 @@ export default function PlanView() {
 
   // The briefing's own data (hazards, METAR, forecast, runways/
   // frequencies) is only worth fetching once a pilot actually opens
-  // the briefing -- not on every plan(), which is why this is a
-  // separate effect from the course/checkpoints/navlog load above.
-  // Keyed on the planned course, not the typed idents: a re-plan (a
-  // different aeroplane, say) clears the briefing and this fetches it
-  // again for the route actually on screen, and a half-typed ident
-  // never triggers a fetch.
+  // the nav log drawer, whose sections it fills in either width --
+  // not on every plan(), which is why this is a separate effect from
+  // the course/checkpoints/navlog load above. Keyed on the planned
+  // course, not the typed idents: a re-plan (a different aeroplane,
+  // say) clears the briefing and this fetches it again for the route
+  // actually on screen, and a half-typed ident never triggers a fetch.
   useEffect(() => {
-    if (briefing && course) void loadBriefing(course.departure.ident, course.destination.ident);
-  }, [briefing, course, loadBriefing]);
+    if (sidebarOpen && course) void loadBriefing(course.departure.ident, course.destination.ident);
+  }, [sidebarOpen, course, loadBriefing]);
 
   // The nav log's AI button: a pilot-triggered "generate now" for
   // every checkpoint's description at once. Descriptions are visible
@@ -368,7 +368,7 @@ export default function PlanView() {
       )}
       actions={(
         <>
-          <ScoreLegend />
+          <ScoreLegend course={s.course} />
           <ZoomToggleButton zoomedIn={zoomedIn} onClick={toggleZoom} disabled={!s.course} />
           <PilotButton open={pilotOpen} onClick={togglePilot} />
           <SidebarToggleButton open={sidebarOpen} onClick={toggleSidebar} label="Nav Log" />
@@ -427,8 +427,10 @@ export default function PlanView() {
     crewai: s.crewaiNarrative.error && `CrewAI narrative failed: ${s.crewaiNarrative.error}`,
   });
 
-  // One nav log in both widths. Wide, the briefing's own actions join
-  // its header and the briefing's sections follow the table.
+  // One nav log in both widths, the briefing's sections under the
+  // table in both: narrow, the table leads and the sections follow it,
+  // closed; wide, the table folds into a section of its own and the
+  // briefing's own actions join the header.
   const navLog = (
     <NavLogView
       totals={s.totals} nav={s.nav} courseBearingDeg={s.course?.bearing_deg ?? null} legs={s.legs}
@@ -459,16 +461,14 @@ export default function PlanView() {
       aircraftOptions={aircraftOptions.map(o => ({ value: aircraftKey(o), label: o.label }))}
       onAircraftChange={changeAircraft}
     >
-      {briefing && (
-        <FlightBriefingView
-          course={s.course} totals={s.totals} nav={s.nav} legs={s.legs}
-          dep={dep} dest={dest} selected={s.selected}
-          briefing={s.briefing} briefingError={s.briefingError} loadingBriefing={s.loadingBriefing}
-          langgraphNarrative={s.langgraphNarrative} crewaiNarrative={s.crewaiNarrative}
-          aircraftLabel={aircraft.label} aircraftId={aircraft.aircraftId ?? null}
-          depart={depart}
-        />
-      )}
+      <FlightBriefingView
+        course={s.course} totals={s.totals} nav={s.nav} legs={s.legs}
+        dep={dep} dest={dest} selected={s.selected}
+        briefing={s.briefing} briefingError={s.briefingError} loadingBriefing={s.loadingBriefing}
+        langgraphNarrative={s.langgraphNarrative} crewaiNarrative={s.crewaiNarrative}
+        aircraftLabel={aircraft.label} aircraftId={aircraft.aircraftId ?? null}
+        depart={depart}
+      />
     </NavLogView>
   );
 

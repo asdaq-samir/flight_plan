@@ -224,11 +224,17 @@ test("plan page: the nav log drawer opens wide as the briefing, with the narrati
   const viewport = page.viewportSize();
   if (!viewport) throw new Error("no viewport configured");
 
-  // Narrow first: the table beside the map.
+  // Narrow first: the table beside the map, open, with the briefing's
+  // sections following it closed -- the weather and the airports a
+  // scroll away without opening the drawer wide.
   await page.getByTestId("sidebar-trigger-button").click();
   const drawer = page.locator('[data-slot="map-drawer"][data-side="right"]');
   await expect(drawer).toBeVisible();
   await expect(page).not.toHaveURL(/[?&]view=briefing/);
+  await expect(drawer.getByRole("table", { name: /Navigation log from/i })).toBeVisible();
+  await expect(drawer.getByText("Adverse Conditions")).toBeAttached();
+  await expect(drawer.getByText("Airport Information")).toBeAttached();
+  expect(await drawer.getByText("Nav log", { exact: true }).count()).toBe(1);   // the header's own title only, no fold
   const narrowBox = await drawer.boundingBox();
   expect(narrowBox).not.toBeNull();
 
@@ -247,7 +253,7 @@ test("plan page: the nav log drawer opens wide as the briefing, with the narrati
   // The page's own header is still there above it: the route form,
   // and the one Dev-mode switch this page has.
   await expect(page.getByLabel("Departure", { exact: true })).toBeVisible();
-  await expect(page.locator("header").getByRole("switch", { name: "Dev mode" })).toHaveCount(1);
+  await expect(page.locator("header").getByRole("button", { name: "Dev mode" })).toHaveCount(1);
 
   // The briefing's actions live in the drawer's own header: the AI
   // button (LangGraph/CrewAI are tabs inside the popover it opens),
@@ -318,13 +324,16 @@ test("plan page: the briefing narrows back to the nav log from its own toggle, a
   await expect(drawer.getByText("Adverse Conditions")).toBeVisible();
 
   // Back to the nav log: the drawer stays open, narrow, the URL no
-  // longer says briefing, and the briefing's sections are gone.
+  // longer says briefing, the table leads again (no longer folded into
+  // a section) and the briefing's sections follow it, closed -- with
+  // the briefing's own header actions gone.
   await page.getByTestId("sidebar-expand-toggle").click();
   await page.waitForTimeout(300);
   await expect(page).not.toHaveURL(/[?&]view=briefing/);
   await expect(drawer).toBeVisible();
-  await expect(drawer.getByText("Adverse Conditions")).toHaveCount(0);
   await expect(drawer.getByRole("table", { name: /Navigation log from/i })).toBeVisible();
+  await expect(drawer.getByText("Adverse Conditions")).toBeAttached();
+  await expect(drawer.getByTestId("print-button")).toHaveCount(0);
 
   // Escape from the briefing closes the whole drawer, URL included.
   await page.getByTestId("sidebar-expand-toggle").click();
@@ -426,8 +435,8 @@ test("the Dev-mode switch leads the route form, flips to the dev page with the r
 
   // Off on Plan, and on the route form's left -- the one control that
   // switches roles, in the same place on both pages.
-  const devSwitch = page.locator("header").getByRole("switch", { name: "Dev mode" });
-  await expect(devSwitch).toHaveAttribute("aria-checked", "false");
+  const devSwitch = page.locator("header").getByRole("button", { name: "Dev mode" });
+  await expect(devSwitch).toHaveAttribute("aria-pressed", "false");
   const switchBox = await devSwitch.boundingBox();
   const loadBox = await page.getByRole("button", { name: "Load" }).boundingBox();
   expect(switchBox).not.toBeNull();
@@ -439,11 +448,11 @@ test("the Dev-mode switch leads the route form, flips to the dev page with the r
   await devSwitch.click();
   await page.waitForURL(/\/app\/dev\?dep=C81&dest=KDLH$/);
   await page.waitForTimeout(300);
-  await expect(page.locator("header").getByRole("switch", { name: "Dev mode" })).toHaveAttribute("aria-checked", "true");
+  await expect(page.locator("header").getByRole("button", { name: "Dev mode" })).toHaveAttribute("aria-pressed", "true");
 
   // Off again: back to exactly where it was flipped from (`state.from`,
   // DevSwitch's own), the open briefing included, not a flat /app/plan.
-  await page.locator("header").getByRole("switch", { name: "Dev mode" }).click();
+  await page.locator("header").getByRole("button", { name: "Dev mode" }).click();
   await page.waitForURL(/\/app\/plan\?dep=C81&dest=KDLH&view=briefing$/);
   await expect(page.locator('[data-slot="map-drawer"][data-side="right"]').getByTestId("print-button")).toBeVisible();
 });
@@ -559,7 +568,7 @@ test("plan page: a departure time gives every checkpoint an ETA and picks the wi
 test("dev page opened on its own: the switch falls back to the planner with the dev page's own route", async ({ page }) => {
   await page.goto("/app/dev?dep=C81&dest=KDLH");
   await settle(page);
-  await page.locator("header").getByRole("switch", { name: "Dev mode" }).click();
+  await page.locator("header").getByRole("button", { name: "Dev mode" }).click();
   await page.waitForURL(/\/app\/plan\?dep=C81&dest=KDLH$/);
 });
 
@@ -605,14 +614,18 @@ test("dev page: the dev console drops down over the chart, one drawer at a time 
   const devMl = page.locator('[data-slot="map-drawer"][data-side="top"]');
   await expect(devMl).toBeVisible();
   await expect(devMl.getByText("Model comparison")).toBeVisible();
-  // The developer's console: one tab per thing the repo does that a
-  // pilot never sees.
-  for (const name of ["Model", "Corridors", "System"]) {
+  // The developer's console: how good the models are, the three steps
+  // that train one, and the stack itself.
+  for (const name of ["Performance", "Training Model", "System"]) {
     await expect(devMl.getByRole("tab", { name })).toBeVisible();
   }
+  await devMl.getByRole("tab", { name: "Training Model" }).click();
+  await expect(devMl.getByText("Collect a corridor")).toBeVisible();
+  await expect(devMl.getByText("Rate its checkpoints")).toBeVisible();
+  await expect(devMl.getByRole("button", { name: /Retrain/ })).toBeVisible();
   await devMl.getByRole("tab", { name: "System" }).click();
   await expect(devMl.getByText("planning-service", { exact: true })).toBeVisible();
-  await devMl.getByRole("tab", { name: "Model" }).click();
+  await devMl.getByRole("tab", { name: "Performance" }).click();
   // The same kind of drawer as the waypoint list, dropping down from
   // the top of the map area rather than over the header -- the header
   // stays usable above it.

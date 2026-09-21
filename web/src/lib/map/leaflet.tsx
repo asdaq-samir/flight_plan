@@ -122,11 +122,58 @@ export function createBasemaps(map: L.Map, cfg: Course) {
   const template = (kind: string) => cfg.chart_tiles_base
     ? `${cfg.chart_tiles_base}/${cfg.chart_cycle}/${kind}/{z}/{x}/{y}.png`
     : `/api/planner/chart-tile/${kind}/{z}/{x}/{y}.png?c={cycle}`;
+  // updateWhenIdle false: Leaflet's own default on a phone is to ask
+  // for no tile until the finger lifts, which a pilot panning across a
+  // route felt as the chart arriving late every time; loading during
+  // the pan costs a few tiles that scroll straight off again and
+  // shows the chart as it comes.
   const tileLayer = (kind: string, minZoom: number, maxZoom: number, extra: Partial<L.TileLayerOptions> = {}) =>
     L.tileLayer(template(kind), {
       attribution: kind.startsWith("ifr") ? "FAA IFR enroute charts" : "FAA VFR charts",
-      cycle: cfg.chart_cycle, minZoom, maxNativeZoom: maxZoom, maxZoom: maxZoom + 3, keepBuffer: 4, ...extra,
+      cycle: cfg.chart_cycle, minZoom, maxNativeZoom: maxZoom, maxZoom: maxZoom + 3, keepBuffer: 4,
+      updateWhenIdle: false, ...extra,
     } as L.TileLayerOptions);
+
+  // A ring of tiles one deep around the view, fetched once the map
+  // comes to rest, so the next pan in any direction finds its tiles
+  // already in the browser's cache (they are cacheable for weeks --
+  // and, with the app installed, in the service worker's). Leaflet
+  // itself loads only what is on screen; on a phone over Wi-Fi to
+  // this planner, each fresh tile is a round trip the eye can see.
+  // Low priority where the browser understands it, one ring at a
+  // time, and never beyond the layer's own zooms.
+  let prefetchTimer: ReturnType<typeof setTimeout> | null = null;
+  const prefetchRing = () => {
+    const layer = base?.layer;
+    if (!layer) return;
+    const zoom = Math.round(map.getZoom());
+    const zooms = zoomsOf(base!.kind);
+    if (!zooms || zoom < zooms.min_zoom || zoom > zooms.max_zoom) return;
+    const size = 256;
+    const pixelBounds = map.getPixelBounds();
+    const range = {
+      minX: Math.floor(pixelBounds.min!.x / size) - 1, maxX: Math.floor(pixelBounds.max!.x / size) + 1,
+      minY: Math.floor(pixelBounds.min!.y / size) - 1, maxY: Math.floor(pixelBounds.max!.y / size) + 1,
+    };
+    const n = 2 ** zoom;
+    const urls: string[] = [];
+    for (let x = range.minX; x <= range.maxX; x++) {
+      for (let y = range.minY; y <= range.maxY; y++) {
+        if (y < 0 || y >= n) continue;
+        const edge = x === range.minX || x === range.maxX || y === range.minY || y === range.maxY;
+        if (!edge) continue;
+        urls.push(layer.getTileUrl(Object.assign(L.point(((x % n) + n) % n, y), { z: zoom }) as L.Coords));
+      }
+    }
+    for (const url of urls) {
+      void fetch(url, { priority: "low" }).catch(() => { /* a miss now is a miss later, nothing to do */ });
+    }
+  };
+  const schedulePrefetch = () => {
+    if (prefetchTimer) clearTimeout(prefetchTimer);
+    prefetchTimer = setTimeout(prefetchRing, 250);
+  };
+  map.on("moveend", schedulePrefetch);
 
   let base: { kind: string; layer: L.TileLayer } | null = null;
   const applyBase = () => {
@@ -197,7 +244,11 @@ export function createBasemaps(map: L.Map, cfg: Course) {
       previewing = on;
       applyOverlay();
     },
-    dispose() { unsubscribe(); },
+    dispose() {
+      unsubscribe();
+      map.off("moveend", schedulePrefetch);
+      if (prefetchTimer) clearTimeout(prefetchTimer);
+    },
   };
 }
 
@@ -396,6 +447,93 @@ export function dotIcon(fill: string, label?: string | number) {
       >
         {label ?? ""}
       </div>,
+    ),
+  });
+}
+
+/**
+ * Own ship on the chart: an arrow the size of a checkpoint dot, blue
+ * with a white casing so it holds over any chart colour, turned to the
+ * GPS heading (a plain dot while stationary, when there is none), and
+ * the GPS's own accuracy as a faint circle under it. `update` moves it
+ * and, while `follow`, keeps the map centred on it; `remove` takes it
+ * off. Nothing about it is interactive: a pilot's finger over their
+ * own position is panning the map, not asking for a popup.
+ */
+export function createOwnShip(map: L.Map) {
+  const circle = L.circle([0, 0], {
+    radius: 0, color: "#1d4ed8", weight: 1, opacity: 0.5, fillColor: "#3b82f6", fillOpacity: 0.08, interactive: false,
+  });
+  const marker = L.marker([0, 0], { icon: ownShipIcon(null), interactive: false, zIndexOffset: 1000, keyboard: false });
+  let shown = false;
+  let lastHeading: number | null | undefined;
+  return {
+    update(fix: { lat: number; lon: number; accuracyM: number; headingDeg: number | null }, follow: boolean) {
+      const at: L.LatLngExpression = [fix.lat, fix.lon];
+      circle.setLatLng(at).setRadius(fix.accuracyM);
+      marker.setLatLng(at);
+      if (fix.headingDeg !== lastHeading) {
+        marker.setIcon(ownShipIcon(fix.headingDeg));
+        lastHeading = fix.headingDeg;
+      }
+      if (!shown) {
+        circle.addTo(map);
+        marker.addTo(map);
+        shown = true;
+      }
+      // A fix can arrive before the map has any view at all (own ship
+      // remembered on, the page just opened, the course not yet fitted):
+      // panTo on a map with no zoom left the zoom NaN and every tile
+      // layer added after it asking for an infinite number of tiles.
+      // Then the ship is the first view; the course's own fit follows
+      // when it arrives, and following brings the ship back.
+      if (follow) {
+        if (hasView(map)) map.panTo(at, { animate: true, duration: 0.5 });
+        else map.setView(at, OWN_SHIP_FIRST_ZOOM);
+      }
+    },
+    remove() {
+      if (!shown) return;
+      map.removeLayer(marker);
+      map.removeLayer(circle);
+      shown = false;
+    },
+  };
+}
+
+/** A zoom that shows the aeroplane's surroundings, for a map whose
+ *  first view is the ship rather than a route. */
+const OWN_SHIP_FIRST_ZOOM = 10;
+
+/** Whether the map has a centre and zoom yet: Leaflet has no flag for
+ *  it, only a getCenter that throws until it does. */
+function hasView(map: L.Map): boolean {
+  try {
+    map.getCenter();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function ownShipIcon(headingDeg: number | null) {
+  return L.divIcon({
+    className: "",
+    iconSize: [28, 28],
+    iconAnchor: [14, 14],
+    html: mountReact(
+      headingDeg === null ? (
+        <div className="absolute left-1/2 top-1/2 size-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-[2.5px] border-white bg-blue-600 shadow-[0_1px_4px_rgba(0,0,0,.45)]" />
+      ) : (
+        <svg
+          viewBox="0 0 28 28" width={28} height={28}
+          className="absolute left-0 top-0 drop-shadow-[0_1px_3px_rgba(0,0,0,.5)]"
+          style={{ transform: `rotate(${headingDeg}deg)` }}
+          aria-hidden
+        >
+          <path d="M14 3 L23 24 L14 19 L5 24 Z" fill="#2563eb" stroke="#ffffff" strokeWidth={2.5} strokeLinejoin="round" />
+        </svg>
+      ),
     ),
   });
 }

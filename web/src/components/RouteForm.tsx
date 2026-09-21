@@ -13,8 +13,8 @@ interface Props {
 }
 
 /** DEP → DEST and its Load button, the same on Plan and Label. Each
- *  field is an `AirportSearchInput`, whose own dropdown suggests idents
- *  and names as a pilot types. */
+ *  field is an `AirportPicker`, the stock combobox: a button that opens
+ *  a searchable list of idents and names. */
 export default function RouteForm({
   dep, dest, onDepChange, onDestChange, onSubmit, disabled = false,
 }: Props) {

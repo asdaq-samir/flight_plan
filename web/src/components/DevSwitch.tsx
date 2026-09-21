@@ -1,7 +1,8 @@
 import { FlaskConical } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { cn } from "cn";
-import IconButton from "./IconButton";
+import { Toggle } from "./ui/toggle";
+import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
 /** The route the two pages share -- dep, dest, altitude -- carried
  *  across; Plan's own `view` is not, Dev has no briefing. */
@@ -22,8 +23,9 @@ function routeSearch(search: string): string {
  * one page and a Plan link on the other, so switching roles is one
  * switch in one place, and it reads as what it is -- the same page
  * with the developer's drawers in place of the pilot's -- rather than
- * a link away. A `switch` role with `aria-checked`, since that is the
- * meaning; flipping it navigates. The route on screen comes along both
+ * a link away. shadcn's own `Toggle` (a pressed/unpressed button, the
+ * stock two-state control), amber when pressed to match the dev
+ * header; flipping it navigates. The route on screen comes along both
  * ways, and where Plan was (the open briefing, say) is remembered on
  * the way to Dev and restored on the way back -- plain location state,
  * not lifted into every caller's own props: this is the one place that
@@ -44,16 +46,23 @@ export default function DevSwitch() {
     }
   };
   return (
-    <IconButton
-      role="switch" aria-checked={on} label="Dev mode" onClick={flip} data-testid="dev-switch"
-      // On, the switch is the same amber as the header it sits in,
-      // filled: a switch that is on looks on.
-      className={cn(on && "bg-amber-500 text-black hover:bg-amber-400 hover:text-black")}
-    >
-      {/* Full when on: lucide's icons are strokes, and filling the
-          flask's own closed body path with the current colour is what
-          "full" is. */}
-      <FlaskConical className={cn("size-5", on && "fill-current")} />
-    </IconButton>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Toggle
+          pressed={on}
+          onPressedChange={flip}
+          aria-label="Dev mode"
+          size="sm"
+          className="data-[state=on]:bg-amber-500 data-[state=on]:text-black data-[state=on]:hover:bg-amber-400"
+          data-testid="dev-switch"
+        >
+          {/* Full when on: lucide's icons are strokes, and filling the
+              flask's own closed body path with the current colour is what
+              "full" is. */}
+          <FlaskConical className={cn("size-5", on && "fill-current")} />
+        </Toggle>
+      </TooltipTrigger>
+      <TooltipContent>Dev mode</TooltipContent>
+    </Tooltip>
   );
 }

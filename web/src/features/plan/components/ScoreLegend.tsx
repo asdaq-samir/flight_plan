@@ -1,8 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
 import MapGuideButton from "../../../components/MapGuideButton";
 import ChartLayers from "../../../components/ChartLayers";
+import KeepRoute from "../../../components/KeepRoute";
+import OwnShipControls from "../../../components/OwnShipControls";
 import { Kbd } from "../../../components/ui/kbd";
 import { api } from "../../../lib/api/client";
+import type { Course } from "../../../lib/api/types";
 import { scoreColor } from "../format";
 
 const BUCKETS: [string, string][] = [
@@ -57,9 +60,9 @@ function ModelProvenance() {
  * color key itself was worth keeping, and it had nowhere left to live
  * once the sidebar became checkpoints-only.
  */
-export default function ScoreLegend() {
+export default function ScoreLegend({ course = null }: { course?: Course | null }) {
   return (
-    <MapGuideButton ariaLabel="Info" contentClassName="w-64">
+    <MapGuideButton ariaLabel="Info" contentClassName="w-72">
       {/* What the app does, in one line -- used to be its own hero
           section on the Settings page (a leftover from when Settings
           was Plan's own front door); moved here instead, since a
@@ -83,6 +86,8 @@ export default function ScoreLegend() {
         <ModelProvenance />
       </div>
       <ChartLayers />
+      <OwnShipControls />
+      <KeepRoute course={course} />
       <div className="space-y-1.5 border-t border-border pt-2 text-muted-foreground">
         {SHORTCUTS.map(([key, text]) => (
           <div key={text} className="flex items-center gap-2">

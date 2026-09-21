@@ -22,3 +22,7 @@ data/models/
 # change showing up twice in a diff.
 # Vite's output, baked into the jar at image build time.
 springboot-app/src/main/resources/static/app/
+
+# The local HTTPS certificates infra/local-https/make-certs.sh writes: a
+# private key and a CA for one machine, never for the repository.
+infra/local-https/certs/

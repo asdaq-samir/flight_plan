@@ -3,6 +3,10 @@ package com.northflyers.vfr.config;
 import java.io.IOException;
 import java.time.Duration;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.web.server.MimeMappings;
+import org.springframework.boot.web.server.WebServerFactoryCustomizer;
+import org.springframework.boot.web.servlet.server.ConfigurableServletWebServerFactory;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.Resource;
 import org.springframework.http.CacheControl;
@@ -52,6 +56,22 @@ public class WebMvcConfig implements WebMvcConfigurer {
      * returned. A redirect sidesteps it entirely: the browser reissues
      * the request for a concrete file, which resolves normally.
      */
+    /**
+     * The web app manifest ({@code /app/manifest.webmanifest}, from
+     * vite-plugin-pwa) served as what it is: Tomcat's own mime table
+     * has no entry for the extension and sends it as an octet stream,
+     * which a browser installing the app to its home screen may
+     * refuse.
+     */
+    @Bean
+    WebServerFactoryCustomizer<ConfigurableServletWebServerFactory> manifestMimeType() {
+        return factory -> {
+            MimeMappings mappings = new MimeMappings(MimeMappings.DEFAULT);
+            mappings.add("webmanifest", "application/manifest+json");
+            factory.setMimeMappings(mappings);
+        };
+    }
+
     @Override
     public void addViewControllers(ViewControllerRegistry registry) {
         // /app/plan, not /app/index.html: that file resolves fine (it's

@@ -6,7 +6,14 @@ import { ThemeProvider } from "next-themes";
 import RedirectKeepingSearch from "./components/RedirectKeepingSearch";
 import { Toaster } from "./components/ui/sonner";
 import { TooltipProvider } from "./components/ui/tooltip";
+import { registerSW } from "virtual:pwa-register";
 import "./index.css";
+
+// The service worker (vite.config.ts): the app shell, the chart tiles
+// the map has drawn or kept ahead, and the planner's answers, held for
+// the air. It registers only on a secure origin (https, or localhost)
+// and takes a new build over on the next load without asking.
+registerSW({ immediate: true });
 
 const queryClient = new QueryClient();
 

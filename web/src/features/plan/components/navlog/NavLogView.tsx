@@ -12,6 +12,7 @@ import { useDetailsOpenForPrint } from "../../../../lib/useDetailsOpenForPrint";
 import { Button } from "../../../../components/ui/button";
 import { Input } from "../../../../components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "../../../../components/ui/popover";
+import { Textarea } from "../../../../components/ui/textarea";
 import AltitudeReasoning from "../AltitudeReasoning";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../../../components/ui/select";
 import {
@@ -201,7 +202,7 @@ function DescriptionCell({
   }
 
   return (
-    <textarea
+    <Textarea
       value={draft}
       onChange={e => setDraft(e.target.value)}
       onFocus={onFocus}
@@ -211,13 +212,11 @@ function DescriptionCell({
       }}
       rows={1}
       placeholder={description?.source === "error" ? "Couldn't auto-generate — type one" : "How to spot it…"}
-      // text-base below md, like the stock Input: iOS Safari zooms the
-      // whole page in on focusing any field under 16px, and stays
-      // zoomed after the drawer closes -- the header and the route
-      // form off the top of the screen. The same 16px floor on a phone
-      // that shadcn's own Input keeps, for the same reason.
+      // shadcn's own Textarea, sized down to a table cell: its 16px on
+      // a phone stays (iOS Safari zooms the whole page in on focusing
+      // any field under that), the rest is one line in the row.
       className={clsx(
-        "w-full resize-none rounded border py-0.5 pr-1 pl-0.5 text-left align-top text-base focus:outline-none md:text-xs",
+        "min-h-0 w-full resize-none rounded py-0.5 pr-1 pl-0.5 text-left align-top shadow-none md:text-xs",
         // The box itself stays light even when its row is selected --
         // only the surrounding row inverts, so this reads as an
         // editable field sitting on a highlighted row, not one more
@@ -423,10 +422,10 @@ export default function NavLogView({
   const isSelected = (lat: number, lon: number) =>
     !!selectedPoint && descriptionKey(lat, lon) === descriptionKey(selectedPoint.lat, selectedPoint.lon);
 
-  // The table itself. Narrow, the whole scroller scrolls sideways as
-  // one; wide, with the briefing's sections under it, the table
-  // scrolls inside its own container on a phone so the sections below
-  // stay put. Printed, nothing scrolls: every column is laid out for
+  // The table itself. With the briefing's sections under it (both
+  // widths, now), the table scrolls sideways inside its own container
+  // so the sections below stay put; alone, the whole scroller scrolls
+  // as one. Printed, nothing scrolls: every column is laid out for
   // the browser to paginate.
   const navLogTable = (
     <Table
@@ -717,22 +716,31 @@ export default function NavLogView({
           section below and the briefing's alike. */}
       <div
         ref={scrollerRef}
-        className={clsx("min-h-0 flex-1 overflow-auto p-3 print:h-auto print:overflow-visible", children && "flight-briefing")}
+        className={clsx("min-h-0 flex-1 overflow-auto p-3 print:h-auto print:overflow-visible", expanded && "flight-briefing")}
         data-testid="navlog-scroller"
       >
-        {children ? (
+        {expanded ? (
           // Wide is the briefing: the nav log folds into a section of
           // its own, closed, at the top -- the pilot sees every
           // section's title at once and opens the log when they want
           // the numbers, rather than scrolling past twenty rows to
-          // find out what else the briefing holds. Narrow, the table
-          // is the drawer. -mx-2 lines the sections' own cards
-          // (CollapsibleSection's mx-2) up with the drawer's padding.
+          // find out what else the briefing holds. -mx-2 lines the
+          // sections' own cards (CollapsibleSection's mx-2) up with
+          // the drawer's padding.
           <div className="-mx-2">
             <CollapsibleSection title="Nav log">{navLogTable}</CollapsibleSection>
             {children}
           </div>
-        ) : navLogTable}
+        ) : (
+          // Narrow, the table leads -- it is what the drawer is for
+          // beside the map -- and the briefing's sections follow it,
+          // closed, so the weather and the airports are a scroll away
+          // without opening the drawer wide.
+          <>
+            {navLogTable}
+            {children && <div className="-mx-2 mt-3">{children}</div>}
+          </>
+        )}
       </div>
     </div>
   );

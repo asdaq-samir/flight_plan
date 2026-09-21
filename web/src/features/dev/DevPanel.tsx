@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useLocation } from "react-router-dom";
 import { ExternalLink, RefreshCw, SquareTerminal } from "lucide-react";
@@ -22,6 +22,8 @@ import { useErrorToasts } from "../../lib/usePageStatus";
 import { elapsed } from "../plan/format";
 
 const mae = (n: number) => n.toFixed(4);
+/** Every rating on every collected corridor: what the next retrain reads. */
+const ratings = (status: Status) => status.corridors.reduce((n, c) => n + c.labels.total, 0);
 
 /** "just now", "12 min ago", "3 h ago", or the date -- for a timestamp
  *  that may be missing altogether. */
@@ -43,7 +45,7 @@ const CHART_KIND_LABELS: Record<string, string> = {
 // watching a retrain or a corridor collection reopens the console to
 // the same tab, not to Model every time.
 const TAB_KEY = "dev.tab";
-const TABS = ["model", "corridors", "system"];
+const TABS = ["performance", "training", "system"];
 
 /** The header button that opens the console -- `aria-expanded` so the
  *  state is readable, the same as the sidebar's own toggle. A console
@@ -80,9 +82,9 @@ export function DevPanel() {
   const [tab, setTab] = useState(() => {
     try {
       const saved = localStorage.getItem(TAB_KEY);
-      return saved && TABS.includes(saved) ? saved : "model";
+      return saved && TABS.includes(saved) ? saved : "performance";
     } catch {
-      return "model";
+      return "performance";
     }
   });
   const changeTab = (value: string) => {
@@ -102,8 +104,8 @@ export function DevPanel() {
         <Tabs value={tab} onValueChange={changeTab}>
           <div className="flex flex-wrap items-center justify-between gap-2">
             <TabsList>
-              <TabsTrigger value="model">Model</TabsTrigger>
-              <TabsTrigger value="corridors">Corridors</TabsTrigger>
+              <TabsTrigger value="performance">Performance</TabsTrigger>
+              <TabsTrigger value="training">Training Model</TabsTrigger>
               <TabsTrigger value="system">System</TabsTrigger>
             </TabsList>
             <div className="flex items-center gap-2">
@@ -114,8 +116,8 @@ export function DevPanel() {
               <ThemeToggle />
             </div>
           </div>
-          <TabsContent value="model" className="mt-3"><ModelTab status={status} /></TabsContent>
-          <TabsContent value="corridors" className="mt-3"><CorridorsTab status={status} /></TabsContent>
+          <TabsContent value="performance" className="mt-3"><PerformanceTab status={status} /></TabsContent>
+          <TabsContent value="training" className="mt-3"><TrainingTab status={status} /></TabsContent>
           <TabsContent value="system" className="mt-3"><SystemTab status={status} /></TabsContent>
         </Tabs>
       </div>
@@ -214,30 +216,17 @@ function Fact({ label, value }: { label: string; value: string }) {
   );
 }
 
-/** The registry behind the chart, and the one action: a retrain run.
- *  This planner cannot train in-process (no scikit-learn of its own,
- *  on purpose), so the button goes through Airflow, the same DAG the
- *  AWS trigger Lambda starts; without Airflow reachable it says how to
- *  run the pipeline by hand instead. */
-function ModelTab({ status }: { status: Status | undefined }) {
-  const queryClient = useQueryClient();
-  const retrain = useMutation({
-    mutationFn: api.retrain,
-    onSuccess: run => {
-      toast.success("Retrain started", { description: run.dag_run_id ? `Airflow run ${run.dag_run_id}` : undefined });
-      void queryClient.invalidateQueries({ queryKey: ["status"] });
-    },
-    onError: err => toast.error(describeError(err, "Could not start a retrain"), { duration: 10000 }),
-  });
+/** How good the models are: the comparison chart and the registry
+ *  behind it -- what is serving, what it learned from, every version
+ *  promoted before it. */
+function PerformanceTab({ status }: { status: Status | undefined }) {
   const model = status?.model;
-  const pipeline = status?.pipeline;
-  const lastRun = pipeline?.last_run;
-
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       <ModelComparisonChart />
       <section>
-        <h3 className="text-sm font-semibold">Registry</h3>
+        <SectionHeading title="Registry" description="The model serving predictions now, and every version promoted before it." />
+        <div className="mb-1" />
         {model?.current ? (
           <div className="mt-1 grid grid-cols-2 gap-2 text-sm sm:grid-cols-3">
             <Fact label="Promoted" value={model.current.model_type ?? "—"} />
@@ -279,8 +268,134 @@ function ModelTab({ status }: { status: Status | undefined }) {
           </p>
         )}
       </section>
-      <section>
-        <h3 className="text-sm font-semibold">Pipeline</h3>
+    </div>
+  );
+}
+
+/** One numbered step of the training flow: a number in a circle, the
+ *  step's title and what to do, then its own content. */
+function Step({ n, title, description, children }: { n: number; title: string; description: string; children?: ReactNode }) {
+  return (
+    <section className="flex gap-3">
+      <div className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
+        {n}
+      </div>
+      <div className="min-w-0 flex-1">
+        <SectionHeading title={title} description={description} />
+        {children && <div className="mt-2">{children}</div>}
+      </div>
+    </section>
+  );
+}
+
+/** The one action that changes the model, laid out as the three steps
+ *  it takes: collect a corridor so its candidate landmarks exist, rate
+ *  its checkpoints on the Label page (what the model learns from), then
+ *  retrain. This planner cannot train in-process (no scikit-learn of
+ *  its own, on purpose), so the retrain goes through Airflow, the same
+ *  DAG the AWS trigger Lambda starts; without Airflow reachable it says
+ *  how to run the pipeline by hand instead. */
+function TrainingTab({ status }: { status: Status | undefined }) {
+  const queryClient = useQueryClient();
+  const retrain = useMutation({
+    mutationFn: api.retrain,
+    onSuccess: run => {
+      toast.success("Retrain started", { description: run.dag_run_id ? `Airflow run ${run.dag_run_id}` : undefined });
+      void queryClient.invalidateQueries({ queryKey: ["status"] });
+    },
+    onError: err => toast.error(describeError(err, "Could not start a retrain"), { duration: 10000 }),
+  });
+  const model = status?.model;
+  const pipeline = status?.pipeline;
+  const lastRun = pipeline?.last_run;
+  const corridors = status?.corridors ?? [];
+  // The route on the map behind the console, to mark its row and to
+  // point the rating step at it.
+  const params = new URLSearchParams(useLocation().search);
+  const onMapKey = `${params.get("dep") ?? ""}-${params.get("dest") ?? ""}`.toUpperCase();
+  const onMap = corridors.find(c => `${c.departure_ident}-${c.destination_ident}`.toUpperCase() === onMapKey);
+
+  return (
+    <div className="space-y-6">
+      <Step
+        n={1}
+        title="Collect a corridor"
+        description="A corridor is the strip along a route that the pipeline has collected: every candidate landmark from OpenStreetMap and the FAA files within it, with the features the model scores them by. The planner can score checkpoints only on a collected corridor. Enter a route to collect one -- Overpass, the FAA files and an elevation lookup per candidate, a few minutes in the background -- or pick one below."
+      >
+        <CollectCorridor />
+        <Table containerClassName="mt-3 rounded-md border" className="min-w-[40rem]">
+          <TableCaption className="sr-only">Collected corridors</TableCaption>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Corridor</TableHead>
+              <TableHead className="text-right">Candidates</TableHead>
+              <TableHead className="text-right">Rated</TableHead>
+              <TableHead className="text-right">Added</TableHead>
+              <TableHead className="text-right">Notes</TableHead>
+              <TableHead>Built</TableHead>
+              <TableHead className="text-right"><span className="sr-only">Actions</span></TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {corridors.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={7} className="h-16 text-center text-muted-foreground">
+                  {status ? "No corridor has been collected yet." : "Loading…"}
+                </TableCell>
+              </TableRow>
+            )}
+            {corridors.map(c => {
+              const route = new URLSearchParams({ dep: c.departure_ident, dest: c.destination_ident }).toString();
+              const key = `${c.departure_ident}-${c.destination_ident}`;
+              const current = c === onMap;
+              const rated = c.candidates ? Math.round((c.labels.total / c.candidates) * 100) : null;
+              return (
+                <TableRow key={key} data-state={current ? "selected" : undefined}>
+                  <TableCell className="font-mono">
+                    {c.departure_ident} → {c.destination_ident}
+                    {current && <Badge variant="secondary" className="ml-2 font-sans">on the map</Badge>}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">{c.candidates ?? "—"}</TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {c.labels.total}
+                    {rated !== null && <span className="ml-1 text-xs text-muted-foreground">({rated}%)</span>}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">{c.labels.added}</TableCell>
+                  <TableCell className="text-right tabular-nums">{c.notes}</TableCell>
+                  <TableCell className="text-muted-foreground">{ago(c.features_built_at)}</TableCell>
+                  <TableCell className="text-right">
+                    <Button asChild variant="link" size="sm"><Link to={`/plan?${route}`}>Plan</Link></Button>
+                    <Button asChild variant="link" size="sm"><Link to={`/dev?${route}`}>Rate</Link></Button>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+        <p className="mt-2 text-xs text-muted-foreground">
+          Rated counts every pick on the chart, 0 included, against the candidates scored; added are the ones a pilot put on the chart themselves.
+        </p>
+      </Step>
+
+      <Step
+        n={2}
+        title="Rate its checkpoints"
+        description="Close this console and walk the route on the map behind it: every candidate in flight order, rated 0 to 5 for how findable it is from the air (Space starts, the arrow keys step, the digits rate). Each rating is one labelled example; the model learns from nothing else."
+      >
+        {onMap ? (
+          <p className="text-sm text-muted-foreground">
+            {onMap.departure_ident} → {onMap.destination_ident} is on the map now: {onMap.labels.total} of {onMap.candidates ?? "—"} candidates rated.
+          </p>
+        ) : (
+          <p className="text-sm text-muted-foreground">Pick a corridor above with Rate to bring it onto the map.</p>
+        )}
+      </Step>
+
+      <Step
+        n={3}
+        title="Retrain"
+        description="Reads every rating across every corridor, fits every algorithm in the Performance tab's comparison, and promotes the best one only if it beats the model serving now."
+      >
         {pipeline?.airflow_reachable ? (
           <div className="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm">
             {lastRun ? (
@@ -313,14 +428,22 @@ function ModelTab({ status }: { status: Status | undefined }) {
             {" "}-- the registry promotes it if it beats the current model.
           </p>
         )}
-        <Button
-          type="button" size="sm" className="mt-2"
-          onClick={() => retrain.mutate()}
-          disabled={retrain.isPending || !pipeline?.airflow_reachable || lastRun?.state === "running" || lastRun?.state === "queued"}
-        >
-          {retrain.isPending ? "Starting…" : lastRun?.state === "running" || lastRun?.state === "queued" ? "Retraining…" : "Retrain through Airflow"}
-        </Button>
-      </section>
+        <div className="mt-2 flex flex-wrap items-center gap-3">
+          <Button
+            type="button" size="sm"
+            onClick={() => retrain.mutate()}
+            disabled={retrain.isPending || !pipeline?.airflow_reachable || lastRun?.state === "running" || lastRun?.state === "queued"}
+          >
+            {retrain.isPending ? "Starting…" : lastRun?.state === "running" || lastRun?.state === "queued" ? "Retraining…" : "Retrain through Airflow"}
+          </Button>
+          {status && (
+            <span className="text-xs text-muted-foreground">
+              {ratings(status)} ratings across {status.corridors.length} corridor{status.corridors.length === 1 ? "" : "s"} to learn from
+              {model?.current?.n_labeled != null && `; the serving model learned from ${model.current.n_labeled}`}.
+            </span>
+          )}
+        </div>
+      </Step>
     </div>
   );
 }
@@ -376,84 +499,9 @@ function CollectCorridor() {
   }, [dep, dest, queryClient]);
 
   return (
-    <section>
-      <h3 className="text-sm font-semibold">Collect a corridor</h3>
-      <p className="mt-1 mb-2 text-sm text-muted-foreground">
-        Overpass, the FAA files and an elevation lookup per candidate -- a few minutes, run by the
-        planner in the background: the same collect and engineer-features steps the Airflow DAG runs.
-        Label it afterwards, and the next retrain learns from it.
-      </p>
+    <div className="flex flex-wrap items-center gap-3">
       <RouteForm dep={dep} dest={dest} onDepChange={setDep} onDestChange={setDest} onSubmit={() => void collect()} disabled={progress !== null} />
-      {progress && <p className="mt-2 text-sm text-muted-foreground">{progress}</p>}
-    </section>
-  );
-}
-
-function CorridorsTab({ status }: { status: Status | undefined }) {
-  const corridors = status?.corridors ?? [];
-  // The route on the map behind the console, to mark its row.
-  const params = new URLSearchParams(useLocation().search);
-  const onMap = `${params.get("dep") ?? ""}-${params.get("dest") ?? ""}`.toUpperCase();
-  return (
-    <div className="space-y-5">
-      <section>
-        <h3 className="text-sm font-semibold">Collected corridors</h3>
-        <p className="mt-1 mb-3 text-sm text-muted-foreground">
-          Every route with a feature store, and how far its labels have come. Rated counts every
-          pick on the chart, 0 included, against the candidates the model scored; added are the
-          ones a pilot put on the chart themselves.
-        </p>
-        <Table containerClassName="rounded-md border" className="min-w-[40rem]">
-          <TableCaption className="sr-only">Collected corridors</TableCaption>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Corridor</TableHead>
-              <TableHead className="text-right">Candidates</TableHead>
-              <TableHead className="text-right">Rated</TableHead>
-              <TableHead className="text-right">Added</TableHead>
-              <TableHead className="text-right">Notes</TableHead>
-              <TableHead>Built</TableHead>
-              <TableHead className="text-right"><span className="sr-only">Actions</span></TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {corridors.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={7} className="h-16 text-center text-muted-foreground">
-                  {status ? "No corridor has been collected yet." : "Loading…"}
-                </TableCell>
-              </TableRow>
-            )}
-            {corridors.map(c => {
-              const route = new URLSearchParams({ dep: c.departure_ident, dest: c.destination_ident }).toString();
-              const key = `${c.departure_ident}-${c.destination_ident}`;
-              const current = key.toUpperCase() === onMap;
-              const rated = c.candidates ? Math.round((c.labels.total / c.candidates) * 100) : null;
-              return (
-                <TableRow key={key} data-state={current ? "selected" : undefined}>
-                  <TableCell className="font-mono">
-                    {c.departure_ident} → {c.destination_ident}
-                    {current && <Badge variant="secondary" className="ml-2 font-sans">on the map</Badge>}
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums">{c.candidates ?? "—"}</TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {c.labels.total}
-                    {rated !== null && <span className="ml-1 text-xs text-muted-foreground">({rated}%)</span>}
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums">{c.labels.added}</TableCell>
-                  <TableCell className="text-right tabular-nums">{c.notes}</TableCell>
-                  <TableCell className="text-muted-foreground">{ago(c.features_built_at)}</TableCell>
-                  <TableCell className="text-right">
-                    <Button asChild variant="link" size="sm"><Link to={`/plan?${route}`}>Plan</Link></Button>
-                    <Button asChild variant="link" size="sm"><Link to={`/dev?${route}`}>Label</Link></Button>
-                  </TableCell>
-                </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
-      </section>
-      <CollectCorridor />
+      {progress && <p className="text-sm text-muted-foreground">{progress}</p>}
     </div>
   );
 }
