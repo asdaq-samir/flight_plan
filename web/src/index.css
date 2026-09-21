@@ -55,18 +55,21 @@ input, select, textarea {
   line-height: 1.3;
 }
 
-/* The Flight Briefing's sections are collapsed by default on screen --
-   a pilot skims titles and opens what they need. A printed page is the
-   opposite: every section has to be there whether or not a pilot
-   happened to click it open first, so printing shows every closed
-   section's content regardless. `!important` because the `hidden`
-   attribute's own rule is what is being overridden. */
+/* The flight planning drawer's sections are collapsed by default on
+   screen -- a pilot skims titles and opens what they need. A printed
+   page is the opposite: every section has to be there whether or not
+   a pilot happened to click it open first, so NavLogView opens every
+   one in the browser's beforeprint event. */
 @media print {
-  /* The briefing's sections are shadcn Collapsibles whose content is
-     kept mounted (`forceMount`) and hidden by its closed state while
-     closed; on paper every section shows. */
-  .flight-briefing [data-slot="collapsible-content"][data-state="closed"] {
-    display: block !important;
+  /* The sections are a shadcn Accordion, which opens with a height
+     animation; a print snapshot taken at its first frame would show
+     the section at no height at all, so on paper there is no
+     animation and every open section is its own height. */
+  .flight-briefing [data-slot="accordion-content"],
+  .flight-briefing [data-slot="accordion-content"] > div {
+    animation: none !important;
+    height: auto !important;
+    overflow: visible !important;
   }
   /* The nav log is a wide table -- twelve columns, plus the blank ATA
      and fuel-remaining columns a pilot fills in by hand in flight --

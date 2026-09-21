@@ -248,23 +248,23 @@ test("plan page: the flight planning drawer opens the way the Model Training dra
   // of the log's: neither is inside a section.
   await expect(drawer.getByTestId("aircraft-select")).toBeVisible();
   await expect(drawer.getByTestId("depart-picker")).toBeVisible();
-  expect(await drawer.locator('[data-slot="collapsible-content"] [data-testid="aircraft-select"]').count()).toBe(0);
-  expect(await drawer.locator('[data-slot="collapsible-content"] [data-testid="depart-picker"]').count()).toBe(0);
+  expect(await drawer.locator('[data-slot="accordion-content"] [data-testid="aircraft-select"]').count()).toBe(0);
+  expect(await drawer.locator('[data-slot="accordion-content"] [data-testid="depart-picker"]').count()).toBe(0);
   // Every section starts closed, the nav log's own first among them:
   // the drawer opens as the list of what the briefing holds.
   await expect(drawer.getByText("Nav log", { exact: true })).toBeVisible();
   await expect(drawer.getByText("Adverse Conditions")).toBeVisible();
   await expect(drawer.getByText("Airport Information")).toBeVisible();
-  expect(await drawer.locator('[data-slot="collapsible-content"][data-state="open"]').count()).toBe(0);
+  expect(await drawer.locator('[data-slot="accordion-content"][data-state="open"]').count()).toBe(0);
   await expect(drawer.getByRole("table", { name: /Navigation log from/i })).toBeHidden();
   // Opened, the nav log's section holds the totals and the
   // descriptions button above the table -- inside the section, not
   // the header.
   await drawer.getByText("Nav log", { exact: true }).click();
   await expect(drawer.getByRole("table", { name: /Navigation log from/i })).toBeVisible();
-  await expect(drawer.locator('[data-slot="collapsible-content"] [data-testid="generate-descriptions-button"]')).toBeVisible();
-  await expect(drawer.locator('[data-slot="collapsible-content"] [data-testid="navlog-summary"]')).toBeVisible();
-  expect(await drawer.locator('[data-slot="collapsible-content"][data-state="open"]').count()).toBe(1);
+  await expect(drawer.locator('[data-slot="accordion-content"] [data-testid="generate-descriptions-button"]')).toBeVisible();
+  await expect(drawer.locator('[data-slot="accordion-content"] [data-testid="navlog-summary"]')).toBeVisible();
+  expect(await drawer.locator('[data-slot="accordion-content"][data-state="open"]').count()).toBe(1);
 
   // The page's own header is still there above it: the route form,
   // and the one Dev-mode switch this page has.
@@ -300,8 +300,8 @@ test("plan page: opening the briefing pops a 'planning aid only' warning toast, 
   // and the altitude, and the drawer's header the aeroplane.
   const drawer = page.locator('[data-slot="map-drawer"][data-side="right"]');
   const navLog = drawer.locator("table");
-  await expect(navLog).toHaveCount(1);
-  await expect(navLog).toBeHidden();
+  // A closed accordion section has no content in the page at all.
+  await expect(navLog).toHaveCount(0);
   await expect(drawer.getByText("Nav log", { exact: true })).toBeVisible();
   await expect(drawer.getByText("Flight Plan Summary")).toHaveCount(0);
   await expect(drawer.getByText("Adverse Conditions")).toBeVisible();
@@ -309,8 +309,9 @@ test("plan page: opening the briefing pops a 'planning aid only' warning toast, 
   // A section unfolds on its title and folds again.
   await drawer.getByText("Nav log", { exact: true }).click();
   await expect(drawer.getByRole("table", { name: /Navigation log from/i })).toBeVisible();
+  await expect(navLog).toHaveCount(1);
   await drawer.getByText("Nav log", { exact: true }).click();
-  await expect(navLog).toBeHidden();
+  await expect(navLog).toHaveCount(0);
 });
 
 test("plan page: the briefing offers one AI button, not a named button per framework", async ({ page }) => {
@@ -765,6 +766,9 @@ test("plan page: every text field is at least 16px on a phone, so iOS never zoom
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
   await page.getByTestId("sidebar-trigger-button").click();
+  // The description boxes are in the nav log's section, closed until
+  // its title is clicked.
+  await page.locator('[data-slot="map-drawer"]').getByText("Nav log", { exact: true }).click();
   await expect.poll(() => page.locator("textarea").count(), { timeout: 15000 }).toBeGreaterThan(0);
   const small = await page.evaluate(() =>
     [...document.querySelectorAll<HTMLElement>("input, textarea, select")]

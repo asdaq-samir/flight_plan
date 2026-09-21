@@ -1,12 +1,13 @@
 import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
+import { flushSync } from "react-dom";
 import clsx from "clsx";
 import { CircleHelp, Loader2, WandSparkles } from "lucide-react";
 import {
   type CellData, type ColumnDef, type RowData, type TableFeatures,
   flexRender, tableFeatures, useTable,
 } from "@tanstack/react-table";
-import CollapsibleSection from "../../../../components/CollapsibleSection";
 import { NoteRow, SelectableRow } from "../../../../components/SelectableRows";
+import { Accordion } from "../../../../components/ui/accordion";
 import { Button } from "../../../../components/ui/button";
 import { Input } from "../../../../components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "../../../../components/ui/popover";
@@ -19,7 +20,13 @@ import {
 import type { AltitudeChoice, Candidate, Leg, NavLog, Totals } from "../../../../lib/api/types";
 import { type Description, descriptionKey } from "../../hooks/usePlanState";
 import { altFt, clockTime, deg, describeSteps, describeTime, etaAt, one, signed, totalsParts } from "../../format";
+import BriefingSection from "../briefing/BriefingSection";
+import { BRIEFING_SECTIONS } from "../briefing/sections";
 import DepartPicker from "./DepartPicker";
+
+/** Every section of the drawer, the nav log's own first: what the
+ *  printer gets, whatever is open on screen. */
+const ALL_SECTIONS = ["Nav log", ...BRIEFING_SECTIONS];
 
 // TanStack Table's own extension point for arbitrary per-column data --
 // used below to carry each numeric column's shared className (bordered,
@@ -249,6 +256,23 @@ export default function NavLogView({
   aircraftValue, aircraftOptions, onAircraftChange,
 }: Props) {
   const parts = totals ? totalsParts(totals) : null;
+  // Which sections are open: none to begin with (a pilot skims the
+  // titles and opens what applies), and for the printer every one --
+  // the paper is the whole briefing whatever was open on screen.
+  // Opened in the browser's own beforeprint event, flushed before it
+  // lays the page out, and put back after.
+  const [open, setOpen] = useState<string[]>([]);
+  const [printing, setPrinting] = useState(false);
+  useEffect(() => {
+    const before = () => flushSync(() => setPrinting(true));
+    const after = () => setPrinting(false);
+    window.addEventListener("beforeprint", before);
+    window.addEventListener("afterprint", after);
+    return () => {
+      window.removeEventListener("beforeprint", before);
+      window.removeEventListener("afterprint", after);
+    };
+  }, []);
   // One row per waypoint the plan already knows about -- every scored
   // checkpoint plus the destination -- regardless of how many of
   // their legs have actually streamed in yet. `undefined` for `leg`
@@ -691,26 +715,25 @@ export default function NavLogView({
           {depart && ` · departing ${new Date(depart).toLocaleDateString([], { weekday: "short", day: "numeric", month: "short" })} ${clockTime(new Date(depart))}`}
         </div>
       </div>
-      {/* Every section starts closed, the nav log's own included: the
-          drawer opens as the list of what the briefing holds, and a
-          pilot opens what they want on its title, rather than landing
-          in twenty rows of numbers with the weather somewhere below.
-          Inside the nav log's section, the summary, then the table.
-          `flight-briefing`: index.css's print rules show every closed
-          section under it on paper, so the whole briefing prints
-          whatever is open. -mx-2 lines the sections' own cards
-          (CollapsibleSection's mx-2) up with the drawer's padding. */}
+      {/* One stock accordion for the whole drawer: the nav log's own
+          section first (the summary, then the table), the briefing's
+          sections after it (`children`). Every section starts closed:
+          the drawer opens as the list of what the briefing holds, and
+          a pilot opens what they want on its title, rather than
+          landing in twenty rows of numbers with the weather somewhere
+          below. `flight-briefing`: index.css's print rules keep the
+          opened sections laid out on paper. */}
       <div
-        className="flight-briefing min-h-0 flex-1 overflow-auto p-3 print:h-auto print:overflow-visible"
+        className="flight-briefing min-h-0 flex-1 overflow-auto px-3 print:h-auto print:overflow-visible"
         data-testid="navlog-scroller"
       >
-        <div className="-mx-2">
-          <CollapsibleSection title="Nav log">
+        <Accordion type="multiple" value={printing ? ALL_SECTIONS : open} onValueChange={setOpen}>
+          <BriefingSection title="Nav log">
             {summary}
             {navLogTable}
-          </CollapsibleSection>
+          </BriefingSection>
           {children}
-        </div>
+        </Accordion>
       </div>
     </div>
   );

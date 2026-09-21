@@ -325,7 +325,11 @@ export default function PlanView() {
       if (tag === "INPUT" || tag === "TEXTAREA") return;
       // A modal dialog (the sign-in dialog) owns its keys; the drawers
       // are dialogs too but non-modal, and the walk goes on inside them.
-      if (e.defaultPrevented || target?.closest('[role="listbox"],[role="dialog"][aria-modal="true"],[role="menu"]')) return;
+      // A section title in the drawer prevents Up/Down itself, to keep
+      // the accordion from walking its titles (see BriefingSection):
+      // from there the press is this page's.
+      const onSectionTitle = !!target?.closest('[data-slot="accordion-trigger"]');
+      if ((e.defaultPrevented && !onSectionTitle) || target?.closest('[role="listbox"],[role="dialog"][aria-modal="true"],[role="menu"]')) return;
       if (e.key === "n") setSidebarOpen(!sidebarOpen);
       if (e.key === "a") toggleCandidates();
       if (e.key === "f") controls.current?.fit();
