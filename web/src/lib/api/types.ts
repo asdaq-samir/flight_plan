@@ -54,6 +54,7 @@ export type ModelComparison = Schemas["ModelComparison"];
 export type Status = Schemas["Status"];
 export type CorridorStatus = Schemas["CorridorStatus"];
 export type RetrainStarted = Schemas["RetrainStarted"];
+export type ChartRefreshStarted = Schemas["ChartRefreshStarted"];
 export type AircraftProfileSummary = Schemas["AircraftProfileSummary"];
 
 /** Which aeroplane the nav log is computed for: a stock profile by

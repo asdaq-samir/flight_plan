@@ -136,9 +136,18 @@ Both resume where they stopped. The sheets land in
 `data/raw/charts.nosync/<cycle>/`, the tiles in
 `data/raw/chart_tiles.nosync/<cycle>/` (the suffix keeps iCloud Drive
 from syncing them; elsewhere it is just a name). The Dev console's
-System tab shows the sheets prepared and the pyramid's progress. When a
-new 56-day cycle starts, run both again; the previous cycle's files
-can then be deleted.
+System tab shows the sheets prepared and the pyramid's progress.
+
+The planner keeps up with the 56-day cycle by itself: at start-up and
+once a day it asks the FAA's products page which cycle is current and,
+if that cycle's pyramid is not complete on disk, runs `python -m
+vfr.charts refresh` in a subprocess (prepare, render, then delete the
+previous cycle). The map switches to the new cycle only once every
+tile of it is there, so a refresh in progress changes nothing on
+screen; `refresh now` in the Dev console starts one early, and
+`CHARTS_AUTO_REFRESH=0` turns the daily check off. `python -m
+vfr.charts check` looks for daylight between adjacent sheets, which is
+what a mis-detected sheet edge would show up as.
 | `GET/POST/DELETE /api/picks` | Hand-marked checkpoints. |
 | `GET/POST /api/checkpoint-notes` | A pilot's "how to spot it" note per checkpoint. |
 | `GET /api/airports/search` | Identifier and name lookup for the route form. |

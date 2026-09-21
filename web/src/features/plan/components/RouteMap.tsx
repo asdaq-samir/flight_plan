@@ -1,7 +1,9 @@
 import L from "leaflet";
 import { useEffect, useRef } from "react";
 import type { Candidate, Course } from "../../../lib/api/types";
-import { createBasemaps, createCourseLine, createHalo, dotIcon, endLabelIcon, mountReact } from "../../../lib/map/leaflet";
+import {
+  CROWD_FROM_ZOOM, MARKERS_FROM_ZOOM, createBasemaps, createCourseLine, createHalo, dotIcon, endLabelIcon, fromZoom, mountReact,
+} from "../../../lib/map/leaflet";
 import { useLeafletMap } from "../../../lib/map/useLeafletMap";
 import { scoreColor } from "../format";
 
@@ -45,6 +47,9 @@ export default function RouteMap({
 }: Props) {
   const { el, map } = useLeafletMap();
   const layers = useRef<Record<string, L.Layer | null>>({});
+  // The marker layers come and go with the zoom (see `fromZoom`); what
+  // is kept per layer is the function that stops that and removes it.
+  const detach = useRef<Record<string, (() => void) | undefined>>({});
   const basemaps = useRef<ReturnType<typeof createBasemaps> | null>(null);
   // The basemaps subscribe to the TAC-overlay setting for as long as
   // the map lives; let go of that with the map.
@@ -83,8 +88,8 @@ export default function RouteMap({
   useEffect(() => {
     const m = map.current;
     if (!m) return;
-    if (layers.current.candidates) m.removeLayer(layers.current.candidates);
-    layers.current.candidates = L.layerGroup(
+    detach.current.candidates?.();
+    const group = L.layerGroup(
       candidates.filter(c => !c.selected).map(c =>
         L.circleMarker([c.lat, c.lon], {
           radius: 4, color: "#5b6b76", weight: 1, opacity: 0.65,
@@ -96,14 +101,14 @@ export default function RouteMap({
           </>,
         ))),
     );
-    if (showCandidates) layers.current.candidates.addTo(m);
+    detach.current.candidates = showCandidates ? fromZoom(m, group, CROWD_FROM_ZOOM) : undefined;
   }, [map, candidates, showCandidates]);
 
   useEffect(() => {
     const m = map.current;
     if (!m) return;
-    if (layers.current.selected) m.removeLayer(layers.current.selected);
-    layers.current.selected = L.layerGroup(
+    detach.current.selected?.();
+    const group = L.layerGroup(
       selected.map((c, i) =>
         L.marker([c.lat, c.lon], { icon: dotIcon(scoreColor(c.predicted_score), i + 1) })
           .bindPopup(mountReact(
@@ -113,7 +118,8 @@ export default function RouteMap({
             </>,
           ))
           .on("click", ev => { L.DomEvent.stopPropagation(ev); onSelectCandidate(c); })),
-    ).addTo(m);
+    );
+    detach.current.selected = fromZoom(m, group, MARKERS_FROM_ZOOM);
   }, [map, selected, onSelectCandidate]);
 
   // The ring follows the panel selection, and the map comes to it.

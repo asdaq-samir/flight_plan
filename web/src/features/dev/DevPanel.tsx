@@ -403,6 +403,18 @@ function StatusDot({ up }: { up: boolean | undefined }) {
 }
 
 function SystemTab({ status }: { status: Status | undefined }) {
+  const queryClient = useQueryClient();
+  // The one chart action: fetch and render the FAA's current cycle
+  // now rather than at the planner's next daily check -- the same
+  // subprocess either way, with its progress on the row below.
+  const refreshCharts = useMutation({
+    mutationFn: api.refreshCharts,
+    onSuccess: r => {
+      toast.success(r.started ? `Fetching and rendering cycle ${r.current_cycle} in the background` : "A chart refresh is already running");
+      void queryClient.invalidateQueries({ queryKey: ["status"] });
+    },
+    onError: err => toast.error(describeError(err, "Could not start a chart refresh"), { duration: 10000 }),
+  });
   // webapp and its database answer for themselves through Spring's
   // public actuator: liveness for the process, readiness for the
   // database (its readiness group includes the DataSource check, see
@@ -503,6 +515,25 @@ function SystemTab({ status }: { status: Status | undefined }) {
                       : `${p.rasters_done}/${p.rasters_total} sheets${p.current ? `, on ${p.current}` : ""}`}
                   </span>
                 ))}
+                {status.charts.current_cycle !== status.charts.cycle && (
+                  <span>
+                    {` · the FAA is on cycle ${status.charts.current_cycle}`}
+                    {Object.values(status.charts.building ?? {}).map(p => (
+                      <span key={p.kind}>
+                        {`, ${p.kind === "tac" ? "TAC" : "sectional"} ${p.finished_at ? "rendered" : `${p.rasters_done}/${p.rasters_total} sheets`}`}
+                      </span>
+                    ))}
+                    {status.charts.refresh_running ? ", fetching and rendering it now" : ", not fetched yet"}
+                  </span>
+                )}
+                {" "}
+                <Button
+                  variant="link" size="sm" className="h-auto p-0"
+                  onClick={() => refreshCharts.mutate()}
+                  disabled={refreshCharts.isPending || status.charts.refresh_running}
+                >
+                  {status.charts.refresh_running ? "refreshing…" : "refresh now"}
+                </Button>
               </span>
             </li>
           )}

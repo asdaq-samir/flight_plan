@@ -3,7 +3,7 @@ import type {
   BuiltRoutes,
   CheckpointDescriptionMessage, CheckpointNoteSaved, Checkpoints, Classification, Course, Flight, FlightSummary,
   ModelComparison, NarrativeMessage, NarrativeRequest, NavLogMessage, PickDeleted, PickSaved, PicksResponse, Pilot,
-  Rating, RetrainStarted, Role, SaveFlightRequest, Status, StreamMessage,
+  ChartRefreshStarted, Rating, RetrainStarted, Role, SaveFlightRequest, Status, StreamMessage,
 } from "./types";
 
 /**
@@ -151,6 +151,10 @@ export const api = {
   /** One run of the training DAG through Airflow; 501 with the CLI
    *  alternative when the planner has no Airflow to reach. */
   retrain: () => json<RetrainStarted>(`${PLANNER}/retrain`, { method: "POST" }),
+
+  /** Fetch and render the FAA's current chart cycle now, in the
+   *  planner's own background subprocess (it also does this daily). */
+  refreshCharts: () => json<ChartRefreshStarted>(`${PLANNER}/charts/refresh`, { method: "POST" }),
 
   /** Adverse conditions, current/forecast weather, and airport info
    *  for the Flight Briefing page -- one plain response, not a stream:

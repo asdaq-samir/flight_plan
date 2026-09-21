@@ -658,9 +658,14 @@ def _warp_rgb(path: Path, bbox_3857: tuple, width: int, height: int, centre_lat:
         ground_m_per_px = (xmax - xmin) / width * math.cos(math.radians(centre_lat))
         oversample = int(min(4, max(1, round(ground_m_per_px / float(src.res[0])))))
         w, h = width * oversample, height * oversample
+        # No nodata value: with one, GDAL "protects" it by rewriting
+        # every source pixel of that index to the next one, and index
+        # 0 is the chart's paper. Where the warp runs past the sheet the
+        # buffer is left at 0, which is paper too -- and outside the
+        # face anyway, which the caller masks.
         with WarpedVRT(
             src, crs="EPSG:3857", transform=from_bounds(xmin, ymin, xmax, ymax, w, h),
-            width=w, height=h, resampling=Resampling.nearest, nodata=0,
+            width=w, height=h, resampling=Resampling.nearest,
         ) as vrt:
             indices = vrt.read(1)
     rgb = lut[indices]
@@ -751,13 +756,14 @@ def rasters_covering(kind: ChartKind, bbox: Box, cycle: str | None = None) -> tu
 
 
 def tile_png(x: int, y: int, zoom: int, kind: str = "sec") -> bytes | None:
-    """The tile's PNG bytes, rendered on first request and cached on
-    disk for the cycle; None where no chart of this kind covers it (a
-    404 for the map's tile layer to leave blank)."""
+    """The tile's PNG bytes -- from the pyramid when there is one, else
+    rendered on first request and cached on disk for the cycle; None
+    where no chart of this kind covers it (a 404 for the map's tile
+    layer to leave blank)."""
     chart_kind = KINDS[kind]
     if not (chart_kind.min_zoom <= zoom <= chart_kind.max_zoom):
         return None
-    cycle = current_cycle()
+    cycle = serving_cycle()
     path = _tile_path(chart_kind, cycle, x, y, zoom)
     none_marker = path.with_suffix(".none")
     try:
@@ -801,7 +807,7 @@ def tile_image(x: int, y: int, zoom: int, kind: str = "sec") -> Image.Image | No
 
 
 def tile_cached(x: int, y: int, zoom: int, kind: str = "sec") -> bool:
-    return _tile_path(KINDS[kind], current_cycle(fetch=False), x, y, zoom).exists()
+    return _tile_path(KINDS[kind], serving_cycle(), x, y, zoom).exists()
 
 
 def prepare_for_bbox(bbox: Box, kinds: tuple = ("sec", "tac")) -> list:
@@ -819,15 +825,16 @@ def prepare_for_bbox(bbox: Box, kinds: tuple = ("sec", "tac")) -> list:
     return charts
 
 
-def prepared_charts() -> list[Chart]:
-    """Every chart prepared on disk, any cycle, newest cycle first."""
+def prepared_charts(cycle: str | None = None) -> list[Chart]:
+    """Every chart prepared on disk -- one cycle's, or any cycle's
+    newest first."""
     charts = []
     if not CHARTS_DIR.exists():
         return charts
     for ready in sorted(CHARTS_DIR.glob(f"*/*/*/{_READY}"), reverse=True):
         directory = ready.parent
         kind = KINDS.get(directory.parent.name)
-        if kind is None:
+        if kind is None or (cycle and directory.parent.parent.name != cycle):
             continue
         chart = _load_ready(directory, kind, directory.name, directory.parent.parent.name)
         if chart is not None:
@@ -835,10 +842,44 @@ def prepared_charts() -> list[Chart]:
     return charts
 
 
+def _cycles_on_disk(root: Path) -> list[str]:
+    """The cycle-named folders under `root`, newest first."""
+    if not root.exists():
+        return []
+    found = []
+    for directory in root.iterdir():
+        try:
+            found.append((datetime.strptime(directory.name, "%m-%d-%Y"), directory.name))
+        except ValueError:
+            continue
+    return [name for _, name in sorted(found, reverse=True)]
+
+
+_serving_cache: dict = {"value": None, "at": 0.0}
+_SERVING_TTL_S = 60
+
+
+def serving_cycle() -> str:
+    """The cycle the tile endpoints draw: the newest on disk whose
+    sectional pyramid is complete, so a new cycle is served only once
+    every one of its tiles is there -- until then the map keeps the
+    previous edition, whole, rather than rendering the new one a tile
+    at a time. With no complete pyramid at all (a fresh checkout) it is
+    the FAA's current cycle, rendered on demand. Held for a minute:
+    this is asked once per tile."""
+    if _serving_cache["value"] and time.time() - _serving_cache["at"] < _SERVING_TTL_S:
+        return _serving_cache["value"]
+    value = next((c for c in _cycles_on_disk(CHART_TILE_CACHE_DIR) if pyramid_complete(c, ("sec",))), None)
+    value = value or current_cycle()
+    _serving_cache.update(value=value, at=time.time())
+    return value
+
+
 def status() -> dict:
-    """What the Dev console shows: the cycle in use, the charts prepared
-    (any cycle), how many tiles have been rendered, and how far a
-    pyramid render has got. Never touches the network."""
+    """What the Dev console shows: the cycle being served and the one
+    the FAA is on, the charts prepared (any cycle), how many tiles have
+    been rendered, how far the served cycle's pyramid got and whether
+    a newer one is being built. Never touches the network."""
     charts = [
         {
             "name": c.name, "kind": c.kind.key, "cycle": c.cycle, "prepared_at": c.prepared_at,
@@ -847,7 +888,12 @@ def status() -> dict:
         for c in prepared_charts()
     ]
     tiles = sum(1 for _ in CHART_TILE_CACHE_DIR.rglob("*.png")) if CHART_TILE_CACHE_DIR.exists() else 0
-    return {"cycle": current_cycle(fetch=False), "charts": charts, "tiles_cached": tiles, "pyramid": pyramid_status()}
+    serving, current = serving_cycle(), current_cycle(fetch=False)
+    building = pyramid_status(current) if current != serving else {}
+    return {
+        "cycle": serving, "current_cycle": current, "charts": charts, "tiles_cached": tiles,
+        "pyramid": pyramid_status(serving), "building": building, "refresh_running": refresh_running(),
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -910,12 +956,10 @@ def _render_row(args: tuple) -> int:
     path, face, kind_key, cycle, zoom, y, x0, x1 = args
     kind = KINDS[kind_key]
     lats = _tile_lats(y, zoom)
-    xmin = tile_bbox_3857(x0, y, zoom)[0]
-    _, ymin, xmax, ymax = tile_bbox_3857(x1, y, zoom)
-    width = (x1 - x0 + 1) * TILE_PX
-    strip = _warp_rgb(Path(path), (xmin, ymin, xmax, ymax), width, TILE_PX, float(lats[TILE_PX // 2]))
 
-    written = 0
+    # What this row still owes, before the warp: on a resumed or
+    # repeated render most rows owe nothing, and the warp is the cost.
+    owed = []
     for x in range(x0, x1 + 1):
         covered = _face_mask(face, lats, _tile_lons(x, zoom))
         if not covered.any():
@@ -930,48 +974,68 @@ def _render_row(args: tuple) -> int:
         if rgba is None:
             rgba = np.zeros((TILE_PX, TILE_PX, 4), dtype=np.uint8)
         fill = covered & (rgba[:, :, 3] == 0)
-        if not fill.any():
-            continue  # the neighbouring sheet already drew all of it
+        if fill.any():
+            owed.append((x, tile_path, rgba, fill))
+    if not owed:
+        return 0
+
+    xmin = tile_bbox_3857(x0, y, zoom)[0]
+    _, ymin, xmax, ymax = tile_bbox_3857(x1, y, zoom)
+    width = (x1 - x0 + 1) * TILE_PX
+    strip = _warp_rgb(Path(path), (xmin, ymin, xmax, ymax), width, TILE_PX, float(lats[TILE_PX // 2]))
+
+    for x, tile_path, rgba, fill in owed:
         rgb = strip[:, (x - x0) * TILE_PX:(x - x0 + 1) * TILE_PX]
         rgba[fill, :3] = rgb[fill]
         rgba[fill, 3] = 255
         tile_path.parent.mkdir(parents=True, exist_ok=True)
         _write_atomically(tile_path, encode_png(rgba))
         tile_path.with_suffix(".none").unlink(missing_ok=True)
-        written += 1
-    return written
+    return len(owed)
 
 
-def _write_pyramid_status(update: dict) -> None:
-    CHART_TILE_CACHE_DIR.mkdir(parents=True, exist_ok=True)
-    path = CHART_TILE_CACHE_DIR / _PYRAMID_STATUS
+def _write_pyramid_status(cycle: str, update: dict) -> None:
+    path = CHART_TILE_CACHE_DIR / cycle / _PYRAMID_STATUS
+    path.parent.mkdir(parents=True, exist_ok=True)
     try:
         data = json.loads(path.read_text())
     except (OSError, ValueError):
         data = {}
     data[update["kind"]] = update
     path.write_text(json.dumps(data, indent=1))
+    _serving_cache["at"] = 0.0  # a pyramid just finished, or a new one began: re-decide what to serve
 
 
-def pyramid_status() -> dict:
-    """Per kind, how far the last pyramid render got -- what the Dev
+def pyramid_status(cycle: str) -> dict:
+    """Per kind, how far a cycle's pyramid render got -- what the Dev
     console shows next to the chart list."""
     try:
-        return json.loads((CHART_TILE_CACHE_DIR / _PYRAMID_STATUS).read_text())
+        return json.loads((CHART_TILE_CACHE_DIR / cycle / _PYRAMID_STATUS).read_text())
     except (OSError, ValueError):
         return {}
 
 
-def render_pyramid(kind: ChartKind, zooms: tuple | None = None, workers: int = 4, charts: list | None = None) -> int:
-    """Every tile of every prepared chart of `kind`, at each zoom of
-    the kind's own range, written into the tile cache. Sheets are done
-    one at a time -- their tile rows in parallel across `workers`
-    processes -- so two sheets never race for the same seam tile.
-    Returns the number of tiles written. Re-runnable: a tile already
-    complete on disk is left alone, so an interrupted render resumes
-    where it stopped (an already-rendered sheet costs a scan)."""
+def pyramid_complete(cycle: str, kinds: tuple = ("sec", "tac")) -> bool:
+    progress = pyramid_status(cycle)
+    return all(progress.get(k, {}).get("finished_at") for k in kinds)
+
+
+def render_pyramid(kind: ChartKind, zooms: tuple | None = None, workers: int = 4, charts: list | None = None,
+                   cycle: str | None = None) -> int:
+    """Every tile of every prepared chart of `kind` in `cycle` (the
+    FAA's current one by default), at each zoom of the kind's own
+    range, written into the tile cache. Sheets are done one at a time
+    -- their tile rows in parallel across `workers` processes -- so two
+    sheets never race for the same seam tile. Returns the number of
+    tiles written. Re-runnable: a tile already complete on disk is left
+    alone, so an interrupted render resumes where it stopped (an
+    already-rendered sheet costs a scan)."""
     zooms = tuple(zooms or range(kind.min_zoom, kind.max_zoom + 1))
-    charts = [c for c in (charts if charts is not None else prepared_charts()) if c.kind is kind]
+    if charts is None:
+        cycle = cycle or current_cycle()
+        charts = prepared_charts(cycle)
+    charts = [c for c in charts if c.kind is kind]
+    cycle = cycle or (charts[0].cycle if charts else current_cycle())
     rasters = [(chart, raster) for chart in charts for raster in chart.rasters]
     started = datetime.now(tz=timezone.utc).isoformat()
     total = 0
@@ -979,13 +1043,13 @@ def render_pyramid(kind: ChartKind, zooms: tuple | None = None, workers: int = 4
         "kind": kind.key, "zooms": list(zooms), "started_at": started, "finished_at": None,
         "rasters_total": len(rasters), "rasters_done": 0, "tiles_written": 0, "current": None,
     }
-    _write_pyramid_status(progress)
+    _write_pyramid_status(cycle, progress)
 
     pool = ProcessPoolExecutor(max_workers=workers) if workers > 0 else None
     try:
         for i, (chart, raster) in enumerate(rasters):
             progress["current"] = raster.path.stem
-            _write_pyramid_status(progress)
+            _write_pyramid_status(cycle, progress)
             sheet_started = time.time()
             sheet_tiles = 0
             for zoom in zooms:
@@ -997,29 +1061,142 @@ def render_pyramid(kind: ChartKind, zooms: tuple | None = None, workers: int = 4
                     sheet_tiles += sum(pool.map(_render_row, jobs, chunksize=1))
             total += sheet_tiles
             progress.update(rasters_done=i + 1, tiles_written=total)
-            _write_pyramid_status(progress)
+            _write_pyramid_status(cycle, progress)
             log.info("%s: %d tiles in %.0f s (%d of %d sheets, %d tiles so far)",
                      raster.path.stem, sheet_tiles, time.time() - sheet_started, i + 1, len(rasters), total)
     finally:
         if pool is not None:
             pool.shutdown()
     progress.update(current=None, finished_at=datetime.now(tz=timezone.utc).isoformat())
-    _write_pyramid_status(progress)
+    _write_pyramid_status(cycle, progress)
     return total
+
+
+# ---------------------------------------------------------------------------
+# Keeping up with the cycle
+# ---------------------------------------------------------------------------
+#
+# A new edition every 56 days, and a map that shows nothing but the
+# chart, means somebody has to fetch and render the new one before its
+# date or the map quietly flies stale charts. `refresh` is that job:
+# the whole prepare-and-render for the FAA's current cycle when it is
+# not complete on disk yet, then the previous cycle's files go. The
+# planner runs it in a subprocess of its own once a day (and at
+# start-up), so the serving process stays the size it is; the tile
+# endpoints switch to the new cycle only when `serving_cycle` sees its
+# pyramid complete.
+
+_REFRESH_LOCK = "refresh.lock"
+
+
+def refresh(kinds: tuple = ("sec", "tac"), workers: int = 2, prune: bool = True) -> str:
+    """Bring the FAA's current cycle to a complete pyramid, then drop
+    older cycles. Returns the cycle. Idempotent: a complete cycle
+    costs one status read."""
+    cycle = current_cycle()
+    if not pyramid_complete(cycle, kinds):
+        log.info("cycle %s: preparing sheets", cycle)
+        prepare_all(kinds, cycle)
+        for key in kinds:
+            log.info("cycle %s: rendering the %s pyramid", cycle, key)
+            render_pyramid(KINDS[key], workers=workers, cycle=cycle)
+    if prune and pyramid_complete(cycle, kinds):
+        prune_cycles(keep=cycle)
+    return cycle
+
+
+def prune_cycles(keep: str) -> list[str]:
+    """Delete every cycle's sheets and tiles but `keep`'s (and any
+    newer, which a refresh in progress may be building)."""
+    removed = []
+    keep_date = datetime.strptime(keep, "%m-%d-%Y")
+    for root in (CHARTS_DIR, CHART_TILE_CACHE_DIR):
+        for cycle in _cycles_on_disk(root):
+            if cycle == keep or datetime.strptime(cycle, "%m-%d-%Y") > keep_date:
+                continue
+            shutil.rmtree(root / cycle, ignore_errors=True)
+            removed.append(f"{root.name}/{cycle}")
+            log.info("removed %s/%s", root.name, cycle)
+    _serving_cache["at"] = 0.0
+    return removed
+
+
+def refresh_running() -> bool:
+    """Whether a refresh subprocess started by this planner is alive."""
+    try:
+        pid = int((CHART_TILE_CACHE_DIR / _REFRESH_LOCK).read_text().strip())
+        os.kill(pid, 0)
+        return True
+    except (OSError, ValueError):
+        return False
+
+
+def refresh_in_background(workers: int = 2) -> bool:
+    """Start `python -m vfr.charts refresh` as a subprocess, unless one
+    is running. Returns whether one was started. Its log goes beside
+    the tiles (refresh.log); its pid into refresh.lock, which is how
+    `refresh_running` knows."""
+    import subprocess
+    import sys
+
+    if refresh_running():
+        return False
+    CHART_TILE_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    log_file = (CHART_TILE_CACHE_DIR / "refresh.log").open("ab")
+    process = subprocess.Popen(
+        [sys.executable, "-m", "vfr.charts", "refresh", "--workers", str(workers)],
+        stdout=log_file, stderr=subprocess.STDOUT, start_new_session=True,
+    )
+    (CHART_TILE_CACHE_DIR / _REFRESH_LOCK).write_text(str(process.pid))
+    log.info("chart refresh started (pid %d)", process.pid)
+    return True
+
+
+def refresh_due() -> bool:
+    """Whether the FAA's current cycle is not yet complete on disk."""
+    return not pyramid_complete(current_cycle())
+
+
+def face_gaps(charts: list | None = None) -> list[tuple]:
+    """Adjacent sectional faces that fail to meet: (a, b, gap in
+    degrees) for every pair whose faces leave daylight between them
+    along a shared edge. The seam check `python -m vfr.charts check`
+    prints; an empty list is what a healthy cycle looks like (the
+    sheets overlap by a tenth of a degree to a degree)."""
+    charts = charts if charts is not None else prepared_charts(serving_cycle())
+    faces = {r.path.stem: r.face for c in charts if c.kind is SECTIONAL for r in c.rasters}
+
+    def overlap(a0, a1, b0, b1):
+        return min(a1, b1) - max(a0, b0)
+
+    gaps = []
+    for a, (aw, as_, ae, an) in faces.items():
+        for b, (bw, bs, be, bn) in faces.items():
+            if a == b:
+                continue
+            if overlap(as_, an, bs, bn) > 0.5 and abs(ae - bw) < 1.5 and bw > aw and be > ae and bw - ae > 0.005:
+                gaps.append((a, b, round(bw - ae, 3)))
+            if overlap(aw, ae, bw, be) > 1.0 and abs(an - bs) < 1.5 and bs > as_ and bn > an and bs - an > 0.005:
+                gaps.append((a, b, round(bs - an, 3)))
+    return gaps
 
 
 def _main(argv: list | None = None) -> int:
     """`python -m vfr.charts prepare` fetches every sheet;
-    `python -m vfr.charts pyramid` renders every tile. Both resume."""
+    `python -m vfr.charts pyramid` renders every tile; `refresh` does
+    both for the FAA's current cycle and prunes the old ones; `check`
+    looks for daylight between adjacent sheets. All resume."""
     import argparse
 
     parser = argparse.ArgumentParser(description="FAA VFR charts: fetch every sheet, render every tile.")
     sub = parser.add_subparsers(dest="command", required=True)
-    for name in ("prepare", "pyramid"):
+    for name in ("prepare", "pyramid", "refresh", "check"):
         p = sub.add_parser(name)
-        p.add_argument("--kind", nargs="+", choices=list(KINDS), default=list(KINDS))
+        if name in ("prepare", "pyramid"):
+            p.add_argument("--kind", nargs="+", choices=list(KINDS), default=list(KINDS))
+        if name in ("pyramid", "refresh"):
+            p.add_argument("--workers", type=int, default=4 if name == "pyramid" else 2)
         if name == "pyramid":
-            p.add_argument("--workers", type=int, default=4)
             p.add_argument("--zooms", help="e.g. 5-12; the kind's own range by default")
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -1028,6 +1205,16 @@ def _main(argv: list | None = None) -> int:
         charts = prepare_all(tuple(args.kind))
         log.info("%d charts ready under %s", len(charts), CHARTS_DIR)
         return 0
+    if args.command == "refresh":
+        cycle = refresh(workers=args.workers)
+        log.info("cycle %s complete; serving %s", cycle, serving_cycle())
+        return 0
+    if args.command == "check":
+        gaps = face_gaps()
+        for a, b, gap in gaps:
+            print(f"GAP {gap:.3f} deg between {a} and {b}")
+        print(f"{len(gaps)} gaps between adjacent sheets ({serving_cycle()})")
+        return 1 if gaps else 0
     zooms = None
     if args.zooms:
         lo, _, hi = args.zooms.partition("-")

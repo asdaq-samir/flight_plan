@@ -4,7 +4,7 @@ import type { Course, Point } from "../../../lib/api/types";
 import { isEndpoint } from "../../../lib/api/types";
 import { COLORS, hasRating, isVisible, type Filters } from "../logic";
 import {
-  createBasemaps, createCourseLine, createHalo, dotIcon, endLabelIcon,
+  CROWD_FROM_ZOOM, createBasemaps, createCourseLine, createHalo, dotIcon, endLabelIcon, fromZoom,
   setHaloMenuOpen, updateHaloContent,
 } from "../../../lib/map/leaflet";
 import { useLeafletMap } from "../../../lib/map/useLeafletMap";
@@ -45,6 +45,9 @@ export default function ChartMap({
 }: Props) {
   const { el, map } = useLeafletMap(m => onMapReady?.(m));
   const layers = useRef<Record<string, L.Layer | null>>({});
+  // The marker groups come and go with the zoom (see `fromZoom`); what
+  // is kept per group is the function that stops that and removes it.
+  const detach = useRef<Record<string, (() => void) | undefined>>({});
   const basemaps = useRef<ReturnType<typeof createBasemaps> | null>(null);
   const halo = useRef<
     { ring: L.FeatureGroup; marker: L.Layer; lat: number; lon: number; onClose?: () => void } | null
@@ -90,23 +93,24 @@ export default function ChartMap({
     const m = map.current;
     if (!m) return;
     for (const key of ["detections", "added"] as const) {
-      const existing = layers.current[key];
-      if (existing) m.removeLayer(existing);
+      detach.current[key]?.();
     }
+    // Each group comes and goes with the zoom (`fromZoom`): a few
+    // hundred detections over a whole corridor hide the chart.
     const draw = (points: Point[], kind: "detected" | "added", ring: string) =>
-      L.layerGroup(
+      fromZoom(m, L.layerGroup(
         points.map((p, i) => ({ p, i }))
           .filter(({ p }) => isVisible(p, filters))
           .map(({ p, i }) =>
             L.marker([p.lat, p.lon], {
               icon: dotIcon(hasRating(p) ? COLORS[(p as { rating: 0 }).rating] : ring),
             }).on("click", ev => { L.DomEvent.stopPropagation(ev); onSelect(kind, i); })),
-      ).addTo(m);
+      ), CROWD_FROM_ZOOM);
 
     // Unrated is slate rather than white: a white dot with a white casing
     // vanishes over pale chart.
-    layers.current.detections = draw(detections, "detected", "#8fa3b0");
-    layers.current.added = draw(added, "added", "#8fa3b0");
+    detach.current.detections = draw(detections, "detected", "#8fa3b0");
+    detach.current.added = draw(added, "added", "#8fa3b0");
   }, [map, detections, added, filters, onSelect]);
 
   // The selection ring, and the popup pinned to it.

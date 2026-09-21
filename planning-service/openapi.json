@@ -872,14 +872,45 @@
         "title": "CandidateModel",
         "type": "object"
       },
-      "ChartsStatus": {
+      "ChartRefreshStarted": {
         "properties": {
+          "current_cycle": {
+            "title": "Current Cycle",
+            "type": "string"
+          },
+          "started": {
+            "title": "Started",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "started",
+          "current_cycle"
+        ],
+        "title": "ChartRefreshStarted",
+        "type": "object"
+      },
+      "ChartsStatus": {
+        "description": "`cycle` is the edition the map draws; `current_cycle` the one\nthe FAA is on. They differ while a newer cycle is being fetched\nand rendered (`building`, `refresh_running`); the map switches\nonce every tile of the new one is there.",
+        "properties": {
+          "building": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/PyramidProgress"
+            },
+            "default": {},
+            "title": "Building",
+            "type": "object"
+          },
           "charts": {
             "items": {
               "$ref": "#/components/schemas/PreparedChart"
             },
             "title": "Charts",
             "type": "array"
+          },
+          "current_cycle": {
+            "title": "Current Cycle",
+            "type": "string"
           },
           "cycle": {
             "title": "Cycle",
@@ -893,6 +924,11 @@
             "title": "Pyramid",
             "type": "object"
           },
+          "refresh_running": {
+            "default": false,
+            "title": "Refresh Running",
+            "type": "boolean"
+          },
           "tiles_cached": {
             "title": "Tiles Cached",
             "type": "integer"
@@ -900,6 +936,7 @@
         },
         "required": [
           "cycle",
+          "current_cycle",
           "charts",
           "tiles_cached"
         ],
@@ -3893,6 +3930,25 @@
           }
         },
         "summary": "Build Status"
+      }
+    },
+    "/api/charts/refresh": {
+      "post": {
+        "description": "Fetch and render the FAA's current chart cycle now, in a\nsubprocess of the planner's own -- the same job it runs daily by\nitself. `started` is False when one is already running.",
+        "operationId": "refresh_charts_api_charts_refresh_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChartRefreshStarted"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Refresh Charts"
       }
     },
     "/api/checkpoint-notes": {

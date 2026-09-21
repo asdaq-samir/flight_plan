@@ -114,21 +114,26 @@ export function createBasemaps(map: L.Map, cfg: Course) {
     keepBuffer: 4,
   }).addTo(map);
 
-  // The terminal area chart, over the sectional, where a pilot has
-  // asked for it (`tacOverlay`; a checkbox in the info popover) --
-  // rendered the same way from the FAA's TAC sheets, one zoom finer,
-  // and transparent (a 404 the layer leaves blank) wherever no TAC
-  // exists, so the sectional shows through everywhere else.
-  const tac = L.tileLayer("/api/planner/tac-tile/{z}/{x}/{y}.png", {
-    minZoom: cfg.tac_min_zoom, maxNativeZoom: cfg.tac_max_zoom, maxZoom: cfg.tac_max_zoom + 3,
-    keepBuffer: 2, zIndex: 5,
-  });
+  // The terminal area chart, over the sectional -- rendered the same
+  // way from the FAA's TAC sheets, one zoom finer, and transparent (a
+  // 404 the layer leaves blank) wherever no TAC exists, so the
+  // sectional shows through everywhere else. Past the sectional's own
+  // resolution it is always drawn: there the sectional is only being
+  // upscaled and the TAC is the chart that still has detail (the way
+  // SkyVector's chart layer turns into the TAC close in). The checkbox
+  // in the info popover (`tacOverlay`) extends it out to every zoom it
+  // can be drawn at. Leaflet reads a layer's minZoom once, so changing
+  // it means a fresh layer.
+  const tacAlwaysFrom = Math.max(cfg.tac_min_zoom, cfg.max_zoom + 1);
+  let tac: L.TileLayer | null = null;
   const applyTac = () => {
-    if (tacOverlay.get()) {
-      if (!map.hasLayer(tac)) tac.addTo(map);
-    } else if (map.hasLayer(tac)) {
-      map.removeLayer(tac);
-    }
+    const minZoom = tacOverlay.get() ? cfg.tac_min_zoom : tacAlwaysFrom;
+    if (tac && tac.options.minZoom === minZoom) return;
+    if (tac) map.removeLayer(tac);
+    tac = L.tileLayer("/api/planner/tac-tile/{z}/{x}/{y}.png", {
+      minZoom, maxNativeZoom: cfg.tac_max_zoom, maxZoom: cfg.tac_max_zoom + 3,
+      keepBuffer: 2, zIndex: 5,
+    }).addTo(map);
   };
   applyTac();
   const unsubscribe = tacOverlay.subscribe(applyTac);
@@ -138,6 +143,31 @@ export function createBasemaps(map: L.Map, cfg: Course) {
     dispose() { unsubscribe(); },
   };
 }
+
+/**
+ * Keeps `layer` on the map only from `minZoom` in, and returns the
+ * function that stops doing so (and takes the layer off). Zoomed out to
+ * a whole region, a route's twenty checkpoint markers -- each a fixed
+ * 24 px on screen -- pile into one blob over the departure, and a
+ * labeling corridor's few hundred detections hide the chart entirely;
+ * at those zooms the course line and the two endpoints are the route.
+ */
+export function fromZoom(map: L.Map, layer: L.Layer, minZoom: number): () => void {
+  const apply = () => {
+    const show = map.getZoom() >= minZoom;
+    if (show && !map.hasLayer(layer)) layer.addTo(map);
+    else if (!show && map.hasLayer(layer)) map.removeLayer(layer);
+  };
+  apply();
+  map.on("zoomend", apply);
+  return () => { map.off("zoomend", apply); map.removeLayer(layer); };
+}
+
+/** Where the checkpoint markers appear (RouteMap's selected
+ *  checkpoints, and one level further in the scored candidates and
+ *  the labeling page's detections, which are many more). */
+export const MARKERS_FROM_ZOOM = 7;
+export const CROWD_FROM_ZOOM = 8;
 
 /**
  * The course: a white casing under an orange-red core, plus a wide

@@ -25,6 +25,7 @@ they send is a model in app.schemas.
 """
 import csv
 import logging
+import os
 import threading
 import time
 from contextlib import asynccontextmanager
@@ -44,6 +45,21 @@ log = logging.getLogger(__name__)
 # Inside the datasets' own five-minute time-to-live, so a held copy is
 # replaced before a request could find it stale.
 WEATHER_REFRESH_S = 240
+# How often to ask whether the FAA has moved to a new chart cycle
+# (every 56 days, so daily is plenty) and, if so, fetch and render it
+# in a subprocess. CHARTS_AUTO_REFRESH=0 turns that off -- a test
+# stack, or a deployment that renders its pyramid elsewhere.
+CHART_CYCLE_CHECK_S = 24 * 3600
+CHARTS_AUTO_REFRESH = os.environ.get("CHARTS_AUTO_REFRESH", "1") != "0"
+
+
+def _refresh_charts_if_due() -> None:
+    try:
+        if charts.refresh_due():
+            if charts.refresh_in_background():
+                log.info("chart cycle %s is not complete on disk; fetching and rendering it", charts.current_cycle())
+    except Exception:  # noqa: BLE001 -- the next daily check tries again; the map keeps serving what it has
+        log.warning("chart cycle check failed", exc_info=True)
 
 
 def _prepare_corridor_charts() -> None:
@@ -84,12 +100,17 @@ def _warm_reference_data() -> None:
         except Exception:  # noqa: BLE001 -- the first altitude selection will load it, and report its own error
             log.exception("%s warm-up failed", name)
 
+    if CHARTS_AUTO_REFRESH:
+        _refresh_charts_if_due()
+
     # Then keep the weather warm: the METAR/TAF/SIGMET files and the
     # winds product are fetched again every few minutes, inside their
     # own time-to-live, so no pilot's request ever pays for a download
     # -- on a slow aviationweather.gov day the first plan after an
     # expiry was observed waiting close to a minute. A refresh that
-    # fails is logged and the held copies go on being served.
+    # fails is logged and the held copies go on being served. Once a
+    # day, the chart cycle is checked the same way.
+    last_cycle_check = time.time()
     while True:
         time.sleep(WEATHER_REFRESH_S)
         try:
@@ -97,6 +118,9 @@ def _warm_reference_data() -> None:
             log.info("weather refreshed")
         except Exception:  # noqa: BLE001 -- the next tick tries again; requests serve what is held
             log.warning("weather refresh failed", exc_info=True)
+        if CHARTS_AUTO_REFRESH and time.time() - last_cycle_check >= CHART_CYCLE_CHECK_S:
+            last_cycle_check = time.time()
+            _refresh_charts_if_due()
 
 
 @asynccontextmanager

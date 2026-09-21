@@ -689,10 +689,23 @@ class PyramidProgress(BaseModel):
 
 
 class ChartsStatus(BaseModel):
+    """`cycle` is the edition the map draws; `current_cycle` the one
+    the FAA is on. They differ while a newer cycle is being fetched
+    and rendered (`building`, `refresh_running`); the map switches
+    once every tile of the new one is there."""
+
     cycle: str
+    current_cycle: str
     charts: list[PreparedChart]
     tiles_cached: int
     pyramid: dict[str, PyramidProgress] = {}
+    building: dict[str, PyramidProgress] = {}
+    refresh_running: bool = False
+
+
+class ChartRefreshStarted(BaseModel):
+    started: bool
+    current_cycle: str
 
 
 class Status(BaseModel):

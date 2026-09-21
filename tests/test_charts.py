@@ -204,11 +204,74 @@ def test_render_pyramid_writes_every_tile_of_every_sheet_and_composites_seams(tm
     assert tuple(seam[200, col(-87.7)]) == (0, 0, 255, 255)
     assert seam[2, 128, 3] == 0
 
-    progress = charts.pyramid_status()["sec"]
+    progress = charts.pyramid_status("09-03-2026")["sec"]
     assert progress["rasters_done"] == 2 and progress["finished_at"] and progress["tiles_written"] == written
+    assert charts.pyramid_complete("09-03-2026", ("sec",))
+    assert not charts.pyramid_complete("09-03-2026")   # no TAC pyramid yet
 
     # A second run finds every tile complete and writes nothing.
     assert charts.render_pyramid(charts.SECTIONAL, zooms=(7, 8), workers=0, charts=sheets) == 0
+
+    # Adjacent faces that meet are no gap; a face pulled back is.
+    assert charts.face_gaps(sheets) == []
+    apart = [sheets[0], charts.Chart(charts.SECTIONAL, "Right", "09-03-2026",
+                                     (charts.Raster(tmp_path / "right.tif", face=(-87.9, 41.0, -86.0, 43.0), envelope=right_box),), "now")]
+    assert charts.face_gaps(apart) == [("left", "right", 0.1)]
+
+
+def test_serving_cycle_is_the_newest_complete_pyramid(tmp_path, monkeypatch):
+    monkeypatch.setattr(charts, "CHART_TILE_CACHE_DIR", tmp_path / "tiles")
+    monkeypatch.setattr(charts, "CHARTS_DIR", tmp_path / "charts")
+    monkeypatch.setattr(charts, "current_cycle", lambda *a, **k: "10-29-2026")
+    monkeypatch.setattr(charts, "_serving_cache", {"value": None, "at": 0.0})
+
+    # Nothing on disk: the FAA's current cycle, rendered on demand.
+    assert charts.serving_cycle() == "10-29-2026"
+
+    done = {"kind": "sec", "zooms": [3], "started_at": "t", "finished_at": "t", "rasters_total": 1,
+            "rasters_done": 1, "tiles_written": 1, "current": None}
+    charts._write_pyramid_status("09-03-2026", done)
+    charts._write_pyramid_status("10-29-2026", {**done, "finished_at": None})   # the new one, still rendering
+    assert charts.serving_cycle() == "09-03-2026"
+    assert charts.refresh_due()
+
+    charts._write_pyramid_status("10-29-2026", done)
+    charts._write_pyramid_status("10-29-2026", {**done, "kind": "tac"})
+    assert charts.serving_cycle() == "10-29-2026"
+    assert not charts.refresh_due()
+
+    (tmp_path / "charts" / "09-03-2026" / "sec").mkdir(parents=True)
+    (tmp_path / "charts" / "10-29-2026" / "sec").mkdir(parents=True)
+    removed = charts.prune_cycles(keep="10-29-2026")
+    assert sorted(removed) == ["charts/09-03-2026", "tiles/09-03-2026"]
+    assert not (tmp_path / "charts" / "09-03-2026").exists()
+    assert (tmp_path / "charts" / "10-29-2026").exists()
+    assert not (tmp_path / "tiles" / "09-03-2026").exists()
+
+
+def test_refresh_prepares_renders_and_prunes_only_when_complete(tmp_path, monkeypatch):
+    monkeypatch.setattr(charts, "CHART_TILE_CACHE_DIR", tmp_path / "tiles")
+    monkeypatch.setattr(charts, "CHARTS_DIR", tmp_path / "charts")
+    monkeypatch.setattr(charts, "current_cycle", lambda *a, **k: "10-29-2026")
+    monkeypatch.setattr(charts, "_serving_cache", {"value": None, "at": 0.0})
+    calls = []
+    monkeypatch.setattr(charts, "prepare_all", lambda kinds, cycle: calls.append(("prepare", kinds, cycle)))
+
+    def fake_render(kind, workers=2, cycle=None, **kw):
+        calls.append(("render", kind.key, cycle))
+        charts._write_pyramid_status(cycle, {"kind": kind.key, "zooms": [], "started_at": "t", "finished_at": "t",
+                                             "rasters_total": 0, "rasters_done": 0, "tiles_written": 0, "current": None})
+        return 0
+
+    monkeypatch.setattr(charts, "render_pyramid", fake_render)
+    (tmp_path / "tiles" / "09-03-2026").mkdir(parents=True)
+
+    assert charts.refresh(workers=1) == "10-29-2026"
+    assert calls == [("prepare", ("sec", "tac"), "10-29-2026"), ("render", "sec", "10-29-2026"), ("render", "tac", "10-29-2026")]
+    assert not (tmp_path / "tiles" / "09-03-2026").exists()   # pruned once the new cycle was complete
+    calls.clear()
+    assert charts.refresh(workers=1) == "10-29-2026"
+    assert calls == []                                        # already complete: nothing to do
 
 
 def test_tile_png_caches_the_render_and_remembers_empty_tiles(tmp_path, monkeypatch):
