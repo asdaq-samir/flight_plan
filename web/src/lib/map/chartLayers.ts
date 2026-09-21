@@ -28,7 +28,11 @@ export const BASE_CHARTS: { kind: BaseChart; label: string }[] = [
 ];
 
 const BASE_KEY = "vfr.base";
-const TAC_KEY = "vfr.tac";
+// "vfr.pinned", not the "vfr.tac" this setting was stored under when it
+// meant "draw the TAC as soon as it can be drawn": a browser that had
+// that on would otherwise start with the terminal chart pinned, which
+// is exactly the chart appearing unasked that the pin exists to end.
+const TAC_KEY = "vfr.pinned";
 const listeners = new Set<() => void>();
 
 function read<T extends string>(key: string, allowed: readonly T[], fallback: T): T {

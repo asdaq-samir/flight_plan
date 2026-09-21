@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useLocation } from "react-router-dom";
-import { RefreshCw, SquareTerminal } from "lucide-react";
+import { ExternalLink, RefreshCw, SquareTerminal } from "lucide-react";
 import { toast } from "sonner";
 import { Bar, BarChart, Cell, LabelList, XAxis, YAxis } from "recharts";
 import { cn } from "cn";
@@ -458,6 +458,38 @@ function CorridorsTab({ status }: { status: Status | undefined }) {
   );
 }
 
+/** A section's title and the one line that says what it shows. */
+function SectionHeading({ title, description }: { title: string; description?: string }) {
+  return (
+    <div>
+      <h3 className="text-sm font-semibold">{title}</h3>
+      {description && <p className="mt-0.5 text-xs text-muted-foreground">{description}</p>}
+    </div>
+  );
+}
+
+/** "up" / "down" / "checking…" as a small pill with the dot. */
+function StatusPill({ up }: { up: boolean | undefined }) {
+  return (
+    <Badge variant="outline" className="gap-1.5 font-normal">
+      <StatusDot up={up} />
+      {up === undefined ? "checking…" : up ? "up" : "down"}
+    </Badge>
+  );
+}
+
+/** What a reference file is, for a developer who has not memorised the
+ *  FAA's file names. */
+const DATASET_NAMES: Record<string, string> = {
+  "DOF.DAT": "Obstacles",
+  "NAV_BASE.csv": "Navaids",
+  "APT_BASE.csv": "Airports",
+  "Shape_Files/Class_Airspace.shp": "Airspace",
+  metars: "METARs",
+  tafs: "TAFs",
+  airsigmets: "AIRMETs and SIGMETs",
+};
+
 /** Green up, red down, grey unknown -- and amber, pulsing, for
  *  something under way (a training run). */
 function StatusDot({ up, pending = false }: { up: boolean | undefined; pending?: boolean }) {
@@ -488,25 +520,25 @@ function ChartsSection({ charts, onRefresh, refreshing }: {
     !p ? "—"
       : p.finished_at ? "complete"
       : `${p.rasters_done}/${p.rasters_total} sheets${p.current ? `, on ${p.current}` : ""}`;
+  const workers = `${charts.refresh_workers} worker${charts.refresh_workers === 1 ? "" : "s"}`;
   return (
     <section data-testid="charts-status">
-      <h3 className="text-sm font-semibold">Charts</h3>
-      <p className="mt-1 text-sm text-muted-foreground">
-        FAA GeoTIFFs, cycle {charts.cycle}, {charts.tiles_cached.toLocaleString()} tiles rendered.
-        {newer
-          ? ` The FAA is on cycle ${charts.current_cycle}: ${charts.refresh_running ? "fetching and rendering it now" : "not rendered yet"}.`
-          : " The FAA is on the same cycle."}
-        {" "}A new cycle renders {charts.refresh_window ? `in the ${charts.refresh_window} window` : "as soon as it is seen"}
-        {` with ${charts.refresh_workers} worker${charts.refresh_workers === 1 ? "" : "s"}, or `}
-        <Button
-          variant="link" size="sm" className="h-auto p-0"
-          onClick={onRefresh}
-          disabled={refreshing || charts.refresh_running}
-        >
-          {charts.refresh_running ? "refreshing…" : "now"}
-        </Button>.
-      </p>
-      <Table containerClassName="mt-2 rounded-md border" className="min-w-[24rem]">
+      <SectionHeading title="Charts" description="The FAA GeoTIFFs on disk and the tile pyramid the map is served from. A new cycle is fetched and rendered by the planner itself." />
+      <div className="mt-2 flex flex-wrap items-end justify-between gap-3">
+        <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-4">
+          <Fact label="Serving cycle" value={charts.cycle} />
+          <Fact
+            label="FAA cycle"
+            value={newer ? `${charts.current_cycle} · ${charts.refresh_running ? "rendering" : "not yet"}` : "the same"}
+          />
+          <Fact label="Tiles" value={charts.tiles_cached.toLocaleString()} />
+          <Fact label="Next render" value={charts.refresh_window ? `${charts.refresh_window}, ${workers}` : `any time, ${workers}`} />
+        </div>
+        <Button type="button" variant="outline" size="sm" onClick={onRefresh} disabled={refreshing || charts.refresh_running}>
+          {charts.refresh_running ? "Rendering…" : "Render now"}
+        </Button>
+      </div>
+      <Table containerClassName="mt-3 rounded-md border" className="min-w-[24rem]">
         <TableCaption className="sr-only">Chart kinds on disk and their tile pyramids</TableCaption>
         <TableHeader>
           <TableRow>
@@ -599,60 +631,84 @@ function SystemTab({ status }: { status: Status | undefined }) {
     { label: "Airflow (the training DAG)", href: `http://${host}:8081`, localOnly: true },
   ];
 
+  const datasets: { name: string; file: string; source: string; updated: string | null | undefined }[] = [
+    ...(status?.faa_files ?? []).map(f => ({
+      name: DATASET_NAMES[f.name] ?? f.name, file: f.name.split("/").pop() ?? f.name, source: "FAA", updated: f.downloaded_at,
+    })),
+    ...(status?.weather ?? []).map(w => ({
+      name: DATASET_NAMES[w.name] ?? w.name, file: w.name, source: "aviationweather.gov", updated: w.fetched_at,
+    })),
+  ];
+
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       <section>
-        <h3 className="text-sm font-semibold">Services</h3>
-        <ul className="mt-1 space-y-1 text-sm">
-          {rows.map(r => (
-            <li key={r.name} className="flex items-baseline gap-2">
-              <StatusDot up={r.up} />
-              <span className="font-medium">{r.name}</span>
-              <span className="text-muted-foreground">{r.detail}</span>
-            </li>
-          ))}
-        </ul>
+        <SectionHeading title="Services" description="What answers right now. The gateway and its database report through Spring's actuator, the planner through its own proxy, the rest through the planner's probes." />
+        <Table containerClassName="mt-2 rounded-md border" className="min-w-[28rem]">
+          <TableCaption className="sr-only">Services and whether each answers</TableCaption>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Service</TableHead>
+              <TableHead className="w-28">Status</TableHead>
+              <TableHead>Role</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rows.map(r => (
+              <TableRow key={r.name}>
+                <TableCell className="font-medium">{r.name}</TableCell>
+                <TableCell><StatusPill up={r.up} /></TableCell>
+                <TableCell className="text-muted-foreground">{r.detail}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
       </section>
       <section>
-        <h3 className="text-sm font-semibold">Reference data</h3>
-        <ul className="mt-1 space-y-1 text-sm">
-          {(status?.faa_files ?? []).map(f => (
-            <li key={f.name} className="flex items-baseline gap-2">
-              <span className="font-mono">{f.name}</span>
-              <span className="text-muted-foreground">FAA download, {ago(f.downloaded_at)}</span>
-            </li>
-          ))}
-          {(status?.weather ?? []).map(w => (
-            <li key={w.name} className="flex items-baseline gap-2">
-              <span className="font-mono">{w.name}</span>
-              <span className="text-muted-foreground">
-                aviationweather.gov cache file, {w.fetched_at ? `fetched ${ago(w.fetched_at)}` : "not fetched yet"}
-              </span>
-            </li>
-          ))}
-          {!status && <li className="text-muted-foreground">Loading…</li>}
-        </ul>
+        <SectionHeading title="Reference data" description="The files the planner reads and how old each copy is." />
+        <Table containerClassName="mt-2 rounded-md border" className="min-w-[28rem]">
+          <TableCaption className="sr-only">Reference datasets and when each was fetched</TableCaption>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Data</TableHead>
+              <TableHead>File</TableHead>
+              <TableHead>Source</TableHead>
+              <TableHead>Updated</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {datasets.map(d => (
+              <TableRow key={d.file}>
+                <TableCell className="font-medium">{d.name}</TableCell>
+                <TableCell className="font-mono text-xs">{d.file}</TableCell>
+                <TableCell className="text-muted-foreground">{d.source}</TableCell>
+                <TableCell className="text-muted-foreground">{d.updated ? ago(d.updated) : "not fetched yet"}</TableCell>
+              </TableRow>
+            ))}
+            {datasets.length === 0 && (
+              <TableRow><TableCell colSpan={4} className="h-12 text-center text-muted-foreground">{status ? "Nothing on disk yet." : "Loading…"}</TableCell></TableRow>
+            )}
+          </TableBody>
+        </Table>
       </section>
       {status?.charts && <ChartsSection charts={status.charts} onRefresh={() => refreshCharts.mutate()} refreshing={refreshCharts.isPending} />}
       <section>
-        <h3 className="text-sm font-semibold">Elsewhere in the stack</h3>
-        <ul className="mt-1 space-y-1 text-sm">
-          <li>
-            <a href="/api/planner/status" target="_blank" rel="noreferrer" className="underline underline-offset-4">
-              this snapshot as JSON
-            </a>
-          </li>
-          {links.filter(l => local || !l.localOnly).map(l => (
-            <li key={l.href}>
-              <a href={l.href} target="_blank" rel="noreferrer" className="underline underline-offset-4">{l.label}</a>
-            </li>
+        <SectionHeading title="Elsewhere in the stack" description="The other doors into the running stack, each in a new tab." />
+        <div className="mt-2 flex flex-wrap gap-2">
+          {[{ label: "This snapshot as JSON", href: "/api/planner/status" }, ...links.filter(l => local || !l.localOnly)].map(l => (
+            <Button key={l.href} asChild variant="outline" size="sm">
+              <a href={l.href} target="_blank" rel="noreferrer">
+                {l.label}
+                <ExternalLink className="text-muted-foreground" />
+              </a>
+            </Button>
           ))}
-          {local && (
-            <li className="text-muted-foreground">
-              MCP server: <span className="font-mono">http://{host}:8082/mcp/sse</span> (bearer token, see nav-log-agent)
-            </li>
-          )}
-        </ul>
+        </div>
+        {local && (
+          <p className="mt-2 text-xs text-muted-foreground">
+            MCP server at <span className="font-mono">http://{host}:8082/mcp/sse</span>, bearer token as nav-log-agent's README says.
+          </p>
+        )}
       </section>
     </div>
   );

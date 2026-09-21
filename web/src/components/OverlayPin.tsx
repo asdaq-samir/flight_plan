@@ -38,7 +38,17 @@ export default function OverlayPin({ map, basemaps }: Props) {
     return () => { map.off("moveend zoomend", update); unsubscribe(); };
   }, [map, basemaps]);
 
-  if (!offer || !(offer.offered || pinned)) return null;
+  // The preview ends with the pill: a pill that goes away under the
+  // pointer (the map zoomed out past the offer) never gets its
+  // pointerleave, and without this the preview stayed on -- the
+  // terminal chart drawn everywhere, with nothing on screen to say why.
+  const visible = !!offer && (offer.offered || pinned);
+  useEffect(() => {
+    if (!visible) basemaps?.preview(false);
+    return () => basemaps?.preview(false);
+  }, [visible, basemaps]);
+
+  if (!visible) return null;
   return (
     <Button
       type="button"
@@ -52,11 +62,13 @@ export default function OverlayPin({ map, basemaps }: Props) {
       // still inside the map's own stacking context, so a drawer
       // opened over the map covers it along with the map.
       className="absolute right-2 top-2 z-[1000] shadow-sm"
-      onClick={() => chartLayers.setTac(!pinned)}
+      // A tap decides; the preview ends with it either way, so an
+      // unpin under a resting pointer shows the base chart at once.
+      onClick={() => { basemaps?.preview(false); chartLayers.setTac(!pinned); }}
       // A hover preview for a pointer only: a finger's tap also fires
       // pointerenter and never a pointerleave, which would leave the
       // preview on after an unpin.
-      onPointerEnter={e => { if (e.pointerType === "mouse") basemaps?.preview(true); }}
+      onPointerEnter={e => { if (e.pointerType === "mouse" && !pinned) basemaps?.preview(true); }}
       onPointerLeave={() => basemaps?.preview(false)}
     >
       {pinned ? <PinOff /> : <Pin />}
