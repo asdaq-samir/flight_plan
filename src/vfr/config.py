@@ -24,41 +24,34 @@ LABELS_PATH = DATA_DIR / "labels" / "spottability_ratings.csv"
 # stratify/fold-count error.
 MIN_LABELED_ROWS = 30
 
-# The FAA's own tiled VFR Sectional service, in the same {z}/{y}/{x} XYZ
-# scheme as any slippy map. Chart tiles stop at zoom 12 -- fixed print
-# resolution, unlike a photo you can zoom into indefinitely -- and the
-# service 404s below 8.
+# The VFR charts themselves: the FAA publishes every sectional and
+# terminal area chart as a georeferenced TIFF, free, on the 56-day
+# chart cycle. vfr.charts downloads the ones a route needs and renders
+# the map's tiles from them -- the chart exactly as printed, served by
+# this app, with no hosted map service in between. (Two came and went
+# before this: the FAA's own ArcGIS tile cache, which went behind a
+# login around 2026-09-03, then Texas A&M's public mirror of the same
+# data, which had no tile cache and no chart west of Duluth.)
 #
-# Used by vfr.chartvision only now (server-side tile reads for
-# candidate detection) -- the browser pages used to draw this directly
-# too, until FAA locked the whole AGOL account (this service and its
-# siblings alike) behind auth around 2026-09-03; anonymous tile
-# requests here now 404. Left as-is rather than patched, since fixing
-# chartvision's own read path isn't the same job as fixing what a
-# pilot's map shows -- see VFR_SECTIONAL_MAP_SERVICE_URL below for that
-# one, and don't reuse this constant for both without checking this
-# comment is still true.
-#
-# These live in config rather than with the labeling loop they were
-# written for: vfr.chartvision reads the chart, and none of that is
-# labeling. Keeping them next to a loop that has been superseded meant
-# three modules importing a labeling module for a URL.
-FAA_VFR_SECTIONAL_URL = (
-    "https://tiles.arcgis.com/tiles/ssFJjBXIUyZDrSYZ/arcgis/rest/services/"
-    "VFR_Sectional/MapServer/tile/{z}/{y}/{x}"
-)
+# Chart editions are listed on the products page, each under a
+# cycle-dated URL; the anchor date is one such cycle, from which the
+# others are 56-day arithmetic when the page cannot be reached.
+FAA_VFR_PRODUCTS_PAGE = "https://www.faa.gov/air_traffic/flight_info/aeronav/digital_products/vfr/"
+FAA_CHART_ZIP_URL = "https://aeronav.faa.gov/visual/{cycle}/{folder}/{name}.zip"
+FAA_CHART_CYCLE_ANCHOR = "2026-09-03"
+FAA_CHART_CYCLE_DAYS = 56
+
+# Where the downloaded rasters and the tiles rendered from them live --
+# both under data/raw, which is not tracked (a sectional is ~70 MB).
+CHARTS_DIR = DATA_DIR / "raw" / "charts"
+CHART_TILE_CACHE_DIR = DATA_DIR / "raw" / "chart_tiles" / "faa"
+
+# A sectional is printed at 1:500,000 (about 42 m per pixel in the
+# FAA's raster), which is a web-mercator zoom of 12 at these latitudes;
+# past that there is nothing more to see, and below 8 a tile is mostly
+# collar and seams. A terminal area chart is 1:250,000, one zoom
+# further in, and only worth drawing close up.
 VFR_SECTIONAL_MAX_ZOOM = 12
 VFR_SECTIONAL_MIN_ZOOM = 8
-
-# What the browser's own map draws instead, now that the service above
-# needs a token: a public mirror Texas A&M's Transportation Institute
-# hosts of the same FAA sectional data, kept current on the same ~56
-# day chart cycle. It has no cached tile pyramid
-# (singleFusedMapCache: false in its own service metadata), so it
-# can't be a {z}/{x}/{y} URL template the way the service above is --
-# the browser draws it with esri-leaflet's dynamicMapLayer (a bbox
-# image export per view) instead of a plain tile layer. See
-# createBasemaps in web/src/lib/map/leaflet.tsx.
-VFR_SECTIONAL_MAP_SERVICE_URL = (
-    "https://twcgis.tamu.edu/arcgis/rest/services/Aviation/FAA_Sectional_Charts/MapServer"
-)
+VFR_TAC_MAX_ZOOM = 13
+VFR_TAC_MIN_ZOOM = 10

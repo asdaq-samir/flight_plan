@@ -1,4 +1,5 @@
 import MapGuideButton from "../../../components/MapGuideButton";
+import TacOverlayToggle from "../../../components/TacOverlayToggle";
 import { Badge } from "../../../components/ui/badge";
 import { Kbd } from "../../../components/ui/kbd";
 import type { Rating } from "../../../lib/api/types";
@@ -49,6 +50,7 @@ export default function RatingLegend() {
         1 means it&rsquo;s real but poor. <b>Ignore spacing</b>; selection already enforces
         separation. <b>Judge at this zoom</b>.
       </p>
+      <TacOverlayToggle />
       <div className="space-y-1.5 border-t border-border pt-2 text-muted-foreground">
         {SHORTCUTS.map(([key, text]) => (
           <div key={text} className="flex items-center gap-2">

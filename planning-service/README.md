@@ -119,7 +119,8 @@ once in ten.
 | `GET /api/altitude-breakdown` | The reasoning behind a recommended cruise altitude. |
 | `GET /api/detect/stream` | Chart-vision detections, streamed as NDJSON. |
 | `GET /api/classify` | What the chart draws at one point. |
-| `GET /api/sectional-tile/{z}/{x}/{y}.png` | The sectional as a cached tile pyramid, for the map. |
+| `GET /api/sectional-tile/{z}/{x}/{y}.png` | The sectional as a cached tile pyramid, for the map -- rendered from the FAA's own GeoTIFF of each sheet (`vfr.charts`), downloaded on first use each 56-day cycle, collar clipped away so sheets butt together. |
+| `GET /api/tac-tile/{z}/{x}/{y}.png` | The terminal area charts the same way, for the map's optional overlay; 404 wherever no TAC exists. |
 | `GET/POST/DELETE /api/picks` | Hand-marked checkpoints. |
 | `GET/POST /api/checkpoint-notes` | A pilot's "how to spot it" note per checkpoint. |
 | `GET /api/airports/search` | Identifier and name lookup for the route form. |

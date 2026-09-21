@@ -3,6 +3,7 @@ import { flushSync } from "react-dom";
 import { createRoot } from "react-dom/client";
 import type { ReactNode } from "react";
 import type { Course } from "../api/types";
+import { tacOverlay } from "./tacOverlay";
 
 /**
  * Leaflet, kept imperative on purpose.
@@ -101,29 +102,25 @@ export function createBasemaps(map: L.Map, cfg: Course) {
   const layers = {
     // A plain tile layer, the same shape as `osm` below -- but the
     // tiles come from this app's own planning-service
-    // (/api/sectional-tile), which builds a {z}/{x}/{y} pyramid out of
-    // the TAMU dynamic map service one tile-sized export at a time and
-    // caches it on disk. That service has no tile cache of its own (see
-    // VFR_SECTIONAL_MAP_SERVICE_URL's comment in src/vfr/config.py), and
-    // drawing it directly as a dynamic layer -- one whole-viewport image
-    // export per pan/zoom, swapped in when it arrived -- was the "tiles
-    // snap on" feel no amount of padding or fading could fix: a single
-    // image can only ever be replaced whole. Tiles fetch only the new
-    // edge on a pan, scale the previous zoom's tiles under the zoom
-    // animation, and prefetch a ring (keepBuffer) beyond the viewport,
-    // all of it Leaflet's own tested behaviour.
+    // (/api/sectional-tile), which renders a {z}/{x}/{y} pyramid from
+    // the FAA's own GeoTIFF of each sectional sheet (src/vfr/charts.py)
+    // and caches it on disk. Tiles fetch only the new edge on a pan,
+    // scale the previous zoom's tiles under the zoom animation, and
+    // prefetch a ring (keepBuffer) beyond the viewport, all of it
+    // Leaflet's own tested behaviour -- which is why the chart is
+    // served as tiles at all, rather than drawn as the one-image-per-
+    // view dynamic layer it once was ("tiles snap on", every pan).
     //
-    // maxNativeZoom, not maxZoom: past the chart's own max_zoom Leaflet
-    // upscales the last real tiles rather than asking for ones that
-    // would only cost TAMU a render of the same pixels bigger. maxZoom
-    // stops that three levels later: an 8x upscale is still a legible
-    // (if soft) chart, but the old dynamic layer's "keeps rendering at
-    // any zoom" doesn't carry over to tiles -- seven levels past native
-    // a 256px tile is a 128x smear of whatever colour it was, so past
-    // 15 this layer simply hides and the OSM base underneath (a real
-    // street map at that scale) is what's left.
+    // maxNativeZoom, not maxZoom: past the chart's own max_zoom (its
+    // print resolution) Leaflet upscales the last real tiles rather
+    // than asking for ones that would only be the same pixels bigger.
+    // maxZoom stops that three levels later: an 8x upscale is still a
+    // legible (if soft) chart, but seven levels past native a 256px
+    // tile is a 128x smear of whatever colour it was, so past 15 this
+    // layer simply hides and the OSM base underneath (a real street map
+    // at that scale) is what's left.
     faa: L.tileLayer("/api/planner/sectional-tile/{z}/{x}/{y}.png", {
-      attribution: "FAA Sectional Charts, Texas A&amp;M",
+      attribution: "FAA VFR charts",
       minZoom: cfg.min_zoom, maxNativeZoom: cfg.max_zoom, maxZoom: cfg.max_zoom + 3,
       keepBuffer: 4,
     }),
@@ -134,6 +131,27 @@ export function createBasemaps(map: L.Map, cfg: Course) {
   let active: keyof typeof layers = "faa";
   layers[active].addTo(map);
 
+  // The terminal area chart, over whichever basemap is showing, where
+  // a pilot has asked for it (`tacOverlay`; a checkbox in the info
+  // popover) -- rendered the same way from the FAA's TAC sheets, one
+  // zoom finer, and transparent (a 404 the layer leaves blank) wherever
+  // no TAC exists, so the sectional shows through everywhere else. Its
+  // zIndex keeps it above the basemaps, which `toggle` below re-adds
+  // after it.
+  const tac = L.tileLayer("/api/planner/tac-tile/{z}/{x}/{y}.png", {
+    minZoom: cfg.tac_min_zoom, maxNativeZoom: cfg.tac_max_zoom, maxZoom: cfg.tac_max_zoom + 3,
+    keepBuffer: 2, zIndex: 5,
+  });
+  const applyTac = () => {
+    if (tacOverlay.get()) {
+      if (!map.hasLayer(tac)) tac.addTo(map);
+    } else if (map.hasLayer(tac)) {
+      map.removeLayer(tac);
+    }
+  };
+  applyTac();
+  const unsubscribe = tacOverlay.subscribe(applyTac);
+
   return {
     get active() { return active; },
     get belowChart() { return map.getZoom() < (cfg.min_zoom || 8); },
@@ -143,6 +161,7 @@ export function createBasemaps(map: L.Map, cfg: Course) {
       layers[active].addTo(map);
       return active;
     },
+    dispose() { unsubscribe(); },
   };
 }
 

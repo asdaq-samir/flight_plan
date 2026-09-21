@@ -872,6 +872,32 @@
         "title": "CandidateModel",
         "type": "object"
       },
+      "ChartsStatus": {
+        "properties": {
+          "charts": {
+            "items": {
+              "$ref": "#/components/schemas/PreparedChart"
+            },
+            "title": "Charts",
+            "type": "array"
+          },
+          "cycle": {
+            "title": "Cycle",
+            "type": "string"
+          },
+          "tiles_cached": {
+            "title": "Tiles Cached",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "cycle",
+          "charts",
+          "tiles_cached"
+        ],
+        "title": "ChartsStatus",
+        "type": "object"
+      },
       "CheckpointNote": {
         "properties": {
           "created_at": {
@@ -1136,6 +1162,14 @@
           "min_zoom": {
             "title": "Min Zoom",
             "type": "integer"
+          },
+          "tac_max_zoom": {
+            "title": "Tac Max Zoom",
+            "type": "integer"
+          },
+          "tac_min_zoom": {
+            "title": "Tac Min Zoom",
+            "type": "integer"
           }
         },
         "required": [
@@ -1145,7 +1179,9 @@
           "bearing_deg",
           "course_line",
           "max_zoom",
-          "min_zoom"
+          "min_zoom",
+          "tac_max_zoom",
+          "tac_min_zoom"
         ],
         "title": "Course",
         "type": "object"
@@ -2999,6 +3035,14 @@
             "title": "Selected",
             "type": "array"
           },
+          "tac_max_zoom": {
+            "title": "Tac Max Zoom",
+            "type": "integer"
+          },
+          "tac_min_zoom": {
+            "title": "Tac Min Zoom",
+            "type": "integer"
+          },
           "totals": {
             "$ref": "#/components/schemas/Totals"
           },
@@ -3021,9 +3065,55 @@
           "altitude_selection",
           "aircraft",
           "max_zoom",
-          "min_zoom"
+          "min_zoom",
+          "tac_max_zoom",
+          "tac_min_zoom"
         ],
         "title": "Plan",
+        "type": "object"
+      },
+      "PreparedChart": {
+        "description": "One FAA chart zip downloaded and ready to draw: `rasters` are\nthe sheets inside it (a TAC zip can carry two).",
+        "properties": {
+          "cycle": {
+            "title": "Cycle",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "prepared_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prepared At"
+          },
+          "rasters": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Rasters",
+            "type": "array"
+          }
+        },
+        "required": [
+          "name",
+          "kind",
+          "cycle",
+          "prepared_at",
+          "rasters"
+        ],
+        "title": "PreparedChart",
         "type": "object"
       },
       "RetrainStarted": {
@@ -3185,6 +3275,9 @@
       },
       "Status": {
         "properties": {
+          "charts": {
+            "$ref": "#/components/schemas/ChartsStatus"
+          },
           "checked_at": {
             "title": "Checked At",
             "type": "string"
@@ -3225,6 +3318,7 @@
           "services",
           "faa_files",
           "weather",
+          "charts",
           "model",
           "pipeline",
           "corridors"
@@ -4549,7 +4643,7 @@
     },
     "/api/sectional-tile/{z}/{x}/{y}.png": {
       "get": {
-        "description": "The sectional as a {z}/{x}/{y} tile pyramid, built from the TAMU\ndynamic map service one tile-sized export at a time and cached on\ndisk (vfr.chartvision's own tile cache -- the same files the\ndetector reads, so a corridor planned once has its map tiles ready,\nand a map browsed once has its detection tiles ready).\n\nThis is what makes the map's sectional layer a plain Leaflet tile\nlayer: edge-only fetches on a pan, the previous zoom's tiles scaled\nunder the zoom animation, a prefetch ring -- everything a tile\npyramid gets for free that a one-image-per-view dynamic layer\nstructurally could not. Outside the chart's own useful zoom range\nthere is nothing worth rendering: the tile layer's maxNativeZoom\nkeeps the browser from asking, and this keeps anyone else from\nmaking TAMU render it.",
+        "description": "The sectional as a {z}/{x}/{y} tile pyramid, rendered from the\nFAA's own GeoTIFF of each sheet (vfr.charts -- downloaded once per\n56-day chart cycle) and cached on disk. The same tiles the detector\nreads, so a corridor planned once has its map tiles ready, and a map\nbrowsed once has its detection tiles ready.\n\nA tile pyramid is what makes the map's chart layer a plain Leaflet\ntile layer: edge-only fetches on a pan, the previous zoom's tiles\nscaled under the zoom animation, a prefetch ring. 404 where no sheet\ncovers the tile, which the layer leaves blank for the street map\nunderneath; the layer's own maxNativeZoom keeps the browser from\nasking past the chart's resolution.",
         "operationId": "sectional_tile_api_sectional_tile__z___x___y__png_get",
         "parameters": [
           {
@@ -4620,6 +4714,62 @@
           }
         },
         "summary": "Status"
+      }
+    },
+    "/api/tac-tile/{z}/{x}/{y}.png": {
+      "get": {
+        "description": "The terminal area charts, the same way -- an optional overlay\nthe map draws above the sectional close in, where a TAC exists\n(Chicago's covers the first leg out of C81). Transparent, and so a\n404, everywhere else.",
+        "operationId": "tac_tile_api_tac_tile__z___x___y__png_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "z",
+            "required": true,
+            "schema": {
+              "title": "Z",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "x",
+            "required": true,
+            "schema": {
+              "title": "X",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "y",
+            "required": true,
+            "schema": {
+              "title": "Y",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Tac Tile"
       }
     }
   }

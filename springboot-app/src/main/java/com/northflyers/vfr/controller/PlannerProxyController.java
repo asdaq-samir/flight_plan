@@ -129,7 +129,7 @@ public class PlannerProxyController {
                 // Flushed per chunk below; announcing it keeps any
                 // intermediary from deciding to buffer the stream itself.
                 .header("X-Accel-Buffering", "no");
-        // Forwarded for the sectional-tile endpoint only: its
+        // Forwarded for the two chart-tile endpoints only: their
         // `public, max-age=...` is what lets the browser (and any CDN in
         // front of this app) skip asking again for a tile it already
         // has, rather than round-tripping here just to get told "same
@@ -138,7 +138,7 @@ public class PlannerProxyController {
         // ...) depends on saved state or a request body, so a
         // Cache-Control it happened to emit must not be echoed the same
         // way.
-        if (path.startsWith("/api/sectional-tile/")) {
+        if (path.startsWith("/api/sectional-tile/") || path.startsWith("/api/tac-tile/")) {
             response.headers().firstValue(HttpHeaders.CACHE_CONTROL)
                     .ifPresent(value -> builder.header(HttpHeaders.CACHE_CONTROL, value));
         }

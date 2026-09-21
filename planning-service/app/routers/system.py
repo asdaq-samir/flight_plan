@@ -11,7 +11,7 @@ from pathlib import Path
 
 import requests
 from fastapi import APIRouter, HTTPException
-from vfr import chartlabels, checkpoint_notes, model_registry, weather
+from vfr import chartlabels, charts, checkpoint_notes, model_registry, weather
 from vfr.terrain import DEFAULT_FAA_CACHE_DIR
 
 from ..common import PROCESSED_DIR
@@ -257,6 +257,7 @@ def status() -> Status:
             },
             faa_files=_faa_files(),
             weather=_weather_datasets(),
+            charts=charts.status(),
             model={"current": _current_model(), "versions": _versions(), "candidates": _candidates()},
             pipeline=pipeline.result(),
             corridors=_corridors(),
@@ -280,9 +281,20 @@ def retrain() -> RetrainStarted:
                                  "Airflow's generated passwords file (AIRFLOW_PASSWORDS_FILE)")
     try:
         token = _airflow_token(*creds)
+        headers = {"Authorization": f"Bearer {token}"}
+        # Airflow parks every newly discovered DAG paused, and a run
+        # triggered on a paused DAG sits "queued" forever -- which is
+        # exactly what the first retrain from a fresh stack did, for
+        # half an hour, before anyone looked. Unpausing first is
+        # idempotent and is what a person would do in Airflow's UI.
+        unpause = requests.patch(
+            f"{AIRFLOW_URL}/api/v2/dags/{AIRFLOW_DAG_ID}", json={"is_paused": False}, headers=headers, timeout=10,
+        )
+        if unpause.status_code >= 400:
+            raise HTTPException(502, f"Airflow would not unpause {AIRFLOW_DAG_ID}: {unpause.status_code} {unpause.text[:200]}")
         resp = requests.post(
             f"{AIRFLOW_URL}/api/v2/dags/{AIRFLOW_DAG_ID}/dagRuns",
-            json={"logical_date": None}, headers={"Authorization": f"Bearer {token}"}, timeout=10,
+            json={"logical_date": None}, headers=headers, timeout=10,
         )
     except requests.RequestException as err:
         raise HTTPException(502, f"Airflow at {AIRFLOW_URL} did not accept the run: {str(err).split(chr(10))[0][:160]}") from err

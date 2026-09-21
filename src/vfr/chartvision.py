@@ -18,8 +18,10 @@ for a 1024x1024 mosaic, measured.
 Sectionals are cartographic products with a fixed palette, which is what
 makes this tractable without a trained model. Water is a specific pale
 blue, urban tint a specific yellow, sampled from real tiles (see
-PALETTE). Tiles are served lossily compressed, so classification is by
-tolerant colour relationships rather than exact match.
+PALETTE). Classification is by tolerant colour relationships rather
+than exact match: the tiles used to arrive JPEG-compressed from a
+hosted map service, and the same tests carried over unchanged when the
+source became the FAA's own palette rasters (vfr.charts).
 
 What this does NOT do is name anything. A detected blue blob is a usable
 checkpoint before anyone knows it is called Nepco Lake; names are a
@@ -28,29 +30,19 @@ pilot on.
 """
 from __future__ import annotations
 
-import hashlib
-import io
 import math
-import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
-from pathlib import Path
 
 import numpy as np
-import requests
 from PIL import Image
 
-from .config import (
-    DATA_DIR,
-    VFR_SECTIONAL_MAP_SERVICE_URL,
-    VFR_SECTIONAL_MAX_ZOOM,
-)
+from . import charts
+from .config import VFR_SECTIONAL_MAX_ZOOM
 from .geo import along_track_distance_nm, cross_track_distance_nm, distance_nm
 
 TILE_PX = 256
 DEFAULT_ZOOM = VFR_SECTIONAL_MAX_ZOOM  # 12; the chart's own maximum
-TILE_CACHE_DIR = DATA_DIR / "raw" / "chart_tiles"
-REQUEST_HEADERS = {"User-Agent": "vfr-route-learning-project/0.1"}
 
 # Earth's circumference at the equator, for the web-mercator scale below.
 EARTH_CIRCUMFERENCE_M = 40_075_016.686
@@ -269,175 +261,20 @@ def corridor_tiles(start: tuple, end: tuple, half_width_nm: float, zoom: int = D
     return sorted(tiles)
 
 
-def _tile_cache_path(x: int, y: int, zoom: int) -> Path:
-    # Keyed by the service the tiles came from, so switching sources (the
-    # old Esri pyramid's tiles are still on disk under their own key)
-    # never mixes two renderings of the chart in one mosaic.
-    key = hashlib.sha1(VFR_SECTIONAL_MAP_SERVICE_URL.encode()).hexdigest()[:8]
-    return TILE_CACHE_DIR / key / str(zoom) / str(x) / f"{y}.png"
+def fetch_tile(x: int, y: int, zoom: int = DEFAULT_ZOOM) -> Image.Image | None:
+    """One sectional tile as RGB, rendered from the FAA's own raster by
+    vfr.charts (and cached there on disk, so a second route through the
+    same area reads it back instantly). None where no chart covers the
+    tile -- open water, Canada -- so one missing tile leaves a hole in
+    the mosaic rather than failing the whole read.
 
-
-# Web mercator's half-world extent in metres (EPSG:3857) -- the origin
-# the standard {z}/{x}/{y} tile grid is laid out from.
-_MERCATOR_ORIGIN_M = 20037508.342789244
-
-
-def tile_bbox_3857(x: int, y: int, zoom: int) -> tuple:
-    """The (xmin, ymin, xmax, ymax) of one standard tile, in EPSG:3857
-    metres -- the same grid `latlon_to_global_px` divides into TILE_PX
-    squares, expressed in the units an ArcGIS export wants."""
-    resolution = 2 * _MERCATOR_ORIGIN_M / (2 ** zoom)
-    xmin = -_MERCATOR_ORIGIN_M + x * resolution
-    ymax = _MERCATOR_ORIGIN_M - y * resolution
-    return xmin, ymax - resolution, xmin + resolution, ymax
-
-
-def sectional_tile_export_url(x: int, y: int, zoom: int) -> str:
-    """One tile's worth of sectional, as an ArcGIS `export` request
-    against the TAMU dynamic map service.
-
-    The service has no tile cache of its own (see
-    VFR_SECTIONAL_MAP_SERVICE_URL's comment in config.py), so this asks
-    it to render exactly one tile's bbox at exactly TILE_PX square --
-    which turns a dynamic service into a tile pyramid from the outside:
-    the same request for the same tile every time, cacheable forever
-    (well, for one chart cycle), and small enough to fetch dozens in
-    parallel. Same export parameters esri-leaflet's own
-    DynamicMapLayer sends (DynamicMapLayer.js `_buildExportParams`),
-    so the rendering matches what the map showed before this.
+    The same tiles back the map's own tile endpoint (planning-service's
+    /api/sectional-tile): a corridor planned once has its map tiles
+    ready, and a map browsed once has its detection tiles ready. The
+    transparency of an uncovered corner is white here, since the
+    detector's road-and-rail class looks for black.
     """
-    xmin, ymin, xmax, ymax = tile_bbox_3857(x, y, zoom)
-    return (
-        f"{VFR_SECTIONAL_MAP_SERVICE_URL}/export"
-        f"?bbox={xmin},{ymin},{xmax},{ymax}&bboxSR=3857&imageSR=3857"
-        f"&size={TILE_PX},{TILE_PX}&dpi=96&format=png32&transparent=true&f=image"
-    )
-
-
-# How long a miss is remembered before the tile is tried again. Two
-# kinds, because they mean opposite things: "no coverage" is the
-# service answering, correctly, that it has no chart there -- the same
-# answer tomorrow, so a day is right -- while a transient failure (a
-# timeout under a burst of parallel fetches, a 5xx) is the service *not*
-# answering, and remembering that for a day would leave a hole on the
-# map for a day over one dropped request. Long enough to stop a retry
-# storm during an outage, short enough to self-heal right after it.
-MISS_TTL_S = {"nocov": 24 * 3600, "transient": 5 * 60}
-
-# Where TAMU's mosaic has no chart (observed west of Duluth, despite its
-# own "Lower 48" description) it renders ArcGIS's no-data checkerboard
-# -- black and white squares, skewed because they're baked into the
-# raster in the chart's own Lambert projection and reprojected, so at
-# high zoom their antialiased edges run to dozens of greys. What that
-# pattern never has is colour, and a real sectional tile always does:
-# yellow towns, blue water, brown contours, magenta airspace. So "no
-# chart" is "no pixel with any chroma", not "few colours". It matters
-# twice: the map should show the street map underneath rather than a
-# blank slab, and the detector must never see it, because black is
-# exactly what the road/rail palette class looks for.
-_CONTENT_FREE_MAX_CHROMA = 24        # per-pixel max(RGB) - min(RGB) still counting as grey
-_CONTENT_FREE_MIN_GREY_FRACTION = 0.99
-
-
-def _is_content_free(image: Image.Image) -> bool:
-    pixels = np.asarray(image.convert("RGB"), dtype=np.int16)
-    chroma = pixels.max(axis=2) - pixels.min(axis=2)
-    return float((chroma < _CONTENT_FREE_MAX_CHROMA).mean()) >= _CONTENT_FREE_MIN_GREY_FRACTION
-
-
-def fetch_tile(x: int, y: int, zoom: int = DEFAULT_ZOOM, session=None) -> Image.Image | None:
-    """One chart tile, from the on-disk cache when present.
-
-    Cached because the chart changes on a 28-day cycle while a pilot may
-    replan the same corridor repeatedly, and because a second route
-    through the same area should be instant. Returns None rather than
-    raising if a tile is unavailable -- the sectional does not cover
-    every tile in a bounding box (oceans, Canada), and one missing tile
-    should leave a hole in the mosaic, not fail the whole request.
-
-    Misses are remembered too (a `.miss` marker file, honoured for the
-    matching MISS_TTL_S). Without that, a tile the service refuses to
-    serve was the one kind that never got cached -- every request over
-    the same corridor re-fetched every unavailable tile at a network
-    round trip apiece, a 48-thread burst of guaranteed failures per
-    mosaic.
-
-    The cache holds the export's own bytes, alpha and all, not this
-    function's RGB conversion: the same files back the map's own tile
-    endpoint (planning-service's /api/sectional-tile), where the
-    transparency at the chart's uncovered edges has to survive. The
-    conversion to RGB is what the detector wants and happens on load.
-    """
-    path = _tile_cache_path(x, y, zoom)
-    miss_marker = path.with_suffix(".miss")
-    if path.exists():
-        try:
-            image = Image.open(path).convert("RGB")
-        except OSError:
-            path.unlink(missing_ok=True)  # a half-written cache entry
-        else:
-            if not _is_content_free(image):
-                return image
-            # Cached before content-free exports were recognised as
-            # misses: convert it into one rather than serve it again.
-            path.unlink(missing_ok=True)
-            _remember_miss(miss_marker, "nocov")
-            return None
-
-    try:
-        if miss_marker.exists():
-            kind = miss_marker.read_text().strip() or "transient"
-            if (time.time() - miss_marker.stat().st_mtime) < MISS_TTL_S.get(kind, MISS_TTL_S["transient"]):
-                return None
-    except OSError:
-        pass  # a racing cleanup; fall through to a real fetch
-
-    url = sectional_tile_export_url(x, y, zoom)
-    getter = session.get if session is not None else requests.get
-    try:
-        resp = getter(url, headers=REQUEST_HEADERS, timeout=20)
-        if resp.status_code != 200 or not resp.content:
-            _remember_miss(miss_marker, "transient")
-            return None
-        image = Image.open(io.BytesIO(resp.content)).convert("RGB")
-    except (requests.RequestException, OSError):
-        _remember_miss(miss_marker, "transient")
-        return None
-
-    if _is_content_free(image):
-        _remember_miss(miss_marker, "nocov")
-        return None
-
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix(".part")
-    tmp.write_bytes(resp.content)
-    tmp.replace(path)  # atomic, so a killed request cannot leave a torn cache entry
-    miss_marker.unlink(missing_ok=True)
-    return image
-
-
-def sectional_tile_png(x: int, y: int, zoom: int) -> bytes | None:
-    """The cached export bytes for one tile, fetching it first if needed
-    -- what the map's own tile endpoint serves. None when the chart has
-    nothing there (or the service is down), for the caller to turn into
-    a 404 the tile layer simply leaves blank."""
-    if fetch_tile(x, y, zoom) is None:
-        return None
-    try:
-        return _tile_cache_path(x, y, zoom).read_bytes()
-    except OSError:
-        return None
-
-
-def _remember_miss(miss_marker: Path, kind: str = "transient") -> None:
-    """Records why a tile is missing -- the marker's text is its kind
-    (a MISS_TTL_S key), which is how fetch_tile knows how long to
-    honour it."""
-    try:
-        miss_marker.parent.mkdir(parents=True, exist_ok=True)
-        miss_marker.write_text(kind)
-    except OSError:
-        pass  # remembering a miss is an optimisation, never worth failing over
+    return charts.tile_image(x, y, zoom, kind="sec")
 
 
 @dataclass
@@ -455,17 +292,18 @@ class Mosaic:
         return global_px_to_latlon(self.origin_px[0] + cx, self.origin_px[1] + cy, self.zoom)
 
 
-def build_mosaic(tiles: list, zoom: int = DEFAULT_ZOOM, max_workers: int = 48) -> Mosaic:
-    """Fetch and stitch `tiles` into one array.
+def build_mosaic(tiles: list, zoom: int = DEFAULT_ZOOM, max_workers: int = 8) -> Mosaic:
+    """Render and stitch `tiles` into one array.
 
-    Parallel because this is entirely network-bound. At 16 workers a
-    323 nm route's 191 tiles took 80 s, which is not a fast path by any
-    reading; the work per tile is a few milliseconds of decode against
-    ~400 ms of round trip, so the worker count is the whole story. The
-    tile service is a CDN and handles the concurrency fine.
+    The charts the block needs are downloaded first, once, on this
+    thread -- a 70 MB sectional the first time a corridor crosses it,
+    nothing after -- and only then are the tiles rendered, in parallel:
+    the warp itself releases the GIL, so a handful of workers keeps a
+    block to a few seconds. (Back when the tiles came from a hosted map
+    service this ran 48 workers, because the work was all round trip.)
 
     The disk cache matters as much: the second plan through the same
-    corridor fetches nothing at all.
+    corridor renders nothing at all.
     """
     xs = [x for x, _ in tiles]
     ys = [y for _, y in tiles]
@@ -473,17 +311,20 @@ def build_mosaic(tiles: list, zoom: int = DEFAULT_ZOOM, max_workers: int = 48) -
     width, height = (x1 - x0 + 1) * TILE_PX, (y1 - y0 + 1) * TILE_PX
     canvas = np.zeros((height, width, 3), dtype=np.uint8)
 
-    cached = sum(1 for x, y in tiles if _tile_cache_path(x, y, zoom).exists())
-    with requests.Session() as session:
-        with ThreadPoolExecutor(max_workers=max_workers) as pool:
-            results = pool.map(lambda t: (t, fetch_tile(t[0], t[1], zoom, session)), tiles)
-            missing = 0
-            for (x, y), image in results:
-                if image is None:
-                    missing += 1
-                    continue
-                px, py = (x - x0) * TILE_PX, (y - y0) * TILE_PX
-                canvas[py:py + TILE_PX, px:px + TILE_PX] = np.asarray(image)
+    west, south, _, _ = charts.tile_bbox_wgs84(x0, y1, zoom)
+    _, _, east, north = charts.tile_bbox_wgs84(x1, y0, zoom)
+    charts.prepare_for_bbox((west, south, east, north), kinds=("sec",))
+
+    cached = sum(1 for x, y in tiles if charts.tile_cached(x, y, zoom, "sec"))
+    with ThreadPoolExecutor(max_workers=max_workers) as pool:
+        results = pool.map(lambda t: (t, fetch_tile(t[0], t[1], zoom)), tiles)
+        missing = 0
+        for (x, y), image in results:
+            if image is None:
+                missing += 1
+                continue
+            px, py = (x - x0) * TILE_PX, (y - y0) * TILE_PX
+            canvas[py:py + TILE_PX, px:px + TILE_PX] = np.asarray(image)
 
     return Mosaic(
         pixels=canvas,

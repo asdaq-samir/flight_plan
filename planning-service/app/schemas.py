@@ -33,8 +33,13 @@ class Course(BaseModel):
     distance_nm: float
     bearing_deg: float
     course_line: list[tuple[float, float]]
+    # The zooms the sectional layer draws at, and the ones the optional
+    # terminal-area-chart overlay does (one level further in, and only
+    # close up).
     max_zoom: int
     min_zoom: int
+    tac_max_zoom: int
+    tac_min_zoom: int
 
 
 class Candidate(BaseModel):
@@ -233,6 +238,8 @@ class Plan(BaseModel):
     aircraft: AircraftProfile
     max_zoom: int
     min_zoom: int
+    tac_max_zoom: int
+    tac_min_zoom: int
 
 
 # --- the briefing -------------------------------------------------------
@@ -656,11 +663,29 @@ class CorridorStatus(BaseModel):
     notes: int
 
 
+class PreparedChart(BaseModel):
+    """One FAA chart zip downloaded and ready to draw: `rasters` are
+    the sheets inside it (a TAC zip can carry two)."""
+
+    name: str
+    kind: str
+    cycle: str
+    prepared_at: str | None
+    rasters: list[str]
+
+
+class ChartsStatus(BaseModel):
+    cycle: str
+    charts: list[PreparedChart]
+    tiles_cached: int
+
+
 class Status(BaseModel):
     checked_at: str
     services: Services
     faa_files: list[DataFile]
     weather: list[WeatherDataset]
+    charts: ChartsStatus
     model: ModelRegistry
     pipeline: PipelineStatus
     corridors: list[CorridorStatus]

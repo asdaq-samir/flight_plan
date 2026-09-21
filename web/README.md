@@ -155,7 +155,11 @@ and places its pieces in its own `Shell`.
 share. Leaflet stays imperative — no React binding — except that popup
 and marker content is JSX mounted into the DOM node Leaflet provides.
 The FAA sectional is an ordinary tile layer served by `planning-service`
-(`/api/sectional-tile/{z}/{x}/{y}.png`) over an OpenStreetMap base.
+(`/api/sectional-tile/{z}/{x}/{y}.png`, rendered from the FAA's own
+GeoTIFFs) over an OpenStreetMap base; the terminal area chart is a
+second tile layer (`/api/tac-tile/…`) drawn over it when the info
+popover's "Chart layers" checkbox is on (`lib/map/tacOverlay.ts`, one
+setting shared by both map pages and remembered per browser).
 
 **API.** In `lib/api/client.ts`, `navlog()`, `detect()` and
 `describeCheckpoints()` stream newline-delimited JSON through one

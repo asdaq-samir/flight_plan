@@ -4,8 +4,7 @@ Overpass, the FAA subscription or the elevation service."""
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel
-from vfr import chartlabels, chartvision, geo
-from vfr.config import VFR_SECTIONAL_MAX_ZOOM, VFR_SECTIONAL_MIN_ZOOM
+from vfr import chartlabels, charts, chartvision, geo
 
 from ..common import line, load_route, ndjson, route_key
 from ..detection import detect_job, faa_airports
@@ -23,39 +22,52 @@ from ..schemas import (
 
 router = APIRouter()
 
-# One chart cycle, in seconds -- how long a browser (or a CDN in front
-# of this app) may keep a tile before asking again. PlannerProxyController
-# forwards Cache-Control for this path alone; see its own comment.
-_SECTIONAL_TILE_MAX_AGE_S = 28 * 24 * 3600
+# Half a chart cycle, in seconds -- how long a browser (or a CDN in
+# front of this app) may keep a tile before asking again, so a new
+# edition reaches a returning pilot within a month of its date.
+# PlannerProxyController forwards Cache-Control for the two tile paths
+# alone; see its own comment.
+_CHART_TILE_MAX_AGE_S = 28 * 24 * 3600
 
 
-@router.get("/api/sectional-tile/{z}/{x}/{y}.png")
-def sectional_tile(z: int, x: int, y: int) -> Response:
-    """The sectional as a {z}/{x}/{y} tile pyramid, built from the TAMU
-    dynamic map service one tile-sized export at a time and cached on
-    disk (vfr.chartvision's own tile cache -- the same files the
-    detector reads, so a corridor planned once has its map tiles ready,
-    and a map browsed once has its detection tiles ready).
-
-    This is what makes the map's sectional layer a plain Leaflet tile
-    layer: edge-only fetches on a pan, the previous zoom's tiles scaled
-    under the zoom animation, a prefetch ring -- everything a tile
-    pyramid gets for free that a one-image-per-view dynamic layer
-    structurally could not. Outside the chart's own useful zoom range
-    there is nothing worth rendering: the tile layer's maxNativeZoom
-    keeps the browser from asking, and this keeps anyone else from
-    making TAMU render it.
-    """
-    if not (VFR_SECTIONAL_MIN_ZOOM <= z <= VFR_SECTIONAL_MAX_ZOOM):
-        raise HTTPException(404, f"sectional tiles exist for zoom {VFR_SECTIONAL_MIN_ZOOM}-{VFR_SECTIONAL_MAX_ZOOM}")
-    png = chartvision.sectional_tile_png(x, y, z)
+def _chart_tile(kind: charts.ChartKind, z: int, x: int, y: int) -> Response:
+    if not (kind.min_zoom <= z <= kind.max_zoom):
+        raise HTTPException(404, f"{kind.key} tiles exist for zoom {kind.min_zoom}-{kind.max_zoom}")
+    png = charts.tile_png(x, y, z, kind.key)
     if png is None:
         raise HTTPException(404, "no chart coverage for this tile")
     return Response(
         content=png,
         media_type="image/png",
-        headers={"Cache-Control": f"public, max-age={_SECTIONAL_TILE_MAX_AGE_S}"},
+        headers={"Cache-Control": f"public, max-age={_CHART_TILE_MAX_AGE_S}"},
     )
+
+
+@router.get("/api/sectional-tile/{z}/{x}/{y}.png")
+def sectional_tile(z: int, x: int, y: int) -> Response:
+    """The sectional as a {z}/{x}/{y} tile pyramid, rendered from the
+    FAA's own GeoTIFF of each sheet (vfr.charts -- downloaded once per
+    56-day chart cycle) and cached on disk. The same tiles the detector
+    reads, so a corridor planned once has its map tiles ready, and a map
+    browsed once has its detection tiles ready.
+
+    A tile pyramid is what makes the map's chart layer a plain Leaflet
+    tile layer: edge-only fetches on a pan, the previous zoom's tiles
+    scaled under the zoom animation, a prefetch ring. 404 where no sheet
+    covers the tile, which the layer leaves blank for the street map
+    underneath; the layer's own maxNativeZoom keeps the browser from
+    asking past the chart's resolution.
+    """
+    return _chart_tile(charts.SECTIONAL, z, x, y)
+
+
+@router.get("/api/tac-tile/{z}/{x}/{y}.png")
+def tac_tile(z: int, x: int, y: int) -> Response:
+    """The terminal area charts, the same way -- an optional overlay
+    the map draws above the sectional close in, where a TAC exists
+    (Chicago's covers the first leg out of C81). Transparent, and so a
+    404, everywhere else."""
+    return _chart_tile(charts.TAC, z, x, y)
 
 
 @router.get("/api/classify")

@@ -46,6 +46,9 @@ export default function RouteMap({
   const { el, map } = useLeafletMap(createBaseLayer);
   const layers = useRef<Record<string, L.Layer | null>>({});
   const basemaps = useRef<ReturnType<typeof createBasemaps> | null>(null);
+  // The basemaps subscribe to the TAC-overlay setting for as long as
+  // the map lives; let go of that with the map.
+  useEffect(() => () => basemaps.current?.dispose(), []);
 
   useEffect(() => {
     const m = map.current;

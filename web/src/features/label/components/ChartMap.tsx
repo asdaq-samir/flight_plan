@@ -49,6 +49,9 @@ export default function ChartMap({
   const halo = useRef<
     { ring: L.FeatureGroup; marker: L.Layer; lat: number; lon: number; onClose?: () => void } | null
   >(null);
+  // The basemaps subscribe to the TAC-overlay setting for as long as
+  // the map lives; let go of that with the map.
+  useEffect(() => () => basemaps.current?.dispose(), []);
 
   // Basemaps and the course line, once the route resolves.
   useEffect(() => {

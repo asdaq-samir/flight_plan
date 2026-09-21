@@ -484,6 +484,20 @@ function SystemTab({ status }: { status: Status | undefined }) {
               </span>
             </li>
           ))}
+          {status?.charts && (
+            <li className="flex items-baseline gap-2" data-testid="charts-status">
+              <span className="font-mono">VFR charts</span>
+              <span className="text-muted-foreground">
+                FAA GeoTIFFs, cycle {status.charts.cycle}:{" "}
+                {status.charts.charts.length
+                  ? status.charts.charts
+                      .map(c => `${c.name.replace(/_/g, " ")} ${c.kind === "tac" ? "TAC" : "sectional"}`)
+                      .join(", ")
+                  : "none prepared yet"}
+                {` · ${status.charts.tiles_cached} tiles rendered`}
+              </span>
+            </li>
+          )}
           {!status && <li className="text-muted-foreground">Loading…</li>}
         </ul>
       </section>
