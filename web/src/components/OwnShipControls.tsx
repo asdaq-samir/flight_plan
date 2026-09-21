@@ -1,6 +1,6 @@
 import { Checkbox } from "./ui/checkbox";
 import { Label } from "./ui/label";
-import { ownShip, ownShipAvailable, useOwnShip } from "../lib/map/ownShip";
+import { ownShipAvailable, useOwnShip } from "../lib/map/ownShip";
 
 function coordinate(value: number, positive: string, negative: string): string {
   return `${Math.abs(value).toFixed(3)}° ${value >= 0 ? positive : negative}`;
@@ -16,7 +16,7 @@ function coordinate(value: number, positive: string, negative: string): string {
  * (RouteMap turns it off on a drag) and comes back with the checkbox.
  */
 export default function OwnShipControls() {
-  const { enabled, follow, fix, error } = useOwnShip();
+  const { enabled, follow, fix, error, setEnabled, setFollow } = useOwnShip();
   const available = ownShipAvailable();
   return (
     <div className="space-y-2 border-t border-border pt-2">
@@ -26,7 +26,7 @@ export default function OwnShipControls() {
           id="own-ship"
           checked={enabled}
           disabled={!available}
-          onCheckedChange={value => ownShip.setEnabled(value === true)}
+          onCheckedChange={value => setEnabled(value === true)}
           data-testid="own-ship-toggle"
         />
         <Label htmlFor="own-ship" className="font-normal">Show my position</Label>
@@ -36,7 +36,7 @@ export default function OwnShipControls() {
           id="own-ship-follow"
           checked={follow}
           disabled={!available || !enabled}
-          onCheckedChange={value => ownShip.setFollow(value === true)}
+          onCheckedChange={value => setFollow(value === true)}
           data-testid="own-ship-follow"
         />
         <Label htmlFor="own-ship-follow" className="font-normal">Keep the map on me</Label>

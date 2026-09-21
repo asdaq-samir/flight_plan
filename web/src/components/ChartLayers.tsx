@@ -1,7 +1,7 @@
 import { Checkbox } from "./ui/checkbox";
 import { Label } from "./ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
-import { BASE_CHARTS, chartLayers, useChartLayers, type BaseChart } from "../lib/map/chartLayers";
+import { BASE_CHARTS, usePreferences, type BaseChart } from "../lib/preferences";
 
 /**
  * The map's chart settings: which FAA chart is the base (the sectional,
@@ -13,20 +13,21 @@ import { BASE_CHARTS, chartLayers, useChartLayers, type BaseChart } from "../lib
  * The same setting the pin over the map (`OverlayPin`) toggles;
  * unpinned, the base chart is the chart at every zoom.
  *
- * Lives in both pages' info popovers -- Plan's `ScoreLegend` and Label's
- * `RatingLegend` -- next to the shortcut list, since that popover is
- * already where the map's own controls are explained. Sectional and no
- * terminal sheet by default: this is a VFR planner, and a TAC is busier
- * than the sectional.
+ * Lives in both pages' layers popover. Sectional and no terminal sheet
+ * by default: this is a VFR planner, and a TAC is busier than the
+ * sectional.
  */
 export default function ChartLayers() {
-  const { base, tac } = useChartLayers();
+  const base = usePreferences(s => s.base);
+  const tac = usePreferences(s => s.tac);
+  const setBase = usePreferences(s => s.setBase);
+  const setTac = usePreferences(s => s.setTac);
   return (
     <div className="space-y-2 border-t border-border pt-2">
       <div className="text-xs font-semibold uppercase text-muted-foreground">Chart layers</div>
       <div className="flex items-center gap-2">
         <Label htmlFor="base-chart" className="w-24 shrink-0 font-normal">Base chart</Label>
-        <Select value={base} onValueChange={value => chartLayers.setBase(value as BaseChart)}>
+        <Select value={base} onValueChange={value => setBase(value as BaseChart)}>
           <SelectTrigger id="base-chart" size="sm" aria-label="Base chart" className="w-full" data-testid="base-chart-select">
             <SelectValue />
           </SelectTrigger>
@@ -39,7 +40,7 @@ export default function ChartLayers() {
         <Checkbox
           id="tac-overlay"
           checked={tac}
-          onCheckedChange={value => chartLayers.setTac(value === true)}
+          onCheckedChange={value => setTac(value === true)}
           data-testid="tac-toggle"
         />
         <Label htmlFor="tac-overlay" className="font-normal">

@@ -7,7 +7,7 @@ import {
   CROWD_FROM_ZOOM, MARKERS_FROM_ZOOM, createBasemaps, createCourseLine, createHalo, createOwnShip, dotIcon, endLabelIcon, fromZoom,
   mountReact, type Basemaps,
 } from "../../../lib/map/leaflet";
-import { ownShip } from "../../../lib/map/ownShip";
+import { useOwnShip } from "../../../lib/map/ownShip";
 import { useLeafletMap } from "../../../lib/map/useLeafletMap";
 import { scoreColor } from "../format";
 
@@ -144,13 +144,13 @@ export default function RouteMap({
     if (!m) return;
     const ship = createOwnShip(m);
     const apply = () => {
-      const { enabled, fix, follow } = ownShip.get();
+      const { enabled, fix, follow } = useOwnShip.getState();
       if (enabled && fix) ship.update(fix, follow);
       else ship.remove();
     };
     apply();
-    const unsubscribe = ownShip.subscribe(apply);
-    const stopFollowing = () => { if (ownShip.get().follow) ownShip.setFollow(false); };
+    const unsubscribe = useOwnShip.subscribe(apply);
+    const stopFollowing = () => { const s = useOwnShip.getState(); if (s.follow) s.setFollow(false); };
     m.on("dragstart", stopFollowing);
     return () => { unsubscribe(); m.off("dragstart", stopFollowing); ship.remove(); };
   }, [map]);

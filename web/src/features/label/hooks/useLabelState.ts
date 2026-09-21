@@ -2,7 +2,7 @@ import { useCallback, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { api, describeError } from "../../../lib/api/client";
 import type { Course, Detection, Endpoint, LoosePick, Point, Rating, Role } from "../../../lib/api/types";
-import { DEFAULT_FILTERS, FILTER_KEYS, type FilterKey, type Filters } from "../logic";
+import { usePreferences } from "../../../lib/preferences";
 
 interface CachedDetections {
   detections: Detection[];
@@ -35,7 +35,6 @@ interface LabelState {
   endpoints: Endpoint[];
   detections: Detection[];
   added: LoosePick[];
-  filters: Filters;
   selection: Selection | null;
   /** Where the walk was last, so Space can come back to it after a rating
    *  has cleared the selection. */
@@ -66,31 +65,21 @@ interface UndoEntry {
   reinsert?: LoosePick;
 }
 
-const STORAGE_KEY = "vfr.filters";
-
-function savedFilters(): Filters {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return DEFAULT_FILTERS;
-    const parsed = JSON.parse(raw) as Partial<Filters>;
-    const merged = { ...DEFAULT_FILTERS };
-    for (const key of FILTER_KEYS) if (key in parsed) merged[key] = !!parsed[key];
-    return merged;
-  } catch {
-    return DEFAULT_FILTERS;   // private window, or storage refused
-  }
-}
-
 function initialState(): LabelState {
   return {
     course: null, endpoints: [], detections: [], added: [],
-    filters: savedFilters(), selection: null, lastFocus: null,
+    selection: null, lastFocus: null,
     loading: false, progress: null, error: null, canUndo: false,
   };
 }
 
 export function useLabelState() {
   const [state, setState] = useState<LabelState>(initialState);
+  // The filters are a preference, remembered per browser: the
+  // preferences store holds them, and this hook hands them on so the
+  // page reads one store.
+  const filters = usePreferences(s => s.filters);
+  const setFilter = usePreferences(s => s.setFilter);
   // A get()-like mirror for the async methods below, updated every
   // render: `rate` and `removeSelected` need the *current* course and
   // selection, not whatever was current when the callback was created.
@@ -176,12 +165,6 @@ export function useLabelState() {
       setState(s => ({ ...s, loading: false, progress: null, error: describeError(err, "could not read the chart") }));
     }
   }, [queryClient]);
-
-  const setFilter = useCallback((key: FilterKey, on: boolean) => {
-    const filters = { ...ref.current.filters, [key]: on };
-    setState(s => ({ ...s, filters }));
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(filters)); } catch { /* refused */ }
-  }, []);
 
   const select = useCallback((selection: Selection | null) => {
     setState(s => ({ ...s, selection, lastFocus: selection ?? s.lastFocus }));
@@ -396,7 +379,7 @@ export function useLabelState() {
     }
   }, []);
 
-  return { ...state, load, setFilter, select, rate, setCategory, addPick, removeSelected, undo, resetAll };
+  return { ...state, filters, load, setFilter, select, rate, setCategory, addPick, removeSelected, undo, resetAll };
 }
 
 export function currentPoint(

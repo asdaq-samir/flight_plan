@@ -1,4 +1,5 @@
-import { useState, type ReactNode } from "react";
+import type { ReactNode } from "react";
+import { usePreferences } from "../../lib/preferences";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useLocation } from "react-router-dom";
 import { ExternalLink, RefreshCw, SquareTerminal } from "lucide-react";
@@ -44,7 +45,6 @@ const CHART_KIND_LABELS: Record<string, string> = {
 // The tab the console was last on, remembered per browser: a developer
 // watching a retrain or a route being collected reopens the console to
 // the same tab, not to Model Training every time.
-const TAB_KEY = "dev.tab";
 const TABS = ["training", "performance", "system"];
 
 /** The header button that opens the console -- `aria-expanded` so the
@@ -83,18 +83,10 @@ export function DevPanel() {
   });
   const statusMessage = errorMessage(error, "Could not read the system status");
   useErrorToasts({ status: statusMessage && { message: statusMessage, retry: () => void refetch() } });
-  const [tab, setTab] = useState(() => {
-    try {
-      const saved = localStorage.getItem(TAB_KEY);
-      return saved && TABS.includes(saved) ? saved : "training";
-    } catch {
-      return "training";
-    }
-  });
-  const changeTab = (value: string) => {
-    setTab(value);
-    try { localStorage.setItem(TAB_KEY, value); } catch { /* per-browser convenience only */ }
-  };
+  // The tab the drawer was last on, remembered per browser.
+  const savedTab = usePreferences(s => s.devTab);
+  const tab = TABS.includes(savedTab) ? savedTab : "training";
+  const changeTab = usePreferences(s => s.setDevTab);
   // Everything the console shows, asked for again now rather than at
   // the next 30-second tick: the snapshot, the model comparison and
   // the two health probes the System tab runs itself.

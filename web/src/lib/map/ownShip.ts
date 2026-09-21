@@ -1,12 +1,14 @@
-import { useSyncExternalStore } from "react";
+import { create } from "zustand";
+import { persist } from "zustand/middleware";
 
 /**
  * Own ship: the phone's position on the chart, from the browser's
  * geolocation, watched while `enabled` and kept centred while
- * `follow`. The same kind of tiny store as `chartLayers` -- Leaflet
- * draws it (`createOwnShip`), the info popover switches it, and
- * neither is React state -- remembered per browser, so a pilot who
- * turned it on at the desk has it on in the air.
+ * `follow`. A zustand store: Leaflet draws it (`createOwnShip`) from
+ * `getState()`/`subscribe()`, the layers popover switches it through
+ * the hook, and the two switches are remembered per browser (the
+ * position itself is not), so a pilot who turned it on at the desk
+ * has it on in the air.
  *
  * The browser grants geolocation only to a secure origin (https, or
  * localhost): over plain http on the Wi-Fi it is simply unavailable,
@@ -23,49 +25,20 @@ export interface Fix {
   at: number;
 }
 
-interface State {
+interface OwnShip {
   enabled: boolean;
   follow: boolean;
   fix: Fix | null;
   error: string | null;
-}
-
-const ENABLED_KEY = "vfr.ownship";
-const FOLLOW_KEY = "vfr.follow";
-const listeners = new Set<() => void>();
-let watchId: number | null = null;
-
-function read(key: string, fallback: boolean): boolean {
-  try {
-    const value = localStorage.getItem(key);
-    return value === null ? fallback : value === "1";
-  } catch {
-    return fallback;
-  }
-}
-
-function write(key: string, value: boolean) {
-  try {
-    localStorage.setItem(key, value ? "1" : "0");
-  } catch {
-    // per-browser convenience only
-  }
+  setEnabled: (enabled: boolean) => void;
+  setFollow: (follow: boolean) => void;
 }
 
 export function ownShipAvailable(): boolean {
   return typeof navigator !== "undefined" && "geolocation" in navigator && window.isSecureContext;
 }
 
-let state: State = { enabled: false, follow: read(FOLLOW_KEY, true), fix: null, error: null };
-
-function notify() {
-  listeners.forEach(listener => listener());
-}
-
-function set(patch: Partial<State>) {
-  state = { ...state, ...patch };
-  notify();
-}
+let watchId: number | null = null;
 
 function stopWatching() {
   if (watchId !== null) {
@@ -74,7 +47,7 @@ function stopWatching() {
   }
 }
 
-function startWatching() {
+function startWatching(set: (patch: Partial<OwnShip>) => void) {
   if (!ownShipAvailable() || watchId !== null) return;
   watchId = navigator.geolocation.watchPosition(
     position => {
@@ -100,36 +73,38 @@ function startWatching() {
   );
 }
 
-export const ownShip = {
-  get: () => state,
-  setEnabled(enabled: boolean) {
-    if (enabled && !ownShipAvailable()) return;
-    write(ENABLED_KEY, enabled);
-    if (enabled) {
-      set({ enabled: true, error: null });
-      startWatching();
-    } else {
-      stopWatching();
-      set({ enabled: false, fix: null, error: null });
-    }
-  },
-  setFollow(follow: boolean) {
-    write(FOLLOW_KEY, follow);
-    set({ follow });
-  },
-  subscribe(listener: () => void) {
-    listeners.add(listener);
-    return () => { listeners.delete(listener); };
-  },
-};
-
-// Remembered on: watching starts with the page, so the position is
-// there when the map is, and the browser's own permission prompt (if
-// it still has one to show) comes up at once rather than after a tap.
-if (read(ENABLED_KEY, false) && ownShipAvailable()) ownShip.setEnabled(true);
-
-const SERVER_DEFAULT: State = { enabled: false, follow: true, fix: null, error: null };
-
-export function useOwnShip() {
-  return useSyncExternalStore(ownShip.subscribe, ownShip.get, () => SERVER_DEFAULT);
-}
+export const useOwnShip = create<OwnShip>()(
+  persist(
+    set => ({
+      enabled: false,
+      follow: true,
+      fix: null,
+      error: null,
+      setEnabled: enabled => {
+        if (enabled && !ownShipAvailable()) return;
+        if (enabled) {
+          set({ enabled: true, error: null });
+          startWatching(set);
+        } else {
+          stopWatching();
+          set({ enabled: false, fix: null, error: null });
+        }
+      },
+      setFollow: follow => set({ follow }),
+    }),
+    {
+      name: "vfr.ownship",
+      partialize: s => ({ enabled: s.enabled, follow: s.follow }),
+      // Remembered on: watching starts with the page, so the position
+      // is there when the map is, and the browser's own permission
+      // prompt (if it still has one to show) comes up at once rather
+      // than after a tap. Remembered on but unavailable here (plain
+      // http), it is off until the switch is reachable again.
+      onRehydrateStorage: () => state => {
+        if (!state?.enabled) return;
+        if (ownShipAvailable()) startWatching(patch => useOwnShip.setState(patch));
+        else useOwnShip.setState({ enabled: false });
+      },
+    },
+  ),
+);

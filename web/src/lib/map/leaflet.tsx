@@ -3,7 +3,7 @@ import { flushSync } from "react-dom";
 import { createRoot } from "react-dom/client";
 import type { ReactNode } from "react";
 import type { Course } from "../api/types";
-import { chartLayers } from "./chartLayers";
+import { usePreferences } from "../preferences";
 
 /**
  * Leaflet, kept imperative on purpose.
@@ -79,7 +79,7 @@ export function observeResize(map: L.Map, el: HTMLElement): () => void {
 }
 
 /** The chart layers: one FAA chart as the map's base (the sectional,
- *  or an IFR enroute chart, per the `chartLayers` setting), and the
+ *  or an IFR enroute chart, per the preferences store), and the
  *  terminal area chart over the sectional. All need the course's own
  *  zoom limits (`chart_layers`), so this runs once the course exists --
  *  which costs nothing visible, since `useLeafletMap` gives the map no
@@ -177,7 +177,7 @@ export function createBasemaps(map: L.Map, cfg: Course) {
 
   let base: { kind: string; layer: L.TileLayer } | null = null;
   const applyBase = () => {
-    const kind = chartLayers.get().base;
+    const kind = usePreferences.getState().base;
     if (base?.kind === kind) return;
     const zooms = zoomsOf(kind) ?? zoomsOf("sec");
     if (!zooms) return;
@@ -201,10 +201,10 @@ export function createBasemaps(map: L.Map, cfg: Course) {
   // layer's minZoom once, so a change of kind means a fresh layer.
   let overlay: { kind: string; layer: L.TileLayer } | null = null;
   let previewing = false;
-  const overlayKind = () => cfg.chart_layers.find(l => !l.base && l.over.includes(chartLayers.get().base)) ?? null;
+  const overlayKind = () => cfg.chart_layers.find(l => !l.base && l.over.includes(usePreferences.getState().base)) ?? null;
   const applyOverlay = () => {
     const kind = overlayKind();
-    if (!kind || !(chartLayers.get().tac || previewing)) {
+    if (!kind || !(usePreferences.getState().tac || previewing)) {
       if (overlay) { map.removeLayer(overlay.layer); overlay = null; }
       return;
     }
@@ -221,7 +221,7 @@ export function createBasemaps(map: L.Map, cfg: Course) {
   // A change to the setting -- the checkbox, the pin -- is the pilot
   // deciding, and ends any hover preview along with it: an unpinned
   // terminal chart must go, whatever the pointer is over.
-  const unsubscribe = chartLayers.subscribe(() => { previewing = false; apply(); });
+  const unsubscribe = usePreferences.subscribe(() => { previewing = false; apply(); });
 
   return {
     get base() { return base?.kind ?? "sec"; },

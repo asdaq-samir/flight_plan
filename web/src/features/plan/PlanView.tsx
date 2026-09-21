@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { DEFAULT_AIRCRAFT, usePreferences } from "../../lib/preferences";
 import { useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
 import { cn } from "cn";
@@ -33,22 +34,6 @@ import { useDocumentTitle } from "../../lib/useDocumentTitle";
 const STAGE_PERCENT: Record<"course" | "checkpoints" | "navlog", number> = {
   course: 25, checkpoints: 60, navlog: 90,
 };
-
-// The aeroplane the nav log is computed for. Remembered per browser
-// (localStorage), since a pilot flies the same one for a while; a
-// stock profile until they pick one of their own.
-const DEFAULT_AIRCRAFT: AircraftChoice = { profile: "c172", label: "C172 · Cessna 172" };
-const AIRCRAFT_KEY = "vfr.aircraft";
-
-function storedAircraft(): AircraftChoice {
-  try {
-    const raw = localStorage.getItem(AIRCRAFT_KEY);
-    if (raw) return JSON.parse(raw) as AircraftChoice;
-  } catch {
-    // private window, or storage refused
-  }
-  return DEFAULT_AIRCRAFT;
-}
 
 /** Which of the three altitude plans the log flies -- lowest unless the
  *  URL says otherwise, since it is the predictable one. */
@@ -98,7 +83,11 @@ export default function PlanView() {
   // the winds forecast period the planner flies the legs on, gives
   // every checkpoint an ETA, and is what a saved flight is planned for.
   const [depart, setDepart] = useState(searchParams.get("depart") ?? "");
-  const [aircraft, setAircraft] = useState<AircraftChoice>(storedAircraft);
+  // The aeroplane the nav log is computed for: remembered per browser
+  // (the preferences store), since a pilot flies the same one for a
+  // while; a stock profile until they pick one of their own.
+  const aircraft = usePreferences(s => s.aircraft);
+  const setAircraft = usePreferences(s => s.setAircraft);
   // The stock profiles, plus a signed-in pilot's own aeroplanes on top
   // of them -- the same ["pilot"]/["aircraft"] queries the pilot
   // console keeps.
@@ -226,10 +215,9 @@ export default function PlanView() {
     const next = aircraftOptions.find(o => aircraftKey(o) === value);
     if (!next) return;
     setAircraft(next);
-    try { localStorage.setItem(AIRCRAFT_KEY, JSON.stringify(next)); } catch { /* storage refused */ }
     const d = identSchema.safeParse(dep).data, a = identSchema.safeParse(dest).data;
     if (d && a && d !== a) void plan(d, a, alt.trim() || undefined, next, altitudeChoice, depart || undefined);
-  }, [aircraftOptions, dep, dest, alt, altitudeChoice, depart, plan]);
+  }, [aircraftOptions, dep, dest, alt, altitudeChoice, depart, plan, setAircraft]);
 
   // A different departure time may mean a different winds forecast,
   // so the legs are re-planned; kept in the URL like the rest.

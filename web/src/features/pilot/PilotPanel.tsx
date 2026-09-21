@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { usePreferences } from "../../lib/preferences";
 import { useQuery } from "@tanstack/react-query";
 import { UserRound } from "lucide-react";
 import IconButton from "../../components/IconButton";
@@ -19,9 +19,6 @@ export function PilotButton({ open, onClick }: { open: boolean; onClick: () => v
   );
 }
 
-// The tab the drawer was last on, remembered per browser, the same way
-// the developer's drawer remembers its own.
-const TAB_KEY = "pilot.tab";
 const TABS = ["aircraft", "flights", "guide"];
 
 /**
@@ -37,18 +34,11 @@ export function PilotPanel({ course }: { course: Course | null }) {
     data: pilot, isLoading, isError, refetch,
   } = useQuery({ queryKey: ["pilot"], queryFn: api.me, retry: false });
   const pilotState: PilotState = isLoading ? "loading" : (pilot ?? (isError ? "error" : null));
-  const [tab, setTab] = useState(() => {
-    try {
-      const saved = localStorage.getItem(TAB_KEY);
-      return saved && TABS.includes(saved) ? saved : "aircraft";
-    } catch {
-      return "aircraft";
-    }
-  });
-  const changeTab = (value: string) => {
-    setTab(value);
-    try { localStorage.setItem(TAB_KEY, value); } catch { /* per-browser convenience only */ }
-  };
+  // The tab the drawer was last on, remembered per browser, the same
+  // way the developer's drawer remembers its own.
+  const savedTab = usePreferences(s => s.pilotTab);
+  const tab = TABS.includes(savedTab) ? savedTab : "aircraft";
+  const changeTab = usePreferences(s => s.setPilotTab);
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto">

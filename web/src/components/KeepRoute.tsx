@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Button } from "./ui/button";
 import type { Course } from "../lib/api/types";
-import { useChartLayers } from "../lib/map/chartLayers";
 import { CORRIDOR_NM, keepRouteCharts, keepingAvailable, type KeepProgress } from "../lib/map/keepRoute";
+import { usePreferences } from "../lib/preferences";
 
 interface Props {
   course: Course | null;
@@ -19,7 +19,7 @@ interface Props {
  * otherwise it says so.
  */
 export default function KeepRoute({ course }: Props) {
-  const { base } = useChartLayers();
+  const base = usePreferences(s => s.base);
   const [progress, setProgress] = useState<KeepProgress | null>(null);
   const [running, setRunning] = useState(false);
   const abort = useRef<AbortController | null>(null);
