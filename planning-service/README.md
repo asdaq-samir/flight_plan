@@ -151,7 +151,9 @@ tile of it is there, so a refresh in progress changes nothing on
 screen; `refresh now` in the Dev console starts one early, and
 `CHARTS_AUTO_REFRESH=0` turns the daily check off. `python -m
 vfr.charts check` looks for daylight between adjacent sheets, which is
-what a mis-detected sheet edge would show up as.
+what a mis-detected sheet edge would show up as; the one it always
+reports, between the Caribbean 1 chart and Jacksonville west of 83W,
+is the open Gulf, where the FAA charts no sectional.
 | `GET/POST/DELETE /api/picks` | Hand-marked checkpoints. |
 | `GET/POST /api/checkpoint-notes` | A pilot's "how to spot it" note per checkpoint. |
 | `GET /api/airports/search` | Identifier and name lookup for the route form. |
