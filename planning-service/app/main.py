@@ -46,19 +46,52 @@ log = logging.getLogger(__name__)
 # replaced before a request could find it stale.
 WEATHER_REFRESH_S = 240
 # How often to ask whether the FAA has moved to a new chart cycle
-# (every 56 days, so daily is plenty) and, if so, fetch and render it
-# in a subprocess. CHARTS_AUTO_REFRESH=0 turns that off -- a test
-# stack, or a deployment that renders its pyramid elsewhere.
-CHART_CYCLE_CHECK_S = 24 * 3600
+# (every 56 days) and, if so, fetch and render it in a subprocess.
+# CHARTS_AUTO_REFRESH=0 turns that off -- a test stack, or a
+# deployment that renders its pyramid elsewhere.
+#
+# Rendering a cycle is every sheet of the country, hours of every core
+# it is given, and on a machine that is also somebody's desk that was
+# felt as a map that stuttered under the pilot's own finger. So the
+# render starts only inside CHARTS_REFRESH_WINDOW -- "HH:MM-HH:MM" on
+# the container's own clock (set TZ for a local one), 01:00-06:00 by
+# default, blank for any time -- with CHARTS_REFRESH_WORKERS processes
+# (one by default: slower, and out of the way), and the check runs
+# hourly so as to land in the window. The one exception is a stack
+# with no complete pyramid on disk at all, which renders at once:
+# until it does, every tile is drawn on request. The Dev console's own
+# "refresh now" is a request, and starts at once with two workers.
+CHART_CYCLE_CHECK_S = 3600
 CHARTS_AUTO_REFRESH = os.environ.get("CHARTS_AUTO_REFRESH", "1") != "0"
+CHARTS_REFRESH_WINDOW = os.environ.get("CHARTS_REFRESH_WINDOW", "01:00-06:00").strip()
+CHARTS_REFRESH_WORKERS = int(os.environ.get("CHARTS_REFRESH_WORKERS", "1"))
+
+
+def _in_refresh_window(now: time.struct_time | None = None, window: str = CHARTS_REFRESH_WINDOW) -> bool:
+    """Whether the clock is inside `window` ("HH:MM-HH:MM", which may
+    run past midnight: "22:00-05:00"); always, for a blank window."""
+    if not window:
+        return True
+    start, _, end = window.partition("-")
+    now = now or time.localtime()
+    minute = now.tm_hour * 60 + now.tm_min
+    to_minutes = lambda hhmm: int(hhmm[:2]) * 60 + int(hhmm[3:5])  # noqa: E731
+    lo, hi = to_minutes(start), to_minutes(end)
+    return lo <= minute < hi if lo <= hi else minute >= lo or minute < hi
 
 
 def _refresh_charts_if_due() -> None:
     try:
-        if charts.refresh_due():
-            if charts.refresh_in_background():
-                log.info("chart cycle %s is not complete on disk; fetching and rendering it", charts.current_cycle())
-    except Exception:  # noqa: BLE001 -- the next daily check tries again; the map keeps serving what it has
+        if not charts.refresh_due():
+            return
+        served = charts.serving_cycle()
+        if charts.pyramid_complete(served) and not _in_refresh_window():
+            log.info("chart cycle %s is due; rendering it in the %s window (serving %s until then)",
+                     charts.current_cycle(), CHARTS_REFRESH_WINDOW, served)
+            return
+        if charts.refresh_in_background(workers=CHARTS_REFRESH_WORKERS):
+            log.info("chart cycle %s is not complete on disk; fetching and rendering it", charts.current_cycle())
+    except Exception:  # noqa: BLE001 -- the next hourly check tries again; the map keeps serving what it has
         log.warning("chart cycle check failed", exc_info=True)
 
 
@@ -110,8 +143,8 @@ def _warm_reference_data() -> None:
     # own time-to-live, so no pilot's request ever pays for a download
     # -- on a slow aviationweather.gov day the first plan after an
     # expiry was observed waiting close to a minute. A refresh that
-    # fails is logged and the held copies go on being served. Once a
-    # day, the chart cycle is checked the same way.
+    # fails is logged and the held copies go on being served. Once an
+    # hour, the chart cycle is checked the same way.
     last_cycle_check = time.time()
     while True:
         time.sleep(WEATHER_REFRESH_S)

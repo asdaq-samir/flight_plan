@@ -143,13 +143,18 @@ from syncing them; elsewhere it is just a name). The Dev console's
 System tab shows the sheets prepared and the pyramid's progress.
 
 The planner keeps up with the 56-day cycle by itself: at start-up and
-once a day it asks the FAA's products page which cycle is current and,
-if that cycle's pyramid is not complete on disk, runs `python -m
+once an hour it asks the FAA's products page which cycle is current
+and, if that cycle's pyramid is not complete on disk, runs `python -m
 vfr.charts refresh` in a subprocess (prepare, render, then delete the
 previous cycle). The map switches to the new cycle only once every
 tile of it is there, so a refresh in progress changes nothing on
-screen; `refresh now` in the Dev console starts one early, and
-`CHARTS_AUTO_REFRESH=0` turns the daily check off. `python -m
+screen. The render is hours of every core it is given, so it starts
+only inside `CHARTS_REFRESH_WINDOW` (`HH:MM-HH:MM` on the container's
+clock, `01:00-06:00` by default, blank for any time; set `TZ` for a
+local clock), niced, with `CHARTS_REFRESH_WORKERS` processes (one by
+default) -- unless nothing complete is on disk at all, when it starts
+at once. `refresh now` in the Dev console starts one at once with two
+workers, and `CHARTS_AUTO_REFRESH=0` turns the check off. `python -m
 vfr.charts check` looks for daylight between adjacent sheets, which is
 what a mis-detected sheet edge would show up as; the one it always
 reports, between the Caribbean 1 chart and Jacksonville west of 83W,

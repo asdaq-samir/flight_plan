@@ -17,12 +17,21 @@ interface Props extends Omit<ComponentProps<typeof Button>, "size"> {
  * composes like the Button itself -- `asChild` around a Link inside, a
  * `PopoverTrigger`/`SheetTrigger asChild` outside -- because every
  * other prop, `ref` included, lands on the Button.
+ *
+ * A button that has opened something -- `aria-expanded` true: the nav
+ * log or waypoints drawer, the pilot or dev console, the guide -- is
+ * drawn filled (the `default` variant) for as long as it stays open,
+ * so the header says which drawer is out. The ghost variant's own
+ * expanded look is `bg-muted`, a shade that is barely there on the
+ * pilot page's white header and exactly the dev page's own header
+ * colour, which is to say invisible on both.
  */
 export default function IconButton({ label, tooltip, variant = "ghost", children, ...props }: Props) {
+  const expanded = props["aria-expanded"] === true || props["aria-expanded"] === "true";
   return (
     <Tooltip {...tooltip}>
       <TooltipTrigger asChild>
-        <Button variant={variant} size="icon" aria-label={label} {...props}>
+        <Button variant={expanded ? "default" : variant} size="icon" aria-label={label} {...props}>
           {children}
         </Button>
       </TooltipTrigger>

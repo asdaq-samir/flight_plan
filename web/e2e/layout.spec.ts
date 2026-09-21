@@ -45,6 +45,8 @@ async function openSidebar(page: Page) {
   await sidebarTrigger.click();
   await expect(sidebar).toBeVisible();
   await expect(sidebarTrigger).toHaveAttribute("aria-expanded", "true");
+  // The button is drawn filled while its drawer is out (see IconButton).
+  await expect(sidebarTrigger).toHaveAttribute("data-variant", "default");
 
   // In the map area, not over the header: the panel starts where the
   // header ends, and the header's own buttons stay usable above it.
@@ -58,6 +60,7 @@ async function openSidebar(page: Page) {
   await page.keyboard.press("Escape");
   await expect(sidebar).not.toBeVisible();
   await expect(sidebarTrigger).toHaveAttribute("aria-expanded", "false");
+  await expect(sidebarTrigger).toHaveAttribute("data-variant", "ghost");
 }
 
 test.describe("/app/plan", () => {

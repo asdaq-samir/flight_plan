@@ -1625,11 +1625,15 @@ def refresh_running() -> bool:
     return False
 
 
-def refresh_in_background(workers: int = 2) -> bool:
+def refresh_in_background(workers: int = 2, nice: int = 10) -> bool:
     """Start `python -m vfr.charts refresh` as a subprocess, unless one
     is running. Returns whether one was started. Its log goes beside
     the tiles (refresh.log); its pid into refresh.lock, which is how
-    `refresh_running` knows."""
+    `refresh_running` knows. Niced (where `nice` exists): it is hours
+    of every core it is given, and the planner serving tiles beside it
+    -- and, on a machine that is also somebody's desk, the browser
+    looking at them -- come first."""
+    import shutil
     import subprocess
     import sys
 
@@ -1637,10 +1641,10 @@ def refresh_in_background(workers: int = 2) -> bool:
         return False
     CHART_TILE_CACHE_DIR.mkdir(parents=True, exist_ok=True)
     log_file = (CHART_TILE_CACHE_DIR / "refresh.log").open("ab")
-    process = subprocess.Popen(
-        [sys.executable, "-m", "vfr.charts", "refresh", "--workers", str(workers)],
-        stdout=log_file, stderr=subprocess.STDOUT, start_new_session=True,
-    )
+    command = [sys.executable, "-m", "vfr.charts", "refresh", "--workers", str(workers)]
+    if nice and shutil.which("nice"):
+        command = ["nice", "-n", str(nice), *command]
+    process = subprocess.Popen(command, stdout=log_file, stderr=subprocess.STDOUT, start_new_session=True)
     (CHART_TILE_CACHE_DIR / _REFRESH_LOCK).write_text(str(process.pid))
     log.info("chart refresh started (pid %d)", process.pid)
     return True
