@@ -247,9 +247,9 @@ test("plan page: the flight planning drawer opens the way the Model Training dra
   // from -- the aeroplane and the departure time -- and nothing else
   // of the log's: neither is inside a section.
   await expect(drawer.getByTestId("aircraft-select")).toBeVisible();
-  await expect(drawer.getByTestId("depart-input")).toBeVisible();
+  await expect(drawer.getByTestId("depart-picker")).toBeVisible();
   expect(await drawer.locator('[data-slot="collapsible-content"] [data-testid="aircraft-select"]').count()).toBe(0);
-  expect(await drawer.locator('[data-slot="collapsible-content"] [data-testid="depart-input"]').count()).toBe(0);
+  expect(await drawer.locator('[data-slot="collapsible-content"] [data-testid="depart-picker"]').count()).toBe(0);
   // Every section starts closed, the nav log's own first among them:
   // the drawer opens as the list of what the briefing holds.
   await expect(drawer.getByText("Nav log", { exact: true })).toBeVisible();
@@ -552,9 +552,21 @@ test("plan page: a departure time gives every checkpoint an ETA and picks the wi
   when.setDate(when.getDate() + 2);
   when.setHours(15, 0, 0, 0);
   const pad = (n: number) => String(n).padStart(2, "0");
-  const local = `${when.getFullYear()}-${pad(when.getMonth() + 1)}-${pad(when.getDate())}T15:00`;
-  await page.getByTestId("depart-input").fill(local);
+  const isoDay = `${when.getFullYear()}-${pad(when.getMonth() + 1)}-${pad(when.getDate())}`;
+  // shadcn's date picker: the day from the calendar in its popover
+  // (the next month's, when the day after tomorrow falls there), then
+  // the time in the box beside it. No native datetime-local control.
+  expect(await page.locator('input[type="datetime-local"]').count()).toBe(0);
+  await page.getByTestId("depart-date").click();
+  const calendar = page.locator('[data-slot="calendar"]');
+  await expect(calendar).toBeVisible();
+  const day = calendar.locator(`td[data-day="${isoDay}"] button`);
+  if (await day.count() === 0) await calendar.getByRole("button", { name: /next month/i }).click();
+  await day.click();
+  await expect(calendar).toHaveCount(0);   // a pick closes the popover
   await expect(page).toHaveURL(/[?&]depart=/);
+  await expect(page.getByTestId("depart-date")).toContainText(String(when.getDate()));
+  await page.getByTestId("depart-time").fill("15:00");
   await expect(table.locator("thead")).toContainText("ETA");
   // The ETA column by its heading: the print-only ATA and fuel columns
   // sit after it, empty on screen.

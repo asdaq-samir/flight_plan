@@ -18,10 +18,8 @@ import {
 } from "../../../../components/ui/table";
 import type { AltitudeChoice, Candidate, Leg, NavLog, Totals } from "../../../../lib/api/types";
 import { type Description, descriptionKey } from "../../hooks/usePlanState";
-import {
-  altFt, clockTime, deg, describeSteps, describeTime, etaAt, fromLocalInputValue, one, signed, toLocalInputValue,
-  totalsParts,
-} from "../../format";
+import { altFt, clockTime, deg, describeSteps, describeTime, etaAt, one, signed, totalsParts } from "../../format";
+import DepartPicker from "./DepartPicker";
 
 // TanStack Table's own extension point for arbitrary per-column data --
 // used below to carry each numeric column's shared className (bordered,
@@ -675,9 +673,8 @@ export default function NavLogView({
             own; its TAS and burn are what the legs' times and fuel
             come from) and when the flight leaves, which gives every
             row an ETA, is what a saved flight is planned for, and
-            picks the winds forecast period. Empty means about now.
-            Both are stock controls that keep 16px below md, so a
-            phone does not zoom on them. */}
+            picks the winds forecast period; shadcn's date picker with
+            a time box (DepartPicker), empty for about now. */}
         <div className="flex flex-wrap items-center gap-2 print:hidden">
           <Select value={aircraftValue} onValueChange={onAircraftChange}>
             <SelectTrigger size="sm" aria-label="Aircraft" data-testid="aircraft-select">
@@ -687,18 +684,11 @@ export default function NavLogView({
               {aircraftOptions.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
             </SelectContent>
           </Select>
-          <Input
-            type="datetime-local"
-            value={toLocalInputValue(depart)}
-            onChange={e => onDepartChange(fromLocalInputValue(e.target.value))}
-            aria-label="Departure time"
-            className="h-8 w-[12.5rem] px-2"
-            data-testid="depart-input"
-          />
+          <DepartPicker value={depart} onChange={onDepartChange} />
         </div>
         <div className="hidden text-muted-foreground print:block">
           {aircraftOptions.find(o => o.value === aircraftValue)?.label}
-          {depart && ` · departing ${clockTime(new Date(depart))}`}
+          {depart && ` · departing ${new Date(depart).toLocaleDateString([], { weekday: "short", day: "numeric", month: "short" })} ${clockTime(new Date(depart))}`}
         </div>
       </div>
       {/* Every section starts closed, the nav log's own included: the
