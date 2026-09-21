@@ -885,6 +885,14 @@
             "title": "Cycle",
             "type": "string"
           },
+          "pyramid": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/PyramidProgress"
+            },
+            "default": {},
+            "title": "Pyramid",
+            "type": "object"
+          },
           "tiles_cached": {
             "title": "Tiles Cached",
             "type": "integer"
@@ -3114,6 +3122,79 @@
           "rasters"
         ],
         "title": "PreparedChart",
+        "type": "object"
+      },
+      "PyramidProgress": {
+        "description": "How far `python -m vfr.charts pyramid` has got for one kind of\nchart: sheets done of the sheets it set out to render.",
+        "properties": {
+          "current": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "rasters_done": {
+            "title": "Rasters Done",
+            "type": "integer"
+          },
+          "rasters_total": {
+            "title": "Rasters Total",
+            "type": "integer"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "tiles_written": {
+            "title": "Tiles Written",
+            "type": "integer"
+          },
+          "zooms": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Zooms",
+            "type": "array"
+          }
+        },
+        "required": [
+          "kind",
+          "zooms",
+          "started_at",
+          "finished_at",
+          "rasters_total",
+          "rasters_done",
+          "tiles_written",
+          "current"
+        ],
+        "title": "PyramidProgress",
         "type": "object"
       },
       "RetrainStarted": {

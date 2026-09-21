@@ -115,15 +115,15 @@ public class SecurityConfig {
 
                 // Spring Security already writes X-Content-Type-Options
                 // and a frame-options header by default; this makes both
-                // explicit and adds a CSP. Everything the app actually
-                // loads is same-origin except one map source
-                // (web/src/lib/map/leaflet.tsx): OSM's own tile images.
-                // The FAA charts are same-origin too -- tiles this app
-                // renders itself from the FAA's GeoTIFFs, proxied from
-                // planning-service -- which is what let the old chart
-                // mirror's host (and the connect-src its dynamic layer
-                // needed) go. style-src keeps 'unsafe-inline' for
-                // Swagger UI's own inline styles. HSTS is a no-op locally (Spring
+                // explicit and adds a CSP. Everything the app loads is
+                // same-origin, the map included: its tiles are the
+                // FAA's charts, rendered by this app from the FAA's
+                // GeoTIFFs and proxied from planning-service
+                // (web/src/lib/map/leaflet.tsx). That is what let the
+                // old chart mirror's host, the connect-src its dynamic
+                // layer needed, and then OpenStreetMap's tile host all
+                // go. style-src keeps 'unsafe-inline' for Swagger UI's
+                // own inline styles. HSTS is a no-op locally (Spring
                 // Security only sends it over a request it sees as
                 // secure) and only takes effect once behind a
                 // TLS-terminating ALB with
@@ -140,7 +140,7 @@ public class SecurityConfig {
                         .referrerPolicy(referrer -> referrer.policy(ReferrerPolicy.NO_REFERRER))
                         .contentSecurityPolicy(csp -> csp.policyDirectives(
                                 "default-src 'self'; "
-                                        + "img-src 'self' data: https://tile.openstreetmap.org; "
+                                        + "img-src 'self' data:; "
                                         + "style-src 'self' 'unsafe-inline'; "
                                         + "script-src 'self'; "
                                         + "connect-src 'self'; "

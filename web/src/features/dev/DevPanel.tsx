@@ -495,6 +495,14 @@ function SystemTab({ status }: { status: Status | undefined }) {
                       .join(", ")
                   : "none prepared yet"}
                 {` · ${status.charts.tiles_cached} tiles rendered`}
+                {Object.values(status.charts.pyramid ?? {}).map(p => (
+                  <span key={p.kind}>
+                    {` · ${p.kind === "tac" ? "TAC" : "sectional"} pyramid `}
+                    {p.finished_at
+                      ? `complete (${p.rasters_done} sheets, ${p.tiles_written} tiles)`
+                      : `${p.rasters_done}/${p.rasters_total} sheets${p.current ? `, on ${p.current}` : ""}`}
+                  </span>
+                ))}
               </span>
             </li>
           )}

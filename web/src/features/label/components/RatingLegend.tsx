@@ -11,7 +11,6 @@ const SHORTCUTS: [string | null, string][] = [
   ["↑↓←→", "step the way the course runs"],
   ["Del", "remove"],
   [null, "click the course to add"],
-  ["t", "toggle FAA / OSM"],
 ];
 
 const SCALE: [Rating, string, string][] = [

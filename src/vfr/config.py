@@ -42,16 +42,22 @@ FAA_CHART_CYCLE_ANCHOR = "2026-09-03"
 FAA_CHART_CYCLE_DAYS = 56
 
 # Where the downloaded rasters and the tiles rendered from them live --
-# both under data/raw, which is not tracked (a sectional is ~70 MB).
-CHARTS_DIR = DATA_DIR / "raw" / "charts"
-CHART_TILE_CACHE_DIR = DATA_DIR / "raw" / "chart_tiles" / "faa"
+# both under data/raw, which is not tracked. The whole country is 64
+# sheets (about 5 GB with their overviews) and a quarter of a million
+# tiles (about 3 GB): the `.nosync` suffix is what keeps iCloud Drive
+# from syncing a folder, and this repository lives under a Desktop it
+# syncs. Any other machine sees an ordinary folder name.
+CHARTS_DIR = DATA_DIR / "raw" / "charts.nosync"
+CHART_TILE_CACHE_DIR = DATA_DIR / "raw" / "chart_tiles.nosync"
 
 # A sectional is printed at 1:500,000 (about 42 m per pixel in the
 # FAA's raster), which is a web-mercator zoom of 12 at these latitudes;
-# past that there is nothing more to see, and below 8 a tile is mostly
-# collar and seams. A terminal area chart is 1:250,000, one zoom
-# further in, and only worth drawing close up.
+# past that there is nothing more to see. It is the map's only base
+# layer, so it is drawn all the way out to zoom 5 (a whole region on a
+# phone), where it is the chart's own colours at a hundredth of its
+# resolution. A terminal area chart is 1:250,000, one zoom further in,
+# and only worth drawing close up.
 VFR_SECTIONAL_MAX_ZOOM = 12
-VFR_SECTIONAL_MIN_ZOOM = 8
+VFR_SECTIONAL_MIN_ZOOM = 5
 VFR_TAC_MAX_ZOOM = 13
 VFR_TAC_MIN_ZOOM = 10

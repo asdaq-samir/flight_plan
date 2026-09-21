@@ -78,66 +78,47 @@ export function observeResize(map: L.Map, el: HTMLElement): () => void {
   return () => observer.disconnect();
 }
 
-/** The always-present OpenStreetMap backdrop -- added the moment the
- *  map itself is created, independent of any route. Without this, the
- *  map sat completely blank (no tiles at all, not even a world map)
- *  for as long as the course/checkpoints/nav-log fetch took, because
- *  `createBasemaps` below -- the only thing that ever added a tile
- *  layer -- couldn't run until `course` existed. A pilot should see a
- *  map immediately, with the route layering in on top of it as it
- *  arrives, not a grey rectangle until it does. */
-export function createBaseLayer(map: L.Map) {
-  L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    attribution: "&copy; OpenStreetMap contributors", maxZoom: 19, opacity: 0.85,
-  }).addTo(map);
-}
-
-/** Sectional coverage stops making sense past zoom 12 and stays empty
- *  below 8, so the chart alone can never frame a long leg.
- *  `createBaseLayer`'s own OpenStreetMap layer sits underneath for
- *  that; this only adds the toggleable FAA/OSM pair on top of it,
- *  which needs the course's own zoom limits and so can't exist before
- *  a course does. */
+/** The chart layers: the sectional as the map's one and only base,
+ *  and the terminal area chart over it on request. Both need the
+ *  course's own zoom limits, so this runs once the course exists --
+ *  which costs nothing visible, since `useLeafletMap` gives the map no
+ *  view until the course's own fit sets one, and Leaflet fetches no
+ *  tile before it has a view.
+ *
+ *  There is no street map under the chart any more. OpenStreetMap
+ *  used to sit underneath for the zooms the sectional had no tiles at
+ *  and as a `t`-key alternative; now the sectional is drawn all the
+ *  way out to zoom 5, every sheet of the country is rendered ahead of
+ *  time (`python -m vfr.charts pyramid`), and a pilot looks at the
+ *  chart and nothing else, the way vfrmap.com does it. */
 export function createBasemaps(map: L.Map, cfg: Course) {
-  const layers = {
-    // A plain tile layer, the same shape as `osm` below -- but the
-    // tiles come from this app's own planning-service
-    // (/api/sectional-tile), which renders a {z}/{x}/{y} pyramid from
-    // the FAA's own GeoTIFF of each sectional sheet (src/vfr/charts.py)
-    // and caches it on disk. Tiles fetch only the new edge on a pan,
-    // scale the previous zoom's tiles under the zoom animation, and
-    // prefetch a ring (keepBuffer) beyond the viewport, all of it
-    // Leaflet's own tested behaviour -- which is why the chart is
-    // served as tiles at all, rather than drawn as the one-image-per-
-    // view dynamic layer it once was ("tiles snap on", every pan).
-    //
-    // maxNativeZoom, not maxZoom: past the chart's own max_zoom (its
-    // print resolution) Leaflet upscales the last real tiles rather
-    // than asking for ones that would only be the same pixels bigger.
-    // maxZoom stops that three levels later: an 8x upscale is still a
-    // legible (if soft) chart, but seven levels past native a 256px
-    // tile is a 128x smear of whatever colour it was, so past 15 this
-    // layer simply hides and the OSM base underneath (a real street map
-    // at that scale) is what's left.
-    faa: L.tileLayer("/api/planner/sectional-tile/{z}/{x}/{y}.png", {
-      attribution: "FAA VFR charts",
-      minZoom: cfg.min_zoom, maxNativeZoom: cfg.max_zoom, maxZoom: cfg.max_zoom + 3,
-      keepBuffer: 4,
-    }),
-    osm: L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      attribution: "&copy; OpenStreetMap contributors", maxZoom: 19,
-    }),
-  };
-  let active: keyof typeof layers = "faa";
-  layers[active].addTo(map);
+  // A plain tile layer whose tiles come from this app's own
+  // planning-service (/api/sectional-tile): a {z}/{x}/{y} pyramid
+  // rendered from the FAA's own GeoTIFF of each sectional sheet
+  // (src/vfr/charts.py). Tiles fetch only the new edge on a pan, scale
+  // the previous zoom's tiles under the zoom animation, and prefetch a
+  // ring (keepBuffer) beyond the viewport, all of it Leaflet's own
+  // tested behaviour -- which is why the chart is served as tiles at
+  // all, rather than drawn as the one-image-per-view dynamic layer it
+  // once was ("tiles snap on", every pan).
+  //
+  // maxNativeZoom, not maxZoom: past the chart's own max_zoom (its
+  // print resolution) Leaflet upscales the last real tiles rather than
+  // asking for ones that would only be the same pixels bigger. maxZoom
+  // stops that three levels later: an 8x upscale is still a legible
+  // (if soft) chart, and with no other layer to fall back to there is
+  // nothing to show past it -- so it is also as far as the map zooms.
+  const sectional = L.tileLayer("/api/planner/sectional-tile/{z}/{x}/{y}.png", {
+    attribution: "FAA VFR charts",
+    minZoom: cfg.min_zoom, maxNativeZoom: cfg.max_zoom, maxZoom: cfg.max_zoom + 3,
+    keepBuffer: 4,
+  }).addTo(map);
 
-  // The terminal area chart, over whichever basemap is showing, where
-  // a pilot has asked for it (`tacOverlay`; a checkbox in the info
-  // popover) -- rendered the same way from the FAA's TAC sheets, one
-  // zoom finer, and transparent (a 404 the layer leaves blank) wherever
-  // no TAC exists, so the sectional shows through everywhere else. Its
-  // zIndex keeps it above the basemaps, which `toggle` below re-adds
-  // after it.
+  // The terminal area chart, over the sectional, where a pilot has
+  // asked for it (`tacOverlay`; a checkbox in the info popover) --
+  // rendered the same way from the FAA's TAC sheets, one zoom finer,
+  // and transparent (a 404 the layer leaves blank) wherever no TAC
+  // exists, so the sectional shows through everywhere else.
   const tac = L.tileLayer("/api/planner/tac-tile/{z}/{x}/{y}.png", {
     minZoom: cfg.tac_min_zoom, maxNativeZoom: cfg.tac_max_zoom, maxZoom: cfg.tac_max_zoom + 3,
     keepBuffer: 2, zIndex: 5,
@@ -153,14 +134,7 @@ export function createBasemaps(map: L.Map, cfg: Course) {
   const unsubscribe = tacOverlay.subscribe(applyTac);
 
   return {
-    get active() { return active; },
-    get belowChart() { return map.getZoom() < (cfg.min_zoom || 8); },
-    toggle() {
-      map.removeLayer(layers[active]);
-      active = active === "faa" ? "osm" : "faa";
-      layers[active].addTo(map);
-      return active;
-    },
+    sectional,
     dispose() { unsubscribe(); },
   };
 }

@@ -119,8 +119,26 @@ once in ten.
 | `GET /api/altitude-breakdown` | The reasoning behind a recommended cruise altitude. |
 | `GET /api/detect/stream` | Chart-vision detections, streamed as NDJSON. |
 | `GET /api/classify` | What the chart draws at one point. |
-| `GET /api/sectional-tile/{z}/{x}/{y}.png` | The sectional as a cached tile pyramid, for the map -- rendered from the FAA's own GeoTIFF of each sheet (`vfr.charts`), downloaded on first use each 56-day cycle, collar clipped away so sheets butt together. |
-| `GET /api/tac-tile/{z}/{x}/{y}.png` | The terminal area charts the same way, for the map's optional overlay; 404 wherever no TAC exists. |
+| `GET /api/sectional-tile/{z}/{x}/{y}.png` | The sectional as a tile pyramid, for the map -- rendered from the FAA's own GeoTIFF of each sheet (`vfr.charts`), collar clipped away so sheets butt together. Zooms 5-12. |
+| `GET /api/tac-tile/{z}/{x}/{y}.png` | The terminal area charts the same way, for the map's optional overlay; 404 wherever no TAC exists. Zooms 10-13. |
+
+The tile endpoints render on first request and cache on disk, which is
+fine for one corridor and not for a map with no street layer under it.
+For the whole country ahead of time (the sectional is the map's only
+base layer, so this is the normal state of a running stack):
+
+```sh
+docker compose exec planning-service python -m vfr.charts prepare   # every sheet: 64 zips, ~5 GB, ~25 min
+docker compose exec planning-service python -m vfr.charts pyramid   # every tile: ~250k files, ~3 GB, under an hour with --workers 4
+```
+
+Both resume where they stopped. The sheets land in
+`data/raw/charts.nosync/<cycle>/`, the tiles in
+`data/raw/chart_tiles.nosync/<cycle>/` (the suffix keeps iCloud Drive
+from syncing them; elsewhere it is just a name). The Dev console's
+System tab shows the sheets prepared and the pyramid's progress. When a
+new 56-day cycle starts, run both again; the previous cycle's files
+can then be deleted.
 | `GET/POST/DELETE /api/picks` | Hand-marked checkpoints. |
 | `GET/POST /api/checkpoint-notes` | A pilot's "how to spot it" note per checkpoint. |
 | `GET /api/airports/search` | Identifier and name lookup for the route form. |

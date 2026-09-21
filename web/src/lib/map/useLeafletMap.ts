@@ -8,11 +8,10 @@ import { observeResize } from "./leaflet";
  * to the same comments): create once, guarded against StrictMode's
  * double effect -- without it Leaflet initialises two maps into the
  * same element and the second one throws -- drop Leaflet's own
- * "Leaflet" self-credit (the OSM/FAA attributions beside it are a real
- * requirement of OSM's tile usage policy, not decoration, and stay),
- * and keep it sized to its container via `observeResize`. Everything
- * after creation -- basemaps, layers, the halo -- is specific to what
- * each map draws and stays in its own component.
+ * "Leaflet" self-credit (the FAA attribution beside it stays), and
+ * keep it sized to its container via `observeResize`. Everything
+ * after creation -- the chart layers, the route, the halo -- is
+ * specific to what each map draws and stays in its own component.
  */
 export function useLeafletMap(onReady?: (map: L.Map) => void) {
   const el = useRef<HTMLDivElement>(null);
@@ -41,12 +40,12 @@ export function useLeafletMap(onReady?: (map: L.Map) => void) {
     // doubles real tile-fetch traffic (measured: 24 wasted requests
     // for the placeholder view, then 24 more once the actual route
     // fit ran) rather than showing the real map any sooner. Left with
-    // no view at all, the tile layer createBaseLayer adds just sits
-    // registered and inert -- Leaflet defers fetching anything until
-    // a view exists -- so the very first tiles it ever requests are
-    // the real route's own, the moment course data's own fit() sets
-    // one. The container's own background (see RouteMap/ChartMap)
-    // covers the cosmetic gap until then, at zero network cost.
+    // no view at all, Leaflet fetches nothing until a view exists --
+    // so the very first tiles the chart layer (added with the course,
+    // see createBasemaps) ever requests are the real route's own, the
+    // moment course data's own fit() sets one. The container's own
+    // background (see RouteMap/ChartMap) covers the cosmetic gap until
+    // then, at zero network cost.
     ready.current?.(map.current);
     const stopObserving = observeResize(map.current, el.current);
     return () => { stopObserving(); map.current?.remove(); map.current = null; };

@@ -674,10 +674,25 @@ class PreparedChart(BaseModel):
     rasters: list[str]
 
 
+class PyramidProgress(BaseModel):
+    """How far `python -m vfr.charts pyramid` has got for one kind of
+    chart: sheets done of the sheets it set out to render."""
+
+    kind: str
+    zooms: list[int]
+    started_at: str | None
+    finished_at: str | None
+    rasters_total: int
+    rasters_done: int
+    tiles_written: int
+    current: str | None
+
+
 class ChartsStatus(BaseModel):
     cycle: str
     charts: list[PreparedChart]
     tiles_cached: int
+    pyramid: dict[str, PyramidProgress] = {}
 
 
 class Status(BaseModel):

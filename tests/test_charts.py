@@ -1,11 +1,13 @@
 """vfr.charts: the FAA chart cycle, the tile grid, finding the chart
 face in a raster, and rendering tiles from more than one sheet."""
 import datetime as dt
+import io
 import re
 
 import numpy as np
 import pytest
 import rasterio
+from PIL import Image
 from rasterio.transform import from_bounds
 from rasterio.warp import transform_bounds
 
@@ -146,6 +148,67 @@ def test_detect_face_reads_neatlines_and_where_the_chart_runs_out(tmp_path):
     assert west == -91.0 and south == 41.0                    # neatlines, snapped
     assert -88.35 <= east <= -88.0                            # the sheet's own edge, less the margin
     assert 43.3 <= north <= 43.55                             # under the boxes, less the margin
+
+
+def test_palette_png_keeps_the_colours_and_the_transparency():
+    # A busy top half from a small palette, the way a chart tile is
+    # (linework and labels over a handful of tints), and a transparent
+    # bottom half.
+    rng = np.random.default_rng(7)
+    colours = np.array([(216, 232, 206), (0, 0, 0), (248, 248, 88), (8, 104, 136), (184, 152, 152)], np.uint8)
+    rgba = np.zeros((256, 256, 4), np.uint8)
+    rgba[:128, :, :3] = colours[rng.integers(0, len(colours), (128, 256))]
+    rgba[:128, :, 3] = 255
+    rgba[64, 64, :3] = (216, 232, 206)
+    rgba[64, 15, :3] = (0, 0, 0)
+    png = charts.encode_png(rgba)
+    assert png[:8] == b"\x89PNG\r\n\x1a\n"
+    back = charts._decode_rgba(png)
+    assert tuple(back[64, 64]) == (216, 232, 206, 255)
+    assert tuple(back[64, 15]) == (0, 0, 0, 255)
+    assert back[200, 64, 3] == 0
+    assert (back[:128, :, 3] == 255).all()
+    rgba_png = io.BytesIO()
+    Image.fromarray(rgba, "RGBA").save(rgba_png, format="PNG")
+    assert len(png) < len(rgba_png.getvalue()) / 2
+
+
+def test_render_pyramid_writes_every_tile_of_every_sheet_and_composites_seams(tmp_path, monkeypatch):
+    monkeypatch.setattr(charts, "CHART_TILE_CACHE_DIR", tmp_path / "tiles")
+    left_box, right_box = (-90.0, 41.0, -88.0, 43.0), (-88.0, 41.0, -86.0, 43.0)
+    _palette_raster(tmp_path / "left.tif", left_box, np.full((512, 512), 1, np.uint8))
+    _palette_raster(tmp_path / "right.tif", right_box, np.full((512, 512), 2, np.uint8))
+    sheets = [
+        charts.Chart(charts.SECTIONAL, "Left", "09-03-2026",
+                     (charts.Raster(tmp_path / "left.tif", face=left_box, envelope=left_box),), "now"),
+        charts.Chart(charts.SECTIONAL, "Right", "09-03-2026",
+                     (charts.Raster(tmp_path / "right.tif", face=right_box, envelope=right_box),), "now"),
+    ]
+    written = charts.render_pyramid(charts.SECTIONAL, zooms=(7, 8), workers=0, charts=sheets)
+
+    tiles = sorted(p.relative_to(tmp_path / "tiles").as_posix() for p in (tmp_path / "tiles").rglob("*.png"))
+    # Zoom 7: x 32-33, y 47; zoom 8: x 64-66 (90W to 86W), y 94-95.
+    assert len(tiles) == 8
+    # Each sheet writes the seam tiles it shares with the other (one
+    # at zoom 7, two at zoom 8), so writes outnumber files by three.
+    assert written == 11
+    assert "09-03-2026/sec/8/65/94.png" in tiles
+    assert "09-03-2026/sec/8/64/95.png" in tiles
+    assert not any(t.startswith("09-03-2026/sec/8/67/") for t in tiles)
+
+    # The seam tile at 88W carries both sheets.
+    seam = charts._decode_rgba((tmp_path / "tiles" / "09-03-2026" / "sec" / "8" / "65" / "94.png").read_bytes())
+    west, _, east, _ = charts.tile_bbox_wgs84(65, 94, 8)
+    col = lambda lon: int((lon - west) / (east - west) * 256)  # noqa: E731
+    assert tuple(seam[200, col(-88.3)]) == (255, 0, 0, 255)
+    assert tuple(seam[200, col(-87.7)]) == (0, 0, 255, 255)
+    assert seam[2, 128, 3] == 0
+
+    progress = charts.pyramid_status()["sec"]
+    assert progress["rasters_done"] == 2 and progress["finished_at"] and progress["tiles_written"] == written
+
+    # A second run finds every tile complete and writes nothing.
+    assert charts.render_pyramid(charts.SECTIONAL, zooms=(7, 8), workers=0, charts=sheets) == 0
 
 
 def test_tile_png_caches_the_render_and_remembers_empty_tiles(tmp_path, monkeypatch):

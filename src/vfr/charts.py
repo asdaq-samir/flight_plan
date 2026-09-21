@@ -39,11 +39,13 @@ import io
 import json
 import logging
 import math
+import os
 import re
 import shutil
 import threading
 import time
 import zipfile
+from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
@@ -409,17 +411,20 @@ def _download_and_prepare(kind: ChartKind, name: str, cycle: str) -> Chart:
     return chart
 
 
+_OVERVIEW_LEVELS = [2, 4, 8, 16, 32, 64]
+
+
 def build_overviews(path: Path) -> None:
     """Reduced-resolution copies inside the TIFF, so a zoom-8 tile
-    (a tenth of the chart's resolution) reads a tenth of the pixels.
-    Nearest-neighbour because the band is a palette: averaging colour
-    indices would mean nothing."""
+    (a tenth of the chart's resolution) reads a tenth of the pixels,
+    and a zoom-5 one a hundredth. Nearest-neighbour because the band
+    is a palette: averaging colour indices would mean nothing."""
     import rasterio
     from rasterio.enums import Resampling
 
     with rasterio.open(path, "r+") as ds:
-        if not ds.overviews(1):
-            ds.build_overviews([2, 4, 8, 16], Resampling.nearest)
+        if len(ds.overviews(1)) < len(_OVERVIEW_LEVELS):
+            ds.build_overviews(_OVERVIEW_LEVELS, Resampling.nearest)
             ds.update_tags(ns="rio_overview", resampling="nearest")
 
 
@@ -632,16 +637,16 @@ def detect_face(path: Path, kind: ChartKind) -> tuple[Box, Box]:
 # Rendering
 # ---------------------------------------------------------------------------
 
-def _warp(path: Path, bbox_3857: tuple, centre_lat: float) -> np.ndarray:
-    """One tile's worth of a raster, reprojected to web mercator, as
-    (TILE_PX, TILE_PX, 3) RGB.
+def _warp_rgb(path: Path, bbox_3857: tuple, width: int, height: int, centre_lat: float) -> np.ndarray:
+    """Part of a raster, reprojected to web mercator, as (height,
+    width, 3) RGB -- one tile, or a whole row of them at once.
 
     The chart is a palette image, so it is warped as indices
     (nearest-neighbour -- an averaged index is a random colour) and
     coloured afterwards. At zooms coarser than the chart's own
     resolution that alone drops thin lines; so the warp is read at up
-    to four times the tile's size and box-filtered down in RGB, which
-    is the averaging a palette cannot have."""
+    to four times the requested size and box-filtered down in RGB,
+    which is the averaging a palette cannot have."""
     import rasterio
     from rasterio.enums import Resampling
     from rasterio.transform import from_bounds
@@ -650,12 +655,12 @@ def _warp(path: Path, bbox_3857: tuple, centre_lat: float) -> np.ndarray:
     xmin, ymin, xmax, ymax = bbox_3857
     with rasterio.open(path) as src:
         lut = _palette(src)
-        ground_m_per_tile_px = (xmax - xmin) / TILE_PX * math.cos(math.radians(centre_lat))
-        oversample = int(min(4, max(1, round(ground_m_per_tile_px / float(src.res[0])))))
-        size = TILE_PX * oversample
+        ground_m_per_px = (xmax - xmin) / width * math.cos(math.radians(centre_lat))
+        oversample = int(min(4, max(1, round(ground_m_per_px / float(src.res[0])))))
+        w, h = width * oversample, height * oversample
         with WarpedVRT(
-            src, crs="EPSG:3857", transform=from_bounds(xmin, ymin, xmax, ymax, size, size),
-            width=size, height=size, resampling=Resampling.nearest, nodata=0,
+            src, crs="EPSG:3857", transform=from_bounds(xmin, ymin, xmax, ymax, w, h),
+            width=w, height=h, resampling=Resampling.nearest, nodata=0,
         ) as vrt:
             indices = vrt.read(1)
     rgb = lut[indices]
@@ -664,28 +669,56 @@ def _warp(path: Path, bbox_3857: tuple, centre_lat: float) -> np.ndarray:
     return rgb
 
 
+def _tile_lats(y: int, zoom: int) -> np.ndarray:
+    """The latitude at the centre of each pixel row of tile row `y`."""
+    _, ymin, _, ymax = tile_bbox_3857(0, y, zoom)
+    ys = ymax - (np.arange(TILE_PX) + 0.5) / TILE_PX * (ymax - ymin)
+    return np.degrees(2 * np.arctan(np.exp(ys / _EARTH_RADIUS_M)) - np.pi / 2)
+
+
+def _tile_lons(x: int, zoom: int) -> np.ndarray:
+    """The longitude at the centre of each pixel column of tile column `x`."""
+    xmin, _, xmax, _ = tile_bbox_3857(x, 0, zoom)
+    return (xmin + (np.arange(TILE_PX) + 0.5) / TILE_PX * (xmax - xmin)) / _MERCATOR_ORIGIN_M * 180.0
+
+
+def _face_mask(face: Box, lats: np.ndarray, lons: np.ndarray) -> np.ndarray:
+    west, south, east, north = face
+    return ((lats >= south) & (lats <= north))[:, None] & ((lons >= west) & (lons <= east))[None, :]
+
+
 def render_tile(rasters: list, x: int, y: int, zoom: int) -> np.ndarray | None:
     """The tile as (TILE_PX, TILE_PX, 4) RGBA, composited from every
     raster whose face covers part of it -- first raster wins where
     faces overlap -- and transparent where none does. None when the
     whole tile is uncovered."""
-    xmin, ymin, xmax, ymax = tile_bbox_3857(x, y, zoom)
-    centres = (np.arange(TILE_PX) + 0.5) / TILE_PX
-    lons = (xmin + centres * (xmax - xmin)) / _MERCATOR_ORIGIN_M * 180.0
-    ys = ymax - centres * (ymax - ymin)
-    lats = np.degrees(2 * np.arctan(np.exp(ys / _EARTH_RADIUS_M)) - np.pi / 2)
-
+    bbox = tile_bbox_3857(x, y, zoom)
+    lats, lons = _tile_lats(y, zoom), _tile_lons(x, zoom)
     out = np.zeros((TILE_PX, TILE_PX, 4), dtype=np.uint8)
     for raster in rasters:
-        west, south, east, north = raster.face
-        covered = ((lats >= south) & (lats <= north))[:, None] & ((lons >= west) & (lons <= east))[None, :]
-        covered &= out[:, :, 3] == 0
+        covered = _face_mask(raster.face, lats, lons) & (out[:, :, 3] == 0)
         if not covered.any():
             continue
-        rgb = _warp(raster.path, (xmin, ymin, xmax, ymax), float(lats[TILE_PX // 2]))
+        rgb = _warp_rgb(raster.path, bbox, TILE_PX, TILE_PX, float(lats[TILE_PX // 2]))
         out[covered, :3] = rgb[covered]
         out[covered, 3] = 255
     return out if out[:, :, 3].any() else None
+
+
+def encode_png(rgba: np.ndarray) -> bytes:
+    """The tile as an 8-bit palette PNG: a third the bytes of the RGBA
+    encoding (15 KB against 43 for a busy urban tile) at a third the
+    time, and exact -- at the chart's own zoom the pixels are the
+    sheet's palette to begin with, so the quantiser has nothing to
+    approximate. The octree quantiser is the one that keeps alpha."""
+    image = Image.fromarray(rgba, "RGBA").quantize(256, method=Image.Quantize.FASTOCTREE)
+    buffer = io.BytesIO()
+    image.save(buffer, format="PNG")
+    return buffer.getvalue()
+
+
+def _decode_rgba(png: bytes) -> np.ndarray:
+    return np.array(Image.open(io.BytesIO(png)).convert("RGBA"))  # a copy: the caller writes into it
 
 
 # ---------------------------------------------------------------------------
@@ -742,15 +775,17 @@ def tile_png(x: int, y: int, zoom: int, kind: str = "sec") -> bytes | None:
         if complete:
             none_marker.touch()
         return None
-    buffer = io.BytesIO()
-    Image.fromarray(rgba, "RGBA").save(buffer, format="PNG")
-    data = buffer.getvalue()
+    data = encode_png(rgba)
     if complete:
-        tmp = path.with_suffix(".part")
-        tmp.write_bytes(data)
-        tmp.replace(path)  # atomic, so a killed request cannot leave a torn cache entry
+        _write_atomically(path, data)
         none_marker.unlink(missing_ok=True)
     return data
+
+
+def _write_atomically(path: Path, data: bytes) -> None:
+    tmp = path.with_name(f"{path.name}.{os.getpid()}.part")
+    tmp.write_bytes(data)
+    tmp.replace(path)  # so a killed process cannot leave a torn cache entry
 
 
 def tile_image(x: int, y: int, zoom: int, kind: str = "sec") -> Image.Image | None:
@@ -784,21 +819,225 @@ def prepare_for_bbox(bbox: Box, kinds: tuple = ("sec", "tac")) -> list:
     return charts
 
 
+def prepared_charts() -> list[Chart]:
+    """Every chart prepared on disk, any cycle, newest cycle first."""
+    charts = []
+    if not CHARTS_DIR.exists():
+        return charts
+    for ready in sorted(CHARTS_DIR.glob(f"*/*/*/{_READY}"), reverse=True):
+        directory = ready.parent
+        kind = KINDS.get(directory.parent.name)
+        if kind is None:
+            continue
+        chart = _load_ready(directory, kind, directory.name, directory.parent.parent.name)
+        if chart is not None:
+            charts.append(chart)
+    return charts
+
+
 def status() -> dict:
     """What the Dev console shows: the cycle in use, the charts prepared
-    (any cycle), and how many tiles have been rendered. Never touches
-    the network."""
-    charts = []
-    if CHARTS_DIR.exists():
-        for ready in sorted(CHARTS_DIR.glob(f"*/*/*/{_READY}")):
-            try:
-                data = json.loads(ready.read_text())
-            except (OSError, ValueError):
-                continue
-            charts.append({
-                "name": data["name"], "kind": data["kind"], "cycle": data["cycle"],
-                "prepared_at": data.get("prepared_at"),
-                "rasters": [Path(r["file"]).stem for r in data.get("rasters", [])],
-            })
+    (any cycle), how many tiles have been rendered, and how far a
+    pyramid render has got. Never touches the network."""
+    charts = [
+        {
+            "name": c.name, "kind": c.kind.key, "cycle": c.cycle, "prepared_at": c.prepared_at,
+            "rasters": [r.path.stem for r in c.rasters],
+        }
+        for c in prepared_charts()
+    ]
     tiles = sum(1 for _ in CHART_TILE_CACHE_DIR.rglob("*.png")) if CHART_TILE_CACHE_DIR.exists() else 0
-    return {"cycle": current_cycle(fetch=False), "charts": charts, "tiles_cached": tiles}
+    return {"cycle": current_cycle(fetch=False), "charts": charts, "tiles_cached": tiles, "pyramid": pyramid_status()}
+
+
+# ---------------------------------------------------------------------------
+# The whole country, ahead of time
+# ---------------------------------------------------------------------------
+#
+# Rendering on first request is fine for a corridor; it is not what a
+# map that has no street layer under it wants. A sheet that is not on
+# disk costs the first pilot to look at it half a minute, and every
+# cold tile a quarter of a second -- the open-warp-encode of one tile
+# is mostly fixed overhead (opening the raster and setting up the
+# reprojection, ~70 ms of ~90), so a row of tiles warped in one go is
+# twenty times cheaper per tile. `prepare_all` fetches every sheet;
+# `render_pyramid` walks each sheet's face a tile row at a time and
+# writes the same files `tile_png` would, so nothing changes for the
+# tile endpoint except that it stops rendering.
+
+_PYRAMID_STATUS = "pyramid.json"
+
+
+def prepare_all(kinds: tuple = ("sec", "tac"), cycle: str | None = None) -> list[Chart]:
+    """Every chart of the given kinds, downloaded and prepared: about
+    5 GB for the country, twenty-odd seconds of overviews and neatline
+    search per sheet on top of the download."""
+    cycle = cycle or current_cycle()
+    charts = []
+    for key in kinds:
+        kind = KINDS[key]
+        names = list(COVERAGE[key])
+        for i, name in enumerate(names, 1):
+            started = time.time()
+            chart = ensure_chart(kind, name, cycle)
+            if chart is None:
+                log.warning("%s/%s: could not be prepared", key, name)
+                continue
+            charts.append(chart)
+            log.info("%s/%s ready (%d of %d, %.0f s)", key, name, i, len(names), time.time() - started)
+    return charts
+
+
+def _tile_range(face: Box, zoom: int) -> tuple:
+    """(x0, x1, y0, y1), inclusive, of the tiles a face touches."""
+    n = 2 ** zoom
+    west, south, east, north = face
+
+    def row(lat: float) -> int:
+        lat = max(-85.05, min(85.05, lat))
+        return int((1 - math.asinh(math.tan(math.radians(lat))) / math.pi) / 2 * n)
+
+    x0, x1 = int((west + 180) / 360 * n), int((east + 180) / 360 * n)
+    return max(0, x0), min(n - 1, x1), max(0, row(north)), min(n - 1, row(south))
+
+
+def _render_row(args: tuple) -> int:
+    """One tile row of one raster at one zoom: warped in a single
+    strip, cut into tiles, each clipped to the face, composited over
+    whatever another sheet already left on disk, and written. Returns
+    the number of tiles written. A top-level function because it runs
+    in a worker process."""
+    path, face, kind_key, cycle, zoom, y, x0, x1 = args
+    kind = KINDS[kind_key]
+    lats = _tile_lats(y, zoom)
+    xmin = tile_bbox_3857(x0, y, zoom)[0]
+    _, ymin, xmax, ymax = tile_bbox_3857(x1, y, zoom)
+    width = (x1 - x0 + 1) * TILE_PX
+    strip = _warp_rgb(Path(path), (xmin, ymin, xmax, ymax), width, TILE_PX, float(lats[TILE_PX // 2]))
+
+    written = 0
+    for x in range(x0, x1 + 1):
+        covered = _face_mask(face, lats, _tile_lons(x, zoom))
+        if not covered.any():
+            continue
+        tile_path = _tile_path(kind, cycle, x, y, zoom)
+        rgba = None
+        if tile_path.exists():
+            try:
+                rgba = _decode_rgba(tile_path.read_bytes())
+            except OSError:
+                rgba = None
+        if rgba is None:
+            rgba = np.zeros((TILE_PX, TILE_PX, 4), dtype=np.uint8)
+        fill = covered & (rgba[:, :, 3] == 0)
+        if not fill.any():
+            continue  # the neighbouring sheet already drew all of it
+        rgb = strip[:, (x - x0) * TILE_PX:(x - x0 + 1) * TILE_PX]
+        rgba[fill, :3] = rgb[fill]
+        rgba[fill, 3] = 255
+        tile_path.parent.mkdir(parents=True, exist_ok=True)
+        _write_atomically(tile_path, encode_png(rgba))
+        tile_path.with_suffix(".none").unlink(missing_ok=True)
+        written += 1
+    return written
+
+
+def _write_pyramid_status(update: dict) -> None:
+    CHART_TILE_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    path = CHART_TILE_CACHE_DIR / _PYRAMID_STATUS
+    try:
+        data = json.loads(path.read_text())
+    except (OSError, ValueError):
+        data = {}
+    data[update["kind"]] = update
+    path.write_text(json.dumps(data, indent=1))
+
+
+def pyramid_status() -> dict:
+    """Per kind, how far the last pyramid render got -- what the Dev
+    console shows next to the chart list."""
+    try:
+        return json.loads((CHART_TILE_CACHE_DIR / _PYRAMID_STATUS).read_text())
+    except (OSError, ValueError):
+        return {}
+
+
+def render_pyramid(kind: ChartKind, zooms: tuple | None = None, workers: int = 4, charts: list | None = None) -> int:
+    """Every tile of every prepared chart of `kind`, at each zoom of
+    the kind's own range, written into the tile cache. Sheets are done
+    one at a time -- their tile rows in parallel across `workers`
+    processes -- so two sheets never race for the same seam tile.
+    Returns the number of tiles written. Re-runnable: a tile already
+    complete on disk is left alone, so an interrupted render resumes
+    where it stopped (an already-rendered sheet costs a scan)."""
+    zooms = tuple(zooms or range(kind.min_zoom, kind.max_zoom + 1))
+    charts = [c for c in (charts if charts is not None else prepared_charts()) if c.kind is kind]
+    rasters = [(chart, raster) for chart in charts for raster in chart.rasters]
+    started = datetime.now(tz=timezone.utc).isoformat()
+    total = 0
+    progress = {
+        "kind": kind.key, "zooms": list(zooms), "started_at": started, "finished_at": None,
+        "rasters_total": len(rasters), "rasters_done": 0, "tiles_written": 0, "current": None,
+    }
+    _write_pyramid_status(progress)
+
+    pool = ProcessPoolExecutor(max_workers=workers) if workers > 0 else None
+    try:
+        for i, (chart, raster) in enumerate(rasters):
+            progress["current"] = raster.path.stem
+            _write_pyramid_status(progress)
+            sheet_started = time.time()
+            sheet_tiles = 0
+            for zoom in zooms:
+                x0, x1, y0, y1 = _tile_range(raster.face, zoom)
+                jobs = [(str(raster.path), raster.face, kind.key, chart.cycle, zoom, y, x0, x1) for y in range(y0, y1 + 1)]
+                if pool is None:
+                    sheet_tiles += sum(map(_render_row, jobs))
+                else:
+                    sheet_tiles += sum(pool.map(_render_row, jobs, chunksize=1))
+            total += sheet_tiles
+            progress.update(rasters_done=i + 1, tiles_written=total)
+            _write_pyramid_status(progress)
+            log.info("%s: %d tiles in %.0f s (%d of %d sheets, %d tiles so far)",
+                     raster.path.stem, sheet_tiles, time.time() - sheet_started, i + 1, len(rasters), total)
+    finally:
+        if pool is not None:
+            pool.shutdown()
+    progress.update(current=None, finished_at=datetime.now(tz=timezone.utc).isoformat())
+    _write_pyramid_status(progress)
+    return total
+
+
+def _main(argv: list | None = None) -> int:
+    """`python -m vfr.charts prepare` fetches every sheet;
+    `python -m vfr.charts pyramid` renders every tile. Both resume."""
+    import argparse
+
+    parser = argparse.ArgumentParser(description="FAA VFR charts: fetch every sheet, render every tile.")
+    sub = parser.add_subparsers(dest="command", required=True)
+    for name in ("prepare", "pyramid"):
+        p = sub.add_parser(name)
+        p.add_argument("--kind", nargs="+", choices=list(KINDS), default=list(KINDS))
+        if name == "pyramid":
+            p.add_argument("--workers", type=int, default=4)
+            p.add_argument("--zooms", help="e.g. 5-12; the kind's own range by default")
+    args = parser.parse_args(argv)
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+
+    if args.command == "prepare":
+        charts = prepare_all(tuple(args.kind))
+        log.info("%d charts ready under %s", len(charts), CHARTS_DIR)
+        return 0
+    zooms = None
+    if args.zooms:
+        lo, _, hi = args.zooms.partition("-")
+        zooms = tuple(range(int(lo), int(hi or lo) + 1))
+    for key in args.kind:
+        kind = KINDS[key]
+        count = render_pyramid(kind, zooms=zooms and tuple(z for z in zooms if kind.min_zoom <= z <= kind.max_zoom), workers=args.workers)
+        log.info("%s: %d tiles written under %s", key, count, CHART_TILE_CACHE_DIR)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(_main())

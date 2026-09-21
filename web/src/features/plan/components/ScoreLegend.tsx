@@ -25,7 +25,6 @@ const SHORTCUTS: [string | null, string][] = [
   ["a", "all candidates"],
   ["n", "map / brief"],
   ["f", "fit route"],
-  ["t", "toggle FAA / OSM"],
   ["↑↓", "step waypoints"],
 ];
 

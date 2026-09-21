@@ -120,13 +120,13 @@ export default function PlanView() {
     // an aeroplane deleted since is still what this plan was flown in.
     return options.some(o => aircraftKey(o) === aircraftKey(aircraft)) ? options : [aircraft, ...options];
   }, [profiles, myAircraft, aircraft]);
-  const controls = useRef<{ fit: () => void; toggleBasemap: () => string } | null>(null);
+  const controls = useRef<{ fit: () => void } | null>(null);
   // A stable identity, not an inline arrow at the RouteMap call site --
   // that map's own course-load effect lists onReady as a dependency,
   // and a fresh function every render would re-run it (tearing down and
   // rebuilding every map layer) on every unrelated PlanView re-render,
   // not just when the course actually changes.
-  const handleMapReady = useCallback((c: { fit: () => void; toggleBasemap: () => string }) => {
+  const handleMapReady = useCallback((c: { fit: () => void }) => {
     controls.current = c;
   }, []);
   const started = useRef(false);
@@ -342,7 +342,6 @@ export default function PlanView() {
       if (e.key === "n") setBriefingView(!briefing);
       if (e.key === "a") toggleCandidates();
       if (e.key === "f") controls.current?.fit();
-      if (e.key === "t") controls.current?.toggleBasemap();
       if (e.key === "ArrowDown") { e.preventDefault(); stepWaypoint(1); }
       if (e.key === "ArrowUp") { e.preventDefault(); stepWaypoint(-1); }
     };

@@ -1,7 +1,7 @@
 import L from "leaflet";
 import { useEffect, useRef } from "react";
 import type { Candidate, Course } from "../../../lib/api/types";
-import { createBaseLayer, createBasemaps, createCourseLine, createHalo, dotIcon, endLabelIcon, mountReact } from "../../../lib/map/leaflet";
+import { createBasemaps, createCourseLine, createHalo, dotIcon, endLabelIcon, mountReact } from "../../../lib/map/leaflet";
 import { useLeafletMap } from "../../../lib/map/useLeafletMap";
 import { scoreColor } from "../format";
 
@@ -15,7 +15,7 @@ interface Props {
    *  sidebar list already focuses the map when a row is clicked; this
    *  is the other direction, clicking the marker itself. */
   onSelectCandidate: (candidate: Candidate) => void;
-  onReady: (controls: { fit: () => void; toggleBasemap: () => string }) => void;
+  onReady: (controls: { fit: () => void }) => void;
   /** Whether the map is currently zoomed to at least a focused point's
    *  own level (`course.max_zoom`, the same threshold the halo effect
    *  below zooms to) -- PlanView's own zoom toggle button reads this to
@@ -43,7 +43,7 @@ interface Props {
 export default function RouteMap({
   course, candidates, selected, showCandidates, focus, onSelectCandidate, onReady, onZoomChange,
 }: Props) {
-  const { el, map } = useLeafletMap(createBaseLayer);
+  const { el, map } = useLeafletMap();
   const layers = useRef<Record<string, L.Layer | null>>({});
   const basemaps = useRef<ReturnType<typeof createBasemaps> | null>(null);
   // The basemaps subscribe to the TAC-overlay setting for as long as
@@ -75,10 +75,7 @@ export default function RouteMap({
       m.fitBounds(L.latLngBounds(course.course_line), { padding: [30, 30] });
     };
     fit();
-    onReady({
-      fit,
-      toggleBasemap: () => basemaps.current?.toggle() ?? "faa",
-    });
+    onReady({ fit });
   }, [map, course, onReady]);
 
   // Candidates: every point the model scored, small and dim. The

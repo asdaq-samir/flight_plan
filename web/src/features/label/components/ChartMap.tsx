@@ -4,7 +4,7 @@ import type { Course, Point } from "../../../lib/api/types";
 import { isEndpoint } from "../../../lib/api/types";
 import { COLORS, hasRating, isVisible, type Filters } from "../logic";
 import {
-  createBaseLayer, createBasemaps, createCourseLine, createHalo, dotIcon, endLabelIcon,
+  createBasemaps, createCourseLine, createHalo, dotIcon, endLabelIcon,
   setHaloMenuOpen, updateHaloContent,
 } from "../../../lib/map/leaflet";
 import { useLeafletMap } from "../../../lib/map/useLeafletMap";
@@ -43,7 +43,7 @@ export default function ChartMap({
   course, endpoints, detections, added, filters, selected, selectedContent, showMenu,
   onSelect, onDeselect, onAddAt, onMapReady,
 }: Props) {
-  const { el, map } = useLeafletMap(m => { createBaseLayer(m); onMapReady?.(m); });
+  const { el, map } = useLeafletMap(m => onMapReady?.(m));
   const layers = useRef<Record<string, L.Layer | null>>({});
   const basemaps = useRef<ReturnType<typeof createBasemaps> | null>(null);
   const halo = useRef<

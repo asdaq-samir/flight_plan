@@ -154,9 +154,10 @@ and places its pieces in its own `Shell`.
 **Leaflet.** `lib/map/` holds everything `RouteMap` and `ChartMap`
 share. Leaflet stays imperative — no React binding — except that popup
 and marker content is JSX mounted into the DOM node Leaflet provides.
-The FAA sectional is an ordinary tile layer served by `planning-service`
-(`/api/sectional-tile/{z}/{x}/{y}.png`, rendered from the FAA's own
-GeoTIFFs) over an OpenStreetMap base; the terminal area chart is a
+The FAA sectional is the map's only base layer: an ordinary tile layer
+served by `planning-service` (`/api/sectional-tile/{z}/{x}/{y}.png`,
+rendered from the FAA's own GeoTIFFs, zooms 5 to 12 and upscaled to
+15). There is no street map under it. The terminal area chart is a
 second tile layer (`/api/tac-tile/…`) drawn over it when the info
 popover's "Chart layers" checkbox is on (`lib/map/tacOverlay.ts`, one
 setting shared by both map pages and remembered per browser).
