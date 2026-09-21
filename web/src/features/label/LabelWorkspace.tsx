@@ -165,6 +165,7 @@ export default function LabelWorkspace({ dep, dest, children }: WorkspaceProps) 
         onRate={r => void rate(r)}
         onCategoryChange={c => void setCategory(c)}
         onRemove={() => void removeSelected()}
+        onClose={() => select(null)}
         onLeft={() => step(leftIsForward ? 1 : -1)}
         onRight={() => step(leftIsForward ? -1 : 1)}
         canLeft={leftIsForward ? canNext : canPrev}
@@ -173,7 +174,7 @@ export default function LabelWorkspace({ dep, dest, children }: WorkspaceProps) 
     );
   }, [
     point, place, waypoints.length, course?.bearing_deg, course?.departure.ident,
-    rate, setCategory, removeSelected, step, walkIndex, walk.length,
+    rate, setCategory, removeSelected, select, step, walkIndex, walk.length,
   ]);
 
   /** Walks the waypoint list top to bottom (not the course-relative
@@ -262,7 +263,6 @@ export default function LabelWorkspace({ dep, dest, children }: WorkspaceProps) 
   // dependencies (see its comment) -- an inline arrow at the call site
   // would redraw every marker on every render of this page.
   const onSelect = useCallback((kind: Selection["kind"], index: number) => select({ kind, index }), [select]);
-  const onDeselect = useCallback(() => select(null), [select]);
   const onAddAt = useCallback((lat: number, lon: number) => { void addPick(lat, lon); }, [addPick]);
 
   // The chart read's progress; its failures are the query client's to
@@ -283,7 +283,6 @@ export default function LabelWorkspace({ dep, dest, children }: WorkspaceProps) 
           selectedContent={selectedContent}
           showMenu={zoomedIn}
           onSelect={onSelect}
-          onDeselect={onDeselect}
           onAddAt={onAddAt}
           onMapReady={setMap}
         />

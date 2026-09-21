@@ -1,15 +1,17 @@
 import L from "leaflet";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { AttributionControl, MapContainer, Marker, Popup } from "react-leaflet";
 import MapControls, { type ZoomControl } from "../../../components/MapControls";
 import OverlayPin from "../../../components/OverlayPin";
 import type { Course, Point } from "../../../lib/api/types";
 import { isEndpoint } from "../../../lib/api/types";
+import { ChartTiles, type OverlayOffer } from "../../../lib/map/ChartTiles";
+import { CourseLine } from "../../../lib/map/CourseLine";
+import { Halo } from "../../../lib/map/Halo";
+import { dotIcon, endLabelIcon } from "../../../lib/map/icons";
+import { ResizeAware } from "../../../lib/map/MapEffects";
+import { CROWD_FROM_ZOOM, useZoomLevel } from "../../../lib/map/useZoomLevel";
 import { COLORS, hasRating, isVisible, type Filters } from "../logic";
-import {
-  CROWD_FROM_ZOOM, createBasemaps, createCourseLine, createHalo, dotIcon, endLabelIcon, fromZoom,
-  setHaloMenuOpen, updateHaloContent, type Basemaps,
-} from "../../../lib/map/leaflet";
-import { useLeafletMap } from "../../../lib/map/useLeafletMap";
 
 interface Props {
   course: Course | null;
@@ -25,152 +27,109 @@ interface Props {
    *  just be floating over unrelated ground. */
   showMenu: boolean;
   onSelect: (kind: "endpoint" | "detected" | "added", index: number) => void;
-  onDeselect: () => void;
   onAddAt: (lat: number, lon: number) => void;
   onMapReady?: (map: L.Map) => void;
   /** The fit-line / show-selected toggle, drawn on the map (`MapControls`). */
   zoom: ZoomControl;
 }
 
+/** The detections and the points added by hand, from the crowd zoom
+ *  in: a few hundred over a whole corridor hide the chart. Unrated is
+ *  slate rather than white: a white dot with a white casing vanishes
+ *  over pale chart. */
+function Candidates({ detections, added, filters, onSelect }: Pick<Props, "detections" | "added" | "filters" | "onSelect">) {
+  const zoom = useZoomLevel();
+  if (zoom < CROWD_FROM_ZOOM) return null;
+  const draw = (points: Point[], kind: "detected" | "added") =>
+    points.map((p, i) => ({ p, i })).filter(({ p }) => isVisible(p, filters)).map(({ p, i }) => (
+      <Marker
+        key={`${kind}-${i}`} position={[p.lat, p.lon]}
+        icon={dotIcon(hasRating(p) ? COLORS[(p as { rating: 0 }).rating] : "#8fa3b0")}
+        eventHandlers={{ click: e => { L.DomEvent.stopPropagation(e); onSelect(kind, i); } }}
+      />
+    ));
+  return (
+    <>
+      {draw(detections, "detected")}
+      {draw(added, "added")}
+    </>
+  );
+}
+
 /**
- * The map. Leaflet stays imperative inside here and React owns nothing
- * below this component -- which is deliberate: the map was never where
- * the faults were, and every binding library is a wrapper over the same
- * calls.
- *
- * Every callback prop must be a stable identity at its call site (see
- * LabelView's own onSelect/onDeselect/onAddAt): each effect below lists
- * exactly what it reads, so an inline arrow would redraw every marker
- * on every unrelated re-render.
+ * The labeling map, as react-leaflet components: the chart tiles, the
+ * course line (a click on it adds a point), the airports, every
+ * candidate the filters admit, and the selection ring with the rating
+ * menu pinned above it. The markers are a function of state -- the
+ * whole reason for the port: the list of what is on screen is derived,
+ * not kept in step by hand.
  */
 export default function ChartMap({
   course, endpoints, detections, added, filters, selected, selectedContent, showMenu,
-  onSelect, onDeselect, onAddAt, onMapReady, zoom,
+  onSelect, onAddAt, onMapReady, zoom,
 }: Props) {
-  const { el, map } = useLeafletMap(m => onMapReady?.(m));
-  const layers = useRef<Record<string, L.Layer | null>>({});
-  // The marker groups come and go with the zoom (see `fromZoom`); what
-  // is kept per group is the function that stops that and removes it.
-  const detach = useRef<Record<string, (() => void) | undefined>>({});
-  const basemaps = useRef<ReturnType<typeof createBasemaps> | null>(null);
-  const halo = useRef<
-    { ring: L.FeatureGroup; marker: L.Layer; lat: number; lon: number; onClose?: () => void } | null
-  >(null);
-  // The basemaps subscribe to the TAC-overlay setting for as long as
-  // the map lives; let go of that with the map.
-  useEffect(() => () => basemaps.current?.dispose(), []);
-  // The map and its basemaps once both exist -- state, not the refs
-  // read during render -- for the pin over the map (`OverlayPin`),
-  // which watches them.
-  const [pinTargets, setPinTargets] = useState<{ map: L.Map; basemaps: Basemaps } | null>(null);
-
-  // Basemaps and the course line, once the route resolves.
+  const [map, setMap] = useState<L.Map | null>(null);
+  const [offer, setOffer] = useState<OverlayOffer | null>(null);
+  const [previewing, setPreviewing] = useState(false);
+  const bounds = useMemo(() => (course ? L.latLngBounds(course.course_line as [number, number][]) : null), [course]);
+  useEffect(() => { if (map) onMapReady?.(map); }, [map, onMapReady]);
+  // Fit to the route when it changes; invalidateSize first, since on a
+  // fresh reload the map can fit against a stale cached container size.
   useEffect(() => {
-    const m = map.current;
-    if (!m || !course) return;
-    if (!basemaps.current) {
-      basemaps.current = createBasemaps(m, course);
-      setPinTargets({ map: m, basemaps: basemaps.current });
-    }
+    if (!map || !bounds) return;
+    map.invalidateSize();
+    map.fitBounds(bounds, { padding: [30, 30] });
+  }, [map, bounds]);
 
-    if (layers.current.course) m.removeLayer(layers.current.course);
-    layers.current.course = createCourseLine(m, course.course_line, {
-      tooltip: `${course.departure.ident} → ${course.destination.ident} · ` +
-               `${course.distance_nm} nm · ${String(course.bearing_deg).padStart(3, "0")}°T`,
-      // Left-click the course to add: dragging still pans, and an 18 px
-      // line is too specific to hit by accident.
-      onClick: latlng => onAddAt(latlng.lat, latlng.lng),
-    });
-
-    if (layers.current.ends) m.removeLayer(layers.current.ends);
-    layers.current.ends = L.layerGroup(
-      endpoints.filter(isEndpoint).map((e, i) =>
-        L.marker([e.lat, e.lon], { icon: endLabelIcon(e.ident) })
-          .on("click", ev => { L.DomEvent.stopPropagation(ev); onSelect("endpoint", i); })),
-    ).addTo(m);
-
-    // Leaflet's fit math reads its cached container size, which can still
-    // be stale on first load (a fresh reload fits before the container's
-    // true size has ever been measured) -- invalidateSize forces a fresh
-    // read right before the computation that depends on it.
-    m.invalidateSize();
-    m.fitBounds(L.latLngBounds(course.course_line), { padding: [30, 30] });
-  }, [map, course, endpoints, onAddAt, onSelect]);
-
-  // Markers, redrawn whenever what should be on screen changes. This is
-  // the whole reason for the port: the list of markers is a function of
-  // state, not something kept in step by hand.
-  useEffect(() => {
-    const m = map.current;
-    if (!m) return;
-    for (const key of ["detections", "added"] as const) {
-      detach.current[key]?.();
-    }
-    // Each group comes and goes with the zoom (`fromZoom`): a few
-    // hundred detections over a whole corridor hide the chart.
-    const draw = (points: Point[], kind: "detected" | "added", ring: string) =>
-      fromZoom(m, L.layerGroup(
-        points.map((p, i) => ({ p, i }))
-          .filter(({ p }) => isVisible(p, filters))
-          .map(({ p, i }) =>
-            L.marker([p.lat, p.lon], {
-              icon: dotIcon(hasRating(p) ? COLORS[(p as { rating: 0 }).rating] : ring),
-            }).on("click", ev => { L.DomEvent.stopPropagation(ev); onSelect(kind, i); })),
-      ), CROWD_FROM_ZOOM);
-
-    // Unrated is slate rather than white: a white dot with a white casing
-    // vanishes over pale chart.
-    detach.current.detections = draw(detections, "detected", "#8fa3b0");
-    detach.current.added = draw(added, "added", "#8fa3b0");
-  }, [map, detections, added, filters, onSelect]);
-
-  // The selection ring, and the popup pinned to it.
-  useEffect(() => {
-    const m = map.current;
-    if (!m) return;
-
-    const removeHalo = () => {
-      if (!halo.current) return;
-      // Detach first: removing the ring closes its popup as a side
-      // effect, which fires the same "popupclose" event a real
-      // close-button click does. Without this, stepping to the next
-      // point (which replaces this ring) would deselect it immediately.
-      halo.current.marker.off("popupclose");
-      m.removeLayer(halo.current.ring);
-      halo.current = null;
-    };
-
-    if (!selected) { removeHalo(); return; }
-
-    const { lat, lon } = selected;
-    // Same point still selected -- just refresh what the popup says (a
-    // live count while detections stream in, a new rating) instead of
-    // tearing the whole ring down and reopening it, which reads as the
-    // selection itself reloading with every block of detections.
-    if (halo.current && halo.current.lat === lat && halo.current.lon === lon) {
-      if (selectedContent) updateHaloContent(halo.current.marker, selectedContent);
-      // The exact closure bound at creation, not this render's
-      // `onDeselect` -- `setHaloMenuOpen`'s `.off()` only detaches a
-      // listener that matches by function identity, so the one that
-      // was attached is the one to hand back.
-      setHaloMenuOpen(halo.current.marker, showMenu, halo.current.onClose);
-      return;
-    }
-
-    removeHalo();
-    const created = createHalo(m, [lat, lon], selectedContent, onDeselect, showMenu);
-    halo.current = { ...created, lat, lon, onClose: onDeselect };
-  }, [map, selected, selectedContent, showMenu, onDeselect]);
-
-  // bg-slate-100: purely cosmetic, so the gap before the course loads
-  // reads as "a map is about to be here" rather than a blank white
-  // rectangle -- see RouteMap/useLeafletMap's own comments for why an
-  // actual placeholder tile fetch isn't done instead.
   return (
     <div className="relative h-full w-full">
-      <div ref={el} className="h-full w-full bg-slate-100 dark:bg-slate-900" />
+      {course && bounds ? (
+        <MapContainer
+          ref={setMap} bounds={bounds} boundsOptions={{ padding: [30, 30] }}
+          zoomControl={false} minZoom={3} keyboard={false} attributionControl={false}
+          className="h-full w-full bg-slate-100 dark:bg-slate-900"
+        >
+          <AttributionControl prefix={false} />
+          <ResizeAware />
+          <ChartTiles course={course} previewing={previewing} onOffer={setOffer} />
+          {/* Left-click the course to add: dragging still pans, and an
+              18 px line is too specific to hit by accident. */}
+          <CourseLine
+            line={course.course_line as [number, number][]}
+            tooltip={`${course.departure.ident} → ${course.destination.ident} · ${course.distance_nm} nm · ${String(course.bearing_deg).padStart(3, "0")}°T`}
+            onClick={latlng => onAddAt(latlng.lat, latlng.lng)}
+          />
+          {endpoints.filter(isEndpoint).map((e, i) => (
+            <Marker
+              key={e.ident} position={[e.lat, e.lon]} icon={endLabelIcon(e.ident)}
+              eventHandlers={{ click: ev => { L.DomEvent.stopPropagation(ev); onSelect("endpoint", i); } }}
+            />
+          ))}
+          <Candidates detections={detections} added={added} filters={filters} onSelect={onSelect} />
+          {selected && <Halo at={selected} />}
+          {/* The rating menu: a popup pinned above the ring, open for as
+              long as React's selection says so -- not an incidental map
+              click (autoClose/closeOnClick off), and its own close is
+              the X in its content. autoPan off: stepping between points
+              centres the point being walked to, and Leaflet's default
+              autoPan would re-pan on top of that. A fixed minimum width,
+              since Leaflet's own auto-sizing has been seen collapsing a
+              popup to its 50px floor. */}
+          {selected && showMenu && selectedContent && (
+            <Popup
+              position={[selected.lat, selected.lon]} offset={[0, -16]}
+              closeButton={false} autoClose={false} closeOnClick={false} autoPan={false}
+              minWidth={232} maxWidth={320}
+            >
+              {selectedContent}
+            </Popup>
+          )}
+        </MapContainer>
+      ) : (
+        <div className="h-full w-full bg-slate-100 dark:bg-slate-900" />
+      )}
       <MapControls zoom={zoom}>
-        <OverlayPin map={pinTargets?.map ?? null} basemaps={pinTargets?.basemaps ?? null} />
+        <OverlayPin offer={offer} onPreview={setPreviewing} />
       </MapControls>
     </div>
   );

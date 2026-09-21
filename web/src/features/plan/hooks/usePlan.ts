@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { experimental_streamedQuery as streamedQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  experimental_streamedQuery as streamedQuery, keepPreviousData, useMutation, useQuery, useQueryClient,
+} from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ApiError, api, describeError } from "../../../lib/api/client";
 import { ended } from "../../../lib/api/streams";
@@ -72,9 +74,11 @@ export function usePlan(
   const queryClient = useQueryClient();
   const routeKnown = !!dep && !!dest && dep !== dest;
 
+  // The previous route's course stays on the map until the new one is
+  // charted, so the map is never taken down between routes.
   const course = useQuery({
     queryKey: ["course", dep, dest], queryFn: () => api.course(dep, dest),
-    enabled: routeKnown, staleTime: Infinity, meta: { silent: notCollected },
+    enabled: routeKnown, staleTime: Infinity, placeholderData: keepPreviousData, meta: { silent: notCollected },
   });
   const needsBuild = notCollected(course.error);
 

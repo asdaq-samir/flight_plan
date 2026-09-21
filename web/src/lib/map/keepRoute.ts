@@ -1,4 +1,5 @@
 import type { Course } from "../api/types";
+import { tileUrl } from "./tiles";
 
 /**
  * The tiles a route needs in the air, fetched now so the service
@@ -63,12 +64,6 @@ export function corridorTiles(line: [number, number][], zooms: number[], corrido
     }
   }
   return [...tiles.values()];
-}
-
-export function tileUrl(course: Course, kind: string, z: number, x: number, y: number): string {
-  return course.chart_tiles_base
-    ? `${course.chart_tiles_base}/${course.chart_cycle}/${kind}/${z}/${x}/${y}.png`
-    : `/api/planner/chart-tile/${kind}/${z}/${x}/${y}.png?c=${course.chart_cycle}`;
 }
 
 /** Whether a service worker is holding this app, which is what makes

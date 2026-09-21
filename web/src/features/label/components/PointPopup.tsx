@@ -1,4 +1,4 @@
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import { Badge } from "../../../components/ui/badge";
 import { Button } from "../../../components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../../components/ui/select";
@@ -29,6 +29,9 @@ interface Props {
   onRight?: () => void;
   canLeft?: boolean;
   canRight?: boolean;
+  /** Puts the popup away -- the selection is React's, so the popup's
+   *  own close is a button of its own here rather than Leaflet's. */
+  onClose: () => void;
 }
 
 
@@ -40,13 +43,14 @@ interface Props {
  */
 export default function PointPopup({
   point, place, countChanged, bearingDeg, departureIdent, onRate, onCategoryChange, onRemove,
-  onLeft, onRight, canLeft = true, canRight = true,
+  onLeft, onRight, canLeft = true, canRight = true, onClose,
 }: Props) {
   // Same row either way -- an endpoint is the first or last stop in the
   // walk, and needs a way off itself just as much as any other point
   // does (this used to be endpoint-only content with no arrows at all,
   // which meant landing on departure via "Start" had no way forward).
-  const arrows = (place || onLeft || onRight) && (
+  // The close sits at the row's end, where Leaflet's own would be.
+  const arrows = (
     <div className="flex items-center justify-between gap-1">
       <Button
         type="button"
@@ -76,6 +80,9 @@ export default function PointPopup({
         className="flex-shrink-0 rounded-full"
       >
         <ChevronRight className="size-5" strokeWidth={3} />
+      </Button>
+      <Button type="button" variant="ghost" size="icon-sm" onClick={onClose} aria-label="Close" data-testid="popup-close">
+        <X className="size-4" />
       </Button>
     </div>
   );
@@ -110,10 +117,7 @@ export default function PointPopup({
           narrower, wrapped width it happens to collapse to instead of
           its real one-line width -- pinning this row flat gives it (and
           so the popup) a stable, correctly-measured width instead. */}
-      {/* data-rating-row: how leaflet.tsx's createHalo measures this
-          popup's real width in whichever browser opens it, rather than
-          trusting a pixel constant tuned on a different one. */}
-      <div className="flex gap-1" data-rating-row>
+      <div className="flex gap-1">
         {RATINGS.map(r => (
           <Button
             key={r}
