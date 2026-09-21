@@ -7,9 +7,11 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 /**
  * Entry point for webapp -- the public-facing route-planning API. See
- * {@link com.northflyers.vfr.controller.RouteController} for the actual
- * HTTP surface; this class only bootstraps Spring Boot and declares the
- * OpenAPI document's title/description (served at /v3/api-docs).
+ * {@link com.northflyers.vfr.controller.PlannerProxyController} for the
+ * planning surface (proxied to planning-service) and the other
+ * controllers in that package for pilots, aircraft and flights; this
+ * class only bootstraps Spring Boot and declares the OpenAPI document's
+ * title/description (served at /v3/api-docs).
  */
 @SpringBootApplication
 @OpenAPIDefinition(info = @Info(

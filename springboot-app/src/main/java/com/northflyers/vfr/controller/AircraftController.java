@@ -23,7 +23,7 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * CRUD for a pilot's own aeroplanes. Every method starts the same way
  * -- resolve the signed-in pilot or answer 401 -- because unlike
- * {@link RouteController} (public, shared data), everything here is
+ * {@link PlannerProxyController} (public, shared data), everything here is
  * pilot-scoped; {@link com.northflyers.vfr.security.SecurityConfig} already refuses an
  * unauthenticated caller before a request reaches here, but that
  * refusal is a redirect-avoiding 401 with no body, and {@code
