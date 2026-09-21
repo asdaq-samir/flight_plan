@@ -1,31 +1,24 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { DEFAULT_AIRCRAFT, usePreferences } from "../../lib/preferences";
 import { useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
 import { cn } from "cn";
 import { api } from "../../lib/api/client";
 import type { AircraftChoice, AircraftProfileSummary, AltitudeChoice, Candidate } from "../../lib/api/types";
 import { identSchema } from "../../lib/identSchema";
+import { DEFAULT_AIRCRAFT, usePreferences } from "../../lib/preferences";
 // Without this Leaflet's tiles, markers and controls have no
 // positioning at all -- this is the library's own stylesheet, not
-// app styling. Imported here (not in main.tsx) so a page with no map
-// never pays for it.
+// app styling.
 import "leaflet/dist/leaflet.css";
-import Shell from "../../Shell";
-import MapDrawer from "../../components/MapDrawer";
-import DevSwitch from "../../components/DevSwitch";
-import MapHeader from "../../components/MapHeader";
-import SidebarToggleButton from "../../components/SidebarToggleButton";
 import { usePageStatus } from "../../lib/usePageStatus";
-import RouteMap from "./components/RouteMap";
-import RouteForm from "../../components/RouteForm";
+import type { WorkspaceProps } from "../page/workspace";
+import { PilotPanel } from "../pilot/PilotPanel";
 import BuildNotice from "./components/BuildNotice";
-import NavLogView from "./components/navlog/NavLogView";
-import NavLogActions from "./components/navlog/NavLogActions";
 import FlightBriefingView from "./components/briefing/FlightBriefingView";
-import { usePlanState, descriptionKey } from "./hooks/usePlanState";
-import { PilotButton, PilotPanel } from "../pilot/PilotPanel";
-import { useDocumentTitle } from "../../lib/useDocumentTitle";
+import NavLogActions from "./components/navlog/NavLogActions";
+import NavLogView from "./components/navlog/NavLogView";
+import RouteMap from "./components/RouteMap";
+import { descriptionKey, usePlanState } from "./hooks/usePlanState";
 
 // The three stages a plan actually goes through, in order -- there's
 // no finer-grained number to report while one of them is running, so
@@ -57,7 +50,9 @@ function baseProfile(typeDesignator: string, profiles: AircraftProfileSummary[])
 
 /**
  * The planner: two idents in, a charted course with checkpoints and a
- * dead-reckoning nav log out.
+ * dead-reckoning nav log out -- the pilot's workspace on the page
+ * (MapPage), which owns the shell around it and the route typed into
+ * it.
  *
  * Everything on screen is derived from the store on each render, which is
  * the difference that matters from the page this replaces. That one kept
@@ -65,8 +60,7 @@ function baseProfile(typeDesignator: string, profiles: AircraftProfileSummary[])
  * author remembered -- and the checkpoint rows had to be drawn a second
  * time by hand once the legs arrived, because nothing recomputed them.
  */
-export default function PlanView() {
-  useDocumentTitle("Plan a route — VFR Route");
+export default function PlanWorkspace({ dep, dest, onRoute, sidebarOpen, onSidebarOpenChange, children }: WorkspaceProps) {
   const s = usePlanState();
   // Named, not read as `s.x` inside the hooks below: each hook then
   // lists exactly what it reads, and the callbacks are stable
@@ -75,8 +69,6 @@ export default function PlanView() {
     course, selected, selectedPoint, loadRoutes, plan, loadBriefing, describeCheckpoints, selectPoint, toggleCandidates,
   } = s;
   const [searchParams, setSearchParams] = useSearchParams();
-  const [dep, setDep] = useState(searchParams.get("dep")?.toUpperCase() ?? "");
-  const [dest, setDest] = useState(searchParams.get("dest")?.toUpperCase() ?? "");
   const [alt, setAlt] = useState(searchParams.get("altitude_ft") ?? "");
   const [altitudeChoice, setAltitudeChoice] = useState<AltitudeChoice>(() => altitudeChoiceOf(searchParams.get("altitude_choice")));
   // The departure time as an ISO instant, or "" for about now. It picks
@@ -86,8 +78,8 @@ export default function PlanView() {
   // The aeroplane the nav log is computed for: remembered per browser
   // (the preferences store), since a pilot flies the same one for a
   // while; a stock profile until they pick one of their own.
-  const aircraft = usePreferences(s => s.aircraft);
-  const setAircraft = usePreferences(s => s.setAircraft);
+  const aircraft = usePreferences(p => p.aircraft);
+  const setAircraft = usePreferences(p => p.setAircraft);
   // The stock profiles, plus a signed-in pilot's own aeroplanes on top
   // of them -- the same ["pilot"]/["aircraft"] queries the pilot
   // console keeps.
@@ -111,44 +103,12 @@ export default function PlanView() {
   // A stable identity, not an inline arrow at the RouteMap call site --
   // that map's own course-load effect lists onReady as a dependency,
   // and a fresh function every render would re-run it (tearing down and
-  // rebuilding every map layer) on every unrelated PlanView re-render,
-  // not just when the course actually changes.
+  // rebuilding every map layer) on every unrelated re-render, not just
+  // when the course actually changes.
   const handleMapReady = useCallback((c: { fit: () => void }) => {
     controls.current = c;
   }, []);
   const started = useRef(false);
-
-  // The flight planning drawer is the briefing: the nav log as its
-  // first section, the FAA briefing sections under it, the narrative
-  // and Print in its header -- the same panel beside the map that
-  // Dev's Model Training drawer is, opened the same way. One drawer,
-  // one width: the briefing used to be a separate view that replaced
-  // the map and drew its own read-only copy of the table, and then
-  // the drawer had two widths -- the table alone, and the whole
-  // briefing -- which held the same things in two arrangements.
-  //
-  // Open is the URL (?view=briefing), not a useState: a pasted link
-  // lands on the briefing, `n` toggles it, the Dev switch brings it
-  // back with the route, and the browser's back button leaves it.
-  const sidebarOpen = searchParams.get("view") === "briefing";
-  // The pilot's own console, a drawer from the top of the map area --
-  // the developer's page has the dev console in the same place. One
-  // drawer at a time over the same map: opening one closes the other.
-  const [pilotOpen, setPilotOpen] = useState(false);
-  const setSidebarOpen = useCallback((open: boolean) => {
-    setSearchParams(prev => {
-      const next = new URLSearchParams(prev);
-      if (open) next.set("view", "briefing");
-      else next.delete("view");
-      return next;
-    }, { replace: true });
-    if (open) setPilotOpen(false);
-  }, [setSearchParams]);
-  const toggleSidebar = useCallback(() => setSidebarOpen(!sidebarOpen), [sidebarOpen, setSidebarOpen]);
-  const togglePilot = useCallback(() => {
-    setPilotOpen(open => !open);
-    setSidebarOpen(false);
-  }, [setSidebarOpen]);
 
   // Open on whatever corridor exists, so the page is never an empty form
   // with no hint of what it accepts.
@@ -160,8 +120,7 @@ export default function PlanView() {
       const first = routes[0] ?? { departure_ident: "C81", destination_ident: "KDLH" };
       const d = searchParams.get("dep")?.toUpperCase() || first.departure_ident;
       const a = searchParams.get("dest")?.toUpperCase() || first.destination_ident;
-      setDep(d);
-      setDest(a);
+      onRoute(d, a);
       void plan(
         d, a, searchParams.get("altitude_ft") ?? undefined, aircraft,
         altitudeChoiceOf(searchParams.get("altitude_choice")), searchParams.get("depart") ?? undefined,
@@ -172,7 +131,7 @@ export default function PlanView() {
     // still listed (loadRoutes/plan are stable, []-deps callbacks in
     // usePlanState; the others only matter at this first read) so a
     // future refactor wouldn't silently go stale here undetected.
-  }, [loadRoutes, plan, searchParams, aircraft]);
+  }, [loadRoutes, plan, searchParams, aircraft, onRoute]);
 
   // The briefing's own data (hazards, METAR, forecast, runways/
   // frequencies) is only worth fetching once a pilot actually opens
@@ -264,10 +223,7 @@ export default function PlanView() {
   // in, syncing the map to whatever it lands on exactly the way
   // clicking that row would (RouteMap's own `focus` prop, and
   // NavLogView's own scrollIntoView effect, both already key off
-  // `selectedPoint`). The same list-stepping Label's own keyboard
-  // handling does for its waypoint list, ported here since this
-  // page's nav log has an equally obvious top-to-bottom order and no
-  // single-leg "course-relative" concept of its own to step by instead.
+  // `selectedPoint`).
   const stepWaypoint = useCallback((delta: number) => {
     if (!course) return;
     const points = [
@@ -282,12 +238,11 @@ export default function PlanView() {
     if (next) selectPoint(next);
   }, [course, selected, selectedPoint, selectPoint]);
 
-  // Mirrors Label's own zoom button: zoomed out, this zooms in to
-  // whatever's selected (or departure, the first point, if nothing is
-  // yet -- "Start"); zoomed in, it zooms back out to the whole route
-  // ("Fit route") rather than requiring the keyboard-only "f" shortcut.
-  // `zoomedIn` comes from RouteMap's own real zoom level (see its own
-  // comment), not which of these two actions last ran.
+  // The map's zoom button: zoomed out, this zooms in to whatever's
+  // selected (or departure, the first point, if nothing is yet);
+  // zoomed in, it zooms back out to the whole route. `zoomedIn` comes
+  // from RouteMap's own real zoom level (see its own comment), not
+  // which of these two actions last ran.
   const [zoomedIn, setZoomedIn] = useState(false);
   const toggleZoom = useCallback(() => {
     if (!course) return;
@@ -302,23 +257,21 @@ export default function PlanView() {
   // Radix layer already used (the aircraft picker's list walks its
   // options with the same arrow keys; a popover's own Escape): those
   // mark the event default-prevented, or keep the focus inside a
-  // listbox or dialog.
-  // The map is always mounted -- the briefing is a drawer over it, not
-  // a view in its place -- so `f` and the arrow walk work with the
-  // drawer open.
+  // listbox or dialog. The map is always mounted -- the briefing is
+  // the drawer beside it, not a view in its place -- so `f` and the
+  // arrow walk work with the drawer open.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const target = e.target instanceof HTMLElement ? e.target : null;
       const tag = target?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA") return;
-      // A modal dialog (the sign-in dialog) owns its keys; the drawers
-      // are dialogs too but non-modal, and the walk goes on inside them.
+      // A modal dialog (the sign-in dialog, a console) owns its keys.
       // A section title in the drawer prevents Up/Down itself, to keep
       // the accordion from walking its titles (see BriefingSection):
       // from there the press is this page's.
       const onSectionTitle = !!target?.closest('[data-slot="accordion-trigger"]');
       if ((e.defaultPrevented && !onSectionTitle) || target?.closest('[role="listbox"],[role="dialog"][aria-modal="true"],[role="menu"]')) return;
-      if (e.key === "n") setSidebarOpen(!sidebarOpen);
+      if (e.key === "n") onSidebarOpenChange(!sidebarOpen);
       if (e.key === "a") toggleCandidates();
       if (e.key === "f") controls.current?.fit();
       if (e.key === "ArrowDown") { e.preventDefault(); stepWaypoint(1); }
@@ -326,53 +279,18 @@ export default function PlanView() {
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [sidebarOpen, setSidebarOpen, stepWaypoint, toggleCandidates]);
-
-  // One row, the same shape as Dev's: the Dev-mode switch leading, the
-  // route form -- not "VFR Route," the thing a pilot is here to use --
-  // in the middle, and at the end the guide, the zoom toggle, the pilot
-  // console and the flight planning drawer's toggle, in the order
-  // Dev's own four sit in. No tabs row: the briefing is that drawer,
-  // not a second view of the page.
-  const header = (
-    <MapHeader
-      leading={<DevSwitch />}
-      form={(
-        <RouteForm
-          dep={dep} dest={dest}
-          onDepChange={setDep} onDestChange={setDest}
-          onSubmit={submit}
-          disabled={s.stage !== null}
-        />
-      )}
-      actions={(
-        <>
-          <PilotButton open={pilotOpen} onClick={togglePilot} />
-          <SidebarToggleButton open={sidebarOpen} onClick={toggleSidebar} label="Flight Planning" />
-        </>
-      )}
-    />
-  );
+  }, [sidebarOpen, onSidebarOpenChange, stepWaypoint, toggleCandidates]);
 
   // The nav log's own stage (scoring, altitude selection, the live
   // aviationweather.gov fetch) takes priority over the plan's own
   // course/checkpoints stages and the checkpoint description count
   // while it's running -- all four are the same floating status,
-  // never two at once. This used to be two things -- this same
-  // floating popup, plus a second, separate "drawing course…"/
-  // "scoring checkpoints…" line inline in the header -- until both
-  // ends of that redundancy got noticed at once; there's exactly one
-  // place this app reports background progress, this is it. The
-  // briefing's own fetch goes first: it only runs while the drawer is
-  // open wide, and it's the reason this floating popup -- not an
-  // inline line in the drawer -- is how the briefing shows "Loading
-  // briefing…" too, the same as every other background fetch in this
-  // app.
-  // Neither framework narrative's own loading/error state feeds this --
-  // both now show inline in NavLogActions' own Popover (a spinner while
-  // generating, the error text in place of the narrative if it fails),
-  // right next to the button that triggered them, rather than a second,
-  // redundant report of the same thing up here.
+  // never two at once; there's exactly one place this app reports
+  // background progress, this is it. The briefing's own fetch goes
+  // first: it only runs while the drawer is open. Neither framework
+  // narrative's own loading/error state feeds this -- both show inline
+  // in NavLogActions' own Popover, right next to the button that
+  // triggered them.
   const progress = (s.loadingBriefing ? "Loading briefing…" : null)
     ?? s.navStage
     ?? (s.stage === "course" ? "Drawing course…" : null)
@@ -381,17 +299,10 @@ export default function PlanView() {
     ?? (s.descriptionProgress ? `Generating ${s.descriptionProgress.done}/${s.descriptionProgress.total}` : null);
   const briefingErrorMsg = s.briefingError && `Couldn't load the briefing: ${s.briefingError}`;
   const descError = s.descriptionError && `Couldn't generate checkpoint descriptions: ${s.descriptionError}`;
-  // Default position (bottom-center, the Toaster's own app-wide
-  // default now -- see main.tsx) works unmodified whatever is open --
-  // nothing floats at the bottom of the map or of a drawer (the guide
-  // button and the sidebar trigger both live in the header now, see
-  // `header` above), so there's nothing left down there for this to
-  // land on top of.
-  // Three named sources, not one combined string -- a briefing failure
-  // and an unrelated checkpoint-description failure used to share one
-  // slot (whichever won a `??`/`||` chain), silently hiding the other;
-  // now each gets its own stacking toast (see usePageStatus's own
-  // comment).
+  // Named sources, not one combined string -- a briefing failure and
+  // an unrelated checkpoint-description failure used to share one
+  // slot, silently hiding the other; each gets its own stacking toast
+  // (see usePageStatus's own comment).
   usePageStatus(progress, {
     general: s.error,
     navLog: s.navError,
@@ -447,45 +358,33 @@ export default function PlanView() {
     </NavLogView>
   );
 
-  return (
-    <>
-      {s.needsBuild && (
-        <BuildNotice
-          dep={s.needsBuild.dep} dest={s.needsBuild.dest} building={s.building}
-          onBuild={() => void s.build(s.needsBuild!.dep, s.needsBuild!.dest)}
+  return children({
+    // The map stays mounted beside the briefing (the arrow walk still
+    // pans it) but stays off the paper: the drawer is the printed page.
+    map: (
+      <div className={cn("h-full w-full", sidebarOpen && "print:hidden")}>
+        <RouteMap
+          course={s.course}
+          candidates={s.candidates}
+          selected={s.selected}
+          showCandidates={s.showCandidates}
+          focus={s.selectedPoint}
+          onSelectCandidate={selectCandidate}
+          onReady={handleMapReady}
+          onZoomChange={setZoomedIn}
+          zoom={{ zoomedIn, onToggle: toggleZoom, disabled: !s.course }}
         />
-      )}
-      <Shell
-        header={header}
-        panels={(
-          <MapDrawer side="top" open={pilotOpen} onOpenChange={setPilotOpen} label="Pilot">
-            <PilotPanel course={s.course} />
-          </MapDrawer>
-        )}
-        sidebarLabel="Flight Planning"
-        sidebarPrintable
-        sidebarOpen={sidebarOpen}
-        onSidebarOpenChange={setSidebarOpen}
-        // The map stays mounted under the briefing (the arrow walk
-        // still pans it) but stays off the paper: the drawer is the
-        // printed page.
-        map={
-          <div className={cn("h-full w-full", sidebarOpen && "print:hidden")}>
-            <RouteMap
-              course={s.course}
-              candidates={s.candidates}
-              selected={s.selected}
-              showCandidates={s.showCandidates}
-              focus={s.selectedPoint}
-              onSelectCandidate={selectCandidate}
-              onReady={handleMapReady}
-              onZoomChange={setZoomedIn}
-              zoom={{ zoomedIn, onToggle: toggleZoom, disabled: !s.course }}
-            />
-          </div>
-        }
-        sidebar={navLog}
+      </div>
+    ),
+    sidebar: navLog,
+    console: <PilotPanel course={s.course} />,
+    submit,
+    loading: s.stage !== null,
+    notices: s.needsBuild ? (
+      <BuildNotice
+        dep={s.needsBuild.dep} dest={s.needsBuild.dest} building={s.building}
+        onBuild={() => void s.build(s.needsBuild!.dep, s.needsBuild!.dest)}
       />
-    </>
-  );
+    ) : null,
+  });
 }

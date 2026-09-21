@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { ComponentProps, ReactNode } from "react";
 import { usePreferences } from "../../lib/preferences";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useLocation } from "react-router-dom";
@@ -47,13 +47,14 @@ const CHART_KIND_LABELS: Record<string, string> = {
 // the same tab, not to Model Training every time.
 const TABS = ["training", "performance", "system"];
 
-/** The header button that opens the console -- `aria-expanded` so the
- *  state is readable, the same as the sidebar's own toggle. A console
- *  glyph, not the flask: the flask is the Dev page's own mark (the Dev
- *  link on Plan carries it), and one glyph should mean one thing. */
-export function DevButton({ open, onClick }: { open: boolean; onClick: () => void }) {
+/** The header button that opens the console: a `SheetTrigger` child,
+ *  so the sheet's own open state, click and `aria-expanded` arrive as
+ *  props and land on the button. A console glyph, not the flask: the
+ *  flask is the Dev page's own mark, and one glyph should mean one
+ *  thing. */
+export function DevButton(props: Omit<ComponentProps<typeof IconButton>, "label" | "children">) {
   return (
-    <IconButton label="Developer" aria-expanded={open} onClick={onClick} data-testid="dev-console-button">
+    <IconButton label="Developer" data-testid="dev-console-button" {...props}>
       <SquareTerminal className="size-5" />
     </IconButton>
   );

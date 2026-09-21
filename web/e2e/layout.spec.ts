@@ -33,34 +33,41 @@ async function settle(page: Page) {
   await page.waitForTimeout(1500);
 }
 
-/** Shell's own sidebar is one `MapDrawer` -- a panel over the map
- *  area, under the header -- identically on a phone and a desktop
- *  window alike (full width below `sm`, a fixed width above), so
- *  unlike most things this `mobile`/`desktop`-project split file has
- *  to special-case per viewport, opening and closing it is one shape,
- *  checked once, that holds at either size unmodified. */
+/** The side drawer is shadcn's own Sidebar: a fixed panel beside the
+ *  map from `md` up, a Sheet over it on a phone. Both carry
+ *  `data-slot="sidebar"` and the side. */
+const sideDrawer = (page: Page) => page.locator('[data-slot="sidebar"][data-side="right"]');
+/** The console is a stock Sheet from the top. */
+const consoleSheet = (page: Page) => page.locator('[data-slot="sheet-content"][data-side="top"]');
+
+/** Closed: on a phone the Sheet is not in the page at all; on a
+ *  desktop the panel stays mounted, collapsed off screen. */
+async function expectDrawerClosed(page: Page) {
+  const viewport = page.viewportSize();
+  if (!viewport) throw new Error("no viewport configured");
+  if (viewport.width < 768) await expect(page.locator('[data-slot="sidebar"][data-mobile="true"]')).toHaveCount(0);
+  else await expect(sideDrawer(page)).toHaveAttribute("data-state", "collapsed");
+}
+
+async function expectDrawerOpen(page: Page) {
+  const viewport = page.viewportSize();
+  if (!viewport) throw new Error("no viewport configured");
+  if (viewport.width < 768) await expect(page.locator('[data-slot="sidebar"][data-mobile="true"]')).toBeVisible();
+  else await expect(sideDrawer(page)).toHaveAttribute("data-state", "expanded");
+}
+
+/** Opening and closing the drawer is one shape on both pages: the
+ *  stock trigger in the header opens it and says so, Escape closes it. */
 async function openSidebar(page: Page) {
   const sidebarTrigger = page.getByTestId("sidebar-trigger-button");
-  const sidebar = page.locator('[data-slot="map-drawer"]');
   await sidebarTrigger.click();
-  await expect(sidebar).toBeVisible();
+  await expectDrawerOpen(page);
   await expect(sidebarTrigger).toHaveAttribute("aria-expanded", "true");
-  // The button is drawn filled while its drawer is out (see IconButton).
-  await expect(sidebarTrigger).toHaveAttribute("data-variant", "default");
-
-  // In the map area, not over the header: the panel starts where the
-  // header ends, and the header's own buttons stay usable above it.
-  const headerBox = await page.locator("header").boundingBox();
-  const sidebarBox = await sidebar.boundingBox();
-  expect(headerBox).not.toBeNull();
-  expect(sidebarBox).not.toBeNull();
-  expect(sidebarBox!.y).toBeGreaterThanOrEqual(headerBox!.y + headerBox!.height - 1);
   await expect(sidebarTrigger).toBeEnabled();
 
   await page.keyboard.press("Escape");
-  await expect(sidebar).not.toBeVisible();
+  await expectDrawerClosed(page);
   await expect(sidebarTrigger).toHaveAttribute("aria-expanded", "false");
-  await expect(sidebarTrigger).toHaveAttribute("data-variant", "ghost");
 }
 
 test.describe("/app/plan", () => {
@@ -78,9 +85,7 @@ test.describe("/app/plan", () => {
   test("sidebar starts closed on load, every load", async ({ page }) => {
     await page.goto("/app/plan");
     await settle(page);
-    // Not just hidden -- the panel isn't even mounted until its own
-    // trigger opens it, so "closed" means "not there."
-    expect(await page.locator('[data-slot="map-drawer"]').count()).toBe(0);
+    await expectDrawerClosed(page);
   });
 
   test("sidebar opens from its own trigger, closes on Escape", async ({ page }) => {
@@ -110,7 +115,7 @@ test.describe("/app/dev", () => {
   test("sidebar starts closed on load, every load", async ({ page }) => {
     await page.goto("/app/dev");
     await settle(page);
-    expect(await page.locator('[data-slot="map-drawer"]').count()).toBe(0);
+    await expectDrawerClosed(page);
   });
 
   test("sidebar opens from its own trigger, closes on Escape", async ({ page }) => {
@@ -177,9 +182,8 @@ test.describe("/app/plan", () => {
     expect(triggerBox!.x).toBeGreaterThan(loadBox!.x);
     expect(triggerBox!.y).toBeGreaterThanOrEqual(loadBox!.y - 20);
 
-    const sidebar = page.locator('[data-slot="map-drawer"]');
     await page.getByTestId("sidebar-trigger-button").click();
-    await expect(sidebar).toBeVisible();
+    await expectDrawerOpen(page);
   });
 });
 
@@ -222,7 +226,7 @@ test("plan page: the flight planning drawer opens the way the Model Training dra
   await page.goto("/app/dev");
   await settle(page);
   await page.getByTestId("sidebar-trigger-button").click();
-  const drawer = page.locator('[data-slot="map-drawer"][data-side="right"]');
+  const drawer = sideDrawer(page);
   await expect(drawer).toBeVisible();
   await page.waitForTimeout(300);
   const devBox = await drawer.boundingBox();
@@ -266,10 +270,11 @@ test("plan page: the flight planning drawer opens the way the Model Training dra
   await expect(drawer.locator('[data-slot="accordion-content"] [data-testid="navlog-summary"]')).toBeVisible();
   expect(await drawer.locator('[data-slot="accordion-content"][data-state="open"]').count()).toBe(1);
 
-  // The page's own header is still there above it: the route form,
-  // and the one Dev-mode switch this page has.
-  await expect(page.getByLabel("Departure", { exact: true })).toBeVisible();
-  await expect(page.locator("header").getByRole("switch", { name: "Dev mode" })).toHaveCount(1);
+  // The page's own header is still there: the route form, and the one
+  // Dev-mode switch this page has (by test id, not role: on a phone
+  // the modal sheet hides the rest of the page from assistive tech).
+  expect(await page.locator("header").getByLabel("Departure", { exact: true }).count()).toBe(1);
+  expect(await page.locator("header").getByTestId("dev-switch").count()).toBe(1);
 
   // The briefing's actions live in the drawer's own header: the AI
   // button (LangGraph/CrewAI are tabs inside the popover it opens),
@@ -298,7 +303,7 @@ test("plan page: opening the briefing pops a 'planning aid only' warning toast, 
   // briefing section under it, every one closed. No "Flight Plan
   // Summary" section: the nav log's own section carries the totals
   // and the altitude, and the drawer's header the aeroplane.
-  const drawer = page.locator('[data-slot="map-drawer"][data-side="right"]');
+  const drawer = sideDrawer(page);
   const navLog = drawer.locator("table");
   // A closed accordion section has no content in the page at all.
   await expect(navLog).toHaveCount(0);
@@ -337,27 +342,27 @@ test("plan page: Escape closes the briefing drawer, URL included, and no narrowe
   await settle(page);
 
   await openBriefing(page);
-  const drawer = page.locator('[data-slot="map-drawer"][data-side="right"]');
+  const drawer = sideDrawer(page);
   await expect(drawer.getByText("Adverse Conditions")).toBeVisible();
   // No toggle to a narrower nav log: the drawer has the one width.
   expect(await drawer.getByTestId("sidebar-expand-toggle").count()).toBe(0);
 
   await page.keyboard.press("Escape");
-  await expect(page.locator('[data-slot="map-drawer"]')).toHaveCount(0);
+  await expectDrawerClosed(page);
   await expect(page).not.toHaveURL(/[?&]view=briefing/);
 });
 
 test("plan page: a pasted briefing link opens the drawer, and 'n' closes and opens it", async ({ page }) => {
   await page.goto("/app/plan?view=briefing");
   await settle(page);
-  const drawer = page.locator('[data-slot="map-drawer"][data-side="right"]');
+  const drawer = sideDrawer(page);
   await expect(drawer).toBeVisible();
   await expect(drawer.getByTestId("print-button")).toBeVisible();
 
   await page.keyboard.press("n");
   await page.waitForTimeout(300);
   await expect(page).not.toHaveURL(/[?&]view=briefing/);
-  await expect(page.locator('[data-slot="map-drawer"]')).toHaveCount(0);
+  await expectDrawerClosed(page);
 
   await page.keyboard.press("n");
   await page.waitForTimeout(300);
@@ -371,7 +376,7 @@ test("plan page: the arrow keys and a click walk the nav log's checkpoints, with
   await settle(page);
   await page.getByTestId("sidebar-trigger-button").click();
   // The sections start closed: open the nav log's to walk its rows.
-  await page.locator('[data-slot="map-drawer"]').getByText("Nav log", { exact: true }).click();
+  await sideDrawer(page).getByText("Nav log", { exact: true }).click();
   const table = page.getByRole("table", { name: /Navigation log from/i });
   // The rows arrive with the scored checkpoints; wait for more than
   // the departure and the destination.
@@ -431,7 +436,13 @@ test("plan page: the briefing's nav log scrolls inside the drawer, not the page"
 test("the Dev-mode switch leads the route form, flips to the dev page with the route, and back to where it was flipped from", async ({ page }) => {
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
-  await openBriefing(page);
+  // With the briefing open on a desktop, where the header stays in
+  // reach beside the sidebar; on a phone the drawer is a modal sheet
+  // over the header, so the switch is flipped with it closed.
+  const viewport = page.viewportSize();
+  if (!viewport) throw new Error("no viewport configured");
+  const wide = viewport.width >= 768;
+  if (wide) await openBriefing(page);
 
   // Off on Plan, and on the route form's left -- the one control that
   // switches roles, in the same place on both pages.
@@ -453,8 +464,13 @@ test("the Dev-mode switch leads the route form, flips to the dev page with the r
   // Off again: back to exactly where it was flipped from (`state.from`,
   // DevSwitch's own), the open briefing included, not a flat /app/plan.
   await page.locator("header").getByRole("switch", { name: "Dev mode" }).click();
-  await page.waitForURL(/\/app\/plan\?dep=C81&dest=KDLH&view=briefing$/);
-  await expect(page.locator('[data-slot="map-drawer"][data-side="right"]').getByTestId("print-button")).toBeVisible();
+  if (wide) {
+    await page.waitForURL(/\/app\/plan\?dep=C81&dest=KDLH&view=briefing$/);
+    await expectDrawerOpen(page);
+    await expect(sideDrawer(page).getByTestId("print-button")).toBeVisible();
+  } else {
+    await page.waitForURL(/\/app\/plan\?dep=C81&dest=KDLH$/);
+  }
 });
 
 test("the DEV switch is the one sign of which page this is: the header itself looks the same on both", async ({ page }) => {
@@ -476,7 +492,7 @@ test("plan page: the nav log's altitude opens the planner's own reasoning, and t
   await settle(page);
   await page.getByTestId("sidebar-trigger-button").click();
   // The sections start closed: the altitude is in the nav log's own.
-  await page.locator('[data-slot="map-drawer"]').getByText("Nav log", { exact: true }).click();
+  await sideDrawer(page).getByText("Nav log", { exact: true }).click();
   // The altitude arrives with the nav log stream, after the checkpoints.
   const why = page.getByTestId("altitude-why");
   await expect(why).toBeVisible({ timeout: 60000 });
@@ -509,7 +525,7 @@ test("plan page: the nav log's altitude opens the planner's own reasoning, and t
   await popover.getByTestId("custom-altitude-fly").click();
   await expect(page).toHaveURL(/[?&]altitude_ft=3500/);
   await expect(page.getByTestId("altitude-why")).toContainText("3,500 ft · yours", { timeout: 30000 });
-  await expect(page.locator('[data-slot="map-drawer"] table tbody tr[tabindex="0"]').nth(1).locator("td").nth(1)).toHaveText("3,500", { timeout: 30000 });
+  await expect(sideDrawer(page).locator('table tbody tr[tabindex="0"]').nth(1).locator("td").nth(1)).toHaveText("3,500", { timeout: 30000 });
   await page.getByTestId("altitude-why").click();
   await expect(popover).toBeVisible();
   await expect(popover.getByTestId("altitude-plan-fastest")).toHaveAttribute("aria-pressed", "false");
@@ -518,19 +534,19 @@ test("plan page: the nav log's altitude opens the planner's own reasoning, and t
   await expect(page).not.toHaveURL(/[?&]altitude_ft=/);
   await expect(page.getByTestId("altitude-why")).toContainText("lowest", { timeout: 30000 });
   // No altitude box in the table's head any more: Alt is a plain heading.
-  await expect(page.locator('[data-slot="map-drawer"] table thead')).not.toContainText("Cruise altitude");
-  expect(await page.locator('[data-slot="map-drawer"] table thead input').count()).toBe(0);
+  await expect(sideDrawer(page).locator('table thead')).not.toContainText("Cruise altitude");
+  expect(await sideDrawer(page).locator('table thead input').count()).toBe(0);
 
   // Escape closes the popover and leaves the drawer open.
   await page.getByTestId("altitude-why").click();
   await expect(popover).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(popover).toHaveCount(0);
-  await expect(page.locator('[data-slot="map-drawer"]')).toBeVisible();
+  await expectDrawerOpen(page);
 
   // The briefing's Cruise Altitude section, closed like the rest until
   // its title is clicked, carries the same steps.
-  const drawer = page.locator('[data-slot="map-drawer"][data-side="right"]');
+  const drawer = sideDrawer(page);
   await expect(drawer.getByText("Cruise Altitude", { exact: true })).toBeVisible();
   await expect(drawer.getByText("14 CFR 91.159")).toBeHidden();
   await drawer.getByText("Cruise Altitude", { exact: true }).click();
@@ -541,7 +557,7 @@ test("plan page: a departure time gives every checkpoint an ETA and picks the wi
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
   await page.getByTestId("sidebar-trigger-button").click();
-  await page.locator('[data-slot="map-drawer"]').getByText("Nav log", { exact: true }).click();
+  await sideDrawer(page).getByText("Nav log", { exact: true }).click();
   const table = page.getByRole("table", { name: /Navigation log from/i });
   await expect(table.locator("thead")).not.toContainText("ETA");
 
@@ -596,42 +612,42 @@ test("the old Settings address lands on the planner", async ({ page }) => {
   await page.waitForURL("**/app/plan");
 });
 
-test("plan page: the pilot console drops down over the map with sign-in, aeroplanes and flights, one drawer at a time with the nav log", async ({ page }) => {
+test("plan page: the pilot console is a sheet from the top with sign-in, aeroplanes and flights, and the drawer opens once it is closed", async ({ page }) => {
   await page.goto("/app/plan");
   await settle(page);
-  expect(await page.locator('[data-slot="map-drawer"]').count()).toBe(0);
+  await expectDrawerClosed(page);
+  expect(await consoleSheet(page).count()).toBe(0);
 
   await page.getByTestId("pilot-button").click();
-  const pilot = page.locator('[data-slot="map-drawer"][data-side="top"]');
+  const pilot = consoleSheet(page);
   await expect(pilot).toBeVisible();
+  await expect(page.getByTestId("pilot-button")).toHaveAttribute("aria-expanded", "true");
   await expect(pilot.getByRole("button", { name: "Sign in" })).toBeVisible();
   await expect(pilot.getByRole("heading", { name: "Aircraft" })).toBeVisible();
   await pilot.getByRole("tab", { name: "Flights" }).click();
   await expect(pilot.getByRole("heading", { name: "My Flights" })).toBeVisible();
-  // Under the header, like every drawer: the route form above it stays
-  // usable. Polled: a top drawer slides down into place, and a box
-  // measured mid-slide sits above where it ends up.
-  const headerBox = await page.locator("header").boundingBox();
-  await expect.poll(async () => (await pilot.boundingBox())!.y).toBeGreaterThanOrEqual(headerBox!.y + headerBox!.height - 1);
 
-  // The nav log takes its place; Escape clears whichever is open.
-  await page.getByTestId("sidebar-trigger-button").click();
-  await expect(page.locator('[data-slot="map-drawer"][data-side="right"]')).toBeVisible();
-  await expect(pilot).toBeHidden();
+  // A stock sheet is modal: Escape puts it away, and then the drawer
+  // opens from the header, and Escape closes that too.
   await page.keyboard.press("Escape");
-  await expect(page.locator('[data-slot="map-drawer"]')).toHaveCount(0);
+  await expect(pilot).toHaveCount(0);
+  await page.getByTestId("sidebar-trigger-button").click();
+  await expectDrawerOpen(page);
+  await page.keyboard.press("Escape");
+  await expectDrawerClosed(page);
 });
 
-test("dev page: the dev console drops down over the chart, one drawer at a time with the waypoint list", async ({ page }) => {
+test("dev page: the dev console is a sheet from the top, and the waypoint drawer opens once it is closed", async ({ page }) => {
   await page.goto("/app/dev");
   await settle(page);
   // The labeling workspace is the page -- the console stays off screen
   // until its own trigger is opened.
   await expect(page.getByLabel("Departure", { exact: true })).toBeVisible();
-  expect(await page.locator('[data-slot="map-drawer"]').count()).toBe(0);
+  await expectDrawerClosed(page);
+  expect(await consoleSheet(page).count()).toBe(0);
 
   await page.getByTestId("dev-console-button").click();
-  const devMl = page.locator('[data-slot="map-drawer"][data-side="top"]');
+  const devMl = consoleSheet(page);
   await expect(devMl).toBeVisible();
   // The developer's drawer opens on training -- the three steps that
   // change the model -- then how good the models are, then the stack.
@@ -653,19 +669,15 @@ test("dev page: the dev console drops down over the chart, one drawer at a time 
   await devMl.getByRole("tab", { name: "System" }).click();
   await expect(devMl.getByText("planning-service", { exact: true })).toBeVisible();
   await devMl.getByRole("tab", { name: "Performance" }).click();
-  // The same kind of drawer as the waypoint list, dropping down from
-  // the top of the map area rather than over the header -- the header
-  // stays usable above it.
-  const headerBox = await page.locator("header").boundingBox();
-  await expect.poll(async () => (await devMl.boundingBox())!.y).toBeGreaterThanOrEqual(headerBox!.y + headerBox!.height - 1);
 
-  // One drawer at a time over the same map: opening the waypoint list
-  // closes Dev ML, and Escape closes whichever is open.
-  await page.getByTestId("sidebar-trigger-button").click();
-  await expect(page.locator('[data-slot="map-drawer"][data-side="right"]')).toBeVisible();
-  await expect(devMl).toBeHidden();
+  // The sheet is modal: Escape puts it away, then the waypoint drawer
+  // opens from the header, and Escape closes that too.
   await page.keyboard.press("Escape");
-  await expect(page.locator('[data-slot="map-drawer"]')).toHaveCount(0);
+  await expect(devMl).toHaveCount(0);
+  await page.getByTestId("sidebar-trigger-button").click();
+  await expectDrawerOpen(page);
+  await page.keyboard.press("Escape");
+  await expectDrawerClosed(page);
 });
 
 test("plan page: the pilot console's theme toggle cycles system, light, dark, and the choice survives a reload", async ({ page }) => {
@@ -694,39 +706,50 @@ test("plan page: the nav log is computed for an aeroplane the pilot picks in its
   await picker.click();
   await page.getByRole("option", { name: /PA28/ }).click();
   await expect(picker).toContainText("PA28");
-  // Remembered per browser: the same aeroplane after a reload.
+  // Remembered per browser: the same aeroplane after a reload -- on
+  // which the drawer is already open, since the address kept it.
   await page.reload();
   await settle(page);
-  await page.getByTestId("sidebar-trigger-button").click();
+  await expectDrawerOpen(page);
   await expect(page.getByTestId("aircraft-select")).toContainText("PA28");
 });
 
-test("plan page: a click on the map closes the sidebar, and the header above it stays usable", async ({ page }) => {
+test("plan page: the header's toggle closes and reopens the drawer; a tap beside it closes the phone's sheet, and leaves a desktop's panel", async ({ page }) => {
   await page.goto("/app/plan");
   await settle(page);
+  const viewport = page.viewportSize();
+  if (!viewport) throw new Error("no viewport configured");
   await page.getByTestId("sidebar-trigger-button").click();
-  const drawer = page.locator('[data-slot="map-drawer"]');
-  await expect(drawer).toBeVisible();
-  // Non-modal: nothing dims the map, and the header above the drawer
-  // is not covered -- its own toggle closes the drawer and opens it
-  // again, with no click on it counting as a click outside.
-  expect(await page.locator('[data-slot="map-drawer-overlay"], [data-slot="sheet-overlay"]').count()).toBe(0);
-  await page.getByTestId("sidebar-trigger-button").click();
-  await expect(drawer).toHaveCount(0);
-  await page.getByTestId("sidebar-trigger-button").click();
-  await expect(drawer).toBeVisible();
-  // A click on the map itself, away from the drawer, closes it: a
-  // strip of map is beside the drawer on a phone too.
+  await expectDrawerOpen(page);
   const headerBox = await page.locator("header").boundingBox();
+  if (viewport.width < 768) {
+    // The stock sidebar on a phone is a modal sheet: the header is
+    // under its overlay, and a tap on the map beside it (the overlay)
+    // is what closes it; the trigger opens it again.
+    await page.mouse.click(12, headerBox!.y + headerBox!.height + 40);
+    await expectDrawerClosed(page);
+    await page.getByTestId("sidebar-trigger-button").click();
+    await expectDrawerOpen(page);
+    await page.keyboard.press("Escape");
+    await expectDrawerClosed(page);
+    return;
+  }
+  // On a desktop it is a panel beside the map: the header's toggle
+  // closes and reopens it, and the map stays live -- a click there is
+  // a click on the map, and the drawer stays.
+  await page.getByTestId("sidebar-trigger-button").click();
+  await expectDrawerClosed(page);
+  await page.getByTestId("sidebar-trigger-button").click();
+  await expectDrawerOpen(page);
   await page.mouse.click(12, headerBox!.y + headerBox!.height + 40);
-  await expect(drawer).toHaveCount(0);
+  await expectDrawerOpen(page);
 });
 
 test("dev page: the waypoint drawer is a worklist -- every candidate in flight order, walked with the keys, rated from the selected row", async ({ page }) => {
   await page.goto("/app/dev?dep=C81&dest=KDLH");
   await settle(page);
   await page.getByTestId("sidebar-trigger-button").click();
-  const drawer = page.locator('[data-slot="map-drawer"][data-side="right"]');
+  const drawer = sideDrawer(page);
   await expect(drawer.getByTestId("drawer-title")).toHaveText("Model Training");
   const table = drawer.getByRole("table", { name: /Waypoints from/i });
   const rows = table.locator("tbody tr[tabindex='0']");
@@ -768,7 +791,7 @@ test("plan page: every text field is at least 16px on a phone, so iOS never zoom
   await page.getByTestId("sidebar-trigger-button").click();
   // The description boxes are in the nav log's section, closed until
   // its title is clicked.
-  await page.locator('[data-slot="map-drawer"]').getByText("Nav log", { exact: true }).click();
+  await sideDrawer(page).getByText("Nav log", { exact: true }).click();
   await expect.poll(() => page.locator("textarea").count(), { timeout: 15000 }).toBeGreaterThan(0);
   const small = await page.evaluate(() =>
     [...document.querySelectorAll<HTMLElement>("input, textarea, select")]

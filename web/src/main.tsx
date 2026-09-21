@@ -47,9 +47,9 @@ const queryClient = new QueryClient();
 // skeleton.
 const noFallback = { HydrateFallback: () => null };
 
-// Two pages, one for each role, the same shell around a different map
-// and drawers: Plan (the pilot's -- the route, the nav log, the pilot's
-// own console) and Dev (the developer's -- the labeling workspace and
+// One page in two modes, one for each role: the same shell around a
+// different workspace -- the pilot's (the route, the nav log, the
+// pilot's own console) and the developer's (the labeling workspace and
 // the dev console). The two older addresses keep working: the labeling
 // page is the Dev page now, and everything Settings held lives in
 // Plan's pilot console.
@@ -58,12 +58,12 @@ const router = createBrowserRouter(
     { index: true, element: <Navigate to="/plan" replace /> },
     {
       path: "plan",
-      lazy: () => import("./features/plan/PlanView").then(m => ({ Component: m.default })),
+      lazy: () => import("./features/page/MapPage").then(m => ({ element: <m.default mode="pilot" /> })),
       ...noFallback,
     },
     {
       path: "dev",
-      lazy: () => import("./features/dev/DevView").then(m => ({ Component: m.default })),
+      lazy: () => import("./features/page/MapPage").then(m => ({ element: <m.default mode="dev" /> })),
       ...noFallback,
     },
     { path: "label", element: <RedirectKeepingSearch to="/dev" /> },

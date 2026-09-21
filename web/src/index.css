@@ -71,6 +71,32 @@ input, select, textarea {
     height: auto !important;
     overflow: visible !important;
   }
+  /* The page is shadcn's Sidebar layout: on paper the sidebar (the
+     flight planning drawer) is the document and the rest of the page
+     (the header and the map, the "inset") is hidden. The sidebar
+     sheds its fixed placement and clipped height for ordinary flow the
+     browser can paginate. */
+  [data-slot="sidebar-wrapper"] {
+    display: block !important;
+    height: auto !important;
+    min-height: 0 !important;
+  }
+  [data-slot="sidebar-inset"],
+  [data-slot="sidebar-gap"] {
+    display: none !important;
+  }
+  [data-slot="sidebar"],
+  [data-slot="sidebar-container"],
+  [data-slot="sidebar-inner"],
+  [data-slot="sidebar-content"] {
+    position: static !important;
+    display: block !important;
+    height: auto !important;
+    width: auto !important;
+    overflow: visible !important;
+    border: 0 !important;
+    background: transparent !important;
+  }
   /* The nav log is a wide table -- twelve columns, plus the blank ATA
      and fuel-remaining columns a pilot fills in by hand in flight --
      and reads as one on a landscape page; portrait squeezes it to

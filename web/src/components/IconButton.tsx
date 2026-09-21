@@ -26,12 +26,20 @@ interface Props extends Omit<ComponentProps<typeof Button>, "size"> {
  * pilot page's white header and exactly the dev page's own header
  * colour, which is to say invisible on both.
  */
-export default function IconButton({ label, tooltip, variant = "ghost", children, ...props }: Props) {
+export default function IconButton({ label, tooltip, variant = "ghost", children, onFocus, ...props }: Props) {
   const expanded = props["aria-expanded"] === true || props["aria-expanded"] === "true";
   return (
     <Tooltip {...tooltip}>
       <TooltipTrigger asChild>
-        <Button variant={expanded ? "default" : variant} size="icon" aria-label={label} {...props}>
+        <Button
+          variant={expanded ? "default" : variant} size="icon" aria-label={label}
+          // The tooltip opens on a pointer, never on focus: a sheet
+          // opening focuses its first control, and the tooltip that
+          // popped up over it took the Escape meant for the sheet. The
+          // accessible name is the label either way.
+          onFocus={e => { onFocus?.(e); e.preventDefault(); }}
+          {...props}
+        >
           {children}
         </Button>
       </TooltipTrigger>

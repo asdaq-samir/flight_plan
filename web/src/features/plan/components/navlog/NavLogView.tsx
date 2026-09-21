@@ -681,7 +681,7 @@ export default function NavLogView({
     // is no viewport to clip to, and a route long enough to scroll
     // would otherwise print only whatever page's worth happened to be
     // visible.
-    <div className="flex h-full flex-col overflow-hidden bg-background print:h-auto print:overflow-visible">
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden print:h-auto print:overflow-visible">
       {/* Printed, this header is the briefing's title: the page's own
           header (the route form) is print:hidden, so the route is
           named here instead, the inputs become a line of text, and

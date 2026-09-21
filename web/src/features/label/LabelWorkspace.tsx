@@ -1,14 +1,14 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { identSchema } from "../../lib/identSchema";
 // Without this Leaflet's tiles, markers and controls have no
 // positioning at all -- this is the library's own stylesheet, not
-// app styling. Imported here (not in main.tsx) so it loads with the
-// Dev page's own lazy chunk, never on Plan's or the initial app load.
+// app styling.
 import "leaflet/dist/leaflet.css";
 import { usePageStatus } from "../../lib/usePageStatus";
+import type { WorkspaceProps } from "../page/workspace";
+import { DevPanel } from "../dev/DevPanel";
 import ChartMap from "./components/ChartMap";
-import RouteForm from "../../components/RouteForm";
 import WaypointPanel from "./components/WaypointPanel";
 import PointPopup from "./components/PointPopup";
 import { isEndpoint, type Point, type Rating } from "../../lib/api/types";
@@ -19,29 +19,14 @@ import { currentPoint, useLabelState, type Selection } from "./hooks/useLabelSta
 
 const FOCUS_ZOOM = 12;
 
-/** The pieces this workspace hands its page -- DevView composes them
- *  into its own single Shell, with its own `sidebarOpen` state and its
- *  own `SidebarToggleButton`, rather than this component nesting a
- *  second Shell inside the page's. */
-export interface LabelWorkspacePieces {
-  /** DEP/DEST/Load, for the header's centre. */
-  routeForm: ReactNode;
-  /** Fit Route / Show Selected -- drawn on the map by `MapControls`,
-   *  the same as Plan's own zoom toggle, not folded into
-   *  `routeForm` (see this page's own comment on why). */
-  /** The chart itself, for Shell's own `map` slot. */
-  mapContent: ReactNode;
-  /** The waypoint panel (the worklist), for Shell's own `sidebar` slot. */
-  sidebarContent: ReactNode;
-}
-
-interface Props {
-  /** The page renders the pieces; this component has no shell of its
-   *  own to render them in. */
-  children: (pieces: LabelWorkspacePieces) => ReactNode;
-}
-
-export default function LabelView({ children }: Props) {
+/**
+ * The developer's labeling workspace on the page (MapPage): the
+ * corridor's candidates on the chart, walked with the keys and rated
+ * from the map popup or the Model Training drawer, with the developer
+ * console for the training run. The page owns the shell and the route
+ * typed into its form; this owns everything about the labels.
+ */
+export default function LabelWorkspace({ dep, dest, children }: WorkspaceProps) {
   const store = useLabelState();
   // Named, not read as `store.x` inside the hooks below: each hook then
   // lists exactly what it reads, and the actions are stable
@@ -54,10 +39,8 @@ export default function LabelView({ children }: Props) {
     () => currentPoint({ selection, endpoints, detections, added }),
     [selection, endpoints, detections, added],
   );
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [, setSearchParams] = useSearchParams();
   const [map, setMap] = useState<L.Map | null>(null);
-  const [dep, setDep] = useState(searchParams.get("dep")?.toUpperCase() ?? "C81");
-  const [dest, setDest] = useState(searchParams.get("dest")?.toUpperCase() ?? "KDLH");
   const [stepDelta, setStepDelta] = useState(1);
   // Tracks the map's own zoom so the one Controls button can read as
   // "Start"/"Resume"/"Fit line" -- Leaflet's zoom lives outside React,
@@ -65,11 +48,11 @@ export default function LabelView({ children }: Props) {
   // re-render, not the moment a zoom actually happens.
   const [zoomedIn, setZoomedIn] = useState(false);
 
-  // Mount only, deliberately: RouteForm's own onSubmit is the reload
-  // path when dep/dest change later, so this effect must not also fire
-  // on every keystroke that updates them. load is still listed (a
-  // stable []-deps callback in useLabelState) so a future refactor
-  // that gave it a real dependency wouldn't silently go stale here.
+  // Mount only, deliberately: the header's form is the reload path when
+  // dep/dest change later, so this effect must not also fire on every
+  // keystroke that updates them. load is still listed (a stable
+  // []-deps callback in useLabelState) so a future refactor that gave
+  // it a real dependency wouldn't silently go stale here.
   // eslint-disable-next-line react-hooks/exhaustive-deps -- dep/dest omitted on purpose, see above
   useEffect(() => { void load(dep, dest); }, [load]);
 
@@ -233,6 +216,8 @@ export default function LabelView({ children }: Props) {
     const onKey = (e: KeyboardEvent) => {
       const el = e.target as HTMLElement;
       if (el.tagName === "INPUT" || el.tagName === "SELECT") return;
+      // A modal dialog (the console) owns its keys.
+      if (el.closest('[role="dialog"][aria-modal="true"]')) return;
       const bearing = course?.bearing_deg ?? 0;
       if (e.key === "Enter" || e.key === " ") { e.preventDefault(); return toggleView(); }
       if (e.key === "Escape") { e.preventDefault(); return fitLine(); }
@@ -258,15 +243,14 @@ export default function LabelView({ children }: Props) {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-    // rate/removeSelected/setFilter are stable ([]-deps callbacks in
-    // useLabelState, reading fresh state through a ref rather than
-    // closing over it), so this only tears down and rebinds the
-    // listener on the fields the handler actually reads a fresh value
-    // from, not on every unrelated store change (a streamed-in
-    // detection, say).
+    // rate/removeSelected/setFilter are stable (reading fresh state
+    // through a ref rather than closing over it), so this only tears
+    // down and rebinds the listener on the fields the handler actually
+    // reads a fresh value from, not on every unrelated store change (a
+    // streamed-in detection, say).
   }, [course, filters, rate, removeSelected, setFilter, point, step, stepList, stepDelta, toggleView, fitLine]);
 
-  const submitRoute = useCallback(() => {
+  const submit = useCallback(() => {
     const d = identSchema.safeParse(dep).data, a = identSchema.safeParse(dest).data;
     if (!d || !a) return;
     setSearchParams({ dep: d, dest: a }, { replace: true });
@@ -282,61 +266,45 @@ export default function LabelView({ children }: Props) {
 
   usePageStatus(store.progress, { general: store.error });
 
-  // The pieces the page is built from, handed to DevView for its own
-  // single Shell to place (see `LabelWorkspacePieces`'s own comment on
-  // why one Shell, not two).
-  const routeForm = (
-    <RouteForm
-      dep={dep} dest={dest} onDepChange={setDep} onDestChange={setDest}
-      onSubmit={submitRoute}
-    />
-  );
-  // The same "Fit Route"/"Show Selected" toggle Plan draws on its own
-  // map, not this page's own former three-state "Start"/
-  // "Resume"/"Fit line" -- these two pages read as the same shell
-  // around a different sidebar everywhere else already (see RouteForm's
-  // own comment). Next to the sidebar trigger, not folded into
-  // `routeForm`: it's a map-view action (what's zoomed into right now),
-  // the same category as the sidebar toggle itself, not part of "the
-  // route inputs and Load button" that component unifies (see
-  // `RouteInputGroup`'s own comment).
-  const mapContent = (
-    <div className="h-full w-full">
-      <ChartMap
-        zoom={{ zoomedIn, onToggle: toggleView, disabled: !walk.length }}
-        course={store.course}
-        endpoints={store.endpoints}
-        detections={store.detections}
-        added={store.added}
-        filters={store.filters}
-        selected={point}
-        selectedContent={selectedContent}
-        showMenu={zoomedIn}
-        onSelect={onSelect}
-        onDeselect={onDeselect}
-        onAddAt={onAddAt}
-        onMapReady={setMap}
+  return children({
+    map: (
+      <div className="h-full w-full">
+        <ChartMap
+          zoom={{ zoomedIn, onToggle: toggleView, disabled: !walk.length }}
+          course={store.course}
+          endpoints={store.endpoints}
+          detections={store.detections}
+          added={store.added}
+          filters={store.filters}
+          selected={point}
+          selectedContent={selectedContent}
+          showMenu={zoomedIn}
+          onSelect={onSelect}
+          onDeselect={onDeselect}
+          onAddAt={onAddAt}
+          onMapReady={setMap}
+        />
+      </div>
+    ),
+    // One panel, the shape of the pilot's nav log: the route's numbers
+    // and the drawer's actions in a header (the filters in a popover
+    // from it), and the walk as one table under it. Rating from the
+    // selected row moves on to the next one, the way the digit keys do.
+    sidebar: (
+      <WaypointPanel
+        entries={walk} selected={point} onFocus={focus}
+        onRate={r => void rate(r).then(() => stepList(1))}
+        distanceNm={store.course?.distance_nm ?? null}
+        bearingDeg={store.course?.bearing_deg ?? 0}
+        departureIdent={store.course?.departure.ident ?? ""}
+        destinationIdent={store.course?.destination.ident ?? ""}
+        rated={picks.length} total={store.detections.length + store.added.length} hidden={hidden}
+        filters={store.filters} counts={counts} onFilterChange={store.setFilter}
+        canUndo={store.canUndo} onUndo={() => void store.undo()} onResetAll={() => void store.resetAll()}
       />
-    </div>
-  );
-  // One panel, the shape of Plan's nav log: the corridor's numbers and
-  // the drawer's actions in a header (the filters in a popover from
-  // it, since a checkbox row used to take a third of the drawer), and
-  // the walk as one table under it. Rating from the selected row moves
-  // on to the next one, the way the digit keys do.
-  const sidebarContent = (
-    <WaypointPanel
-      entries={walk} selected={point} onFocus={focus}
-      onRate={r => void rate(r).then(() => stepList(1))}
-      distanceNm={store.course?.distance_nm ?? null}
-      bearingDeg={store.course?.bearing_deg ?? 0}
-      departureIdent={store.course?.departure.ident ?? ""}
-      destinationIdent={store.course?.destination.ident ?? ""}
-      rated={picks.length} total={store.detections.length + store.added.length} hidden={hidden}
-      filters={store.filters} counts={counts} onFilterChange={store.setFilter}
-      canUndo={store.canUndo} onUndo={() => void store.undo()} onResetAll={() => void store.resetAll()}
-    />
-  );
-
-  return children({ routeForm, mapContent, sidebarContent });
+    ),
+    console: <DevPanel />,
+    submit,
+    loading: store.loading,
+  });
 }

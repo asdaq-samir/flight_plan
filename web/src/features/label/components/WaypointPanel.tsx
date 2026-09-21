@@ -92,7 +92,7 @@ export default function WaypointPanel({
   }
 
   return (
-    <div className="flex h-full flex-col overflow-hidden bg-background">
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       <div className="flex flex-col gap-1 border-b border-border p-3 text-sm">
         <div className="flex items-center gap-2">
           <span className="font-semibold text-muted-foreground" data-testid="drawer-title">Model Training</span>
