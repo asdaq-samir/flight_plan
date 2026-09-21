@@ -235,10 +235,18 @@ def test_serving_cycle_is_the_newest_complete_pyramid(tmp_path, monkeypatch):
     assert charts.serving_cycle() == "09-03-2026"
     assert charts.refresh_due()
 
+    # A render of the current cycle in progress, by anyone, counts as
+    # running -- until its status file goes stale.
+    assert charts.refresh_running()
+    monkeypatch.setattr(charts, "_RENDER_STALE_S", -1)
+    assert not charts.refresh_running()
+    monkeypatch.setattr(charts, "_RENDER_STALE_S", 600)
+
     charts._write_pyramid_status("10-29-2026", done)
     charts._write_pyramid_status("10-29-2026", {**done, "kind": "tac"})
     assert charts.serving_cycle() == "10-29-2026"
     assert not charts.refresh_due()
+    assert not charts.refresh_running()
 
     (tmp_path / "charts" / "09-03-2026" / "sec").mkdir(parents=True)
     (tmp_path / "charts" / "10-29-2026" / "sec").mkdir(parents=True)

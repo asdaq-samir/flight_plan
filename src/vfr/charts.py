@@ -1121,14 +1121,30 @@ def prune_cycles(keep: str) -> list[str]:
     return removed
 
 
+_RENDER_STALE_S = 600
+
+
 def refresh_running() -> bool:
-    """Whether a refresh subprocess started by this planner is alive."""
+    """Whether a refresh subprocess started by this planner is alive --
+    or a render of the FAA's current cycle is being written by anyone
+    (a `python -m vfr.charts pyramid` run from the shell, say): its
+    status file is rewritten after every sheet, so one touched in the
+    last ten minutes is a render in progress. Two renders of the same
+    cycle at once would race each other on the seam tiles."""
     try:
         pid = int((CHART_TILE_CACHE_DIR / _REFRESH_LOCK).read_text().strip())
         os.kill(pid, 0)
         return True
     except (OSError, ValueError):
-        return False
+        pass
+    cycle = current_cycle(fetch=False)
+    progress = pyramid_status(cycle)
+    if any(p.get("started_at") and not p.get("finished_at") for p in progress.values()):
+        try:
+            return time.time() - (CHART_TILE_CACHE_DIR / cycle / _PYRAMID_STATUS).stat().st_mtime < _RENDER_STALE_S
+        except OSError:
+            return False
+    return False
 
 
 def refresh_in_background(workers: int = 2) -> bool:
