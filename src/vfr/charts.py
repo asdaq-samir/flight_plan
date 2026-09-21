@@ -104,6 +104,12 @@ class ChartKind:
     # A base layer the map draws one of (sectional, IFR low, IFR high),
     # or an overlay drawn on top of the sectional (the TAC).
     base: bool = True
+    # How the chart face is found in the raster. A VFR sheet's neatline
+    # follows parallels and meridians, which curve and lean across the
+    # sheet; an IFR enroute chart's border is the sheet's own rectangle,
+    # straight rows and columns of pixels, with the legend panels'
+    # table rules the only other straight lines on it.
+    straight_border: bool = False
 
 
 SECTIONAL = ChartKind(
@@ -116,9 +122,11 @@ TAC = ChartKind(
 )
 IFR_LOW = ChartKind(
     "ifr_low", "IFR low", FAA_ENROUTE_ZIP_URL, (".tif",), IFR_LOW_MIN_ZOOM, IFR_LOW_MAX_ZOOM, (0.3, 0.3, 0.3, 0.3),
+    straight_border=True,
 )
 IFR_HIGH = ChartKind(
     "ifr_high", "IFR high", FAA_ENROUTE_ZIP_URL, (".tif",), IFR_HIGH_MIN_ZOOM, IFR_HIGH_MAX_ZOOM, (0.3, 0.3, 0.3, 0.3),
+    straight_border=True,
 )
 KINDS = {kind.key: kind for kind in (SECTIONAL, TAC, IFR_LOW, IFR_HIGH)}
 
@@ -389,6 +397,12 @@ class Raster:
     path: Path
     face: Box       # what the renderer draws: the chart, neatline inward
     envelope: Box   # the whole raster, collar included
+    # A small companion raster, 255 where the sheet is chart and 0
+    # where it is collar, for a sheet whose chart area is a rectangle
+    # of pixels rather than of latitude and longitude (the IFR enroute
+    # charts): the face box then covers the whole leaning rectangle and
+    # this cuts the collar out of its corners. None for a VFR sheet.
+    mask: Path | None = None
 
 
 @dataclass(frozen=True)
@@ -422,7 +436,8 @@ def _load_ready(directory: Path, kind: ChartKind, name: str, cycle: str) -> Char
     except (OSError, ValueError):
         return None
     rasters = tuple(
-        Raster(path=directory / r["file"], face=tuple(r["face"]), envelope=tuple(r["envelope"]))
+        Raster(path=directory / r["file"], face=tuple(r["face"]), envelope=tuple(r["envelope"]),
+               mask=directory / r["mask"] if r.get("mask") else None)
         for r in data.get("rasters", [])
     )
     if not rasters or not all(r.path.exists() for r in rasters):
@@ -433,7 +448,11 @@ def _load_ready(directory: Path, kind: ChartKind, name: str, cycle: str) -> Char
 def _write_ready(directory: Path, chart: Chart) -> None:
     data = {
         "name": chart.name, "kind": chart.kind.key, "cycle": chart.cycle, "prepared_at": chart.prepared_at,
-        "rasters": [{"file": r.path.name, "face": list(r.face), "envelope": list(r.envelope)} for r in chart.rasters],
+        "rasters": [
+            {"file": r.path.name, "face": list(r.face), "envelope": list(r.envelope),
+             "mask": r.mask.name if r.mask else None}
+            for r in chart.rasters
+        ],
     }
     tmp = directory / f"{_READY}.part"
     tmp.write_text(json.dumps(data, indent=1))
@@ -534,8 +553,8 @@ def _download_and_prepare(kind: ChartKind, name: str, cycle: str) -> Chart:
     for path in paths:
         started = time.time()
         build_overviews(path)
-        envelope, face = detect_face(path, kind)
-        rasters.append(Raster(path=path, face=face, envelope=envelope))
+        envelope, face, mask = detect_face(path, kind)
+        rasters.append(Raster(path=path, face=face, envelope=envelope, mask=mask))
         log.info("prepared %s in %.0f s: face %s within %s", path.name, time.time() - started,
                  tuple(round(v, 3) for v in face), tuple(round(v, 3) for v in envelope))
     chart = Chart(kind=kind, name=name, cycle=cycle, rasters=tuple(rasters),
@@ -746,10 +765,64 @@ def _snap(value: float) -> float:
     return nearest if abs(nearest - value) <= _SNAP_TOLERANCE_DEG else value
 
 
-def detect_face(path: Path, kind: ChartKind) -> tuple[Box, Box]:
-    """(envelope, face) of a chart raster, both (west, south, east,
-    north) degrees: the raster's own bounds, and the chart within them
-    with the collar cut away. An edge that yields nothing falls back to
+# A straight raster line counts as ruling when this much of it is ink
+# over the middle three-fifths of the sheet; the chart area is the
+# widest stretch of the sheet between two such lines (or the sheet's
+# edge), since the legend panels are ruled tables and the chart is not.
+_STRAIGHT_CONTINUITY = 0.9
+
+
+def _widest_gap(continuity: np.ndarray) -> tuple:
+    """(start, end) in pooled units of the widest interval between
+    consecutive ruling lines, the raster's edges counting as lines."""
+    ruled = np.flatnonzero(continuity >= _STRAIGHT_CONTINUITY)
+    edges = [0, *ruled.tolist(), len(continuity)]
+    best = (edges[0], edges[1])
+    for a, b in zip(edges, edges[1:]):
+        if b - a > best[1] - best[0]:
+            best = (a, b)
+    return best
+
+
+def _straight_face(ink: _Ink, crs, transform, mask_path: Path) -> Box:
+    """The chart area of a sheet whose border is the sheet's own
+    rectangle: written to `mask_path` as a small raster (255 inside
+    the rectangle, 0 outside, one pixel per pooled block) that the
+    renderer warps alongside the sheet, and returned as the lat/lon box
+    around the rectangle's four corners. A conic sheet leans in lat/lon,
+    so the box takes in collar at the corners; the mask is what keeps
+    that from being drawn."""
+    import rasterio
+    import rasterio.warp
+    from rasterio.transform import Affine
+
+    rows, cols = ink.dark.shape
+    col_continuity = ink.dark[int(rows * 0.2):int(rows * 0.8), :].mean(axis=0)
+    row_continuity = ink.dark[:, int(cols * 0.2):int(cols * 0.8)].mean(axis=1)
+    c0, c1 = _widest_gap(col_continuity)
+    r0, r1 = _widest_gap(row_continuity)
+
+    inside = np.zeros((rows, cols), dtype=np.uint8)
+    inside[r0 + 1:max(r0 + 2, r1), c0 + 1:max(c0 + 2, c1)] = 255
+    with rasterio.open(
+        mask_path, "w", driver="GTiff", width=cols, height=rows, count=1, dtype="uint8",
+        crs=crs, transform=transform * Affine.scale(_POOL_PX), compress="deflate",
+    ) as out:
+        out.write(inside, 1)
+
+    x0, x1 = (c0 + 1) * _POOL_PX, max((c0 + 2) * _POOL_PX, (c1 - 1) * _POOL_PX)
+    y0, y1 = (r0 + 1) * _POOL_PX, max((r0 + 2) * _POOL_PX, (r1 - 1) * _POOL_PX)
+    xs, ys = zip(*(transform * (x, y) for x, y in ((x0, y0), (x1, y0), (x0, y1), (x1, y1))))
+    lons, lats = rasterio.warp.transform(crs, "EPSG:4326", list(xs), list(ys))
+    return (min(lons), min(lats), max(lons), max(lats))
+
+
+def detect_face(path: Path, kind: ChartKind) -> tuple[Box, Box, Path | None]:
+    """(envelope, face, mask) of a chart raster: the raster's own
+    bounds and the chart within them with the collar cut away, both
+    (west, south, east, north) degrees, and for a sheet with a straight
+    border the mask raster that cuts the collar out of the face's
+    corners (None otherwise). An edge that yields nothing falls back to
     the kind's typical collar width, and says so in the log."""
     import rasterio
     import rasterio.warp
@@ -758,6 +831,11 @@ def detect_face(path: Path, kind: ChartKind) -> tuple[Box, Box]:
         ink = _ink_maps(src)
         envelope = tuple(float(v) for v in rasterio.warp.transform_bounds(src.crs, "EPSG:4326", *src.bounds))
         res_m = float(src.res[0])
+        if kind.straight_border:
+            mask_path = path.with_name(f"{path.stem}.mask.tif")
+            face = _straight_face(ink, src.crs, src.transform, mask_path)
+            log.info("%s: face %s (straight border)", path.name, tuple(round(v, 4) for v in face))
+            return envelope, face, mask_path
 
     west, south, east, north = envelope
     collar = kind.fallback_collar
@@ -774,17 +852,19 @@ def detect_face(path: Path, kind: ChartKind) -> tuple[Box, Box]:
             position = _snap(position)
         log.info("%s: %s edge at %.4f (%s)", path.name, edge, position, how)
         face.append(position)
-    return envelope, tuple(face)
+    return envelope, tuple(face), None
 
 
 # ---------------------------------------------------------------------------
 # Rendering
 # ---------------------------------------------------------------------------
 
-def _warp_rgb(path: Path, bbox_3857: tuple, width: int, height: int, centre_lat: float) -> tuple:
+def _warp_rgb(path: Path, bbox_3857: tuple, width: int, height: int, centre_lat: float,
+              mask: Path | None = None) -> tuple:
     """Part of a raster, reprojected to web mercator: (height, width,
     3) RGB and a (height, width) mask of where the raster actually had
-    pixels -- one tile, or a whole row of them at once.
+    pixels (and, given a companion `mask` raster, where it is chart
+    rather than collar) -- one tile, or a whole row of them at once.
 
     The chart is a palette image, so it is warped as indices
     (nearest-neighbour -- an averaged index is a random colour) and
@@ -813,12 +893,14 @@ def _warp_rgb(path: Path, bbox_3857: tuple, width: int, height: int, centre_lat:
         # No nodata value: with one, GDAL "protects" it by rewriting
         # every source pixel of that index to the next one, and index
         # 0 is the chart's paper. add_alpha gives the mask instead.
-        with WarpedVRT(
-            src, crs="EPSG:3857", transform=from_bounds(xmin, ymin, xmax, ymax, w, h),
-            width=w, height=h, resampling=Resampling.nearest, add_alpha=True,
-        ) as vrt:
+        grid = dict(crs="EPSG:3857", transform=from_bounds(xmin, ymin, xmax, ymax, w, h), width=w, height=h,
+                    resampling=Resampling.nearest)
+        with WarpedVRT(src, add_alpha=True, **grid) as vrt:
             rgb = _read_rgb(vrt)
             alpha = vrt.read(bands + 1)
+        if mask is not None:
+            with rasterio.open(mask) as mask_src, WarpedVRT(mask_src, **grid) as vrt:
+                alpha = np.minimum(alpha, vrt.read(1))
     if oversample > 1:
         rgb = np.asarray(Image.fromarray(np.ascontiguousarray(rgb)).reduce(oversample))
         alpha = np.asarray(Image.fromarray(alpha).reduce(oversample))
@@ -855,7 +937,7 @@ def render_tile(rasters: list, x: int, y: int, zoom: int) -> np.ndarray | None:
         covered = _face_mask(raster.face, lats, lons) & (out[:, :, 3] == 0)
         if not covered.any():
             continue
-        rgb, valid = _warp_rgb(raster.path, bbox, TILE_PX, TILE_PX, float(lats[TILE_PX // 2]))
+        rgb, valid = _warp_rgb(raster.path, bbox, TILE_PX, TILE_PX, float(lats[TILE_PX // 2]), raster.mask)
         covered &= valid
         out[covered, :3] = rgb[covered]
         out[covered, 3] = 255
@@ -1070,10 +1152,12 @@ def status() -> dict:
 _PYRAMID_STATUS = "pyramid.json"
 
 
-def prepare_all(kinds: tuple = tuple(KINDS), cycle: str | None = None) -> list[Chart]:
+def prepare_all(kinds: tuple = tuple(KINDS), cycle: str | None = None, redetect: bool = False) -> list[Chart]:
     """Every chart of the given kinds, downloaded and prepared: about
-    5 GB for the country, twenty-odd seconds of overviews and neatline
-    search per sheet on top of the download."""
+    7 GB for the country, twenty-odd seconds of overviews and neatline
+    search per sheet on top of the download. `redetect` runs the face
+    detection again on sheets already on disk (after a change to it)
+    and rewrites what they say about themselves."""
     cycle = cycle or current_cycle()
     charts = []
     for key in kinds:
@@ -1085,9 +1169,24 @@ def prepare_all(kinds: tuple = tuple(KINDS), cycle: str | None = None) -> list[C
             if chart is None:
                 log.warning("%s/%s: could not be prepared", key, name)
                 continue
+            if redetect:
+                chart = _redetect(chart)
             charts.append(chart)
             log.info("%s/%s ready (%d of %d, %.0f s)", key, name, i, len(names), time.time() - started)
     return charts
+
+
+def _redetect(chart: Chart) -> Chart:
+    directory = chart.rasters[0].path.parent
+    with _lock_for((chart.kind.key, chart.name)), _directory_lock(directory):
+        rasters = []
+        for raster in chart.rasters:
+            envelope, face, mask = detect_face(raster.path, chart.kind)
+            rasters.append(Raster(path=raster.path, face=face, envelope=envelope, mask=mask))
+        chart = Chart(kind=chart.kind, name=chart.name, cycle=chart.cycle, rasters=tuple(rasters),
+                      prepared_at=datetime.now(tz=timezone.utc).isoformat())
+        _write_ready(directory, chart)
+    return chart
 
 
 def _tile_range(face: Box, zoom: int) -> tuple:
@@ -1109,7 +1208,7 @@ def _render_row(args: tuple) -> int:
     whatever another sheet already left on disk, and written. Returns
     the number of tiles written. A top-level function because it runs
     in a worker process."""
-    path, face, kind_key, cycle, zoom, y, x0, x1 = args
+    path, face, kind_key, cycle, zoom, y, x0, x1, mask = args
     kind = KINDS[kind_key]
     lats = _tile_lats(y, zoom)
 
@@ -1138,7 +1237,8 @@ def _render_row(args: tuple) -> int:
     xmin = tile_bbox_3857(x0, y, zoom)[0]
     _, ymin, xmax, ymax = tile_bbox_3857(x1, y, zoom)
     width = (x1 - x0 + 1) * TILE_PX
-    strip, valid = _warp_rgb(Path(path), (xmin, ymin, xmax, ymax), width, TILE_PX, float(lats[TILE_PX // 2]))
+    strip, valid = _warp_rgb(Path(path), (xmin, ymin, xmax, ymax), width, TILE_PX, float(lats[TILE_PX // 2]),
+                             Path(mask) if mask else None)
 
     written = 0
     for x, tile_path, rgba, fill in owed:
@@ -1216,7 +1316,11 @@ def render_pyramid(kind: ChartKind, zooms: tuple | None = None, workers: int = 4
             sheet_tiles = 0
             for zoom in zooms:
                 x0, x1, y0, y1 = _tile_range(raster.face, zoom)
-                jobs = [(str(raster.path), raster.face, kind.key, chart.cycle, zoom, y, x0, x1) for y in range(y0, y1 + 1)]
+                jobs = [
+                    (str(raster.path), raster.face, kind.key, chart.cycle, zoom, y, x0, x1,
+                     str(raster.mask) if raster.mask else None)
+                    for y in range(y0, y1 + 1)
+                ]
                 if pool is None:
                     sheet_tiles += sum(map(_render_row, jobs))
                 else:
@@ -1372,6 +1476,8 @@ def _main(argv: list | None = None) -> int:
         p = sub.add_parser(name)
         if name in ("prepare", "pyramid"):
             p.add_argument("--kind", nargs="+", choices=list(KINDS), default=list(KINDS))
+        if name == "prepare":
+            p.add_argument("--redetect", action="store_true", help="run the face detection again on sheets already on disk")
         if name in ("pyramid", "refresh"):
             p.add_argument("--workers", type=int, default=4 if name == "pyramid" else 2)
         if name == "pyramid":
@@ -1385,7 +1491,7 @@ def _main(argv: list | None = None) -> int:
         CHART_TILE_CACHE_DIR = Path(args.tiles_dir)
 
     if args.command == "prepare":
-        charts = prepare_all(tuple(args.kind))
+        charts = prepare_all(tuple(args.kind), redetect=args.redetect)
         log.info("%d charts ready under %s", len(charts), CHARTS_DIR)
         return 0
     if args.command == "refresh":

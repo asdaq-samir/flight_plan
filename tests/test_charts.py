@@ -133,9 +133,30 @@ def test_render_and_detect_read_three_band_rasters_too(tmp_path):
     raster = charts.Raster(tmp_path / "ifr.tif", face=box, envelope=box)
     tile = charts.render_tile([raster], 63, 94, 8)   # 91.4W to 90W, inside the tinted part
     assert tile is not None and tuple(tile[128, 128]) == (216, 232, 206, 255)
-    envelope, face = charts.detect_face(tmp_path / "ifr.tif", charts.IFR_LOW)
-    assert face[0] == pytest.approx(-91.0, abs=0.02)
+    # An IFR sheet's border is the sheet's own straight rows and
+    # columns: the chart area is the widest stretch between ruling
+    # lines -- here from the west line to the raster's east edge and
+    # from the raster's top to the south line -- and comes with a mask
+    # raster that keeps the collar out of the face's corners.
+    envelope, face, mask = charts.detect_face(tmp_path / "ifr.tif", charts.IFR_LOW)
+    assert face[0] == pytest.approx(-91.0, abs=0.03)
     assert face[1] == pytest.approx(40.4, abs=0.1)
+    assert face[2] == pytest.approx(-88.0, abs=0.03)
+    assert face[3] == pytest.approx(44.0, abs=0.03)
+    assert mask is not None and mask.exists()
+    # Rendered with the whole envelope as its face, the mask alone
+    # keeps the legend column west of the border transparent.
+    masked = charts.Raster(tmp_path / "ifr.tif", face=box, envelope=box, mask=mask)
+    tile = charts.render_tile([masked], 63, 94, 8)          # 91.4W to 90W
+    west, _, east, _ = charts.tile_bbox_wgs84(63, 94, 8)
+    col = int((-91.2 - west) / (east - west) * 256)
+    assert tile[128, col, 3] == 0
+    assert tuple(tile[128, 200]) == (216, 232, 206, 255)
+    # The sectional method on the same raster, for comparison, reads
+    # the neatline as a geographic line, and has no mask.
+    envelope, face, mask = charts.detect_face(tmp_path / "ifr.tif", charts.SECTIONAL)
+    assert face[0] == pytest.approx(-91.0, abs=0.02)
+    assert mask is None
 
 
 def test_render_leaves_a_sheets_own_leaning_edge_transparent(tmp_path):
@@ -221,7 +242,7 @@ def test_detect_face_reads_neatlines_and_where_the_chart_runs_out(tmp_path):
     data[row(43.6):row(41.0), col(-91.0) - 1:col(-91.0) + 2] = 7   # west neatline
     _palette_raster(tmp_path / "sheet.tif", box, data)
 
-    envelope, face = charts.detect_face(tmp_path / "sheet.tif", charts.SECTIONAL)
+    envelope, face, _ = charts.detect_face(tmp_path / "sheet.tif", charts.SECTIONAL)
     assert envelope == pytest.approx(box, abs=1e-3)
     west, south, east, north = face
     assert west == -91.0 and south == 41.0                    # neatlines, snapped
