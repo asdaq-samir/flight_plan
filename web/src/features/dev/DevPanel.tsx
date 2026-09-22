@@ -18,7 +18,6 @@ import { api } from "../../lib/api/client";
 import type { ModelComparisonEntry, Status } from "../../lib/api/types";
 import RatingGuide from "../train/components/RatingGuide";
 import { elapsed } from "../plan/format";
-import { isLocalStack } from "./localStack";
 import { useRetrain } from "./useRetrain";
 
 const mae = (n: number) => n.toFixed(4);
@@ -385,7 +384,7 @@ function TrainingTab({ status }: { status: Status | undefined }) {
             ) : (
               <span className="text-muted-foreground">Airflow is reachable; the training DAG has not run yet.</span>
             )}
-            {pipeline.dag_id && isLocalStack(window.location.hostname) && (
+            {pipeline.dag_id && (
               <a
                 href={`http://${window.location.hostname}:8081/dags/${pipeline.dag_id}`} target="_blank" rel="noreferrer"
                 className="underline underline-offset-4"
@@ -575,7 +574,6 @@ function SystemTab({ status }: { status: Status | undefined }) {
     },
   ];
   const host = window.location.hostname;
-  const local = isLocalStack(host);
   const links: { label: string; href: string; localOnly?: boolean }[] = [
     { label: "webapp API docs", href: "/swagger-ui/index.html" },
     { label: "planning-service API docs", href: `http://${host}:8084/docs`, localOnly: true },
@@ -583,6 +581,18 @@ function SystemTab({ status }: { status: Status | undefined }) {
     { label: "Jupyter (the notebooks)", href: `http://${host}:8888`, localOnly: true },
     { label: "Airflow (the training DAG)", href: `http://${host}:8081`, localOnly: true },
   ];
+
+  // Every door, always. Two cleverer versions of this were wrong:
+  // guessing from the hostname hid links that worked and showed links
+  // that could not, and probing each one is impossible from here --
+  // SecurityConfig's Content-Security-Policy sets `connect-src 'self'`,
+  // so a cross-origin fetch to localhost:8084 is refused by the browser
+  // before it is attempted, and loosening that header to allow a
+  // liveness check is a bad trade for a tidier list.
+  //
+  // So the list is honest about what exists and the note below is
+  // honest about what it takes to reach it.
+  const shown = [{ label: "This snapshot as JSON", href: "/api/planner/status" }, ...links];
 
   const datasets: { name: string; file: string; source: string; updated: string | null | undefined }[] = [
     ...(status?.faa_files ?? []).map(f => ({
@@ -648,7 +658,7 @@ function SystemTab({ status }: { status: Status | undefined }) {
       <section>
         <SectionHeading title="Elsewhere in the stack" description="The other doors into the running stack, each in a new tab." />
         <div className="mt-2 flex flex-wrap gap-2">
-          {[{ label: "This snapshot as JSON", href: "/api/planner/status" }, ...links.filter(l => local || !l.localOnly)].map(l => (
+          {shown.map(l => (
             <Button key={l.href} asChild variant="outline" size="sm">
               <a href={l.href} target="_blank" rel="noreferrer">
                 {l.label}
@@ -657,22 +667,16 @@ function SystemTab({ status }: { status: Status | undefined }) {
             </Button>
           ))}
         </div>
-        {local ? (
-          <p className="mt-2 text-xs text-muted-foreground">
-            MCP server at <span className="font-mono">http://{host}:8082/mcp/sse</span>, bearer token as nav-log-agent's README says.
-          </p>
-        ) : (
-          // Said rather than silently dropped. Four of these links are
-          // missing here and a reader deserves to know it is deliberate
-          // -- otherwise the console looks broken on a phone, which is
-          // exactly how this was reported.
-          <p className="mt-2 text-xs text-muted-foreground">
-            Jupyter, Airflow and the two services' own API docs are missing from this list on purpose.
-            docker-compose publishes them on <span className="font-mono">127.0.0.1</span> only, so they open
-            from the machine running the stack and nowhere else — this app is the one front door. Open
-            <span className="font-mono"> http://localhost:8080/app/dev</span> there to reach them.
-          </p>
-        )}
+        <p className="mt-2 text-xs text-muted-foreground">
+          The last four are published by docker-compose on <span className="font-mono">127.0.0.1</span>, so they
+          open on the machine running the stack. To reach them from a phone or another machine, start it with
+          <span className="font-mono"> docker compose -f docker-compose.yml -f docker-compose.lan.yml up -d</span> —
+          read that file first, it publishes an unauthenticated Jupyter. Jupyter also needs its own service
+          running: <span className="font-mono">docker compose up -d ml</span>.
+        </p>
+        <p className="mt-2 text-xs text-muted-foreground">
+          MCP server at <span className="font-mono">http://{host}:8082/mcp/sse</span>, bearer token as nav-log-agent's README says.
+        </p>
       </section>
     </div>
   );

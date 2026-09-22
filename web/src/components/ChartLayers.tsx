@@ -66,8 +66,8 @@ export default function ChartLayers() {
         <Label htmlFor="class-b" className="font-normal">Class B airports</Label>
       </div>
       <p className="text-xs text-muted-foreground">
-        A marker on each, coloured by what the field is reporting now. Hover one for its METAR and TAF,
-        and to draw the terminal area chart under it.
+        A marker on each, coloured by what the field is reporting now. Hover one for its METAR and TAF;
+        tap it to go there with the terminal area chart drawn over it.
       </p>
 
       <div className="flex items-center gap-2 border-t border-border pt-2">
