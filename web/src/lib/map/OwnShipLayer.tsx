@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { Circle, Marker, useMap, useMapEvents } from "react-leaflet";
 import { ownShipIcon } from "./icons";
 import { useOwnShip } from "./ownShip";
@@ -17,7 +17,12 @@ export function OwnShipLayer() {
   const fix = useOwnShip(s => s.fix);
   const follow = useOwnShip(s => s.follow);
   const setFollow = useOwnShip(s => s.setFollow);
-  useMapEvents({ dragstart: () => { if (useOwnShip.getState().follow) setFollow(false); } });
+  // Memoized handlers: see `useZoomLevel` -- a literal re-registers on
+  // every commit and can miss an event fired during one.
+  useMapEvents(useMemo(
+    () => ({ dragstart: () => { if (useOwnShip.getState().follow) setFollow(false); } }),
+    [setFollow],
+  ));
   useEffect(() => {
     if (enabled && fix && follow) map.panTo([fix.lat, fix.lon], { animate: true, duration: 0.5 });
   }, [map, enabled, fix, follow]);

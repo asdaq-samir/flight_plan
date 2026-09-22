@@ -1,6 +1,5 @@
 import { useEffect } from "react";
 import { useMap } from "react-leaflet";
-import { useZoomLevel } from "./useZoomLevel";
 
 /**
  * Small pieces every map on this app is built from, each a react-leaflet
@@ -30,14 +29,5 @@ export function FocusOn({ point, zoom }: { point: { lat: number; lon: number } |
   useEffect(() => {
     if (point) map.setView([point.lat, point.lon], Math.max(map.getZoom(), zoom));
   }, [map, point, zoom]);
-  return null;
-}
-
-/** Reports the map's own real zoom level to the page -- scroll, pinch
- *  and double-click zoom change it too, and a toggle's icon has to
- *  track whichever actually happened. */
-export function ZoomReporter({ onChange }: { onChange: (zoom: number) => void }) {
-  const zoom = useZoomLevel();
-  useEffect(() => onChange(zoom), [zoom, onChange]);
   return null;
 }

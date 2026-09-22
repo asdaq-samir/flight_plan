@@ -1,5 +1,5 @@
 import L from "leaflet";
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { TileLayer, useMap, useMapEvents } from "react-leaflet";
 import type { Course } from "../api/types";
 import { usePreferences } from "../preferences";
@@ -66,12 +66,15 @@ export function ChartTiles({ course, previewing }: Props) {
   }, [map, baseLayer]);
 
   const prefetchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useMapEvents({
+  // Memoized for the reason `useZoomLevel` spells out: a handlers
+  // object literal re-registers the listener on every commit, and an
+  // event fired in that same commit is lost.
+  useMapEvents(useMemo(() => ({
     moveend: () => {
       if (prefetchTimer.current) clearTimeout(prefetchTimer.current);
       prefetchTimer.current = setTimeout(prefetchRing, 250);
     },
-  });
+  }), [prefetchRing]));
   useEffect(() => () => { if (prefetchTimer.current) clearTimeout(prefetchTimer.current); }, []);
 
   if (!baseLayer) return null;

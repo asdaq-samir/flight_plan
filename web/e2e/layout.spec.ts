@@ -469,6 +469,38 @@ test("plan page: a click or Enter selects a nav log checkpoint, with the briefin
   await expect(titles.nth(1)).toBeFocused();
 });
 
+test("plan page: the map's zoom toggle goes to the selection and back, however many times", async ({ page }) => {
+  // It is one button with two jobs, and which job it is offering has to
+  // follow the map's real zoom -- including a zoom the button itself
+  // caused. Two faults lived here, both invisible to a placement test:
+  // the zoom the button caused was never reported (react-leaflet
+  // re-registers an event handler passed as an object literal on every
+  // commit, and the zoom fired inside that commit from FocusOn's own
+  // effect), so the button offered "Show Selected" for ever; and
+  // pressing it with that same point already selected moved nothing,
+  // because the map only re-centres when the point it is given changes.
+  await page.goto("/app/plan?dep=C81&dest=KDLH");
+  await settle(page);
+  const button = page.getByTestId("map-action-button");
+  await expect.poll(() => button.isDisabled(), { timeout: 20000 }).toBe(false);
+  await expect(button).toHaveAttribute("aria-label", "Show Selected");
+
+  // In: the map is now closer than the whole route needs, so the button
+  // offers the way back, and the selection ring is drawn.
+  await button.click();
+  await expect(button).toHaveAttribute("aria-label", "Fit Route", { timeout: 10000 });
+  await expect(page.locator(".leaflet-overlay-pane path")).not.toHaveCount(0);
+
+  // Out, and in again -- the second press is the one that used to do
+  // nothing at all, the point being already selected.
+  await button.click();
+  await expect(button).toHaveAttribute("aria-label", "Show Selected", { timeout: 10000 });
+  await button.click();
+  await expect(button).toHaveAttribute("aria-label", "Fit Route", { timeout: 10000 });
+  await button.click();
+  await expect(button).toHaveAttribute("aria-label", "Show Selected", { timeout: 10000 });
+});
+
 test("plan page: the briefing's nav log scrolls inside the drawer, not the page", async ({ page }) => {
   await page.goto("/app/plan");
   await settle(page);

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useMap, useMapEvents } from "react-leaflet";
 import { usePreferences } from "../preferences";
 
@@ -10,7 +10,16 @@ import { usePreferences } from "../preferences";
 export function useZoomLevel(): number {
   const map = useMap();
   const [zoom, setZoom] = useState(() => map.getZoom());
-  useMapEvents({ zoomend: () => setZoom(map.getZoom()) });
+  // Memoized, not an object literal. react-leaflet lists the handlers
+  // object in its effect's own dependencies, so a fresh one on every render
+  // detaches the listener and re-attaches it on every single commit --
+  // and an event fired inside that same commit, by an earlier sibling's
+  // effect, lands in the gap with nothing listening. That is not
+  // hypothetical: `FocusOn` zooms the map from an effect, and it is
+  // rendered before this, so every zoom the map's own button caused was
+  // missed and the button reported the wrong state from then on.
+  const handlers = useMemo(() => ({ zoomend: () => setZoom(map.getZoom()) }), [map]);
+  useMapEvents(handlers);
   return zoom;
 }
 

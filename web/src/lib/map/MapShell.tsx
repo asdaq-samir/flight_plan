@@ -1,11 +1,12 @@
 import L from "leaflet";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { AttributionControl, MapContainer } from "react-leaflet";
+import { AttributionControl, MapContainer, useMap } from "react-leaflet";
 import MapControls, { type ZoomControl } from "../../components/MapControls";
 import type { Course } from "../api/types";
 import { ChartTiles } from "./ChartTiles";
 import { ClassBLayer } from "./ClassBLayer";
 import { ResizeAware } from "./MapEffects";
+import { useZoomLevel } from "./useZoomLevel";
 
 interface Props {
   course: Course | null;
@@ -19,8 +20,32 @@ interface Props {
    *  every-landmark switch -- the planner's map has both. */
   ownShip?: boolean;
   candidates?: { on: boolean; onToggle: (on: boolean) => void };
+  /** Whether the map is closer in than the whole route needs -- what
+   *  the zoom toggle offers next. */
+  onZoomChange?: (zoomedIn: boolean) => void;
   /** The layers this particular map draws, inside the container. */
   children: ReactNode;
+}
+
+/**
+ * Whether the map is closer in than fitting the whole route needs.
+ *
+ * `getBoundsZoom` is Leaflet's own answer to "what zoom would fit
+ * this", with the same padding the fit uses, so this is exactly "the
+ * pilot is looking at less than the route" however long the route is.
+ * It used to be `zoom >= course.max_zoom`, a fixed 12, which is wrong
+ * at both ends: a ten-mile route *fits* at 12, so the button offered
+ * to fit a route it was already showing and could never offer the
+ * selection; and a 2,000 nm route needed nine zoom levels of scrolling
+ * before the button admitted it was zoomed in.
+ */
+function FitReporter({ bounds, onChange }: { bounds: L.LatLngBounds; onChange: (zoomedIn: boolean) => void }) {
+  const map = useMap();
+  const zoom = useZoomLevel();
+  useEffect(() => {
+    onChange(zoom > map.getBoundsZoom(bounds, false, L.point(30, 30)));
+  }, [zoom, bounds, map, onChange]);
+  return null;
 }
 
 /**
@@ -32,7 +57,7 @@ interface Props {
  * preview state and the placeholder before a course arrives were the
  * same code in both files.
  */
-export function MapShell({ course, onReady, zoom, ownShip, candidates, children }: Props) {
+export function MapShell({ course, onReady, zoom, ownShip, candidates, onZoomChange, children }: Props) {
   const [map, setMap] = useState<L.Map | null>(null);
   const [previewing, setPreviewing] = useState(false);
   const bounds = useMemo(() => (course ? L.latLngBounds(course.course_line as [number, number][]) : null), [course]);
@@ -71,6 +96,7 @@ export function MapShell({ course, onReady, zoom, ownShip, candidates, children 
               planning a route past it or rating chart detections
               near it. Draws nothing unless switched on. */}
           <ClassBLayer course={course} onPreview={setPreviewing} />
+          {onZoomChange && <FitReporter bounds={bounds} onChange={onZoomChange} />}
           {children}
         </MapContainer>
       ) : (

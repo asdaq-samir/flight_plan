@@ -205,7 +205,11 @@ export default function PlanWorkspace({ dep, dest, onRoute, sidebarOpen, childre
   const toggleZoom = useCallback(() => {
     if (!course) return;
     if (zoomedIn) { fitRoute.current?.(); return; }
-    selectPoint(selectedPoint ?? { lat: course.departure.lat, lon: course.departure.lon });
+    // A fresh object, deliberately: the map re-centres when the point
+    // it is given changes, and "show me the selection" has to be a
+    // change even when the selection itself has not moved -- otherwise
+    // the button did nothing at all once a point was already picked.
+    selectPoint({ ...(selectedPoint ?? { lat: course.departure.lat, lon: course.departure.lon }) });
   }, [course, selectedPoint, selectPoint, zoomedIn]);
 
   // This page binds no keys of its own. Walking the nav log used to be

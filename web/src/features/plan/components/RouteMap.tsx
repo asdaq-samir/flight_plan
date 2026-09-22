@@ -1,12 +1,11 @@
 import L from "leaflet";
-import { useCallback } from "react";
 import { CircleMarker, Marker, Popup } from "react-leaflet";
 import type { ZoomControl } from "../../../components/MapControls";
 import type { Candidate, Course } from "../../../lib/api/types";
 import { CourseLine } from "../../../lib/map/CourseLine";
 import { Halo } from "../../../lib/map/Halo";
 import { dotIcon, endLabelIcon } from "../../../lib/map/icons";
-import { FocusOn, ZoomReporter } from "../../../lib/map/MapEffects";
+import { FocusOn } from "../../../lib/map/MapEffects";
 import { MapShell } from "../../../lib/map/MapShell";
 import { OwnShipLayer } from "../../../lib/map/OwnShipLayer";
 import { useMarkerZooms, useZoomLevel } from "../../../lib/map/useZoomLevel";
@@ -23,10 +22,9 @@ interface Props {
    *  is the other direction, clicking the marker itself. */
   onSelectCandidate: (candidate: Candidate) => void;
   onReady: (map: L.Map, fit: () => void) => void;
-  /** Whether the map is zoomed to at least a focused point's own level
-   *  (`course.max_zoom`, the level the halo's follow zooms to) -- the
-   *  page's zoom toggle reads this to decide whether a click should
-   *  zoom in to a point or back out to the whole route. */
+  /** Whether the map is closer in than the whole route needs -- the
+   *  page's zoom toggle reads this to decide whether a press should
+   *  show the selected point or fit the route (see `MapShell`). */
   onZoomChange?: (zoomedIn: boolean) => void;
   /** The fit-route / show-selected toggle, drawn on the map (`MapControls`). */
   zoom: ZoomControl;
@@ -80,10 +78,9 @@ export default function RouteMap({
   course, candidates, selected, showCandidates, focus, onSelectCandidate, onReady, onZoomChange, zoom, showAll,
 }: Props) {
   const focusZoom = course?.max_zoom ?? 12;
-  const reportZoom = useCallback((z: number) => onZoomChange?.(z >= focusZoom), [onZoomChange, focusZoom]);
 
   return (
-    <MapShell course={course} onReady={onReady} zoom={zoom} ownShip candidates={showAll}>
+    <MapShell course={course} onReady={onReady} zoom={zoom} ownShip candidates={showAll} onZoomChange={onZoomChange}>
       {course && (
         <>
           <CourseLine
@@ -99,7 +96,6 @@ export default function RouteMap({
           <OwnShipLayer />
           {focus && <Halo at={focus} />}
           <FocusOn point={focus} zoom={focusZoom} />
-          <ZoomReporter onChange={reportZoom} />
         </>
       )}
     </MapShell>
