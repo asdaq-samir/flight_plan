@@ -25,7 +25,7 @@
         <!-- Ahead of what Spring Boot 3.5.3 manages: the versions it
              pins predate JDK 25 and their annotation processor fails on
              its class files. -->
-        <lombok.version>1.18.42</lombok.version>
+        <lombok.version>1.18.48</lombok.version>
     </properties>
 
     <dependencies>
