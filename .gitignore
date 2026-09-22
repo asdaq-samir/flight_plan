@@ -6,8 +6,12 @@ data/raw/
 .ipynb_checkpoints/
 springboot-app/target/
 .DS_Store
-.claude/settings.local.json
-.claude/scheduled_tasks.lock
+# The agent's own settings, which are a property of this machine rather
+# than of this project: they set a permission mode and an allowlist, and
+# a copy of them in a public repository is a copy that runs on whoever
+# clones it.
+.claude/
+
 .env
 
 # Trained model artifacts. Regenerable from the committed labels and code

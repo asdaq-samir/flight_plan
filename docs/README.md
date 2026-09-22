@@ -477,8 +477,8 @@ the browser grants only to a secure origin. So the webapp also listens on
 HTTPS, with HTTP/2, once it has a certificate:
 
 ```bash
-infra/local-https/make-certs.sh 10.0.0.218     # your Mac's LAN address; writes infra/local-https/certs/
-docker compose up -d webapp                    # now also https://10.0.0.218:8443
+infra/local-https/make-certs.sh 192.168.1.42   # your Mac's LAN address; writes infra/local-https/certs/
+docker compose up -d webapp                    # now also https://192.168.1.42:8443
 ```
 
 Install `certs/ca.pem` on the phone once (the script prints the steps

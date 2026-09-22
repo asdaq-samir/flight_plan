@@ -4,7 +4,7 @@
 # Wi-Fi reaches the app over a secure origin -- the one the browser
 # grants geolocation and a service worker to.
 #
-#   infra/local-https/make-certs.sh 10.0.0.218      # your Mac's LAN address
+#   infra/local-https/make-certs.sh 192.168.1.42    # your Mac's LAN address
 #
 # Writes into infra/local-https/certs/ (ignored by git):
 #   ca.pem       the authority's certificate -- install this on the phone
@@ -21,7 +21,7 @@
 # The server certificate lasts a year; run this again to renew it.
 set -eu
 
-address="${1:?the LAN address the phone will use, e.g. 10.0.0.218}"
+address="${1:?the LAN address the phone will use, e.g. 192.168.1.42}"
 here="$(cd "$(dirname "$0")" && pwd)"
 out="$here/certs"
 mkdir -p "$out"
