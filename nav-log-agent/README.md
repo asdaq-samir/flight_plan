@@ -20,10 +20,30 @@ cannot produce: prose a pilot would want to read.
 ## Running it
 
 ```bash
-export ANTHROPIC_API_KEY=sk-ant-...
 export NAV_LOG_AGENT_API_KEY=any-string-you-choose
 docker compose up -d nav-log-agent     # MCP server on :8082
 ```
+
+No Anthropic key is needed for that, and none is needed to use the
+server. Of the graph's six nodes exactly one calls Claude, and the MCP
+tools stop before it:
+
+| Tool | What it does | Anthropic key |
+|---|---|---|
+| `assemble_nav_log` | checkpoints, cruise altitude and the reasoning behind it, dead-reckoning legs, similar past routes — and `briefing_prompt`, the exact instruction this server's own narrator writes from | no |
+| `remember_briefing` | stores a briefing *you* wrote, so later routes retrieve it as precedent | no |
+| `generate_nav_log_briefing` | all of the above, then narrates it here | **yes** |
+
+An agent connecting to this server already has a model. Asking it to
+pay for a second one to write the prose is a strange thing to insist
+on, so `assemble_nav_log` hands back the data and the prompt and lets
+the caller's own model write. `remember_briefing` exists so that the
+memory learns from those briefings too — otherwise pgvector would only
+ever accumulate narrations that cost the operator money.
+
+Set `ANTHROPIC_API_KEY` as well if you want `generate_nav_log_briefing`
+and the Brief tab's own streamed narrative; without it those two fail
+and the rest is unaffected.
 
 This service is behind the `ai` Compose profile, so a plain
 `docker compose up` leaves it out; naming it as above enables its

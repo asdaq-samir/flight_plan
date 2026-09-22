@@ -635,8 +635,12 @@ Notes:
   `docker compose up` leaves them out. Start them with
   `docker compose --profile ai up -d`, or by naming one
   (`docker compose up -d nav-log-agent`), which enables its profile.
-  Without a key they fail at container start, not at parse time — the MCP
-  server exits saying it "refuses to start unauthenticated".
+- `nav-log-agent` needs `NAV_LOG_AGENT_API_KEY` (its own bearer token,
+  any string — unset, it exits saying it "refuses to start
+  unauthenticated") but **not** an Anthropic key: its MCP tools compute
+  the nav log and leave the narrative to the agent that connected. Only
+  `generate_nav_log_briefing` and the Brief tab's streamed narrative
+  spend Anthropic credit. `crewai-agent` needs a key for everything.
 - Full port list: `webapp` 8080, `model-service` 8000, `db` 5432
   (`vfr`/`vfr`/`vfr_route`), `airflow` 8081, `nav-log-agent` 8082,
   `planning-service` 8084, `ml` 8888. Addresses are in

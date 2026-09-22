@@ -10,11 +10,14 @@ from starlette.requests import Request
 from starlette.responses import StreamingResponse
 
 from . import db
-from .graph import build_graph
+from .graph import briefing_prompt, build_graph
 
 mcp = MCPServer("vfr-nav-log-agent")
 _graph = build_graph()
 _graph_from_nav_log = build_graph(from_nav_log=True)
+# Everything except the one node that calls Claude. This is what the
+# tools below run, so this server needs no Anthropic key of its own.
+_graph_unnarrated = build_graph(narrate=False)
 
 
 def startup() -> None:
@@ -53,6 +56,62 @@ def generate_nav_log_briefing(
     natural-language briefing informed by similar past routes.
     """
     return _run_graph(departure_ident, destination_ident, altitude_ft, aircraft_name)
+
+
+@mcp.tool()
+def assemble_nav_log(
+    departure_ident: str, destination_ident: str, altitude_ft: float | None = None, aircraft_name: str = "c172"
+) -> dict:
+    """Everything a VFR nav-log briefing is made of, without writing the
+    briefing: the checkpoints the trained model scored and the subset
+    worth flying, a recommended cruise altitude with the terrain,
+    airspace, weather and aircraft-ceiling reasoning behind it (pass
+    altitude_ft to override), dead-reckoning legs between consecutive
+    checkpoints, and briefings from similar past routes for precedent.
+
+    Use this and write the briefing yourself. `generate_nav_log_briefing`
+    does the same work and then spends this server's own Anthropic
+    credit narrating it, which is wasteful when you are a model already.
+
+    `briefing_prompt` in the result is the exact instruction this
+    server's own narrator writes from, data included -- following it
+    keeps a briefing written here consistent with one written there, and
+    it carries the constraints that matter (plain prose, no Markdown, and
+    nothing invented that the data does not support).
+    """
+    state = {
+        "departure_ident": departure_ident,
+        "destination_ident": destination_ident,
+        "aircraft_name": aircraft_name,
+    }
+    if altitude_ft is not None:
+        state["altitude_ft"] = altitude_ft
+    result = _graph_unnarrated.invoke(state)
+    return {
+        "departure_ident": departure_ident,
+        "destination_ident": destination_ident,
+        "altitude_ft": result["altitude_ft"],
+        "altitude_selection": result["altitude_selection"],
+        "selected_checkpoints": result["selected_checkpoints"],
+        "legs": result["legs"],
+        "similar_briefings": result["similar_briefings"],
+        "briefing_prompt": briefing_prompt(result),
+    }
+
+
+@mcp.tool()
+def remember_briefing(departure_ident: str, destination_ident: str, briefing: str) -> dict:
+    """Save a briefing you wrote, so later routes can retrieve it as
+    precedent (it is embedded and searched by similarity).
+
+    The server stores its own narrations automatically; a briefing
+    written by a connecting agent is invisible to it, so without this
+    the memory only ever learns from the narrator that costs money. Send
+    real briefings only -- an apology or an error message stored here
+    comes back as "precedent" to whoever flies a similar route next.
+    """
+    db.store_briefing(departure_ident, destination_ident, briefing)
+    return {"stored": True}
 
 
 def _line(message: dict) -> str:

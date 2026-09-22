@@ -21,3 +21,6 @@ pyarrow==25.0.1   # vfr.faa_data's Parquet cache of the obstacle table; without 
 pandas==3.0.6      # vfr.navlog -> vfr.weather -> vfr.airports needs it (airport lat/lon lookup)
 shapely==2.1.2     # vfr.altitude -> vfr.airspace (Class B/C/D polygons) + vfr.weather.hazards_along_route
 pyshp==3.1.6       # vfr.altitude -> vfr.airspace (reads the FAA Class Airspace shapefile)
+pyproj==3.8.0      # vfr.geo -- PROJ's distance/azimuth, reached from vfr.navlog and vfr.altitude
+scipy==1.18.1      # vfr.geo's cluster_points KD-tree, imported at vfr.geo's module level
+pygeomag==1.1.0    # vfr.altitude -> vfr.magnetic, the World Magnetic Model evaluated locally

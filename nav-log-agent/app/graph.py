@@ -229,7 +229,7 @@ def store_memory(state: NavLogState) -> dict:
     return {}
 
 
-def build_graph(from_nav_log: bool = False):
+def build_graph(from_nav_log: bool = False, narrate: bool = True):
     """Wires the nodes above into the fixed sequence described in the
     module docstring and compiles the graph, ready for .invoke(state) or
     .stream(state, stream_mode="custom").
@@ -239,11 +239,19 @@ def build_graph(from_nav_log: bool = False):
     planner computed and cached them seconds earlier -- and whose pilot
     may have overridden the altitude, which a recomputation here would
     silently ignore), so the graph starts at retrieve_memory.
+
+    narrate=False stops after retrieve_memory, which is the last node
+    that does not need an Anthropic API key -- everything up to there is
+    the model's checkpoints, arithmetic and a pgvector lookup. It is
+    what the MCP tools run: an agent connecting to this server already
+    has a model of its own, and asking it to pay for a second one to
+    write the prose is a strange thing to insist on.
     """
     graph = StateGraph(NavLogState)
     graph.add_node("retrieve_memory", retrieve_memory)
-    graph.add_node("generate_briefing", generate_briefing)
-    graph.add_node("store_memory", store_memory)
+    if narrate:
+        graph.add_node("generate_briefing", generate_briefing)
+        graph.add_node("store_memory", store_memory)
     if from_nav_log:
         graph.add_edge(START, "retrieve_memory")
     else:
@@ -256,7 +264,10 @@ def build_graph(from_nav_log: bool = False):
         graph.add_edge("select_checkpoints", "select_altitude")
         graph.add_edge("select_altitude", "assemble_legs")
         graph.add_edge("assemble_legs", "retrieve_memory")
-    graph.add_edge("retrieve_memory", "generate_briefing")
-    graph.add_edge("generate_briefing", "store_memory")
-    graph.add_edge("store_memory", END)
+    if narrate:
+        graph.add_edge("retrieve_memory", "generate_briefing")
+        graph.add_edge("generate_briefing", "store_memory")
+        graph.add_edge("store_memory", END)
+    else:
+        graph.add_edge("retrieve_memory", END)
     return graph.compile()

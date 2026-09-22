@@ -14,3 +14,11 @@ scikit-learn
 joblib
 pyarrow
 requests
+
+# vfr.pipeline imports vfr.geo at its own module level, and vfr.geo
+# imports both of these at its -- so without them the stage fails on
+# import, not at the first distance calculation. Added 2026-09-22, when
+# vfr.geo moved from hand-written great-circle maths to PROJ and only
+# planning-service's requirements were updated to match.
+pyproj
+scipy

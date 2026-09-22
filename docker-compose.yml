@@ -204,9 +204,12 @@ services:
       test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/ping')"]
 
   nav-log-agent:
-    # Behind a profile: it is the one service that cannot do anything
-    # without an Anthropic key, so it is not part of a default
-    # `docker compose up`. Start it with `--profile ai`, or by naming it
+    # Behind a profile because it is opt-in and wants a bearer token of
+    # its own (below), not because it needs an Anthropic key -- its MCP
+    # tools do the checkpoints, the altitude, the legs and the memory
+    # lookup with no LLM at all, and leave the narrative to whichever
+    # agent connected. Only `generate_nav_log_briefing` spends credit.
+    # Start it with `--profile ai`, or by naming it
     # (`docker compose up -d nav-log-agent`), which enables its profile.
     profiles: ["ai"]
     build:
