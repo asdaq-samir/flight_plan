@@ -94,13 +94,20 @@ export function MapShell({ course, onReady, zoom, ownShip, candidates, onZoomCha
         >
           <AttributionControl prefix={false} />
           <ResizeAware />
-          <ChartTiles course={course} previewing={previewing} />
-          {/* Both maps get it: a Class B is worth seeing whether
-              planning a route past it or rating chart detections
-              near it. Draws nothing unless switched on. */}
-          <ClassBLayer course={course} onPreview={setPreviewing} />
-          {onZoomChange && <FitReporter bounds={bounds} onChange={onZoomChange} />}
-          <FitRoute value={fit}>{children}</FitRoute>
+          {/* Everything drawn inside the map gets the fit, not just
+              `children`: the Class B layer's own cards close the same
+              way the planner's and the training map's do, and with the
+              provider wrapped around `children` alone they had no fit
+              to call and closed without coming back out. */}
+          <FitRoute value={fit}>
+            <ChartTiles course={course} previewing={previewing} />
+            {/* Both maps get it: a Class B is worth seeing whether
+                planning a route past it or rating chart detections
+                near it. Draws nothing unless switched on. */}
+            <ClassBLayer course={course} onPreview={setPreviewing} />
+            {onZoomChange && <FitReporter bounds={bounds} onChange={onZoomChange} />}
+            {children}
+          </FitRoute>
         </MapContainer>
       ) : (
         <div className="h-full w-full bg-slate-100 dark:bg-slate-900" />

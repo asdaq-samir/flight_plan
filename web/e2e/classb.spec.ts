@@ -185,4 +185,13 @@ test("tapping one opens a card, and the card pins its terminal chart", async ({ 
       [...document.querySelectorAll<HTMLImageElement>('img.leaflet-tile[src*="/chart-tile/tac/"]')]
         .some(img => img.complete && img.naturalWidth > 0)), { timeout: 45000 })
     .toBe(true);
+
+  // Only now: closing the card comes back out to the whole route, the
+  // way it does for every other card. This layer draws inside the map
+  // shell rather than beside it, and once sat outside the provider that
+  // hands the cards their fit -- so its close put the card away and
+  // left the map where it was.
+  await card.getByTestId("popup-close").click();
+  await expect(page.locator(".leaflet-popup")).toHaveCount(0);
+  await expect.poll(tileZoom, { timeout: 20000 }).toBeLessThan(10);
 });

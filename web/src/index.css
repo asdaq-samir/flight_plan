@@ -32,6 +32,17 @@ input, select, textarea {
 :root { --count-flash: #fef08a; }
 .dark { --count-flash: #713f12; }
 
+/* Leaflet insets a popup's content by `13px 24px 13px 20px` -- wider on
+   the right to clear the close button it draws in the corner. `MapPopup`
+   turns that button off, because the cards carry their own, so the
+   reservation became dead space: the card's own close sat 25px from the
+   right edge and 14px from the top. Evened out, and a little tighter,
+   since these are cards with their own spacing rather than the loose
+   paragraph of text Leaflet's default assumes. */
+.leaflet-popup-content-wrapper .leaflet-popup-content {
+  margin: 12px 14px;
+}
+
 /* Leaflet draws its popups white with its own dark text; in dark mode
    the app's popover tokens take over so the rating menu and the marker
    popups match every other surface. */

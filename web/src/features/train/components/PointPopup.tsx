@@ -52,38 +52,31 @@ export default function PointPopup({
   // does (this used to be endpoint-only content with no arrows at all,
   // which meant landing on departure via "Start" had no way forward).
   // The close sits at the row's end, where Leaflet's own would be.
-  const arrows = (
-    <div className="flex items-center justify-between gap-1">
+  const steps = (
+    <>
       <IconButton
-        type="button"
-        label="Step left"
-        variant="outline"
-        size="icon-lg"
-        onClick={onLeft}
-        disabled={!onLeft || !canLeft}
-        className="flex-shrink-0 rounded-full"
+        type="button" label="Step left" variant="outline" size="icon-lg"
+        onClick={onLeft} disabled={!onLeft || !canLeft} className="flex-shrink-0 rounded-full"
       >
         <ChevronLeft className="size-5" strokeWidth={3} />
       </IconButton>
-      {place && (
-        <div className={`rounded px-0.5 text-muted-foreground ${
-          countChanged ? "animate-[count-flash_0.8s_ease-out]" : ""
-        }`}>
-          #{place}
-        </div>
-      )}
       <IconButton
-        type="button"
-        label="Step right"
-        variant="outline"
-        size="icon-lg"
-        onClick={onRight}
-        disabled={!onRight || !canRight}
-        className="flex-shrink-0 rounded-full"
+        type="button" label="Step right" variant="outline" size="icon-lg"
+        onClick={onRight} disabled={!onRight || !canRight} className="flex-shrink-0 rounded-full"
       >
         <ChevronRight className="size-5" strokeWidth={3} />
       </IconButton>
-    </div>
+    </>
+  );
+
+  /** Where in the walk this point is, flashed when the total goes up as
+   *  more detections stream in. It rides in the subtitle rather than in
+   *  a row of its own: this card is opened a few hundred times in a
+   *  rating pass and every row of it is a row of chart it covers. */
+  const counter = place && (
+    <span className={`rounded px-0.5 ${countChanged ? "animate-[count-flash_0.8s_ease-out]" : ""}`}>
+      #{place}
+    </span>
   );
 
 
@@ -91,16 +84,15 @@ export default function PointPopup({
     return (
       <MapCard
         onClose={onClose}
-        subtitle={point.name}
+        actions={steps}
+        subtitle={<>{counter}{counter && " · "}{point.name}</>}
         title={
           <span className="flex items-center gap-1.5">
             <Badge variant="secondary">{point.category === "departure" ? "DEP" : "DEST"}</Badge>
             {point.ident}
           </span>
         }
-      >
-        {arrows}
-      </MapCard>
+      />
     );
   }
 
@@ -113,10 +105,17 @@ export default function PointPopup({
 
   return (
     <MapCard
+      // A width, like the Class B card's: with the two step arrows and
+      // the close in the head, the title column of a shrink-wrapped
+      // card was narrow enough to wrap "14.8 nm NW of C81" over three
+      // lines, which gave back the row the arrows had just saved.
+      className="w-[min(19rem,74vw)] space-y-1.5"
       onClose={onClose}
+      actions={steps}
       title={category}
       subtitle={
         <>
+          {counter}{counter && " · "}
           {point.along_track_nm.toFixed(1)} nm {compassPoint(bearingDeg)} of {departureIdent}
           {/* DR points are on the line by definition (that's what makes
               them DR) -- the distance only means something for a visual
@@ -125,8 +124,6 @@ export default function PointPopup({
         </>
       }
     >
-      {arrows}
-
       {/* No flex-wrap: Leaflet measures a popup's width by briefly
           forcing everything onto one line, and a row that's still
           allowed to wrap at that moment gets measured at whatever
@@ -153,11 +150,11 @@ export default function PointPopup({
       {/* Labelled, because a detection has no name of its own: the head
           above already says "road_or_rail", and without a label this
           repeats it as bare text rather than reading as the control
-          that changes it. */}
-      <div className="space-y-0.5">
-        <div className="text-muted-foreground">Category</div>
+          that changes it. Inline, so the label costs no row of its own. */}
+      <div className="flex items-center gap-2">
+        <span className="shrink-0 text-muted-foreground">Category</span>
         <Select value={category} onValueChange={onCategoryChange}>
-          <SelectTrigger className="w-full">
+          <SelectTrigger size="sm" className="w-full">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -166,7 +163,7 @@ export default function PointPopup({
         </Select>
       </div>
 
-      <Button type="button" variant="destructive" onClick={onRemove} className="w-full">
+      <Button type="button" size="sm" variant="destructive" onClick={onRemove} className="w-full">
         {/* A detected point is still a detection either way -- this
             only ever unrates it. An added point exists purely as a
             pick, so the same action really does delete it. */}

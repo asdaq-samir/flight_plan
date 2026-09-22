@@ -912,6 +912,16 @@ test("dev page: the waypoint drawer is a worklist -- every candidate in flight o
   // Detections stream in: far more rows than the two endpoints, the
   // unrated ones included -- the old list showed only rated points.
   await expect.poll(() => rows.count(), { timeout: 30000 }).toBeGreaterThan(10);
+  // And then wait for the stream to *stop*. The walk below steps from
+  // whichever row is selected, and rows arriving between the click and
+  // the keypress shift what nth(3) refers to -- which is what made this
+  // test fail about one run in ten, on mobile, where the drawer is a
+  // Sheet and everything happens a little later.
+  await expect.poll(async () => {
+    const before = await rows.count();
+    await page.waitForTimeout(1200);
+    return (await rows.count()) === before;
+  }, { timeout: 40000 }).toBe(true);
   await expect(drawer.getByText(/of \d+ rated/)).toBeVisible();
   await expect(rows.first()).toContainText("C81");
 
