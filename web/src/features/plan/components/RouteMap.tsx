@@ -1,11 +1,12 @@
 import L from "leaflet";
-import { CircleMarker, Marker, Popup } from "react-leaflet";
+import { CircleMarker, Marker } from "react-leaflet";
 import type { ZoomControl } from "../../../components/MapControls";
 import type { Candidate, Course } from "../../../lib/api/types";
 import { CourseLine } from "../../../lib/map/CourseLine";
 import { Halo } from "../../../lib/map/Halo";
 import { dotIcon, endLabelIcon } from "../../../lib/map/icons";
 import { FocusOn } from "../../../lib/map/MapEffects";
+import { MapPopup } from "../../../lib/map/MapPopup";
 import { MapShell } from "../../../lib/map/MapShell";
 import { OwnShipLayer } from "../../../lib/map/OwnShipLayer";
 import { useMarkerZooms, useZoomLevel } from "../../../lib/map/useZoomLevel";
@@ -33,6 +34,25 @@ interface Props {
   showAll: { on: boolean; onToggle: (on: boolean) => void };
 }
 
+/** What a checkpoint's popup says: the same small card whether the
+ *  point was chosen for the route (numbered, in flight order) or is one
+ *  of the candidates it was chosen from. It used to be `<b>` and `<br>`
+ *  written twice, which is why the two drifted into saying the same
+ *  thing two ways. */
+function CheckpointCard({ candidate, number }: { candidate: Candidate; number?: number }) {
+  return (
+    <div className="space-y-0.5 text-xs">
+      <div className="text-sm font-semibold">
+        {number === undefined ? "" : `${number}. `}{candidate.name || "(unnamed)"}
+      </div>
+      <div className="text-muted-foreground">{candidate.category}</div>
+      <div className="tabular-nums text-muted-foreground">
+        score {candidate.predicted_score.toFixed(2)} · {candidate.along_track_nm.toFixed(1)} nm along
+      </div>
+    </div>
+  );
+}
+
 /** The candidates and the chosen checkpoints, each from its own zoom
  *  in (see `useZoomLevel`). */
 function Checkpoints({ candidates, selected, showCandidates, onSelectCandidate }: Pick<Props, "candidates" | "selected" | "showCandidates" | "onSelectCandidate">) {
@@ -47,10 +67,7 @@ function Checkpoints({ candidates, selected, showCandidates, onSelectCandidate }
           key={`${c.lat},${c.lon}`} center={[c.lat, c.lon]} radius={4}
           pathOptions={{ color: "#5b6b76", weight: 1, opacity: 0.65, fillColor: scoreColor(c.predicted_score), fillOpacity: 0.5 }}
         >
-          <Popup>
-            <b>{c.name || "(unnamed)"}</b><br />{c.category}<br />
-            score {c.predicted_score.toFixed(2)} · {c.along_track_nm.toFixed(1)} nm along
-          </Popup>
+          <MapPopup><CheckpointCard candidate={c} /></MapPopup>
         </CircleMarker>
       ))}
       {zoom >= markers && selected.map((c, i) => (
@@ -58,10 +75,7 @@ function Checkpoints({ candidates, selected, showCandidates, onSelectCandidate }
           key={`${c.lat},${c.lon}`} position={[c.lat, c.lon]} icon={dotIcon(scoreColor(c.predicted_score), i + 1)}
           eventHandlers={{ click: e => { L.DomEvent.stopPropagation(e); onSelectCandidate(c); } }}
         >
-          <Popup>
-            <b>{i + 1}. {c.name || "(unnamed)"}</b><br />{c.category}<br />
-            score {c.predicted_score.toFixed(2)} · {c.along_track_nm.toFixed(1)} nm along
-          </Popup>
+          <MapPopup><CheckpointCard candidate={c} number={i + 1} /></MapPopup>
         </Marker>
       ))}
     </>
@@ -89,7 +103,12 @@ export default function RouteMap({
           />
           {[course.departure, course.destination].map(a => (
             <Marker key={a.ident} position={[a.lat, a.lon]} icon={endLabelIcon(a.ident)}>
-              <Popup><b>{a.ident}</b> — {a.name}</Popup>
+              <MapPopup>
+                <div className="space-y-0.5 text-xs">
+                  <div className="text-sm font-semibold">{a.ident}</div>
+                  <div className="text-muted-foreground">{a.name}</div>
+                </div>
+              </MapPopup>
             </Marker>
           ))}
           <Checkpoints candidates={candidates} selected={selected} showCandidates={showCandidates} onSelectCandidate={onSelectCandidate} />

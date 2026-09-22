@@ -1,12 +1,13 @@
 import L from "leaflet";
 import { type ReactNode } from "react";
-import { Marker, Popup } from "react-leaflet";
+import { Marker } from "react-leaflet";
 import type { ZoomControl } from "../../../components/MapControls";
 import type { Course, Point } from "../../../lib/api/types";
 import { isEndpoint } from "../../../lib/api/types";
 import { CourseLine } from "../../../lib/map/CourseLine";
 import { Halo } from "../../../lib/map/Halo";
 import { dotIcon, endLabelIcon } from "../../../lib/map/icons";
+import { MapPopup } from "../../../lib/map/MapPopup";
 import { MapShell } from "../../../lib/map/MapShell";
 import { useMarkerZooms, useZoomLevel } from "../../../lib/map/useZoomLevel";
 import { COLORS, hasRating, isVisible, type Filters } from "../logic";
@@ -95,13 +96,12 @@ export default function ChartMap({
               since Leaflet's own auto-sizing has been seen collapsing a
               popup to its 50px floor. */}
           {selected && showMenu && selectedContent && (
-            <Popup
+            <MapPopup
               position={[selected.lat, selected.lon]} offset={[0, -16]}
               closeButton={false} autoClose={false} closeOnClick={false} autoPan={false}
-              minWidth={232} maxWidth={320}
             >
               {selectedContent}
-            </Popup>
+            </MapPopup>
           )}
         </>
       )}

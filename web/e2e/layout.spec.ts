@@ -491,6 +491,44 @@ test("plan page: a route from an airport to itself says so, rather than showing 
   await expect(page.getByText("A route needs two different airports.")).toBeHidden({ timeout: 25000 });
 });
 
+test("plan page: every popup the map opens dismisses the same way", async ({ page }) => {
+  // They did not. The airport and checkpoint popups took Leaflet's
+  // defaults; the Class B card set autoClose and closeOnClick off, so
+  // on the same map the same gesture -- a tap on the chart -- dismissed
+  // one and left the other sitting there, over the markers underneath
+  // it, swallowing their clicks. `MapPopup` gives all of them one
+  // dismissal, and this is the test that says so.
+  await page.goto("/app/plan?dep=C81&dest=KDLH");
+  await settle(page);
+  await expect(page.locator("img.leaflet-tile").first()).toBeAttached();
+  const popups = page.locator(".leaflet-popup");
+  const box = (await page.locator(".leaflet-container").boundingBox())!;
+  const empty = { x: box.x + 60, y: box.y + box.height - 60 };
+
+  await page.locator(".leaflet-marker-icon", { hasText: "C81" }).first().click();
+  await expect(popups).toHaveCount(1);
+  await page.mouse.click(empty.x, empty.y);
+  await expect(popups).toHaveCount(0);
+
+  await page.getByTestId("layers-button").click();
+  await page.getByTestId("class-b-toggle").click();
+  await page.keyboard.press("Escape");
+  const chip = page.locator(".leaflet-marker-icon span.rounded-full").filter({ hasText: "KORD" }).first();
+  await expect(chip).toBeVisible({ timeout: 25000 });
+  await chip.click();
+  await expect(popups).toHaveCount(1);
+
+  // Its own pin does not dismiss it: a click inside a popup never
+  // reaches the map, so Leaflet's closeOnClick cannot fire from there.
+  await page.getByTestId("class-b-pin").click();
+  await page.waitForTimeout(1500);   // the pin flies the map to the field
+  await expect(popups).toHaveCount(1);
+
+  // A tap on the chart does, exactly as it does for every other popup.
+  await page.mouse.click(empty.x, empty.y);
+  await expect(popups).toHaveCount(0);
+});
+
 test("plan page: the map's zoom toggle goes to the selection and back, however many times", async ({ page }) => {
   // It is one button with two jobs, and which job it is offering has to
   // follow the map's real zoom -- including a zoom the button itself

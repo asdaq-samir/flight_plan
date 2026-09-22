@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Marker, Popup, Tooltip, useMap } from "react-leaflet";
+import { Marker, Tooltip, useMap } from "react-leaflet";
 import { Pin, PinOff, ZoomIn } from "lucide-react";
 import IconButton from "../../components/IconButton";
 import { api } from "../api/client";
@@ -8,6 +8,7 @@ import type { ReactNode } from "react";
 import type { ClassBAirport, Course } from "../api/types";
 import { usePreferences } from "../preferences";
 import { classBIcon } from "./icons";
+import { MapPopup } from "./MapPopup";
 
 /** The FAA's own categories, in the colours a pilot already reads them
  *  in: green good, blue marginal, red instrument, magenta worse than
@@ -179,13 +180,11 @@ export function ClassBLayer({ course, onPreview }: { course: Course; onPreview: 
           )}
           {/* A child of the marker, so Leaflet opens it on a click and
               closes it on its own X -- there is no open-state of ours
-              to keep in step with it. autoClose and closeOnClick off so
-              pinning from the card does not take the card away from
-              under the finger. */}
-          <Popup
-            offset={[0, -12]} autoClose={false} closeOnClick={false} autoPan
-            minWidth={260} maxWidth={340}
-          >
+              to keep in step with it. Dismissal is `MapPopup`'s, which
+              is Leaflet's: a tap on the chart closes it. The pin inside
+              it is unaffected, because a click in a popup never reaches
+              the map -- see MapPopup's own note. */}
+          <MapPopup>
             <Details
               airport={airport}
               actions={airport.tac && (
@@ -221,7 +220,7 @@ export function ClassBLayer({ course, onPreview }: { course: Course; onPreview: 
                 </div>
               )}
             />
-          </Popup>
+          </MapPopup>
         </Marker>
       ))}
     </>
