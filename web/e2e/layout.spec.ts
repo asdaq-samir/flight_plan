@@ -505,9 +505,12 @@ test("plan page: every popup the map opens dismisses the same way", async ({ pag
   const box = (await page.locator(".leaflet-container").boundingBox())!;
   const empty = { x: box.x + 60, y: box.y + box.height - 60 };
 
+  // The departure marker: a tap opens its card, and the card's own X
+  // closes it and brings the map back to the whole route -- both halves
+  // of one gesture, and the reason the next step can find KORD at all.
   await page.locator(".leaflet-marker-icon", { hasText: "C81" }).first().click();
   await expect(popups).toHaveCount(1);
-  await page.mouse.click(empty.x, empty.y);
+  await page.getByTestId("popup-close").click();
   await expect(popups).toHaveCount(0);
 
   await page.getByTestId("layers-button").click();

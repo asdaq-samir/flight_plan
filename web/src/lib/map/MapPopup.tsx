@@ -29,5 +29,15 @@ import { Popup } from "react-leaflet";
 export function MapPopup(props: ComponentProps<typeof Popup>) {
   // Props last: these are defaults, and a caller that means something
   // different says so.
-  return <Popup offset={[0, -12]} minWidth={220} maxWidth={340} autoPan {...props} />;
+  return (
+    <Popup
+      offset={[0, -12]} minWidth={220} maxWidth={340} autoPan
+      // Leaflet's own close is off: it is a 24x24 glyph jammed into the
+      // very corner of the wrapper, and the app's cards already carry a
+      // close of their own at the size every other icon button uses.
+      // One close, one place, one size -- see `MapCard`.
+      closeButton={false}
+      {...props}
+    />
+  );
 }

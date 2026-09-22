@@ -1,10 +1,11 @@
 import L from "leaflet";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { AttributionControl, MapContainer, useMap } from "react-leaflet";
 import MapControls, { type ZoomControl } from "../../components/MapControls";
 import type { Course } from "../api/types";
 import { ChartTiles } from "./ChartTiles";
 import { ClassBLayer } from "./ClassBLayer";
+import { FitRoute } from "./fitRoute";
 import { ResizeAware } from "./MapEffects";
 import { useZoomLevel } from "./useZoomLevel";
 
@@ -62,18 +63,20 @@ export function MapShell({ course, onReady, zoom, ownShip, candidates, onZoomCha
   const [previewing, setPreviewing] = useState(false);
   const bounds = useMemo(() => (course ? L.latLngBounds(course.course_line as [number, number][]) : null), [course]);
 
-  // Fit to the route when it changes, and hand the page the same fit.
   // invalidateSize before fitBounds: on a fresh reload the map can fit
   // against a stale cached container size before it's ever been measured.
+  const fit = useCallback(() => {
+    if (!map || !bounds) return;
+    map.invalidateSize();
+    map.fitBounds(bounds, { padding: [30, 30] });
+  }, [map, bounds]);
+
+  // Fit to the route when it changes, and hand the page the same fit.
   useEffect(() => {
     if (!map || !bounds) return;
-    const fit = () => {
-      map.invalidateSize();
-      map.fitBounds(bounds, { padding: [30, 30] });
-    };
     fit();
     onReady?.(map, fit);
-  }, [map, bounds, onReady]);
+  }, [map, bounds, onReady, fit]);
 
   // bg-slate-100: purely cosmetic, so the gap before the course loads
   // reads as "a map is about to be here" rather than a blank white
@@ -97,7 +100,7 @@ export function MapShell({ course, onReady, zoom, ownShip, candidates, onZoomCha
               near it. Draws nothing unless switched on. */}
           <ClassBLayer course={course} onPreview={setPreviewing} />
           {onZoomChange && <FitReporter bounds={bounds} onChange={onZoomChange} />}
-          {children}
+          <FitRoute value={fit}>{children}</FitRoute>
         </MapContainer>
       ) : (
         <div className="h-full w-full bg-slate-100 dark:bg-slate-900" />

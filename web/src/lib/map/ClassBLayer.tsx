@@ -8,6 +8,7 @@ import type { ReactNode } from "react";
 import type { ClassBAirport, Course } from "../api/types";
 import { usePreferences } from "../preferences";
 import { classBIcon } from "./icons";
+import { MapCard } from "./MapCard";
 import { MapPopup } from "./MapPopup";
 import { MapTooltip } from "./MapTooltip";
 
@@ -39,37 +40,31 @@ function miles(value: number | null): string {
  *  forecast to do, and the raw text of both for a pilot who wants to
  *  read it themselves. Tapped, `actions` puts the pin and the zoom in
  *  its top corner. */
-function Details({ airport, actions }: { airport: ClassBAirport; actions?: ReactNode }) {
+function Details({ airport, actions, closable }: { airport: ClassBAirport; actions?: ReactNode; closable?: boolean }) {
   const category = airport.flight_category;
   return (
-    // whitespace-normal: Leaflet's own stylesheet sets
-    // `white-space: nowrap` on every tooltip, which is right for the
-    // course line's one-line label and wrong here -- a raw METAR ran
-    // straight off the card's right edge. white-space inherits, so
-    // setting it on this root is enough.
     // A width, not just a maximum: a Leaflet tooltip shrink-wraps its
     // content, so once the raw METAR was allowed to wrap the card
     // collapsed to a narrow column and wrapped it every four words.
     // Capped against the viewport so a phone still fits it.
-    <div className="w-[min(22rem,72vw)] space-y-1.5 text-xs whitespace-normal">
-      {/* pr-7 clears Leaflet's own close button, which sits at the
-          card's very corner -- the icons go beside it, not under it. */}
-      <div className="flex items-start gap-2 pr-7">
-        <div className="min-w-0 flex-1 space-y-0.5">
-          <div className="flex items-baseline gap-2">
-            <span className="text-sm font-semibold">{airport.ident}</span>
-            <span
-              className="rounded px-1.5 py-0.5 font-semibold text-white"
-              style={{ backgroundColor: colourOf(category) }}
-            >
-              {category ?? "no report"}
-            </span>
-            {airport.tac && <span className="text-muted-foreground">{airport.tac}</span>}
-          </div>
-          <div className="text-muted-foreground">{airport.name}</div>
-        </div>
-        {actions}
-      </div>
+    <MapCard
+      className="w-[min(22rem,72vw)]"
+      closable={closable}
+      actions={actions}
+      subtitle={airport.name}
+      title={
+        <span className="flex items-baseline gap-2">
+          {airport.ident}
+          <span
+            className="rounded px-1.5 py-0.5 text-xs font-semibold text-white"
+            style={{ backgroundColor: colourOf(category) }}
+          >
+            {category ?? "no report"}
+          </span>
+          {airport.tac && <span className="text-xs font-normal text-muted-foreground">{airport.tac}</span>}
+        </span>
+      }
+    >
 
       <div className="grid grid-cols-[auto_1fr_1fr] gap-x-2 gap-y-0.5 pt-1">
         <span className="text-muted-foreground" />
@@ -88,7 +83,7 @@ function Details({ airport, actions }: { airport: ClassBAirport; actions?: React
       {airport.tac && !actions && (
         <p className="pt-1 text-muted-foreground">Tap to go there, and to pin the {airport.tac}.</p>
       )}
-    </div>
+    </MapCard>
   );
 }
 
@@ -202,6 +197,7 @@ export function ClassBLayer({ course, onPreview }: { course: Course; onPreview: 
           <MapPopup>
             <Details
               airport={airport}
+              closable
               actions={airport.tac && (
                 // An icon rather than a worded button: the card is
                 // mostly raw METAR and TAF, and a labelled button under
@@ -212,6 +208,7 @@ export function ClassBLayer({ course, onPreview }: { course: Course; onPreview: 
                 <div className="flex shrink-0 items-center">
                   <IconButton
                     label={pinned ? "Unpin the terminal area chart" : `Pin the ${airport.tac}`}
+                    size="icon-sm"
                     aria-pressed={pinned}
                     variant={pinned ? "secondary" : "ghost"}
                     data-testid="class-b-pin"

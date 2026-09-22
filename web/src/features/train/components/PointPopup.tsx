@@ -1,9 +1,9 @@
-import type { ReactNode } from "react";
-import { ChevronLeft, ChevronRight, X } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import IconButton from "../../../components/IconButton";
 import { Badge } from "../../../components/ui/badge";
 import { Button } from "../../../components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../../components/ui/select";
+import { MapCard } from "../../../lib/map/MapCard";
 import { isEndpoint, type Point, type Rating } from "../../../lib/api/types";
 import { CATEGORIES, COLORS, RATINGS, compassPoint, roleOf, sourceOf } from "../logic";
 
@@ -86,36 +86,21 @@ export default function PointPopup({
     </div>
   );
 
-  // The head every card on either map leads with: what the thing is,
-  // then where it is, then the way out in the corner. This card used to
-  // open with its step arrows and keep the point's own identity as a
-  // muted line near the bottom, under the rating chips and the category
-  // select -- the only card of the three that made you read to the end
-  // to find out what you were looking at.
-  const head = (title: ReactNode, sub: ReactNode) => (
-    <div className="flex items-start gap-2">
-      <div className="min-w-0 flex-1 space-y-0.5">
-        <div className="text-sm font-semibold">{title}</div>
-        <div className="text-muted-foreground">{sub}</div>
-      </div>
-      <IconButton type="button" label="Close" size="icon-sm" onClick={onClose} data-testid="popup-close">
-        <X className="size-4" />
-      </IconButton>
-    </div>
-  );
 
   if (isEndpoint(point)) {
     return (
-      <div className="space-y-2 text-xs">
-        {head(
+      <MapCard
+        onClose={onClose}
+        subtitle={point.name}
+        title={
           <span className="flex items-center gap-1.5">
             <Badge variant="secondary">{point.category === "departure" ? "DEP" : "DEST"}</Badge>
             {point.ident}
-          </span>,
-          point.name,
-        )}
+          </span>
+        }
+      >
         {arrows}
-      </div>
+      </MapCard>
     );
   }
 
@@ -127,17 +112,19 @@ export default function PointPopup({
     : [category, ...CATEGORIES];
 
   return (
-    <div className="space-y-2 text-xs">
-      {head(
-        category,
+    <MapCard
+      onClose={onClose}
+      title={category}
+      subtitle={
         <>
           {point.along_track_nm.toFixed(1)} nm {compassPoint(bearingDeg)} of {departureIdent}
           {/* DR points are on the line by definition (that's what makes
               them DR) -- the distance only means something for a visual
               point, which is picked precisely because it sits off it. */}
           {roleOf(point) === "visual" && <> · {Math.abs(cross).toFixed(2)} nm off course</>}
-        </>,
-      )}
+        </>
+      }
+    >
       {arrows}
 
       {/* No flex-wrap: Leaflet measures a popup's width by briefly
@@ -185,6 +172,6 @@ export default function PointPopup({
             pick, so the same action really does delete it. */}
         {sourceOf(point) === "added" ? "Remove point" : "Reset rating"}
       </Button>
-    </div>
+    </MapCard>
   );
 }

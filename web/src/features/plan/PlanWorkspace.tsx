@@ -293,6 +293,7 @@ export default function PlanWorkspace({ dep, dest, onRoute, sidebarOpen, childre
           showCandidates={showCandidates}
           focus={selectedPoint}
           onSelectCandidate={selectCandidate}
+          onSelectPoint={(lat, lon) => selectPoint({ lat, lon })}
           onReady={handleMapReady}
           onZoomChange={setZoomedIn}
           zoom={{ zoomedIn, onToggle: toggleZoom, disabled: !course }}

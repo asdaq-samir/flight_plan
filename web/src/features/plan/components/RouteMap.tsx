@@ -6,6 +6,7 @@ import { CourseLine } from "../../../lib/map/CourseLine";
 import { Halo } from "../../../lib/map/Halo";
 import { dotIcon, endLabelIcon } from "../../../lib/map/icons";
 import { FocusOn } from "../../../lib/map/MapEffects";
+import { MapCard } from "../../../lib/map/MapCard";
 import { MapPopup } from "../../../lib/map/MapPopup";
 import { MapShell } from "../../../lib/map/MapShell";
 import { OwnShipLayer } from "../../../lib/map/OwnShipLayer";
@@ -22,6 +23,9 @@ interface Props {
    *  sidebar list already focuses the map when a row is clicked; this
    *  is the other direction, clicking the marker itself. */
   onSelectCandidate: (candidate: Candidate) => void;
+  /** The same for the two airports, which are not candidates but are
+   *  waypoints the nav log lists and the map can be brought to. */
+  onSelectPoint: (lat: number, lon: number) => void;
   onReady: (map: L.Map, fit: () => void) => void;
   /** Whether the map is closer in than the whole route needs -- the
    *  page's zoom toggle reads this to decide whether a press should
@@ -41,15 +45,15 @@ interface Props {
  *  thing two ways. */
 function CheckpointCard({ candidate, number }: { candidate: Candidate; number?: number }) {
   return (
-    <div className="space-y-0.5 text-xs">
-      <div className="text-sm font-semibold">
-        {number === undefined ? "" : `${number}. `}{candidate.name || "(unnamed)"}
-      </div>
-      <div className="text-muted-foreground">{candidate.category}</div>
+    <MapCard
+      closable
+      title={`${number === undefined ? "" : `${number}. `}${candidate.name || "(unnamed)"}`}
+      subtitle={candidate.category}
+    >
       <div className="tabular-nums text-muted-foreground">
         score {candidate.predicted_score.toFixed(2)} · {candidate.along_track_nm.toFixed(1)} nm along
       </div>
-    </div>
+    </MapCard>
   );
 }
 
@@ -89,7 +93,8 @@ function Checkpoints({ candidates, selected, showCandidates, onSelectCandidate }
  * is `MapShell`, which the training map shares.
  */
 export default function RouteMap({
-  course, candidates, selected, showCandidates, focus, onSelectCandidate, onReady, onZoomChange, zoom, showAll,
+  course, candidates, selected, showCandidates, focus, onSelectCandidate, onSelectPoint,
+  onReady, onZoomChange, zoom, showAll,
 }: Props) {
   const focusZoom = course?.max_zoom ?? 12;
 
@@ -102,13 +107,16 @@ export default function RouteMap({
             tooltip={`${course.departure.ident} → ${course.destination.ident} · ${course.distance_nm} nm`}
           />
           {[course.departure, course.destination].map(a => (
-            <Marker key={a.ident} position={[a.lat, a.lon]} icon={endLabelIcon(a.ident)}>
-              <MapPopup>
-                <div className="space-y-0.5 text-xs">
-                  <div className="text-sm font-semibold">{a.ident}</div>
-                  <div className="text-muted-foreground">{a.name}</div>
-                </div>
-              </MapPopup>
+            // Selectable like every other marker: a tap brings the map
+            // to it and selects it, which is also what the nav log's
+            // first and last rows do. They are the two markers drawn at
+            // every zoom, so on a route whose checkpoints are still too
+            // far out to draw they are the only ones there to tap.
+            <Marker
+              key={a.ident} position={[a.lat, a.lon]} icon={endLabelIcon(a.ident)}
+              eventHandlers={{ click: e => { L.DomEvent.stopPropagation(e); onSelectPoint(a.lat, a.lon); } }}
+            >
+              <MapPopup><MapCard closable title={a.ident} subtitle={a.name} /></MapPopup>
             </Marker>
           ))}
           <Checkpoints candidates={candidates} selected={selected} showCandidates={showCandidates} onSelectCandidate={onSelectCandidate} />
