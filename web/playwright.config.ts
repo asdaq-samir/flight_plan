@@ -21,6 +21,16 @@ import { defineConfig } from "@playwright/test";
 export default defineConfig({
   testDir: "./e2e",
   timeout: 30_000,
+  // Playwright's own default for an `expect()` wait is 5s, which is a
+  // reasonable figure for a page that is already built and a poor one
+  // for this app: much of what these tests assert on arrives from the
+  // planner, which renders each chart tile from FAA raster on demand
+  // and is being asked for several routes at once by the workers
+  // below. The flake this fixes was a 5s wait for the map's first tile
+  // -- an assertion about the full-screen button, failing on tile
+  // latency. It costs nothing when things are fast, and the 30s test
+  // timeout above still catches anything genuinely hung.
+  expect: { timeout: 15_000 },
   // One retry: a handful of tests wait on the planner's live nav log,
   // and under two workers on a busy machine one has missed a wait once
   // and passed every run since. A retry keeps a transient miss from

@@ -243,6 +243,11 @@ for (const path of PAGES) {
   test(`${path}: the full-screen button takes the whole screen and gives it back`, async ({ page }) => {
     await page.goto(`${path}?dep=C81&dest=KDLH`);
     await settle(page);
+    // The map has to have drawn something before this test can say
+    // anything about it redrawing. `settle` waits a fixed 1.5s, which
+    // is plenty when the planner is idle and not always enough when
+    // three other workers are asking it for chart tiles.
+    await expect(page.locator("img.leaflet-tile").first()).toBeAttached();
     // Drawn only where it would work: Chromium allows it, an iPad
     // does, an iPhone does not and the button is absent there rather
     // than present and refusing (see `FullscreenButton`).
