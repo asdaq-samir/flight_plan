@@ -10,8 +10,8 @@ import { BASE_CHARTS, MARKER_ZOOMS, usePreferences, type BaseChart } from "../li
  * it -- the TAC over the sectional, the IFR area chart over the IFR
  * charts -- is pinned: drawn at every zoom it can be drawn at,
  * wherever one exists (Chicago's covers the first leg out of C81).
- * The same setting the pin over the map (`OverlayPin`) toggles;
- * unpinned, the base chart is the chart at every zoom.
+ * The same setting a Class B marker's card pins; unpinned, the base
+ * chart is the chart at every zoom.
  *
  * Lives in both pages' layers popover. Sectional and no terminal sheet
  * by default: this is a VFR planner, and a TAC is busier than the
@@ -52,8 +52,8 @@ export default function ChartLayers() {
         </Label>
       </div>
       <p className="text-xs text-muted-foreground">
-        Close in over a terminal area a pin appears on the map: tap it to pin that sheet over the base chart,
-        or hover it to look. Unpinned, the base chart is the chart at every zoom.
+        Drawn over the base chart wherever a sheet exists, from the zoom the FAA publishes it at. A Class B
+        marker's card pins the same thing for that field. Unpinned, the base chart is the chart at every zoom.
       </p>
 
       <div className="flex items-center gap-2 border-t border-border pt-2">
@@ -67,7 +67,7 @@ export default function ChartLayers() {
       </div>
       <p className="text-xs text-muted-foreground">
         A marker on each, coloured by what the field is reporting now. Hover one for its METAR and TAF;
-        tap it to go there with the terminal area chart drawn over it.
+        tap it for the same card with the terminal area chart's pin in it.
       </p>
 
       <div className="flex items-center gap-2 border-t border-border pt-2">

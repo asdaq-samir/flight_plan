@@ -1,4 +1,3 @@
-import type { ReactNode } from "react";
 import { Layers } from "lucide-react";
 import ChartLayers from "./ChartLayers";
 import FullscreenButton from "./FullscreenButton";
@@ -25,21 +24,19 @@ interface Props {
    *  the planner's own switch, which used to be the `a` key and had
    *  nowhere to be clicked. */
   candidates?: { on: boolean; onToggle: (on: boolean) => void };
-  /** Whatever else belongs in the stack -- the terminal chart's pin. */
-  children?: ReactNode;
 }
 
 /**
  * The map's own controls, stacked at its top-right corner over the
  * chart: the layers button (a popover with the base chart, the pinned
  * terminal sheet and, on the planner, own ship), the zoom toggle
- * between the whole route and the selected point, and under them the
- * pin the map offers over a terminal area. On the map, not in the
+ * between the whole route and the selected point, and full screen
+ * where it works. On the map, not in the
  * header, because they act on the map: the header keeps the route
  * form and the drawers. Outline buttons on a solid background, so
  * they read over any chart colour.
  */
-export default function MapControls({ zoom, ownShip = false, candidates, children }: Props) {
+export default function MapControls({ zoom, ownShip = false, candidates }: Props) {
   return (
     // z-[1000]: over Leaflet's own panes, the level Leaflet gives its
     // controls; still inside the map's own stacking context, under the
@@ -88,7 +85,6 @@ export default function MapControls({ zoom, ownShip = false, candidates, childre
       {/* Draws itself only where full screen actually works: a desktop
           browser and an iPad, never an iPhone. */}
       <FullscreenButton />
-      {children}
     </div>
   );
 }

@@ -2,9 +2,8 @@ import L from "leaflet";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { AttributionControl, MapContainer } from "react-leaflet";
 import MapControls, { type ZoomControl } from "../../components/MapControls";
-import OverlayPin from "../../components/OverlayPin";
 import type { Course } from "../api/types";
-import { ChartTiles, type OverlayOffer } from "./ChartTiles";
+import { ChartTiles } from "./ChartTiles";
 import { ClassBLayer } from "./ClassBLayer";
 import { ResizeAware } from "./MapEffects";
 
@@ -26,16 +25,15 @@ interface Props {
 
 /**
  * What both maps are underneath: a Leaflet container sized to the
- * route, the chart tiles, and the control stack at the corner with the
- * terminal-chart pin under it. The planner's route and the training
- * page's candidates differ in what they draw on top, which is
- * `children`, and in nothing else -- the container options, the fit,
- * the tile layer, the pin's offer/preview state and the placeholder
- * before a course arrives were the same code in both files.
+ * route, the chart tiles, and the control stack at the corner. The
+ * planner's route and the training page's candidates differ in what
+ * they draw on top, which is `children`, and in nothing else -- the
+ * container options, the fit, the tile layer, the terminal sheet's
+ * preview state and the placeholder before a course arrives were the
+ * same code in both files.
  */
 export function MapShell({ course, onReady, zoom, ownShip, candidates, children }: Props) {
   const [map, setMap] = useState<L.Map | null>(null);
-  const [offer, setOffer] = useState<OverlayOffer | null>(null);
   const [previewing, setPreviewing] = useState(false);
   const bounds = useMemo(() => (course ? L.latLngBounds(course.course_line as [number, number][]) : null), [course]);
 
@@ -68,7 +66,7 @@ export function MapShell({ course, onReady, zoom, ownShip, candidates, children 
         >
           <AttributionControl prefix={false} />
           <ResizeAware />
-          <ChartTiles course={course} previewing={previewing} onOffer={setOffer} />
+          <ChartTiles course={course} previewing={previewing} />
           {/* Both maps get it: a Class B is worth seeing whether
               planning a route past it or rating chart detections
               near it. Draws nothing unless switched on. */}
@@ -78,9 +76,7 @@ export function MapShell({ course, onReady, zoom, ownShip, candidates, children 
       ) : (
         <div className="h-full w-full bg-slate-100 dark:bg-slate-900" />
       )}
-      <MapControls zoom={zoom} ownShip={ownShip} candidates={candidates}>
-        <OverlayPin offer={offer} onPreview={setPreviewing} />
-      </MapControls>
+      <MapControls zoom={zoom} ownShip={ownShip} candidates={candidates} />
     </div>
   );
 }

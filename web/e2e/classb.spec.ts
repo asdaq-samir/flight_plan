@@ -10,6 +10,9 @@ import { test, expect, type Page, type Route } from "@playwright/test";
  * because those are about the map rather than the numbers.
  */
 
+// Nothing is drawn at the map's corner any more; the assertions that
+// used to live there are in layout.spec.ts against the layers popover.
+//
 // The app registers a service worker that answers API calls
 // NetworkFirst (vite.config.ts), and a request a service worker
 // handles is not a page request -- page.route never sees it, so a
@@ -129,10 +132,14 @@ test("a field with no report says so rather than showing a blank", async ({ page
   await expect(page.locator(".leaflet-tooltip")).toContainText("no report");
 });
 
-test("tapping one opens its terminal chart over it", async ({ page }) => {
-  // Hovering cannot do this from a route view: the FAA publishes
-  // terminal charts from zoom 10 and a whole route fits at about 6, so
-  // there are no tiles to draw. Tapping goes there first.
+test("tapping one opens a card, and the card pins its terminal chart", async ({ page }) => {
+  // The pin used to float at the map's top-right corner with nothing
+  // around it to say which airport it meant. It belongs with the
+  // field's own weather, which is what a tap opens.
+  //
+  // Pinning from a route view would draw nothing -- the FAA publishes
+  // terminal charts from zoom 10 and a whole route fits at about 6 --
+  // so the pin goes there first.
   const tacTiles: string[] = [];
   page.on("request", r => { if (r.url().includes("/chart-tile/tac/")) tacTiles.push(r.url()); });
 
@@ -144,6 +151,21 @@ test("tapping one opens its terminal chart over it", async ({ page }) => {
 
   expect(tacTiles).toHaveLength(0);
   await ord.click();
+
+  // The card: the same weather the tooltip shows, plus the pin.
+  const card = page.locator(".leaflet-popup-content");
+  await expect(card).toContainText("KORD");
+  await expect(card).toContainText("METAR KORD");
+  // An icon, named by its accessible name rather than by words on the
+  // card: the card is mostly raw METAR and TAF, and labelled buttons
+  // under it pushed the weather off a phone screen.
+  const pin = card.getByTestId("class-b-pin");
+  await expect(pin).toHaveAttribute("aria-pressed", "false");
+  await expect(pin).toHaveAttribute("aria-label", "Pin the Chicago TAC");
+  expect(tacTiles).toHaveLength(0);   // the card alone draws no chart
+  await pin.click();
+  await expect(pin).toHaveAttribute("aria-pressed", "true");
+  await expect(pin).toHaveAttribute("aria-label", /Unpin/);
 
   await expect.poll(() => tacTiles.length, { timeout: 30000 }).toBeGreaterThan(0);
   await expect

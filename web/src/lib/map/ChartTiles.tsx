@@ -1,25 +1,15 @@
 import L from "leaflet";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { TileLayer, useMap, useMapEvents } from "react-leaflet";
 import type { Course } from "../api/types";
 import { usePreferences } from "../preferences";
 import { tileTemplate } from "./tiles";
 
-/** What there is to pin where the map is: the overlay sheet under the
- *  map's centre, once the map is within the overlay's own zooms
- *  ("Chicago TAC", `offered`), or -- with nothing under the centre --
- *  the overlay kind's own name, for a pin that is already pinned and
- *  may want unpinning from anywhere. */
-export interface OverlayOffer {
-  label: string;
-  offered: boolean;
-}
-
 interface Props {
   course: Course;
-  /** The pin's hover: draws the overlay while on, pinned or not. */
+  /** A Class B marker's hover: draws the overlay while on, pinned or
+   *  not, so a sheet can be looked at without pinning it. */
   previewing: boolean;
-  onOffer?: (offer: OverlayOffer | null) => void;
 }
 
 /**
@@ -43,7 +33,7 @@ interface Props {
  * worker's). Each kind is its own layer instance (`key`): Leaflet reads
  * a layer's zooms once.
  */
-export function ChartTiles({ course, previewing, onOffer }: Props) {
+export function ChartTiles({ course, previewing }: Props) {
   const map = useMap();
   const base = usePreferences(s => s.base);
   const pinned = usePreferences(s => s.tac);
@@ -75,33 +65,12 @@ export function ChartTiles({ course, previewing, onOffer }: Props) {
     }
   }, [map, baseLayer]);
 
-  // Where the map is, as state, so what to offer is derived from it.
-  const [view, setView] = useState(() => ({ center: map.getCenter(), zoom: map.getZoom() }));
-  const offer = useMemo<OverlayOffer | null>(() => {
-    if (!overlay) return null;
-    const { lat, lng } = view.center;
-    const sheet = view.zoom >= overlay.min_zoom
-      ? (overlay.sheets ?? []).find(s => lng >= s.west && lng <= s.east && lat >= s.south && lat <= s.north)
-      : undefined;
-    return sheet ? { label: sheet.label, offered: true } : { label: overlay.label, offered: false };
-  }, [view, overlay]);
-  const lastOffer = useRef<OverlayOffer | null>(null);
-  useEffect(() => {
-    const last = lastOffer.current;
-    if (last?.label === offer?.label && last?.offered === offer?.offered) return;
-    lastOffer.current = offer;
-    onOffer?.(offer);
-  }, [offer, onOffer]);
-
   const prefetchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const moved = () => setView({ center: map.getCenter(), zoom: map.getZoom() });
   useMapEvents({
     moveend: () => {
-      moved();
       if (prefetchTimer.current) clearTimeout(prefetchTimer.current);
       prefetchTimer.current = setTimeout(prefetchRing, 250);
     },
-    zoomend: moved,
   });
   useEffect(() => () => { if (prefetchTimer.current) clearTimeout(prefetchTimer.current); }, []);
 

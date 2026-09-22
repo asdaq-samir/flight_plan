@@ -867,24 +867,25 @@ test("plan page: every text field is at least 16px on a phone, so iOS never zoom
 });
 
 for (const path of PAGES) {
-  test(`${path}: close in over Chicago the map offers the TAC as a pin; pinned, it is drawn over the sectional`, async ({ page }) => {
+  test(`${path}: the TAC is drawn over the sectional only once it is pinned`, async ({ page }) => {
     // Nothing but the sectional by default, at every zoom: zoomed in
     // over C81 (inside the Chicago TAC) past the sectional's own
-    // detail, no TAC tile is asked for -- a pin offering "Chicago TAC"
-    // appears over the map instead. Pinned, the map asks for TAC
+    // detail, no TAC tile is asked for. Pinned, the map asks for TAC
     // tiles and at least one of them actually renders -- the planner
     // draws it from the FAA's own TAC raster, which on a cold tile
     // cache is a quarter of a second per tile for a screenful of
     // them; hence the longer budget.
+    //
+    // Pinned here from the layers popover, which is the setting itself.
+    // A Class B marker's card pins the same thing for its own field;
+    // that is classb.spec.ts.
     test.setTimeout(90000);
     await page.goto(`${path}?dep=C81&dest=KDLH`);
     await settle(page);
     const tacTiles = page.locator('img.leaflet-tile[src*="/api/planner/chart-tile/tac/"]');
     const sectionalTiles = page.locator('img.leaflet-tile[src*="/api/planner/chart-tile/sec/"]');
-    const pin = page.getByTestId("overlay-pin");
     await expect(page.locator("img.leaflet-tile").first()).toBeAttached({ timeout: 15000 });
     expect(await tacTiles.count()).toBe(0);
-    await expect(pin).toHaveCount(0);
 
     // Wheel-zoom in over the departure marker, a level at a time
     // (Leaflet's own 60 px per level), well past the sectional's own
@@ -898,14 +899,15 @@ for (const path of PAGES) {
       await page.waitForTimeout(400);
     }
     await expect(sectionalTiles.first()).toBeAttached({ timeout: 10000 });
-    await expect(pin).toBeVisible();
-    await expect(pin).toHaveText(/Chicago TAC/);
-    await expect(pin).toHaveAttribute("aria-pressed", "false");
     expect(await tacTiles.count()).toBe(0);
 
     // Pinned: both chart layers are asked for, the sectional and the TAC.
+    await page.getByTestId("layers-button").click();
+    const pin = page.getByTestId("tac-toggle");
+    await expect(pin).toHaveAttribute("aria-checked", "false");
     await pin.click();
-    await expect(pin).toHaveAttribute("aria-pressed", "true");
+    await expect(pin).toHaveAttribute("aria-checked", "true");
+    await page.keyboard.press("Escape");
     await expect(tacTiles.first()).toBeAttached({ timeout: 10000 });
     await expect.poll(
       () => page.evaluate(() =>
@@ -914,8 +916,8 @@ for (const path of PAGES) {
       { timeout: 45000 },
     ).toBe(true);
 
-    // The pin is the same setting as the info popover's checkbox, and
-    // is remembered: a reload still has it pinned.
+    // Remembered per browser: a reload still has it pinned, and
+    // unpinning it takes the TAC layer away again.
     await page.reload();
     await settle(page);
     await page.getByTestId("layers-button").click();
@@ -924,7 +926,7 @@ for (const path of PAGES) {
     await toggle.click();
     await expect(toggle).toHaveAttribute("aria-checked", "false");
     await page.keyboard.press("Escape");
-    await expect(pin).toHaveCount(0);   // unpinned and zoomed out: nothing to offer
+    await expect(tacTiles).toHaveCount(0);
   });
 
   test(`${path}: the base chart can be the IFR low enroute chart, and back`, async ({ page }) => {
