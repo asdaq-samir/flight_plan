@@ -12,6 +12,8 @@ pandas
 numpy
 requests
 pygeomag
+pygeodesy
+scipy
 scikit-learn
 matplotlib
 pillow

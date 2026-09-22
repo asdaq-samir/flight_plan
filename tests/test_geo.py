@@ -6,6 +6,7 @@ from vfr.geo import (
     EARTH_RADIUS_NM,
     along_track_distance_nm,
     bearing_deg,
+    cluster_points,
     corridor_bbox,
     cross_track_distance_nm,
     destination_point,
@@ -54,12 +55,66 @@ def test_cross_track_distance_off_route_is_nonzero_and_signed():
     assert north_xt == pytest.approx(-south_xt, rel=1e-6)  # symmetric about the route
 
 
+def test_cross_track_sign_is_positive_right_of_course():
+    # Flying due east along the equator, a point to the south is off the
+    # right wing. vfr.pipeline's corridor filter and the nav log both
+    # read this sign.
+    route_start, route_end = (0, 0), (0, 10)
+    assert cross_track_distance_nm(-1, 5, route_start, route_end) > 0
+    assert cross_track_distance_nm(1, 5, route_start, route_end) < 0
+
+
 def test_along_track_distance_at_route_midpoint():
     route_start, route_end = (0, 0), (0, 10)
     midpoint = (0, 5)
     total = distance_nm(*route_start, *route_end)
     along = along_track_distance_nm(*midpoint, route_start, route_end)
     assert along == pytest.approx(total / 2, rel=1e-3)
+
+
+def test_along_track_distance_behind_the_start_is_negative():
+    # The signed convention vfr.pipeline's corridor filter is written
+    # for: it bounds along-track between -MARGIN_NM and the route length
+    # plus MARGIN_NM, which only excludes anything if a candidate behind
+    # the departure point reads negative.
+    route_start, route_end = (0, 0), (0, 10)
+    behind = along_track_distance_nm(0, -2, route_start, route_end)
+    assert behind < 0
+    assert behind == pytest.approx(-distance_nm(0, 0, 0, 2), rel=1e-6)
+
+
+def test_coincident_points_give_zero_distance_and_no_error():
+    # A route whose two ends are the same point should not take the nav
+    # log down; the library returns zero rather than raising.
+    assert distance_nm(42.0, -88.0, 42.0, -88.0) == 0
+    assert bearing_deg(42.0, -88.0, 42.0, -88.0) == pytest.approx(0)
+
+
+def test_cluster_points_chains_transitively():
+    # Three points a half mile apart in a line are one cluster even
+    # though the ends are a mile apart -- a ridge of wind turbines is one
+    # checkpoint, not three.
+    a = (44.0, -89.0)
+    b = destination_point(*a, bearing=90, distance_nm_=0.5)
+    c = destination_point(*a, bearing=90, distance_nm_=1.0)
+    lats, lons = zip(*[a, b, c])
+    ids = cluster_points(lats, lons, cluster_distance_nm=0.6)
+    assert len(set(ids)) == 1
+
+
+def test_cluster_points_separates_beyond_the_distance():
+    a = (44.0, -89.0)
+    far = destination_point(*a, bearing=90, distance_nm_=5.0)
+    ids = cluster_points([a[0], far[0]], [a[1], far[1]], cluster_distance_nm=1.0)
+    assert len(set(ids)) == 2
+
+
+def test_cluster_points_handles_duplicates_and_empty_input():
+    # Overpass hands back turbines at identical coordinates often enough
+    # to matter, and an empty corridor is not an error.
+    ids = cluster_points([42.0, 42.0], [-88.0, -88.0], cluster_distance_nm=0.03)
+    assert len(set(ids)) == 1
+    assert len(cluster_points([], [], cluster_distance_nm=1.0)) == 0
 
 
 def test_corridor_bbox_padding():

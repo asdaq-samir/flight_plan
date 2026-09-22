@@ -17,6 +17,7 @@ shapely     # vfr.airspace -- Class B/C/D polygons
 pyshp       # vfr.airspace -- reads the FAA Class Airspace shapefile
 pillow      # vfr.charts -- encodes the chart tiles; vfr.chartvision reads them
 rasterio    # vfr.charts -- reads and reprojects the FAA chart GeoTIFFs
-scipy       # vfr.chartvision -- connected components over the palette masks
+scipy       # vfr.chartvision -- connected components over the palette masks; vfr.geo -- the KD-tree behind cluster_points
+pygeodesy   # vfr.geo -- great-circle distance, bearing, cross/along-track
 pyarrow     # vfr.faa_data -- the obstacle table's Parquet cache beside DOF.DAT
 pygeomag    # vfr.magnetic -- the World Magnetic Model, evaluated locally
