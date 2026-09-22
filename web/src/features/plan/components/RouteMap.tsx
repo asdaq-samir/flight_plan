@@ -9,7 +9,7 @@ import { dotIcon, endLabelIcon } from "../../../lib/map/icons";
 import { FocusOn, ZoomReporter } from "../../../lib/map/MapEffects";
 import { MapShell } from "../../../lib/map/MapShell";
 import { OwnShipLayer } from "../../../lib/map/OwnShipLayer";
-import { CROWD_FROM_ZOOM, MARKERS_FROM_ZOOM, useZoomLevel } from "../../../lib/map/useZoomLevel";
+import { useMarkerZooms, useZoomLevel } from "../../../lib/map/useZoomLevel";
 import { scoreColor } from "../format";
 
 interface Props {
@@ -39,11 +39,12 @@ interface Props {
  *  in (see `useZoomLevel`). */
 function Checkpoints({ candidates, selected, showCandidates, onSelectCandidate }: Pick<Props, "candidates" | "selected" | "showCandidates" | "onSelectCandidate">) {
   const zoom = useZoomLevel();
+  const { markers, crowd } = useMarkerZooms();
   return (
     <>
       {/* Every point the model scored, small and dim: the selection is
           only judgable next to what it was selecting from. */}
-      {showCandidates && zoom >= CROWD_FROM_ZOOM && candidates.filter(c => !c.selected).map(c => (
+      {showCandidates && zoom >= crowd && candidates.filter(c => !c.selected).map(c => (
         <CircleMarker
           key={`${c.lat},${c.lon}`} center={[c.lat, c.lon]} radius={4}
           pathOptions={{ color: "#5b6b76", weight: 1, opacity: 0.65, fillColor: scoreColor(c.predicted_score), fillOpacity: 0.5 }}
@@ -54,7 +55,7 @@ function Checkpoints({ candidates, selected, showCandidates, onSelectCandidate }
           </Popup>
         </CircleMarker>
       ))}
-      {zoom >= MARKERS_FROM_ZOOM && selected.map((c, i) => (
+      {zoom >= markers && selected.map((c, i) => (
         <Marker
           key={`${c.lat},${c.lon}`} position={[c.lat, c.lon]} icon={dotIcon(scoreColor(c.predicted_score), i + 1)}
           eventHandlers={{ click: e => { L.DomEvent.stopPropagation(e); onSelectCandidate(c); } }}

@@ -8,7 +8,7 @@ import { CourseLine } from "../../../lib/map/CourseLine";
 import { Halo } from "../../../lib/map/Halo";
 import { dotIcon, endLabelIcon } from "../../../lib/map/icons";
 import { MapShell } from "../../../lib/map/MapShell";
-import { CROWD_FROM_ZOOM, useZoomLevel } from "../../../lib/map/useZoomLevel";
+import { useMarkerZooms, useZoomLevel } from "../../../lib/map/useZoomLevel";
 import { COLORS, hasRating, isVisible, type Filters } from "../logic";
 
 interface Props {
@@ -37,7 +37,8 @@ interface Props {
  *  over pale chart. */
 function Candidates({ detections, added, filters, onSelect }: Pick<Props, "detections" | "added" | "filters" | "onSelect">) {
   const zoom = useZoomLevel();
-  if (zoom < CROWD_FROM_ZOOM) return null;
+  const { crowd } = useMarkerZooms();
+  if (zoom < crowd) return null;
   const draw = (points: Point[], kind: "detected" | "added") =>
     points.map((p, i) => ({ p, i })).filter(({ p }) => isVisible(p, filters)).map(({ p, i }) => (
       <Marker

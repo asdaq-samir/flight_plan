@@ -1,7 +1,7 @@
 import { Checkbox } from "./ui/checkbox";
 import { Label } from "./ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
-import { BASE_CHARTS, usePreferences, type BaseChart } from "../lib/preferences";
+import { BASE_CHARTS, MARKER_ZOOMS, usePreferences, type BaseChart } from "../lib/preferences";
 
 /**
  * The map's chart settings: which FAA chart is the base (the sectional,
@@ -20,8 +20,10 @@ import { BASE_CHARTS, usePreferences, type BaseChart } from "../lib/preferences"
 export default function ChartLayers() {
   const base = usePreferences(s => s.base);
   const tac = usePreferences(s => s.tac);
+  const markerZoom = usePreferences(s => s.markerZoom);
   const setBase = usePreferences(s => s.setBase);
   const setTac = usePreferences(s => s.setTac);
+  const setMarkerZoom = usePreferences(s => s.setMarkerZoom);
   return (
     <div className="space-y-2 border-t border-border pt-2">
       <div className="text-xs font-semibold uppercase text-muted-foreground">Chart layers</div>
@@ -50,6 +52,22 @@ export default function ChartLayers() {
       <p className="text-xs text-muted-foreground">
         Close in over a terminal area a pin appears on the map: tap it to pin that sheet over the base chart,
         or hover it to look. Unpinned, the base chart is the chart at every zoom.
+      </p>
+
+      <div className="flex items-center gap-2 border-t border-border pt-2">
+        <Label htmlFor="marker-zoom" className="w-24 shrink-0 font-normal">Markers from</Label>
+        <Select value={String(markerZoom)} onValueChange={value => setMarkerZoom(Number(value))}>
+          <SelectTrigger id="marker-zoom" size="sm" aria-label="Markers from" className="w-full" data-testid="marker-zoom-select">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {MARKER_ZOOMS.map(m => <SelectItem key={m.from} value={String(m.from)}>{m.label}</SelectItem>)}
+          </SelectContent>
+        </Select>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        How far in the map has to be before the checkpoints and candidates draw. A long route fits the screen
+        zoomed a long way out, where a few hundred markers would hide the chart — pick Every zoom to see them anyway.
       </p>
     </div>
   );

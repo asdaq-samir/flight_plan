@@ -57,7 +57,16 @@ async function expectDrawerOpen(page: Page) {
 }
 
 /** Opening and closing the drawer is one shape on both pages: the
- *  stock trigger in the header opens it and says so, Escape closes it. */
+ *  stock trigger in the header opens it and says so, and the stock
+ *  components' own key closes it -- Escape on a phone, where the drawer
+ *  is a Radix Sheet, and Cmd/Ctrl+B on a desktop, where it is shadcn's
+ *  panel. This app binds no key of its own to it. */
+async function closeSidebarWithTheStockKey(page: Page) {
+  const viewport = page.viewportSize();
+  if (!viewport) throw new Error("no viewport configured");
+  await page.keyboard.press(viewport.width < 768 ? "Escape" : "ControlOrMeta+b");
+}
+
 async function openSidebar(page: Page) {
   const sidebarTrigger = page.getByTestId("sidebar-trigger-button");
   await sidebarTrigger.click();
@@ -65,7 +74,7 @@ async function openSidebar(page: Page) {
   await expect(sidebarTrigger).toHaveAttribute("aria-expanded", "true");
   await expect(sidebarTrigger).toBeEnabled();
 
-  await page.keyboard.press("Escape");
+  await closeSidebarWithTheStockKey(page);
   await expectDrawerClosed(page);
   await expect(sidebarTrigger).toHaveAttribute("aria-expanded", "false");
 }
@@ -374,7 +383,12 @@ test("plan page: the briefing offers one AI button, not a named button per frame
   expect(await page.getByTestId("crewai-narrative-button").count()).toBe(0);
 });
 
-test("plan page: Escape closes the briefing drawer, URL included, and no narrower view is left behind", async ({ page }) => {
+test("plan page: the drawer closes the way the stock components close, and nothing else", async ({ page }) => {
+  // This app binds no key of its own to the drawer. A hand-written
+  // Escape listener used to, and it is gone: a phone's drawer is a
+  // Radix Sheet and closes on Escape by itself, a desktop's is
+  // shadcn's panel and toggles on Cmd/Ctrl+B. Whatever those do is
+  // what this does.
   await page.goto("/app/plan");
   await settle(page);
 
@@ -384,7 +398,7 @@ test("plan page: Escape closes the briefing drawer, URL included, and no narrowe
   // No toggle to a narrower nav log: the drawer has the one width.
   expect(await drawer.getByTestId("sidebar-expand-toggle").count()).toBe(0);
 
-  await page.keyboard.press("Escape");
+  await closeSidebarWithTheStockKey(page);
   await expectDrawerClosed(page);
   await expect(page).not.toHaveURL(/[?&]view=briefing/);
 });
@@ -682,7 +696,7 @@ test("plan page: the pilot console is a sheet from the top with sign-in, aeropla
   await expect(pilot).toHaveCount(0);
   await page.getByTestId("sidebar-trigger-button").click();
   await expectDrawerOpen(page);
-  await page.keyboard.press("Escape");
+  await closeSidebarWithTheStockKey(page);
   await expectDrawerClosed(page);
 });
 
@@ -725,7 +739,7 @@ test("dev page: the dev console is a sheet from the top, and the waypoint drawer
   await expect(devMl).toHaveCount(0);
   await page.getByTestId("sidebar-trigger-button").click();
   await expectDrawerOpen(page);
-  await page.keyboard.press("Escape");
+  await closeSidebarWithTheStockKey(page);
   await expectDrawerClosed(page);
 });
 

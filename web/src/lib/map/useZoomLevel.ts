@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useMap, useMapEvents } from "react-leaflet";
+import { usePreferences } from "../preferences";
 
 /** The map's zoom level as React state, for whatever is drawn only from
  *  a zoom in: zoomed out to a whole region, a route's twenty checkpoint
@@ -13,10 +14,19 @@ export function useZoomLevel(): number {
   return zoom;
 }
 
-/** Where the checkpoint markers appear (the planner's selected
- *  checkpoints, and one level further in the scored candidates and
- *  the training page's detections, which are many more). Low on
- *  purpose: a phone fits a 300 nm route at zoom 6, and a pilot who
- *  opens a route expects to see its checkpoints. */
-export const MARKERS_FROM_ZOOM = 5;
-export const CROWD_FROM_ZOOM = 6;
+/**
+ * Where the markers start drawing: the chosen checkpoints at the zoom
+ * the pilot picked (the layers popover, remembered per browser), and
+ * the crowd -- the scored candidates, the training page's detections,
+ * which are many more -- one level further in.
+ *
+ * It used to be two constants. A 2,500 nm route fits at zoom 3, well
+ * under the old floor of 6, so opening one showed a course line and
+ * two airports and nothing else, with no way to ask for more short of
+ * zooming in. The floor is still there and still defaults to what it
+ * always was; it is just no longer the map's decision alone.
+ */
+export function useMarkerZooms(): { markers: number; crowd: number } {
+  const from = usePreferences(s => s.markerZoom);
+  return { markers: from, crowd: from === 0 ? 0 : from + 1 };
+}

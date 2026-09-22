@@ -46,8 +46,14 @@ const MODES = {
  * header. On the pilot's page open is the address (`?view=briefing`),
  * so a pasted link lands on the briefing, `n` toggles it, the DEV
  * switch brings it back with the route and the back button leaves it;
- * the developer's drawer is plain state. Escape closes it on a
- * desktop the way the phone's Sheet closes itself.
+ * the developer's drawer is plain state.
+ *
+ * Closing it is whatever the stock components already do, and nothing
+ * more: on a phone the drawer is a Radix Sheet, which closes on Escape
+ * and on a tap outside itself; on a desktop it is shadcn's own panel,
+ * which toggles on Cmd/Ctrl+B. A hand-written Escape listener used to
+ * paper over the difference, and it is gone -- a keystroke this app
+ * binds itself is a keystroke this app has to keep working.
  */
 export default function MapPage({ mode }: { mode: Mode }) {
   const { title, sidebar, console: consoleLabel, Workspace, ConsoleButton, route } = MODES[mode];
@@ -67,16 +73,6 @@ export default function MapPage({ mode }: { mode: Mode }) {
       return next;
     }, { replace: true });
   }, [mode, setSearchParams]);
-
-  // Escape closes the drawer -- unless a layer above it (a popover, a
-  // tooltip, the phone's own Sheet) took the press first, which Radix
-  // marks by preventing its default.
-  useEffect(() => {
-    if (!sidebarOpen) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape" && !e.defaultPrevented) setSidebarOpen(false); };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [sidebarOpen, setSidebarOpen]);
 
   return (
     <Workspace dep={dep} dest={dest} onRoute={onRoute} sidebarOpen={sidebarOpen} onSidebarOpenChange={setSidebarOpen}>
