@@ -18,6 +18,7 @@ import { api } from "../../lib/api/client";
 import type { ModelComparisonEntry, Status } from "../../lib/api/types";
 import RatingGuide from "../train/components/RatingGuide";
 import { elapsed } from "../plan/format";
+import { isLocalStack } from "./localStack";
 import { useRetrain } from "./useRetrain";
 
 const mae = (n: number) => n.toFixed(4);
@@ -36,7 +37,6 @@ function ago(iso: string | null | undefined): string {
   return new Date(iso).toLocaleDateString();
 }
 
-const LOCAL_HOSTS = ["localhost", "127.0.0.1"];
 const CHART_KIND_LABELS: Record<string, string> = {
   sec: "Sectional", tac: "TAC", ifr_low: "IFR low", ifr_high: "IFR high", ifr_area: "IFR area",
 };
@@ -385,7 +385,7 @@ function TrainingTab({ status }: { status: Status | undefined }) {
             ) : (
               <span className="text-muted-foreground">Airflow is reachable; the training DAG has not run yet.</span>
             )}
-            {pipeline.dag_id && LOCAL_HOSTS.includes(window.location.hostname) && (
+            {pipeline.dag_id && isLocalStack(window.location.hostname) && (
               <a
                 href={`http://${window.location.hostname}:8081/dags/${pipeline.dag_id}`} target="_blank" rel="noreferrer"
                 className="underline underline-offset-4"
@@ -575,7 +575,7 @@ function SystemTab({ status }: { status: Status | undefined }) {
     },
   ];
   const host = window.location.hostname;
-  const local = LOCAL_HOSTS.includes(host);
+  const local = isLocalStack(host);
   const links: { label: string; href: string; localOnly?: boolean }[] = [
     { label: "webapp API docs", href: "/swagger-ui/index.html" },
     { label: "planning-service API docs", href: `http://${host}:8084/docs`, localOnly: true },
