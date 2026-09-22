@@ -130,8 +130,23 @@ test.describe("/app/dev", () => {
   });
 });
 
+const TITLES: Record<string, string> = {
+  "/app/plan": "Plan a route — VFR Route",
+  "/app/dev": "Dev — VFR Route",
+};
+
 for (const path of PAGES) {
   test.describe(path, () => {
+    // The page renders its own <title> and React hoists it into the
+    // head, above index.html's own static one (which is there for a
+    // crawler that never runs JS). Both are in the document; the
+    // browser reads the first, so this pins which wins.
+    test("the browser tab is named for this page, not the static fallback", async ({ page }) => {
+      await page.goto(path);
+      await settle(page);
+      await expect(page).toHaveTitle(TITLES[path]!);
+    });
+
     test("no page-level horizontal overflow", async ({ page }) => {
       await page.goto(path);
       await settle(page);

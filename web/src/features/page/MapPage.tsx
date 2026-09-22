@@ -11,7 +11,6 @@ import {
 import {
   Sidebar, SidebarContent, SidebarInset, SidebarProvider, SidebarTrigger, useSidebar,
 } from "../../components/ui/sidebar";
-import { useDocumentTitle } from "../../lib/useDocumentTitle";
 import { DevButton } from "../dev/DevPanel";
 import TrainWorkspace from "../train/TrainWorkspace";
 import { PilotButton } from "../pilot/PilotPanel";
@@ -52,7 +51,6 @@ const MODES = {
  */
 export default function MapPage({ mode }: { mode: Mode }) {
   const { title, sidebar, console: consoleLabel, Workspace, ConsoleButton, route } = MODES[mode];
-  useDocumentTitle(title);
   const [searchParams, setSearchParams] = useSearchParams();
   const [dep, setDep] = useState(searchParams.get("dep")?.toUpperCase() || route[0]);
   const [dest, setDest] = useState(searchParams.get("dest")?.toUpperCase() || route[1]);
@@ -88,6 +86,10 @@ export default function MapPage({ mode }: { mode: Mode }) {
           style={{ "--sidebar-width": "22rem" } as CSSProperties}
           className="h-dvh min-h-0 print:h-auto"
         >
+          {/* React hoists a rendered <title> into the document head
+              itself, so the browser tab says which page this is
+              without an effect writing document.title by hand. */}
+          <title>{title}</title>
           <SidebarSync open={sidebarOpen} onOpenChange={setSidebarOpen} />
           <SidebarInset className="min-h-0 min-w-0 print:hidden">
             <MapHeader

@@ -1,10 +1,9 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import { createBrowserRouter, Navigate, RouterProvider } from "react-router-dom";
+import { createBrowserRouter, Navigate, redirect, RouterProvider } from "react-router-dom";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider } from "next-themes";
 import { queryClient } from "./lib/queryClient";
-import RedirectKeepingSearch from "./components/RedirectKeepingSearch";
 import { Toaster } from "./components/ui/sonner";
 import { TooltipProvider } from "./components/ui/tooltip";
 import { registerSW } from "virtual:pwa-register";
@@ -65,7 +64,14 @@ const router = createBrowserRouter(
       lazy: () => import("./features/page/MapPage").then(m => ({ element: <m.default mode="dev" /> })),
       ...noFallback,
     },
-    { path: "label", element: <RedirectKeepingSearch to="/dev" /> },
+    // The old labeling address, kept working with its route: a loader
+    // redirect rather than a component, since the router's own
+    // `redirect` is the one place a query string can be carried over
+    // before anything renders.
+    {
+      path: "label",
+      loader: ({ request }) => redirect(`/dev${new URL(request.url).search}`),
+    },
     { path: "settings", element: <Navigate to="/plan" replace /> },
   ],
   { basename: "/app" },
