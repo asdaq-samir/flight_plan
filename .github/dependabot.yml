@@ -1,96 +1,102 @@
 version: 2
 
-# One entry per directory that actually holds a manifest, grouped by
-# ecosystem below. Weekly rather than daily: this repo doesn't ship on
-# every merge, so a bot PR flood serves nobody -- weekly is enough to
-# catch CVEs promptly without becoming noise to triage.
+# What this file is for, and what it is not for.
+#
+# It configures *version* updates: keeping dependencies current. It does
+# not configure *security* updates, which are a repository setting
+# (Settings -> Code security -> Dependabot security updates). Those
+# ignore the schedule below entirely and open a pull request as soon as
+# an advisory lands. That separation is what lets everything here run
+# monthly without slowing down the thing that actually matters.
+#
+# Version updates matter more in this repo than in most, because this
+# repo pins: planning-service/requirements.txt pins exactly, and every
+# action in ci.yml is pinned to a commit. A pin with no update
+# mechanism is not stability, it is a slow decay -- frozen on whatever
+# was current the day it was pinned, vulnerabilities included. This file
+# is what makes pinning safe rather than merely frozen.
+#
+# Grouped, because the alternative was measured. Ungrouped, a Node 24
+# runtime deprecation arrived as four separate pull requests each
+# bumping one action, when the correct change was a single sweep of all
+# eleven. Grouping also matters for cost: every pull request triggers a
+# CI run, and this repo's CI builds ten Docker images, PyTorch,
+# TensorFlow and Spark among them.
+#
+# Minor and patch bumps are grouped into one pull request per ecosystem.
+# Majors are deliberately left out of those groups so each arrives on
+# its own and gets read -- a major is where an input disappears or a
+# default changes. GitHub Actions are the exception: majors are grouped
+# there too, because across a dozen actions the sensible unit of work is
+# one sweep, and CI tells you immediately if one of them broke.
 updates:
-  - package-ecosystem: npm
-    directory: /web
+  - package-ecosystem: github-actions
+    directory: /
+    # Weekly, unlike everything below: these run with a registry token
+    # and, in the deploy job, AWS credentials, and they are pinned to
+    # commits that nothing else will ever move.
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    groups:
+      github-actions:
+        patterns: ["*"]
+
+  - package-ecosystem: npm
+    directory: /web
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 5
+    groups:
+      web:
+        patterns: ["*"]
+        update-types: [minor, patch]
 
   - package-ecosystem: maven
     directory: /springboot-app
     schedule:
-      interval: weekly
+      interval: monthly
     open-pull-requests-limit: 5
+    groups:
+      springboot-app:
+        patterns: ["*"]
+        update-types: [minor, patch]
 
-  # pip: each entry picks up every requirements*.txt file in its
-  # directory, so the root's requirements-dev.txt and each service's
-  # own requirements.txt (+ planning-service's requirements-dev.txt)
-  # are each covered by their own directory's entry.
+  # One entry per ecosystem with a list of directories, rather than one
+  # entry per directory: the six pip and seven docker entries this
+  # replaced said the same thing thirteen times.
   - package-ecosystem: pip
-    directory: /
+    directories:
+      - /
+      - /crewai-agent
+      - /docker
+      - /model-service
+      - /nav-log-agent
+      - /planning-service
     schedule:
-      interval: weekly
+      interval: monthly
     open-pull-requests-limit: 5
-  - package-ecosystem: pip
-    directory: /docker
-    schedule:
-      interval: weekly
-    open-pull-requests-limit: 5
-  - package-ecosystem: pip
-    directory: /model-service
-    schedule:
-      interval: weekly
-    open-pull-requests-limit: 5
-  - package-ecosystem: pip
-    directory: /planning-service
-    schedule:
-      interval: weekly
-    open-pull-requests-limit: 5
-  - package-ecosystem: pip
-    directory: /nav-log-agent
-    schedule:
-      interval: weekly
-    open-pull-requests-limit: 5
-  - package-ecosystem: pip
-    directory: /crewai-agent
-    schedule:
-      interval: weekly
-    open-pull-requests-limit: 5
+    groups:
+      python:
+        patterns: ["*"]
+        update-types: [minor, patch]
 
-  # docker: one entry per directory holding a Dockerfile.
+  # Base images. Grouped whole, majors included: a base image major is a
+  # distribution or runtime bump, which is read the same way whether it
+  # arrives alone or beside its siblings, and the Dockerfiles that share
+  # a base should move together.
   - package-ecosystem: docker
-    directory: /docker
+    directories:
+      - /crewai-agent
+      - /docker
+      - /model-service
+      - /nav-log-agent
+      - /planning-service
+      - /springboot-app
+      - /web
     schedule:
-      interval: weekly
+      interval: monthly
     open-pull-requests-limit: 5
-  - package-ecosystem: docker
-    directory: /model-service
-    schedule:
-      interval: weekly
-    open-pull-requests-limit: 5
-  - package-ecosystem: docker
-    directory: /planning-service
-    schedule:
-      interval: weekly
-    open-pull-requests-limit: 5
-  - package-ecosystem: docker
-    directory: /springboot-app
-    schedule:
-      interval: weekly
-    open-pull-requests-limit: 5
-  - package-ecosystem: docker
-    directory: /web
-    schedule:
-      interval: weekly
-    open-pull-requests-limit: 5
-  - package-ecosystem: docker
-    directory: /nav-log-agent
-    schedule:
-      interval: weekly
-    open-pull-requests-limit: 5
-  - package-ecosystem: docker
-    directory: /crewai-agent
-    schedule:
-      interval: weekly
-    open-pull-requests-limit: 5
-
-  - package-ecosystem: github-actions
-    directory: /
-    schedule:
-      interval: weekly
-    open-pull-requests-limit: 5
+    groups:
+      base-images:
+        patterns: ["*"]
