@@ -145,6 +145,29 @@ export interface Pilot {
   developer: boolean;
 }
 
+/** One Class B airport, with what the weather is doing there and which
+ *  terminal chart covers it. Every weather field is optional and often
+ *  absent: a field with no current report has no category, and absent
+ *  must read as absent rather than as "nothing to worry about". */
+export interface ClassBAirport {
+  ident: string;
+  name: string;
+  lat: number;
+  lon: number;
+  floor_ft_msl: number | null;
+  shelves: number;
+  tac: string | null;
+  flight_category: string | null;
+  metar: string | null;
+  ceiling_ft: number | null;
+  visibility_sm: number | null;
+  wind_dir_true_deg: number | null;
+  wind_speed_kt: number | null;
+  taf: string | null;
+  taf_ceiling_ft: number | null;
+  taf_visibility_sm: number | null;
+}
+
 /** What signing in can do in this deployment, asked before anyone has
  *  (`/api/auth/capabilities`). */
 export interface SignInCapabilities {

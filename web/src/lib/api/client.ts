@@ -4,7 +4,8 @@ import type {
   Aircraft, AircraftChoice, AircraftProfileSummary, AircraftRequest, AirportSearch, AltitudeChoice, Briefing, BuildJob,
   BuiltRoutes, ChartRefreshStarted, CheckpointDescriptionMessage, CheckpointNoteSaved, Checkpoints, Classification, Course,
   Flight, FlightSummary, ModelComparison, NarrativeMessage, NarrativeRequest, NavLogMessage, PickDeleted, PickSaved,
-  PicksResponse, Pilot, Rating, RetrainStarted, Role, SaveFlightRequest, SignInCapabilities, Status, StreamMessage,
+  ClassBAirport, PicksResponse, Pilot, Rating, RetrainStarted, Role, SaveFlightRequest, SignInCapabilities,
+  Status, StreamMessage,
 } from "./types";
 
 /**
@@ -171,6 +172,12 @@ export const api = {
     });
     yield* ndjson<NavLogMessage>(result.data as ReadableStream | undefined);
   },
+
+  /** Every Class B airport, with its current weather and the terminal
+   *  chart covering it. One call for all thirty rather than one per
+   *  marker on hover: the planner has the airspace and both national
+   *  weather caches in memory already. */
+  classB: () => planner.GET("/api/class-b").then(data<{ airports: ClassBAirport[] }>).then(r => r.airports),
 
   /** The stock performance profiles the nav log can be computed for. */
   aircraftProfiles: () => planner.GET("/api/aircraft-profiles").then(data<{ profiles: AircraftProfileSummary[] }>).then(r => r.profiles),

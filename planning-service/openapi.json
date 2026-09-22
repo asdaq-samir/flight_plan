@@ -1182,6 +1182,178 @@
         "title": "Checkpoints",
         "type": "object"
       },
+      "ClassBAirport": {
+        "description": "One Class B airport: where it is, what the weather is doing\nthere, and which terminal area chart covers it.\n\nEvery weather field is optional and often absent. A field with no\ncurrent report has no flight category; a field with no TAF issued\nhas no forecast. Absent is the honest answer -- a pilot must not\nread \"no data\" as \"nothing to worry about\", so the UI shows the gap\nrather than a default.",
+        "properties": {
+          "ceiling_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ceiling Ft"
+          },
+          "flight_category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Flight Category"
+          },
+          "floor_ft_msl": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Floor Ft Msl"
+          },
+          "ident": {
+            "title": "Ident",
+            "type": "string"
+          },
+          "lat": {
+            "title": "Lat",
+            "type": "number"
+          },
+          "lon": {
+            "title": "Lon",
+            "type": "number"
+          },
+          "metar": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Metar"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "shelves": {
+            "title": "Shelves",
+            "type": "integer"
+          },
+          "tac": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tac"
+          },
+          "taf": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Taf"
+          },
+          "taf_ceiling_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Taf Ceiling Ft"
+          },
+          "taf_visibility_sm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Taf Visibility Sm"
+          },
+          "visibility_sm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Visibility Sm"
+          },
+          "wind_dir_true_deg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wind Dir True Deg"
+          },
+          "wind_speed_kt": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wind Speed Kt"
+          }
+        },
+        "required": [
+          "ident",
+          "name",
+          "lat",
+          "lon",
+          "shelves"
+        ],
+        "title": "ClassBAirport",
+        "type": "object"
+      },
+      "ClassBResponse": {
+        "description": "Every Class B airport in one answer -- see the router for why it\nis one call rather than one per marker.",
+        "properties": {
+          "airports": {
+            "items": {
+              "$ref": "#/components/schemas/ClassBAirport"
+            },
+            "title": "Airports",
+            "type": "array"
+          }
+        },
+        "required": [
+          "airports"
+        ],
+        "title": "ClassBResponse",
+        "type": "object"
+      },
       "Classification": {
         "additionalProperties": true,
         "description": "What the chart draws at one point; None where it has no coverage.",
@@ -4331,6 +4503,25 @@
           }
         },
         "summary": "Checkpoints"
+      }
+    },
+    "/api/class-b": {
+      "get": {
+        "description": "Every Class B airport: where it is, what the weather is doing\nthere now and what it is forecast to do, and which terminal area\nchart covers it.\n\n`flight_category` is the METAR's own (VFR, MVFR, IFR, LIFR), not\nthis project's arithmetic -- it is what the reporting station\npublished, and a pilot already reads it that way. None where the\nfield has no current report.",
+        "operationId": "class_b_airports_api_class_b_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClassBResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Class B Airports"
       }
     },
     "/api/classify": {

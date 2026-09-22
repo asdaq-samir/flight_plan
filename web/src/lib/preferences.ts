@@ -52,6 +52,10 @@ interface Preferences {
   tac: boolean;
   /** The zoom the markers start drawing at -- see MARKER_ZOOMS. */
   markerZoom: number;
+  /** Whether the Class B airports are drawn, with their current flight
+   *  category and a terminal chart on hover. Off by default: useful on
+   *  a route that passes near one, clutter on a route that does not. */
+  classB: boolean;
   aircraft: AircraftChoice;
   /** The training map's filters: which points are drawn and walked. */
   filters: Filters;
@@ -60,6 +64,7 @@ interface Preferences {
   setBase: (base: BaseChart) => void;
   setTac: (tac: boolean) => void;
   setMarkerZoom: (markerZoom: number) => void;
+  setClassB: (classB: boolean) => void;
   setAircraft: (aircraft: AircraftChoice) => void;
   setFilter: (key: FilterKey, on: boolean) => void;
   setDevTab: (tab: string) => void;
@@ -72,6 +77,7 @@ export const usePreferences = create<Preferences>()(
       base: "sec",
       tac: false,
       markerZoom: DEFAULT_MARKER_ZOOM,
+      classB: false,
       aircraft: DEFAULT_AIRCRAFT,
       filters: DEFAULT_FILTERS,
       devTab: "training",
@@ -79,6 +85,7 @@ export const usePreferences = create<Preferences>()(
       setBase: base => set({ base }),
       setTac: tac => set({ tac }),
       setMarkerZoom: markerZoom => set({ markerZoom }),
+      setClassB: classB => set({ classB }),
       setAircraft: aircraft => set({ aircraft }),
       setFilter: (key, on) => set(s => ({ filters: { ...s.filters, [key]: on } })),
       setDevTab: devTab => set({ devTab }),
@@ -88,7 +95,7 @@ export const usePreferences = create<Preferences>()(
       name: "vfr.preferences",
       // The functions are not state; only the values are written.
       partialize: s => ({
-        base: s.base, tac: s.tac, markerZoom: s.markerZoom, aircraft: s.aircraft, filters: s.filters, devTab: s.devTab, pilotTab: s.pilotTab,
+        base: s.base, tac: s.tac, markerZoom: s.markerZoom, classB: s.classB, aircraft: s.aircraft, filters: s.filters, devTab: s.devTab, pilotTab: s.pilotTab,
       }),
     },
   ),

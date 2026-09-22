@@ -86,3 +86,28 @@ export function ownShipIcon(headingDeg: number | null) {
     ),
   });
 }
+
+/**
+ * A Class B airport: the ident on a coloured chip, in the flight
+ * category's own colour (see ClassBLayer).
+ *
+ * A chip rather than a dot because there are only thirty of them and
+ * each one is worth naming -- a pilot deciding whether to route around
+ * Chicago wants to see "ORD", not a coloured spot they have to hover to
+ * identify. The white casing is the same reasoning as the checkpoint
+ * dots': a coloured shape alone disappears into chart of the same hue.
+ */
+export function classBIcon(colour: string, ident: string) {
+  return L.divIcon({
+    className: "",
+    iconSize: [56, 22], iconAnchor: [28, 11],
+    html: renderToStaticMarkup(
+      <span
+        className="rounded-full border-2 border-white px-1.5 py-0.5 text-[11px] font-bold text-white shadow-sm"
+        style={{ backgroundColor: colour }}
+      >
+        {ident}
+      </span>,
+    ),
+  });
+}

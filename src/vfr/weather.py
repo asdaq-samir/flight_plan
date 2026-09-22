@@ -475,8 +475,44 @@ def _parse_tafs(xml_bytes: bytes) -> list:
                 **_period(forecast),
             })
         fcsts.sort(key=lambda p: (p["timeFrom"], _CHANGE_ORDER.get(p["change"][:5], 3)))
-        latest[ident] = (issued, {"icaoId": ident, "lat": lat, "lon": lon, "fcsts": fcsts})
+        latest[ident] = (issued, {
+            "icaoId": ident, "lat": lat, "lon": lon,
+            # The forecast as issued. The derived ceiling and visibility
+            # below are what a go/no-go reads; the text is what a pilot
+            # reads, and only one of the two can be shown on a phone.
+            "raw": el.findtext("raw_text"),
+            "fcsts": fcsts,
+        })
     return [station for _, station in latest.values()]
+
+
+def taf_for_idents(idents: list) -> dict:
+    """{ident: {...}} for the current forecast period at each ident, or
+    {ident: None} where no TAF is issued -- most fields have none.
+
+    The mirror of metar_for_idents, and read the same way: the METAR is
+    what it is doing now, this is what it is forecast to do. Both come
+    out of the national cache files already in memory, so asking for
+    thirty stations costs no more than asking for one.
+    """
+    wanted = {i.upper() for i in idents}
+    now = time.time()
+    stations = {
+        s["icaoId"]: s for s in _dataset("tafs", _parse_tafs) if s["icaoId"] in wanted
+    }
+    answer = {}
+    for ident in idents:
+        station = stations.get(ident.upper())
+        period = _current_forecast_period(station["fcsts"], now) if station else None
+        answer[ident] = None if station is None else {
+            "raw": station.get("raw"),
+            "ceiling_ft": _ceiling_ft(period) if period else None,
+            "visibility_sm": _visibility_sm(period) if period else None,
+            "change": (period or {}).get("change") or "",
+            "valid_from": (period or {}).get("timeFrom"),
+            "valid_to": (period or {}).get("timeTo"),
+        }
+    return answer
 
 
 def _current_forecast_period(fcsts: list, now_unix: float) -> dict | None:

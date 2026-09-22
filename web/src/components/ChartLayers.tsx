@@ -21,9 +21,11 @@ export default function ChartLayers() {
   const base = usePreferences(s => s.base);
   const tac = usePreferences(s => s.tac);
   const markerZoom = usePreferences(s => s.markerZoom);
+  const classB = usePreferences(s => s.classB);
   const setBase = usePreferences(s => s.setBase);
   const setTac = usePreferences(s => s.setTac);
   const setMarkerZoom = usePreferences(s => s.setMarkerZoom);
+  const setClassB = usePreferences(s => s.setClassB);
   return (
     <div className="space-y-2 border-t border-border pt-2">
       <div className="text-xs font-semibold uppercase text-muted-foreground">Chart layers</div>
@@ -52,6 +54,20 @@ export default function ChartLayers() {
       <p className="text-xs text-muted-foreground">
         Close in over a terminal area a pin appears on the map: tap it to pin that sheet over the base chart,
         or hover it to look. Unpinned, the base chart is the chart at every zoom.
+      </p>
+
+      <div className="flex items-center gap-2 border-t border-border pt-2">
+        <Checkbox
+          id="class-b"
+          checked={classB}
+          onCheckedChange={value => setClassB(value === true)}
+          data-testid="class-b-toggle"
+        />
+        <Label htmlFor="class-b" className="font-normal">Class B airports</Label>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        A marker on each, coloured by what the field is reporting now. Hover one for its METAR and TAF,
+        and to draw the terminal area chart under it.
       </p>
 
       <div className="flex items-center gap-2 border-t border-border pt-2">

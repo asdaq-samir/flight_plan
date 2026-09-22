@@ -5,6 +5,7 @@ import MapControls, { type ZoomControl } from "../../components/MapControls";
 import OverlayPin from "../../components/OverlayPin";
 import type { Course } from "../api/types";
 import { ChartTiles, type OverlayOffer } from "./ChartTiles";
+import { ClassBLayer } from "./ClassBLayer";
 import { ResizeAware } from "./MapEffects";
 
 interface Props {
@@ -68,6 +69,10 @@ export function MapShell({ course, onReady, zoom, ownShip, candidates, children 
           <AttributionControl prefix={false} />
           <ResizeAware />
           <ChartTiles course={course} previewing={previewing} onOffer={setOffer} />
+          {/* Both maps get it: a Class B is worth seeing whether
+              planning a route past it or rating chart detections
+              near it. Draws nothing unless switched on. */}
+          <ClassBLayer course={course} onPreview={setPreviewing} />
           {children}
         </MapContainer>
       ) : (

@@ -165,7 +165,10 @@ _ALL_AIRSPACE_LOCK = threading.Lock()
 # process (every planner restart, every agent run) reads them back in
 # about a second instead of re-walking the shapefile. Keyed by the
 # shapefile's size and mtime, so a new 28-day cycle rebuilds it.
-_CONTROLLED_CACHE_SUFFIX = ".controlled.pkl"
+# v2: the cached records gained an "ident" field, and a cache written
+# before that has no way to say so -- a new suffix rebuilds rather
+# than reading records that are missing a key every caller now reads.
+_CONTROLLED_CACHE_SUFFIX = ".controlled.v2.pkl"
 
 
 def _load_all_controlled_airspace(shp_path) -> list:
@@ -198,6 +201,10 @@ def _parse_controlled_airspace(shp_path: Path) -> list:
             continue
         polygons.append(
             {
+                # The primary airport's own identifier (MSY, ORD): what
+                # a Class B is named for, and what its weather is
+                # looked up by. See vfr.classb.
+                "ident": (record.get("IDENT") or "").strip().upper(),
                 "name": record["NAME"],
                 "class": record["CLASS"],
                 "floor_ft_msl": _floor_ft_msl(record),
@@ -225,7 +232,8 @@ def _read_controlled_cache(shp_path: Path, key: tuple) -> list | None:
         return None
     return [
         {
-            "name": p["name"], "class": p["class"], "floor_ft_msl": p["floor_ft_msl"],
+            "ident": p.get("ident", ""), "name": p["name"], "class": p["class"],
+            "floor_ft_msl": p["floor_ft_msl"],
             "bbox": tuple(p["bbox"]), "geometry": from_wkb(p["wkb"]),
         }
         for p in cached["polygons"]
@@ -238,7 +246,8 @@ def _write_controlled_cache(shp_path: Path, key: tuple, polygons: list) -> None:
         "key": key,
         "polygons": [
             {
-                "name": p["name"], "class": p["class"], "floor_ft_msl": p["floor_ft_msl"],
+                "ident": p.get("ident", ""), "name": p["name"], "class": p["class"],
+                "floor_ft_msl": p["floor_ft_msl"],
                 "bbox": p["bbox"], "wkb": to_wkb(p["geometry"]),
             }
             for p in polygons
