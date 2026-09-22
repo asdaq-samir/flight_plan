@@ -37,10 +37,11 @@ export default function MapControls({ zoom, ownShip = false, children }: Props) 
     // z-[1000]: over Leaflet's own panes, the level Leaflet gives its
     // controls; still inside the map's own stacking context, under the
     // drawers and every portal.
-    // right: the safe-area inset as well as the gap, so these clear a
-    // rounded corner in landscape on an installed app (the map itself
-    // still draws edge to edge under them).
-    <div className="absolute top-2 right-[max(0.5rem,env(safe-area-inset-right))] z-[1000] flex flex-col items-end gap-1.5">
+    // A plain right gap, not the safe-area inset: these sit at the
+    // map's own right edge, which is the drawer's left edge whenever
+    // it is open, and the inset pushed them a landscape phone's 59px
+    // clear of a screen edge that was not there.
+    <div className="absolute top-2 right-2 z-[1000] flex flex-col items-end gap-1.5">
       <Popover>
         <PopoverTrigger asChild>
           <IconButton label="Chart layers" variant="outline" className="bg-background shadow-sm" data-testid="layers-button">
