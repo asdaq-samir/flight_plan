@@ -4,11 +4,8 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
 import java.net.URI;
-import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import org.slf4j.Logger;
@@ -40,9 +37,9 @@ import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBo
  * and a pilot's own altitude override was silently ignored), and both
  * answer with newline-delimited JSON as Claude writes: {@code delta}
  * lines carrying text, then {@code done} or {@code error}. Piped, not
- * buffered, for the same reason {@link PlannerProxyController} pipes:
- * the point of the stream is that the first sentence arrives in a
- * second or two rather than the whole briefing after ten.
+ * buffered, by {@link StreamingProxy}, for the same reason the planner's
+ * responses are: the point of the stream is that the first sentence
+ * arrives in a second or two rather than the whole briefing after ten.
  *
  * <p>Neither agent is required for webapp to be usable -- unlike
  * {@link PlannerProxyController}, a real request-path dependency, this
@@ -61,22 +58,17 @@ public class ComparisonProxyController {
      *  margin is for a cold agent, not for the call. */
     private static final Duration TIMEOUT = Duration.ofMinutes(5);
 
-    // HTTP/1.1 pinned, as PlannerProxyController pins it: both agents are
-    // uvicorn, which speaks HTTP/1.1 only.
-    private final HttpClient http = HttpClient.newBuilder()
-            .version(HttpClient.Version.HTTP_1_1)
-            .connectTimeout(Duration.ofSeconds(10))
-            .followRedirects(HttpClient.Redirect.NEVER)
-            .build();
-
+    private final StreamingProxy proxy;
     private final String navLogAgentBaseUrl;
     private final String navLogAgentApiKey;
     private final String crewaiAgentBaseUrl;
 
     public ComparisonProxyController(
+            StreamingProxy proxy,
             @Value("${nav-log-agent.base-url}") String navLogAgentBaseUrl,
             @Value("${nav-log-agent.api-key}") String navLogAgentApiKey,
             @Value("${crewai-agent.base-url}") String crewaiAgentBaseUrl) {
+        this.proxy = proxy;
         this.navLogAgentBaseUrl = navLogAgentBaseUrl.replaceAll("/+$", "");
         this.navLogAgentApiKey = navLogAgentApiKey;
         this.crewaiAgentBaseUrl = crewaiAgentBaseUrl.replaceAll("/+$", "");
@@ -98,9 +90,7 @@ public class ComparisonProxyController {
         } else if ("crewai".equals(framework)) {
             baseUrl = crewaiAgentBaseUrl;
         } else {
-            return ResponseEntity.badRequest()
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(jsonBody("{\"detail\":\"framework must be langgraph or crewai\"}"));
+            return StreamingProxy.error(400, "framework must be langgraph or crewai");
         }
 
         HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(baseUrl + "/compare"))
@@ -111,60 +101,31 @@ public class ComparisonProxyController {
             builder.header(HttpHeaders.AUTHORIZATION, "Bearer " + bearerToken);
         }
 
-        HttpResponse<InputStream> response;
-        try {
-            response = http.send(builder.build(), HttpResponse.BodyHandlers.ofInputStream());
-        } catch (IOException err) {
-            log.warn("{} agent unreachable at {}: {}", framework, baseUrl, err.toString());
-            return ResponseEntity.status(502)
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(jsonBody("{\"detail\":\"the " + framework + " agent is unreachable\"}"));
-        } catch (InterruptedException err) {
-            Thread.currentThread().interrupt();
-            return ResponseEntity.status(504)
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(jsonBody("{\"detail\":\"the " + framework + " agent timed out\"}"));
-        }
-        if (response.statusCode() != 200) {
-            log.warn("{} agent at {} returned {}", framework, baseUrl, response.statusCode());
-            try (InputStream body = response.body()) {
-                body.readAllBytes();
-            } catch (IOException ignored) {
-                // Nothing to do with a body that would not even drain.
+        StreamingProxy.Upstream agent = new StreamingProxy.Upstream(
+                framework + " agent",
+                "the " + framework + " agent is unreachable",
+                "the " + framework + " agent timed out");
+        String upstreamUrl = baseUrl;
+        return proxy.exchange(agent, builder.build(), response -> {
+            if (response.statusCode() != 200) {
+                log.warn("{} agent at {} returned {}", framework, upstreamUrl, response.statusCode());
+                drain(response.body());
+                return StreamingProxy.error(
+                        502, "the " + framework + " agent returned " + response.statusCode());
             }
-            return ResponseEntity.status(502)
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(jsonBody("{\"detail\":\"the " + framework + " agent returned " + response.statusCode() + "\"}"));
-        }
-
-        InputStream upstreamBody = response.body();
-        return ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_TYPE, "application/x-ndjson")
-                // Flushed per chunk below; announcing it keeps any
-                // intermediary from deciding to buffer the stream itself.
-                .header("X-Accel-Buffering", "no")
-                .body(out -> pipe(upstreamBody, out));
+            return StreamingProxy.unbuffered(
+                    ResponseEntity.ok().header(HttpHeaders.CONTENT_TYPE, "application/x-ndjson"))
+                    .body(StreamingProxy.pipe(response.body()));
+        });
     }
 
-    /** Copies upstream to the client, flushing each chunk -- the flush is
-     *  what makes a line arrive when it is written rather than when the
-     *  servlet container's buffer happens to fill. */
-    private static void pipe(InputStream in, OutputStream out) throws IOException {
-        try (in) {
-            byte[] buffer = new byte[8192];
-            int read;
-            while ((read = in.read(buffer)) != -1) {
-                out.write(buffer, 0, read);
-                out.flush();
-            }
+    /** An error response's body still has to be read off the connection
+     *  before it can go back in the pool. */
+    private static void drain(InputStream body) {
+        try (body) {
+            body.readAllBytes();
+        } catch (IOException ignored) {
+            // Nothing to do with a body that would not even drain.
         }
-    }
-
-    private static StreamingResponseBody jsonBody(String json) {
-        byte[] bytes = json.getBytes(StandardCharsets.UTF_8);
-        return out -> {
-            out.write(bytes);
-            out.flush();
-        };
     }
 }

@@ -3,17 +3,10 @@ package com.northflyers.vfr.controller;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
 import java.net.URI;
-import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -36,39 +29,39 @@ import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBo
  * arrives here, where the session already exists and one set of rules
  * applies.
  *
- * <p>Responses are piped rather than buffered. Detection streams
- * newline-delimited JSON a tile block at a time so the map fills from the
- * departure end while the rest is still being read; collecting that into
- * a String before forwarding it would turn a progressive response into a
- * five-second wait and undo the reason it was made a stream.
+ * <p>Responses are piped rather than buffered, by {@link StreamingProxy},
+ * which also owns the pinned HTTP/1.1 client and the error shape.
+ * Detection streams newline-delimited JSON a tile block at a time so the
+ * map fills from the departure end while the rest is still being read;
+ * collecting that into a String before forwarding it would turn a
+ * progressive response into a five-second wait.
  */
 @RestController
 @RequestMapping("/api/planner")
 @Tag(name = "Planner", description = "Chart vision, course and nav log, proxied from the planner service")
 public class PlannerProxyController {
 
-    private static final Logger log = LoggerFactory.getLogger(PlannerProxyController.class);
-
     /** Long, because a cold corridor read is tens of seconds and a
      *  collection job is minutes. The client is what should give up. */
     private static final Duration TIMEOUT = Duration.ofMinutes(10);
 
-    // HTTP/1.1 pinned deliberately: the JDK client defaults to attempting
-    // an HTTP/2 upgrade, and planning-service (uvicorn) speaks HTTP/1.1
-    // only. Left on the default, a pooled connection that had negotiated
-    // (or attempted) an upgrade could corrupt a later request on the same
-    // connection -- observed as uvicorn logging "Unsupported upgrade
-    // request" followed by "Invalid HTTP request received" for the very
-    // next POST, which FastAPI then saw as a request with no body at all.
-    private final HttpClient http = HttpClient.newBuilder()
-            .version(HttpClient.Version.HTTP_1_1)
-            .connectTimeout(Duration.ofSeconds(10))
-            .followRedirects(HttpClient.Redirect.NEVER)
-            .build();
+    private static final StreamingProxy.Upstream PLANNER = new StreamingProxy.Upstream(
+            "planner service", "planner service unreachable", "planner service timed out");
 
+    /** The two chart-tile paths, plus the one that serves either kind.
+     *  Only these carry their upstream's Cache-Control -- see
+     *  {@link #forward}. */
+    private static final String[] TILE_PATHS = {
+        "/api/sectional-tile/", "/api/tac-tile/", "/api/chart-tile/",
+    };
+
+    private final StreamingProxy proxy;
     private final String plannerBaseUrl;
 
-    public PlannerProxyController(@Value("${planner-service.base-url:http://planning-service:8000}") String plannerBaseUrl) {
+    public PlannerProxyController(
+            StreamingProxy proxy,
+            @Value("${planner-service.base-url:http://planning-service:8000}") String plannerBaseUrl) {
+        this.proxy = proxy;
         this.plannerBaseUrl = plannerBaseUrl.replaceAll("/+$", "");
     }
 
@@ -105,63 +98,34 @@ public class PlannerProxyController {
                 .timeout(TIMEOUT)
                 .build();
 
-        HttpResponse<InputStream> response;
-        try {
-            response = http.send(upstream, HttpResponse.BodyHandlers.ofInputStream());
-        } catch (IOException err) {
-            log.warn("planner service unreachable at {}: {}", target, err.toString());
-            return ResponseEntity.status(502)
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(jsonBody("{\"detail\":\"planner service unreachable\"}"));
-        } catch (InterruptedException err) {
-            Thread.currentThread().interrupt();
-            return ResponseEntity.status(504)
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(jsonBody("{\"detail\":\"planner service timed out\"}"));
-        }
-
-        String contentType = response.headers().firstValue(HttpHeaders.CONTENT_TYPE)
-                .orElse(MediaType.APPLICATION_JSON_VALUE);
-        InputStream upstreamBody = response.body();
-
-        ResponseEntity.BodyBuilder builder = ResponseEntity.status(response.statusCode())
-                .header(HttpHeaders.CONTENT_TYPE, contentType)
-                // Flushed per chunk below; announcing it keeps any
-                // intermediary from deciding to buffer the stream itself.
-                .header("X-Accel-Buffering", "no");
-        // Forwarded for the two chart-tile endpoints only: their
-        // `public, max-age=...` is what lets the browser (and any CDN in
-        // front of this app) skip asking again for a tile it already
-        // has, rather than round-tripping here just to get told "same
-        // as before" on every pan/zoom. Every other route under
-        // /api/planner/** (course, detect/stream, picks, build, navlog,
-        // ...) depends on saved state or a request body, so a
-        // Cache-Control it happened to emit must not be echoed the same
-        // way.
-        if (path.startsWith("/api/sectional-tile/") || path.startsWith("/api/tac-tile/")
-                || path.startsWith("/api/chart-tile/")) {
-            response.headers().firstValue(HttpHeaders.CACHE_CONTROL)
-                    .ifPresent(value -> builder.header(HttpHeaders.CACHE_CONTROL, value));
-        }
-        return builder.body(out -> pipe(upstreamBody, out));
+        return proxy.exchange(PLANNER, upstream, response -> {
+            ResponseEntity.BodyBuilder builder = StreamingProxy.unbuffered(
+                    ResponseEntity.status(response.statusCode())
+                            .header(HttpHeaders.CONTENT_TYPE, StreamingProxy.contentTypeOf(response)));
+            // Forwarded for the chart-tile endpoints only: their
+            // `public, max-age=...` is what lets the browser (and any CDN
+            // in front of this app) skip asking again for a tile it
+            // already has, rather than round-tripping here just to get
+            // told "same as before" on every pan/zoom. Every other route
+            // under /api/planner/** (course, detect/stream, picks, build,
+            // navlog, ...) depends on saved state or a request body, so a
+            // Cache-Control it happened to emit must not be echoed the
+            // same way.
+            if (isTilePath(path)) {
+                response.headers().firstValue(HttpHeaders.CACHE_CONTROL)
+                        .ifPresent(value -> builder.header(HttpHeaders.CACHE_CONTROL, value));
+            }
+            return builder.body(StreamingProxy.pipe(response.body()));
+        });
     }
 
-    /**
-     * Copies upstream to the client, flushing each chunk.
-     *
-     * <p>The flush is the whole point. Without it the servlet container
-     * fills its own buffer before writing anything, and a response whose
-     * value is that it arrives in pieces arrives in one.
-     */
-    private static void pipe(InputStream in, OutputStream out) throws IOException {
-        try (in) {
-            byte[] buffer = new byte[8192];
-            int read;
-            while ((read = in.read(buffer)) != -1) {
-                out.write(buffer, 0, read);
-                out.flush();
+    private static boolean isTilePath(String path) {
+        for (String prefix : TILE_PATHS) {
+            if (path.startsWith(prefix)) {
+                return true;
             }
         }
+        return false;
     }
 
     /** {@code /api/planner/course} upstream is {@code /api/course}. */
@@ -172,13 +136,5 @@ public class PlannerProxyController {
     private static String query(HttpServletRequest request) {
         String queryString = request.getQueryString();
         return queryString == null ? "" : "?" + queryString;
-    }
-
-    private static StreamingResponseBody jsonBody(String json) {
-        byte[] bytes = json.getBytes(StandardCharsets.UTF_8);
-        return out -> {
-            out.write(bytes);
-            out.flush();
-        };
     }
 }
