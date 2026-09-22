@@ -168,6 +168,22 @@ export interface ClassBAirport {
   taf_visibility_sm: number | null;
 }
 
+/** One service the developer console links to, and whether it is up.
+ *  `state` is Docker's own word -- running, exited, created -- or
+ *  "absent" where compose has never created the container. */
+export interface DevService {
+  name: string;
+  label: string;
+  state: string;
+}
+
+/** `available` is false where the planner has no Docker API to talk
+ *  to, which is every deployment that is not the local stack. */
+export interface DevServices {
+  available: boolean;
+  services: DevService[];
+}
+
 /** What signing in can do in this deployment, asked before anyone has
  *  (`/api/auth/capabilities`). */
 export interface SignInCapabilities {

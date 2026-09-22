@@ -37,7 +37,7 @@ from pydantic import TypeAdapter
 from vfr import airspace, altitude, charts, faa_data, weather
 
 from .common import PROCESSED_DIR
-from .routers import briefing, build, chart, classb, devml, notes, plan, system
+from .routers import briefing, build, chart, classb, devml, devservices, notes, plan, system
 from .schemas import STREAM_MESSAGES, Index
 from .settings import CHARTS_REFRESH_WINDOW, CHARTS_REFRESH_WORKERS
 
@@ -188,7 +188,7 @@ def index() -> Index:
     return Index(service="planner", ui="served by the gateway at /app")
 
 
-for module in (plan, chart, build, briefing, notes, devml, system, classb):
+for module in (plan, chart, build, briefing, notes, devml, system, classb, devservices):
     app.include_router(module.router)
 
 

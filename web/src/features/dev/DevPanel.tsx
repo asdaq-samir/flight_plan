@@ -1,8 +1,8 @@
-import type { ComponentProps, ReactNode } from "react";
+import type { ReactNode } from "react";
 import { usePreferences } from "../../lib/preferences";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useLocation } from "react-router-dom";
-import { ExternalLink, RefreshCw, SquareTerminal } from "lucide-react";
+import { ExternalLink, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { Bar, BarChart, Cell, LabelList, XAxis, YAxis } from "recharts";
 import { cn } from "cn";
@@ -39,19 +39,6 @@ function ago(iso: string | null | undefined): string {
 const CHART_KIND_LABELS: Record<string, string> = {
   sec: "Sectional", tac: "TAC", ifr_low: "IFR low", ifr_high: "IFR high", ifr_area: "IFR area",
 };
-/** The header button that opens the console: a `SheetTrigger` child,
- *  so the sheet's own open state, click and `aria-expanded` arrive as
- *  props and land on the button. A console glyph, not the flask: the
- *  flask is the Dev page's own mark, and one glyph should mean one
- *  thing. */
-export function DevButton(props: Omit<ComponentProps<typeof IconButton>, "label" | "children">) {
-  return (
-    <IconButton label="Developer" data-testid="dev-console-button" {...props}>
-      <SquareTerminal className="size-5" />
-    </IconButton>
-  );
-}
-
 /**
  * The developer's own console, in a `MapDrawer` dropping down over the
  * training map (see MapPage): what the repo does that a pilot never
@@ -275,6 +262,70 @@ function Step({ n, title, description, children }: { n: number; title: string; d
  *  scikit-learn of its own, on purpose), so the retrain goes through
  *  Airflow, the same DAG the AWS trigger Lambda starts; without Airflow
  *  reachable the tab says how to run the pipeline by hand instead. */
+/**
+ * One door into the stack, which opens what it links to -- starting the
+ * service first if it is not running.
+ *
+ * A link to a stopped service is a dead link, and telling a developer
+ * to go and type the compose command is a worse answer than doing it.
+ * The planner starts it through a Docker API proxy that allows the
+ * containers endpoints and nothing else (docker-compose.yml's own
+ * docker-api service), from a fixed list of four names.
+ *
+ * The tab is opened *before* the start, not after: a browser only
+ * allows window.open during the click that asked for it, and one
+ * opened after an await is a popup the browser blocks. So the tab
+ * appears immediately and is pointed at the service once it answers.
+ */
+function StackLink({ link }: { link: { label: string; href: string; service?: string } }) {
+  const queryClient = useQueryClient();
+  const { data: dev } = useQuery({
+    queryKey: ["devServices"], queryFn: api.devServices, retry: false, staleTime: 30_000, meta: { silent: true },
+  });
+  const start = useMutation({ mutationFn: api.startDevService, meta: { silent: true } });
+
+  const state = dev?.services.find(s => s.name === link.service)?.state;
+  const startable = !!link.service && dev?.available === true && state !== undefined && state !== "running";
+
+  if (!startable) {
+    return (
+      <Button asChild variant="outline" size="sm">
+        <a href={link.href} target="_blank" rel="noreferrer">
+          {link.label}
+          <ExternalLink className="text-muted-foreground" />
+        </a>
+      </Button>
+    );
+  }
+
+  return (
+    <Button
+      variant="outline"
+      size="sm"
+      disabled={start.isPending}
+      onClick={() => {
+        const tab = window.open("", "_blank", "noopener");
+        start.mutate(link.service!, {
+          onSuccess: () => {
+            toast.success(`Started ${link.service}`);
+            // So the control goes back to being a plain link rather
+            // than still offering to start what is now running.
+            void queryClient.invalidateQueries({ queryKey: ["devServices"] });
+            // A container that has just started is not yet listening,
+            // so the tab waits a moment rather than landing on a
+            // connection refused.
+            window.setTimeout(() => { if (tab) tab.location.href = link.href; }, 2500);
+          },
+          onError: () => { tab?.close(); toast.error(`Could not start ${link.service}`); },
+        });
+      }}
+    >
+      {start.isPending ? `Starting ${link.service}…` : `${link.label} — start it`}
+      <ExternalLink className="text-muted-foreground" />
+    </Button>
+  );
+}
+
 function TrainingTab({ status }: { status: Status | undefined }) {
   const { pipeline, lastRun } = useRetrain();
   const model = status?.model;
@@ -574,12 +625,12 @@ function SystemTab({ status }: { status: Status | undefined }) {
     },
   ];
   const host = window.location.hostname;
-  const links: { label: string; href: string; localOnly?: boolean }[] = [
+  const links: { label: string; href: string; localOnly?: boolean; service?: string }[] = [
     { label: "webapp API docs", href: "/swagger-ui/index.html" },
     { label: "planning-service API docs", href: `http://${host}:8084/docs`, localOnly: true },
-    { label: "model-service API docs", href: `http://${host}:8000/docs`, localOnly: true },
-    { label: "Jupyter (the notebooks)", href: `http://${host}:8888`, localOnly: true },
-    { label: "Airflow (the training DAG)", href: `http://${host}:8081`, localOnly: true },
+    { label: "model-service API docs", href: `http://${host}:8000/docs`, localOnly: true, service: "model-service" },
+    { label: "Jupyter (the notebooks)", href: `http://${host}:8888`, localOnly: true, service: "ml" },
+    { label: "Airflow (the training DAG)", href: `http://${host}:8081`, localOnly: true, service: "airflow" },
   ];
 
   // Every door, always. Two cleverer versions of this were wrong:
@@ -592,7 +643,8 @@ function SystemTab({ status }: { status: Status | undefined }) {
   //
   // So the list is honest about what exists and the note below is
   // honest about what it takes to reach it.
-  const shown = [{ label: "This snapshot as JSON", href: "/api/planner/status" }, ...links];
+  const shown: { label: string; href: string; localOnly?: boolean; service?: string }[] =
+    [{ label: "This snapshot as JSON", href: "/api/planner/status" }, ...links];
 
   const datasets: { name: string; file: string; source: string; updated: string | null | undefined }[] = [
     ...(status?.faa_files ?? []).map(f => ({
@@ -658,14 +710,7 @@ function SystemTab({ status }: { status: Status | undefined }) {
       <section>
         <SectionHeading title="Elsewhere in the stack" description="The other doors into the running stack, each in a new tab." />
         <div className="mt-2 flex flex-wrap gap-2">
-          {shown.map(l => (
-            <Button key={l.href} asChild variant="outline" size="sm">
-              <a href={l.href} target="_blank" rel="noreferrer">
-                {l.label}
-                <ExternalLink className="text-muted-foreground" />
-              </a>
-            </Button>
-          ))}
+          {shown.map(l => <StackLink key={l.href} link={l} />)}
         </div>
         <p className="mt-2 text-xs text-muted-foreground">
           The last four are published by docker-compose on <span className="font-mono">127.0.0.1</span>, so they

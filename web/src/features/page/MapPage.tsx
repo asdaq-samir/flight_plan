@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
+import { Suspense, lazy, useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import { useSearchParams } from "react-router-dom";
 import { cn } from "cn";
 import { EXPANDED_BUTTON } from "../../lib/expandedButton";
@@ -11,10 +11,19 @@ import {
 import {
   Sidebar, SidebarContent, SidebarInset, SidebarProvider, SidebarTrigger, useSidebar,
 } from "../../components/ui/sidebar";
-import { DevButton } from "../dev/DevPanel";
-import TrainWorkspace from "../train/TrainWorkspace";
+import { DevButton } from "../dev/DevButton";
 import { PilotButton } from "../pilot/PilotPanel";
 import PlanWorkspace from "../plan/PlanWorkspace";
+
+/**
+ * The training workspace on its own chunk. It carries the developer's
+ * console -- charts, tables, the model registry -- and a pilot loading
+ * the planner has no use for any of it; eagerly imported here it was
+ * about half of the page's JavaScript, parsed on every visit.
+ * React's own `lazy`, resolved while the `Suspense` below shows the
+ * empty shell.
+ */
+const TrainWorkspace = lazy(() => import("../train/TrainWorkspace"));
 
 export type Mode = "pilot" | "dev";
 
@@ -75,6 +84,10 @@ export default function MapPage({ mode }: { mode: Mode }) {
   }, [mode, setSearchParams]);
 
   return (
+    // The fallback is the page's own background rather than a spinner:
+    // it is on screen for one request, and a flash of "loading" where
+    // a chart is about to be is worse than a moment of nothing.
+    <Suspense fallback={<div className="h-dvh w-full bg-background" />}>
     <Workspace dep={dep} dest={dest} onRoute={onRoute} sidebarOpen={sidebarOpen} onSidebarOpenChange={setSidebarOpen}>
       {pieces => (
         <SidebarProvider
@@ -140,6 +153,7 @@ export default function MapPage({ mode }: { mode: Mode }) {
         </SidebarProvider>
       )}
     </Workspace>
+    </Suspense>
   );
 }
 

@@ -1773,6 +1773,76 @@
         "title": "Detection",
         "type": "object"
       },
+      "DevService": {
+        "description": "One service the developer console links to, and whether it is up.\n\n`state` is Docker's own word for it -- running, exited, created --\nor \"absent\" where compose has never created the container at all,\nwhich needs `docker compose up -d <service>` once rather than a\nstart.",
+        "properties": {
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "state": {
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "label",
+          "state"
+        ],
+        "title": "DevService",
+        "type": "object"
+      },
+      "DevServiceStarted": {
+        "description": "`started` is false when there was nothing to do, which is the\ncommon case: the console asks on every click so the link always\nworks.",
+        "properties": {
+          "service": {
+            "title": "Service",
+            "type": "string"
+          },
+          "started": {
+            "title": "Started",
+            "type": "boolean"
+          },
+          "state": {
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "service",
+          "state",
+          "started"
+        ],
+        "title": "DevServiceStarted",
+        "type": "object"
+      },
+      "DevServices": {
+        "description": "`available` is false where there is no Docker socket, which is\nevery deployment that is not the local development stack. The\nconsole stops offering to start anything rather than offering a\nbutton that cannot work.",
+        "properties": {
+          "available": {
+            "title": "Available",
+            "type": "boolean"
+          },
+          "services": {
+            "items": {
+              "$ref": "#/components/schemas/DevService"
+            },
+            "title": "Services",
+            "type": "array"
+          }
+        },
+        "required": [
+          "available",
+          "services"
+        ],
+        "title": "DevServices",
+        "type": "object"
+      },
       "Forecast": {
         "properties": {
           "min_ceiling_ft": {
@@ -4677,6 +4747,65 @@
           }
         },
         "summary": "Detect Stream"
+      }
+    },
+    "/api/dev/services": {
+      "get": {
+        "description": "Which of the services the console links to are running.\n\n`available` is false where there is no Docker socket at all, which\nis how the console knows to stop offering to start anything rather\nthan offering a button that will fail.",
+        "operationId": "dev_services_api_dev_services_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevServices"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Dev Services"
+      }
+    },
+    "/api/dev/services/{service}/start": {
+      "post": {
+        "description": "Start one of the four, if it is not already up.\n\nAlready running is a success, not an error: the console calls this\non every click so a link always works, and the common case is that\nthere was nothing to do.",
+        "operationId": "start_dev_service_api_dev_services__service__start_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "service",
+            "required": true,
+            "schema": {
+              "title": "Service",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevServiceStarted"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Start Dev Service"
       }
     },
     "/api/model-comparison": {

@@ -103,6 +103,30 @@ services:
       # convention) makes the 18 entrypoint refuse to start.
       - pgdata_pg18:/var/lib/postgresql
 
+  # A deliberately narrow window onto the Docker API.
+  #
+  # The developer console can start a stopped service it links to
+  # (Jupyter, Airflow). Doing that by mounting the host's Docker socket
+  # into planning-service would hand that container the ability to run
+  # anything on this machine as root, which is far more than the
+  # feature needs -- and on Docker Desktop that socket is root-owned
+  # anyway, so a non-root service cannot read it.
+  #
+  # This proxies it over HTTP with one allowance: the containers
+  # endpoints. Every other part of the API -- images, exec, volumes,
+  # networks, swarm, the daemon itself -- is refused here, so the worst
+  # this grants is starting and stopping containers. It publishes no
+  # port, so only services on this compose network can reach it, and it
+  # is not reachable from webapp's own network surface.
+  docker-api:
+    image: tecnativa/docker-socket-proxy:0.3.0
+    environment:
+      CONTAINERS: 1
+      POST: 1
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    restart: unless-stopped
+
   planning-service:
     # Planning and chart vision: reads FAA sectional tiles, walks the great
     # circle, selects checkpoints and computes the dead-reckoning nav log.
@@ -124,6 +148,10 @@ services:
     environment:
       PYTHONPATH: /workspace/src
       MODEL_SERVICE_URL: http://model-service:8000
+      # Not the host's Docker socket -- the restricted proxy above.
+      # routers/devservices.py uses it to start a stopped service the
+      # console links to, from a fixed list of four names.
+      DOCKER_HOST: tcp://docker-api:2375
       # The clock the chart refresh's night-time window (see
       # planning-service/app/main.py) is read against: the desk this
       # runs on, not UTC.

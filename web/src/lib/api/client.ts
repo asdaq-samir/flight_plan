@@ -4,7 +4,8 @@ import type {
   Aircraft, AircraftChoice, AircraftProfileSummary, AircraftRequest, AirportSearch, AltitudeChoice, Briefing, BuildJob,
   BuiltRoutes, ChartRefreshStarted, CheckpointDescriptionMessage, CheckpointNoteSaved, Checkpoints, Classification, Course,
   Flight, FlightSummary, ModelComparison, NarrativeMessage, NarrativeRequest, NavLogMessage, PickDeleted, PickSaved,
-  ClassBAirport, PicksResponse, Pilot, Rating, RetrainStarted, Role, SaveFlightRequest, SignInCapabilities,
+  ClassBAirport, DevServices, PicksResponse, Pilot, Rating, RetrainStarted, Role, SaveFlightRequest,
+  SignInCapabilities,
   Status, StreamMessage,
 } from "./types";
 
@@ -178,6 +179,16 @@ export const api = {
    *  marker on hover: the planner has the airspace and both national
    *  weather caches in memory already. */
   classB: () => planner.GET("/api/class-b").then(data<{ airports: ClassBAirport[] }>).then(r => r.airports),
+
+  /** Which of the services the developer console links to are
+   *  running, and whether starting one is possible here at all. */
+  devServices: () => planner.GET("/api/dev/services").then(data<DevServices>),
+
+  /** Start one, if it is not already up. Already running is a success:
+   *  the console asks on every click so the link always works. */
+  startDevService: (service: string) =>
+    planner.POST("/api/dev/services/{service}/start", { params: { path: { service } } })
+      .then(data<{ service: string; state: string; started: boolean }>),
 
   /** The stock performance profiles the nav log can be computed for. */
   aircraftProfiles: () => planner.GET("/api/aircraft-profiles").then(data<{ profiles: AircraftProfileSummary[] }>).then(r => r.profiles),

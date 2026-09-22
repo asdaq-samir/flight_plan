@@ -26,6 +26,7 @@ pyshp==3.1.6       # vfr.airspace reads the FAA Class Airspace shapefile
 pillow==12.3.0     # vfr.charts encodes the tiles, vfr.chartvision reads them
 rasterio==1.5.1    # vfr.charts reads and reprojects the FAA chart GeoTIFFs (bundles GDAL; needs libexpat1, see the Dockerfile)
 scipy==1.18.1      # vfr.chartvision connected-component labelling; vfr.geo's cluster_points KD-tree
+docker==7.1.0      # routers/devservices.py starts a stopped dev service the console links to
 anthropic==1.6.0   # /api/checkpoint-notes: one Claude call per checkpoint
 
 # Deliberately NOT scikit-learn/joblib. Scoring belongs to model-service,

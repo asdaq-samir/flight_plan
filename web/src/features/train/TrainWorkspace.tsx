@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { identOf, identSchema } from "../../lib/identSchema";
 // Without this Leaflet's tiles, markers and controls have no
@@ -7,7 +7,10 @@ import { identOf, identSchema } from "../../lib/identSchema";
 import "leaflet/dist/leaflet.css";
 import { useProgressToast } from "../../lib/useProgressToast";
 import type { WorkspaceProps } from "../page/workspace";
-import { DevPanel } from "../dev/DevPanel";
+/** The console's own chunk: recharts and the model tables are a third
+ *  of this page's JavaScript and are parsed only when the console is
+ *  actually opened. */
+const DevPanel = lazy(() => import("../dev/DevPanel").then(m => ({ default: m.DevPanel })));
 import ChartMap from "./components/ChartMap";
 import WaypointPanel from "./components/WaypointPanel";
 import PointPopup from "./components/PointPopup";
@@ -294,7 +297,7 @@ export default function TrainWorkspace({ dep, dest, children }: WorkspaceProps) 
         canUndo={store.canUndo} onUndo={() => void store.undo()} onResetAll={() => void store.resetAll()}
       />
     ),
-    console: <DevPanel />,
+    console: <Suspense fallback={<div className="h-40" />}><DevPanel /></Suspense>,
     submit,
     loading: store.loading,
   });
