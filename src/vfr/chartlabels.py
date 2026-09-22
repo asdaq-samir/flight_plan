@@ -38,12 +38,11 @@ there may be no OSM feature involved -- the point is a place on a chart.
 """
 from __future__ import annotations
 
-import csv
 from datetime import datetime, timezone
 from pathlib import Path
 
 from .config import DATA_DIR
-from .geo import distance_nm
+from .routecsv import SAME_PLACE_NM, read_rows, same_place, write_rows
 
 CHART_PICKS_PATH = DATA_DIR / "labels" / "chart_picks.csv"
 
@@ -62,10 +61,10 @@ COLUMNS = [
     "created_at",
 ]
 
-# Two picks closer than this on the same route are the same place. Chosen
-# to match vfr.chartvision's own dedupe distance so a pick lines up with
-# the detection it refers to.
-SAME_PLACE_NM = 0.2
+# SAME_PLACE_NM is routecsv's, re-exported: a pick and a note have to
+# agree on what "the same place" means, and two constants that were
+# equal by coincidence would eventually stop being.
+__all__ = ["SAME_PLACE_NM"]
 
 ROLES = ("dr", "visual")
 
@@ -89,16 +88,11 @@ def route_key(dep_ident: str, dest_ident: str) -> str:
 def load_picks(route: str | None = None, path: Path = CHART_PICKS_PATH) -> list:
     """Every pick, or just one route's. Missing file means no picks yet,
     which is the normal state before any labeling has happened."""
-    path = Path(path)
-    if not path.exists():
-        return []
-    with path.open(newline="") as f:
-        rows = list(csv.DictReader(f))
-    for row in rows:
-        for numeric in ("lat", "lon", "along_track_nm", "cross_track_nm", "area_m2"):
-            row[numeric] = float(row[numeric]) if row[numeric] not in ("", None) else None
-        row["rating"] = int(row["rating"]) if row["rating"] not in ("", None) else None
-    return [r for r in rows if route is None or r["route"] == route]
+    return read_rows(
+        path, route=route,
+        floats=("lat", "lon", "along_track_nm", "cross_track_nm", "area_m2"),
+        ints=("rating",),
+    )
 
 
 # There is no find_existing. It answered "is there a pick near this
@@ -116,47 +110,24 @@ def save_pick(pick: dict, path: Path = CHART_PICKS_PATH) -> dict:
     about a checkpoint should leave one row, not two contradictory ones --
     the same reason the old labeling loop's relabel rewrote in place.
     """
-    path = Path(path)
     row = {column: pick.get(column) for column in COLUMNS}
     row["created_at"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
 
     existing = load_picks(path=path)
-    replaced = False
-    kept = []
-    for old in existing:
-        same_route = old["route"] == row["route"]
-        if same_route and distance_nm(old["lat"], old["lon"], row["lat"], row["lon"]) < SAME_PLACE_NM:
-            replaced = True
-            continue
-        kept.append(old)
+    kept = [old for old in existing if not same_place(old, row["route"], row["lat"], row["lon"])]
+    write_rows(path, COLUMNS, [*kept, row])
 
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=COLUMNS)
-        writer.writeheader()
-        for old in kept:
-            writer.writerow({c: old.get(c) for c in COLUMNS})
-        writer.writerow(row)
-
-    row["replaced"] = replaced
+    row["replaced"] = len(kept) < len(existing)
     return row
 
 
 def delete_pick(route: str, lat: float, lon: float, path: Path = CHART_PICKS_PATH) -> bool:
     """Remove the pick at this place. True if one was there."""
-    path = Path(path)
     existing = load_picks(path=path)
-    kept = [
-        row for row in existing
-        if not (row["route"] == route and distance_nm(row["lat"], row["lon"], lat, lon) < SAME_PLACE_NM)
-    ]
+    kept = [row for row in existing if not same_place(row, route, lat, lon)]
     if len(kept) == len(existing):
         return False
-    with path.open("w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=COLUMNS)
-        writer.writeheader()
-        for row in kept:
-            writer.writerow({c: row.get(c) for c in COLUMNS})
+    write_rows(path, COLUMNS, kept)
     return True
 
 

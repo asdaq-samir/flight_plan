@@ -12,35 +12,26 @@ label.
 """
 from __future__ import annotations
 
-import csv
 from datetime import datetime, timezone
 from pathlib import Path
 
 from .chartlabels import route_key as route_key  # the same "DEP->DEST" key as a chart pick's
 from .config import DATA_DIR
 from .geo import distance_nm
+from .routecsv import SAME_PLACE_NM, read_rows, same_place, write_rows
 
 NOTES_PATH = DATA_DIR / "labels" / "checkpoint_notes.csv"
 
 COLUMNS = ["route", "lat", "lon", "description", "created_at"]
 
-# Same threshold chartlabels uses for the same reason: two checkpoints
-# closer than this on the same route are the same place, not two
-# different ones a pilot happened to annotate twice.
-SAME_PLACE_NM = 0.2
+# SAME_PLACE_NM is routecsv's, re-exported -- the same threshold a chart
+# pick uses, and now the same constant rather than a matching copy.
+__all__ = ["SAME_PLACE_NM"]
 
 
 def load_notes(route: str | None = None, path: Path = NOTES_PATH) -> list:
     """Every note, or just one route's. Missing file means none yet."""
-    path = Path(path)
-    if not path.exists():
-        return []
-    with path.open(newline="") as f:
-        rows = list(csv.DictReader(f))
-    for row in rows:
-        row["lat"] = float(row["lat"])
-        row["lon"] = float(row["lon"])
-    return [r for r in rows if route is None or r["route"] == route]
+    return read_rows(path, route=route, floats=("lat", "lon"))
 
 
 def find_note(notes: list, lat: float, lon: float) -> dict | None:
@@ -60,24 +51,11 @@ def save_note(route: str, lat: float, lon: float, description: str, path: Path =
     """Save one note, replacing whatever was at the same place on the
     same route -- a pilot editing a description, or a fresh LLM
     generation seeding one, should leave one row, not two."""
-    path = Path(path)
     row = {
         "route": route, "lat": lat, "lon": lon, "description": description,
         "created_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
     }
 
-    existing = load_notes(path=path)
-    kept = [
-        old for old in existing
-        if not (old["route"] == route and distance_nm(old["lat"], old["lon"], lat, lon) < SAME_PLACE_NM)
-    ]
-
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=COLUMNS)
-        writer.writeheader()
-        for old in kept:
-            writer.writerow({c: old.get(c) for c in COLUMNS})
-        writer.writerow(row)
-
+    kept = [old for old in load_notes(path=path) if not same_place(old, route, lat, lon)]
+    write_rows(path, COLUMNS, [*kept, row])
     return row

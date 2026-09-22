@@ -113,6 +113,48 @@ def _ensure_local_output_dir(path) -> Path:
     return path
 
 
+def held_out_scores(y_test, y_pred) -> dict:
+    """The three numbers every trainer reports for its held-out split.
+
+    sklearn is imported here rather than at the top for the same reason
+    the trainers do it: importing this module must not drag in the
+    training stack for a caller that only wants a route planned.
+    """
+    from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+
+    return {
+        "held_out_mae": mean_absolute_error(y_test, y_pred),
+        "held_out_rmse": mean_squared_error(y_test, y_pred) ** 0.5,
+        "held_out_r2": r2_score(y_test, y_pred),
+    }
+
+
+def metrics_record(
+    model_type: str, scores: dict, *,
+    n_labeled: int, n_train: int, n_test: int, feature_cols: list, **extra,
+) -> dict:
+    """metrics.json, the same shape whichever library did the training.
+
+    Four trainers write this file -- the sklearn one below and PyTorch,
+    TensorFlow and Spark in `model_candidates` -- and `model_registry`'s
+    promotion gate and the developer console both read it by key. It was
+    four copies of one dict literal, which is three chances for a
+    trainer to quietly report something the registry cannot compare.
+    `extra` is whatever that trainer has and the others do not, such as
+    a cross-validation score.
+    """
+    return {
+        "model_type": model_type,
+        **extra,
+        **scores,
+        "n_labeled": n_labeled,
+        "n_train": n_train,
+        "n_test": n_test,
+        "feature_cols": feature_cols,
+        "trained_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+
 def _ensure_local_dir(path) -> Path:
     """For a directory path (e.g. retrain's out_dir, which files get
     written *into*): ensure it exists locally, as itself, not its parent.
@@ -287,7 +329,6 @@ def retrain(
     from sklearn.dummy import DummyRegressor
     from sklearn.ensemble import GradientBoostingRegressor, RandomForestRegressor
     from sklearn.linear_model import Ridge
-    from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
     from sklearn.model_selection import GridSearchCV, KFold, cross_val_score, train_test_split
 
     labeled_df, feature_cols = _load_labeled(features_path, labels_path)
@@ -332,26 +373,20 @@ def retrain(
     best_model.fit(X_train, y_train)
     y_pred = best_model.predict(X_test)
 
-    metrics = {
-        "model_type": best_name,
-        "cv_mae": cv_mae[best_name],
-        # The full comparison, not just the winner -- Ridge/GradientBoosting's
-        # own cv_mae used to be computed here and thrown away the moment
-        # best_name was picked. Kept alongside "cv_mae" (still the winner's
-        # score alone, still what model_registry.PROMOTION_METRIC reads)
-        # rather than replacing it, so the promotion gate's read path never
-        # has to change.
-        "cv_mae_by_model": {**cv_mae, "Dummy": dummy_mae},
-        "dummy_cv_mae": dummy_mae,
-        "held_out_mae": mean_absolute_error(y_test, y_pred),
-        "held_out_rmse": mean_squared_error(y_test, y_pred) ** 0.5,
-        "held_out_r2": r2_score(y_test, y_pred),
-        "n_labeled": len(labeled_df),
-        "n_train": len(X_train),
-        "n_test": len(X_test),
-        "feature_cols": feature_cols,
-        "trained_at": datetime.now(timezone.utc).isoformat(),
-    }
+    # cv_mae_by_model is the full comparison, not just the winner --
+    # Ridge/GradientBoosting's own cv_mae used to be computed here and
+    # thrown away the moment best_name was picked. Kept alongside
+    # "cv_mae" (still the winner's score alone, still what
+    # model_registry.PROMOTION_METRIC reads) rather than replacing it,
+    # so the promotion gate's read path never has to change.
+    metrics = metrics_record(
+        best_name, held_out_scores(y_test, y_pred),
+        cv_mae=cv_mae[best_name],
+        cv_mae_by_model={**cv_mae, "Dummy": dummy_mae},
+        dummy_cv_mae=dummy_mae,
+        n_labeled=len(labeled_df), n_train=len(X_train), n_test=len(X_test),
+        feature_cols=feature_cols,
+    )
 
     out_dir = _ensure_local_dir(out_dir)
     joblib.dump(best_model, out_dir / "model.joblib")

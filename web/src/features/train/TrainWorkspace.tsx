@@ -111,6 +111,12 @@ export default function TrainWorkspace({ dep, dest, children }: WorkspaceProps) 
     select({ kind: entry.kind, index: entry.index });
   }, [map, select]);
 
+  /** Walks the waypoint list and brings the map to whatever it lands
+   *  on, the same as clicking that row would. The list is the walk
+   *  itself -- every point the filters admit, in flight order -- so the
+   *  popup's arrows, the drawer's rows and the keys all move by the
+   *  same step. There were two copies of this, identical, with a
+   *  comment on one claiming it walked a different order. */
   const step = useCallback((delta: number) => {
     if (!walk.length) return;
     const at = point ? walk.findIndex(e => e.point === point) : -1;
@@ -178,18 +184,6 @@ export default function TrainWorkspace({ dep, dest, children }: WorkspaceProps) 
     rate, setCategory, removeSelected, select, step, walkIndex, walk.length,
   ]);
 
-  /** Walks the waypoint list top to bottom (not the course-relative
-   *  direction `step` uses) and brings the map to whatever it lands
-   *  on, the same as clicking that row would. The list is the walk
-   *  itself -- every point the filters admit, in flight order. */
-  const stepList = useCallback((delta: number) => {
-    if (!walk.length) return;
-    const at = point ? walk.findIndex(e => e.point === point) : -1;
-    const next = at < 0 ? 0 : at + delta;
-    const entry = walk[Math.max(0, Math.min(walk.length - 1, next))];
-    if (entry) focus(entry);
-  }, [walk, point, focus]);
-
   /** Zooms out to see the whole leg -- Escape, and its own toolbar
    *  button for touch, which has no Escape key. */
   const fitLine = useCallback(() => {
@@ -232,16 +226,16 @@ export default function TrainWorkspace({ dep, dest, children }: WorkspaceProps) 
       if (e.defaultPrevented || target?.closest('[role="listbox"],[role="dialog"][aria-modal="true"],[role="menu"]')) return;
       if (e.key === "ArrowUp" || e.key === "ArrowDown") {
         e.preventDefault();
-        stepList(e.key === "ArrowDown" ? 1 : -1);
+        step(e.key === "ArrowDown" ? 1 : -1);
         return;
       }
       if (/^[0-5]$/.test(e.key) && point && !isEndpoint(point)) {
-        void rate(Number(e.key) as Rating).then(() => stepList(1));
+        void rate(Number(e.key) as Rating).then(() => step(1));
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [point, rate, stepList]);
+  }, [point, rate, step]);
 
   // Loading a route writes the address, which is what the queries key
   // on -- the same route again costs nothing, being kept.
@@ -287,7 +281,7 @@ export default function TrainWorkspace({ dep, dest, children }: WorkspaceProps) 
     sidebar: (
       <WaypointPanel
         entries={walk} selected={point} onFocus={focus}
-        onRate={r => void rate(r).then(() => stepList(1))}
+        onRate={r => void rate(r).then(() => step(1))}
         distanceNm={store.course?.distance_nm ?? null}
         bearingDeg={store.course?.bearing_deg ?? 0}
         departureIdent={store.course?.departure.ident ?? ""}

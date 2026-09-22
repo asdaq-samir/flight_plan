@@ -24,12 +24,18 @@ that, the Dev ML tab's model-comparison table would be comparing
 algorithms trained on different information, not comparing algorithms.
 """
 import json
-from datetime import datetime, timezone
 from pathlib import Path
 
 from vfr.config import FEATURES_PATH, LABELS_PATH, MIN_LABELED_ROWS
 from vfr.model_registry import MODELS_DIR
-from vfr.pipeline import RANDOM_STATE, InsufficientLabelsError, _ensure_local_dir, _load_labeled
+from vfr.pipeline import (
+    RANDOM_STATE,
+    InsufficientLabelsError,
+    _ensure_local_dir,
+    _load_labeled,
+    held_out_scores,
+    metrics_record,
+)
 
 CANDIDATES_DIR = MODELS_DIR / "candidates"
 
@@ -66,7 +72,6 @@ def train_pytorch(
     """
     import joblib
     import torch
-    from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
     from sklearn.model_selection import train_test_split
     from sklearn.preprocessing import StandardScaler
     from torch import nn
@@ -117,17 +122,10 @@ def train_pytorch(
     with torch.no_grad():
         y_pred = model(X_test_t).squeeze(1).numpy()
 
-    metrics = {
-        "model_type": "PyTorchMLP",
-        "held_out_mae": mean_absolute_error(y_test, y_pred),
-        "held_out_rmse": mean_squared_error(y_test, y_pred) ** 0.5,
-        "held_out_r2": r2_score(y_test, y_pred),
-        "n_labeled": n_labeled,
-        "n_train": len(X_train),
-        "n_test": len(X_test),
-        "feature_cols": feature_cols,
-        "trained_at": datetime.now(timezone.utc).isoformat(),
-    }
+    metrics = metrics_record(
+        "PyTorchMLP", held_out_scores(y_test, y_pred),
+        n_labeled=n_labeled, n_train=len(X_train), n_test=len(X_test), feature_cols=feature_cols,
+    )
 
     out_dir = _ensure_local_dir(out_dir)
     torch.save(model.state_dict(), out_dir / "model_state.pt")
@@ -148,7 +146,6 @@ def train_tensorflow(
     """
     import joblib
     import tensorflow as tf
-    from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
     from sklearn.model_selection import train_test_split
     from sklearn.preprocessing import StandardScaler
 
@@ -180,17 +177,10 @@ def train_tensorflow(
     )
 
     y_pred = model.predict(X_test_s, verbose=0).squeeze(-1)
-    metrics = {
-        "model_type": "TensorFlowMLP",
-        "held_out_mae": mean_absolute_error(y_test, y_pred),
-        "held_out_rmse": mean_squared_error(y_test, y_pred) ** 0.5,
-        "held_out_r2": r2_score(y_test, y_pred),
-        "n_labeled": n_labeled,
-        "n_train": len(X_train),
-        "n_test": len(X_test),
-        "feature_cols": feature_cols,
-        "trained_at": datetime.now(timezone.utc).isoformat(),
-    }
+    metrics = metrics_record(
+        "TensorFlowMLP", held_out_scores(y_test, y_pred),
+        n_labeled=n_labeled, n_train=len(X_train), n_test=len(X_test), feature_cols=feature_cols,
+    )
 
     out_dir = _ensure_local_dir(out_dir)
     model.save(out_dir / "model.keras")
@@ -284,18 +274,15 @@ def train_spark(
     finally:
         spark.stop()
 
-    metrics = {
-        "model_type": "SparkGBT",
-        "cv_mae": best_cv_mae,
-        "held_out_mae": held_out_mae,
-        "held_out_rmse": held_out_rmse,
-        "held_out_r2": held_out_r2,
-        "n_labeled": len(labeled_df),
-        "n_train": len(train_df),
-        "n_test": len(test_df),
-        "feature_cols": feature_cols,
-        "trained_at": datetime.now(timezone.utc).isoformat(),
-    }
+    # Spark's own evaluators, not sklearn's, so the scores are passed in
+    # rather than computed from a y_pred this trainer never materialises.
+    metrics = metrics_record(
+        "SparkGBT",
+        {"held_out_mae": held_out_mae, "held_out_rmse": held_out_rmse, "held_out_r2": held_out_r2},
+        cv_mae=best_cv_mae,
+        n_labeled=len(labeled_df), n_train=len(train_df), n_test=len(test_df),
+        feature_cols=feature_cols,
+    )
 
     out_dir = _ensure_local_dir(out_dir)
     (out_dir / "predictions.json").write_text(json.dumps(predictions, indent=2))
