@@ -5,11 +5,13 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.security.web.csrf.CsrfFilter;
 import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
@@ -124,9 +126,15 @@ public class SecurityConfig {
 
                 // An API answers an unauthenticated call with 401. The
                 // default is a 302 to a login page, which a fetch() sees
-                // as a confusing 200 for the wrong document.
+                // as a confusing 200 for the wrong document. Spring
+                // Security's own entry point for exactly this, in place
+                // of the one this project wrote: the only difference is
+                // that the 401 carries no body, and nothing read it --
+                // the browser client treats a 401 from /api/me as the
+                // ordinary signed-out answer, and every other call
+                // falls back to the status text.
                 .exceptionHandling(handling -> handling
-                        .authenticationEntryPoint(new Http401EntryPoint()))
+                        .authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
 
                 // Spring Security already writes X-Content-Type-Options
                 // and a frame-options header by default; this makes both

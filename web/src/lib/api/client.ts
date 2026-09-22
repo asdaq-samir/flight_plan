@@ -36,7 +36,9 @@ function csrfToken(): string | null {
 }
 
 /** The server's own word for what went wrong: `detail` is the
- *  planner's (and this client's), `error` is Spring's on a 401. */
+ *  planner's (and this client's), `error` is Spring's where it sends
+ *  one. A 401 carries no body at all (Spring Security's own entry
+ *  point), and falls through to the status text. */
 async function detailOf(response: Response): Promise<string> {
   const body = await response.json().catch(() => ({})) as { detail?: string; error?: string };
   return body.detail ?? body.error ?? response.statusText ?? "request failed";
