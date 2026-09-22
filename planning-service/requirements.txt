@@ -17,13 +17,13 @@ numpy==2.5.3
 pyarrow==25.0.1
 requests==2.34.2    # Overpass/FAA, and the model-service call
 pygeomag==1.1.0    # vfr.magnetic evaluates the World Magnetic Model here rather than asking NOAA's calculator
+pyproj==3.8.0      # vfr.geo -- PROJ's distance/azimuth, scalar and vectorised over a whole corridor
 boto3==1.43.98      # vfr.model_client's SageMaker Runtime path, used only when SAGEMAKER_ENDPOINT_NAME is set (AWS)
 shapely==2.1.2     # vfr.osm._representative_point, vfr.airspace polygons
 pyshp==3.1.6       # vfr.airspace reads the FAA Class Airspace shapefile
 pillow==12.3.0     # vfr.charts encodes the tiles, vfr.chartvision reads them
 rasterio==1.5.1    # vfr.charts reads and reprojects the FAA chart GeoTIFFs (bundles GDAL; needs libexpat1, see the Dockerfile)
 scipy==1.18.1      # vfr.chartvision connected-component labelling; vfr.geo's cluster_points KD-tree
-pygeodesy==26.9.9  # vfr.geo -- great-circle distance, bearing, cross/along-track, direct solution
 anthropic==1.6.0   # /api/checkpoint-notes: one Claude call per checkpoint
 
 # Deliberately NOT scikit-learn/joblib. Scoring belongs to model-service,

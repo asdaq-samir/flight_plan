@@ -1,5 +1,7 @@
 import math
+import random
 
+import numpy as np
 import pytest
 
 from vfr.geo import (
@@ -11,6 +13,9 @@ from vfr.geo import (
     cross_track_distance_nm,
     destination_point,
     distance_nm,
+    nearest_neighbour_nm,
+    neighbours_within_nm,
+    track_distances_nm,
 )
 
 
@@ -122,3 +127,89 @@ def test_corridor_bbox_padding():
     min_lat, min_lon, max_lat, max_lon = corridor_bbox(route_start, route_end, buffer_nm=60)
     assert min_lat < 40.0 and max_lat > 42.0
     assert min_lon < -90.0 and max_lon > -88.0
+
+
+# --- The library check ---------------------------------------------------
+#
+# vfr.geo's distances and azimuths are PROJ's, and the two track
+# distances are written there from the standard spherical identities.
+# pygeodesy has its own independent implementation of all four, so it is
+# the oracle they are pinned against. It is a test dependency only
+# (requirements-dev.txt) and ships in no service image.
+
+def _pygeodesy():
+    return pytest.importorskip("pygeodesy.sphericalTrigonometry").LatLon
+
+
+def _random_cases(n, seed):
+    rng = random.Random(seed)
+    for _ in range(n):
+        lat1 = rng.uniform(25, 49)
+        lon1 = rng.uniform(-124, -67)
+        yield (
+            (lat1, lon1),
+            (lat1 + rng.uniform(-3, 3), lon1 + rng.uniform(-3, 3)),
+            (lat1 + rng.uniform(-3, 3), lon1 + rng.uniform(-3, 3)),
+        )
+
+
+def test_it_matches_an_independent_implementation():
+    LatLon = _pygeodesy()
+    for start, end, point in _random_cases(300, seed=17):
+        a, b, p = LatLon(*start), LatLon(*end), LatLon(*point)
+        assert distance_nm(*start, *end) == pytest.approx(a.distanceTo(b, radius=EARTH_RADIUS_NM), abs=1e-6)
+        assert bearing_deg(*start, *end) == pytest.approx(a.initialBearingTo(b), abs=1e-6)
+        assert cross_track_distance_nm(*point, start, end) == pytest.approx(
+            p.crossTrackDistanceTo(a, b, radius=EARTH_RADIUS_NM), abs=1e-6)
+        assert along_track_distance_nm(*point, start, end) == pytest.approx(
+            p.alongTrackDistanceTo(a, b, radius=EARTH_RADIUS_NM), abs=1e-6)
+
+
+def test_the_array_form_is_the_scalar_form():
+    # The corridor callers pass whole arrays; nothing may change but the
+    # shape of the answer.
+    rng = random.Random(23)
+    points = [(44 + rng.uniform(-3, 3), -89 + rng.uniform(-3, 3)) for _ in range(200)]
+    start, end = (44.0, -89.0), (46.5, -92.0)
+    lats = np.array([p[0] for p in points])
+    lons = np.array([p[1] for p in points])
+
+    cross, along = track_distances_nm(lats, lons, start, end)
+    for i, (lat, lon) in enumerate(points):
+        assert cross[i] == pytest.approx(cross_track_distance_nm(lat, lon, start, end), abs=1e-9)
+        assert along[i] == pytest.approx(along_track_distance_nm(lat, lon, start, end), abs=1e-9)
+
+
+def test_a_scalar_call_returns_a_plain_float():
+    # These reach a Pydantic response model and a JSON body; a numpy
+    # scalar is a different thing to serialise.
+    assert type(distance_nm(44.0, -89.0, 45.0, -88.0)) is float
+    assert type(bearing_deg(44.0, -89.0, 45.0, -88.0)) is float
+    assert type(cross_track_distance_nm(44.2, -88.6, (44.0, -89.0), (45.0, -88.0))) is float
+
+
+def test_nearest_neighbour_finds_the_closest_other_point():
+    a = (44.0, -89.0)
+    near = destination_point(*a, bearing=90, distance_nm_=0.5)
+    far = destination_point(*a, bearing=90, distance_nm_=9.0)
+    lats, lons = zip(*[a, near, far])
+    nearest = nearest_neighbour_nm(lats, lons)
+    assert nearest[0] == pytest.approx(0.5, rel=1e-6)
+    assert nearest[1] == pytest.approx(0.5, rel=1e-6)
+    assert nearest[2] == pytest.approx(8.5, rel=1e-6)
+
+
+def test_a_lone_point_has_no_nearest_neighbour():
+    assert nearest_neighbour_nm([42.0], [-88.0])[0] == math.inf
+    assert len(nearest_neighbour_nm([], [])) == 0
+
+
+def test_neighbours_within_includes_the_point_itself_and_nothing_further():
+    a = (44.0, -89.0)
+    near = destination_point(*a, bearing=90, distance_nm_=1.0)
+    far = destination_point(*a, bearing=90, distance_nm_=3.0)
+    lats, lons = zip(*[a, near, far])
+    within = neighbours_within_nm(lats, lons, 2.0)
+    assert sorted(within[0]) == [0, 1]
+    assert sorted(within[1]) == [0, 1, 2]
+    assert sorted(within[2]) == [1, 2]

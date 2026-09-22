@@ -12,7 +12,7 @@ pandas
 numpy
 requests
 pygeomag
-pygeodesy
+pyproj
 scipy
 scikit-learn
 matplotlib

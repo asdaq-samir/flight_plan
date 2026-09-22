@@ -15,6 +15,7 @@ navaid network, and DOF obstacle height/lighting data lets "tower"
 candidates be filtered to ones actually significant enough to matter
 from the air, rather than every generic man_made=tower OSM tag.
 """
+import numpy as np
 import pandas as pd
 import requests
 
@@ -328,9 +329,15 @@ def find_line_crossings(ways: list, route_start: tuple, route_end: tuple) -> pd.
         if not geometry:
             continue
         tags = way.get("tags", {})
-        cross_tracks = [
-            cross_track_distance_nm(pt["lat"], pt["lon"], route_start, route_end) for pt in geometry
-        ]
+        # Every vertex of the way in one call. A long river runs to
+        # hundreds of vertices and a corridor to hundreds of ways, so
+        # asking per vertex was most of what this function cost.
+        cross_tracks = cross_track_distance_nm(
+            np.array([pt["lat"] for pt in geometry], dtype=float),
+            np.array([pt["lon"] for pt in geometry], dtype=float),
+            route_start,
+            route_end,
+        )
 
         crossings = []
         for i in range(len(geometry) - 1):

@@ -191,12 +191,14 @@ def collect(
 
     def add_route_distances(df):
         df = df.copy()
-        df["cross_track_nm"] = df.apply(
-            lambda r: geo.cross_track_distance_nm(r["lat"], r["lon"], route_start, route_end), axis=1
+        # The whole corridor in one call rather than a row at a time:
+        # both distances come out of the same pair of azimuth solutions,
+        # and PROJ does the arithmetic for every candidate at once.
+        cross, along = geo.track_distances_nm(
+            df["lat"].to_numpy(), df["lon"].to_numpy(), route_start, route_end
         )
-        df["along_track_nm"] = df.apply(
-            lambda r: geo.along_track_distance_nm(r["lat"], r["lon"], route_start, route_end), axis=1
-        )
+        df["cross_track_nm"] = cross
+        df["along_track_nm"] = along
         return df
 
     candidates_df = add_route_distances(raw_df)

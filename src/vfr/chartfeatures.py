@@ -44,7 +44,7 @@ import math
 
 import pandas as pd
 
-from .geo import distance_nm
+from . import geo
 
 # Every category the detector can emit. Fixed rather than derived from
 # whatever a given route happened to contain, so a model trained on one
@@ -60,20 +60,22 @@ FEATURE_COLS = [
 ] + [f"is_{c}" for c in CHART_CATEGORIES]
 
 
-def _nearest_neighbour_nm(points: list, index: int) -> float:
-    """Distance to the closest other detection of any kind.
+def _nearest_neighbour_nm(lats, lons) -> list:
+    """Distance from each detection to the closest other one, of any kind.
 
     Isolation is most of what makes a landmark identifiable: one lake
     among forty is useless however large it is, which is the single
     clearest thing the hand-labelling showed.
+
+    vfr.geo's KD-tree answers the whole list at once. This was a nested
+    Python loop calling the scalar distance once per pair, which is
+    quadratic: a corridor of a few hundred detections spent seconds in
+    it. A lone detection has no neighbour, and keeps the zero the old
+    loop returned for that case rather than an infinity the model has no
+    use for.
     """
-    lat, lon = points[index]
-    best = math.inf
-    for other, (o_lat, o_lon) in enumerate(points):
-        if other == index:
-            continue
-        best = min(best, distance_nm(lat, lon, o_lat, o_lon))
-    return 0.0 if best is math.inf else best
+    nearest = geo.nearest_neighbour_nm(lats, lons)
+    return [0.0 if math.isinf(d) else float(d) for d in nearest]
 
 
 def build(detections: list) -> pd.DataFrame:
@@ -99,7 +101,8 @@ def build(detections: list) -> pd.DataFrame:
     if df.empty:
         return pd.DataFrame(columns=["lat", "lon", "category", *FEATURE_COLS])
 
-    points = list(zip(df["lat"], df["lon"]))
+    lats = df["lat"].to_numpy()
+    lons = df["lon"].to_numpy()
 
     # Area spans four orders of magnitude between a pond and a town, and
     # a crossing has none at all, so it is logged with a floor rather than
@@ -107,20 +110,19 @@ def build(detections: list) -> pd.DataFrame:
     df["log_area"] = df["area_m2"].clip(lower=1.0).apply(math.log10)
     df["linework_px"] = df["pixels"]
     df["abs_cross_track_nm"] = df["cross_track_nm"].abs()
-    df["nn_dist_nm"] = [_nearest_neighbour_nm(points, i) for i in range(len(df))]
+    df["nn_dist_nm"] = _nearest_neighbour_nm(lats, lons)
 
     # Clutter of the same kind specifically. A river crossing two miles
     # from four other river crossings is a different proposition from one
     # on its own, and that is not visible in nn_dist_nm, which counts a
-    # nearby town as company.
-    same = []
-    for i, cat in enumerate(df["category"]):
-        lat, lon = points[i]
-        same.append(sum(
-            1 for j, other in enumerate(df["category"])
-            if j != i and other == cat and distance_nm(lat, lon, *points[j]) <= 2.0
-        ))
-    df["same_kind_within_2nm"] = same
+    # nearby town as company. The KD-tree returns everything within two
+    # miles of each detection; the category filter is then a handful of
+    # comparisons per detection rather than one per pair.
+    categories = df["category"].to_numpy()
+    df["same_kind_within_2nm"] = [
+        sum(1 for j in neighbours if j != i and categories[j] == categories[i])
+        for i, neighbours in enumerate(geo.neighbours_within_nm(lats, lons, 2.0))
+    ]
 
     for category in CHART_CATEGORIES:
         df[f"is_{category}"] = (df["category"] == category).astype(int)
