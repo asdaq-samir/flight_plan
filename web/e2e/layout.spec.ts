@@ -215,6 +215,28 @@ for (const path of PAGES) {
     await expect(page.getByTestId("tac-toggle")).toBeVisible();
     await page.keyboard.press("Escape");
   });
+
+  test(`${path}: the full-screen button takes the whole screen and gives it back`, async ({ page }) => {
+    await page.goto(`${path}?dep=C81&dest=KDLH`);
+    await settle(page);
+    // Drawn only where it would work: Chromium allows it, an iPad
+    // does, an iPhone does not and the button is absent there rather
+    // than present and refusing (see `FullscreenButton`).
+    expect(await page.evaluate(() => document.fullscreenEnabled)).toBe(true);
+    const button = page.getByTestId("fullscreen-button");
+    await expect(button).toHaveAttribute("aria-label", "Full screen");
+
+    await button.click();
+    await expect.poll(() => page.evaluate(() => !!document.fullscreenElement)).toBe(true);
+    await expect(button).toHaveAttribute("aria-label", "Leave full screen");
+    // The map re-measured rather than keeping its old size: it is
+    // still drawing tiles (`ResizeAware` watches the container).
+    await expect(page.locator("img.leaflet-tile").first()).toBeAttached();
+
+    await button.click();
+    await expect.poll(() => page.evaluate(() => !!document.fullscreenElement)).toBe(false);
+    await expect(button).toHaveAttribute("aria-label", "Full screen");
+  });
 }
 
 test("plan page: the flight planning drawer opens the way the Model Training drawer does, the same panel beside the map, with the two inputs and the narrative and Print in its header and the totals and the descriptions button in the nav log's own section", async ({ page }) => {

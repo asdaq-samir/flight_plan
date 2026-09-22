@@ -77,7 +77,8 @@ export default function PilotGuide({ course }: { course: Course | null }) {
           The chart is the FAA sectional, the whole country, at every zoom. The layers button at the map's top right
           picks the base chart (sectional, IFR low, IFR high), pins the terminal area chart over it, and turns on your own
           position. Close in over a terminal area a pin appears on the map to pin that sheet. The zoom button under it
-          swaps between the whole route and the selected checkpoint.
+          swaps between the whole route and the selected checkpoint, and under that, where your browser allows it, a
+          button for the whole screen.
         </p>
       </section>
 

@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { Layers } from "lucide-react";
 import ChartLayers from "./ChartLayers";
+import FullscreenButton from "./FullscreenButton";
 import IconButton from "./IconButton";
 import OwnShipControls from "./OwnShipControls";
 import ZoomToggleButton from "./ZoomToggleButton";
@@ -84,6 +85,9 @@ export default function MapControls({ zoom, ownShip = false, candidates, childre
           variant="outline" className="bg-background shadow-sm" data-testid="map-action-button"
         />
       )}
+      {/* Draws itself only where full screen actually works: a desktop
+          browser and an iPad, never an iPhone. */}
+      <FullscreenButton />
       {children}
     </div>
   );
