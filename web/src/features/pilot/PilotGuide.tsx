@@ -82,6 +82,15 @@ export default function PilotGuide({ course }: { course: Course | null }) {
         </p>
       </section>
 
+      <section className="space-y-1.5 text-sm">
+        <h3 className="text-sm font-semibold">On your phone</h3>
+        <p className="text-muted-foreground">
+          Add this to your Home Screen and it opens as its own app: the whole screen, with no browser bar over the
+          chart, and the charts you keep below stay kept. In Safari tap Share, then Add to Home Screen. In a browser
+          tab the address bar stays put, because the page holds still under your finger rather than scrolling.
+        </p>
+      </section>
+
       <KeepRoute course={course} />
 
       <section className="space-y-1.5 text-sm">

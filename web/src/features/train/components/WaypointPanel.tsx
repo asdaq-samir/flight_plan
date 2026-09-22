@@ -151,7 +151,10 @@ export default function WaypointPanel({
           "arrows should walk the map" -- set once focus lands inside
           here (a row is focusable), not on hover, so it survives
           scrolling. */}
-      <div className="min-h-0 flex-1 overflow-auto p-3" data-waypoint-list data-testid="waypoint-scroller">
+      <div
+        className="min-h-0 flex-1 overflow-auto p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]"
+        data-waypoint-list data-testid="waypoint-scroller"
+      >
         <Table containerClassName="overflow-visible" className="text-xs whitespace-nowrap">
           <TableCaption className="sr-only">Waypoints from {departureIdent} to {destinationIdent}</TableCaption>
           <TableHeader>

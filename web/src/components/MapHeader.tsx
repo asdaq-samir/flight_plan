@@ -41,7 +41,13 @@ export default function MapHeader({ leading, form, actions, dev = false }: Props
   return (
     <header
       data-mode={dev ? "dev" : "pilot"}
-      className="flex shrink-0 flex-wrap items-center gap-1.5 border-b border-border bg-background px-2 py-2 sm:grid sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] sm:gap-2 sm:px-3 print:hidden"
+      // The safe-area insets (real only because index.html asks for
+      // `viewport-fit=cover`): installed to the Home Screen this row is
+      // the top of the screen, so its padding grows to clear a notch or
+      // a Dynamic Island, and its sides clear the rounded corners in
+      // landscape. In a browser tab every inset is zero and these are
+      // the plain paddings they replace.
+      className="flex shrink-0 flex-wrap items-center gap-1.5 border-b border-border bg-background pt-[max(0.5rem,env(safe-area-inset-top))] pr-[max(0.5rem,env(safe-area-inset-right))] pb-2 pl-[max(0.5rem,env(safe-area-inset-left))] sm:grid sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] sm:gap-2 sm:pr-[max(0.75rem,env(safe-area-inset-right))] sm:pl-[max(0.75rem,env(safe-area-inset-left))] print:hidden"
     >
       <div className="flex items-center sm:justify-self-start">{leading}</div>
       {/* mx-auto below `sm`: the flex row's free space split either side

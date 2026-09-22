@@ -37,7 +37,10 @@ export default function MapControls({ zoom, ownShip = false, children }: Props) 
     // z-[1000]: over Leaflet's own panes, the level Leaflet gives its
     // controls; still inside the map's own stacking context, under the
     // drawers and every portal.
-    <div className="absolute right-2 top-2 z-[1000] flex flex-col items-end gap-1.5">
+    // right: the safe-area inset as well as the gap, so these clear a
+    // rounded corner in landscape on an installed app (the map itself
+    // still draws edge to edge under them).
+    <div className="absolute top-2 right-[max(0.5rem,env(safe-area-inset-right))] z-[1000] flex flex-col items-end gap-1.5">
       <Popover>
         <PopoverTrigger asChild>
           <IconButton label="Chart layers" variant="outline" className="bg-background shadow-sm" data-testid="layers-button">

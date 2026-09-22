@@ -724,7 +724,9 @@ export default function NavLogView({
           below. `flight-briefing`: index.css's print rules keep the
           opened sections laid out on paper. */}
       <div
-        className="flight-briefing min-h-0 flex-1 overflow-auto px-3 print:h-auto print:overflow-visible"
+        // The bottom inset clears the home indicator on an installed
+        // app, so the last section's content is not under it.
+        className="flight-briefing min-h-0 flex-1 overflow-auto px-3 pb-[env(safe-area-inset-bottom)] print:h-auto print:overflow-visible print:pb-0"
         data-testid="navlog-scroller"
       >
         <Accordion type="multiple" value={printing ? ALL_SECTIONS : open} onValueChange={setOpen}>

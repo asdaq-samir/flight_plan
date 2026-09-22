@@ -2,7 +2,27 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!-- The viewport a full-screen chart needs, the same one Leaflet's
+         own mobile tutorial specifies and Windy, SkyVector and Google
+         Maps all ship. `user-scalable=no`/`maximum-scale=1`: a pinch or
+         a double tap must zoom the chart, which Leaflet handles, not the
+         document -- without this a gesture that starts on a map control
+         zooms the page instead, and leaves it zoomed. `viewport-fit=cover`:
+         the map draws edge to edge behind a notch or Dynamic Island, and
+         it is also what makes `env(safe-area-inset-*)` non-zero, which
+         the header and the map's own buttons pad themselves by. -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
+    />
+    <!-- Installed to the Home Screen this runs with no browser chrome at
+         all, which is the only way to be rid of Safari's address bar:
+         it never collapses here, because the page deliberately has no
+         document scroll for it to collapse on (see the style below).
+         The manifest's own `display: standalone` (vite.config.ts) is what
+         iOS actually reads; this is the non-deprecated belt-and-braces
+         for anything that looks for a meta tag instead. -->
+    <meta name="mobile-web-app-capable" content="yes" />
     <!-- The pre-hydration fallback -- useDocumentTitle overrides this
          per page once React mounts, so a tab open before that (or a
          crawler that never runs JS) still sees a real title. -->
