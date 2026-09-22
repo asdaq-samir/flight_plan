@@ -52,10 +52,10 @@ Ten services, one `docker compose up`. Full write-up, including the AWS target a
 git clone https://github.com/asdaq-samir/flight_plan.git
 cd flight_plan
 
-export ANTHROPIC_API_KEY=sk-...   # only needed for nav-log-agent / crewai-agent
-
 docker compose up webapp          # UI + API at http://localhost:8080/app
 ```
+
+No API key is needed for any of that. The two services that call Claude — `nav-log-agent` and `crewai-agent` — sit behind a Compose profile (`docker compose --profile ai up`) and want an `ANTHROPIC_API_KEY` of your own; nothing else does.
 
 Everything else — `ml`, `airflow`, `nav-log-agent`, `crewai-agent`, and the full prerequisite/setup guide — is in [`docs/README.md#getting-started`](docs/README.md#getting-started). No native Python, Node, or Java toolchain is required; every service builds its own image.
 

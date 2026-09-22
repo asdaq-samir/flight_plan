@@ -13,7 +13,15 @@ x-python-healthcheck: &python-healthcheck
   retries: 10
   start_period: 10s
 
-x-anthropic-api-key: &anthropic-api-key ${ANTHROPIC_API_KEY:?Set ANTHROPIC_API_KEY in your shell or a .env file}
+# `:-` rather than `:?`, which this was until it was tried from a clean
+# checkout. Compose interpolates the whole file before it decides what to
+# start, so a required-variable marker anywhere in it fails every command
+# -- `docker compose up webapp`, and even `docker compose config`. That
+# put an Anthropic key in front of the map, the planner and the chart
+# tiles, none of which call an LLM at all. The services that genuinely
+# need a key are behind the `ai` profile below and refuse to start
+# without one themselves, which is the same fail-fast a level later.
+x-anthropic-api-key: &anthropic-api-key ${ANTHROPIC_API_KEY:-}
 
 services:
   ml:
@@ -196,6 +204,11 @@ services:
       test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/ping')"]
 
   nav-log-agent:
+    # Behind a profile: it is the one service that cannot do anything
+    # without an Anthropic key, so it is not part of a default
+    # `docker compose up`. Start it with `--profile ai`, or by naming it
+    # (`docker compose up -d nav-log-agent`), which enables its profile.
+    profiles: ["ai"]
     build:
       context: .
       dockerfile: nav-log-agent/Dockerfile
@@ -212,14 +225,19 @@ services:
       PYTHONPATH: /workspace/src
       ANTHROPIC_API_KEY: *anthropic-api-key
       # The MCP server's own bearer-token gate -- see app/main.py's
-      # BearerAuthMiddleware. Required for the same reason
-      # ANTHROPIC_API_KEY is: fail at compose-parse time, not with a
-      # confusing 401 once an MCP client tries to connect.
-      NAV_LOG_AGENT_API_KEY: ${NAV_LOG_AGENT_API_KEY:?Set NAV_LOG_AGENT_API_KEY in your shell or a .env file}
+      # BearerAuthMiddleware. Unset, the server exits on startup saying
+      # so ("refuses to start unauthenticated") rather than coming up
+      # open, so the check that used to happen at compose-parse time
+      # still happens loudly, one step later -- and now only for the
+      # people actually starting this service.
+      NAV_LOG_AGENT_API_KEY: ${NAV_LOG_AGENT_API_KEY:-}
       MODEL_SERVICE_URL: http://model-service:8000
       DATABASE_URL: postgresql://vfr:vfr@db:5432/vfr_route
 
   crewai-agent:
+    # Behind the same `ai` profile as nav-log-agent, and for the same
+    # reason: every one of its crew's steps is a Claude call.
+    profiles: ["ai"]
     build:
       context: .
       dockerfile: crewai-agent/Dockerfile

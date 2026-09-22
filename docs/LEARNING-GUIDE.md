@@ -228,11 +228,18 @@ Per service, four keys matter most:
   type into your browser; the right side is what the app inside actually
   binds to.
 - `environment:` — env vars injected into the container. Notice
-  `${ANTHROPIC_API_KEY:?...}` on `nav-log-agent`/`crewai-agent` — the
-  `:?message` syntax means "fail immediately with this message if the
-  variable is unset," which is why those two services refuse to even
-  *start* Compose without a key, rather than starting and failing later
-  with a confusing auth error.
+  `${ANTHROPIC_API_KEY:-}` on `nav-log-agent`/`crewai-agent`: `:-` means
+  "empty if unset". Its sibling `${VAR:?message}` means "fail immediately
+  with this message if unset", and this file used that until it was tried
+  from a clean checkout — Compose interpolates the *whole* file before it
+  decides which services to start, so one required-variable marker failed
+  every command, including `docker compose up webapp` and even
+  `docker compose config`. A worked lesson in where a check belongs: these
+  two services now declare `profiles: ["ai"]` and check their own keys at
+  startup, so the failure reaches only the people starting them.
+- `profiles:` — a service with a profile is left out of a plain
+  `docker compose up`. `--profile ai` includes it, and naming the service
+  directly enables its profile too.
 - `depends_on:` — controls **start order** only (Compose waits for the
   dependency's container to start, not for the app inside it to be
   ready). It does not retry connections — if `webapp` starts faster than

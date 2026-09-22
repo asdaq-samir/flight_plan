@@ -422,7 +422,13 @@ an engineering gap:
   there is no native Python virtualenv.
 - **Git.**
 - **An Anthropic API key** (`ANTHROPIC_API_KEY`) — only required to run
-  `nav-log-agent` or `crewai-agent`. Everything else works without one.
+  `nav-log-agent` or `crewai-agent`, which are the two services behind the
+  `ai` Compose profile. Everything else works without one, including every
+  `docker compose` command: the key is read with `:-`, not `:?`, precisely
+  so that a missing key cannot fail a command that was never going to call
+  an LLM. (`planning-service` also calls Claude, for the optional "how to
+  spot it" checkpoint notes; without a key that one endpoint returns an
+  error and the rest of the planner is unaffected.)
 - **AWS CLI + credentials** — only required for an actual AWS deploy; local
   development works without them. See [`README-AWS.md`](README-AWS.md).
 
@@ -625,8 +631,12 @@ Notes:
 - `airflow`'s DAG launches Collect/Feature-Engineer/Retrain as sibling
   containers via `DockerOperator`; build them first
   (`docker compose build pipeline-processing pipeline-training`).
-- `nav-log-agent`/`crewai-agent` fail fast at `docker compose` parse time
-  if `ANTHROPIC_API_KEY` is unset.
+- `nav-log-agent`/`crewai-agent` are behind the `ai` profile, so a plain
+  `docker compose up` leaves them out. Start them with
+  `docker compose --profile ai up -d`, or by naming one
+  (`docker compose up -d nav-log-agent`), which enables its profile.
+  Without a key they fail at container start, not at parse time — the MCP
+  server exits saying it "refuses to start unauthenticated".
 - Full port list: `webapp` 8080, `model-service` 8000, `db` 5432
   (`vfr`/`vfr`/`vfr_route`), `airflow` 8081, `nav-log-agent` 8082,
   `planning-service` 8084, `ml` 8888. Addresses are in

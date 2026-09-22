@@ -21,12 +21,21 @@ cannot produce: prose a pilot would want to read.
 
 ```bash
 export ANTHROPIC_API_KEY=sk-ant-...
+export NAV_LOG_AGENT_API_KEY=any-string-you-choose
 docker compose up -d nav-log-agent     # MCP server on :8082
 ```
 
-Compose refuses to start without the key — `${ANTHROPIC_API_KEY:?...}`
-fails at parse time rather than letting the container start and fail
-later with a confusing auth error.
+This service is behind the `ai` Compose profile, so a plain
+`docker compose up` leaves it out; naming it as above enables its
+profile, as does `--profile ai`.
+
+Both keys are checked when the container starts, not when Compose parses
+the file: unset, the server exits with "refuses to start
+unauthenticated" rather than coming up open. It used to be
+`${ANTHROPIC_API_KEY:?...}`, which reads well and fails too widely --
+Compose interpolates the whole file before it decides what to run, so
+that marker failed `docker compose up webapp` too, and even
+`docker compose config`.
 
 ## Learning this from zero
 

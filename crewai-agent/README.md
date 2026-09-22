@@ -16,7 +16,7 @@ HTTP wrapper around the same crew.
 ## Running it
 
 ```bash
-export ANTHROPIC_API_KEY=sk-ant-...
+export ANTHROPIC_API_KEY=sk-ant-...   # this service is behind the `ai` profile
 docker compose run --rm crewai-agent \
   python -m app.main --departure-ident C81 --destination-ident KDLH
 ```
