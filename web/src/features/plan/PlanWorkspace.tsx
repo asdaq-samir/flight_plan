@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
+import type { Map as LeafletMap } from "leaflet";
 import { cn } from "cn";
 import { api } from "../../lib/api/client";
 import type { AircraftChoice, AircraftProfileSummary, AltitudeChoice, Candidate } from "../../lib/api/types";
@@ -120,14 +121,14 @@ export default function PlanWorkspace({ dep, dest, onRoute, sidebarOpen, childre
     return options.some(o => aircraftKey(o) === aircraftKey(aircraft)) ? options : [aircraft, ...options];
   }, [profiles, myAircraft, aircraft]);
 
-  const controls = useRef<{ fit: () => void } | null>(null);
+  const fitRoute = useRef<(() => void) | null>(null);
   // A stable identity, not an inline arrow at the RouteMap call site --
   // that map's own course-load effect lists onReady as a dependency,
   // and a fresh function every render would re-run it (tearing down and
   // rebuilding every map layer) on every unrelated re-render, not just
   // when the course actually changes.
-  const handleMapReady = useCallback((c: { fit: () => void }) => {
-    controls.current = c;
+  const handleMapReady = useCallback((_map: LeafletMap, fit: () => void) => {
+    fitRoute.current = fit;
   }, []);
 
   // Whichever waypoint is focused -- by its own coordinates, not a row
@@ -221,7 +222,7 @@ export default function PlanWorkspace({ dep, dest, onRoute, sidebarOpen, childre
   const [zoomedIn, setZoomedIn] = useState(false);
   const toggleZoom = useCallback(() => {
     if (!course) return;
-    if (zoomedIn) { controls.current?.fit(); return; }
+    if (zoomedIn) { fitRoute.current?.(); return; }
     selectPoint(selectedPoint ?? { lat: course.departure.lat, lon: course.departure.lon });
   }, [course, selectedPoint, selectPoint, zoomedIn]);
 

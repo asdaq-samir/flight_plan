@@ -1,15 +1,13 @@
 import L from "leaflet";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { AttributionControl, MapContainer, Marker, Popup } from "react-leaflet";
-import MapControls, { type ZoomControl } from "../../../components/MapControls";
-import OverlayPin from "../../../components/OverlayPin";
+import { type ReactNode } from "react";
+import { Marker, Popup } from "react-leaflet";
+import type { ZoomControl } from "../../../components/MapControls";
 import type { Course, Point } from "../../../lib/api/types";
 import { isEndpoint } from "../../../lib/api/types";
-import { ChartTiles, type OverlayOffer } from "../../../lib/map/ChartTiles";
 import { CourseLine } from "../../../lib/map/CourseLine";
 import { Halo } from "../../../lib/map/Halo";
 import { dotIcon, endLabelIcon } from "../../../lib/map/icons";
-import { ResizeAware } from "../../../lib/map/MapEffects";
+import { MapShell } from "../../../lib/map/MapShell";
 import { CROWD_FROM_ZOOM, useZoomLevel } from "../../../lib/map/useZoomLevel";
 import { COLORS, hasRating, isVisible, type Filters } from "../logic";
 
@@ -57,41 +55,21 @@ function Candidates({ detections, added, filters, onSelect }: Pick<Props, "detec
 }
 
 /**
- * The training map, as react-leaflet components: the chart tiles, the
- * course line (a click on it adds a point), the airports, every
- * candidate the filters admit, and the selection ring with the rating
- * menu pinned above it. The markers are a function of state -- the
- * whole reason for the port: the list of what is on screen is derived,
- * not kept in step by hand.
+ * The training map's own layers: the course line (a click on it adds a
+ * point), the airports, every candidate the filters admit, and the
+ * selection ring with the rating menu pinned above it. The markers are
+ * a function of state -- the whole reason for the port: the list of
+ * what is on screen is derived, not kept in step by hand. Everything
+ * under them is `MapShell`, which the planner's map shares.
  */
 export default function ChartMap({
   course, endpoints, detections, added, filters, selected, selectedContent, showMenu,
   onSelect, onAddAt, onMapReady, zoom,
 }: Props) {
-  const [map, setMap] = useState<L.Map | null>(null);
-  const [offer, setOffer] = useState<OverlayOffer | null>(null);
-  const [previewing, setPreviewing] = useState(false);
-  const bounds = useMemo(() => (course ? L.latLngBounds(course.course_line as [number, number][]) : null), [course]);
-  useEffect(() => { if (map) onMapReady?.(map); }, [map, onMapReady]);
-  // Fit to the route when it changes; invalidateSize first, since on a
-  // fresh reload the map can fit against a stale cached container size.
-  useEffect(() => {
-    if (!map || !bounds) return;
-    map.invalidateSize();
-    map.fitBounds(bounds, { padding: [30, 30] });
-  }, [map, bounds]);
-
   return (
-    <div className="relative h-full w-full">
-      {course && bounds ? (
-        <MapContainer
-          ref={setMap} bounds={bounds} boundsOptions={{ padding: [30, 30] }}
-          zoomControl={false} minZoom={3} keyboard={false} attributionControl={false}
-          className="h-full w-full bg-slate-100 dark:bg-slate-900"
-        >
-          <AttributionControl prefix={false} />
-          <ResizeAware />
-          <ChartTiles course={course} previewing={previewing} onOffer={setOffer} />
+    <MapShell course={course} onReady={onMapReady} zoom={zoom}>
+      {course && (
+        <>
           {/* Left-click the course to add: dragging still pans, and an
               18 px line is too specific to hit by accident. */}
           <CourseLine
@@ -124,13 +102,8 @@ export default function ChartMap({
               {selectedContent}
             </Popup>
           )}
-        </MapContainer>
-      ) : (
-        <div className="h-full w-full bg-slate-100 dark:bg-slate-900" />
+        </>
       )}
-      <MapControls zoom={zoom}>
-        <OverlayPin offer={offer} onPreview={setPreviewing} />
-      </MapControls>
-    </div>
+    </MapShell>
   );
 }

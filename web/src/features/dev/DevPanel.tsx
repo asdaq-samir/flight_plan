@@ -6,15 +6,14 @@ import { ExternalLink, RefreshCw, SquareTerminal } from "lucide-react";
 import { toast } from "sonner";
 import { Bar, BarChart, Cell, LabelList, XAxis, YAxis } from "recharts";
 import { cn } from "cn";
+import ConsoleTabs from "../../components/ConsoleTabs";
 import IconButton from "../../components/IconButton";
-import ThemeToggle from "../../components/ThemeToggle";
 import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "../../components/ui/chart";
 import {
   Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow,
 } from "../../components/ui/table";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../components/ui/tabs";
 import { api } from "../../lib/api/client";
 import type { ModelComparisonEntry, Status } from "../../lib/api/types";
 import RatingGuide from "../train/components/RatingGuide";
@@ -41,11 +40,6 @@ const LOCAL_HOSTS = ["localhost", "127.0.0.1"];
 const CHART_KIND_LABELS: Record<string, string> = {
   sec: "Sectional", tac: "TAC", ifr_low: "IFR low", ifr_high: "IFR high", ifr_area: "IFR area",
 };
-// The tab the console was last on, remembered per browser: a developer
-// watching a retrain or a route being collected reopens the console to
-// the same tab, not to Model Training every time.
-const TABS = ["training", "performance", "system"];
-
 /** The header button that opens the console: a `SheetTrigger` child,
  *  so the sheet's own open state, click and `aria-expanded` arrive as
  *  props and land on the button. A console glyph, not the flask: the
@@ -81,9 +75,10 @@ export function DevPanel() {
   const { data: status, isFetching } = useQuery({
     queryKey: ["status"], queryFn: api.status, refetchInterval: 30000,
   });
-  // The tab the drawer was last on, remembered per browser.
+  // The tab the console was last on, remembered per browser: a
+  // developer watching a retrain or a route being collected reopens the
+  // console to the same tab, not to Model Training every time.
   const savedTab = usePreferences(s => s.devTab);
-  const tab = TABS.includes(savedTab) ? savedTab : "training";
   const changeTab = usePreferences(s => s.setDevTab);
   // Everything the console shows, asked for again now rather than at
   // the next 30-second tick: the snapshot, the model comparison and
@@ -93,29 +88,23 @@ export function DevPanel() {
   });
 
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto">
-      <div className="mx-auto max-w-3xl p-4">
-        <Tabs value={tab} onValueChange={changeTab}>
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <TabsList>
-              <TabsTrigger value="training">Model Training</TabsTrigger>
-              <TabsTrigger value="performance">Performance</TabsTrigger>
-              <TabsTrigger value="system">System</TabsTrigger>
-            </TabsList>
-            <div className="flex items-center gap-2">
-              {status && <span className="text-xs text-muted-foreground">Checked {ago(status.checked_at)}</span>}
-              <IconButton label="Check again" onClick={refreshAll} disabled={isFetching} data-testid="dev-refresh">
-                <RefreshCw className={cn("size-4", isFetching && "animate-spin")} />
-              </IconButton>
-              <ThemeToggle />
-            </div>
-          </div>
-          <TabsContent value="training" className="mt-3"><TrainingTab status={status} /></TabsContent>
-          <TabsContent value="performance" className="mt-3"><PerformanceTab status={status} /></TabsContent>
-          <TabsContent value="system" className="mt-3"><SystemTab status={status} /></TabsContent>
-        </Tabs>
-      </div>
-    </div>
+    <ConsoleTabs
+      saved={savedTab}
+      onChange={changeTab}
+      actions={
+        <>
+          {status && <span className="text-xs text-muted-foreground">Checked {ago(status.checked_at)}</span>}
+          <IconButton label="Check again" onClick={refreshAll} disabled={isFetching} data-testid="dev-refresh">
+            <RefreshCw className={cn("size-4", isFetching && "animate-spin")} />
+          </IconButton>
+        </>
+      }
+      tabs={[
+        { value: "training", label: "Model Training", content: <TrainingTab status={status} /> },
+        { value: "performance", label: "Performance", content: <PerformanceTab status={status} /> },
+        { value: "system", label: "System", content: <SystemTab status={status} /> },
+      ]}
+    />
   );
 }
 
