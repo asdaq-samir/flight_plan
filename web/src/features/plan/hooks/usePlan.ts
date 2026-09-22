@@ -73,6 +73,11 @@ export function usePlan(
 ) {
   const queryClient = useQueryClient();
   const routeKnown = !!dep && !!dest && dep !== dest;
+  // The form will not submit a route from an airport to itself, but the
+  // address can hold one -- a pasted link, an edited URL, a back button
+  // to a half-typed state. Nothing is fetched for it, so without this
+  // the page sat blank: no chart, no message, nothing to press.
+  const sameAirport = !!dep && dep === dest;
 
   // The previous route's course stays on the map until the new one is
   // charted, so the map is never taken down between routes.
@@ -254,6 +259,7 @@ export function usePlan(
     selected: checkpoints.data?.selected ?? [],
     legs, nav, totals, navStage, stage,
     needsBuild: needsBuild ? { dep, dest } : null,
+    sameAirport,
     building,
     build: () => startBuild.mutate(),
     briefing: briefing.data ?? null,

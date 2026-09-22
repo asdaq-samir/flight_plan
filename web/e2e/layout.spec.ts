@@ -469,6 +469,23 @@ test("plan page: a click or Enter selects a nav log checkpoint, with the briefin
   await expect(titles.nth(1)).toBeFocused();
 });
 
+test("plan page: a route from an airport to itself says so, rather than showing nothing at all", async ({ page }) => {
+  // The form refuses to submit one, but the address can hold one: a
+  // pasted link, an edited URL. Nothing is fetched for it, so the page
+  // used to sit blank -- no chart, no message, nothing to press.
+  await page.goto("/app/plan?dep=C81&dest=C81");
+  await settle(page);
+  await expect(page.getByText("A route needs two different airports.")).toBeVisible();
+  await expect(page.getByText("C81 is both the departure and the destination.")).toBeVisible();
+
+  // And it is a state the pilot can leave: change one and the route loads.
+  await page.getByLabel("Destination", { exact: true }).click();
+  await page.getByPlaceholder("Ident or airport name").fill("KDLH");
+  await page.getByRole("option", { name: /KDLH/ }).first().click();
+  await page.getByRole("button", { name: "Load" }).click();
+  await expect(page.getByText("A route needs two different airports.")).toBeHidden({ timeout: 25000 });
+});
+
 test("plan page: the map's zoom toggle goes to the selection and back, however many times", async ({ page }) => {
   // It is one button with two jobs, and which job it is offering has to
   // follow the map's real zoom -- including a zoom the button itself

@@ -14,6 +14,7 @@ import "leaflet/dist/leaflet.css";
 import { useProgressToast } from "../../lib/useProgressToast";
 import type { WorkspaceProps } from "../page/workspace";
 import { PilotPanel } from "../pilot/PilotPanel";
+import { Alert, AlertDescription, AlertTitle } from "../../components/ui/alert";
 import BuildNotice from "./components/BuildNotice";
 import FlightBriefingView from "./components/briefing/FlightBriefingView";
 import NavLogActions from "./components/navlog/NavLogActions";
@@ -303,7 +304,14 @@ export default function PlanWorkspace({ dep, dest, onRoute, sidebarOpen, childre
     console: <PilotPanel course={course} />,
     submit,
     loading: s.stage !== null,
-    notices: s.needsBuild ? (
+    notices: s.sameAirport ? (
+      <Alert className="rounded-none border-x-0 border-t-0 border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/40">
+        <AlertTitle>A route needs two different airports.</AlertTitle>
+        <AlertDescription>
+          {planned.dep} is both the departure and the destination. Change one of them and press Load.
+        </AlertDescription>
+      </Alert>
+    ) : s.needsBuild ? (
       <BuildNotice dep={s.needsBuild.dep} dest={s.needsBuild.dest} building={s.building} onBuild={s.build} />
     ) : null,
   });
