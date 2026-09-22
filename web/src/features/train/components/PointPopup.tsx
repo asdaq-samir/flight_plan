@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import IconButton from "../../../components/IconButton";
 import { Badge } from "../../../components/ui/badge";
@@ -82,6 +83,21 @@ export default function PointPopup({
       >
         <ChevronRight className="size-5" strokeWidth={3} />
       </IconButton>
+    </div>
+  );
+
+  // The head every card on either map leads with: what the thing is,
+  // then where it is, then the way out in the corner. This card used to
+  // open with its step arrows and keep the point's own identity as a
+  // muted line near the bottom, under the rating chips and the category
+  // select -- the only card of the three that made you read to the end
+  // to find out what you were looking at.
+  const head = (title: ReactNode, sub: ReactNode) => (
+    <div className="flex items-start gap-2">
+      <div className="min-w-0 flex-1 space-y-0.5">
+        <div className="text-sm font-semibold">{title}</div>
+        <div className="text-muted-foreground">{sub}</div>
+      </div>
       <IconButton type="button" label="Close" size="icon-sm" onClick={onClose} data-testid="popup-close">
         <X className="size-4" />
       </IconButton>
@@ -90,13 +106,15 @@ export default function PointPopup({
 
   if (isEndpoint(point)) {
     return (
-      <div className="space-y-2 text-sm">
+      <div className="space-y-2 text-xs">
+        {head(
+          <span className="flex items-center gap-1.5">
+            <Badge variant="secondary">{point.category === "departure" ? "DEP" : "DEST"}</Badge>
+            {point.ident}
+          </span>,
+          point.name,
+        )}
         {arrows}
-        <div>
-          <Badge variant="secondary">{point.category === "departure" ? "DEP" : "DEST"}</Badge>{" "}
-          <b>{point.ident}</b>
-          <div className="text-muted-foreground">{point.name}</div>
-        </div>
       </div>
     );
   }
@@ -109,7 +127,17 @@ export default function PointPopup({
     : [category, ...CATEGORIES];
 
   return (
-    <div className="space-y-2 text-sm">
+    <div className="space-y-2 text-xs">
+      {head(
+        category,
+        <>
+          {point.along_track_nm.toFixed(1)} nm {compassPoint(bearingDeg)} of {departureIdent}
+          {/* DR points are on the line by definition (that's what makes
+              them DR) -- the distance only means something for a visual
+              point, which is picked precisely because it sits off it. */}
+          {roleOf(point) === "visual" && <> · {Math.abs(cross).toFixed(2)} nm off course</>}
+        </>,
+      )}
       {arrows}
 
       {/* No flex-wrap: Leaflet measures a popup's width by briefly
@@ -135,21 +163,20 @@ export default function PointPopup({
         ))}
       </div>
 
-      <Select value={category} onValueChange={onCategoryChange}>
-        <SelectTrigger className="w-full">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {options.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-        </SelectContent>
-      </Select>
-
-      <div className="space-y-0.5 text-muted-foreground">
-        <div>{point.along_track_nm.toFixed(1)} nm {compassPoint(bearingDeg)} of {departureIdent}</div>
-        {/* DR points are on the line by definition (that's what makes
-            them DR) -- the distance only means something for a visual
-            point, which is picked precisely because it sits off it. */}
-        {roleOf(point) === "visual" && <div>{Math.abs(cross).toFixed(2)} nm off course</div>}
+      {/* Labelled, because a detection has no name of its own: the head
+          above already says "road_or_rail", and without a label this
+          repeats it as bare text rather than reading as the control
+          that changes it. */}
+      <div className="space-y-0.5">
+        <div className="text-muted-foreground">Category</div>
+        <Select value={category} onValueChange={onCategoryChange}>
+          <SelectTrigger className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {options.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+          </SelectContent>
+        </Select>
       </div>
 
       <Button type="button" variant="destructive" onClick={onRemove} className="w-full">

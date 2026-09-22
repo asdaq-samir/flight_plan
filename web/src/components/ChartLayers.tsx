@@ -67,7 +67,7 @@ export default function ChartLayers() {
       </div>
       <p className="text-xs text-muted-foreground">
         A marker on each, coloured by what the field is reporting now. Hover one for its METAR and TAF;
-        tap it for the same card with the terminal area chart's pin in it.
+        tap it to go there, with the same card and the terminal area chart's pin in it.
       </p>
 
       <div className="flex items-center gap-2 border-t border-border pt-2">

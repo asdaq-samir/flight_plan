@@ -248,7 +248,16 @@ export default function TrainWorkspace({ dep, dest, children }: WorkspaceProps) 
   // Stable identities for ChartMap's own effects, which list them as
   // dependencies (see its comment) -- an inline arrow at the call site
   // would redraw every marker on every render of this page.
-  const onSelect = useCallback((kind: Selection["kind"], index: number) => select({ kind, index }), [select]);
+  // A tap on a marker goes to it, the same as walking onto it with the
+  // keys does (`focus` above) and the same as a tap on a marker does on
+  // the planner's map. It used to select without moving, which made the
+  // same gesture mean two different things on two maps.
+  const onSelect = useCallback((kind: Selection["kind"], index: number) => {
+    select({ kind, index });
+    const from = kind === "endpoint" ? store.endpoints : kind === "detected" ? store.detections : store.added;
+    const point = from[index];
+    if (point && map) map.setView([point.lat, point.lon], Math.max(map.getZoom(), FOCUS_ZOOM));
+  }, [select, store.endpoints, store.detections, store.added, map]);
   const onAddAt = useCallback((lat: number, lon: number) => { void addPick(lat, lon); }, [addPick]);
 
   // The chart read's progress; its failures are the query client's to

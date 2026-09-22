@@ -150,7 +150,19 @@ test("tapping one opens a card, and the card pins its terminal chart", async ({ 
   await expect(ord).toBeVisible({ timeout: 20000 });
 
   expect(tacTiles).toHaveLength(0);
+
+  // A tap goes to the field, the way a tap on any marker on either map
+  // does. The chart's own tile z is the map's zoom, up to the zoom the
+  // FAA publishes sectionals at.
+  const tileZoom = () => page.evaluate(() => {
+    const tile = document.querySelector('img.leaflet-tile[src*="/chart-tile/sec/"]') as HTMLImageElement | null;
+    const m = tile?.src.match(/\/sec\/(\d+)\//);
+    return m ? Number(m[1]) : null;
+  });
+  const before = await tileZoom();
   await ord.click();
+  await expect.poll(tileZoom, { timeout: 20000 }).toBeGreaterThanOrEqual(10);
+  expect(before).toBeLessThan(10);
 
   // The card: the same weather the tooltip shows, plus the pin.
   const card = page.locator(".leaflet-popup-content");

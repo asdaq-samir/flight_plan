@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Marker, useMap } from "react-leaflet";
-import { Pin, PinOff, ZoomIn } from "lucide-react";
+import { Pin, PinOff } from "lucide-react";
 import IconButton from "../../components/IconButton";
 import { api } from "../api/client";
 import type { ReactNode } from "react";
@@ -86,7 +86,7 @@ function Details({ airport, actions }: { airport: ClassBAirport; actions?: React
       {airport.metar && <p className="pt-1 font-mono break-words">{airport.metar}</p>}
       {airport.taf && <p className="font-mono break-words text-muted-foreground">{airport.taf}</p>}
       {airport.tac && !actions && (
-        <p className="pt-1 text-muted-foreground">Tap to pin the {airport.tac}.</p>
+        <p className="pt-1 text-muted-foreground">Tap to go there, and to pin the {airport.tac}.</p>
       )}
     </div>
   );
@@ -98,8 +98,9 @@ function Details({ airport, actions }: { airport: ClassBAirport; actions?: React
  * A marker each, coloured by what the field is reporting right now, so
  * a whole route's worth of "can I get in there today" reads at a
  * glance without opening anything. Hovering one shows the METAR and the
- * TAF. Tapping one opens the same card with the terminal area chart's
- * pin in it: a Class B is the one place a sectional is not enough, and
+ * TAF. Tapping one goes to the field -- every marker on either map
+ * answers a tap the same way -- and opens the same card with the
+ * terminal area chart's pin in it: a Class B is the one place a sectional is not enough, and
  * the layer picker is two taps too many when the answer is "look at
  * it".
  *
@@ -157,15 +158,28 @@ export function ClassBLayer({ course, onPreview }: { course: Course; onPreview: 
             // scrolls out from under the pointer still fires it, where
             // a timer would leave the chart drawn with nothing on
             // screen to say why.
-            mouseover: () => { if (airport.tac) onPreview(true); },
+            // Not while this field's own card is open: the tap that
+            // opened it brings the map to the field, which leaves the
+            // marker under the pointer -- and a hover preview starting
+            // up again there would draw the terminal chart under the
+            // card the pilot is trying to read. The card is read
+            // against the base chart; the pin is what keeps a sheet
+            // drawn.
+            mouseover: () => { if (airport.tac && carded !== airport.ident) onPreview(true); },
             mouseout: () => onPreview(false),
             // Tapping opens the card, which carries the pin. The pin
             // used to float at the map's top-right corner, away from
             // the airport it applied to; it belongs with the field's
             // own information.
-            // Leaflet opens the card itself; this only takes the hover
-            // preview down so the card is read against the base chart.
-            click: () => onPreview(false),
+            // A tap on any marker on either map goes to it, and opens
+            // whatever it has to say. Leaflet opens the card itself;
+            // this takes the hover preview down, so the card is read
+            // against the base chart, and brings the map to the field
+            // at the zoom its terminal chart starts at.
+            click: () => {
+              onPreview(false);
+              map.flyTo([airport.lat, airport.lon], Math.max(map.getZoom(), tacFromZoom));
+            },
             popupopen: () => setCarded(airport.ident),
             popupclose: () => setCarded(c => (c === airport.ident ? null : c)),
           }}
@@ -189,10 +203,12 @@ export function ClassBLayer({ course, onPreview }: { course: Course; onPreview: 
             <Details
               airport={airport}
               actions={airport.tac && (
-                // Icons rather than worded buttons: the card is mostly
-                // raw METAR and TAF, and two labelled buttons under it
-                // pushed the weather off a phone screen. Each names
-                // itself in a tooltip and in its accessible name.
+                // An icon rather than a worded button: the card is
+                // mostly raw METAR and TAF, and a labelled button under
+                // it pushed the weather off a phone screen. It names
+                // itself in a tooltip and in its accessible name. The
+                // zoom that used to sit beside it is gone: the tap that
+                // opened this card already went to the field.
                 <div className="flex shrink-0 items-center">
                   <IconButton
                     label={pinned ? "Unpin the terminal area chart" : `Pin the ${airport.tac}`}
@@ -210,13 +226,6 @@ export function ClassBLayer({ course, onPreview }: { course: Course; onPreview: 
                     }}
                   >
                     {pinned ? <PinOff className="size-4" /> : <Pin className="size-4" />}
-                  </IconButton>
-                  <IconButton
-                    label={`Zoom to ${airport.ident}`}
-                    data-testid="class-b-zoom"
-                    onClick={() => map.flyTo([airport.lat, airport.lon], Math.max(map.getZoom(), tacFromZoom))}
-                  >
-                    <ZoomIn className="size-4" />
                   </IconButton>
                 </div>
               )}
