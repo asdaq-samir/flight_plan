@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import { useSearchParams } from "react-router-dom";
+import { cn } from "cn";
+import { EXPANDED_BUTTON } from "../../lib/expandedButton";
 import DevSwitch from "../../components/DevSwitch";
 import MapHeader from "../../components/MapHeader";
 import RouteForm from "../../components/RouteForm";
@@ -126,7 +128,15 @@ export default function MapPage({ mode }: { mode: Mode }) {
                 under the sidebar and the sheets. */}
             <div className="relative isolate min-h-0 flex-1 overflow-hidden">{pieces.map}</div>
           </SidebarInset>
-          <Sidebar side="right" collapsible="offcanvas" aria-label={sidebar}>
+          {/* h-dvh, overriding the stock panel's own `h-svh`: `svh` is
+              the viewport height with the browser's chrome shown, so
+              with Safari's toolbar hidden (or collapsed by a scroll)
+              the panel ended short by the chrome's height and the page
+              showed through below it -- the same white, so it read as
+              dead space under the last section. `dvh` is what the rest
+              of the shell is sized by, and it tracks what is actually
+              visible. */}
+          <Sidebar side="right" collapsible="offcanvas" aria-label={sidebar} className="h-dvh">
             <SidebarContent className="gap-0 overflow-hidden print:overflow-visible">{pieces.sidebar}</SidebarContent>
           </Sidebar>
         </SidebarProvider>
@@ -143,7 +153,7 @@ function DrawerTrigger({ label }: { label: string }) {
     <SidebarTrigger
       aria-label={label}
       aria-expanded={isMobile ? openMobile : open}
-      className="aria-expanded:bg-primary aria-expanded:text-primary-foreground aria-expanded:hover:bg-primary/90"
+      className={cn("size-9", EXPANDED_BUTTON)}
       data-testid="sidebar-trigger-button"
     />
   );

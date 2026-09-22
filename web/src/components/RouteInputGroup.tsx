@@ -48,7 +48,10 @@ export default function RouteInputGroup({
         invalid={invalid}
         className="min-w-16 px-1.5 sm:min-w-24 sm:px-2.5"
       />
-      <InputGroupAddon align="inline-end" className="gap-1.5 pr-1.5 sm:pr-3">
+      {/* pr-2/sm:pr-2.5: the Load button is inset inside the group's own
+          border rather than nearly touching it, which read as the
+          button bursting out of the group. */}
+      <InputGroupAddon align="inline-end" className="gap-1.5 pr-2 sm:pr-2.5">
         {children}
       </InputGroupAddon>
     </InputGroup>

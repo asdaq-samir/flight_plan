@@ -1,6 +1,8 @@
 import type { ComponentProps } from "react";
+import { cn } from "cn";
 import { Button } from "./ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
+import { EXPANDED_BUTTON } from "../lib/expandedButton";
 
 interface Props extends Omit<ComponentProps<typeof Button>, "size"> {
   /** Names the button once: the tooltip's text and the accessible name. */
@@ -18,21 +20,16 @@ interface Props extends Omit<ComponentProps<typeof Button>, "size"> {
  * `PopoverTrigger`/`SheetTrigger asChild` outside -- because every
  * other prop, `ref` included, lands on the Button.
  *
- * A button that has opened something -- `aria-expanded` true: the nav
- * log or waypoints drawer, the pilot or dev console, the guide -- is
- * drawn filled (the `default` variant) for as long as it stays open,
- * so the header says which drawer is out. The ghost variant's own
- * expanded look is `bg-muted`, a shade that is barely there on the
- * pilot page's white header and exactly the dev page's own header
- * colour, which is to say invisible on both.
+ * A button that has opened something -- `aria-expanded` true: a
+ * console, the drawer -- carries a ring for as long as it stays open,
+ * so the header says which one is out (see `EXPANDED_BUTTON`).
  */
-export default function IconButton({ label, tooltip, variant = "ghost", children, onFocus, ...props }: Props) {
-  const expanded = props["aria-expanded"] === true || props["aria-expanded"] === "true";
+export default function IconButton({ label, tooltip, variant = "ghost", className, children, onFocus, ...props }: Props) {
   return (
     <Tooltip {...tooltip}>
       <TooltipTrigger asChild>
         <Button
-          variant={expanded ? "default" : variant} size="icon" aria-label={label}
+          variant={variant} size="icon" aria-label={label} className={cn(EXPANDED_BUTTON, className)}
           // The tooltip opens on a pointer, never on focus: a sheet
           // opening focuses its first control, and the tooltip that
           // popped up over it took the Escape meant for the sheet. The

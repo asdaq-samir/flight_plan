@@ -55,7 +55,11 @@ export default function MapHeader({ leading, form, actions, dev = false }: Props
           buttons rather than packed against the switch (the grid from
           `sm` up centres it against the whole header by itself). */}
       <div className="mx-auto sm:mx-0 sm:justify-self-center">{form}</div>
-      <div className="ml-auto flex items-center gap-1 [&>*]:size-8 sm:ml-0 sm:justify-self-end sm:gap-2 sm:[&>*]:size-9">
+      {/* gap-2/gap-3, not gap-1/gap-2: the form is centred against the
+          whole header, so there is always room to the left of this
+          group and the buttons inside it were the only crowded thing
+          in the row. */}
+      <div className="ml-auto flex items-center gap-2 [&>*]:size-8 sm:ml-0 sm:justify-self-end sm:gap-3 sm:[&>*]:size-9">
         {actions}
       </div>
     </header>

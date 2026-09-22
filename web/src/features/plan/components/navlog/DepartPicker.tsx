@@ -59,21 +59,29 @@ export default function DepartPicker({ value, onChange }: Props) {
           />
         </PopoverContent>
       </Popover>
-      {/* The stock Input keeps 16px below md, so a phone does not zoom
-          on it; the picker indicator is hidden the way the docs'
-          example hides it, the box itself being the control. */}
-      <Input
-        type="time"
-        value={time}
-        onChange={e => { if (e.target.value) onChange(instantAt(date ?? new Date(), e.target.value)); }}
-        aria-label="Departure time"
-        className="h-8 w-[6.5rem] appearance-none bg-background [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-calendar-picker-indicator]:appearance-none"
-        data-testid="depart-time"
-      />
+      {/* The time, and the way back to "now", only once a day is
+          picked: with no departure the flight is planned for about now
+          and a time means nothing, and an empty `type="time"` box
+          renders as a wide blank with no placeholder and nothing to
+          say what it is. Picking a day gives it the next whole hour,
+          so it is never empty while it is on screen. The stock Input
+          keeps 16px below md so a phone does not zoom on it, and the
+          browser's own picker indicator is hidden the way shadcn's own
+          example hides it -- the box is the control. */}
       {date && (
-        <IconButton label="Depart about now instead" className="size-8" onClick={() => onChange("")} data-testid="depart-clear">
-          <X className="size-4" />
-        </IconButton>
+        <>
+          <Input
+            type="time"
+            value={time}
+            onChange={e => { if (e.target.value) onChange(instantAt(date, e.target.value)); }}
+            aria-label="Departure time"
+            className="h-8 w-[6.5rem] appearance-none bg-background [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-calendar-picker-indicator]:appearance-none"
+            data-testid="depart-time"
+          />
+          <IconButton label="Depart about now instead" className="size-8" onClick={() => onChange("")} data-testid="depart-clear">
+            <X className="size-4" />
+          </IconButton>
+        </>
       )}
     </div>
   );
