@@ -7,6 +7,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.Instant;
+import lombok.Getter;
 
 /**
  * Someone who flies. Identity for everything else in the schema.
@@ -23,6 +24,7 @@ import java.time.Instant;
  */
 @Entity
 @Table(name = "pilots")
+@Getter
 public class Pilot {
 
     @Id
@@ -62,26 +64,6 @@ public class Pilot {
         this.appleSubject = appleSubject;
     }
 
-    public Long getId() {
-        return id;
-    }
-
-    public String getEmail() {
-        return email;
-    }
-
-    public String getDisplayName() {
-        return displayName;
-    }
-
-    public String getGoogleSubject() {
-        return googleSubject;
-    }
-
-    public String getAppleSubject() {
-        return appleSubject;
-    }
-
     /** Set on first Google sign-in for a pilot created before they had
      *  signed in through it. */
     public void linkGoogleSubject(String subject) {
@@ -92,9 +74,5 @@ public class Pilot {
      *  signed in through it. */
     public void linkAppleSubject(String subject) {
         this.appleSubject = subject;
-    }
-
-    public Instant getCreatedAt() {
-        return createdAt;
     }
 }

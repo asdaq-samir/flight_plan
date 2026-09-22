@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
 import { flushSync } from "react-dom";
-import clsx from "clsx";
+import { cn } from "cn";
 import { CircleHelp, Loader2, WandSparkles } from "lucide-react";
 import {
   type CellData, type ColumnDef, type RowData, type TableFeatures,
@@ -208,7 +208,7 @@ function DescriptionCell({
       // shadcn's own Textarea, sized down to a table cell: its 16px on
       // a phone stays (iOS Safari zooms the whole page in on focusing
       // any field under that), the rest is one line in the row.
-      className={clsx(
+      className={cn(
         "min-h-0 w-full resize-none rounded py-0.5 pr-1 pl-0.5 text-left align-top shadow-none md:text-xs",
         // The box itself stays light even when its row is selected --
         // only the surrounding row inverts, so this reads as an
@@ -594,7 +594,7 @@ export default function NavLogView({
                         Enter or Fly re-plans at it; the stock Input's
                         16px below md keeps a phone from zooming. */}
                     <form
-                      className={clsx(
+                      className={cn(
                         "flex items-center gap-2 rounded-md border px-2 py-1.5",
                         nav.choice === null ? "border-primary bg-primary text-primary-foreground" : "border-input",
                       )}
@@ -658,7 +658,7 @@ export default function NavLogView({
           do not hold it. */}
       {totals && totals.fuel_required_gal != null && (
         <div
-          className={clsx(
+          className={cn(
             "text-xs",
             totals.fuel_margin_gal != null && totals.fuel_margin_gal < 0
               ? "font-semibold text-destructive"

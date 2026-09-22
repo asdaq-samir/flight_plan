@@ -11,6 +11,7 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import java.time.Instant;
+import lombok.Getter;
 
 /**
  * One aeroplane, belonging to one pilot.
@@ -30,6 +31,7 @@ import java.time.Instant;
 @Entity
 @Table(name = "aircraft", uniqueConstraints =
         @UniqueConstraint(name = "uq_aircraft_pilot_tail", columnNames = {"pilot_id", "tail_number"}))
+@Getter
 public class Aircraft {
 
     @Id
@@ -84,37 +86,5 @@ public class Aircraft {
         this.fuelBurnGph = fuelBurnGph;
         this.usableFuelGal = usableFuelGal;
         return this;
-    }
-
-    public Long getId() {
-        return id;
-    }
-
-    public Pilot getPilot() {
-        return pilot;
-    }
-
-    public String getTailNumber() {
-        return tailNumber;
-    }
-
-    public String getTypeDesignator() {
-        return typeDesignator;
-    }
-
-    public double getCruiseTasKt() {
-        return cruiseTasKt;
-    }
-
-    public double getFuelBurnGph() {
-        return fuelBurnGph;
-    }
-
-    public Double getUsableFuelGal() {
-        return usableFuelGal;
-    }
-
-    public Instant getCreatedAt() {
-        return createdAt;
     }
 }

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import clsx from "clsx";
+import { cn } from "cn";
 import { toast } from "sonner";
 import { Badge } from "../../../../components/ui/badge";
 import { Button } from "../../../../components/ui/button";
@@ -71,7 +71,7 @@ function BriefingNarrativePrintBlock({ langgraph, crewai }: { langgraph: string 
       )}
       {crewai && (
         <>
-          <h2 className={clsx("text-sm font-semibold uppercase tracking-wide text-muted-foreground", langgraph && "mt-3")}>
+          <h2 className={cn("text-sm font-semibold uppercase tracking-wide text-muted-foreground", langgraph && "mt-3")}>
             CrewAI Narrative
           </h2>
           <p className="mt-2 text-sm text-muted-foreground">{crewai}</p>

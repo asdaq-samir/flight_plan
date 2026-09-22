@@ -1,3 +1,4 @@
+import L from "leaflet";
 import type { Course } from "../api/types";
 import { tileUrl } from "./tiles";
 
@@ -22,13 +23,16 @@ export interface KeepProgress {
   failed: number;
 }
 
-function tileX(lon: number, zoom: number): number {
-  return Math.floor(((lon + 180) / 360) * 2 ** zoom);
-}
+const TILE_PX = 256;
 
-function tileY(lat: number, zoom: number): number {
-  const r = (lat * Math.PI) / 180;
-  return Math.floor(((1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2) * 2 ** zoom);
+/** The {x, y} of the tile a point falls in, from Leaflet's own Web
+ *  Mercator projection -- the same one the map uses to decide which
+ *  tiles to ask for, so these are the URLs it will ask for later.
+ *  Hand-written longitude and Gudermannian latitude formulas stood
+ *  here; Leaflet is already loaded and has both. */
+function tileOf(lat: number, lon: number, zoom: number): { x: number; y: number } {
+  const point = L.CRS.EPSG3857.latLngToPoint(L.latLng(lat, lon), zoom);
+  return { x: Math.floor(point.x / TILE_PX), y: Math.floor(point.y / TILE_PX) };
 }
 
 /** Tile width in nautical miles at a latitude and zoom. */
@@ -53,7 +57,7 @@ export function corridorTiles(line: [number, number][], zooms: number[], corrido
       for (let s = 0; s <= steps; s++) {
         const lat = lat0 + ((lat1 - lat0) * s) / steps;
         const lon = lon0 + ((lon1 - lon0) * s) / steps;
-        const cx = tileX(lon, z), cy = tileY(lat, z);
+        const { x: cx, y: cy } = tileOf(lat, lon, z);
         for (let x = cx - reach; x <= cx + reach; x++) {
           for (let y = Math.max(0, cy - reach); y <= Math.min(n - 1, cy + reach); y++) {
             const wrapped = ((x % n) + n) % n;

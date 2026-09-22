@@ -22,9 +22,21 @@
              parse a Java 26 class file yet ("Unsupported class file major
              version 70" at repackage). 25 is the newest it supports. -->
         <java.version>25</java.version>
+        <!-- Ahead of what Spring Boot 3.5.3 manages: the versions it
+             pins predate JDK 25 and their annotation processor fails on
+             its class files. -->
+        <lombok.version>1.18.42</lombok.version>
     </properties>
 
     <dependencies>
+        <!-- Generates the entities' getters. Compile-time only: the
+             annotations are not on the runtime classpath and the jar
+             below excludes it. -->
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <optional>true</optional>
+        </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
@@ -126,8 +138,34 @@
     <build>
         <plugins>
             <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <!-- Named explicitly, not picked up off the
+                         classpath: from JDK 23 javac no longer runs
+                         annotation processors it merely finds there,
+                         and without this every Lombok-generated getter
+                         is simply absent at compile time. -->
+                    <annotationProcessorPaths>
+                        <path>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                            <version>${lombok.version}</version>
+                        </path>
+                    </annotationProcessorPaths>
+                </configuration>
+            </plugin>
+            <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <excludes>
+                        <exclude>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                        </exclude>
+                    </excludes>
+                </configuration>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>

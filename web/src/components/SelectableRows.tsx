@@ -1,5 +1,5 @@
 import type { ReactNode, Ref } from "react";
-import clsx from "clsx";
+import { cn } from "cn";
 import { TableCell, TableRow } from "./ui/table";
 
 /**
@@ -38,17 +38,18 @@ export function SelectableRow({
           onSelect();
         }
       }}
-      className={clsx(
+      className={cn(
         "cursor-pointer focus:outline-none",
+        mutedWhenUnselected && "text-muted-foreground",
+        "hover:bg-accent focus-visible:bg-accent",
         // Inverted (bg-foreground/text-background), not just a tint --
         // the same treatment shadcn's own Tooltip uses for "this one
-        // thing stands apart," which a selected row is exactly. Skips
-        // the hover/muted-text classes entirely while selected rather
-        // than layering them underneath: both would fight the
-        // inversion for the same background/text-color properties.
-        selected
-          ? "bg-foreground text-background hover:bg-foreground"
-          : clsx(mutedWhenUnselected && "text-muted-foreground", "hover:bg-accent focus-visible:bg-accent"),
+        // thing stands apart," which a selected row is exactly. It comes
+        // last because `cn` resolves conflicting Tailwind classes in
+        // favour of the last one: the muted text and the hover tint
+        // above are simply overridden, where before they had to be
+        // skipped by hand so they would not fight the inversion.
+        selected && "bg-foreground text-background hover:bg-foreground",
       )}
     >
       {children}
@@ -65,9 +66,9 @@ export function SelectableRow({
  */
 export function NoteRow({ selected, colSpan, children }: { selected: boolean; colSpan: number; children: ReactNode }) {
   return (
-    <TableRow className={clsx(selected && "bg-foreground text-background hover:bg-foreground")}>
+    <TableRow className={cn(selected && "bg-foreground text-background hover:bg-foreground")}>
       <TableCell
-        className={clsx("py-1 pr-2 pl-4 text-left text-xs", !selected && "bg-muted/60 text-muted-foreground")}
+        className={cn("py-1 pr-2 pl-4 text-left text-xs", !selected && "bg-muted/60 text-muted-foreground")}
         colSpan={colSpan}
       >
         {children}

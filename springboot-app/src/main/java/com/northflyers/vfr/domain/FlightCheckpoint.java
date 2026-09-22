@@ -9,6 +9,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import lombok.Getter;
 
 /**
  * One line of a filed nav log.
@@ -31,6 +32,7 @@ import jakarta.persistence.Table;
  */
 @Entity
 @Table(name = "flight_checkpoints")
+@Getter
 public class FlightCheckpoint {
 
     @Id
@@ -104,65 +106,5 @@ public class FlightCheckpoint {
 
     void setFlight(Flight flight) {
         this.flight = flight;
-    }
-
-    public Long getId() {
-        return id;
-    }
-
-    public Flight getFlight() {
-        return flight;
-    }
-
-    public int getSequenceNo() {
-        return sequenceNo;
-    }
-
-    public String getName() {
-        return name;
-    }
-
-    public String getCategory() {
-        return category;
-    }
-
-    public double getLat() {
-        return lat;
-    }
-
-    public double getLon() {
-        return lon;
-    }
-
-    public double getAlongTrackNm() {
-        return alongTrackNm;
-    }
-
-    public Double getLegDistanceNm() {
-        return legDistanceNm;
-    }
-
-    public Double getTrueCourseDeg() {
-        return trueCourseDeg;
-    }
-
-    public Double getMagneticHeadingDeg() {
-        return magneticHeadingDeg;
-    }
-
-    public Double getGroundspeedKt() {
-        return groundspeedKt;
-    }
-
-    public Double getEteMin() {
-        return eteMin;
-    }
-
-    public Double getFuelGal() {
-        return fuelGal;
-    }
-
-    public Double getAltitudeFt() {
-        return altitudeFt;
     }
 }

@@ -15,6 +15,7 @@ import jakarta.persistence.Table;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import lombok.Getter;
 
 /**
  * One pilot's planned flight, and the nav log they filed for it.
@@ -32,6 +33,7 @@ import java.util.List;
  */
 @Entity
 @Table(name = "flights")
+@Getter
 public class Flight {
 
     @Id
@@ -96,53 +98,5 @@ public class Flight {
     public Flight plannedFor(Instant when) {
         this.plannedFor = when;
         return this;
-    }
-
-    public Long getId() {
-        return id;
-    }
-
-    public Pilot getPilot() {
-        return pilot;
-    }
-
-    public Aircraft getAircraft() {
-        return aircraft;
-    }
-
-    public String getDepartureIdent() {
-        return departureIdent;
-    }
-
-    public String getDestinationIdent() {
-        return destinationIdent;
-    }
-
-    public Integer getCruiseAltitudeFt() {
-        return cruiseAltitudeFt;
-    }
-
-    public Double getTotalDistanceNm() {
-        return totalDistanceNm;
-    }
-
-    public Double getTotalEteMin() {
-        return totalEteMin;
-    }
-
-    public Double getTotalFuelGal() {
-        return totalFuelGal;
-    }
-
-    public Instant getPlannedFor() {
-        return plannedFor;
-    }
-
-    public Instant getCreatedAt() {
-        return createdAt;
-    }
-
-    public List<FlightCheckpoint> getCheckpoints() {
-        return checkpoints;
     }
 }

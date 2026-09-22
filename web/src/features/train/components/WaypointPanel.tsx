@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useRef } from "react";
-import clsx from "clsx";
+import { cn } from "cn";
 import { BrainCircuit, Eraser, ListFilter, Undo2 } from "lucide-react";
 import { useRetrain } from "../../dev/useRetrain";
 import IconButton from "../../../components/IconButton";
@@ -207,7 +207,7 @@ export default function WaypointPanel({
                     selected={isSelected}
                     onSelect={() => onFocus(entry)} scrollRef={isSelected ? selectedRef : undefined}
                   >
-                    <TableCell className={clsx("text-right tabular-nums", !isSelected && "text-muted-foreground")}>
+                    <TableCell className={cn("text-right tabular-nums", !isSelected && "text-muted-foreground")}>
                       {numbers.get(entry)}
                     </TableCell>
                     <TableCell className="text-left whitespace-normal">
@@ -221,7 +221,7 @@ export default function WaypointPanel({
                     <TableCell className="text-right tabular-nums">{p.along_track_nm.toFixed(1)}</TableCell>
                     <TableCell className="text-right">
                       {rating === null
-                        ? <span className={clsx(!isSelected && "text-muted-foreground")}>—</span>
+                        ? <span className={cn(!isSelected && "text-muted-foreground")}>—</span>
                         : <Badge style={{ backgroundColor: COLORS[rating], color: "white" }}>{rating}</Badge>}
                     </TableCell>
                   </SelectableRow>
@@ -239,7 +239,7 @@ export default function WaypointPanel({
                               key={r} type="button" size="xs"
                               onClick={() => onRate(r)}
                               aria-label={`Rate ${r}`} aria-pressed={rating === r}
-                              className={clsx(
+                              className={cn(
                                 "w-7 font-bold text-white hover:text-white",
                                 rating === r ? "ring-2 ring-background" : "opacity-80 hover:opacity-100",
                               )}

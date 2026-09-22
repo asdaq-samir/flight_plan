@@ -7,6 +7,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.Instant;
+import lombok.Getter;
 
 /**
  * A single-use, time-limited bearer token proving one email address
@@ -23,6 +24,7 @@ import java.time.Instant;
  */
 @Entity
 @Table(name = "magic_links")
+@Getter
 public class MagicLink {
 
     @Id
@@ -53,25 +55,5 @@ public class MagicLink {
         this.tokenHash = tokenHash;
         this.createdAt = Instant.now();
         this.expiresAt = expiresAt;
-    }
-
-    public Long getId() {
-        return id;
-    }
-
-    public String getEmail() {
-        return email;
-    }
-
-    public String getTokenHash() {
-        return tokenHash;
-    }
-
-    public Instant getExpiresAt() {
-        return expiresAt;
-    }
-
-    public Instant getConsumedAt() {
-        return consumedAt;
     }
 }
