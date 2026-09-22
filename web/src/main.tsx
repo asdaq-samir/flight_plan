@@ -1,4 +1,4 @@
-import React from "react";
+import React, { type CSSProperties } from "react";
 import ReactDOM from "react-dom/client";
 import { createBrowserRouter, Navigate, redirect, RouterProvider } from "react-router-dom";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -123,6 +123,10 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
         position="bottom-center"
         closeButton
         richColors
+        style={{ "--width": "min(34rem, calc(100vw - 2rem))" } as CSSProperties}
+        expand={false}
+        visibleToasts={3}
+        mobileOffset={{ bottom: "max(1rem, env(safe-area-inset-bottom))", left: "1rem", right: "1rem" }}
         // A toast still on screen ("VFR flight not recommended") was
         // printing over the briefing's table; the paper is the
         // briefing alone.

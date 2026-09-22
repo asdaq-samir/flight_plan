@@ -31,17 +31,39 @@ export const queryClient = new QueryClient({
     onError: (error, query) => {
       const silent = query.meta?.silent;
       if (silent === true || (typeof silent === "function" && silent(error))) return;
-      toast.error(describeError(error), {
-        id: `query-${query.queryHash}`,
-        duration: 10000,
-        action: { label: "Try again", onClick: () => void queryClient.refetchQueries({ queryKey: query.queryKey, exact: true }) },
-      });
+      failed(describeError(error));
     },
   }),
   mutationCache: new MutationCache({
     onError: (error, _variables, _context, mutation) => {
       if (mutation.meta?.silent) return;
-      toast.error(describeError(error), { duration: 10000 });
+      failed(describeError(error));
     },
   }),
 });
+
+/**
+ * One toast per distinct thing that went wrong, not one per call that
+ * hit it.
+ *
+ * The id used to be the query's own hash, which meant a planner that is
+ * down produced a separate toast for the course, the detection stream
+ * and the nav log -- three identical "planner service unreachable" lines
+ * stacked up the screen, each offering to retry a third of the page.
+ * Keyed by the message instead, the three collapse into one, and its
+ * Try again refetches everything currently in error rather than the one
+ * query that happened to toast last. When a single call fails on its
+ * own, that is still exactly one retry.
+ */
+function failed(message: string) {
+  toast.error(message, {
+    id: `failed:${message}`,
+    duration: 10000,
+    action: {
+      label: "Try again",
+      onClick: () => void queryClient.refetchQueries({
+        predicate: query => query.state.status === "error",
+      }),
+    },
+  });
+}

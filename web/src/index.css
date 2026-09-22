@@ -230,3 +230,24 @@ input, select, textarea {
     @apply font-sans;
   }
 }
+/* The toast stack sits over the chart, and the chart is the thing a
+   pilot is panning and zooming. Sonner gives its container -- and each
+   card -- `pointer-events: auto`, so the whole band they occupy
+   swallows wheel and drag events meant for the map. Widening the toasts
+   made that band wide enough to matter: a scroll aimed at the chart
+   with a toast showing is simply lost, which a Playwright run caught as
+   a zoom step going missing.
+
+   So the stack is transparent to the pointer and only its controls --
+   Try again, the close button -- take events back. The cost is sonner's
+   swipe-to-dismiss, which needs the card itself; the close button is
+   the replacement, and it is already on (closeButton in main.tsx).
+   The chart underneath stays fully draggable and zoomable, toast or
+   no toast. */
+[data-sonner-toaster],
+[data-sonner-toast] {
+  pointer-events: none;
+}
+[data-sonner-toast] button {
+  pointer-events: auto;
+}
