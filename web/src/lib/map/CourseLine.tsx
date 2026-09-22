@@ -1,5 +1,6 @@
 import L from "leaflet";
-import { Polyline, Tooltip } from "react-leaflet";
+import { Polyline } from "react-leaflet";
+import { MapTooltip } from "./MapTooltip";
 
 interface Props {
   line: [number, number][];
@@ -31,7 +32,7 @@ export function CourseLine({ line, tooltip, onClick }: Props) {
         pathOptions={{ color: "#000", weight: 18, opacity: 0, lineCap: "butt", bubblingMouseEvents: !onClick }}
         eventHandlers={onClick ? { click: e => { L.DomEvent.stopPropagation(e); onClick(e.latlng); } } : undefined}
       >
-        {tooltip && <Tooltip sticky>{tooltip}</Tooltip>}
+        {tooltip && <MapTooltip>{tooltip}</MapTooltip>}
       </Polyline>
     </>
   );

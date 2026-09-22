@@ -1,4 +1,5 @@
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
+import IconButton from "../../../components/IconButton";
 import { Badge } from "../../../components/ui/badge";
 import { Button } from "../../../components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../../components/ui/select";
@@ -52,17 +53,17 @@ export default function PointPopup({
   // The close sits at the row's end, where Leaflet's own would be.
   const arrows = (
     <div className="flex items-center justify-between gap-1">
-      <Button
+      <IconButton
         type="button"
+        label="Step left"
         variant="outline"
         size="icon-lg"
         onClick={onLeft}
         disabled={!onLeft || !canLeft}
-        aria-label="Step left"
         className="flex-shrink-0 rounded-full"
       >
         <ChevronLeft className="size-5" strokeWidth={3} />
-      </Button>
+      </IconButton>
       {place && (
         <div className={`rounded px-0.5 text-muted-foreground ${
           countChanged ? "animate-[count-flash_0.8s_ease-out]" : ""
@@ -70,20 +71,20 @@ export default function PointPopup({
           #{place}
         </div>
       )}
-      <Button
+      <IconButton
         type="button"
+        label="Step right"
         variant="outline"
         size="icon-lg"
         onClick={onRight}
         disabled={!onRight || !canRight}
-        aria-label="Step right"
         className="flex-shrink-0 rounded-full"
       >
         <ChevronRight className="size-5" strokeWidth={3} />
-      </Button>
-      <Button type="button" variant="ghost" size="icon-sm" onClick={onClose} aria-label="Close" data-testid="popup-close">
+      </IconButton>
+      <IconButton type="button" label="Close" size="icon-sm" onClick={onClose} data-testid="popup-close">
         <X className="size-4" />
-      </Button>
+      </IconButton>
     </div>
   );
 

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Marker, Tooltip, useMap } from "react-leaflet";
+import { Marker, useMap } from "react-leaflet";
 import { Pin, PinOff, ZoomIn } from "lucide-react";
 import IconButton from "../../components/IconButton";
 import { api } from "../api/client";
@@ -9,6 +9,7 @@ import type { ClassBAirport, Course } from "../api/types";
 import { usePreferences } from "../preferences";
 import { classBIcon } from "./icons";
 import { MapPopup } from "./MapPopup";
+import { MapTooltip } from "./MapTooltip";
 
 /** The FAA's own categories, in the colours a pilot already reads them
  *  in: green good, blue marginal, red instrument, magenta worse than
@@ -174,9 +175,9 @@ export function ClassBLayer({ course, onPreview }: { course: Course; onPreview: 
               Sticky so it stays while the pointer is anywhere on the
               marker. */}
           {carded !== airport.ident && (
-            <Tooltip direction="top" offset={[0, -10]} opacity={1} sticky>
+            <MapTooltip>
               <Details airport={airport} />
-            </Tooltip>
+            </MapTooltip>
           )}
           {/* A child of the marker, so Leaflet opens it on a click and
               closes it on its own X -- there is no open-state of ours
