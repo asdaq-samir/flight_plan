@@ -30,3 +30,10 @@ springboot-app/src/main/resources/static/app/
 # The local HTTPS certificates infra/local-https/make-certs.sh writes: a
 # private key and a CA for one machine, never for the repository.
 infra/local-https/certs/
+
+# iCloud writes a numbered copy beside a file it thinks two machines
+# both changed ("main 2.tsx"). One of those was committed on
+# 2026-09-22 by a `git add -A`: a stale duplicate of main.tsx that
+# nothing imported and that had missed a change. They are never
+# wanted here.
+* [0-9].*
