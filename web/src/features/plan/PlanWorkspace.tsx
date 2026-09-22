@@ -61,7 +61,7 @@ function baseProfile(typeDesignator: string, profiles: AircraftProfileSummary[])
  * a key; and the screen is derived from the queries on each render,
  * nothing kept in step by hand.
  */
-export default function PlanWorkspace({ dep, dest, onRoute, sidebarOpen, onSidebarOpenChange, children }: WorkspaceProps) {
+export default function PlanWorkspace({ dep, dest, onRoute, sidebarOpen, children }: WorkspaceProps) {
   const [searchParams, setSearchParams] = useSearchParams();
   const planned = { dep: identOf(searchParams.get("dep")), dest: identOf(searchParams.get("dest")) };
   const altitudeFt = searchParams.get("altitude_ft") ?? "";
@@ -225,36 +225,34 @@ export default function PlanWorkspace({ dep, dest, onRoute, sidebarOpen, onSideb
     selectPoint(selectedPoint ?? { lat: course.departure.lat, lon: course.departure.lon });
   }, [course, selectedPoint, selectPoint, zoomedIn]);
 
-  // Shortcuts, skipped while an ident is being typed -- or, just as
-  // much, while a checkpoint description is: that field is a
-  // <textarea>, not an <input>, and typing a plain "n" into one used
-  // to open the briefing mid-sentence. Skipped, too, for a press a
-  // Radix layer already used (the aircraft picker's list walks its
-  // options with the same arrow keys; a popover's own Escape): those
-  // mark the event default-prevented, or keep the focus inside a
-  // listbox or dialog. The map is always mounted -- the briefing is
-  // the drawer beside it, not a view in its place -- so `f` and the
-  // arrow walk work with the drawer open.
+  // One pair of keys: Up and Down walk the nav log's own order --
+  // departure, each checkpoint, destination -- and the map follows,
+  // exactly as clicking a row would. The letters this used to bind
+  // (`n` for the drawer, `f` to fit the route, `a` for every rated
+  // landmark) each have a button now -- the header's own toggle, the
+  // map's zoom, the layers popover -- and a letter shortcut is the
+  // kind that fires while a pilot is typing a checkpoint note.
+  //
+  // Skipped while a field has focus: a description is a <textarea>,
+  // and a plain letter used to land in one mid-sentence. Skipped too
+  // for a press a Radix layer already used (the aircraft picker's list
+  // walks with the same arrows), which it marks by preventing the
+  // default -- except on a section title, which prevents Up and Down
+  // itself precisely so this walk gets them (see BriefingSection).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
       const target = e.target instanceof HTMLElement ? e.target : null;
       const tag = target?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA") return;
-      // A modal dialog (the sign-in dialog, a console) owns its keys.
-      // A section title in the drawer prevents Up/Down itself, to keep
-      // the accordion from walking its titles (see BriefingSection):
-      // from there the press is this page's.
       const onSectionTitle = !!target?.closest('[data-slot="accordion-trigger"]');
       if ((e.defaultPrevented && !onSectionTitle) || target?.closest('[role="listbox"],[role="dialog"][aria-modal="true"],[role="menu"]')) return;
-      if (e.key === "n") onSidebarOpenChange(!sidebarOpen);
-      if (e.key === "a") setShowCandidates(v => !v);
-      if (e.key === "f") controls.current?.fit();
-      if (e.key === "ArrowDown") { e.preventDefault(); stepWaypoint(1); }
-      if (e.key === "ArrowUp") { e.preventDefault(); stepWaypoint(-1); }
+      e.preventDefault();
+      stepWaypoint(e.key === "ArrowDown" ? 1 : -1);
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [sidebarOpen, onSidebarOpenChange, stepWaypoint]);
+  }, [stepWaypoint]);
 
   // One floating progress line for the whole page: the briefing's own
   // fetch first (it only runs while the drawer is open), then the nav
@@ -329,6 +327,7 @@ export default function PlanWorkspace({ dep, dest, onRoute, sidebarOpen, onSideb
           onReady={handleMapReady}
           onZoomChange={setZoomedIn}
           zoom={{ zoomedIn, onToggle: toggleZoom, disabled: !course }}
+          showAll={{ on: showCandidates, onToggle: setShowCandidates }}
         />
       </div>
     ),

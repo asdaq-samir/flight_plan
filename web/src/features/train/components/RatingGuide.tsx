@@ -3,12 +3,12 @@ import { Kbd } from "../../../components/ui/kbd";
 import type { Rating } from "../../../lib/api/types";
 import { COLORS } from "../logic";
 
+/** Two keys, and everything else is a button -- the zoom on the map,
+ *  Remove in the point's own popup, the filters in this drawer. */
 const SHORTCUTS: [string | null, string][] = [
-  ["Space", "start / resume / whole route"],
-  ["0–5", "rate"],
-  ["↑↓←→", "step the way the course runs"],
-  ["Del", "remove"],
-  [null, "click the course to add"],
+  ["↑↓", "step through the points, in flight order"],
+  ["0–5", "rate the one you are on, and move to the next"],
+  [null, "click the course to add a point"],
 ];
 
 const SCALE: [Rating, string, string][] = [

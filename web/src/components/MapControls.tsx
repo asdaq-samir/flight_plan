@@ -4,6 +4,8 @@ import ChartLayers from "./ChartLayers";
 import IconButton from "./IconButton";
 import OwnShipControls from "./OwnShipControls";
 import ZoomToggleButton from "./ZoomToggleButton";
+import { Checkbox } from "./ui/checkbox";
+import { Label } from "./ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 
 export interface ZoomControl {
@@ -18,6 +20,10 @@ interface Props {
   /** Whether the layers popover also offers own ship (the planner's
    *  map draws it; the training map does not). */
   ownShip?: boolean;
+  /** Every landmark the model rated, not only the ones it chose --
+   *  the planner's own switch, which used to be the `a` key and had
+   *  nowhere to be clicked. */
+  candidates?: { on: boolean; onToggle: (on: boolean) => void };
   /** Whatever else belongs in the stack -- the terminal chart's pin. */
   children?: ReactNode;
 }
@@ -32,7 +38,7 @@ interface Props {
  * form and the drawers. Outline buttons on a solid background, so
  * they read over any chart colour.
  */
-export default function MapControls({ zoom, ownShip = false, children }: Props) {
+export default function MapControls({ zoom, ownShip = false, candidates, children }: Props) {
   return (
     // z-[1000]: over Leaflet's own panes, the level Leaflet gives its
     // controls; still inside the map's own stacking context, under the
@@ -51,6 +57,23 @@ export default function MapControls({ zoom, ownShip = false, children }: Props) 
         <PopoverContent side="left" align="start" className="w-72">
           <div className="space-y-3 text-sm [&>div:first-child]:border-t-0 [&>div:first-child]:pt-0">
             <ChartLayers />
+            {candidates && (
+              <div className="space-y-2 border-t border-border pt-2">
+                <div className="text-xs font-semibold uppercase text-muted-foreground">Checkpoints</div>
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="show-candidates"
+                    checked={candidates.on}
+                    onCheckedChange={value => candidates.onToggle(value === true)}
+                    data-testid="candidates-toggle"
+                  />
+                  <Label htmlFor="show-candidates" className="font-normal">Every landmark the model rated</Label>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  The small dim dots beside the numbered ones: what the chosen checkpoints were chosen from.
+                </p>
+              </div>
+            )}
             {ownShip && <OwnShipControls />}
           </div>
         </PopoverContent>

@@ -13,7 +13,7 @@ import WaypointPanel from "./components/WaypointPanel";
 import PointPopup from "./components/PointPopup";
 import { isEndpoint, type Point, type Rating } from "../../lib/api/types";
 import {
-  filterCounts, forwardIsLeft, forwardIsUp, hasRating, hiddenCount, orderedPoints,
+  filterCounts, forwardIsLeft, hasRating, hiddenCount, orderedPoints,
 } from "./logic";
 import { currentPoint, useTraining, type Selection } from "./hooks/useTraining";
 
@@ -41,15 +41,14 @@ export default function TrainWorkspace({ dep, dest, children }: WorkspaceProps) 
   // reads its own latest state through a ref) so listing them costs
   // nothing.
   const {
-    selection, endpoints, detections, added, filters, course,
-    select, rate, setCategory, removeSelected, addPick, setFilter,
+    selection, endpoints, detections, added, course,
+    select, rate, setCategory, removeSelected, addPick,
   } = store;
   const point = useMemo(
     () => currentPoint({ selection, endpoints, detections, added }),
     [selection, endpoints, detections, added],
   );
   const [map, setMap] = useState<L.Map | null>(null);
-  const [stepDelta, setStepDelta] = useState(1);
   // Tracks the map's own zoom so the one Controls button can read as
   // "Start"/"Resume"/"Fit line" -- Leaflet's zoom lives outside React,
   // so without this the label would only update on some unrelated
@@ -110,7 +109,6 @@ export default function TrainWorkspace({ dep, dest, children }: WorkspaceProps) 
   }, [map, select]);
 
   const step = useCallback((delta: number) => {
-    setStepDelta(delta);
     if (!walk.length) return;
     const at = point ? walk.findIndex(e => e.point === point) : -1;
     const next = at < 0 ? 0 : at + delta;
@@ -213,43 +211,34 @@ export default function TrainWorkspace({ dep, dest, children }: WorkspaceProps) 
     startOrResume();
   }, [map, fitLine, startOrResume]);
 
+  // Two keys, and only two: Up and Down walk the points in flight
+  // order, and a digit rates the one you are on and moves to the next.
+  // Everything this used to bind -- Space and Escape for the two zooms,
+  // Delete to remove, `v` for the visual filter, and the four arrows
+  // stepping the way the course runs rather than the way the list does
+  // -- has a button of its own, on the map or in this drawer, and each
+  // was a letter or a key that had to be kept out of the way of typing.
+  // Skipped while a field has focus, and for a press a Radix layer
+  // already used (its own list walks with the same arrows), which it
+  // marks by preventing the default or keeping focus inside itself.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const el = e.target as HTMLElement;
-      if (el.tagName === "INPUT" || el.tagName === "SELECT") return;
-      // A modal dialog (the console) owns its keys.
-      if (el.closest('[role="dialog"][aria-modal="true"]')) return;
-      const bearing = course?.bearing_deg ?? 0;
-      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); return toggleView(); }
-      if (e.key === "Escape") { e.preventDefault(); return fitLine(); }
-      // Up/Down inside the waypoint list walks the list itself, top to
-      // bottom, rather than the course-relative step below -- the list
-      // has its own obvious order and its own scrollbar; letting the
-      // map pan along behind it would fight whichever one you meant.
-      if ((e.key === "ArrowUp" || e.key === "ArrowDown") && el.closest("[data-waypoint-list]")) {
+      const target = e.target instanceof HTMLElement ? e.target : null;
+      const tag = target?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA") return;
+      if (e.defaultPrevented || target?.closest('[role="listbox"],[role="dialog"][aria-modal="true"],[role="menu"]')) return;
+      if (e.key === "ArrowUp" || e.key === "ArrowDown") {
         e.preventDefault();
-        return stepList(e.key === "ArrowDown" ? 1 : -1);
+        stepList(e.key === "ArrowDown" ? 1 : -1);
+        return;
       }
-      // Arrows follow the course across the screen, not the order points
-      // happen to be stored in: a 328-degree leg goes up and to the left.
-      if (e.key === "ArrowUp") { e.preventDefault(); return step(forwardIsUp(bearing) ? 1 : -1); }
-      if (e.key === "ArrowDown") { e.preventDefault(); return step(forwardIsUp(bearing) ? -1 : 1); }
-      if (e.key === "ArrowLeft") { e.preventDefault(); return step(forwardIsLeft(bearing) ? 1 : -1); }
-      if (e.key === "ArrowRight") { e.preventDefault(); return step(forwardIsLeft(bearing) ? -1 : 1); }
       if (/^[0-5]$/.test(e.key) && point && !isEndpoint(point)) {
-        void rate(Number(e.key) as Rating).then(() => step(stepDelta));
+        void rate(Number(e.key) as Rating).then(() => stepList(1));
       }
-      if (e.key === "Delete" || e.key === "Backspace") { e.preventDefault(); void removeSelected(); }
-      if (e.key === "v") setFilter("visual", !filters.visual);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-    // rate/removeSelected/setFilter are stable (reading fresh state
-    // through a ref rather than closing over it), so this only tears
-    // down and rebinds the listener on the fields the handler actually
-    // reads a fresh value from, not on every unrelated store change (a
-    // streamed-in detection, say).
-  }, [course, filters, rate, removeSelected, setFilter, point, step, stepList, stepDelta, toggleView, fitLine]);
+  }, [point, rate, stepList]);
 
   // Loading a route writes the address, which is what the queries key
   // on -- the same route again costs nothing, being kept.

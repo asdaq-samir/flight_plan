@@ -352,22 +352,34 @@ test("plan page: Escape closes the briefing drawer, URL included, and no narrowe
   await expect(page).not.toHaveURL(/[?&]view=briefing/);
 });
 
-test("plan page: a pasted briefing link opens the drawer, and 'n' closes and opens it", async ({ page }) => {
+test("plan page: a pasted briefing link opens the drawer, and the header's toggle closes and reopens it", async ({ page }) => {
   await page.goto("/app/plan?view=briefing");
   await settle(page);
   const drawer = sideDrawer(page);
   await expect(drawer).toBeVisible();
   await expect(drawer.getByTestId("print-button")).toBeVisible();
 
+  // No letter shortcuts on this page any more: the arrows walk the
+  // checkpoints and everything else has a button. `n` used to toggle
+  // this drawer and now does nothing.
   await page.keyboard.press("n");
+  await page.waitForTimeout(300);
+  await expect(page).toHaveURL(/[?&]view=briefing/);
+
+  // Closing it: the header's own toggle on a desktop, Escape on a
+  // phone, where the drawer is a modal sheet whose overlay covers the
+  // header. Either way the address drops the parameter.
+  const viewport = page.viewportSize();
+  if (!viewport) throw new Error("no viewport configured");
+  if (viewport.width < 768) await page.keyboard.press("Escape");
+  else await page.getByTestId("sidebar-trigger-button").click();
   await page.waitForTimeout(300);
   await expect(page).not.toHaveURL(/[?&]view=briefing/);
   await expectDrawerClosed(page);
 
-  await page.keyboard.press("n");
+  await page.getByTestId("sidebar-trigger-button").click();
   await page.waitForTimeout(300);
   await expect(page).toHaveURL(/[?&]view=briefing/);
-  await expect(drawer).toBeVisible();
   await expect(drawer.getByTestId("print-button")).toBeVisible();
 });
 

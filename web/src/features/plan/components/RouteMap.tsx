@@ -31,6 +31,9 @@ interface Props {
   onZoomChange?: (zoomedIn: boolean) => void;
   /** The fit-route / show-selected toggle, drawn on the map (`MapControls`). */
   zoom: ZoomControl;
+  /** The "every landmark the model rated" switch, in the same popover
+   *  the chart layers live in. */
+  showAll: { on: boolean; onToggle: (on: boolean) => void };
 }
 
 /** The candidates and the chosen checkpoints, each from its own zoom
@@ -76,7 +79,7 @@ function Checkpoints({ candidates, selected, showCandidates, onSelectCandidate }
  * refits when the route changes.
  */
 export default function RouteMap({
-  course, candidates, selected, showCandidates, focus, onSelectCandidate, onReady, onZoomChange, zoom,
+  course, candidates, selected, showCandidates, focus, onSelectCandidate, onReady, onZoomChange, zoom, showAll,
 }: Props) {
   const [map, setMap] = useState<L.Map | null>(null);
   const [offer, setOffer] = useState<OverlayOffer | null>(null);
@@ -135,7 +138,7 @@ export default function RouteMap({
       ) : (
         <div className="h-full w-full bg-slate-100 dark:bg-slate-900" />
       )}
-      <MapControls zoom={zoom} ownShip>
+      <MapControls zoom={zoom} ownShip candidates={showAll}>
         <OverlayPin offer={offer} onPreview={setPreviewing} />
       </MapControls>
     </div>

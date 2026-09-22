@@ -13,10 +13,9 @@ const BUCKETS: [string, string][] = [
   [scoreColor(0), "below 3: not one to plan on"],
 ];
 
+/** One pair, and everything else is a button: the letters this list
+ *  used to hold fired while a pilot was typing a checkpoint note. */
 const KEYS: [string, string][] = [
-  ["n", "open the flight planning drawer, and close it"],
-  ["f", "fit the whole route"],
-  ["a", "show every landmark the model rated, not only the chosen ones"],
   ["↑↓", "step through the checkpoints"],
 ];
 
