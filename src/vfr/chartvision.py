@@ -440,6 +440,34 @@ MAX_BLOCK_TILES = 6
 DEDUPE_NM = 0.2
 
 
+def _has_chart(block: list, zoom: int) -> bool:
+    """Whether any sectional sheet reaches this block at all.
+
+    Asked before a block is read rather than after. A corridor is a
+    rectangle of tiles and a long one can cross hundreds of miles the
+    FAA publishes no sheet for -- the Pacific, Canada, the gap either
+    side of an Alaska route. Those blocks used to be fetched tile by
+    tile (every one a 404), stitched into an all-zero canvas, and run
+    through the whole palette segmentation to find nothing, while the
+    progress line counted them as work. Now they are not in the list,
+    so the percentage measures chart actually read.
+
+    Tested against each sheet's own envelope, which includes the
+    printed collar and is therefore a superset of the chart face. That
+    is the safe direction for skipping: no overlap with the envelope
+    means there is certainly no chart, while a block that overlaps only
+    the collar is still read and simply finds nothing.
+    """
+    xs = [x for x, _ in block]
+    ys = [y for _, y in block]
+    west, south, _, _ = charts.tile_bbox_wgs84(min(xs), max(ys), zoom)
+    _, _, east, north = charts.tile_bbox_wgs84(max(xs), min(ys), zoom)
+    return any(
+        west < sheet_east and sheet_west < east and south < sheet_north and sheet_south < north
+        for _, (sheet_west, sheet_south, sheet_east, sheet_north) in charts.sheets(charts.SECTIONAL)
+    )
+
+
 def tile_blocks(tiles: list, max_span: int = MAX_BLOCK_TILES) -> list:
     """Split a corridor's tiles into small dense rectangles to stitch.
 
@@ -770,7 +798,7 @@ def iter_landmarks_along_route(
         lat, lon = global_px_to_latlon(centre_x, centre_y, zoom)
         return along_track_distance_nm(lat, lon, start, end)
 
-    blocks = sorted(tile_blocks(tiles), key=block_along_track)
+    blocks = [b for b in sorted(tile_blocks(tiles), key=block_along_track) if _has_chart(b, zoom)]
     for index, block in enumerate(blocks):
         mosaic = build_mosaic(block, zoom)
         block_landmarks = detect_landmarks(mosaic) + linear_crossings(

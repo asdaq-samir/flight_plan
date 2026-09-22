@@ -212,3 +212,51 @@ def test_a_mosaic_without_coverage_information_is_left_alone():
     mask = np.ones((4, 4), dtype=bool)
     mosaic = Mosaic(pixels=np.zeros((4, 4, 3), dtype=np.uint8), origin_px=(0, 0), zoom=9)
     assert mosaic.on_chart(mask).all()
+
+
+def test_a_block_with_no_sheet_over_it_is_never_read():
+    """A corridor is a rectangle of tiles, and a long one crosses
+    hundreds of miles the FAA publishes no sectional for: the Pacific,
+    Canada, the gap either side of an Alaska route. Those blocks used to
+    be fetched tile by tile (every one a 404), stitched into an all-zero
+    canvas and run through the whole palette segmentation to find
+    nothing, while the progress line counted them as work done. On
+    05AA -> KDLH that was 96 blocks where 22 have chart under them.
+    """
+    from vfr.chartvision import _has_chart
+
+    zoom = 9
+    n = 2 ** zoom
+
+    def tile_of(lat, lon):
+        import math
+        r = math.radians(lat)
+        return (int((lon + 180) / 360 * n),
+                int((1 - math.log(math.tan(r) + 1 / math.cos(r)) / math.pi) / 2 * n))
+
+    # Chicago: squarely inside a sectional.
+    assert _has_chart([tile_of(41.98, -87.91)], zoom) is True
+    # The middle of the North Pacific, and the middle of the Atlantic.
+    assert _has_chart([tile_of(45.0, -150.0)], zoom) is False
+    assert _has_chart([tile_of(35.0, -45.0)], zoom) is False
+
+
+def test_a_block_straddling_the_edge_is_still_read():
+    """Skipping is tested against each sheet's own envelope, which
+    includes the printed collar and so is a superset of the chart face.
+    That is the safe direction: a block half over the sea and half over
+    Chicago must still be read, because half of it is real chart.
+    """
+    from vfr.chartvision import _has_chart
+
+    zoom = 9
+    n = 2 ** zoom
+
+    def tile_of(lat, lon):
+        import math
+        r = math.radians(lat)
+        return (int((lon + 180) / 360 * n),
+                int((1 - math.log(math.tan(r) + 1 / math.cos(r)) / math.pi) / 2 * n))
+
+    straddling = [tile_of(41.98, -87.91), tile_of(45.0, -150.0)]
+    assert _has_chart(straddling, zoom) is True
