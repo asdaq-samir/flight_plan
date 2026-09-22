@@ -1,5 +1,5 @@
 import L from "leaflet";
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { AttributionControl, MapContainer, useMap } from "react-leaflet";
 import MapControls, { type ZoomControl } from "../../components/MapControls";
 import type { Course } from "../api/types";
@@ -72,11 +72,23 @@ export function MapShell({ course, onReady, zoom, ownShip, candidates, onZoomCha
   }, [map, bounds]);
 
   // Fit to the route when it changes, and hand the page the same fit.
+  //
+  // Once per route, not once per `bounds`. The course is a query: it
+  // can be answered again -- a refetch, a retry, the same route asked
+  // for twice -- and each answer is a new object, so a fit keyed on the
+  // bounds alone would snap the map back to the whole route from
+  // wherever the pilot had got to, seconds after they tapped a marker
+  // to go somewhere. Keyed on the two idents instead, which is what
+  // "the route changed" actually means.
+  const routeKey = course ? `${course.departure.ident}->${course.destination.ident}` : null;
+  const fitted = useRef<string | null>(null);
   useEffect(() => {
-    if (!map || !bounds) return;
-    fit();
+    if (!map || !bounds || !routeKey) return;
     onReady?.(map, fit);
-  }, [map, bounds, onReady, fit]);
+    if (fitted.current === routeKey) return;
+    fitted.current = routeKey;
+    fit();
+  }, [map, bounds, routeKey, onReady, fit]);
 
   // bg-slate-100: purely cosmetic, so the gap before the course loads
   // reads as "a map is about to be here" rather than a blank white
