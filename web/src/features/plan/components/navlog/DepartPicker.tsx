@@ -1,9 +1,13 @@
-import { useState } from "react";
+import { Suspense, lazy, useState } from "react";
 import { format } from "date-fns";
 import { CalendarIcon, X } from "lucide-react";
 import IconButton from "../../../../components/IconButton";
 import { Button } from "../../../../components/ui/button";
-import { Calendar } from "../../../../components/ui/calendar";
+
+/** The month grid is react-day-picker, which is not small and is only
+ *  ever seen inside this popover -- so it arrives with the popover
+ *  rather than with the page. */
+const Calendar = lazy(() => import("../../../../components/ui/calendar").then(m => ({ default: m.Calendar })));
 import { Input } from "../../../../components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "../../../../components/ui/popover";
 
@@ -53,10 +57,14 @@ export default function DepartPicker({ value, onChange }: Props) {
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-auto p-0" align="start">
+          {/* Sized like the grid it stands in for, so the popover does
+              not jump once it arrives. */}
+          <Suspense fallback={<div className="h-[21rem] w-[17rem]" />}>
           <Calendar
             mode="single" required selected={date} defaultMonth={date} captionLayout="dropdown"
             onSelect={day => { onChange(instantAt(day, time || nextHour())); setOpen(false); }}
           />
+          </Suspense>
         </PopoverContent>
       </Popover>
       {/* The time, and the way back to "now", only once a day is
