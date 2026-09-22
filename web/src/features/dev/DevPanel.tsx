@@ -657,9 +657,20 @@ function SystemTab({ status }: { status: Status | undefined }) {
             </Button>
           ))}
         </div>
-        {local && (
+        {local ? (
           <p className="mt-2 text-xs text-muted-foreground">
             MCP server at <span className="font-mono">http://{host}:8082/mcp/sse</span>, bearer token as nav-log-agent's README says.
+          </p>
+        ) : (
+          // Said rather than silently dropped. Four of these links are
+          // missing here and a reader deserves to know it is deliberate
+          // -- otherwise the console looks broken on a phone, which is
+          // exactly how this was reported.
+          <p className="mt-2 text-xs text-muted-foreground">
+            Jupyter, Airflow and the two services' own API docs are missing from this list on purpose.
+            docker-compose publishes them on <span className="font-mono">127.0.0.1</span> only, so they open
+            from the machine running the stack and nowhere else — this app is the one front door. Open
+            <span className="font-mono"> http://localhost:8080/app/dev</span> there to reach them.
           </p>
         )}
       </section>
