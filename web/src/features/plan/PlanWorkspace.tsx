@@ -19,7 +19,7 @@ import FlightBriefingView from "./components/briefing/FlightBriefingView";
 import NavLogActions from "./components/navlog/NavLogActions";
 import NavLogView from "./components/navlog/NavLogView";
 import RouteMap from "./components/RouteMap";
-import { descriptionKey, usePlan } from "./hooks/usePlan";
+import { usePlan } from "./hooks/usePlan";
 
 // The three stages a plan actually goes through, in order -- there's
 // no finer-grained number to report while one of them is running, so
@@ -196,24 +196,6 @@ export default function PlanWorkspace({ dep, dest, onRoute, sidebarOpen, childre
     [selectPoint],
   );
 
-  // Up/Down walks the nav log top to bottom -- departure, each scored
-  // checkpoint, destination -- the same list order the drawer renders
-  // in, syncing the map to whatever it lands on exactly the way
-  // clicking that row would.
-  const stepWaypoint = useCallback((delta: number) => {
-    if (!course) return;
-    const points = [
-      { lat: course.departure.lat, lon: course.departure.lon },
-      ...selected.map(c => ({ lat: c.lat, lon: c.lon })),
-      { lat: course.destination.lat, lon: course.destination.lon },
-    ];
-    const at = selectedPoint
-      ? points.findIndex(p => descriptionKey(p.lat, p.lon) === descriptionKey(selectedPoint.lat, selectedPoint.lon))
-      : -1;
-    const next = points[Math.max(0, Math.min(points.length - 1, (at < 0 ? 0 : at + delta)))];
-    if (next) selectPoint(next);
-  }, [course, selected, selectedPoint, selectPoint]);
-
   // The map's zoom button: zoomed out, this zooms in to whatever's
   // selected (or departure, the first point, if nothing is yet);
   // zoomed in, it zooms back out to the whole route. `zoomedIn` comes
@@ -226,35 +208,16 @@ export default function PlanWorkspace({ dep, dest, onRoute, sidebarOpen, childre
     selectPoint(selectedPoint ?? { lat: course.departure.lat, lon: course.departure.lon });
   }, [course, selectedPoint, selectPoint, zoomedIn]);
 
-  // One pair of keys: Up and Down walk the nav log's own order --
-  // departure, each checkpoint, destination -- and the map follows,
-  // exactly as clicking a row would. The letters this used to bind
-  // (`n` for the drawer, `f` to fit the route, `a` for every rated
-  // landmark) each have a button now -- the header's own toggle, the
-  // map's zoom, the layers popover -- and a letter shortcut is the
-  // kind that fires while a pilot is typing a checkpoint note.
+  // This page binds no keys of its own. Walking the nav log used to be
+  // Up and Down on the document, which meant deciding by hand, on every
+  // press, whether some other widget wanted them: a guard for inputs
+  // and textareas, another for Radix's own lists and dialogs, and a
+  // hole in that guard for section titles, which had to prevent the
+  // stock accordion's Up/Down so this walk could have them. A row is a
+  // focusable, selectable row (`SelectableRow`): Tab reaches it and
+  // Enter or Space selects it, which is the same thing without the
+  // arbitration.
   //
-  // Skipped while a field has focus: a description is a <textarea>,
-  // and a plain letter used to land in one mid-sentence. Skipped too
-  // for a press a Radix layer already used (the aircraft picker's list
-  // walks with the same arrows), which it marks by preventing the
-  // default -- except on a section title, which prevents Up and Down
-  // itself precisely so this walk gets them (see BriefingSection).
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
-      const target = e.target instanceof HTMLElement ? e.target : null;
-      const tag = target?.tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA") return;
-      const onSectionTitle = !!target?.closest('[data-slot="accordion-trigger"]');
-      if ((e.defaultPrevented && !onSectionTitle) || target?.closest('[role="listbox"],[role="dialog"][aria-modal="true"],[role="menu"]')) return;
-      e.preventDefault();
-      stepWaypoint(e.key === "ArrowDown" ? 1 : -1);
-    };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [stepWaypoint]);
-
   // One floating progress line for the whole page: the briefing's own
   // fetch first (it only runs while the drawer is open), then the nav
   // log's own stage (scoring, altitude selection, the live

@@ -13,10 +13,14 @@ const BUCKETS: [string, string][] = [
   [scoreColor(0), "below 3: not one to plan on"],
 ];
 
-/** One pair, and everything else is a button: the letters this list
- *  used to hold fired while a pilot was typing a checkpoint note. */
+/** One key, and everything else is a button. The letters this list
+ *  used to hold fired while a pilot was typing a checkpoint note, and
+ *  the arrows that walked the checkpoints were this page's own
+ *  keyboard handling rather than anything the components brought --
+ *  a row in the nav log takes Tab and Enter by itself. What is left is
+ *  the stock sidebar's own shortcut, which this app did not write. */
 const KEYS: [string, string][] = [
-  ["↑↓", "step through the checkpoints"],
+  ["Ctrl/\u2318 B", "open and close the flight planning drawer"],
 ];
 
 /** Which model rated the checkpoints, in one line a pilot might

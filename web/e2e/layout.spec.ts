@@ -434,7 +434,7 @@ test("plan page: a pasted briefing link opens the drawer, and the header's toggl
   await expect(drawer.getByTestId("print-button")).toBeVisible();
 });
 
-test("plan page: the arrow keys and a click walk the nav log's checkpoints, with the briefing drawer open over the map", async ({ page }) => {
+test("plan page: a click or Enter selects a nav log checkpoint, with the briefing drawer open over the map", async ({ page }) => {
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
   await page.getByTestId("sidebar-trigger-button").click();
@@ -447,28 +447,26 @@ test("plan page: the arrow keys and a click walk the nav log's checkpoints, with
   const selectedRow = table.locator("tbody tr[data-selected]");
   await expect(selectedRow).toHaveCount(0);
 
-  // Down from nothing selects the departure; down again, the first
-  // checkpoint.
-  await page.keyboard.press("ArrowDown");
-  await expect(selectedRow).toHaveCount(1);
-  await expect(selectedRow.first().locator("td").first()).toHaveText("C81");
-  await page.keyboard.press("ArrowDown");
-  await expect(selectedRow.first().locator("td").first()).not.toHaveText("C81");
-  const afterTwo = await selectedRow.first().locator("td").first().textContent();
-
-  // Up goes back to the departure.
-  await page.keyboard.press("ArrowUp");
-  await expect(selectedRow.first().locator("td").first()).toHaveText("C81");
-
-  // A click selects that row directly.
+  // A click selects that row, and the map follows it.
   const rows = table.locator("tbody tr[tabindex='0']");
   await rows.nth(2).click();
+  await expect(selectedRow).toHaveCount(1);
   await expect(selectedRow.first().locator("td").first()).toHaveText(await rows.nth(2).locator("td").first().innerText());
 
-  // And the keys still walk from there: the map is mounted beside the
-  // drawer, and the drawer is non-modal, so a key goes on working.
-  await page.keyboard.press("ArrowUp");
-  await expect(selectedRow.first().locator("td").first()).toHaveText(afterTwo ?? "");
+  // From the keyboard the same way, and with nothing this page binds
+  // on the document: a row is focusable and takes Enter itself
+  // (`SelectableRow`). The drawer is non-modal and the map is mounted
+  // beside it, so this works with the briefing open.
+  await rows.nth(1).focus();
+  await page.keyboard.press("Enter");
+  await expect(selectedRow.first().locator("td").first()).toHaveText(await rows.nth(1).locator("td").first().innerText());
+
+  // The section titles get the stock accordion's own Up and Down back:
+  // the trigger used to swallow them for the walk that is now gone.
+  const titles = sideDrawer(page).locator('[data-slot="accordion-trigger"]');
+  await titles.first().focus();
+  await page.keyboard.press("ArrowDown");
+  await expect(titles.nth(1)).toBeFocused();
 });
 
 test("plan page: the briefing's nav log scrolls inside the drawer, not the page", async ({ page }) => {
