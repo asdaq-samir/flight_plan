@@ -27,7 +27,7 @@ RUN npm run types && npx vite build --outDir /web/dist --emptyOutDir
 # ASM can't yet parse a Java 26 class file (major version 70) --
 # `repackage` fails with "Unsupported class file major version 70".
 # 25 (major version 69) is the newest JDK it actually understands.
-FROM maven:3.9.16-eclipse-temurin-25 AS build
+FROM maven:3-eclipse-temurin-26 AS build
 WORKDIR /build
 COPY springboot-app/pom.xml .
 RUN --mount=type=cache,target=/root/.m2/repository mvn -q dependency:go-offline
