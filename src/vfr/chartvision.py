@@ -284,12 +284,27 @@ class Mosaic:
     pixels: np.ndarray  # (h, w, 3) uint8
     origin_px: tuple    # global pixel coords of the top-left corner
     zoom: int
+    #: True where a tile was actually pasted. A tile the FAA publishes
+    #: no sheet for -- open water, Canada, the gap either side of an
+    #: Alaska route -- leaves its block of the canvas at the zeros it
+    #: was allocated with, and (0, 0, 0) is not "no data" to a colour
+    #: test: it is black, which is exactly what _dark_line looks for.
+    #: Every missing tile was therefore being read as a solid block of
+    #: road and railway linework, and a course crossing one came back
+    #: with a string of road_or_rail crossings on chart that does not
+    #: exist. 75 of 463 detections on one Alaska-to-Duluth route.
+    covered: np.ndarray | None = None
     missing_tiles: int = 0
     fetched_tiles: int = 0
     cached_tiles: int = 0
 
     def to_latlon(self, cx: float, cy: float) -> tuple:
         return global_px_to_latlon(self.origin_px[0] + cx, self.origin_px[1] + cy, self.zoom)
+
+    def on_chart(self, mask: np.ndarray) -> np.ndarray:
+        """`mask` with everything off the published chart removed. Every
+        palette test goes through this, so a new one cannot forget."""
+        return mask if self.covered is None else mask & self.covered
 
 
 def build_mosaic(tiles: list, zoom: int = DEFAULT_ZOOM, max_workers: int = 8) -> Mosaic:
@@ -310,6 +325,7 @@ def build_mosaic(tiles: list, zoom: int = DEFAULT_ZOOM, max_workers: int = 8) ->
     x0, x1, y0, y1 = min(xs), max(xs), min(ys), max(ys)
     width, height = (x1 - x0 + 1) * TILE_PX, (y1 - y0 + 1) * TILE_PX
     canvas = np.zeros((height, width, 3), dtype=np.uint8)
+    covered = np.zeros((height, width), dtype=bool)
 
     west, south, _, _ = charts.tile_bbox_wgs84(x0, y1, zoom)
     _, _, east, north = charts.tile_bbox_wgs84(x1, y0, zoom)
@@ -325,11 +341,13 @@ def build_mosaic(tiles: list, zoom: int = DEFAULT_ZOOM, max_workers: int = 8) ->
                 continue
             px, py = (x - x0) * TILE_PX, (y - y0) * TILE_PX
             canvas[py:py + TILE_PX, px:px + TILE_PX] = np.asarray(image)
+            covered[py:py + TILE_PX, px:px + TILE_PX] = True
 
     return Mosaic(
         pixels=canvas,
         origin_px=(x0 * TILE_PX, y0 * TILE_PX),
         zoom=zoom,
+        covered=covered,
         missing_tiles=missing,
         fetched_tiles=len(tiles) - cached,
         cached_tiles=cached,
@@ -366,7 +384,7 @@ def detect_landmarks(mosaic: Mosaic, palette=PALETTE) -> list:
 
     landmarks = []
     for spec in palette:
-        mask = spec.test(r, g, b)
+        mask = mosaic.on_chart(spec.test(r, g, b))
         labelled, count = ndimage.label(mask)
         if count == 0:
             continue
@@ -579,7 +597,7 @@ def linear_crossings(
 
     found = []
     for spec in palette:
-        mask = spec.test(r, g, b)
+        mask = mosaic.on_chart(spec.test(r, g, b))
         # Component labels are needed to ask how far the thing under a
         # crossing actually extends -- see MIN_LINE_EXTENT_PX.
         if spec.min_extent_px:

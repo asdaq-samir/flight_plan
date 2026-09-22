@@ -172,3 +172,43 @@ def test_course_pixels_are_about_one_pixel_apart():
 
 def test_identical_endpoints_yield_no_path():
     assert len(great_circle_pixels(C81, C81)) == 0
+
+
+def test_a_missing_tile_is_not_read_as_black_linework():
+    """The bug this guards: build_mosaic allocates its canvas with zeros
+    and pastes each tile it got, so a tile the FAA publishes no sheet
+    for -- open water, Canada, the gap either side of an Alaska route --
+    stays (0, 0, 0). That is not "no data" to a colour test, it is
+    black, and _dark_line looks for black. Every missing tile was read
+    as a solid block of road and railway linework, and a course crossing
+    one came back with a string of road_or_rail crossings on chart that
+    does not exist: 75 of 463 detections on one real route.
+    """
+    import numpy as np
+    from vfr.chartvision import Mosaic, _dark_line
+
+    # Half the canvas is a real (white) chart, half was never filled.
+    pixels = np.zeros((16, 16, 3), dtype=np.uint8)
+    pixels[:, :8] = 255
+    covered = np.zeros((16, 16), dtype=bool)
+    covered[:, :8] = True
+    mosaic = Mosaic(pixels=pixels, origin_px=(0, 0), zoom=9, covered=covered)
+
+    r, g, b = pixels[:, :, 0], pixels[:, :, 1], pixels[:, :, 2]
+    raw = _dark_line(r, g, b)
+    # Unclipped, the whole uncovered half reads as linework.
+    assert raw[:, 8:].all()
+    # Clipped, none of it does, and the real half is untouched.
+    assert not mosaic.on_chart(raw)[:, 8:].any()
+    assert (mosaic.on_chart(raw)[:, :8] == raw[:, :8]).all()
+
+
+def test_a_mosaic_without_coverage_information_is_left_alone():
+    # Mosaics built by hand in tests, and any older caller, pass no
+    # coverage; clipping must not silently drop everything.
+    import numpy as np
+    from vfr.chartvision import Mosaic
+
+    mask = np.ones((4, 4), dtype=bool)
+    mosaic = Mosaic(pixels=np.zeros((4, 4, 3), dtype=np.uint8), origin_px=(0, 0), zoom=9)
+    assert mosaic.on_chart(mask).all()
