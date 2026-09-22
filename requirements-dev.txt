@@ -19,3 +19,4 @@ pillow      # vfr.charts -- encodes the chart tiles; vfr.chartvision reads them
 rasterio    # vfr.charts -- reads and reprojects the FAA chart GeoTIFFs
 scipy       # vfr.chartvision -- connected components over the palette masks
 pyarrow     # vfr.faa_data -- the obstacle table's Parquet cache beside DOF.DAT
+pygeomag    # vfr.magnetic -- the World Magnetic Model, evaluated locally
