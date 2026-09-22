@@ -4,7 +4,7 @@ import type {
   Aircraft, AircraftChoice, AircraftProfileSummary, AircraftRequest, AirportSearch, AltitudeChoice, Briefing, BuildJob,
   BuiltRoutes, ChartRefreshStarted, CheckpointDescriptionMessage, CheckpointNoteSaved, Checkpoints, Classification, Course,
   Flight, FlightSummary, ModelComparison, NarrativeMessage, NarrativeRequest, NavLogMessage, PickDeleted, PickSaved,
-  PicksResponse, Pilot, Rating, RetrainStarted, Role, SaveFlightRequest, Status, StreamMessage,
+  PicksResponse, Pilot, Rating, RetrainStarted, Role, SaveFlightRequest, SignInCapabilities, Status, StreamMessage,
 } from "./types";
 
 /**
@@ -279,6 +279,14 @@ export const api = {
     if (!res.ok) throw new ApiError("could not check sign-in status", res.status);
     return res.json();
   },
+
+  /**
+   * What signing in can do here. Public, and asked before any session
+   * exists: a deployment with no Google or Apple credentials and no
+   * mail host cannot hold a role at all, which is what decides whether
+   * the developer's switch is offered to a caller with no session.
+   */
+  capabilities: () => json<SignInCapabilities>("/api/auth/capabilities"),
 
   /** POSTs to Spring's own default logout endpoint, whose response is
    *  a redirect (a login page's HTML), not JSON -- the caller re-checks

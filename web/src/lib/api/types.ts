@@ -139,6 +139,17 @@ export interface Pilot {
   id: number;
   email: string;
   displayName: string;
+  /** Whether the training workspace and the developer console are
+   *  theirs. Granted with an UPDATE on the pilots table, never
+   *  inherited -- see the V7 migration. */
+  developer: boolean;
+}
+
+/** What signing in can do in this deployment, asked before anyone has
+ *  (`/api/auth/capabilities`). */
+export interface SignInCapabilities {
+  signInPossible: boolean;
+  oauthConfigured: boolean;
 }
 
 /** One framework's own result from ComparisonProxyController -- either

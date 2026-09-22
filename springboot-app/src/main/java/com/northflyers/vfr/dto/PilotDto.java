@@ -13,5 +13,8 @@ import io.swagger.v3.oas.annotations.media.Schema;
 public record PilotDto(
         @Schema(description = "Internal id", example = "1") Long id,
         @Schema(description = "Email address from the identity provider", example = "pilot@example.com") String email,
-        @Schema(description = "Display name", example = "A. Pilot") String displayName) {
+        @Schema(description = "Display name", example = "A. Pilot") String displayName,
+        @Schema(description = "Whether this pilot also does development work here: the training workspace "
+                + "and the developer console are theirs, a plain pilot's are not.",
+                example = "false") boolean developer) {
 }

@@ -41,6 +41,6 @@ public class PilotController {
     }
 
     private static PilotDto toDto(Pilot pilot) {
-        return new PilotDto(pilot.getId(), pilot.getEmail(), pilot.getDisplayName());
+        return new PilotDto(pilot.getId(), pilot.getEmail(), pilot.getDisplayName(), pilot.getRole().isDeveloper());
     }
 }

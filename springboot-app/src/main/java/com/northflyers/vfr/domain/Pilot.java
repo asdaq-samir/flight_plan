@@ -2,6 +2,8 @@ package com.northflyers.vfr.domain;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -42,6 +44,13 @@ public class Pilot {
 
     @Column(unique = true)
     private String appleSubject;
+
+    /** Defaults to PILOT for every row, including every row that
+     *  existed before the column did (V7). A developer is granted, not
+     *  inherited. */
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 16)
+    private PilotRole role = PilotRole.PILOT;
 
     @Column(nullable = false)
     private Instant createdAt;

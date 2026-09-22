@@ -54,19 +54,31 @@ public class SecurityConfig {
     // on by default.
     private final boolean hsts;
 
+    private final SignInOptions signIn;
+
     SecurityConfig(Optional<ClientRegistrationRepository> clientRegistrations,
                    @Value("${spring.mail.host:}") String mailHost,
                    @Value("${app.chart-tiles-origin:}") String chartTilesOrigin,
                    @Value("${app.hsts:true}") boolean hsts) {
         this.hsts = hsts;
-        this.oauthConfigured = clientRegistrations.isPresent();
         // A session can be obtained through OIDC, or through the magic
         // link -- which only ever sends when a mail host is configured.
+        this.oauthConfigured = clientRegistrations.isPresent();
         this.signInPossible = oauthConfigured || !mailHost.isBlank();
+        this.signIn = new SignInOptions(oauthConfigured, signInPossible);
         // The CDN the chart tiles come from on AWS (application.yml's
         // app.chart-tiles-origin), which img-src must allow; blank
         // locally, where the tiles are same-origin.
         this.chartTilesOrigin = chartTilesOrigin.isBlank() ? "" : " " + chartTilesOrigin.trim();
+    }
+
+    /** Published so SignInCapabilitiesController can answer the same
+     *  question this class asks, without working it out a second time.
+     *  A @WebMvcTest slice includes this configuration, so the bean
+     *  comes with it. */
+    @Bean
+    SignInOptions signInOptions() {
+        return signIn;
     }
 
     @Bean
@@ -105,6 +117,10 @@ public class SecurityConfig {
                             // routes for Google/Apple) are never matched
                             // against "anyRequest" here either.
                             .requestMatchers("/api/auth/magic-link/**").permitAll()
+                            // Asked before any session exists, to decide
+                            // whether a sign-in button is worth showing
+                            // at all (SignInCapabilitiesController).
+                            .requestMatchers(HttpMethod.GET, "/api/auth/capabilities").permitAll()
                             .requestMatchers(HttpMethod.GET, "/", "/error").permitAll()
                             // Everything else that exists is pilot-scoped.
                             .anyRequest().authenticated();
