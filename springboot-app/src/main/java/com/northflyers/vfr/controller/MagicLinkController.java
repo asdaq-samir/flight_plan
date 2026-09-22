@@ -25,8 +25,11 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.web.authentication.session.ChangeSessionIdAuthenticationStrategy;
+import org.springframework.security.web.authentication.session.SessionAuthenticationStrategy;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -64,6 +67,8 @@ public class MagicLinkController {
     private final String fromAddress;
     private final SecureRandom random = new SecureRandom();
     private final SecurityContextRepository securityContextRepository = new HttpSessionSecurityContextRepository();
+    private final SessionAuthenticationStrategy sessionAuthenticationStrategy =
+            new ChangeSessionIdAuthenticationStrategy();
 
     public MagicLinkController(MagicLinkRepository magicLinks, PilotService pilots, JavaMailSender mailSender,
             @Value("${MAIL_FROM:no-reply@northflyers.com}") String fromAddress) {
@@ -91,7 +96,7 @@ public class MagicLinkController {
     }
 
     @Operation(summary = "Sign in from a magic link",
-            description = "302 to Settings, now signed in, on success; 400 for an expired, already-used or unrecognized token.")
+            description = "302 to the planner, now signed in, on success; 400 for an expired, already-used or unrecognized token.")
     @GetMapping("/verify")
     public ResponseEntity<String> verify(
             @RequestParam String token, HttpServletRequest request, HttpServletResponse response) {
@@ -103,12 +108,24 @@ public class MagicLinkController {
         // MagicLinkRepository.consumeIfUsable's own javadoc.
         if (magicLinks.consumeIfUsable(tokenHash, Instant.now()) == 0) {
             return ResponseEntity.badRequest()
-                    .body("This link has expired or was already used. Request a new one from Settings.");
+                    .body("This link has expired or was already used. Ask for a new one from the Pilot menu.");
         }
         MagicLink link = magicLinks.findByTokenHash(tokenHash).orElseThrow();
         var pilot = pilots.fromVerifiedEmail(link.getEmail());
+        Authentication authentication = new MagicLinkAuthenticationToken(pilot.getEmail());
+
+        // Spring Security's own session-fixation strategy, run by hand
+        // because this endpoint is outside the filter chain that would
+        // otherwise run it. A session that existed before the click --
+        // one a pilot arrived with, or one someone else planted in their
+        // browser -- must not be the session they end up signed in on.
+        // oauth2Login gets this from AbstractAuthenticationProcessingFilter;
+        // this flow has no such filter, so it asks for the same thing
+        // directly rather than going without.
+        sessionAuthenticationStrategy.onAuthentication(authentication, request, response);
+
         SecurityContext context = SecurityContextHolder.createEmptyContext();
-        context.setAuthentication(new MagicLinkAuthenticationToken(pilot.getEmail()));
+        context.setAuthentication(authentication);
         SecurityContextHolder.setContext(context);
         // Explicit save, not just setContext above -- outside Spring
         // Security's own filter chain (there is no
@@ -117,7 +134,7 @@ public class MagicLinkController {
         // session for the next request.
         securityContextRepository.saveContext(context, request, response);
         return ResponseEntity.status(HttpStatus.FOUND)
-                .location(URI.create("/app/settings"))
+                .location(URI.create("/app/plan"))
                 .build();
     }
 

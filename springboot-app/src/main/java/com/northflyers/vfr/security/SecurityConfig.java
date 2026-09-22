@@ -158,7 +158,7 @@ public class SecurityConfig {
                         // token as a query param (?token=...) -- default
                         // browser behaviour would otherwise forward the
                         // full URL, token included, as the Referer header
-                        // on the very first outbound request /app/settings
+                        // on the very first outbound request the planner
                         // makes after that redirect. no-referrer drops it
                         // (and every other page's query string) entirely.
                         .referrerPolicy(referrer -> referrer.policy(ReferrerPolicy.NO_REFERRER))
