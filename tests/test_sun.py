@@ -27,3 +27,23 @@ def test_midday_is_day_and_the_small_hours_are_night():
 
 def test_a_naive_time_is_read_as_utc():
     assert is_night(*CHICAGO, datetime(2026, 9, 22, 17, 0)) is False
+
+
+def test_polar_night_and_polar_day_answer_rather_than_raise():
+    # astral raises where the sun never reaches six degrees below the
+    # horizon. That is an answer here: Svalbard in January is night all
+    # day, in July it is day all day, and a fuel reserve still has to be
+    # decided. Neither may take the nav log down.
+    svalbard = (78.2, 15.6)
+    assert civil_twilight(*svalbard, datetime(2026, 1, 15).date()) == (None, None)
+    assert is_night(*svalbard, datetime(2026, 1, 15, 12, 0, tzinfo=timezone.utc)) is True
+    assert is_night(*svalbard, datetime(2026, 7, 15, 0, 0, tzinfo=timezone.utc)) is False
+
+
+def test_dusk_rolls_past_midnight_for_a_western_longitude():
+    # The convention this wrapper exists for: the pair describes one
+    # civil day, so a US dusk lands on the UTC date after its dawn.
+    dawn, dusk = civil_twilight(*CHICAGO, datetime(2026, 6, 21).date())
+    assert dawn is not None and dusk is not None
+    assert dusk > dawn
+    assert dusk.date() > dawn.date()

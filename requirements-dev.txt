@@ -21,4 +21,5 @@ scipy       # vfr.chartvision -- connected components over the palette masks; vf
 pyarrow     # vfr.faa_data -- the obstacle table's Parquet cache beside DOF.DAT
 pygeomag    # vfr.magnetic -- the World Magnetic Model, evaluated locally
 pyproj      # vfr.geo -- PROJ's distance and azimuth solutions, scalar and vectorised
+astral      # vfr.sun -- civil twilight, for the night fuel reserve
 pygeodesy   # TEST ONLY -- the independent implementation tests/test_geo.py pins vfr.geo against

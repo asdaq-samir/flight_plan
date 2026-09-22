@@ -14,6 +14,7 @@ import json
 import re
 import threading
 import zipfile
+from functools import lru_cache
 from pathlib import Path
 from urllib.parse import urljoin
 
@@ -261,14 +262,13 @@ def _in_bbox(lat: pd.Series, lon: pd.Series, bbox: tuple) -> pd.Series:
     return lat.between(min_lat, max_lat) & lon.between(min_lon, max_lon)
 
 
-_NAV_BASE_CACHE: dict = {}
+@lru_cache(maxsize=4)
+def _read_nav_base_cached(path: str, _mtime: float) -> pd.DataFrame:
+    return pd.read_csv(path, dtype=str)
 
 
 def _read_nav_base(nav_csv_path) -> pd.DataFrame:
-    key = (str(nav_csv_path), Path(nav_csv_path).stat().st_mtime)
-    if key not in _NAV_BASE_CACHE:
-        _NAV_BASE_CACHE[key] = pd.read_csv(nav_csv_path, dtype=str)
-    return _NAV_BASE_CACHE[key]
+    return _read_nav_base_cached(str(nav_csv_path), Path(nav_csv_path).stat().st_mtime)
 
 
 def load_vor_navaids(nav_csv_path, bbox: tuple) -> pd.DataFrame:

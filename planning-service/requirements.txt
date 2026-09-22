@@ -18,6 +18,8 @@ pyarrow==25.0.1
 requests==2.34.2    # Overpass/FAA, and the model-service call
 pygeomag==1.1.0    # vfr.magnetic evaluates the World Magnetic Model here rather than asking NOAA's calculator
 pyproj==3.8.0      # vfr.geo -- PROJ's distance/azimuth, scalar and vectorised over a whole corridor
+astral==3.2        # vfr.sun -- civil twilight, which sets the night fuel reserve
+cachetools==7.2.0  # the service caches: bounded, and with the expiry kept by the cache rather than a timestamp per entry
 boto3==1.43.98      # vfr.model_client's SageMaker Runtime path, used only when SAGEMAKER_ENDPOINT_NAME is set (AWS)
 shapely==2.1.2     # vfr.osm._representative_point, vfr.airspace polygons
 pyshp==3.1.6       # vfr.airspace reads the FAA Class Airspace shapefile

@@ -2,6 +2,8 @@
 route until the features or the promoted model change."""
 import threading
 
+from cachetools import LRUCache
+
 from fastapi import HTTPException
 from vfr import checkpoints as checkpoint_selection
 from vfr import model_client, model_registry
@@ -13,7 +15,11 @@ from .common import paths
 # route on every single page load -- two full model-service round trips
 # (features parquet read + inference) for one screen, and the second one
 # always returned exactly what the first just had.
-_SCORE_CACHE: dict = {}
+# Bounded rather than a plain dict: this one is keyed by route alone and
+# invalidated by the feature file's and the model's mtimes, so it does
+# not need a TTL -- only a ceiling, so a long-lived process that has
+# served a thousand corridors is not still holding all of them.
+_SCORE_CACHE: LRUCache = LRUCache(maxsize=256)
 _SCORE_CACHE_LOCK = threading.Lock()
 
 

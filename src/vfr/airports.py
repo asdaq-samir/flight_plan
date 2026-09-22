@@ -2,6 +2,7 @@
 data -- all backed by OurAirports' free, no-API-key-required dataset
 (three sibling CSVs from the same host).
 """
+from functools import lru_cache
 from pathlib import Path
 
 import pandas as pd
@@ -32,15 +33,18 @@ def _ensure_cached(url: str, cache_path: Path) -> Path:
     return cache_path
 
 
-_TABLE_CACHE: dict = {}
+@lru_cache(maxsize=8)
+def _read_table(path: str, _mtime: float) -> pd.DataFrame:
+    """One read per file per process. `_mtime` is not used in the body:
+    it is in the signature so a file replaced on disk is a different
+    cache entry, which is what the hand-rolled dict this replaced used
+    its key for."""
+    return pd.read_csv(path, low_memory=False)
 
 
 def _load_table(url: str, cache_path: Path) -> pd.DataFrame:
     path = _ensure_cached(url, cache_path)
-    key = (str(path), path.stat().st_mtime)
-    if key not in _TABLE_CACHE:
-        _TABLE_CACHE[key] = pd.read_csv(path, low_memory=False)
-    return _TABLE_CACHE[key]
+    return _read_table(str(path), path.stat().st_mtime)
 
 
 def load_airports(cache_path: Path = DEFAULT_CACHE_PATH) -> pd.DataFrame:

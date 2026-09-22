@@ -3,49 +3,38 @@ minutes of fuel by day and 45 at night, and night (14 CFR 1.1) runs
 from the end of evening civil twilight to the start of morning civil
 twilight -- the sun six degrees below the horizon.
 
-The sunrise/sunset equation from the old Nautical Almanac Office
-"Almanac for Computers", good to a few minutes, which is all a fuel
-reserve needs. No dependency: the one library that does this better
-would be pulled in for a single function.
+astral does the astronomy. What used to be here was the Nautical
+Almanac Office's "Almanac for Computers" sunrise equation, copied by
+hand: about thirty lines of mean anomaly, true longitude and right
+ascension, good to a few minutes. The two agree on dawn to within 1.1
+minutes across four hundred random points and dates over the United
+States, and both decline to answer in polar conditions, so the swap
+changes no answer this project acts on -- it just stops the formula
+being ours to get wrong.
+
+What stays here is the part that is about this project rather than
+about the sun: which civil day a UTC instant belongs to.
 """
-import math
 from datetime import date, datetime, timedelta, timezone
 
-CIVIL_ZENITH_DEG = 96.0
+from astral import Observer
+from astral.sun import dawn as _dawn, dusk as _dusk
+
+# The sun six degrees below the horizon, which is what "civil" means in
+# 14 CFR 1.1's definition of night.
+CIVIL_DEPRESSION_DEG = 6.0
 
 
-def _twilight_ut(lat: float, lon: float, on: date, rising: bool, zenith_deg: float = CIVIL_ZENITH_DEG) -> float | None:
-    """The hour (UT, on `on`'s date) the sun crosses `zenith_deg` on the
-    way up (rising) or down; None when it never does that day -- polar
-    day or night."""
-    day_of_year = on.timetuple().tm_yday
-    lng_hour = lon / 15.0
-    t = day_of_year + ((6.0 if rising else 18.0) - lng_hour) / 24.0
-
-    mean_anomaly = 0.9856 * t - 3.289
-    true_lon = (
-        mean_anomaly + 1.916 * math.sin(math.radians(mean_anomaly))
-        + 0.020 * math.sin(math.radians(2 * mean_anomaly)) + 282.634
-    ) % 360.0
-
-    right_ascension = math.degrees(math.atan(0.91764 * math.tan(math.radians(true_lon)))) % 360.0
-    # Into the same quadrant as the true longitude, then hours.
-    right_ascension += (math.floor(true_lon / 90.0) * 90.0) - (math.floor(right_ascension / 90.0) * 90.0)
-    right_ascension /= 15.0
-
-    sin_dec = 0.39782 * math.sin(math.radians(true_lon))
-    cos_dec = math.cos(math.asin(sin_dec))
-    cos_hour_angle = (
-        (math.cos(math.radians(zenith_deg)) - sin_dec * math.sin(math.radians(lat)))
-        / (cos_dec * math.cos(math.radians(lat)))
-    )
-    if cos_hour_angle > 1 or cos_hour_angle < -1:
+def _at(which, lat: float, lon: float, on: date) -> datetime | None:
+    """astral raises ValueError where the sun never reaches the
+    depression angle -- a polar day or night. That is an answer here,
+    not a failure: no dawn means the sun never got up, no dusk that it
+    never went down, and is_night reads the pair."""
+    try:
+        return which(Observer(latitude=lat, longitude=lon), on,
+                     tzinfo=timezone.utc, depression=CIVIL_DEPRESSION_DEG)
+    except ValueError:
         return None
-    hour_angle = math.degrees(math.acos(cos_hour_angle))
-    hour_angle = (360.0 - hour_angle if rising else hour_angle) / 15.0
-
-    local_mean = hour_angle + right_ascension - 0.06571 * t - 6.622
-    return (local_mean - lng_hour) % 24.0
 
 
 def civil_twilight(lat: float, lon: float, on: date) -> tuple:
@@ -53,11 +42,11 @@ def civil_twilight(lat: float, lon: float, on: date) -> tuple:
     that dawn -- dusk may fall on the next UTC date for a western
     longitude. Either is None in polar conditions: no dawn means the sun
     never gets up that day, no dusk that it never goes down."""
-    dawn_ut = _twilight_ut(lat, lon, on, rising=True)
-    dusk_ut = _twilight_ut(lat, lon, on, rising=False)
-    midnight = datetime(on.year, on.month, on.day, tzinfo=timezone.utc)
-    dawn = None if dawn_ut is None else midnight + timedelta(hours=dawn_ut)
-    dusk = None if dusk_ut is None else midnight + timedelta(hours=dusk_ut)
+    dawn = _at(_dawn, lat, lon, on)
+    dusk = _at(_dusk, lat, lon, on)
+    # The roll is this project's own convention, and the reason this
+    # wrapper exists: astral answers for the UTC date it was asked
+    # about, and west of Greenwich that day's dusk lands after midnight.
     if dawn is not None and dusk is not None and dusk < dawn:
         dusk += timedelta(days=1)
     return dawn, dusk

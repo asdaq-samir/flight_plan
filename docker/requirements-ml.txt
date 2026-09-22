@@ -13,6 +13,7 @@ numpy
 requests
 pygeomag
 pyproj
+astral
 scipy
 scikit-learn
 matplotlib
