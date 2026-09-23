@@ -1,5 +1,6 @@
 """vfr.charts: the FAA chart cycle, the tile grid, finding the chart
 face in a raster, and rendering tiles from more than one sheet."""
+import dataclasses
 import datetime as dt
 import io
 import json
@@ -13,7 +14,7 @@ from PIL import Image
 from rasterio.transform import from_bounds
 from rasterio.warp import transform_bounds
 
-from vfr import charts
+from vfr import chart_faces, charts
 
 C81 = (42.3225, -88.0742)  # Campbell, Grayslake IL
 
@@ -101,9 +102,9 @@ def test_zip_urls_follow_each_kind_and_the_caribbean_exception():
 
 
 def test_snap_pulls_a_sectional_edge_onto_the_quarter_degree():
-    assert charts._snap(43.9994) == 44.0
-    assert charts._snap(-92.9971) == -93.0
-    assert charts._snap(41.4416) == 41.4416   # a TAC-like edge stays measured
+    assert chart_faces._snap(43.9994) == 44.0
+    assert chart_faces._snap(-92.9971) == -93.0
+    assert chart_faces._snap(41.4416) == 41.4416   # a TAC-like edge stays measured
 
 
 PALETTE = {
@@ -153,7 +154,7 @@ def test_render_and_detect_read_three_band_rasters_too(tmp_path):
     # lines -- here from the west line to the raster's east edge and
     # from the raster's top to the south line -- and comes with a mask
     # raster that keeps the collar out of the face's corners.
-    envelope, face, mask = charts.detect_face(tmp_path / "ifr.tif", charts.IFR_LOW)
+    envelope, face, mask = chart_faces.detect_face(tmp_path / "ifr.tif", charts.IFR_LOW)
     assert face[0] == pytest.approx(-91.0, abs=0.03)
     assert face[1] == pytest.approx(40.4, abs=0.1)
     assert face[2] == pytest.approx(-88.0, abs=0.03)
@@ -169,7 +170,7 @@ def test_render_and_detect_read_three_band_rasters_too(tmp_path):
     assert tuple(tile[128, 200]) == (216, 232, 206, 255)
     # The sectional method on the same raster, for comparison, reads
     # the neatline as a geographic line, and has no mask.
-    envelope, face, mask = charts.detect_face(tmp_path / "ifr.tif", charts.SECTIONAL)
+    envelope, face, mask = chart_faces.detect_face(tmp_path / "ifr.tif", charts.SECTIONAL)
     assert face[0] == pytest.approx(-91.0, abs=0.02)
     assert mask is None
 
@@ -196,15 +197,15 @@ def test_a_sheet_across_the_antimeridian_is_measured_unwrapped_and_drawn_in_two(
         ds.write(data, 1)
         ds.write_colormap(1, PALETTE)
 
-    envelope, face, _ = charts.detect_face(tmp_path / "aleut.tif", charts.SECTIONAL)
+    envelope, face, _ = chart_faces.detect_face(tmp_path / "aleut.tif", charts.SECTIONAL)
     assert envelope[0] < 180 < envelope[2] < 200          # unwrapped: east carried on past 180
     assert envelope[0] < face[0] < face[2] < envelope[2]
-    parts = charts.split_antimeridian(face, envelope)
+    parts = chart_faces.split_antimeridian(face, envelope)
     assert len(parts) == 2
     (east_face, _), (west_face, _) = parts
     assert east_face[2] == 180.0 and west_face[0] == -180.0
     assert east_face[0] == face[0] and west_face[2] == pytest.approx(face[2] - 360.0)
-    assert charts.split_antimeridian((-90.0, 40.0, -88.0, 44.0), (-90.5, 39.5, -87.5, 44.5)) == \
+    assert chart_faces.split_antimeridian((-90.0, 40.0, -88.0, 44.0), (-90.5, 39.5, -87.5, 44.5)) == \
         [((-90.0, 40.0, -88.0, 44.0), (-90.5, 39.5, -87.5, 44.5))]
 
 
@@ -242,7 +243,7 @@ def test_a_straight_bordered_face_reaches_the_bow_of_its_top_edge(tmp_path):
     # area, whole, in pooled blocks of four rows: rows 16 to 231.
     corner, middle = lat_at(36, 16), lat_at(500, 16)
     assert middle > corner + 0.3
-    _, face, _ = charts.detect_face(tmp_path / "conic.tif", charts.IFR_LOW)
+    _, face, _ = chart_faces.detect_face(tmp_path / "conic.tif", charts.IFR_LOW)
     assert face[3] == pytest.approx(middle, abs=0.05)
     assert face[1] == pytest.approx(lat_at(36, 232), abs=0.05)
 
@@ -282,7 +283,7 @@ def test_two_straight_bordered_sheets_meet_without_daylight(tmp_path):
 
     rasters = []
     for name in ("a", "b"):
-        envelope, face, mask = charts.detect_face(tmp_path / f"{name}.tif", charts.IFR_LOW)
+        envelope, face, mask = chart_faces.detect_face(tmp_path / f"{name}.tif", charts.IFR_LOW)
         rasters.append(charts.Raster(tmp_path / f"{name}.tif", face=face, envelope=envelope, mask=mask))
     assert rasters[0].face[1] <= rasters[1].face[3]        # the masks meet or overlap
 
@@ -388,12 +389,19 @@ def test_detect_face_reads_neatlines_and_where_the_chart_runs_out(tmp_path):
     data[row(43.6):row(41.0), col(-91.0) - 1:col(-91.0) + 2] = 7   # west neatline
     _palette_raster(tmp_path / "sheet.tif", box, data)
 
-    envelope, face, _ = charts.detect_face(tmp_path / "sheet.tif", charts.SECTIONAL)
+    envelope, face, _ = chart_faces.detect_face(tmp_path / "sheet.tif", charts.SECTIONAL)
     assert envelope == pytest.approx(box, abs=1e-3)
     west, south, east, north = face
     assert west == -91.0 and south == 41.0                    # neatlines, snapped
     assert -88.35 <= east <= -88.0                            # the sheet's own edge, less the margin
     assert 43.3 <= north <= 43.55                             # under the boxes, less the margin
+
+    # `python -m vfr.charts` runs vfr.charts as __main__, whose SECTIONAL
+    # is an equal but different object from the one chart_faces sees:
+    # the sheet must still be read as a sectional (snapped edges).
+    same_kind = dataclasses.replace(charts.SECTIONAL)
+    assert same_kind is not charts.SECTIONAL
+    assert chart_faces.detect_face(tmp_path / "sheet.tif", same_kind)[1] == face
 
 
 def test_palette_png_keeps_the_colours_and_the_transparency():
@@ -643,7 +651,7 @@ def test_remove_masked_lines_gives_the_band_its_tint_back_and_nothing_else(tmp_p
     path = tmp_path / "sheet.tif"
     before = _masked_sheet(path, box)
 
-    boxes = charts.remove_masked_lines(path, [box])
+    boxes = chart_faces.remove_masked_lines(path, [box])
 
     with rasterio.open(path) as src:
         after = src.read(1)
@@ -666,13 +674,13 @@ def test_remove_masked_lines_gives_the_band_its_tint_back_and_nothing_else(tmp_p
     assert west < band_lon < east and south < 42.0 < north and east - west < 0.2
 
     # Run again, it finds nothing left to take out.
-    assert charts.remove_masked_lines(path, [box]) == ()
+    assert chart_faces.remove_masked_lines(path, [box]) == ()
 
 
 def test_masked_lines_outside_the_face_are_the_collar_and_are_left_alone(tmp_path):
     path = tmp_path / "sheet.tif"
     before = _masked_sheet(path, (-90.0, 41.0, -88.0, 43.0))
-    assert charts.remove_masked_lines(path, [(-88.9, 41.0, -88.0, 43.0)]) == ()   # the band is west of the face
+    assert chart_faces.remove_masked_lines(path, [(-88.9, 41.0, -88.0, 43.0)]) == ()   # the band is west of the face
     with rasterio.open(path) as src:
         assert (src.read(1) == before).all()
 
@@ -750,7 +758,7 @@ def _busy_band_sheet(path, box, clean_ends=True):
 def test_a_band_through_somewhere_busy_is_followed_from_its_quiet_stretches(tmp_path):
     box, path = (-90.0, 40.0, -89.5, 43.0), tmp_path / "sheet.tif"
     before = _busy_band_sheet(path, box)
-    assert charts.remove_masked_lines(path, [box])
+    assert chart_faces.remove_masked_lines(path, [box])
     with rasterio.open(path) as src:
         after = src.read(1)
     band = before[100:2300, 380:416] == 0
@@ -761,11 +769,11 @@ def test_a_band_through_somewhere_busy_is_followed_from_its_quiet_stretches(tmp_
 def test_what_is_left_of_a_band_is_found_along_the_border_of_what_was_taken_out(tmp_path):
     box, path = (-90.0, 40.0, -89.5, 43.0), tmp_path / "sheet.tif"
     before = _busy_band_sheet(path, box, clean_ends=False)   # cleaned already, all but the busy stretch
-    assert charts.remove_masked_lines(path, [box]) == ()      # on its own it is not a band
+    assert chart_faces.remove_masked_lines(path, [box]) == ()      # on its own it is not a band
     with rasterio.open(path) as src:   # where the band was taken out, a little wider than it
         (x0, y0), (x1, y1) = src.transform @ (376, 2300), src.transform @ (420, 100)
     taken_out = (transform_bounds("EPSG:3857", "EPSG:4326", x0, y0, x1, y1),)
-    assert charts.remove_masked_lines(path, [box], known=taken_out)
+    assert chart_faces.remove_masked_lines(path, [box], known=taken_out)
     with rasterio.open(path) as src:
         after = src.read(1)
     assert (after[900:1400, 380:416][before[900:1400, 380:416] == 0] == 8).all()
@@ -801,7 +809,7 @@ def test_a_band_is_carried_through_the_lettering_up_to_the_sheets_edge(tmp_path)
     rows, cols = np.mgrid[1450:1600, 380:416]
     data[1450:1600, 380:416][((rows // 3 + cols // 3) % 3 != 0)] = 7   # a name lettered over its last stretch
     _palette_raster(path, box, data)
-    assert charts.remove_masked_lines(path, [(-90.0, 39.0, -89.5, 42.0)])
+    assert chart_faces.remove_masked_lines(path, [(-90.0, 39.0, -89.5, 42.0)])
     with rasterio.open(path) as src:
         after = src.read(1)
     assert (after[100:1600, 380:416][data[100:1600, 380:416] == 0] == 8).all()

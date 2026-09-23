@@ -179,7 +179,7 @@ which on this map -- where the TAC is a layer of its own -- read as a
 white box round every Class B whether the TAC was drawn or not. Only
 the band's paper changes, to the tint either side of it; everything
 printed over it, the "TAC" lettering included, stays
-(`vfr.charts.remove_masked_lines` says how a band is told from a label
+(`vfr.chart_faces.remove_masked_lines` says how a band is told from a label
 box or a dry lake). Sheets prepared before that step existed are
 cleaned, and their tiles rendered again, by
 
