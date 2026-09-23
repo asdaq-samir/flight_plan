@@ -107,11 +107,7 @@ export default function PointPopup({
 
   return (
     <MapCard
-      // A width, like the Class B card's: with the two step arrows and
-      // the close in the head, the title column of a shrink-wrapped
-      // card was narrow enough to wrap "14.8 nm NW of C81" over three
-      // lines, which gave back the row the arrows had just saved.
-      className="w-[min(19rem,74vw)] space-y-1.5"
+
       title={<>{stepLeft}{counter || category}{stepRight}</>}
       subtitle={
         <>

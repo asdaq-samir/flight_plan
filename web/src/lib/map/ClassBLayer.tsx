@@ -43,12 +43,7 @@ function miles(value: number | null): string {
 function Details({ airport, leading }: { airport: ClassBAirport; leading?: ReactNode }) {
   const category = airport.flight_category;
   return (
-    // A width, not just a maximum: a Leaflet tooltip shrink-wraps its
-    // content, so once the raw METAR was allowed to wrap the card
-    // collapsed to a narrow column and wrapped it every four words.
-    // Capped against the viewport so a phone still fits it.
     <MapCard
-      className="w-[min(22rem,72vw)]"
       leading={leading}
       subtitle={airport.name}
       // No sheet name beside the title: the pin at the head's left edge

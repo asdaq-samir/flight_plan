@@ -12,6 +12,8 @@ import { cn } from "cn";
  * and 40). Each was reasonable where it was written and none of them
  * agreed.
  *
+ * One size, too: see the width below.
+ *
  * There is no close button at all now: a tap on the chart puts a card
  * away, which is what every map does and what Leaflet's `closeOnClick`
  * already did for two of the three. `MapShell` fits the route when the
@@ -39,7 +41,15 @@ export function MapCard({
     // on every tooltip, which is right for a one-line course label and
     // wrong here -- a raw METAR ran straight off the card's right edge.
     // It inherits, so setting it on this root is enough.
-    <div className={cn("space-y-1.5 text-xs whitespace-normal", className)}>
+    // One width for every card, set here rather than by each caller:
+    // they were 352, 304 and whatever the content shrank to (267 as
+    // measured), so three cards opened on the same chart were three
+    // sizes. A width and not just a maximum, because a Leaflet tooltip
+    // shrink-wraps its content -- once the raw METAR was allowed to
+    // wrap, the Class B card collapsed into a narrow column and wrapped
+    // it every four words. Capped against the viewport so a phone
+    // still fits it.
+    <div className={cn("w-[min(20rem,74vw)] space-y-1.5 text-xs whitespace-normal", className)}>
       <div className="flex items-start gap-2">
         {leading}
         {/* Centred, and `flex justify-center` rather than `text-center`
