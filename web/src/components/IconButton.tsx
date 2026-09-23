@@ -7,9 +7,6 @@ import { EXPANDED_BUTTON } from "../lib/expandedButton";
 interface Props extends ComponentProps<typeof Button> {
   /** Names the button once: the tooltip's text and the accessible name. */
   label: string;
-  /** The Tooltip's own props, for a caller that has to control it
-   *  (see `SidebarToggleButton`). */
-  tooltip?: Omit<ComponentProps<typeof Tooltip>, "children">;
 }
 
 /**
@@ -32,10 +29,10 @@ interface Props extends ComponentProps<typeof Button> {
  * so the header says which one is out (see `EXPANDED_BUTTON`).
  */
 export default function IconButton({
-  label, tooltip, variant = "ghost", size = "icon", className, children, onFocus, ...props
+  label, variant = "ghost", size = "icon", className, children, onFocus, ...props
 }: Props) {
   return (
-    <Tooltip {...tooltip}>
+    <Tooltip>
       <TooltipTrigger asChild>
         <Button
           variant={variant} size={size} aria-label={label} className={cn(EXPANDED_BUTTON, className)}

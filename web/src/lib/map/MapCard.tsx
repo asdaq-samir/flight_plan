@@ -1,5 +1,4 @@
 import type { ReactNode } from "react";
-import { cn } from "cn";
 
 /**
  * What every card on either map is made of: what the thing is, where it
@@ -20,20 +19,15 @@ import { cn } from "cn";
  * last card closes, so the tap that opened a card and the tap that puts
  * it away are both halves of one gesture. A card's own controls -- the
  * terminal chart's pin, the training pass's step arrows -- sit in the
- * head, which is what `leading` and `actions` are for.
+ * head, which is what `leading` is for.
  */
-export function MapCard({
-  title, subtitle, actions, leading, className, children,
-}: {
+export function MapCard({ title, subtitle, leading, children }: {
   title: ReactNode;
   subtitle?: ReactNode;
-  /** This card's own corner controls, drawn left of the close. */
-  actions?: ReactNode;
   /** A control that belongs with the title rather than in the corner,
    *  drawn at the head's left edge -- the Class B card's terminal-chart
    *  pin, which is about the field the title names. */
   leading?: ReactNode;
-  className?: string;
   children?: ReactNode;
 }) {
   return (
@@ -59,7 +53,7 @@ export function MapCard({
     // 147px on the other. Filling the box puts that right. In a tooltip
     // the parent shrink-wraps, so this resolves to nothing and `w-max`
     // still governs.
-    <div className={cn("w-max min-w-full max-w-[min(22rem,74vw)] space-y-1.5 text-xs whitespace-normal", className)}>
+    <div className="w-max min-w-full max-w-[min(22rem,74vw)] space-y-1.5 text-xs whitespace-normal">
       <div className="flex items-start gap-2">
         {leading}
         {/* Centred, and `flex justify-center` rather than `text-center`
@@ -72,7 +66,6 @@ export function MapCard({
           <div className="flex items-center justify-center gap-2 text-sm font-semibold">{title}</div>
           {subtitle !== undefined && <div className="text-muted-foreground">{subtitle}</div>}
         </div>
-        {actions}
       </div>
       {children}
     </div>
