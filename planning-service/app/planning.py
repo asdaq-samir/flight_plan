@@ -2,6 +2,7 @@
 route), the course line, and the aircraft it is all computed for. The
 legs are vfr.navlog's."""
 import threading
+import time
 from datetime import datetime, timedelta, timezone
 
 from cachetools import TTLCache
@@ -9,6 +10,60 @@ from cachetools import TTLCache
 from vfr import aircraft as aircraft_module
 from vfr import altitude as altitude_module
 from vfr import geo, navlog, sun, weather
+
+
+# How long a caller waits on a computation that is already running before
+# saying so, and after which that computation counts as abandoned. The
+# slowest real altitude selection seen was a little over two minutes, on
+# a bad aviationweather.gov day; the agents' own client waits 300 s.
+COMPUTE_LIMIT_S = 240
+
+# What the stages of vfr.altitude's selection are called to a pilot, by
+# the part of their label before the dot.
+_STAGE_NAMES = {
+    "terrain": "the terrain and obstacles",
+    "airspace": "the airspace",
+    "weather": "aviationweather.gov",
+    "magnetic_variation_deg": "the magnetic variation",
+}
+
+
+def describe_stages(stages) -> str:
+    """"the terrain and obstacles and aviationweather.gov" -- what a
+    computation is still waiting on, in words a pilot can act on."""
+    names = sorted({_STAGE_NAMES.get(stage.split(".")[0], stage) for stage in stages})
+    if not names:
+        return ""
+    return names[0] if len(names) == 1 else ", ".join(names[:-1]) + " and " + names[-1]
+
+
+class StillComputing(RuntimeError):
+    """A computation for this key has been running longer than the limit.
+    The message says for how long and on what it is still waiting;
+    whatever it finishes with is cached for the next request."""
+
+    def __init__(self, elapsed_s: float, stages):
+        waiting = describe_stages(stages)
+        super().__init__(
+            f"Still working after {elapsed_s:.0f} s"
+            + (f", waiting on {waiting}" if waiting else "")
+            + ". Try again in a minute: the answer is kept once it arrives."
+        )
+        self.elapsed_s = elapsed_s
+        self.stages = sorted(stages)
+
+
+class _Flight:
+    """One computation in progress: when it started, the stages it has
+    said are still running, and the event its waiters wait on."""
+
+    def __init__(self, pending: set | None):
+        self.started = time.monotonic()
+        self.pending = pending if pending is not None else set()
+        self.done = threading.Event()
+
+    def age(self) -> float:
+        return time.monotonic() - self.started
 
 
 class SingleFlightTTLCache:
@@ -24,21 +79,37 @@ class SingleFlightTTLCache:
     paying twice. The second caller now waits on the first caller's
     result instead of repeating it.
 
-    A per-key threading.Event, not one lock for the whole cache: two
-    different routes must still compute in parallel, only two callers of
-    the *same* route serialise.
+    A per-key event, not one lock for the whole cache: two different
+    routes must still compute in parallel, only two callers of the
+    *same* route serialise.
+
+    And the wait is bounded (`limit_s`). It used to wait for as long as
+    the first computation took, and one that never finished -- seen on
+    2026-09-23, after a Docker restart, with every later nav log for the
+    route streaming "still waiting" until the service was restarted --
+    held every later caller with it. A caller now gives up after the
+    limit with StillComputing, saying what the computation is waiting
+    on; and a computation older than the limit counts as abandoned, so
+    the next caller starts a fresh one rather than joining it.
     """
 
     def __init__(self, maxsize: int, ttl: float):
         self._cache: TTLCache = TTLCache(maxsize=maxsize, ttl=ttl)
         self._lock = threading.Lock()
-        self._inflight: dict[object, threading.Event] = {}
+        self._inflight: dict[object, _Flight] = {}
 
     def get(self, key):
         """Read-only access, for a caller that wants to see a cached
         value without joining anyone else's in-flight computation."""
         with self._lock:
             return self._cache.get(key)
+
+    def running(self, key) -> tuple[float, list] | None:
+        """How long the computation for `key` has been running and which
+        of its stages are still going, or None when none is."""
+        with self._lock:
+            flight = self._inflight.get(key)
+            return None if flight is None else (flight.age(), sorted(flight.pending))
 
     def clear(self):
         """Same shape as TTLCache.clear(), so the test fixture that
@@ -48,21 +119,27 @@ class SingleFlightTTLCache:
             self._cache.clear()
             self._inflight.clear()
 
-    def get_or_compute(self, key, compute):
+    def get_or_compute(self, key, compute, limit_s: float | None = None, pending: set | None = None):
+        """The cached value, or `compute()`'s -- computed once however
+        many callers ask at the same time. `pending` is the set `compute`
+        reports its running stages in (see vfr.altitude._timed), shown to
+        anyone waiting on it; `limit_s` bounds the wait (see above)."""
         with self._lock:
             hit = self._cache.get(key)
             if hit is not None:
                 return hit
-            event = self._inflight.get(key)
-            if event is None:
-                event = threading.Event()
-                self._inflight[key] = event
+            flight = self._inflight.get(key)
+            if flight is None or (limit_s is not None and flight.age() > limit_s):
+                flight = _Flight(pending)
+                self._inflight[key] = flight
                 leader = True
             else:
                 leader = False
 
         if not leader:
-            event.wait()
+            remaining = None if limit_s is None else max(0.0, limit_s - flight.age())
+            if not flight.done.wait(timeout=remaining):
+                raise StillComputing(flight.age(), flight.pending)
             with self._lock:
                 hit = self._cache.get(key)
             if hit is not None:
@@ -72,20 +149,26 @@ class SingleFlightTTLCache:
             # unrelated caller's exception, or the leader's transient
             # network error, to every follower that was only waiting on
             # a lock.
-            return self.get_or_compute(key, compute)
+            return self.get_or_compute(key, compute, limit_s, pending)
 
         try:
             value = compute()
         except BaseException:
-            with self._lock:
-                del self._inflight[key]
-            event.set()
+            self._finish(key, flight)
             raise
         with self._lock:
             self._cache[key] = value
-            del self._inflight[key]
-        event.set()
+        self._finish(key, flight)
         return value
+
+    def _finish(self, key, flight: _Flight) -> None:
+        """Wakes this flight's waiters, and forgets it -- unless a later
+        caller has already replaced it as abandoned, whose own flight
+        must stay."""
+        with self._lock:
+            if self._inflight.get(key) is flight:
+                del self._inflight[key]
+        flight.done.set()
 
 
 def aircraft_profile(
@@ -148,17 +231,23 @@ _ALTITUDE_TTL_S = 900
 _ALTITUDE_CACHE = SingleFlightTTLCache(maxsize=512, ttl=_ALTITUDE_TTL_S)
 
 
+def _altitude_key(start: tuple, end: tuple, aircraft: str, fixes: list | None, fcst_hr: str) -> tuple:
+    return (
+        round(start[0], 4), round(start[1], 4), round(end[0], 4), round(end[1], 4), aircraft,
+        tuple((round(lat, 4), round(lon, 4)) for lat, lon in fixes) if fixes else None, fcst_hr,
+    )
+
+
 def cruise_altitude(
     start: tuple, end: tuple, profile: dict, aircraft: str, fixes: list | None = None, fcst_hr: str = "06",
 ) -> dict:
     """`fixes`, the nav log's own (lat, lon) fixes, add the leg-by-leg
     segments the stepped plans need; they are part of the key, since a
     different set of checkpoints is a different set of legs. So is the
-    forecast period, since the freezing level is read from it."""
-    key = (
-        round(start[0], 4), round(start[1], 4), round(end[0], 4), round(end[1], 4), aircraft,
-        tuple((round(lat, 4), round(lon, 4)) for lat, lon in fixes) if fixes else None, fcst_hr,
-    )
+    forecast period, since the freezing level is read from it. Raises
+    StillComputing when the same selection has been running longer
+    than COMPUTE_LIMIT_S."""
+    pending: set = set()
 
     def compute():
         # The keywords only when they differ from the defaults: the
@@ -169,9 +258,19 @@ def cruise_altitude(
             extra["fixes"] = fixes
         if fcst_hr != "06":
             extra["fcst_hr"] = fcst_hr
-        return altitude_module.select_cruise_altitude(start, end, profile, **extra)
+        return altitude_module.select_cruise_altitude(start, end, profile, pending=pending, **extra)
 
-    return _ALTITUDE_CACHE.get_or_compute(key, compute)
+    return _ALTITUDE_CACHE.get_or_compute(
+        _altitude_key(start, end, aircraft, fixes, fcst_hr), compute, COMPUTE_LIMIT_S, pending,
+    )
+
+
+def altitude_waiting_on(start: tuple, end: tuple, aircraft: str, fixes: list | None, fcst_hr: str) -> str:
+    """What the selection cruise_altitude() would be joining is still
+    waiting on, in words -- "" when nothing of it is running, which is
+    also the case once it is done and the plans' winds are what remains."""
+    running = _ALTITUDE_CACHE.running(_altitude_key(start, end, aircraft, fixes, fcst_hr))
+    return "" if running is None else describe_stages(running[1])
 
 
 # The three plans read the winds at every legal altitude of every leg,
@@ -197,7 +296,7 @@ def altitude_plans(
             fix_list, selection.get("segments", []), profile, fcst_hr, departure_elevation_ft=departure_elevation_ft,
         )
 
-    return _PLANS_CACHE.get_or_compute(key, compute)
+    return _PLANS_CACHE.get_or_compute(key, compute, COMPUTE_LIMIT_S)
 
 
 def forecast_hour_for(depart: datetime | None) -> str:

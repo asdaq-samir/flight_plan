@@ -35,7 +35,7 @@ log = logging.getLogger(__name__)
 CLASS_A_FLOOR_FT = 18000.0
 
 
-def _timed(label: str, fn):
+def _timed(label: str, fn, pending: set | None = None):
     """Wraps one of select_cruise_altitude's concurrent calls so its own
     wall time is logged on completion.
 
@@ -53,12 +53,20 @@ def _timed(label: str, fn):
     project has neither Prometheus nor StatsD, and reaching for one
     before there is a single measurement to justify it would be the
     thing this project's own audits keep finding and undoing elsewhere.
+
+    `pending`, when given, holds the labels of the calls still running,
+    so a caller waiting on a slow selection can say which part it is
+    waiting on rather than guess.
     """
     def wrapped(*args, **kwargs):
         started = time.time()
+        if pending is not None:
+            pending.add(label)
         try:
             return fn(*args, **kwargs)
         finally:
+            if pending is not None:
+                pending.discard(label)
             log.info("select_cruise_altitude: %s took %.2fs", label, time.time() - started)
     return wrapped
 
@@ -131,6 +139,7 @@ def select_cruise_altitude(
     faa_cache_dir=DEFAULT_FAA_CACHE_DIR,
     fixes: list | None = None,
     fcst_hr: str = "06",
+    pending: set | None = None,
 ) -> dict:
     """Returns a dict with the recommended altitude (None if no legal VFR
     altitude exists for this route/aircraft) plus the floor/ceiling
@@ -141,8 +150,12 @@ def select_cruise_altitude(
     between them, for the stepped plans. Without them the route is one
     segment, as it always was. `fcst_hr` picks the winds/temperatures
     forecast period the freezing level is read from (see
-    vfr.weather.forecast_hour).
+    vfr.weather.forecast_hour). `pending`, when given, holds the stages
+    still running while this works (see _timed).
     """
+    def timed(label, fn):
+        return _timed(label, fn, pending)
+
     route_bearing_deg = bearing_deg(*route_start, *route_end)
     total_nm = distance_nm(*route_start, *route_end)
     # Along-track breakpoints for the floor: the fixes' own positions
@@ -160,40 +173,40 @@ def select_cruise_altitude(
     # trips instead of overlapping them was the real reason this step
     # felt slow -- the same issue, and the same fix, as /api/briefing.
     request_started = time.time()
-    shp_path = airspace.ensure_class_airspace_shapefile(faa_cache_dir)
+    shp_path = timed("airspace.ensure_class_airspace_shapefile", airspace.ensure_class_airspace_shapefile)(faa_cache_dir)
     mid_lat = (route_start[0] + route_end[0]) / 2
     mid_lon = (route_start[1] + route_end[1]) / 2
 
     with ThreadPoolExecutor(max_workers=5) as pool:
         floor_future = pool.submit(
-            _timed("terrain.floor_profile", terrain.floor_profile),
+            timed("terrain.floor_profile", terrain.floor_profile),
             route_start, route_end, breaks_nm, faa_cache_dir=faa_cache_dir,
         )
         if fixes:
             airspace_future = pool.submit(
-                _timed("airspace.airspace_ceiling_profile", airspace.airspace_ceiling_profile),
+                timed("airspace.airspace_ceiling_profile", airspace.airspace_ceiling_profile),
                 route_start, route_end, fixes, shp_path,
             )
         else:
             airspace_future = pool.submit(
-                _timed("airspace.max_airspace_altitude_msl", airspace.max_airspace_altitude_msl),
+                timed("airspace.max_airspace_altitude_msl", airspace.max_airspace_altitude_msl),
                 route_start, route_end, shp_path,
             )
         # Class C/D along the way are not a ceiling -- two-way comms is
         # all they take -- but a pilot still wants to know they are coming.
         transits_future = pool.submit(
-            _timed("airspace.airspace_transits", airspace.airspace_transits), route_start, route_end, shp_path,
+            timed("airspace.airspace_transits", airspace.airspace_transits), route_start, route_end, shp_path,
         )
-        variation_future = pool.submit(_timed("magnetic_variation_deg", magnetic_variation_deg), mid_lat, mid_lon)
+        variation_future = pool.submit(timed("magnetic_variation_deg", magnetic_variation_deg), mid_lat, mid_lon)
         freezing_future = pool.submit(
-            _timed("weather.freezing_level_ft", weather.freezing_level_ft), mid_lat, mid_lon, fcst_hr,
+            timed("weather.freezing_level_ft", weather.freezing_level_ft), mid_lat, mid_lon, fcst_hr,
         )
         cv_future = pool.submit(
-            _timed("weather.ceiling_visibility_along_route", weather.ceiling_visibility_along_route),
+            timed("weather.ceiling_visibility_along_route", weather.ceiling_visibility_along_route),
             route_start, route_end,
         )
         hazards_future = pool.submit(
-            _timed("weather.hazards_along_route", weather.hazards_along_route), route_start, route_end,
+            timed("weather.hazards_along_route", weather.hazards_along_route), route_start, route_end,
         )
 
         # Terrain and airspace are structural safety inputs -- without

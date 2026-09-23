@@ -9,6 +9,8 @@ from pydantic import BaseModel
 from vfr import airports, weather
 from vfr.config import DATA_DIR
 
+from .planning import StillComputing
+
 log = logging.getLogger(__name__)
 
 PROCESSED_DIR = DATA_DIR / "processed"
@@ -109,7 +111,7 @@ def _ending_in_an_error_line(lines, on_error):
         yield from lines
     except HTTPException as err:
         yield line(on_error(detail=str(err.detail)))
-    except weather.WeatherServiceError as err:
+    except (weather.WeatherServiceError, StillComputing) as err:
         yield line(on_error(detail=str(err)))
     except Exception as err:  # noqa: BLE001 -- the stream is committed; the client gets the line, the log gets the trace
         log.exception("stream failed after the response had started")

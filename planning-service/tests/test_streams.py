@@ -62,3 +62,34 @@ def test_a_failed_corridor_read_ends_the_detect_stream_with_an_error(monkeypatch
     lines = messages(resp)
     assert [m["type"] for m in lines] == ["start", "block", "error"]
     assert "tile fetch failed" in lines[-1]["detail"]
+
+
+def test_a_stuck_altitude_selection_ends_the_navlog_stream_saying_what_it_waits_on(monkeypatch, altitude, messages):
+    """The 2026-09-23 hang: the stream used to heartbeat "still waiting on
+    aviationweather.gov" for as long as the selection never finished.
+    Now each heartbeat names the stage actually running, and the stream
+    ends at the limit with an error line saying so."""
+    from app.routers import plan as plan_router
+
+    monkeypatch.setattr(scoring, "invoke_model", lambda dep, dest, model=None: {"checkpoints": []})
+    release = threading.Event()
+
+    def stuck(start, end, profile, faa_cache_dir=None, fixes=None, fcst_hr="06", pending=None):
+        pending.add("terrain.floor_profile")
+        release.wait(timeout=5)
+        return altitude
+
+    monkeypatch.setattr(altitude_module, "select_cruise_altitude", stuck)
+    monkeypatch.setattr(plan_router, "HEARTBEAT_S", 0.05)
+    monkeypatch.setattr(plan_router, "COMPUTE_LIMIT_S", 0.4)
+    try:
+        resp = client.get("/api/navlog", params={"dep": "C81", "dest": "KDLH"})
+    finally:
+        release.set()
+
+    lines = messages(resp)
+    heartbeats = [m["detail"] for m in lines if m["type"] == "stage" and "s, waiting on" in m["detail"]]
+    assert heartbeats and "the terrain and obstacles" in heartbeats[-1]
+    assert "aviationweather.gov" not in " ".join(heartbeats)
+    assert lines[-1]["type"] == "error"
+    assert "waiting on the terrain and obstacles" in lines[-1]["detail"]

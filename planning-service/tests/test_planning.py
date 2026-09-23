@@ -159,3 +159,63 @@ def test_single_flight_cache_clear_drops_cached_values_and_inflight_state():
     cache.clear()
 
     assert cache.get("k") is None
+
+
+def _stuck(pending_stage: str | None = None):
+    """A compute() that never finishes on its own -- the 2026-09-23 hang --
+    reporting `pending_stage` as still running, and the event that lets
+    the test release it afterwards."""
+    release = threading.Event()
+
+    def make(pending: set):
+        def compute():
+            if pending_stage:
+                pending.add(pending_stage)
+            release.wait(timeout=5)
+            return "late"
+        return compute
+    return make, release
+
+
+def test_a_follower_gives_up_after_the_limit_and_says_what_is_running():
+    cache = planning.SingleFlightTTLCache(maxsize=8, ttl=60)
+    make, release = _stuck("terrain.floor_profile")
+    leader_pending: set = set()
+    leader = threading.Thread(target=lambda: cache.get_or_compute("k", make(leader_pending), 5, leader_pending))
+    leader.start()
+    time.sleep(0.1)
+
+    started = time.monotonic()
+    try:
+        cache.get_or_compute("k", lambda: "never", limit_s=0.3)
+        raise AssertionError("the follower should have given up")
+    except planning.StillComputing as err:
+        assert time.monotonic() - started < 1.0
+        assert err.stages == ["terrain.floor_profile"]
+        assert "waiting on the terrain and obstacles" in str(err)
+    finally:
+        release.set()
+        leader.join(timeout=5)
+
+
+def test_a_computation_past_the_limit_is_replaced_not_joined():
+    """After the limit, the next caller starts afresh instead of waiting
+    on a computation that may never finish; the old one finishing late
+    must not remove the new one's entry."""
+    cache = planning.SingleFlightTTLCache(maxsize=8, ttl=60)
+    make, release = _stuck()
+    stuck_pending: set = set()
+    stuck = threading.Thread(target=lambda: cache.get_or_compute("k", make(stuck_pending), 5, stuck_pending))
+    stuck.start()
+    time.sleep(0.3)
+
+    assert cache.get_or_compute("k", lambda: "fresh", limit_s=0.2) == "fresh"
+    release.set()
+    stuck.join(timeout=5)
+    assert cache.running("k") is None
+
+
+def test_stages_are_named_in_a_pilots_words():
+    assert planning.describe_stages(["weather.freezing_level_ft", "terrain.floor_profile", "weather.hazards_along_route"]) \
+        == "aviationweather.gov and the terrain and obstacles"
+    assert planning.describe_stages([]) == ""

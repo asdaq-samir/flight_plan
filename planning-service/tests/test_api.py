@@ -133,7 +133,7 @@ def test_aircraft_profiles_lists_the_stock_profiles():
 
 
 def test_altitude_breakdown_returns_select_cruise_altitudes_result(monkeypatch):
-    monkeypatch.setattr(altitude_module, "select_cruise_altitude", lambda start, end, profile: {
+    monkeypatch.setattr(altitude_module, "select_cruise_altitude", lambda start, end, profile, pending=None: {
         "recommended_ft": 2500.0, "course_magnetic_deg": 335.0, "eastbound": False,
         "floor_ft": 2200.0, "airspace_ceiling_ft": None, "airspace_transits": [],
         "freezing_level_ft": None, "band_ceiling_ft": None, "min_ceiling_ft": None, "min_visibility_sm": None,
@@ -162,7 +162,7 @@ def test_altitude_breakdown_surfaces_a_weather_outage_as_502(monkeypatch):
     aviationweather.gov failure anywhere inside select_cruise_altitude
     reaches the caller as a clean 502 from the global exception handler,
     not a raw 500."""
-    def raise_weather_error(start, end, profile):
+    def raise_weather_error(start, end, profile, pending=None):
         raise WeatherServiceError("aviationweather.gov request failed: timed out")
 
     monkeypatch.setattr(altitude_module, "select_cruise_altitude", raise_weather_error)

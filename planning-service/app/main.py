@@ -38,6 +38,7 @@ from vfr import airspace, altitude, charts, faa_data, weather
 
 from . import chart_refresh
 from .common import PROCESSED_DIR
+from .planning import StillComputing
 from .routers import briefing, build, chart, classb, devml, devservices, notes, plan, system
 from .schemas import STREAM_MESSAGES, Index
 
@@ -142,6 +143,14 @@ async def _weather_service_error(request: Request, exc: weather.WeatherServiceEr
     # aviationweather.gov should read as "the weather source is
     # unavailable" everywhere, not a raw 500.
     return JSONResponse(status_code=502, content={"detail": str(exc)})
+
+
+@app.exception_handler(StillComputing)
+async def _still_computing(request: Request, exc: StillComputing):
+    # A computation for this route has run past its limit (app.planning):
+    # a 504 that says what it is still waiting on, and that asking again
+    # in a minute gets the answer it goes on to cache.
+    return JSONResponse(status_code=504, content={"detail": str(exc)})
 
 
 @app.get("/")
