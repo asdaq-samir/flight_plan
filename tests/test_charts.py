@@ -769,3 +769,39 @@ def test_what_is_left_of_a_band_is_found_along_the_border_of_what_was_taken_out(
     with rasterio.open(path) as src:
         after = src.read(1)
     assert (after[900:1400, 380:416][before[900:1400, 380:416] == 0] == 8).all()
+
+
+def test_a_scans_paper_border_does_not_draw_a_hairline_down_the_seam(tmp_path):
+    # The first sheet's chart runs on to its raster's edge, and so does
+    # its face; its scan ends in a column of paper. The neighbour covers
+    # the strip beyond it.
+    left_box, right_box = (-90.0, 41.0, -88.0, 43.0), (-88.3, 41.0, -86.0, 43.0)
+    left = np.full((512, 512), 1, np.uint8)
+    left[:, -1] = 0
+    _palette_raster(tmp_path / "left.tif", left_box, left)
+    _palette_raster(tmp_path / "right.tif", right_box, np.full((512, 512), 2, np.uint8))
+    rasters = [
+        charts.Raster(tmp_path / "left.tif", face=(-90.0, 41.0, -87.9, 43.0), envelope=left_box),
+        charts.Raster(tmp_path / "right.tif", face=right_box, envelope=right_box),
+    ]
+    x0, _, y0, _ = charts._tile_range((-88.001, 41.999, -87.999, 42.001), 10)
+    rgba = charts.render_tile(rasters, x0, y0, 10)
+    paper = (rgba[:, :, :3] == 255).all(axis=2) & (rgba[:, :, 3] > 0)
+    assert not paper.any()
+    west, _, east, _ = charts.tile_bbox_wgs84(x0, y0, 10)
+    col = lambda lon: int((lon - west) / (east - west) * 256)  # noqa: E731
+    assert tuple(rgba[128, col(-88.05)]) == (255, 0, 0, 255)   # the first sheet, up to its edge
+    assert tuple(rgba[128, col(-87.95)]) == (0, 0, 255, 255)   # its neighbour past it
+
+
+def test_a_band_is_carried_through_the_lettering_up_to_the_sheets_edge(tmp_path):
+    box, path = (-90.0, 40.0, -89.5, 42.0), tmp_path / "sheet.tif"
+    data = np.full((1600, 800), 8, np.uint8)
+    data[100:1600, 380:416] = 0                                   # runs off the bottom of the raster
+    rows, cols = np.mgrid[1450:1600, 380:416]
+    data[1450:1600, 380:416][((rows // 3 + cols // 3) % 3 != 0)] = 7   # a name lettered over its last stretch
+    _palette_raster(path, box, data)
+    assert charts.remove_masked_lines(path, [(-90.0, 39.0, -89.5, 42.0)])
+    with rasterio.open(path) as src:
+        after = src.read(1)
+    assert (after[100:1600, 380:416][data[100:1600, 380:416] == 0] == 8).all()

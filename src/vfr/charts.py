@@ -1050,6 +1050,10 @@ _BAND_PAPER_IN_NEAR = 0.3
 # ... and be this short: the last few kilometres of a band before a
 # sheet's own edge cuts it off.
 _BAND_MIN_BLOCKS_NEAR = 40
+# A measured band is carried on along its line while the strip between
+# its edges stays this much paper, across this many cuts that are not.
+_BAND_EXTEND_PAPER = 0.3
+_BAND_EXTEND_MISSES = 2
 # The tint a band pixel takes is one of the colours the chart around it
 # is mostly painted in, not whatever halo or hairline is nearest; the
 # fill is worked in chunks so a band around a whole Caribbean inset is
@@ -1116,7 +1120,9 @@ def _band_candidates(paper: np.ndarray, inside: np.ndarray, paper_in: float = _B
     found = []
     for axis in (0, 1):
         across = 1 - axis
-        along = ndi.uniform_filter1d(p, _BAND_RUN, axis=axis, mode="constant")
+        # reflected at the raster's own edge: a band the sheet's edge cuts
+        # off is as much paper up to it as anywhere else
+        along = ndi.uniform_filter1d(p, _BAND_RUN, axis=axis, mode="reflect")
         ridge = (
             (along >= paper_in)
             & (_shifted(along, _BAND_SIDE, across, 1.0) <= _BAND_PAPER_OUT)
@@ -1229,6 +1235,37 @@ def _measure_band(data: np.ndarray, paper_lut: np.ndarray, tint_lut: np.ndarray,
     return axis, int(pos.min()), int(pos.max()), fits[0], fits[1]
 
 
+def _extend_band(data: np.ndarray, paper_lut: np.ndarray, band: tuple) -> tuple:
+    """A measured band carried on along its own line past where its
+    measurement stopped, for as long as the strip between its edges is
+    still mostly paper: through the name lettered across it in the last
+    kilometres before a sheet's edge, up to the edge itself."""
+    axis, first, last, left_fit, right_fit = band
+    grid = data if axis == 0 else data.T
+
+    def paper_at(pos: int) -> float | None:
+        lo = int(np.floor(np.polyval(left_fit, pos)))
+        hi = int(np.ceil(np.polyval(right_fit, pos))) + 1
+        if not 0 <= pos < grid.shape[0] or lo < 0 or hi > grid.shape[1] or hi - lo < 3:
+            return None
+        return float(paper_lut[grid[pos, lo:hi]].mean())
+
+    ends = []
+    for start, step in ((first, -_BAND_STEP_PX), (last, _BAND_STEP_PX)):
+        pos, end, misses = start, start, 0
+        while misses <= _BAND_EXTEND_MISSES:
+            pos += step
+            share = paper_at(pos)
+            if share is None:
+                break
+            if share >= _BAND_EXTEND_PAPER:
+                end, misses = pos, 0
+            else:
+                misses += 1
+        ends.append(end)
+    return axis, min(ends[0], first), max(ends[1], last), left_fit, right_fit
+
+
 def _band_region(shape: tuple, band: tuple) -> tuple:
     """The pixels a measured band covers -- between its two edges, a
     couple of pixels out for the scan's soft edge, and carried one band
@@ -1322,7 +1359,7 @@ def find_masked_lines(data: np.ndarray, lut: np.ndarray, crs, transform, faces: 
     for axis, mask, span in _band_candidates(paper, inside):
         band = _measure_band(data, paper_lut, tint_lut, axis, mask, span)
         if band is not None:
-            region[_band_region(data.shape, band)] = True
+            region[_band_region(data.shape, _extend_band(data, paper_lut, band))] = True
     if not region.any() and not anchors.any():
         return None
     waiting = _band_candidates(paper, inside, paper_in=_BAND_PAPER_IN_NEAR, min_blocks=_BAND_MIN_BLOCKS_NEAR)
@@ -1336,7 +1373,7 @@ def find_masked_lines(data: np.ndarray, lut: np.ndarray, crs, transform, faces: 
             if band is None:
                 still.append((axis, mask, span))
             else:
-                region[_band_region(data.shape, band)] = True
+                region[_band_region(data.shape, _extend_band(data, paper_lut, band))] = True
                 found = True
         if not found:
             break
@@ -1405,6 +1442,44 @@ def remove_masked_lines(path: Path, faces: list, known: tuple = ()) -> tuple:
 # Rendering
 # ---------------------------------------------------------------------------
 
+# A scan's own outermost pixels are a paper border -- one column of white
+# down the Twin Cities sheet's east edge -- which is only ever collar,
+# except where the chart runs on to the raster's edge and the face with
+# it. Drawn there, it was a white hairline down the seam, with the
+# neighbouring sheet on the far side of it.
+_RASTER_RIM_PX = 2
+
+
+def _without_raster_rim(inside: np.ndarray, rgb: np.ndarray, src, bbox_3857: tuple) -> np.ndarray:
+    """`inside` -- which pixels of a warp grid the source raster covers --
+    with the paper in the raster's outermost `_RASTER_RIM_PX` pixels
+    taken out: the scan's border, not a chart that runs to the edge of
+    its raster, which two sheets meeting there need. Only pixels near
+    the edge of what is covered are looked at, so a warp well inside a
+    sheet costs nothing."""
+    from rasterio.warp import transform as transform_points
+    from scipy import ndimage as ndi
+
+    height, width = inside.shape
+    xmin, ymin, xmax, ymax = bbox_3857
+    dest_px_m = (xmax - xmin) / width
+    reach = int(math.ceil(_RASTER_RIM_PX * float(src.res[0]) / dest_px_m)) + 2
+    rows, cols = np.nonzero(inside & ~ndi.binary_erosion(inside, iterations=reach, border_value=1))
+    if not len(rows):
+        return inside
+    xs = xmin + (cols + 0.5) * dest_px_m
+    ys = ymax - (rows + 0.5) * (ymax - ymin) / height
+    sx, sy = transform_points("EPSG:3857", src.crs, xs.tolist(), ys.tolist())
+    inverse = ~src.transform
+    sx, sy = np.asarray(sx), np.asarray(sy)
+    c, r = inverse.a * sx + inverse.b * sy + inverse.c, inverse.d * sx + inverse.e * sy + inverse.f
+    rim = (c < _RASTER_RIM_PX) | (r < _RASTER_RIM_PX) | (c > src.width - _RASTER_RIM_PX) | (r > src.height - _RASTER_RIM_PX)
+    rim &= rgb[rows, cols].min(axis=1) >= _WHITE_MIN_CHANNEL
+    inside = inside.copy()
+    inside[rows[rim], cols[rim]] = False
+    return inside
+
+
 def _warp_rgb(path: Path, bbox_3857: tuple, width: int, height: int, centre_lat: float,
               mask: Path | None = None) -> tuple:
     """Part of a raster, reprojected to web mercator: (height, width,
@@ -1452,7 +1527,7 @@ def _warp_rgb(path: Path, bbox_3857: tuple, width: int, height: int, centre_lat:
         if mask is not None:
             with rasterio.open(mask) as mask_src, WarpedVRT(mask_src, **grid) as vrt:
                 alpha = np.minimum(alpha, vrt.read(1))
-    inside = alpha >= 128
+        inside = _without_raster_rim(alpha >= 128, rgb, src, (xmin, ymin, xmax, ymax))
     if oversample == 1:
         return rgb, inside.astype(np.float32)
     # Box-filter the covered samples alone (the others zeroed, the
