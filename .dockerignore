@@ -21,3 +21,12 @@ data/models/
 # does its own npm ci/mvn package from source instead).
 web/node_modules/
 springboot-app/target/
+# Tool caches and a local venv from running things outside Docker --
+# host-only, never read by any Dockerfile (every image installs its own
+# dependencies from a requirements.txt/package.json), small on their own
+# (.venv is ~21M) but still worth keeping out of a context that already
+# has a documented history of surprising leaks (see data/raw/ above).
+.venv/
+.pytest_cache/
+.ruff_cache/
+web/test-results/
