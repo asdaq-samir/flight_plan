@@ -731,3 +731,41 @@ def test_a_tile_rendered_on_demand_draws_the_same_sheet_as_the_pyramid(tmp_path,
     west, _, east, _ = charts.tile_bbox_wgs84(x, y, 8)
     col = int((-88.0 - west) / (east - west) * 256)
     assert tuple(pyramid[200, col]) == tuple(on_demand[200, col]) == (0, 0, 255, 255)   # Bravo, both ways
+
+
+def _busy_band_sheet(path, box, clean_ends=True):
+    """A long band whose middle runs through somewhere busy: half its
+    blocks printed over, too little paper for a band on its own."""
+    data = np.full((2400, 800), 8, np.uint8)
+    rows, cols = np.mgrid[0:2400, 0:800]
+    band = (rows >= 100) & (rows < 2300) & (cols >= 380) & (cols < 416)
+    busy = band & (rows >= 900) & (rows < 1400)
+    data[band] = 0 if clean_ends else 8
+    data[busy] = 0
+    data[busy & (((rows // 4) + (cols // 4)) % 2 == 0) & (cols >= 384) & (cols < 412)] = 7
+    _palette_raster(path, box, data)
+    return data
+
+
+def test_a_band_through_somewhere_busy_is_followed_from_its_quiet_stretches(tmp_path):
+    box, path = (-90.0, 40.0, -89.5, 43.0), tmp_path / "sheet.tif"
+    before = _busy_band_sheet(path, box)
+    assert charts.remove_masked_lines(path, [box])
+    with rasterio.open(path) as src:
+        after = src.read(1)
+    band = before[100:2300, 380:416] == 0
+    assert (after[100:2300, 380:416][band] == 8).all()        # the busy stretch too
+    assert (after[900:1400, 380:416][before[900:1400, 380:416] == 7] == 7).all()
+
+
+def test_what_is_left_of_a_band_is_found_along_the_border_of_what_was_taken_out(tmp_path):
+    box, path = (-90.0, 40.0, -89.5, 43.0), tmp_path / "sheet.tif"
+    before = _busy_band_sheet(path, box, clean_ends=False)   # cleaned already, all but the busy stretch
+    assert charts.remove_masked_lines(path, [box]) == ()      # on its own it is not a band
+    with rasterio.open(path) as src:   # where the band was taken out, a little wider than it
+        (x0, y0), (x1, y1) = src.transform @ (376, 2300), src.transform @ (420, 100)
+    taken_out = (transform_bounds("EPSG:3857", "EPSG:4326", x0, y0, x1, y1),)
+    assert charts.remove_masked_lines(path, [box], known=taken_out)
+    with rasterio.open(path) as src:
+        after = src.read(1)
+    assert (after[900:1400, 380:416][before[900:1400, 380:416] == 0] == 8).all()

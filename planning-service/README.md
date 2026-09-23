@@ -187,7 +187,9 @@ docker compose run --rm -T --no-deps planning-service python -m vfr.charts unmas
 
 which also bumps the cycle's tile revision (`chart_revision` on the
 course), since a browser's service worker holds tiles for weeks under a
-URL a re-render would not otherwise change. To put a sheet back as the
+URL a re-render would not otherwise change. `unmask --again` looks once
+more at sheets already cleaned, along the borders of what was taken out
+of them -- for after the search learns to find more. To put a sheet back as the
 FAA printed it, delete its folder under `data/raw/charts.nosync/` and
 `prepare` downloads it again.
 
