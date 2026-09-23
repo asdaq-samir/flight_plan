@@ -23,7 +23,12 @@ import { test, expect, type Page, type Route } from "@playwright/test";
 test.use({ serviceWorkers: "block" });
 
 const PLAN = "/app/plan?dep=C81&dest=KDLH";
-const chips = (page: Page) => page.locator(".leaflet-marker-icon span.rounded-full");
+// The route's own departure and destination draw the same chip a
+// Class B airport does (see AirportCard/classBIcon) -- one shared
+// look for "this is an airport", not two -- so a plain count has to
+// exclude C81 and KDLH by name to count Class B airports specifically.
+const chips = (page: Page) =>
+  page.locator(".leaflet-marker-icon span.rounded-full").filter({ hasNotText: "C81" }).filter({ hasNotText: "KDLH" });
 
 const FIXTURE = {
   airports: [

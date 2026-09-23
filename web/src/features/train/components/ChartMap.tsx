@@ -2,15 +2,20 @@ import L from "leaflet";
 import { type ReactNode } from "react";
 import { Marker } from "react-leaflet";
 import type { ZoomControl } from "../../../components/MapControls";
-import type { Course, Point } from "../../../lib/api/types";
+import { Badge } from "../../../components/ui/badge";
+import type { Course, Point, Rating } from "../../../lib/api/types";
 import { isEndpoint } from "../../../lib/api/types";
+import { AirportCard } from "../../../lib/map/AirportCard";
 import { CourseLine } from "../../../lib/map/CourseLine";
+import { colourOf } from "../../../lib/map/flightCategory";
 import { Halo } from "../../../lib/map/Halo";
-import { dotIcon, endLabelIcon } from "../../../lib/map/icons";
+import { classBIcon, dotIcon } from "../../../lib/map/icons";
+import { MapCard } from "../../../lib/map/MapCard";
 import { MapPopup } from "../../../lib/map/MapPopup";
 import { MapShell } from "../../../lib/map/MapShell";
+import { MapTooltip } from "../../../lib/map/MapTooltip";
 import { useMarkerZooms, useZoomLevel } from "../../../lib/map/useZoomLevel";
-import { COLORS, hasRating, isVisible, type Filters } from "../logic";
+import { COLORS, hasRating, isVisible, prettyCategory, type Filters } from "../logic";
 
 interface Props {
   course: Course | null;
@@ -33,11 +38,42 @@ interface Props {
   zoom: ZoomControl;
 }
 
+/** The read-only preview a hover shows before a tap opens the full
+ *  rating card -- the same category and rating a row of WaypointPanel
+ *  shows, not the interactive rating buttons and category picker
+ *  `PointPopup` adds once a point is actually selected. */
+function PointPreview({ point }: { point: Point }) {
+  if (isEndpoint(point)) {
+    return (
+      <AirportCard
+        ident={point.ident}
+        name={point.name}
+        badge={<Badge variant="secondary">{point.category === "departure" ? "DEP" : "DEST"}</Badge>}
+      />
+    );
+  }
+  const rating = (point as { rating: Rating | null }).rating;
+  return (
+    <MapCard
+      title={prettyCategory((point as { category: string }).category)}
+      subtitle={
+        hasRating(point)
+          ? <Badge style={{ backgroundColor: COLORS[rating as Rating], color: "white" }}>{rating}</Badge>
+          : "Unrated"
+      }
+    />
+  );
+}
+
 /** The detections and the points added by hand, from the crowd zoom
  *  in: a few hundred over a whole corridor hide the chart. Unrated is
  *  slate rather than white: a white dot with a white casing vanishes
- *  over pale chart. */
-function Candidates({ detections, added, filters, onSelect }: Pick<Props, "detections" | "added" | "filters" | "onSelect">) {
+ *  over pale chart. Hovering previews the point the same way Class B
+ *  airports do; the selected one skips its own preview, since its
+ *  full rating card is already pinned above it (`selectedContent`,
+ *  drawn separately in `ChartMap` below -- there is no per-marker
+ *  popup here to hide it behind, the way the other two maps do). */
+function Candidates({ detections, added, filters, selected, onSelect }: Pick<Props, "detections" | "added" | "filters" | "selected" | "onSelect">) {
   const zoom = useZoomLevel();
   const { crowd } = useMarkerZooms();
   if (zoom < crowd) return null;
@@ -47,7 +83,9 @@ function Candidates({ detections, added, filters, onSelect }: Pick<Props, "detec
         key={`${kind}-${i}`} position={[p.lat, p.lon]}
         icon={dotIcon(hasRating(p) ? COLORS[(p as { rating: 0 }).rating] : "#8fa3b0")}
         eventHandlers={{ click: e => { L.DomEvent.stopPropagation(e); onSelect(kind, i); } }}
-      />
+      >
+        {selected !== p && <MapTooltip><PointPreview point={p} /></MapTooltip>}
+      </Marker>
     ));
   return (
     <>
@@ -81,12 +119,19 @@ export default function ChartMap({
             onClick={latlng => onAddAt(latlng.lat, latlng.lng)}
           />
           {endpoints.filter(isEndpoint).map((e, i) => (
+            // Same pin as a Class B or a route's own airport -- an
+            // airport is an airport on either map -- just uncoloured:
+            // training has no METAR for it to read, and grey is
+            // already what Class B draws for a field with no report,
+            // not a colour invented for this one.
             <Marker
-              key={e.ident} position={[e.lat, e.lon]} icon={endLabelIcon(e.ident)}
+              key={e.ident} position={[e.lat, e.lon]} icon={classBIcon(colourOf(null), e.ident)}
               eventHandlers={{ click: ev => { L.DomEvent.stopPropagation(ev); onSelect("endpoint", i); } }}
-            />
+            >
+              {selected !== e && <MapTooltip><PointPreview point={e} /></MapTooltip>}
+            </Marker>
           ))}
-          <Candidates detections={detections} added={added} filters={filters} onSelect={onSelect} />
+          <Candidates detections={detections} added={added} filters={filters} selected={selected} onSelect={onSelect} />
           {selected && <Halo at={selected} />}
           {/* The rating menu, pinned above the ring. Closed by a tap on
               the chart like every other card, which Leaflet does for us

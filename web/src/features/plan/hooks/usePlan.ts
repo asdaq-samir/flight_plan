@@ -69,7 +69,6 @@ const notCollected = (error: unknown) =>
 
 export function usePlan(
   { dep, dest, altitudeFt, altitudeChoice, depart, aircraft, load }: PlanParams,
-  briefingWanted: boolean,
 ) {
   const queryClient = useQueryClient();
   const routeKnown = !!dep && !!dest && dep !== dest;
@@ -122,10 +121,13 @@ export function usePlan(
     course.isLoading ? "course" : checkpoints.isLoading ? "checkpoints" : navlog.isFetching ? "navlog" : null;
 
   // The briefing's own data -- hazards, METAR, forecast, runways and
-  // frequencies -- only once a pilot opens the drawer that shows it.
+  // frequencies. Fetched as soon as the course is, not only once a
+  // pilot opens the drawer that shows it -- the map's own departure
+  // and destination markers read its METARs too, the same as a Class
+  // B airport reads one, so it can't wait on that drawer opening.
   const briefing = useQuery({
     queryKey: ["briefing", dep, dest], queryFn: () => api.briefing(dep, dest),
-    enabled: briefingWanted && !!course.data, staleTime: 5 * 60_000,
+    enabled: !!course.data, staleTime: 5 * 60_000,
   });
 
   // One "how to spot it" line per checkpoint, streamed on a pilot's

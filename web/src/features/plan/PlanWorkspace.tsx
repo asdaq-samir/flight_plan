@@ -81,7 +81,7 @@ export default function PlanWorkspace({ dep, dest, onRoute, sidebarOpen, childre
   // while; a stock profile until they pick one of their own.
   const aircraft = usePreferences(p => p.aircraft);
   const setAircraft = usePreferences(p => p.setAircraft);
-  const s = usePlan({ dep: planned.dep, dest: planned.dest, altitudeFt, altitudeChoice, depart, aircraft, load }, sidebarOpen);
+  const s = usePlan({ dep: planned.dep, dest: planned.dest, altitudeFt, altitudeChoice, depart, aircraft, load });
   const { course, selected } = s;
 
   // Open on whatever corridor exists, so the page is never an empty
@@ -298,6 +298,7 @@ export default function PlanWorkspace({ dep, dest, onRoute, sidebarOpen, childre
           onZoomChange={setZoomedIn}
           zoom={{ zoomedIn, onToggle: toggleZoom, disabled: !course }}
           showAll={{ on: showCandidates, onToggle: setShowCandidates }}
+          metars={s.briefing?.metars ?? null}
         />
       </div>
     ),

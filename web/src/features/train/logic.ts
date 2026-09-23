@@ -94,6 +94,12 @@ export function isVisible(point: Point, filters: Filters): boolean {
   return filters[roleOf(point)] && filters[sourceOf(point)] && filters[ratedOf(point)];
 }
 
+/** "lake_or_pond" reads as "lake or pond" outside a value picker; the
+ *  raw string is what the server and the category select still use. */
+export function prettyCategory(category: string): string {
+  return category.replace(/_/g, " ");
+}
+
 export interface WalkEntry {
   point: Point;
   kind: "endpoint" | "detected" | "added";

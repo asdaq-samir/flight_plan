@@ -58,6 +58,17 @@ export default function TrainWorkspace({ dep, dest, children }: WorkspaceProps) 
   // re-render, not the moment a zoom actually happens.
   const [zoomedIn, setZoomedIn] = useState(false);
 
+  // Fetched the moment this workspace mounts, not the moment the Sheet
+  // first opens: `DevPanel` is its own chunk (recharts and the model
+  // tables, split out so a pilot never downloads them), and the stock
+  // Sheet doesn't mount its content until it opens, so without this the
+  // console's first open paid for that chunk's own network round trip
+  // on top of the stock open animation -- a lag the pilot's console and
+  // the nav-log drawer don't have, since neither is split out. This
+  // developer is already on the training page by the time they reach
+  // for the console, so the fetch has a head start.
+  useEffect(() => { void import("../dev/DevPanel"); }, []);
+
   useEffect(() => {
     if (!map) return;
     const onZoom = () => setZoomedIn(map.getZoom() >= FOCUS_ZOOM);

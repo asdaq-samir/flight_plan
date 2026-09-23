@@ -158,6 +158,16 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
         // printing over the briefing's table; the paper is the
         // briefing alone.
         className="print:hidden"
+        // bottom-center is a viewport position, not a map-area one, so
+        // an open drawer (a full-screen Sheet on a phone) sits under it
+        // rather than beside it. sonner's own swipe-to-dismiss removed
+        // a toast on the same touch that was meant to tap it, and once
+        // removed mid-touch the browser's own click lands on whatever
+        // the drawer had underneath -- an accordion trigger, most often
+        // -- which is how tapping a toast could expand a briefing
+        // section that was never touched. `closeButton` above is
+        // already the deliberate way to dismiss one by hand.
+        swipeDirections={[]}
       />
     </QueryClientProvider>
     </ThemeProvider>

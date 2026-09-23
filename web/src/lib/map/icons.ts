@@ -54,16 +54,6 @@ export function dotIcon(fill: string, label?: string | number) {
   });
 }
 
-/** The airport pill: sized to its ident, centred in a wider icon box. */
-export function endLabelIcon(ident: string) {
-  return L.divIcon({
-    className: "",
-    iconSize: [90, 20], iconAnchor: [45, 10],
-    html:
-      `<span class="rounded border border-border bg-background px-1.5 py-0.5 text-xs font-semibold shadow-sm">${text(ident)}</span>`,
-  });
-}
-
 /** Own ship: an arrow the size of a checkpoint dot, blue with a white
  *  casing so it holds over any chart colour, turned to the GPS heading
  *  -- a plain dot while stationary, when there is none. */
@@ -82,14 +72,16 @@ export function ownShipIcon(headingDeg: number | null) {
 }
 
 /**
- * A Class B airport: the ident on a coloured chip, in the flight
- * category's own colour (see ClassBLayer).
+ * An airport: the ident on a coloured chip, in its current flight
+ * category's own colour where one applies (see `AirportCard`) -- grey
+ * where it doesn't, a route's own departure/destination before their
+ * METAR answers, or a training corridor's endpoint, which has none.
  *
- * A chip rather than a dot because there are only thirty of them and
- * each one is worth naming -- a pilot deciding whether to route around
- * Chicago wants to see "ORD", not a coloured spot they have to hover to
- * identify. The white casing is the same reasoning as the checkpoint
- * dots': a coloured shape alone disappears into chart of the same hue.
+ * A chip rather than a dot because an airport is always worth naming
+ * outright -- a pilot deciding whether to route around Chicago wants
+ * to see "ORD", not a coloured spot they have to hover to identify.
+ * The white casing is the same reasoning as the checkpoint dots': a
+ * coloured shape alone disappears into chart of the same hue.
  */
 export function classBIcon(colour: string, ident: string) {
   return L.divIcon({

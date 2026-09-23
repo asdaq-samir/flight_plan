@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Marker, useMap } from "react-leaflet";
 import { Pin, PinOff } from "lucide-react";
@@ -7,79 +6,42 @@ import { api } from "../api/client";
 import type { ReactNode } from "react";
 import type { ClassBAirport, Course } from "../api/types";
 import { usePreferences } from "../preferences";
+import { AirportCard } from "./AirportCard";
+import { colourOf } from "./flightCategory";
 import { classBIcon } from "./icons";
-import { MapCard } from "./MapCard";
 import { MapPopup } from "./MapPopup";
 import { MapTooltip } from "./MapTooltip";
-
-/** The FAA's own categories, in the colours a pilot already reads them
- *  in: green good, blue marginal, red instrument, magenta worse than
- *  that. Grey where the field filed no report -- which is not "fine",
- *  it is "unknown", and it must not look like the green one. */
-const CATEGORY_COLOURS: Record<string, string> = {
-  VFR: "#1a7f37",
-  MVFR: "#1f6feb",
-  IFR: "#b3261e",
-  LIFR: "#a371f7",
-};
-const UNKNOWN_COLOUR = "#8fa3b0";
-
-function colourOf(category: string | null): string {
-  return (category && CATEGORY_COLOURS[category]) || UNKNOWN_COLOUR;
-}
-
-function feet(value: number | null): string {
-  return value === null ? "—" : `${Math.round(value).toLocaleString()} ft`;
-}
-
-function miles(value: number | null): string {
-  return value === null ? "—" : `${value} sm`;
-}
+import { useCardedMarker } from "./useCardedMarker";
 
 /** The card, hovered or tapped: what the field is doing now, what it is
  *  forecast to do, and the raw text of both for a pilot who wants to
  *  read it themselves. Tapped, `actions` puts the pin and the zoom in
  *  its top corner. */
 function Details({ airport, leading }: { airport: ClassBAirport; leading?: ReactNode }) {
-  const category = airport.flight_category;
   return (
-    <MapCard
+    <AirportCard
       leading={leading}
-      subtitle={airport.name}
+      ident={airport.ident}
       // No sheet name beside the title: the pin at the head's left edge
       // is what the terminal chart is, and it names the sheet in its
       // own tooltip and accessible name.
-      title={
-        <span className="flex items-baseline gap-2">
-          {airport.ident}
-          <span
-            className="rounded px-1.5 py-0.5 text-xs font-semibold text-white"
-            style={{ backgroundColor: colourOf(category) }}
-          >
-            {category ?? "no report"}
-          </span>
-        </span>
-      }
+      name={airport.name}
+      weather={{
+        category: airport.flight_category,
+        ceilingFt: airport.ceiling_ft,
+        visibilitySm: airport.visibility_sm,
+        raw: airport.metar,
+        forecast: {
+          ceilingFt: airport.taf_ceiling_ft,
+          visibilitySm: airport.taf_visibility_sm,
+          raw: airport.taf,
+        },
+      }}
     >
-
-      <div className="grid grid-cols-[auto_1fr_1fr] gap-x-2 gap-y-0.5 pt-1">
-        <span className="text-muted-foreground" />
-        <span className="font-semibold">Now</span>
-        <span className="font-semibold">Forecast</span>
-        <span className="text-muted-foreground">Ceiling</span>
-        <span className="tabular-nums">{feet(airport.ceiling_ft)}</span>
-        <span className="tabular-nums">{feet(airport.taf_ceiling_ft)}</span>
-        <span className="text-muted-foreground">Visibility</span>
-        <span className="tabular-nums">{miles(airport.visibility_sm)}</span>
-        <span className="tabular-nums">{miles(airport.taf_visibility_sm)}</span>
-      </div>
-
-      {airport.metar && <p className="pt-1 font-mono break-words">{airport.metar}</p>}
-      {airport.taf && <p className="font-mono break-words text-muted-foreground">{airport.taf}</p>}
       {airport.tac && !leading && (
         <p className="pt-1 text-muted-foreground">Tap to go there, and to pin the {airport.tac}.</p>
       )}
-    </MapCard>
+    </AirportCard>
   );
 }
 
@@ -123,7 +85,7 @@ export function ClassBLayer({ course, onPreview }: { course: Course; onPreview: 
   // click, so without this the hover card sat behind the tapped one,
   // two cards deep; on a pointer, hovering a marker whose card is
   // already open did the same.
-  const [carded, setCarded] = useState<string | null>(null);
+  const { carded, cardEvents } = useCardedMarker<string>();
   const { data } = useQuery({
     queryKey: ["classB"],
     queryFn: api.classB,
@@ -171,8 +133,7 @@ export function ClassBLayer({ course, onPreview }: { course: Course; onPreview: 
               onPreview(false);
               map.flyTo([airport.lat, airport.lon], Math.max(map.getZoom(), tacFromZoom));
             },
-            popupopen: () => setCarded(airport.ident),
-            popupclose: () => setCarded(c => (c === airport.ident ? null : c)),
+            ...cardEvents(airport.ident),
           }}
         >
           {/* A tooltip rather than a popup: it follows the pointer and

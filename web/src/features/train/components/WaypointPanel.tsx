@@ -11,7 +11,7 @@ import {
   Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow,
 } from "../../../components/ui/table";
 import { isEndpoint, type Point, type Rating } from "../../../lib/api/types";
-import { COLORS, RATINGS, roleOf, type FilterKey, type Filters, type WalkEntry } from "../logic";
+import { COLORS, RATINGS, prettyCategory, roleOf, type FilterKey, type Filters, type WalkEntry } from "../logic";
 import FilterBar from "./FilterBar";
 
 interface Props {
@@ -42,12 +42,6 @@ interface Props {
 }
 
 const COLUMNS = 4;
-
-/** "lake_or_pond" reads as "lake or pond" in a list; the raw value
- *  stays what the server and the popup's own category picker use. */
-function prettyCategory(category: string): string {
-  return category.replace(/_/g, " ");
-}
 
 /**
  * The developer's waypoint drawer, shaped like the pilot's nav log:
