@@ -122,6 +122,17 @@ once in ten.
 | `GET /api/sectional-tile/{z}/{x}/{y}.png` | The sectional as a tile pyramid, for the map -- rendered from the FAA's own GeoTIFF of each sheet (`vfr.charts`), collar clipped away so sheets butt together. Zooms 3-12: the whole country on a phone screen, down to the chart's own print resolution. |
 | `GET /api/tac-tile/{z}/{x}/{y}.png` | The terminal area charts the same way, for the map's optional overlay; 404 wherever no TAC exists. Zooms 10-13. |
 | `GET /api/chart-tile/{kind}/{z}/{x}/{y}.png` | Any chart kind by key -- `sec`, `tac`, `ifr_low`, `ifr_high` (the IFR enroute charts, base layers the map's info popover can switch to), `ifr_area` (the enroute charts' terminal-area sheets, an overlay over the IFR bases the way the TAC is over the sectional). `chart_layers` on the course lists the kinds, their zooms and which base each overlay belongs over. On AWS the course also carries `chart_tiles_base`, the CloudFront URL the browser fetches tiles from instead (docs/README-AWS.md). |
+| `GET /api/class-b` | Every Class B airport: where it is, what its METAR/TAF are doing now and forecast, and which terminal area chart covers it. One call for all thirty rather than one per marker -- the airspace shapefile is parsed once and pickled (`vfr.classb`, `data/raw/faa_nasr/Shape_Files/Class_Airspace.controlled.v2.pkl`), and the METAR/TAF national caches are already held in memory by `vfr.weather`, so assembling all thirty costs about as much as assembling one. |
+| `GET/POST/DELETE /api/picks` | Hand-marked checkpoints. |
+| `GET/POST /api/checkpoint-notes` | A pilot's "how to spot it" note per checkpoint. |
+| `GET /api/airports/search` | Identifier and name lookup for the route form. |
+| `POST /api/build`, `GET /api/build/{id}` | Start and poll a corridor collection. |
+| `GET /api/routes` | Corridors the feature store already covers. |
+| `GET /api/model-comparison` | Every trained algorithm's accuracy side by side, and which one is promoted. |
+| `GET /api/aircraft-profiles` | The stock performance profiles the nav log can be computed for. `/api/plan` and `/api/navlog` take `aircraft` plus optional `cruise_tas_kt`/`fuel_burn_gph` for a pilot's own aeroplane. |
+| `GET /api/status` | The whole stack in one snapshot for the dev console: which services answer, how fresh the FAA and weather data is, the model registry, and every collected corridor with its label counts. |
+| `POST /api/retrain` | One run of the training DAG through Airflow, or a 501 that says how to run it by hand. |
+| `GET /api/dev/services`, `POST /api/dev/services/{service}/start` | Whether `ml`, `airflow`, `model-service` and `nav-log-agent` are running, and starting one that isn't -- what the dev console's System tab links to. Reaches the Docker daemon through a `tecnativa/docker-socket-proxy` sidecar restricted to reading containers and starting them (`docker-compose.yml`), not the socket itself: the real privilege is the socket, deliberately not mounted into `webapp`, the container actually exposed to the network. Fixed list of four names, no arguments, start only -- it cannot stop anything, cannot reach `db` or `webapp`, and 404s on any other name. |
 
 The tile endpoints render on first request and cache on disk, which is
 fine for one corridor and not for a map with no street layer under it.
@@ -159,15 +170,6 @@ vfr.charts check` looks for daylight between adjacent sheets, which is
 what a mis-detected sheet edge would show up as; the one it always
 reports, between the Caribbean 1 chart and Jacksonville west of 83W,
 is the open Gulf, where the FAA charts no sectional.
-| `GET/POST/DELETE /api/picks` | Hand-marked checkpoints. |
-| `GET/POST /api/checkpoint-notes` | A pilot's "how to spot it" note per checkpoint. |
-| `GET /api/airports/search` | Identifier and name lookup for the route form. |
-| `POST /api/build`, `GET /api/build/{id}` | Start and poll a corridor collection. |
-| `GET /api/routes` | Corridors the feature store already covers. |
-| `GET /api/model-comparison` | Every trained algorithm's accuracy side by side, and which one is promoted. |
-| `GET /api/aircraft-profiles` | The stock performance profiles the nav log can be computed for. `/api/plan` and `/api/navlog` take `aircraft` plus optional `cruise_tas_kt`/`fuel_burn_gph` for a pilot's own aeroplane. |
-| `GET /api/status` | The whole stack in one snapshot for the dev console: which services answer, how fresh the FAA and weather data is, the model registry, and every collected corridor with its label counts. |
-| `POST /api/retrain` | One run of the training DAG through Airflow, or a 501 that says how to run it by hand. |
 
 ## Things that are not obvious
 
@@ -191,3 +193,50 @@ reads feature stores from. On AWS that becomes the S3 bucket the pipeline
 jobs use — and **the Python does not read `VFR_DATA_S3_BUCKET` yet**, so
 a Fargate task would start and then fail to find FAA data. That is the
 one piece of the AWS path still unfinished.
+
+**A cache hit and two concurrent misses are different problems, and
+this service's caches (`app/planning.py`'s `SingleFlightTTLCache`, in
+front of the cruise-altitude selection and the three altitude plans)
+solve both.** The obvious version -- lock, check the dict, unlock,
+compute on a miss, lock again to store it -- only ever protects the
+dict. It leaves the computation itself unguarded, so two requests for
+the same not-yet-cached route (the same plan open in two tabs, a
+client's own retry racing the request it gave up on) both pay for the
+whole terrain/airspace/weather stack, which the comment beside that
+cache already measured at over two minutes on a bad
+aviationweather.gov day. A miss now registers itself with a
+`threading.Event`; a second caller for the *same* key waits on that
+event instead of repeating the work, a different key still computes in
+parallel (one lock per cache, not one lock held for the duration of a
+computation), and a failed compute does not poison whoever was
+waiting on it -- they get their own attempt instead of the leader's
+exception.
+
+**Nothing was watching how long any of this actually took, and the gap
+was invisible until something went looking.** `vfr.altitude.
+select_cruise_altitude` times each of its seven concurrent calls
+(terrain, both airspace queries, transits, magnetic variation, and the
+three weather calls) plus its own total; `vfr.model_client.invoke`
+times the call to `model-service` or SageMaker; this router's own
+`/api/class-b` times the airspace read and the weather lookup
+separately. All three were added, run against the built container, and
+found to produce *no output at all* -- Python's root logger defaults
+to `WARNING`, uvicorn's own `--log-level` only reaches its own
+`uvicorn.access`/`uvicorn.error` loggers, and nothing in this process
+had ever called `logging.basicConfig`. Every `log.info()` already
+written elsewhere in this codebase (`vfr.weather`, `vfr.charts`, both
+older than the timing lines) had been going nowhere since it was
+written. `app/main.py` now calls `logging.basicConfig(level=os.environ
+.get("LOG_LEVEL", "INFO"))` once, at import time, which is what makes
+all of it -- old and new -- actually appear.
+
+**A pilot's own aeroplane numbers must never overwrite the stock
+profile.** `vfr.aircraft.load_aircraft_profile` is `lru_cache`d (it
+used to reopen and reparse the same JSON file on every plan and
+altitude request), and `planning.py`'s `aircraft_profile()` writes a
+pilot's `cruise_tas_kt`/`fuel_burn_gph`/`usable_fuel_gal` overrides
+onto the dict it gets back, **in place**. Caching the parsed dict
+itself would have hit both of those in the same call: the second
+pilot to plan in "c172" with no override of their own would have
+gotten the first pilot's aeroplane. The cache holds the parse; every
+call gets a fresh shallow copy.

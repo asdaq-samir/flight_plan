@@ -72,7 +72,11 @@ explicit path to production on AWS.
   server, assembles the full nav log into a natural-language briefing, with
   long-term recall of past routes via a Postgres/pgvector semantic-search
   store — reusing existing infrastructure rather than standing up a
-  separate vector database.
+  separate vector database. Its MCP tools split the deterministic work
+  from the one Claude call: an agent that connects with its own model
+  can ask for the checkpoints, altitude and legs alone (`assemble_nav_log`,
+  no Anthropic key spent) and write its own narrative, or ask for one
+  written here (`generate_nav_log_briefing`) the way the webapp does.
 - **The same agent task built twice, to compare frameworks.** A second
   implementation in CrewAI — identical tools, identical model-serving
   backend, identical Claude API — evaluates LangGraph's explicit
@@ -675,21 +679,28 @@ data/
 
 ### CI, in full
 
-`.github/workflows/ci.yml` — eight jobs:
+`.github/workflows/ci.yml` — eight jobs, on push to `main`, on every
+pull request, and by hand (`workflow_dispatch`, the Actions tab's own
+"Run workflow" button) — added after a run failed at the platform
+level (a runner that never started; every job completed in about two
+seconds with no steps executed) and the only way to ask again was an
+empty commit:
 
 | Job | What it does |
 |---|---|
 | `test` | ruff + pytest over `src/vfr` |
-| `changes` | On pull requests, a path filter that tells `build-images` which service images the PR touched |
+| `changes` | A path filter (`dorny/paths-filter`) telling both `build-images` and `docs` which service images a change could have touched. Runs on pull requests (where `build-images` uses it to build only the touched images) and on pushes to `main` (where `build-images` ignores it on purpose — main's images stay fully in sync with every dependency bump — but `docs` uses it to skip the three heavy `pdoc` steps below when nothing they document changed). |
 | `test-web` | `tsc --noEmit`, `vitest` and a production build over `web/` — filters, ordering, what counts as rated, and which leg leaves a checkpoint, all pure functions needing no browser |
 | `test-webapp` | `mvn test` — webapp's JUnit suite, including the Testcontainers Postgres test |
 | `test-planning-service` | ruff + pytest over `planning-service/tests/` — its own dependency set (`planning-service/requirements-dev.txt`), separate from `test`'s unrelated `src/vfr` ones |
-| `docs` | Regenerates Javadoc + godoc on every push/PR; the `pdoc` steps, which need this repo's heavy ML images, run only on pushes to `main` so PRs aren't charged minutes for them. Output uploads as a `documentation` artifact. |
+| `docs` | Regenerates Javadoc + godoc on every push/PR. The three `pdoc` steps -- which each build one of this repo's heavy ML images (torch/tensorflow/Spark) purely so `pdoc` can import the modules inside -- run only on pushes to `main`, and only for whichever of `src/vfr`, `nav-log-agent` or `crewai-agent` `changes` says actually changed; a push that only touched `web/` skips all three rather than paying six figures of milliseconds to rebuild and re-document code nobody edited. Output uploads as a `documentation` artifact. |
 | `build-images` | Builds every service Dockerfile, publishes each to GHCR on push to `main` |
 | `push-ecr` | Pushes the six images the CloudFormation stack deploys (`webapp`, `planning-service`, `model-service`, `nav-log-agent`, `crewai-agent`, `airflow`) to ECR via OIDC, reusing `build-images`' cache; activates automatically once `AWS_ROLE_ARN`/`AWS_REGION` repo variables exist |
 
 `build-images` gates on the test jobs, so a failing test never produces a
-published image.
+published image. A cold run (every cache empty, every path filter
+saying "changed") takes about six minutes; a push that only touches one
+service is under two.
 
 ### Gotchas
 
@@ -721,6 +732,23 @@ Non-obvious things worth knowing up front:
   support**, one reason this project runs entirely in Docker.
 - **`data/raw/` (~600MB) must stay in `.dockerignore`** — these services
   mount the project directory at runtime, well after any build step.
+- **A repo checked out under an iCloud-synced folder (`~/Desktop`,
+  `~/Documents`) accumulates conflict copies**, named `<file> 2.<ext>`
+  or `<file> 3.<ext>` beside the original, whenever two processes (or a
+  disk-full write racing a sync) touch the same file. Seen for real in
+  `springboot-app/target` (breaks Flyway's migration versioning),
+  `data/raw` (an airport CSV, and once the whole pickled Class B
+  airspace cache — the real filename ends up absent, the conflict copy
+  holds the actual data), and `web/src` (a stale duplicate of a
+  component, imported by nothing, silently out of date). None of them
+  are a code problem; deleting the conflict copy and, for a derived
+  cache, letting the code regenerate the real file is always the fix.
+  A service that was already running when the corruption happened may
+  need restarting even after the file is fixed — a lock or an
+  in-process cache can stay wedged on stale state that a fresh process
+  wouldn't have. `.gitignore`'s `* [0-9].*` catches the web-source case
+  so one can never be committed by accident; it cannot stop them from
+  appearing on disk in the first place.
 
 ### See also
 

@@ -113,16 +113,18 @@ Grouped by what they are for, not alphabetically.
 
 | Module | What it does |
 |---|---|
-| `geo.py` | Great-circle distance, bearing, cross/along-track. Spherical Earth. |
+| `geo.py` | Great-circle distance, bearing, cross/along-track, nearest-neighbour and clustering -- PROJ (`pyproj`) under a thin scalar/array-dispatching layer, not hand-rolled trigonometry. Every function takes a bare float or a whole array the same way. |
 | `navlog.py` | Wind correction angle, heading, ground speed, ETE, fuel -- per leg, and the legs and totals of a whole route, shared by the planner and both agents. |
-| `magnetic.py` | Magnetic variation, for true → magnetic. |
-| `aircraft.py` | Performance profiles (a C172, by default). |
+| `magnetic.py` | Magnetic variation, for true → magnetic (the World Magnetic Model, evaluated locally). |
+| `sun.py` | Civil twilight, for the night fuel reserve. |
+| `aircraft.py` | Performance profiles (a C172, by default), cached by resolved path -- see planning-service/README.md's own note on why a cached profile is handed out as a fresh copy, never the cached object itself. |
 
 **Reading the world** — each wraps one external source.
 
 | Module | Source |
 |---|---|
 | `chartvision.py` | FAA VFR sectional raster tiles, read by colour. The largest module here. |
+| `charts.py` | The same FAA GeoTIFFs rendered as an XYZ tile pyramid -- sectionals, TACs, IFR enroute and IFR area charts -- with neatline detection so adjacent sheets butt together and no street map shows through the gaps. `planning-service`'s `/api/chart-tile/*` and the batch `prepare`/`pyramid`/`refresh` commands (see that service's own README) are this module's CLI. |
 | `osm.py` | Overpass API, for candidate landmarks. |
 | `faa_data.py` | NASR airports/navaids and the Digital Obstacle File. |
 | `weather.py` | Winds aloft (one small request), and METARs/TAFs/SIGMETs from aviationweather.gov's cache files -- the whole national dataset every five minutes, not a query per route. |
@@ -130,16 +132,17 @@ Grouped by what they are for, not alphabetically.
 | `elevation.py` | USGS 3DEP point elevations. |
 | `terrain.py` | Terrain and obstacle floor for a route. |
 | `airports.py` | Identifier → coordinates, and the route form's search. |
-| `model_client.py` | model-service's `/invocations`, or the SageMaker endpoint on AWS. The one client every service scores through. |
+| `model_client.py` | model-service's `/invocations`, or the SageMaker endpoint on AWS. The one client every service scores through -- a persistent `requests.Session` and a lazily-built, reused `boto3` SageMaker client, not one connection or one client per call. |
 | `retry.py` | The one retry loop the four modules above share for their requests. |
 
 **Deciding things**
 
 | Module | What it decides |
 |---|---|
-| `altitude.py` | The VFR cruising altitude to file. |
+| `altitude.py` | The VFR cruising altitude to file, and the reasoning behind it -- terrain floor, airspace ceiling, freezing level, current ceiling/visibility, hazards, timed per stage (see planning-service/README.md). |
 | `checkpoints.py` | Which scored candidates actually become checkpoints. |
-| `checkpoint_notes.py` | A pilot's own "how to spot it" note per checkpoint, kept apart from the training labels. |
+| `checkpoint_notes.py`, `routecsv.py` | A pilot's own "how to spot it" note per checkpoint, and the shared "one judgment at one place on one route" CSV mechanics (read-and-coerce, rewrite-whole-file, "same place" by proximity) it and `chartlabels.py` both need -- one module, so the two files' own same-distance threshold is one constant instead of two copies that could drift apart. |
+| `classb.py` | Every Class B airport, matched from the FAA Class Airspace shapefile's ~370 polygons down to the ~30 airports they actually belong to -- envelope containment plus ident-prefix matching, not a bare ident lookup (a bare "HNL" once matched a Mexican airspace record). |
 
 **The ML pipeline**
 
@@ -179,3 +182,16 @@ not the features.
 over 25-fold repeated CV, a model given *only* where a point sat along
 the route recovered 78% of the full model's gain. That is a route being
 memorised rather than spottability being learned.
+
+**`geo.py` is PROJ, not `pygeodesy`, and the difference was measured,
+not assumed.** A `pygeodesy`-based rewrite once cost 50x on every
+call -- 86% of it was constructing `pygeodesy.LatLon` objects, not the
+geodesic maths itself, and its plain-function form was no faster.
+`pyproj`'s own `Geod`, configured as a sphere sized in nautical miles,
+answers in 0.87 µs/point vectorised against `pygeodesy`'s 80 µs;
+`pygeodesy` is a **test dependency only** now (`requirements-dev.txt`),
+kept as the independent oracle `tests/test_geo.py` pins this module
+against, never a service dependency again. The lesson generalises past
+this one module: a library swap made for its own sake, without timing
+the hot path first, is exactly how this regression happened the first
+time.

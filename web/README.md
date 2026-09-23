@@ -1,40 +1,54 @@
 # web/
 
 React 19 + TypeScript + Vite + Tailwind v4 + shadcn/ui + Leaflet front
-end, built into `webapp`'s jar and served from `/app`. Three pages:
+end, built into `webapp`'s jar and served from `/app`. Two pages, one
+component (`MapPage`) in two modes:
 
-- `/app/plan` — the app's homepage (bare `/app` redirects here). Enter a
-  departure and destination; get the charted course, scored checkpoints
-  and the nav log, in a drawer beside the map. Walk its checkpoints
-  with the arrow keys or a click and the map follows. The altitude
-  in its header opens the planner's reasoning and its three plans,
-  lowest, highest and fastest for the winds, one click to fly another,
-  or a custom altitude. A departure time beside it gives every row an
-  ETA, picks the winds forecast the legs are flown on, and sets the
-  fuel reserve (30 minutes by day, 45 at night) the fuel check under
-  the totals holds the tanks against. Printed, the log is a landscape
-  page with blank ATA and fuel-remaining columns to fill in in flight.
-  Opened wide
-  (`?view=briefing`, or `n`), the same drawer is the FAA-sequence
-  briefing: the nav log with the briefing's sections under it, an AI
-  narrative popover (LangGraph or CrewAI, each a real Claude call) and
-  Print in its header, the map still beside it. The pilot console
-  drops down over the map from the header: sign-in, the pilot's own
-  aeroplanes (the nav log flies the one picked), filed flights (open
-  one back on the planner, or delete it) and the theme.
+- `/app/plan` — the pilot's page, and the app's own homepage (`/app`
+  redirects here). Enter a departure and destination; get the charted
+  course, scored checkpoints and the nav log, in a drawer beside the
+  map. Every checkpoint, the two airports and every Class B airport
+  (off by default; the layers popover switches it on) are markers on
+  the chart — tap one to go to it and open its card, tap the chart to
+  put the card away. The altitude row in the nav log's header opens
+  the planner's own reasoning and its three plans (lowest, highest,
+  fastest for the winds), one tap to fly another, or a custom
+  altitude. A departure time gives every row an ETA, picks the winds
+  forecast the legs are flown on, and sets the fuel reserve (30
+  minutes by day, 45 at night) the fuel check holds the tanks against.
+  Printed, the log is a landscape page with blank ATA and
+  fuel-remaining columns to fill in in flight. Opened wide
+  (`?view=briefing`, or the sidebar toggle), the same drawer is the
+  FAA-sequence briefing: the nav log with the briefing's sections
+  under it, an AI narrative popover (LangGraph or CrewAI, each a real
+  Claude call) and Print in its header, the map still beside it. The
+  pilot console drops down over the map from the header: sign-in, the
+  pilot's own aeroplanes (the nav log flies the one picked), filed
+  flights and the theme.
 - `/app/dev` — the developer's page: walk a route's detected waypoints
   on the sectional and rate each one, producing ML training data, with
-  the dev console dropping down over the chart in three tabs -- Model
-  (every algorithm trained, the registry, a retrain through Airflow),
-  Corridors (what is collected, how far its labels have come, collect
-  another) and System (which services answer, how fresh the FAA and
-  weather data is, the doors into Jupyter, Airflow and the API docs).
-  `/app/label` and `/app/settings` redirect here and to Plan.
+  the dev console dropping down over the chart in tabs — Model
+  Training (collect a corridor, ratings so far, retrain through
+  Airflow), Performance (every algorithm trained, the promoted one)
+  and System (which services answer, how fresh the FAA and weather
+  data is, the doors into Jupyter, Airflow and the two agents — each a
+  link that starts the container if it isn't running). `/app/label`
+  redirects here (its own query string carried over); `/app/settings`
+  redirects to Plan, where everything it used to hold now lives in the
+  pilot console.
+
+Both pages are one `MapPage` component (`features/page/MapPage.tsx`)
+around a different `WorkspacePieces` (`features/page/workspace.ts`):
+the workspace owns its own data and hands back a map, a sidebar, a
+console and a submit action; the page owns the shell around them — the
+header, the sidebar panel, the console sheet — so the two pages cannot
+drift in where a control sits or how a drawer opens, only in what they
+hold.
 
 The pages compute nothing themselves. Every course, checkpoint,
 detection and nav log comes from `planning-service`; this front end
 draws it and sends back writes (ratings, picks, corridor builds, filed
-flights).
+flights, checkpoint notes).
 
 ## Contents
 
@@ -42,6 +56,7 @@ flights).
 - [Where it sits](#where-it-sits)
 - [Project layout](#project-layout)
 - [Architecture](#architecture)
+- [Maps](#maps)
 - [What is deliberately not here](#what-is-deliberately-not-here)
 
 ## Running it
@@ -72,10 +87,11 @@ stage. There is no separate front-end container; `docker compose up
 --build webapp` rebuilds the bundle.
 
 The Playwright image tag must match `@playwright/test`'s version in
-`package.json`. The e2e suite runs every test at a desktop and a phone
-viewport and checks what a DOM-only test cannot: nothing overflows the
-page, the header controls sit where they should, the sidebar starts
-closed.
+`package.json`. The e2e suite (`e2e/*.spec.ts`) runs every test at a
+desktop and a phone viewport and checks what a DOM-only test cannot:
+nothing overflows the page, the header controls sit where they should,
+a popup on the map is dismissed the same way on every marker, a toast
+survives a drawer opening under it.
 
 `npm run dev` (Vite on port 5173) proxies `/api` to `localhost:8080`.
 Inside a container that resolves to the container itself, so point the
@@ -84,46 +100,47 @@ proxy at `host.docker.internal:8080` or use the build path above.
 ## Where it sits
 
 ```
-web/ (this folder)      the map, the keyboard, the rows
+web/ (this folder)      the map, the header, the drawers
   → webapp              :8080  serves the bundle, proxies /api/planner/*, owns auth and the database
-  → planning-service    :8084  sectional tiles, great-circle course, checkpoints, dead reckoning
+  → planning-service    :8084  sectional tiles, great-circle course, checkpoints, dead reckoning, Class B weather
   → model-service       :8000  scores candidate checkpoints
 ```
 
 The front end never calls `planning-service` or `model-service`
-directly. Every request goes through `webapp` at `/api/planner/*`
-(`frameworkNarrative()` is the one exception, streaming from `webapp`'s
-own `/api/comparison`), so there is one origin, one session and one set
-of access rules.
+directly. Every request goes through `webapp` at `/api/planner/*` (a
+middleware rewrites `/api/x` to that path, so call sites read as if
+they spoke to the planner directly), so there is one origin, one
+session and one set of access rules. The one exception is the AI
+narrative, streamed from `webapp`'s own `/api/comparison`.
 
 ## Project layout
 
 ```
-e2e/layout.spec.ts       Real-browser layout tests (Playwright)
+e2e/*.spec.ts             Real-browser tests (Playwright): layout, toasts, Class B
 src/
-  main.tsx               Entry point: one lazy route per page, basename /app
-  Shell.tsx              The header / map / sidebar-panel layout every page mounts into
-  components/            Shared UI
-    MapDrawer.tsx          A drawer over the map area, under the header (the sidebar from the right, a console from the top); the wide nav log prints as the page
-    MapHeader.tsx          The one-row header both pages share: the route form centred, the icon buttons trailing
-    RouteForm.tsx, RouteInputGroup.tsx, AirportSearchInput.tsx   The DEP → DEST form and its Load button, shared by Plan and Label
-    IconButton.tsx         An icon-only Button with its label as tooltip and accessible name; every header icon is one
-    MapGuideButton.tsx     The Info popover button (Plan's ScoreLegend, Label's RatingLegend)
-    SidebarToggleButton.tsx, ZoomToggleButton.tsx, ThemeToggle.tsx, DevSwitch.tsx   The header's icon buttons and the Dev-mode switch (the flask, empty on Plan and full on Dev)
-    IdentPairInputs.tsx, CollapsibleSection.tsx, Footer.tsx
-    ui/                    shadcn/ui primitives (components.json), stock unless a comment says why not
+  main.tsx                Entry point: route table (basename /app), the course prefetched before React mounts
+  index.css                Leaflet popup/tooltip theming, print rules, the count-flash keyframe
+  components/              Shared UI, one level above any single page
+    IconButton.tsx           Every icon-only button: a stock shadcn Button + Tooltip + accessible name, one size
+    MapHeader.tsx, RouteForm.tsx, RouteInputGroup.tsx, AirportPicker.tsx   The route form both pages share
+    MapControls.tsx          The map's own corner stack: the layers popover, the zoom toggle, full screen
+    ChartLayers.tsx           The layers popover's contents: base chart, TAC pin, Class B, marker zoom
+    ConsoleTabs.tsx, DevSwitch.tsx, ThemeToggle.tsx, FullscreenButton.tsx, KeepRoute.tsx, SelectableRows.tsx
+    ui/                      shadcn/ui primitives (components.json), stock unless a comment says why not
   lib/
-    api/client.ts          Every network call, one function per endpoint
-    api/types.ts           API request/response shapes
-    map/leaflet.tsx        Shared Leaflet primitives: basemaps, course line, halo, markers
-    map/useLeafletMap.ts   Map creation and teardown
+    api/client.ts             Every network call, one function per endpoint
+    api/types.ts               API request/response shapes, re-exported from schema.d.ts
+    map/                       Everything the two maps share (see Maps, below)
+    preferences.ts             What's remembered per browser (zustand + localStorage): charts, aeroplane, filters
+    queryClient.ts             The react-query client; a failed query becomes one toast, keyed by its message
   features/
-    plan/                  PlanView.tsx (wiring), hooks/usePlanState.ts (state), format.ts (pure, tested),
-                           components/: RouteMap, BuildNotice, ScoreLegend, navlog/, briefing/
-    label/                 LabelView.tsx (wiring), hooks/useLabelState.ts (state, tested), logic.ts (pure, tested),
-                           components/: ChartMap, WaypointPanel (the worklist drawer), FilterBar, PointPopup, RatingLegend
-    pilot/                 PilotPanel.tsx (the pilot console), AccountPanels.tsx (sign-in, aircraft, flights), SignInModal.tsx
-    dev/                   DevView.tsx (the page: LabelView plus the console), DevPanel.tsx (Model, Corridors, System)
+    page/MapPage.tsx, workspace.ts   The shell both pages mount into, and the contract a workspace hands it
+    plan/PlanWorkspace.tsx           The pilot's workspace: hooks/usePlan.ts (state), components/: RouteMap,
+                                      BuildNotice, AltitudeReasoning, navlog/, briefing/
+    train/TrainWorkspace.tsx         The developer's workspace: hooks/useTraining.ts (state), logic.ts (pure,
+                                      tested), components/: ChartMap, WaypointPanel, PointPopup, FilterBar
+    pilot/PilotPanel.tsx             The pilot console: AccountPanels.tsx (sign-in, aircraft, flights), SignInModal.tsx
+    dev/DevPanel.tsx, DevButton.tsx  The dev console (its own chunk — see Architecture) and the header button that opens it
 ```
 
 ## Architecture
@@ -133,63 +150,128 @@ one lazy-loaded route per page and `basename: "/app"`. Deep links and a
 hard refresh work because `webapp`'s `WebMvcConfig` serves `index.html`
 for any `/app/**` path that is not a real file.
 
-**State.** Plan and Label each have one hook (`usePlanState`,
-`useLabelState`) holding the page's state as a plain object alongside
-its actions. The pilot and dev consoles use `@tanstack/react-query`
-directly for their server data, plus local `useState` for forms. There
-is no global store.
+**Code-splitting.** The developer's console (`DevPanel`, recharts and
+the model tables) and the whole training workspace (`TrainWorkspace`)
+are `React.lazy`, so a pilot loading `/app/plan` never pays for either
+— importing `DevButton` used to pull the console in by accident, since
+it lived in the same module `DevPanel` did. The nav log's calendar
+popover (`react-day-picker`, one component behind one button) is lazy
+the same way. Leaflet's div-icon markers (`lib/map/icons.ts`) are built
+from template strings rather than JSX rendered with
+`renderToStaticMarkup`, which otherwise pulled the whole of
+`react-dom/server` into every page's chunk for four spans. Together
+these took the planner's cold-load JavaScript from 1.67 MB to 1.00 MB.
 
-**Layout (`Shell.tsx`).** A flex column: the page's header, then the
-map, and two `MapDrawer`s over the map area that start closed and dim
-the map behind them: a console from the top (the pilot's on Plan, the
-developer's on Dev) and the list for that map from the right (the nav
-log on Plan, the waypoint list on Dev). Only the map area is covered,
-so the header stays usable above either, and one drawer is open at a
-time. The two pages keep the same trailing controls in the same places
-— Info, Fit Route / Show Selected, the console toggle, the sidebar
-toggle, the link to the other page — so switching roles changes what
-the drawers hold, not where anything is. `DevView` mounts `LabelView`
-and places its pieces in its own `Shell`.
+**Cold load.** `main.tsx` asks the planner for the course named in the
+address (`prefetchQuery`, the same query key and fetcher `usePlan`
+uses) *before* `ReactDOM.createRoot(...).render(...)` runs — React
+mounting, the router resolving and the workspace rendering all used to
+happen first, with the request queued behind them for a route the URL
+had already named. The component then finds the answer already in
+`react-query`'s cache instead of asking again.
 
-**Leaflet.** `lib/map/` holds everything `RouteMap` and `ChartMap`
-share. Leaflet stays imperative — no React binding — except that popup
-and marker content is JSX mounted into the DOM node Leaflet provides.
-An FAA chart is the map's only base layer: an ordinary tile layer
-served by `planning-service` (`/api/chart-tile/<kind>/{z}/{x}/{y}.png`,
-rendered from the FAA's own GeoTIFFs; the sectional from zoom 3, so
-the whole country fits a phone screen, to 12, upscaled to 15). There
-is no street map under it. The info popover's "Chart layers" section
-picks the base (sectional, IFR low or IFR high) and whether the
-terminal area chart is drawn over the sectional at every zoom it
-exists at; past the sectional's own resolution the TAC is drawn
-regardless (`lib/map/chartLayers.ts`, one setting shared by both map
-pages and remembered per browser).
+**State.** Plan and Train each have one hook (`usePlan`, `useTraining`)
+holding the page's state as a plain object alongside its actions.
+`react-query` owns server data everywhere (cached, with its own
+retry/error handling); `zustand` (`lib/preferences.ts`) owns what's
+remembered per browser; there is no other global store.
 
-**API.** In `lib/api/client.ts`, `navlog()`, `detect()` and
-`describeCheckpoints()` stream newline-delimited JSON through one
-`streamNdjson()` helper; everything else is a plain JSON request. Every
-planner shape in `lib/api/types.ts` is re-exported from `schema.d.ts`,
-which `npm run types` generates from `planning-service/openapi.json`
-(the `pre*` scripts run it before build, test, typecheck and lint), so a
-field renamed in `planning-service/app/schemas.py` is a compile error
-here rather than a silent `undefined`. Only the Spring Boot shapes are
-still typed by hand.
+**API.** `lib/api/client.ts` is built on `openapi-fetch`, typed end to
+end from `planning-service`'s own OpenAPI document (`schema.d.ts`,
+generated by `npm run types`, which the `pre*` scripts run before
+build, test, typecheck and lint) — a field renamed in
+`planning-service/app/schemas.py` is a compile error here, not a
+silent `undefined`. `navlog()`, `detect()` and the checkpoint-notes
+stream read newline-delimited JSON one line at a time. The Spring Boot
+endpoints (sign-in, aircraft, flights) are still a plain `fetch`, since
+that service publishes no OpenAPI document.
 
-**Messages.** Every info, warning and error message is a sonner toast
-through `lib/usePageStatus.ts` (`usePageStatus` for a page's progress
-line and error sources, `useErrorToasts` for a component's own); an
-error a pilot can act on carries "Try again" as the toast's action.
-Inline text is reserved for content, not status: a printed briefing's
-own caveats and conclusions, an empty table's placeholder, a form
-field's validation, a decision that needs a button of its own.
+**Messages.** Every info, warning and error is a sonner toast, centred
+and full-width (`main.tsx`'s `Toaster` props), at most three stacked at
+once. A failed query becomes one toast keyed by its own message
+(`queryClient.ts`) rather than by the query's hash — three queries
+failing the same way used to stack three identical toasts. Its own
+"Try again" refetches every query currently in error, not just the one
+that happened to toast last. Toasts have `pointer-events: none` on
+their container with `auto` restored on the toast itself
+(`index.css`), so the map keeps taking wheel/drag events with one on
+screen, and Radix's `onInteractOutside` (`components/ui/sheet.tsx`) is
+told to ignore a click inside the toaster, so closing a toast never
+closes the drawer under it.
 
 **Styling.** Tailwind utilities and stock shadcn components. The only
-inline styles are colours computed from data (a rating, a score).
+inline styles are colours computed from data (a rating, a flight
+category, a score) and CSS custom properties Leaflet itself reads.
+
+## Maps
+
+`lib/map/` is everything the planner's route map (`RouteMap.tsx`) and
+the training map (`ChartMap.tsx`) share, under `MapShell` — the
+container, the chart tiles, the fit-to-route, own ship, Class B, and
+the corner controls. Neither map talks to Leaflet directly.
+
+**One card, three shapes it fills.** Every marker's popup — a
+checkpoint, an airport, a Class B field, a training point — is a
+`MapCard`: a title, an optional subtitle, an optional `leading` control
+(the Class B card's terminal-chart pin) and children. It sizes to its
+own content (`w-max`) up to a cap, and never narrower than the box
+Leaflet gives it (`min-w-full`) — a Leaflet *popup* writes a width onto
+its content box down to a `minWidth` floor, so a short card measured
+against `w-max` alone sat 89px wide inside a 220px box, with 15px of
+space on one side and 147 on the other; a Leaflet *tooltip* instead
+shrink-wraps its content, which is what `w-max` is for (without it, a
+raw METAR wrapped every four words). `MapPopup` and `MapTooltip` are
+the shared `<Popup>`/`<Tooltip>` wrappers underneath, carrying the one
+set of defaults every card used to set for itself, differently, at
+three call sites — including Leaflet's own close button, which is off
+everywhere (`closeButton={false}`): there is no close button on a
+card. A tap on the chart puts a card away — Leaflet's own
+`closeOnClick` — the same way tapping a map already does everywhere
+else, and it is what closes two of the three cards without any code
+here at all.
+
+**A tap goes to the marker.** Every marker — checkpoint, airport,
+Class B field, training point — answers a tap the same way: select it,
+fly the map to it, open its card. This used to be three different
+answers (the planner's checkpoints flew and opened nothing, the
+training points selected without moving, Class B opened a card and
+left zooming to an icon inside it); unifying it retired the Class B
+card's own zoom button, since the tap that opens the card has already
+gone there.
+
+**Zoom state.** `useZoomLevel` reads the map's real zoom
+(`react-leaflet`'s `useMapEvents`) for anything drawn only once zoomed
+in — a route's checkpoints, the training map's crowd of detections.
+Every `useMapEvents` call site in this codebase memoizes its handlers
+object: react-leaflet lists it in the underlying effect's own
+dependencies, so a handlers object literal is detached and
+re-registered on *every render*, and a Leaflet event fired inside that
+render is lost. That is not theoretical — it is what made the map's
+own zoom toggle (`MapShell`'s `FitReporter`) report the wrong state
+after its first press, since the map's own zoom change and the
+listener's re-registration raced on every commit. The toggle itself
+compares the map's real zoom against `getBoundsZoom(bounds)` — what
+zoom would fit the route, with the same padding the fit uses — rather
+than a fixed number, so it works the same on a ten-mile hop and a
+transcontinental leg.
+
+**Fitting the route** happens once per route (`MapShell`, keyed on the
+two idents, not on the `bounds` object) rather than once per render of
+`bounds` — the course is a `react-query` query, it can be answered
+again (a retry, the same route asked for twice), and each answer is a
+new object; fitting on every one of those snapped the map back to the
+whole route from wherever a pilot had navigated to, seconds after a
+tap.
 
 ## What is deliberately not here
 
-- No global state library. react-query owns server state; the two page
-  hooks own the rest.
-- No CSS beyond Tailwind and no CSS-in-JS. `components/ui/` is shadcn/ui
-  copied into the repo, so it is Tailwind classes underneath.
-- No React wrapper for Leaflet.
+- No global state library beyond `zustand`'s one small preferences
+  store. `react-query` owns server state; the two workspace hooks own
+  the rest.
+- No CSS beyond Tailwind and no CSS-in-JS. `components/ui/` is
+  shadcn/ui copied into the repo, so it is Tailwind classes underneath.
+- No React wrapper for Leaflet, and no `React.memo` reached for before
+  a measured render cost justified it — the one real render bug this
+  session found (stale `useMapEvents` handlers losing events) was a
+  listener-registration bug, not a missing memo, and memoizing
+  components around it would have fixed nothing.
