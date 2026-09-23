@@ -1,10 +1,10 @@
 import createClient, { type Middleware } from "openapi-fetch";
 import type { paths } from "./schema";
 import type {
-  Aircraft, AircraftChoice, AircraftProfileSummary, AircraftRequest, AirportSearch, AltitudeChoice, Briefing, BuildJob,
+  Aircraft, AircraftChoice, AircraftProfiles, AircraftRequest, AirportSearch, AltitudeChoice, Briefing, BuildJob,
   BuiltRoutes, ChartRefreshStarted, CheckpointDescriptionMessage, CheckpointNoteSaved, Checkpoints, Classification, Course,
   Flight, FlightSummary, ModelComparison, NarrativeMessage, NarrativeRequest, NavLogMessage, PickDeleted, PickSaved,
-  ClassBAirport, DevServices, PicksResponse, Pilot, Rating, RetrainStarted, Role, SaveFlightRequest,
+  ClassBResponse, DevServices, DevServiceStarted, PicksResponse, Pilot, Rating, RetrainStarted, Role, SaveFlightRequest,
   SignInCapabilities,
   Status, StreamMessage,
 } from "./types";
@@ -14,7 +14,8 @@ import type {
  * openapi-fetch, typed end to end from planning-service's own OpenAPI
  * schema (`npm run types` regenerates ./schema.d.ts): a renamed query
  * parameter or response field is a compile error at the call site, not
- * a silent 404 or `undefined`. The Spring Boot calls at the bottom are
+ * a silent 404 or `undefined` -- every response type named below is
+ * the generated one, and `data` checks it against the path's own. The Spring Boot calls at the bottom are
  * a plain fetch until that service publishes a schema of its own.
  */
 
@@ -73,10 +74,16 @@ const throughGateway: Middleware = {
 const planner = createClient<paths>({ baseUrl: "" });
 planner.use(throughGateway);
 
+/** A schema's shape as openapi-fetch hands it back: every fixed-length
+ *  tuple ([lat, lon]) widened to a plain array. */
+type Widened<T> = T extends readonly (infer E)[] ? Widened<E>[] : T extends object ? { [K in keyof T]: Widened<T[K]> } : T;
+
 /** The data of a call that resolved (the middleware above has already
  *  thrown for anything else), as the named shape from ./types -- the
- *  same schema, without openapi-fetch's widening of its tuples. */
-const data = <T>(result: { data?: unknown }): T => result.data as T;
+ *  same schema with its tuples restored. Checked, not merely cast: the
+ *  call's own response type must be `T` widened, so naming the wrong
+ *  schema, or a field the schema has since lost, is a compile error. */
+const data = <T>(result: { data?: Widened<T> }): T => result.data as T;
 
 /**
  * Newline-delimited JSON, one line at a time as the bytes arrive: the
@@ -178,7 +185,7 @@ export const api = {
    *  chart covering it. One call for all thirty rather than one per
    *  marker on hover: the planner has the airspace and both national
    *  weather caches in memory already. */
-  classB: () => planner.GET("/api/class-b").then(data<{ airports: ClassBAirport[] }>).then(r => r.airports),
+  classB: () => planner.GET("/api/class-b").then(data<ClassBResponse>).then(r => r.airports),
 
   /** Which of the services the developer console links to are
    *  running, and whether starting one is possible here at all. */
@@ -188,10 +195,10 @@ export const api = {
    *  the console asks on every click so the link always works. */
   startDevService: (service: string) =>
     planner.POST("/api/dev/services/{service}/start", { params: { path: { service } } })
-      .then(data<{ service: string; state: string; started: boolean }>),
+      .then(data<DevServiceStarted>),
 
   /** The stock performance profiles the nav log can be computed for. */
-  aircraftProfiles: () => planner.GET("/api/aircraft-profiles").then(data<{ profiles: AircraftProfileSummary[] }>).then(r => r.profiles),
+  aircraftProfiles: () => planner.GET("/api/aircraft-profiles").then(data<AircraftProfiles>).then(r => r.profiles),
 
   /** The whole stack in one snapshot -- the developer console. */
   status: () => planner.GET("/api/status").then(data<Status>),

@@ -35,7 +35,8 @@ def known_airports(monkeypatch):
 def altitude() -> dict:
     """What vfr.altitude.select_cruise_altitude returns for a flyable route."""
     return {
-        "recommended_ft": 4500.0, "candidates_ft": [4500.0], "floor_ft": 2200.0, "airspace_ceiling_ft": None,
+        "recommended_ft": 4500.0, "candidates_ft": [4500.0], "course_magnetic_deg": 335.0, "eastbound": False,
+        "floor_ft": 2200.0, "airspace_ceiling_ft": None,
         "airspace_transits": [], "freezing_level_ft": None, "band_ceiling_ft": None, "min_ceiling_ft": None,
         "min_visibility_sm": None, "hazards": [], "low_ceiling_or_visibility": False, "weather_unavailable": [],
         "segments": [],

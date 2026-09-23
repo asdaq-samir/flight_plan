@@ -1,7 +1,8 @@
 import type { AltitudeOption, Totals } from "../../lib/api/types";
 import { compassPoint } from "../../lib/compass";
+import { altFt } from "../../lib/units";
 
-export { compassPoint };
+export { altFt, compassPoint };
 
 /**
  * The planner's pure half: colours and number formatting.
@@ -38,11 +39,6 @@ export function one(n: number | null | undefined): string {
   return n === null || n === undefined ? "—" : n.toFixed(1);
 }
 
-/** A whole-number altitude with a thousands separator, or an em dash --
- *  an airport OurAirports has no recorded field elevation for. */
-export function altFt(ft: number | null | undefined): string {
-  return ft === null || ft === undefined ? "—" : Math.round(ft).toLocaleString();
-}
 
 /** Signed to one decimal: a wind correction of -3 reads as a correction,
  *  where "3" reads as a magnitude. */

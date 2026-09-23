@@ -243,7 +243,7 @@ export default function PlanWorkspace({ dep, dest, onRoute, sidebarOpen, childre
   // drawer's header.
   const navLog = (
     <NavLogView
-      totals={s.totals} nav={s.nav} courseBearingDeg={course?.bearing_deg ?? null} legs={s.legs}
+      totals={s.totals} nav={s.nav} legs={s.legs}
       onAltitudeChoiceChange={changeAltitudeChoice}
       depart={depart} onDepartChange={changeDepart}
       dep={planned.dep} dest={planned.dest}

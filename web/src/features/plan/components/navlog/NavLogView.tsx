@@ -68,9 +68,6 @@ interface WaypointRow {
 interface Props {
   totals: Totals | null;
   nav: Omit<NavLog, "legs" | "totals"> | null;
-  /** The route's true course -- the hemispheric rule in the altitude's
-   *  own "why" popover needs it. null before a course has loaded. */
-  courseBearingDeg: number | null;
   /** Picks one of the three plans (lowest, highest, fastest) in the
    *  altitude's own popover, which re-plans; which one is flown is the
    *  nav log's own `choice`. */
@@ -248,7 +245,7 @@ function DescriptionCell({
  * no leg has been flown yet.
  */
 export default function NavLogView({
-  totals, nav, courseBearingDeg, onAltitudeChoiceChange, depart, onDepartChange,
+  totals, nav, onAltitudeChoiceChange, depart, onDepartChange,
   legs, dep, dest, depName, destName, depLat, depLon, destLat, destLon,
   selected, depElevationFt, destElevationFt, descriptions, onSaveDescription,
   onGenerateDescriptions, descriptionsLoading, actions, children,
@@ -621,7 +618,7 @@ export default function NavLogView({
                     </form>
                   </div>
                   <div className="mb-2 text-xs font-semibold uppercase text-muted-foreground">How the altitude was chosen</div>
-                  <AltitudeReasoning nav={nav} bearingDeg={courseBearingDeg} />
+                  <AltitudeReasoning nav={nav} />
                 </PopoverContent>
               </Popover>
               <span className="hidden text-muted-foreground print:inline">

@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
-import { colourOf, feet, miles } from "./flightCategory";
+import { colourOf } from "./flightCategory";
+import { feet, miles } from "../units";
 import { MapCard } from "./MapCard";
 
 export interface AirportWeather {

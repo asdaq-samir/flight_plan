@@ -26,15 +26,17 @@ function Details({ airport, leading }: { airport: ClassBAirport; leading?: React
       // is what the terminal chart is, and it names the sheet in its
       // own tooltip and accessible name.
       name={airport.name}
+      // Every weather field is optional in the planner's schema: a
+      // field with no report is absent, and absent is shown as absent.
       weather={{
-        category: airport.flight_category,
-        ceilingFt: airport.ceiling_ft,
-        visibilitySm: airport.visibility_sm,
-        raw: airport.metar,
+        category: airport.flight_category ?? null,
+        ceilingFt: airport.ceiling_ft ?? null,
+        visibilitySm: airport.visibility_sm ?? null,
+        raw: airport.metar ?? null,
         forecast: {
-          ceilingFt: airport.taf_ceiling_ft,
-          visibilitySm: airport.taf_visibility_sm,
-          raw: airport.taf,
+          ceilingFt: airport.taf_ceiling_ft ?? null,
+          visibilitySm: airport.taf_visibility_sm ?? null,
+          raw: airport.taf ?? null,
         },
       }}
     >

@@ -63,6 +63,14 @@ def _timed(label: str, fn):
     return wrapped
 
 
+def is_eastbound(course_deg: float) -> bool:
+    """Which half of 14 CFR 91.159's hemispheric rule a course is in:
+    000-179 flies odd thousands plus 500, 180-359 even thousands plus
+    500. Sent with the altitude breakdown, so the page names the rule it
+    was given rather than working it out again."""
+    return 0 <= course_deg % 360 < 180
+
+
 def lowest_vfr_cruising_altitude(floor_ft: float, route_bearing_deg: float) -> float:
     """The lowest legal VFR cruising altitude at or above floor_ft for a
     course of route_bearing_deg.
@@ -87,11 +95,11 @@ def lowest_vfr_cruising_altitude(floor_ft: float, route_bearing_deg: float) -> f
     higher -- smoother air, glide range, a tailwind aloft -- can say so,
     or take the highest or fastest of the three plans the nav log offers.
     """
-    is_eastbound = 0 <= route_bearing_deg % 360 < 180
+    eastbound = is_eastbound(route_bearing_deg)
     thousands = int(floor_ft // 1000)
-    if is_eastbound and thousands % 2 == 0:
+    if eastbound and thousands % 2 == 0:
         thousands += 1
-    elif not is_eastbound and thousands % 2 == 1:
+    elif not eastbound and thousands % 2 == 1:
         thousands += 1
     candidate_ft = thousands * 1000 + 500
     while candidate_ft < floor_ft:
@@ -281,9 +289,7 @@ def select_cruise_altitude(
     # "unknown" must not read as "confirmed VFR-favorable" to a caller
     # deciding whether to flag the route.
     low_ceiling_vis = None if "ceiling_visibility" in weather_unavailable else (
-        (cv["min_ceiling_ft"] is not None and cv["min_ceiling_ft"] < 1000) or (
-            cv["min_visibility_sm"] is not None and cv["min_visibility_sm"] < 3
-        )
+        weather.below_vfr_minimums(cv["min_ceiling_ft"], cv["min_visibility_sm"])
     )
 
     log.info("select_cruise_altitude: %.2fs total", time.time() - request_started)
@@ -292,6 +298,7 @@ def select_cruise_altitude(
         "recommended_ft": recommended_ft,
         "candidates_ft": candidates_ft,
         "course_magnetic_deg": round(course_magnetic_deg, 1),
+        "eastbound": is_eastbound(course_magnetic_deg),
         "floor_ft": floor_ft,
         "airspace_ceiling_ft": airspace_ceiling_ft,
         "airspace_transits": transits,

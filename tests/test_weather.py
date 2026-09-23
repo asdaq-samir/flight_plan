@@ -214,3 +214,29 @@ def test_hazards_along_the_route_are_the_current_sigmets_the_line_crosses(mock_g
         "hazard": "CONVECTIVE", "type": "SIGMET", "altitude_low_ft": None, "altitude_high_ft": 43000.0,
         "raw": "CONVECTIVE SIGMET 1C",
     }]
+
+
+# --- the basic VFR minimums, and the briefing's "VFR not recommended" ---
+
+
+def test_the_minimums_are_under_1000_ft_or_3_sm_and_unknown_is_not_below():
+    assert weather.below_vfr_minimums(900, 10)
+    assert weather.below_vfr_minimums(5000, 2.5)
+    assert not weather.below_vfr_minimums(1000, 3)
+    assert not weather.below_vfr_minimums(None, None)
+
+
+def test_vfr_not_recommended_names_each_reason_in_briefing_order():
+    metars = {"C81": {"flight_category": "VFR"}, "KDLH": {"flight_category": "LIFR"}}
+    forecast = {"min_ceiling_ft": 800.0, "min_visibility_sm": 2.5}
+    assert weather.vfr_not_recommended_reasons(["C81", "KDLH"], metars, forecast) == [
+        "KDLH currently reporting LIFR",
+        "forecast ceiling as low as 800 ft along the route",
+        "forecast visibility as low as 2.5 sm along the route",
+    ]
+
+
+def test_vfr_not_recommended_is_empty_when_nothing_warrants_it():
+    metars = {"C81": None, "KDLH": {"flight_category": "MVFR"}}
+    forecast = {"min_ceiling_ft": 1200.0, "min_visibility_sm": None}
+    assert weather.vfr_not_recommended_reasons(["C81", "KDLH"], metars, forecast) == []

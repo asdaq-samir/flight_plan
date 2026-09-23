@@ -566,6 +566,46 @@ def ceiling_visibility_along_route(route_start: tuple, route_end: tuple, corrido
     }
 
 
+# --- Go/no-go: the basic VFR weather minimums ---
+
+# 14 CFR 91.155: below a 1,000 ft ceiling or 3 statute miles' visibility,
+# VFR flight is not the default answer. The one place these numbers
+# live -- vfr.altitude's go/no-go flag and the briefing's "VFR flight not
+# recommended" both read them, and the page shows what they decided.
+VFR_MIN_CEILING_FT = 1000
+VFR_MIN_VISIBILITY_SM = 3
+
+
+def below_vfr_minimums(ceiling_ft: float | None, visibility_sm: float | None) -> bool:
+    """Whether either figure is under 14 CFR 91.155's basic minimums. A
+    missing figure is not below anything: unknown is reported as
+    unknown by the caller, not decided here."""
+    return (ceiling_ft is not None and ceiling_ft < VFR_MIN_CEILING_FT) or (
+        visibility_sm is not None and visibility_sm < VFR_MIN_VISIBILITY_SM
+    )
+
+
+def vfr_not_recommended_reasons(idents: list, metars: dict, forecast: dict) -> list[str]:
+    """"VFR flight not recommended" -- its own named element of an FAA
+    standard briefing (AIM 7-1-5), stated plainly whenever conditions
+    warrant it -- as the reasons, in briefing order: either end of the
+    route currently reporting IFR or LIFR, then the along-route forecast
+    ceiling or visibility under the basic VFR minimums. `metars` is
+    metar_for_idents()'s answer, `forecast`
+    ceiling_visibility_along_route()'s. Empty when nothing warrants it."""
+    reasons = []
+    for ident in idents:
+        category = (metars.get(ident) or {}).get("flight_category")
+        if category in ("IFR", "LIFR"):
+            reasons.append(f"{ident} currently reporting {category}")
+    ceiling, visibility = forecast.get("min_ceiling_ft"), forecast.get("min_visibility_sm")
+    if ceiling is not None and ceiling < VFR_MIN_CEILING_FT:
+        reasons.append(f"forecast ceiling as low as {ceiling:,.0f} ft along the route")
+    if visibility is not None and visibility < VFR_MIN_VISIBILITY_SM:
+        reasons.append(f"forecast visibility as low as {visibility:g} sm along the route")
+    return reasons
+
+
 # --- SIGMET hazards ---
 
 

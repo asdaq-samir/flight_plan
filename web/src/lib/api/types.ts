@@ -56,6 +56,21 @@ export type CorridorStatus = Schemas["CorridorStatus"];
 export type RetrainStarted = Schemas["RetrainStarted"];
 export type ChartRefreshStarted = Schemas["ChartRefreshStarted"];
 export type AircraftProfileSummary = Schemas["AircraftProfileSummary"];
+export type AircraftProfiles = Schemas["AircraftProfiles"];
+/** One Class B airport, with what the weather is doing there and which
+ *  terminal chart covers it. Every weather field is optional and often
+ *  absent, and absent must read as absent rather than as "nothing to
+ *  worry about". */
+export type ClassBAirport = Schemas["ClassBAirport"];
+export type ClassBResponse = Schemas["ClassBResponse"];
+/** One service the developer console links to, and whether it is up.
+ *  `state` is Docker's own word -- running, exited, created -- or
+ *  "absent" where compose has never created the container. */
+export type DevService = Schemas["DevService"];
+/** `available` is false where the planner has no Docker API to talk
+ *  to, which is every deployment that is not the local stack. */
+export type DevServices = Schemas["DevServices"];
+export type DevServiceStarted = Schemas["DevServiceStarted"];
 
 /** Which aeroplane the nav log is computed for: a stock profile by
  *  name, optionally with a pilot's own aeroplane's cruise TAS and fuel
@@ -143,45 +158,6 @@ export interface Pilot {
    *  theirs. Granted with an UPDATE on the pilots table, never
    *  inherited -- see the V7 migration. */
   developer: boolean;
-}
-
-/** One Class B airport, with what the weather is doing there and which
- *  terminal chart covers it. Every weather field is optional and often
- *  absent: a field with no current report has no category, and absent
- *  must read as absent rather than as "nothing to worry about". */
-export interface ClassBAirport {
-  ident: string;
-  name: string;
-  lat: number;
-  lon: number;
-  floor_ft_msl: number | null;
-  shelves: number;
-  tac: string | null;
-  flight_category: string | null;
-  metar: string | null;
-  ceiling_ft: number | null;
-  visibility_sm: number | null;
-  wind_dir_true_deg: number | null;
-  wind_speed_kt: number | null;
-  taf: string | null;
-  taf_ceiling_ft: number | null;
-  taf_visibility_sm: number | null;
-}
-
-/** One service the developer console links to, and whether it is up.
- *  `state` is Docker's own word -- running, exited, created -- or
- *  "absent" where compose has never created the container. */
-export interface DevService {
-  name: string;
-  label: string;
-  state: string;
-}
-
-/** `available` is false where the planner has no Docker API to talk
- *  to, which is every deployment that is not the local stack. */
-export interface DevServices {
-  available: boolean;
-  services: DevService[];
 }
 
 /** What signing in can do in this deployment, asked before anyone has

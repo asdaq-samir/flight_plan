@@ -14,12 +14,12 @@ import {
 import SignInModal from "./SignInModal";
 import { api } from "../../lib/api/client";
 import type { Aircraft, AircraftRequest, FlightSummary, Pilot } from "../../lib/api/types";
+import { feet } from "../../lib/units";
 
 /** Who is signed in, or why nobody is: null signed out, "loading"
  *  while the check is in flight, "error" when it failed. */
 export type PilotState = Pilot | null | "loading" | "error";
 
-const ft = (n: number | null) => (n == null ? "—" : `${Math.round(n).toLocaleString()} ft`);
 
 // Mirrors springboot-app's own AircraftRequest validation
 // (@NotBlank/@Positive in dto/AircraftRequest.java) so a bad value is
@@ -328,7 +328,7 @@ export function FlightsPanel({ pilot }: { pilot: PilotState }) {
               <TableRow key={f.id}>
                 <TableCell className="font-mono">{f.departureIdent} → {f.destinationIdent}</TableCell>
                 <TableCell className="font-mono">{f.aircraftTailNumber ?? "—"}</TableCell>
-                <TableCell className="text-right tabular-nums">{ft(f.cruiseAltitudeFt)}</TableCell>
+                <TableCell className="text-right tabular-nums">{feet(f.cruiseAltitudeFt)}</TableCell>
                 <TableCell className="text-right tabular-nums">{f.totalDistanceNm == null ? "—" : `${f.totalDistanceNm.toFixed(1)} nm`}</TableCell>
                 <TableCell className="text-right tabular-nums">{new Date(f.createdAt).toLocaleDateString()}</TableCell>
                 <TableCell className="text-right">

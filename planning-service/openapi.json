@@ -3,8 +3,32 @@
     "schemas": {
       "AircraftProfile": {
         "additionalProperties": true,
-        "description": "The aircraft's name plus its performance profile, whatever the\nprofile file holds.",
+        "description": "The aircraft's name plus its performance profile -- every field a\ndata/aircraft/*.json file carries, declared, so a page reads them as\nfields rather than guessing at a dict. The three figures after the\nname are required when a profile is loaded (REQUIRED_FIELDS in\nvfr.aircraft); the rest fall back to defaults in vfr.navlog when a\nprofile leaves them out. `extra=\"allow\"` keeps a field a newer\nprofile adds on its way through.",
         "properties": {
+          "climb_rate_fpm_sea_level": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Climb Rate Fpm Sea Level"
+          },
+          "climb_tas_kt": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Climb Tas Kt"
+          },
           "cruise_tas_kt": {
             "title": "Cruise Tas Kt",
             "type": "number"
@@ -16,12 +40,65 @@
           "name": {
             "title": "Name",
             "type": "string"
+          },
+          "pressurized": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Pressurized"
+          },
+          "service_ceiling_ft": {
+            "title": "Service Ceiling Ft",
+            "type": "number"
+          },
+          "supplemental_oxygen": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Supplemental Oxygen"
+          },
+          "type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Type"
+          },
+          "usable_fuel_gal": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Usable Fuel Gal"
           }
         },
         "required": [
           "name",
           "cruise_tas_kt",
-          "fuel_burn_gph"
+          "fuel_burn_gph",
+          "service_ceiling_ft"
         ],
         "title": "AircraftProfile",
         "type": "object"
@@ -277,16 +354,12 @@
             "type": "array"
           },
           "course_magnetic_deg": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "title": "Course Magnetic Deg"
+            "title": "Course Magnetic Deg",
+            "type": "number"
+          },
+          "eastbound": {
+            "title": "Eastbound",
+            "type": "boolean"
           },
           "floor_ft": {
             "title": "Floor Ft",
@@ -378,6 +451,8 @@
         },
         "required": [
           "recommended_ft",
+          "course_magnetic_deg",
+          "eastbound",
           "floor_ft",
           "airspace_ceiling_ft",
           "airspace_transits",
@@ -433,6 +508,10 @@
             "title": "Legs Without Wind",
             "type": "integer"
           },
+          "needs_oxygen": {
+            "title": "Needs Oxygen",
+            "type": "boolean"
+          },
           "steps": {
             "items": {
               "$ref": "#/components/schemas/AltitudeStep"
@@ -476,7 +555,8 @@
           "total_min",
           "tailwind_kt",
           "unflyable_legs",
-          "legs_without_wind"
+          "legs_without_wind",
+          "needs_oxygen"
         ],
         "title": "AltitudeOption",
         "type": "object"
@@ -599,6 +679,14 @@
             },
             "title": "Metars",
             "type": "object"
+          },
+          "vfr_not_recommended": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Vfr Not Recommended",
+            "type": "array"
           },
           "weather_unavailable": {
             "items": {

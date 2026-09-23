@@ -10,7 +10,12 @@ from pathlib import Path
 
 DEFAULT_PROFILE_DIR = Path(__file__).resolve().parents[2] / "data" / "aircraft"
 
-REQUIRED_FIELDS = {"service_ceiling_ft"}
+# What the nav log cannot be worked out without: the ceiling for the
+# altitude selection, the airspeed and burn for every leg. Checked when a
+# profile is loaded, so a file missing one is refused by name here rather
+# than failing leg by leg further in (vfr.navlog.assemble_leg used to be
+# the first place anything noticed).
+REQUIRED_FIELDS = {"service_ceiling_ft", "cruise_tas_kt", "fuel_burn_gph"}
 
 
 @lru_cache(maxsize=32)

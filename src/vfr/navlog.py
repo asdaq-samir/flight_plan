@@ -48,8 +48,8 @@ def assemble_leg(
     (vfr.geo), wind at altitude_ft along the way (vfr.weather -- sampled at
     the leg's midpoint), magnetic variation (vfr.magnetic), and the
     resulting WCA/heading/groundspeed/ETE/fuel burn. aircraft_profile is a
-    vfr.aircraft.load_aircraft_profile() dict; must include "cruise_tas_kt"
-    and "fuel_burn_gph" (c172.json has both).
+    vfr.aircraft.load_aircraft_profile() dict, which has already refused a
+    profile without "cruise_tas_kt" and "fuel_burn_gph".
 
     If no wind data is available for this leg (vfr.weather.wind_at_altitude
     returned None -- no nearby FD station), WCA is 0 and groundspeed is
@@ -57,9 +57,6 @@ def assemble_leg(
     flagged in the returned dict via "wind": None so callers/humans can see
     the leg is a no-wind-data estimate, not a real zero-wind calculation.
     """
-    for field in ("cruise_tas_kt", "fuel_burn_gph"):
-        if field not in aircraft_profile:
-            raise ValueError(f"aircraft_profile is missing '{field}', needed for dead-reckoning leg math")
     tas_kt = aircraft_profile["cruise_tas_kt"]
 
     true_course_deg = bearing_deg(*start, *end)
@@ -384,6 +381,9 @@ def altitude_profiles(
             "legs": leg_list,
             "totals": plan_totals,
             "steps": _steps(fix_list, altitudes, leg_list),
+            # Only where a leg had no legal altitude under the cap, or
+            # the profile says oxygen or a pressurised cabin.
+            "needs_oxygen": any(a > OXYGEN_CAP_FT for a in altitudes),
             "ete_min": plan_totals["ete_min"],
             "fuel_gal": plan_totals["fuel_gal"],
             "climb_penalty_min": climb_min,

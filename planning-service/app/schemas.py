@@ -205,8 +205,11 @@ class AltitudeBreakdown(BaseModel):
 
     recommended_ft: float | None
     candidates_ft: list[float] = []
-    # The magnetic course the hemispheric rule was applied to.
-    course_magnetic_deg: float | None = None
+    # The magnetic course the hemispheric rule was applied to, and which
+    # half of the rule that is: 000-179 flies odd thousands plus 500,
+    # 180-359 even thousands plus 500.
+    course_magnetic_deg: float
+    eastbound: bool
     floor_ft: float
     airspace_ceiling_ft: float | None
     airspace_transits: list[AirspaceTransit]
@@ -251,17 +254,34 @@ class AltitudeOption(BaseModel):
     tailwind_kt: float | None
     unflyable_legs: int
     legs_without_wind: int
+    # Whether any step is above 12,500 ft, where more than 30 minutes
+    # needs supplemental oxygen (14 CFR 91.211). A plan goes there only
+    # where a leg has no legal altitude under it, or the profile says
+    # the aeroplane carries oxygen or is pressurised.
+    needs_oxygen: bool
 
 
 class AircraftProfile(BaseModel):
-    """The aircraft's name plus its performance profile, whatever the
-    profile file holds."""
+    """The aircraft's name plus its performance profile -- every field a
+    data/aircraft/*.json file carries, declared, so a page reads them as
+    fields rather than guessing at a dict. The three figures after the
+    name are required when a profile is loaded (REQUIRED_FIELDS in
+    vfr.aircraft); the rest fall back to defaults in vfr.navlog when a
+    profile leaves them out. `extra="allow"` keeps a field a newer
+    profile adds on its way through."""
 
     model_config = ConfigDict(extra="allow")
 
     name: str
     cruise_tas_kt: float
     fuel_burn_gph: float
+    service_ceiling_ft: float
+    type: str | None = None
+    climb_rate_fpm_sea_level: float | None = None
+    climb_tas_kt: float | None = None
+    usable_fuel_gal: float | None = None
+    supplemental_oxygen: bool | None = None
+    pressurized: bool | None = None
 
 
 class Plan(BaseModel):
@@ -347,6 +367,11 @@ class Briefing(BaseModel):
     metars: dict[str, Metar | None]
     airports: dict[str, AirportFacilities]
     weather_unavailable: list[Literal["hazards", "forecast", "metars"]]
+    # "VFR flight not recommended" (AIM 7-1-5), as its reasons -- either
+    # end reporting IFR/LIFR, the forecast under 14 CFR 91.155's basic
+    # minimums -- worked out here (vfr.weather) rather than by the page.
+    # Empty when nothing warrants it.
+    vfr_not_recommended: list[str] = []
 
 
 # --- the chart: picks and detections ------------------------------------

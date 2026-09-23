@@ -11,6 +11,7 @@ import type {
 } from "../../../../lib/api/types";
 import type { FrameworkNarrative } from "../../hooks/usePlan";
 import { altFt, deg } from "../../format";
+import { colourOf } from "../../../../lib/map/flightCategory";
 
 interface Props {
   course: Course | null;
@@ -43,10 +44,6 @@ interface Props {
    *  flight is planned for. */
   depart: string;
 }
-
-const FLIGHT_CATEGORY_COLOR: Record<string, string> = {
-  VFR: "#1a7f37", MVFR: "#1e6fd9", IFR: "#b3261e", LIFR: "#9333ea",
-};
 
 /**
  * Whichever narrative(s) a pilot actually generated, print only. On
@@ -91,42 +88,13 @@ function hazardAltitudeRange(lowFt: number | null, highFt: number | null): strin
   return `${altFt(lowFt)}-${altFt(highFt)} ft`;
 }
 
-/**
- * "VFR Flight Not Recommended" -- its own named, standard element of
- * an FAA briefing (AIM 7-1-5), not something this app was inventing:
- * a standard briefing states it explicitly whenever conditions warrant
- * it, stated plainly rather than something a pilot has to read the
- * Current Conditions detail closely to work out themselves -- which is
- * where it's shown, first thing inside that section, since that's the
- * data it's actually computed from. Computed from data this page
- * already has -- either endpoint's current METAR reporting IFR/LIFR,
- * or the along-route forecast dropping below basic VFR minimums
- * (14 CFR 91.155: 3 sm visibility, 1,000 ft ceiling) -- not a second
- * fetch.
- */
+/** What each weather source is called when a pilot is told it could
+ *  not be checked. */
 const WEATHER_SOURCE_LABEL: Record<Briefing["weather_unavailable"][number], string> = {
   hazards: "SIGMETs",
   forecast: "the TAF forecast",
   metars: "current METARs",
 };
-
-function vfrNotRecommendedReasons(briefing: Briefing, dep: string, dest: string): string[] {
-  const reasons: string[] = [];
-  for (const ident of [dep, dest]) {
-    const category = briefing.metars[ident]?.flight_category;
-    if (category === "IFR" || category === "LIFR") {
-      reasons.push(`${ident} currently reporting ${category}`);
-    }
-  }
-  const { min_ceiling_ft, min_visibility_sm } = briefing.forecast;
-  if (min_ceiling_ft !== null && min_ceiling_ft < 1000) {
-    reasons.push(`forecast ceiling as low as ${altFt(min_ceiling_ft)} ft along the route`);
-  }
-  if (min_visibility_sm !== null && min_visibility_sm < 3) {
-    reasons.push(`forecast visibility as low as ${min_visibility_sm} sm along the route`);
-  }
-  return reasons;
-}
 
 /** The distinct (direction, speed) pairs actually present among the
  *  nav log's own per-leg wind data -- not every leg individually
@@ -277,7 +245,10 @@ export default function FlightBriefingView({
   langgraphNarrative, crewaiNarrative, aircraftLabel, aircraftId, depart,
 }: Props) {
   const winds = windsAloftSummary(legs);
-  const vnrReasons = briefing ? vfrNotRecommendedReasons(briefing, dep, dest) : [];
+  // "VFR flight not recommended" (AIM 7-1-5) and its reasons are the
+  // planner's call (vfr.weather), made against 14 CFR 91.155's minimums
+  // in one place; this page states them.
+  const vnrReasons = briefing?.vfr_not_recommended ?? [];
   // On the very first render after mount, loadingBriefing is still false --
   // PlanWorkspace's own effect (which calls loadBriefing) hasn't run yet -- so
   // "not loading" alone can't mean "unavailable". Only briefingError (a
@@ -325,15 +296,16 @@ export default function FlightBriefingView({
         duration: 10000,
       });
     }
-    const reasons = vfrNotRecommendedReasons(briefing, dep, dest);
-    if (reasons.length > 0) {
-      toast.warning("VFR flight not recommended", { id: "briefing-vnr", description: reasons.join(" · "), duration: 10000 });
+    if (briefing.vfr_not_recommended.length > 0) {
+      toast.warning("VFR flight not recommended", {
+        id: "briefing-vnr", description: briefing.vfr_not_recommended.join(" · "), duration: 10000,
+      });
     }
     return () => {
       toast.dismiss("briefing-weather-gaps");
       toast.dismiss("briefing-vnr");
     };
-  }, [briefing, dep, dest]);
+  }, [briefing]);
 
   return (
     // No header, title or scroller of its own: the flight planning
@@ -428,7 +400,7 @@ export default function FlightBriefingView({
                   <div className="flex items-baseline justify-between gap-2">
                     <span className="font-semibold">{ident}</span>
                     {metar?.flight_category && (
-                      <Badge style={{ backgroundColor: FLIGHT_CATEGORY_COLOR[metar.flight_category] ?? "#5b6b76", color: "white" }}>
+                      <Badge style={{ backgroundColor: colourOf(metar.flight_category), color: "white" }}>
                         {metar.flight_category}
                       </Badge>
                     )}
@@ -519,7 +491,7 @@ export default function FlightBriefingView({
         {!nav ? (
           <p className="text-sm text-muted-foreground">Loading…</p>
         ) : (
-          <AltitudeReasoning nav={nav} bearingDeg={course?.bearing_deg ?? null} />
+          <AltitudeReasoning nav={nav} />
         )}
       </BriefingSection>
 

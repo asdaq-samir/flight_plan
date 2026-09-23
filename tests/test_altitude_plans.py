@@ -5,7 +5,7 @@ vfr.altitude.select_cruise_altitude produces."""
 import pytest
 
 from vfr import navlog
-from vfr.altitude import legal_cruising_altitudes, lowest_vfr_cruising_altitude
+from vfr.altitude import is_eastbound, legal_cruising_altitudes, lowest_vfr_cruising_altitude
 
 PROFILE = {"cruise_tas_kt": 100.0, "fuel_burn_gph": 8.0, "climb_rate_fpm_sea_level": 800.0, "climb_tas_kt": 70.0}
 
@@ -13,6 +13,12 @@ PROFILE = {"cruise_tas_kt": 100.0, "fuel_burn_gph": 8.0, "climb_rate_fpm_sea_lev
 def test_lowest_legal_altitude_follows_the_hemispheric_rule():
     assert lowest_vfr_cruising_altitude(2200.0, 328.0) == 2500.0   # westbound: even thousands + 500
     assert lowest_vfr_cruising_altitude(2200.0, 90.0) == 3500.0    # eastbound: odd thousands + 500
+
+
+def test_the_hemisphere_is_decided_once_for_the_page_to_name():
+    assert is_eastbound(0.0) and is_eastbound(179.9)
+    assert not is_eastbound(180.0) and not is_eastbound(328.0)
+    assert is_eastbound(-10.0) is False and is_eastbound(370.0) is True
 
 
 def test_legal_altitudes_run_from_the_floor_to_the_ceiling():
@@ -91,6 +97,16 @@ def test_a_shelf_over_the_first_leg_makes_the_plans_step(monkeypatch):
     assert [s["altitude_ft"] for s in plans["fastest"]["steps"]] == [3500.0, 5500.0]
     assert plans["fastest"]["legs"][1]["altitude_ft"] == 5500.0
     assert plans["fastest"]["climb_penalty_min"] > plans["lowest"]["climb_penalty_min"]
+
+
+def test_a_plan_says_whether_it_needs_oxygen(monkeypatch):
+    monkeypatch.setattr(navlog, "wind_at_altitude", _winds({}))
+    # The second leg's only legal altitudes are above 12,500 ft, so
+    # every plan goes there and says so; the page words the rule.
+    plans = navlog.altitude_profiles(FIXES, _segments([[3500.0, 13500.0], [13500.0, 15500.0]]), PROFILE)
+    assert all(plan["needs_oxygen"] for plan in plans.values())
+    plans = navlog.altitude_profiles(FIXES, _segments([[3500.0, 5500.0]] * 2), PROFILE)
+    assert not any(plan["needs_oxygen"] for plan in plans.values())
 
 
 def test_a_leg_with_no_legal_altitude_means_no_plan(monkeypatch):

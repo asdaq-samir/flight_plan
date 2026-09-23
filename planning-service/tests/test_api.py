@@ -13,7 +13,7 @@ import json
 from fastapi.testclient import TestClient
 from vfr import airports
 from vfr import altitude as altitude_module
-from vfr import model_client, model_registry
+from vfr import model_client, model_registry, weather
 from vfr.weather import WeatherServiceError
 
 from app.main import app
@@ -134,7 +134,8 @@ def test_aircraft_profiles_lists_the_stock_profiles():
 
 def test_altitude_breakdown_returns_select_cruise_altitudes_result(monkeypatch):
     monkeypatch.setattr(altitude_module, "select_cruise_altitude", lambda start, end, profile: {
-        "recommended_ft": 2500.0, "floor_ft": 2200.0, "airspace_ceiling_ft": None, "airspace_transits": [],
+        "recommended_ft": 2500.0, "course_magnetic_deg": 335.0, "eastbound": False,
+        "floor_ft": 2200.0, "airspace_ceiling_ft": None, "airspace_transits": [],
         "freezing_level_ft": None, "band_ceiling_ft": None, "min_ceiling_ft": None, "min_visibility_sm": None,
         "hazards": [], "low_ceiling_or_visibility": False,
     })
@@ -169,3 +170,22 @@ def test_altitude_breakdown_surfaces_a_weather_outage_as_502(monkeypatch):
     resp = client.get("/api/altitude-breakdown", params={"dep": "C81", "dest": "KDLH"})
 
     assert resp.status_code == 502
+
+
+# --- /api/briefing ---
+
+
+def test_the_briefing_says_why_vfr_is_not_recommended(monkeypatch):
+    """The reasons are the planner's to give (vfr.weather); the page only
+    shows them."""
+    monkeypatch.setattr(weather, "hazards_along_route", lambda start, end: [])
+    monkeypatch.setattr(weather, "ceiling_visibility_along_route",
+                        lambda start, end: {"min_ceiling_ft": 800.0, "min_visibility_sm": 6.0, "stations": []})
+    monkeypatch.setattr(weather, "metar_for_idents", lambda idents: {ident: None for ident in idents})
+    monkeypatch.setattr(airports, "get_runways", lambda ident: [])
+    monkeypatch.setattr(airports, "get_frequencies", lambda ident: [])
+
+    resp = client.get("/api/briefing", params={"dep": "C81", "dest": "KDLH"})
+
+    assert resp.status_code == 200
+    assert resp.json()["vfr_not_recommended"] == ["forecast ceiling as low as 800 ft along the route"]

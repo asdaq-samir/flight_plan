@@ -5,8 +5,6 @@ interface Props {
   /** The nav log's own altitude and, unless the pilot typed one, the
    *  planner's breakdown of how it chose it and the three plans. */
   nav: Omit<NavLog, "legs" | "totals">;
-  /** The route's true course, for the hemispheric rule. */
-  bearingDeg: number | null;
 }
 
 /** "a, b and c" -- the ceiling is the lowest of up to three things. */
@@ -18,10 +16,6 @@ function join(parts: string[]): string {
 const KIND_LABEL: Record<AltitudeOption["kind"], string> = {
   lowest: "Lowest", highest: "Highest", fastest: "Fastest",
 };
-
-// Above this, more than 30 minutes needs supplemental oxygen (14 CFR
-// 91.211) -- worth a word beside a plan that goes there.
-const OXYGEN_FT = 12500;
 
 /** Consecutive segments under the same shelf, for "the ceiling leg by
  *  leg": [{from_nm, to_nm, airspace_ceiling_ft, band_ceiling_ft}]. */
@@ -48,7 +42,7 @@ function ceilingRuns(segments: AltitudeSegment[]): AltitudeSegment[] {
  * the chart -- the nav log header's "why" popover and the briefing's
  * Cruise Altitude section are both this.
  */
-export default function AltitudeReasoning({ nav, bearingDeg }: Props) {
+export default function AltitudeReasoning({ nav }: Props) {
   const s = nav.altitude_selection;
   if (!s) {
     return (
@@ -61,14 +55,8 @@ export default function AltitudeReasoning({ nav, bearingDeg }: Props) {
   // A typed altitude: the plans are offered beside it, none flown.
   const custom = nav.choice === null;
 
-  // The profile is the planner's own aircraft file, whatever it holds;
-  // the service ceiling is one of its required fields.
-  const serviceCeilingFt = (nav.aircraft as { service_ceiling_ft?: number }).service_ceiling_ft ?? null;
-  // The rule is written for magnetic course; the planner reports the
-  // one it used, and the true course stands in for an older planner.
-  const courseDeg = s.course_magnetic_deg ?? bearingDeg;
-  const courseKind = s.course_magnetic_deg !== null && s.course_magnetic_deg !== undefined ? "magnetic" : "true";
-  const eastbound = courseDeg !== null && ((courseDeg % 360) + 360) % 360 < 180;
+  // Every figure below is the planner's own, the rule's hemisphere and
+  // the oxygen check included: this names them, it does not redo them.
 
   const ceilingParts: string[] = [
     s.airspace_ceiling_ft !== null ? `the Class B shelf at ${altFt(s.airspace_ceiling_ft)} ft` : "no Class B shelf across the route",
@@ -78,7 +66,7 @@ export default function AltitudeReasoning({ nav, bearingDeg }: Props) {
         ? `the freezing level at ${altFt(s.freezing_level_ft)} ft`
         : "no freezing level in range (the forecast stays above 0 °C)",
   ];
-  if (serviceCeilingFt !== null) ceilingParts.push(`the ${nav.aircraft.name.toUpperCase()}'s service ceiling of ${altFt(serviceCeilingFt)} ft`);
+  ceilingParts.push(`the ${nav.aircraft.name.toUpperCase()}'s service ceiling of ${altFt(nav.aircraft.service_ceiling_ft)} ft`);
   const runs = ceilingRuns(s.segments);
   const runsText = runs.length > 1
     ? runs.map((r, i) => {
@@ -100,7 +88,7 @@ export default function AltitudeReasoning({ nav, bearingDeg }: Props) {
 
   const highestLegal = Math.max(...s.segments.flatMap(seg => seg.candidates_ft), ...s.candidates_ft);
   const chosen = nav.options.find(o => o.kind === nav.choice);
-  const needsOxygen = nav.options.some(o => o.steps.some(st => st.altitude_ft > OXYGEN_FT));
+  const needOxygen = nav.options.filter(o => o.needs_oxygen).map(o => KIND_LABEL[o.kind].toLowerCase());
 
   return (
     <ol className="list-decimal space-y-2 pl-5 text-sm">
@@ -117,8 +105,8 @@ export default function AltitudeReasoning({ nav, bearingDeg }: Props) {
       </li>
       <li>
         <b>The rule.</b>{" "}
-        {courseDeg !== null ? `A ${courseKind} course of ${deg(courseDeg)} is ` : "The course is "}
-        {eastbound ? "eastbound (000–179°): odd thousands plus 500 ft" : "westbound (180–359°): even thousands plus 500 ft"}
+        {`A magnetic course of ${deg(s.course_magnetic_deg)} is `}
+        {s.eastbound ? "eastbound (000–179°): odd thousands plus 500 ft" : "westbound (180–359°): even thousands plus 500 ft"}
         {" "}(14 CFR 91.159).{" "}
         {s.candidates_ft.length > 0
           ? `Legal for the whole route: ${s.candidates_ft.map(a => altFt(a)).join(", ")} ft`
@@ -139,7 +127,7 @@ export default function AltitudeReasoning({ nav, bearingDeg }: Props) {
           {custom
             ? ` Flying ${altFt(nav.altitude_ft)} ft, your own, the whole way instead.`
             : chosen && ` Flying the ${KIND_LABEL[chosen.kind].toLowerCase()}.`}
-          {needsOxygen && ` Above ${altFt(OXYGEN_FT)} ft for more than 30 minutes needs supplemental oxygen (14 CFR 91.211).`}
+          {needOxygen.length > 0 && ` The ${join(needOxygen)} ${needOxygen.length === 1 ? "plan climbs" : "plans climb"} above the altitude where more than 30 minutes needs supplemental oxygen (14 CFR 91.211).`}
         </li>
       ) : (
         <li>

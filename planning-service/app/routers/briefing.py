@@ -80,6 +80,7 @@ def briefing(dep: str, dest: str) -> Briefing:
         "forecast": forecast,
         "metars": metars,
         "weather_unavailable": weather_unavailable,
+        "vfr_not_recommended": weather.vfr_not_recommended_reasons(list(idents), metars, forecast),
         "airports": {
             ident: {"runways": runways[ident], "frequencies": frequencies[ident]}
             for ident in idents
