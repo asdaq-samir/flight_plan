@@ -610,7 +610,10 @@ Six suites, split by what each can actually prove:
   mocked: what goes into the briefing prompt, that a failed narration is
   never stored as precedent, and that a request missing its legs is
   refused before any crew is built.
-- **`springboot-app/src/test/`** (JUnit) — the HTTP contract via
+- **`springboot-app/src/test/`** (JUnit) — that the committed
+  `springboot-app/openapi.json`, which `web/` generates its types for
+  this app's endpoints from, is the document the app serves
+  (`OpenApiDocumentTest`; regenerate with `WRITE_OPENAPI=1`); the HTTP contract via
   `@WebMvcTest` (validation `400`s, `405` for a wrong method, the `409`
   on a duplicate tail number), Mockito-backed
   service tests for the pilot-scoping guards (`AircraftServiceTest`,

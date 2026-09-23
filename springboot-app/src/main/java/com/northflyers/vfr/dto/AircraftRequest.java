@@ -2,6 +2,7 @@ package com.northflyers.vfr.dto;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Positive;
+import org.springframework.lang.Nullable;
 
 /** Inbound request body for adding or editing one of a pilot's own
  *  aeroplanes -- POST/PUT /api/aircraft. `usableFuelGal` may be left
@@ -16,5 +17,5 @@ public record AircraftRequest(
         @Positive(message = "fuelBurnGph must be a positive number")
         double fuelBurnGph,
         @Positive(message = "usableFuelGal must be a positive number")
-        Double usableFuelGal) {
+        @Nullable Double usableFuelGal) {
 }

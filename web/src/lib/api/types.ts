@@ -1,16 +1,22 @@
 /**
  * The shapes the API returns.
  *
- * Everything the Python planner sends is generated from
- * planning-service/openapi.json into ./schema.d.ts (`npm run types`)
- * and re-exported here under the names the pages use, so a field
- * renamed in planning-service/app/schemas.py is a compile error at
- * every call site rather than a silent `undefined` at runtime. The
- * Spring Boot shapes at the bottom are still written by hand.
+ * Everything either server sends is generated from its own OpenAPI
+ * document by `npm run types` -- the Python planner's from
+ * planning-service/openapi.json into ./schema.d.ts, this app's Spring
+ * Boot endpoints from springboot-app/openapi.json into
+ * ./webapp-schema.d.ts -- and re-exported here under the names the pages
+ * use, so a field renamed in planning-service/app/schemas.py or in a
+ * Java DTO is a compile error at every call site rather than a silent
+ * `undefined` at runtime. What is written by hand below is only what
+ * no server schema describes: the page's own compositions, and the
+ * narrative agents' request and stream.
  */
 import type { components } from "./schema";
+import type { components as WebappComponents } from "./webapp-schema";
 
 type Schemas = components["schemas"];
+type Webapp = WebappComponents["schemas"];
 
 // ---------------------------------------------------------------------
 // The planner.
@@ -146,33 +152,43 @@ export function isEndpoint(p: Point): p is Endpoint {
 }
 
 // ---------------------------------------------------------------------
-// Spring Boot's own endpoints, camelCase (Jackson's default) and typed
-// by hand.
+// Spring Boot's own endpoints, camelCase (Jackson's default).
 
-/** `GET /api/me`. 401 (not this shape) when signed out. */
-export interface Pilot {
-  id: number;
-  email: string;
-  displayName: string;
-  /** Whether the training workspace and the developer console are
-   *  theirs. Granted with an UPDATE on the pilots table, never
-   *  inherited -- see the V7 migration. */
-  developer: boolean;
-}
+/** `GET /api/me`. 401 (not this shape) when signed out. `developer` is
+ *  whether the training workspace and the developer console are theirs:
+ *  granted with an UPDATE on the pilots table, never inherited -- see
+ *  the V7 migration. */
+export type Pilot = Webapp["PilotDto"];
 
 /** What signing in can do in this deployment, asked before anyone has
  *  (`/api/auth/capabilities`). */
-export interface SignInCapabilities {
-  signInPossible: boolean;
-  oauthConfigured: boolean;
-}
+export type SignInCapabilities = Webapp["Capabilities"];
 
-/** One framework's own result from ComparisonProxyController -- either
- *  shape can come back for either framework, independent of the other
- *  (nav-log-agent down doesn't stop crewai-agent's own result from
- *  showing, and vice versa). */
+/** A pilot's own aeroplane, from `/api/aircraft`. `usableFuelGal` is
+ *  null when the owner has not said, and then the nav log makes no
+ *  fuel check. */
+export type Aircraft = Webapp["AircraftDto"];
+export type AircraftRequest = Webapp["AircraftRequest"];
+
+/** One row of "My Flights" -- totals only; `Flight` carries the full
+ *  filed nav log, fetched one flight at a time. */
+export type FlightSummary = Webapp["FlightSummaryDto"];
+export type Flight = Webapp["FlightDto"];
+/** One checkpoint of a filed nav log. `altitudeFt` is the altitude of
+ *  the leg arriving here -- a plan may step. */
+export type FlightCheckpointRequest = Webapp["SaveFlightCheckpointRequest"];
+/** POST /api/flights body -- files (replacing any previous one) a nav
+ *  log for a route this pilot planned. */
+export type SaveFlightRequest = Webapp["SaveFlightRequest"];
+
+// ---------------------------------------------------------------------
+// The narrative agents, reached through ComparisonProxyController, which
+// forwards the body as it is: no server schema describes it, so it is
+// composed here from the planner's own types.
+
 /** The nav log on screen, handed to an agent to write about -- what
- *  `/api/comparison` forwards to nav-log-agent or crewai-agent. */
+ *  `/api/comparison` forwards to nav-log-agent or crewai-agent. Both
+ *  agents check it on arrival (a missing field is a 422 naming it). */
 export interface NarrativeRequest {
   departure_ident: string;
   destination_ident: string;
@@ -188,74 +204,3 @@ export type NarrativeMessage =
   | { type: "delta"; text: string }
   | { type: "done"; briefing: string }
   | { type: "error"; detail: string };
-
-/** A pilot's own aeroplane, from `/api/aircraft`. */
-export interface Aircraft {
-  id: number;
-  tailNumber: string;
-  typeDesignator: string;
-  cruiseTasKt: number;
-  fuelBurnGph: number;
-  /** What the tanks hold for the trip and the reserve; null when the
-   *  owner has not said, and then the nav log makes no fuel check. */
-  usableFuelGal: number | null;
-  createdAt: string;
-}
-
-export interface AircraftRequest {
-  tailNumber: string;
-  typeDesignator: string;
-  cruiseTasKt: number;
-  fuelBurnGph: number;
-  usableFuelGal: number | null;
-}
-
-/** One row of "My Flights" -- totals only; `Flight` (below) carries
- *  the full filed nav log, fetched one flight at a time. */
-export interface FlightSummary {
-  id: number;
-  departureIdent: string;
-  destinationIdent: string;
-  aircraftTailNumber: string | null;
-  cruiseAltitudeFt: number | null;
-  totalDistanceNm: number | null;
-  totalEteMin: number | null;
-  totalFuelGal: number | null;
-  plannedFor: string | null;
-  createdAt: string;
-}
-
-export interface FlightCheckpointRequest {
-  sequenceNo: number;
-  name: string;
-  category: string;
-  lat: number;
-  lon: number;
-  alongTrackNm: number;
-  legDistanceNm: number | null;
-  trueCourseDeg: number | null;
-  magneticHeadingDeg: number | null;
-  groundspeedKt: number | null;
-  eteMin: number | null;
-  fuelGal: number | null;
-  /** The altitude of the leg arriving here -- a plan may step. */
-  altitudeFt: number | null;
-}
-
-export interface Flight extends FlightSummary {
-  checkpoints: FlightCheckpointRequest[];
-}
-
-/** POST /api/flights body -- files (replacing any previous one) a nav
- *  log for a route this pilot planned. */
-export interface SaveFlightRequest {
-  aircraftId: number | null;
-  departureIdent: string;
-  destinationIdent: string;
-  cruiseAltitudeFt: number | null;
-  totalDistanceNm: number | null;
-  totalEteMin: number | null;
-  totalFuelGal: number | null;
-  plannedFor: string | null;
-  checkpoints: FlightCheckpointRequest[];
-}

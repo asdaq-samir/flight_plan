@@ -1,0 +1,791 @@
+{
+  "components" : {
+    "schemas" : {
+      "AircraftDto" : {
+        "properties" : {
+          "createdAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "cruiseTasKt" : {
+            "format" : "double",
+            "type" : "number"
+          },
+          "fuelBurnGph" : {
+            "format" : "double",
+            "type" : "number"
+          },
+          "id" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "tailNumber" : {
+            "type" : "string"
+          },
+          "typeDesignator" : {
+            "type" : "string"
+          },
+          "usableFuelGal" : {
+            "format" : "double",
+            "type" : [ "number", "null" ]
+          }
+        },
+        "required" : [ "createdAt", "cruiseTasKt", "fuelBurnGph", "id", "tailNumber", "typeDesignator", "usableFuelGal" ],
+        "type" : "object"
+      },
+      "AircraftRequest" : {
+        "properties" : {
+          "cruiseTasKt" : {
+            "format" : "double",
+            "type" : "number"
+          },
+          "fuelBurnGph" : {
+            "format" : "double",
+            "type" : "number"
+          },
+          "tailNumber" : {
+            "minLength" : 1,
+            "type" : "string"
+          },
+          "typeDesignator" : {
+            "minLength" : 1,
+            "type" : "string"
+          },
+          "usableFuelGal" : {
+            "format" : "double",
+            "type" : [ "number", "null" ]
+          }
+        },
+        "required" : [ "cruiseTasKt", "fuelBurnGph", "tailNumber", "typeDesignator", "usableFuelGal" ],
+        "type" : "object"
+      },
+      "Capabilities" : {
+        "properties" : {
+          "oauthConfigured" : {
+            "description" : "Google or Apple has real credentials registered.",
+            "example" : true,
+            "type" : "boolean"
+          },
+          "signInPossible" : {
+            "description" : "Any route to a session exists: OIDC, or the emailed one-time link.",
+            "example" : true,
+            "type" : "boolean"
+          }
+        },
+        "required" : [ "oauthConfigured", "signInPossible" ],
+        "type" : "object"
+      },
+      "FlightCheckpointDto" : {
+        "properties" : {
+          "alongTrackNm" : {
+            "format" : "double",
+            "type" : "number"
+          },
+          "altitudeFt" : {
+            "format" : "double",
+            "type" : [ "number", "null" ]
+          },
+          "category" : {
+            "type" : "string"
+          },
+          "eteMin" : {
+            "format" : "double",
+            "type" : [ "number", "null" ]
+          },
+          "fuelGal" : {
+            "format" : "double",
+            "type" : [ "number", "null" ]
+          },
+          "groundspeedKt" : {
+            "format" : "double",
+            "type" : [ "number", "null" ]
+          },
+          "lat" : {
+            "format" : "double",
+            "type" : "number"
+          },
+          "legDistanceNm" : {
+            "format" : "double",
+            "type" : [ "number", "null" ]
+          },
+          "lon" : {
+            "format" : "double",
+            "type" : "number"
+          },
+          "magneticHeadingDeg" : {
+            "format" : "double",
+            "type" : [ "number", "null" ]
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "sequenceNo" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "trueCourseDeg" : {
+            "format" : "double",
+            "type" : [ "number", "null" ]
+          }
+        },
+        "required" : [ "alongTrackNm", "altitudeFt", "category", "eteMin", "fuelGal", "groundspeedKt", "lat", "legDistanceNm", "lon", "magneticHeadingDeg", "name", "sequenceNo", "trueCourseDeg" ],
+        "type" : "object"
+      },
+      "FlightDto" : {
+        "properties" : {
+          "aircraftTailNumber" : {
+            "type" : [ "string", "null" ]
+          },
+          "checkpoints" : {
+            "items" : {
+              "$ref" : "#/components/schemas/FlightCheckpointDto"
+            },
+            "type" : "array"
+          },
+          "createdAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "cruiseAltitudeFt" : {
+            "format" : "int32",
+            "type" : [ "integer", "null" ]
+          },
+          "departureIdent" : {
+            "type" : "string"
+          },
+          "destinationIdent" : {
+            "type" : "string"
+          },
+          "id" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "plannedFor" : {
+            "format" : "date-time",
+            "type" : [ "string", "null" ]
+          },
+          "totalDistanceNm" : {
+            "format" : "double",
+            "type" : [ "number", "null" ]
+          },
+          "totalEteMin" : {
+            "format" : "double",
+            "type" : [ "number", "null" ]
+          },
+          "totalFuelGal" : {
+            "format" : "double",
+            "type" : [ "number", "null" ]
+          }
+        },
+        "required" : [ "aircraftTailNumber", "checkpoints", "createdAt", "cruiseAltitudeFt", "departureIdent", "destinationIdent", "id", "plannedFor", "totalDistanceNm", "totalEteMin", "totalFuelGal" ],
+        "type" : "object"
+      },
+      "FlightSummaryDto" : {
+        "properties" : {
+          "aircraftTailNumber" : {
+            "type" : [ "string", "null" ]
+          },
+          "createdAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "cruiseAltitudeFt" : {
+            "format" : "int32",
+            "type" : [ "integer", "null" ]
+          },
+          "departureIdent" : {
+            "type" : "string"
+          },
+          "destinationIdent" : {
+            "type" : "string"
+          },
+          "id" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "plannedFor" : {
+            "format" : "date-time",
+            "type" : [ "string", "null" ]
+          },
+          "totalDistanceNm" : {
+            "format" : "double",
+            "type" : [ "number", "null" ]
+          },
+          "totalEteMin" : {
+            "format" : "double",
+            "type" : [ "number", "null" ]
+          },
+          "totalFuelGal" : {
+            "format" : "double",
+            "type" : [ "number", "null" ]
+          }
+        },
+        "required" : [ "aircraftTailNumber", "createdAt", "cruiseAltitudeFt", "departureIdent", "destinationIdent", "id", "plannedFor", "totalDistanceNm", "totalEteMin", "totalFuelGal" ],
+        "type" : "object"
+      },
+      "MagicLinkRequest" : {
+        "properties" : {
+          "email" : {
+            "minLength" : 1,
+            "type" : "string"
+          }
+        },
+        "required" : [ "email" ],
+        "type" : "object"
+      },
+      "PilotDto" : {
+        "description" : "The signed-in pilot",
+        "properties" : {
+          "developer" : {
+            "description" : "Whether this pilot also does development work here: the training workspace and the developer console are theirs, a plain pilot's are not.",
+            "example" : false,
+            "type" : "boolean"
+          },
+          "displayName" : {
+            "description" : "Display name",
+            "example" : "A. Pilot",
+            "type" : "string"
+          },
+          "email" : {
+            "description" : "Email address from the identity provider",
+            "example" : "pilot@example.com",
+            "type" : "string"
+          },
+          "id" : {
+            "description" : "Internal id",
+            "example" : 1,
+            "format" : "int64",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "developer", "displayName", "email", "id" ],
+        "type" : "object"
+      },
+      "SaveFlightCheckpointRequest" : {
+        "properties" : {
+          "alongTrackNm" : {
+            "format" : "double",
+            "type" : "number"
+          },
+          "altitudeFt" : {
+            "format" : "double",
+            "type" : [ "number", "null" ]
+          },
+          "category" : {
+            "minLength" : 1,
+            "type" : "string"
+          },
+          "eteMin" : {
+            "format" : "double",
+            "type" : [ "number", "null" ]
+          },
+          "fuelGal" : {
+            "format" : "double",
+            "type" : [ "number", "null" ]
+          },
+          "groundspeedKt" : {
+            "format" : "double",
+            "type" : [ "number", "null" ]
+          },
+          "lat" : {
+            "format" : "double",
+            "type" : "number"
+          },
+          "legDistanceNm" : {
+            "format" : "double",
+            "type" : [ "number", "null" ]
+          },
+          "lon" : {
+            "format" : "double",
+            "type" : "number"
+          },
+          "magneticHeadingDeg" : {
+            "format" : "double",
+            "type" : [ "number", "null" ]
+          },
+          "name" : {
+            "minLength" : 1,
+            "type" : "string"
+          },
+          "sequenceNo" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "trueCourseDeg" : {
+            "format" : "double",
+            "type" : [ "number", "null" ]
+          }
+        },
+        "required" : [ "alongTrackNm", "altitudeFt", "category", "eteMin", "fuelGal", "groundspeedKt", "lat", "legDistanceNm", "lon", "magneticHeadingDeg", "name", "sequenceNo", "trueCourseDeg" ],
+        "type" : "object"
+      },
+      "SaveFlightRequest" : {
+        "properties" : {
+          "aircraftId" : {
+            "format" : "int64",
+            "type" : [ "integer", "null" ]
+          },
+          "checkpoints" : {
+            "items" : {
+              "$ref" : "#/components/schemas/SaveFlightCheckpointRequest"
+            },
+            "type" : "array"
+          },
+          "cruiseAltitudeFt" : {
+            "format" : "int32",
+            "type" : [ "integer", "null" ]
+          },
+          "departureIdent" : {
+            "minLength" : 1,
+            "pattern" : "[A-Za-z0-9]{3,4}",
+            "type" : "string"
+          },
+          "destinationIdent" : {
+            "minLength" : 1,
+            "pattern" : "[A-Za-z0-9]{3,4}",
+            "type" : "string"
+          },
+          "plannedFor" : {
+            "format" : "date-time",
+            "type" : [ "string", "null" ]
+          },
+          "totalDistanceNm" : {
+            "format" : "double",
+            "type" : [ "number", "null" ]
+          },
+          "totalEteMin" : {
+            "format" : "double",
+            "type" : [ "number", "null" ]
+          },
+          "totalFuelGal" : {
+            "format" : "double",
+            "type" : [ "number", "null" ]
+          }
+        },
+        "required" : [ "aircraftId", "checkpoints", "cruiseAltitudeFt", "departureIdent", "destinationIdent", "plannedFor", "totalDistanceNm", "totalEteMin", "totalFuelGal" ],
+        "type" : "object"
+      },
+      "StreamingResponseBody" : {
+        "type" : "object"
+      }
+    }
+  },
+  "info" : {
+    "description" : "Scores candidate checkpoints and dead-reckoning nav-log data for a VFR route. See /swagger-ui/index.html for the interactive docs.",
+    "title" : "VFR Route Planning API",
+    "version" : "0.1.0"
+  },
+  "openapi" : "3.1.0",
+  "paths" : {
+    "/api/aircraft" : {
+      "get" : {
+        "operationId" : "list_1",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/AircraftDto"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "aircraft-controller" ]
+      },
+      "post" : {
+        "operationId" : "add",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/AircraftRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AircraftDto"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "aircraft-controller" ]
+      }
+    },
+    "/api/aircraft/{id}" : {
+      "delete" : {
+        "operationId" : "delete",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "aircraft-controller" ]
+      },
+      "put" : {
+        "operationId" : "update",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/AircraftRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AircraftDto"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "aircraft-controller" ]
+      }
+    },
+    "/api/auth/capabilities" : {
+      "get" : {
+        "operationId" : "capabilities",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Capabilities"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "summary" : "Whether anyone can sign in here",
+        "tags" : [ "Auth" ]
+      }
+    },
+    "/api/auth/magic-link" : {
+      "post" : {
+        "description" : "Always 202 -- the response never reveals whether the address has signed in before.",
+        "operationId" : "request",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/MagicLinkRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "OK"
+          }
+        },
+        "summary" : "Start a magic-link sign-in",
+        "tags" : [ "magic-link-controller" ]
+      }
+    },
+    "/api/auth/magic-link/verify" : {
+      "get" : {
+        "description" : "302 to the planner, now signed in, on success; 400 for an expired, already-used or unrecognized token.",
+        "operationId" : "verify",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "token",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "summary" : "Sign in from a magic link",
+        "tags" : [ "magic-link-controller" ]
+      }
+    },
+    "/api/comparison" : {
+      "post" : {
+        "description" : "framework=langgraph (nav-log-agent) or framework=crewai (crewai-agent), each a real billed Claude call. The body is the nav log the flight planning drawer shows (departure_ident, destination_ident, aircraft_name, altitude_ft, altitude_selection, legs); the response is newline-delimited JSON: delta lines with text as it is written, then a done line with the whole briefing, or an error line.",
+        "operationId" : "narrative",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "framework",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "type" : "string"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/StreamingResponseBody"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "summary" : "Stream one framework's narrative for the nav log in the body",
+        "tags" : [ "Comparison" ]
+      }
+    },
+    "/api/flights" : {
+      "get" : {
+        "operationId" : "list",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/FlightSummaryDto"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "flight-controller" ]
+      },
+      "post" : {
+        "operationId" : "save",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/SaveFlightRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/FlightDto"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "flight-controller" ]
+      }
+    },
+    "/api/flights/{id}" : {
+      "delete" : {
+        "operationId" : "delete_2",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "flight-controller" ]
+      },
+      "get" : {
+        "operationId" : "get_1",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/FlightDto"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "flight-controller" ]
+      }
+    },
+    "/api/me" : {
+      "get" : {
+        "description" : "Creates the pilot record on first sign-in. 401 when no session exists.",
+        "operationId" : "me",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PilotDto"
+                }
+              }
+            },
+            "description" : "The signed-in pilot"
+          },
+          "401" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PilotDto"
+                }
+              }
+            },
+            "description" : "No session"
+          }
+        },
+        "summary" : "The signed-in pilot",
+        "tags" : [ "pilot-controller" ]
+      }
+    },
+    "/api/planner/**" : {
+      "delete" : {
+        "description" : "picks",
+        "operationId" : "delete_1",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/StreamingResponseBody"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "summary" : "Any planner DELETE",
+        "tags" : [ "Planner" ]
+      },
+      "get" : {
+        "description" : "course, detect/stream, classify, picks, checkpoints, navlog, routes, build status",
+        "operationId" : "get",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/StreamingResponseBody"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "summary" : "Any planner GET",
+        "tags" : [ "Planner" ]
+      },
+      "post" : {
+        "description" : "picks, build",
+        "operationId" : "post",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "type" : "string"
+              }
+            }
+          }
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/StreamingResponseBody"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "summary" : "Any planner POST",
+        "tags" : [ "Planner" ]
+      }
+    }
+  },
+  "servers" : [ {
+    "url" : "/"
+  } ],
+  "tags" : [ {
+    "description" : "What signing in can do in this deployment",
+    "name" : "Auth"
+  }, {
+    "description" : "LangGraph vs CrewAI, same nav log -- the flight planning drawer's narrative popover",
+    "name" : "Comparison"
+  }, {
+    "description" : "Chart vision, course and nav log, proxied from the planner service",
+    "name" : "Planner"
+  } ]
+}

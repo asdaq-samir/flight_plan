@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "types": "openapi-typescript ../planning-service/openapi.json -o src/lib/api/schema.d.ts",
+    "types": "openapi-typescript ../planning-service/openapi.json -o src/lib/api/schema.d.ts && openapi-typescript ../springboot-app/openapi.json -o src/lib/api/webapp-schema.d.ts",
     "predev": "npm run types",
     "dev": "vite --host 0.0.0.0",
     "prebuild": "npm run types",

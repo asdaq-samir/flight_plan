@@ -191,6 +191,17 @@ every request (`DeveloperOnly`), so granting or revoking the role with
 an `UPDATE` takes effect at once. Locally none of it applies: nobody can
 sign in, so the training workspace keeps working signed out.
 
+**`openapi.json` is committed, and a test holds it to the code.** The
+front end's types for this app's endpoints are generated from it
+(`web/`'s `npm run types`), so `OpenApiDocumentTest` compares it with
+what `/v3/api-docs` serves and fails on any difference. After changing
+a controller or a DTO, run the suite with `WRITE_OPENAPI=1` in the
+environment and commit the file. `config/OpenApiConfig.java` makes the
+document say what Jackson sends: every field listed as required, and a
+field declared `@Nullable` in its DTO typed as possibly null -- so a DTO
+field that can be null and is not annotated generates a type that says
+it cannot be.
+
 **Testcontainers needs the Docker socket.** That is why the `mvn test`
 command above mounts `/var/run/docker.sock`; without it the persistence
 tests cannot start their Postgres.

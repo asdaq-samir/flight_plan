@@ -1,5 +1,6 @@
 import createClient, { type Middleware } from "openapi-fetch";
 import type { paths } from "./schema";
+import type { paths as WebappPaths } from "./webapp-schema";
 import type {
   Aircraft, AircraftChoice, AircraftProfiles, AircraftRequest, AirportSearch, AltitudeChoice, Briefing, BuildJob,
   BuiltRoutes, ChartRefreshStarted, CheckpointDescriptionMessage, CheckpointNoteSaved, Checkpoints, Classification, Course,
@@ -10,13 +11,16 @@ import type {
 } from "./types";
 
 /**
- * Every call the pages make. The planner's calls go through
- * openapi-fetch, typed end to end from planning-service's own OpenAPI
- * schema (`npm run types` regenerates ./schema.d.ts): a renamed query
- * parameter or response field is a compile error at the call site, not
- * a silent 404 or `undefined` -- every response type named below is
- * the generated one, and `data` checks it against the path's own. The Spring Boot calls at the bottom are
- * a plain fetch until that service publishes a schema of its own.
+ * Every call the pages make. Both servers' calls go through
+ * openapi-fetch, typed end to end from each one's own OpenAPI document
+ * (`npm run types` regenerates ./schema.d.ts for the planner and
+ * ./webapp-schema.d.ts for this app's Spring Boot endpoints): a renamed
+ * query parameter or response field is a compile error at the call
+ * site, not a silent 404 or `undefined` -- every response type named
+ * below is a generated one, and `data` checks it against the path's own.
+ * The two calls no schema describes (Spring Security's own logout, and
+ * the narrative the webapp forwards to an agent untouched) are plain
+ * fetches that keep the same two rules.
  */
 
 export class ApiError extends Error {
@@ -27,25 +31,45 @@ export class ApiError extends Error {
 }
 
 /**
- * The CSRF token, which the server sets as a readable cookie and expects
- * echoed back on anything that changes state. Session cookies are
- * attached by the browser on their own, which is the condition CSRF
- * exploits, so this is what distinguishes our own form post from someone
- * else's page making the same request.
+ * The CSRF header for a request that changes state, and nothing for a
+ * GET. The server sets the token as a readable cookie and expects it
+ * echoed back; session cookies are attached by the browser on their
+ * own, which is the condition CSRF exploits, so this is what tells our
+ * own request apart from someone else's page making the same one. The
+ * one place the rule lives -- both clients' middleware and both plain
+ * fetches ask it.
  */
-function csrfToken(): string | null {
+function csrfHeaders(method: string): Record<string, string> {
+  if (method.toUpperCase() === "GET") return {};
   const match = document.cookie.match(/(?:^|;\s*)XSRF-TOKEN=([^;]+)/);
-  return match?.[1] ? decodeURIComponent(match[1]) : null;
+  return match?.[1] ? { "X-XSRF-TOKEN": decodeURIComponent(match[1]) } : {};
 }
 
 /** The server's own word for what went wrong: `detail` is the
- *  planner's (and this client's), `error` is Spring's where it sends
- *  one. A 401 carries no body at all (Spring Security's own entry
+ *  planner's (and the webapp's proxies'), `error` is Spring's where it
+ *  sends one. A 401 carries no body at all (Spring Security's own entry
  *  point), and falls through to the status text. */
 async function detailOf(response: Response): Promise<string> {
   const body = await response.json().catch(() => ({})) as { detail?: string; error?: string };
   return body.detail ?? body.error ?? response.statusText ?? "request failed";
 }
+
+/** A response that is not OK, as the `ApiError` every caller expects --
+ *  so every call either resolves with its data or rejects. */
+async function failIfNotOk(response: Response): Promise<void> {
+  if (!response.ok) throw new ApiError(await detailOf(response), response.status);
+}
+
+/** The two rules above, for an openapi-fetch client. */
+const csrfAndFailures: Middleware = {
+  onRequest({ request }) {
+    for (const [name, value] of Object.entries(csrfHeaders(request.method))) request.headers.set(name, value);
+    return request;
+  },
+  async onResponse({ response }) {
+    await failIfNotOk(response);
+  },
+};
 
 /**
  * Everything chart- and plan-related is served by the Python planner,
@@ -53,26 +77,22 @@ async function detailOf(response: Response): Promise<string> {
  * origin means one session and one set of access rules, and the
  * planner itself publishes no port. The schema's `/api/…` paths are
  * served under `/api/planner/…` (PlannerProxyController), which this
- * middleware writes in, along with the CSRF header on anything that is
- * not a GET; a response that is not OK is thrown as an `ApiError`, so
- * every call either resolves with its data or rejects.
+ * middleware writes in.
  */
 const throughGateway: Middleware = {
   onRequest({ request }) {
     const url = new URL(request.url);
     url.pathname = url.pathname.replace(/^\/api\//, "/api/planner/");
-    const next = new Request(url, request);
-    const token = request.method === "GET" ? null : csrfToken();
-    if (token) next.headers.set("X-XSRF-TOKEN", token);
-    return next;
-  },
-  async onResponse({ response }) {
-    if (!response.ok) throw new ApiError(await detailOf(response), response.status);
+    return new Request(url, request);
   },
 };
 
 const planner = createClient<paths>({ baseUrl: "" });
-planner.use(throughGateway);
+planner.use(throughGateway, csrfAndFailures);
+
+/** The Spring Boot endpoints, on this same origin. */
+const webapp = createClient<WebappPaths>({ baseUrl: "" });
+webapp.use(csrfAndFailures);
 
 /** A schema's shape as openapi-fetch hands it back: every fixed-length
  *  tuple ([lat, lon]) widened to a plain array. */
@@ -122,23 +142,6 @@ export function describeError(err: unknown, fallback = "request failed"): string
 /** `describeError` for a query's `error` field, which is null while
  *  nothing has failed -- and so is this. */
 export const errorMessage = (err: unknown, fallback: string) => (err ? describeError(err, fallback) : null);
-
-/** The Spring Boot endpoints: a plain fetch with the CSRF header on
- *  anything that changes state, and the same `ApiError` on failure. */
-async function json<T>(url: string, init?: RequestInit): Promise<T> {
-  const method = init?.method ?? "GET";
-  const token = method === "GET" ? null : csrfToken();
-  const res = await fetch(url, {
-    ...init,
-    headers: { ...init?.headers, ...(token ? { "X-XSRF-TOKEN": token } : {}) },
-  });
-  if (!res.ok) throw new ApiError(await detailOf(res), res.status);
-  return res.status === 204 ? (undefined as T) : res.json().catch(() => undefined as T);
-}
-
-const jsonBody = (body: unknown): RequestInit => ({
-  method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
-});
 
 export const api = {
   /** The leg itself: sub-second, and enough to draw before any tile is read. */
@@ -293,16 +296,18 @@ export const api = {
     planner.GET("/api/airports/search", { params: { query: { q } } }).then(data<AirportSearch>).then(r => r.airports),
 
   /**
-   * The signed-in pilot, or null when signed out -- a plain Spring
-   * Boot endpoint, not proxied through the planner. A 401 here is the
-   * normal signed-out case, not a failure, so this resolves to null
-   * instead of throwing.
+   * The signed-in pilot, or null when signed out -- a Spring Boot
+   * endpoint, not proxied through the planner. A 401 here is the normal
+   * signed-out case, not a failure, so this resolves to null instead of
+   * throwing.
    */
   async me(): Promise<Pilot | null> {
-    const res = await fetch("/api/me");
-    if (res.status === 401) return null;
-    if (!res.ok) throw new ApiError("could not check sign-in status", res.status);
-    return res.json();
+    try {
+      return await webapp.GET("/api/me").then(data<Pilot>);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 401) return null;
+      throw err;
+    }
   },
 
   /**
@@ -311,15 +316,15 @@ export const api = {
    * mail host cannot hold a role at all, which is what decides whether
    * the developer's switch is offered to a caller with no session.
    */
-  capabilities: () => json<SignInCapabilities>("/api/auth/capabilities"),
+  capabilities: () => webapp.GET("/api/auth/capabilities").then(data<SignInCapabilities>),
 
-  /** POSTs to Spring's own default logout endpoint, whose response is
-   *  a redirect (a login page's HTML), not JSON -- the caller re-checks
-   *  `me()` afterwards; session cookies are cleared either way. */
+  /** POSTs to Spring Security's own default logout endpoint, which no
+   *  schema describes and whose response is a redirect (a login page's
+   *  HTML), not JSON -- the caller re-checks `me()` afterwards; session
+   *  cookies are cleared either way. */
   async logout(): Promise<void> {
-    const token = csrfToken();
-    const res = await fetch("/logout", { method: "POST", headers: token ? { "X-XSRF-TOKEN": token } : {} });
-    if (!res.ok) throw new ApiError("could not log out", res.status);
+    const res = await fetch("/logout", { method: "POST", headers: csrfHeaders("POST") });
+    await failIfNotOk(res);
   },
 
   /**
@@ -328,7 +333,9 @@ export const api = {
    * enumeration-safe answer. Throws only on a genuine failure (a
    * malformed address the server's own validation rejects with 400).
    */
-  requestMagicLink: (email: string) => json<void>("/api/auth/magic-link", jsonBody({ email })),
+  requestMagicLink: async (email: string): Promise<void> => {
+    await webapp.POST("/api/auth/magic-link", { body: { email } });
+  },
 
   /**
    * One framework's narrative for the nav log on screen, streamed as
@@ -342,33 +349,38 @@ export const api = {
   async *frameworkNarrative(
     framework: "langgraph" | "crewai", request: NarrativeRequest, signal?: AbortSignal,
   ): AsyncGenerator<NarrativeMessage> {
-    const token = csrfToken();
+    // A plain fetch: the webapp forwards this body to the agent as it
+    // is, so its schema describes it only as a string.
     const res = await fetch(`/api/comparison?${new URLSearchParams({ framework })}`, {
-      ...jsonBody(request), signal,
-      headers: { "Content-Type": "application/json", ...(token ? { "X-XSRF-TOKEN": token } : {}) },
+      method: "POST", signal, body: JSON.stringify(request),
+      headers: { "Content-Type": "application/json", ...csrfHeaders("POST") },
     });
     // Once anyone can sign in, a narrative -- a billed Claude call --
     // needs a session, and Spring's 401 carries no body to say so.
     if (res.status === 401) throw new ApiError("Sign in to generate a narrative", 401);
-    if (!res.ok) throw new ApiError(await detailOf(res), res.status);
+    await failIfNotOk(res);
     yield* ndjson<NarrativeMessage>(res.body ?? undefined);
   },
 
-  /** A signed-in pilot's own aeroplanes -- also a direct Spring Boot
-   *  call, like `me()`: nothing here is planning-service's concern. */
+  /** A signed-in pilot's own aeroplanes -- also a Spring Boot call,
+   *  like `me()`: nothing here is planning-service's concern. */
   aircraft: {
-    list: () => json<Aircraft[]>("/api/aircraft"),
-    add: (request: AircraftRequest) => json<Aircraft>("/api/aircraft", jsonBody(request)),
+    list: () => webapp.GET("/api/aircraft").then(data<Aircraft[]>),
+    add: (request: AircraftRequest) => webapp.POST("/api/aircraft", { body: request }).then(data<Aircraft>),
     update: (id: number, request: AircraftRequest) =>
-      json<Aircraft>(`/api/aircraft/${id}`, { ...jsonBody(request), method: "PUT" }),
-    remove: (id: number) => json<void>(`/api/aircraft/${id}`, { method: "DELETE" }),
+      webapp.PUT("/api/aircraft/{id}", { params: { path: { id } }, body: request }).then(data<Aircraft>),
+    remove: async (id: number): Promise<void> => {
+      await webapp.DELETE("/api/aircraft/{id}", { params: { path: { id } } });
+    },
   },
 
   /** A signed-in pilot's own filed flights. */
   flights: {
-    list: () => json<FlightSummary[]>("/api/flights"),
-    get: (id: number) => json<Flight>(`/api/flights/${id}`),
-    save: (request: SaveFlightRequest) => json<Flight>("/api/flights", jsonBody(request)),
-    remove: (id: number) => json<void>(`/api/flights/${id}`, { method: "DELETE" }),
+    list: () => webapp.GET("/api/flights").then(data<FlightSummary[]>),
+    get: (id: number) => webapp.GET("/api/flights/{id}", { params: { path: { id } } }).then(data<Flight>),
+    save: (request: SaveFlightRequest) => webapp.POST("/api/flights", { body: request }).then(data<Flight>),
+    remove: async (id: number): Promise<void> => {
+      await webapp.DELETE("/api/flights/{id}", { params: { path: { id } } });
+    },
   },
 };

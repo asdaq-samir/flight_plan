@@ -5,6 +5,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import java.time.Instant;
 import java.util.List;
+import org.springframework.lang.Nullable;
 
 /** Inbound request body for POST /api/flights -- files (replacing any
  *  previous one, per {@link com.northflyers.vfr.domain.Flight#fileNavLog})
@@ -12,18 +13,18 @@ import java.util.List;
  *  optional: a flight can be filed without a saved aircraft, the same way
  *  {@link com.northflyers.vfr.domain.Flight} itself allows it to be null. */
 public record SaveFlightRequest(
-        Long aircraftId,
+        @Nullable Long aircraftId,
         @NotBlank(message = "departureIdent is required")
         @Pattern(regexp = "[A-Za-z0-9]{3,4}", message = "departureIdent must be a 3-4 character airport ident")
         String departureIdent,
         @NotBlank(message = "destinationIdent is required")
         @Pattern(regexp = "[A-Za-z0-9]{3,4}", message = "destinationIdent must be a 3-4 character airport ident")
         String destinationIdent,
-        Integer cruiseAltitudeFt,
-        Double totalDistanceNm,
-        Double totalEteMin,
-        Double totalFuelGal,
-        Instant plannedFor,
+        @Nullable Integer cruiseAltitudeFt,
+        @Nullable Double totalDistanceNm,
+        @Nullable Double totalEteMin,
+        @Nullable Double totalFuelGal,
+        @Nullable Instant plannedFor,
         @Valid
         List<SaveFlightCheckpointRequest> checkpoints) {
 }

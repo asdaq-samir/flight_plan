@@ -18,9 +18,11 @@ COPY web/package.json web/package-lock.json ./
 # `npm ci` doesn't re-download the same packages every time.
 RUN --mount=type=cache,target=/root/.npm npm ci
 COPY web/ ./
-# The planner's OpenAPI document, from which `npm run types` generates
-# the front end's API types (web/src/lib/api/schema.d.ts, not committed).
+# The planner's and this app's own OpenAPI documents, from which `npm run
+# types` generates the front end's API types (web/src/lib/api/schema.d.ts
+# and webapp-schema.d.ts, not committed).
 COPY planning-service/openapi.json /planning-service/openapi.json
+COPY springboot-app/openapi.json /springboot-app/openapi.json
 RUN npm run types && npx vite build --outDir /web/dist --emptyOutDir
 
 # 25, not the truly-latest 26: spring-boot-maven-plugin 3.5.3's bundled

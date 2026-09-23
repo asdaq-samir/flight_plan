@@ -1,6 +1,7 @@
 package com.northflyers.vfr.dto;
 
 import jakarta.validation.constraints.NotBlank;
+import org.springframework.lang.Nullable;
 
 /** One line of the nav log a POST /api/flights body files -- the leg
  *  fields are nullable for the same reasons the entity's are (see
@@ -16,11 +17,11 @@ public record SaveFlightCheckpointRequest(
         double lat,
         double lon,
         double alongTrackNm,
-        Double legDistanceNm,
-        Double trueCourseDeg,
-        Double magneticHeadingDeg,
-        Double groundspeedKt,
-        Double eteMin,
-        Double fuelGal,
-        Double altitudeFt) {
+        @Nullable Double legDistanceNm,
+        @Nullable Double trueCourseDeg,
+        @Nullable Double magneticHeadingDeg,
+        @Nullable Double groundspeedKt,
+        @Nullable Double eteMin,
+        @Nullable Double fuelGal,
+        @Nullable Double altitudeFt) {
 }
