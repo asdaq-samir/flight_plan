@@ -48,18 +48,19 @@ function CheckpointCard({ candidate, number }: { candidate: Candidate; number?: 
   return (
     <MapCard
       title={`${number === undefined ? "" : `${number}. `}${candidate.name || "(unnamed)"}`}
-      subtitle={candidate.category}
+      subtitle={`${candidate.along_track_nm.toFixed(1)} nm along`}
     >
+      {/* The score and what kind of thing it is on one line: two facts
+          about the same landmark, each a few characters long, and a
+          line apiece made the card twice as tall as it had any need to
+          be. The score keeps the colour its own marker is drawn in, so
+          the dot on the chart and the number in the card are the same
+          fact twice rather than two things to reconcile. */}
       <div className="flex items-center justify-center gap-2">
-        {/* The score in the colour its own marker is drawn in, so the
-            dot on the chart and the number in the card are the same
-            fact twice rather than two things to reconcile. */}
         <Badge className="tabular-nums text-white" style={{ backgroundColor: scoreColor(candidate.predicted_score) }}>
           {candidate.predicted_score.toFixed(2)}
         </Badge>
-        <span className="tabular-nums text-muted-foreground">
-          {candidate.along_track_nm.toFixed(1)} nm along
-        </span>
+        <span className="text-muted-foreground">{candidate.category}</span>
       </div>
     </MapCard>
   );
