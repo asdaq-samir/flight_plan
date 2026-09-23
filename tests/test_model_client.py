@@ -32,7 +32,17 @@ def _posting(monkeypatch, response, calls=None):
             raise response
         return response
 
-    monkeypatch.setattr(model_client.requests, "post", fake_post)
+    # On the module's Session instance, not the requests module: _invoke_http
+    # calls _session.post now (one Session reused across calls, not a fresh
+    # connection per call -- see model_client.py), and Session.post is a
+    # bound method of that instance, not the module-level requests.post this
+    # used to patch. Patching the wrong one used to fail silently here: one
+    # of these tests kept passing afterwards only because _session.post,
+    # unmocked, made a real connection attempt to a host that does not
+    # resolve in the test environment and happened to raise the same
+    # ConnectionError the test wanted -- right assertion, no longer
+    # testing what it claimed to.
+    monkeypatch.setattr(model_client._session, "post", fake_post)
 
 
 def test_get_checkpoints_posts_the_route_and_unwraps_the_list(monkeypatch):
@@ -82,6 +92,32 @@ def test_any_other_status_is_relayed_with_its_detail(monkeypatch):
 
     assert err.value.status == 503
     assert str(err.value) == "no model promoted"
+
+
+def test_the_sagemaker_client_is_built_once_and_reused(monkeypatch):
+    # boto3 is not installed here on purpose (see model_client.py's own
+    # comment on the import) -- a fake module in sys.modules stands in for
+    # it, since _sagemaker() imports boto3 lazily, inside the function,
+    # each time it runs.
+    monkeypatch.setattr(model_client, "_sagemaker_client", None)
+    built = []
+
+    class _FakeClient:
+        pass
+
+    class _FakeBoto3:
+        @staticmethod
+        def client(service_name):
+            built.append(service_name)
+            return _FakeClient()
+
+    monkeypatch.setitem(__import__("sys").modules, "boto3", _FakeBoto3())
+
+    first = model_client._sagemaker()
+    second = model_client._sagemaker()
+
+    assert built == ["sagemaker-runtime"]
+    assert first is second
 
 
 def test_the_endpoint_name_alone_selects_the_sagemaker_path(monkeypatch):

@@ -11,12 +11,39 @@ talking to.
 """
 import json
 import os
+import threading
 
 import requests
 
 MODEL_SERVICE_URL = os.environ.get("MODEL_SERVICE_URL", "http://model-service:8000")
 SAGEMAKER_ENDPOINT_NAME = os.environ.get("SAGEMAKER_ENDPOINT_NAME")
 TIMEOUT_S = 90
+
+# One Session per process, not one per call: a bare requests.post() opens
+# a fresh TCP connection (and, to model-service over plain HTTP inside the
+# compose network, a fresh handshake) every time, for a process that
+# calls the same host on every plan. A Session pools and reuses the
+# connection instead.
+_session = requests.Session()
+
+# boto3 clients are expensive to build (they parse the service's whole
+# API model from botocore's bundled JSON on every construction) and are
+# documented as thread-safe once built, so one lazily-created client is
+# reused rather than one per inference. Lazy, not built at import time:
+# importing this module must not need boto3 at all outside AWS, and the
+# non-AWS images do not install it.
+_sagemaker_client = None
+_sagemaker_client_lock = threading.Lock()
+
+
+def _sagemaker() -> "object":
+    global _sagemaker_client
+    if _sagemaker_client is None:
+        with _sagemaker_client_lock:
+            if _sagemaker_client is None:
+                import boto3
+                _sagemaker_client = boto3.client("sagemaker-runtime")
+    return _sagemaker_client
 
 
 class ModelServiceError(Exception):
@@ -57,14 +84,14 @@ def list_routes() -> dict:
     SageMaker endpoint has no /routes, and on AWS collection is a
     pipeline job rather than something a running service offers."""
     try:
-        return requests.get(f"{MODEL_SERVICE_URL}/routes", timeout=10).json()
+        return _session.get(f"{MODEL_SERVICE_URL}/routes", timeout=10).json()
     except requests.RequestException as err:
         raise ModelServiceError(f"Could not reach model-service: {err}") from err
 
 
 def _invoke_http(payload: dict) -> dict:
     try:
-        resp = requests.post(f"{MODEL_SERVICE_URL}/invocations", json=payload, timeout=TIMEOUT_S)
+        resp = _session.post(f"{MODEL_SERVICE_URL}/invocations", json=payload, timeout=TIMEOUT_S)
     except requests.RequestException as err:
         raise ModelServiceError(f"Could not reach model-service: {err}") from err
     if resp.status_code == 404:
@@ -82,12 +109,12 @@ def _detail(resp: requests.Response) -> str:
 
 
 def _invoke_sagemaker(payload: dict) -> dict:
-    # Imported here so the local images and the test suite need no boto3;
-    # the AWS images install it.
-    import boto3
+    # BotoCoreError/ClientError imported here so the local images and the
+    # test suite need no boto3; the AWS images install it. The client
+    # itself is _sagemaker()'s job now, built once and reused.
     from botocore.exceptions import BotoCoreError, ClientError
 
-    client = boto3.client("sagemaker-runtime")
+    client = _sagemaker()
     try:
         response = client.invoke_endpoint(
             EndpointName=SAGEMAKER_ENDPOINT_NAME,

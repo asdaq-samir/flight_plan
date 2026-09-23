@@ -11,6 +11,83 @@ from vfr import altitude as altitude_module
 from vfr import geo, navlog, sun, weather
 
 
+class SingleFlightTTLCache:
+    """A TTLCache where a miss is computed once per key, even under
+    concurrent callers.
+
+    The lock used to protect only the dict: check the cache, release the
+    lock, compute on a miss, re-take the lock to store it. That leaves
+    the computation itself unguarded, so two requests for the same
+    not-yet-cached route -- the same plan loaded from two tabs, a retry
+    racing the original -- both pay for the whole terrain/airspace/
+    weather stack, which is exactly the cost this cache exists to avoid
+    paying twice. The second caller now waits on the first caller's
+    result instead of repeating it.
+
+    A per-key threading.Event, not one lock for the whole cache: two
+    different routes must still compute in parallel, only two callers of
+    the *same* route serialise.
+    """
+
+    def __init__(self, maxsize: int, ttl: float):
+        self._cache: TTLCache = TTLCache(maxsize=maxsize, ttl=ttl)
+        self._lock = threading.Lock()
+        self._inflight: dict[object, threading.Event] = {}
+
+    def get(self, key):
+        """Read-only access, for a caller that wants to see a cached
+        value without joining anyone else's in-flight computation."""
+        with self._lock:
+            return self._cache.get(key)
+
+    def clear(self):
+        """Same shape as TTLCache.clear(), so the test fixture that
+        resets every cache between tests does not need to know this one
+        is not a bare TTLCache."""
+        with self._lock:
+            self._cache.clear()
+            self._inflight.clear()
+
+    def get_or_compute(self, key, compute):
+        with self._lock:
+            hit = self._cache.get(key)
+            if hit is not None:
+                return hit
+            event = self._inflight.get(key)
+            if event is None:
+                event = threading.Event()
+                self._inflight[key] = event
+                leader = True
+            else:
+                leader = False
+
+        if not leader:
+            event.wait()
+            with self._lock:
+                hit = self._cache.get(key)
+            if hit is not None:
+                return hit
+            # The leader's own compute() raised, so nothing was stored --
+            # fall through and try again rather than propagate an
+            # unrelated caller's exception, or the leader's transient
+            # network error, to every follower that was only waiting on
+            # a lock.
+            return self.get_or_compute(key, compute)
+
+        try:
+            value = compute()
+        except BaseException:
+            with self._lock:
+                del self._inflight[key]
+            event.set()
+            raise
+        with self._lock:
+            self._cache[key] = value
+            del self._inflight[key]
+        event.set()
+        return value
+
+
 def aircraft_profile(
     name: str, cruise_tas_kt: float | None = None, fuel_burn_gph: float | None = None,
     usable_fuel_gal: float | None = None,
@@ -61,9 +138,14 @@ def flight_totals(leg_list: list, profile: dict, r, depart: datetime | None) -> 
 # The key includes every fix of the route, so a plain dict grew by a row
 # for every distinct set of checkpoints a pilot tried and never gave one
 # back. That is a leak in a process meant to stay up.
+#
+# Single-flight (see SingleFlightTTLCache above): the two-minute-worst-
+# case number above is exactly what two identical requests on a cache
+# miss used to both pay, concurrently, before this was single-flight --
+# the same route opened in two tabs, or a client's own retry racing the
+# request it gave up on.
 _ALTITUDE_TTL_S = 900
-_ALTITUDE_CACHE: TTLCache = TTLCache(maxsize=512, ttl=_ALTITUDE_TTL_S)
-_ALTITUDE_CACHE_LOCK = threading.Lock()
+_ALTITUDE_CACHE = SingleFlightTTLCache(maxsize=512, ttl=_ALTITUDE_TTL_S)
 
 
 def cruise_altitude(
@@ -77,30 +159,27 @@ def cruise_altitude(
         round(start[0], 4), round(start[1], 4), round(end[0], 4), round(end[1], 4), aircraft,
         tuple((round(lat, 4), round(lon, 4)) for lat, lon in fixes) if fixes else None, fcst_hr,
     )
-    with _ALTITUDE_CACHE_LOCK:
-        hit = _ALTITUDE_CACHE.get(key)
-    if hit is not None:
-        return hit
-    # The keywords only when they differ from the defaults: the
-    # route-wide callers (/api/altitude-breakdown, the agents) keep the
-    # original call.
-    extra = {}
-    if fixes:
-        extra["fixes"] = fixes
-    if fcst_hr != "06":
-        extra["fcst_hr"] = fcst_hr
-    selection = altitude_module.select_cruise_altitude(start, end, profile, **extra)
-    with _ALTITUDE_CACHE_LOCK:
-        _ALTITUDE_CACHE[key] = selection
-    return selection
+
+    def compute():
+        # The keywords only when they differ from the defaults: the
+        # route-wide callers (/api/altitude-breakdown, the agents) keep
+        # the original call.
+        extra = {}
+        if fixes:
+            extra["fixes"] = fixes
+        if fcst_hr != "06":
+            extra["fcst_hr"] = fcst_hr
+        return altitude_module.select_cruise_altitude(start, end, profile, **extra)
+
+    return _ALTITUDE_CACHE.get_or_compute(key, compute)
 
 
 # The three plans read the winds at every legal altitude of every leg,
 # and the winds product is reissued a few times a day and held by
 # vfr.weather for the same 15 minutes -- so the plans are held as long,
 # per route, fixes and aeroplane, and switching between them is free.
-_PLANS_CACHE: TTLCache = TTLCache(maxsize=512, ttl=_ALTITUDE_TTL_S)
-_PLANS_CACHE_LOCK = threading.Lock()
+# Single-flight for the same reason _ALTITUDE_CACHE is.
+_PLANS_CACHE = SingleFlightTTLCache(maxsize=512, ttl=_ALTITUDE_TTL_S)
 
 
 def altitude_plans(
@@ -112,16 +191,13 @@ def altitude_plans(
         tuple((round(f["lat"], 4), round(f["lon"], 4)) for f in fix_list),
         tuple(tuple(s["candidates_ft"]) for s in selection.get("segments", [])),
     )
-    with _PLANS_CACHE_LOCK:
-        hit = _PLANS_CACHE.get(key)
-    if hit is not None:
-        return hit
-    plans = navlog.altitude_profiles(
-        fix_list, selection.get("segments", []), profile, fcst_hr, departure_elevation_ft=departure_elevation_ft,
-    )
-    with _PLANS_CACHE_LOCK:
-        _PLANS_CACHE[key] = plans
-    return plans
+
+    def compute():
+        return navlog.altitude_profiles(
+            fix_list, selection.get("segments", []), profile, fcst_hr, departure_elevation_ft=departure_elevation_ft,
+        )
+
+    return _PLANS_CACHE.get_or_compute(key, compute)
 
 
 def forecast_hour_for(depart: datetime | None) -> str:
