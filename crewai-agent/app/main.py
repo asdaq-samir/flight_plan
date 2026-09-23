@@ -9,7 +9,7 @@ API), and doesn't duplicate the pgvector memory store.
 This module is the one-shot CLI: `python -m app.main --departure-ident
 C81 --destination-ident KDLH` builds the crew, runs it once and prints
 the briefing. The image itself runs app.server, a small FastAPI wrapper
-around the same build_crew(), so the webapp's Brief tab has something to
+around the same build_crew(), so the webapp's flight planning drawer has something to
 call on demand.
 
 Where this differs structurally from the LangGraph build: LangGraph's
@@ -20,7 +20,7 @@ three deterministic steps (checkpoints/altitude/DR-legs) are exposed as
 tools the agent chooses to invoke, rather than hardcoded as call sites.
 That difference in control-flow philosophy is the actual point of comparison.
 
-The Brief tab is the exception: it already has the nav log on screen, so
+The flight planning drawer is the exception: it already has the nav log on screen, so
 its calls hand the crew that data (nav_log below) and no tools at all,
 and the agent's one job is the prose -- the same shortcut the LangGraph
 build takes for the same caller. Every tool call there was one more
@@ -49,7 +49,7 @@ def build_crew(
     three tools in tools.py, and the Task describing what to produce with
     them -- see module docstring for how this compares to the LangGraph
     build. With nav_log (altitude_ft, altitude_selection, legs -- what
-    the Brief tab already shows) the agent gets that data in its task
+    the flight planning drawer already shows) the agent gets that data in its task
     and no tools. stream=True makes kickoff() return the crew's own
     streaming output (text as Claude writes it) instead of the result."""
     briefer = Agent(

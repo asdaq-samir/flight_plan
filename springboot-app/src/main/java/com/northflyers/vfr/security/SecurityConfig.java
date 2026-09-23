@@ -98,7 +98,7 @@ public class SecurityConfig {
                     // checkpoint note, starting a corridor build (minutes
                     // of Overpass and FAA I/O per call) -- needs a session
                     // as soon as this deployment offers any way to get
-                    // one. Locally nothing does, so the Label page keeps
+                    // one. Locally nothing does, so the training workspace keeps
                     // working signed out.
                     if (signInPossible) {
                         auth.requestMatchers("/api/planner/**").authenticated();
@@ -106,7 +106,7 @@ public class SecurityConfig {
                         auth.requestMatchers("/api/planner/**").permitAll();
                     }
                     auth
-                            // The Brief tab's own AI popover
+                            // The flight planning drawer's narrative popover
                             // (ComparisonProxyController): read-only, no
                             // account needed to run it.
                             .requestMatchers("/api/comparison/**").permitAll()

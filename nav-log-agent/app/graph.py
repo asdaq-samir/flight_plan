@@ -6,7 +6,7 @@ cruise altitude (vfr.altitude, extracted from notebook 08 -- see
 (pgvector) -> a Claude-generated briefing -> store that briefing back into
 memory for next time.
 
-The Brief tab already has all of the first four steps' output on screen
+The flight planning drawer already has all of the first four steps' output on screen
 (the planner computed it, cached), so its calls start the graph at
 retrieve_memory with the nav log supplied -- see build_graph.
 """
@@ -235,7 +235,7 @@ def build_graph(from_nav_log: bool = False, narrate: bool = True):
     .stream(state, stream_mode="custom").
 
     from_nav_log=True skips the four computing nodes: the caller already
-    has altitude_ft, altitude_selection and legs (the Brief tab, whose
+    has altitude_ft, altitude_selection and legs (the flight planning drawer, whose
     planner computed and cached them seconds earlier -- and whose pilot
     may have overridden the altitude, which a recomputation here would
     silently ignore), so the graph starts at retrieve_memory.

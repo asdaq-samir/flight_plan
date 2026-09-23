@@ -1,6 +1,6 @@
 """A thin FastAPI wrapper around build_crew()/kickoff() -- the REST twin
-of nav-log-agent/app/mcp_server.py's /compare route, for the Brief tab's
-AI popover (ComparisonProxyController on the webapp side). This is what
+of nav-log-agent/app/mcp_server.py's /compare route, for the flight planning
+drawer's narrative popover (ComparisonProxyController on the webapp side). This is what
 the image runs; the one-shot CLI is app.main.
 
 No auth of its own, matching planning-service -- reachable only over the
@@ -21,7 +21,7 @@ app = FastAPI()
 
 
 class NarrativeRequest(BaseModel):
-    """The nav log the Brief tab already shows -- the crew writes about
+    """The nav log the flight planning drawer already shows -- the crew writes about
     these numbers rather than recomputing them through its tools."""
 
     departure_ident: str
@@ -70,7 +70,7 @@ def _narrative_lines(crew) -> Iterator[str]:
 
 @app.post("/compare")
 def compare(body: NarrativeRequest) -> StreamingResponse:
-    """The Brief tab's narrative, streamed as it is written, about the
+    """The flight planning drawer's narrative, streamed as it is written, about the
     nav log in the body."""
     crew = build_crew(
         body.departure_ident, body.destination_ident, body.aircraft_name,
@@ -86,6 +86,6 @@ def compare_from_scratch(
 ) -> StreamingResponse:
     """The full tool-driven run (checkpoints, altitude and legs fetched by
     the agent itself), streamed the same way -- the framework comparison
-    proper, for anyone curious; the Brief tab uses POST above."""
+    proper, for anyone curious; the drawer uses POST above."""
     crew = build_crew(departure_ident, destination_ident, aircraft_name, stream=True)
     return StreamingResponse(_narrative_lines(crew), media_type="application/x-ndjson")

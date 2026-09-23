@@ -1,0 +1,6 @@
+[tool.pytest.ini_options]
+# The same pythonpath pattern as nav-log-agent's own pyproject.toml:
+# "." so `from app.server import ...` resolves the way the Dockerfile's
+# WORKDIR does, and "../src" so the tools' `from vfr import ...` resolves
+# the way it does inside the container (PYTHONPATH=/workspace/src).
+pythonpath = [".", "../src"]

@@ -1,0 +1,8 @@
+# CI only (.github/workflows/ci.yml, test-nav-log-agent job) -- what's
+# needed on top of the service's own requirements to run
+# nav-log-agent/tests/. The same pattern as planning-service's own
+# requirements-dev.txt: pytest and ruff have no reason to ship inside
+# the image that runs this service.
+-r requirements.txt
+pytest
+ruff

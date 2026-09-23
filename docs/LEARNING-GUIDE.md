@@ -781,7 +781,7 @@ The three earn their keep by lining up with the graph's own shape. Of
 its six nodes, exactly one — `generate_briefing` — calls Claude; the
 other five are a model-service lookup, arithmetic and a database read.
 `generate_nav_log_briefing` runs the whole graph and is what `webapp`'s
-own Brief tab calls, spending this server's own Anthropic credit on the
+own flight planning drawer calls, spending this server's own Anthropic credit on the
 narration. But an MCP client connecting from Claude Desktop, or from
 another agent, already *has* a model — asking it to pay for a second one
 here is backwards. `assemble_nav_log` runs the graph up to

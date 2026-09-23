@@ -294,7 +294,7 @@ services:
       # this proxy never runs hot enough locally to miss C2. The AWS
       # task definition sets neither.
       JAVA_TOOL_OPTIONS: -XX:+AutoCreateSharedArchive -XX:SharedArchiveFile=/cds/webapp.jsa -XX:TieredStopAtLevel=1
-      # The Brief tab's own AI popover (ComparisonProxyController) --
+      # The flight planning drawer's narrative popover (ComparisonProxyController) --
       # neither is in `depends_on` above, unlike planning-service: that
       # popover is a developer-facing extra, not core to planning a
       # route, so webapp must still start cleanly with nav-log-agent/

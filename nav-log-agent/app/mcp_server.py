@@ -1,6 +1,6 @@
 """Exposes the nav-log-assembler graph as an MCP tool -- the "LangGraph
 Agent (MCP Server)" box in docs/architecture-aws.svg -- and as the plain
-HTTP route the Brief tab's own AI popover streams a narrative from.
+HTTP route the flight planning drawer's narrative popover streams a narrative from.
 """
 import json
 from collections.abc import Iterator
@@ -147,7 +147,7 @@ def _narrative_lines(graph, state: dict) -> Iterator[str]:
 @mcp.custom_route("/compare", methods=["GET", "POST"])
 async def compare(request: Request) -> StreamingResponse:
     """Plain REST twin of generate_nav_log_briefing, not an MCP tool call --
-    for the Brief tab's own AI popover (ComparisonProxyController on the
+    for the flight planning drawer's narrative popover (ComparisonProxyController on the
     webapp side), which needs a request-response HTTP call it can make
     directly rather than an MCP client/session. Streams the narrative as
     it is written (see _narrative_lines).

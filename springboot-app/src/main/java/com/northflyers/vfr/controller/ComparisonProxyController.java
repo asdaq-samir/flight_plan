@@ -22,7 +22,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
 /**
- * The Brief tab's own AI popover streams its narrative through this, one
+ * The flight planning drawer's narrative popover streams its narrative through this, one
  * framework at a time ({@code framework=langgraph} runs nav-log-agent's
  * LangGraph build, {@code framework=crewai} crewai-agent's CrewAI build):
  * the comparison the two services exist to make (see crewai-agent/app/
@@ -49,7 +49,7 @@ import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBo
  */
 @RestController
 @RequestMapping("/api/comparison")
-@Tag(name = "Comparison", description = "LangGraph vs CrewAI, same nav log -- the Brief tab's own AI popover")
+@Tag(name = "Comparison", description = "LangGraph vs CrewAI, same nav log -- the flight planning drawer's narrative popover")
 public class ComparisonProxyController {
 
     private static final Logger log = LoggerFactory.getLogger(ComparisonProxyController.class);
@@ -76,7 +76,7 @@ public class ComparisonProxyController {
 
     @Operation(summary = "Stream one framework's narrative for the nav log in the body",
             description = "framework=langgraph (nav-log-agent) or framework=crewai (crewai-agent), each a real billed "
-                    + "Claude call. The body is the nav log the Brief tab shows (departure_ident, destination_ident, "
+                    + "Claude call. The body is the nav log the flight planning drawer shows (departure_ident, destination_ident, "
                     + "aircraft_name, altitude_ft, altitude_selection, legs); the response is newline-delimited JSON: "
                     + "delta lines with text as it is written, then a done line with the whole briefing, or an error line.")
     @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)

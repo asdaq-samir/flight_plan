@@ -308,7 +308,7 @@ export function FlightsPanel({ pilot }: { pilot: PilotState }) {
         <p className="mt-1 text-sm text-muted-foreground">Loading…</p>
       ) : error ? null : list?.length === 0 ? (
         <p className="mt-1 text-sm text-muted-foreground">
-          No flights filed yet -- plan a route, open its Brief tab, and save it there.
+          No flights filed yet -- plan a route, open Flight Planning, and save it there.
         </p>
       ) : (
         <Table containerClassName="mt-2 rounded-md border" className="min-w-[36rem]">

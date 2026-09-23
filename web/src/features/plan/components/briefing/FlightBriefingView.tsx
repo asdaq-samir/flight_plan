@@ -153,7 +153,7 @@ function windsAloftSummary(legs: Leg[]): { dir: number; speed: number }[] {
  * schema for (`flights`/`flight_checkpoints`) but, until this, no
  * caller ever populated. Not a print-page concern; this reads/writes
  * `/api/aircraft` and `/api/flights` directly (same Spring Boot
- * origin, same pattern the Playground's own panels use), independent
+ * origin, same pattern the account panels use), independent
  * of planning-service entirely. Hidden while signed out rather than
  * shown disabled -- there is nothing a signed-out pilot could do
  * about it from here, and a disabled button with no explanation reads

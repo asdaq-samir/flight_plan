@@ -42,7 +42,7 @@ memory learns from those briefings too — otherwise pgvector would only
 ever accumulate narrations that cost the operator money.
 
 Set `ANTHROPIC_API_KEY` as well if you want `generate_nav_log_briefing`
-and the Brief tab's own streamed narrative; without it those two fail
+and the flight planning drawer's own streamed narrative; without it those two fail
 and the rest is unaffected.
 
 This service is behind the `ai` Compose profile, so a plain

@@ -3,7 +3,7 @@ import { z } from "zod";
 /** An airport ident, normalized (trimmed, uppercased) and shape-checked
  *  -- the same 3-4 alphanumeric character rule springboot-app's own
  *  SaveFlightRequest already enforces server-side. Every dep/dest form
- *  in this app (Plan, Label, Playground's two panels) used to hand-copy
+ *  in this app (Plan and Train) used to hand-copy
  *  its own trim/uppercase/empty-check; this is the one place that
  *  logic lives now. `.safeParse(raw).data` is `undefined` for anything
  *  that doesn't fit -- callers treat that the same way they treated an

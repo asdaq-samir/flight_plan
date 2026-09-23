@@ -1,0 +1,9 @@
+# CI only (.github/workflows/ci.yml, test-crewai-agent job) -- what's
+# needed on top of the service's own requirements to run
+# crewai-agent/tests/. The same pattern as planning-service's own
+# requirements-dev.txt: pytest, httpx and ruff have no reason to ship
+# inside the image that runs this service.
+-r requirements.txt
+pytest
+httpx   # fastapi.testclient.TestClient's transport
+ruff

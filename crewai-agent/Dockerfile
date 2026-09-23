@@ -13,6 +13,6 @@ RUN useradd -m appuser
 USER appuser
 
 ENV PYTHONPATH=/workspace/src
-# The HTTP wrapper the webapp's Brief tab calls. The one-shot CLI is
+# The HTTP wrapper the webapp's flight planning drawer calls. The one-shot CLI is
 # `python3 -m app.main ...`, passed as the command instead.
 CMD ["uvicorn", "app.server:app", "--host", "0.0.0.0", "--port", "8000"]

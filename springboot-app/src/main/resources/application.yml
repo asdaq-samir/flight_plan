@@ -61,7 +61,7 @@ planner-service:
   base-url: ${PLANNER_SERVICE_URL:http://localhost:8084}
 
 # The two Gen AI comparison builds (ComparisonProxyController), behind
-# the Brief tab's own AI popover -- neither is required for the app to
+# the flight planning drawer's narrative popover -- neither is required for the app to
 # start (see that controller's own per-framework error handling),
 # unlike planner-service above.
 nav-log-agent:

@@ -560,6 +560,13 @@ docker run --rm -v "$PWD":/w -w /w -e PYTHONPATH=/w/src python:3.13-slim \
 docker run --rm -v "$PWD":/w -w /w/planning-service python:3.13-slim \
   sh -c "pip install -q -r requirements-dev.txt && ruff check app tests && pytest tests/ -q"
 
+# model-service, nav-log-agent and crewai-agent: the same shape, each
+# from its own directory and requirements-dev.txt. nav-log-agent wants
+# the CPU torch wheel first (`pip install torch --index-url
+# https://download.pytorch.org/whl/cpu`), as its Dockerfile does.
+docker run --rm -v "$PWD":/w -w /w/model-service python:3.13-slim \
+  sh -c "pip install -q -r requirements-dev.txt && ruff check app tests && pytest tests/ -q"
+
 # Web front end (web/): typecheck plus unit tests. No browser needed:
 # the filters, ordering, rating and nav-log rules are pure functions.
 docker run --rm -v "$PWD":/w -w /w/web node:26-slim \
@@ -578,7 +585,7 @@ docker run --rm -v "$PWD/springboot-app":/build -w /build \
 (CI runs `mvn test` directly instead — a GitHub runner has Maven and a
 local Docker daemon, so it needs none of the socket/host plumbing above.)
 
-Three suites, split by what each can actually prove:
+Six suites, split by what each can actually prove:
 
 - **`tests/`** (pytest) — the pure-logic parts of `src/vfr`: geo math,
   engineered features, dead-reckoning, the model registry, the
@@ -591,6 +598,14 @@ Three suites, split by what each can actually prove:
   `WeatherServiceError` anywhere underneath reaches the caller as a
   clean `502`, not a raw `500`; plus that the committed `openapi.json`
   (which `web/` generates its API types from) matches the app.
+- **`model-service/tests/`** (pytest) — `/ping`, `/invocations` and the
+  reload of a newly promoted model, against real joblib and parquet
+  files in a temporary directory.
+- **`nav-log-agent/tests/`** and **`crewai-agent/tests/`** (pytest) — the
+  agents' own logic with the database, planning-service and Claude
+  mocked: what goes into the briefing prompt, that a failed narration is
+  never stored as precedent, and that a request missing its legs is
+  refused before any crew is built.
 - **`springboot-app/src/test/`** (JUnit) — the HTTP contract via
   `@WebMvcTest` (validation `400`s, `405` for a wrong method, the `409`
   on a duplicate tail number), Mockito-backed
@@ -606,7 +621,7 @@ calls or a trained model (`collect`, `engineer_features`, `retrain`,
 `vfr.altitude`, `vfr.airspace`) — mocking those would test the mock, not
 the upstream data contract that actually breaks.
 
-`.github/workflows/ci.yml` runs all three suites on every push/PR. Full
+`.github/workflows/ci.yml` runs every suite on every push/PR. Full
 CI job breakdown is in the [Appendix](#appendix).
 
 ## Appendix
@@ -643,7 +658,7 @@ Notes:
   any string — unset, it exits saying it "refuses to start
   unauthenticated") but **not** an Anthropic key: its MCP tools compute
   the nav log and leave the narrative to the agent that connected. Only
-  `generate_nav_log_briefing` and the Brief tab's streamed narrative
+  `generate_nav_log_briefing` and the flight planning drawer's streamed narrative
   spend Anthropic credit. `crewai-agent` needs a key for everything.
 - Full port list: `webapp` 8080, `model-service` 8000, `db` 5432
   (`vfr`/`vfr`/`vfr_route`), `airflow` 8081, `nav-log-agent` 8082,
@@ -679,7 +694,7 @@ data/
 
 ### CI, in full
 
-`.github/workflows/ci.yml` — eight jobs, on push to `main`, on every
+`.github/workflows/ci.yml` — eleven jobs, on push to `main`, on every
 pull request, and by hand (`workflow_dispatch`, the Actions tab's own
 "Run workflow" button) — added after a run failed at the platform
 level (a runner that never started; every job completed in about two
@@ -693,6 +708,8 @@ empty commit:
 | `test-web` | `tsc --noEmit`, `vitest` and a production build over `web/` — filters, ordering, what counts as rated, and which leg leaves a checkpoint, all pure functions needing no browser |
 | `test-webapp` | `mvn test` — webapp's JUnit suite, including the Testcontainers Postgres test |
 | `test-planning-service` | ruff + pytest over `planning-service/tests/` — its own dependency set (`planning-service/requirements-dev.txt`), separate from `test`'s unrelated `src/vfr` ones |
+| `test-model-service` | ruff + pytest over `model-service/tests/`, on the service's own requirements (torch and tensorflow included) |
+| `test-nav-log-agent` / `test-crewai-agent` | ruff + pytest over each agent's `tests/`, on that agent's own requirements; the database, planning-service and Claude are mocked, so nothing is billed |
 | `docs` | Regenerates Javadoc + godoc on every push/PR. The three `pdoc` steps -- which each build one of this repo's heavy ML images (torch/tensorflow/Spark) purely so `pdoc` can import the modules inside -- run only on pushes to `main`, and only for whichever of `src/vfr`, `nav-log-agent` or `crewai-agent` `changes` says actually changed; a push that only touched `web/` skips all three rather than paying six figures of milliseconds to rebuild and re-document code nobody edited. Output uploads as a `documentation` artifact. |
 | `build-images` | Builds every service Dockerfile, publishes each to GHCR on push to `main` |
 | `push-ecr` | Pushes the six images the CloudFormation stack deploys (`webapp`, `planning-service`, `model-service`, `nav-log-agent`, `crewai-agent`, `airflow`) to ECR via OIDC, reusing `build-images`' cache; activates automatically once `AWS_ROLE_ARN`/`AWS_REGION` repo variables exist |

@@ -153,7 +153,7 @@ def search_airports(query: str, limit: int = 8, cache_path: Path = DEFAULT_CACHE
 
 
 def get_runways(ident: str, cache_path: Path = RUNWAYS_CACHE_PATH) -> list[dict]:
-    """This airport's runways, for the Brief tab's own airport-
+    """This airport's runways, for the briefing's own airport-
     information section. Keyed by `airport_ident` directly --
     OurAirports' runways.csv carries the ident string alongside its own
     numeric `airport_ref`, so no join against airports.csv is needed.

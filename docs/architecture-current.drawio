@@ -161,7 +161,7 @@
           </mxGeometry>
         </mxCell>
 
-        <mxCell id="legend" value="Solid line = request/data flow.&amp;nbsp; Dashed purple = the Brief tab's own AI-narrative comparison (webapp calls both agents' HTTP wrappers, not MCP).&amp;nbsp; Dashed grey = a cross-layer handoff (promoted model) or a parallel build not in the request path (crewai-agent, docker-api).&amp;nbsp; Dashed border = runs in-process rather than as its own container." style="text;html=1;align=left;verticalAlign=middle;fontSize=11;fontColor=#666666;" vertex="1" parent="1">
+        <mxCell id="legend" value="Solid line = request/data flow.&amp;nbsp; Dashed purple = the flight planning drawer's AI-narrative comparison (webapp calls both agents' HTTP wrappers, not MCP).&amp;nbsp; Dashed grey = a cross-layer handoff (promoted model) or a parallel build not in the request path (crewai-agent, docker-api).&amp;nbsp; Dashed border = runs in-process rather than as its own container." style="text;html=1;align=left;verticalAlign=middle;fontSize=11;fontColor=#666666;" vertex="1" parent="1">
           <mxGeometry x="60" y="800" width="1160" height="46" as="geometry" />
         </mxCell>
 
