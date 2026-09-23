@@ -145,7 +145,12 @@ jobs:
   # blind spots included.
   changes:
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
+    # Runs on pushes as well, where it compares against the previous
+    # commit. `build-images` ignores it outside a PR on purpose (see
+    # above), but `docs` uses it either way: three of its steps build
+    # torch/tensorflow-sized images to run pdoc inside, and a push that
+    # only touched web/ has no reason to pay for any of them.
+    #
     # paths-filter asks the API which files the PR touches, which the
     # default token cannot do. Without this the job fails with "Resource
     # not accessible by integration" and, because build-images is gated
@@ -298,7 +303,7 @@ jobs:
   # to every PR.
   docs:
     runs-on: ubuntu-latest
-    needs: test
+    needs: [test, changes]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069  # v4
@@ -307,6 +312,9 @@ jobs:
         with:
           distribution: temurin
           java-version: "25"
+          # As test-webapp does. Javadoc resolves the same dependency
+          # tree, and without this it downloads all of it every run.
+          cache: maven
       - name: Javadoc (webapp)
         working-directory: springboot-app
         run: mvn -q javadoc:javadoc
@@ -322,7 +330,7 @@ jobs:
           go doc -all -u . > /tmp/godoc-retrain-trigger.txt
 
       - name: Build ml image (for pdoc's full src/vfr dependency set)
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.changes.outputs.ml == 'true'
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc  # v7
         with:
           context: .
@@ -331,13 +339,13 @@ jobs:
           load: true
           cache-from: type=gha,scope=ml
       - name: pdoc (src/vfr)
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.changes.outputs.ml == 'true'
         run: |
           docker run --rm --entrypoint sh -v "$PWD":/workspace -w /workspace vfr-docs-ml:latest -c \
             "pip install -q pdoc && PYTHONPATH=src python -m pdoc src/vfr -o /tmp/pdoc-vfr --no-show-source"
 
       - name: Build nav-log-agent image (for pdoc's full app dependency set)
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.changes.outputs['nav-log-agent'] == 'true'
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc  # v7
         with:
           context: .
@@ -346,13 +354,13 @@ jobs:
           load: true
           cache-from: type=gha,scope=nav-log-agent
       - name: pdoc (nav-log-agent)
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.changes.outputs['nav-log-agent'] == 'true'
         run: |
           docker run --rm --entrypoint sh -v "$PWD":/workspace -w /workspace/nav-log-agent vfr-docs-navlog:latest -c \
             "pip install -q pdoc && PYTHONPATH=/workspace/src python -m pdoc app -o /tmp/pdoc-navlog --no-show-source"
 
       - name: Build crewai-agent image (for pdoc's full app dependency set)
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.changes.outputs['crewai-agent'] == 'true'
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc  # v7
         with:
           context: .
@@ -361,7 +369,7 @@ jobs:
           load: true
           cache-from: type=gha,scope=crewai-agent
       - name: pdoc (crewai-agent)
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.changes.outputs['crewai-agent'] == 'true'
         run: |
           docker run --rm --entrypoint sh -v "$PWD":/workspace -w /workspace/crewai-agent vfr-docs-crewai:latest -c \
             "pip install -q pdoc && PYTHONPATH=/workspace/src python -m pdoc app -o /tmp/pdoc-crewai --no-show-source"
