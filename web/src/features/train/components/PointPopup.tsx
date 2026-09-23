@@ -52,27 +52,32 @@ export default function PointPopup({
   // does (this used to be endpoint-only content with no arrows at all,
   // which meant landing on departure via "Start" had no way forward).
   // The close sits at the row's end, where Leaflet's own would be.
-  const steps = (
-    <>
-      <IconButton
-        type="button" label="Step left" variant="outline" size="icon-lg"
-        onClick={onLeft} disabled={!onLeft || !canLeft} className="flex-shrink-0 rounded-full"
-      >
-        <ChevronLeft className="size-5" strokeWidth={3} />
-      </IconButton>
-      <IconButton
-        type="button" label="Step right" variant="outline" size="icon-lg"
-        onClick={onRight} disabled={!onRight || !canRight} className="flex-shrink-0 rounded-full"
-      >
-        <ChevronRight className="size-5" strokeWidth={3} />
-      </IconButton>
-    </>
+  /** The two steps, drawn either side of the title: the card's heading
+   *  reads "back, where you are, forward", which is what a rating pass
+   *  is doing. They keep their 40px target -- this is how the pass
+   *  moves on a touchscreen, not corner chrome. */
+  const stepLeft = (
+    <IconButton
+      type="button" label="Step left" variant="outline" size="icon-lg"
+      onClick={onLeft} disabled={!onLeft || !canLeft} className="flex-shrink-0 rounded-full"
+    >
+      <ChevronLeft className="size-5" strokeWidth={3} />
+    </IconButton>
+  );
+  const stepRight = (
+    <IconButton
+      type="button" label="Step right" variant="outline" size="icon-lg"
+      onClick={onRight} disabled={!onRight || !canRight} className="flex-shrink-0 rounded-full"
+    >
+      <ChevronRight className="size-5" strokeWidth={3} />
+    </IconButton>
   );
 
-  /** Where in the walk this point is, flashed when the total goes up as
-   *  more detections stream in. It rides in the subtitle rather than in
-   *  a row of its own: this card is opened a few hundred times in a
-   *  rating pass and every row of it is a row of chart it covers. */
+  /** Where in the walk this point is: the card's own title, because in
+   *  a rating pass that is what you are keeping track of -- which of
+   *  the hundred and seventy-six you are on -- rather than what kind of
+   *  thing it is, which the category control below already says.
+   *  Flashed when the total goes up as more detections stream in. */
   const counter = place && (
     <span className={`rounded px-0.5 ${countChanged ? "animate-[count-flash_0.8s_ease-out]" : ""}`}>
       #{place}
@@ -84,12 +89,13 @@ export default function PointPopup({
     return (
       <MapCard
         onClose={onClose}
-        actions={steps}
-        subtitle={<>{counter}{counter && " · "}{point.name}</>}
-        title={
+        // Falls back to the ident when this point is not in the current
+        // walk, so the card never opens with no title at all.
+        title={<>{stepLeft}{counter || point.ident}{stepRight}</>}
+        subtitle={
           <span className="flex items-center gap-1.5">
             <Badge variant="secondary">{point.category === "departure" ? "DEP" : "DEST"}</Badge>
-            {point.ident}
+            {point.ident} · {point.name}
           </span>
         }
       />
@@ -111,11 +117,9 @@ export default function PointPopup({
       // lines, which gave back the row the arrows had just saved.
       className="w-[min(19rem,74vw)] space-y-1.5"
       onClose={onClose}
-      actions={steps}
-      title={category}
+      title={<>{stepLeft}{counter || category}{stepRight}</>}
       subtitle={
         <>
-          {counter}{counter && " · "}
           {point.along_track_nm.toFixed(1)} nm {compassPoint(bearingDeg)} of {departureIdent}
           {/* DR points are on the line by definition (that's what makes
               them DR) -- the distance only means something for a visual

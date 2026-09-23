@@ -58,13 +58,29 @@ export function MapCard({
     // It inherits, so setting it on this root is enough.
     <div className={cn("space-y-1.5 text-xs whitespace-normal", className)}>
       <div className="flex items-start gap-2">
-        <div className="min-w-0 flex-1 space-y-0.5">
-          <div className="text-sm font-semibold">{title}</div>
+        {/* Centred, and `flex justify-center` rather than `text-center`
+            so a title that is itself a row -- an ident beside its
+            flight-category chip -- centres as a block too. It centres
+            in the space the corner controls leave, not in the card:
+            those are part of the head, and a title that ignored them
+            would sit under the close on a narrow card. */}
+        <div className="min-w-0 flex-1 space-y-0.5 text-center">
+          <div className="flex items-center justify-center gap-2 text-sm font-semibold">{title}</div>
           {subtitle !== undefined && <div className="text-muted-foreground">{subtitle}</div>}
         </div>
         {actions}
+        {/* The toast's shape -- sonner draws its close as a small
+            bordered circle -- on the app's own stock icon button, which
+            is the same Button + lucide X + accessible name that
+            shadcn's own Sheet close is made of. Circular also puts it
+            in a family with the training card's step arrows. Kept at
+            32px rather than sonner's 20: a toast close is aimed with a
+            mouse, this one with a thumb over a moving chart. */}
         {(closable || onClose) && (
-          <IconButton type="button" label="Close" size="icon-sm" onClick={close} data-testid="popup-close">
+          <IconButton
+            type="button" label="Close" size="icon-sm" variant="outline"
+            className="shrink-0 rounded-full" onClick={close} data-testid="popup-close"
+          >
             <X className="size-4" />
           </IconButton>
         )}
