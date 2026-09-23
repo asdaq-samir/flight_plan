@@ -3,23 +3,12 @@
 # -- see DEVELOPMENT.md for why this project doesn't have one of those
 # anymore.
 #
-# Keep this in step with tests/: a test module that imports something
-# missing here fails at *collection*, which takes the whole suite down
-# rather than one test. That is how test_airspace.py and
-# test_chartvision.py sat broken -- they were added with the shapely and
-# Pillow/scipy dependencies they need, and this file was not updated.
-pandas
-numpy
-requests
+# vfr's own dependencies come from src/requirements*.txt, so a new import
+# in vfr is covered here the moment it is added there. Anything a test
+# needs beyond vfr itself goes below: a test module importing something
+# missing fails at *collection*, which takes the whole suite down rather
+# than one test.
+-r src/requirements-charts.txt   # vfr's own list, charts included -- tests/ covers both
 pytest
 ruff
-shapely     # vfr.airspace -- Class B/C/D polygons
-pyshp       # vfr.airspace -- reads the FAA Class Airspace shapefile
-pillow      # vfr.charts -- encodes the chart tiles; vfr.chartvision reads them
-rasterio    # vfr.charts -- reads and reprojects the FAA chart GeoTIFFs
-scipy       # vfr.chartvision -- connected components over the palette masks; vfr.geo -- the KD-tree behind cluster_points
-pyarrow     # vfr.faa_data -- the obstacle table's Parquet cache beside DOF.DAT
-pygeomag    # vfr.magnetic -- the World Magnetic Model, evaluated locally
-pyproj      # vfr.geo -- PROJ's distance and azimuth solutions, scalar and vectorised
-astral      # vfr.sun -- civil twilight, for the night fuel reserve
 pygeodesy   # TEST ONLY -- the independent implementation tests/test_geo.py pins vfr.geo against

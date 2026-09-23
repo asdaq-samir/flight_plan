@@ -1,0 +1,7 @@
+# vfr.charts and vfr.chartvision: reading, rendering and segmenting the
+# FAA's chart rasters, on top of vfr's own list. Only the images that
+# draw or read charts install it -- planning-service and the test suite
+# -- which keeps rasterio's bundled GDAL out of the pipeline images.
+-r requirements.txt
+pillow==12.3.0      # vfr.charts encodes the tiles, vfr.chartvision reads them
+rasterio==1.5.1     # vfr.charts reads and reprojects the FAA chart GeoTIFFs (bundles GDAL; the slim image needs libexpat1 for it)

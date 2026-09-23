@@ -1,24 +1,5 @@
 # src/vfr/pipeline.py's retrain stage -- the SageMaker-Training-Job-shaped
 # half of what was one "pipeline" image.
-#
-# `requests` is needed here too, even though retrain() itself makes no
-# network calls: pipeline.py's module-level `from vfr import airports,
-# ..., osm` pulls in vfr.airports/vfr.faa_data/vfr.osm, which import
-# `requests` at their own module level. Unlike scikit-learn (genuinely
-# heavy, worth lazy-importing inside retrain() to keep out of this image),
-# requests is small and near-universal -- not worth restructuring
-# pipeline.py's imports further just to exclude it.
-pandas
-numpy
-scikit-learn
-joblib
-pyarrow
-requests
-
-# vfr.pipeline imports vfr.geo at its own module level, and vfr.geo
-# imports both of these at its -- so without them the stage fails on
-# import, not at the first distance calculation. Added 2026-09-22, when
-# vfr.geo moved from hand-written great-circle maths to PROJ and only
-# planning-service's requirements were updated to match.
-pyproj
-scipy
+-r ../src/requirements.txt   # vfr's own list
+scikit-learn   # retrain(), imported inside it so the processing image never needs it
+joblib         # the model artifact

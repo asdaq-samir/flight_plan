@@ -90,8 +90,10 @@ AWS's. A SageMaker inference container must answer `GET /ping` for health
 and `POST /invocations` for inference. Renaming them to something tidier
 would mean the image could no longer be deployed as-is.
 
-**Versions are pinned here and nowhere else.**
-`docker/requirements-training.txt` is deliberately unpinned;
+**The model's own libraries are pinned here and nowhere else.**
+`docker/requirements-training.txt` deliberately leaves scikit-learn and
+joblib unpinned (numpy and pandas come pinned from vfr's own list,
+`src/requirements.txt`, at the same versions as here);
 `model-service/requirements.txt` is pinned to what training currently
 resolves to. The asymmetry is the point — the serving image must not
 drift ahead of the artifact it loads. **Bump both together.**

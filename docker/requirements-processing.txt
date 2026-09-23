@@ -4,19 +4,4 @@
 # requirements-training.txt) and Processing Jobs and Training Jobs are
 # different AWS constructs, so this mirrors that split rather than
 # installing everything into one image out of local convenience.
-pandas
-numpy
-requests
-pyarrow
-# osm._representative_point: places a marker on the feature rather than
-# at its bounding-box centre, which for a non-convex lake is off the
-# water entirely.
-shapely
-
-# vfr.pipeline imports vfr.geo at its own module level, and vfr.geo
-# imports both of these at its -- so without them the stage fails on
-# import, not at the first distance calculation. Added 2026-09-22, when
-# vfr.geo moved from hand-written great-circle maths to PROJ and only
-# planning-service's requirements were updated to match.
-pyproj
-scipy
+-r ../src/requirements.txt   # vfr's own list: collect and engineer_features need nothing on top

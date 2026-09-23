@@ -8,11 +8,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends default-jdk-hea
     && rm -rf /var/lib/apt/lists/*
 ENV JAVA_HOME=/usr/lib/jvm/default-java
 
-COPY docker/requirements-ml.txt .
+# Copied at the paths they have in the repo, so the image's list finds
+# vfr's own through its -r ../src/requirements.txt.
+COPY src/requirements.txt src/
+COPY docker/requirements-ml.txt docker/
 # CPU-only wheel -- this container has no GPU to use, and the default
 # torch wheel pulls several GB of unused CUDA/cuDNN dependencies.
 RUN --mount=type=cache,target=/root/.cache/pip pip install torch --index-url https://download.pytorch.org/whl/cpu
-RUN --mount=type=cache,target=/root/.cache/pip pip install -r requirements-ml.txt
+RUN --mount=type=cache,target=/root/.cache/pip pip install -r docker/requirements-ml.txt
 
 # Non-root, matching every other image built from this same
 # python:3.13-slim base (Dockerfile.processing, Dockerfile.training,

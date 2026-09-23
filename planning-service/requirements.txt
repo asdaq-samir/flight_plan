@@ -1,7 +1,8 @@
 # The planning service: the only service that both builds a corridor and
-# reads it back, so its dependency list is the union of what
-# vfr.pipeline's collect/engineer_features need and what a nav log needs.
-# It serves no pages -- the front end is in web/ and ships inside webapp.
+# reads it back, and draws the charts. vfr's own dependencies, charts
+# included, come from src/requirements-charts.txt; this file lists only
+# what the service needs on top. It serves no pages -- the front end is
+# in web/ and ships inside webapp.
 #
 # PINNED, matching model-service/requirements.txt's own convention: this
 # service was the one unpinned service-facing requirements file in the
@@ -10,22 +11,11 @@
 # about for a joblib artifact -- the same risk applies to any dependency
 # this service and its callers both need to agree on. Pinned to what
 # python:3.13-slim (this service's own base image) currently resolves.
+-r ../src/requirements-charts.txt   # vfr's own list, charts included: this service draws them
 fastapi==0.141.1
 uvicorn[standard]==0.53.0
-pandas==3.0.5
-numpy==2.5.3
-pyarrow==25.0.1
-requests==2.34.2    # Overpass/FAA, and the model-service call
-pygeomag==1.1.0    # vfr.magnetic evaluates the World Magnetic Model here rather than asking NOAA's calculator
-pyproj==3.8.0      # vfr.geo -- PROJ's distance/azimuth, scalar and vectorised over a whole corridor
-astral==3.2        # vfr.sun -- civil twilight, which sets the night fuel reserve
 cachetools==7.2.0  # the service caches: bounded, and with the expiry kept by the cache rather than a timestamp per entry
-boto3==1.43.98      # vfr.model_client's SageMaker Runtime path, used only when SAGEMAKER_ENDPOINT_NAME is set (AWS)
-shapely==2.1.2     # vfr.osm._representative_point, vfr.airspace polygons
-pyshp==3.1.6       # vfr.airspace reads the FAA Class Airspace shapefile
-pillow==12.3.0     # vfr.charts encodes the tiles, vfr.chartvision reads them
-rasterio==1.5.1    # vfr.charts reads and reprojects the FAA chart GeoTIFFs (bundles GDAL; needs libexpat1, see the Dockerfile)
-scipy==1.18.1      # vfr.chartvision connected-component labelling; vfr.geo's cluster_points KD-tree
+boto3==1.43.98      # vfr.model_client's SageMaker Runtime path and vfr.charts' S3 publish, used only on AWS
 docker==7.1.0      # routers/devservices.py starts a stopped dev service the console links to
 anthropic==1.6.0   # /api/checkpoint-notes: one Claude call per checkpoint
 

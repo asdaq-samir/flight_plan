@@ -31,15 +31,25 @@ run in a plain `python:3.13-slim` against `requirements-dev.txt`, plus
 the one system library (`libexpat1`) rasterio's wheel expects and the
 slim image leaves out -- without it `tests/test_charts.py` fails to import.
 
-Keep that file in step with `tests/`. A test module importing something
-missing from it fails at *collection*, which takes the whole suite down
-rather than one test.
-
 There is no `pip install -e .`. Containers put `src/` on `PYTHONPATH`
 directly (`ENV PYTHONPATH=/workspace/src`), so `import vfr` resolves
 without packaging. That is a deliberate simplification for a repo where
 every consumer is a container in the same tree — a library published to
 an index would need a real `pyproject.toml`.
+
+What packaging would have given for free is one list of the package's
+own dependencies, so that list lives here instead:
+`src/requirements.txt`, pinned once, and `src/requirements-charts.txt`
+on top of it for `vfr.charts`/`vfr.chartvision`'s raster stack. Every
+image that runs vfr -- planning-service, the two pipeline stages, `ml`
+-- and `requirements-dev.txt` include one of them with a `-r` line and
+list only what they need beyond it. **A new third-party import in
+`src/vfr` is one line in one of those two files.** Before, it was a line
+in six, and on 2026-09-22 a missed one left both agents and both
+pipeline stages unable to import. CI's build job now imports each
+service's own code inside its built image, so a miss fails there. The
+two agents import only `vfr.planner_client`, which needs `requests`
+alone, and install neither list.
 
 ## Learning this from zero
 

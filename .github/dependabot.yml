@@ -64,7 +64,8 @@ updates:
 
   # One entry per ecosystem with a list of directories, rather than one
   # entry per directory: the six pip and seven docker entries this
-  # replaced said the same thing thirteen times.
+  # replaced said the same thing thirteen times. /src is vfr's own
+  # dependency list, which every image that runs vfr includes.
   - package-ecosystem: pip
     directories:
       - /
@@ -73,6 +74,7 @@ updates:
       - /model-service
       - /nav-log-agent
       - /planning-service
+      - /src
     schedule:
       interval: monthly
     open-pull-requests-limit: 5

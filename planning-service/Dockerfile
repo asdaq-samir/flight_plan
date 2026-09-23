@@ -8,6 +8,9 @@ WORKDIR /workspace/planning-service
 # import fails on the slim image.
 RUN apt-get update && apt-get install -y --no-install-recommends libexpat1 && rm -rf /var/lib/apt/lists/*
 
+# The service's own list includes vfr's (-r ../src/requirements-charts.txt),
+# so both are copied to where that relative path points.
+COPY src/requirements.txt src/requirements-charts.txt /workspace/src/
 COPY planning-service/requirements.txt .
 RUN --mount=type=cache,target=/root/.cache/pip pip install -r requirements.txt
 

@@ -54,7 +54,9 @@ jobs:
         with:
           python-version: "3.13"
           cache: pip
-          cache-dependency-path: requirements-dev.txt
+          cache-dependency-path: |
+            requirements-dev.txt
+            src/requirements*.txt
       - run: pip install -r requirements-dev.txt
       - run: ruff check src/vfr tests
       - run: pytest tests/ -v
@@ -131,7 +133,9 @@ jobs:
         with:
           python-version: "3.13"
           cache: pip
-          cache-dependency-path: planning-service/requirements-dev.txt
+          cache-dependency-path: |
+            planning-service/requirements*.txt
+            src/requirements*.txt
       - run: pip install -r requirements-dev.txt
       - run: ruff check app tests
       - run: pytest tests/ -v
@@ -235,14 +239,17 @@ jobs:
               - docker/Dockerfile.ml
               - docker/requirements-ml.txt
               - src/vfr/**
+              - src/requirements*.txt
             pipeline-processing:
               - docker/Dockerfile.processing
               - docker/requirements-processing.txt
               - src/vfr/**
+              - src/requirements*.txt
             pipeline-training:
               - docker/Dockerfile.training
               - docker/requirements-training.txt
               - src/vfr/**
+              - src/requirements*.txt
             airflow:
               - docker/Dockerfile.airflow
               - airflow/**
@@ -259,6 +266,7 @@ jobs:
             planning-service:
               - planning-service/**
               - src/vfr/**
+              - src/requirements*.txt
             model-service:
               - model-service/**
             webapp:
@@ -292,33 +300,46 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # `imports` is what that service's own code imports, run
+          # inside the built image (see the step below). The ml image
+          # carries no source of its own -- compose mounts the checkout
+          # -- so its check mounts src/ the same way.
           - service: ml
             context: .
             dockerfile: docker/Dockerfile.ml
+            imports: import vfr.geo, vfr.navlog, vfr.altitude, vfr.pipeline, vfr.sun, vfr.magnetic, vfr.airspace, sklearn
+            mount-src: true
           - service: pipeline-processing
             context: .
             dockerfile: docker/Dockerfile.processing
+            imports: import vfr.pipeline, vfr.osm, vfr.faa_data, vfr.elevation, vfr.features
           - service: pipeline-training
             context: .
             dockerfile: docker/Dockerfile.training
+            imports: import vfr.pipeline, vfr.model_registry, sklearn, joblib
           - service: airflow
             context: .
             dockerfile: docker/Dockerfile.airflow
           - service: airflow-aws
             context: .
             dockerfile: docker/Dockerfile.airflow.aws
+            imports: import vfr.model_registry
           - service: nav-log-agent
             context: .
             dockerfile: nav-log-agent/Dockerfile
+            imports: import app.mcp_server
           - service: crewai-agent
             context: .
             dockerfile: crewai-agent/Dockerfile
+            imports: import app.server
           - service: planning-service
             context: .
             dockerfile: planning-service/Dockerfile
+            imports: import app.main
           - service: model-service
             context: ./model-service
             dockerfile: ./model-service/Dockerfile
+            imports: import app.main
           # Context is the repo root, not ./springboot-app: the Dockerfile's
           # first stage builds the React app from web/ and bakes the bundle
           # into the jar, so it COPYs from both directories.
@@ -338,15 +359,35 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      # An image with an import check is loaded into the runner's own
+      # Docker and pushed from there once the check passes, so a broken
+      # image is never published; the rest push straight from buildx.
       - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc  # v7
         if: github.event_name != 'pull_request' || needs.changes.outputs[matrix.service] == 'true'
         with:
           context: ${{ matrix.context }}
           file: ${{ matrix.dockerfile }}
-          push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+          load: ${{ matrix.imports != '' }}
+          push: ${{ matrix.imports == '' && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
           tags: ghcr.io/${{ github.repository }}/${{ matrix.service }}:latest
           cache-from: type=gha,scope=${{ matrix.service }}
           cache-to: type=gha,mode=max,scope=${{ matrix.service }}
+      # What the service's own code imports, inside the image just built.
+      # A dependency missing from an image's requirements fails here,
+      # not on the next container restart: on 2026-09-22 a new import
+      # in vfr left both agents and both pipeline stages unable to
+      # start, and every other check passed, because nothing imported
+      # their code inside their own images.
+      - name: Import check
+        if: matrix.imports != '' && (github.event_name != 'pull_request' || needs.changes.outputs[matrix.service] == 'true')
+        run: >-
+          docker run --rm --entrypoint python3
+          ${{ matrix.mount-src && '-v "$PWD/src":/workspace/src:ro -e PYTHONPATH=/workspace/src' || '' }}
+          ghcr.io/${{ github.repository }}/${{ matrix.service }}:latest
+          -c "${{ matrix.imports }}"
+      - name: Push
+        if: matrix.imports != '' && github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: docker push ghcr.io/${{ github.repository }}/${{ matrix.service }}:latest
 
   # Regenerates documentation so a broken {@link}, an import that stops
   # working under pdoc, or a docstring regression is caught here rather

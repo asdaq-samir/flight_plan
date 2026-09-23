@@ -8,21 +8,12 @@
 # it package by package. The native `.venv` (see top-level requirements.txt)
 # still works if pinned to the last Intel-Mac-compatible versions, but this
 # container is now the primary, low-maintenance way to run notebooks 01-03.
-pandas
-numpy
-requests
-pygeomag
-pyproj
-astral
-scipy
+-r ../src/requirements.txt   # vfr's own list, so the notebooks import it the way the services do
 scikit-learn
 matplotlib
 pillow
 folium
 jupyter
-pyarrow
-shapely
-pyshp
 
 # For later modules (HuggingFace/PyTorch/TensorFlow/Spark).
 transformers

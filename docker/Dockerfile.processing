@@ -6,8 +6,11 @@ FROM python:3.13-slim
 
 WORKDIR /workspace
 
-COPY docker/requirements-processing.txt .
-RUN --mount=type=cache,target=/root/.cache/pip pip install -r requirements-processing.txt
+# Copied at the paths they have in the repo, so the image's list finds
+# vfr's own through its -r ../src/requirements.txt.
+COPY src/requirements.txt src/
+COPY docker/requirements-processing.txt docker/
+RUN --mount=type=cache,target=/root/.cache/pip pip install -r docker/requirements-processing.txt
 
 COPY src ./src
 
