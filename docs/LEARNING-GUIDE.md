@@ -767,15 +767,34 @@ retries and error handling matter, and the diagram shows it.
 ### MCP (Model Context Protocol)
 
 [`nav-log-agent/app/mcp_server.py`](../nav-log-agent/app/mcp_server.py)
-wraps the compiled LangGraph as one callable **tool**,
-`generate_nav_log_briefing(...)`, exposed over MCP — a standard protocol
-for "here is a tool an LLM client can call, with a typed signature and a
-description," transport-agnostic (this one runs over SSE — see
-[`app/main.py`](../nav-log-agent/app/main.py)'s `mcp.run(transport="sse")`).
-The point of MCP specifically: any MCP-speaking client (Claude Desktop,
-another agent, a different app entirely) can discover and call this tool
-without you writing a bespoke integration for each one — you write the
-tool once, against the protocol, not against a specific caller.
+wraps the compiled LangGraph as three callable **tools**, exposed over
+MCP — a standard protocol for "here is a tool an LLM client can call,
+with a typed signature and a description," transport-agnostic (this one
+runs over SSE — see [`app/main.py`](../nav-log-agent/app/main.py)'s
+`mcp.run(transport="sse")`). The point of MCP specifically: any
+MCP-speaking client (Claude Desktop, another agent, a different app
+entirely) can discover and call these tools without you writing a
+bespoke integration for each one — you write the tool once, against the
+protocol, not against a specific caller.
+
+The three earn their keep by lining up with the graph's own shape. Of
+its six nodes, exactly one — `generate_briefing` — calls Claude; the
+other five are a model-service lookup, arithmetic and a database read.
+`generate_nav_log_briefing` runs the whole graph and is what `webapp`'s
+own Brief tab calls, spending this server's own Anthropic credit on the
+narration. But an MCP client connecting from Claude Desktop, or from
+another agent, already *has* a model — asking it to pay for a second one
+here is backwards. `assemble_nav_log` runs the graph up to
+`retrieve_memory` (`build_graph(narrate=False)`) and hands back the
+checkpoints, the altitude reasoning, the legs, similar past routes, and
+`briefing_prompt` — the exact instruction the server's own narrator
+writes from — so the caller's model can write the prose itself, with
+the same constraints. `remember_briefing` is the other half of that:
+without it, a client-written briefing would be invisible to
+`retrieve_memory`'s own similarity search, and the store would only
+ever learn from narrations that cost the operator money. Three tools
+from one graph, because "does this call Claude" turned out to be
+exactly the line worth cutting it on.
 
 ### Vector memory (RAG, in miniature)
 
@@ -943,7 +962,7 @@ subtly wrong.
 **Browser logic counts as pure logic.** The decisions the pages make —
 which points a filter admits, what counts as rated, which way the arrows
 step, which leg leaves a checkpoint — are functions of plain objects, so
-[`web/src/features/label/logic.ts`](../web/src/features/label/logic.ts) and
+[`web/src/features/train/logic.ts`](../web/src/features/train/logic.ts) and
 [`web/src/features/plan/format.ts`](../web/src/features/plan/format.ts)
 hold them and `vitest` covers them in under a second with no browser.
 What is left in the components — binding Leaflet layers, rendering rows —

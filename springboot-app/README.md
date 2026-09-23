@@ -27,11 +27,33 @@ docker compose up -d --build webapp
 # The JUnit suite, including Testcontainers' real Postgres. No native
 # Maven needed; the Docker socket is passed through so Testcontainers can
 # start a sibling container.
-docker run --rm -v "$PWD/springboot-app":/build -w /build \
+docker run --rm -v "$PWD/springboot-app":/build -v /build/target \
   -v /var/run/docker.sock:/var/run/docker.sock \
-  --add-host=host.docker.internal:host-gateway \
-  maven:3.9.16-eclipse-temurin-25 mvn test
+  -e TESTCONTAINERS_HOST_OVERRIDE=host.docker.internal \
+  -w /build maven:3.9-eclipse-temurin-25 mvn -B test
 ```
+
+Three details in that command each fix a real failure, not a style
+preference:
+
+- **`-e TESTCONTAINERS_HOST_OVERRIDE=host.docker.internal`, not
+  `--add-host=host.docker.internal:host-gateway`.** The two solve
+  different halves of the problem — `--add-host` only makes the
+  hostname *resolvable* inside this container; it never tells
+  Testcontainers to actually *use* it when reaching back into a
+  sibling container it started via the mounted socket. Without the env
+  var, Testcontainers tries the Docker bridge gateway directly and
+  fails to reach its own Ryuk resource-reaper: `Could not connect to
+  Ryuk at 172.17.0.1:<port>`.
+- **`-v /build/target`**, an anonymous volume, not the host directory —
+  on a repo synced by iCloud, a build run outside Docker (an IDE, a
+  local `mvn`) can leave iCloud sync-conflict copies in `target/`
+  (`V1__create_routes_table 3.sql` and similar), and Flyway then
+  refuses to start with "found more than one migration with version
+  1". The anonymous volume is empty on every run, so the host's
+  `target/` — conflict copies included — never enters the build.
+- **No `clean`.** The Maven clean plugin cannot delete a mount point
+  ("Device or resource busy"), which the anonymous volume above is.
 
 ## Learning this from zero
 

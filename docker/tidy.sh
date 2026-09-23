@@ -2,7 +2,7 @@
 # Reclaim Docker disk while retaining recently used build layers.
 #
 # Written after the disk filled twice. The rule it follows: remove what a
-# rebuild or a re-pull can recreate, never a named volume. vfr_route_pgdata
+# rebuild or a re-pull can recreate, never a named volume. pgdata_pg18
 # holds the application rows and the agent's pgvector memory and is only
 # ~170 MB, so there is no size argument for deleting it -- and `docker
 # system prune --volumes`, the command everyone reaches for, would.
