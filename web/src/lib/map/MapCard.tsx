@@ -41,15 +41,25 @@ export function MapCard({
     // on every tooltip, which is right for a one-line course label and
     // wrong here -- a raw METAR ran straight off the card's right edge.
     // It inherits, so setting it on this root is enough.
-    // One width for every card, set here rather than by each caller:
-    // they were 352, 304 and whatever the content shrank to (267 as
-    // measured), so three cards opened on the same chart were three
-    // sizes. A width and not just a maximum, because a Leaflet tooltip
-    // shrink-wraps its content -- once the raw METAR was allowed to
-    // wrap, the Class B card collapsed into a narrow column and wrapped
-    // it every four words. Capped against the viewport so a phone
-    // still fits it.
-    <div className={cn("w-[min(20rem,74vw)] space-y-1.5 text-xs whitespace-normal", className)}>
+    // As wide as its own content, up to a cap, and never narrower than
+    // whatever it is sitting in. All three parts earn their place:
+    //
+    // `w-max` is the content's own preferred width, so a card carrying
+    // an ident and an airport name is that wide and one carrying a raw
+    // METAR runs to the cap and wraps inside it. Needed because a
+    // Leaflet *tooltip* shrink-wraps its content: with `white-space`
+    // normal and no preferred width to measure, the Class B card
+    // collapsed into a narrow column and wrapped the METAR every four
+    // words.
+    //
+    // `min-w-full` is for the other case. A Leaflet *popup* sizes its
+    // own content box and writes a width onto it, never below its
+    // `minWidth` -- so a short card measured 89px inside a 221px box
+    // and sat against its left edge, with 15px of space on one side and
+    // 147px on the other. Filling the box puts that right. In a tooltip
+    // the parent shrink-wraps, so this resolves to nothing and `w-max`
+    // still governs.
+    <div className={cn("w-max min-w-full max-w-[min(22rem,74vw)] space-y-1.5 text-xs whitespace-normal", className)}>
       <div className="flex items-start gap-2">
         {leading}
         {/* Centred, and `flex justify-center` rather than `text-center`

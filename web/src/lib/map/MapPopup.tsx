@@ -31,9 +31,12 @@ export function MapPopup(props: ComponentProps<typeof Popup>) {
   // different says so.
   return (
     <Popup
-      // Bounds, not the size: `MapCard` sets the width every card
-      // shares, and these only keep Leaflet from fighting it.
-      offset={[0, -12]} minWidth={220} maxWidth={360} autoPan
+      // Bounds, not the size: the card inside sizes itself to its
+      // content and fills whatever box Leaflet settles on. 160 rather
+      // than Leaflet's own 50 so a two-line card still reads as a card,
+      // and low enough that a short one is not padded out to the width
+      // of a card carrying a raw METAR.
+      offset={[0, -12]} minWidth={160} maxWidth={360} autoPan
       // Leaflet's own close is off: it is a 24x24 glyph jammed into the
       // very corner of the wrapper, and the app's cards already carry a
       // close of their own at the size every other icon button uses.
