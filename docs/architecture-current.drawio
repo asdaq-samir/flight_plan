@@ -1,6 +1,6 @@
 <mxfile host="app.diagrams.net" type="device">
   <diagram name="Local architecture (current)" id="vfr-local-arch">
-    <mxGraphModel dx="1280" dy="780" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1280" pageHeight="780" math="0" shadow="0">
+    <mxGraphModel dx="1280" dy="870" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1280" pageHeight="880" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
@@ -13,13 +13,13 @@
           <mxGeometry x="40" y="70" width="380" height="420" as="geometry" />
         </mxCell>
         <mxCell id="grp-serving" value="Serving" style="rounded=1;arcSize=5;whiteSpace=wrap;html=1;fillColor=#EAF7EE;strokeColor=#4A9A5C;strokeWidth=1.5;verticalAlign=top;align=left;spacingLeft=16;spacingTop=6;fontSize=15;fontStyle=1;fontColor=#2C6B3A;" vertex="1" parent="1">
-          <mxGeometry x="460" y="70" width="360" height="420" as="geometry" />
+          <mxGeometry x="460" y="70" width="360" height="510" as="geometry" />
         </mxCell>
         <mxCell id="grp-genai" value="Gen AI" style="rounded=1;arcSize=5;whiteSpace=wrap;html=1;fillColor=#F3ECFA;strokeColor=#8A5BC2;strokeWidth=1.5;verticalAlign=top;align=left;spacingLeft=16;spacingTop=6;fontSize=15;fontStyle=1;fontColor=#5B3B8A;" vertex="1" parent="1">
           <mxGeometry x="860" y="70" width="380" height="420" as="geometry" />
         </mxCell>
         <mxCell id="grp-dev" value="Dev (not part of the serving path)" style="rounded=1;arcSize=10;whiteSpace=wrap;html=1;fillColor=#F0F0F0;strokeColor=#888888;strokeWidth=1.5;dashed=1;dashPattern=6 4;verticalAlign=top;align=left;spacingLeft=16;spacingTop=6;fontSize=15;fontStyle=1;fontColor=#444444;" vertex="1" parent="1">
-          <mxGeometry x="40" y="540" width="380" height="110" as="geometry" />
+          <mxGeometry x="40" y="630" width="700" height="140" as="geometry" />
         </mxCell>
 
         <mxCell id="airflow" value="&lt;b&gt;airflow&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:11px;color:#555555;&quot;&gt;orchestrates the DAG&lt;/span&gt;" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#5B84B1;strokeWidth=1.5;fontSize=14;" vertex="1" parent="1">
@@ -41,11 +41,14 @@
         <mxCell id="webapp" value="&lt;b&gt;webapp&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:11px;color:#555555;&quot;&gt;Spring Boot API&lt;/span&gt;" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#4A9A5C;strokeWidth=1.5;fontSize=14;" vertex="1" parent="1">
           <mxGeometry x="490" y="150" width="300" height="52" as="geometry" />
         </mxCell>
-        <mxCell id="model-service" value="&lt;b&gt;model-service&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:11px;color:#555555;&quot;&gt;FastAPI · /ping · /invocations&lt;/span&gt;" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#4A9A5C;strokeWidth=1.5;fontSize=14;" vertex="1" parent="1">
+        <mxCell id="planning-service" value="&lt;b&gt;planning-service&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:11px;color:#555555;&quot;&gt;FastAPI · charts · checkpoints · nav log&lt;/span&gt;" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#4A9A5C;strokeWidth=1.5;fontSize=14;" vertex="1" parent="1">
           <mxGeometry x="490" y="240" width="300" height="52" as="geometry" />
         </mxCell>
-        <mxCell id="db" value="&lt;b&gt;db&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:11px;color:#555555;&quot;&gt;PostgreSQL + pgvector&lt;/span&gt;" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#4A9A5C;strokeWidth=1.5;fontSize=14;" vertex="1" parent="1">
+        <mxCell id="model-service" value="&lt;b&gt;model-service&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:11px;color:#555555;&quot;&gt;FastAPI · /ping · /invocations&lt;/span&gt;" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#4A9A5C;strokeWidth=1.5;fontSize=14;" vertex="1" parent="1">
           <mxGeometry x="490" y="330" width="300" height="52" as="geometry" />
+        </mxCell>
+        <mxCell id="db" value="&lt;b&gt;db&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:11px;color:#555555;&quot;&gt;PostgreSQL + pgvector&lt;/span&gt;" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#4A9A5C;strokeWidth=1.5;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="490" y="420" width="300" height="52" as="geometry" />
         </mxCell>
 
         <mxCell id="mcp-client" value="MCP client" style="text;html=1;align=center;verticalAlign=middle;fontSize=12;fontColor=#333333;" vertex="1" parent="1">
@@ -65,7 +68,10 @@
         </mxCell>
 
         <mxCell id="ml" value="&lt;b&gt;ml&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:11px;color:#555555;&quot;&gt;Jupyter · notebooks 01-08&lt;/span&gt;" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#888888;strokeWidth=1.5;fontSize=14;" vertex="1" parent="1">
-          <mxGeometry x="70" y="580" width="320" height="52" as="geometry" />
+          <mxGeometry x="70" y="670" width="320" height="52" as="geometry" />
+        </mxCell>
+        <mxCell id="docker-api" value="&lt;b&gt;docker-api&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:11px;color:#555555;&quot;&gt;socket proxy · starts ml/airflow/&lt;br&gt;model-service/nav-log-agent on request&lt;/span&gt;" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#888888;strokeWidth=1.5;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="420" y="670" width="300" height="66" as="geometry" />
         </mxCell>
 
         <mxCell id="e-airflow-processing" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#444444;strokeWidth=1.5;endArrow=classic;endFill=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="airflow" target="pipeline-processing">
@@ -81,23 +87,29 @@
         <mxCell id="e-client-webapp" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#444444;strokeWidth=1.5;endArrow=classic;endFill=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="http-client" target="webapp">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e-webapp-modelservice" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#444444;strokeWidth=1.5;endArrow=classic;endFill=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="webapp" target="model-service">
+        <mxCell id="e-webapp-planningservice" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#444444;strokeWidth=1.5;endArrow=classic;endFill=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="webapp" target="planning-service">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-planningservice-modelservice" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#444444;strokeWidth=1.5;endArrow=classic;endFill=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="planning-service" target="model-service">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
         <mxCell id="e-webapp-db" value="JDBC" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#444444;strokeWidth=1.5;startArrow=classic;startFill=1;endArrow=classic;endFill=1;exitX=0;exitY=0.5;entryX=0;entryY=0.5;fontSize=10;fontColor=#555555;verticalAlign=middle;labelBackgroundColor=#EAF7EE;horizontal=0;" edge="1" parent="1" source="webapp" target="db">
           <mxGeometry relative="1" as="geometry">
             <Array as="points">
-              <mxPoint x="476" y="176" />
-              <mxPoint x="476" y="356" />
+              <mxPoint x="470" y="176" />
+              <mxPoint x="470" y="446" />
             </Array>
           </mxGeometry>
+        </mxCell>
+        <mxCell id="e-planningservice-dockerapi" value="starts a container" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#888888;strokeWidth=1.5;dashed=1;dashPattern=6 4;endArrow=classic;endFill=1;exitX=0.15;exitY=1;entryX=0.7;entryY=0;fontSize=9;fontColor=#777777;labelBackgroundColor=#F0F0F0;" edge="1" parent="1" source="planning-service" target="docker-api">
+          <mxGeometry relative="1" as="geometry" />
         </mxCell>
 
         <mxCell id="e-promote" value="promoted model" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#999999;strokeWidth=1.5;dashed=1;dashPattern=6 4;endArrow=classic;endFill=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;fontSize=10;fontColor=#666666;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="model-registry" target="model-service">
           <mxGeometry relative="1" as="geometry">
             <Array as="points">
               <mxPoint x="430" y="423" />
-              <mxPoint x="430" y="266" />
+              <mxPoint x="430" y="356" />
             </Array>
           </mxGeometry>
         </mxCell>
@@ -118,7 +130,7 @@
           <mxGeometry x="-0.15" relative="1" as="geometry">
             <Array as="points">
               <mxPoint x="843" y="168" />
-              <mxPoint x="843" y="356" />
+              <mxPoint x="843" y="446" />
             </Array>
             <mxPoint as="offset" />
           </mxGeometry>
@@ -132,20 +144,25 @@
           </mxGeometry>
         </mxCell>
 
-        <mxCell id="e-navlog-modelservice" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#444444;strokeWidth=1.5;endArrow=classic;endFill=1;exitX=0;exitY=0.5;entryX=1;entryY=0.5;" edge="1" parent="1" source="nav-log-agent" target="model-service">
-          <mxGeometry relative="1" as="geometry">
+        <mxCell id="e-webapp-navlog" value="AI narrative (HTTP)" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#8A5BC2;strokeWidth=1.5;dashed=1;dashPattern=6 4;endArrow=classic;endFill=1;exitX=1;exitY=0.3;entryX=0;entryY=0.5;fontSize=9;fontColor=#5B3B8A;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="webapp" target="nav-log-agent">
+          <mxGeometry x="-0.2" relative="1" as="geometry">
             <Array as="points">
-              <mxPoint x="820" y="176" />
-              <mxPoint x="820" y="266" />
+              <mxPoint x="855" y="163" />
+              <mxPoint x="855" y="176" />
             </Array>
           </mxGeometry>
         </mxCell>
-        <mxCell id="e-crewai-modelservice" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#444444;strokeWidth=1.5;endArrow=classic;endFill=1;exitX=0;exitY=0.5;entryX=1;entryY=0.5;" edge="1" parent="1" source="crewai-agent" target="model-service">
-          <mxGeometry relative="1" as="geometry" />
+        <mxCell id="e-webapp-crewai" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#8A5BC2;strokeWidth=1.5;dashed=1;dashPattern=6 4;endArrow=classic;endFill=1;exitX=1;exitY=0.7;entryX=0;entryY=0.5;" edge="1" parent="1" source="webapp" target="crewai-agent">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="855" y="189" />
+              <mxPoint x="855" y="266" />
+            </Array>
+          </mxGeometry>
         </mxCell>
 
-        <mxCell id="legend" value="Solid line = request/data flow.&amp;nbsp; Dashed line = a cross-layer handoff (promoted model), or a parallel build that isn't in the request path (crewai-agent).&amp;nbsp; Dashed border = runs in-process rather than as its own container." style="text;html=1;align=left;verticalAlign=middle;fontSize=11;fontColor=#666666;" vertex="1" parent="1">
-          <mxGeometry x="60" y="722" width="1000" height="34" as="geometry" />
+        <mxCell id="legend" value="Solid line = request/data flow.&amp;nbsp; Dashed purple = the Brief tab's own AI-narrative comparison (webapp calls both agents' HTTP wrappers, not MCP).&amp;nbsp; Dashed grey = a cross-layer handoff (promoted model) or a parallel build not in the request path (crewai-agent, docker-api).&amp;nbsp; Dashed border = runs in-process rather than as its own container." style="text;html=1;align=left;verticalAlign=middle;fontSize=11;fontColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="60" y="800" width="1160" height="46" as="geometry" />
         </mxCell>
 
       </root>
