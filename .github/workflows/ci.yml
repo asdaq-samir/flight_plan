@@ -25,6 +25,11 @@ on:
   push:
     branches: [main]
   pull_request:
+  # Startable by hand. A run can fail for reasons that have nothing to
+  # do with the commit under it -- a runner that never started, an
+  # account limit -- and without this the only way to ask again is an
+  # empty commit on main.
+  workflow_dispatch:
 
 # A new push to an open PR should replace the run already queued for its
 # previous commit, not queue behind it -- otherwise every fixup push pays
