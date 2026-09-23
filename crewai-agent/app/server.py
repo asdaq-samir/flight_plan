@@ -26,7 +26,7 @@ class NarrativeRequest(BaseModel):
 
     departure_ident: str
     destination_ident: str
-    aircraft_name: str = "c172"
+    aircraft_name: str | None = None
     altitude_ft: float
     altitude_selection: dict | None = None
     legs: list[dict]
@@ -79,13 +79,3 @@ def compare(body: NarrativeRequest) -> StreamingResponse:
     )
     return StreamingResponse(_narrative_lines(crew), media_type="application/x-ndjson")
 
-
-@app.get("/compare")
-def compare_from_scratch(
-    departure_ident: str = "C81", destination_ident: str = "KDLH", aircraft_name: str = "c172",
-) -> StreamingResponse:
-    """The full tool-driven run (checkpoints, altitude and legs fetched by
-    the agent itself), streamed the same way -- the framework comparison
-    proper, for anyone curious; the drawer uses POST above."""
-    crew = build_crew(departure_ident, destination_ident, aircraft_name, stream=True)
-    return StreamingResponse(_narrative_lines(crew), media_type="application/x-ndjson")

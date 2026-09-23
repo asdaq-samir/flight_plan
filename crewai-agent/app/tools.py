@@ -1,58 +1,53 @@
-"""CrewAI tools wrapping the exact same underlying logic nav-log-agent's
-LangGraph nodes use (vfr.altitude, vfr.navlog, vfr.model_client) -- the point of
-this build is comparing frameworks on the same task, not a different task.
-Each tool is self-contained (re-fetches checkpoints internally as needed)
-rather than relying on the agent passing complex structured data between
-calls, since that tends to be less reliable than a few atomic tool calls.
+"""CrewAI tools over the planner's own answers -- the same nav log
+nav-log-agent's LangGraph build fetches, and the one a pilot sees on the
+page: the point of this build is comparing frameworks on the same task,
+not a different task.
+
+Each tool asks planning-service through vfr.planner_client. They used to
+assemble the pieces from vfr themselves, and got a different nav log from
+the planner's: no legs to or from the airports, no climbs. Each tool is
+still self-contained rather than relying on the agent passing complex
+structured data between calls, since that tends to be less reliable than
+a few atomic tool calls.
 """
 import json
 
 from crewai.tools import tool
 
-from vfr import aircraft as aircraft_module, checkpoints as checkpoint_selection
-from vfr import airports, altitude, model_client, navlog
+from vfr import planner_client
 
 
 @tool("get_route_checkpoints")
 def get_route_checkpoints(departure_ident: str, destination_ident: str) -> str:
-    """Get the trained model's recommended visual checkpoints along a VFR
-    route, as JSON. departure_ident/destination_ident are ICAO/FAA idents
+    """Get the visual checkpoints worth flying along a VFR route, in route
+    order, as JSON. departure_ident/destination_ident are ICAO/FAA idents
     (e.g. "C81", "KDLH")."""
-    scored = model_client.get_checkpoints(departure_ident, destination_ident)
-    # Narrowed to the handful actually worth flying rather than every
-    # scored candidate in the corridor (206 of them on C81->KDLH). Two
-    # reasons here specifically: a nav log is a short list, and this is a
-    # tool result going into an LLM prompt, where handing over 206 rows
-    # spends context to make the model do the selection worse than
-    # vfr.checkpoints does it deterministically.
-    return json.dumps(checkpoint_selection.select_checkpoints(scored))
+    # The planner's selection rather than every scored candidate in the
+    # corridor (206 of them on C81->KDLH): a nav log is a short list, and
+    # this is a tool result going into an LLM prompt, where 206 rows spend
+    # context to make the model do the selection worse than the planner
+    # does it deterministically.
+    return json.dumps(planner_client.checkpoints(departure_ident, destination_ident)["selected"])
 
 
 @tool("get_recommended_altitude")
-def get_recommended_altitude(departure_ident: str, destination_ident: str, aircraft_name: str = "c172") -> str:
+def get_recommended_altitude(departure_ident: str, destination_ident: str, aircraft_name: str | None = None) -> str:
     """Get the recommended VFR cruising altitude for a route, as JSON --
     constrained by terrain/obstacle clearance, controlled airspace, current
-    weather, and the aircraft's service ceiling. aircraft_name resolves
-    against data/aircraft/<name>.json."""
-    dep = airports.get_airport(departure_ident)
-    dest = airports.get_airport(destination_ident)
-    profile = aircraft_module.load_aircraft_profile(aircraft_name)
-    result = altitude.select_cruise_altitude((dep["lat"], dep["lon"]), (dest["lat"], dest["lon"]), profile)
-    return json.dumps(result)
+    weather, and the aircraft's service ceiling. aircraft_name is one of
+    the planner's aircraft profiles (e.g. "c172", "pa28"); omit it for
+    the planner's default."""
+    return json.dumps(planner_client.altitude_breakdown(departure_ident, destination_ident, aircraft_name))
 
 
 @tool("compute_dead_reckoning_legs")
 def compute_dead_reckoning_legs(
-    departure_ident: str, destination_ident: str, altitude_ft: float, aircraft_name: str = "c172"
+    departure_ident: str, destination_ident: str, altitude_ft: float, aircraft_name: str | None = None,
 ) -> str:
-    """Compute dead-reckoning nav-log legs (true/magnetic heading, wind
-    correction angle, groundspeed, ETE, fuel burn) between each consecutive
-    checkpoint on the route at altitude_ft, as JSON."""
-    scored = model_client.get_checkpoints(departure_ident, destination_ident)
-    profile = aircraft_module.load_aircraft_profile(aircraft_name)
-    # Same selection as get_route_checkpoints, so the legs correspond to
-    # the checkpoints that tool reports rather than to a different list.
-    checkpoints = sorted(
-        checkpoint_selection.select_checkpoints(scored), key=lambda c: c["along_track_nm"]
-    )
-    return json.dumps(navlog.legs(checkpoints, altitude_ft, profile))
+    """Compute the dead-reckoning nav-log legs at altitude_ft, from the
+    departure airport through each checkpoint to the destination (true
+    and magnetic heading, wind correction angle, groundspeed, ETE, fuel
+    burn, the climb from the field), and the route's totals with the fuel
+    check, as JSON."""
+    plan = planner_client.plan(departure_ident, destination_ident, altitude_ft, aircraft_name)
+    return json.dumps({"legs": plan["legs"], "totals": plan["totals"]})

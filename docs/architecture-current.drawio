@@ -160,6 +160,17 @@
             </Array>
           </mxGeometry>
         </mxCell>
+        <mxCell id="e-navlog-planning" value="nav log (HTTP)" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#444444;strokeWidth=1.5;endArrow=classic;endFill=1;exitX=0;exitY=0.8;entryX=1;entryY=0.25;fontSize=10;fontColor=#555555;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="nav-log-agent" target="planning-service">
+          <mxGeometry x="0.35" relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="872" y="192" />
+              <mxPoint x="872" y="253" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e-crewai-planning" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#444444;strokeWidth=1.5;endArrow=classic;endFill=1;exitX=0;exitY=0.75;entryX=1;entryY=0.75;" edge="1" parent="1" source="crewai-agent" target="planning-service">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
 
         <mxCell id="legend" value="Solid line = request/data flow.&amp;nbsp; Dashed purple = the flight planning drawer's AI-narrative comparison (webapp calls both agents' HTTP wrappers, not MCP).&amp;nbsp; Dashed grey = a cross-layer handoff (promoted model) or a parallel build not in the request path (crewai-agent, docker-api).&amp;nbsp; Dashed border = runs in-process rather than as its own container." style="text;html=1;align=left;verticalAlign=middle;fontSize=11;fontColor=#666666;" vertex="1" parent="1">
           <mxGeometry x="60" y="800" width="1160" height="46" as="geometry" />

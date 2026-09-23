@@ -22,12 +22,14 @@ task and a LangGraph tool, unchanged.
 ```bash
 # The test suite and the linter, exactly what CI runs
 docker run --rm -v "$PWD":/w -w /w -e PYTHONPATH=/w/src python:3.13-slim \
-  sh -c "pip install -q -r requirements-dev.txt && ruff check src/vfr tests && pytest tests/ -q"
+  sh -c "apt-get update -qq && apt-get install -y -qq libexpat1 && pip install -q -r requirements-dev.txt && ruff check src/vfr tests && pytest tests/ -q"
 ```
 
 The pipeline images deliberately carry no test tooling — they mirror what
 a SageMaker Processing or Training job needs and nothing more — so tests
-run in a plain `python:3.13-slim` against `requirements-dev.txt`.
+run in a plain `python:3.13-slim` against `requirements-dev.txt`, plus
+the one system library (`libexpat1`) rasterio's wheel expects and the
+slim image leaves out -- without it `tests/test_charts.py` fails to import.
 
 Keep that file in step with `tests/`. A test module importing something
 missing from it fails at *collection*, which takes the whole suite down
@@ -132,7 +134,8 @@ Grouped by what they are for, not alphabetically.
 | `elevation.py` | USGS 3DEP point elevations. |
 | `terrain.py` | Terrain and obstacle floor for a route. |
 | `airports.py` | Identifier → coordinates, and the route form's search. |
-| `model_client.py` | model-service's `/invocations`, or the SageMaker endpoint on AWS. The one client every service scores through -- a persistent `requests.Session` and a lazily-built, reused `boto3` SageMaker client, not one connection or one client per call. |
+| `model_client.py` | model-service's `/invocations`, or the SageMaker endpoint on AWS. The one client planning-service scores through -- a persistent `requests.Session` and a lazily-built, reused `boto3` SageMaker client, not one connection or one client per call. |
+| `planner_client.py` | planning-service's `/api/plan`, `/api/checkpoints` and `/api/altitude-breakdown`, for the two agents: the nav log they brief is the planner's own, not one they assemble. `requests` only, so importing it pulls in none of this package's other dependencies. |
 | `retry.py` | The one retry loop the four modules above share for their requests. |
 
 **Deciding things**

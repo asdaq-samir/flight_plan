@@ -2,7 +2,7 @@
 
 The same nav-log task as [`nav-log-agent/`](../nav-log-agent), built in
 CrewAI instead of LangGraph. It exists to make a comparison concrete:
-two frameworks, one task, same domain library underneath.
+two frameworks, one task, the same planner nav log underneath.
 
 Run by hand it is a one-shot CLI; the webapp reaches it through a thin
 HTTP wrapper around the same crew.
@@ -27,9 +27,9 @@ around the same crew on the internal network only, so the briefing's
 AI popover on Plan can call it. That route takes the nav log the page
 already shows and runs the crew with no tools at all -- the agent's one job is
 the prose, streamed as it is written -- since every tool call was one
-more round trip through Claude, paid for in a pilot's wall-clock time;
-`GET /compare` is still the full tool-driven run for anyone comparing
-the frameworks. On AWS only the CLI exists: a task definition run with
+more round trip through Claude, paid for in a pilot's wall-clock time.
+The full tool-driven run, the framework comparison proper, is the CLI
+above. On AWS only the CLI exists: a task definition run with
 `aws ecs run-task`, no standing service.
 
 ## Learning this from zero
@@ -58,7 +58,8 @@ easy and does nothing about whether the answer is true.
 1. **A crew with no tools** (above). See how little scaffolding is needed
    and how unreliable the output is.
 
-2. **Give it tools.** `app/tools.py` wraps `src/vfr` functions so the
+2. **Give it tools.** `app/tools.py` wraps the planner's own answers
+   (checkpoints, altitude, legs, through `vfr.planner_client`) so the
    agent can call real checkpoint selection and dead reckoning. Output
    becomes grounded.
 
@@ -88,6 +89,6 @@ That is not a verdict on CrewAI. It is a verdict on using a
 model-directed framework for a procedure you can already draw — which is
 the point worth taking away.
 
-Both call the same `src/vfr` functions, `vfr.model_client` included, so
-the comparison is of the frameworks and not of two different
-implementations.
+Both get their nav log from planning-service through
+`vfr.planner_client`, the one a pilot sees on the page, so the
+comparison is of the frameworks and not of two different nav logs.

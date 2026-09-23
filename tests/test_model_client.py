@@ -1,5 +1,5 @@
-"""vfr.model_client: the one client planning-service and both agents use
-to reach model-service. Only the HTTP path is exercised here -- the
+"""vfr.model_client: the one client planning-service uses to reach
+model-service. Only the HTTP path is exercised here -- the
 SageMaker path needs AWS -- plus the switch that picks between them."""
 import pytest
 import requests

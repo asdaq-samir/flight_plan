@@ -15,12 +15,7 @@ mcp==2.2.0
 psycopg[binary]==3.3.6
 pgvector==0.5.0
 sentence-transformers==6.1.0
-requests==2.34.2
-boto3==1.43.98    # vfr.model_client's SageMaker Runtime path, used only when SAGEMAKER_ENDPOINT_NAME is set (AWS)
-pyarrow==25.0.1   # vfr.faa_data's Parquet cache of the obstacle table; without it every process re-parses DOF.DAT (~9 s)
-pandas==3.0.6      # vfr.navlog -> vfr.weather -> vfr.airports needs it (airport lat/lon lookup)
-shapely==2.1.2     # vfr.altitude -> vfr.airspace (Class B/C/D polygons) + vfr.weather.hazards_along_route
-pyshp==3.1.6       # vfr.altitude -> vfr.airspace (reads the FAA Class Airspace shapefile)
-pyproj==3.8.0      # vfr.geo -- PROJ's distance/azimuth, reached from vfr.navlog and vfr.altitude
-scipy==1.18.1      # vfr.geo's cluster_points KD-tree, imported at vfr.geo's module level
-pygeomag==1.1.0    # vfr.altitude -> vfr.magnetic, the World Magnetic Model evaluated locally
+requests==2.34.2   # vfr.planner_client -- the nav log comes from planning-service's /api/plan
+# Nothing else from vfr: planner_client is the only vfr module this agent
+# imports, and it needs requests alone. The geometry, raster and FAA data
+# dependencies vfr's other modules need stay in the images that run them.

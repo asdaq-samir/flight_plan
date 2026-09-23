@@ -1,9 +1,10 @@
-"""The plan, in the three pieces it naturally falls into. /api/plan still
-returns all of it at once for anything that wants one call, but a page
-should ask for these in order: the course draws immediately, the
-checkpoints land a tenth of a second later, and the nav log -- which
-needs terrain, obstacles, airspace and weather -- arrives when it can
-without holding up the map."""
+"""The plan, in the three pieces it naturally falls into. A page asks
+for these in order: the course draws immediately, the checkpoints land
+a tenth of a second later, and the nav log -- which needs terrain,
+obstacles, airspace and weather -- arrives when it can without holding
+up the map. /api/plan returns all of it at once, and is what both
+agents (nav-log-agent, crewai-agent) fetch their nav log from, so the
+nav log an agent briefs is the one a pilot sees."""
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FuturesTimeoutError
 from datetime import datetime
@@ -83,6 +84,16 @@ def planned_altitudes(
     options = [AltitudeOption(kind=kind, **{k: v for k, v in plans[kind].items() if k not in ("legs", "totals")})
                for kind in navlog.PLAN_KINDS]
     return selection, options, plans[choice], None
+
+
+def legs_flown(r, fix_list: list, profile: dict, fcst_hr: str, altitude_ft: float | None, chosen: dict | None) -> list:
+    """The legs the log flies: the chosen plan's own, or -- for a
+    pilot's own altitude -- the legs at it, with the climb from the
+    field flown on the first. The one place /api/plan and /api/navlog
+    decide it, so the two cannot fly different legs for one request."""
+    if altitude_ft is None:
+        return chosen["legs"]
+    return navlog.with_climbs(navlog.legs(fix_list, altitude_ft, profile, fcst_hr), departure_elevation(r), profile)
 
 
 @router.get("/api/course")
@@ -182,10 +193,8 @@ def plan(
             raise failure
         if chosen is None:
             raise HTTPException(422, no_altitude_detail(altitude_selection))
-        leg_list, choice = chosen["legs"], altitude_choice
-        altitude_ft = leg_list[0]["altitude_ft"]
-    else:
-        leg_list = navlog.with_climbs(navlog.legs(fix_list, altitude_ft, profile, fcst_hr), departure_elevation(r), profile)
+        choice = altitude_choice
+    leg_list = legs_flown(r, fix_list, profile, fcst_hr, altitude_ft, chosen)
 
     return Plan(
         departure=r.departure,
@@ -196,7 +205,7 @@ def plan(
         selected=selected,
         legs=leg_list,
         totals=flight_totals(leg_list, profile, r, depart),
-        altitude_ft=altitude_ft,
+        altitude_ft=leg_list[0]["altitude_ft"] if altitude_ft is None else altitude_ft,
         altitude_selection=altitude_selection,
         altitude_options=options,
         altitude_choice=choice,
@@ -297,16 +306,14 @@ def navlog_stream(
             if chosen is None:
                 yield line(NavLogError(detail=no_altitude_detail(altitude_selection)))
                 return
-            leg_list, choice = chosen["legs"], altitude_choice
-        else:
-            leg_list = None
+            choice = altitude_choice
 
         # Sent the moment it's decided, well before any leg -- the
         # checkpoints already on screen from /api/checkpoints can show
         # their own cruise altitude immediately rather than waiting on
         # the first leg to carry it.
         yield line(NavLogAltitude(
-            altitude_ft=altitude_ft if leg_list is None else leg_list[0]["altitude_ft"],
+            altitude_ft=chosen["legs"][0]["altitude_ft"] if altitude_ft is None else altitude_ft,
             altitude_selection=altitude_selection,
             options=options,
             choice=choice,
@@ -314,16 +321,12 @@ def navlog_stream(
             aircraft={"name": aircraft, **profile},
         ))
 
-        if leg_list is not None:
-            for leg in leg_list:
-                yield line(NavLogLeg.model_validate(leg))
-        else:
-            # A pilot's own altitude: the legs at it, the climb from the
-            # field flown on the first of them. The winds were read for
-            # the plans a moment ago, so this is quick.
-            leg_list = navlog.with_climbs(navlog.legs(fix_list, altitude_ft, profile, fcst_hr), departure_elevation(r), profile)
-            for leg in leg_list:
-                yield line(NavLogLeg.model_validate(leg))
+        # For a pilot's own altitude this is where the legs are worked
+        # out; the winds were read for the plans a moment ago, so it is
+        # quick.
+        leg_list = legs_flown(r, fix_list, profile, fcst_hr, altitude_ft, chosen)
+        for leg in leg_list:
+            yield line(NavLogLeg.model_validate(leg))
 
         yield line(NavLogDone(totals=flight_totals(leg_list, profile, r, depart)))
 

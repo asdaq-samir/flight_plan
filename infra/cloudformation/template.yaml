@@ -195,23 +195,32 @@ Resources:
   PlanningServiceSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: planning-service Fargate tasks -- reachable only from webapp, never the ALB
+      GroupDescription: planning-service Fargate tasks -- reachable from webapp and the two agents, never the ALB
       VpcId: !Ref VpcId
       SecurityGroupIngress:
         # No ALB rule on purpose. This service is the browser's data source
         # but never its destination: the front end calls webapp, which
         # proxies to here (PlannerProxyController). Same reasoning as
-        # RdsSecurityGroup below -- reachable from the one thing that
-        # needs it, and nothing else.
+        # RdsSecurityGroup below -- reachable from the things that need
+        # it, and nothing else. The agents need it because the nav log
+        # they brief is the planner's own (vfr.planner_client).
         - IpProtocol: tcp
           FromPort: 8000
           ToPort: 8000
           SourceSecurityGroupId: !Ref EcsServiceSecurityGroup
+        - IpProtocol: tcp
+          FromPort: 8000
+          ToPort: 8000
+          SourceSecurityGroupId: !Ref NavLogAgentSecurityGroup
+        - IpProtocol: tcp
+          FromPort: 8000
+          ToPort: 8000
+          SourceSecurityGroupId: !Ref CrewaiAgentSecurityGroup
 
   CrewaiAgentSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: crewai-agent task -- one-shot CLI via aws ecs run-task, outbound only, no ingress needed
+      GroupDescription: crewai-agent task -- one-shot CLI via aws ecs run-task, outbound only (to planning-service), no ingress needed
       VpcId: !Ref VpcId
 
   AirflowSecurityGroup:
@@ -325,25 +334,6 @@ Resources:
                 Resource:
                   - !GetAtt ChartTilesBucket.Arn
                   - !Sub "${ChartTilesBucket.Arn}/*"
-
-  GenAiTaskRole:
-    Type: AWS::IAM::Role
-    Properties:
-      Description: Assumed by nav-log-agent and crewai-agent -- both call the SageMaker endpoint for checkpoints, same as planning-service (vfr.model_client).
-      AssumeRolePolicyDocument:
-        Version: "2012-10-17"
-        Statement:
-          - Effect: Allow
-            Principal: { Service: ecs-tasks.amazonaws.com }
-            Action: sts:AssumeRole
-      Policies:
-        - PolicyName: InvokeSageMakerEndpoint
-          PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
-              - Effect: Allow
-                Action: sagemaker:InvokeEndpoint
-                Resource: !Ref SageMakerEndpoint
 
   SageMakerJobRole:
     Type: AWS::IAM::Role
@@ -939,7 +929,9 @@ Resources:
       Cpu: "512"
       Memory: "1024"
       ExecutionRoleArn: !GetAtt EcsTaskExecutionRole.Arn
-      TaskRoleArn: !GetAtt GenAiTaskRole.Arn
+      # No task role: the agent calls no AWS API. Its nav log comes from
+      # planning-service over the private network, not from the
+      # SageMaker endpoint; its secrets arrive through the execution role.
       ContainerDefinitions:
         - Name: nav-log-agent
           Image: !Ref NavLogAgentImageUri
@@ -954,8 +946,8 @@ Resources:
               Value: !Ref DBName
             - Name: DB_USER
               Value: !Ref DBUsername
-            - Name: SAGEMAKER_ENDPOINT_NAME
-              Value: !GetAtt SageMakerEndpoint.EndpointName
+            - Name: PLANNING_SERVICE_URL
+              Value: http://planning-service.vfr-route.internal:8000
           Secrets:
             - Name: DB_PASSWORD
               ValueFrom: !Sub "${Database.MasterUserSecret.SecretArn}:password::"
@@ -1011,18 +1003,18 @@ Resources:
       Cpu: "512"
       Memory: "1024"
       ExecutionRoleArn: !GetAtt EcsTaskExecutionRole.Arn
-      TaskRoleArn: !GetAtt GenAiTaskRole.Arn
+      # No task role, for the same reason as NavLogAgentTaskDefinition.
       ContainerDefinitions:
         - Name: crewai-agent
           Image: !Ref CrewaiAgentImageUri
-          # The image's own command is the HTTP wrapper the local Brief
-          # tab calls; nothing calls it here, so run-task runs the
-          # one-shot CLI instead and the task exits once the briefing
-          # is printed.
+          # The image's own command is the HTTP wrapper the local
+          # flight planning drawer calls; nothing calls it here, so
+          # run-task runs the one-shot CLI instead and the task exits
+          # once the briefing is printed.
           Command: ["python3", "-m", "app.main"]
           Environment:
-            - Name: SAGEMAKER_ENDPOINT_NAME
-              Value: !GetAtt SageMakerEndpoint.EndpointName
+            - Name: PLANNING_SERVICE_URL
+              Value: http://planning-service.vfr-route.internal:8000
           Secrets:
             - Name: ANTHROPIC_API_KEY
               ValueFrom: !Ref AnthropicApiKeySecretArn

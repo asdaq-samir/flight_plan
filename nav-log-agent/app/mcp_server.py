@@ -6,8 +6,9 @@ import json
 from collections.abc import Iterator
 
 from mcp.server.mcpserver import MCPServer
+from pydantic import BaseModel, ValidationError
 from starlette.requests import Request
-from starlette.responses import StreamingResponse
+from starlette.responses import JSONResponse, StreamingResponse
 
 from . import db
 from .graph import briefing_prompt, build_graph
@@ -33,41 +34,49 @@ def startup() -> None:
     db.preload_embedder()
 
 
-def _run_graph(departure_ident: str, destination_ident: str, altitude_ft: float | None, aircraft_name: str) -> dict:
-    state = {
-        "departure_ident": departure_ident,
-        "destination_ident": destination_ident,
-        "aircraft_name": aircraft_name,
-    }
+def _route(departure_ident: str, destination_ident: str, altitude_ft: float | None, aircraft_name: str | None) -> dict:
+    """The graph's input: only what the caller actually gave, so the
+    planner's own defaults (its altitude choice, its default aeroplane)
+    apply to the rest."""
+    state = {"departure_ident": departure_ident, "destination_ident": destination_ident}
     if altitude_ft is not None:
         state["altitude_ft"] = altitude_ft
-    result = _graph.invoke(state)
-    return {"altitude_selection": result["altitude_selection"], "legs": result["legs"], "briefing": result["briefing"]}
+    if aircraft_name:
+        state["aircraft_name"] = aircraft_name
+    return state
 
 
 @mcp.tool()
 def generate_nav_log_briefing(
-    departure_ident: str, destination_ident: str, altitude_ft: float | None = None, aircraft_name: str = "c172"
+    departure_ident: str, destination_ident: str, altitude_ft: float | None = None, aircraft_name: str | None = None
 ) -> dict:
-    """Generate a VFR nav-log briefing for a route: checkpoints from the
-    trained model, a recommended cruise altitude (terrain/airspace/
-    weather/aircraft-ceiling constrained -- pass altitude_ft explicitly to
-    override it instead), dead-reckoning legs between checkpoints, and a
-    natural-language briefing informed by similar past routes.
+    """Generate a VFR nav-log briefing for a route: the nav log the
+    planner flies (checkpoints from the trained model, each leg's legal
+    cruise altitude -- pass altitude_ft to fly one of your own instead --
+    climbs, headings, times and fuel) and a natural-language briefing of
+    it, informed by similar past routes. aircraft_name picks one of the
+    planner's aircraft profiles; omitted, its default.
     """
-    return _run_graph(departure_ident, destination_ident, altitude_ft, aircraft_name)
+    result = _graph.invoke(_route(departure_ident, destination_ident, altitude_ft, aircraft_name))
+    return {
+        "altitude_selection": result["altitude_selection"],
+        "legs": result["legs"],
+        "totals": result["totals"],
+        "briefing": result["briefing"],
+    }
 
 
 @mcp.tool()
 def assemble_nav_log(
-    departure_ident: str, destination_ident: str, altitude_ft: float | None = None, aircraft_name: str = "c172"
+    departure_ident: str, destination_ident: str, altitude_ft: float | None = None, aircraft_name: str | None = None
 ) -> dict:
     """Everything a VFR nav-log briefing is made of, without writing the
-    briefing: the checkpoints the trained model scored and the subset
-    worth flying, a recommended cruise altitude with the terrain,
-    airspace, weather and aircraft-ceiling reasoning behind it (pass
-    altitude_ft to override), dead-reckoning legs between consecutive
-    checkpoints, and briefings from similar past routes for precedent.
+    briefing: the nav log the planner flies -- the checkpoints worth
+    flying, the cruise altitude with the terrain, airspace, weather and
+    aircraft-ceiling reasoning behind it (pass altitude_ft to fly your
+    own instead), the dead-reckoning legs from the departure airport to
+    the destination with their climbs, and the totals with the fuel
+    check -- and briefings from similar past routes for precedent.
 
     Use this and write the briefing yourself. `generate_nav_log_briefing`
     does the same work and then spends this server's own Anthropic
@@ -79,14 +88,7 @@ def assemble_nav_log(
     it carries the constraints that matter (plain prose, no Markdown, and
     nothing invented that the data does not support).
     """
-    state = {
-        "departure_ident": departure_ident,
-        "destination_ident": destination_ident,
-        "aircraft_name": aircraft_name,
-    }
-    if altitude_ft is not None:
-        state["altitude_ft"] = altitude_ft
-    result = _graph_unnarrated.invoke(state)
+    result = _graph_unnarrated.invoke(_route(departure_ident, destination_ident, altitude_ft, aircraft_name))
     return {
         "departure_ident": departure_ident,
         "destination_ident": destination_ident,
@@ -94,6 +96,7 @@ def assemble_nav_log(
         "altitude_selection": result["altitude_selection"],
         "selected_checkpoints": result["selected_checkpoints"],
         "legs": result["legs"],
+        "totals": result["totals"],
         "similar_briefings": result["similar_briefings"],
         "briefing_prompt": briefing_prompt(result),
     }
@@ -144,43 +147,51 @@ def _narrative_lines(graph, state: dict) -> Iterator[str]:
         yield _line({"type": "error", "detail": str(err)})
 
 
-@mcp.custom_route("/compare", methods=["GET", "POST"])
-async def compare(request: Request) -> StreamingResponse:
-    """Plain REST twin of generate_nav_log_briefing, not an MCP tool call --
-    for the flight planning drawer's narrative popover (ComparisonProxyController on the
-    webapp side), which needs a request-response HTTP call it can make
-    directly rather than an MCP client/session. Streams the narrative as
-    it is written (see _narrative_lines).
+class NarrativeRequest(BaseModel):
+    """The nav log the flight planning drawer already shows -- the same
+    shape crewai-agent's own /compare takes, checked the same way before
+    anything runs."""
 
-    POST carries the nav log the page already shows -- departure and
+    departure_ident: str
+    destination_ident: str
+    aircraft_name: str | None = None
+    altitude_ft: float
+    altitude_selection: dict | None = None
+    legs: list[dict]
+
+
+def _invalid(err: ValueError) -> JSONResponse:
+    """A 422 naming what was wrong, in the `detail` string webapp's
+    proxy passes on -- rather than the KeyError a missing field used to
+    raise inside the stream."""
+    if isinstance(err, ValidationError):
+        detail = "; ".join(f"{'.'.join(str(part) for part in e['loc'])}: {e['msg']}" for e in err.errors())
+    else:
+        detail = "the request body is not JSON"
+    return JSONResponse({"detail": f"invalid nav log: {detail}"}, status_code=422)
+
+
+@mcp.custom_route("/compare", methods=["POST"])
+async def compare(request: Request) -> StreamingResponse | JSONResponse:
+    """Plain REST twin of generate_nav_log_briefing, not an MCP tool call --
+    for the flight planning drawer's narrative popover
+    (ComparisonProxyController on the webapp side), which needs a
+    request-response HTTP call it can make directly rather than an MCP
+    client/session. Streams the narrative as it is written (see
+    _narrative_lines).
+
+    The body is the nav log the page already shows -- departure and
     destination idents, aircraft_name, altitude_ft, altitude_selection
-    and legs -- and the graph starts at retrieve_memory with them. GET
-    with idents alone still computes the whole nav log first.
+    and legs -- and the graph starts at retrieve_memory with it.
 
     Still behind BearerAuthMiddleware (app/main.py wraps this whole
     Starlette app, and that wrapping is outside the mcp library's own
     routing -- the "not require authorization" custom_route promises is
     about its own internal OAuth layer, not this).
     """
-    if request.method == "POST":
-        body = await request.json()
-        state = {
-            "departure_ident": body["departure_ident"],
-            "destination_ident": body["destination_ident"],
-            "aircraft_name": body.get("aircraft_name", "c172"),
-            "altitude_ft": float(body["altitude_ft"]),
-            "altitude_selection": body.get("altitude_selection"),
-            "legs": body["legs"],
-        }
-        graph = _graph_from_nav_log
-    else:
-        q = request.query_params
-        state = {
-            "departure_ident": q.get("departure_ident", "C81"),
-            "destination_ident": q.get("destination_ident", "KDLH"),
-            "aircraft_name": q.get("aircraft_name", "c172"),
-        }
-        if "altitude_ft" in q:
-            state["altitude_ft"] = float(q["altitude_ft"])
-        graph = _graph
-    return StreamingResponse(_narrative_lines(graph, state), media_type="application/x-ndjson")
+    try:
+        body = NarrativeRequest.model_validate(await request.json())
+    except ValueError as err:  # ValidationError, or JSON that does not parse
+        return _invalid(err)
+    state = body.model_dump(exclude_none=True)
+    return StreamingResponse(_narrative_lines(_graph_from_nav_log, state), media_type="application/x-ndjson")

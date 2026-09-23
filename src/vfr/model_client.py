@@ -5,9 +5,10 @@ Locally that is an HTTP POST to the model-service container's
 container, with no HTTP service to call, so the identical request goes
 through SageMaker Runtime's invoke_endpoint instead. Which path runs is
 decided by SAGEMAKER_ENDPOINT_NAME alone -- set only on AWS, by the task
-definitions in infra/cloudformation/template.yaml -- so planning-service
-and both agents share this module and never need to know which they are
-talking to.
+definition in infra/cloudformation/template.yaml -- so planning-service
+never needs to know which it is talking to. It is the only caller: the
+agents get their nav log, scores included, from planning-service itself
+(vfr.planner_client).
 """
 import json
 import logging

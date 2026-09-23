@@ -7,14 +7,6 @@
 # PINNED, matching nav-log-agent/requirements.txt's own convention -- see
 # its comment for why. Pinned to what python:3.13-slim currently resolves.
 crewai[anthropic]==1.15.22
-pandas==3.0.6
-requests==2.34.2
-boto3==1.43.98    # vfr.model_client's SageMaker Runtime path, used only when SAGEMAKER_ENDPOINT_NAME is set (AWS)
-pyarrow==25.0.1   # vfr.faa_data's Parquet cache of the obstacle table; without it every process re-parses DOF.DAT (~9 s)
-shapely==2.1.2
-pyshp==3.1.6
-pyproj==3.8.0      # vfr.geo -- PROJ's distance/azimuth, reached from vfr.navlog and vfr.altitude
-scipy==1.18.1      # vfr.geo's cluster_points KD-tree, imported at vfr.geo's module level
-pygeomag==1.1.0    # vfr.altitude -> vfr.magnetic, the World Magnetic Model evaluated locally
+requests==2.34.2   # vfr.planner_client -- the tools ask planning-service, the way nav-log-agent does
 fastapi==0.141.1  # app.server: `docker compose up`'s default now, see main.py's own comment
 uvicorn[standard]==0.53.0

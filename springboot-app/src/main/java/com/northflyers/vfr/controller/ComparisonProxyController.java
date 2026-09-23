@@ -1,9 +1,12 @@
 package com.northflyers.vfr.controller;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.URI;
 import java.net.http.HttpRequest;
 import java.nio.charset.StandardCharsets;
@@ -45,7 +48,10 @@ import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBo
  * {@link PlannerProxyController}, a real request-path dependency, this
  * is a developer-facing extra. An agent that is down answers as a 502
  * with a {@code {"detail": ...}} body, the shape the front end's own
- * stream reader already reports.
+ * stream reader already reports. An agent that answers but refuses
+ * carries its own {@code detail} through: a 422 (the nav log it was sent
+ * was not one) as a 422, anything else as a 502 naming the agent's own
+ * reason rather than only its status.
  */
 @RestController
 @RequestMapping("/api/comparison")
@@ -57,6 +63,12 @@ public class ComparisonProxyController {
     /** A narrative is one Claude call now, tens of seconds at most; the
      *  margin is for a cold agent, not for the call. */
     private static final Duration TIMEOUT = Duration.ofMinutes(5);
+
+    private static final ObjectMapper JSON = new ObjectMapper();
+
+    /** An error body is a sentence or two; this is only a bound on what
+     *  gets read, not a size anything is expected to reach. */
+    private static final int ERROR_BODY_LIMIT = 16 * 1024;
 
     private final StreamingProxy proxy;
     private final String navLogAgentBaseUrl;
@@ -108,10 +120,16 @@ public class ComparisonProxyController {
         String upstreamUrl = baseUrl;
         return proxy.exchange(agent, builder.build(), response -> {
             if (response.statusCode() != 200) {
-                log.warn("{} agent at {} returned {}", framework, upstreamUrl, response.statusCode());
-                drain(response.body());
-                return StreamingProxy.error(
-                        502, "the " + framework + " agent returned " + response.statusCode());
+                String detail = detailOf(response.body());
+                log.warn("{} agent at {} returned {}: {}", framework, upstreamUrl, response.statusCode(), detail);
+                // A 422 is the agent refusing the nav log it was sent,
+                // which is the caller's to fix, so it goes back as one.
+                // Anything else is the agent's own failure: a 502 either
+                // way, but with the agent's reason where it gave one.
+                int status = response.statusCode() == 422 ? 422 : 502;
+                return StreamingProxy.error(status, detail == null
+                        ? "the " + framework + " agent returned " + response.statusCode()
+                        : "the " + framework + " agent: " + detail);
             }
             return StreamingProxy.unbuffered(
                     ResponseEntity.ok().header(HttpHeaders.CONTENT_TYPE, "application/x-ndjson"))
@@ -119,13 +137,18 @@ public class ComparisonProxyController {
         });
     }
 
-    /** An error response's body still has to be read off the connection
-     *  before it can go back in the pool. */
-    private static void drain(InputStream body) {
+    /** The agent's own {@code detail}, when its error body is the
+     *  {@code {"detail": "..."}} shape both agents send; null otherwise.
+     *  Reads the rest of the body off the connection either way, so it
+     *  can go back in the pool. */
+    private static String detailOf(InputStream body) {
         try (body) {
-            body.readAllBytes();
-        } catch (IOException ignored) {
-            // Nothing to do with a body that would not even drain.
+            byte[] head = body.readNBytes(ERROR_BODY_LIMIT);
+            body.transferTo(OutputStream.nullOutputStream());
+            JsonNode detail = JSON.readTree(head).path("detail");
+            return detail.isTextual() && !detail.asText().isBlank() ? detail.asText() : null;
+        } catch (IOException notJson) {
+            return null;
         }
     }
 }

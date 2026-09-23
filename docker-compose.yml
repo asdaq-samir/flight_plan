@@ -206,9 +206,8 @@ services:
   nav-log-agent:
     # Behind a profile because it is opt-in and wants a bearer token of
     # its own (below), not because it needs an Anthropic key -- its MCP
-    # tools do the checkpoints, the altitude, the legs and the memory
-    # lookup with no LLM at all, and leave the narrative to whichever
-    # agent connected. Only `generate_nav_log_briefing` spends credit.
+    # tools fetch the planner's nav log and do the memory lookup with no
+    # LLM at all, and leave the narrative to whichever agent connected. Only `generate_nav_log_briefing` spends credit.
     # Start it with `--profile ai`, or by naming it
     # (`docker compose up -d nav-log-agent`), which enables its profile.
     profiles: ["ai"]
@@ -222,7 +221,7 @@ services:
     depends_on:
       db:
         condition: service_healthy
-      model-service:
+      planning-service:
         condition: service_healthy
     environment:
       PYTHONPATH: /workspace/src
@@ -234,7 +233,9 @@ services:
       # still happens loudly, one step later -- and now only for the
       # people actually starting this service.
       NAV_LOG_AGENT_API_KEY: ${NAV_LOG_AGENT_API_KEY:-}
-      MODEL_SERVICE_URL: http://model-service:8000
+      # The nav log is the planner's own (vfr.planner_client), not one
+      # this agent assembles, so the one a pilot sees is the one it briefs.
+      PLANNING_SERVICE_URL: http://planning-service:8000
       DATABASE_URL: postgresql://vfr:vfr@db:5432/vfr_route
 
   crewai-agent:
@@ -252,12 +253,13 @@ services:
     volumes:
       - .:/workspace
     depends_on:
-      model-service:
+      planning-service:
         condition: service_healthy
     environment:
       PYTHONPATH: /workspace/src
       ANTHROPIC_API_KEY: *anthropic-api-key
-      MODEL_SERVICE_URL: http://model-service:8000
+      # The same planner nav log nav-log-agent briefs (vfr.planner_client).
+      PLANNING_SERVICE_URL: http://planning-service:8000
     healthcheck:
       <<: *python-healthcheck
       test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/')"]

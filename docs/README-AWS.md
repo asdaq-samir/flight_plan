@@ -95,14 +95,15 @@ Fargate** (Spring Boot API) → **SageMaker Endpoint** (`/invocations`) and
 
 ### 4. Gen AI — LangGraph / MCP / CrewAI (violet)
 
-> Turns the model's scored checkpoints into a natural-language nav-log
-> briefing, wrapped as an MCP server. The vector store gives it memory of
-> past routes. CrewAI is a second build of the same agent, both calling
-> the same SageMaker endpoint.
+> Turns the planner's own nav log into a natural-language briefing,
+> wrapped as an MCP server. The vector store gives it memory of past
+> routes. CrewAI is a second build of the same agent, both getting their
+> nav log from planning-service.
 
 **LangGraph Agent (MCP Server)** ↔ **Vector Store** (`long-term memory`,
-bidirectional). **LangGraph Agent → SageMaker Endpoint** (`model output
-via MCP tool call`). **CrewAI Agent** (dashed border) exists in parallel —
+bidirectional). **LangGraph Agent → planning-service** (`nav log (HTTP)`,
+over Cloud Map at `planning-service.vfr-route.internal`; planning-service
+admits the two agents' security groups for exactly this). **CrewAI Agent** (dashed border) exists in parallel —
 same tools, same task, not pipeline-connected to the LangGraph build.
 
 ## Infrastructure as Code

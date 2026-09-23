@@ -5,10 +5,11 @@ briefing, served over MCP. It is the Gen AI half of this project, and the
 deliberate contrast to [`crewai-agent/`](../crewai-agent), which does the
 same task in a different framework.
 
-The agent adds no aviation knowledge. It orchestrates
-[`src/vfr`](../src) — the same checkpoint selection, altitude logic and
-dead reckoning the planner uses — and asks Claude for the one thing code
-cannot produce: prose a pilot would want to read.
+The agent adds no aviation knowledge. It fetches the nav log the
+planner flies -- the same checkpoints, per-leg altitudes, climbs and
+fuel check a pilot sees on the page -- from planning-service's
+`/api/plan`, and asks Claude for the one thing code cannot produce:
+prose a pilot would want to read.
 
 ## Contents
 
@@ -25,12 +26,12 @@ docker compose up -d nav-log-agent     # MCP server on :8082
 ```
 
 No Anthropic key is needed for that, and none is needed to use the
-server. Of the graph's six nodes exactly one calls Claude, and the MCP
+server. Of the graph's four nodes exactly one calls Claude, and the MCP
 tools stop before it:
 
 | Tool | What it does | Anthropic key |
 |---|---|---|
-| `assemble_nav_log` | checkpoints, cruise altitude and the reasoning behind it, dead-reckoning legs, similar past routes — and `briefing_prompt`, the exact instruction this server's own narrator writes from | no |
+| `assemble_nav_log` | the planner's nav log -- checkpoints, cruise altitude and the reasoning behind it, legs from airport to airport with their climbs, totals and the fuel check -- similar past routes, and `briefing_prompt`, the exact instruction this server's own narrator writes from | no |
 | `remember_briefing` | stores a briefing *you* wrote, so later routes retrieve it as precedent | no |
 | `generate_nav_log_briefing` | all of the above, then narrates it here | **yes** |
 
@@ -93,7 +94,7 @@ state. Everything below is about giving it those two things.
 
 4. **Make the steps explicit** (`langgraph`). For a task whose order you
    already know, a state machine beats letting the model pick. That is
-   what `graph.py` is: seven nodes in a fixed sequence. The model is used
+   what `graph.py` is: four nodes in a fixed sequence. The model is used
    at one node, not as the control flow.
 
 5. **Give it memory** (`pgvector`). Embed past briefings, retrieve
@@ -114,29 +115,37 @@ confidently.
 
 ## The graph
 
-Seven nodes, fixed order, defined in `app/graph.py`:
+Four nodes, fixed order, defined in `app/graph.py`:
 
 ```
-fetch_checkpoints → select_checkpoints → select_altitude → assemble_legs
-                  → retrieve_memory → generate_briefing → store_memory
+fetch_nav_log → retrieve_memory → generate_briefing → store_memory
 ```
 
-Only `generate_briefing` calls Claude. The rest is `src/vfr` and Postgres.
+Only `generate_briefing` calls Claude. `fetch_nav_log` is one call to
+planning-service's `/api/plan` through `vfr.planner_client`; the rest is
+Postgres.
 
-The briefing's own calls from Plan skip the first four nodes: the page already
-has the nav log the planner computed (a pilot's altitude override
-included), so it POSTs that to `/compare` and the graph starts at
-`retrieve_memory`. The briefing streams back as newline-delimited JSON
-while Claude writes it, the same `delta`/`done`/`error` lines the
-planner's own streams use; the MCP tool and the CLI still run all seven
-nodes and return the finished text.
+It used to be seven nodes, the first four assembling the nav log from
+`vfr`'s pieces. That nav log was not the pilot's: legs between the
+checkpoints alone (20 where the planner flew 22, none to or from the
+airports), one altitude for the whole route, no climbs, no fuel check.
+Asking the planner for its own is what keeps the two from drifting
+apart again.
+
+The briefing's own calls from Plan skip `fetch_nav_log`: the page
+already has the nav log (a pilot's altitude override included), so it
+POSTs that to `/compare` and the graph starts at `retrieve_memory`. A
+body missing a field is refused with a 422 naming it. The briefing
+streams back as newline-delimited JSON while Claude writes it, the same
+`delta`/`done`/`error` lines the planner's own streams use; the MCP tool
+runs all four nodes and returns the finished text.
 
 | File | What it is |
 |---|---|
 | `app/graph.py` | The state machine and its nodes. |
 | `app/mcp_server.py` | MCP wrapper, so other clients can call it, and the `/compare` route Plan's briefing streams from. |
 | `app/db.py` | Postgres + pgvector access. |
-| `vfr.model_client` (in `src/`) | Checkpoint scores, over HTTP or SageMaker Runtime -- shared with planning-service and crewai-agent. |
+| `vfr.planner_client` (in `src/`) | The nav log, from planning-service -- shared with crewai-agent. The only `vfr` module this image imports, so it installs none of `vfr`'s geometry, raster or FAA data dependencies. |
 | `app/migrations.py` + `migrations/` | Its own schema, applied at startup. |
 
 ## Things that are not obvious

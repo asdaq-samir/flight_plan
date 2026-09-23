@@ -673,8 +673,10 @@ Endpoint's serving container rather than a plain HTTP service. Which path
 runs is decided by whether `SAGEMAKER_ENDPOINT_NAME` is set — true only on
 AWS — not a separate build; both paths send the identical JSON, since
 `InvokeEndpoint` just proxies the body straight to the same
-`/invocations` route. Both Gen AI agents import the same module, so there
-is exactly one client to get right.
+`/invocations` route. Only planning-service imports it: the Gen AI agents
+ask planning-service itself for the nav log (through
+[`vfr.planner_client`](../src/vfr/planner_client.py)), so there is one
+client to get right and one place a nav log is built.
 
 **Schema ownership**: this app does *not* let Hibernate auto-generate or
 alter its schema in a real environment (`ddl-auto: validate`, not
@@ -705,11 +707,12 @@ so you can compare two different ways of building an LLM agent.
 
 ### What "an agent" actually means here
 
-Both builds do the same things: fetch model-scored checkpoints, select
-the ones worth flying, compute a recommended cruising altitude from real
-terrain/airspace/weather constraints, compute dead-reckoning legs between
-checkpoints, retrieve similar past routes from memory, and ask an LLM to
-turn all of that into a natural-language briefing. The *only* place either build actually calls an
+Both builds do the same things: get the route's nav log from
+planning-service -- the model-scored checkpoints worth flying, a legal
+cruising altitude for each leg from real terrain/airspace/weather
+constraints, dead-reckoning legs from airport to airport with their
+climbs and the fuel check -- retrieve similar past routes from memory,
+and ask an LLM to turn all of that into a natural-language briefing. The *only* place either build actually calls an
 LLM is that last step — everything else is deterministic Python you could
 run without any AI involved at all. That's worth internalizing: "agent"
 doesn't mean "the LLM does everything," it usually means "deterministic
@@ -725,33 +728,32 @@ functions, each one reading some keys off the state and returning a dict
 of new/updated keys:
 
 ```python
-graph.add_edge(START, "fetch_checkpoints")
-graph.add_edge("fetch_checkpoints", "select_checkpoints")
-graph.add_edge("select_checkpoints", "select_altitude")
-graph.add_edge("select_altitude", "assemble_legs")
-graph.add_edge("assemble_legs", "retrieve_memory")
+graph.add_edge(START, "fetch_nav_log")
+graph.add_edge("fetch_nav_log", "retrieve_memory")
 graph.add_edge("retrieve_memory", "generate_briefing")
 graph.add_edge("generate_briefing", "store_memory")
 graph.add_edge("store_memory", END)
 ```
 
-Seven nodes in a straight line, no branching — control flow is decided
+Four nodes in a straight line, no branching — control flow is decided
 by *you*, the developer, at graph-build time, not by the LLM at runtime.
 This is the right choice whenever you actually know the steps your task
 needs; you're using LangGraph here for state management and
 observability, not because you need an LLM to decide what to do next.
-The same seven nodes, with what each one touches outside the graph:
+
+It used to be seven. The first four assembled the nav log from `vfr`'s
+pieces -- checkpoints, selection, one altitude, legs -- and so briefed a
+nav log nobody else saw: no legs to or from the airports, one altitude
+for the whole route, no climbs. `fetch_nav_log` asks planning-service
+for the one a pilot sees instead, which is why the graph is short: a
+second copy of a recipe is a second answer waiting to happen. The four
+nodes, with what each one touches outside the graph:
 
 ```mermaid
 flowchart TD
-    START([START]) --> fetch[fetch_checkpoints]
-    fetch -.->|/invocations| model[("model-service /\nSageMaker")]
-    fetch --> select[select_checkpoints]
-    select --> altitude[select_altitude]
-    altitude -.->|vfr.altitude| terrain[("terrain/airspace/\nweather data")]
-    altitude --> legs[assemble_legs]
-    legs -.->|vfr.navlog| wind[("live winds-aloft,\nmagnetic variation")]
-    legs --> memory[retrieve_memory]
+    START([START]) --> fetch[fetch_nav_log]
+    fetch -.->|/api/plan| planner[("planning-service:\ncheckpoints, altitudes,\nlegs, fuel")]
+    fetch --> memory[retrieve_memory]
     memory -.->|similarity search| pgvector[("pgvector:\nroute_briefings")]
     memory --> briefing[generate_briefing]
     briefing -.->|messages.create| claude[("Claude API")]
@@ -760,8 +762,8 @@ flowchart TD
     store --> END([END])
 ```
 
-The dashed edges are where the graph leaves the process — a model
-endpoint, live weather, the database, the Claude API. Those are where
+The dashed edges are where the graph leaves the process — the planner,
+the database, the Claude API. Those are where
 retries and error handling matter, and the diagram shows it.
 
 ### MCP (Model Context Protocol)
@@ -778,8 +780,8 @@ bespoke integration for each one — you write the tool once, against the
 protocol, not against a specific caller.
 
 The three earn their keep by lining up with the graph's own shape. Of
-its six nodes, exactly one — `generate_briefing` — calls Claude; the
-other five are a model-service lookup, arithmetic and a database read.
+its four nodes, exactly one — `generate_briefing` — calls Claude; the
+other three are a call to planning-service and two database calls.
 `generate_nav_log_briefing` runs the whole graph and is what `webapp`'s
 own flight planning drawer calls, spending this server's own Anthropic credit on the
 narration. But an MCP client connecting from Claude Desktop, or from
@@ -818,8 +820,9 @@ full ORM/migration framework — see [Section 6](#6-database-migrations).
 ### CrewAI — agent-driven tool selection
 
 [`crewai-agent/app/tools.py`](../crewai-agent/app/tools.py) wraps the
-*exact same* underlying calls (`vfr.altitude`, `vfr.navlog`, the same
-`model_client`) as three `@tool`-decorated functions, each with a
+*exact same* planner answers nav-log-agent uses (planning-service's
+checkpoints, altitude breakdown and plan, through `vfr.planner_client`)
+as three `@tool`-decorated functions, each with a
 docstring the LLM reads to decide when/whether to call it. The structural
 difference from LangGraph: instead of you wiring a fixed sequence of
 edges, you hand an `Agent` a goal and a set of tools, and the *LLM itself*

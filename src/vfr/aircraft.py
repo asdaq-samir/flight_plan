@@ -16,9 +16,8 @@ REQUIRED_FIELDS = {"service_ceiling_ft"}
 @lru_cache(maxsize=32)
 def _load(path_str: str) -> dict:
     """The disk read and the validation, cached by resolved path. Every
-    caller of load_aircraft_profile below the stock ones -- planning.py's
-    aircraft_profile, both agents' -- gets called on every plan or nav
-    log request, for one of a handful of checked-in JSON files that only
+    caller of load_aircraft_profile -- planning.py's aircraft_profile --
+    gets called on every plan or nav log request, for one of a handful of checked-in JSON files that only
     change on a deploy. A ValueError is not cached: lru_cache never
     remembers an exception, so a fixed file is picked up on the next call
     without needing a restart.

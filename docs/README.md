@@ -258,14 +258,14 @@ service discovery at `planning-service.vfr-route.internal`.
 
 **`nav-log-agent`** — a LangGraph agent wrapped as an MCP server.
 
-- One tool: `generate_nav_log_briefing(departure_ident, destination_ident, altitude_ft=None, aircraft_name="c172")`
-- Graph: `fetch_checkpoints` → `select_checkpoints` (`vfr.checkpoints`) → `select_altitude` (`vfr.altitude`) → `assemble_legs` (`vfr.navlog`) → `retrieve_memory` (pgvector, embedded locally with `sentence-transformers/all-MiniLM-L6-v2`, baked into the image) → `generate_briefing` (Claude API, streamed) → `store_memory`. The briefing on Plan, which already has the nav log, POSTs it to `/compare` and the graph starts at `retrieve_memory`
+- Three MCP tools: `assemble_nav_log` and `remember_briefing` (no Anthropic key needed) and `generate_nav_log_briefing`, each taking `departure_ident`, `destination_ident`, and optionally `altitude_ft` and `aircraft_name` (the planner's own choice and default aeroplane when omitted)
+- Graph: `fetch_nav_log` (planning-service's `/api/plan`, through `vfr.planner_client`) → `retrieve_memory` (pgvector, embedded locally with `sentence-transformers/all-MiniLM-L6-v2`, baked into the image) → `generate_briefing` (Claude API, streamed) → `store_memory`. The briefing on Plan, which already has the nav log, POSTs it to `/compare` and the graph starts at `retrieve_memory`
 - Served over SSE at `/mcp/sse`
-- Same model-service/SageMaker dual path as webapp
+- The nav log it briefs is the planner's own -- the checkpoints, per-leg altitudes, climbs and fuel check a pilot sees -- rather than one it assembles, so the two cannot drift apart
 
 **`crewai-agent`** — the identical task (checkpoints → altitude → legs → briefing), built in CrewAI instead of LangGraph, for framework comparison.
 
-- Same underlying calls as `nav-log-agent`; different control-flow model — an `Agent` reasoning over `tools` rather than an explicit function sequence
+- The same planner answers as `nav-log-agent` (`vfr.planner_client`); different control-flow model — an `Agent` reasoning over `tools` rather than an explicit function sequence
 - Run by hand as a one-shot CLI (`python -m app.main`); `docker compose up` runs a thin HTTP wrapper around the same crew so the briefing on Plan can call it
 - No pgvector memory store of its own
 
@@ -553,8 +553,10 @@ compose up ml`. Full per-notebook breakdown is in the
 ```bash
 # Python (src/vfr). The pipeline images carry no test tooling -- this
 # runs what CI runs, from requirements-dev.txt.
+# libexpat1 is the one system library rasterio's wheel needs that the
+# slim image leaves out.
 docker run --rm -v "$PWD":/w -w /w -e PYTHONPATH=/w/src python:3.13-slim \
-  sh -c "pip install -q -r requirements-dev.txt && ruff check src/vfr tests && pytest tests/ -q"
+  sh -c "apt-get update -qq && apt-get install -y -qq libexpat1 && pip install -q -r requirements-dev.txt && ruff check src/vfr tests && pytest tests/ -q"
 
 # planning-service (its own FastAPI-layer suite, separate from the one
 # above since it needs the service's own requirements on top of pytest)
