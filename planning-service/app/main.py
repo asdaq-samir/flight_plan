@@ -41,6 +41,18 @@ from .routers import briefing, build, chart, classb, devml, devservices, notes, 
 from .schemas import STREAM_MESSAGES, Index
 from .settings import CHARTS_REFRESH_WINDOW, CHARTS_REFRESH_WORKERS
 
+# Nothing else in the process configured logging, so every log.info() in
+# this codebase -- this file's own, and every one already written in
+# vfr/weather.py and vfr/charts.py before this -- was going nowhere:
+# Python's root logger defaults to WARNING, and uvicorn's own
+# --log-level only reaches its own uvicorn.access/uvicorn.error
+# loggers, not a plain logging.getLogger(__name__) anywhere else in the
+# process. Found while adding the timing lines in vfr.altitude,
+# vfr.model_client and app.routers.classb (2026-09-23) and running one
+# live to see it -- nothing appeared. LOG_LEVEL, not a hardcoded INFO,
+# so a noisy deploy can be turned back down without a code change.
+logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO"))
+
 log = logging.getLogger(__name__)
 
 # Inside the datasets' own five-minute time-to-live, so a held copy is

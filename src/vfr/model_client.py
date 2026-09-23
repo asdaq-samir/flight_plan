@@ -10,10 +10,14 @@ and both agents share this module and never need to know which they are
 talking to.
 """
 import json
+import logging
 import os
 import threading
+import time
 
 import requests
+
+log = logging.getLogger(__name__)
 
 MODEL_SERVICE_URL = os.environ.get("MODEL_SERVICE_URL", "http://model-service:8000")
 SAGEMAKER_ENDPOINT_NAME = os.environ.get("SAGEMAKER_ENDPOINT_NAME")
@@ -70,9 +74,18 @@ def invoke(departure_ident: str, destination_ident: str, model: str | None = Non
     payload = {"departure_ident": departure_ident, "destination_ident": destination_ident}
     if model is not None:
         payload["model"] = model
-    if SAGEMAKER_ENDPOINT_NAME:
-        return _invoke_sagemaker(payload)
-    return _invoke_http(payload)
+    path = "sagemaker" if SAGEMAKER_ENDPOINT_NAME else "http"
+    started = time.time()
+    try:
+        if SAGEMAKER_ENDPOINT_NAME:
+            return _invoke_sagemaker(payload)
+        return _invoke_http(payload)
+    finally:
+        # Logged whether this succeeded or raised (a timeout is exactly
+        # the case worth seeing the duration of): the one place every
+        # scored-route request passes through, whichever of the two
+        # backends is answering it.
+        log.info("model_client.invoke (%s): %s->%s in %.2fs", path, departure_ident, destination_ident, time.time() - started)
 
 
 def get_checkpoints(departure_ident: str, destination_ident: str) -> list[dict]:

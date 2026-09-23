@@ -10,10 +10,15 @@ and the METAR and TAF national caches are held by vfr.weather for
 minutes at a time. Assembling all thirty costs about as much as
 assembling one.
 """
+import logging
+import time
+
 from fastapi import APIRouter
 from vfr import airspace, altitude, charts, classb, weather
 
 from ..schemas import ClassBAirport, ClassBResponse
+
+log = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -39,11 +44,23 @@ def class_b_airports() -> ClassBResponse:
     published, and a pilot already reads it that way. None where the
     field has no current report.
     """
+    # Timed per stage rather than as one total: class_b_airports() has its
+    # own on-disk pickle cache (vfr.classb), warm in well under a second
+    # and a genuine ~15s shapefile reparse when that cache is missing or
+    # stale -- exactly what happened 2026-09-23, when an iCloud sync
+    # conflict silently renamed the pickle out from under it and this
+    # endpoint went from ~1s to timing out with nothing in the logs to
+    # say why. A single "N.Ns total" line would have shown the request
+    # was slow; this shows which of the two calls it was slow *in*.
+    started = time.time()
     shp_path = airspace.ensure_class_airspace_shapefile(altitude.DEFAULT_FAA_CACHE_DIR)
     found = classb.class_b_airports(shp_path)
+    log.info("class_b_airports: %d airports in %.2fs", len(found), time.time() - started)
     idents = [a["ident"] for a in found]
+    started = time.time()
     metars = weather.metar_for_idents(idents)
     tafs = weather.taf_for_idents(idents)
+    log.info("class-b weather: %d idents in %.2fs", len(idents), time.time() - started)
 
     airports = []
     for a in found:
