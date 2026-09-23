@@ -6,9 +6,11 @@ import json
 from collections.abc import Iterator
 
 from mcp.server.mcpserver import MCPServer
-from pydantic import BaseModel, ValidationError
+from pydantic import ValidationError
 from starlette.requests import Request
 from starlette.responses import JSONResponse, StreamingResponse
+
+from vfr.narrative import NarrativeRequest
 
 from . import db
 from .graph import briefing_prompt, build_graph
@@ -145,19 +147,6 @@ def _narrative_lines(graph, state: dict) -> Iterator[str]:
         })
     except Exception as err:  # noqa: BLE001 -- whatever failed, the stream must end with a line saying so
         yield _line({"type": "error", "detail": str(err)})
-
-
-class NarrativeRequest(BaseModel):
-    """The nav log the flight planning drawer already shows -- the same
-    shape crewai-agent's own /compare takes, checked the same way before
-    anything runs."""
-
-    departure_ident: str
-    destination_ident: str
-    aircraft_name: str | None = None
-    altitude_ft: float
-    altitude_selection: dict | None = None
-    legs: list[dict]
 
 
 def _invalid(err: ValueError) -> JSONResponse:

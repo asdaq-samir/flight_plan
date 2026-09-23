@@ -1,8 +1,9 @@
-"""The HTTP wrapper and the prompt, with the crew itself left out:
-nothing here calls Claude."""
+"""The HTTP wrapper, with the crew itself left out: nothing here calls
+Claude. The prompt it hands the crew is vfr.narrative's, tested with
+vfr (tests/test_narrative.py)."""
 from fastapi.testclient import TestClient
 
-from app import prompt, server
+from app import server
 
 client = TestClient(server.app)
 
@@ -43,14 +44,3 @@ def test_a_narrative_request_hands_the_crew_the_nav_log_and_no_tools(monkeypatch
     dep, dest, aircraft, nav_log, stream = calls[0]
     assert (dep, dest, aircraft, stream) == ("C81", "KDLH", "c172", True)
     assert nav_log["legs"] == NAV_LOG["legs"]
-
-
-def test_the_prompt_carries_every_leg_and_names_an_unflyable_one():
-    nav_log = dict(NAV_LOG, legs=NAV_LOG["legs"] + [{
-        "from": "KDLH", "to": "C81", "distance_nm": 290.0, "magnetic_heading_deg": None,
-        "groundspeed_kt": None, "ete_min": None, "fuel_gal": None,
-    }])
-    text = prompt.briefing_prompt("C81", "KDLH", nav_log)
-    assert "- C81 -> KDLH: 290.0nm, heading 335M, GS 110kt, ETE 158min, fuel 22.4gal" in text
-    assert "UNFLYABLE" in text
-    assert "at 4500ft" in text

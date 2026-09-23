@@ -1,6 +1,7 @@
 """The one retry loop behind every external request this package makes:
 aviationweather.gov, Overpass, the USGS elevation service, the FAA's
-data downloads."""
+data downloads -- and the one way this package reads a service's own
+reason out of an error response (upstream_detail)."""
 import time
 
 import requests
@@ -34,3 +35,19 @@ def with_retries(
             if attempt < retries - 1:
                 time.sleep(backoff_s * (attempt + 1))
     raise error(f"{describe} failed after {retries} attempts: {last_err}") from last_err
+
+
+def upstream_detail(response, service: str) -> str:
+    """Why `service` answered with an error, in its own words: the
+    `detail` of a JSON body (FastAPI's shape, which model-service and
+    planning-service both send), else the body's text, else just which
+    service answered with which status. vfr.model_client and
+    vfr.planner_client both report upstream failures through this."""
+    try:
+        detail = response.json().get("detail")
+    except (ValueError, AttributeError):
+        detail = None
+    if detail:
+        return str(detail)
+    text = (getattr(response, "text", "") or "").strip()
+    return text or f"{service} answered {response.status_code}"

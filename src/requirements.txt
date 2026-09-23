@@ -13,6 +13,9 @@
 #
 # A new third-party import in src/vfr belongs here -- or in
 # requirements-charts.txt if only vfr.charts/vfr.chartvision need it.
+# The one exception is vfr.narrative's pydantic: only the two agents
+# import that module, and both install pydantic through their own
+# frameworks.
 # The CI build job imports what each service imports inside its built
 # image, so a missing line fails there rather than on a restart.
 #

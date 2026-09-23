@@ -13,23 +13,12 @@ from collections.abc import Iterator
 from crewai.types.streaming import StreamChunkType
 from fastapi import FastAPI
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
+
+from vfr.narrative import NarrativeRequest
 
 from .main import build_crew
 
 app = FastAPI()
-
-
-class NarrativeRequest(BaseModel):
-    """The nav log the flight planning drawer already shows -- the crew writes about
-    these numbers rather than recomputing them through its tools."""
-
-    departure_ident: str
-    destination_ident: str
-    aircraft_name: str | None = None
-    altitude_ft: float
-    altitude_selection: dict | None = None
-    legs: list[dict]
 
 
 @app.get("/")

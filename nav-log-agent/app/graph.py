@@ -21,15 +21,14 @@ import anthropic
 from langgraph.config import get_stream_writer
 from langgraph.graph import END, START, StateGraph
 
-from vfr import planner_client
+from vfr import narrative, planner_client
 
 from . import db
 
 CLAUDE_MODEL = os.environ.get("NAV_LOG_AGENT_MODEL", "claude-sonnet-5")
-# A briefing a pilot reads in a minute, and one Claude writes in seconds:
-# the narrative used to run to 1,024 tokens of prose, ten seconds or
-# more of generation on its own.
-BRIEFING_WORDS = 200
+# A briefing a pilot reads in a minute (vfr.narrative asks for under 200
+# words), and one Claude writes in seconds: the narrative used to run to
+# 1,024 tokens of prose, ten seconds or more of generation on its own.
 BRIEFING_MAX_TOKENS = 512
 
 
@@ -77,63 +76,12 @@ def retrieve_memory(state: NavLogState) -> dict:
     return {"similar_briefings": db.retrieve_similar_briefings(query)}
 
 
-def _format_legs(legs: list[dict]) -> str:
-    """One line per leg. An unflyable leg (a headwind at or above cruise
-    TAS -- ETE, fuel and groundspeed are None) is named as such rather
-    than formatted as a number."""
-    lines = []
-    for leg in legs:
-        if leg.get("ete_min") is None:
-            lines.append(
-                f"- {leg['from']} -> {leg['to']}: {leg['distance_nm']:.1f}nm, "
-                "UNFLYABLE at this altitude (headwind at or above cruise TAS)"
-            )
-            continue
-        lines.append(
-            f"- {leg['from']} -> {leg['to']}: {leg['distance_nm']:.1f}nm, "
-            f"heading {leg['magnetic_heading_deg']:.0f}M, GS {leg['groundspeed_kt']:.0f}kt, "
-            f"ETE {leg['ete_min']:.0f}min, fuel {leg['fuel_gal']:.1f}gal"
-        )
-    return "\n".join(lines)
-
-
-def _format_memory(similar_briefings: list[dict]) -> str:
-    if not similar_briefings:
-        return "(no similar past routes yet)"
-    return "\n".join(
-        f"- {b['departure_ident']}->{b['destination_ident']}: {b['briefing'][:200]}" for b in similar_briefings
-    )
-
-
-def _format_altitude_selection(sel: dict | None) -> str:
-    if not sel:
-        return "(the pilot set this altitude by hand; nothing was auto-selected)"
-    lines = [
-        f"Terrain/obstacle floor: {sel['floor_ft']:.0f}ft",
-        f"Airspace/freezing-level/service-ceiling band: {sel['band_ceiling_ft']}ft",
-    ]
-    if sel.get("low_ceiling_or_visibility"):
-        lines.append(
-            f"GO/NO-GO: ceiling {sel['min_ceiling_ft']}ft / visibility {sel['min_visibility_sm']}SM "
-            "near the route is below typical VFR minimums"
-        )
-    if sel.get("hazards"):
-        lines.append(f"GO/NO-GO: {len(sel['hazards'])} SIGMET/AIRMET(s) intersect the route")
-    return "\n".join(lines)
-
-
 def briefing_prompt(state: NavLogState) -> str:
-    """The one prompt both agents write from -- crewai-agent hands the
-    same text to its crew, so the two frameworks are compared on the
-    same task, not on two prompts."""
-    return (
-        f"Write a concise VFR pilot briefing, under {BRIEFING_WORDS} words, for a flight from "
-        f"{state['departure_ident']} to {state['destination_ident']} at {state['altitude_ft']:.0f}ft. "
-        "Plain prose in short paragraphs -- no Markdown headings, bold or bullet lists; it is shown as plain text.\n\n"
-        f"Altitude selection:\n{_format_altitude_selection(state.get('altitude_selection'))}\n\n"
-        f"Dead-reckoning legs:\n{_format_legs(state['legs'])}\n\n"
-        f"Similar past route briefings (for context/consistency, not to copy verbatim):\n"
-        f"{_format_memory(state.get('similar_briefings', []))}"
+    """The prompt both agents write from (vfr.narrative), with this
+    agent's own memory of similar past routes as precedent."""
+    return narrative.briefing_prompt(
+        state["departure_ident"], state["destination_ident"], state["altitude_ft"],
+        state.get("altitude_selection"), state["legs"], state.get("similar_briefings", []),
     )
 
 

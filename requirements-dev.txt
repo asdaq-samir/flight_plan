@@ -11,4 +11,5 @@
 -r src/requirements-charts.txt   # vfr's own list, charts included -- tests/ covers both
 pytest
 ruff
+pydantic    # vfr.narrative -- the agents' shared request model; the agents install it through their frameworks
 pygeodesy   # TEST ONLY -- the independent implementation tests/test_geo.py pins vfr.geo against

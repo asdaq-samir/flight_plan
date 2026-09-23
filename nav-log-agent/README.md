@@ -145,7 +145,8 @@ runs all four nodes and returns the finished text.
 | `app/graph.py` | The state machine and its nodes. |
 | `app/mcp_server.py` | MCP wrapper, so other clients can call it, and the `/compare` route Plan's briefing streams from. |
 | `app/db.py` | Postgres + pgvector access. |
-| `vfr.planner_client` (in `src/`) | The nav log, from planning-service -- shared with crewai-agent. The only `vfr` module this image imports, so it installs none of `vfr`'s geometry, raster or FAA data dependencies. |
+| `vfr.planner_client` (in `src/`) | The nav log, from planning-service -- shared with crewai-agent. With `vfr.narrative`, the only `vfr` modules this image imports, so it installs none of `vfr`'s geometry, raster or FAA data dependencies. |
+| `vfr.narrative` (in `src/`) | The `/compare` request model and the briefing prompt, shared word for word with crewai-agent. |
 | `app/migrations.py` + `migrations/` | Its own schema, applied at startup. |
 
 ## Things that are not obvious

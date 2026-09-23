@@ -146,7 +146,8 @@ Grouped by what they are for, not alphabetically.
 | `airports.py` | Identifier → coordinates, and the route form's search. |
 | `model_client.py` | model-service's `/invocations`, or the SageMaker endpoint on AWS. The one client planning-service scores through -- a persistent `requests.Session` and a lazily-built, reused `boto3` SageMaker client, not one connection or one client per call. |
 | `planner_client.py` | planning-service's `/api/plan`, `/api/checkpoints` and `/api/altitude-breakdown`, for the two agents: the nav log they brief is the planner's own, not one they assemble. `requests` only, so importing it pulls in none of this package's other dependencies. |
-| `retry.py` | The one retry loop the four modules above share for their requests. |
+| `narrative.py` | What both narrative agents write from: the request they accept (`NarrativeRequest`) and the one briefing prompt, so the framework comparison is on one task. Needs pydantic, which only the agents import it with. |
+| `retry.py` | The one retry loop the four modules above share for their requests, and `upstream_detail`, the one reader of a service's reason in an error response (model_client and planner_client). |
 
 **Deciding things**
 

@@ -18,6 +18,8 @@ import time
 
 import requests
 
+from .retry import upstream_detail
+
 log = logging.getLogger(__name__)
 
 MODEL_SERVICE_URL = os.environ.get("MODEL_SERVICE_URL", "http://model-service:8000")
@@ -111,15 +113,8 @@ def _invoke_http(payload: dict) -> dict:
     if resp.status_code == 404:
         raise RouteNotCollected(payload["departure_ident"], payload["destination_ident"])
     if resp.status_code != 200:
-        raise ModelServiceError(_detail(resp), resp.status_code)
+        raise ModelServiceError(upstream_detail(resp, "model-service"), resp.status_code)
     return resp.json()
-
-
-def _detail(resp: requests.Response) -> str:
-    try:
-        return resp.json().get("detail", resp.text)
-    except ValueError:
-        return resp.text
 
 
 def _invoke_sagemaker(payload: dict) -> dict:

@@ -31,8 +31,8 @@ import argparse
 import os
 
 from crewai import Agent, Crew, Task
+from vfr.narrative import briefing_prompt
 
-from .prompt import briefing_prompt
 from .tools import compute_dead_reckoning_legs, get_recommended_altitude, get_route_checkpoints
 
 CLAUDE_MODEL = os.environ.get("NAV_LOG_AGENT_MODEL", "claude-sonnet-5")
@@ -66,7 +66,9 @@ def build_crew(
     )
 
     if nav_log:
-        description = briefing_prompt(departure_ident, destination_ident, nav_log)
+        description = briefing_prompt(
+            departure_ident, destination_ident, nav_log["altitude_ft"], nav_log.get("altitude_selection"), nav_log["legs"],
+        )
     else:
         aircraft = f" in the {aircraft_name} aircraft profile (pass it to every tool)" if aircraft_name else ""
         description = (

@@ -9,14 +9,17 @@ used to assemble their own from vfr's pieces and got a different
 answer: no legs to or from the airports, one altitude for the whole
 route, no climbs. Now they fetch the one a pilot sees.
 
-Deliberately `requests` and nothing else, the way vfr.model_client is
-for model-service: the agents import this module and none of vfr's
+Deliberately `requests` and nothing else (vfr.retry, which it reads
+error bodies with, needs no more), the way vfr.model_client is for
+model-service: the agents import this module and none of vfr's
 geometry, raster or data dependencies, so their images do not install
 them either.
 """
 import os
 
 import requests
+
+from .retry import upstream_detail
 
 PLANNING_SERVICE_URL = os.environ.get("PLANNING_SERVICE_URL", "http://planning-service:8000")
 # An uncached plan reads terrain, obstacles and airspace and then the
@@ -78,13 +81,5 @@ def _get(path: str, params: dict) -> dict:
     except requests.RequestException as err:
         raise PlannerError(f"Could not reach planning-service: {err}") from err
     if response.status_code != 200:
-        raise PlannerError(_detail(response), response.status_code)
+        raise PlannerError(upstream_detail(response, "planning-service"), response.status_code)
     return response.json()
-
-
-def _detail(response: requests.Response) -> str:
-    try:
-        detail = response.json().get("detail")
-    except ValueError:
-        detail = None
-    return str(detail) if detail else f"planning-service answered {response.status_code}"

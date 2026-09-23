@@ -3,28 +3,18 @@ here opens a connection or spends a token."""
 from app import graph
 
 
-def _leg(**overrides) -> dict:
-    leg = {
-        "from": "C81", "to": "LAKE GENEVA", "distance_nm": 12.34, "magnetic_heading_deg": 331.6,
-        "groundspeed_kt": 104.2, "ete_min": 7.1, "fuel_gal": 1.0,
+def test_the_prompt_is_the_shared_one_with_this_agents_memory_added():
+    """The wording is vfr.narrative's, the same crewai-agent writes from;
+    what this agent adds is its own memory of similar routes."""
+    state = {
+        "departure_ident": "C81", "destination_ident": "KDLH", "altitude_ft": 4500.0, "altitude_selection": None,
+        "legs": [{"from": "C81", "to": "KDLH", "distance_nm": 290.0, "magnetic_heading_deg": 335.0,
+                  "groundspeed_kt": 110.0, "ete_min": 158.0, "fuel_gal": 22.4}],
+        "similar_briefings": [{"departure_ident": "C81", "destination_ident": "KMSP", "briefing": "Depart 27."}],
     }
-    leg.update(overrides)
-    return leg
-
-
-def test_a_flyable_leg_is_written_with_its_numbers():
-    line = graph._format_legs([_leg()])
-    assert line == "- C81 -> LAKE GENEVA: 12.3nm, heading 332M, GS 104kt, ETE 7min, fuel 1.0gal"
-
-
-def test_an_unflyable_leg_is_named_rather_than_formatted_as_a_number():
-    line = graph._format_legs([_leg(ete_min=None, groundspeed_kt=None, fuel_gal=None)])
-    assert "UNFLYABLE" in line
-    assert "GS" not in line
-
-
-def test_a_typed_altitude_says_nothing_was_selected():
-    assert "set this altitude by hand" in graph._format_altitude_selection(None)
+    text = graph.briefing_prompt(state)
+    assert "- C81 -> KDLH: 290.0nm, heading 335M" in text
+    assert "Similar past route briefings" in text and "C81->KMSP: Depart 27." in text
 
 
 def test_a_failed_narration_is_not_stored_as_precedent(monkeypatch):
