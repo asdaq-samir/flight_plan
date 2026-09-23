@@ -172,7 +172,6 @@ export default function TrainWorkspace({ dep, dest, children }: WorkspaceProps) 
         onRate={r => void rate(r)}
         onCategoryChange={c => void setCategory(c)}
         onRemove={() => void removeSelected()}
-        onClose={() => select(null)}
         onLeft={() => step(leftIsForward ? 1 : -1)}
         onRight={() => step(leftIsForward ? -1 : 1)}
         canLeft={leftIsForward ? canNext : canPrev}
@@ -181,7 +180,7 @@ export default function TrainWorkspace({ dep, dest, children }: WorkspaceProps) 
     );
   }, [
     point, place, waypoints.length, course?.bearing_deg, course?.departure.ident,
-    rate, setCategory, removeSelected, select, step, walkIndex, walk.length,
+    rate, setCategory, removeSelected, step, walkIndex, walk.length,
   ]);
 
   /** Zooms out to see the whole leg -- Escape, and its own toolbar
@@ -252,6 +251,10 @@ export default function TrainWorkspace({ dep, dest, children }: WorkspaceProps) 
   // keys does (`focus` above) and the same as a tap on a marker does on
   // the planner's map. It used to select without moving, which made the
   // same gesture mean two different things on two maps.
+  /** Leaflet closing the card -- a tap on the chart -- has to clear the
+   *  selection too, or React would open it straight back up. */
+  const deselect = useCallback(() => select(null), [select]);
+
   const onSelect = useCallback((kind: Selection["kind"], index: number) => {
     select({ kind, index });
     const from = kind === "endpoint" ? store.endpoints : kind === "detected" ? store.detections : store.added;
@@ -276,7 +279,7 @@ export default function TrainWorkspace({ dep, dest, children }: WorkspaceProps) 
           filters={store.filters}
           selected={point}
           selectedContent={selectedContent}
-          showMenu={zoomedIn}
+          onDeselect={deselect}
           onSelect={onSelect}
           onAddAt={onAddAt}
           onMapReady={setMap}

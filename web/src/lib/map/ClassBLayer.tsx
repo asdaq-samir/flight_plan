@@ -40,7 +40,7 @@ function miles(value: number | null): string {
  *  forecast to do, and the raw text of both for a pilot who wants to
  *  read it themselves. Tapped, `actions` puts the pin and the zoom in
  *  its top corner. */
-function Details({ airport, actions, closable }: { airport: ClassBAirport; actions?: ReactNode; closable?: boolean }) {
+function Details({ airport, leading }: { airport: ClassBAirport; leading?: ReactNode }) {
   const category = airport.flight_category;
   return (
     // A width, not just a maximum: a Leaflet tooltip shrink-wraps its
@@ -49,9 +49,11 @@ function Details({ airport, actions, closable }: { airport: ClassBAirport; actio
     // Capped against the viewport so a phone still fits it.
     <MapCard
       className="w-[min(22rem,72vw)]"
-      closable={closable}
-      actions={actions}
+      leading={leading}
       subtitle={airport.name}
+      // No sheet name beside the title: the pin at the head's left edge
+      // is what the terminal chart is, and it names the sheet in its
+      // own tooltip and accessible name.
       title={
         <span className="flex items-baseline gap-2">
           {airport.ident}
@@ -61,7 +63,6 @@ function Details({ airport, actions, closable }: { airport: ClassBAirport; actio
           >
             {category ?? "no report"}
           </span>
-          {airport.tac && <span className="text-xs font-normal text-muted-foreground">{airport.tac}</span>}
         </span>
       }
     >
@@ -80,7 +81,7 @@ function Details({ airport, actions, closable }: { airport: ClassBAirport; actio
 
       {airport.metar && <p className="pt-1 font-mono break-words">{airport.metar}</p>}
       {airport.taf && <p className="font-mono break-words text-muted-foreground">{airport.taf}</p>}
-      {airport.tac && !actions && (
+      {airport.tac && !leading && (
         <p className="pt-1 text-muted-foreground">Tap to go there, and to pin the {airport.tac}.</p>
       )}
     </MapCard>
@@ -197,20 +198,20 @@ export function ClassBLayer({ course, onPreview }: { course: Course; onPreview: 
           <MapPopup>
             <Details
               airport={airport}
-              closable
-              actions={airport.tac && (
+              leading={airport.tac && (
                 // An icon rather than a worded button: the card is
                 // mostly raw METAR and TAF, and a labelled button under
                 // it pushed the weather off a phone screen. It names
                 // itself in a tooltip and in its accessible name. The
                 // zoom that used to sit beside it is gone: the tap that
                 // opened this card already went to the field.
-                <div className="flex shrink-0 items-center">
+                <div className="flex shrink-0 items-start">
                   <IconButton
                     label={pinned ? "Unpin the terminal area chart" : `Pin the ${airport.tac}`}
                     size="icon-sm"
                     aria-pressed={pinned}
-                    variant={pinned ? "secondary" : "ghost"}
+                    variant={pinned ? "secondary" : "outline"}
+                    className="rounded-full"
                     data-testid="class-b-pin"
                     // Pinning from a route view would draw nothing --
                     // the FAA publishes terminal sheets from zoom 10

@@ -1,6 +1,7 @@
 import L from "leaflet";
 import { CircleMarker, Marker } from "react-leaflet";
 import type { ZoomControl } from "../../../components/MapControls";
+import { Badge } from "../../../components/ui/badge";
 import type { Candidate, Course } from "../../../lib/api/types";
 import { CourseLine } from "../../../lib/map/CourseLine";
 import { Halo } from "../../../lib/map/Halo";
@@ -46,12 +47,19 @@ interface Props {
 function CheckpointCard({ candidate, number }: { candidate: Candidate; number?: number }) {
   return (
     <MapCard
-      closable
       title={`${number === undefined ? "" : `${number}. `}${candidate.name || "(unnamed)"}`}
       subtitle={candidate.category}
     >
-      <div className="tabular-nums text-muted-foreground">
-        score {candidate.predicted_score.toFixed(2)} · {candidate.along_track_nm.toFixed(1)} nm along
+      <div className="flex items-center justify-center gap-2">
+        {/* The score in the colour its own marker is drawn in, so the
+            dot on the chart and the number in the card are the same
+            fact twice rather than two things to reconcile. */}
+        <Badge className="tabular-nums text-white" style={{ backgroundColor: scoreColor(candidate.predicted_score) }}>
+          {candidate.predicted_score.toFixed(2)}
+        </Badge>
+        <span className="tabular-nums text-muted-foreground">
+          {candidate.along_track_nm.toFixed(1)} nm along
+        </span>
       </div>
     </MapCard>
   );
@@ -116,7 +124,7 @@ export default function RouteMap({
               key={a.ident} position={[a.lat, a.lon]} icon={endLabelIcon(a.ident)}
               eventHandlers={{ click: e => { L.DomEvent.stopPropagation(e); onSelectPoint(a.lat, a.lon); } }}
             >
-              <MapPopup><MapCard closable title={a.ident} subtitle={a.name} /></MapPopup>
+              <MapPopup><MapCard title={a.ident} subtitle={a.name} /></MapPopup>
             </Marker>
           ))}
           <Checkpoints candidates={candidates} selected={selected} showCandidates={showCandidates} onSelectCandidate={onSelectCandidate} />

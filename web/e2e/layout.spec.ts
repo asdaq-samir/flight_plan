@@ -505,13 +505,19 @@ test("plan page: every popup the map opens dismisses the same way", async ({ pag
   const box = (await page.locator(".leaflet-container").boundingBox())!;
   const empty = { x: box.x + 60, y: box.y + box.height - 60 };
 
-  // The departure marker: a tap opens its card, and the card's own X
-  // closes it and brings the map back to the whole route -- both halves
-  // of one gesture, and the reason the next step can find KORD at all.
+  // The departure marker: a tap opens its card, a tap on the chart puts
+  // it away. There is no close button on a card -- closing one is
+  // Leaflet's own `closeOnClick`. The tap goes to the marker, so the
+  // map's zoom toggle comes back out to the whole route, which is what
+  // the next step needs before it can find KORD.
   await page.locator(".leaflet-marker-icon", { hasText: "C81" }).first().click();
   await expect(popups).toHaveCount(1);
-  await page.getByTestId("popup-close").click();
+  await page.mouse.click(empty.x, empty.y);
   await expect(popups).toHaveCount(0);
+  const zoomToggle = page.getByTestId("map-action-button");
+  await expect(zoomToggle).toHaveAttribute("aria-label", "Fit Route", { timeout: 10000 });
+  await zoomToggle.click();
+  await expect(zoomToggle).toHaveAttribute("aria-label", "Show Selected", { timeout: 10000 });
 
   await page.getByTestId("layers-button").click();
   await page.getByTestId("class-b-toggle").click();

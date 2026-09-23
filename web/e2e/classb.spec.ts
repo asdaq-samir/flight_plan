@@ -186,12 +186,12 @@ test("tapping one opens a card, and the card pins its terminal chart", async ({ 
         .some(img => img.complete && img.naturalWidth > 0)), { timeout: 45000 })
     .toBe(true);
 
-  // Only now: closing the card comes back out to the whole route, the
-  // way it does for every other card. This layer draws inside the map
-  // shell rather than beside it, and once sat outside the provider that
-  // hands the cards their fit -- so its close put the card away and
-  // left the map where it was.
-  await card.getByTestId("popup-close").click();
+  // Only now: a tap on the chart puts the card away. There is no close
+  // button on a card -- a tap on the map is what closes one, which is
+  // Leaflet's own `closeOnClick` and what a tap on a map does
+  // everywhere else too. The way back out to the whole route is the
+  // map's own zoom toggle, which is tested in layout.spec.ts.
+  const map = (await page.locator(".leaflet-container").boundingBox())!;
+  await page.mouse.click(map.x + 60, map.y + map.height - 60);
   await expect(page.locator(".leaflet-popup")).toHaveCount(0);
-  await expect.poll(tileZoom, { timeout: 20000 }).toBeLessThan(10);
 });

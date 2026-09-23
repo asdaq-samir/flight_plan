@@ -31,9 +31,6 @@ interface Props {
   onRight?: () => void;
   canLeft?: boolean;
   canRight?: boolean;
-  /** Puts the popup away -- the selection is React's, so the popup's
-   *  own close is a button of its own here rather than Leaflet's. */
-  onClose: () => void;
 }
 
 
@@ -45,7 +42,7 @@ interface Props {
  */
 export default function PointPopup({
   point, place, countChanged, bearingDeg, departureIdent, onRate, onCategoryChange, onRemove,
-  onLeft, onRight, canLeft = true, canRight = true, onClose,
+  onLeft, onRight, canLeft = true, canRight = true,
 }: Props) {
   // Same row either way -- an endpoint is the first or last stop in the
   // walk, and needs a way off itself just as much as any other point
@@ -88,7 +85,6 @@ export default function PointPopup({
   if (isEndpoint(point)) {
     return (
       <MapCard
-        onClose={onClose}
         // Falls back to the ident when this point is not in the current
         // walk, so the card never opens with no title at all.
         title={<>{stepLeft}{counter || point.ident}{stepRight}</>}
@@ -116,7 +112,6 @@ export default function PointPopup({
       // card was narrow enough to wrap "14.8 nm NW of C81" over three
       // lines, which gave back the row the arrows had just saved.
       className="w-[min(19rem,74vw)] space-y-1.5"
-      onClose={onClose}
       title={<>{stepLeft}{counter || category}{stepRight}</>}
       subtitle={
         <>
@@ -151,12 +146,11 @@ export default function PointPopup({
         ))}
       </div>
 
-      {/* Labelled, because a detection has no name of its own: the head
-          above already says "road_or_rail", and without a label this
-          repeats it as bare text rather than reading as the control
-          that changes it. Inline, so the label costs no row of its own. */}
+      {/* Unlabelled: the select shows the category it would change, a
+          dropdown reads as a control without being told, and the card
+          is opened a few hundred times in a rating pass -- every word
+          in it is a word of chart it covers. */}
       <div className="flex items-center gap-2">
-        <span className="shrink-0 text-muted-foreground">Category</span>
         <Select value={category} onValueChange={onCategoryChange}>
           <SelectTrigger size="sm" className="w-full">
             <SelectValue />

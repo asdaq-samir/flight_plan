@@ -5,7 +5,6 @@ import MapControls, { type ZoomControl } from "../../components/MapControls";
 import type { Course } from "../api/types";
 import { ChartTiles } from "./ChartTiles";
 import { ClassBLayer } from "./ClassBLayer";
-import { FitRoute } from "./fitRoute";
 import { ResizeAware } from "./MapEffects";
 import { useZoomLevel } from "./useZoomLevel";
 
@@ -106,20 +105,13 @@ export function MapShell({ course, onReady, zoom, ownShip, candidates, onZoomCha
         >
           <AttributionControl prefix={false} />
           <ResizeAware />
-          {/* Everything drawn inside the map gets the fit, not just
-              `children`: the Class B layer's own cards close the same
-              way the planner's and the training map's do, and with the
-              provider wrapped around `children` alone they had no fit
-              to call and closed without coming back out. */}
-          <FitRoute value={fit}>
-            <ChartTiles course={course} previewing={previewing} />
-            {/* Both maps get it: a Class B is worth seeing whether
-                planning a route past it or rating chart detections
-                near it. Draws nothing unless switched on. */}
-            <ClassBLayer course={course} onPreview={setPreviewing} />
-            {onZoomChange && <FitReporter bounds={bounds} onChange={onZoomChange} />}
-            {children}
-          </FitRoute>
+          <ChartTiles course={course} previewing={previewing} />
+          {/* Both maps get it: a Class B is worth seeing whether
+              planning a route past it or rating chart detections
+              near it. Draws nothing unless switched on. */}
+          <ClassBLayer course={course} onPreview={setPreviewing} />
+          {onZoomChange && <FitReporter bounds={bounds} onChange={onZoomChange} />}
+          {children}
         </MapContainer>
       ) : (
         <div className="h-full w-full bg-slate-100 dark:bg-slate-900" />
