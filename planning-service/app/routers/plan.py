@@ -106,6 +106,7 @@ def course(dep: str, dest: str) -> Course:
         tac_max_zoom=VFR_TAC_MAX_ZOOM,
         tac_min_zoom=VFR_TAC_MIN_ZOOM,
         chart_cycle=charts.serving_cycle(),
+        chart_revision=charts.tiles_revision(charts.serving_cycle()),
         chart_tiles_base=charts.tiles_base_url(),
         chart_layers=chart_layers(),
     )
@@ -206,6 +207,7 @@ def plan(
         tac_max_zoom=VFR_TAC_MAX_ZOOM,
         tac_min_zoom=VFR_TAC_MIN_ZOOM,
         chart_cycle=charts.serving_cycle(),
+        chart_revision=charts.tiles_revision(charts.serving_cycle()),
         chart_tiles_base=charts.tiles_base_url(),
         chart_layers=chart_layers(),
     )

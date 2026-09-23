@@ -1455,6 +1455,11 @@
             "title": "Chart Layers",
             "type": "array"
           },
+          "chart_revision": {
+            "default": 0,
+            "title": "Chart Revision",
+            "type": "integer"
+          },
           "chart_tiles_base": {
             "anyOf": [
               {
@@ -3417,6 +3422,11 @@
             },
             "title": "Chart Layers",
             "type": "array"
+          },
+          "chart_revision": {
+            "default": 0,
+            "title": "Chart Revision",
+            "type": "integer"
           },
           "chart_tiles_base": {
             "anyOf": [

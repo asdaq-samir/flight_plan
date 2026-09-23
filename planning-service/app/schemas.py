@@ -75,6 +75,11 @@ class Course(BaseModel):
     # this app drew before, whose no-coverage checkerboard one phone
     # went on showing for a day -- asks afresh when it changes.
     chart_cycle: str
+    # How many times tiles already served for that edition have been
+    # rendered again (a sheet cleaned on disk): in the tile URL beside
+    # the cycle for the same reason, since a re-render leaves {z}/{x}/{y}
+    # and the cycle as they were.
+    chart_revision: int = 0
     # Where the map fetches tiles when the pyramid is published to a
     # CDN (the AWS deployment): a base URL the map appends
     # /<cycle>/<kind>/{z}/{x}/{y}.png to. None when this planner
@@ -281,6 +286,7 @@ class Plan(BaseModel):
     tac_max_zoom: int
     tac_min_zoom: int
     chart_cycle: str
+    chart_revision: int = 0
     chart_tiles_base: str | None = None
     chart_layers: list[ChartLayer]
 

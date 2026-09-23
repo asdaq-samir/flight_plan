@@ -118,11 +118,16 @@ class ChartKind:
     # straight rows and columns of pixels, with the legend panels'
     # table rules the only other straight lines on it.
     straight_border: bool = False
+    # Whether the sheets carry masked lines -- the paper band a
+    # sectional prints around a TAC's coverage and its own insets --
+    # to be taken back out when a sheet is prepared (see
+    # remove_masked_lines).
+    masked_lines: bool = False
 
 
 SECTIONAL = ChartKind(
     "sec", "Sectional", FAA_VISUAL_ZIP_URL.replace("{folder}", "sectional-files"), (" SEC.tif", " VFR Chart.tif"),
-    VFR_SECTIONAL_MIN_ZOOM, VFR_SECTIONAL_MAX_ZOOM, (1.1, 0.2, 0.35, 0.55),
+    VFR_SECTIONAL_MIN_ZOOM, VFR_SECTIONAL_MAX_ZOOM, (1.1, 0.2, 0.35, 0.55), masked_lines=True,
 )
 TAC = ChartKind(
     "tac", "Terminal area", FAA_VISUAL_ZIP_URL.replace("{folder}", "tac-files").replace("{name}", "{name}_TAC"),
@@ -464,6 +469,11 @@ class Raster:
     # charts): the face box then covers the whole leaning rectangle and
     # this cuts the collar out of its corners. None for a VFR sheet.
     mask: Path | None = None
+    # The areas whose masked lines were taken out of this raster, () when
+    # it had none, and None when it has not been looked at -- a sheet
+    # prepared before remove_masked_lines existed, which the `unmask`
+    # command then finds.
+    masked_lines: tuple | None = None
 
 
 @dataclass(frozen=True)
@@ -498,7 +508,8 @@ def _load_ready(directory: Path, kind: ChartKind, name: str, cycle: str) -> Char
         return None
     rasters = tuple(
         Raster(path=directory / r["file"], face=tuple(r["face"]), envelope=tuple(r["envelope"]),
-               mask=directory / r["mask"] if r.get("mask") else None)
+               mask=directory / r["mask"] if r.get("mask") else None,
+               masked_lines=None if r.get("masked_lines") is None else tuple(tuple(b) for b in r["masked_lines"]))
         for r in data.get("rasters", [])
     )
     if not rasters or not all(r.path.exists() for r in rasters):
@@ -511,7 +522,8 @@ def _write_ready(directory: Path, chart: Chart) -> None:
         "name": chart.name, "kind": chart.kind.key, "cycle": chart.cycle, "prepared_at": chart.prepared_at,
         "rasters": [
             {"file": r.path.name, "face": list(r.face), "envelope": list(r.envelope),
-             "mask": r.mask.name if r.mask else None}
+             "mask": r.mask.name if r.mask else None,
+             "masked_lines": None if r.masked_lines is None else [list(b) for b in r.masked_lines]}
             for r in chart.rasters
         ],
     }
@@ -615,8 +627,10 @@ def _download_and_prepare(kind: ChartKind, name: str, cycle: str) -> Chart:
         started = time.time()
         build_overviews(path)
         envelope, face, mask = detect_face(path, kind)
-        for part_face, part_envelope in split_antimeridian(face, envelope):
-            rasters.append(Raster(path=path, face=part_face, envelope=part_envelope, mask=mask))
+        parts = split_antimeridian(face, envelope)
+        removed = remove_masked_lines(path, [f for f, _ in parts]) if kind.masked_lines else None
+        for part_face, part_envelope in parts:
+            rasters.append(Raster(path=path, face=part_face, envelope=part_envelope, mask=mask, masked_lines=removed))
         log.info("prepared %s in %.0f s: face %s within %s", path.name, time.time() - started,
                  tuple(round(v, 3) for v in face), tuple(round(v, 3) for v in envelope))
     chart = Chart(kind=kind, name=name, cycle=cycle, rasters=tuple(rasters),
@@ -971,6 +985,386 @@ def detect_face(path: Path, kind: ChartKind) -> tuple[Box, Box, Path | None]:
 
 
 # ---------------------------------------------------------------------------
+# The masked line, taken back out of the sectional
+# ---------------------------------------------------------------------------
+#
+# A sectional marks where a terminal area chart takes over -- and where
+# one of its own insets does -- with a "masked line": a band a few
+# millimetres wide on the paper sheet (thirty-odd pixels of raster, a
+# kilometre and a half of ground) along the other chart's boundary,
+# where the terrain tint is knocked out to bare paper and "TAC" or
+# "INSET" is lettered at intervals. Everything crossing it -- roads,
+# rivers, obstructions, airways -- is still printed over it. On paper
+# it points at another sheet. On this map, which draws that sheet
+# itself when asked (the TAC layer), it was a white box around every
+# Class B whether the TAC was drawn or not, and read as a seam.
+#
+# `remove_masked_lines` finds the bands and puts the tint back under
+# them. Only paper changes: each paper pixel of a band takes the tint
+# of the nearest chart just outside it. Ink is left exactly as printed,
+# the lettering included -- it is the same blue as real symbols, and a
+# filter that told "TAC" from an obstruction height lying in the band
+# would have to be trusted not to delete the obstruction.
+#
+# A band is searched for as paper that runs straight for kilometres
+# with chart either side, and then measured across at full resolution
+# before anything is touched. The white label boxes ("CTC MEMPHIS APP
+# WITHIN 20 NM") are straight and even too, but have a border inside
+# them and are only a few times longer than they are wide; dry lakes,
+# salt flats, beaches and the white of a neighbouring country have
+# ragged edges and no steady width. A sheet with no TAC and no inset
+# finds nothing.
+
+_BAND_BLOCK = 4              # searched at a quarter of the raster's resolution
+_BAND_RUN = 61               # blocks a band stays paper along (about 10 km)
+_BAND_SIDE = 14              # blocks either side of it that must be chart, not paper
+_BAND_MIN_BLOCKS = 100       # blocks (about 17 km) a band runs at the least
+_BAND_BRIDGE = 41            # blocks of lettering or crossing linework a band is joined across
+_BAND_PAPER_IN, _BAND_PAPER_OUT = 0.55, 0.25
+# Measured across every this many pixels, a band is a strip of paper
+# of steady width, whose edges lie on smooth lines for most of its
+# length, mostly paper inside. Its width depends on the sheet (about 40
+# pixels round a TAC, 100 round the Alaska insets); a label box is as
+# wide as that but only a few times longer, with a border inside it.
+_BAND_STEP_PX = 24
+_BAND_CHART_RUN_PX = 10   # not-paper this long across is the chart resuming, not a line over the band
+_BAND_WIDTH_PX = (18, 120)
+_BAND_WIDTH_SPREAD_PX = 4
+_BAND_MIN_ON_EDGE = 0.3
+_BAND_MAX_EDGE_WOBBLE_PX = 2.5   # the scan's pale edge colours jitter it a pixel or two
+_BAND_MIN_PAPER = 0.4
+_BAND_BOX_ASPECT = 10
+_BAND_BOX_BORDERED = 0.25
+_BAND_MIN_SECTIONS = 8
+_BAND_MIN_SECTION_SHARE = 0.3
+# A candidate that runs on from a band already measured -- the fourth
+# side of a box whose other three are, the rest of a side a crossing
+# broke -- has that for evidence, and is measured again more loosely:
+# busy stretches of chart leave fewer clean cuts across a band.
+_BAND_NEIGHBOUR_BLOCKS = 30   # past the corner square of the widest bands (100 px, round the Alaska insets)
+_BAND_LOOSE = {"wobble": 5.0, "on_edge": 0.15, "spread": 12, "paper": 0.3}
+# The tint a band pixel takes is one of the colours the chart around it
+# is mostly painted in, not whatever halo or hairline is nearest; the
+# fill is worked in chunks so a band around a whole Caribbean inset is
+# not one distance transform the size of the sheet.
+_BAND_FILL_MIN_SHARE = 0.02
+_BAND_FILL_CHUNK_PX = 1024
+_BAND_FILL_MARGIN_PX = 64
+
+
+def _paper_and_tint(lut: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Per palette entry: is it paper, and is it one of the light area
+    tints a chart is painted in (terrain, water, towns) rather than
+    linework."""
+    paper = lut.min(axis=1) >= _WHITE_MIN_CHANNEL
+    tint = ~paper & (lut.astype(int).sum(axis=1) >= 500) & (lut.min(axis=1) >= 60)
+    return paper, tint
+
+
+def _shifted(a: np.ndarray, by: int, axis: int, fill) -> np.ndarray:
+    """`a` moved `by` places along `axis`, the vacated end filled --
+    np.roll without the wrap-around, which would bring one edge of the
+    sheet in beside the other."""
+    out = np.full_like(a, fill)
+    src = [slice(None)] * a.ndim
+    dst = [slice(None)] * a.ndim
+    if by >= 0:
+        src[axis], dst[axis] = slice(0, a.shape[axis] - by), slice(by, None)
+    else:
+        src[axis], dst[axis] = slice(-by, None), slice(0, a.shape[axis] + by)
+    out[tuple(dst)] = a[tuple(src)]
+    return out
+
+
+def _faces_in_blocks(crs, transform, faces, shape: tuple) -> np.ndarray:
+    """Which search blocks lie inside the chart face: the face boxes,
+    traced along their edges into the raster's own projection (where a
+    parallel is an arc) and filled."""
+    from affine import Affine
+    from rasterio.features import rasterize
+    from rasterio.warp import transform as transform_points
+
+    shapes = []
+    for west, south, east, north in faces:
+        n = 200
+        lons = np.concatenate([np.linspace(west, east, n), np.full(n, east), np.linspace(east, west, n), np.full(n, west)])
+        lats = np.concatenate([np.full(n, south), np.linspace(south, north, n), np.full(n, north), np.linspace(north, south, n)])
+        xs, ys = transform_points("EPSG:4326", crs, lons.tolist(), lats.tolist())
+        ring = list(zip(xs, ys))
+        shapes.append(({"type": "Polygon", "coordinates": [ring + ring[:1]]}, 1))
+    block = transform @ Affine.scale(_BAND_BLOCK, _BAND_BLOCK)
+    return rasterize(shapes, out_shape=shape, transform=block).astype(bool)
+
+
+def _band_candidates(paper: np.ndarray, inside: np.ndarray) -> list:
+    """(axis, mask, span) for each straight run of paper with chart
+    either side, in search blocks: axis 0 runs down the raster, 1
+    across it; `mask` is the run within `span`."""
+    from scipy import ndimage as ndi
+
+    p = paper.astype(np.float32)
+    found = []
+    for axis in (0, 1):
+        across = 1 - axis
+        along = ndi.uniform_filter1d(p, _BAND_RUN, axis=axis, mode="constant")
+        ridge = (
+            (along >= _BAND_PAPER_IN)
+            & (_shifted(along, _BAND_SIDE, across, 1.0) <= _BAND_PAPER_OUT)
+            & (_shifted(along, -_BAND_SIDE, across, 1.0) <= _BAND_PAPER_OUT)
+            & inside & _shifted(inside, _BAND_SIDE, across, False) & _shifted(inside, -_BAND_SIDE, across, False)
+            # a band, not a line: paper for several blocks across it too
+            & (ndi.uniform_filter1d(along, 5, axis=across) >= 0.8 * _BAND_PAPER_IN)
+        )
+        line = np.ones((_BAND_BRIDGE, 1) if axis == 0 else (1, _BAND_BRIDGE), bool)
+        ridge = ndi.binary_closing(ridge, line) & inside
+        labels, _ = ndi.label(ridge, structure=np.ones((3, 3), bool))
+        for i, span in enumerate(ndi.find_objects(labels), 1):
+            if span[axis].stop - span[axis].start >= _BAND_MIN_BLOCKS:
+                found.append((axis, labels[span] == i, span))
+    return found
+
+
+def _measure_band(data: np.ndarray, paper_lut: np.ndarray, tint_lut: np.ndarray, axis: int, mask: np.ndarray,
+                  span: tuple, loose: bool = False) -> tuple | None:
+    """A candidate measured at full resolution: (axis, first, last, left
+    edge, right edge) -- the run along the raster it covers and its two
+    edges as quadratics in the position along it -- when it measures as
+    a masked line, None when it does not.
+
+    Cut across every few pixels, a band's edge is the last paper before
+    the chart resumes: before a long run of anything that is not paper.
+    The lines and letters over the band are a few pixels thick; the
+    tint beyond it -- a flat green, or a mountain's shading in dozens of
+    shades -- goes on. A halo beside the band can push an edge out and a
+    solid symbol in it can pull one in, so each edge is fitted to the
+    sections that agree: a running median first, then the ones on it. A
+    masked line then has edges on smooth lines (a parallel is an arc,
+    so a quadratic) along most of its length, a steady width, mostly
+    paper inside, and is far longer than it is wide -- which a label box
+    is not, and a label box has its border just outside its paper.
+    `loose` is for a candidate running on from a band already measured."""
+    from scipy import ndimage as ndi
+
+    wobble = _BAND_LOOSE["wobble"] if loose else _BAND_MAX_EDGE_WOBBLE_PX
+    min_on_edge = _BAND_LOOSE["on_edge"] if loose else _BAND_MIN_ON_EDGE
+    spread = _BAND_LOOSE["spread"] if loose else _BAND_WIDTH_SPREAD_PX
+    min_paper = _BAND_LOOSE["paper"] if loose else _BAND_MIN_PAPER
+
+    b = _BAND_BLOCK
+    grid = data if axis == 0 else data.T
+    mask = mask if axis == 0 else mask.T
+    (along0, along1), across0 = ((span[0].start, span[0].stop), span[1].start) if axis == 0 else \
+        ((span[1].start, span[1].stop), span[0].start)
+    half = 2 * _BAND_SIDE * b
+    linework = ~paper_lut & ~tint_lut
+    sections, found = 0, []
+    for pos in range(along0 * b, min(along1 * b, grid.shape[0]), _BAND_STEP_PX):
+        blocks = np.nonzero(mask[pos // b - along0])[0]
+        if not len(blocks):
+            continue
+        sections += 1
+        centre = int((across0 + blocks.mean()) * b + b // 2)
+        lo = max(centre - half, 0)
+        row = grid[pos, lo:min(centre + half, grid.shape[1])]
+        on = paper_lut[row]
+        c = centre - lo
+        start = next((c + d for d in (0, -1, 1, -2, 2, -3, 3) if 0 <= c + d < len(on) and on[c + d]), None)
+        if start is None:
+            continue  # something printed right across the centre line here
+        edges = []
+        for step in (-1, 1):
+            i, last, gap = start, start, 0
+            while 0 <= i < len(on) and gap < _BAND_CHART_RUN_PX:
+                if on[i]:
+                    last, gap = i, 0
+                else:
+                    gap += 1
+                i += step
+            edges.append(last if gap >= _BAND_CHART_RUN_PX else None)
+        left, right = edges
+        if left is None or right is None:
+            continue  # paper as far as the section reaches: not a band
+        bordered = bool(linework[row[max(left - 2, 0):left]].any() and linework[row[right + 1:right + 3]].any())
+        found.append((pos, lo + left, lo + right, float(on[left:right + 1].mean()), bordered))
+    if len(found) < max(_BAND_MIN_SECTIONS, _BAND_MIN_SECTION_SHARE * sections):
+        return None
+    pos, left, right, paper, bordered = (np.array(v) for v in zip(*found))
+
+    on_edge, fits = [], []
+    for edge in (left, right):
+        fit = np.polyfit(pos, ndi.median_filter(edge, size=9, mode="nearest").astype(float), 2)
+        for _ in range(4):
+            keep = np.abs(edge - np.polyval(fit, pos)) <= wobble
+            if keep.sum() < _BAND_MIN_SECTIONS:
+                return None
+            fit = np.polyfit(pos[keep], edge[keep], 2)
+        on_edge.append(np.abs(edge - np.polyval(fit, pos)) <= wobble)
+        fits.append(fit)
+    both = on_edge[0] & on_edge[1]
+    if min(on_edge[0].mean(), on_edge[1].mean()) < min_on_edge or both.sum() < _BAND_MIN_SECTIONS:
+        return None
+    # ... all along it, not in one stretch: a lake narrows for a while.
+    either = on_edge[0] | on_edge[1]
+    if min(either[third].mean() for third in np.array_split(np.arange(len(pos)), 3)) < min_on_edge:
+        return None
+    width = (right - left + 1)[both]
+    q1, median, q3 = np.percentile(width, [25, 50, 75])
+    if not _BAND_WIDTH_PX[0] <= median <= _BAND_WIDTH_PX[1] or q3 - q1 > spread:
+        return None
+    if float(np.median(paper[both])) < min_paper:
+        return None
+    length = float(pos.max() - pos.min() + _BAND_STEP_PX)
+    if length < _BAND_BOX_ASPECT * median and float(bordered[both].mean()) >= _BAND_BOX_BORDERED:
+        return None
+    return axis, int(pos.min()), int(pos.max()), fits[0], fits[1]
+
+
+def _band_region(shape: tuple, band: tuple) -> tuple:
+    """The pixels a measured band covers -- between its two edges, a
+    couple of pixels out for the scan's soft edge, and carried one band
+    width on past either end so that where two meet at a corner the
+    square they share is covered -- as (rows, cols) index arrays."""
+    axis, first, last, left_fit, right_fit = band
+    along_size, across_size = shape if axis == 0 else shape[::-1]
+    width = float(np.median(np.polyval(right_fit, [first, last]) - np.polyval(left_fit, [first, last])))
+    reach = int(width) + 8
+    along = np.arange(max(first - reach, 0), min(last + _BAND_STEP_PX + reach, along_size))
+    lo = np.clip(np.floor(np.polyval(left_fit, along)).astype(int) - 2, 0, across_size)
+    hi = np.clip(np.ceil(np.polyval(right_fit, along)).astype(int) + 3, 0, across_size)   # exclusive
+    counts = np.maximum(hi - lo, 0)
+    along_idx = np.repeat(along, counts)
+    across_idx = np.concatenate([np.arange(a, b) for a, b in zip(lo, hi)]) if counts.sum() else np.array([], int)
+    return (along_idx, across_idx) if axis == 0 else (across_idx, along_idx)
+
+
+def _fill_bands(data: np.ndarray, region: np.ndarray, paper_lut: np.ndarray, tint_lut: np.ndarray) -> int:
+    """Every paper pixel in `region` given the palette index of the
+    nearest pixel of the surrounding chart's own tints, in place.
+    Returns the number of pixels changed."""
+    from scipy import ndimage as ndi
+
+    chunk, margin = _BAND_FILL_CHUNK_PX, _BAND_FILL_MARGIN_PX
+    height, width = data.shape
+    changed = 0
+    for r0 in range(0, height, chunk):
+        for c0 in range(0, width, chunk):
+            r1, c1 = min(r0 + chunk, height), min(c0 + chunk, width)
+            if not region[r0:r1, c0:c1].any():
+                continue
+            top, bottom = max(r0 - margin, 0), min(r1 + margin, height)
+            left, right = max(c0 - margin, 0), min(c1 + margin, width)
+            window = data[top:bottom, left:right]
+            near = region[top:bottom, left:right]
+            target = np.zeros_like(near)
+            target[r0 - top:r1 - top, c0 - left:c1 - left] = near[r0 - top:r1 - top, c0 - left:c1 - left]
+            target &= paper_lut[window]
+            if not target.any():
+                continue
+            around = ~near & tint_lut[window]
+            values, counts = np.unique(window[around], return_counts=True)
+            if not len(values):
+                continue
+            usual = np.zeros(256, bool)
+            usual[values[counts >= _BAND_FILL_MIN_SHARE * counts.sum()]] = True
+            source = around & usual[window]
+            _, (rows, cols) = ndi.distance_transform_edt(~source, return_indices=True)
+            window[target] = window[rows[target], cols[target]]
+            changed += int(target.sum())
+    return changed
+
+
+def find_masked_lines(data: np.ndarray, lut: np.ndarray, crs, transform, faces: list) -> np.ndarray | None:
+    """The pixels of a palette raster's masked lines inside `faces`, as
+    a mask the shape of `data`; None where it has none. Candidates that
+    measure as bands on their own come first; then, round after round,
+    the ones beside a band already found are measured again loosely."""
+    from scipy import ndimage as ndi
+
+    b = _BAND_BLOCK
+    paper_lut, tint_lut = _paper_and_tint(lut)
+    paper = paper_lut[data[::b, ::b]]
+    inside = _faces_in_blocks(crs, transform, faces, paper.shape)
+    region = np.zeros(data.shape, bool)
+    waiting = []
+    for axis, mask, span in _band_candidates(paper, inside):
+        band = _measure_band(data, paper_lut, tint_lut, axis, mask, span)
+        if band is None:
+            waiting.append((axis, mask, span))
+        else:
+            region[_band_region(data.shape, band)] = True
+    if not region.any():
+        return None
+    while waiting:
+        near = ndi.binary_dilation(region[::b, ::b], iterations=_BAND_NEIGHBOUR_BLOCKS)[:paper.shape[0], :paper.shape[1]]
+        still, found = [], False
+        for axis, mask, span in waiting:
+            band = _measure_band(data, paper_lut, tint_lut, axis, mask, span, loose=True) \
+                if (mask & near[span]).any() else None
+            if band is None:
+                still.append((axis, mask, span))
+            else:
+                region[_band_region(data.shape, band)] = True
+                found = True
+        if not found:
+            break
+        waiting = still
+    # Only inside the face: the collar beyond it is never drawn, and is
+    # left as printed.
+    region &= np.repeat(np.repeat(inside, b, axis=0), b, axis=1)[:data.shape[0], :data.shape[1]]
+    return region
+
+
+def remove_masked_lines(path: Path, faces: list) -> tuple:
+    """The masked lines taken out of a palette chart raster, in place:
+    found inside `faces` (a sheet split at the antimeridian has two),
+    their paper filled with the tint around them, and the raster
+    rewritten -- written whole to a copy with the same profile, colours
+    and overviews, and swapped in, so a planner rendering from it at
+    that moment finishes on the old file rather than reading half a
+    new one. Returns the (west, south, east, north) boxes changed, ()
+    when there were none (or the raster is not a palette image)."""
+    import rasterio
+    from rasterio.warp import transform_bounds
+    from scipy import ndimage as ndi
+
+    b = _BAND_BLOCK
+    with rasterio.open(path) as src:
+        lut = _palette(src)
+        if lut is None:
+            return ()
+        paper_lut, tint_lut = _paper_and_tint(lut)
+        data = src.read(1)
+        profile, colormap, tags, band_tags = src.profile, src.colormap(1), src.tags(), src.tags(1)
+        crs, transform = src.crs, src.transform
+    region = find_masked_lines(data, lut, crs, transform, faces)
+    if region is None:
+        return ()
+    changed = _fill_bands(data, region, paper_lut, tint_lut)
+    if not changed:
+        return ()
+
+    boxes = []
+    labels, _ = ndi.label(region[::b, ::b], structure=np.ones((3, 3), bool))
+    for rows, cols in ndi.find_objects(labels):
+        x0, y0 = transform @ (cols.start * b, rows.stop * b)
+        x1, y1 = transform @ (cols.stop * b, rows.start * b)
+        boxes.append(tuple(float(v) for v in transform_bounds(crs, "EPSG:4326", x0, y0, x1, y1, densify_pts=21)))
+
+    if not profile.get("tiled"):
+        profile.pop("blockxsize", None)   # a striped file's strips are whole rows; GDAL only warns about it
+    tmp = path.with_name(f"{path.name}.{os.getpid()}.part")
+    with rasterio.open(tmp, "w", **profile) as dst:
+        dst.write_colormap(1, colormap)   # first: GDAL cannot make it a palette image once pixels are written
+        dst.write(data, 1)
+        dst.update_tags(**tags)
+        dst.update_tags(1, **band_tags)
+    build_overviews(tmp)
+    tmp.replace(path)
+    log.info("%s: %d masked-line pixels given back their tint, in %d area(s)", path.name, changed, len(boxes))
+    return tuple(boxes)
+
+
+# ---------------------------------------------------------------------------
 # Rendering
 # ---------------------------------------------------------------------------
 
@@ -1120,14 +1514,29 @@ def _tile_path(kind: ChartKind, cycle: str, x: int, y: int, zoom: int) -> Path:
     return CHART_TILE_CACHE_DIR / cycle / kind.key / str(zoom) / str(x) / f"{y}.png"
 
 
+def _draw_order(names) -> list:
+    """The order sheets are drawn into a tile -- the first wins where two
+    faces overlap -- which is reverse name order. Nothing makes one sheet
+    better than another inside an overlap; what matters is that the
+    pyramid and a tile rendered on demand agree. They did not: the
+    pyramid drew sheets in `prepared_charts`' order (newest cycle first,
+    and so names last first) and a tile rendered on demand in
+    `COVERAGE`'s (names first first), so a tile rendered on demand drew
+    the other sheet from its pyramid neighbours across the whole
+    overlap, and showed it as a seam along its edge. Reverse name order
+    is the one the pyramid on disk was rendered in, so it stays valid."""
+    return sorted(names, reverse=True)
+
+
 def rasters_covering(kind: ChartKind, bbox: Box, cycle: str | None = None) -> tuple[list, bool]:
-    """Every prepared raster of `kind` whose face touches `bbox`, and
-    whether that is all of them -- False when a chart that should be
-    there could not be downloaded, so a tile rendered without it is
-    not cached as if it were complete."""
+    """Every prepared raster of `kind` whose face touches `bbox`, in
+    `_draw_order`, and whether that is all of them -- False when a chart
+    that should be there could not be downloaded, so a tile rendered
+    without it is not cached as if it were complete."""
     cycle = cycle or current_cycle()
     rasters, complete = [], True
-    for name, envelope in COVERAGE[kind.key].items():
+    for name in _draw_order(COVERAGE[kind.key]):
+        envelope = COVERAGE[kind.key][name]
         if not _covers(envelope, bbox):
             continue
         chart = ensure_chart(kind, name, cycle)
@@ -1346,12 +1755,14 @@ def prepare_all(kinds: tuple = tuple(KINDS), cycle: str | None = None, redetect:
 
 def _redetect(chart: Chart) -> Chart:
     directory = chart.rasters[0].path.parent
+    removed = {r.path: r.masked_lines for r in chart.rasters}
     with _lock_for((chart.kind.key, chart.name)), _directory_lock(directory):
         rasters = []
         for path in sorted({r.path for r in chart.rasters}):
             envelope, face, mask = detect_face(path, chart.kind)
             for part_face, part_envelope in split_antimeridian(face, envelope):
-                rasters.append(Raster(path=path, face=part_face, envelope=part_envelope, mask=mask))
+                rasters.append(Raster(path=path, face=part_face, envelope=part_envelope, mask=mask,
+                                      masked_lines=removed.get(path)))
         chart = Chart(kind=chart.kind, name=chart.name, cycle=chart.cycle, rasters=tuple(rasters),
                       prepared_at=datetime.now(tz=timezone.utc).isoformat())
         _write_ready(directory, chart)
@@ -1464,6 +1875,8 @@ def render_pyramid(kind: ChartKind, zooms: tuple | None = None, workers: int = 4
         cycle = cycle or current_cycle()
         charts = prepared_charts(cycle)
     charts = [c for c in charts if c.kind is kind]
+    order = {name: i for i, name in enumerate(_draw_order({c.name for c in charts}))}
+    charts = sorted(charts, key=lambda c: order[c.name])  # the first sheet written into a tile wins it
     cycle = cycle or (charts[0].cycle if charts else current_cycle())
     rasters = [(chart, raster) for chart in charts for raster in chart.rasters]
     started = datetime.now(tz=timezone.utc).isoformat()
@@ -1503,6 +1916,107 @@ def render_pyramid(kind: ChartKind, zooms: tuple | None = None, workers: int = 4
     progress.update(current=None, finished_at=datetime.now(tz=timezone.utc).isoformat())
     _write_pyramid_status(cycle, progress)
     return total
+
+
+# The cycle's tile revision: how many times tiles already served for it
+# have been rendered again. The map puts it in every tile URL next to
+# the cycle, because a browser holds tiles for weeks (the service
+# worker's CacheFirst) under a URL that a re-render does not change --
+# which is how one phone went on showing a white sliver down a sheet
+# seam for days after the planner had stopped drawing it.
+_TILES_REVISION = "revision"
+
+
+def tiles_revision(cycle: str) -> int:
+    try:
+        return int((CHART_TILE_CACHE_DIR / cycle / _TILES_REVISION).read_text())
+    except (OSError, ValueError):
+        return 0
+
+
+def _rerender_tile(args: tuple) -> bool:
+    """One cached tile rendered again from the sheets as they are now,
+    the same way `tile_png` would render it, and written over the old
+    one. A top-level function because it runs in a worker process."""
+    kind_key, cycle, x, y, zoom = args
+    kind = KINDS[kind_key]
+    rasters, _ = rasters_covering(kind, tile_bbox_wgs84(x, y, zoom), cycle)
+    rgba = render_tile(rasters, x, y, zoom) if rasters else None
+    path = _tile_path(kind, cycle, x, y, zoom)
+    if rgba is None:
+        path.unlink(missing_ok=True)
+        return False
+    _write_atomically(path, encode_png(rgba))
+    return True
+
+
+def rerender_tiles(kind: ChartKind, boxes: list, cycle: str, workers: int = 2) -> int:
+    """Every tile of `kind` already cached for `cycle` that touches one
+    of `boxes`, rendered again -- after a sheet changed on disk -- then
+    the cycle's revision bumped so browsers ask for them afresh, and the
+    tiles struck off the publish ledger so the next `publish` uploads
+    them again. Tiles not yet cached are left to render on demand.
+    Returns the number rewritten."""
+    tiles = set()
+    for zoom in range(kind.min_zoom, kind.max_zoom + 1):
+        for box in boxes:
+            x0, x1, y0, y1 = _tile_range(box, zoom)
+            tiles.update((x, y, zoom) for x in range(x0, x1 + 1) for y in range(y0, y1 + 1)
+                         if _tile_path(kind, cycle, x, y, zoom).exists())
+    jobs = [(kind.key, cycle, x, y, zoom) for x, y, zoom in sorted(tiles, key=lambda t: (t[2], t[1], t[0]))]
+    log.info("%s %s: rendering %d tiles again", cycle, kind.key, len(jobs))
+    if workers > 0 and len(jobs) > 1:
+        with ProcessPoolExecutor(max_workers=workers) as pool:
+            written = sum(pool.map(_rerender_tile, jobs, chunksize=16))
+    else:
+        written = sum(map(_rerender_tile, jobs))
+
+    root = CHART_TILE_CACHE_DIR / cycle
+    root.mkdir(parents=True, exist_ok=True)
+    (root / _TILES_REVISION).write_text(str(tiles_revision(cycle) + 1))
+    ledger = root / _PUBLISHED
+    try:
+        published = set(json.loads(ledger.read_text()))
+    except (OSError, ValueError):
+        published = None
+    if published:
+        stale = {str(_tile_path(kind, cycle, x, y, zoom).relative_to(root)) for x, y, zoom in tiles}
+        ledger.write_text(json.dumps(sorted(published - stale)))
+    return written
+
+
+def unmask_prepared(cycle: str | None = None, workers: int = 2) -> dict:
+    """The masked lines taken out of every sheet already on disk that
+    has not been looked at for them -- preparing a sheet does this
+    itself, so this is for the ones prepared before it did -- and the
+    cached tiles they touched rendered again. Returns {kind key: boxes
+    changed}. Re-runnable: a sheet already looked at is skipped."""
+    cycle = cycle or serving_cycle()
+    changed: dict = {}
+    for chart in prepared_charts(cycle):
+        if not chart.kind.masked_lines or all(r.masked_lines is not None for r in chart.rasters):
+            continue
+        started = time.time()
+        directory = chart.rasters[0].path.parent
+        with _lock_for((chart.kind.key, chart.name)), _directory_lock(directory):
+            removed = {}
+            for path in sorted({r.path for r in chart.rasters}):
+                removed[path] = remove_masked_lines(path, [r.face for r in chart.rasters if r.path == path])
+            rasters = tuple(
+                Raster(path=r.path, face=r.face, envelope=r.envelope, mask=r.mask, masked_lines=removed[r.path])
+                for r in chart.rasters
+            )
+            _write_ready(directory, Chart(kind=chart.kind, name=chart.name, cycle=chart.cycle, rasters=rasters,
+                                          prepared_at=chart.prepared_at))
+        boxes = [box for found in removed.values() for box in found]
+        changed.setdefault(chart.kind.key, []).extend(boxes)
+        log.info("%s/%s: %d masked-line area(s) removed in %.0f s", chart.kind.key, chart.name, len(boxes),
+                 time.time() - started)
+    for key, boxes in changed.items():
+        if boxes:
+            count = rerender_tiles(KINDS[key], boxes, cycle, workers=workers)
+            log.info("%s: %d tiles rendered again; revision %d", key, count, tiles_revision(cycle))
+    return changed
 
 
 # ---------------------------------------------------------------------------
@@ -1718,19 +2232,23 @@ def _main(argv: list | None = None) -> int:
     """`python -m vfr.charts prepare` fetches every sheet;
     `python -m vfr.charts pyramid` renders every tile; `refresh` does
     both for the FAA's current cycle and prunes the old ones; `check`
-    looks for daylight between adjacent sheets. All resume."""
+    looks for daylight between adjacent sheets; `unmask` takes the
+    masked lines out of sheets prepared before `prepare` did it itself
+    and renders their tiles again. All resume."""
     import argparse
 
     parser = argparse.ArgumentParser(description="FAA VFR charts: fetch every sheet, render every tile.")
     sub = parser.add_subparsers(dest="command", required=True)
-    for name in ("prepare", "pyramid", "refresh", "check", "publish"):
+    for name in ("prepare", "pyramid", "refresh", "check", "publish", "unmask"):
         p = sub.add_parser(name)
         if name in ("prepare", "pyramid"):
             p.add_argument("--kind", nargs="+", choices=list(KINDS), default=list(KINDS))
         if name == "prepare":
             p.add_argument("--redetect", action="store_true", help="run the face detection again on sheets already on disk")
-        if name in ("pyramid", "refresh"):
+        if name in ("pyramid", "refresh", "unmask"):
             p.add_argument("--workers", type=int, default=4 if name == "pyramid" else 2)
+        if name == "unmask":
+            p.add_argument("--cycle", help="the cycle whose sheets and tiles to clean; the served one by default")
         if name == "pyramid":
             p.add_argument("--zooms", help="e.g. 5-12; the kind's own range by default")
             p.add_argument("--tiles-dir", help="render into this folder instead of the tile cache -- a staging "
@@ -1749,6 +2267,10 @@ def _main(argv: list | None = None) -> int:
     if args.command == "prepare":
         charts = prepare_all(tuple(args.kind), redetect=args.redetect)
         log.info("%d charts ready under %s", len(charts), CHARTS_DIR)
+        return 0
+    if args.command == "unmask":
+        changed = unmask_prepared(args.cycle, workers=args.workers)
+        log.info("masked lines removed: %s", {k: len(v) for k, v in changed.items()} or "none left to remove")
         return 0
     if args.command == "refresh":
         cycle = refresh(workers=args.workers, publish_bucket=args.bucket)

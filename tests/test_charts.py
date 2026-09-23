@@ -617,3 +617,117 @@ def test_tile_png_caches_the_render_and_remembers_empty_tiles(tmp_path, monkeypa
     image = charts.tile_image(65, 94, 8, "sec")
     assert image is not None and image.mode == "RGB"
     assert image.getpixel((128, 200)) == (255, 0, 0)
+
+
+def _masked_sheet(path, box):
+    """A sheet of land tint with a masked line down it -- a road across
+    the band and lettering in it -- beside two things that are paper
+    too and are not a masked line: a label box with a border, and a
+    dry lake whose width and edges wander."""
+    data = np.full((1600, 1600), 8, np.uint8)
+    data[100:1500, 700:736] = 0                       # the band, 36 px wide
+    data[800:803, :] = 7                              # a road across it
+    data[400:420, 710:726] = 7                        # "TAC", lettered in it
+    data[298:390, 98:548] = 7                         # a label box, the shape of the real ones: border ...
+    data[300:388, 100:546] = 0                        # ... and its paper
+    for row in range(200, 1400):                      # a dry lake
+        centre = 1250 + int(20 * math.sin(row / 90))
+        half = 15 + int(10 * math.sin(row / 37)) + (row * 7919) % 5
+        data[row, centre - half:centre + half] = 0
+    _palette_raster(path, box, data)
+    return data
+
+
+def test_remove_masked_lines_gives_the_band_its_tint_back_and_nothing_else(tmp_path):
+    box = (-90.0, 41.0, -88.0, 43.0)
+    path = tmp_path / "sheet.tif"
+    before = _masked_sheet(path, box)
+
+    boxes = charts.remove_masked_lines(path, [box])
+
+    with rasterio.open(path) as src:
+        after = src.read(1)
+        assert src.colormap(1)[8] == (216, 232, 206, 255)
+        assert len(src.overviews(1)) == len(charts._OVERVIEW_LEVELS)
+        coarse = src.read(1, out_shape=(400, 400))   # from the rebuilt overview, not the old one
+    assert (after[100:1500, 700:736][before[100:1500, 700:736] == 0] == 8).all()
+    assert (after[800:803, 690:750] == 7).all()               # the road is still printed across it
+    assert (after[400:420, 710:726] == 7).all()               # and the lettering is still in it
+    assert (after[300:388, 100:546] == 0).all()               # the label box keeps its paper
+    assert (after[298:390, 98:548] == before[298:390, 98:548]).all()
+    lake = before[200:1400, 1150:1350] == 0
+    assert (after[200:1400, 1150:1350][lake] == 0).all()      # and so does the lake
+    assert (after[:, :690] == before[:, :690]).all() and (after[:, 750:] == before[:, 750:]).all()
+    assert (coarse[30:370, 176:183] != 0).all()              # no paper left in the band at zoom-out either
+
+    assert len(boxes) == 1
+    west, south, east, north = boxes[0]
+    band_lon = -90.0 + 718 / 1600 * 2.0
+    assert west < band_lon < east and south < 42.0 < north and east - west < 0.2
+
+    # Run again, it finds nothing left to take out.
+    assert charts.remove_masked_lines(path, [box]) == ()
+
+
+def test_masked_lines_outside_the_face_are_the_collar_and_are_left_alone(tmp_path):
+    path = tmp_path / "sheet.tif"
+    before = _masked_sheet(path, (-90.0, 41.0, -88.0, 43.0))
+    assert charts.remove_masked_lines(path, [(-88.9, 41.0, -88.0, 43.0)]) == ()   # the band is west of the face
+    with rasterio.open(path) as src:
+        assert (src.read(1) == before).all()
+
+
+def test_what_was_taken_out_is_recorded_and_unmask_renders_its_tiles_again(tmp_path, monkeypatch):
+    cycle, box = "09-03-2026", (-90.0, 41.0, -88.0, 43.0)
+    monkeypatch.setattr(charts, "CHARTS_DIR", tmp_path / "charts")
+    monkeypatch.setattr(charts, "CHART_TILE_CACHE_DIR", tmp_path / "tiles")
+    directory = charts._chart_dir(cycle, charts.SECTIONAL, "Sheet")
+    directory.mkdir(parents=True)
+    _masked_sheet(directory / "sheet.tif", box)
+    sheet = charts.Chart(charts.SECTIONAL, "Sheet", cycle,
+                         (charts.Raster(directory / "sheet.tif", face=box, envelope=box),), "then")
+    charts._write_ready(directory, sheet)   # prepared before masked lines were looked for
+    assert charts._load_ready(directory, charts.SECTIONAL, "Sheet", cycle).rasters[0].masked_lines is None
+
+    x, y = 64, 94   # zoom 8, over the band at about 89.1W
+    tile = charts._tile_path(charts.SECTIONAL, cycle, x, y, 8)
+    tile.parent.mkdir(parents=True)
+    tile.write_bytes(b"old")
+    (tile.parent.parent.parent.parent / charts._PUBLISHED).write_text(json.dumps(["sec/8/64/94.png", "sec/8/1/1.png"]))
+    monkeypatch.setattr(charts, "rasters_covering",
+                        lambda kind, bbox, cycle=None: ([charts._load_ready(directory, kind, "Sheet", cycle).rasters[0]], True))
+
+    changed = charts.unmask_prepared(cycle, workers=0)
+
+    assert len(changed["sec"]) == 1
+    assert charts._load_ready(directory, charts.SECTIONAL, "Sheet", cycle).rasters[0].masked_lines == tuple(changed["sec"])
+    assert tile.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"      # rendered again from the cleaned sheet
+    assert charts.tiles_revision(cycle) == 1
+    assert json.loads((tmp_path / "tiles" / cycle / charts._PUBLISHED).read_text()) == ["sec/8/1/1.png"]
+
+    # Looked at once, the sheet is not looked at again, and nothing else is rendered.
+    assert charts.unmask_prepared(cycle, workers=0) == {}
+    assert charts.tiles_revision(cycle) == 1
+
+
+def test_a_tile_rendered_on_demand_draws_the_same_sheet_as_the_pyramid(tmp_path, monkeypatch):
+    monkeypatch.setattr(charts, "CHART_TILE_CACHE_DIR", tmp_path / "tiles")
+    cycle = "09-03-2026"
+    a_box, b_box = (-90.0, 41.0, -87.5, 43.0), (-88.5, 41.0, -86.0, 43.0)   # overlapping 88.5W to 87.5W
+    _palette_raster(tmp_path / "a.tif", a_box, np.full((512, 512), 1, np.uint8))
+    _palette_raster(tmp_path / "b.tif", b_box, np.full((512, 512), 2, np.uint8))
+    sheets = {
+        "Alpha": charts.Chart(charts.SECTIONAL, "Alpha", cycle, (charts.Raster(tmp_path / "a.tif", face=a_box, envelope=a_box),), "now"),
+        "Bravo": charts.Chart(charts.SECTIONAL, "Bravo", cycle, (charts.Raster(tmp_path / "b.tif", face=b_box, envelope=b_box),), "now"),
+    }
+    charts.render_pyramid(charts.SECTIONAL, zooms=(8,), workers=0, charts=list(sheets.values()), cycle=cycle)
+    monkeypatch.setitem(charts.COVERAGE, "sec", {"Alpha": a_box, "Bravo": b_box})
+    monkeypatch.setattr(charts, "ensure_chart", lambda kind, name, cycle=None: sheets[name])
+
+    x, y = 65, 94   # zoom 8, 88.6W to 87.2W: most of it the overlap
+    pyramid = charts._decode_rgba(charts._tile_path(charts.SECTIONAL, cycle, x, y, 8).read_bytes())
+    rasters, _ = charts.rasters_covering(charts.SECTIONAL, charts.tile_bbox_wgs84(x, y, 8), cycle)
+    on_demand = charts.render_tile(rasters, x, y, 8)
+    west, _, east, _ = charts.tile_bbox_wgs84(x, y, 8)
+    col = int((-88.0 - west) / (east - west) * 256)
+    assert tuple(pyramid[200, col]) == tuple(on_demand[200, col]) == (0, 0, 255, 255)   # Bravo, both ways

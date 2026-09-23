@@ -171,6 +171,26 @@ what a mis-detected sheet edge would show up as; the one it always
 reports, between the Caribbean 1 chart and Jacksonville west of 83W,
 is the open Gulf, where the FAA charts no sectional.
 
+Preparing a sectional also takes its masked lines out: the paper band
+the FAA prints round every TAC's coverage and round its own insets,
+which on this map -- where the TAC is a layer of its own -- read as a
+white box round every Class B whether the TAC was drawn or not. Only
+the band's paper changes, to the tint either side of it; everything
+printed over it, the "TAC" lettering included, stays
+(`vfr.charts.remove_masked_lines` says how a band is told from a label
+box or a dry lake). Sheets prepared before that step existed are
+cleaned, and their tiles rendered again, by
+
+```sh
+docker compose run --rm -T --no-deps planning-service python -m vfr.charts unmask --workers 2   # half an hour; re-runnable
+```
+
+which also bumps the cycle's tile revision (`chart_revision` on the
+course), since a browser's service worker holds tiles for weeks under a
+URL a re-render would not otherwise change. To put a sheet back as the
+FAA printed it, delete its folder under `data/raw/charts.nosync/` and
+`prepare` downloads it again.
+
 ## Things that are not obvious
 
 **scikit-learn is deliberately absent.** This service builds a feature
