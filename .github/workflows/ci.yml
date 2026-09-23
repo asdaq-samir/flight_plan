@@ -440,9 +440,11 @@ jobs:
           cache-from: type=gha,scope=ml
       - name: pdoc (src/vfr)
         if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.changes.outputs.ml == 'true'
+        # pydantic: vfr.narrative needs it and the ml image doesn't have it --
+        # the one exception src/requirements.txt notes.
         run: |
           docker run --rm --entrypoint sh -v "$PWD":/workspace -w /workspace vfr-docs-ml:latest -c \
-            "pip install -q pdoc && PYTHONPATH=src python -m pdoc src/vfr -o /tmp/pdoc-vfr --no-show-source"
+            "pip install -q pdoc pydantic && PYTHONPATH=src python -m pdoc src/vfr -o /tmp/pdoc-vfr --no-show-source"
 
       - name: Build nav-log-agent image (for pdoc's full app dependency set)
         if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.changes.outputs['nav-log-agent'] == 'true'
