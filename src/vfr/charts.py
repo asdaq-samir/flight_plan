@@ -19,7 +19,7 @@ Two things make that more than a file download:
 - The rasters include the printed sheet's collar -- the legend column,
   the communication boxes, the title -- georeferenced along with the
   chart face. Drawn as-is, the legend of one chart would paper over its
-  neighbour along every seam. `detect_face` finds the neatline (the
+  neighbour along every seam. `chart_faces.detect_face` finds the neatline (the
   black border the chart face ends at) in each raster, and the renderer
   clips to it so adjacent charts butt together.
 
@@ -121,7 +121,7 @@ class ChartKind:
     # Whether the sheets carry masked lines -- the paper band a
     # sectional prints around a TAC's coverage and its own insets --
     # to be taken back out when a sheet is prepared (see
-    # remove_masked_lines).
+    # chart_faces.remove_masked_lines).
     masked_lines: bool = False
 
 
@@ -471,7 +471,7 @@ class Raster:
     mask: Path | None = None
     # The areas whose masked lines were taken out of this raster, () when
     # it had none, and None when it has not been looked at -- a sheet
-    # prepared before remove_masked_lines existed, which the `unmask`
+    # prepared before chart_faces.remove_masked_lines existed, which the `unmask`
     # command then finds.
     masked_lines: tuple | None = None
 
