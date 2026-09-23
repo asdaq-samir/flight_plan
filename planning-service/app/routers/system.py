@@ -14,6 +14,7 @@ from fastapi import APIRouter, HTTPException
 from vfr import chartlabels, charts, checkpoint_notes, model_registry, weather
 from vfr.terrain import DEFAULT_FAA_CACHE_DIR
 
+from .. import chart_refresh
 from ..common import PROCESSED_DIR
 from ..settings import CHARTS_REFRESH_WINDOW, CHARTS_REFRESH_WORKERS
 from ..schemas import (
@@ -275,7 +276,7 @@ def refresh_charts() -> ChartRefreshStarted:
     """Fetch and render the FAA's current chart cycle now, in a
     subprocess of the planner's own -- the same job it runs daily by
     itself. `started` is False when one is already running."""
-    return ChartRefreshStarted(started=charts.refresh_in_background(), current_cycle=charts.current_cycle())
+    return ChartRefreshStarted(started=chart_refresh.refresh_now(), current_cycle=charts.current_cycle())
 
 
 @router.post("/api/retrain")

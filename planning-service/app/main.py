@@ -36,10 +36,10 @@ from fastapi.responses import JSONResponse
 from pydantic import TypeAdapter
 from vfr import airspace, altitude, charts, faa_data, weather
 
+from . import chart_refresh
 from .common import PROCESSED_DIR
 from .routers import briefing, build, chart, classb, devml, devservices, notes, plan, system
 from .schemas import STREAM_MESSAGES, Index
-from .settings import CHARTS_REFRESH_WINDOW, CHARTS_REFRESH_WORKERS
 
 # Nothing else in the process configured logging, so every log.info() in
 # this codebase -- this file's own, and every one already written in
@@ -58,54 +58,6 @@ log = logging.getLogger(__name__)
 # Inside the datasets' own five-minute time-to-live, so a held copy is
 # replaced before a request could find it stale.
 WEATHER_REFRESH_S = 240
-# How often to ask whether the FAA has moved to a new chart cycle
-# (every 56 days) and, if so, fetch and render it in a subprocess.
-# CHARTS_AUTO_REFRESH=0 turns that off -- a test stack, or a
-# deployment that renders its pyramid elsewhere.
-#
-# Rendering a cycle is every sheet of the country, hours of every core
-# it is given, and on a machine that is also somebody's desk that was
-# felt as a map that stuttered under the pilot's own finger. So the
-# render starts only inside CHARTS_REFRESH_WINDOW -- "HH:MM-HH:MM" on
-# the container's own clock (set TZ for a local one), 01:00-06:00 by
-# default, blank for any time -- with CHARTS_REFRESH_WORKERS processes
-# (one by default: slower, and out of the way), and the check runs
-# hourly so as to land in the window. The one exception is a stack
-# with no complete pyramid on disk at all, which renders at once:
-# until it does, every tile is drawn on request. The Dev console's own
-# "refresh now" is a request, and starts at once with two workers.
-CHART_CYCLE_CHECK_S = 3600
-CHARTS_AUTO_REFRESH = os.environ.get("CHARTS_AUTO_REFRESH", "1") != "0"
-
-
-def _in_refresh_window(now: time.struct_time | None = None, window: str = CHARTS_REFRESH_WINDOW) -> bool:
-    """Whether the clock is inside `window` ("HH:MM-HH:MM", which may
-    run past midnight: "22:00-05:00"); always, for a blank window."""
-    if not window:
-        return True
-    start, _, end = window.partition("-")
-    now = now or time.localtime()
-    minute = now.tm_hour * 60 + now.tm_min
-    to_minutes = lambda hhmm: int(hhmm[:2]) * 60 + int(hhmm[3:5])  # noqa: E731
-    lo, hi = to_minutes(start), to_minutes(end)
-    return lo <= minute < hi if lo <= hi else minute >= lo or minute < hi
-
-
-def _refresh_charts_if_due() -> None:
-    try:
-        if not charts.refresh_due():
-            return
-        served = charts.serving_cycle()
-        if charts.pyramid_complete(served) and not _in_refresh_window():
-            log.info("chart cycle %s is due; rendering it in the %s window (serving %s until then)",
-                     charts.current_cycle(), CHARTS_REFRESH_WINDOW, served)
-            return
-        if charts.refresh_in_background(workers=CHARTS_REFRESH_WORKERS):
-            log.info("chart cycle %s is not complete on disk; fetching and rendering it", charts.current_cycle())
-    except Exception:  # noqa: BLE001 -- the next hourly check tries again; the map keeps serving what it has
-        log.warning("chart cycle check failed", exc_info=True)
-
-
 def _prepare_corridor_charts() -> None:
     """The FAA charts under every corridor already built here -- a
     sectional is a 70 MB download and a minute of preparation the first
@@ -146,8 +98,8 @@ def _warm_reference_data() -> None:
         except Exception:  # noqa: BLE001 -- the first altitude selection will load it, and report its own error
             log.exception("%s warm-up failed", name)
 
-    if CHARTS_AUTO_REFRESH:
-        _refresh_charts_if_due()
+    if chart_refresh.AUTO_REFRESH:
+        chart_refresh.maybe_refresh()
 
     # Then keep the weather warm: the METAR/TAF/SIGMET files and the
     # winds product are fetched again every few minutes, inside their
@@ -155,7 +107,8 @@ def _warm_reference_data() -> None:
     # -- on a slow aviationweather.gov day the first plan after an
     # expiry was observed waiting close to a minute. A refresh that
     # fails is logged and the held copies go on being served. Once an
-    # hour, the chart cycle is checked the same way.
+    # hour, the chart cycle is checked (app.chart_refresh decides what
+    # that starts).
     last_cycle_check = time.time()
     while True:
         time.sleep(WEATHER_REFRESH_S)
@@ -164,9 +117,9 @@ def _warm_reference_data() -> None:
             log.info("weather refreshed")
         except Exception:  # noqa: BLE001 -- the next tick tries again; requests serve what is held
             log.warning("weather refresh failed", exc_info=True)
-        if CHARTS_AUTO_REFRESH and time.time() - last_cycle_check >= CHART_CYCLE_CHECK_S:
+        if chart_refresh.AUTO_REFRESH and time.time() - last_cycle_check >= chart_refresh.CHECK_EVERY_S:
             last_cycle_check = time.time()
-            _refresh_charts_if_due()
+            chart_refresh.maybe_refresh()
 
 
 @asynccontextmanager
