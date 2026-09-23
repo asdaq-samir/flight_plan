@@ -340,6 +340,9 @@ export const api = {
       ...jsonBody(request), signal,
       headers: { "Content-Type": "application/json", ...(token ? { "X-XSRF-TOKEN": token } : {}) },
     });
+    // Once anyone can sign in, a narrative -- a billed Claude call --
+    // needs a session, and Spring's 401 carries no body to say so.
+    if (res.status === 401) throw new ApiError("Sign in to generate a narrative", 401);
     if (!res.ok) throw new ApiError(await detailOf(res), res.status);
     yield* ndjson<NarrativeMessage>(res.body ?? undefined);
   },

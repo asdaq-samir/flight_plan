@@ -1,5 +1,6 @@
 package com.northflyers.vfr.security;
 
+import com.northflyers.vfr.service.PilotService;
 import java.util.Optional;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -23,9 +24,16 @@ import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWrite
  * <p>Two kinds of resource, split on whether the answer depends on who is
  * asking. A planned route is the same for everyone who plans that corridor
  * and stays public. A pilot's aeroplanes and filed flights are theirs,
- * and require a session. Writes through the planner (picks, checkpoint
- * notes, corridor builds) sit in between: open where nobody can sign in,
- * a session's job as soon as somebody can.
+ * and require a session. Writes through the planner (checkpoint notes,
+ * corridor builds) and the billed narrative sit in between: open where
+ * nobody can sign in, a session's job as soon as somebody can.
+ *
+ * <p>Work on the model rather than on a flight -- rating detections,
+ * starting a retrain or a chart refresh, the stack's own status and its
+ * services -- is the developer's, and once anyone can sign in it needs
+ * {@link com.northflyers.vfr.domain.PilotRole#DEVELOPER} (see
+ * {@link DeveloperOnly}), not just a session. The page hides that work
+ * from a plain pilot as well, but the page is not what refuses it.
  *
  * <p>Sign-in is Google, Apple, or a magic link, and the session is the
  * servlet container's -- there is no token minting, refreshing or
@@ -82,7 +90,7 @@ public class SecurityConfig {
     }
 
     @Bean
-    SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    SecurityFilterChain securityFilterChain(HttpSecurity http, PilotService pilots) throws Exception {
         http
                 .authorizeHttpRequests(auth -> {
                     auth
@@ -90,26 +98,43 @@ public class SecurityConfig {
                             // neither of which can hold a session.
                             .requestMatchers("/actuator/health", "/actuator/health/**", "/actuator/info").permitAll()
                             .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
-                            // The front end itself, and reading from the
-                            // planner: planning a route needs no account.
-                            .requestMatchers("/app", "/app/**").permitAll()
-                            .requestMatchers(HttpMethod.GET, "/api/planner/**").permitAll();
-                    // Writing through the planner -- saving a pick or a
-                    // checkpoint note, starting a corridor build (minutes
-                    // of Overpass and FAA I/O per call) -- needs a session
-                    // as soon as this deployment offers any way to get
-                    // one. Locally nothing does, so the training workspace keeps
-                    // working signed out.
+                            // The front end itself.
+                            .requestMatchers("/app", "/app/**").permitAll();
                     if (signInPossible) {
-                        auth.requestMatchers("/api/planner/**").authenticated();
+                        // The developer's work, matched before the public
+                        // GET rule below so the stack's status and its
+                        // services are not read by anyone who asks.
+                        // Picks are the model's training labels, so
+                        // writing one is training the next model.
+                        DeveloperOnly developer = new DeveloperOnly(pilots);
+                        auth
+                                .requestMatchers(HttpMethod.POST, "/api/planner/retrain", "/api/planner/charts/refresh")
+                                .access(developer)
+                                .requestMatchers(HttpMethod.POST, "/api/planner/picks").access(developer)
+                                .requestMatchers(HttpMethod.DELETE, "/api/planner/picks").access(developer)
+                                .requestMatchers("/api/planner/status", "/api/planner/dev/**").access(developer);
+                    }
+                    // Reading from the planner: planning a route needs no
+                    // account.
+                    auth.requestMatchers(HttpMethod.GET, "/api/planner/**").permitAll();
+                    // Writing through the planner -- a checkpoint note, a
+                    // corridor build (minutes of Overpass and FAA I/O per
+                    // call) -- and the flight planning drawer's narrative
+                    // (ComparisonProxyController, a real billed Claude call
+                    // every time) need a session as soon as this deployment
+                    // offers any way to get one. Locally nothing does, so
+                    // the training workspace and the narrative keep working
+                    // signed out.
+                    if (signInPossible) {
+                        auth
+                                .requestMatchers("/api/planner/**").authenticated()
+                                .requestMatchers("/api/comparison/**").authenticated();
                     } else {
-                        auth.requestMatchers("/api/planner/**").permitAll();
+                        auth
+                                .requestMatchers("/api/planner/**").permitAll()
+                                .requestMatchers("/api/comparison/**").permitAll();
                     }
                     auth
-                            // The flight planning drawer's narrative popover
-                            // (ComparisonProxyController): read-only, no
-                            // account needed to run it.
-                            .requestMatchers("/api/comparison/**").permitAll()
                             // The magic-link flow's own two steps -- request
                             // and verify -- happen before any session exists,
                             // the same reason /oauth2/authorization/** and

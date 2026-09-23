@@ -11,6 +11,11 @@ package com.northflyers.vfr.domain;
  *
  * <p>Granted deliberately, never inherited: the column defaults to
  * {@code PILOT} and a developer is made with an UPDATE.
+ *
+ * <p>Enforced by the server, not only by what the page shows: once
+ * anyone can sign in, {@code SecurityConfig} sends the developer's
+ * planner endpoints through {@code DeveloperOnly}, which reads this on
+ * every request.
  */
 public enum PilotRole {
     PILOT,

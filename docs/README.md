@@ -235,7 +235,7 @@ service discovery at `planning-service.vfr-route.internal`.
 - Schema owned by Flyway migrations; JPA's `ddl-auto` only validates against them
 - Actuator health probes at `/actuator/health/liveness` and `/actuator/health/readiness`
 - Bean Validation on request bodies (`AircraftRequest`, `SaveFlightRequest`) + a global exception handler turn a bad request into a clean `400`, a wrong method into `405` and a duplicate tail number into `409`, not an opaque `500`
-- Never calls `model-service` itself: scoring belongs to `planning-service`, which it proxies (`/api/planner/*`). Reads through that proxy are public; writes (picks, checkpoint notes, corridor builds) need a session as soon as the deployment offers a way to sign in (OIDC credentials or a mail host), and stay open locally where neither is set
+- Never calls `model-service` itself: scoring belongs to `planning-service`, which it proxies (`/api/planner/*`). Reads through that proxy are public; writes (checkpoint notes, corridor builds) need a session as soon as the deployment offers a way to sign in (OIDC credentials or a mail host), and the developer's work (picks, a retrain, a chart refresh, the stack's status and services) needs the developer role as well. All of it stays open locally where neither is set
 - Sign-in with Google or Apple (OIDC), or a passwordless email magic
   link — OIDC is inactive by default; activate with the `oauth` Spring
   profile once `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` or all four
@@ -251,7 +251,8 @@ service discovery at `planning-service.vfr-route.internal`.
   for the nav log the briefing shows, from `nav-log-agent`'s LangGraph
   build (`framework=langgraph`) or `crewai-agent`'s CrewAI build
   (`framework=crewai`), each a real billed Claude call, as
-  newline-delimited JSON while Claude writes it. Neither agent is
+  newline-delimited JSON while Claude writes it. Needs a session
+  wherever anyone can sign in. Neither agent is
   required for `webapp` itself to start
 - Interactive API docs (springdoc-openapi) at `http://localhost:8080/swagger-ui/index.html`, raw spec at `/v3/api-docs`
 

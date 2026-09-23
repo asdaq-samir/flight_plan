@@ -79,7 +79,19 @@ class SecurityRulesTest {
     @Test
     void plannerWritesStayOpenWhileNobodyCanSignIn() throws Exception {
         mockMvc.perform(post("/api/planner/picks").with(csrf()))
-                .andExpect(result -> assertThat(result.getResponse().getStatus()).isNotEqualTo(401));
+                .andExpect(result -> assertThat(result.getResponse().getStatus()).isNotIn(401, 403));
+        mockMvc.perform(post("/api/planner/retrain").with(csrf()))
+                .andExpect(result -> assertThat(result.getResponse().getStatus()).isNotIn(401, 403));
+        mockMvc.perform(get("/api/planner/status"))
+                .andExpect(result -> assertThat(result.getResponse().getStatus()).isNotIn(401, 403));
+    }
+
+    /** No role can be held where nobody can sign in, so the narrative
+     *  stays open locally too. */
+    @Test
+    void theNarrativeStaysOpenWhileNobodyCanSignIn() throws Exception {
+        mockMvc.perform(post("/api/comparison").with(csrf()))
+                .andExpect(result -> assertThat(result.getResponse().getStatus()).isNotIn(401, 403));
     }
 
     /** Aircraft and flights are private to whoever owns them, so a

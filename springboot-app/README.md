@@ -145,7 +145,7 @@ One job per class.
 | `repository/` | Spring Data interfaces. No implementations — Spring writes them. |
 | `domain/` | JPA entities: `Pilot`, `Aircraft`, `Flight`, `FlightCheckpoint`, `MagicLink`. |
 | `dto/` | Request and response shapes, kept separate from entities so the API and the schema can change independently. |
-| `security/` | `SecurityConfig` (what is public), `OAuthClientsConfig` (builds Google/Apple's client registrations in Java, not YAML — Apple's own secret is a signed JWT no static property could hold), `MagicLinkAuthenticationToken` (the session's own principal after a magic-link sign-in), `Http401EntryPoint` (an API answers 401, it does not redirect to a login page), and `CsrfCookieFilter` (forces the `XSRF-TOKEN` cookie to actually be written — see below). |
+| `security/` | `SecurityConfig` (what is public), `OAuthClientsConfig` (builds Google/Apple's client registrations in Java, not YAML — Apple's own secret is a signed JWT no static property could hold), `MagicLinkAuthenticationToken` (the session's own principal after a magic-link sign-in), `DeveloperOnly` (whether the caller holds the developer role, read from their row on every request), `SignInOptions` (whether anyone can sign in here at all), and `CsrfCookieFilter` (forces the `XSRF-TOKEN` cookie to actually be written — see below). |
 | `config/` | `WebMvcConfig` — static-resource and SPA routing. |
 
 Five migrations, in `resources/db/migration/`: routes, then normalised
@@ -177,13 +177,19 @@ that — no profile, no OIDC registration, just email address in,
 one-time link out — and works (or fails to send, logged rather than
 thrown) whether or not OIDC is configured.
 
-**Planner writes need a session once anyone can sign in.**
-`GET /api/planner/**` is always public; `POST`/`DELETE` through the
-proxy (picks, checkpoint notes, corridor builds) require a session
-whenever `SecurityConfig` sees a way to obtain one -- OIDC credentials
-or a configured `MAIL_HOST` for the magic link. Locally neither is set,
-so the Dev page keeps working signed out; deployed with sign-in, an
-anonymous caller can no longer start a minutes-long corridor build.
+**Planner writes need a session once anyone can sign in, and the
+developer's work needs the developer role.** `GET /api/planner/**` is
+public apart from the stack's own status and services; `POST`/`DELETE`
+through the proxy (checkpoint notes, corridor builds) and the billed
+`/api/comparison` narrative require a session whenever `SecurityConfig`
+sees a way to obtain one -- OIDC credentials or a configured
+`MAIL_HOST` for the magic link. The developer's work -- picks (the
+model's training labels), a retrain, a chart refresh,
+`/api/planner/status` and `/api/planner/dev/**` -- needs
+`PilotRole.DEVELOPER` on top of that, read from the pilot's row on
+every request (`DeveloperOnly`), so granting or revoking the role with
+an `UPDATE` takes effect at once. Locally none of it applies: nobody can
+sign in, so the training workspace keeps working signed out.
 
 **Testcontainers needs the Docker socket.** That is why the `mvn test`
 command above mounts `/var/run/docker.sock`; without it the persistence
@@ -196,7 +202,7 @@ cookie once something reads `csrfToken.getToken()` during the request,
 which a server-rendered template does and a JSON-only API never does.
 Without the filter no response carried the cookie, `web/`'s `client.ts`
 had no token to echo back, and every POST/DELETE failed CSRF validation —
-reported as a 401 via `Http401EntryPoint`, since the caller is anonymous.
+reported as a 401 by Spring Security's own `HttpStatusEntryPoint`, since the caller is anonymous.
 The filter forces the token to materialise on every request, the pattern
 Spring's own docs recommend for an SPA.
 
