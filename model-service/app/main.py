@@ -205,11 +205,12 @@ def _features(dep: str, dest: str) -> pd.DataFrame | None:
 
 @app.get("/ping")
 def ping() -> dict:
-    """SageMaker's health check. Reports whether the promoted model
-    loaded (the top-level fields, unchanged shape from before this
-    service could serve more than one model, since that is the one
-    SageMaker's own health check actually cares about), plus which of
-    the others are currently available.
+    """SageMaker's health check: whether the promoted model loads, the
+    one SageMaker's own check cares about, plus which of the others have
+    been trained -- their files are there. Those are not loaded here: it
+    used to load every one, so a candidate nobody had asked for that
+    failed to load made this 500, the service unhealthy, and the planner,
+    which waits for a healthy model-service, unable to start.
     """
     current = _load("current")
     return {
@@ -218,7 +219,7 @@ def ping() -> dict:
         "model_dir": str(MODEL_DIR),
         "trained_at": current["metrics"].get("trained_at") if current else None,
         "routes": available_routes(),
-        "models": {name: _load(name) is not None for name in _MODELS},
+        "models": {name: _signature(files()) is not None for name, (files, _) in _MODELS.items()},
     }
 
 
@@ -268,7 +269,11 @@ def _score(state: dict, df: pd.DataFrame) -> pd.Series:
 @app.post("/invocations", response_model=RouteResponse)
 def invocations(request: RouteRequest) -> RouteResponse:
     model_name = (request.model or "current").lower()
-    state = _load(model_name) if model_name in _MODELS else None
+    if model_name not in _MODELS:
+        # It used to answer as though the model were merely untrained,
+        # with a command that rejects the name.
+        raise HTTPException(422, f"No model named {model_name!r}: one of {', '.join(_MODELS)}.")
+    state = _load(model_name)
     if state is None:
         raise HTTPException(
             status_code=503,

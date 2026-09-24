@@ -84,6 +84,24 @@ def test_ping_reports_model_loaded_and_the_routes_built_for_it(tmp_path, monkeyp
     assert body["models"] == {"current": True, "pytorch": False, "tensorflow": False, "spark": False}
 
 
+def test_ping_says_which_candidates_are_trained_without_loading_them(tmp_path, monkeypatch):
+    # It loaded every one: a candidate that failed to load made /ping 500,
+    # model-service unhealthy, and the planner, which waits for it, stuck.
+    monkeypatch.setattr(main, "MODEL_DIR", tmp_path / "model")
+    monkeypatch.setattr(main, "FEATURES_DIR", tmp_path / "features")
+    monkeypatch.setattr(main, "CANDIDATES_DIR", tmp_path / "candidates")
+    _write_current_model(tmp_path / "model")
+    broken = tmp_path / "candidates" / "pytorch"
+    broken.mkdir(parents=True)
+    for name in ("model_state.pt", "scaler.joblib", "metrics.json"):
+        (broken / name).write_text("not a model")
+
+    resp = client.get("/ping")
+
+    assert resp.status_code == 200
+    assert resp.json()["models"] == {"current": True, "pytorch": True, "tensorflow": False, "spark": False}
+
+
 def test_a_changed_scaler_is_a_changed_model():
     # The list that noticed a change left the scaler out.
     for name in ("pytorch", "tensorflow"):
@@ -134,6 +152,17 @@ def test_invocations_503s_with_a_train_command_for_an_unbuilt_named_model(tmp_pa
 
     assert resp.status_code == 503
     assert "vfr.model_candidates pytorch" in resp.json()["detail"]
+
+
+def test_invocations_refuses_a_model_name_it_does_not_have(tmp_path, monkeypatch):
+    # It answered as though the model were only untrained, with a command
+    # that rejects the name.
+    resp = client.post(
+        "/invocations", json={"departure_ident": "C81", "destination_ident": "KDLH", "model": "xgboost"},
+    )
+
+    assert resp.status_code == 422
+    assert "current" in resp.json()["detail"]
 
 
 def test_a_model_promoted_after_the_first_request_is_served_from_the_next(tmp_path, monkeypatch):
