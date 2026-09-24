@@ -6,6 +6,7 @@ import { routeOf } from "../../../lib/identSchema";
 import { ended } from "../../../lib/api/streams";
 import type { Course, Detection, Endpoint, LoosePick, Point, Rating, Role } from "../../../lib/api/types";
 import { usePreferences } from "../../../lib/preferences";
+import { pointKey, type PointKind } from "../logic";
 
 /**
  * The training workspace's data: what the chart reader found for the
@@ -25,11 +26,6 @@ import { usePreferences } from "../../../lib/preferences";
  * server is written first, so a failed save changes nothing on
  * screen (the query client reports it).
  */
-
-export interface Selection {
-  kind: "endpoint" | "detected" | "added";
-  index: number;
-}
 
 /** What a rating, a category change or a removal changes about a
  *  point: the fields the server's pick holds, kept by the point's own
@@ -58,16 +54,19 @@ interface Edits {
   added: LoosePick[];
   removed: string[];
   undo: UndoEntry | null;
-  selection: Selection | null;
-  /** Where the walk was last, so Space can come back to it after a
-   *  rating has cleared the selection. */
-  lastFocus: Selection | null;
+  /** The selected point, by its place (`pointKey`) -- how everything
+   *  else here already names a point: the overrides, the removals, the
+   *  undo entry, and the server's own same_place. It used to be a
+   *  position in the list of added points, and that list gets the picks
+   *  no detection claimed put in front of it when the chart read ends:
+   *  a point added mid-read then pointed at one of those, and the next
+   *  digit key rated the wrong pick. */
+  selection: string | null;
 }
 
-const pointKey = (p: { lat: number; lon: number }) => `${p.lat.toFixed(5)},${p.lon.toFixed(5)}`;
 const editOf = (p: Detection | LoosePick): Edit => ({ rating: p.rating, rated: p.rated, role: p.role, category: p.category });
 const fresh = (route: string): Edits => ({
-  route, overrides: {}, added: [], removed: [], undo: null, selection: null, lastFocus: null,
+  route, overrides: {}, added: [], removed: [], undo: null, selection: null,
 });
 
 export function useTraining(dep: string, dest: string) {
@@ -131,14 +130,26 @@ export function useTraining(dep: string, dest: string) {
     () => [...streamed.added, ...edits.added].filter(p => !edits.removed.includes(pointKey(p))).map(apply),
     [streamed.added, edits.added, edits.removed, apply],
   );
-  const selection = edits.selection;
+  // Every point on screen by its place, and what kind it is: the ends,
+  // then the detections, then the points added by hand. A detection
+  // keeps its kind where an added point sits on the same place.
+  const byKey = useMemo(() => {
+    const map = new Map<string, { point: Point; kind: PointKind }>();
+    for (const point of endpoints) map.set(pointKey(point), { point, kind: "endpoint" });
+    for (const point of detections) map.set(pointKey(point), { point, kind: "detected" });
+    for (const point of added) if (!map.has(pointKey(point))) map.set(pointKey(point), { point, kind: "added" });
+    return map;
+  }, [endpoints, detections, added]);
+  // A removed point is no longer here, so it is no longer selected --
+  // rather than the selection sliding on to its neighbour.
+  const selected = edits.selection === null ? null : byKey.get(edits.selection)?.point ?? null;
 
   // What the actions below read: the current course, points and
   // selection, mirrored after every render so the actions themselves
   // keep one identity -- the map's popup and the key handler hang on
   // them, and a fresh function per render would rebuild both on every
   // streamed-in block.
-  const current = { course: course.data ?? null, detections, added, endpoints, edits, streamedAdded: streamed.added };
+  const current = { course: course.data ?? null, detections, added, byKey, edits, streamedAdded: streamed.added };
   const latest = useRef(current);
   useEffect(() => {
     latest.current = current;
@@ -160,15 +171,14 @@ export function useTraining(dep: string, dest: string) {
   /** The selected point and its kind, when it is one that can be
    *  rated -- never an endpoint. */
   const selectedPick = () => {
-    const { course: c, edits: e, detections: d, added: a, endpoints: ends } = latest.current;
-    const s = e.selection;
-    if (!c || !s || s.kind === "endpoint") return null;
-    const p = currentPoint({ selection: s, endpoints: ends, detections: d, added: a });
-    return p ? { course: c, p: p as Detection | LoosePick, kind: s.kind } : null;
+    const { course: c, edits: e, byKey: points } = latest.current;
+    const entry = e.selection === null ? undefined : points.get(e.selection);
+    if (!c || !entry || entry.kind === "endpoint") return null;
+    return { course: c, p: entry.point as Detection | LoosePick, kind: entry.kind };
   };
 
-  const select = useCallback((next: Selection | null) => {
-    update(e => ({ ...e, selection: next, lastFocus: next ?? e.lastFocus }));
+  const select = useCallback((point: Point | null) => {
+    update(e => ({ ...e, selection: point ? pointKey(point) : null }));
   }, [update]);
 
   // A rating has to feel instant while walking the route, so every
@@ -223,7 +233,7 @@ export function useTraining(dep: string, dest: string) {
   }, [deletePick, update]);
 
   const undo = useCallback(async () => {
-    const { course: c, edits: e, detections: d, added: a, streamedAdded } = latest.current;
+    const { course: c, edits: e, detections: d, added: a } = latest.current;
     const entry = e.undo;
     if (!entry || !c) return;
     update(x => ({ ...x, undo: null }));   // one-shot: this is the only step back there is
@@ -232,13 +242,7 @@ export function useTraining(dep: string, dest: string) {
         // It had a rating before it was deleted -- restore the pick,
         // then the point itself, at the place it had in the list.
         if (entry.before.rating !== null) await savePick(pickBody(c, entry.reinsert, "added", entry.before));
-        const reinsert = entry.reinsert;
-        update(x => {
-          const removed = x.removed.filter(k => k !== entry.key);
-          const index = [...streamedAdded, ...x.added].filter(p => !removed.includes(pointKey(p)))
-            .findIndex(p => pointKey(p) === pointKey(reinsert));
-          return { ...x, removed, selection: index >= 0 ? { kind: "added", index } : null };
-        });
+        update(x => ({ ...x, removed: x.removed.filter(k => k !== entry.key), selection: entry.key }));
         return;
       }
       const current = (entry.kind === "detected" ? d : a).find(p => pointKey(p) === entry.key);
@@ -275,22 +279,18 @@ export function useTraining(dep: string, dest: string) {
     // What the chart draws at the point, so a click on the course gets a
     // real category rather than always landing on "other".
     const { category } = await api.classify(lat, lon).catch(() => ({ category: null }));
-    const { streamedAdded } = latest.current;
-    update(e => {
-      const pick: LoosePick = {
-        lat, lon, category: category ?? "other", role: "dr", source: "added",
-        rating: null, rated: false, along_track_nm: 0, cross_track_nm: 0, area_m2: 0,
-        route: null, note: null, created_at: null,
-      };
-      const index = [...streamedAdded, ...e.added].filter(p => !e.removed.includes(pointKey(p))).length;
-      return { ...e, added: [...e.added, pick], selection: { kind: "added", index } };
-    });
+    const pick: LoosePick = {
+      lat, lon, category: category ?? "other", role: "dr", source: "added",
+      rating: null, rated: false, along_track_nm: 0, cross_track_nm: 0, area_m2: 0,
+      route: null, note: null, created_at: null,
+    };
+    update(e => ({ ...e, added: [...e.added, pick], selection: pointKey(pick) }));
   }, [update]);
 
   return {
     course: course.data ?? null,
     endpoints, detections, added, filters, setFilter,
-    selection, lastFocus: edits.lastFocus, select,
+    selected, select,
     rate, setCategory, addPick, removeSelected, undo, resetAll,
     canUndo: edits.undo !== null,
     loading: course.isLoading || stream.isLoading || stream.isFetching,
@@ -299,14 +299,4 @@ export function useTraining(dep: string, dest: string) {
      *  which the page shows in place of what it could not get. */
     error: errorMessage(course.error ?? stream.error, "could not read the chart"),
   };
-}
-
-export function currentPoint(
-  state: { selection: Selection | null; endpoints: Endpoint[]; detections: Detection[]; added: LoosePick[] },
-): Point | null {
-  const { selection, endpoints, detections, added } = state;
-  if (!selection) return null;
-  if (selection.kind === "endpoint") return endpoints[selection.index] ?? null;
-  if (selection.kind === "detected") return detections[selection.index] ?? null;
-  return added[selection.index] ?? null;
 }

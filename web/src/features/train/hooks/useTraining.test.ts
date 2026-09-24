@@ -31,6 +31,7 @@ const mockCourse = vi.mocked(api.course);
 const mockDetect = vi.mocked(api.detect);
 const mockSavePick = vi.mocked(api.savePick);
 const mockDeletePick = vi.mocked(api.deletePick);
+const mockClassify = vi.mocked(api.classify);
 
 function courseFixture(): Course {
   return {
@@ -144,7 +145,7 @@ describe("useTraining", () => {
 
     const { result } = renderLabels();
     await loaded(result);
-    act(() => result.current.select({ kind: "detected", index: 0 }));
+    act(() => result.current.select(result.current.detections[0]!));
     await act(async () => { await result.current.rate(5); });
 
     expect(mockSavePick).toHaveBeenCalledWith(expect.objectContaining({ rating: 5, source: "detected" }));
@@ -160,7 +161,7 @@ describe("useTraining", () => {
 
     const { result } = renderLabels();
     await loaded(result);
-    act(() => result.current.select({ kind: "detected", index: 0 }));
+    act(() => result.current.select(result.current.detections[0]!));
     await act(async () => { await result.current.rate(5); });
 
     // The write never landed, so the point is still unrated -- and
@@ -177,7 +178,7 @@ describe("useTraining", () => {
 
     const { result } = renderLabels();
     await loaded(result);
-    act(() => result.current.select({ kind: "detected", index: 0 }));
+    act(() => result.current.select(result.current.detections[0]!));
     await act(async () => { await result.current.rate(3); });
     expect(result.current.canUndo).toBe(true);
 
@@ -200,7 +201,7 @@ describe("useTraining", () => {
 
     const { result } = renderLabels();
     await loaded(result);
-    act(() => result.current.select({ kind: "added", index: 0 }));
+    act(() => result.current.select(result.current.added[0]!));
     await act(async () => { await result.current.removeSelected(); });
 
     expect(result.current.added).toHaveLength(0);
@@ -213,7 +214,7 @@ describe("useTraining", () => {
     expect(mockSavePick).toHaveBeenCalledWith(expect.objectContaining({ rating: 4 }));
     expect(result.current.added).toHaveLength(1);
     expect(result.current.added[0]!.rating).toBe(4);
-    expect(result.current.selection).toEqual({ kind: "added", index: 0 });
+    expect(result.current.selected).toBe(result.current.added[0]);
   });
 
   test("resetAll deletes every rated pick and clears the added list", async () => {
@@ -257,7 +258,7 @@ describe("useTraining", () => {
 
     const { result, rerender } = renderLabels();
     await loaded(result);
-    act(() => result.current.select({ kind: "detected", index: 0 }));
+    act(() => result.current.select(result.current.detections[0]!));
     await act(async () => { await result.current.rate(3); });
     expect(result.current.detections).toHaveLength(1);
     expect(result.current.canUndo).toBe(true);
@@ -269,7 +270,7 @@ describe("useTraining", () => {
     expect(result.current.detections).toHaveLength(0);
     expect(result.current.added).toHaveLength(0);
     expect(result.current.canUndo).toBe(false);
-    expect(result.current.selection).toBeNull();
+    expect(result.current.selected).toBeNull();
   });
 
   test("an address naming one airport twice asks for no chart read, though the old map stays up", async () => {
@@ -286,5 +287,32 @@ describe("useTraining", () => {
 
     expect(mockDetect).not.toHaveBeenCalledWith("C81", "C81", expect.anything());
     expect(mockDetect).toHaveBeenCalledTimes(1);
+  });
+
+  test("a point added while the chart is still being read stays the one selected when the read ends", async () => {
+    // The read's own unclaimed picks arrive only with its last message,
+    // and go in front of the points added by hand. The selection was a
+    // position in that list, so it slid onto one of them, and the next
+    // rating was saved to the wrong pick.
+    mockCourse.mockResolvedValue(courseFixture());
+    let finish!: () => void;
+    const unclaimed = loosePickFixture({ lat: 45.5, lon: -91.5 });
+    mockDetect.mockReturnValue((async function* (): AsyncGenerator<StreamMessage> {
+      yield { type: "block", block: 0, blocks: 2, tiles: 1, missing: 0, detections: [detectionFixture()] };
+      await new Promise<void>(resolve => { finish = resolve; });
+      yield { type: "done", total: 2, added: [unclaimed], summary: { ...summary, added: 1 } };
+    })());
+    mockClassify.mockResolvedValue({ category: "road_or_rail" });
+    mockSavePick.mockResolvedValue(savedPickResponse(loosePickFixture({ lat: 43.25, lon: -89.25, rating: 4, rated: true })));
+    const { result } = renderLabels();
+    await waitFor(() => expect(result.current.detections).toHaveLength(1));
+
+    await act(async () => { await result.current.addPick(43.25, -89.25); });
+    await act(async () => { finish(); });
+    await waitFor(() => expect(result.current.added).toHaveLength(2));
+
+    expect(result.current.selected).toMatchObject({ lat: 43.25, lon: -89.25 });
+    await act(async () => { await result.current.rate(4); });
+    expect(mockSavePick).toHaveBeenCalledWith(expect.objectContaining({ lat: 43.25, lon: -89.25, rating: 4 }));
   });
 });

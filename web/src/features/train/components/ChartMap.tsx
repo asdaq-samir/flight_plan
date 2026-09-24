@@ -14,7 +14,7 @@ import { MapPopup } from "../../../lib/map/MapPopup";
 import { MapShell } from "../../../lib/map/MapShell";
 import { MapTooltip } from "../../../lib/map/MapTooltip";
 import { useMarkerZooms, useZoomLevel } from "../../../lib/map/useZoomLevel";
-import { COLORS, hasRating, isVisible, prettyCategory, type Filters } from "../logic";
+import { COLORS, hasRating, isVisible, pointKey, prettyCategory, type Filters } from "../logic";
 
 interface Props {
   course: Course | null;
@@ -28,7 +28,7 @@ interface Props {
    *  false while fit-line has zoomed out to the whole leg, where the
    *  ring should stay marking the selection but the rating menu would
    *  just be floating over unrelated ground. */
-  onSelect: (kind: "endpoint" | "detected" | "added", index: number) => void;
+  onSelect: (point: Point) => void;
   /** Leaflet closing the card clears the selection it was drawn from. */
   onDeselect: () => void;
   onAddAt: (lat: number, lon: number) => void;
@@ -77,11 +77,11 @@ function Candidates({ detections, added, filters, selected, onSelect }: Pick<Pro
   const { crowd } = useMarkerZooms();
   if (zoom < crowd) return null;
   const draw = (points: Point[], kind: "detected" | "added") =>
-    points.map((p, i) => ({ p, i })).filter(({ p }) => isVisible(p, filters)).map(({ p, i }) => (
+    points.filter(p => isVisible(p, filters)).map(p => (
       <Marker
-        key={`${kind}-${i}`} position={[p.lat, p.lon]}
+        key={`${kind}-${pointKey(p)}`} position={[p.lat, p.lon]}
         icon={dotIcon(hasRating(p) ? COLORS[(p as { rating: 0 }).rating] : "#8fa3b0")}
-        eventHandlers={{ click: e => { L.DomEvent.stopPropagation(e); onSelect(kind, i); } }}
+        eventHandlers={{ click: e => { L.DomEvent.stopPropagation(e); onSelect(p); } }}
       >
         {selected !== p && <MapTooltip><PointPreview point={p} /></MapTooltip>}
       </Marker>
@@ -117,13 +117,13 @@ export default function ChartMap({
             tooltip={`${course.departure.ident} → ${course.destination.ident} · ${course.distance_nm} nm · ${String(course.bearing_deg).padStart(3, "0")}°T`}
             onClick={latlng => onAddAt(latlng.lat, latlng.lng)}
           />
-          {endpoints.filter(isEndpoint).map((e, i) => (
+          {endpoints.filter(isEndpoint).map(e => (
             // The same airport chip as the route map's, in white: the
             // training map never asks about its weather, and grey is
             // what a field that was asked and had no report looks like.
             <Marker
               key={e.ident} position={[e.lat, e.lon]} icon={airportIcon("#ffffff", e.ident, { unchecked: true })}
-              eventHandlers={{ click: ev => { L.DomEvent.stopPropagation(ev); onSelect("endpoint", i); } }}
+              eventHandlers={{ click: ev => { L.DomEvent.stopPropagation(ev); onSelect(e); } }}
             >
               {selected !== e && <MapTooltip><PointPreview point={e} /></MapTooltip>}
             </Marker>

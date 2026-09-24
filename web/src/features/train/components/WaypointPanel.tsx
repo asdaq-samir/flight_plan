@@ -11,7 +11,7 @@ import {
   Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow,
 } from "../../../components/ui/table";
 import { isEndpoint, type Point, type Rating } from "../../../lib/api/types";
-import { COLORS, RATINGS, prettyCategory, roleOf, type FilterKey, type Filters, type WalkEntry } from "../logic";
+import { COLORS, RATINGS, pointKey, prettyCategory, roleOf, type FilterKey, type Filters, type WalkEntry } from "../logic";
 import { inkOn } from "../../../lib/scoreScale";
 import FilterBar from "./FilterBar";
 
@@ -169,7 +169,7 @@ export default function WaypointPanel({
             {entries.map(entry => {
               const p = entry.point;
               const isSelected = p === selected;
-              const key = `${entry.kind}${entry.index}`;
+              const key = `${entry.kind}-${pointKey(p)}`;
               if (isEndpoint(p)) {
                 return (
                   <Fragment key={key}>

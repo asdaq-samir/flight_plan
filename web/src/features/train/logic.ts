@@ -103,10 +103,15 @@ export function prettyCategory(category: string): string {
   return category.replace(/_/g, " ");
 }
 
+export type PointKind = "endpoint" | "detected" | "added";
+
+/** A point by its place, to five decimals -- how the page, the
+ *  session's edits and the server's own same_place all name a point. */
+export const pointKey = (p: { lat: number; lon: number }) => `${p.lat.toFixed(5)},${p.lon.toFixed(5)}`;
+
 export interface WalkEntry {
   point: Point;
-  kind: "endpoint" | "detected" | "added";
-  index: number;
+  kind: PointKind;
 }
 
 /**
@@ -119,9 +124,9 @@ export function orderedPoints(
   filters: Filters,
 ): WalkEntry[] {
   const entries: WalkEntry[] = [
-    ...parts.endpoints.map((point, index) => ({ point, kind: "endpoint" as const, index })),
-    ...parts.detections.map((point, index) => ({ point, kind: "detected" as const, index })),
-    ...parts.added.map((point, index) => ({ point, kind: "added" as const, index })),
+    ...parts.endpoints.map(point => ({ point, kind: "endpoint" as const })),
+    ...parts.detections.map(point => ({ point, kind: "detected" as const })),
+    ...parts.added.map(point => ({ point, kind: "added" as const })),
   ];
   return entries
     .filter(e => isEndpoint(e.point) || isVisible(e.point, filters))

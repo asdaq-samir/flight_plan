@@ -18,7 +18,7 @@ import { isEndpoint, type Point, type Rating } from "../../lib/api/types";
 import {
   filterCounts, forwardIsLeft, hasRating, hiddenCount, orderedPoints,
 } from "./logic";
-import { currentPoint, useTraining, type Selection } from "./hooks/useTraining";
+import { useTraining } from "./hooks/useTraining";
 
 const FOCUS_ZOOM = 12;
 
@@ -44,13 +44,9 @@ export default function TrainWorkspace({ dep, dest, children }: WorkspaceProps) 
   // reads its own latest state through a ref) so listing them costs
   // nothing.
   const {
-    selection, endpoints, detections, added, course,
+    selected: point, course,
     select, rate, setCategory, removeSelected, addPick,
   } = store;
-  const point = useMemo(
-    () => currentPoint({ selection, endpoints, detections, added }),
-    [selection, endpoints, detections, added],
-  );
   const [map, setMap] = useState<L.Map | null>(null);
   // Tracks the map's own zoom so the one Controls button can read as
   // "Start"/"Resume"/"Fit line" -- Leaflet's zoom lives outside React,
@@ -119,7 +115,7 @@ export default function TrainWorkspace({ dep, dest, children }: WorkspaceProps) 
 
   const focus = useCallback((entry: (typeof walk)[number]) => {
     map?.setView([entry.point.lat, entry.point.lon], Math.max(map.getZoom(), FOCUS_ZOOM));
-    select({ kind: entry.kind, index: entry.index });
+    select(entry.point);
   }, [map, select]);
 
   /** Walks the waypoint list and brings the map to whatever it lands
@@ -266,12 +262,10 @@ export default function TrainWorkspace({ dep, dest, children }: WorkspaceProps) 
    *  selection too, or React would open it straight back up. */
   const deselect = useCallback(() => select(null), [select]);
 
-  const onSelect = useCallback((kind: Selection["kind"], index: number) => {
-    select({ kind, index });
-    const from = kind === "endpoint" ? store.endpoints : kind === "detected" ? store.detections : store.added;
-    const point = from[index];
-    if (point && map) map.setView([point.lat, point.lon], Math.max(map.getZoom(), FOCUS_ZOOM));
-  }, [select, store.endpoints, store.detections, store.added, map]);
+  const onSelect = useCallback((picked: Point) => {
+    select(picked);
+    map?.setView([picked.lat, picked.lon], Math.max(map.getZoom(), FOCUS_ZOOM));
+  }, [select, map]);
   const onAddAt = useCallback((lat: number, lon: number) => { void addPick(lat, lon); }, [addPick]);
 
   // The chart read's progress; its failures are the query client's to
