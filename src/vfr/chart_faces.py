@@ -8,8 +8,8 @@ Split out of vfr.charts, which keeps the catalogue, the chart cycles,
 rendering, publishing and serving. This is the part that changes on its
 own: every chart commit between 2026-09-23's two simplicity assessments
 was raster cleaning or edge detection, and none touched anything else
-in the module. vfr.charts calls in here while preparing a sheet and
-while warping a tile; this calls back into vfr.charts for the chart
+in the module. vfr.charts calls in here while preparing a sheet, and
+while warping a tile (read_rgb, without_raster_rim); this calls back into vfr.charts for the chart
 kinds and sheets, through the module rather than its names, so either
 can be imported first.
 """
@@ -96,9 +96,10 @@ def _palette(src) -> np.ndarray | None:
     return np.array([cmap.get(i, (0, 0, 0, 255))[:3] for i in range(256)], dtype=np.uint8)
 
 
-def _read_rgb(src, window=None, out_shape=None) -> np.ndarray:
+def read_rgb(src, window=None, out_shape=None) -> np.ndarray:
     """A window of the raster as (rows, cols, 3) RGB, whichever way the
-    file stores its colours."""
+    file stores its colours. vfr.charts reads a tile's warp through this
+    too."""
     lut = _palette(src)
     if lut is None:
         shape = None if out_shape is None else (3, *out_shape)
@@ -115,7 +116,7 @@ def _ink_maps(src) -> _Ink:
     step = 1024
     for r0 in range(0, rows * pool, step):
         r1 = min(r0 + step, rows * pool)
-        rgb = _read_rgb(src, window=((r0, r1), (0, cols * pool))).astype(np.int16)
+        rgb = read_rgb(src, window=((r0, r1), (0, cols * pool))).astype(np.int16)
         is_dark = rgb.sum(axis=2) < _DARK_MAX_RGB_SUM
         is_white = rgb.min(axis=2) >= _WHITE_MIN_CHANNEL
         shape = ((r1 - r0) // pool, pool, cols, pool)
@@ -831,7 +832,7 @@ def remove_masked_lines(path: Path, faces: list, known: tuple = ()) -> tuple:
 _RASTER_RIM_PX = 2
 
 
-def _without_raster_rim(inside: np.ndarray, rgb: np.ndarray, src, bbox_3857: tuple) -> np.ndarray:
+def without_raster_rim(inside: np.ndarray, rgb: np.ndarray, src, bbox_3857: tuple) -> np.ndarray:
     """`inside` -- which pixels of a warp grid the source raster covers --
     with the paper in the raster's outermost `_RASTER_RIM_PX` pixels
     taken out: the scan's border, not a chart that runs to the edge of

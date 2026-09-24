@@ -700,12 +700,12 @@ def _warp_rgb(path: Path, bbox_3857: tuple, width: int, height: int, centre_lat:
         grid = dict(crs="EPSG:3857", transform=from_bounds(xmin, ymin, xmax, ymax, w, h), width=w, height=h,
                     resampling=Resampling.nearest)
         with WarpedVRT(src, add_alpha=True, **grid) as vrt:
-            rgb = chart_faces._read_rgb(vrt)
+            rgb = chart_faces.read_rgb(vrt)
             alpha = vrt.read(bands + 1)
         if mask is not None:
             with rasterio.open(mask) as mask_src, WarpedVRT(mask_src, **grid) as vrt:
                 alpha = np.minimum(alpha, vrt.read(1))
-        inside = chart_faces._without_raster_rim(alpha >= 128, rgb, src, (xmin, ymin, xmax, ymax))
+        inside = chart_faces.without_raster_rim(alpha >= 128, rgb, src, (xmin, ymin, xmax, ymax))
     if oversample == 1:
         return rgb, inside.astype(np.float32)
     # Box-filter the covered samples alone (the others zeroed, the
