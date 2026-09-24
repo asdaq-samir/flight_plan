@@ -12,15 +12,8 @@ import { test, expect, type Page, type Route } from "@playwright/test";
 
 // Nothing is drawn at the map's corner any more; the assertions that
 // used to live there are in layout.spec.ts against the layers popover.
-//
-// The app registers a service worker that answers API calls
-// NetworkFirst (vite.config.ts), and a request a service worker
-// handles is not a page request -- page.route never sees it, so a
-// mocked response silently lost to the real one. The Class B call
-// fires after the layer is switched on, by which time the worker is
-// certainly active, which is why this spec needs it off and the
-// load-time specs do not.
-test.use({ serviceWorkers: "block" });
+// The mocks below apply because playwright.config.ts blocks the app's
+// service worker for the whole suite.
 
 const PLAN = "/app/plan?dep=C81&dest=KDLH";
 // The pill is a Class B field's alone (airportIcon's `classB`); the

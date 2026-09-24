@@ -41,6 +41,15 @@ export default defineConfig({
   reporter: "list",
   use: {
     baseURL: process.env.BASE_URL ?? "http://localhost:8080",
+    // The app registers a service worker that answers API calls itself
+    // (vite.config.ts) and takes over an open page as soon as it is
+    // active, and a request the worker handles never reaches
+    // page.route -- a mock then silently loses to the real answer, and
+    // whether it did depends on timing. Blocked for the whole suite, a
+    // mock always applies. A spec about the worker itself (keeping a
+    // route's charts offline) opts back in with
+    // test.use({ serviceWorkers: "allow" }).
+    serviceWorkers: "block",
   },
   // Both projects run the whole suite -- most of it (corner-flush
   // checks, overflow checks, nav links) computes its assertions off
