@@ -174,9 +174,9 @@ port on AWS either — it sits behind `webapp` in a private subnet, found by
 service discovery at `planning-service.vfr-route.internal`.
 
 - `/api/course`, `/api/checkpoints`, `/api/navlog`, `/api/detect/stream`,
-  `/api/picks`, `/api/sectional-tile`, `/api/tac-tile` — reached by the
-  browser as `/api/planner/*` on `webapp`, never directly. The two tile
-  endpoints render the FAA's own chart GeoTIFFs (`vfr.charts`, one
+  `/api/picks`, `/api/chart-tile/{kind}` — reached by the
+  browser as `/api/planner/*` on `webapp`, never directly. The tile
+  endpoint renders the FAA's own chart GeoTIFFs (`vfr.charts`, one
   download per sheet per 56-day cycle into `data/raw/charts/`), so the
   map depends on no hosted chart service. Its own OpenAPI page is at
   [`localhost:8084/docs`](http://localhost:8084/docs); the full endpoint

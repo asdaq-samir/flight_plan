@@ -4659,7 +4659,7 @@
     },
     "/api/chart-tile/{kind}/{z}/{x}/{y}.png": {
       "get": {
-        "description": "Any kind of chart by its key (`chart_layers` on the course lists\nthem): `sec`, `tac`, `ifr_low`, `ifr_high`. What the map's layer\npicker draws from; the two routes above are the same tiles under\ntheir older names.",
+        "description": "Any kind of chart by its key (`chart_layers` on the course lists\nthem): `sec`, `tac`, `ifr_low`, `ifr_high`, `ifr_area`. What the\nmap's layers draw from.\n\nThe FAA's own GeoTIFF of each sheet, rendered into a {z}/{x}/{y} tile\npyramid (vfr.charts -- downloaded once per 56-day chart cycle) and\ncached on disk; the same tiles the detector reads. A tile pyramid is\nwhat makes each chart a plain Leaflet tile layer: edge-only fetches\non a pan, the previous zoom's tiles scaled under the zoom animation,\na prefetch ring. 404 where no sheet covers the tile, which the layer\nleaves blank. The sectional and the TAC had routes of their own\nunder older names, which nothing called any more.",
         "operationId": "chart_tile_api_chart_tile__kind___z___x___y__png_get",
         "parameters": [
           {
@@ -5652,62 +5652,6 @@
         "summary": "Built Routes"
       }
     },
-    "/api/sectional-tile/{z}/{x}/{y}.png": {
-      "get": {
-        "description": "The sectional as a {z}/{x}/{y} tile pyramid, rendered from the\nFAA's own GeoTIFF of each sheet (vfr.charts -- downloaded once per\n56-day chart cycle) and cached on disk. The same tiles the detector\nreads, so a corridor planned once has its map tiles ready, and a map\nbrowsed once has its detection tiles ready.\n\nA tile pyramid is what makes the map's chart layer a plain Leaflet\ntile layer: edge-only fetches on a pan, the previous zoom's tiles\nscaled under the zoom animation, a prefetch ring. 404 where no sheet\ncovers the tile, which the layer leaves blank for the street map\nunderneath; the layer's own maxNativeZoom keeps the browser from\nasking past the chart's resolution.",
-        "operationId": "sectional_tile_api_sectional_tile__z___x___y__png_get",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "z",
-            "required": true,
-            "schema": {
-              "title": "Z",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "path",
-            "name": "x",
-            "required": true,
-            "schema": {
-              "title": "X",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "path",
-            "name": "y",
-            "required": true,
-            "schema": {
-              "title": "Y",
-              "type": "integer"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Sectional Tile"
-      }
-    },
     "/api/status": {
       "get": {
         "description": "One snapshot of the whole stack, for Settings' Dev tab. The\nnetwork probes run side by side so a service that is down costs one\ntimeout, not one per service.",
@@ -5725,62 +5669,6 @@
           }
         },
         "summary": "Status"
-      }
-    },
-    "/api/tac-tile/{z}/{x}/{y}.png": {
-      "get": {
-        "description": "The terminal area charts, the same way -- an optional overlay\nthe map draws above the sectional close in, where a TAC exists\n(Chicago's covers the first leg out of C81). Transparent, and so a\n404, everywhere else.",
-        "operationId": "tac_tile_api_tac_tile__z___x___y__png_get",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "z",
-            "required": true,
-            "schema": {
-              "title": "Z",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "path",
-            "name": "x",
-            "required": true,
-            "schema": {
-              "title": "X",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "path",
-            "name": "y",
-            "required": true,
-            "schema": {
-              "title": "Y",
-              "type": "integer"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Tac Tile"
       }
     }
   }

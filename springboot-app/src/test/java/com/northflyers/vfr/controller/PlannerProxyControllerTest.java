@@ -225,15 +225,12 @@ class PlannerProxyControllerTest {
     }
 
     @Test
-    void theOlderPerKindTilePathsKeepTheirCacheControlToo() throws Exception {
-        responseHeaders.put("Cache-Control", "public, max-age=604800");
-
+    void theRetiredPerKindTilePathsAreNotForwarded() throws Exception {
+        // /api/sectional-tile and /api/tac-tile were the same tiles under
+        // older names, with no caller left; the planner no longer has them.
         for (String kind : new String[] {"sectional-tile", "tac-tile"}) {
-            MvcResult started = mockMvc.perform(get("/api/planner/" + kind + "/10/262/380.png"))
-                    .andExpect(request().asyncStarted())
-                    .andReturn();
-            mockMvc.perform(asyncDispatch(started))
-                    .andExpect(header().string("Cache-Control", "public, max-age=604800"));
+            mockMvc.perform(get("/api/planner/" + kind + "/10/262/380.png"))
+                    .andExpect(status().isNotFound());
         }
     }
 

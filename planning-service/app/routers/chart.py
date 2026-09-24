@@ -43,39 +43,20 @@ def _chart_tile(kind: charts.ChartKind, z: int, x: int, y: int) -> Response:
     )
 
 
-@router.get("/api/sectional-tile/{z}/{x}/{y}.png")
-def sectional_tile(z: int, x: int, y: int) -> Response:
-    """The sectional as a {z}/{x}/{y} tile pyramid, rendered from the
-    FAA's own GeoTIFF of each sheet (vfr.charts -- downloaded once per
-    56-day chart cycle) and cached on disk. The same tiles the detector
-    reads, so a corridor planned once has its map tiles ready, and a map
-    browsed once has its detection tiles ready.
-
-    A tile pyramid is what makes the map's chart layer a plain Leaflet
-    tile layer: edge-only fetches on a pan, the previous zoom's tiles
-    scaled under the zoom animation, a prefetch ring. 404 where no sheet
-    covers the tile, which the layer leaves blank for the street map
-    underneath; the layer's own maxNativeZoom keeps the browser from
-    asking past the chart's resolution.
-    """
-    return _chart_tile(charts.SECTIONAL, z, x, y)
-
-
-@router.get("/api/tac-tile/{z}/{x}/{y}.png")
-def tac_tile(z: int, x: int, y: int) -> Response:
-    """The terminal area charts, the same way -- an optional overlay
-    the map draws above the sectional close in, where a TAC exists
-    (Chicago's covers the first leg out of C81). Transparent, and so a
-    404, everywhere else."""
-    return _chart_tile(charts.TAC, z, x, y)
-
-
 @router.get("/api/chart-tile/{kind}/{z}/{x}/{y}.png")
 def chart_tile(kind: str, z: int, x: int, y: int) -> Response:
     """Any kind of chart by its key (`chart_layers` on the course lists
-    them): `sec`, `tac`, `ifr_low`, `ifr_high`. What the map's layer
-    picker draws from; the two routes above are the same tiles under
-    their older names."""
+    them): `sec`, `tac`, `ifr_low`, `ifr_high`, `ifr_area`. What the
+    map's layers draw from.
+
+    The FAA's own GeoTIFF of each sheet, rendered into a {z}/{x}/{y} tile
+    pyramid (vfr.charts -- downloaded once per 56-day chart cycle) and
+    cached on disk; the same tiles the detector reads. A tile pyramid is
+    what makes each chart a plain Leaflet tile layer: edge-only fetches
+    on a pan, the previous zoom's tiles scaled under the zoom animation,
+    a prefetch ring. 404 where no sheet covers the tile, which the layer
+    leaves blank. The sectional and the TAC had routes of their own
+    under older names, which nothing called any more."""
     if kind not in charts.KINDS:
         raise HTTPException(404, f"no such chart kind: {kind}")
     return _chart_tile(charts.KINDS[kind], z, x, y)

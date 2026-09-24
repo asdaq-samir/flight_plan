@@ -54,12 +54,9 @@ public class PlannerProxyController {
     private static final StreamingProxy.Upstream PLANNER = new StreamingProxy.Upstream(
             "planner service", "planner service unreachable", "planner service timed out");
 
-    /** The two chart-tile paths, plus the one that serves either kind.
-     *  Only these carry their upstream's Cache-Control -- see
-     *  {@link #forward}. */
-    private static final String[] TILE_PATHS = {
-        "/api/sectional-tile/", "/api/tac-tile/", "/api/chart-tile/",
-    };
+    /** The chart tiles, every kind under one path. Only these carry their
+     *  upstream's Cache-Control -- see {@link #forward}. */
+    private static final String TILE_PATH = "/api/chart-tile/";
 
     private record Route(String method, PathPattern pattern) {
         boolean matches(String method, PathContainer path) {
@@ -92,8 +89,6 @@ public class PlannerProxyController {
             route("GET", "/api/airports/search"),
             route("GET", "/api/aircraft-profiles"),
             route("GET", "/api/chart-tile/{kind}/{z}/{x}/{y}.png"),
-            route("GET", "/api/sectional-tile/{z}/{x}/{y}.png"),
-            route("GET", "/api/tac-tile/{z}/{x}/{y}.png"),
             route("POST", "/api/checkpoint-notes"),
             route("POST", "/api/checkpoint-notes/generate"),
             route("POST", "/api/build"),
@@ -190,21 +185,12 @@ public class PlannerProxyController {
             // navlog, ...) depends on saved state or a request body, so a
             // Cache-Control it happened to emit must not be echoed the
             // same way.
-            if (isTilePath(path)) {
+            if (path.startsWith(TILE_PATH)) {
                 response.headers().firstValue(HttpHeaders.CACHE_CONTROL)
                         .ifPresent(value -> builder.header(HttpHeaders.CACHE_CONTROL, value));
             }
             return builder.body(StreamingProxy.pipe(response.body()));
         });
-    }
-
-    private static boolean isTilePath(String path) {
-        for (String prefix : TILE_PATHS) {
-            if (path.startsWith(prefix)) {
-                return true;
-            }
-        }
-        return false;
     }
 
     /** {@code /api/planner/course} upstream is {@code /api/course}. */
