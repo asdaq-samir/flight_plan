@@ -9,11 +9,14 @@ current national dataset, gzipped, regenerated every minute (TAFs every
 ten) -- rather than per-route API queries. That is what their API terms
 ask heavy users to do: a bounding-box query per route is exactly the
 "large query" the rate limit and the results cap exist for, and one
-download every few minutes replaces all of them. Each dataset is held in
-memory for _DATASET_TTL_S; a refresh that fails keeps serving the
-previous copy for a while, so an outage degrades to "conditions from a
-few minutes ago" rather than a failure per request. The winds/temps
-product is small and stays a direct request, cached the same way.
+download every few minutes replaces all of them. The winds/temps product
+is small and stays a direct request, one per forecast period. Every one
+of them is a source in _SOURCES, held by one rule (see _dataset): parsed
+as it is fetched, kept for its own time, a failed refresh serving the
+previous copy for a while -- so an outage degrades to "conditions from a
+few minutes ago" rather than a failure per request -- and a failure with
+nothing to serve remembered for a minute rather than tried again by
+every caller.
 
 Unlike the FAA NASR/DOF data in vfr.faa_data, none of this is cached to
 disk: it's live/current-conditions data, and a copy older than an hour
@@ -26,6 +29,7 @@ import threading
 import time
 import xml.etree.ElementTree as ET
 from datetime import datetime
+from typing import NamedTuple
 
 import numpy as np
 import requests
@@ -67,43 +71,12 @@ def _get(url: str, params: dict, retries: int = 3) -> requests.Response:
 # --- Freezing level, from the winds/temps-aloft ("FD") text product ---
 
 
-# The FD product is a forecast issued a few times a day, so refetching it
-# per nav-log leg was 22 identical HTTP round trips for one route -- most
-# of the 1.2 seconds each leg cost. Held briefly rather than forever, so a
-# long-running server still picks up a new issue.
-_FD_CACHE: dict = {}
-_FD_TTL_S = 900
-
-
-def _fetch_fd_text(fcst_hr: str = "06") -> str:
-    cached = _FD_CACHE.get(fcst_hr)
-    if cached and time.time() - cached[0] < _FD_TTL_S:
-        return cached[1]
-    text = _fetch_fd_text_uncached(fcst_hr)
-    _FD_CACHE[fcst_hr] = (time.time(), text)
-    _FD_STATIONS.pop(fcst_hr, None)
-    return text
-
-
-# The parsed product, one per fetched text: the three altitude plans
-# look the winds up at every legal altitude of every leg -- well over a
-# hundred lookups for one route -- and re-parsing the whole product for
-# each was most of what they cost.
-_FD_STATIONS: dict = {}
-
-
 def _fd_stations(fcst_hr: str = "06") -> dict:
-    text = _fetch_fd_text(fcst_hr)
-    cached = _FD_STATIONS.get(fcst_hr)
-    if cached is None or cached[0] is not text:
-        cached = (text, parse_fd_text(text))
-        _FD_STATIONS[fcst_hr] = cached
-    return cached[1]
-
-
-def _fetch_fd_text_uncached(fcst_hr: str = "06") -> str:
-    resp = _get(WINDTEMP_URL, params={"region": "us", "level": "low", "fcst": fcst_hr})
-    return resp.text
+    """The winds/temps product for one forecast period, parsed: the three
+    altitude plans look the winds up at every legal altitude of every leg
+    -- well over a hundred lookups for one route -- so it is fetched and
+    parsed once and held (the "winds-NN" sources below), not per lookup."""
+    return _dataset(f"winds-{fcst_hr}")
 
 
 def _parse_fd_station_row(row: str, alt_positions: list) -> tuple:
@@ -168,7 +141,12 @@ def parse_fd_text(text: str) -> dict:
     station's own elevation).
     """
     lines = text.splitlines()
-    header_idx = next(i for i, line in enumerate(lines) if line.startswith("FT "))
+    header_idx = next((i for i, line in enumerate(lines) if line.startswith("FT ")), None)
+    if header_idx is None:
+        # A body with no altitude header -- an error page, a truncated
+        # answer -- is not a product. It used to escape as StopIteration,
+        # which no caller catches.
+        raise WeatherServiceError("the winds/temps product has no altitude header")
     alt_positions = [(m.start(), int(m.group())) for m in re.finditer(r"\d+", lines[header_idx])]
 
     stations = {}
@@ -312,82 +290,144 @@ def wind_at_altitude(lat: float, lon: float, altitude_ft: float, fcst_hr: str = 
     return None
 
 
-# --- The cache files: METARs, TAFs and SIGMETs as whole datasets ---
+# --- Every source, held by one rule ---
 
 _DATASET_TTL_S = 300
 # How old a copy may be and still be served when a refresh fails.
 _DATASET_STALE_MAX_S = 3 * 3600
-# How long to wait before trying a failed refresh again while serving
-# the stale copy -- every weather call during an outage must not be a
-# fresh download attempt, with its own retries and time-outs.
+# The winds are issued a few times a day but held only this long, and
+# served no older when a refresh fails: the nav log's wind triangle is
+# only as good as its winds, and a plan says when it has none.
+_WINDS_TTL_S = 900
+# How long to wait before trying a failed refresh again -- every weather
+# call during an outage must not be a fresh download attempt, with its
+# own retries and time-outs. Holds whether or not a copy is being served.
 _DATASET_RETRY_AFTER_S = 60
-
-# name -> {"at": fetched_at, "data": parsed, "attempted": last_attempt}
-_DATASETS: dict = {}
-_DATASET_LOCKS = {name: threading.Lock() for name in ("metars", "tafs", "airsigmets")}
-# name -> an Event set when the download in flight for it ends.
-_DATASET_FETCHING: dict = {}
 # How long a caller with no copy at all waits for someone else's download.
 _DATASET_WAIT_S = 120
 
 
-def _dataset(name: str, parse, force: bool = False):
-    """The current national `name` dataset, parsed from
-    CACHE_BASE_URL/{name}.cache.xml.gz and held for _DATASET_TTL_S. A
-    refresh that fails keeps serving the previous copy for up to
-    _DATASET_STALE_MAX_S -- a briefing from conditions a few minutes old
-    beats none -- and raises WeatherServiceError only when there is
-    nothing to serve. `force` fetches now whatever the held copy's age
-    (the server's own periodic refresh), still falling back to it if the
-    fetch fails.
+def _winds_source(fcst_hr: str) -> tuple:
+    return (WINDTEMP_URL, {"region": "us", "level": "low", "fcst": fcst_hr},
+            lambda resp: parse_fd_text(resp.text), _WINDS_TTL_S, _WINDS_TTL_S)
 
-    One download at a time per dataset, and nobody waits behind it who
-    has anything to serve. The lock used to be held for the whole
-    download -- up to a minute and a half with its retries on a bad day --
-    so every briefing, nav log and Class B marker stood in line behind
-    the server's own periodic refresh. Now a caller finding a download
-    in flight is handed the held copy, and only one with no copy at all
-    waits, for at most _DATASET_WAIT_S."""
+
+# name -> (url, params, parse(response), fresh for, served stale up to).
+_SOURCES = {
+    "metars": (f"{CACHE_BASE_URL}/metars.cache.xml.gz", {},
+               lambda resp: _parse_metars(gzip.decompress(resp.content)), _DATASET_TTL_S, _DATASET_STALE_MAX_S),
+    "tafs": (f"{CACHE_BASE_URL}/tafs.cache.xml.gz", {},
+             lambda resp: _parse_tafs(gzip.decompress(resp.content)), _DATASET_TTL_S, _DATASET_STALE_MAX_S),
+    "airsigmets": (f"{CACHE_BASE_URL}/airsigmets.cache.xml.gz", {},
+                   lambda resp: _parse_airsigmets(gzip.decompress(resp.content)), _DATASET_TTL_S, _DATASET_STALE_MAX_S),
+    **{f"winds-{hr}": _winds_source(hr) for hr in ("06", "12", "24")},
+}
+
+
+class _Record(NamedTuple):
+    """What is known about one source, replaced whole and never changed
+    in place, so a reader needs no lock to look at it. `at` is when the
+    held copy was fetched (None when there is none); `error`, the last
+    attempt's failure, None once one succeeds."""
+    at: float | None
+    data: object
+    attempted: float
+    error: WeatherServiceError | None
+
+
+_DATASETS: dict[str, _Record] = {}
+_DATASET_LOCKS = {name: threading.Lock() for name in _SOURCES}
+# name -> an Event set when the download in flight for it ends.
+_DATASET_FETCHING: dict = {}
+_DUE = object()
+
+
+def _serve(record: _Record | None, now: float, ttl_s: float, stale_max_s: float):
+    """What a record can answer now: its data, the remembered failure
+    (raised), or _DUE when a fetch should start."""
+    if record is None:
+        return _DUE
+    servable = record.at is not None and now - record.at < stale_max_s
+    if record.at is not None and now - record.at < ttl_s:
+        return record.data
+    if now - record.attempted < _DATASET_RETRY_AFTER_S:
+        if servable:
+            return record.data
+        if record.error is not None:
+            raise record.error
+    return _DUE
+
+
+def _dataset(name: str, force: bool = False):
+    """Source `name`, parsed, held for its own time. A refresh that fails
+    keeps serving the previous copy for as long as the source allows -- a
+    briefing from conditions a few minutes old beats none -- and raises
+    WeatherServiceError only when there is nothing to serve; that failure
+    is remembered for _DATASET_RETRY_AFTER_S, so the callers after it get
+    the same answer at once rather than each running a retry cycle of
+    their own. `force` fetches now whatever the held copy's age (the
+    server's own periodic refresh), still falling back to it if the fetch
+    fails. Only a parsed product is ever held: a body that does not parse
+    is a failed fetch.
+
+    Readers take no lock -- the record is replaced whole -- and one
+    download at a time runs per source: a caller finding one in flight is
+    handed the held copy, and only one with nothing to serve waits, for
+    at most _DATASET_WAIT_S. The lock used to be held for the whole
+    download, up to a minute and a half on a bad day, so every briefing,
+    nav log and Class B marker stood in line behind the server's own
+    periodic refresh."""
+    url, params, parse, ttl_s, stale_max_s = _SOURCES[name]
+    if not force:
+        served = _serve(_DATASETS.get(name), time.time(), ttl_s, stale_max_s)
+        if served is not _DUE:
+            return served
     while True:
         with _DATASET_LOCKS[name]:
-            cached = _DATASETS.get(name)
+            record = _DATASETS.get(name)
             now = time.time()
-            if cached is not None and not force:
-                if now - cached["at"] < _DATASET_TTL_S:
-                    return cached["data"]
-                if now - cached["attempted"] < _DATASET_RETRY_AFTER_S and now - cached["at"] < _DATASET_STALE_MAX_S:
-                    return cached["data"]
+            if not force:
+                served = _serve(record, now, ttl_s, stale_max_s)
+                if served is not _DUE:
+                    return served
             in_flight = _DATASET_FETCHING.get(name)
-            if in_flight is not None:
-                if cached is not None and now - cached["at"] < _DATASET_STALE_MAX_S:
-                    return cached["data"]
-            else:
+            if in_flight is None:
                 done = threading.Event()
                 _DATASET_FETCHING[name] = done
-                if cached is not None:
-                    cached["attempted"] = now
-        if in_flight is None:
-            break
+                break
+            if record is not None and record.at is not None and now - record.at < stale_max_s:
+                return record.data
         if not in_flight.wait(timeout=_DATASET_WAIT_S):
-            raise WeatherServiceError(f"aviationweather.gov {name} cache file is still downloading")
+            raise WeatherServiceError(f"aviationweather.gov {name} is still downloading")
+        # Someone else's download just ended: serve what it left.
+        force = False
 
     try:
-        resp = _get(f"{CACHE_BASE_URL}/{name}.cache.xml.gz", params={})
-        data = parse(gzip.decompress(resp.content))
+        data = parse(_get(url, params=params))
     except (WeatherServiceError, OSError, ET.ParseError) as err:
+        error = WeatherServiceError(f"aviationweather.gov {name} unavailable: {err}")
         with _DATASET_LOCKS[name]:
+            _DATASETS[name] = _Record(
+                at=record.at if record else None, data=record.data if record else None, attempted=now, error=error,
+            )
             _DATASET_FETCHING.pop(name, None)
         done.set()
-        if cached is not None and now - cached["at"] < _DATASET_STALE_MAX_S:
+        if record is not None and record.at is not None and now - record.at < stale_max_s:
             log.warning("%s refresh failed (%s); serving the copy from %.0f minutes ago",
-                        name, err, (now - cached["at"]) / 60)
-            return cached["data"]
-        raise WeatherServiceError(f"aviationweather.gov {name} cache file unavailable: {err}") from err
+                        name, err, (now - record.at) / 60)
+            return record.data
+        raise error from err
     with _DATASET_LOCKS[name]:
-        _DATASETS[name] = {"at": now, "data": data, "attempted": now}
+        _DATASETS[name] = _Record(at=now, data=data, attempted=now, error=None)
         _DATASET_FETCHING.pop(name, None)
     done.set()
     return data
+
+
+def dataset_status() -> dict[str, float | None]:
+    """When each source's held copy was fetched, None for one not held --
+    what the Dev console shows as the weather's age."""
+    return {name: (record.at if (record := _DATASETS.get(name)) else None) for name in _SOURCES}
 
 
 def _float(text: str | None) -> float | None:
@@ -492,7 +532,7 @@ def metar_for_idents(idents: list) -> dict:
     """{ident: {...}} for the latest METAR at each ident, or {ident: None}
     for one with nothing current (a small field with no reporting
     station)."""
-    metars = _dataset("metars", _parse_metars)
+    metars = _dataset("metars")
     return {ident: metars.get(ident) for ident in idents}
 
 
@@ -550,7 +590,7 @@ def taf_for_idents(idents: list) -> dict:
     wanted = {i.upper() for i in idents}
     now = time.time()
     stations = {
-        s["icaoId"]: s for s in _dataset("tafs", _parse_tafs) if s["icaoId"] in wanted
+        s["icaoId"]: s for s in _dataset("tafs") if s["icaoId"] in wanted
     }
     answer = {}
     for ident in idents:
@@ -737,7 +777,7 @@ def hazards_along_route(route_start: tuple, route_end: tuple, corridor_buffer_nm
     now = time.time()
     route_line = LineString([(route_start[1], route_start[0]), (route_end[1], route_end[0])])
     hits = []
-    for advisory in _dataset("airsigmets", _parse_airsigmets):
+    for advisory in _dataset("airsigmets"):
         if advisory["valid_to"] is not None and advisory["valid_to"] <= now:
             continue
         if advisory["valid_from"] is not None and advisory["valid_from"] > now:
@@ -756,28 +796,36 @@ def hazards_along_route(route_start: tuple, route_end: tuple, corridor_buffer_nm
     return hits
 
 
+def _fetch_each(names, force: bool = False) -> None:
+    """Every one of `names` attempted, then the first failure raised --
+    one source down must not keep the others from being fetched."""
+    first = None
+    for name in names:
+        try:
+            _dataset(name, force=force)
+        except WeatherServiceError as err:
+            first = first or err
+    if first is not None:
+        raise first
+
+
 def preload() -> None:
-    """Fetches the three cache files now -- a briefing's worth of data
-    for every route -- so a service's first pilot after a restart doesn't
-    wait on the downloads."""
-    _dataset("metars", _parse_metars)
-    _dataset("tafs", _parse_tafs)
-    _dataset("airsigmets", _parse_airsigmets)
+    """Fetches the three cache files and the current winds now -- a
+    briefing's worth of data for every route -- so a service's first
+    pilot after a restart doesn't wait on the downloads."""
+    _fetch_each(("metars", "tafs", "airsigmets", "winds-06"))
 
 
 def refresh() -> None:
-    """The same three files fetched again now, whatever their age, plus
-    the winds product -- for the server's own periodic refresh, so the
-    held copies never expire on a pilot's request: the first plan after
-    an expiry used to pay for the downloads, on a slow aviationweather.gov
-    day close to a minute. A fetch that fails leaves the held copy in
-    place, to be served stale as before."""
-    for name, parse in (("metars", _parse_metars), ("tafs", _parse_tafs), ("airsigmets", _parse_airsigmets)):
-        _dataset(name, parse, force=True)
-    for fcst_hr in list(_FD_CACHE) or ["06"]:
-        text = _fetch_fd_text_uncached(fcst_hr)
-        _FD_CACHE[fcst_hr] = (time.time(), text)
-        _FD_STATIONS.pop(fcst_hr, None)
+    """The same fetched again now, whatever their age -- the winds for
+    each forecast period already held -- for the server's own periodic
+    refresh, so the held copies never expire on a pilot's request: the
+    first plan after an expiry used to pay for the downloads, on a slow
+    aviationweather.gov day close to a minute. A fetch that fails leaves
+    the held copy in place, to be served stale as before; the winds used
+    to be written here by hand, and had no such fallback."""
+    winds = [name for name in _DATASETS if name.startswith("winds-")] or ["winds-06"]
+    _fetch_each(("metars", "tafs", "airsigmets", *winds), force=True)
 
 
 def forecast_hour(hours_ahead: float | None) -> str:

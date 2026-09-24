@@ -180,9 +180,7 @@ def _faa_files() -> list[DataFile]:
 def _weather_datasets() -> list[WeatherDataset]:
     now = datetime.now(tz=timezone.utc).timestamp()
     out = []
-    for name in ("metars", "tafs", "airsigmets"):
-        cached = weather._DATASETS.get(name)
-        fetched = cached["at"] if cached else None
+    for name, fetched in weather.dataset_status().items():
         out.append(WeatherDataset(name=name, fetched_at=_iso(fetched), age_s=(now - fetched) if fetched else None))
     return out
 

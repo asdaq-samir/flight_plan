@@ -536,6 +536,9 @@ const DATASET_NAMES: Record<string, string> = {
   metars: "METARs",
   tafs: "TAFs",
   airsigmets: "AIRMETs and SIGMETs",
+  "winds-06": "Winds aloft, next 6 h",
+  "winds-12": "Winds aloft, 12 h",
+  "winds-24": "Winds aloft, 24 h",
 };
 
 /** Green up, red down, grey unknown -- and amber, pulsing, for

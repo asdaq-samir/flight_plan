@@ -342,7 +342,7 @@ def test_a_reader_during_a_refresh_is_served_the_held_copy_at_once(monkeypatch):
     with patch("vfr.weather.requests.get", return_value=METARS):
         metar_for_idents(["KDLH"])                      # a held copy
     monkeypatch.setattr(weather.requests, "get", slow_get)
-    refresher = threading.Thread(target=lambda: weather._dataset("metars", weather._parse_metars, force=True))
+    refresher = threading.Thread(target=lambda: weather._dataset("metars", force=True))
     refresher.start()
     started.wait(5)
 
@@ -376,3 +376,109 @@ def test_callers_with_nothing_held_share_one_download(monkeypatch):
 
     assert len(calls) == 1
     assert len(results) == 4 and all(r["KORD"]["flight_category"] == "IFR" for r in results)
+
+
+# --- a failure with nothing to serve, and the winds held by the same rule ---
+
+def _text(body: str) -> Mock:
+    response = Mock(status_code=200, text=body)
+    response.raise_for_status.return_value = None
+    return response
+
+
+FD = _text(
+    "DATA BASED ON 200000Z\n"
+    "VALID 200600Z   FOR USE 0200-0900Z. TEMPS NEG ABV 24000\n\n"
+    "FT  3000    6000    9000   12000   18000   24000  30000  34000  39000\n"
+    "DLH 2714 2725-02 2735-08 2745-13 2760-25 2775-37 780049 780159 780969\n"
+)
+
+
+@patch("vfr.weather.time.sleep")
+@patch("vfr.weather.requests.get")
+def test_a_failure_with_nothing_held_is_the_answer_for_a_minute(mock_get, mock_sleep):
+    """Every caller used to run a retry cycle of its own, one behind the
+    other, while there was nothing to serve."""
+    mock_get.side_effect = requests.ConnectionError("no route to host")
+    with patch("vfr.weather.time.time", return_value=T0200Z):
+        with pytest.raises(WeatherServiceError, match="no route to host"):
+            metar_for_idents(["KORD"])
+    attempts = mock_get.call_count
+
+    with patch("vfr.weather.time.time", return_value=T0200Z + 30):
+        with pytest.raises(WeatherServiceError, match="no route to host"):
+            metar_for_idents(["KORD"])
+    assert mock_get.call_count == attempts
+
+    mock_get.side_effect, mock_get.return_value = None, METARS
+    with patch("vfr.weather.time.time", return_value=T0200Z + 61):
+        assert metar_for_idents(["KORD"])["KORD"]["flight_category"] == "IFR"
+
+
+@patch("vfr.weather.time.sleep")
+@patch("vfr.weather.requests.get")
+def test_a_copy_too_old_to_serve_is_not_fetched_again_within_the_minute(mock_get, mock_sleep):
+    mock_get.return_value = METARS
+    with patch("vfr.weather.time.time", return_value=T0200Z):
+        metar_for_idents(["KORD"])
+    mock_get.return_value, mock_get.side_effect = None, requests.ConnectionError("no route to host")
+    with patch("vfr.weather.time.time", return_value=T0200Z + 4 * 3600):
+        with pytest.raises(WeatherServiceError):
+            metar_for_idents(["KORD"])
+    attempts = mock_get.call_count
+    with patch("vfr.weather.time.time", return_value=T0200Z + 4 * 3600 + 30):
+        with pytest.raises(WeatherServiceError):
+            metar_for_idents(["KORD"])
+    assert mock_get.call_count == attempts
+
+
+@patch("vfr.weather.requests.get", return_value=FD)
+def test_the_winds_are_parsed_once_and_held(mock_get):
+    assert weather._fd_stations("06")["DLH"][9000]["temp_c"] == -8.0
+    weather._fd_stations("06")
+    assert mock_get.call_count == 1
+    assert mock_get.call_args.kwargs["params"]["fcst"] == "06"
+
+
+@patch("vfr.weather.time.sleep")
+@patch("vfr.weather.requests.get")
+def test_a_winds_body_with_no_header_is_a_failed_fetch_not_a_crash(mock_get, mock_sleep):
+    """It raised StopIteration, which no caller catches -- and the text
+    was cached before it was parsed, so it stayed "valid" for 15 min."""
+    mock_get.return_value = FD
+    with patch("vfr.weather.time.time", return_value=T0200Z):
+        weather._fd_stations("06")
+    mock_get.return_value = _text("<html>Service Unavailable</html>")
+    with patch("vfr.weather.time.time", return_value=T0200Z + 5 * 60):
+        assert weather._dataset("winds-06", force=True)["DLH"][9000]["temp_c"] == -8.0   # the held copy
+    with patch("vfr.weather.time.time", return_value=T0200Z + 20 * 60):
+        with pytest.raises(WeatherServiceError, match="no altitude header"):
+            weather._fd_stations("06")                                                   # past 15 min: not
+
+
+@patch("vfr.weather.time.sleep")
+@patch("vfr.weather.requests.get")
+def test_a_refresh_tries_every_source_and_raises_the_first_failure(mock_get, mock_sleep):
+    def answer(url, params=None, headers=None, timeout=None):
+        if "metars" in url:
+            raise requests.ConnectionError("metars down")
+        return FD if url == weather.WINDTEMP_URL else (TAFS if "tafs" in url else AIRSIGMETS)
+
+    mock_get.side_effect = answer
+    with pytest.raises(WeatherServiceError, match="metars down"):
+        weather.refresh()
+    fetched = {name for name, at in weather.dataset_status().items() if at is not None}
+    assert fetched == {"tafs", "airsigmets", "winds-06"}
+
+
+@patch("vfr.weather.requests.get")
+def test_preload_fetches_the_current_winds_and_refresh_only_the_periods_held(mock_get):
+    mock_get.side_effect = lambda url, params=None, headers=None, timeout=None: (
+        FD if url == weather.WINDTEMP_URL else METARS if "metars" in url else TAFS if "tafs" in url else AIRSIGMETS)
+    weather.preload()
+    weather._fd_stations("12")
+    mock_get.reset_mock()
+
+    weather.refresh()
+    winds = sorted(c.kwargs["params"]["fcst"] for c in mock_get.call_args_list if c.args[0] == weather.WINDTEMP_URL)
+    assert winds == ["06", "12"]

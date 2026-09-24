@@ -109,7 +109,8 @@ def test_status_reports_every_service_and_the_data_on_disk(monkeypatch):
     assert body["services"]["nav_log_agent"] == {"up": True, "detail": "HTTP 401"}
     assert body["services"]["crewai_agent"] is None
     assert body["pipeline"]["airflow_configured"] is False
-    assert {w["name"] for w in body["weather"]} == {"metars", "tafs", "airsigmets"}
+    # Every weather source, the winds for each forecast period included.
+    assert {w["name"] for w in body["weather"]} == {"metars", "tafs", "airsigmets", "winds-06", "winds-12", "winds-24"}
     for corridor in body["corridors"]:
         assert corridor["departure_ident"].isupper() and "by_rating" in corridor["labels"]
 
