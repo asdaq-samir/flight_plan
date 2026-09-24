@@ -25,8 +25,8 @@ import org.springframework.web.servlet.resource.ResourceHttpRequestHandler;
 
 /**
  * The front end's own paths: a client-side route is the index, a built
- * asset is served to be kept, and nothing about a path is remembered once
- * it has been answered. Served from a small
+ * asset is served to be kept, a missing one is a 404, and nothing about a
+ * path is remembered once it has been answered. Served from a small
  * bundle in the test resources.
  */
 @WebMvcTest(value = PilotController.class, properties = "app.static-location=classpath:/spa-test/")
@@ -55,6 +55,12 @@ class SpaFallbackTest {
         mockMvc.perform(get("/app/assets/app-abc123.js"))
                 .andExpect(status().isOk())
                 .andExpect(header().string("Cache-Control", containsString("immutable")));
+    }
+
+    @Test
+    void aMissingAssetIsA404NotTheIndex() throws Exception {
+        mockMvc.perform(get("/app/assets/app-missing.js"))
+                .andExpect(status().isNotFound());
     }
 
     @Test

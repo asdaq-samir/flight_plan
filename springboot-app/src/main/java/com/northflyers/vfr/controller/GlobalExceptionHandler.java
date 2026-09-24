@@ -98,11 +98,22 @@ public class GlobalExceptionHandler {
      * Catches everything not handled above -- the last line of defense
      * against an opaque, stack-trace-leaking default error page.
      *
+     * <p>Spring MVC's own request failures -- no such resource, a
+     * missing parameter, an unreadable body -- say which client error
+     * they are, and are answered as that. They were all 500s here: a
+     * browser asking for a bundle file a new build had replaced was told
+     * the server broke, and the log said "Unhandled exception".
+     *
      * @param ex the unexpected exception, logged in full server-side
-     * @return 500, with a generic message
+     * @return its own status for a client error Spring MVC names, else 500 with a generic message
      */
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleUnexpected(Exception ex) {
+        if (ex instanceof org.springframework.web.ErrorResponse known && known.getStatusCode().is4xxClientError()) {
+            String detail = known.getBody().getDetail();
+            return ResponseEntity.status(known.getStatusCode())
+                    .body(new ErrorResponse(detail != null ? detail : ex.getMessage()));
+        }
         log.error("Unhandled exception", ex);
         return ResponseEntity.internalServerError().body(new ErrorResponse("An unexpected error occurred"));
     }
