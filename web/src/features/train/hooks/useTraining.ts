@@ -65,6 +65,15 @@ interface Edits {
 }
 
 const editOf = (p: Detection | LoosePick): Edit => ({ rating: p.rating, rated: p.rated, role: p.role, category: p.category });
+/** A point added by hand, placed along the route by the planner once
+ *  saved: until then it has no distances of its own, and it used to
+ *  stay at 0 nm -- first in the flight-order walk -- for the session. */
+const placed = (e: Edits, key: string, pick: LoosePick): Edits => ({
+  ...e,
+  added: e.added.map(p => (pointKey(p) === key
+    ? { ...p, along_track_nm: pick.along_track_nm, cross_track_nm: pick.cross_track_nm }
+    : p)),
+});
 const fresh = (route: string): Edits => ({
   route, overrides: {}, added: [], removed: [], undo: null, selection: null,
 });
@@ -87,6 +96,13 @@ export function useTraining(dep: string, dest: string) {
     // hands back the previous route's course as placeholder data, and a
     // same-airport address then asked for that corridor's chart read.
     enabled: routeKnown && !!course.data, staleTime: Infinity,
+    // Kept only while the page shows it. The session's own edits live in
+    // this component and go with it, so a cached read seen again after
+    // DEV was flipped off and on -- or after another route -- showed every
+    // point rated meanwhile as unrated: "0 of N rated", Reset all greyed
+    // out, though the planner held the picks. Asked again, the read comes
+    // back with them merged in (the planner replays a finished read).
+    gcTime: 0,
   });
   const messages = useMemo(() => stream.data ?? [], [stream.data]);
   const streamed = useMemo(() => ({
@@ -115,8 +131,16 @@ export function useTraining(dep: string, dest: string) {
 
   const [editsState, setEdits] = useState<Edits>(() => fresh(route));
   const edits = editsState.route === route ? editsState : fresh(route);
+  // The route on screen now, for the actions below: a save that lands
+  // after the route has changed belongs to the old one, and applying it
+  // used to reset the new route's edits.
+  const routeNow = useRef(route);
+  useEffect(() => { routeNow.current = route; });
   const update = useCallback(
-    (fn: (e: Edits) => Edits) => setEdits(e => fn(e.route === route ? e : fresh(route))),
+    (fn: (e: Edits) => Edits) => {
+      if (routeNow.current !== route) return;
+      setEdits(e => fn(e.route === route ? e : fresh(route)));
+    },
     [route],
   );
 
@@ -192,7 +216,7 @@ export function useTraining(dep: string, dest: string) {
     try {
       const saved = await savePick(pickBody(target.course, target.p, target.kind, { rating }));
       update(e => ({
-        ...e,
+        ...placed(e, key, saved.pick),
         overrides: { ...e.overrides, [key]: { ...before, rating, rated: true, role: saved.pick.role } },
         undo: { key, kind: target.kind, before },
       }));
@@ -208,7 +232,8 @@ export function useTraining(dep: string, dest: string) {
     try {
       const saved = await savePick(pickBody(target.course, target.p, target.kind, { category }));
       update(e => ({
-        ...e, overrides: { ...e.overrides, [key]: { ...editOf(target.p), category, role: saved.pick.role } },
+        ...placed(e, key, saved.pick),
+        overrides: { ...e.overrides, [key]: { ...editOf(target.p), category, role: saved.pick.role } },
       }));
     } catch { /* reported by the query client */ }
   }, [savePick, update]);

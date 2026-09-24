@@ -315,4 +315,58 @@ describe("useTraining", () => {
     await act(async () => { await result.current.rate(4); });
     expect(mockSavePick).toHaveBeenCalledWith(expect.objectContaining({ lat: 43.25, lon: -89.25, rating: 4 }));
   });
+
+  test("left and come back to, the page reads the chart again rather than show a stale read", async () => {
+    // The session's edits go with the component; a cached read shown
+    // again had every rating since then missing.
+    mockCourse.mockResolvedValue(courseFixture());
+    mockDetect.mockImplementation(() => streamOf([detectionFixture()], []));
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const wrapper = ({ children }: { children: ReactNode }) => createElement(QueryClientProvider, { client: queryClient }, children);
+    const first = renderHook(() => useTraining("C81", "KDLH"), { wrapper });
+    await loaded(first.result);
+    first.unmount();
+    await new Promise(resolve => setTimeout(resolve, 10));   // leaving takes longer than a tick
+
+    const again = renderHook(() => useTraining("C81", "KDLH"), { wrapper });
+    await loaded(again.result);
+    expect(mockDetect).toHaveBeenCalledTimes(2);
+  });
+
+  test("a point added by hand takes the planner's distances once it is saved", async () => {
+    mockCourse.mockResolvedValue(courseFixture());
+    mockDetect.mockReturnValue(streamOf([], []));
+    mockClassify.mockResolvedValue({ category: "road_or_rail" });
+    mockSavePick.mockResolvedValue(savedPickResponse(loosePickFixture({
+      lat: 43.25, lon: -89.25, rating: 3, rated: true, along_track_nm: 61.4, cross_track_nm: 0.3,
+    })));
+    const { result } = renderLabels();
+    await loaded(result);
+    await act(async () => { await result.current.addPick(43.25, -89.25); });
+    expect(result.current.added[0]!.along_track_nm).toBe(0);
+
+    await act(async () => { await result.current.rate(3); });
+
+    expect(result.current.added[0]).toMatchObject({ along_track_nm: 61.4, cross_track_nm: 0.3 });
+  });
+
+  test("a save that lands after the route has changed leaves the new route alone", async () => {
+    mockCourse.mockResolvedValue(courseFixture());
+    mockDetect.mockImplementation(() => streamOf([detectionFixture()], []));
+    let land!: () => void;
+    mockSavePick.mockImplementation(() => new Promise(resolve => { land = () => resolve(savedPickResponse(loosePickFixture({ rating: 5, rated: true }))); }));
+    const { result, rerender } = renderLabels();
+    await loaded(result);
+    act(() => result.current.select(result.current.detections[0]!));
+    let pending!: Promise<void>;
+    act(() => { pending = result.current.rate(5); });
+
+    rerender({ dep: "KDSM", dest: "KOMA" });
+    await loaded(result);
+    act(() => result.current.select(result.current.detections[0]!));
+    await act(async () => { land(); await pending; });
+
+    expect(result.current.selected).toBe(result.current.detections[0]);
+    expect(result.current.detections[0]!.rating).toBeNull();
+  });
 });
