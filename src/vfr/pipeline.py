@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import json
 import os
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -111,6 +112,33 @@ def _ensure_local_output_dir(path) -> Path:
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     return path
+
+
+def _publish(out_path, write) -> Path:
+    """Writes `out_path` through `write(temp_path)` beside it, then renames
+    it into place, so a reader sees the old file or the new one and never
+    part of one.
+
+    Every reader takes "the file exists" to mean "the corridor is built":
+    the planner's build answers "already built", model-service serves it,
+    the Dev console lists it. A write cut short -- a full disk, a task
+    killed part-way -- used to leave a torn file that read as built until
+    someone deleted it by hand; now it leaves the previous file. The temp
+    name starts with a dot and ends in .part, so no reader's glob
+    (`features_*.parquet`, `*.parquet`) picks it up, and mkstemp makes it
+    unique, as three containers write this directory.
+    """
+    out_path = _ensure_local_output_dir(out_path)
+    fd, tmp = tempfile.mkstemp(dir=out_path.parent, prefix=f".{out_path.name}.", suffix=".part")
+    os.close(fd)
+    try:
+        write(tmp)
+        os.chmod(tmp, 0o644)  # mkstemp's 0600 would hide it from the other services' users
+        os.replace(tmp, out_path)
+    except BaseException:
+        Path(tmp).unlink(missing_ok=True)
+        raise
+    return out_path
 
 
 def held_out_scores(y_test, y_pred) -> dict:
@@ -270,11 +298,9 @@ def collect(
     ) & candidates_df["name"].isna()
     candidates_df = candidates_df[~is_unnamed_water].reset_index(drop=True)
 
-    out_path = _ensure_local_output_dir(out_path)
     out_df = candidates_df.copy()
     out_df["tags"] = out_df["tags"].apply(json.dumps)
-    out_df.to_csv(out_path, index=False)
-    return out_path
+    return _publish(out_path, lambda tmp: out_df.to_csv(tmp, index=False))
 
 
 def engineer_features(in_path: Path = CANDIDATES_PATH, out_path: Path = FEATURES_PATH) -> Path:
@@ -295,9 +321,7 @@ def engineer_features(in_path: Path = CANDIDATES_PATH, out_path: Path = FEATURES
     id_cols = ["osm_id", "osm_type", "category", "name", "lat", "lon"] + ROUTE_POSITION_COLS
     out_df = df[id_cols + feature_cols].copy()
 
-    out_path = _ensure_local_output_dir(out_path)
-    out_df.to_parquet(out_path, index=False)
-    return out_path
+    return _publish(out_path, lambda tmp: out_df.to_parquet(tmp, index=False))
 
 
 def _route_of(features_path: Path) -> str | None:
@@ -467,8 +491,10 @@ def retrain(
     )
 
     out_dir = _ensure_local_dir(out_dir)
-    joblib.dump(best_model, out_dir / "model.joblib")
-    (out_dir / "metrics.json").write_text(json.dumps(metrics, indent=2))
+    # The metrics last: promotion reads them to decide, and they name the
+    # model beside them.
+    _publish(out_dir / "model.joblib", lambda tmp: joblib.dump(best_model, tmp))
+    _publish(out_dir / "metrics.json", lambda tmp: Path(tmp).write_text(json.dumps(metrics, indent=2)))
     return metrics
 
 
