@@ -23,6 +23,10 @@ type Webapp = WebappComponents["schemas"];
 
 export type Airport = Schemas["AirportEnd"];
 export type Course = Schemas["Course"];
+/** One chart kind the map may draw, with its zooms -- and, for an
+ *  overlay, its sheets and where each is. */
+export type ChartLayer = Schemas["ChartLayer"];
+export type ChartSheet = Schemas["ChartSheet"];
 /** A scored OSM candidate. `selected` is set by the server's greedy pass. */
 export type Candidate = Schemas["Candidate"];
 export type Checkpoints = Schemas["Checkpoints"];

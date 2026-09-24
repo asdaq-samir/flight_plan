@@ -191,3 +191,27 @@ test("tapping one opens a card, and the card pins its terminal chart", async ({ 
   await page.mouse.click(map.x + 60, map.y + map.height - 60);
   await expect(page.locator(".leaflet-popup")).toHaveCount(0);
 });
+
+test("on an IFR base, a Class B card pins the IFR area chart, and that is what draws", async ({ page }) => {
+  // The pin resolved the TAC whatever the base: over the IFR low chart
+  // it said "Pin the Chicago TAC" while pinning drew the IFR area chart.
+  const areaTiles: string[] = [];
+  page.on("request", r => { if (r.url().includes("/chart-tile/ifr_area/")) areaTiles.push(r.url()); });
+  await mockClassB(page);
+  await page.goto(PLAN);
+  await page.waitForTimeout(4000);
+  await page.getByTestId("layers-button").click();
+  await page.getByTestId("base-chart-select").click();
+  await page.getByRole("option", { name: "IFR low" }).click();
+  await page.getByTestId("class-b-toggle").click();
+  await page.keyboard.press("Escape");
+
+  const ord = chips(page).filter({ hasText: "KORD" }).first();
+  await expect(ord).toBeVisible({ timeout: 20000 });
+  await ord.click();
+  const pin = page.locator(".leaflet-popup-content").getByTestId("class-b-pin");
+  await expect(pin).toHaveAttribute("aria-label", "Pin the IFR area chart");
+  await pin.click();
+  await expect(pin).toHaveAttribute("aria-pressed", "true");
+  await expect.poll(() => areaTiles.length, { timeout: 20000 }).toBeGreaterThan(0);
+});

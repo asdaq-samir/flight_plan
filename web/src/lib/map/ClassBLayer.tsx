@@ -4,20 +4,23 @@ import { Pin, PinOff } from "lucide-react";
 import IconButton from "../../components/IconButton";
 import { classBQuery } from "../queryClient";
 import type { ReactNode } from "react";
-import type { ClassBAirport, Course } from "../api/types";
+import type { ChartSheet, ClassBAirport, Course } from "../api/types";
 import { usePreferences } from "../preferences";
 import { AirportCard } from "./AirportCard";
 import { colourOf } from "./flightCategory";
 import { airportIcon } from "./icons";
 import { MapPopup } from "./MapPopup";
 import { MapTooltip } from "./MapTooltip";
+import { chartPair, sheetAt } from "./tiles";
 import { useCardedMarker } from "./useCardedMarker";
 
 /** The card, hovered or tapped: what the field is doing now, what it is
  *  forecast to do, and the raw text of both for a pilot who wants to
  *  read it themselves. Tapped, `actions` puts the pin and the zoom in
  *  its top corner. */
-function Details({ airport, leading, stale }: { airport: ClassBAirport; leading?: ReactNode; stale: boolean }) {
+function Details({ airport, sheet, leading, stale }: {
+  airport: ClassBAirport; sheet: ChartSheet | null; leading?: ReactNode; stale: boolean;
+}) {
   return (
     <AirportCard
       leading={leading}
@@ -45,8 +48,8 @@ function Details({ airport, leading, stale }: { airport: ClassBAirport; leading?
         },
       }}
     >
-      {airport.tac && !leading && (
-        <p className="pt-1 text-muted-foreground">Tap to go there, and to pin the {airport.tac}.</p>
+      {sheet && !leading && (
+        <p className="pt-1 text-muted-foreground">Tap to go there, and to pin the {sheet.label}.</p>
       )}
     </AirportCard>
   );
@@ -83,9 +86,11 @@ export function ClassBLayer({ course, onPreview }: { course: Course; onPreview: 
   const show = usePreferences(s => s.classB);
   const pinTac = usePreferences(s => s.setTac);
   const pinned = usePreferences(s => s.tac);
-  // The zoom the FAA's terminal charts actually start at, from the
-  // planner's own layer list rather than a number written here.
-  const tacFromZoom = course.chart_layers.find(l => !l.base && l.over.includes("sec"))?.min_zoom ?? 10;
+  const base = usePreferences(s => s.base);
+  // The overlay over the chart being drawn, and the zoom its sheets start
+  // at, from the planner's own layer list -- the same pair the map draws.
+  const { overlay } = chartPair(course.chart_layers, base);
+  const overlayFromZoom = overlay?.min_zoom ?? 10;
   // Which field's card is open, mirrored from Leaflet's own popupopen
   // and popupclose rather than decided here -- it is only ever read to
   // take that marker's tooltip away. A tap fires mouseover before
@@ -102,7 +107,9 @@ export function ClassBLayer({ course, onPreview }: { course: Course; onPreview: 
   const endpoints = new Set([course.departure.ident, course.destination.ident]);
   return (
     <>
-      {data.filter(airport => !endpoints.has(airport.ident)).map(airport => (
+      {data.filter(airport => !endpoints.has(airport.ident)).map(airport => {
+        const sheet = sheetAt(overlay, airport.lat, airport.lon);
+        return (
         <Marker
           key={airport.ident}
           position={[airport.lat, airport.lon]}
@@ -120,7 +127,7 @@ export function ClassBLayer({ course, onPreview }: { course: Course; onPreview: 
             // card the pilot is trying to read. The card is read
             // against the base chart; the pin is what keeps a sheet
             // drawn.
-            mouseover: () => { if (airport.tac && carded !== airport.ident) onPreview(true); },
+            mouseover: () => { if (sheet && carded !== airport.ident) onPreview(true); },
             mouseout: () => onPreview(false),
             // Tapping opens the card, which carries the pin. The pin
             // used to float at the map's top-right corner, away from
@@ -133,7 +140,7 @@ export function ClassBLayer({ course, onPreview }: { course: Course; onPreview: 
             // at the zoom its terminal chart starts at.
             click: () => {
               onPreview(false);
-              map.flyTo([airport.lat, airport.lon], Math.max(map.getZoom(), tacFromZoom));
+              map.flyTo([airport.lat, airport.lon], Math.max(map.getZoom(), overlayFromZoom));
             },
             ...cardEvents(airport.ident),
           }}
@@ -144,7 +151,7 @@ export function ClassBLayer({ course, onPreview }: { course: Course; onPreview: 
               marker. */}
           {carded !== airport.ident && (
             <MapTooltip>
-              <Details airport={airport} stale={isError} />
+              <Details airport={airport} sheet={sheet} stale={isError} />
             </MapTooltip>
           )}
           {/* A child of the marker, so Leaflet opens it on a click and
@@ -157,7 +164,8 @@ export function ClassBLayer({ course, onPreview }: { course: Course; onPreview: 
             <Details
               stale={isError}
               airport={airport}
-              leading={airport.tac && (
+              sheet={sheet}
+              leading={sheet && (
                 // An icon rather than a worded button: the card is
                 // mostly raw METAR and TAF, and a labelled button under
                 // it pushed the weather off a phone screen. It names
@@ -166,7 +174,7 @@ export function ClassBLayer({ course, onPreview }: { course: Course; onPreview: 
                 // opened this card already went to the field.
                 <div className="flex shrink-0 items-start">
                   <IconButton
-                    label={pinned ? "Unpin the terminal area chart" : `Pin the ${airport.tac}`}
+                    label={pinned ? "Unpin the terminal area chart" : `Pin the ${sheet.label}`}
                     size="icon-sm"
                     aria-pressed={pinned}
                     variant={pinned ? "secondary" : "outline"}
@@ -178,7 +186,7 @@ export function ClassBLayer({ course, onPreview }: { course: Course; onPreview: 
                     // so a pin that has nothing to show goes there
                     // first. Unpinning leaves the map where it is.
                     onClick={() => {
-                      if (!pinned) map.flyTo([airport.lat, airport.lon], Math.max(map.getZoom(), tacFromZoom));
+                      if (!pinned) map.flyTo([airport.lat, airport.lon], Math.max(map.getZoom(), overlayFromZoom));
                       pinTac(!pinned);
                     }}
                   >
@@ -189,7 +197,8 @@ export function ClassBLayer({ course, onPreview }: { course: Course; onPreview: 
             />
           </MapPopup>
         </Marker>
-      ))}
+        );
+      })}
     </>
   );
 }

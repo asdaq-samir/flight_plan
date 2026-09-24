@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef } from "react";
 import { TileLayer, useMap, useMapEvents } from "react-leaflet";
 import type { Course } from "../api/types";
 import { usePreferences } from "../preferences";
-import { tileTemplate } from "./tiles";
+import { chartPair, tileTemplate } from "./tiles";
 
 interface Props {
   course: Course;
@@ -37,9 +37,7 @@ export function ChartTiles({ course, previewing }: Props) {
   const map = useMap();
   const base = usePreferences(s => s.base);
   const pinned = usePreferences(s => s.tac);
-  const layers = course.chart_layers;
-  const baseLayer = layers.find(l => l.kind === base) ?? layers.find(l => l.kind === "sec") ?? null;
-  const overlay = layers.find(l => !l.base && l.over.includes(base)) ?? null;
+  const { base: baseLayer, overlay } = useMemo(() => chartPair(course.chart_layers, base), [course.chart_layers, base]);
   const baseRef = useRef<L.TileLayer>(null);
 
   const prefetchRing = useCallback(() => {
