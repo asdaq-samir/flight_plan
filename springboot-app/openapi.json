@@ -44,11 +44,13 @@
             "type" : "number"
           },
           "tailNumber" : {
-            "minLength" : 1,
+            "maxLength" : 16,
+            "minLength" : 0,
             "type" : "string"
           },
           "typeDesignator" : {
-            "minLength" : 1,
+            "maxLength" : 16,
+            "minLength" : 0,
             "type" : "string"
           },
           "usableFuelGal" : {
@@ -226,7 +228,8 @@
       "MagicLinkRequest" : {
         "properties" : {
           "email" : {
-            "minLength" : 1,
+            "maxLength" : 320,
+            "minLength" : 0,
             "type" : "string"
           }
         },
@@ -272,7 +275,8 @@
             "type" : [ "number", "null" ]
           },
           "category" : {
-            "minLength" : 1,
+            "maxLength" : 64,
+            "minLength" : 0,
             "type" : "string"
           },
           "eteMin" : {
@@ -304,7 +308,8 @@
             "type" : [ "number", "null" ]
           },
           "name" : {
-            "minLength" : 1,
+            "maxLength" : 255,
+            "minLength" : 0,
             "type" : "string"
           },
           "sequenceNo" : {

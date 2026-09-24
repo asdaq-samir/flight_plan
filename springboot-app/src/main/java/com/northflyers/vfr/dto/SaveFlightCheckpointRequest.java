@@ -1,6 +1,7 @@
 package com.northflyers.vfr.dto;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 import org.springframework.lang.Nullable;
 
 /** One line of the nav log a POST /api/flights body files -- the leg
@@ -11,8 +12,10 @@ import org.springframework.lang.Nullable;
 public record SaveFlightCheckpointRequest(
         int sequenceNo,
         @NotBlank(message = "name is required")
+        @Size(max = 255, message = "name must be at most 255 characters")
         String name,
         @NotBlank(message = "category is required")
+        @Size(max = 64, message = "category must be at most 64 characters")
         String category,
         double lat,
         double lon,

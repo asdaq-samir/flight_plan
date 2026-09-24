@@ -90,6 +90,19 @@ class AircraftControllerTest {
                 .andExpect(jsonPath("$.error").value("Invalid request"));
     }
 
+    /** Longer than the column was a database error, reported as a
+     *  tail number already on file. */
+    @Test
+    void add_returns400_namingTheField_whenTheTailNumberIsLongerThanItsColumn() throws Exception {
+        given(pilotService.current(any())).willReturn(Optional.of(samplePilot()));
+
+        mockMvc.perform(post("/api/aircraft").with(oidcLogin()).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"tailNumber\":\"N12345678901234567\",\"typeDesignator\":\"C172\",\"cruiseTasKt\":110,\"fuelBurnGph\":8.5}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.details[0]").value("tailNumber: tailNumber must be at most 16 characters"));
+    }
+
     @Test
     void add_returns400_whenCruiseTasIsNotPositive() throws Exception {
         given(pilotService.current(any())).willReturn(Optional.of(samplePilot()));

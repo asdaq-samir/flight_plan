@@ -35,8 +35,10 @@ const positiveNumber = (label: string) => z.string().trim().refine(
 );
 
 const aircraftSchema = z.object({
-  tailNumber: z.string().trim().min(1, "Tail number is required"),
-  typeDesignator: z.string().trim().min(1, "Type designator is required"),
+  // The server's limits, which are the columns': longer was refused there
+  // as though it were a tail number already on file.
+  tailNumber: z.string().trim().min(1, "Tail number is required").max(16, "At most 16 characters"),
+  typeDesignator: z.string().trim().min(1, "Type designator is required").max(16, "At most 16 characters"),
   cruiseTasKt: positiveNumber("Cruise TAS"),
   fuelBurnGph: positiveNumber("Fuel burn"),
   // Optional: blank means the owner has not said, and the nav log then
