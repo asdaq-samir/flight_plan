@@ -40,10 +40,18 @@ services:
     volumes:
       - .:/workspace
 
+  # One-shot jobs, not services: behind the `pipeline` profile so a plain
+  # `docker compose up` never starts them. It used to start both -- and
+  # the training image's default command is a full all-core retrain,
+  # which then overwrote the candidate model the registry compares next.
+  # Naming one still works as before: `docker compose run --rm
+  # pipeline-training retrain`, `docker compose build pipeline-processing
+  # pipeline-training` (the images the Airflow DAG runs).
   pipeline-processing:
     build:
       context: .
       dockerfile: docker/Dockerfile.processing
+    profiles: ["pipeline"]
     volumes:
       - .:/workspace
 
@@ -51,6 +59,7 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile.training
+    profiles: ["pipeline"]
     volumes:
       - .:/workspace
 

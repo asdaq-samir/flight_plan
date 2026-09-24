@@ -665,7 +665,10 @@ CI job breakdown is in the [Appendix](#appendix).
 Notes:
 
 - `pipeline-processing`/`pipeline-training` are separate images on purpose
-  — they mirror the AWS Processing-Job/Training-Job split.
+  — they mirror the AWS Processing-Job/Training-Job split. They are jobs,
+  not services, behind the `pipeline` profile: a plain `docker compose up`
+  leaves them out (the training image's default command is a full
+  retrain), and naming one in `run` or `build` works as it always did.
 - `airflow`'s DAG launches Collect/Feature-Engineer/Retrain as sibling
   containers via `DockerOperator`; build them first
   (`docker compose build pipeline-processing pipeline-training`).
