@@ -325,6 +325,10 @@ _DATASET_RETRY_AFTER_S = 60
 # name -> {"at": fetched_at, "data": parsed, "attempted": last_attempt}
 _DATASETS: dict = {}
 _DATASET_LOCKS = {name: threading.Lock() for name in ("metars", "tafs", "airsigmets")}
+# name -> an Event set when the download in flight for it ends.
+_DATASET_FETCHING: dict = {}
+# How long a caller with no copy at all waits for someone else's download.
+_DATASET_WAIT_S = 120
 
 
 def _dataset(name: str, parse, force: bool = False):
@@ -333,31 +337,57 @@ def _dataset(name: str, parse, force: bool = False):
     refresh that fails keeps serving the previous copy for up to
     _DATASET_STALE_MAX_S -- a briefing from conditions a few minutes old
     beats none -- and raises WeatherServiceError only when there is
-    nothing to serve. One fetch at a time per dataset: concurrent
-    callers wait for it rather than each downloading their own.
-    `force` fetches now whatever the held copy's age (the server's own
-    periodic refresh), still falling back to it if the fetch fails."""
+    nothing to serve. `force` fetches now whatever the held copy's age
+    (the server's own periodic refresh), still falling back to it if the
+    fetch fails.
+
+    One download at a time per dataset, and nobody waits behind it who
+    has anything to serve. The lock used to be held for the whole
+    download -- up to a minute and a half with its retries on a bad day --
+    so every briefing, nav log and Class B marker stood in line behind
+    the server's own periodic refresh. Now a caller finding a download
+    in flight is handed the held copy, and only one with no copy at all
+    waits, for at most _DATASET_WAIT_S."""
+    while True:
+        with _DATASET_LOCKS[name]:
+            cached = _DATASETS.get(name)
+            now = time.time()
+            if cached is not None and not force:
+                if now - cached["at"] < _DATASET_TTL_S:
+                    return cached["data"]
+                if now - cached["attempted"] < _DATASET_RETRY_AFTER_S and now - cached["at"] < _DATASET_STALE_MAX_S:
+                    return cached["data"]
+            in_flight = _DATASET_FETCHING.get(name)
+            if in_flight is not None:
+                if cached is not None and now - cached["at"] < _DATASET_STALE_MAX_S:
+                    return cached["data"]
+            else:
+                done = threading.Event()
+                _DATASET_FETCHING[name] = done
+                if cached is not None:
+                    cached["attempted"] = now
+        if in_flight is None:
+            break
+        if not in_flight.wait(timeout=_DATASET_WAIT_S):
+            raise WeatherServiceError(f"aviationweather.gov {name} cache file is still downloading")
+
+    try:
+        resp = _get(f"{CACHE_BASE_URL}/{name}.cache.xml.gz", params={})
+        data = parse(gzip.decompress(resp.content))
+    except (WeatherServiceError, OSError, ET.ParseError) as err:
+        with _DATASET_LOCKS[name]:
+            _DATASET_FETCHING.pop(name, None)
+        done.set()
+        if cached is not None and now - cached["at"] < _DATASET_STALE_MAX_S:
+            log.warning("%s refresh failed (%s); serving the copy from %.0f minutes ago",
+                        name, err, (now - cached["at"]) / 60)
+            return cached["data"]
+        raise WeatherServiceError(f"aviationweather.gov {name} cache file unavailable: {err}") from err
     with _DATASET_LOCKS[name]:
-        cached = _DATASETS.get(name)
-        now = time.time()
-        if cached is not None and not force:
-            if now - cached["at"] < _DATASET_TTL_S:
-                return cached["data"]
-            if now - cached["attempted"] < _DATASET_RETRY_AFTER_S and now - cached["at"] < _DATASET_STALE_MAX_S:
-                return cached["data"]
-        if cached is not None:
-            cached["attempted"] = now
-        try:
-            resp = _get(f"{CACHE_BASE_URL}/{name}.cache.xml.gz", params={})
-            data = parse(gzip.decompress(resp.content))
-        except (WeatherServiceError, OSError, ET.ParseError) as err:
-            if cached is not None and now - cached["at"] < _DATASET_STALE_MAX_S:
-                log.warning("%s refresh failed (%s); serving the copy from %.0f minutes ago",
-                            name, err, (now - cached["at"]) / 60)
-                return cached["data"]
-            raise WeatherServiceError(f"aviationweather.gov {name} cache file unavailable: {err}") from err
         _DATASETS[name] = {"at": now, "data": data, "attempted": now}
-        return data
+        _DATASET_FETCHING.pop(name, None)
+    done.set()
+    return data
 
 
 def _float(text: str | None) -> float | None:

@@ -130,6 +130,7 @@ AIRSIGMETS = _cache_file(
 @pytest.fixture(autouse=True)
 def _fresh_datasets(monkeypatch):
     monkeypatch.setattr(weather, "_DATASETS", {})
+    monkeypatch.setattr(weather, "_DATASET_FETCHING", {})
 
 
 @patch("vfr.weather.requests.get", return_value=METARS)
@@ -320,3 +321,58 @@ def test_a_freezing_level_between_readings_is_interpolated(monkeypatch):
     monkeypatch.setattr(airports, "load_airports", lambda: None)
 
     assert weather.freezing_level(46.8, -92.2) == {"ft": 8000.0, "at_or_below": False}
+
+
+# --- one download at a time, and nobody with a copy waits for it ------------
+
+def test_a_reader_during_a_refresh_is_served_the_held_copy_at_once(monkeypatch):
+    """The periodic refresh used to hold the lock for its whole download,
+    so every reader waited behind it -- up to a minute and a half."""
+    import threading
+    import time as clock
+    from vfr import weather
+
+    release, started = threading.Event(), threading.Event()
+
+    def slow_get(url, params=None, headers=None, timeout=None):
+        started.set()
+        release.wait(5)
+        return METARS
+
+    with patch("vfr.weather.requests.get", return_value=METARS):
+        metar_for_idents(["KDLH"])                      # a held copy
+    monkeypatch.setattr(weather.requests, "get", slow_get)
+    refresher = threading.Thread(target=lambda: weather._dataset("metars", weather._parse_metars, force=True))
+    refresher.start()
+    started.wait(5)
+
+    before = clock.monotonic()
+    assert metar_for_idents(["KDLH"])["KDLH"]["flight_category"] == "VFR"
+    assert clock.monotonic() - before < 1.0
+    release.set()
+    refresher.join(5)
+
+
+def test_callers_with_nothing_held_share_one_download(monkeypatch):
+    import threading
+    from vfr import weather
+
+    calls = []
+    release = threading.Event()
+
+    def slow_get(url, params=None, headers=None, timeout=None):
+        calls.append(url)
+        release.wait(5)
+        return METARS
+
+    monkeypatch.setattr(weather.requests, "get", slow_get)
+    results = []
+    threads = [threading.Thread(target=lambda: results.append(metar_for_idents(["KORD"]))) for _ in range(4)]
+    for t in threads:
+        t.start()
+    release.set()
+    for t in threads:
+        t.join(5)
+
+    assert len(calls) == 1
+    assert len(results) == 4 and all(r["KORD"]["flight_category"] == "IFR" for r in results)

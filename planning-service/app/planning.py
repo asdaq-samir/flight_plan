@@ -98,6 +98,9 @@ class SingleFlightTTLCache:
         self._cache: TTLCache = TTLCache(maxsize=maxsize, ttl=ttl)
         self._lock = threading.Lock()
         self._inflight: dict[object, _Flight] = {}
+        # key -> a computation given up on as abandoned that has not
+        # finished yet (see get_or_compute).
+        self._abandoned: dict[object, _Flight] = {}
 
     def get(self, key):
         """Read-only access, for a caller that wants to see a cached
@@ -119,6 +122,7 @@ class SingleFlightTTLCache:
         with self._lock:
             self._cache.clear()
             self._inflight.clear()
+            self._abandoned.clear()
 
     def get_or_compute(self, key, compute, limit_s: float | None = None, pending: set | None = None):
         """The cached value, or `compute()`'s -- computed once however
@@ -130,7 +134,20 @@ class SingleFlightTTLCache:
             if hit is not None:
                 return hit
             flight = self._inflight.get(key)
-            if flight is None or (limit_s is not None and flight.age() > limit_s):
+            if flight is not None and limit_s is not None and flight.age() > limit_s:
+                # Abandoned. A fresh computation replaces it -- once. The
+                # abandoned one cannot be stopped and keeps its threads,
+                # and when what it is stuck on is shared (a lock, a hung
+                # download) the fresh one sticks on it too; replacing
+                # every limit_s piled up another stuck computation each
+                # time. While an abandoned one is still running, a caller
+                # is told what it waits on instead.
+                previous = self._abandoned.get(key)
+                if previous is not None and not previous.done.is_set():
+                    raise StillComputing(flight.age(), flight.pending)
+                self._abandoned[key] = flight
+                flight = None
+            if flight is None:
                 flight = _Flight(pending)
                 self._inflight[key] = flight
                 leader = True
@@ -167,6 +184,8 @@ class SingleFlightTTLCache:
         caller has already replaced it as abandoned, whose own flight
         must stay."""
         with self._lock:
+            if self._abandoned.get(key) is flight:
+                del self._abandoned[key]
             if self._inflight.get(key) is flight:
                 del self._inflight[key]
         flight.done.set()

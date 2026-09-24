@@ -215,6 +215,35 @@ def test_a_computation_past_the_limit_is_replaced_not_joined():
     assert cache.running("k") is None
 
 
+def test_a_second_abandoned_computation_is_not_replaced_while_the_first_still_runs():
+    """When what a computation is stuck on is shared, a fresh one sticks
+    on it too; replacing each one after the limit piled up another stuck
+    computation -- and its threads -- every time. One replacement at a
+    time: while an abandoned one is still running, callers are told so."""
+    cache = planning.SingleFlightTTLCache(maxsize=8, ttl=60)
+    make, release = _stuck("weather.metars")
+    first_pending: set = set()
+    first = threading.Thread(target=lambda: cache.get_or_compute("k", make(first_pending), 5, first_pending))
+    first.start()
+    time.sleep(0.3)
+    second_pending: set = set()
+    second = threading.Thread(target=lambda: cache.get_or_compute("k", make(second_pending), 0.2, second_pending))
+    second.start()                       # replaces the first, which is abandoned
+    time.sleep(0.3)
+
+    started = []
+    try:
+        cache.get_or_compute("k", lambda: started.append(1) or "third", limit_s=0.2)
+        raise AssertionError("a third computation should not have started")
+    except planning.StillComputing:
+        pass
+    finally:
+        release.set()
+        first.join(timeout=5)
+        second.join(timeout=5)
+    assert started == []
+
+
 def test_stages_are_named_in_a_pilots_words():
     assert planning.describe_stages(["weather.freezing_level_ft", "terrain.floor_profile", "weather.hazards_along_route"]) \
         == "aviationweather.gov and the terrain and obstacles"
