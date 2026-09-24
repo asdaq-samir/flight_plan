@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Marker, useMap } from "react-leaflet";
 import { Pin, PinOff } from "lucide-react";
 import IconButton from "../../components/IconButton";
-import { api } from "../api/client";
+import { classBQuery } from "../queryClient";
 import type { ReactNode } from "react";
 import type { ClassBAirport, Course } from "../api/types";
 import { usePreferences } from "../preferences";
@@ -90,16 +90,7 @@ export function ClassBLayer({ course, onPreview }: { course: Course; onPreview: 
   // two cards deep; on a pointer, hovering a marker whose card is
   // already open did the same.
   const { carded, cardEvents } = useCardedMarker<string>();
-  const { data } = useQuery({
-    queryKey: ["classB"],
-    queryFn: api.classB,
-    enabled: show,
-    // The airspace never moves and the weather is held for minutes on
-    // the planner's own side; refetching per pan would be asking the
-    // same question of the same cache.
-    staleTime: 5 * 60_000,
-    meta: { silent: true },
-  });
+  const { data } = useQuery({ ...classBQuery, enabled: show });
 
   if (!show || !data) return null;
   // The route's own departure and destination draw themselves (RouteMap),

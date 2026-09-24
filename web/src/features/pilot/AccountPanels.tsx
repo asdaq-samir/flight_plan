@@ -13,6 +13,7 @@ import {
 } from "../../components/ui/table";
 import SignInModal from "./SignInModal";
 import { api } from "../../lib/api/client";
+import { pilotQuery } from "../../lib/queryClient";
 import type { Aircraft, AircraftRequest, FlightSummary, Pilot } from "../../lib/api/types";
 import { feet } from "../../lib/units";
 
@@ -63,10 +64,10 @@ export function SignInStatus({ pilot, onRetry }: { pilot: PilotState; onRetry: (
   const logout = useMutation({
     mutationFn: api.logout,
     onSuccess: () => {
-      queryClient.setQueryData(["pilot"], null);
+      queryClient.setQueryData(pilotQuery.queryKey, null);
       queryClient.removeQueries({ queryKey: ["aircraft"] });
       queryClient.removeQueries({ queryKey: ["flights"] });
-      void queryClient.invalidateQueries({ queryKey: ["pilot"] });
+      void queryClient.invalidateQueries({ queryKey: pilotQuery.queryKey });
     },
   });
 

@@ -3,8 +3,7 @@ import ReactDOM from "react-dom/client";
 import { createBrowserRouter, Navigate, redirect, RouterProvider } from "react-router-dom";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider } from "next-themes";
-import { api } from "./lib/api/client";
-import { queryClient } from "./lib/queryClient";
+import { courseQuery, queryClient } from "./lib/queryClient";
 import { Toaster } from "./components/ui/sonner";
 import { TooltipProvider } from "./components/ui/tooltip";
 import { registerSW } from "virtual:pwa-register";
@@ -97,11 +96,9 @@ const opening = new URLSearchParams(window.location.search);
 const openingDep = opening.get("dep")?.trim().toUpperCase();
 const openingDest = opening.get("dest")?.trim().toUpperCase();
 if (openingDep && openingDest && openingDep !== openingDest) {
-  void queryClient.prefetchQuery({
-    queryKey: ["course", openingDep, openingDest],
-    queryFn: () => api.course(openingDep, openingDest),
-    staleTime: Infinity,
-  });
+  // Quiet: if the planner is down, the page's own course query says so
+  // once it mounts and asks again -- under the page's rule, not this one.
+  void queryClient.prefetchQuery({ ...courseQuery(openingDep, openingDest), meta: { silent: true } });
 }
 
 ReactDOM.createRoot(document.getElementById("root")!).render(

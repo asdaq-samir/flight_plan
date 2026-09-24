@@ -1,6 +1,6 @@
-import { MutationCache, QueryCache, QueryClient } from "@tanstack/react-query";
+import { MutationCache, QueryCache, QueryClient, queryOptions } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { describeError } from "./api/client";
+import { api, describeError } from "./api/client";
 
 declare module "@tanstack/react-query" {
   interface Register {
@@ -67,3 +67,34 @@ function failed(message: string) {
     },
   });
 }
+
+/*
+ * The queries more than one component observes, defined once. TanStack
+ * Query keeps one set of options per query, and each observer that
+ * mounts writes its own over them -- `meta` included, which is what
+ * decides above whether a failure toasts. Spelled out at each site,
+ * the same failure toasted or stayed quiet depending on which component
+ * happened to render last. The policy lives here; a site adds only
+ * what is its own (`enabled`, `placeholderData`).
+ */
+
+/** Who is signed in, if anyone. Never a toast: the pilot console shows
+ *  a failed check in place ("Retry sign-in check"), and the header's
+ *  Dev switch, which observes it too, simply stays hidden. */
+export const pilotQuery = queryOptions({ queryKey: ["pilot"], queryFn: () => api.me(), meta: { silent: true } });
+
+/** A route's course: the two airports and the line between them, the
+ *  same answer for as long as the page is open. No `meta` -- a course
+ *  that fails is the page's first news that the planner is down. */
+export const courseQuery = (dep: string, dest: string) => queryOptions({
+  queryKey: ["course", dep, dest], queryFn: () => api.course(dep, dest), staleTime: Infinity,
+});
+
+/** The Class B airports and their weather. The airspace never moves and
+ *  the planner holds the weather for minutes, so refetching per pan
+ *  would ask the same cache the same question; and quiet, because the
+ *  layer and the chips show what they have in place. */
+export const classBQuery = queryOptions({
+  queryKey: ["classB"], queryFn: () => api.classB(), staleTime: 5 * 60_000, meta: { silent: true },
+});
+

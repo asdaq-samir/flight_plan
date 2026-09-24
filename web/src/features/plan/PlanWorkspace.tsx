@@ -4,6 +4,7 @@ import { useSearchParams } from "react-router-dom";
 import type { Map as LeafletMap } from "leaflet";
 import { cn } from "cn";
 import { api } from "../../lib/api/client";
+import { pilotQuery } from "../../lib/queryClient";
 import type { AircraftChoice, AircraftProfileSummary, AltitudeChoice, Candidate } from "../../lib/api/types";
 import { identOf, identSchema } from "../../lib/identSchema";
 import { DEFAULT_AIRCRAFT, usePreferences } from "../../lib/preferences";
@@ -106,7 +107,7 @@ export default function PlanWorkspace({ dep, dest, onRoute, sidebarOpen, childre
   // of them -- the same ["pilot"]/["aircraft"] queries the pilot
   // console keeps.
   const { data: profiles } = useQuery({ queryKey: ["aircraftProfiles"], queryFn: api.aircraftProfiles, staleTime: Infinity });
-  const { data: pilot } = useQuery({ queryKey: ["pilot"], queryFn: api.me });
+  const { data: pilot } = useQuery(pilotQuery);
   const { data: myAircraft } = useQuery({ queryKey: ["aircraft"], queryFn: api.aircraft.list, enabled: !!pilot });
   const aircraftOptions = useMemo<AircraftChoice[]>(() => {
     const options: AircraftChoice[] = [

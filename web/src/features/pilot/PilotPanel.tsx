@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { UserRound } from "lucide-react";
 import ConsoleTabs from "../../components/ConsoleTabs";
 import IconButton from "../../components/IconButton";
-import { api } from "../../lib/api/client";
+import { pilotQuery } from "../../lib/queryClient";
 import type { Course } from "../../lib/api/types";
 import { AircraftPanel, FlightsPanel, SignInStatus, type PilotState } from "./AccountPanels";
 import PilotGuide from "./PilotGuide";
@@ -31,7 +31,7 @@ export function PilotButton(props: Omit<ComponentProps<typeof IconButton>, "labe
 export function PilotPanel({ course }: { course: Course | null }) {
   const {
     data: pilot, isLoading, isError, refetch,
-  } = useQuery({ queryKey: ["pilot"], queryFn: api.me, retry: false });
+  } = useQuery(pilotQuery);
   const pilotState: PilotState = isLoading ? "loading" : (pilot ?? (isError ? "error" : null));
   const savedTab = usePreferences(s => s.pilotTab);
   const changeTab = usePreferences(s => s.setPilotTab);

@@ -3,7 +3,7 @@ import { CircleMarker, Marker } from "react-leaflet";
 import type { ZoomControl } from "../../../components/MapControls";
 import { Badge } from "../../../components/ui/badge";
 import { useQuery } from "@tanstack/react-query";
-import { api } from "../../../lib/api/client";
+import { classBQuery } from "../../../lib/queryClient";
 import type { Briefing, Candidate, ClassBAirport, Course } from "../../../lib/api/types";
 import { AirportCard, type AirportWeather } from "../../../lib/map/AirportCard";
 import { chipColourOf } from "../../../lib/map/flightCategory";
@@ -127,7 +127,7 @@ function Endpoints({ course, weather, onSelectPoint }: { course: Course; weather
   const classBShown = usePreferences(p => p.classB);
   // The Class B layer's own answer, read from its cache rather than asked
   // for again; only while that layer is showing.
-  const { data: classB } = useQuery({ queryKey: ["classB"], queryFn: api.classB, enabled: false });
+  const { data: classB } = useQuery({ ...classBQuery, enabled: false });
   return (
     <>
       {[course.departure, course.destination].map(a => {

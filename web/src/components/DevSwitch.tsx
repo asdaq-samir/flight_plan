@@ -2,6 +2,7 @@ import { useId } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation, useNavigate } from "react-router-dom";
 import { api } from "../lib/api/client";
+import { pilotQuery } from "../lib/queryClient";
 import { Label } from "./ui/label";
 import { Switch } from "./ui/switch";
 
@@ -49,9 +50,7 @@ function routeSearch(search: string): string {
  * leaves the switch hidden.
  */
 export default function DevSwitch() {
-  const { data: pilot } = useQuery({
-    queryKey: ["pilot"], queryFn: api.me, retry: false, meta: { silent: true },
-  });
+  const { data: pilot } = useQuery(pilotQuery);
   const { data: capabilities } = useQuery({
     queryKey: ["signInCapabilities"], queryFn: api.capabilities, retry: false,
     staleTime: Infinity, meta: { silent: true },
