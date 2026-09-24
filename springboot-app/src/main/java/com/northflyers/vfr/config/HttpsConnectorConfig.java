@@ -10,7 +10,6 @@ import org.apache.tomcat.util.net.SSLHostConfigCertificate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.web.embedded.tomcat.TomcatServletWebServerFactory;
 import org.springframework.boot.web.server.WebServerFactoryCustomizer;
 import org.springframework.context.annotation.Bean;
@@ -34,23 +33,30 @@ import org.springframework.context.annotation.Configuration;
  * <p>HTTP/2 is on for this connector. It is what makes a pan across
  * the chart feel light on a phone: the dozen tiles a pan asks for
  * arrive over one connection instead of queueing six at a time.
+ *
+ * <p>"Configured" is one check: the keystore names a readable regular
+ * file. It used to be two gates a blank value passed -- the property is
+ * always present (application.yml defaults it to empty), and a blank
+ * path resolves to the working directory, which is readable -- so a
+ * webapp started without {@code APP_HTTPS_KEYSTORE}, as on AWS, failed
+ * to start trying to load a keystore from "".
  */
 @Configuration
-@ConditionalOnProperty("app.https.keystore")
 public class HttpsConnectorConfig {
 
     private static final Logger log = LoggerFactory.getLogger(HttpsConnectorConfig.class);
 
     @Bean
     WebServerFactoryCustomizer<TomcatServletWebServerFactory> httpsConnector(
-            @Value("${app.https.keystore}") String keystore,
+            @Value("${app.https.keystore:}") String keystore,
             @Value("${app.https.keystore-password:changeit}") String password,
             @Value("${app.https.port:8443}") int port) {
         return factory -> {
             // docker-compose.yml names the file whether or not make-certs.sh
             // has been run yet; absent, the plain port is all there is.
-            if (!Files.isReadable(Path.of(keystore))) {
-                log.info("no HTTPS: {} is not there (infra/local-https/make-certs.sh writes it)", keystore);
+            if (!isKeystore(keystore)) {
+                log.info("no HTTPS: app.https.keystore '{}' is not a readable file "
+                        + "(infra/local-https/make-certs.sh writes one)", keystore);
                 return;
             }
             log.info("HTTPS with HTTP/2 on port {}, certificate from {}", port, keystore);
@@ -69,5 +75,13 @@ public class HttpsConnectorConfig {
             connector.addUpgradeProtocol(new Http2Protocol());
             factory.addAdditionalTomcatConnectors(connector);
         };
+    }
+
+    static boolean isKeystore(String keystore) {
+        if (keystore == null || keystore.isBlank()) {
+            return false;
+        }
+        Path path = Path.of(keystore);
+        return Files.isRegularFile(path) && Files.isReadable(path);
     }
 }
