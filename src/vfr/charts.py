@@ -32,6 +32,17 @@ bounding box, read from the FGDC metadata the FAA ships in every zip.
 That is a superset of the chart face (collar included), which is the
 right shape for deciding what to download; the face itself is measured
 from the pixels once the raster is here.
+
+The whole-country pyramid, its revision and keeping up with the cycle
+stay here rather than in a module of their own. They were measured for
+a split on 2026-09-24, when every recent commit to this file had landed
+in them: taking them out would take fourteen of the renderer's private
+helpers along -- the warp, the composite and the tile paths among them,
+since a pyramid row is warped and cut the way render_tile draws one
+tile, only in bulk -- and the refresh machinery alone, which needs just
+two, held none of those commits whole. They are the tile renderer's own
+work. A split is worth another look when a change arrives here for a
+reason other than rendering, serving or keeping up with the cycle.
 """
 from __future__ import annotations
 
