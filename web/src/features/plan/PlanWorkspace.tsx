@@ -6,7 +6,7 @@ import { cn } from "cn";
 import { api } from "../../lib/api/client";
 import { pilotQuery } from "../../lib/queryClient";
 import type { AircraftChoice, AircraftProfileSummary, AltitudeChoice, Candidate } from "../../lib/api/types";
-import { identOf, identSchema } from "../../lib/identSchema";
+import { identOf, routeOf } from "../../lib/identSchema";
 import { DEFAULT_AIRCRAFT, usePreferences } from "../../lib/preferences";
 // Without this Leaflet's tiles, markers and controls have no
 // positioning at all -- this is the library's own stylesheet, not
@@ -147,9 +147,9 @@ export default function PlanWorkspace({ dep, dest, onRoute, sidebarOpen, childre
   const [showCandidates, setShowCandidates] = useState(true);
 
   const submit = useCallback(() => {
-    const d = identSchema.safeParse(dep).data, a = identSchema.safeParse(dest).data;
-    if (!d || !a || d === a) return;
-    const next: Record<string, string> = { dep: d, dest: a };
+    const route = routeOf(dep, dest);
+    if (!route) return;
+    const next: Record<string, string> = { ...route };
     if (alt.trim()) next.altitude_ft = alt.trim();
     if (altitudeChoice !== "lowest") next.altitude_choice = altitudeChoice;
     if (depart) next.depart = depart;

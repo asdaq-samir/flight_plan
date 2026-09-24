@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { experimental_streamedQuery as streamedQuery, keepPreviousData, useMutation, useQuery } from "@tanstack/react-query";
 import { api, errorMessage } from "../../../lib/api/client";
 import { courseQuery } from "../../../lib/queryClient";
+import { routeOf } from "../../../lib/identSchema";
 import { ended } from "../../../lib/api/streams";
 import type { Course, Detection, Endpoint, LoosePick, Point, Rating, Role } from "../../../lib/api/types";
 import { usePreferences } from "../../../lib/preferences";
@@ -71,7 +72,7 @@ const fresh = (route: string): Edits => ({
 
 export function useTraining(dep: string, dest: string) {
   const route = `${dep}-${dest}`;
-  const routeKnown = !!dep && !!dest && dep !== dest;
+  const routeKnown = routeOf(dep, dest) !== null;
   const filters = usePreferences(s => s.filters);
   const setFilter = usePreferences(s => s.setFilter);
 
@@ -83,7 +84,10 @@ export function useTraining(dep: string, dest: string) {
   const stream = useQuery({
     queryKey: ["detections", dep, dest],
     queryFn: streamedQuery({ streamFn: ({ signal }) => ended(api.detect(dep, dest, signal), "chart read") }),
-    enabled: !!course.data, staleTime: Infinity,
+    // routeKnown as well as the course: a disabled course query still
+    // hands back the previous route's course as placeholder data, and a
+    // same-airport address then asked for that corridor's chart read.
+    enabled: routeKnown && !!course.data, staleTime: Infinity,
   });
   const messages = useMemo(() => stream.data ?? [], [stream.data]);
   const streamed = useMemo(() => ({

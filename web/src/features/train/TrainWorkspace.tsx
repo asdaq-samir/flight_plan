@@ -1,6 +1,6 @@
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { identOf, identSchema } from "../../lib/identSchema";
+import { identOf, routeOf } from "../../lib/identSchema";
 // Without this Leaflet's tiles, markers and controls have no
 // positioning at all -- this is the library's own stylesheet, not
 // app styling.
@@ -250,9 +250,9 @@ export default function TrainWorkspace({ dep, dest, children }: WorkspaceProps) 
   // Loading a route writes the address, which is what the queries key
   // on -- the same route again costs nothing, being kept.
   const submit = useCallback(() => {
-    const d = identSchema.safeParse(dep).data, a = identSchema.safeParse(dest).data;
-    if (!d || !a) return;
-    setSearchParams({ dep: d, dest: a }, { replace: true });
+    const route = routeOf(dep, dest);
+    if (!route) return;
+    setSearchParams(route, { replace: true });
   }, [dep, dest, setSearchParams]);
 
   // Stable identities for ChartMap's own effects, which list them as

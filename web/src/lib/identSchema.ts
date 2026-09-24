@@ -16,3 +16,14 @@ export const identSchema = z.string().trim().toUpperCase().regex(/^[A-Z0-9]{3,4}
 export function identOf(value: string | null | undefined): string {
   return identSchema.safeParse(value ?? "").data ?? "";
 }
+
+/** A route the planner can plan, or null: both ends valid idents, and
+ *  not one airport twice. Plan's and Train's forms and hooks each used
+ *  to decide this for themselves, three different ways -- Train's form
+ *  let a same-airport route through, and its chart read then asked for
+ *  that corridor. */
+export function routeOf(dep: string | null | undefined, dest: string | null | undefined): { dep: string; dest: string } | null {
+  const d = identOf(dep), a = identOf(dest);
+  return d && a && d !== a ? { dep: d, dest: a } : null;
+}
+

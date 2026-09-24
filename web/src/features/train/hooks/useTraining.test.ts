@@ -271,4 +271,20 @@ describe("useTraining", () => {
     expect(result.current.canUndo).toBe(false);
     expect(result.current.selection).toBeNull();
   });
+
+  test("an address naming one airport twice asks for no chart read, though the old map stays up", async () => {
+    // A disabled course query still hands back the previous route's
+    // course as placeholder data; the chart read keyed only on that, and
+    // asked the planner for a C81->C81 corridor.
+    mockCourse.mockResolvedValue(courseFixture());
+    mockDetect.mockReturnValue(streamOf([detectionFixture()], []));
+    const { result, rerender } = renderLabels();
+    await loaded(result);
+
+    rerender({ dep: "C81", dest: "C81" });
+    await new Promise(resolve => setTimeout(resolve, 50));
+
+    expect(mockDetect).not.toHaveBeenCalledWith("C81", "C81", expect.anything());
+    expect(mockDetect).toHaveBeenCalledTimes(1);
+  });
 });

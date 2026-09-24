@@ -5,6 +5,7 @@ import {
 import { toast } from "sonner";
 import { ApiError, api, describeError } from "../../../lib/api/client";
 import { courseQuery, pilotQuery } from "../../../lib/queryClient";
+import { routeOf } from "../../../lib/identSchema";
 import { ended } from "../../../lib/api/streams";
 import type {
   AircraftChoice, AltitudeChoice, Briefing, Leg, NarrativeMessage, NavLog, Totals,
@@ -103,7 +104,7 @@ export function usePlan(
   { dep, dest, altitudeFt, altitudeChoice, depart, aircraft, load }: PlanParams,
 ) {
   const queryClient = useQueryClient();
-  const routeKnown = !!dep && !!dest && dep !== dest;
+  const routeKnown = routeOf(dep, dest) !== null;
   // The form will not submit a route from an airport to itself, but the
   // address can hold one -- a pasted link, an edited URL, a back button
   // to a half-typed state. Nothing is fetched for it, so without this
@@ -116,7 +117,9 @@ export function usePlan(
 
   const checkpoints = useQuery({
     queryKey: ["checkpoints", dep, dest], queryFn: () => api.checkpoints(dep, dest),
-    enabled: !!course.data, staleTime: Infinity, meta: { silent: notCollected },
+    // routeKnown as well as the course: a disabled course query still
+    // hands back the previous route's course as placeholder data.
+    enabled: routeKnown && !!course.data, staleTime: Infinity, meta: { silent: notCollected },
   });
   const needsBuild = notCollected(checkpoints.error);
 
