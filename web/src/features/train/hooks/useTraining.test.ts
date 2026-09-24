@@ -390,4 +390,21 @@ describe("useTraining", () => {
     expect(result.current.detections[0]).toMatchObject({ category: "river", rating: null, rated: false });
     expect(result.current.detections[1]).toMatchObject({ rating: 5, rated: true });
   });
+
+  test("two features read at one place are one point, the first, and selecting it selects that one", async () => {
+    // A road over a river came back as two detections on one centroid.
+    // Both were listed under the one key, so the later always won the
+    // selection and the keys could not walk past the pair.
+    mockCourse.mockResolvedValue(courseFixture());
+    const road = detectionFixture({ lat: 42.3745247, lon: -88.1161880, category: "road_or_rail" });
+    const river = detectionFixture({ lat: 42.3745247, lon: -88.1161880, category: "river" });
+    const lake = detectionFixture({ category: "lake_or_pond", along_track_nm: 30 });
+    mockDetect.mockReturnValue(streamOf([road, river, lake], []));
+    const { result } = renderLabels();
+    await loaded(result);
+
+    expect(result.current.detections.map(d => d.category)).toEqual(["road_or_rail", "lake_or_pond"]);
+    act(() => result.current.select(result.current.detections[0]!));
+    expect(result.current.selected).toBe(result.current.detections[0]);
+  });
 });

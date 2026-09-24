@@ -125,12 +125,26 @@ export function useTraining(dep: string, dest: string) {
     gcTime: 0,
   });
   const messages = useMemo(() => stream.data ?? [], [stream.data]);
-  const streamed = useMemo(() => ({
-    detections: messages.flatMap(m => (m.type === "block" ? m.detections : [])),
+  const streamed = useMemo(() => {
+    // One point per place, as the planner keeps one pick per place: where
+    // two features share a centroid (a road over a river), the first read
+    // stands for it, and its category can be changed. Both used to be
+    // listed under the one key, so selecting either selected the later,
+    // the keys could not walk past them, and their markers shared a key.
+    const seen = new Set<string>();
+    const detections = messages
+      .flatMap(m => (m.type === "block" ? m.detections : []))
+      .filter(d => {
+        const key = pointKey(d);
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
     // Picks no detection claimed arrive last: a later block might still
     // have claimed one, so they cannot be known any earlier.
-    added: messages.flatMap(m => (m.type === "done" ? m.added : [])),
-  }), [messages]);
+    const added = messages.flatMap(m => (m.type === "done" ? m.added : []));
+    return { detections, added };
+  }, [messages]);
   const lastBlock = messages.filter(m => m.type === "block").at(-1);
   const percent = lastBlock && lastBlock.type === "block" && lastBlock.blocks
     ? Math.round(((lastBlock.block + 1) / lastBlock.blocks) * 100) : 0;
