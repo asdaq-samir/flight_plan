@@ -51,6 +51,7 @@ class NavLogState(TypedDict, total=False):
     usable_fuel_gal: float
     selected_checkpoints: list[dict]  # the checkpoints the legs fly between
     altitude_selection: dict
+    flown: str  # whose altitudes: a plan's name, or "custom" (vfr.narrative.NarrativeRequest)
     legs: list[dict]
     totals: dict
     similar_briefings: list[dict]
@@ -76,6 +77,8 @@ def fetch_nav_log(state: NavLogState) -> dict:
         "selected_checkpoints": plan["selected"],
         "altitude_ft": plan["altitude_ft"],
         "altitude_selection": plan["altitude_selection"],
+        # The planner names the plan it flew; none named is the pilot's own.
+        "flown": plan["altitude_choice"] or "custom",
         "legs": plan["legs"],
         "totals": plan["totals"],
     }
@@ -94,6 +97,7 @@ def briefing_prompt(state: NavLogState) -> str:
     return narrative.briefing_prompt(
         state["departure_ident"], state["destination_ident"], state["altitude_ft"],
         state.get("altitude_selection"), state["legs"], state.get("similar_briefings", []),
+        flown=state.get("flown"),
     )
 
 

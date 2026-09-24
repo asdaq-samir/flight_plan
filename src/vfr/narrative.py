@@ -107,16 +107,21 @@ def briefing_prompt(
     altitude_selection: dict | None,
     legs: list[dict],
     similar_briefings: list[dict] | None = None,
+    *,
+    flown: str | None = None,
 ) -> str:
     """The instruction both agents hand Claude. `similar_briefings`, the
     past briefings nav-log-agent's pgvector memory found, adds them as
-    precedent; crewai-agent keeps no memory and leaves it out."""
+    precedent; crewai-agent keeps no memory and leaves it out. `flown` is
+    NarrativeRequest's: whose altitudes the legs fly, said only when it
+    is known."""
     prompt = (
         f"Write a concise VFR pilot briefing, under {BRIEFING_WORDS} words, for a flight from "
         f"{departure_ident} to {destination_ident} {_cruising(altitude_ft, legs)}. "
         "Plain prose in short paragraphs -- no Markdown headings, bold or bullet lists; it is shown as plain text. "
         "Every number you need is below; do not look anything up.\n\n"
-        f"Altitude selection:\n{_format_altitude_selection(altitude_selection)}\n\n"
+        + (f"{_provenance(flown)}\n\n" if flown else "")
+        + f"Altitude selection:\n{_format_altitude_selection(altitude_selection)}\n\n"
         f"Dead-reckoning legs:\n{_format_legs(legs)}"
     )
     if similar_briefings is not None:
@@ -140,6 +145,14 @@ def _cruising(altitude_ft: float, legs: list[dict]) -> str:
     if len(altitudes) > 1:
         return f"stepping between {_ft(min(altitudes))} and {_ft(max(altitudes))} (each leg's altitude is on its line)"
     return f"at {_ft(altitudes.pop() if altitudes else altitude_ft)}"
+
+
+def _provenance(flown: str) -> str:
+    """Whose altitudes the legs fly -- from the field that says so. The
+    prompt used to guess it from whether a selection was sent."""
+    if flown == "custom":
+        return "The altitude is the pilot's own, flown the whole way; the planner's reasoning below is what it would have chosen."
+    return f"The altitudes are the planner's {flown} plan."
 
 
 def _format_legs(legs: list[dict]) -> str:

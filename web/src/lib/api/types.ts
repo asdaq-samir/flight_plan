@@ -181,6 +181,9 @@ export interface NarrativeRequest {
   aircraft_name?: string | null;
   altitude_ft: number;
   altitude_selection: AltitudeBreakdown | null;
+  /** Whose altitudes the legs fly: a plan's name, or "custom" for the
+   *  pilot's own -- what the agents brief as the altitude's provenance. */
+  flown?: AltitudeChoice | "custom";
   legs: Leg[];
 }
 

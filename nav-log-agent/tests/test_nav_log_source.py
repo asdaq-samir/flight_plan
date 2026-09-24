@@ -12,6 +12,7 @@ from app import graph, mcp_server
 PLAN = {
     "selected": [{"name": "LAKE GENEVA", "category": "water", "lat": 42.6, "lon": -88.5, "along_track_nm": 21.0}],
     "altitude_ft": 4500.0,
+    "altitude_choice": "lowest",
     "altitude_selection": {"floor_ft": 2200.0, "band_ceiling_ft": 9500, "recommended_ft": 4500.0},
     "legs": [
         {"from": "C81", "to": "LAKE GENEVA", "distance_nm": 21.0, "altitude_ft": 4500.0, "climb_min": 4.2,
@@ -104,3 +105,12 @@ def test_a_valid_narrative_request_starts_the_graph_at_the_memory_lookup(monkeyp
     assert started_graph is mcp_server._graph_from_nav_log
     assert state["legs"] == PLAN["legs"]
     assert "aircraft_name" not in state
+
+
+def test_the_graph_says_whose_altitudes_the_planner_flew(planner, monkeypatch):
+    monkeypatch.setitem(PLAN, "altitude_choice", "lowest")
+    assert graph.fetch_nav_log({"departure_ident": "C81", "destination_ident": "KDLH"})["flown"] == "lowest"
+    monkeypatch.setitem(PLAN, "altitude_choice", None)
+    assert graph.fetch_nav_log(
+        {"departure_ident": "C81", "destination_ident": "KDLH", "altitude_ft": 5500},
+    )["flown"] == "custom"

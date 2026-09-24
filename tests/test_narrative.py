@@ -116,3 +116,17 @@ def test_which_altitudes_are_flown_may_be_said():
     assert narrative.NarrativeRequest.model_validate(_request(flown="highest")).flown == "highest"
     with pytest.raises(ValidationError):
         narrative.NarrativeRequest.model_validate(_request(flown="sideways"))
+
+
+@pytest.mark.parametrize("flown, says", [
+    ("custom", "The altitude is the pilot's own"),
+    ("fastest", "The altitudes are the planner's fastest plan."),
+])
+def test_whose_altitude_it_is_comes_from_flown(flown, says):
+    text = narrative.briefing_prompt("C81", "KDLH", 4500, SELECTION, [LEG], flown=flown)
+    assert says in text
+
+
+def test_without_flown_the_prompt_says_nothing_of_whose_altitude():
+    text = narrative.briefing_prompt("C81", "KDLH", 4500, SELECTION, [LEG])
+    assert "pilot's own" not in text and "planner's" not in text

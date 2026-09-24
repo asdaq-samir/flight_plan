@@ -68,6 +68,7 @@ def build_crew(
     if nav_log:
         description = briefing_prompt(
             departure_ident, destination_ident, nav_log["altitude_ft"], nav_log.get("altitude_selection"), nav_log["legs"],
+            flown=nav_log.get("flown"),
         )
     else:
         aircraft = f" in the {aircraft_name} aircraft profile (pass it to every tool)" if aircraft_name else ""

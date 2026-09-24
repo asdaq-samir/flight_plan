@@ -72,7 +72,10 @@ def compare(body: NarrativeRequest) -> StreamingResponse:
     nav log in the body."""
     crew = build_crew(
         body.departure_ident, body.destination_ident, body.aircraft_name,
-        nav_log={"altitude_ft": body.altitude_ft, "altitude_selection": body.altitude_selection, "legs": body.legs},
+        nav_log={
+            "altitude_ft": body.altitude_ft, "altitude_selection": body.altitude_selection, "legs": body.legs,
+            "flown": body.flown,
+        },
         stream=True,
     )
     return StreamingResponse(_narrative_lines(crew), media_type="application/x-ndjson")

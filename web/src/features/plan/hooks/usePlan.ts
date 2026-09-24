@@ -262,9 +262,9 @@ export function usePlan(
   // Each framework's narrative about the nav log on screen -- a
   // pilot's own click per framework, each a real, billed Claude call.
   // Only about a log that is flown: with no winds there are no legs.
-  const narrativeRequest: NarrativeRequest | null = nav && nav.altitude_ft !== null ? {
+  const narrativeRequest: NarrativeRequest | null = nav && nav.altitude_ft !== null && nav.flown !== null ? {
     departure_ident: dep, destination_ident: dest, aircraft_name: nav.aircraft.name,
-    altitude_ft: nav.altitude_ft, altitude_selection: nav.altitude_selection, legs,
+    altitude_ft: nav.altitude_ft, altitude_selection: nav.altitude_selection, flown: nav.flown, legs,
   } : null;
   // The nav log's own key, not a few fields of it: this one left out the
   // departure time, the choice of plan, Load and the aeroplane's own
