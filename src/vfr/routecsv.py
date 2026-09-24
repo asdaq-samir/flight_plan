@@ -17,6 +17,11 @@ both files would eventually stop being equal.
 from __future__ import annotations
 
 import csv
+import fcntl
+import os
+import tempfile
+import threading
+from contextlib import contextmanager
 from pathlib import Path
 
 from .geo import distance_nm
@@ -49,17 +54,55 @@ def read_rows(
     return [row for row in rows if route is None or row["route"] == route]
 
 
+_THREAD_LOCKS: dict = {}
+_THREAD_LOCKS_GUARD = threading.Lock()
+
+
+@contextmanager
+def locked(path: Path):
+    """Hold the file for a read-modify-write: one writer at a time.
+
+    Every change here is read the whole file, change one row, write the
+    whole file. Two at once -- two ratings a keystroke apart, a note
+    saved while generation streams -- each wrote its own copy, and the
+    later one silently dropped the other's row. A lock per file inside
+    this process (the service's request threads), and an advisory file
+    lock beside it for another process on the same files.
+    """
+    path = Path(path)
+    with _THREAD_LOCKS_GUARD:
+        lock = _THREAD_LOCKS.setdefault(str(path.resolve()), threading.Lock())
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with lock, open(path.with_name(path.name + ".lock"), "w") as handle:
+        fcntl.flock(handle, fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(handle, fcntl.LOCK_UN)
+
+
 def write_rows(path: Path, columns: list, rows) -> None:
-    """The whole file, header and all. Rewritten rather than appended to
-    because changing one's mind about a place must leave one row, not two
-    contradictory ones."""
+    """The whole file, header and all, written beside it and then renamed
+    over it. A reader (the retrain, another request) sees the old file or
+    the new one, never half of one, and a process killed mid-write leaves
+    the old file where it was instead of a truncated training set. Call
+    it inside `locked`."""
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=columns)
-        writer.writeheader()
-        for row in rows:
-            writer.writerow({column: row.get(column) for column in columns})
+    fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=columns)
+            writer.writeheader()
+            for row in rows:
+                writer.writerow({column: row.get(column) for column in columns})
+            f.flush()
+            os.fsync(f.fileno())
+        os.chmod(tmp, 0o644)  # mkstemp's 0600 would hide it from the other services' users
+        os.replace(tmp, path)
+    except BaseException:
+        Path(tmp).unlink(missing_ok=True)
+        raise
 
 
 def same_place(row: dict, route: str, lat: float, lon: float) -> bool:

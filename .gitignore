@@ -37,3 +37,7 @@ infra/local-https/certs/
 # nothing imported and that had missed a change. They are never
 # wanted here.
 * [0-9].*
+
+# vfr.routecsv's lock files and the temporary files it renames into place.
+data/labels/*.lock
+data/labels/.*.tmp

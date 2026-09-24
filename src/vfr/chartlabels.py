@@ -42,7 +42,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from .config import DATA_DIR
-from .routecsv import SAME_PLACE_NM, read_rows, same_place, write_rows
+from .routecsv import SAME_PLACE_NM, locked, read_rows, same_place, write_rows
 
 CHART_PICKS_PATH = DATA_DIR / "labels" / "chart_picks.csv"
 
@@ -113,9 +113,10 @@ def save_pick(pick: dict, path: Path = CHART_PICKS_PATH) -> dict:
     row = {column: pick.get(column) for column in COLUMNS}
     row["created_at"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
 
-    existing = load_picks(path=path)
-    kept = [old for old in existing if not same_place(old, row["route"], row["lat"], row["lon"])]
-    write_rows(path, COLUMNS, [*kept, row])
+    with locked(path):
+        existing = load_picks(path=path)
+        kept = [old for old in existing if not same_place(old, row["route"], row["lat"], row["lon"])]
+        write_rows(path, COLUMNS, [*kept, row])
 
     row["replaced"] = len(kept) < len(existing)
     return row
@@ -123,11 +124,12 @@ def save_pick(pick: dict, path: Path = CHART_PICKS_PATH) -> dict:
 
 def delete_pick(route: str, lat: float, lon: float, path: Path = CHART_PICKS_PATH) -> bool:
     """Remove the pick at this place. True if one was there."""
-    existing = load_picks(path=path)
-    kept = [row for row in existing if not same_place(row, route, lat, lon)]
-    if len(kept) == len(existing):
-        return False
-    write_rows(path, COLUMNS, kept)
+    with locked(path):
+        existing = load_picks(path=path)
+        kept = [row for row in existing if not same_place(row, route, lat, lon)]
+        if len(kept) == len(existing):
+            return False
+        write_rows(path, COLUMNS, kept)
     return True
 
 
