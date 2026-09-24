@@ -504,8 +504,11 @@ From there the map's info popover offers **Show my position** (the GPS as
 a blue arrow, and the map kept on it until you pan) and **Keep this
 route's charts on this device** (every sectional tile within 10 nm of
 the course, whole-route view to full detail, held by the app's service
-worker along with the course, checkpoints, nav log and briefing, so the
-route opens again with the network off). Add the page to the home
+worker along with the course, checkpoints and nav log, so the route
+opens again with the network off). The briefing and the airports'
+weather are not kept: a cached METAR could only ever be shown as if it
+were current, so with no network they say the weather could not be
+checked. Add the page to the home
 screen and it opens as an app. On AWS the load balancer terminates TLS
 and all of this simply works at the site's own address.
 

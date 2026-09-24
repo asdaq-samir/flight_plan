@@ -13,8 +13,10 @@ interface Props {
  * the air. It fetches every tile of the base chart within ten nautical
  * miles of the course, whole-route zoom to the chart's own detail, so
  * the service worker holds them and the map draws the route with no
- * connection at all -- along with the plan's own course, checkpoints,
- * nav log and briefing, which the worker keeps as they are fetched.
+ * connection at all -- along with the plan's own course, checkpoints
+ * and nav log, which the worker keeps as they are fetched. Not the
+ * briefing: current weather is never answered from the cache, so with
+ * no connection it says it could not be checked (vite.config.ts).
  * Only over a secure connection (the worker installs on no other);
  * otherwise it says so.
  */

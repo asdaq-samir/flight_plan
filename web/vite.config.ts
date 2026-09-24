@@ -47,6 +47,17 @@ export default defineConfig({
             },
           },
           {
+            // Current weather, never from the cache. A METAR, a TAF or a
+            // SIGMET shown from last week because the network was slow
+            // is worse than none: nothing on the page could say it was
+            // old. With no network these fail, and the page says the
+            // weather could not be checked. (The nav log below is still
+            // cached: it is the plan the pilot flies, made before they
+            // went.)
+            urlPattern: ({ url }) => /^\/api\/planner\/(briefing|class-b|altitude-breakdown)\b/.test(url.pathname),
+            handler: "NetworkOnly",
+          },
+          {
             // The planner's answers: the network when there is one
             // (the winds change), the last answer when there is not.
             urlPattern: ({ url, request }) =>
