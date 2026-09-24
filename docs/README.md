@@ -568,8 +568,13 @@ no pages; see [Services in detail](#services-in-detail).
 
 ### Notebooks
 
-Notebooks 01-03 are the manual version of what `pipeline.py` automates;
-04-08 are standalone comparison/domain exercises. Run them via `docker
+Notebooks 01-03 walk through what `pipeline.py` automates, and call it:
+01 and 02 run `collect` and `engineer_features` and read the tables back,
+so a notebook and the DAG can never write two different data files; 03-05
+take their labelled table and holdout from `pipeline.labeled_split`, the
+one every trainer uses. 06-08 are standalone comparison/domain exercises;
+08 walks the altitude selection one step at a time with `vfr.altitude`'s
+own pieces and checks its answer against the planner's. Run them via `docker
 compose up ml`. Full per-notebook breakdown is in the
 [Appendix](#appendix).
 

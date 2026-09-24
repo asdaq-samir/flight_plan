@@ -1,18 +1,15 @@
 """Recommended VFR cruising altitude for a route: terrain/obstacle floor,
 airspace/service-ceiling band, FAR 91.159 hemispheric rounding leg by
-leg, and go/no-go weather flags, icing among them. Same computation as notebook 08's
-Steps 1-5, extracted here so nav-log-agent can call it too.
+leg, and go/no-go weather flags, icing among them.
 
-Deliberately NOT wired back into notebook 08 to replace those cells --
-unlike notebooks 01-03 (which pipeline.py already superseded as thin
-orchestration with little content of their own), 08 has real step-by-step
-pedagogical value (explanatory markdown + printed output between each
-piece: floor, then ceiling, then weather, then the combined
-recommendation) that collapsing into one function call would destroy. This
-project's whole point is hands-on practice, so that structure is worth the
-small amount of duplication against this module -- verified this module's
-output matches the notebook's exactly (2200ft floor / 3600ft ceiling /
-2500ft recommended on the live C81->KDLH route) rather than assuming it.
+Notebook 08 walks the same steps one at a time -- floor, ceiling, weather,
+then the combined recommendation, with its explanation and printed output
+between each -- calling this module's own pieces, and its last step is
+legal_cruising_altitudes(...)[0] on the magnetic course, this module's own
+choice, checked against select_cruise_altitude on the same route (2,200 ft
+floor, 3,600 ft ceiling, 2,500 ft on C81->KDLH). It used to round down from
+the ceiling on the true course and cap the band at the freezing level, the
+algorithm this module dropped, while this docstring said the two matched.
 
 Given the nav log's fixes, the same floor and ceiling are also worked out
 leg by leg (`segments`), so a route can step down under a Class B shelf
