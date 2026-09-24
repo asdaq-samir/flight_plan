@@ -30,26 +30,49 @@ def get_route_checkpoints(departure_ident: str, destination_ident: str) -> str:
     return json.dumps(planner_client.checkpoints(departure_ident, destination_ident)["selected"])
 
 
+def _plan(departure_ident: str, destination_ident: str, aircraft_name: str | None, depart: str | None = None) -> dict:
+    """The planner's own plan, flying the altitudes it chose -- the nav log
+    LangGraph's build fetches, and the planner keeps it, so the two tools
+    below asking for it costs one plan."""
+    return planner_client.plan(departure_ident, destination_ident, None, aircraft_name, depart=depart)
+
+
 @tool("get_recommended_altitude")
 def get_recommended_altitude(departure_ident: str, destination_ident: str, aircraft_name: str | None = None) -> str:
-    """Get the recommended VFR cruising altitude for a route, as JSON --
-    constrained by terrain/obstacle clearance, controlled airspace, current
-    weather, and the aircraft's service ceiling. aircraft_name is one of
-    the planner's aircraft profiles (e.g. "c172", "pa28"); omit it for
-    the planner's default."""
-    return json.dumps(planner_client.altitude_breakdown(departure_ident, destination_ident, aircraft_name))
+    """Get the cruising altitudes the planner flies this route at, as JSON:
+    the altitude of the first leg, each leg's own reasoning (terrain and
+    obstacle clearance, controlled airspace, current weather, the
+    aircraft's service ceiling), the three plans it considered and the
+    one chosen. aircraft_name is one of the planner's aircraft profiles
+    (e.g. "c172", "pa28"); omit it for the planner's default.
+
+    The plan's own, not the route-wide breakdown it used to read, which
+    has no altitude at all where the highest floor is above the lowest
+    shelf -- a route the plan still flies, stepping under the shelf."""
+    plan = _plan(departure_ident, destination_ident, aircraft_name)
+    return json.dumps({
+        "altitude_ft": plan["altitude_ft"],
+        "altitude_choice": plan["altitude_choice"],
+        "altitude_options": plan["altitude_options"],
+        "altitude_selection": plan["altitude_selection"],
+    })
 
 
 @tool("compute_dead_reckoning_legs")
 def compute_dead_reckoning_legs(
-    departure_ident: str, destination_ident: str, altitude_ft: float, aircraft_name: str | None = None,
-    depart: str | None = None,
+    departure_ident: str, destination_ident: str, aircraft_name: str | None = None, depart: str | None = None,
 ) -> str:
-    """Compute the dead-reckoning nav-log legs at altitude_ft, from the
-    departure airport through each checkpoint to the destination (true
-    and magnetic heading, wind correction angle, groundspeed, ETE, fuel
-    burn, the climb from the field), and the route's totals with the fuel
-    check, as JSON. `depart` (ISO 8601) is the departure time the winds
-    and the fuel reserve are for; omitted, now."""
-    plan = planner_client.plan(departure_ident, destination_ident, altitude_ft, aircraft_name, depart=depart)
+    """Compute the dead-reckoning nav-log legs the planner flies, from the
+    departure airport through each checkpoint to the destination (each
+    leg's altitude, true and magnetic heading, wind correction angle,
+    groundspeed, ETE, fuel burn, the climb from the field), and the
+    route's totals with the fuel check, as JSON. `depart` (ISO 8601) is
+    the departure time the winds and the fuel reserve are for; omitted,
+    now.
+
+    At the planner's own altitudes, as LangGraph's build flies them. It
+    took an altitude and flew the whole route flat at it, so the two
+    frameworks briefed different nav logs -- the comparison's whole
+    point is that they brief the same one."""
+    plan = _plan(departure_ident, destination_ident, aircraft_name, depart)
     return json.dumps({"legs": plan["legs"], "totals": plan["totals"]})

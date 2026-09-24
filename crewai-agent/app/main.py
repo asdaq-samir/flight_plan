@@ -74,8 +74,8 @@ def build_crew(
         description = (
             f"Produce a VFR pilot briefing for a flight from {departure_ident} to "
             f"{destination_ident}{aircraft}. First get the recommended "
-            "checkpoints, then the recommended cruising altitude, then the dead-reckoning "
-            "legs at that altitude. Write a concise briefing, under 200 words, in plain prose "
+            "checkpoints, then the cruising altitudes the planner flies, then the dead-reckoning "
+            "legs it flies at them. Write a concise briefing, under 200 words, in plain prose "
             "(no Markdown), covering the recommended altitude and why (terrain/airspace/weather), "
             "each leg's heading/groundspeed/ETE/fuel, and total distance/time/fuel for the route."
         )

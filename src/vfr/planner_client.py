@@ -75,15 +75,6 @@ def checkpoints(departure_ident: str, destination_ident: str) -> dict:
     return _get("/api/checkpoints", {"dep": departure_ident, "dest": destination_ident})
 
 
-def altitude_breakdown(departure_ident: str, destination_ident: str, aircraft_name: str | None = None) -> dict:
-    """The route-wide cruise altitude selection and its reasoning
-    (`/api/altitude-breakdown`)."""
-    params: dict = {"dep": departure_ident, "dest": destination_ident}
-    if aircraft_name:
-        params["aircraft"] = aircraft_name
-    return _get("/api/altitude-breakdown", params)
-
-
 def _get(path: str, params: dict) -> dict:
     try:
         response = _session.get(f"{PLANNING_SERVICE_URL}{path}", params=params, timeout=TIMEOUT_S)

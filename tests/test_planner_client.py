@@ -68,7 +68,7 @@ def test_an_unreachable_planner_is_a_502(monkeypatch):
     _getting(monkeypatch, requests.ConnectionError("refused"))
 
     with pytest.raises(planner_client.PlannerError) as err:
-        planner_client.altitude_breakdown("C81", "KDLH")
+        planner_client.checkpoints("C81", "KDLH")
 
     assert err.value.status == 502
     assert "Could not reach planning-service" in str(err.value)
