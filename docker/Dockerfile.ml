@@ -16,6 +16,11 @@ COPY docker/requirements-ml.txt docker/
 # torch wheel pulls several GB of unused CUDA/cuDNN dependencies.
 RUN --mount=type=cache,target=/root/.cache/pip pip install torch --index-url https://download.pytorch.org/whl/cpu
 RUN --mount=type=cache,target=/root/.cache/pip pip install -r docker/requirements-ml.txt
+# The build fails here if a package the notebooks and vfr import is
+# missing, rather than a notebook cell later. This image carries no
+# source (compose mounts the checkout), so it is the packages alone:
+# vfr's own list, then the notebooks'.
+RUN python -B -c "import numpy, pandas, requests, pyarrow.parquet, shapely.ops, shapefile, pyproj, scipy.spatial, pygeomag, astral, sklearn, joblib, matplotlib, PIL, folium, notebook, transformers, sentence_transformers, torch, tensorflow, pyspark.ml"
 
 # Non-root, matching every other image built from this same
 # python:3.13-slim base (Dockerfile.processing, Dockerfile.training,

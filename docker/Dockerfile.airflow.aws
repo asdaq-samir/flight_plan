@@ -23,3 +23,7 @@ ENV PYTHONPATH=/opt/project/src
 
 COPY airflow/dags/vfr_pipeline_aws_dag.py /opt/project/airflow/dags/vfr_pipeline_aws_dag.py
 COPY src /opt/project/src
+# The build fails if the provider or the registry evaluate and promote
+# run in-process cannot be imported. (The DAG itself reads an Airflow
+# Variable as it loads, which a build has no database for.)
+RUN python -B -c "import vfr.model_registry, airflow.providers.amazon.aws.operators.sagemaker"

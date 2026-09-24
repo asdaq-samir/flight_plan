@@ -32,4 +32,10 @@ RUN useradd -m appuser
 USER appuser
 
 ENV PYTHONPATH=/workspace/src
+# The build fails here if a package this image's code imports is
+# missing, rather than the container on its next start: on 2026-09-22 a
+# new import in vfr left both agents and both pipeline stages unable to
+# start, and every build passed. The lazy imports are named too, as
+# importing the entry module does not reach them.
+RUN python -B -c "import app.main, app.mcp_server, uvicorn"
 ENTRYPOINT ["python3", "-m", "app.main"]

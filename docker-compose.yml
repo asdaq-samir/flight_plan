@@ -85,9 +85,8 @@ services:
       - airflow_home_v3:/opt/airflow
       - /var/run/docker.sock:/var/run/docker.sock
     environment:
-      AIRFLOW__CORE__DAGS_FOLDER: /opt/project/airflow/dags
+      # Where the DAG and vfr are is the image's to say (it put them there).
       AIRFLOW__CORE__LOAD_EXAMPLES: "false"
-      PYTHONPATH: /opt/project/src
       # DockerOperator launches sibling containers via the mounted host
       # socket -- their -v mounts are resolved by the HOST's Docker daemon,
       # so they need the HOST's path to this project, not a path inside
