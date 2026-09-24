@@ -1,5 +1,6 @@
 import { Suspense, lazy, useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import { useSearchParams } from "react-router-dom";
+import { toast } from "sonner";
 import { cn } from "cn";
 import { EXPANDED_BUTTON } from "../../lib/expandedButton";
 import DevSwitch from "../../components/DevSwitch";
@@ -83,6 +84,22 @@ export default function MapPage({ mode }: { mode: Mode }) {
   const dest = typed?.dest ?? addressDest;
   const setDep = useCallback((d: string) => setDraft({ of: addressKey, dep: d, dest }), [addressKey, dest]);
   const setDest = useCallback((a: string) => setDraft({ of: addressKey, dep, dest: a }), [addressKey, dep]);
+
+  // A Google or Apple sign-in the webapp refused comes back here: an
+  // address the provider has not verified can be nobody's pilot. Said
+  // once, and taken off the address.
+  const refused = searchParams.get("signin") === "refused";
+  useEffect(() => {
+    if (!refused) return;
+    toast.error("That sign-in was refused", {
+      description: "The provider has not verified that account's email address. Verify it there, or sign in with an emailed link.",
+    });
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      next.delete("signin");
+      return next;
+    }, { replace: true });
+  }, [refused, setSearchParams]);
 
   const [localOpen, setLocalOpen] = useState(false);
   const sidebarOpen = mode === "pilot" ? searchParams.get("view") === "briefing" : localOpen;

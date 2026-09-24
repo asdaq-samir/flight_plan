@@ -238,7 +238,12 @@ public class SecurityConfig {
         // stays conditional.
         http.logout(Customizer.withDefaults());
         if (oauthConfigured) {
-            http.oauth2Login(Customizer.withDefaults());
+            // The pilot is resolved at sign-in (PilotOidcUserService), and
+            // a sign-in it refuses lands here -- Spring's default
+            // /login?error is a page this app does not have.
+            http.oauth2Login(login -> login
+                    .userInfoEndpoint(userInfo -> userInfo.oidcUserService(new PilotOidcUserService(pilots)))
+                    .failureUrl("/app/plan?signin=refused"));
         }
         return http.build();
     }
