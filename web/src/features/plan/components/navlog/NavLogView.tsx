@@ -483,15 +483,18 @@ export default function NavLogView({
             carries the same steps onto the paper. */}
         {nav && (() => {
           // "2,500 ft · lowest", or "2,500–6,500 ft · fastest" for a
-          // plan that steps; "· yours" for a typed altitude.
-          const flown = nav.options.find(o => o.kind === nav.choice);
-          const altitudes = flown ? flown.steps.map(st => st.altitude_ft) : [nav.altitude_ft];
-          const range = altitudes.length > 1 && Math.min(...altitudes) !== Math.max(...altitudes)
-            ? `${altFt(Math.min(...altitudes))}–${altFt(Math.max(...altitudes))} ft`
-            : `${altFt(altitudes[0])} ft`;
-          // `choice` is null for a typed altitude: the plans are still
-          // offered beside it, but none is being flown.
-          const label = `${range} · ${nav.choice ?? "yours"}`;
+          // plan that steps; "· yours" for a typed altitude; and, when
+          // the winds could not be read, no altitude at all -- that used
+          // to read "0 ft · yours", with Custom pressed, for an altitude
+          // nobody typed.
+          const plan = nav.options.find(o => o.kind === nav.flown);
+          const altitudes = plan ? plan.steps.map(st => st.altitude_ft) : nav.altitude_ft !== null ? [nav.altitude_ft] : [];
+          const range = altitudes.length === 0
+            ? null
+            : altitudes.length > 1 && Math.min(...altitudes) !== Math.max(...altitudes)
+              ? `${altFt(Math.min(...altitudes))}–${altFt(Math.max(...altitudes))} ft`
+              : `${altFt(altitudes[0])} ft`;
+          const label = nav.flown === null ? "No altitude: no winds" : `${range} · ${nav.flown === "custom" ? "yours" : nav.flown}`;
           return (
             <>
               <Popover>
@@ -512,8 +515,8 @@ export default function NavLogView({
                     {nav.options.map(o => (
                       <Button
                         key={o.kind} type="button" size="sm"
-                        variant={o.kind === nav.choice ? "default" : "outline"}
-                        aria-pressed={o.kind === nav.choice}
+                        variant={o.kind === nav.flown ? "default" : "outline"}
+                        aria-pressed={o.kind === nav.flown}
                         className="h-auto w-full justify-between gap-3 whitespace-normal py-1.5 text-left"
                         onClick={() => onAltitudeChoiceChange(o.kind)}
                         data-testid={`altitude-plan-${o.kind}`}
@@ -533,7 +536,7 @@ export default function NavLogView({
                     <form
                       className={cn(
                         "flex items-center gap-2 rounded-md border px-2 py-1.5",
-                        nav.choice === null ? "border-primary bg-primary text-primary-foreground" : "border-input",
+                        nav.flown === "custom" ? "border-primary bg-primary text-primary-foreground" : "border-input",
                       )}
                       onSubmit={e => { e.preventDefault(); onSubmit(); }}
                       aria-label="Custom altitude"
@@ -550,7 +553,7 @@ export default function NavLogView({
                         data-testid="custom-altitude"
                       />
                       <Button
-                        type="submit" size="sm" variant={nav.choice === null ? "secondary" : "outline"}
+                        type="submit" size="sm" variant={nav.flown === "custom" ? "secondary" : "outline"}
                         disabled={!alt.trim()} data-testid="custom-altitude-fly"
                       >
                         Fly

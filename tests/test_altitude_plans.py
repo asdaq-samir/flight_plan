@@ -75,7 +75,7 @@ def test_fastest_climbs_for_a_tailwind_and_lowest_stays_low(monkeypatch):
     assert [s["altitude_ft"] for s in plans["highest"]["steps"]] == [7500.0]
     # 5,500 has the whole tailwind and a shorter climb than 7,500.
     assert [s["altitude_ft"] for s in plans["fastest"]["steps"]] == [5500.0]
-    assert plans["fastest"]["total_min"] < plans["lowest"]["total_min"]
+    assert plans["fastest"]["ete_min"] < plans["lowest"]["ete_min"]
     assert plans["fastest"]["tailwind_kt"] == pytest.approx(30.0, abs=0.5)
     assert plans["lowest"]["steps"][0]["from"] == "AAA" and plans["lowest"]["steps"][0]["to"] == "BBB"
 

@@ -51,16 +51,6 @@ function limit(ft: number | null | undefined, ref: string | null | undefined): s
 
 export default function AltitudeReasoning({ nav }: Props) {
   const s = nav.altitude_selection;
-  if (!s) {
-    return (
-      <p className="text-sm text-muted-foreground">
-        {altFt(nav.altitude_ft)} ft is yours: you typed it in the Custom box, and the planner flew the log
-        at it without working out its own plans.
-      </p>
-    );
-  }
-  // A typed altitude: the plans are offered beside it, none flown.
-  const custom = nav.choice === null;
 
   // Every figure below is the planner's own, the rule's hemisphere and
   // the oxygen check included: this names them, it does not redo them.
@@ -100,7 +90,7 @@ export default function AltitudeReasoning({ nav }: Props) {
       : `${s.hazards.length} SIGMET/AIRMET${s.hazards.length === 1 ? "" : "s"} along the route`;
 
   const highestLegal = Math.max(...s.segments.flatMap(seg => seg.candidates_ft), ...s.candidates_ft);
-  const chosen = nav.options.find(o => o.kind === nav.choice);
+  const chosen = nav.options.find(o => o.kind === nav.flown);
   const needOxygen = nav.options.filter(o => o.needs_oxygen).map(o => KIND_LABEL[o.kind].toLowerCase());
 
   return (
@@ -141,15 +131,20 @@ export default function AltitudeReasoning({ nav }: Props) {
             + (o.tailwind_kt !== null ? `, ${Math.abs(Math.round(o.tailwind_kt))} kt ${o.tailwind_kt >= 0 ? "tailwind" : "headwind"} on average` : "")
             + "."
           )).join(" ")}
-          {custom
+          {nav.flown === "custom"
             ? ` Flying ${altFt(nav.altitude_ft)} ft, your own, the whole way instead.`
-            : chosen && ` Flying the ${KIND_LABEL[chosen.kind].toLowerCase()}.`}
+            : nav.flown === null
+              ? " None is flown: the winds aloft could not be read."
+              : chosen && ` Flying the ${KIND_LABEL[chosen.kind].toLowerCase()}.`}
           {needOxygen.length > 0 && ` The ${join(needOxygen)} ${needOxygen.length === 1 ? "plan climbs" : "plans climb"} above the altitude where more than 30 minutes needs supplemental oxygen (14 CFR 91.211).`}
         </li>
       ) : (
+        // No plans only when the winds could not be read before they
+        // were made: a route with no legal altitude on some leg ends in
+        // an error instead, with no altitude message at all. This used to
+        // say that of a winds outage.
         <li>
-          <b>No plan.</b> Some leg has no legal altitude between its floor and its ceiling. Type an altitude in
-          the Alt box, or plan under or around the airspace.
+          <b>No plan.</b> The winds aloft could not be read, so no plan could be flown. Try again shortly.
         </li>
       )}
       <li>

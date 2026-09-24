@@ -78,7 +78,7 @@ export function describeSteps(option: AltitudeOption): string {
 /** One altitude plan's time: the flying time plus what its climbs
  *  cost, which is what the plans are compared on. */
 export function describeTime(option: AltitudeOption): string {
-  return option.total_min === null ? "unflyable" : hhmm(option.total_min);
+  return option.ete_min === null ? "unflyable" : hhmm(option.ete_min);
 }
 
 /** A clock time, "09:05", in the browser's own zone -- an ETA. */

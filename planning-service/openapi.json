@@ -493,7 +493,7 @@
         "type": "object"
       },
       "AltitudeOption": {
-        "description": "One of the three plans -- lowest, highest, fastest -- as its steps\nand what it costs. `total_min` is the flying time with every climb\nflown (`climb_penalty_min` is how many of those minutes are climb),\nthe figure the plans are compared on; `tailwind_kt` the\ndistance-weighted wind component along the course, positive helping,\nover the legs that had wind data.",
+        "description": "One of the three plans -- lowest, highest, fastest -- as its steps\nand what it costs. `ete_min` is the flying time with every climb\nflown (`climb_penalty_min` is how many of those minutes are climb),\nthe figure the plans are compared on; `tailwind_kt` the\ndistance-weighted wind component along the course, positive helping,\nover the legs that had wind data.",
         "properties": {
           "climb_penalty_min": {
             "title": "Climb Penalty Min",
@@ -556,17 +556,6 @@
             ],
             "title": "Tailwind Kt"
           },
-          "total_min": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Total Min"
-          },
           "unflyable_legs": {
             "title": "Unflyable Legs",
             "type": "integer"
@@ -578,7 +567,6 @@
           "ete_min",
           "fuel_gal",
           "climb_penalty_min",
-          "total_min",
           "tailwind_kt",
           "unflyable_legs",
           "legs_without_wind",
@@ -1643,14 +1631,6 @@
           "min_zoom": {
             "title": "Min Zoom",
             "type": "integer"
-          },
-          "tac_max_zoom": {
-            "title": "Tac Max Zoom",
-            "type": "integer"
-          },
-          "tac_min_zoom": {
-            "title": "Tac Min Zoom",
-            "type": "integer"
           }
         },
         "required": [
@@ -1662,8 +1642,6 @@
           "chart_layers",
           "max_zoom",
           "min_zoom",
-          "tac_max_zoom",
-          "tac_min_zoom",
           "chart_cycle"
         ],
         "title": "Course",
@@ -1832,7 +1810,7 @@
         "type": "object"
       },
       "Detection": {
-        "description": "A point the chart-vision detector found. `rating`/`role` are None\nuntil a pick claims it.",
+        "description": "A point the chart-vision detector found. `rating`/`role` are None\nuntil a pick claims it; `rated` is derived from the rating, as a\nPick's is, rather than set beside it.",
         "properties": {
           "along_track_nm": {
             "title": "Along Track Nm",
@@ -1859,6 +1837,7 @@
             "type": "number"
           },
           "rated": {
+            "readOnly": true,
             "title": "Rated",
             "type": "boolean"
           },
@@ -2734,26 +2713,26 @@
         "type": "object"
       },
       "NavLogAltitude": {
-        "description": "`altitude_ft` is the first leg's; a plan may step. `options` are\nthe three plans and `choice` the one the legs that follow fly --\nboth empty when the pilot supplied an altitude.",
+        "description": "Which altitudes the legs that follow fly. `flown` is the planner's\nplan of that name, or \"custom\" for a pilot's own altitude; None when\nthe winds the legs need could not be read, so no leg follows -- the\nstream's next line is the error. `altitude_ft` is the first leg's (a\nplan may step), and None exactly when `flown` is. `options` are the\nthree plans, offered beside a pilot's own as well; empty only when the\nwinds failed before they could be made.\n\nIt used to say all of that with `choice: null` and an empty `options`,\nwhich a winds outage produced too: the page showed \"0 ft \u00b7 yours\",\nwith Custom pressed, for an altitude nobody typed.",
         "properties": {
           "aircraft": {
             "$ref": "#/components/schemas/AircraftProfile"
           },
           "altitude_ft": {
-            "title": "Altitude Ft",
-            "type": "number"
-          },
-          "altitude_selection": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/AltitudeBreakdown"
+                "type": "number"
               },
               {
                 "type": "null"
               }
-            ]
+            ],
+            "title": "Altitude Ft"
           },
-          "choice": {
+          "altitude_selection": {
+            "$ref": "#/components/schemas/AltitudeBreakdown"
+          },
+          "flown": {
             "anyOf": [
               {
                 "enum": [
@@ -2764,11 +2743,14 @@
                 "type": "string"
               },
               {
+                "const": "custom",
+                "type": "string"
+              },
+              {
                 "type": "null"
               }
             ],
-            "default": null,
-            "title": "Choice"
+            "title": "Flown"
           },
           "options": {
             "default": [],
@@ -2791,6 +2773,7 @@
           }
         },
         "required": [
+          "flown",
           "altitude_ft",
           "altitude_selection",
           "aircraft"
@@ -3687,14 +3670,6 @@
             "title": "Selected",
             "type": "array"
           },
-          "tac_max_zoom": {
-            "title": "Tac Max Zoom",
-            "type": "integer"
-          },
-          "tac_min_zoom": {
-            "title": "Tac Min Zoom",
-            "type": "integer"
-          },
           "totals": {
             "$ref": "#/components/schemas/Totals"
           },
@@ -3718,8 +3693,6 @@
           "aircraft",
           "max_zoom",
           "min_zoom",
-          "tac_max_zoom",
-          "tac_min_zoom",
           "chart_cycle",
           "chart_layers"
         ],

@@ -8,7 +8,7 @@ import { courseQuery, pilotQuery } from "../../../lib/queryClient";
 import { routeOf } from "../../../lib/identSchema";
 import { ended } from "../../../lib/api/streams";
 import type {
-  AircraftChoice, AltitudeChoice, Briefing, Leg, NarrativeMessage, NavLogAltitude, NavLogMessage, Totals,
+  AircraftChoice, AltitudeChoice, Briefing, Leg, NarrativeMessage, NarrativeRequest, NavLogAltitude, NavLogMessage, Totals,
 } from "../../../lib/api/types";
 import { elapsed } from "../format";
 
@@ -261,10 +261,11 @@ export function usePlan(
 
   // Each framework's narrative about the nav log on screen -- a
   // pilot's own click per framework, each a real, billed Claude call.
-  const narrativeRequest = nav && {
+  // Only about a log that is flown: with no winds there are no legs.
+  const narrativeRequest: NarrativeRequest | null = nav && nav.altitude_ft !== null ? {
     departure_ident: dep, destination_ident: dest, aircraft_name: nav.aircraft.name,
     altitude_ft: nav.altitude_ft, altitude_selection: nav.altitude_selection, legs,
-  };
+  } : null;
   // The nav log's own key, not a few fields of it: this one left out the
   // departure time, the choice of plan, Load and the aeroplane's own
   // numbers, and held the leg count, which changes while legs stream --

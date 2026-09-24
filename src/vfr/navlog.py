@@ -334,7 +334,7 @@ def altitude_profiles(
 ) -> dict:
     """The lowest, highest and fastest ways to fly the fixes, each as a
     per-leg altitude plan: {"lowest"|"highest"|"fastest": {"legs",
-    "totals", "steps", "climb_penalty_min", "total_min", "tailwind_kt",
+    "totals", "steps", "climb_penalty_min", "tailwind_kt",
     ...}}. `segments` is vfr.altitude.select_cruise_altitude's own
     `segments`, one per leg, with each leg's legal altitudes.
 
@@ -407,7 +407,6 @@ def altitude_profiles(
             "ete_min": plan_totals["ete_min"],
             "fuel_gal": plan_totals["fuel_gal"],
             "climb_penalty_min": climb_min,
-            "total_min": plan_totals["ete_min"],
             "tailwind_kt": None if tailwind is None else round(tailwind, 1),
             "unflyable_legs": plan_totals["unflyable_legs"],
             "legs_without_wind": plan_totals["legs_without_wind"],

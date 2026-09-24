@@ -189,7 +189,6 @@ def detect_stream(dep: str, dest: str, half_width_nm: float = 4.0) -> StreamingR
             cross_track_nm=round(landmark.extras["cross_track_nm"], 3),
             rating=pick["rating"] if pick else None,
             role=pick.get("role") if pick else None,
-            rated=pick is not None and pick["rating"] is not None,
         )
 
     job = detect_job((route, half_width_nm), r.start, r.end, half_width_nm)

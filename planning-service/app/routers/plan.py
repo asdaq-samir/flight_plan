@@ -14,7 +14,7 @@ from datetime import datetime
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from vfr import charts, geo, navlog
-from vfr.config import VFR_SECTIONAL_MAX_ZOOM, VFR_SECTIONAL_MIN_ZOOM, VFR_TAC_MAX_ZOOM, VFR_TAC_MIN_ZOOM
+from vfr.config import VFR_SECTIONAL_MAX_ZOOM, VFR_SECTIONAL_MIN_ZOOM
 from vfr.weather import WeatherServiceError
 
 from ..common import DEFAULT_AIRCRAFT, line, load_route, ndjson
@@ -188,8 +188,6 @@ def course(dep: str, dest: str) -> Course:
         course_line=course_line(r.start, r.end),
         max_zoom=VFR_SECTIONAL_MAX_ZOOM,
         min_zoom=VFR_SECTIONAL_MIN_ZOOM,
-        tac_max_zoom=VFR_TAC_MAX_ZOOM,
-        tac_min_zoom=VFR_TAC_MIN_ZOOM,
         chart_cycle=charts.serving_cycle(),
         chart_revision=charts.tiles_revision(charts.serving_cycle()),
         chart_tiles_base=charts.tiles_base_url(),
@@ -296,8 +294,6 @@ def plan(
         aircraft={"name": aircraft, **profile},
         max_zoom=VFR_SECTIONAL_MAX_ZOOM,
         min_zoom=VFR_SECTIONAL_MIN_ZOOM,
-        tac_max_zoom=VFR_TAC_MAX_ZOOM,
-        tac_min_zoom=VFR_TAC_MIN_ZOOM,
         chart_cycle=charts.serving_cycle(),
         chart_revision=charts.tiles_revision(charts.serving_cycle()),
         chart_tiles_base=charts.tiles_base_url(),
@@ -397,7 +393,8 @@ def navlog_stream(
             # altitudes -- even though the winds did not come: say what
             # was decided, then what failed.
             yield line(NavLogAltitude(
-                altitude_ft=altitude_ft or outcome.selection.get("recommended_ft") or 0.0,
+                flown=None,
+                altitude_ft=None,
                 altitude_selection=outcome.selection,
                 options=outcome.options,
                 winds_forecast_hr=fcst_hr,
@@ -410,10 +407,10 @@ def navlog_stream(
         # /api/checkpoints can show their own cruise altitude
         # immediately rather than waiting on the first leg to carry it.
         yield line(NavLogAltitude(
+            flown=outcome.choice or "custom",
             altitude_ft=outcome.altitude_ft,
             altitude_selection=outcome.selection,
             options=outcome.options,
-            choice=outcome.choice,
             winds_forecast_hr=fcst_hr,
             aircraft=aircraft_line,
         ))

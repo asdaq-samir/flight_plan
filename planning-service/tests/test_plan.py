@@ -69,7 +69,7 @@ def test_plan_returns_legs_with_from_and_to_and_totals():
     assert body["altitude_options"][0]["steps"] == [
         {"from": "C81", "to": "KDLH", "altitude_ft": 4500.0, "distance_nm": 30.0},
     ]
-    assert body["altitude_options"][2]["total_min"] >= body["altitude_options"][2]["ete_min"]
+    assert "total_min" not in body["altitude_options"][2]   # it only ever repeated ete_min
 
 
 def test_plan_flies_the_plan_the_pilot_chose():
@@ -113,7 +113,7 @@ def test_navlog_streams_altitude_then_legs_then_done(messages):
     assert lines[-1]["totals"]["distance_nm"] == 10.0 * len(legs)
     altitude = next(m for m in lines if m["type"] == "altitude")
     assert [o["kind"] for o in altitude["options"]] == ["lowest", "highest", "fastest"]
-    assert altitude["choice"] == "lowest" and altitude["altitude_ft"] == 4500.0
+    assert altitude["flown"] == "lowest" and altitude["altitude_ft"] == 4500.0
 
 
 def test_a_departure_time_picks_the_winds_forecast_period(messages):
@@ -165,7 +165,7 @@ def test_navlog_flies_the_chosen_plan_and_says_so(messages):
     resp = client.get("/api/navlog", params={"dep": "C81", "dest": "KDLH", "altitude_choice": "highest"})
 
     altitude = next(m for m in messages(resp) if m["type"] == "altitude")
-    assert altitude["choice"] == "highest"
+    assert altitude["flown"] == "highest"
 
 
 def test_navlog_flies_a_pilots_own_aeroplane_over_a_stock_profile(messages):
@@ -207,7 +207,7 @@ def test_navlog_at_a_pilots_own_altitude_streams_it_then_its_legs(messages):
     lines = messages(client.get("/api/navlog", params={"dep": "C81", "dest": "KDLH", "altitude_ft": 3500}))
 
     altitude = next(m for m in lines if m["type"] == "altitude")
-    assert altitude["altitude_ft"] == 3500.0 and altitude["choice"] is None
+    assert altitude["altitude_ft"] == 3500.0 and altitude["flown"] == "custom"
     assert [o["kind"] for o in altitude["options"]] == ["lowest", "highest", "fastest"]
     assert all(m["altitude_ft"] == 3500.0 for m in lines if m["type"] == "leg")
     assert lines[-1]["type"] == "done"
@@ -218,7 +218,10 @@ def test_navlog_at_a_pilots_own_altitude_without_winds_says_the_altitude_then_th
     lines = messages(client.get("/api/navlog", params={"dep": "C81", "dest": "KDLH", "altitude_ft": 3500}))
 
     assert [m["type"] for m in lines if m["type"] != "stage"] == ["altitude", "error"]
-    assert lines[-2]["altitude_ft"] == 3500.0
+    # Nothing is flown: no altitude, and no "custom" either -- the page
+    # showed "· yours" with Custom pressed for this.
+    assert lines[-2]["flown"] is None and lines[-2]["altitude_ft"] is None
+    assert lines[-2]["altitude_selection"]["floor_ft"] == 2200.0
     assert "winds-06 unavailable" in lines[-1]["detail"]
 
 

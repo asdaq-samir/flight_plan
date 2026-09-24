@@ -62,13 +62,10 @@ class Course(BaseModel):
     bearing_deg: float
     course_line: list[tuple[float, float]]
     chart_layers: list[ChartLayer]
-    # The zooms the sectional layer draws at, and the ones the optional
-    # terminal-area-chart overlay does (one level further in, and only
-    # close up).
+    # The zooms the sectional layer draws at. Each overlay's own are in
+    # chart_layers.
     max_zoom: int
     min_zoom: int
-    tac_max_zoom: int
-    tac_min_zoom: int
     # The chart edition the tile endpoints are serving. The map puts it
     # in every tile URL, so a browser that cached tiles under the same
     # {z}/{x}/{y} from an earlier edition -- or from the hosted service
@@ -274,7 +271,7 @@ class AltitudeStep(BaseModel):
 
 class AltitudeOption(BaseModel):
     """One of the three plans -- lowest, highest, fastest -- as its steps
-    and what it costs. `total_min` is the flying time with every climb
+    and what it costs. `ete_min` is the flying time with every climb
     flown (`climb_penalty_min` is how many of those minutes are climb),
     the figure the plans are compared on; `tailwind_kt` the
     distance-weighted wind component along the course, positive helping,
@@ -285,7 +282,6 @@ class AltitudeOption(BaseModel):
     ete_min: float | None
     fuel_gal: float | None
     climb_penalty_min: float
-    total_min: float | None
     tailwind_kt: float | None
     unflyable_legs: int
     legs_without_wind: int
@@ -338,8 +334,6 @@ class Plan(BaseModel):
     aircraft: AircraftProfile
     max_zoom: int
     min_zoom: int
-    tac_max_zoom: int
-    tac_min_zoom: int
     chart_cycle: str
     chart_revision: int = 0
     chart_tiles_base: str | None = None
@@ -493,7 +487,8 @@ class Classification(BaseModel):
 
 class Detection(BaseModel):
     """A point the chart-vision detector found. `rating`/`role` are None
-    until a pick claims it."""
+    until a pick claims it; `rated` is derived from the rating, as a
+    Pick's is, rather than set beside it."""
 
     lat: float
     lon: float
@@ -504,7 +499,11 @@ class Detection(BaseModel):
     cross_track_nm: float
     rating: Rating | None
     role: Role | None
-    rated: bool
+
+    @computed_field
+    @property
+    def rated(self) -> bool:
+        return self.rating is not None
 
 
 class DetectStart(BaseModel):
@@ -553,15 +552,23 @@ class NavLogError(BaseModel):
 
 
 class NavLogAltitude(BaseModel):
-    """`altitude_ft` is the first leg's; a plan may step. `options` are
-    the three plans and `choice` the one the legs that follow fly --
-    both empty when the pilot supplied an altitude."""
+    """Which altitudes the legs that follow fly. `flown` is the planner's
+    plan of that name, or "custom" for a pilot's own altitude; None when
+    the winds the legs need could not be read, so no leg follows -- the
+    stream's next line is the error. `altitude_ft` is the first leg's (a
+    plan may step), and None exactly when `flown` is. `options` are the
+    three plans, offered beside a pilot's own as well; empty only when the
+    winds failed before they could be made.
+
+    It used to say all of that with `choice: null` and an empty `options`,
+    which a winds outage produced too: the page showed "0 ft · yours",
+    with Custom pressed, for an altitude nobody typed."""
 
     type: Literal["altitude"] = "altitude"
-    altitude_ft: float
-    altitude_selection: AltitudeBreakdown | None
+    flown: AltitudeChoice | Literal["custom"] | None
+    altitude_ft: float | None
+    altitude_selection: AltitudeBreakdown
     options: list[AltitudeOption] = []
-    choice: AltitudeChoice | None = None
     winds_forecast_hr: str = "06"
     aircraft: AircraftProfile
 
