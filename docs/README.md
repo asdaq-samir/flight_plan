@@ -504,6 +504,12 @@ docker compose -f docker-compose.yml -f docker-compose.phone.yml up -d webapp
 
 Install `certs/ca.pem` on the phone once (the script prints the steps
 for iPhone and Android), then open `https://<address>:8443/app/plan`.
+The authority's own key stays out of the repo, in `~/.config/vfr-local-ca`:
+the repo is mounted read-write into most services, and whoever holds that
+key can mint certificates the phone trusts. A new authority is also
+name-constrained to private addresses and `localhost`; one made before
+that is not, and `make-certs.sh --new-ca <address>` replaces it (install
+the new `ca.pem` on the phone afterwards).
 From there the map's info popover offers **Show my position** (the GPS as
 a blue arrow, and the map kept on it until you pan) and **Keep this
 route's charts on this device** (every sectional tile within 10 nm of
