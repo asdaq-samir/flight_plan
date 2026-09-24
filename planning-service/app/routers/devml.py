@@ -59,10 +59,10 @@ def model_comparison() -> ModelComparison:
     CrossValidator gives it a real cv_mae too. Blending these into one
     unlabeled column would overstate how comparable they actually are.
     """
+    # Nothing promoted yet is an empty comparison, not an error: it was a
+    # 404, and a fresh stack's Performance tab toasted it as a failure.
     metrics_path = model_registry.CURRENT_MODEL_DIR / "metrics.json"
-    if not metrics_path.exists():
-        raise HTTPException(404, "no model has been promoted yet")
-    current_metrics = json.loads(metrics_path.read_text())
+    current_metrics = json.loads(metrics_path.read_text()) if metrics_path.exists() else {}
 
     models = [
         {"name": name, "metric": "cv_mae", "score": score, "promoted": name == current_metrics.get("model_type")}

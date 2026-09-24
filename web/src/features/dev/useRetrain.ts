@@ -22,7 +22,9 @@ export function useRetrain() {
       toast.success("Retrain started", {
         description: run.dag_run_id ? `Airflow run ${run.dag_run_id}; the Developer drawer follows it.` : undefined,
       });
-      void queryClient.invalidateQueries({ queryKey: ["status"] });
+      // Returned, so the mutation stays pending until the snapshot shows
+      // the run: Retrain was enabled again in between, for a second press.
+      return queryClient.invalidateQueries({ queryKey: ["status"] });
     },
   });
   const pipeline = status?.pipeline;

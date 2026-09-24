@@ -14,7 +14,7 @@ import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } f
 import {
   Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow,
 } from "../../components/ui/table";
-import { api } from "../../lib/api/client";
+import { api, errorMessage } from "../../lib/api/client";
 import type { ModelComparisonEntry, Status } from "../../lib/api/types";
 import RatingGuide from "../train/components/RatingGuide";
 import { elapsed } from "../plan/format";
@@ -67,10 +67,11 @@ export function DevPanel() {
   const savedTab = usePreferences(s => s.devTab);
   const changeTab = usePreferences(s => s.setDevTab);
   // Everything the console shows, asked for again now rather than at
-  // the next 30-second tick: the snapshot, the model comparison and
-  // the two health probes the System tab runs itself.
+  // the next 30-second tick: the snapshot, the model comparison, the
+  // two health probes the System tab runs itself and which services the
+  // sidecar can start.
   const refreshAll = () => void queryClient.invalidateQueries({
-    predicate: q => ["status", "modelComparison", "webappHealth", "plannerHealth"].includes(String(q.queryKey[0])),
+    predicate: q => ["status", "modelComparison", "webappHealth", "plannerHealth", "devServices"].includes(String(q.queryKey[0])),
   });
 
   return (
@@ -281,6 +282,12 @@ function Step({ n, title, description, children }: { n: number; title: string; d
  * allows window.open during the click that asked for it, and one
  * opened after an await is a popup the browser blocks. So the tab
  * appears immediately and is pointed at the service once it answers.
+ * It is opened without "noopener", which makes window.open return
+ * null -- the tab was then never pointed anywhere and stayed blank --
+ * and cut off from this page by hand instead.
+ *
+ * A service with no container yet is a plain link: the sidecar only
+ * starts what `docker compose up` created, and refused it every time.
  */
 function StackLink({ link }: { link: { label: string; href: string; service?: string } }) {
   const queryClient = useQueryClient();
@@ -290,7 +297,7 @@ function StackLink({ link }: { link: { label: string; href: string; service?: st
   const start = useMutation({ mutationFn: api.startDevService, meta: { silent: true } });
 
   const state = dev?.services.find(s => s.name === link.service)?.state;
-  const startable = !!link.service && dev?.available === true && state !== undefined && state !== "running";
+  const startable = !!link.service && dev?.available === true && state !== undefined && state !== "running" && state !== "absent";
 
   if (!startable) {
     return (
@@ -309,7 +316,8 @@ function StackLink({ link }: { link: { label: string; href: string; service?: st
       size="sm"
       disabled={start.isPending}
       onClick={() => {
-        const tab = window.open("", "_blank", "noopener");
+        const tab = window.open("", "_blank");
+        if (tab) tab.opener = null;
         start.mutate(link.service!, {
           onSuccess: () => {
             toast.success(`Started ${link.service}`);
@@ -321,7 +329,7 @@ function StackLink({ link }: { link: { label: string; href: string; service?: st
             // connection refused.
             window.setTimeout(() => { if (tab) tab.location.href = link.href; }, 2500);
           },
-          onError: () => { tab?.close(); toast.error(`Could not start ${link.service}`); },
+          onError: err => { tab?.close(); toast.error(`Could not start ${link.service}`, { description: errorMessage(err, "the sidecar gave no reason") }); },
         });
       }}
     >
@@ -660,6 +668,9 @@ function SystemTab({ status, failed }: { status: Status | undefined; failed: boo
     { label: "model-service API docs", href: `http://${host}:8000/docs`, localOnly: true, service: "model-service" },
     { label: "Jupyter (the notebooks)", href: `http://${host}:8888`, localOnly: true, service: "ml" },
     { label: "Airflow (the training DAG)", href: `http://${host}:8081`, localOnly: true, service: "airflow" },
+    // The sidecar can start it; its one page is the MCP stream, which
+    // answers 401 without the bearer token -- enough to see it is up.
+    { label: "nav-log-agent (MCP)", href: `http://${host}:8082/mcp/sse`, localOnly: true, service: "nav-log-agent" },
   ];
 
   // Every door, always. Two cleverer versions of this were wrong:
@@ -742,7 +753,7 @@ function SystemTab({ status, failed }: { status: Status | undefined; failed: boo
           {shown.map(l => <StackLink key={l.href} link={l} />)}
         </div>
         <p className="mt-2 text-xs text-muted-foreground">
-          The last four are published by docker-compose on <span className="font-mono">127.0.0.1</span>, so they
+          The last five are published by docker-compose on <span className="font-mono">127.0.0.1</span>, so they
           open on the machine running the stack. To reach them from a phone or another machine, start it with
           <span className="font-mono"> docker compose -f docker-compose.yml -f docker-compose.lan.yml up -d</span> —
           read that file first, it publishes an unauthenticated Jupyter. Jupyter also needs its own service

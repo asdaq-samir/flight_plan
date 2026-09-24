@@ -25,13 +25,15 @@ client = TestClient(app)
 # --- /api/model-comparison ---
 
 
-def test_model_comparison_404s_when_nothing_has_been_promoted(tmp_path, monkeypatch):
+def test_model_comparison_is_empty_when_nothing_has_been_promoted(tmp_path, monkeypatch):
+    # It was a 404, which a fresh stack's Performance tab toasted.
     monkeypatch.setattr(model_registry, "CURRENT_MODEL_DIR", tmp_path / "current")
     monkeypatch.setattr(model_registry, "MODELS_DIR", tmp_path)
 
     resp = client.get("/api/model-comparison")
 
-    assert resp.status_code == 404
+    assert resp.status_code == 200
+    assert resp.json() == {"models": [], "trained_at": None, "n_labeled": None}
 
 
 def test_model_comparison_lists_the_promoted_model_and_any_trained_candidates(tmp_path, monkeypatch):
