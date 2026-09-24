@@ -70,7 +70,7 @@
         <mxCell id="ml" value="&lt;b&gt;ml&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:11px;color:#555555;&quot;&gt;Jupyter · notebooks 01-08&lt;/span&gt;" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#888888;strokeWidth=1.5;fontSize=14;" vertex="1" parent="1">
           <mxGeometry x="70" y="670" width="320" height="52" as="geometry" />
         </mxCell>
-        <mxCell id="docker-api" value="&lt;b&gt;docker-api&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:11px;color:#555555;&quot;&gt;socket proxy · starts ml/airflow/&lt;br&gt;model-service/nav-log-agent on request&lt;/span&gt;" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#888888;strokeWidth=1.5;fontSize=14;" vertex="1" parent="1">
+        <mxCell id="dev-services" value="&lt;b&gt;dev-services&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:11px;color:#555555;&quot;&gt;Docker sidecar · starts ml/airflow/&lt;br&gt;model-service/nav-log-agent on request&lt;/span&gt;" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#888888;strokeWidth=1.5;fontSize=14;" vertex="1" parent="1">
           <mxGeometry x="420" y="670" width="300" height="66" as="geometry" />
         </mxCell>
 
@@ -101,7 +101,7 @@
             </Array>
           </mxGeometry>
         </mxCell>
-        <mxCell id="e-planningservice-dockerapi" value="starts a container" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#888888;strokeWidth=1.5;dashed=1;dashPattern=6 4;endArrow=classic;endFill=1;exitX=0.15;exitY=1;entryX=0.7;entryY=0;fontSize=9;fontColor=#777777;labelBackgroundColor=#F0F0F0;" edge="1" parent="1" source="planning-service" target="docker-api">
+        <mxCell id="e-planningservice-dockerapi" value="starts a container" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#888888;strokeWidth=1.5;dashed=1;dashPattern=6 4;endArrow=classic;endFill=1;exitX=0.15;exitY=1;entryX=0.7;entryY=0;fontSize=9;fontColor=#777777;labelBackgroundColor=#F0F0F0;" edge="1" parent="1" source="planning-service" target="dev-services">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
 
@@ -172,7 +172,7 @@
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
 
-        <mxCell id="legend" value="Solid line = request/data flow.&amp;nbsp; Dashed purple = the flight planning drawer's AI-narrative comparison (webapp calls both agents' HTTP wrappers, not MCP).&amp;nbsp; Dashed grey = a cross-layer handoff (promoted model) or a parallel build not in the request path (crewai-agent, docker-api).&amp;nbsp; Dashed border = runs in-process rather than as its own container." style="text;html=1;align=left;verticalAlign=middle;fontSize=11;fontColor=#666666;" vertex="1" parent="1">
+        <mxCell id="legend" value="Solid line = request/data flow.&amp;nbsp; Dashed purple = the flight planning drawer's AI-narrative comparison (webapp calls both agents' HTTP wrappers, not MCP).&amp;nbsp; Dashed grey = a cross-layer handoff (promoted model) or a parallel build not in the request path (crewai-agent, dev-services).&amp;nbsp; Dashed border = runs in-process rather than as its own container." style="text;html=1;align=left;verticalAlign=middle;fontSize=11;fontColor=#666666;" vertex="1" parent="1">
           <mxGeometry x="60" y="800" width="1160" height="46" as="geometry" />
         </mxCell>
 

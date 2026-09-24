@@ -111,28 +111,28 @@ services:
       # convention) makes the 18 entrypoint refuse to start.
       - pgdata_pg18:/var/lib/postgresql
 
-  # A deliberately narrow window onto the Docker API.
+  # The developer console's one door onto Docker (docker/dev-services):
+  # which of four services are running, and starting one that is not.
+  # It holds the socket so planning-service doesn't, and answers those
+  # two requests for those four names in this project, nothing else --
+  # no create, no exec, no other container.
   #
-  # The developer console can start a stopped service it links to
-  # (Jupyter, Airflow). Doing that by mounting the host's Docker socket
-  # into planning-service would hand that container the ability to run
-  # anything on this machine as root, which is far more than the
-  # feature needs -- and on Docker Desktop that socket is root-owned
-  # anyway, so a non-root service cannot read it.
-  #
-  # This proxies it over HTTP with one allowance: the containers
-  # endpoints. Every other part of the API -- images, exec, volumes,
-  # networks, swarm, the daemon itself -- is refused here, so the worst
-  # this grants is starting and stopping containers. It publishes no
-  # port, so only services on this compose network can reach it, and it
-  # is not reachable from webapp's own network surface.
-  docker-api:
-    image: tecnativa/docker-socket-proxy:0.3.0
+  # It replaced tecnativa/docker-socket-proxy with CONTAINERS and POST
+  # granted, which the proxy's own rules turn into every method on every
+  # /containers path, `POST /containers/create` included: a privileged
+  # container with the host's / mounted, from anything that could reach
+  # it. And everything could, because every service shared one network.
+  # This one sits on `docker-control` alone, which only planning-service
+  # also joins; webapp, ml and the rest cannot resolve it.
+  dev-services:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.dev-services
     environment:
-      CONTAINERS: 1
-      POST: 1
+      DEV_SERVICES: ml,airflow,model-service,nav-log-agent
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks: [docker-control]
     restart: unless-stopped
 
   planning-service:
@@ -148,6 +148,9 @@ services:
       dockerfile: planning-service/Dockerfile
     ports:
       - "127.0.0.1:8084:8000"
+    # docker-control as well as the default network: the only service
+    # besides dev-services itself that can reach the sidecar.
+    networks: [default, docker-control]
     volumes:
       - .:/workspace
       # Airflow's own home, read-only, for the one file /api/retrain
@@ -156,10 +159,10 @@ services:
     environment:
       PYTHONPATH: /workspace/src
       MODEL_SERVICE_URL: http://model-service:8000
-      # Not the host's Docker socket -- the restricted proxy above.
-      # routers/devservices.py uses it to start a stopped service the
-      # console links to, from a fixed list of four names.
-      DOCKER_HOST: tcp://docker-api:2375
+      # Not the host's Docker socket -- the dev-services sidecar above,
+      # which routers/devservices.py asks which of four services are up
+      # and to start one.
+      DEV_SERVICES_URL: http://dev-services:8000
       # The clock the chart refresh's night-time window (see
       # planning-service/app/main.py) is read against: the desk this
       # runs on, not UTC.
@@ -341,6 +344,12 @@ services:
       APP_HTTPS_KEYSTORE: ${APP_HTTPS_KEYSTORE:-/certs/webapp.p12}
       APP_HTTPS_KEYSTORE_PASSWORD: ${WEBAPP_KEYSTORE_PASSWORD:-changeit}
       APP_HSTS: "false"
+
+networks:
+  # dev-services and planning-service only (see dev-services above).
+  # Internal: nothing on it needs to reach outside the host.
+  docker-control:
+    internal: true
 
 volumes:
   # Neither pgdata nor airflow_home is referenced by any service anymore
