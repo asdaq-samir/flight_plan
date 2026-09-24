@@ -1337,17 +1337,28 @@ def rerender_tiles(kind: ChartKind, boxes: list, cycle: str, workers: int = 2) -
         written = sum(map(_rerender_tile, jobs))
 
     root = CHART_TILE_CACHE_DIR / cycle
+    stale = {str(_tile_path(kind, cycle, x, y, zoom).relative_to(root)) for x, y, zoom in tiles}
+    _bump_revision(cycle, strike=stale.__contains__)
+    return written
+
+
+def _bump_revision(cycle: str, strike) -> None:
+    """The cycle's tile revision one higher, and the publish ledger's
+    entries `strike` says are stale taken off it, so the next publish
+    uploads them again. Both files written whole; the callers hold the
+    refresh lock, which `publish` takes too, so neither is written back
+    stale by a run beside them."""
+    root = CHART_TILE_CACHE_DIR / cycle
     root.mkdir(parents=True, exist_ok=True)
-    (root / _TILES_REVISION).write_text(str(tiles_revision(cycle) + 1))
+    _write_atomically(root / _TILES_REVISION, str(tiles_revision(cycle) + 1).encode())
     ledger = root / _PUBLISHED
     try:
         published = set(json.loads(ledger.read_text()))
     except (OSError, ValueError):
-        published = None
-    if published:
-        stale = {str(_tile_path(kind, cycle, x, y, zoom).relative_to(root)) for x, y, zoom in tiles}
-        ledger.write_text(json.dumps(sorted(published - stale)))
-    return written
+        return
+    kept = sorted(key for key in published if not strike(key))
+    if len(kept) != len(published):
+        _write_atomically(ledger, json.dumps(kept).encode())
 
 
 def unmask_prepared(cycle: str | None = None, workers: int = 2, again: bool = False) -> dict:
@@ -1507,9 +1518,9 @@ def publish(cycle: str, bucket: str, prefix: str = CHART_TILES_PREFIX, workers: 
             done.add(key)
             uploaded += 1
             if i % 5000 == 0:
-                ledger.write_text(json.dumps(sorted(done)))
+                _write_atomically(ledger, json.dumps(sorted(done)).encode())
                 log.info("  %d of %d uploaded", i, len(todo))
-    ledger.write_text(json.dumps(sorted(done)))
+    _write_atomically(ledger, json.dumps(sorted(done)).encode())
 
     pointer = {"cycle": cycle, "kinds": {k: p["tiles"] for k, p in pyramid_status(cycle).items()},
                "published_at": datetime.now(tz=timezone.utc).isoformat()}
@@ -1658,12 +1669,13 @@ def _main(argv: list | None = None) -> int:
         global CHART_TILE_CACHE_DIR
         CHART_TILE_CACHE_DIR = Path(args.tiles_dir)
 
-    # The runs that write the cycle's tiles hold the refresh lock for
-    # their whole life. A refresh or a pyramid that finds it held leaves
-    # the running one to it; an unmask waits, then renders its tiles
-    # again on what that run left.
-    if args.command in ("refresh", "pyramid", "unmask"):
-        wait = args.command == "unmask"
+    # The runs that write the cycle's tiles, or its publish ledger, hold
+    # the refresh lock for their whole life. A refresh or a pyramid that
+    # finds it held leaves the running one to it; an unmask waits, then
+    # renders its tiles again on what that run left; a publish waits
+    # rather than write back a ledger an unmask has struck tiles off.
+    if args.command in ("refresh", "pyramid", "unmask", "publish"):
+        wait = args.command in ("unmask", "publish")
         with refresh_lock(wait=wait) as got:
             if not got:
                 log.info("a refresh, pyramid or unmask is already running on %s; leaving it to that",

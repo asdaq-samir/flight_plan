@@ -930,6 +930,40 @@ def test_unmask_waits_for_a_running_refresh(tmp_path, monkeypatch):
     assert ran and ran[0] - started >= 1.0
 
 
+def test_publish_waits_for_a_running_refresh(tmp_path, monkeypatch):
+    """Beside an unmask, a publish that read the ledger first wrote it
+    back after the unmask had struck its re-rendered tiles off, and they
+    were never uploaded again."""
+    import time
+
+    monkeypatch.setattr(charts, "CHART_TILE_CACHE_DIR", tmp_path / "tiles")
+    ran = []
+    monkeypatch.setattr(charts, "publish", lambda cycle, bucket: ran.append(time.monotonic()) or 0)
+    child = _hold_in_another_process(tmp_path / "tiles", 1.5)
+    started = time.monotonic()
+    assert charts._main(["publish", "--cycle", "09-03-2026", "--bucket", "charts-bucket"]) == 0
+    child.wait()
+    assert ran and ran[0] - started >= 1.0
+
+
+def test_the_revision_and_the_ledger_are_written_whole(tmp_path, monkeypatch):
+    """Written in place, a run killed mid-write left a ledger that read
+    as empty -- and the next publish uploaded the whole cycle again."""
+    monkeypatch.setattr(charts, "CHART_TILE_CACHE_DIR", tmp_path / "tiles")
+    root = tmp_path / "tiles" / "09-03-2026"
+    root.mkdir(parents=True)
+    (root / charts._PUBLISHED).write_text(json.dumps(["sec/8/1/1.png", "tac/9/2/2.png"]))
+    written = []
+    real_write = charts._write_atomically
+    monkeypatch.setattr(charts, "_write_atomically", lambda path, data: written.append(path.name) or real_write(path, data))
+
+    charts._bump_revision("09-03-2026", strike=lambda key: key.startswith("sec/"))
+
+    assert sorted(written) == sorted([charts._PUBLISHED, charts._TILES_REVISION])
+    assert charts.tiles_revision("09-03-2026") == 1
+    assert json.loads((root / charts._PUBLISHED).read_text()) == ["tac/9/2/2.png"]
+
+
 def _sheet(tmp_path, name: str, box: tuple, value: int):
     path = tmp_path / f"{name.lower()}.tif"
     _palette_raster(path, box, np.full((512, 512), value, np.uint8))
