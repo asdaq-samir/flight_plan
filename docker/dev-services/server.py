@@ -70,9 +70,15 @@ def own_project(api=docker) -> str | None:
 
 
 def find(name: str, project: str, api=docker) -> dict | None:
+    """The service's own container. Not a one-off (`docker compose run`,
+    which the ml image's training commands are): it carries the same
+    project and service labels, and was taken for the service -- a
+    training run reported as Jupyter running, and an exited one restarted
+    in Jupyter's place. Compose tells its own apart by this label too."""
     filters = json.dumps({"label": [
         f"com.docker.compose.project={project}",
         f"com.docker.compose.service={name}",
+        "com.docker.compose.oneoff=False",
     ]})
     status, body = api("GET", "/containers/json?all=1&filters=" + urllib.parse.quote(filters))
     if status != 200:

@@ -3,6 +3,8 @@ socket for the developer console. What it must never do is reach the
 Docker API for anything but listing and starting its own four
 services -- that is the whole reason it replaced a socket proxy."""
 import importlib.util
+import json
+import urllib.parse
 from pathlib import Path
 
 import pytest
@@ -77,3 +79,47 @@ def test_lookups_are_scoped_to_the_project():
     server.states("other_checkout", ("ml",), api)
     (_, path), = api.calls
     assert "com.docker.compose.project%3Dother_checkout" in path
+
+
+class LabelledDocker:
+    """Lists containers the way Docker does -- every label in the filter
+    must match -- so a one-off's labels are what decide."""
+
+    def __init__(self, containers: list):
+        self.containers = containers
+        self.calls = []
+
+    def __call__(self, method, path):
+        self.calls.append((method, path))
+        if method == "GET" and path.startswith("/containers/json"):
+            query = urllib.parse.parse_qs(urllib.parse.urlparse(path).query)
+            wanted = [label.split("=", 1) for label in json.loads(query["filters"][0])["label"]]
+            return 200, [c for c in self.containers if all(c["Labels"].get(k) == v for k, v in wanted)]
+        if method == "POST" and path.endswith("/start"):
+            return 204, None
+        raise AssertionError(f"unexpected Docker call {method} {path}")
+
+
+def _container(id_: str, state: str, oneoff: bool) -> dict:
+    return {"Id": id_, "State": state, "Labels": {
+        "com.docker.compose.project": "flight_plan", "com.docker.compose.service": "ml",
+        "com.docker.compose.oneoff": str(oneoff),
+    }}
+
+
+def test_a_one_off_run_is_never_taken_for_the_service():
+    # `docker compose run ml ...` carries the service's labels: a training
+    # run showed as Jupyter running, and an exited one was restarted in
+    # Jupyter's place.
+    api = LabelledDocker([_container("run-1", "exited", oneoff=True)])
+    assert server.states("flight_plan", ("ml",), api) == [{"name": "ml", "state": "absent"}]
+    status, _ = server.start("ml", "flight_plan", ("ml",), api)
+    assert status == 409
+    assert not any(method == "POST" for method, _ in api.calls)
+
+
+def test_the_service_container_is_started_beside_a_running_one_off():
+    api = LabelledDocker([_container("run-1", "running", oneoff=True), _container("svc", "exited", oneoff=False)])
+    assert server.states("flight_plan", ("ml",), api) == [{"name": "ml", "state": "exited"}]
+    server.start("ml", "flight_plan", ("ml",), api)
+    assert ("POST", "/containers/svc/start") in api.calls
