@@ -19,6 +19,8 @@ import os
 import requests
 from fastapi import APIRouter, HTTPException
 
+from vfr import retry
+
 from ..schemas import DevService, DevServices, DevServiceStarted
 
 log = logging.getLogger(__name__)
@@ -48,13 +50,6 @@ def _sidecar(method: str, path: str) -> requests.Response | None:
     except requests.RequestException as err:
         log.info("dev-services sidecar unreachable, so services cannot be started from here: %s", err)
         return None
-
-
-def _detail(response: requests.Response) -> str:
-    try:
-        return response.json().get("detail") or response.text
-    except ValueError:
-        return response.text
 
 
 @router.get("/api/dev/services", response_model=DevServices)
@@ -92,7 +87,7 @@ def start_dev_service(service: str) -> DevServiceStarted:
     if response is None:
         raise HTTPException(503, "no dev-services sidecar, so nothing can be started from here")
     if response.status_code != 200:
-        raise HTTPException(response.status_code, _detail(response))
+        raise HTTPException(response.status_code, retry.upstream_detail(response, "the dev-services sidecar"))
     body = response.json()
     if body.get("started"):
         log.info("started %s from the developer console", service)

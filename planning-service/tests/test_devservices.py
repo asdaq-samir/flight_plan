@@ -64,6 +64,15 @@ def test_the_sidecars_refusal_is_passed_on(monkeypatch):
     assert resp.json()["detail"] == "airflow has no container yet"
 
 
+def test_a_refusal_with_no_body_still_says_who_refused(monkeypatch):
+    monkeypatch.setattr(devservices, "_sidecar", lambda method, path: FakeResponse(500, ""))
+
+    resp = client.post("/api/dev/services/airflow/start")
+
+    assert resp.status_code == 500
+    assert resp.json()["detail"] == "the dev-services sidecar answered 500"
+
+
 def test_a_start_reports_what_happened(monkeypatch):
     monkeypatch.setattr(
         devservices, "_sidecar",
