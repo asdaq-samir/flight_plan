@@ -99,3 +99,18 @@ def test_the_three_together_keep_their_order(tmp_path):
     assert faa_data.ensure_nasr_data(tmp_path) == (
         tmp_path / "NAV_BASE.csv", tmp_path / "APT_BASE.csv", tmp_path / "DOF.DAT",
     )
+
+
+def test_load_obstacles_is_the_typed_dof_columns_filtered(tmp_path, monkeypatch):
+    """It used to rebuild every row into a checkpoint-shaped record with
+    a dict of tags, which its one caller unpacked again."""
+    dof = tmp_path / "DOF.DAT"
+    dof.write_text(_dof_line("TALL", agl=350) + _dof_line("SHORT", agl=150), encoding="latin-1")
+    monkeypatch.setattr(faa_data, "_OBSTACLES_CACHE", {})
+
+    tall = faa_data.load_obstacles(dof, (41.0, -94.0, 42.0, -93.0), min_agl_ft=200)
+    assert list(tall["city"]) == ["TALL"]
+    assert tall["amsl_ft"].iloc[0] == 350 + 1100
+
+    elsewhere = faa_data.load_obstacles(dof, (45.0, -90.0, 46.0, -89.0), min_agl_ft=0)
+    assert elsewhere.empty and "amsl_ft" in elsewhere.columns

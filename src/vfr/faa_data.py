@@ -417,30 +417,13 @@ def load_obstacles(dof_dat_path, bbox: tuple, min_agl_ft: float = 200) -> pd.Dat
     and registered as an aeronautical obstruction (FAA/Part 77 uses 200ft
     AGL as its own general obstruction-notification threshold, hence the
     default here) rather than guessing from an OSM tag alone.
-    """
-    min_lat, min_lon, max_lat, max_lon = bbox
-    all_obstacles = _load_all_obstacles(dof_dat_path)
-    df = all_obstacles[
-        (all_obstacles["agl_ft"] >= min_agl_ft)
-        & (all_obstacles["lat"] >= min_lat) & (all_obstacles["lat"] <= max_lat)
-        & (all_obstacles["lon"] >= min_lon) & (all_obstacles["lon"] <= max_lon)
-    ]
-    if df.empty:
-        return pd.DataFrame(columns=["osm_id", "osm_type", "category", "name", "lat", "lon", "bbox_area_m2", "tags"])
 
-    df = df.reset_index(drop=True)
-    return pd.DataFrame(
-        {
-            "osm_id": [f"dof-{i}" for i in df.index],
-            "osm_type": "faa_obstacle",
-            "category": "tower",
-            "name": df["type"] + " (" + df["city"] + ")",
-            "lat": df["lat"],
-            "lon": df["lon"],
-            "bbox_area_m2": 0.0,
-            "tags": [
-                {"obstacle_type": t, "agl_ft": int(a), "amsl_ft": int(m), "lit": bool(lit)}
-                for t, a, m, lit in zip(df["type"], df["agl_ft"], df["amsl_ft"], df["lit"])
-            ],
-        }
-    )
+    The DOF's own typed columns -- lat, lon, city, type, agl_ft, amsl_ft,
+    lit -- as the cache holds them. It used to rebuild each row into a
+    checkpoint-shaped record with a dict of tags, for candidates the
+    pipeline had long stopped collecting, and its one caller unpacked the
+    height back out of the dict, ten thousand rows at a time.
+    """
+    all_obstacles = _load_all_obstacles(dof_dat_path)
+    wanted = (all_obstacles["agl_ft"] >= min_agl_ft) & _in_bbox(all_obstacles["lat"], all_obstacles["lon"], bbox)
+    return all_obstacles[wanted].reset_index(drop=True)

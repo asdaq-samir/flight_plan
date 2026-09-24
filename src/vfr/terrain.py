@@ -15,6 +15,8 @@ the printed chart figure does.
 """
 from pathlib import Path
 
+import numpy as np
+
 from . import elevation, faa_data, geo
 
 M_TO_FT = 3.28084
@@ -97,23 +99,31 @@ def floor_profile(
     sample_points = _route_sample_points(route_start, route_end, sample_interval_nm)
     spacing_nm = total_nm / (len(sample_points) - 1)
     elevations_m = elevation.get_elevations_m(sample_points)
-    terrain_ft = [(i * spacing_nm, elevations_m[p] * M_TO_FT) for i, p in enumerate(sample_points)]
+    sample_along = np.arange(len(sample_points)) * spacing_nm
+    terrain_ft = np.array([elevations_m[p] for p in sample_points]) * M_TO_FT
 
+    # Every obstacle in the box placed on the route in one call -- the
+    # corridor's thousands of them were two scalar geodesic solutions
+    # each, the same azimuth work done twice, most of this function's
+    # half a second.
     bbox = geo.corridor_bbox(route_start, route_end, buffer_nm=corridor_half_width_nm + 2)
     obstacles = faa_data.load_obstacles(faa_data.ensure_nasr_file("DOF.DAT", faa_cache_dir), bbox, min_agl_ft=0)
-    obstacle_ft = [
-        (geo.along_track_distance_nm(lat, lon, route_start, route_end), tags["amsl_ft"])
-        for lat, lon, tags in zip(obstacles["lat"], obstacles["lon"], obstacles["tags"])
-        if abs(geo.cross_track_distance_nm(lat, lon, route_start, route_end)) <= corridor_half_width_nm
-    ]
+    if len(obstacles):
+        cross, along = geo.track_distances_nm(
+            obstacles["lat"].to_numpy(dtype=float), obstacles["lon"].to_numpy(dtype=float), route_start, route_end,
+        )
+        near = np.abs(cross) <= corridor_half_width_nm
+        obstacle_along, obstacle_ft = along[near], obstacles["amsl_ft"].to_numpy(dtype=float)[near]
+    else:
+        obstacle_along = obstacle_ft = np.empty(0)
 
     floors = []
     for a, b in pairwise(breaks_nm):
-        terrain_here = [ft for at, ft in terrain_ft if a - spacing_nm <= at <= b + spacing_nm]
-        obstacles_here = [
-            ft for at, ft in obstacle_ft if a - corridor_half_width_nm <= at <= b + corridor_half_width_nm
+        terrain_here = terrain_ft[(sample_along >= a - spacing_nm) & (sample_along <= b + spacing_nm)]
+        obstacles_here = obstacle_ft[
+            (obstacle_along >= a - corridor_half_width_nm) & (obstacle_along <= b + corridor_half_width_nm)
         ]
-        terrain_mef = max(terrain_here) + TERRAIN_MARGIN_FT
-        obstacle_mef = max(obstacles_here) + OBSTACLE_MARGIN_FT if obstacles_here else 0
+        terrain_mef = terrain_here.max() + TERRAIN_MARGIN_FT
+        obstacle_mef = obstacles_here.max() + OBSTACLE_MARGIN_FT if obstacles_here.size else 0
         floors.append(_round_up_100(max(terrain_mef, obstacle_mef)))
     return floors
