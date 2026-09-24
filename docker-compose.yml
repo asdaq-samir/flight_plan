@@ -254,7 +254,8 @@ services:
       # The nav log is the planner's own (vfr.planner_client), not one
       # this agent assembles, so the one a pilot sees is the one it briefs.
       PLANNING_SERVICE_URL: http://planning-service:8000
-      DATABASE_URL: postgresql://vfr:vfr@db:5432/vfr_route
+      # The db's own password, as the webapp's datasource has it.
+      DATABASE_URL: postgresql://vfr:${POSTGRES_PASSWORD:-vfr}@db:5432/vfr_route
 
   crewai-agent:
     # Behind the same `ai` profile as nav-log-agent, and for the same
