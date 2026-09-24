@@ -20,6 +20,7 @@ from __future__ import annotations
 import json
 import os
 import tempfile
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -400,6 +401,60 @@ def holdout_split(labeled_df: pd.DataFrame) -> pd.Series:
     return labeled_df.apply(lambda r: zlib.crc32(f"{r['osm_type']}/{r['osm_id']}".encode()) % 5 == 0, axis=1)
 
 
+@dataclass(frozen=True)
+class LabeledSplit:
+    """The labelled candidates and the one holdout every trainer scores on.
+
+    retrain(), the PyTorch and TensorFlow candidates and Spark's each built
+    this themselves -- the name_uniqueness fill, the rating as float, the
+    split -- and Spark's still drew its own stratified random split, so the
+    comparison table set a model scored on one fifth of the landmarks
+    against models scored on another. `labeled` is the whole table, for a
+    trainer that scores every labelled candidate (Spark) and for the
+    notebooks; `held_out` marks holdout_split's rows."""
+
+    labeled: pd.DataFrame
+    held_out: pd.Series
+    feature_cols: list
+
+    @property
+    def train(self) -> pd.DataFrame:
+        return self.labeled[~self.held_out]
+
+    @property
+    def test(self) -> pd.DataFrame:
+        return self.labeled[self.held_out]
+
+    @property
+    def X_train(self) -> pd.DataFrame:
+        return self.train[self.feature_cols]
+
+    @property
+    def X_test(self) -> pd.DataFrame:
+        return self.test[self.feature_cols]
+
+    @property
+    def y_train(self) -> pd.Series:
+        return self.train["rating"].astype(float)
+
+    @property
+    def y_test(self) -> pd.Series:
+        return self.test["rating"].astype(float)
+
+
+def labeled_split(features_path: Path, labels_path: Path, min_labeled_rows: int = MIN_LABELED_ROWS) -> LabeledSplit:
+    """Every trainer's labelled data, checked and split one way. Raises
+    InsufficientLabelsError below `min_labeled_rows`."""
+    labeled_df, feature_cols = _load_labeled(features_path, labels_path)
+    if len(labeled_df) < min_labeled_rows:
+        raise InsufficientLabelsError(
+            f"Only {len(labeled_df)} labeled candidates (need >= {min_labeled_rows}) -- "
+            "rate more checkpoints in the training workspace before training."
+        )
+    labeled = labeled_df.fillna({"name_uniqueness": 0.0})
+    return LabeledSplit(labeled, holdout_split(labeled), feature_cols)
+
+
 def _score_current_model(X_test, y_test, feature_cols: list) -> float | None:
     """The promoted model's MAE on this run's holdout, or None when there
     is no promoted model, or it was trained on other features."""
@@ -435,18 +490,9 @@ def retrain(
     from sklearn.linear_model import Ridge
     from sklearn.model_selection import GridSearchCV, KFold, cross_val_score
 
-    labeled_df, feature_cols = _load_labeled(features_path, labels_path)
-    if len(labeled_df) < min_labeled_rows:
-        raise InsufficientLabelsError(
-            f"Only {len(labeled_df)} labeled candidates (need >= {min_labeled_rows}) -- "
-            "label more candidates (notebook 03's labeling cell) before retraining."
-        )
-
-    X = labeled_df[feature_cols].fillna({"name_uniqueness": 0.0})
-    y = labeled_df["rating"].astype(float)
-
-    held_out = holdout_split(labeled_df)
-    X_train, X_test, y_train, y_test = X[~held_out], X[held_out], y[~held_out], y[held_out]
+    split = labeled_split(features_path, labels_path, min_labeled_rows)
+    feature_cols = split.feature_cols
+    X_train, X_test, y_train, y_test = split.X_train, split.X_test, split.y_train, split.y_test
     cv = KFold(n_splits=5, shuffle=True, random_state=RANDOM_STATE)
 
     param_grids = {
@@ -491,7 +537,7 @@ def retrain(
         cv_mae=cv_mae[best_name],
         cv_mae_by_model={**cv_mae, "Dummy": dummy_mae},
         dummy_cv_mae=dummy_mae,
-        n_labeled=len(labeled_df), n_train=len(X_train), n_test=len(X_test),
+        n_labeled=len(split.labeled), n_train=len(X_train), n_test=len(X_test),
         feature_cols=feature_cols,
     )
 

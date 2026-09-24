@@ -30,30 +30,13 @@ from vfr.config import FEATURES_PATH, LABELS_PATH, MIN_LABELED_ROWS
 from vfr.model_registry import MODELS_DIR
 from vfr.pipeline import (
     RANDOM_STATE,
-    InsufficientLabelsError,
     _ensure_local_dir,
-    _load_labeled,
     held_out_scores,
-    holdout_split,
+    labeled_split,
     metrics_record,
 )
 
 CANDIDATES_DIR = MODELS_DIR / "candidates"
-
-
-def _split(features_path: Path, labels_path: Path, min_labeled_rows: int):
-    labeled_df, feature_cols = _load_labeled(features_path, labels_path)
-    if len(labeled_df) < min_labeled_rows:
-        raise InsufficientLabelsError(
-            f"Only {len(labeled_df)} labeled candidates (need >= {min_labeled_rows}) -- "
-            "label more checkpoints before training a candidate model."
-        )
-    X = labeled_df[feature_cols].fillna({"name_uniqueness": 0.0})
-    y = labeled_df["rating"].astype(float)
-    # The same fixed holdout vfr.pipeline.retrain scores on, so every
-    # model in the comparison answers the same questions.
-    held_out = holdout_split(labeled_df)
-    return X[~held_out], X[held_out], y[~held_out], y[held_out], feature_cols, len(labeled_df)
 
 
 def train_pytorch(
@@ -77,9 +60,11 @@ def train_pytorch(
 
     from vfr.torch_model import SpottabilityMLP
 
-    X_train, X_test, y_train, y_test, feature_cols, n_labeled = _split(
-        features_path, labels_path, min_labeled_rows
-    )
+    # The same fixed holdout vfr.pipeline.retrain scores on, so every
+    # model in the comparison answers the same questions.
+    split = labeled_split(features_path, labels_path, min_labeled_rows)
+    X_train, X_test, y_train, y_test = split.X_train, split.X_test, split.y_train, split.y_test
+    feature_cols, n_labeled = split.feature_cols, len(split.labeled)
     # A second split of the training data for early-stopping validation
     # -- the test set stays untouched until final evaluation, matching
     # retrain()'s own train/test discipline.
@@ -150,9 +135,11 @@ def train_tensorflow(
 
     tf.random.set_seed(RANDOM_STATE)
 
-    X_train, X_test, y_train, y_test, feature_cols, n_labeled = _split(
-        features_path, labels_path, min_labeled_rows
-    )
+    # The same fixed holdout vfr.pipeline.retrain scores on, so every
+    # model in the comparison answers the same questions.
+    split = labeled_split(features_path, labels_path, min_labeled_rows)
+    X_train, X_test, y_train, y_test = split.X_train, split.X_test, split.y_train, split.y_test
+    feature_cols, n_labeled = split.feature_cols, len(split.labeled)
     X_fit, X_val, y_fit, y_val = train_test_split(
         X_train, y_train, test_size=0.2, random_state=RANDOM_STATE, stratify=y_train
     )
@@ -216,18 +203,12 @@ def train_spark(
     from pyspark.ml.regression import GBTRegressor
     from pyspark.ml.tuning import CrossValidator, ParamGridBuilder
     from pyspark.sql import SparkSession
-    from sklearn.model_selection import train_test_split
 
-    labeled_df, feature_cols = _load_labeled(features_path, labels_path)
-    if len(labeled_df) < min_labeled_rows:
-        raise InsufficientLabelsError(
-            f"Only {len(labeled_df)} labeled candidates (need >= {min_labeled_rows}) -- "
-            "label more checkpoints before training a candidate model."
-        )
-    labeled_df = labeled_df.fillna({"name_uniqueness": 0.0})
-    train_df, test_df = train_test_split(
-        labeled_df, test_size=0.2, random_state=RANDOM_STATE, stratify=labeled_df["rating"]
-    )
+    # The holdout every other trainer scores on: this drew its own
+    # stratified random split, so its held-out MAE answered different
+    # questions from every other row of the comparison.
+    split = labeled_split(features_path, labels_path, min_labeled_rows)
+    labeled_df, feature_cols, train_df, test_df = split.labeled, split.feature_cols, split.train, split.test
 
     spark = SparkSession.builder.appName("vfr-candidate-spark").master("local[*]").getOrCreate()
     try:

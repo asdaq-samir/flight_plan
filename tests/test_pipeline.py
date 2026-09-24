@@ -145,3 +145,43 @@ def test_the_holdout_is_the_same_landmarks_every_run():
     first, again = pipeline.holdout_split(df), pipeline.holdout_split(df.sample(frac=1, random_state=1))
     assert first.sum() == again.sum() and 25 <= first.sum() <= 55
     assert set(df["osm_id"][first]) == set(df.loc[again.index]["osm_id"][again])
+
+
+def _labelled(tmp_path, n: int):
+    import pandas as pd
+
+    from vfr import pipeline
+
+    features = tmp_path / "features.parquet"   # no route in the name: no chart picks join
+    pd.DataFrame([
+        {"osm_id": str(i), "osm_type": "node", "lat": 45.0, "lon": -90.0,
+         **{c: 1.0 for c in pipeline.FEATURE_COLS_BASE}, "name_uniqueness": None if i % 3 == 0 else 0.5}
+        for i in range(n)
+    ]).to_parquet(features)
+    labels = tmp_path / "ratings.csv"
+    labels.write_text("osm_id,osm_type,name,category,rating\n" + "".join(f"{i},node,x,lake,{i % 6}\n" for i in range(n)))
+    return features, labels
+
+
+def test_every_trainer_splits_the_labelled_table_one_way(tmp_path):
+    """Four trainers each built this themselves, and Spark drew its own
+    random split: the comparison set scores on different landmarks side by
+    side."""
+    from vfr import pipeline
+
+    features, labels = _labelled(tmp_path, 60)
+    split = pipeline.labeled_split(features, labels, min_labeled_rows=30)
+
+    assert len(split.labeled) == 60 and split.labeled["name_uniqueness"].notna().all()
+    assert split.held_out.equals(pipeline.holdout_split(split.labeled))
+    assert len(split.train) + len(split.test) == 60
+    assert set(split.train["osm_id"]).isdisjoint(split.test["osm_id"])
+    assert list(split.X_test.columns) == split.feature_cols and split.y_test.dtype == float
+
+
+def test_too_few_labels_is_refused_before_any_trainer_runs(tmp_path):
+    from vfr import pipeline
+
+    features, labels = _labelled(tmp_path, 10)
+    with pytest.raises(pipeline.InsufficientLabelsError, match="Only 10 labeled"):
+        pipeline.labeled_split(features, labels, min_labeled_rows=30)
