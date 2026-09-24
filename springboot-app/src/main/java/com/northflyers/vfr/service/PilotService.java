@@ -66,7 +66,17 @@ public class PilotService {
 
         Optional<Pilot> bySubject = apple ? pilots.findByAppleSubject(subject) : pilots.findByGoogleSubject(subject);
         if (bySubject.isPresent()) {
-            return bySubject.get();
+            // The subject is who they are; the address is only what the
+            // provider now says it is. Kept in step when it changed there
+            // and is verified -- a magic link to the new address used to
+            // make a second pilot, and the account showed the old one --
+            // unless another pilot already holds it.
+            Pilot pilot = bySubject.get();
+            if (!email.equalsIgnoreCase(pilot.getEmail()) && emailVerified(user) && pilots.findByEmail(email).isEmpty()) {
+                pilot.changeEmail(email);
+                return pilots.save(pilot);
+            }
+            return pilot;
         }
 
         // Past this point the address is what identifies the pilot: an

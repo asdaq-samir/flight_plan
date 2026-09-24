@@ -115,6 +115,24 @@ class PilotServiceTest {
         Pilot after = pilotService.fromOidcUser(oidcUser(subject, subject + "@new.example.com", "A. Pilot"), "google");
 
         assertThat(after.getId()).isEqualTo(before.getId());
+        // And the pilot's address follows: a magic link to the new one
+        // used to make a second pilot.
+        assertThat(pilots.findById(before.getId()).orElseThrow().getEmail()).isEqualTo(subject + "@new.example.com");
+        assertThat(pilotService.fromVerifiedEmail(subject + "@new.example.com").getId()).isEqualTo(before.getId());
+    }
+
+    /** Unless another pilot already holds the new address: the unique
+     *  index would refuse it, and that address is theirs. */
+    @Test
+    void aChangedAddressAnotherPilotHoldsIsNotTaken() {
+        String subject = UUID.randomUUID().toString();
+        Pilot before = pilotService.fromOidcUser(oidcUser(subject, subject + "@old.example.com", "A. Pilot"), "google");
+        Pilot other = pilotService.fromVerifiedEmail(subject + "@taken.example.com");
+
+        Pilot after = pilotService.fromOidcUser(oidcUser(subject, subject + "@taken.example.com", "A. Pilot"), "google");
+
+        assertThat(after.getId()).isEqualTo(before.getId()).isNotEqualTo(other.getId());
+        assertThat(pilots.findById(before.getId()).orElseThrow().getEmail()).isEqualTo(subject + "@old.example.com");
     }
 
     /**

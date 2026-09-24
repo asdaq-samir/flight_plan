@@ -84,4 +84,9 @@ public class Pilot {
     public void linkAppleSubject(String subject) {
         this.appleSubject = subject;
     }
+
+    /** The address the provider now vouches for, when it changed there. */
+    public void changeEmail(String email) {
+        this.email = email;
+    }
 }
