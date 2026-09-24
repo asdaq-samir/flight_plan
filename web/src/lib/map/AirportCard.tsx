@@ -22,6 +22,9 @@ export interface AirportWeather {
    *  planner keeps serving a report for hours when a refresh fails and
    *  a colour alone says nothing about how old it is. */
   observedAt?: string | null;
+  /** The last report shown after a refresh of it failed -- the same
+   *  rule for the route's own two airports and the Class B fields. */
+  stale?: boolean;
   /** Left out where there is no TAF to show -- a route's own
    *  departure/destination reads a METAR only unless it is a Class B
    *  field on the Class B layer. */
@@ -133,6 +136,7 @@ export function AirportCard({
         </div>
       )}
       {reported && weather?.observedAt && <Observed at={weather.observedAt} />}
+      {reported && weather?.stale && <p className="text-amber-700 dark:text-amber-400">Could not refresh; this is the last report.</p>}
       {reported && weather?.raw && <p className="pt-1 font-mono break-words">{weather.raw}</p>}
       {forecast?.raw && <p className="font-mono break-words text-muted-foreground">{forecast.raw}</p>}
       {children}

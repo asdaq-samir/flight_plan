@@ -4,7 +4,8 @@ import type { ZoomControl } from "../../../components/MapControls";
 import { Badge } from "../../../components/ui/badge";
 import { useQuery } from "@tanstack/react-query";
 import { classBQuery } from "../../../lib/queryClient";
-import type { Briefing, Candidate, ClassBAirport, Course } from "../../../lib/api/types";
+import type { Candidate, ClassBAirport, Course } from "../../../lib/api/types";
+import type { BriefingState } from "../hooks/usePlan";
 import { AirportCard, type AirportWeather } from "../../../lib/map/AirportCard";
 import { chipColourOf } from "../../../lib/map/flightCategory";
 import { CourseLine } from "../../../lib/map/CourseLine";
@@ -45,17 +46,9 @@ interface Props {
   /** The "every landmark the model rated" switch, in the same popover
    *  the chart layers live in. */
   showAll: { on: boolean; onToggle: (on: boolean) => void };
-  /** The departure and destination's own current METARs, keyed by
-   *  ident -- the briefing's (see `usePlan`) -- with whether that answer
-   *  is still on its way or could not be had. */
-  airportWeather: EndpointWeather;
-}
-
-export interface EndpointWeather {
-  metars: Briefing["metars"] | null;
-  loading: boolean;
-  /** The briefing failed, or aviationweather.gov did not answer it. */
-  unavailable: boolean;
+  /** The route's briefing (see `usePlan`): the departure and
+   *  destination's own current METARs, and where fetching it stands. */
+  airportWeather: BriefingState;
 }
 
 /** What a checkpoint's popup says: the same small card whether the
@@ -93,16 +86,18 @@ function CheckpointCard({ candidate, number }: { candidate: Candidate; number?: 
  *  Class B layer -- that layer's forecast for it. Each of "still
  *  checking", "could not be checked" and "checked, no report" says so;
  *  they used to share one "no report". */
-function weatherOf(ident: string, weather: EndpointWeather, classB: ClassBAirport | undefined): AirportWeather {
+function weatherOf(ident: string, briefing: BriefingState, classB: ClassBAirport | undefined): AirportWeather {
   const forecast = classB && (classB.taf || classB.taf_ceiling_ft != null || classB.taf_visibility_sm != null)
     ? { ceilingFt: classB.taf_ceiling_ft ?? null, visibilitySm: classB.taf_visibility_sm ?? null, raw: classB.taf ?? null }
     : undefined;
-  const metar = weather.metars?.[ident];
-  const status = weather.unavailable ? "unavailable"
-    : weather.loading || !weather.metars ? "checking"
+  const ready = briefing.state === "ready" ? briefing : null;
+  const metar = ready?.data.metars[ident];
+  const status = briefing.state === "failed" || ready?.data.weather_unavailable.includes("metars") ? "unavailable"
+    : !ready ? "checking"
       : metar ? "reported" : "no-report";
   return {
     status,
+    stale: !!ready?.refreshError,
     category: metar?.flight_category ?? null,
     ceilingFt: metar?.ceiling_ft ?? null,
     visibilitySm: metar?.visibility_sm ?? null,
@@ -122,7 +117,7 @@ function weatherOf(ident: string, weather: EndpointWeather, classB: ClassBAirpor
  * when the field is one on the Class B layer (which then leaves it to
  * this rather than drawing a second chip on top).
  */
-function Endpoints({ course, weather, onSelectPoint }: { course: Course; weather: EndpointWeather; onSelectPoint: Props["onSelectPoint"] }) {
+function Endpoints({ course, weather, onSelectPoint }: { course: Course; weather: BriefingState; onSelectPoint: Props["onSelectPoint"] }) {
   const { carded, cardEvents } = useCardedMarker<string>();
   const classBShown = usePreferences(p => p.classB);
   // The Class B layer's own answer, read from its cache rather than asked

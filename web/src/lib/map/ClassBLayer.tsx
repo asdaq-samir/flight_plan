@@ -17,7 +17,7 @@ import { useCardedMarker } from "./useCardedMarker";
  *  forecast to do, and the raw text of both for a pilot who wants to
  *  read it themselves. Tapped, `actions` puts the pin and the zoom in
  *  its top corner. */
-function Details({ airport, leading }: { airport: ClassBAirport; leading?: ReactNode }) {
+function Details({ airport, leading, stale }: { airport: ClassBAirport; leading?: ReactNode; stale: boolean }) {
   return (
     <AirportCard
       leading={leading}
@@ -30,6 +30,9 @@ function Details({ airport, leading }: { airport: ClassBAirport; leading?: React
       // field with no report is absent, and absent is shown as absent.
       weather={{
         status: airport.flight_category || airport.metar ? "reported" : "no-report",
+        // A refetch that failed keeps the last answer on the map; say so,
+        // as the route's own airports do.
+        stale,
         observedAt: airport.metar_observed_at ?? null,
         category: airport.flight_category ?? null,
         ceilingFt: airport.ceiling_ft ?? null,
@@ -90,7 +93,7 @@ export function ClassBLayer({ course, onPreview }: { course: Course; onPreview: 
   // two cards deep; on a pointer, hovering a marker whose card is
   // already open did the same.
   const { carded, cardEvents } = useCardedMarker<string>();
-  const { data } = useQuery({ ...classBQuery, enabled: show });
+  const { data, isError } = useQuery({ ...classBQuery, enabled: show });
 
   if (!show || !data) return null;
   // The route's own departure and destination draw themselves (RouteMap),
@@ -141,7 +144,7 @@ export function ClassBLayer({ course, onPreview }: { course: Course; onPreview: 
               marker. */}
           {carded !== airport.ident && (
             <MapTooltip>
-              <Details airport={airport} />
+              <Details airport={airport} stale={isError} />
             </MapTooltip>
           )}
           {/* A child of the marker, so Leaflet opens it on a click and
@@ -152,6 +155,7 @@ export function ClassBLayer({ course, onPreview }: { course: Course; onPreview: 
               the map -- see MapPopup's own note. */}
           <MapPopup>
             <Details
+              stale={isError}
               airport={airport}
               leading={airport.tac && (
                 // An icon rather than a worded button: the card is

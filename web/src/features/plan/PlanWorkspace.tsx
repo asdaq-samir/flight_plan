@@ -231,7 +231,7 @@ export default function PlanWorkspace({ dep, dest, onRoute, sidebarOpen, childre
   // checkpoint description count -- never two at once. Failures are
   // the query client's to report (queryClient.ts).
   useProgressToast(
-    (s.loadingBriefing ? "Loading briefing…" : null)
+    (s.briefing.state === "loading" ? "Loading briefing…" : null)
     ?? s.navStage
     ?? (s.stage === "course" ? "Drawing course…" : null)
     ?? (s.stage === "checkpoints" ? "Scoring checkpoints…" : null)
@@ -270,7 +270,7 @@ export default function PlanWorkspace({ dep, dest, onRoute, sidebarOpen, childre
       <FlightBriefingView
         course={course} totals={s.totals} nav={s.nav} legs={s.legs}
         dep={planned.dep} dest={planned.dest} selected={selected}
-        briefing={s.briefing} briefingError={s.briefingError} loadingBriefing={s.loadingBriefing}
+        briefing={s.briefing}
         langgraphNarrative={s.langgraphNarrative} crewaiNarrative={s.crewaiNarrative}
         aircraftLabel={aircraft.label} aircraftId={aircraft.aircraftId ?? null}
         depart={depart}
@@ -295,11 +295,7 @@ export default function PlanWorkspace({ dep, dest, onRoute, sidebarOpen, childre
           onZoomChange={setZoomedIn}
           zoom={{ zoomedIn, onToggle: toggleZoom, disabled: !course }}
           showAll={{ on: showCandidates, onToggle: setShowCandidates }}
-          airportWeather={{
-            metars: s.briefing?.metars ?? null,
-            loading: s.loadingBriefing,
-            unavailable: !!s.briefingError || (s.briefing?.weather_unavailable.includes("metars") ?? false),
-          }}
+          airportWeather={s.briefing}
         />
       </div>
     ),

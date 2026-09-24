@@ -267,3 +267,39 @@ describe("checkpoint notes", () => {
     await waitFor(() => expect(api.describeCheckpoints).toHaveBeenCalledTimes(2));
   });
 });
+
+describe("the briefing", () => {
+  const briefingFixture = { metars: {}, weather_unavailable: [], vfr_not_recommended: [] } as never;
+
+  test("with no course to brief, it is waiting, not loading for ever", async () => {
+    vi.mocked(api.course).mockRejectedValue(new ApiError("unknown airport K", 404));
+    const { result } = renderHook(() => usePlan(params), { wrapper });
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalled());
+    expect(result.current.briefing).toEqual({ state: "waiting" });
+    expect(api.briefing).not.toHaveBeenCalled();
+  });
+
+  test("a refresh that fails keeps the last briefing up, and says the refresh failed", async () => {
+    vi.mocked(api.briefing).mockReset();
+    vi.mocked(api.briefing)
+      .mockResolvedValueOnce(briefingFixture)
+      .mockRejectedValue(new ApiError("aviationweather.gov did not answer", 502));
+    const { result } = renderHook(() => usePlan(params), { wrapper });
+    await waitFor(() => expect(result.current.briefing.state).toBe("ready"));
+
+    await act(() => queryClient.refetchQueries({ queryKey: ["briefing"] }));
+
+    await waitFor(() => expect(result.current.briefing).toMatchObject({
+      state: "ready", data: briefingFixture, refreshError: "aviationweather.gov did not answer",
+    }));
+  });
+
+  test("a first fetch that fails is failed, with the planner's reason", async () => {
+    vi.mocked(api.briefing).mockReset();
+    vi.mocked(api.briefing).mockRejectedValue(new ApiError("aviationweather.gov did not answer", 502));
+    const { result } = renderHook(() => usePlan(params), { wrapper });
+
+    await waitFor(() => expect(result.current.briefing).toEqual({ state: "failed", detail: "aviationweather.gov did not answer" }));
+  });
+});

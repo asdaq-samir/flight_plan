@@ -9,8 +9,8 @@ import AltitudeReasoning from "../AltitudeReasoning";
 import type {
   Briefing, Candidate, Course, Leg, NavLog, Pilot, SaveFlightRequest, Totals,
 } from "../../../../lib/api/types";
-import type { FrameworkNarrative } from "../../hooks/usePlan";
-import { altFt, deg } from "../../format";
+import type { BriefingState, FrameworkNarrative } from "../../hooks/usePlan";
+import { altFt, clockTime, deg } from "../../format";
 import { navLogRows, savedCheckpoints } from "../navlog/rows";
 import { colourOf } from "../../../../lib/map/flightCategory";
 
@@ -22,13 +22,11 @@ interface Props {
   dep: string;
   dest: string;
   selected: Candidate[];
-  /** Null while the fetch is still in flight or has failed. The page
-   *  keeps its standard sections visible and identifies which state
+  /** Where the briefing stands (see `usePlan`'s BriefingState). The
+   *  page keeps its standard sections visible and says which state
    *  applies, rather than making a failed briefing indistinguishable
-   *  from a slow response. */
-  briefing: Briefing | null;
-  briefingError: string | null;
-  loadingBriefing: boolean;
+   *  from a slow one. */
+  briefing: BriefingState;
   /** LangGraph's (nav-log-agent) and CrewAI's (crewai-agent) own
    *  briefing narratives -- read-only here, only for
    *  `BriefingNarrativePrintBlock` below. Generating them is
@@ -211,23 +209,19 @@ function SaveFlightSection({
  */
 export default function FlightBriefingView({
   course, totals, nav, legs, dep, dest, selected,
-  briefing, briefingError, loadingBriefing,
+  briefing: briefingState,
   langgraphNarrative, crewaiNarrative, aircraftLabel, aircraftId, depart,
 }: Props) {
   const winds = windsAloftSummary(legs);
   // "VFR flight not recommended" (AIM 7-1-5) and its reasons are the
   // planner's call (vfr.weather), made against 14 CFR 91.155's minimums
   // in one place; this page states them.
+  const briefing = briefingState.state === "ready" ? briefingState.data : null;
   const vnrReasons = briefing?.vfr_not_recommended ?? [];
-  // On the very first render after mount, loadingBriefing is still false --
-  // PlanWorkspace's own effect (which calls loadBriefing) hasn't run yet -- so
-  // "not loading" alone can't mean "unavailable". Only briefingError (a
-  // fetch that actually finished and failed), or having no dep/dest to
-  // fetch with at all, means there is truly nothing pending.
-  const briefingNotStarted = !briefing && !briefingError && !!dep && !!dest;
-  const briefingPendingMessage = loadingBriefing || briefingNotStarted
-    ? "Loading briefing data…"
-    : "Briefing data is unavailable.";
+  const briefingPendingMessage =
+    briefingState.state === "waiting" ? "The briefing follows once the route's course is drawn."
+      : briefingState.state === "failed" ? `Briefing data is unavailable (${briefingState.detail}).`
+        : "Loading briefing data…";
 
   // "Planning aid only" used to be a permanently docked banner at the
   // top of the briefing, pushing every section below it down a line
@@ -295,6 +289,14 @@ export default function FlightBriefingView({
         course={course} totals={totals} nav={nav} legs={legs} dep={dep} dest={dest} selected={selected}
         aircraftId={aircraftId} aircraftLabel={aircraftLabel} depart={depart}
       />
+      {briefingState.state === "ready" && briefingState.refreshError && (
+        // The last briefing stays up after a refresh that failed -- say
+        // so, and how old it is, as the map's airport chips do.
+        <p className="border-b py-2 text-sm text-amber-700 dark:text-amber-400 print:hidden">
+          Could not refresh the briefing ({briefingState.refreshError}); showing the one fetched at{" "}
+          {clockTime(new Date(briefingState.fetchedAt))}.
+        </p>
+      )}
 
       {/* Not gated behind `briefing` -- narrative is its own separate,
           user-triggered fetch, and NOTAMs/Winds Aloft need only

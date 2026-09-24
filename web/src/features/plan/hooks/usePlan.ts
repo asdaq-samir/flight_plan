@@ -7,7 +7,7 @@ import { ApiError, api, describeError } from "../../../lib/api/client";
 import { courseQuery, pilotQuery } from "../../../lib/queryClient";
 import { ended } from "../../../lib/api/streams";
 import type {
-  AircraftChoice, AltitudeChoice, Leg, NarrativeMessage, NavLog, Totals,
+  AircraftChoice, AltitudeChoice, Briefing, Leg, NarrativeMessage, NavLog, Totals,
 } from "../../../lib/api/types";
 import { elapsed } from "../format";
 
@@ -69,6 +69,21 @@ export interface PlanParams {
  *  only resolves the two airports, and charts any route at all. */
 const notCollected = (error: unknown) =>
   error instanceof ApiError && error.status === 404 && error.message.includes("not been collected");
+
+/** Where the route's briefing stands -- one value, read by the map's
+ *  airport chips and the drawer alike. It used to be three (the data,
+ *  the error, whether it was loading), which each reader combined its
+ *  own way: after a failed five-minute refresh the map greyed the two
+ *  airports out as unavailable while the drawer showed the same METARs
+ *  as current with nothing to say the refresh had failed. Now both show
+ *  the last briefing, with when it was fetched and that a refresh
+ *  failed. "waiting" is a briefing with no course yet to ask about --
+ *  it read "Loading…" for ever when the course failed. */
+export type BriefingState =
+  | { state: "waiting" }
+  | { state: "loading" }
+  | { state: "ready"; data: Briefing; fetchedAt: number; refreshError: string | null }
+  | { state: "failed"; detail: string };
 
 /** A job id the planner answers 404 for: it restarted, and forgot. */
 const vanished = (error: unknown) => error instanceof ApiError && error.status === 404;
@@ -337,9 +352,17 @@ export function usePlan(
     sameAirport,
     build,
     collect: () => startBuild.mutate({ dep, dest }),
-    briefing: briefing.data ?? null,
-    briefingError: briefing.error ? describeError(briefing.error, "could not load the briefing") : null,
-    loadingBriefing: briefing.isLoading,
+    briefing: ((): BriefingState => {
+      if (!course.data) return { state: "waiting" };
+      if (briefing.data) {
+        return {
+          state: "ready", data: briefing.data, fetchedAt: briefing.dataUpdatedAt,
+          refreshError: briefing.error ? describeError(briefing.error, "could not refresh the briefing") : null,
+        };
+      }
+      if (briefing.error) return { state: "failed", detail: describeError(briefing.error, "could not load the briefing") };
+      return { state: "loading" };
+    })(),
     descriptions: descriptionMap, descriptionError, descriptionProgress, generateDescriptions, saveDescription,
     langgraphNarrative: narrativeOf(langgraph),
     crewaiNarrative: narrativeOf(crewai),
