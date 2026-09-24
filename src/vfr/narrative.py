@@ -13,9 +13,35 @@ for that and nothing else. Unlike the rest of vfr this needs pydantic,
 which both agents install through their own frameworks (mcp, fastapi);
 nothing else imports this module.
 """
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 BRIEFING_WORDS = 200
+#: A long cross-country is a few dozen legs; anything near this is not a
+#: nav log, and every leg is prompt text Claude is billed for reading.
+MAX_LEGS = 100
+
+
+class NarrativeLeg(BaseModel):
+    """What the prompt reads from one leg, checked before a word of it
+    is sent. Other fields a nav-log leg carries are allowed and ignored.
+    A flyable leg (an ETE) needs its heading, ground speed and fuel; an
+    unflyable one needs none of them."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    from_: str = Field(alias="from", max_length=80)
+    to: str = Field(max_length=80)
+    distance_nm: float
+    magnetic_heading_deg: float | None = None
+    groundspeed_kt: float | None = None
+    ete_min: float | None = None
+    fuel_gal: float | None = None
+
+    @model_validator(mode="after")
+    def _flyable_legs_are_complete(self):
+        if self.ete_min is not None and None in (self.magnetic_heading_deg, self.groundspeed_kt, self.fuel_gal):
+            raise ValueError("a leg with an ETE needs its heading, ground speed and fuel")
+        return self
 
 
 class NarrativeRequest(BaseModel):
@@ -25,12 +51,21 @@ class NarrativeRequest(BaseModel):
     planner's own default aeroplane; `altitude_selection` is null when the
     pilot typed the altitude."""
 
-    departure_ident: str
-    destination_ident: str
-    aircraft_name: str | None = None
+    departure_ident: str = Field(max_length=10)
+    destination_ident: str = Field(max_length=10)
+    aircraft_name: str | None = Field(default=None, max_length=40)
     altitude_ft: float
     altitude_selection: dict | None = None
-    legs: list[dict]
+    legs: list[dict] = Field(min_length=1, max_length=MAX_LEGS)
+
+    @field_validator("legs")
+    @classmethod
+    def _legs_are_legs(cls, legs: list[dict]) -> list[dict]:
+        """Each leg is checked against NarrativeLeg and kept as the dict
+        it arrived as, which is what both agents' prompts read."""
+        for leg in legs:
+            NarrativeLeg.model_validate(leg)
+        return legs
 
 
 def briefing_prompt(

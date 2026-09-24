@@ -3,7 +3,10 @@ package com.northflyers.vfr.controller;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -18,7 +21,6 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -70,6 +72,11 @@ public class ComparisonProxyController {
      *  gets read, not a size anything is expected to reach. */
     private static final int ERROR_BODY_LIMIT = 16 * 1024;
 
+    /** The largest nav log forwarded to an agent. A long cross-country
+     *  with every leg field is a few tens of KB; the agents also refuse
+     *  more than vfr.narrative.MAX_LEGS legs. */
+    static final int BODY_LIMIT = 256 * 1024;
+
     private final StreamingProxy proxy;
     private final String navLogAgentBaseUrl;
     private final String navLogAgentApiKey;
@@ -91,9 +98,19 @@ public class ComparisonProxyController {
                     + "Claude call. The body is the nav log the flight planning drawer shows (departure_ident, destination_ident, "
                     + "aircraft_name, altitude_ft, altitude_selection, legs); the response is newline-delimited JSON: "
                     + "delta lines with text as it is written, then a done line with the whole briefing, or an error line.")
+    @io.swagger.v3.oas.annotations.parameters.RequestBody(required = true,
+            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(type = "string")))
     @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<StreamingResponseBody> narrative(
-            @RequestParam String framework, @RequestBody String navLog) {
+            @RequestParam String framework, HttpServletRequest request) throws IOException {
+        // Read up to the limit and no further: every byte here is prompt
+        // text a billed Claude call reads, and a String @RequestBody would
+        // have read all of it before this method could look.
+        byte[] body = request.getInputStream().readNBytes(BODY_LIMIT + 1);
+        if (body.length > BODY_LIMIT) {
+            return StreamingProxy.error(413, "a nav log is at most " + (BODY_LIMIT / 1024) + " KB");
+        }
+        String navLog = new String(body, StandardCharsets.UTF_8);
         String baseUrl;
         String bearerToken = null;
         if ("langgraph".equals(framework)) {

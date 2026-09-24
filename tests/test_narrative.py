@@ -36,3 +36,29 @@ def test_the_aircraft_is_optional_so_the_planners_default_applies():
         {"departure_ident": "C81", "destination_ident": "KDLH", "altitude_ft": 4500, "legs": [LEG]},
     )
     assert body.aircraft_name is None
+
+
+def _request(**over):
+    return {"departure_ident": "C81", "destination_ident": "KDLH", "altitude_ft": 4500, "legs": [LEG], **over}
+
+
+def test_a_nav_log_longer_than_any_route_is_refused():
+    narrative.NarrativeRequest.model_validate(_request(legs=[LEG] * narrative.MAX_LEGS))
+    with pytest.raises(ValidationError):
+        narrative.NarrativeRequest.model_validate(_request(legs=[LEG] * (narrative.MAX_LEGS + 1)))
+
+
+@pytest.mark.parametrize("leg", [
+    {"to": "KDLH", "distance_nm": 290.0},                                     # no "from"
+    dict(LEG, groundspeed_kt=None),                                           # flyable but incomplete
+    dict(LEG, **{"from": "x" * 81}),                                          # a paragraph, not a fix name
+    dict(LEG, distance_nm="far"),
+])
+def test_a_leg_the_prompt_cannot_read_is_refused_before_claude_is_asked(leg):
+    with pytest.raises(ValidationError):
+        narrative.NarrativeRequest.model_validate(_request(legs=[leg]))
+
+
+def test_a_nav_log_legs_other_fields_are_kept_for_the_agents():
+    leg = dict(LEG, wind={"dir": 270, "kt": 20}, altitude_ft=4500)
+    assert narrative.NarrativeRequest.model_validate(_request(legs=[leg])).legs == [leg]

@@ -136,4 +136,16 @@ class ComparisonProxyControllerTest {
                 .andExpect(status().is(502))
                 .andExpect(jsonPath("$.detail").value("the crewai agent returned 500"));
     }
+
+    /** Every byte forwarded is prompt text a billed call reads, so an
+     *  oversized body is refused here and never reaches an agent. */
+    @Test
+    void aBodyOverTheLimitIsA413AndNeverReachesAnAgent() throws Exception {
+        String huge = "{\"legs\":\"" + "x".repeat(ComparisonProxyController.BODY_LIMIT) + "\"}";
+        mockMvc.perform(post("/api/comparison?framework=crewai")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(huge))
+                .andExpect(status().is(413));
+        assertThat(received).isEmpty();
+    }
 }
