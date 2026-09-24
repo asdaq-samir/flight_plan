@@ -718,6 +718,25 @@ def test_what_was_taken_out_is_recorded_and_unmask_renders_its_tiles_again(tmp_p
     assert charts.tiles_revision(cycle) == 1
 
 
+def test_a_tile_is_not_rendered_again_without_every_sheet_it_needs(tmp_path, monkeypatch):
+    monkeypatch.setattr(charts, "CHART_TILE_CACHE_DIR", tmp_path / "tiles")
+    cycle, x, y = "09-03-2026", 64, 94
+    tile = charts._tile_path(charts.SECTIONAL, cycle, x, y, 8)
+    tile.parent.mkdir(parents=True)
+    tile.write_bytes(b"old")
+    raster = charts.Raster(tmp_path / "a.tif", face=(-90.0, 41.0, -88.0, 43.0), envelope=(-90.0, 41.0, -88.0, 43.0))
+    monkeypatch.setattr(charts, "rasters_covering", lambda kind, bbox, cycle=None: ([raster], False))
+    monkeypatch.setattr(charts, "render_tile", lambda *a: pytest.fail("rendered without every sheet"))
+
+    assert charts._rerender_tile(("sec", cycle, x, y, 8)) is False
+    assert tile.read_bytes() == b"old"
+
+    # Nothing covers it at all: the old tile goes, as before.
+    monkeypatch.setattr(charts, "rasters_covering", lambda kind, bbox, cycle=None: ([], True))
+    assert charts._rerender_tile(("sec", cycle, x, y, 8)) is False
+    assert not tile.exists()
+
+
 def test_a_tile_rendered_on_demand_draws_the_same_sheet_as_the_pyramid(tmp_path, monkeypatch):
     monkeypatch.setattr(charts, "CHART_TILE_CACHE_DIR", tmp_path / "tiles")
     cycle = "09-03-2026"

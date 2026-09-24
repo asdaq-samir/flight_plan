@@ -1230,7 +1230,14 @@ def _rerender_tile(args: tuple) -> bool:
     one. A top-level function because it runs in a worker process."""
     kind_key, cycle, x, y, zoom = args
     kind = KINDS[kind_key]
-    rasters, _ = rasters_covering(kind, tile_bbox_wgs84(x, y, zoom), cycle)
+    rasters, complete = rasters_covering(kind, tile_bbox_wgs84(x, y, zoom), cycle)
+    if not complete:
+        # A sheet this tile needs could not be had. Drawn without it, the
+        # tile would go out under the bumped revision -- which browsers
+        # then keep for weeks -- missing that sheet; `tile_png` never
+        # caches such a tile either. The old tile stays until a run that
+        # has every sheet.
+        return False
     rgba = render_tile(rasters, x, y, zoom) if rasters else None
     path = _tile_path(kind, cycle, x, y, zoom)
     if rgba is None:
