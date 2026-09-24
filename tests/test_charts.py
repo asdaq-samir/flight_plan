@@ -832,3 +832,31 @@ def test_a_band_is_carried_through_the_lettering_up_to_the_sheets_edge(tmp_path)
     with rasterio.open(path) as src:
         after = src.read(1)
     assert (after[100:1600, 380:416][data[100:1600, 380:416] == 0] == 8).all()
+
+
+def test_two_threads_writing_one_tile_use_two_temp_files(tmp_path, monkeypatch):
+    """Named by process only, two request threads rendering the same tile
+    shared one temp file."""
+    import threading
+
+    from vfr import charts
+
+    names = []
+    real_write = type(tmp_path).write_bytes
+    barrier = threading.Barrier(2)
+
+    def recording_write(self, data):
+        names.append(self.name)
+        barrier.wait(5)            # both temp files exist before either is renamed
+        return real_write(self, data)
+
+    monkeypatch.setattr(type(tmp_path), "write_bytes", recording_write)
+    tile = tmp_path / "7.png"
+    threads = [threading.Thread(target=charts._write_atomically, args=(tile, b"png" * n)) for n in (1, 2)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(5)
+
+    assert len(set(names)) == 2
+    assert tile.read_bytes() in (b"png", b"pngpng")

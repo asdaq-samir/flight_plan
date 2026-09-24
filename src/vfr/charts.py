@@ -871,7 +871,10 @@ def tile_png(x: int, y: int, zoom: int, kind: str = "sec") -> bytes | None:
 
 
 def _write_atomically(path: Path, data: bytes) -> None:
-    tmp = path.with_name(f"{path.name}.{os.getpid()}.part")
+    # Named for the thread as well as the process: two of the planner's
+    # request threads rendering the same tile wrote one temp file, and
+    # the second's rename could move the first's half-written bytes.
+    tmp = path.with_name(f"{path.name}.{os.getpid()}.{threading.get_ident()}.part")
     tmp.write_bytes(data)
     tmp.replace(path)  # so a killed process cannot leave a torn cache entry
 
