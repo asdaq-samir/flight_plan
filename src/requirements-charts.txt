@@ -5,3 +5,4 @@
 -r requirements.txt
 pillow==12.3.0      # vfr.charts encodes the tiles, vfr.chartvision reads them
 rasterio==1.5.1     # vfr.charts reads and reprojects the FAA chart GeoTIFFs (bundles GDAL; the slim image needs libexpat1 for it)
+affine==3.0.1       # vfr.chart_faces applies transforms with `@`, which affine 3 has; it came only as rasterio's own, unpinned, dependency
