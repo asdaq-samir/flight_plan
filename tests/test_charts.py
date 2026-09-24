@@ -430,6 +430,7 @@ def test_palette_png_keeps_the_colours_and_the_transparency():
 def test_render_pyramid_writes_every_tile_of_every_sheet_and_composites_seams(tmp_path, monkeypatch):
     monkeypatch.setattr(charts, "CHART_TILE_CACHE_DIR", tmp_path / "tiles")
     left_box, right_box = (-90.0, 41.0, -88.0, 43.0), (-88.0, 41.0, -86.0, 43.0)
+    monkeypatch.setitem(charts.COVERAGE, "sec", {"Left": left_box, "Right": right_box})
     _palette_raster(tmp_path / "left.tif", left_box, np.full((512, 512), 1, np.uint8))
     _palette_raster(tmp_path / "right.tif", right_box, np.full((512, 512), 2, np.uint8))
     sheets = [
@@ -458,8 +459,9 @@ def test_render_pyramid_writes_every_tile_of_every_sheet_and_composites_seams(tm
     assert tuple(seam[200, col(-87.7)]) == (0, 0, 255, 255)
     assert seam[2, 128, 3] == 0
 
-    progress = charts.pyramid_status("09-03-2026")["sec"]
-    assert progress["rasters_done"] == 2 and progress["finished_at"] and progress["tiles_written"] == written
+    record = charts.pyramid_status("09-03-2026")["sec"]
+    assert record["sheets"] == ["Left", "Right"] and record["finished_at"] and record["tiles"] == written
+    assert record["current_pass"] is None
     assert charts.pyramid_complete("09-03-2026", ("sec",))
     assert not charts.pyramid_complete("09-03-2026")   # no TAC pyramid yet
 
@@ -926,3 +928,95 @@ def test_unmask_waits_for_a_running_refresh(tmp_path, monkeypatch):
     assert charts._main(["unmask", "--cycle", "09-03-2026"]) == 0
     child.wait()
     assert ran and ran[0] - started >= 1.0
+
+
+def _sheet(tmp_path, name: str, box: tuple, value: int):
+    path = tmp_path / f"{name.lower()}.tif"
+    _palette_raster(path, box, np.full((512, 512), value, np.uint8))
+    return charts.Chart(charts.SECTIONAL, name, "10-29-2026", (charts.Raster(path, face=box, envelope=box),), "now")
+
+
+LEFT, RIGHT = (-90.0, 41.0, -88.0, 43.0), (-88.0, 41.0, -86.0, 43.0)
+
+
+@pytest.fixture
+def two_sheet_country(tmp_path, monkeypatch):
+    monkeypatch.setattr(charts, "CHART_TILE_CACHE_DIR", tmp_path / "tiles")
+    monkeypatch.setattr(charts, "CHARTS_DIR", tmp_path / "charts")
+    monkeypatch.setattr(charts, "current_cycle", lambda *a, **k: "10-29-2026")
+    monkeypatch.setattr(charts, "_serving_cache", {"value": None, "at": 0.0})
+    monkeypatch.setitem(charts.COVERAGE, "sec", {"Left": LEFT, "Right": RIGHT})
+    return tmp_path
+
+
+def test_a_cycle_missing_a_sheet_is_not_complete_so_nothing_is_published_or_pruned(two_sheet_country, monkeypatch):
+    """A sheet that failed to download was simply not rendered; the pass
+    finished, the cycle read complete with a hole in it, and the same
+    refresh pruned the older cycle's copy of that sheet."""
+    tmp_path = two_sheet_country
+    charts.render_pyramid(charts.SECTIONAL, zooms=(7,), workers=0, charts=[_sheet(tmp_path, "Left", LEFT, 1)],
+                          cycle="10-29-2026")
+
+    assert not charts.pyramid_complete("10-29-2026", ("sec",))
+    assert charts.pyramid_missing("10-29-2026", "sec") == ["Right"]
+    assert charts.refresh_due()
+    status = charts.status()["building"] or charts.status()["pyramid"]
+    assert status["sec"]["complete"] is False and status["sec"]["missing"] == ["Right"]
+
+    published, pruned = [], []
+    monkeypatch.setattr(charts, "prepare_all", lambda kinds, cycle: None)
+    monkeypatch.setattr(charts, "render_pyramid", lambda kind, **kw: 0)
+    monkeypatch.setattr(charts, "publish", lambda cycle, bucket: published.append(cycle))
+    monkeypatch.setattr(charts, "prune_cycles", lambda keep: pruned.append(keep))
+    charts.refresh(kinds=("sec",), publish_bucket="bucket")
+    assert published == [] and pruned == []
+
+
+def test_refresh_renders_only_the_kinds_not_complete(two_sheet_country, monkeypatch):
+    tmp_path = two_sheet_country
+    charts.render_pyramid(charts.SECTIONAL, zooms=(7,), workers=0,
+                          charts=[_sheet(tmp_path, "Left", LEFT, 1), _sheet(tmp_path, "Right", RIGHT, 2)],
+                          cycle="10-29-2026")
+    assert charts.pyramid_complete("10-29-2026", ("sec",))
+    rendered, prepared = [], []
+    monkeypatch.setattr(charts, "prepare_all", lambda kinds, cycle: prepared.append(kinds))
+    monkeypatch.setattr(charts, "render_pyramid", lambda kind, **kw: rendered.append(kind.key) or 0)
+
+    charts.refresh(kinds=("sec", "tac"), prune=False)
+
+    assert prepared == [("tac",)] and rendered == ["tac"]
+
+
+def test_a_second_pass_never_makes_a_complete_cycle_read_unfinished(two_sheet_country, monkeypatch):
+    """Every pass wrote finished_at back to None, and the map flipped to
+    the older cycle until it was done."""
+    tmp_path = two_sheet_country
+    sheets = [_sheet(tmp_path, "Left", LEFT, 1), _sheet(tmp_path, "Right", RIGHT, 2)]
+    charts.render_pyramid(charts.SECTIONAL, zooms=(7,), workers=0, charts=sheets, cycle="10-29-2026")
+    (tmp_path / "tiles" / "09-03-2026").mkdir(parents=True)
+    charts._write_pyramid_status("09-03-2026", {"kind": "sec", "zooms": [7], "sheets": ["Left", "Right"],
+                                                "finished_at": "t", "tiles": 1, "current_pass": None})
+
+    seen = []
+    real_row = charts._render_row
+
+    def row(args):
+        charts._serving_cache["at"] = 0.0
+        seen.append((charts.pyramid_complete("10-29-2026", ("sec",)), charts.serving_cycle()))
+        return real_row(args)
+
+    monkeypatch.setattr(charts, "_render_row", row)
+    charts.render_pyramid(charts.SECTIONAL, zooms=(7,), workers=0, charts=sheets, cycle="10-29-2026")
+
+    assert seen and all(seen_ == (True, "10-29-2026") for seen_ in seen)
+    assert charts.pyramid_status("10-29-2026")["sec"]["current_pass"] is None
+
+
+def test_a_record_from_before_sheets_were_kept_still_reads_as_complete(two_sheet_country):
+    path = two_sheet_country / "tiles" / "10-29-2026" / "pyramid.json"
+    path.parent.mkdir(parents=True)
+    path.write_text(json.dumps({"sec": {"kind": "sec", "zooms": [3], "started_at": "t", "finished_at": "t",
+                                        "rasters_total": 2, "rasters_done": 2, "tiles_written": 7, "current": None}}))
+
+    assert charts.pyramid_complete("10-29-2026", ("sec",))
+    assert charts.pyramid_status("10-29-2026")["sec"]["tiles"] == 7

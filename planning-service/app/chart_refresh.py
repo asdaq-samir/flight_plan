@@ -59,7 +59,10 @@ def maybe_refresh() -> None:
         if not charts.refresh_due():
             return
         served = charts.serving_cycle()
-        if charts.pyramid_complete(served) and not in_window():
+        # Something whole is being served -- its sectional, the rule
+        # serving_cycle itself uses -- so the new cycle can wait for the
+        # window.
+        if charts.pyramid_complete(served, ("sec",)) and not in_window():
             log.info("chart cycle %s is due; rendering it in the %s window (serving %s until then)",
                      charts.current_cycle(), CHARTS_REFRESH_WINDOW, served)
             return

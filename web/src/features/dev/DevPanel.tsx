@@ -566,10 +566,12 @@ function ChartsSection({ charts, onRefresh, refreshing }: {
   const sheets = charts.charts.reduce<Record<string, number>>((n, c) => ({ ...n, [c.kind]: (n[c.kind] ?? 0) + 1 }), {});
   const kinds = Object.keys(CHART_KIND_LABELS).filter(k => sheets[k] || charts.pyramid?.[k] || charts.building?.[k]);
   const newer = charts.current_cycle !== charts.cycle;
-  const progress = (p: { finished_at: string | null; rasters_done: number; rasters_total: number; current: string | null } | undefined) =>
+  type Pyramid = NonNullable<Status["charts"]>["pyramid"][string];
+  const progress = (p: Pyramid | undefined) =>
     !p ? "—"
-      : p.finished_at ? "complete"
-      : `${p.rasters_done}/${p.rasters_total} sheets${p.current ? `, on ${p.current}` : ""}`;
+      : p.current_pass ? `${p.current_pass.done}/${p.current_pass.total} sheets${p.current_pass.current ? `, on ${p.current_pass.current}` : ""}`
+      : p.complete ? "complete"
+      : `missing ${p.missing.length} sheet${p.missing.length === 1 ? "" : "s"}: ${p.missing.slice(0, 3).join(", ")}${p.missing.length > 3 ? "…" : ""}`;
   const workers = `${charts.refresh_workers} worker${charts.refresh_workers === 1 ? "" : "s"}`;
   return (
     <section data-testid="charts-status">
@@ -604,7 +606,7 @@ function ChartsSection({ charts, onRefresh, refreshing }: {
             <TableRow key={k}>
               <TableCell>{CHART_KIND_LABELS[k]}</TableCell>
               <TableCell className="text-right tabular-nums">{sheets[k] ?? 0}</TableCell>
-              <TableCell className="text-right tabular-nums">{(charts.pyramid?.[k]?.tiles_written ?? 0).toLocaleString()}</TableCell>
+              <TableCell className="text-right tabular-nums">{(charts.pyramid?.[k]?.tiles ?? 0).toLocaleString()}</TableCell>
               <TableCell className="text-muted-foreground">{progress(charts.pyramid?.[k])}</TableCell>
               {newer && <TableCell className="text-muted-foreground">{progress(charts.building?.[k])}</TableCell>}
             </TableRow>

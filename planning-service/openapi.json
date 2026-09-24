@@ -3732,8 +3732,8 @@
         "title": "PreparedChart",
         "type": "object"
       },
-      "PyramidProgress": {
-        "description": "How far `python -m vfr.charts pyramid` has got for one kind of\nchart: sheets done of the sheets it set out to render.",
+      "PyramidPass": {
+        "description": "A pass of `python -m vfr.charts pyramid` under way: sheets done of\nthe sheets it set out to render, and the one it is on.",
         "properties": {
           "current": {
             "anyOf": [
@@ -3745,6 +3745,45 @@
               }
             ],
             "title": "Current"
+          },
+          "done": {
+            "title": "Done",
+            "type": "integer"
+          },
+          "started_at": {
+            "title": "Started At",
+            "type": "string"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "started_at",
+          "done",
+          "total",
+          "current"
+        ],
+        "title": "PyramidPass",
+        "type": "object"
+      },
+      "PyramidProgress": {
+        "description": "One kind of chart's tile pyramid for a cycle. What finished passes\nhave left -- the sheets rendered, when the last finished, the tiles\nwritten -- and the pass under way, if any. `complete` is every sheet\nthe FAA publishes of the kind rendered; `missing` names the rest.",
+        "properties": {
+          "complete": {
+            "title": "Complete",
+            "type": "boolean"
+          },
+          "current_pass": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PyramidPass"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "finished_at": {
             "anyOf": [
@@ -3761,27 +3800,23 @@
             "title": "Kind",
             "type": "string"
           },
-          "rasters_done": {
-            "title": "Rasters Done",
-            "type": "integer"
+          "missing": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Missing",
+            "type": "array"
           },
-          "rasters_total": {
-            "title": "Rasters Total",
-            "type": "integer"
+          "sheets": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Sheets",
+            "type": "array"
           },
-          "started_at": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Started At"
-          },
-          "tiles_written": {
-            "title": "Tiles Written",
+          "tiles": {
+            "title": "Tiles",
             "type": "integer"
           },
           "zooms": {
@@ -3795,12 +3830,10 @@
         "required": [
           "kind",
           "zooms",
-          "started_at",
+          "sheets",
           "finished_at",
-          "rasters_total",
-          "rasters_done",
-          "tiles_written",
-          "current"
+          "tiles",
+          "complete"
         ],
         "title": "PyramidProgress",
         "type": "object"

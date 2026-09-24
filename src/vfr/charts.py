@@ -992,12 +992,17 @@ def status() -> dict:
         for c in prepared_charts()
     ]
     serving, current = serving_cycle(), current_cycle(fetch=False)
-    pyramid = pyramid_status(serving)
+
+    def described(cycle: str) -> dict:
+        return {key: {**record, "complete": pyramid_complete(cycle, (key,)), "missing": pyramid_missing(cycle, key)}
+                for key, record in pyramid_status(cycle).items()}
+
+    pyramid = described(serving)
     # What the pyramid wrote, not a walk of the cache: counting three
     # hundred thousand files on a bind mount took the status endpoint
     # (and the Dev console behind it) tens of seconds.
-    tiles = sum(p.get("tiles_written", 0) for p in pyramid.values())
-    building = pyramid_status(current) if current != serving else {}
+    tiles = sum(p["tiles"] for p in pyramid.values())
+    building = described(current) if current != serving else {}
     return {
         "cycle": serving, "current_cycle": current, "charts": charts, "tiles_cached": tiles,
         "pyramid": pyramid, "building": building, "refresh_running": refresh_running(),
@@ -1127,30 +1132,79 @@ def _render_row(args: tuple) -> int:
     return written
 
 
-def _write_pyramid_status(cycle: str, update: dict) -> None:
+# A cycle's pyramid record, per kind, in two parts. What is permanent:
+# the sheets finished passes have rendered, when the last one finished,
+# and the tiles written. And the pass under way, if any: when it
+# started, sheets done of sheets to do, the one on now. A pass updates
+# only its own part while it runs and the permanent part when it ends,
+# so re-rendering a finished kind never makes it read unfinished.
+#
+# It used to be one record whose `finished_at` meant both "the loop
+# ended" and "the cycle is whole", written back to None by every pass: a
+# sheet that failed to download was simply not rendered, the pass still
+# finished, the cycle read complete with a hole in it -- and the same
+# refresh then pruned the older cycle's copy of that sheet, and never
+# tried again. Complete now means every sheet the FAA publishes of the
+# kind (COVERAGE) is among those rendered.
+
+
+def _write_pyramid_status(cycle: str, record: dict) -> None:
+    """One kind's record, written whole: the file beside it and renamed
+    over it, so a reader never meets half of one."""
     path = CHART_TILE_CACHE_DIR / cycle / _PYRAMID_STATUS
     path.parent.mkdir(parents=True, exist_ok=True)
     try:
         data = json.loads(path.read_text())
     except (OSError, ValueError):
         data = {}
-    data[update["kind"]] = update
-    path.write_text(json.dumps(data, indent=1))
-    _serving_cache["at"] = 0.0  # a pyramid just finished, or a new one began: re-decide what to serve
+    data[record["kind"]] = record
+    _write_atomically(path, json.dumps(data, indent=1).encode())
+    _serving_cache["at"] = 0.0  # a pass just ended, or began: re-decide what to serve
+
+
+def _record(kind_key: str, raw: dict) -> dict:
+    """A kind's record in the current shape. One written before sheets
+    were kept reads as complete once if it said it had finished -- which
+    is what it said -- and as a pass under way otherwise."""
+    if "sheets" in raw:
+        return raw
+    finished = raw.get("finished_at")
+    return {
+        "kind": kind_key, "zooms": raw.get("zooms", []),
+        "sheets": sorted(COVERAGE.get(kind_key, {})) if finished else [],
+        "finished_at": finished, "tiles": raw.get("tiles_written", 0),
+        "current_pass": None if finished or not raw.get("started_at") else {
+            "started_at": raw["started_at"], "done": raw.get("rasters_done", 0),
+            "total": raw.get("rasters_total", 0), "current": raw.get("current"),
+        },
+    }
 
 
 def pyramid_status(cycle: str) -> dict:
-    """Per kind, how far a cycle's pyramid render got -- what the Dev
+    """Per kind, a cycle's pyramid record (see above) -- what the Dev
     console shows next to the chart list."""
     try:
-        return json.loads((CHART_TILE_CACHE_DIR / cycle / _PYRAMID_STATUS).read_text())
+        raw = json.loads((CHART_TILE_CACHE_DIR / cycle / _PYRAMID_STATUS).read_text())
     except (OSError, ValueError):
         return {}
+    return {key: _record(key, record) for key, record in raw.items()}
+
+
+def pyramid_missing(cycle: str, kind_key: str) -> list[str]:
+    """The sheets of a kind the FAA publishes that no finished pass of
+    this cycle has rendered."""
+    rendered = set(pyramid_status(cycle).get(kind_key, {}).get("sheets", []))
+    return sorted(set(COVERAGE.get(kind_key, {})) - rendered)
 
 
 def pyramid_complete(cycle: str, kinds: tuple = tuple(KINDS)) -> bool:
+    """Whether every one of `kinds` has a finished pass and every sheet
+    the FAA publishes of it rendered."""
     progress = pyramid_status(cycle)
-    return all(progress.get(k, {}).get("finished_at") for k in kinds)
+    return all(
+        progress.get(k, {}).get("finished_at") and not (set(COVERAGE.get(k, {})) - set(progress[k].get("sheets", [])))
+        for k in kinds
+    )
 
 
 def render_pyramid(kind: ChartKind, zooms: tuple | None = None, workers: int = 4, charts: list | None = None,
@@ -1172,19 +1226,21 @@ def render_pyramid(kind: ChartKind, zooms: tuple | None = None, workers: int = 4
     charts = sorted(charts, key=lambda c: order[c.name])  # the first sheet written into a tile wins it
     cycle = cycle or (charts[0].cycle if charts else current_cycle())
     rasters = [(chart, raster) for chart in charts for raster in chart.rasters]
-    started = datetime.now(tz=timezone.utc).isoformat()
     total = 0
-    progress = {
-        "kind": kind.key, "zooms": list(zooms), "started_at": started, "finished_at": None,
-        "rasters_total": len(rasters), "rasters_done": 0, "tiles_written": 0, "current": None,
+    before = pyramid_status(cycle).get(kind.key) or {"sheets": [], "finished_at": None, "tiles": 0}
+    record = {
+        "kind": kind.key, "zooms": list(zooms), "sheets": before["sheets"], "finished_at": before["finished_at"],
+        "tiles": before["tiles"],
+        "current_pass": {"started_at": datetime.now(tz=timezone.utc).isoformat(), "done": 0, "total": len(rasters),
+                         "current": None},
     }
-    _write_pyramid_status(cycle, progress)
+    _write_pyramid_status(cycle, record)
 
     pool = ProcessPoolExecutor(max_workers=workers) if workers > 0 else None
     try:
         for i, (chart, raster) in enumerate(rasters):
-            progress["current"] = raster.path.stem
-            _write_pyramid_status(cycle, progress)
+            record["current_pass"]["current"] = raster.path.stem
+            _write_pyramid_status(cycle, record)
             sheet_started = time.time()
             sheet_tiles = 0
             for zoom in zooms:
@@ -1199,15 +1255,24 @@ def render_pyramid(kind: ChartKind, zooms: tuple | None = None, workers: int = 4
                 else:
                     sheet_tiles += sum(pool.map(_render_row, jobs, chunksize=1))
             total += sheet_tiles
-            progress.update(rasters_done=i + 1, tiles_written=total)
-            _write_pyramid_status(cycle, progress)
+            record["current_pass"]["done"] = i + 1
+            _write_pyramid_status(cycle, record)
             log.info("%s: %d tiles in %.0f s (%d of %d sheets, %d tiles so far)",
                      raster.path.stem, sheet_tiles, time.time() - sheet_started, i + 1, len(rasters), total)
     finally:
         if pool is not None:
             pool.shutdown()
-    progress.update(current=None, finished_at=datetime.now(tz=timezone.utc).isoformat())
-    _write_pyramid_status(cycle, progress)
+    # The permanent part, at the end of the pass only: the sheets it
+    # rendered join those before it.
+    record.update(
+        sheets=sorted(set(record["sheets"]) | {c.name for c in charts}),
+        finished_at=datetime.now(tz=timezone.utc).isoformat(), tiles=record["tiles"] + total, current_pass=None,
+    )
+    _write_pyramid_status(cycle, record)
+    missing = sorted(set(COVERAGE.get(kind.key, {})) - set(record["sheets"]))
+    if missing:
+        log.warning("%s %s: not complete, %d sheet(s) never rendered: %s", cycle, kind.key, len(missing),
+                    ", ".join(missing))
     return total
 
 
@@ -1383,10 +1448,14 @@ def refresh(kinds: tuple = tuple(KINDS), workers: int = 2, prune: bool = True,
     then drop older cycles. Returns the cycle. Idempotent: a complete,
     published cycle costs one status read and one listing."""
     cycle = current_cycle()
-    if not pyramid_complete(cycle, kinds):
+    # Only the kinds not complete: a finished kind is not rendered again,
+    # and one with a sheet missing is tried again every run -- it used to
+    # read complete, and nothing ever retried it.
+    todo = tuple(key for key in kinds if not pyramid_complete(cycle, (key,)))
+    if todo:
         log.info("cycle %s: preparing sheets", cycle)
-        prepare_all(kinds, cycle)
-        for key in kinds:
+        prepare_all(todo, cycle)
+        for key in todo:
             log.info("cycle %s: rendering the %s pyramid", cycle, key)
             render_pyramid(KINDS[key], workers=workers, cycle=cycle)
     if publish_bucket and pyramid_complete(cycle, kinds):
@@ -1442,7 +1511,7 @@ def publish(cycle: str, bucket: str, prefix: str = CHART_TILES_PREFIX, workers: 
                 log.info("  %d of %d uploaded", i, len(todo))
     ledger.write_text(json.dumps(sorted(done)))
 
-    pointer = {"cycle": cycle, "kinds": {k: p.get("tiles_written", 0) for k, p in pyramid_status(cycle).items()},
+    pointer = {"cycle": cycle, "kinds": {k: p["tiles"] for k, p in pyramid_status(cycle).items()},
                "published_at": datetime.now(tz=timezone.utc).isoformat()}
     client.put_object(
         Bucket=bucket, Key=f"{prefix}/serving.json", Body=json.dumps(pointer).encode(),

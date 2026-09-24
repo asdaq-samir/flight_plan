@@ -806,18 +806,30 @@ class PreparedChart(BaseModel):
     rasters: list[str]
 
 
+class PyramidPass(BaseModel):
+    """A pass of `python -m vfr.charts pyramid` under way: sheets done of
+    the sheets it set out to render, and the one it is on."""
+
+    started_at: str
+    done: int
+    total: int
+    current: str | None
+
+
 class PyramidProgress(BaseModel):
-    """How far `python -m vfr.charts pyramid` has got for one kind of
-    chart: sheets done of the sheets it set out to render."""
+    """One kind of chart's tile pyramid for a cycle. What finished passes
+    have left -- the sheets rendered, when the last finished, the tiles
+    written -- and the pass under way, if any. `complete` is every sheet
+    the FAA publishes of the kind rendered; `missing` names the rest."""
 
     kind: str
     zooms: list[int]
-    started_at: str | None
+    sheets: list[str]
     finished_at: str | None
-    rasters_total: int
-    rasters_done: int
-    tiles_written: int
-    current: str | None
+    tiles: int
+    current_pass: PyramidPass | None = None
+    complete: bool
+    missing: list[str] = []
 
 
 class ChartsStatus(BaseModel):
