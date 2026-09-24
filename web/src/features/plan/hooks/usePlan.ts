@@ -62,8 +62,10 @@ export interface PlanParams {
   load: number;
 }
 
-/** Whether a course's failure is the one the page can fix itself: the
- *  corridor exists, nobody has collected it yet. */
+/** Whether a checkpoints failure is the one the page can fix itself:
+ *  the corridor exists, nobody has collected it yet. Only the
+ *  checkpoints can say so -- they are what the model scores; the course
+ *  only resolves the two airports, and charts any route at all. */
 const notCollected = (error: unknown) =>
   error instanceof ApiError && error.status === 404 && error.message.includes("not been collected");
 
@@ -82,14 +84,14 @@ export function usePlan(
   // charted, so the map is never taken down between routes.
   const course = useQuery({
     queryKey: ["course", dep, dest], queryFn: () => api.course(dep, dest),
-    enabled: routeKnown, staleTime: Infinity, placeholderData: keepPreviousData, meta: { silent: notCollected },
+    enabled: routeKnown, staleTime: Infinity, placeholderData: keepPreviousData,
   });
-  const needsBuild = notCollected(course.error);
 
   const checkpoints = useQuery({
     queryKey: ["checkpoints", dep, dest], queryFn: () => api.checkpoints(dep, dest),
-    enabled: !!course.data, staleTime: Infinity,
+    enabled: !!course.data, staleTime: Infinity, meta: { silent: notCollected },
   });
+  const needsBuild = notCollected(checkpoints.error);
 
   const navlog = useQuery({
     queryKey: [
@@ -226,13 +228,14 @@ export function usePlan(
   // Collecting a corridor nobody has collected: minutes of Overpass,
   // the FAA subscription and an elevation lookup per candidate, so
   // the planner returns a job to poll rather than holding the request
-  // open; done, the course is asked for again.
+  // open; done, the checkpoints -- the query that said "not collected"
+  // -- are asked for again.
   const [job, setJob] = useState<{ id: string; started: number } | null>(null);
   const startBuild = useMutation({
     mutationFn: () => api.startBuild(dep, dest),
     onSuccess: started => {
       if (started.state === "done" || !started.job_id) {
-        void queryClient.invalidateQueries({ queryKey: ["course", dep, dest] });
+        void queryClient.invalidateQueries({ queryKey: ["checkpoints", dep, dest] });
       } else {
         setJob({ id: started.job_id, started: Date.now() });
       }
@@ -249,11 +252,11 @@ export function usePlan(
   });
   useEffect(() => {
     if (buildStatus.data?.state !== "done") return;
-    // The course asked for again, then the job let go of -- in that
-    // order, so the notice stays up until the plan has something.
+    // The checkpoints asked for again, then the job let go of -- in
+    // that order, so the notice stays up until the plan has something.
     void Promise.all([
       queryClient.invalidateQueries({ queryKey: ["routes"] }),
-      queryClient.invalidateQueries({ queryKey: ["course", dep, dest] }),
+      queryClient.invalidateQueries({ queryKey: ["checkpoints", dep, dest] }),
     ]).then(() => setJob(null));
   }, [buildStatus.data?.state, queryClient, dep, dest]);
   // The elapsed time as of the last poll (the query's own timestamp),
