@@ -4328,7 +4328,7 @@
     },
     "/api/altitude-breakdown": {
       "get": {
-        "description": "The full select_cruise_altitude() breakdown for any route -- floor,\nceiling band and each of its own components (airspace/freezing\nlevel/aircraft service ceiling), and the weather go/no-go flags.\n/api/navlog's \"altitude\" line carries the same dict for the route a\npilot has open; this is a standalone read of it for any pair.",
+        "description": "The full select_cruise_altitude() breakdown for any route -- floor,\nceiling band and each of its own components (airspace, aircraft\nservice ceiling), and the weather go/no-go flags, icing among them.\n/api/navlog's \"altitude\" line carries the same dict for the route a\npilot has open; this is a standalone read of it for any pair.",
         "operationId": "altitude_breakdown_api_altitude_breakdown_get",
         "parameters": [
           {
@@ -5345,7 +5345,7 @@
     },
     "/api/plan": {
       "get": {
-        "description": "The whole plan: course line, every scored candidate, the selected\ncheckpoints, and a nav log leg between each consecutive pair.\n\naltitude_ft is optional. Omitted, vfr.altitude works out each leg's\nown legal altitudes -- clear of terrain and obstacles, under the\nClass B shelf over that leg alone, the freezing level and the\naircraft's service ceiling, on the hemispheric rule for the course\n-- and vfr.navlog makes three plans of them: the lowest, the\nhighest, and the fastest for the winds aloft. altitude_choice picks\nwhich one the legs fly, and the reasoning comes back with it, since\n\"why am I at 6,500\" is a question a pilot will actually ask.\n\naircraft names a stock profile; cruise_tas_kt, fuel_burn_gph and\nusable_fuel_gal, when given, are a pilot's own aeroplane's numbers\nlaid over it. depart, an ISO time (UTC when naive), picks the\nwinds-aloft forecast period the legs are flown on -- the 6-, 12- or\n24-hour product, whichever is valid closest to the departure;\nwithout it, the 6-hour product, i.e. about now -- and whether the\nfuel reserve is the day or the night one.",
+        "description": "The whole plan: course line, every scored candidate, the selected\ncheckpoints, and a nav log leg between each consecutive pair.\n\naltitude_ft is optional. Omitted, vfr.altitude works out each leg's\nown legal altitudes -- clear of terrain and obstacles, under the\nClass B shelf over that leg alone and the aircraft's service\nceiling, on the hemispheric rule for that leg's own course\n-- and vfr.navlog makes three plans of them: the lowest, the\nhighest, and the fastest for the winds aloft. altitude_choice picks\nwhich one the legs fly, and the reasoning comes back with it, since\n\"why am I at 6,500\" is a question a pilot will actually ask.\n\naircraft names a stock profile; cruise_tas_kt, fuel_burn_gph and\nusable_fuel_gal, when given, are a pilot's own aeroplane's numbers\nlaid over it. depart, an ISO time (UTC when naive), picks the\nwinds-aloft forecast period the legs are flown on -- the 6-, 12- or\n24-hour product, whichever is valid closest to the departure;\nwithout it, the 6-hour product, i.e. about now -- and whether the\nfuel reserve is the day or the night one.",
         "operationId": "plan_api_plan_get",
         "parameters": [
           {
