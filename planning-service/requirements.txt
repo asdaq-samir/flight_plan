@@ -16,7 +16,7 @@ fastapi==0.141.1
 uvicorn[standard]==0.53.0
 cachetools==7.2.0  # the service caches: bounded, and with the expiry kept by the cache rather than a timestamp per entry
 boto3==1.43.98      # vfr.model_client's SageMaker Runtime path and vfr.charts' S3 publish, used only on AWS
-anthropic==1.6.0   # /api/checkpoint-notes: one Claude call per checkpoint
+anthropic==1.7.0   # /api/checkpoint-notes: one Claude call per checkpoint
 
 # Deliberately NOT scikit-learn/joblib. Scoring belongs to model-service,
 # which owns the model artifact and its pinned sklearn; this service
