@@ -5236,6 +5236,8 @@
             "schema": {
               "anyOf": [
                 {
+                  "exclusiveMinimum": 0,
+                  "maximum": 1000,
                   "type": "number"
                 },
                 {
@@ -5537,6 +5539,8 @@
             "schema": {
               "anyOf": [
                 {
+                  "exclusiveMinimum": 0,
+                  "maximum": 1000,
                   "type": "number"
                 },
                 {

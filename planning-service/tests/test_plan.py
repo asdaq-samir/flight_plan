@@ -285,3 +285,9 @@ def test_a_plan_whose_scoring_hangs_answers_within_the_bound(monkeypatch):
 
     assert resp.status_code == 504
     assert "model-service's checkpoint scores" in resp.json()["detail"]
+
+
+@pytest.mark.parametrize("path", ["/api/plan", "/api/navlog"])
+def test_a_cruise_speed_of_zero_is_refused_not_divided_by(path):
+    resp = client.get(path, params={"dep": "C81", "dest": "KDLH", "cruise_tas_kt": 0})
+    assert resp.status_code == 422

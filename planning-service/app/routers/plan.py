@@ -10,8 +10,9 @@ from concurrent.futures import Future, ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FuturesTimeoutError
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Annotated
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from vfr import charts, geo, navlog
 from vfr.config import VFR_SECTIONAL_MAX_ZOOM, VFR_SECTIONAL_MIN_ZOOM
@@ -40,6 +41,10 @@ from ..schemas import (
 from ..scoring import scored_and_selected
 
 router = APIRouter()
+
+# A pilot's own cruise speed: above zero, since every leg's time divides
+# by it -- zero was a ZeroDivisionError and a 500 rather than a 422.
+CruiseTas = Annotated[float | None, Query(gt=0, le=1000)]
 
 # How often the nav log stream says it is still working while the
 # altitude plans are being made.
@@ -222,7 +227,7 @@ def plan(
     altitude_ft: float | None = None,
     altitude_choice: AltitudeChoice = "lowest",
     aircraft: str = DEFAULT_AIRCRAFT,
-    cruise_tas_kt: float | None = None,
+    cruise_tas_kt: CruiseTas = None,
     fuel_burn_gph: float | None = None,
     usable_fuel_gal: float | None = None,
     depart: datetime | None = None,
@@ -308,7 +313,7 @@ def navlog_stream(
     altitude_ft: float | None = None,
     altitude_choice: AltitudeChoice = "lowest",
     aircraft: str = DEFAULT_AIRCRAFT,
-    cruise_tas_kt: float | None = None,
+    cruise_tas_kt: CruiseTas = None,
     fuel_burn_gph: float | None = None,
     usable_fuel_gal: float | None = None,
     depart: datetime | None = None,
