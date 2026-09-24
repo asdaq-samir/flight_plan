@@ -29,4 +29,11 @@ public interface MagicLinkRepository extends JpaRepository<MagicLink, Long> {
     @Transactional
     @Query("UPDATE MagicLink m SET m.consumedAt = :now WHERE m.tokenHash = :tokenHash AND m.consumedAt IS NULL AND m.expiresAt > :now")
     int consumeIfUsable(@Param("tokenHash") String tokenHash, @Param("now") Instant now);
+
+    /** Links that expired before `cutoff`, used or not: a row past its
+     *  expiry can sign nobody in, and keeping it only grows the table. */
+    @Modifying
+    @Transactional
+    @Query("DELETE FROM MagicLink m WHERE m.expiresAt < :cutoff")
+    int deleteExpiredBefore(@Param("cutoff") Instant cutoff);
 }

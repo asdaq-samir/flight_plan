@@ -343,6 +343,11 @@ services:
       MAIL_USERNAME: ${MAIL_USERNAME:-}
       MAIL_PASSWORD: ${MAIL_PASSWORD:-}
       MAIL_FROM: ${MAIL_FROM:-no-reply@northflyers.com}
+      # Where the emailed sign-in link points (e.g. https://10.0.0.218:8443
+      # for the phone). Required once MAIL_HOST is set -- the webapp will
+      # not start without it -- because a link built from the request's
+      # own Host header points wherever the caller said.
+      APP_PUBLIC_BASE_URL: ${APP_PUBLIC_BASE_URL:-}
       # The HTTPS port for a phone on the same Wi-Fi (HttpsConnectorConfig):
       # the certificate infra/local-https/make-certs.sh writes, read
       # only once that file exists. HSTS off: this machine's plain port

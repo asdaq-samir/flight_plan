@@ -154,6 +154,11 @@ app:
   # default). docker-compose.yml turns it on for the local stack, whose
   # ports are this machine's alone; see SecurityConfig.
   open-writes: ${APP_OPEN_WRITES:false}
+  # Where a magic-link email's sign-in link points, e.g.
+  # https://planner.example.com. Required as soon as MAIL_HOST is set:
+  # a link built from the request's own Host or X-Forwarded-Host would
+  # point wherever the caller asking for it said.
+  public-base-url: ${APP_PUBLIC_BASE_URL:}
   # Where the chart tiles come from when they are published to a CDN
   # (the AWS stack sets this to its CloudFront domain, and the planner
   # tells the browser the same base): the content security policy has

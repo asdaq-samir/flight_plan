@@ -523,8 +523,8 @@
     },
     "/api/auth/magic-link/verify" : {
       "get" : {
-        "description" : "302 to the planner, now signed in, on success; 400 for an expired, already-used or unrecognized token.",
-        "operationId" : "verify",
+        "description" : "A one-button page that signs in with a POST. Opening the link uses nothing up, so a mail scanner that fetches it before the pilot does cannot spend their token.",
+        "operationId" : "confirm",
         "parameters" : [ {
           "in" : "query",
           "name" : "token",
@@ -533,6 +533,33 @@
             "type" : "string"
           }
         } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "text/html" : {
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "summary" : "The page a magic link opens",
+        "tags" : [ "magic-link-controller" ]
+      },
+      "post" : {
+        "description" : "302 to the planner, now signed in, on success; 400 for an expired, already-used or unrecognized token.",
+        "operationId" : "verify",
+        "requestBody" : {
+          "content" : {
+            "application/x-www-form-urlencoded" : {
+              "schema" : {
+                "type" : "string"
+              }
+            }
+          }
+        },
         "responses" : {
           "200" : {
             "content" : {

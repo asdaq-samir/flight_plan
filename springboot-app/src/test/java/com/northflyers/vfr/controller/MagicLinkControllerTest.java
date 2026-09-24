@@ -7,6 +7,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -31,6 +32,7 @@ import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mock.web.MockHttpSession;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -47,6 +49,12 @@ import org.springframework.test.web.servlet.MockMvc;
  */
 @WebMvcTest(MagicLinkController.class)
 @AutoConfigureMockMvc(addFilters = false)
+@TestPropertySource(properties = {
+    "app.public-base-url=https://planner.example.com",
+    // These tests ask for many links for one address; the throttle has
+    // its own test below, with the real limits.
+    "app.magic-link.per-address-per-hour=1000",
+    "app.magic-link.per-client-per-hour=1000"})
 class MagicLinkControllerTest {
 
     private static final String EMAIL = "pilot@example.com";
@@ -118,7 +126,7 @@ class MagicLinkControllerTest {
         given(magicLinks.findByTokenHash(anyString())).willReturn(Optional.of(link()));
 
         MockHttpSession session = new MockHttpSession();
-        mockMvc.perform(get("/api/auth/magic-link/verify").param("token", token).session(session))
+        mockMvc.perform(signInWith(token).session(session))
                 .andExpect(status().isFound())
                 .andExpect(header().string("Location", "/app/plan"));
 
@@ -142,7 +150,7 @@ class MagicLinkControllerTest {
         MockHttpSession session = new MockHttpSession();
         String before = session.getId();
 
-        mockMvc.perform(get("/api/auth/magic-link/verify").param("token", token).session(session))
+        mockMvc.perform(signInWith(token).session(session))
                 .andExpect(status().isFound());
 
         assertThat(session.getId()).isNotEqualTo(before);
@@ -156,7 +164,7 @@ class MagicLinkControllerTest {
         given(magicLinks.consumeIfUsable(anyString(), any())).willReturn(0);
 
         MockHttpSession session = new MockHttpSession();
-        mockMvc.perform(get("/api/auth/magic-link/verify").param("token", token).session(session))
+        mockMvc.perform(signInWith(token).session(session))
                 .andExpect(status().isBadRequest());
 
         assertThat(session.getAttribute(HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY)).isNull();
@@ -166,7 +174,7 @@ class MagicLinkControllerTest {
     void anUnrecognisedTokenIsRefused() throws Exception {
         given(magicLinks.consumeIfUsable(anyString(), any())).willReturn(0);
 
-        mockMvc.perform(get("/api/auth/magic-link/verify").param("token", "not-a-real-token"))
+        mockMvc.perform(signInWith("not-a-real-token"))
                 .andExpect(status().isBadRequest());
     }
 
@@ -181,6 +189,42 @@ class MagicLinkControllerTest {
         verify(mailSender).send(sent.capture());
         assertThat(sent.getValue().getText()).contains("/api/auth/magic-link/verify?token=");
         assertThat(sent.getValue().getTo()).containsExactly(EMAIL);
+    }
+
+    /** Opening the link shows a button and signs nobody in: a mail
+     *  scanner fetching it first must not spend the pilot's token. */
+    @Test
+    void openingTheLinkUsesNothingUp() throws Exception {
+        mockMvc.perform(get("/api/auth/magic-link/verify").param("token", "abc<script>"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.TEXT_HTML))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("method=\"post\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("value=\"abc&lt;script&gt;\"")));
+        org.mockito.Mockito.verify(magicLinks, org.mockito.Mockito.never()).consumeIfUsable(anyString(), any());
+    }
+
+    /** The link's host is the configured one, whatever the request that
+     *  asked for it claimed to be. */
+    @Test
+    void theLinkIgnoresTheHostTheCallerClaimed() throws Exception {
+        mockMvc.perform(post("/api/auth/magic-link")
+                        .header("Host", "evil.example")
+                        .header("X-Forwarded-Host", "evil.example")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"" + EMAIL + "\"}"))
+                .andExpect(status().isAccepted());
+
+        ArgumentCaptor<SimpleMailMessage> sent = ArgumentCaptor.forClass(SimpleMailMessage.class);
+        org.mockito.Mockito.verify(mailSender).send(sent.capture());
+        assertThat(sent.getValue().getText())
+                .contains("https://planner.example.com/api/auth/magic-link/verify?token=")
+                .doesNotContain("evil.example");
+    }
+
+    private static org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder signInWith(String token) {
+        return post("/api/auth/magic-link/verify")
+                .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                .param("token", token);
     }
 
     private static MagicLink link() {
