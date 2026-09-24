@@ -36,8 +36,12 @@ OVERPASS_URLS = (
 REQUEST_HEADERS = {"User-Agent": "vfr-route-learning-project/0.1"}
 
 # category -> (Overpass tag filter clause, predicate on the element's tags dict)
-# Query building and categorization both come from this single spec, so they
-# can't drift out of sync with each other.
+# Each category is one entry, but its rule is written twice in it: as the
+# filter that fetches the category's elements and as the predicate that
+# labels them. The two are kept saying the same thing by hand, and
+# tests/test_osm.py pins both -- the query, whole, and the labels. An
+# element is given the first category whose predicate matches, in this
+# order: natural=water with water=reservoir is a lake_or_pond.
 # natural=water covers rivers too, as polygons -- and those are already
 # handled properly by query_line_features/find_line_crossings, which
 # resolve a river to the point where the route actually crosses it (the
