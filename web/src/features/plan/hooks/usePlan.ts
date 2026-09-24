@@ -125,9 +125,16 @@ export function usePlan(
   // pilot opens the drawer that shows it -- the map's own departure
   // and destination markers read its METARs too, the same as a Class
   // B airport reads one, so it can't wait on that drawer opening.
+  //
+  // And asked again every five minutes while the page is open and in
+  // front of the pilot. Being always enabled took away the refetch the
+  // drawer used to get each time it opened; with refetch-on-focus off
+  // app-wide, the briefing then stayed whatever it was when the route
+  // loaded, for as long as the page stayed up. `load` is in the key for
+  // the same reason as the nav log's: Load again means fresh weather.
   const briefing = useQuery({
-    queryKey: ["briefing", dep, dest], queryFn: () => api.briefing(dep, dest),
-    enabled: !!course.data, staleTime: 5 * 60_000,
+    queryKey: ["briefing", dep, dest, load], queryFn: () => api.briefing(dep, dest),
+    enabled: !!course.data, staleTime: 5 * 60_000, refetchInterval: 5 * 60_000,
   });
 
   // One "how to spot it" line per checkpoint, streamed on a pilot's
