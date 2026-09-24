@@ -97,9 +97,14 @@ public class WebMvcConfig implements WebMvcConfigurer {
         registry.addResourceHandler("/app/assets/**")
                 .addResourceLocations(staticLocation + "assets/")
                 .setCacheControl(CacheControl.maxAge(Duration.ofDays(365)).cachePublic().immutable());
+        // resourceChain(false): a chain that caches wraps the resolver in
+        // a map from request path to resource with no bound -- and as
+        // every path under /app resolves (to the index, failing a file),
+        // each one any client invents stayed in memory for the life of
+        // the process. Resolving afresh is one file lookup per request.
         registry.addResourceHandler("/app/**")
                 .addResourceLocations(staticLocation)
-                .resourceChain(true)
+                .resourceChain(false)
                 .addResolver(new PathResourceResolver() {
                     @Override
                     protected Resource getResource(String resourcePath, Resource location) throws IOException {
