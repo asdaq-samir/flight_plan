@@ -191,3 +191,16 @@ def test_a_new_shapefile_cycle_rebuilds_the_cache(tmp_path, monkeypatch):
 
     assert parses == [shp]
     assert [p["name"] for p in rebuilt] == ["DES MOINES", "OMAHA"]
+
+
+def test_transits_follow_the_legs_flown_not_the_straight_line(tmp_path, monkeypatch):
+    """The straight line passes south of Des Moines' Class C; a checkpoint
+    inside it bends the route through, and that is the call to make."""
+    shp = tmp_path / "Class_Airspace.shp"
+    _write_shapefile(shp)
+    monkeypatch.setattr(airspace, "_ALL_AIRSPACE_CACHE", {})
+    start, end = (41.0, -94.2), (41.0, -93.0)
+
+    assert airspace.airspace_transits(start, end, shp) == []
+    through = airspace.airspace_transits(start, end, shp, fixes=[start, (41.6, -93.6), end])
+    assert [t["name"] for t in through] == ["DES MOINES"]

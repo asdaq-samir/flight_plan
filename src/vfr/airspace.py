@@ -391,9 +391,15 @@ def airspace_ceiling_profile(route_start: tuple, route_end: tuple, fixes: list, 
     return ceilings
 
 
-def airspace_transits(route_start: tuple, route_end: tuple, shp_path) -> list:
-    """Controlled airspace the route line passes laterally through, in
+def airspace_transits(route_start: tuple, route_end: tuple, shp_path, fixes: list | None = None) -> list:
+    """Controlled airspace the route passes laterally through, in
     along-route order, as {"name", "class", "floor_ft_msl", "requires"}.
+
+    The route is the legs flown -- through `fixes`, the nav log's own
+    (lat, lon) points from departure to destination -- when they are
+    given. The straight departure-destination line it used to be misses
+    airspace a leg bent toward a checkpoint clips, and names airspace
+    the legs never enter.
 
     This is nav-log information rather than a constraint: knowing you will
     cross Des Moines Class C at mile 4 tells you to have approach's
@@ -407,9 +413,11 @@ def airspace_transits(route_start: tuple, route_end: tuple, shp_path) -> list:
     """
     from .geo import along_track_distance_nm, corridor_bbox
 
-    bbox = corridor_bbox(route_start, route_end, buffer_nm=2.0)
+    path = list(fixes) if fixes and len(fixes) >= 2 else [route_start, route_end]
+    boxes = [corridor_bbox(a, b, buffer_nm=2.0) for a, b in zip(path, path[1:])]
+    bbox = (min(b[0] for b in boxes), min(b[1] for b in boxes), max(b[2] for b in boxes), max(b[3] for b in boxes))
     polygons = load_controlled_airspace(shp_path, bbox)
-    route_line = LineString([(route_start[1], route_start[0]), (route_end[1], route_end[0])])
+    route_line = LineString([(lon, lat) for lat, lon in path])
 
     transits = []
     for p in polygons:

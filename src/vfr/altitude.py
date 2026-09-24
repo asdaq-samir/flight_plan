@@ -212,6 +212,7 @@ def select_cruise_altitude(
         # all they take -- but a pilot still wants to know they are coming.
         transits_future = pool.submit(
             timed("airspace.airspace_transits", airspace.airspace_transits), route_start, route_end, shp_path,
+            fixes=fixes,
         )
         variation_future = pool.submit(timed("magnetic_variation_deg", magnetic_variation_deg), mid_lat, mid_lon)
         freezing_future = pool.submit(

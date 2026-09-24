@@ -22,7 +22,7 @@ def sources(monkeypatch):
     monkeypatch.setattr(terrain, "floor_profile", lambda start, end, breaks, faa_cache_dir=None: [2000.0] * (len(breaks) - 1))
     monkeypatch.setattr(airspace, "airspace_ceiling_profile", lambda start, end, fixes, shp: [None] * (len(fixes) - 1))
     monkeypatch.setattr(airspace, "max_airspace_altitude_msl", lambda start, end, shp: None)
-    monkeypatch.setattr(airspace, "airspace_transits", lambda start, end, shp: [])
+    monkeypatch.setattr(airspace, "airspace_transits", lambda start, end, shp, fixes=None: [])
     monkeypatch.setattr(altitude, "magnetic_variation_deg", lambda lat, lon: 0.0)
     monkeypatch.setattr(weather, "freezing_level", lambda lat, lon, fcst_hr="06": state["freezing"])
     monkeypatch.setattr(weather, "ceiling_visibility_along_route", lambda start, end, window=None: state["cv"])
