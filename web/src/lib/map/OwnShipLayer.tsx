@@ -18,9 +18,18 @@ export function OwnShipLayer() {
   const follow = useOwnShip(s => s.follow);
   const setFollow = useOwnShip(s => s.setFollow);
   // Memoized handlers: see `useZoomLevel` -- a literal re-registers on
-  // every commit and can miss an event fired during one.
+  // every commit and can miss an event fired during one. Only a pan
+  // while own ship is on ends following: `follow` is remembered per
+  // browser, and a pan at the desk with own ship off would otherwise
+  // leave it off in the air, with the checkbox disabled and nothing
+  // saying why the map no longer keeps up.
   useMapEvents(useMemo(
-    () => ({ dragstart: () => { if (useOwnShip.getState().follow) setFollow(false); } }),
+    () => ({
+      dragstart: () => {
+        const { enabled, follow } = useOwnShip.getState();
+        if (enabled && follow) setFollow(false);
+      },
+    }),
     [setFollow],
   ));
   useEffect(() => {

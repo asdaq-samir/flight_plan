@@ -570,6 +570,26 @@ test("plan page: the map's zoom toggle goes to the selection and back, however m
   await expect(button).toHaveAttribute("aria-label", "Show Selected", { timeout: 10000 });
 });
 
+test("plan page: panning the map with own ship off leaves 'Keep the map on me' as it was", async ({ page }) => {
+  // `follow` is remembered per browser. A pan at the desk -- own ship
+  // off, and over plain http it cannot even be turned on -- used to
+  // store it off, so in the air the map no longer kept up and the
+  // checkbox that says so was disabled.
+  await page.goto("/app/plan?dep=C81&dest=KDLH");
+  await settle(page);
+  const follow = () => page.evaluate(() => JSON.parse(localStorage.getItem("vfr.ownship") ?? "{}").state?.follow ?? true);
+  expect(await follow()).toBe(true);
+
+  const map = await page.locator(".leaflet-container").boundingBox();
+  if (!map) throw new Error("no map");
+  await page.mouse.move(map.x + map.width / 2, map.y + map.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(map.x + map.width / 2 + 120, map.y + map.height / 2 + 60, { steps: 8 });
+  await page.mouse.up();
+
+  expect(await follow()).toBe(true);
+});
+
 test("plan page: the briefing's nav log scrolls inside the drawer, not the page", async ({ page }) => {
   await page.goto("/app/plan");
   await settle(page);
