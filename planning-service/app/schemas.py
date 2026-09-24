@@ -153,6 +153,8 @@ class Totals(BaseModel):
     legs_without_wind: int
     reserve_min: float | None = None
     reserve_gal: float | None = None
+    #: Start, taxi and takeoff, included in fuel_required_gal.
+    taxi_gal: float | None = None
     fuel_required_gal: float | None = None
     usable_fuel_gal: float | None = None
     fuel_margin_gal: float | None = None
@@ -192,6 +194,10 @@ class AltitudeSegment(BaseModel):
     floor_ft: float
     airspace_ceiling_ft: float | None
     band_ceiling_ft: float | None
+    #: This leg's own magnetic course and half of the hemispheric rule,
+    #: which its legal altitudes are rounded to.
+    course_magnetic_deg: float | None = None
+    eastbound: bool | None = None
     candidates_ft: list[float]
 
 
@@ -214,6 +220,13 @@ class AltitudeBreakdown(BaseModel):
     airspace_ceiling_ft: float | None
     airspace_transits: list[AirspaceTransit]
     freezing_level_ft: float | None
+    #: The freezing level is at or below `freezing_level_ft`: it was
+    #: already below 0 degC at the lowest altitude the forecast reports.
+    freezing_level_at_or_below: bool = False
+    #: A legal altitude reaches the freezing level and cloud or an icing
+    #: AIRMET/SIGMET is forecast along the route. None where the freezing
+    #: level could not be checked.
+    icing_possible: bool | None = None
     band_ceiling_ft: float | None
     min_ceiling_ft: float | None
     min_visibility_sm: float | None

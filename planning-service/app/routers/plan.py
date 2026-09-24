@@ -19,7 +19,7 @@ from vfr.weather import WeatherServiceError
 from ..common import DEFAULT_AIRCRAFT, line, load_route, ndjson
 from ..planning import (
     COMPUTE_LIMIT_S, StillComputing, aircraft_profile, altitude_plans, altitude_waiting_on, course_line,
-    cruise_altitude, flight_totals, forecast_hour_for, no_altitude_detail,
+    cruise_altitude, flight_totals, flight_window, forecast_hour_for, no_altitude_detail,
 )
 from ..schemas import (
     AltitudeBreakdown,
@@ -69,6 +69,7 @@ def departure_elevation(r) -> float | None:
 
 def planned_altitudes(
     r, fix_list: list, profile: dict, aircraft: str, choice: AltitudeChoice, fcst_hr: str = "06",
+    window: tuple | None = None,
 ) -> tuple:
     """The altitude selection for the route's own fixes, the three plans
     it allows, and the one chosen: (selection, options, plan, failure).
@@ -77,8 +78,10 @@ def planned_altitudes(
     winds the plans need could not be read, in which case `failure` is
     that WeatherServiceError: the selection itself still stands, and a
     caller can report it before the failure. `fcst_hr` is the winds
-    forecast period for the departure (see forecast_hour_for)."""
-    selection = cruise_altitude(r.start, r.end, profile, aircraft, fixes=_fixes(fix_list), fcst_hr=fcst_hr)
+    forecast period for the departure (see forecast_hour_for), `window`
+    the flight's own hours the go/no-go forecast is read over (see
+    flight_window)."""
+    selection = cruise_altitude(r.start, r.end, profile, aircraft, fixes=_fixes(fix_list), fcst_hr=fcst_hr, window=window)
     try:
         plans = altitude_plans(fix_list, selection, profile, aircraft, fcst_hr, departure_elevation(r))
     except WeatherServiceError as err:
@@ -96,23 +99,26 @@ def _fixes(fix_list: list) -> list:
 
 def planned_altitudes_within_limit(
     r, fix_list: list, profile: dict, aircraft: str, choice: AltitudeChoice, fcst_hr: str = "06",
+    window: tuple | None = None,
 ) -> tuple:
     """planned_altitudes, given up on after COMPUTE_LIMIT_S with
     StillComputing naming what it was waiting on. The work goes on in
     the background and its answer is cached, so asking again gets it."""
     pool = ThreadPoolExecutor(max_workers=1)
     try:
-        return pool.submit(planned_altitudes, r, fix_list, profile, aircraft, choice, fcst_hr).result(timeout=COMPUTE_LIMIT_S)
+        return pool.submit(
+            planned_altitudes, r, fix_list, profile, aircraft, choice, fcst_hr, window,
+        ).result(timeout=COMPUTE_LIMIT_S)
     except FuturesTimeoutError:
         raise StillComputing(
-            COMPUTE_LIMIT_S, _running_stages(r, fix_list, aircraft, fcst_hr),
+            COMPUTE_LIMIT_S, _running_stages(r, fix_list, aircraft, fcst_hr, window),
         ) from None
     finally:
         pool.shutdown(wait=False)
 
 
-def _running_stages(r, fix_list: list, aircraft: str, fcst_hr: str) -> list:
-    running = altitude_waiting_on(r.start, r.end, aircraft, _fixes(fix_list), fcst_hr)
+def _running_stages(r, fix_list: list, aircraft: str, fcst_hr: str, window: tuple | None = None) -> list:
+    running = altitude_waiting_on(r.start, r.end, aircraft, _fixes(fix_list), fcst_hr, window)
     return [running] if running else []
 
 
@@ -165,8 +171,8 @@ def checkpoints(dep: str, dest: str) -> Checkpoints:
 @router.get("/api/altitude-breakdown")
 def altitude_breakdown(dep: str, dest: str, aircraft: str = DEFAULT_AIRCRAFT) -> AltitudeBreakdown:
     """The full select_cruise_altitude() breakdown for any route -- floor,
-    ceiling band and each of its own components (airspace/freezing
-    level/aircraft service ceiling), and the weather go/no-go flags.
+    ceiling band and each of its own components (airspace, aircraft
+    service ceiling), and the weather go/no-go flags, icing among them.
     /api/navlog's "altitude" line carries the same dict for the route a
     pilot has open; this is a standalone read of it for any pair."""
     r = load_route(dep, dest)
@@ -190,8 +196,8 @@ def plan(
 
     altitude_ft is optional. Omitted, vfr.altitude works out each leg's
     own legal altitudes -- clear of terrain and obstacles, under the
-    Class B shelf over that leg alone, the freezing level and the
-    aircraft's service ceiling, on the hemispheric rule for the course
+    Class B shelf over that leg alone and the aircraft's service
+    ceiling, on the hemispheric rule for that leg's own course
     -- and vfr.navlog makes three plans of them: the lowest, the
     highest, and the fastest for the winds aloft. altitude_choice picks
     which one the legs fly, and the reasoning comes back with it, since
@@ -210,12 +216,13 @@ def plan(
     profile = aircraft_profile(aircraft, cruise_tas_kt, fuel_burn_gph, usable_fuel_gal)
     fix_list = navlog.fixes(r.dep_ident, r.dest_ident, r.start, r.end, selected)
     fcst_hr = forecast_hour_for(depart)
+    window = flight_window(depart, geo.distance_nm(*r.start, *r.end), profile["cruise_tas_kt"])
 
     # The plans are worked out either way: beside a pilot's own altitude
     # they are what the planner would have flown, and the reasoning
     # still has its floor and ceiling to show.
     altitude_selection, options, chosen, failure = planned_altitudes_within_limit(
-        r, fix_list, profile, aircraft, altitude_choice, fcst_hr,
+        r, fix_list, profile, aircraft, altitude_choice, fcst_hr, window,
     )
     choice = None
     if altitude_ft is None:
@@ -295,6 +302,7 @@ def navlog_stream(
         profile = aircraft_profile(aircraft, cruise_tas_kt, fuel_burn_gph, usable_fuel_gal)
         fix_list = navlog.fixes(r.dep_ident, r.dest_ident, r.start, r.end, selected)
         fcst_hr = forecast_hour_for(depart)
+        window = flight_window(depart, geo.distance_nm(*r.start, *r.end), profile["cruise_tas_kt"])
 
         yield line(NavLogStage(detail="Planning cruise altitudes (airspace, obstacles, aircraft performance and winds)…"))
         # On a side thread with a heartbeat, not inline: an uncached
@@ -316,7 +324,9 @@ def navlog_stream(
         # would wait on a stuck thread on the way out.
         altitude_pool = ThreadPoolExecutor(max_workers=1)
         try:
-            future = altitude_pool.submit(planned_altitudes, r, fix_list, profile, aircraft, altitude_choice, fcst_hr)
+            future = altitude_pool.submit(
+                planned_altitudes, r, fix_list, profile, aircraft, altitude_choice, fcst_hr, window,
+            )
             started = time.monotonic()
             while True:
                 try:
@@ -326,10 +336,10 @@ def navlog_stream(
                     elapsed = time.monotonic() - started
                     if elapsed >= COMPUTE_LIMIT_S:
                         yield line(NavLogError(detail=str(StillComputing(
-                            elapsed, _running_stages(r, fix_list, aircraft, fcst_hr),
+                            elapsed, _running_stages(r, fix_list, aircraft, fcst_hr, window),
                         ))))
                         return
-                    waiting = altitude_waiting_on(r.start, r.end, aircraft, _fixes(fix_list), fcst_hr)
+                    waiting = altitude_waiting_on(r.start, r.end, aircraft, _fixes(fix_list), fcst_hr, window)
                     yield line(NavLogStage(detail=(
                         f"Planning cruise altitudes ({elapsed:.0f} s, waiting on {waiting})…" if waiting
                         else f"Planning cruise altitudes ({elapsed:.0f} s, working out the winds for each plan)…"

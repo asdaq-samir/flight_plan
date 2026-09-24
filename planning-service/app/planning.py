@@ -1,6 +1,7 @@
 """The nav log's own arithmetic: the cruise altitude (remembered per
 route), the course line, and the aircraft it is all computed for. The
 legs are vfr.navlog's."""
+import math
 import threading
 import time
 from datetime import datetime, timedelta, timezone
@@ -231,15 +232,32 @@ _ALTITUDE_TTL_S = 900
 _ALTITUDE_CACHE = SingleFlightTTLCache(maxsize=512, ttl=_ALTITUDE_TTL_S)
 
 
-def _altitude_key(start: tuple, end: tuple, aircraft: str, fixes: list | None, fcst_hr: str) -> tuple:
+def _altitude_key(start: tuple, end: tuple, aircraft: str, fixes: list | None, fcst_hr: str,
+                  window: tuple | None = None) -> tuple:
     return (
         round(start[0], 4), round(start[1], 4), round(end[0], 4), round(end[1], 4), aircraft,
         tuple((round(lat, 4), round(lon, 4)) for lat, lon in fixes) if fixes else None, fcst_hr,
+        (round(window[0]), round(window[1])) if window else None,
     )
+
+
+def flight_window(depart: datetime | None, distance_nm: float, cruise_tas_kt: float) -> tuple:
+    """(start, end) in unix seconds: from the hour the departure falls in
+    (now, when none is given) to an hour past the arrival at cruise TAS.
+    The go/no-go forecast is read over this rather than at the moment of
+    asking. Whole hours, so one hour's requests share a cached selection."""
+    if depart is None:
+        start = time.time()
+    else:
+        start = (depart if depart.tzinfo else depart.replace(tzinfo=timezone.utc)).timestamp()
+    start -= start % 3600
+    hours = distance_nm / max(cruise_tas_kt, 1.0) + 1.0
+    return (start, start + math.ceil(hours) * 3600)
 
 
 def cruise_altitude(
     start: tuple, end: tuple, profile: dict, aircraft: str, fixes: list | None = None, fcst_hr: str = "06",
+    window: tuple | None = None,
 ) -> dict:
     """`fixes`, the nav log's own (lat, lon) fixes, add the leg-by-leg
     segments the stepped plans need; they are part of the key, since a
@@ -258,18 +276,21 @@ def cruise_altitude(
             extra["fixes"] = fixes
         if fcst_hr != "06":
             extra["fcst_hr"] = fcst_hr
+        if window is not None:
+            extra["window"] = window
         return altitude_module.select_cruise_altitude(start, end, profile, pending=pending, **extra)
 
     return _ALTITUDE_CACHE.get_or_compute(
-        _altitude_key(start, end, aircraft, fixes, fcst_hr), compute, COMPUTE_LIMIT_S, pending,
+        _altitude_key(start, end, aircraft, fixes, fcst_hr, window), compute, COMPUTE_LIMIT_S, pending,
     )
 
 
-def altitude_waiting_on(start: tuple, end: tuple, aircraft: str, fixes: list | None, fcst_hr: str) -> str:
+def altitude_waiting_on(start: tuple, end: tuple, aircraft: str, fixes: list | None, fcst_hr: str,
+                        window: tuple | None = None) -> str:
     """What the selection cruise_altitude() would be joining is still
     waiting on, in words -- "" when nothing of it is running, which is
     also the case once it is done and the plans' winds are what remains."""
-    running = _ALTITUDE_CACHE.running(_altitude_key(start, end, aircraft, fixes, fcst_hr))
+    running = _ALTITUDE_CACHE.running(_altitude_key(start, end, aircraft, fixes, fcst_hr, window))
     return "" if running is None else describe_stages(running[1])
 
 

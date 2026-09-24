@@ -240,3 +240,83 @@ def test_vfr_not_recommended_is_empty_when_nothing_warrants_it():
     metars = {"C81": None, "KDLH": {"flight_category": "MVFR"}}
     forecast = {"min_ceiling_ft": 1200.0, "min_visibility_sm": None}
     assert weather.vfr_not_recommended_reasons(["C81", "KDLH"], metars, forecast) == []
+
+
+# --- reading a TAF over the flight's own hours ------------------------------
+
+def _taf(periods: str) -> Mock:
+    return _cache_file(
+        '<TAF><raw_text>TAF KDLH ...</raw_text><station_id>KDLH</station_id>'
+        '<issue_time>2026-09-20T00:00:00.000Z</issue_time><latitude>46.8421</latitude><longitude>-92.1936</longitude>'
+        f'{periods}</TAF>'
+    )
+
+
+def _fcst(start: str, end: str, change: str = "", vis: str = "6+", sky: str = "", vv: str = "") -> str:
+    return (
+        f'<forecast><fcst_time_from>2026-09-20T{start}:00:00.000Z</fcst_time_from>'
+        f'<fcst_time_to>2026-09-20T{end}:00:00.000Z</fcst_time_to>'
+        + (f"<change_indicator>{change}</change_indicator>" if change else "")
+        + f"<visibility_statute_mi>{vis}</visibility_statute_mi>{sky}"
+        + (f"<vert_vis_ft>{vv}</vert_vis_ft>" if vv else "")
+        + "</forecast>"
+    )
+
+
+def _at(hour: int) -> float:
+    return datetime(2026, 9, 20, hour, tzinfo=timezone.utc).timestamp()
+
+
+FOG_IN_A_TEMPO = _taf(
+    _fcst("00", "12", sky='<sky_condition sky_cover="SCT" cloud_base_ft_agl="5000"/>')
+    + _fcst("04", "06", change="TEMPO", vis="0.5", sky='<sky_condition sky_cover="OVX"/>', vv="200")
+)
+
+
+@patch("vfr.weather.requests.get", return_value=FOG_IN_A_TEMPO)
+def test_a_tempo_group_counts_toward_the_worst_the_forecast_allows(mock_get):
+    """TEMPO 1/2SM FG VV002 inside an otherwise VFR period: a go/no-go read
+    is the worst the forecast allows, and vertical visibility is a ceiling."""
+    during = ceiling_visibility_along_route(C81, KDLH, window=(_at(3), _at(5)))
+    assert during["min_ceiling_ft"] == 200 and during["min_visibility_sm"] == 0.5
+
+    before = ceiling_visibility_along_route(C81, KDLH, window=(_at(1), _at(2)))
+    assert before["min_ceiling_ft"] is None and before["min_visibility_sm"] == 6.0
+
+
+@patch("vfr.weather.requests.get", return_value=_taf(_fcst("00", "06", vis="3")))
+def test_a_forecast_that_does_not_cover_the_flight_says_nothing_about_it(mock_get):
+    """It used to fall back to the TAF's first period -- an expired
+    forecast read as current."""
+    later = ceiling_visibility_along_route(C81, KDLH, window=(_at(8), _at(10)))
+    assert later == {"min_ceiling_ft": None, "min_visibility_sm": None, "stations": []}
+
+
+@patch("vfr.weather.requests.get", return_value=_taf(
+    _fcst("00", "12", vis="6+")
+    + _fcst("02", "03", change="BECMG", vis="2", sky='<sky_condition sky_cover="BKN" cloud_base_ft_agl="800"/>')))
+def test_a_becmg_change_lasts_past_its_own_window(mock_get):
+    """BECMG 0203 ... 2SM BKN008 still holds at 0600: the feed carries no
+    base period after it, so taking only what overlaps 0600 read VFR."""
+    later = ceiling_visibility_along_route(C81, KDLH, window=(_at(6), _at(7)))
+    assert later["min_ceiling_ft"] == 800 and later["min_visibility_sm"] == 2.0
+
+
+def test_a_freezing_level_below_the_lowest_reading_says_so(monkeypatch):
+    """Below 0 degC already at 6,000 ft, the winds-aloft product's lowest
+    temperature: the freezing level is there or lower, not at 6,000."""
+    from vfr import airports, weather
+    monkeypatch.setattr(weather, "_fd_stations", lambda fcst_hr: {"DLH": {6000: {"temp_c": -2}, 9000: {"temp_c": -8}}})
+    monkeypatch.setattr(weather, "_nearest_station", lambda lat, lon, ids, df: "DLH")
+    monkeypatch.setattr(airports, "load_airports", lambda: None)
+
+    assert weather.freezing_level(46.8, -92.2) == {"ft": 6000.0, "at_or_below": True}
+
+
+def test_a_freezing_level_between_readings_is_interpolated(monkeypatch):
+    from vfr import airports, weather
+    monkeypatch.setattr(weather, "_fd_stations", lambda fcst_hr: {"DLH": {6000: {"temp_c": 4}, 9000: {"temp_c": -2}}})
+    monkeypatch.setattr(weather, "_nearest_station", lambda lat, lon, ids, df: "DLH")
+    monkeypatch.setattr(airports, "load_airports", lambda: None)
+
+    assert weather.freezing_level(46.8, -92.2) == {"ft": 8000.0, "at_or_below": False}

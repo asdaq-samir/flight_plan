@@ -14,7 +14,9 @@ there. "Independent" is also why they run concurrently, not one after
 another -- three separate blocking round trips to aviationweather.gov,
 summed instead of overlapped, was the whole reason this page felt slow to
 open even though no single piece actually is."""
+import time
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timezone
 
 from fastapi import APIRouter
 from vfr import airports, weather
@@ -22,18 +24,30 @@ from vfr import airports, weather
 from ..common import load_route
 from ..schemas import Briefing
 
+#: How long past the arrival the forecast is read over, and the flight
+#: assumed when the caller does not say how long it is.
+MARGIN_S = 3600
+DEFAULT_ETE_MIN = 120
+
 router = APIRouter()
 
 
 @router.get("/api/briefing")
-def briefing(dep: str, dest: str) -> Briefing:
+def briefing(dep: str, dest: str, depart: datetime | None = None, ete_min: float | None = None) -> Briefing:
     """Everything the nav log's own leg math doesn't cover: adverse
     conditions (SIGMET/AIRMET), current conditions (METAR) and
     forecast (TAF-derived ceiling/visibility) along the route, and
     each airport's runways and radio frequencies.
+
+    The forecast is for the flight: from `depart` (now when not given;
+    UTC when naive) to an hour past arrival, `ete_min` after it (two
+    hours when not given). It used to be read at the moment of asking,
+    whatever time the pilot was planning to go.
     """
     r = load_route(dep, dest)
     idents = (r.dep_ident, r.dest_ident)
+    start = time.time() if depart is None else (depart if depart.tzinfo else depart.replace(tzinfo=timezone.utc)).timestamp()
+    window = (start, start + (ete_min if ete_min is not None else DEFAULT_ETE_MIN) * 60 + MARGIN_S)
 
     # Runways/frequencies are in this pool too, not just the three
     # weather calls -- on a freshly started container (an empty
@@ -43,7 +57,7 @@ def briefing(dep: str, dest: str) -> Briefing:
     # the weather pool had already finished instead of alongside it.
     with ThreadPoolExecutor(max_workers=7) as pool:
         hazards_future = pool.submit(weather.hazards_along_route, r.start, r.end)
-        forecast_future = pool.submit(weather.ceiling_visibility_along_route, r.start, r.end)
+        forecast_future = pool.submit(weather.ceiling_visibility_along_route, r.start, r.end, window=window)
         metars_future = pool.submit(weather.metar_for_idents, list(idents))
         runways = {ident: pool.submit(airports.get_runways, ident) for ident in idents}
         frequencies = {ident: pool.submit(airports.get_frequencies, ident) for ident in idents}

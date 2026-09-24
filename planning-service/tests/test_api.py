@@ -179,8 +179,13 @@ def test_the_briefing_says_why_vfr_is_not_recommended(monkeypatch):
     """The reasons are the planner's to give (vfr.weather); the page only
     shows them."""
     monkeypatch.setattr(weather, "hazards_along_route", lambda start, end: [])
-    monkeypatch.setattr(weather, "ceiling_visibility_along_route",
-                        lambda start, end: {"min_ceiling_ft": 800.0, "min_visibility_sm": 6.0, "stations": []})
+    windows = []
+
+    def forecast(start, end, window=None):
+        windows.append(window)
+        return {"min_ceiling_ft": 800.0, "min_visibility_sm": 6.0, "stations": []}
+
+    monkeypatch.setattr(weather, "ceiling_visibility_along_route", forecast)
     monkeypatch.setattr(weather, "metar_for_idents", lambda idents: {ident: None for ident in idents})
     monkeypatch.setattr(airports, "get_runways", lambda ident: [])
     monkeypatch.setattr(airports, "get_frequencies", lambda ident: [])
@@ -189,3 +194,21 @@ def test_the_briefing_says_why_vfr_is_not_recommended(monkeypatch):
 
     assert resp.status_code == 200
     assert resp.json()["vfr_not_recommended"] == ["forecast ceiling as low as 800 ft along the route"]
+
+
+def test_the_briefing_forecast_is_read_over_the_flight(monkeypatch):
+    """From the departure to an hour past arrival, not whenever it was asked."""
+    windows = []
+    monkeypatch.setattr(weather, "hazards_along_route", lambda start, end: [])
+    monkeypatch.setattr(weather, "ceiling_visibility_along_route", lambda start, end, window=None: (
+        windows.append(window) or {"min_ceiling_ft": None, "min_visibility_sm": None, "stations": []}))
+    monkeypatch.setattr(weather, "metar_for_idents", lambda idents: {ident: None for ident in idents})
+    monkeypatch.setattr(airports, "get_runways", lambda ident: [])
+    monkeypatch.setattr(airports, "get_frequencies", lambda ident: [])
+
+    resp = client.get("/api/briefing", params={
+        "dep": "C81", "dest": "KDLH", "depart": "2026-09-25T13:00:00Z", "ete_min": 150})
+
+    assert resp.status_code == 200
+    start = 1790341200.0  # 2026-09-25T13:00:00Z
+    assert windows == [(start, start + 150 * 60 + 3600)]

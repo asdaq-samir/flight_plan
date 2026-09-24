@@ -74,7 +74,7 @@ def test_a_stuck_altitude_selection_ends_the_navlog_stream_saying_what_it_waits_
     monkeypatch.setattr(scoring, "invoke_model", lambda dep, dest, model=None: {"checkpoints": []})
     release = threading.Event()
 
-    def stuck(start, end, profile, faa_cache_dir=None, fixes=None, fcst_hr="06", pending=None):
+    def stuck(start, end, profile, faa_cache_dir=None, fixes=None, fcst_hr="06", pending=None, window=None):
         pending.add("terrain.floor_profile")
         release.wait(timeout=5)
         return altitude

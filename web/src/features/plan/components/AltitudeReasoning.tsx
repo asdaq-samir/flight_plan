@@ -33,8 +33,8 @@ function ceilingRuns(segments: AltitudeSegment[]): AltitudeSegment[] {
  * How the cruise altitude was chosen, step by step, in the planner's
  * own order (`vfr.altitude.select_cruise_altitude` and
  * `vfr.navlog.altitude_profiles`): the floor from terrain and
- * obstacles, the ceiling from airspace, the freezing level and the
- * aeroplane -- leg by leg, since a Class B shelf caps only the legs
+ * obstacles, the ceiling from airspace and the aeroplane -- leg by
+ * leg, since a Class B shelf caps only the legs
  * under it -- the hemispheric rule that gives the legal altitudes in
  * between, the three plans made of them and the one being flown, and
  * the weather that was checked but does not move the numbers. Every
@@ -60,21 +60,27 @@ export default function AltitudeReasoning({ nav }: Props) {
 
   const ceilingParts: string[] = [
     s.airspace_ceiling_ft !== null ? `the Class B shelf at ${altFt(s.airspace_ceiling_ft)} ft` : "no Class B shelf across the route",
-    s.weather_unavailable.includes("freezing_level")
-      ? "the freezing level (could not be checked)"
-      : s.freezing_level_ft !== null
-        ? `the freezing level at ${altFt(s.freezing_level_ft)} ft`
-        : "no freezing level in range (the forecast stays above 0 °C)",
   ];
+  // Icing is a warning, not a ceiling: the planner no longer caps the
+  // band at the freezing level (icing needs cloud as well as cold).
+  const freezing = s.weather_unavailable.includes("freezing_level")
+    ? "The freezing level could not be checked."
+    : s.freezing_level_ft === null
+      ? "No freezing level in range: the forecast stays above 0 °C."
+      : `Freezing level ${s.freezing_level_at_or_below ? "at or below" : "at"} ${altFt(s.freezing_level_ft)} ft${
+        s.icing_possible
+          ? " — icing is possible at and above it: cloud or an icing AIRMET is forecast along the route."
+          : ", with no cloud or icing AIRMET forecast along the route."}`;
+  // Legs whose own magnetic course is in the other half of the rule
+  // from the route's, and so round to the other set of altitudes.
+  const otherHalf = s.segments.filter(seg => seg.eastbound !== null && seg.eastbound !== undefined && seg.eastbound !== s.eastbound);
   ceilingParts.push(`the ${nav.aircraft.name.toUpperCase()}'s service ceiling of ${altFt(nav.aircraft.service_ceiling_ft)} ft`);
   const runs = ceilingRuns(s.segments);
   const runsText = runs.length > 1
     ? runs.map((r, i) => {
       const why = r.airspace_ceiling_ft !== null && r.airspace_ceiling_ft === r.band_ceiling_ft
         ? "the Class B shelf"
-        : r.band_ceiling_ft !== null && r.band_ceiling_ft === s.freezing_level_ft
-          ? "the freezing level"
-          : "the service ceiling";
+        : "the service ceiling";
       const where = i === 0 ? `for the first ${r.to_nm} nm` : i === runs.length - 1 ? "the rest of the way" : `from ${r.from_nm} to ${r.to_nm} nm`;
       return `${r.band_ceiling_ft === null ? "none" : `${altFt(r.band_ceiling_ft)} ft`} (${why}) ${where}`;
     }).join(", then ")
@@ -111,6 +117,10 @@ export default function AltitudeReasoning({ nav }: Props) {
         {s.candidates_ft.length > 0
           ? `Legal for the whole route: ${s.candidates_ft.map(a => altFt(a)).join(", ")} ft`
           : "No one altitude is legal for the whole route"}
+        {otherHalf.length > 0 &&
+          `. ${otherHalf.length === 1 ? "One leg flies" : `${otherHalf.length} legs fly`} a magnetic course in the other half (${
+            otherHalf.map(seg => `${deg(seg.course_magnetic_deg ?? 0)} from ${seg.from_nm} nm`).join(", ")
+          }) and ${otherHalf.length === 1 ? "is" : "are"} rounded to its altitudes`}
         {Number.isFinite(highestLegal) && highestLegal > (s.candidates_ft[s.candidates_ft.length - 1] ?? -Infinity)
           ? `; leg by leg, up to ${altFt(highestLegal)} ft.`
           : "."}
@@ -139,10 +149,11 @@ export default function AltitudeReasoning({ nav }: Props) {
         <b>Checked, not part of the choice.</b>{" "}
         {s.weather_unavailable.includes("ceiling_visibility")
           ? "The forecast ceiling and visibility could not be checked. "
-          : `Forecast along the route: ceiling ${altFt(s.min_ceiling_ft)} ft, visibility ${s.min_visibility_sm ?? "—"} sm${
+          : `Forecast for the flight, its temporary changes included: ceiling ${
+            s.min_ceiling_ft === null ? "none" : `${altFt(s.min_ceiling_ft)} ft`}, visibility ${s.min_visibility_sm ?? "—"} sm${
             s.low_ceiling_or_visibility ? ", below VFR minimums (1,000 ft, 3 sm) somewhere on the way" : ""
           }. `}
-        {hazards.charAt(0).toUpperCase() + hazards.slice(1)}.
+        {hazards.charAt(0).toUpperCase() + hazards.slice(1)}. {freezing}
       </li>
       {s.airspace_transits.length > 0 && (
         <li>

@@ -70,6 +70,13 @@ def assemble_leg(
     else:
         wca_deg = wind_correction_angle_deg(true_course_deg, wind["wind_dir_true_deg"], wind["wind_speed_kt"], tas_kt)
         gs_kt = groundspeed_kt(true_course_deg, wind["wind_dir_true_deg"], wind["wind_speed_kt"], tas_kt, wca_deg)
+        # A crosswind stronger than TAS: no heading holds the course.
+        # The correction angle clamps at 90 degrees and the arithmetic
+        # can still give a positive ground speed from the wind's along-
+        # course part, which made an impossible leg look flyable.
+        crosswind_kt = wind["wind_speed_kt"] * math.sin(math.radians(wind["wind_dir_true_deg"] - true_course_deg))
+        if abs(crosswind_kt) > tas_kt:
+            gs_kt = 0.0
 
     true_heading_deg = (true_course_deg + wca_deg) % 360
     variation_deg = magnetic_variation_deg(mid_lat, mid_lon)
@@ -123,6 +130,12 @@ def leg_between(a: dict, b: dict, altitude_ft: float, profile: dict, fcst_hr: st
     for field in ("ete_min", "fuel_gal", "groundspeed_kt"):
         if not math.isfinite(leg[field]):
             leg[field] = None
+    # Flyable or not, decided once: an unflyable leg has no ground speed,
+    # ETE or fuel at all, rather than a zero or negative ground speed
+    # beside an ETE of None.
+    if leg["ete_min"] is None:
+        leg["groundspeed_kt"] = None
+        leg["fuel_gal"] = None
     return leg
 
 
@@ -158,21 +171,28 @@ DAY_RESERVE_MIN = 30.0
 NIGHT_RESERVE_MIN = 45.0
 
 
+#: Fuel for engine start, taxi and takeoff, where a profile has no figure
+#: of its own: the Cessna 172S handbook's allowance, 1.4 gal.
+DEFAULT_TAXI_FUEL_GAL = 1.4
+
+
 def fuel_plan(total_fuel_gal: float | None, aircraft_profile: dict, night: bool | None) -> dict:
-    """The fuel the flight needs -- the legs' own total plus the VFR
-    reserve at the profile's cruise burn -- against the profile's usable
-    fuel when it has one. `night` None means no departure time was
-    given, so the day reserve is assumed and said so. Every figure None
-    that cannot be known: no total while a leg is unflyable, no margin
-    without a usable-fuel figure."""
+    """The fuel the flight needs -- the start, taxi and takeoff allowance,
+    the legs' own total, and the VFR reserve at the profile's cruise burn
+    -- against the profile's usable fuel when it has one. `night` None
+    means no departure time was given, so the day reserve is assumed and
+    said so. Every figure None that cannot be known: no total while a leg
+    is unflyable, no margin without a usable-fuel figure."""
     reserve_min = NIGHT_RESERVE_MIN if night else DAY_RESERVE_MIN
     reserve_gal = round(reserve_min / 60 * aircraft_profile["fuel_burn_gph"], 2)
-    required = None if total_fuel_gal is None else round(total_fuel_gal + reserve_gal, 1)
+    taxi_gal = aircraft_profile.get("taxi_fuel_gal", DEFAULT_TAXI_FUEL_GAL)
+    required = None if total_fuel_gal is None else round(total_fuel_gal + taxi_gal + reserve_gal, 1)
     usable = aircraft_profile.get("usable_fuel_gal")
     margin = None if required is None or usable is None else round(usable - required, 1)
     return {
         "reserve_min": reserve_min,
         "reserve_gal": reserve_gal,
+        "taxi_gal": taxi_gal,
         "fuel_required_gal": required,
         "usable_fuel_gal": usable,
         "fuel_margin_gal": margin,

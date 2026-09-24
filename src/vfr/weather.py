@@ -224,14 +224,20 @@ def _nearest_station(lat: float, lon: float, station_ids, airports_df) -> str | 
     return str(codes[int(np.argmin(a))])
 
 
-def freezing_level_ft(lat: float, lon: float, fcst_hr: str = "06") -> float | None:
-    """Altitude (ft) where the nearest station's forecast temperature
-    profile crosses 0degC, by linear interpolation between the two
-    bracketing reported altitudes. Returns None if the whole reported
-    profile stays above freezing (no icing concern in range) -- callers
-    should treat None as "no altitude constraint from icing," not
-    "unknown."  If the profile is already below freezing at the lowest
-    reported altitude, returns that altitude as a conservative estimate.
+def freezing_level(lat: float, lon: float, fcst_hr: str = "06") -> dict | None:
+    """Where the nearest station's forecast temperature profile crosses
+    0 degC: {"ft", "at_or_below"}, by linear interpolation between the two
+    bracketing reported altitudes. None if the whole reported profile
+    stays above freezing (no icing concern in range) -- "no freezing
+    level in range", not "unknown".
+
+    `at_or_below` is true when it is already at or below 0 degC at the
+    lowest reported altitude -- 6,000 ft, since the winds-aloft product
+    gives no temperature at 3,000 -- so the freezing level is that
+    altitude or lower, somewhere the data cannot say. This used to return
+    the lowest altitude as though it were the freezing level and call it
+    conservative, which let everything under it pass as above freezing on
+    exactly the coldest days.
     """
     from . import airports
 
@@ -245,12 +251,12 @@ def freezing_level_ft(lat: float, lon: float, fcst_hr: str = "06") -> float | No
     if not profile:
         return None
     if profile[0][1] <= 0:
-        return profile[0][0]
+        return {"ft": float(profile[0][0]), "at_or_below": True}
 
     for (alt1, t1), (alt2, t2) in zip(profile, profile[1:]):
         if t1 > 0 and t2 <= 0:
             frac = t1 / (t1 - t2)
-            return alt1 + frac * (alt2 - alt1)
+            return {"ft": alt1 + frac * (alt2 - alt1), "at_or_below": False}
     return None
 
 
@@ -379,22 +385,34 @@ def _unix(iso: str | None) -> float | None:
 
 
 def _period(el) -> dict:
-    """A METAR, or one TAF forecast period, as the {"clouds", "visib"}
-    shape _ceiling_ft/_visibility_sm read."""
+    """A METAR, or one TAF forecast period, as the {"clouds", "visib",
+    "vert_vis"} shape _ceiling_ft/_visibility_sm read."""
     return {
         "clouds": [
             {"cover": sc.get("sky_cover"), "base": _int(sc.get("cloud_base_ft_agl"))}
             for sc in el.findall("sky_condition")
         ],
         "visib": el.findtext("visibility_statute_mi"),
+        "vert_vis": _int(el.findtext("vert_vis_ft")),
     }
 
 
 def _ceiling_ft(period: dict) -> float | None:
-    """Lowest BKN/OVC cloud base -- FEW/SCT don't count as a ceiling by
-    the FAA's own definition (broken or overcast only).
+    """The lowest broken, overcast or obscured layer -- FEW/SCT don't count
+    as a ceiling by the FAA's own definition.
+
+    An obscured sky is a ceiling at its vertical visibility (14 CFR 1.1).
+    The feed marks it `OVX`, with the height as the layer's base in a
+    METAR and only as `vert_vis_ft` in a TAF; counting BKN and OVC alone
+    left fog at the surface -- VV002, the lowest ceiling there is -- as
+    no ceiling at all.
     """
-    bases = [c["base"] for c in period.get("clouds", []) if c.get("cover") in ("BKN", "OVC") and c.get("base") is not None]
+    bases = [
+        c["base"] for c in period.get("clouds", [])
+        if c.get("cover") in ("BKN", "OVC", "OVX") and c.get("base") is not None
+    ]
+    if period.get("vert_vis") is not None:
+        bases.append(period["vert_vis"])
     return min(bases) if bases else None
 
 
@@ -451,8 +469,8 @@ def metar_for_idents(idents: list) -> dict:
 # --- Ceiling/visibility, from the TAFs ---
 
 # Within one start time, the base forecast (FM, or the TAF's own first
-# line) is the conditions to read; BECMG/TEMPO/PROB lines modify it.
-_CHANGE_ORDER = {"": 0, "FM": 0, "BECMG": 1, "TEMPO": 2}
+# line) sorts first; BECMG/TEMPO/PROB lines modify it.
+_CHANGE_ORDER = {"": 0, "FM": 0, "BECMG": 1, "TEMPO": 2, "PROB": 3}
 
 
 def _parse_tafs(xml_bytes: bytes) -> list:
@@ -508,10 +526,11 @@ def taf_for_idents(idents: list) -> dict:
     for ident in idents:
         station = stations.get(ident.upper())
         period = _current_forecast_period(station["fcsts"], now) if station else None
+        worst = _worst_in_window(station["fcsts"], now, now) if station else None
         answer[ident] = None if station is None else {
             "raw": station.get("raw"),
-            "ceiling_ft": _ceiling_ft(period) if period else None,
-            "visibility_sm": _visibility_sm(period) if period else None,
+            "ceiling_ft": worst["ceiling_ft"] if worst else None,
+            "visibility_sm": worst["visibility_sm"] if worst else None,
             "change": (period or {}).get("change") or "",
             "valid_from": (period or {}).get("timeFrom"),
             "valid_to": (period or {}).get("timeTo"),
@@ -520,15 +539,57 @@ def taf_for_idents(idents: list) -> dict:
 
 
 def _current_forecast_period(fcsts: list, now_unix: float) -> dict | None:
+    """The base period covering `now_unix`, or None when the TAF has none
+    covering it -- expired, or not valid yet. It used to fall back to the
+    first period, which read an expired forecast as the current one."""
     for period in fcsts:
         if period["timeFrom"] <= now_unix < period["timeTo"]:
             return period
-    return fcsts[0] if fcsts else None
+    return None
 
 
-def ceiling_visibility_along_route(route_start: tuple, route_end: tuple, corridor_buffer_nm: float = 10.0) -> dict:
+def _periods_in_window(fcsts: list, start: float, end: float) -> list:
+    """Every period that says something about [start, end]: the base
+    periods and TEMPO/PROB groups overlapping it, and a BECMG group that
+    began before its end -- a BECMG's change lasts past its own window,
+    to the next FM, and the feed carries no base period after it."""
+    overlapping = [p for p in fcsts if p["timeFrom"] <= end and p["timeTo"] > start]
+    bases = [p for p in overlapping if (p.get("change") or "")[:5] in ("", "FM")]
+    since = min((p["timeFrom"] for p in bases), default=start)
+    becoming = [
+        p for p in fcsts
+        if (p.get("change") or "").startswith("BECMG") and since <= p["timeFrom"] <= end and p not in overlapping
+    ]
+    return overlapping + becoming
+
+
+def _worst_in_window(fcsts: list, start: float, end: float) -> dict | None:
+    """The lowest ceiling and visibility the TAF forecasts anywhere in
+    [start, end], TEMPO and PROB groups included: a go/no-go read is the
+    worst the forecast allows, and taking only the base forecast let
+    `TEMPO 1/2SM FG` read as VFR. None when the TAF says nothing about
+    the window at all."""
+    periods = _periods_in_window(fcsts, start, end)
+    if not periods:
+        return None
+    ceilings = [c for c in (_ceiling_ft(p) for p in periods) if c is not None]
+    visibilities = [v for v in (_visibility_sm(p) for p in periods) if v is not None]
+    return {
+        "ceiling_ft": min(ceilings) if ceilings else None,
+        "visibility_sm": min(visibilities) if visibilities else None,
+    }
+
+
+def ceiling_visibility_along_route(
+    route_start: tuple, route_end: tuple, corridor_buffer_nm: float = 10.0, window: tuple | None = None,
+) -> dict:
     """Lowest forecast ceiling/visibility among TAF stations near the
-    route, for each station's current forecast period. TAFs are only
+    route, over `window` -- (start, end) in unix seconds, the flight from
+    departure to arrival; now when not given -- TEMPO and PROB groups
+    included (see _worst_in_window). A station whose TAF says nothing
+    about the window is left out rather than read at some other time.
+    It used to read every TAF at the moment of asking, so a plan for
+    tomorrow morning paired tomorrow's winds with today's ceilings. TAFs are only
     issued for towered/larger airports, so this searches a wider
     corridor (corridor_buffer_nm) than the tight pilotage corridor used
     elsewhere in this project -- a small departure/destination field
@@ -549,14 +610,14 @@ def ceiling_visibility_along_route(route_start: tuple, route_end: tuple, corrido
         if min_lat <= s["lat"] <= max_lat and min_lon <= s["lon"] <= max_lon
     ]
 
-    now = time.time()
+    start, end = window if window else (time.time(), time.time())
     per_station, ceilings, visibilities = [], [], []
     for station in stations:
-        period = _current_forecast_period(station["fcsts"], now)
-        if period is None:
+        worst = _worst_in_window(station["fcsts"], start, end)
+        if worst is None:
             continue
-        ceiling = _ceiling_ft(period)
-        visibility = _visibility_sm(period)
+        ceiling = worst["ceiling_ft"]
+        visibility = worst["visibility_sm"]
         per_station.append({"icaoId": station["icaoId"], "ceiling_ft": ceiling, "visibility_sm": visibility})
         if ceiling is not None:
             ceilings.append(ceiling)

@@ -217,8 +217,10 @@ export const api = {
   /** Adverse conditions, current/forecast weather, and airport info
    *  for the briefing -- one plain response, not a stream: every piece
    *  is a single quick call, not navlog's slow per-leg loop. */
-  briefing: (dep: string, dest: string) =>
-    planner.GET("/api/briefing", { params: { query: { dep, dest } } }).then(data<Briefing>),
+  /** The briefing for the flight: its forecast is read from `depart`
+   *  (now when empty) to an hour past arrival, `eteMin` later. */
+  briefing: (dep: string, dest: string, depart?: string, eteMin?: number) =>
+    planner.GET("/api/briefing", { params: { query: { dep, dest, depart, ete_min: eteMin } } }).then(data<Briefing>),
 
   /** Corridors the feature store already covers. */
   routes: () => planner.GET("/api/routes").then(data<BuiltRoutes>),

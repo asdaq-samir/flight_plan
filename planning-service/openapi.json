@@ -365,6 +365,11 @@
             "title": "Floor Ft",
             "type": "number"
           },
+          "freezing_level_at_or_below": {
+            "default": false,
+            "title": "Freezing Level At Or Below",
+            "type": "boolean"
+          },
           "freezing_level_ft": {
             "anyOf": [
               {
@@ -382,6 +387,18 @@
             },
             "title": "Hazards",
             "type": "array"
+          },
+          "icing_possible": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Icing Possible"
           },
           "low_ceiling_or_visibility": {
             "anyOf": [
@@ -592,6 +609,30 @@
             },
             "title": "Candidates Ft",
             "type": "array"
+          },
+          "course_magnetic_deg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Course Magnetic Deg"
+          },
+          "eastbound": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Eastbound"
           },
           "floor_ft": {
             "title": "Floor Ft",
@@ -4064,6 +4105,18 @@
             "default": null,
             "title": "Reserve Min"
           },
+          "taxi_gal": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Taxi Gal"
+          },
           "unflyable_legs": {
             "title": "Unflyable Legs",
             "type": "integer"
@@ -4334,7 +4387,7 @@
     },
     "/api/briefing": {
       "get": {
-        "description": "Everything the nav log's own leg math doesn't cover: adverse\nconditions (SIGMET/AIRMET), current conditions (METAR) and\nforecast (TAF-derived ceiling/visibility) along the route, and\neach airport's runways and radio frequencies.",
+        "description": "Everything the nav log's own leg math doesn't cover: adverse\nconditions (SIGMET/AIRMET), current conditions (METAR) and\nforecast (TAF-derived ceiling/visibility) along the route, and\neach airport's runways and radio frequencies.\n\nThe forecast is for the flight: from `depart` (now when not given;\nUTC when naive) to an hour past arrival, `ete_min` after it (two\nhours when not given). It used to be read at the moment of asking,\nwhatever time the pilot was planning to go.",
         "operationId": "briefing_api_briefing_get",
         "parameters": [
           {
@@ -4353,6 +4406,39 @@
             "schema": {
               "title": "Dest",
               "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "depart",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Depart"
+            }
+          },
+          {
+            "in": "query",
+            "name": "ete_min",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ete Min"
             }
           }
         ],

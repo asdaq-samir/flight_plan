@@ -132,9 +132,17 @@ export function usePlan(
   // app-wide, the briefing then stayed whatever it was when the route
   // loaded, for as long as the page stayed up. `load` is in the key for
   // the same reason as the nav log's: Load again means fresh weather.
+  //
+  // Its forecast is for the flight -- from the departure time to past
+  // arrival -- so it is asked again once the nav log's totals give the
+  // ETE; the previous answer stays up meanwhile, so the map's chips do
+  // not flash back to "checking".
+  const eteMin = totals?.ete_min ?? undefined;
   const briefing = useQuery({
-    queryKey: ["briefing", dep, dest, load], queryFn: () => api.briefing(dep, dest),
+    queryKey: ["briefing", dep, dest, depart, eteMin ?? null, load],
+    queryFn: () => api.briefing(dep, dest, depart || undefined, eteMin),
     enabled: !!course.data, staleTime: 5 * 60_000, refetchInterval: 5 * 60_000,
+    placeholderData: keepPreviousData,
   });
 
   // One "how to spot it" line per checkpoint, streamed on a pilot's

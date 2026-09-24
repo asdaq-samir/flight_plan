@@ -1,6 +1,6 @@
 """Recommended VFR cruising altitude for a route: terrain/obstacle floor,
-airspace/freezing-level/service-ceiling band, FAR 91.159 hemispheric
-rounding, and go/no-go weather flags. Same computation as notebook 08's
+airspace/service-ceiling band, FAR 91.159 hemispheric rounding leg by
+leg, and go/no-go weather flags, icing among them. Same computation as notebook 08's
 Steps 1-5, extracted here so nav-log-agent can call it too.
 
 Deliberately NOT wired back into notebook 08 to replace those cells --
@@ -115,6 +115,13 @@ def lowest_vfr_cruising_altitude(floor_ft: float, route_bearing_deg: float) -> f
     return float(candidate_ft)
 
 
+def _leg_course_magnetic_deg(a: tuple, b: tuple) -> float:
+    """One leg's magnetic course: the great-circle bearing between its
+    fixes less the variation at its midpoint."""
+    mid = ((a[0] + b[0]) / 2, (a[1] + b[1]) / 2)
+    return (bearing_deg(*a, *b) - magnetic_variation_deg(*mid)) % 360
+
+
 def legal_cruising_altitudes(floor_ft: float, ceiling_ft: float | None, route_bearing_deg: float) -> list:
     """Every legal VFR cruising altitude for the course from the floor up
     to the ceiling, ascending -- the hemispheric altitudes 2,000 ft
@@ -140,6 +147,7 @@ def select_cruise_altitude(
     fixes: list | None = None,
     fcst_hr: str = "06",
     pending: set | None = None,
+    window: tuple | None = None,
 ) -> dict:
     """Returns a dict with the recommended altitude (None if no legal VFR
     altitude exists for this route/aircraft) plus the floor/ceiling
@@ -151,7 +159,15 @@ def select_cruise_altitude(
     segment, as it always was. `fcst_hr` picks the winds/temperatures
     forecast period the freezing level is read from (see
     vfr.weather.forecast_hour). `pending`, when given, holds the stages
-    still running while this works (see _timed).
+    still running while this works (see _timed). `window`, (start, end)
+    in unix seconds, is the flight from departure to past arrival that
+    the go/no-go forecast is read over; now when not given.
+
+    The freezing level no longer caps the band. Icing needs visible
+    moisture as well as cold, so a hard ceiling at the freezing level
+    was wrong both ways: it forbade clear winter air, and said nothing
+    about cloud. It is reported instead, with `icing_possible` where a
+    legal altitude reaches it and cloud or an icing AIRMET is forecast.
     """
     def timed(label, fn):
         return _timed(label, fn, pending)
@@ -199,11 +215,11 @@ def select_cruise_altitude(
         )
         variation_future = pool.submit(timed("magnetic_variation_deg", magnetic_variation_deg), mid_lat, mid_lon)
         freezing_future = pool.submit(
-            timed("weather.freezing_level_ft", weather.freezing_level_ft), mid_lat, mid_lon, fcst_hr,
+            timed("weather.freezing_level", weather.freezing_level), mid_lat, mid_lon, fcst_hr,
         )
         cv_future = pool.submit(
             timed("weather.ceiling_visibility_along_route", weather.ceiling_visibility_along_route),
-            route_start, route_end,
+            route_start, route_end, window=window,
         )
         hazards_future = pool.submit(
             timed("weather.hazards_along_route", weather.hazards_along_route), route_start, route_end,
@@ -225,22 +241,17 @@ def select_cruise_altitude(
         airspace_result = airspace_future.result()
         airspace_ceilings_ft = airspace_result if fixes else [airspace_result]
         transits = transits_future.result()
-        # The hemispheric rule is written for magnetic course. The
-        # variation comes from NOAA's declination service, cached on
-        # disk per point; if that is unreachable the true course stands
-        # in, which only misplaces a course within a few degrees of
-        # north or south.
-        try:
-            variation_deg = variation_future.result()
-        except Exception:
-            variation_deg = 0.0
+        # The hemispheric rule is written for magnetic course, and the
+        # variation is the World Magnetic Model's (vfr.magnetic), worked
+        # out here with no network call.
+        variation_deg = variation_future.result()
         course_magnetic_deg = (route_bearing_deg - variation_deg) % 360
 
         weather_unavailable = []
         try:
-            freezing_level_ft = freezing_future.result()
+            freezing = freezing_future.result()
         except weather.WeatherServiceError:
-            freezing_level_ft = None
+            freezing = None
             weather_unavailable.append("freezing_level")
         try:
             cv = cv_future.result()
@@ -253,8 +264,11 @@ def select_cruise_altitude(
             hazards = []
             weather_unavailable.append("hazards")
 
+    freezing_level_ft = freezing["ft"] if freezing else None
+    freezing_at_or_below = bool(freezing and freezing["at_or_below"])
+
     def band_ceiling(airspace_ceiling_ft):
-        ceilings = [c for c in [airspace_ceiling_ft, freezing_level_ft, aircraft_profile["service_ceiling_ft"]] if c is not None]
+        ceilings = [c for c in [airspace_ceiling_ft, aircraft_profile["service_ceiling_ft"]] if c is not None]
         return min(ceilings) if ceilings else None
 
     # The whole route's own band: the highest floor and the lowest
@@ -285,18 +299,40 @@ def select_cruise_altitude(
 
     # Leg by leg, for the stepped plans: each leg's own floor and the
     # shelf over it alone, so a leg past the Bravo is free of it.
+    #
+    # Each leg is rounded against its own magnetic course, not the whole
+    # route's: 14 CFR 91.159 goes by the course being flown, and on a
+    # route near north or south a dogleg to a checkpoint can put one leg
+    # in the other half of the rule.
     segments = []
     if fixes:
         for i, (a, b) in enumerate(zip(breaks_nm, breaks_nm[1:])):
             segment_ceiling_ft = band_ceiling(airspace_ceilings_ft[i])
+            leg_course = _leg_course_magnetic_deg(fixes[i], fixes[i + 1])
             segments.append({
                 "from_nm": round(a, 1),
                 "to_nm": round(b, 1),
                 "floor_ft": floors_ft[i],
                 "airspace_ceiling_ft": airspace_ceilings_ft[i],
                 "band_ceiling_ft": segment_ceiling_ft,
-                "candidates_ft": legal_cruising_altitudes(floors_ft[i], segment_ceiling_ft, course_magnetic_deg),
+                "course_magnetic_deg": round(leg_course, 1),
+                "eastbound": is_eastbound(leg_course),
+                "candidates_ft": legal_cruising_altitudes(floors_ft[i], segment_ceiling_ft, leg_course),
             })
+
+    # Icing: an altitude this could recommend reaching the freezing level
+    # (any, where the level is at or below the lowest reported one), with
+    # the moisture icing needs -- a broken, overcast or obscured layer
+    # forecast along the route, or an icing AIRMET or SIGMET over it.
+    # None where the freezing level could not be checked.
+    legal = candidates_ft + [a for seg in segments for a in seg["candidates_ft"]]
+    reaches_freezing = freezing_level_ft is not None and (
+        freezing_at_or_below or any(a >= freezing_level_ft for a in legal)
+    )
+    moisture = cv["min_ceiling_ft"] is not None or any(
+        (h.get("hazard") or "").upper().startswith("ICE") for h in hazards
+    )
+    icing_possible = None if "freezing_level" in weather_unavailable else (reaches_freezing and moisture)
 
     # None (not False) when ceiling_visibility_along_route itself failed --
     # "unknown" must not read as "confirmed VFR-favorable" to a caller
@@ -316,6 +352,8 @@ def select_cruise_altitude(
         "airspace_ceiling_ft": airspace_ceiling_ft,
         "airspace_transits": transits,
         "freezing_level_ft": freezing_level_ft,
+        "freezing_level_at_or_below": freezing_at_or_below,
+        "icing_possible": icing_possible,
         "band_ceiling_ft": band_ceiling_ft,
         "min_ceiling_ft": cv["min_ceiling_ft"],
         "min_visibility_sm": cv["min_visibility_sm"],

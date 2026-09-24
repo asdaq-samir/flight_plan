@@ -140,7 +140,8 @@ def test_totals_carry_the_fuel_check(messages):
     # the profile holds 40 usable. No departure time: the day reserve is
     # assumed and `night` says so by being null.
     assert t["reserve_min"] == 30 and t["reserve_gal"] == 4.25 and t["night"] is None
-    assert t["fuel_required_gal"] == round(t["fuel_gal"] + 4.25, 1)
+    assert t["taxi_gal"] == 1.4    # the C172S handbook's start, taxi and takeoff allowance
+    assert t["fuel_required_gal"] == round(t["fuel_gal"] + 1.4 + 4.25, 1)
     assert t["usable_fuel_gal"] == 40 and t["fuel_margin_gal"] == round(40 - t["fuel_required_gal"], 1)
     # The climb from the 900 ft field to 4,500 ft is on the first leg.
     legs = [m for m in lines if m["type"] == "leg"]

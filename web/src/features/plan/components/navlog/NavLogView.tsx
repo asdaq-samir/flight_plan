@@ -664,7 +664,7 @@ export default function NavLogView({
           data-testid="fuel-check"
         >
           Fuel required {one(totals.fuel_required_gal)} gal
-          {` (${totals.reserve_min} min ${totals.night == null ? "day reserve, no departure time" : totals.night ? "night reserve" : "day reserve"})`}
+          {` (with ${one(totals.taxi_gal)} gal to start, taxi and take off and a ${totals.reserve_min} min ${totals.night == null ? "day reserve, no departure time" : totals.night ? "night reserve" : "day reserve"})`}
           {totals.usable_fuel_gal != null && ` of ${totals.usable_fuel_gal} usable`}
           {totals.fuel_margin_gal != null && totals.fuel_margin_gal < 0 && ` · short by ${one(-totals.fuel_margin_gal)} gal`}
         </div>

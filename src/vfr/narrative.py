@@ -120,8 +120,12 @@ def _format_altitude_selection(sel: dict | None) -> str:
         return "(the pilot set this altitude by hand; nothing was auto-selected)"
     lines = [
         f"Terrain/obstacle floor: {sel['floor_ft']:.0f}ft",
-        f"Airspace/freezing-level/service-ceiling band: {sel['band_ceiling_ft']}ft",
+        f"Airspace/service-ceiling band: {sel['band_ceiling_ft']}ft",
     ]
+    if sel.get("icing_possible"):
+        level = sel.get("freezing_level_ft")
+        where = (f"at or below {level:.0f}ft" if sel.get("freezing_level_at_or_below") else f"at {level:.0f}ft") if level else ""
+        lines.append(f"ICING POSSIBLE: freezing level {where}, with cloud or an icing AIRMET forecast along the route")
     if sel.get("low_ceiling_or_visibility"):
         lines.append(
             f"GO/NO-GO: ceiling {sel['min_ceiling_ft']}ft / visibility {sel['min_visibility_sm']}SM "
