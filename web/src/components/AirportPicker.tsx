@@ -43,14 +43,22 @@ function useDebounced<T>(value: T, delayMs: number): T {
 export default function AirportPicker({ value, onChange, placeholder, ariaLabel, invalid, className }: Props) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const q = useDebounced(query.trim(), 200);
-  const { data } = useQuery({
+  const typed = query.trim();
+  const q = useDebounced(typed, 200);
+  const { data, isPlaceholderData } = useQuery({
     queryKey: ["airportSearch", q],
     queryFn: () => api.airportSearch(q),
     enabled: open && q.length > 0,
     placeholderData: keepPreviousData,
   });
-  const results = q ? (data ?? []) : [];
+  // The rows answer `q`, which trails the box by the debounce and then by
+  // the request (the last answer stays up while the next one loads).
+  // Enter takes the highlighted row only once the rows answer what is in
+  // the box: it used to take it whenever there were rows, so "KD", a
+  // pause, then "LH" and a quick Enter set the field to the first "KD..."
+  // airport rather than KDLH.
+  const rows = typed && q ? (data ?? []) : [];
+  const answered = q === typed && !isPlaceholderData;
 
   const pick = (ident: string) => {
     onChange(ident.toUpperCase());
@@ -85,16 +93,19 @@ export default function AirportPicker({ value, onChange, placeholder, ariaLabel,
             value={query}
             onValueChange={setQuery}
             onKeyDown={e => {
-              // An ident the lookup has nothing for still goes through.
-              if (e.key === "Enter" && results.length === 0 && query.trim()) {
+              // What was typed goes through when the rows are not the
+              // answer to it yet, and when the lookup has nothing for it
+              // (a private strip, say).
+              if (e.key === "Enter" && typed && !(answered && rows.length > 0)) {
                 e.preventDefault();
-                pick(query.trim());
+                pick(typed);
               }
             }}
           />
-          <CommandList>
-            <CommandEmpty>{q ? "No airport matches; Enter keeps what you typed." : "Type an ident, or a name."}</CommandEmpty>
-            {results.map(r => (
+          {/* Dimmed while they answer something older than the box. */}
+          <CommandList className={cn(!answered && "opacity-60")} aria-busy={!answered}>
+            <CommandEmpty>{typed ? "No airport matches; Enter keeps what you typed." : "Type an ident, or a name."}</CommandEmpty>
+            {rows.map(r => (
               <CommandItem key={r.ident} value={r.ident} onSelect={() => pick(r.ident)}>
                 <span className="font-mono font-semibold">{r.ident}</span>
                 <span className="truncate text-muted-foreground">
