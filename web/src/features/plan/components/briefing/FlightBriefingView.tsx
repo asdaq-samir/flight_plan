@@ -1,13 +1,15 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useMemo } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { cn } from "cn";
 import { toast } from "sonner";
 import { Badge } from "../../../../components/ui/badge";
 import { Button } from "../../../../components/ui/button";
 import BriefingSection from "./BriefingSection";
-import { api, describeError } from "../../../../lib/api/client";
+import { api } from "../../../../lib/api/client";
+import { pilotQuery } from "../../../../lib/queryClient";
 import AltitudeReasoning from "../AltitudeReasoning";
 import type {
-  Briefing, Candidate, Course, Leg, NavLog, Pilot, SaveFlightRequest, Totals,
+  Briefing, Candidate, Course, Leg, NavLog, SaveFlightRequest, Totals,
 } from "../../../../lib/api/types";
 import type { BriefingState, FrameworkNarrative } from "../../hooks/usePlan";
 import { altFt, clockTime, deg } from "../../format";
@@ -127,52 +129,56 @@ function windsAloftSummary(legs: Leg[]): { dir: number; speed: number }[] {
  * as broken rather than as "sign in first."
  */
 function SaveFlightSection({
-  course, totals, nav, legs, dep, dest, selected, aircraftId, aircraftLabel, depart,
+  course, totals, nav, legs, selected, aircraftId, aircraftLabel, depart,
 }: {
   course: Course | null;
   totals: Totals | null;
   nav: Omit<NavLog, "legs" | "totals"> | null;
   legs: Leg[];
-  dep: string;
-  dest: string;
   selected: Candidate[];
   aircraftId: number | null;
   aircraftLabel: string;
   depart: string;
 }) {
-  const [pilot, setPilot] = useState<Pilot | null | "loading">("loading");
-  const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const queryClient = useQueryClient();
+  // The one ["pilot"] query the console and the header share: signed out
+  // after a Log out, back after a failed check is retried. A private
+  // one-shot lookup here used to hide the section for the session after
+  // one failed check, and keep offering Save after a Log out.
+  const { data: pilot } = useQuery(pilotQuery);
 
-  useEffect(() => { void api.me().then(setPilot); }, []);
-
-  // The nav log's own rows (navLogRows), as the checkpoints Spring files.
-  const buildCheckpoints = useCallback(
-    (): SaveFlightRequest["checkpoints"] => (course ? savedCheckpoints(navLogRows(course, selected, legs), course.distance_nm) : []),
-    [course, selected, legs],
-  );
-
-  if (pilot === "loading" || pilot === null) return null;
-
-  const save = () => {
-    if (!course) return;
-    setStatus("saving");
-    api.flights.save({
+  // What would be filed, and only once there is a whole plan to file:
+  // the course (the airports' own idents and places, not a route being
+  // switched to), the nav log and its totals. Save used to be offered
+  // mid-stream, or after a stream failed, and filed null totals.
+  const request = useMemo((): SaveFlightRequest | null => {
+    if (!course || !nav || !totals) return null;
+    return {
       aircraftId,
-      departureIdent: dep,
-      destinationIdent: dest,
-      cruiseAltitudeFt: nav?.altitude_ft ?? null,
-      totalDistanceNm: totals?.distance_nm ?? null,
-      totalEteMin: totals?.ete_min ?? null,
-      totalFuelGal: totals?.fuel_gal ?? null,
+      departureIdent: course.departure.ident,
+      destinationIdent: course.destination.ident,
+      cruiseAltitudeFt: nav.altitude_ft,
+      totalDistanceNm: totals.distance_nm,
+      totalEteMin: totals.ete_min,
+      totalFuelGal: totals.fuel_gal,
       plannedFor: depart || null,
-      checkpoints: buildCheckpoints(),
-    })
-      .then(() => setStatus("saved"))
-      .catch(err => {
-        setStatus("error");
-        toast.error(describeError(err, "Could not save this flight"));
-      });
-  };
+      // The nav log's own rows (navLogRows), as the checkpoints Spring files.
+      checkpoints: savedCheckpoints(navLogRows(course, selected, legs), course.distance_nm),
+    };
+  }, [course, nav, totals, aircraftId, depart, selected, legs]);
+
+  const save = useMutation({
+    mutationFn: api.flights.save,
+    // The pilot console's list of flights, which it keeps.
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["flights"] }),
+  });
+  // "Saved" belongs to the plan that was saved: another route, time,
+  // aeroplane or altitude is a new request, and Save is offered again.
+  // It used to stay "Saved" for the session, and a click filed a
+  // duplicate of whatever was on screen by then.
+  const saved = save.isSuccess && save.variables === request;
+
+  if (!pilot) return null;
 
   return (
     // One line and a button at the top of the sections, ruled off
@@ -184,8 +190,8 @@ function SaveFlightSection({
       <span className="text-muted-foreground">
         {aircraftId === null ? `Planned for a stock ${aircraftLabel}; no aeroplane of yours on file for it` : `Flown in ${aircraftLabel}`}
       </span>
-      <Button onClick={save} disabled={status === "saving" || !course}>
-        {status === "saving" ? "Saving…" : status === "saved" ? "Saved" : "Save this flight"}
+      <Button onClick={() => request && save.mutate(request)} disabled={!request || save.isPending || saved}>
+        {save.isPending ? "Saving…" : saved ? "Saved" : "Save this flight"}
       </Button>
     </div>
   );
@@ -286,7 +292,7 @@ export default function FlightBriefingView({
           leads the sections on its own line. Every weather section
           below stays collapsed -- skim the titles, open what applies. */}
       <SaveFlightSection
-        course={course} totals={totals} nav={nav} legs={legs} dep={dep} dest={dest} selected={selected}
+        course={course} totals={totals} nav={nav} legs={legs} selected={selected}
         aircraftId={aircraftId} aircraftLabel={aircraftLabel} depart={depart}
       />
       {briefingState.state === "ready" && briefingState.refreshError && (
