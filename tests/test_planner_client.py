@@ -72,3 +72,17 @@ def test_an_unreachable_planner_is_a_502(monkeypatch):
 
     assert err.value.status == 502
     assert "Could not reach planning-service" in str(err.value)
+
+
+def test_what_the_pilot_planned_with_is_passed_through(monkeypatch):
+    """Without these the planner answers for a departure now, its own
+    plan and the stock profile -- not the nav log the pilot sees."""
+    calls = []
+    _getting(monkeypatch, _Response(200, {"legs": []}), calls)
+
+    planner_client.plan("C81", "KDLH", depart="2026-09-25T13:00:00Z", altitude_choice="fastest",
+                        cruise_tas_kt=118, fuel_burn_gph=9.0, usable_fuel_gal=50)
+
+    (_, params), = calls
+    assert params == {"dep": "C81", "dest": "KDLH", "depart": "2026-09-25T13:00:00Z", "altitude_choice": "fastest",
+                      "cruise_tas_kt": 118, "fuel_burn_gph": 9.0, "usable_fuel_gal": 50}

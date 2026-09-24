@@ -36,21 +36,26 @@ def startup() -> None:
     db.preload_embedder()
 
 
-def _route(departure_ident: str, destination_ident: str, altitude_ft: float | None, aircraft_name: str | None) -> dict:
+def _route(departure_ident: str, destination_ident: str, altitude_ft: float | None, aircraft_name: str | None,
+           **pilot_inputs) -> dict:
     """The graph's input: only what the caller actually gave, so the
-    planner's own defaults (its altitude choice, its default aeroplane)
-    apply to the rest."""
+    planner's own defaults (its altitude choice, its default aeroplane,
+    now for the departure) apply to the rest."""
     state = {"departure_ident": departure_ident, "destination_ident": destination_ident}
     if altitude_ft is not None:
         state["altitude_ft"] = altitude_ft
     if aircraft_name:
         state["aircraft_name"] = aircraft_name
+    state.update({k: v for k, v in pilot_inputs.items() if v is not None})
     return state
+
 
 
 @mcp.tool()
 def generate_nav_log_briefing(
-    departure_ident: str, destination_ident: str, altitude_ft: float | None = None, aircraft_name: str | None = None
+    departure_ident: str, destination_ident: str, altitude_ft: float | None = None, aircraft_name: str | None = None,
+    depart: str | None = None, altitude_choice: str | None = None, cruise_tas_kt: float | None = None,
+    fuel_burn_gph: float | None = None, usable_fuel_gal: float | None = None,
 ) -> dict:
     """Generate a VFR nav-log briefing for a route: the nav log the
     planner flies (checkpoints from the trained model, each leg's legal
@@ -58,8 +63,19 @@ def generate_nav_log_briefing(
     climbs, headings, times and fuel) and a natural-language briefing of
     it, informed by similar past routes. aircraft_name picks one of the
     planner's aircraft profiles; omitted, its default.
+
+    To brief the flight a pilot actually planned, pass what they planned
+    with: `depart` (ISO 8601; the winds period, day or night reserve and
+    the forecast's hours), `altitude_choice` (lowest, highest or fastest),
+    and their aeroplane's `cruise_tas_kt`, `fuel_burn_gph` and
+    `usable_fuel_gal`. Left out: a departure now (the 6-hour winds, a day
+    reserve), the planner's own plan, and the profile's numbers.
     """
-    result = _graph.invoke(_route(departure_ident, destination_ident, altitude_ft, aircraft_name))
+    result = _graph.invoke(_route(
+        departure_ident, destination_ident, altitude_ft, aircraft_name, depart=depart,
+        altitude_choice=altitude_choice, cruise_tas_kt=cruise_tas_kt, fuel_burn_gph=fuel_burn_gph,
+        usable_fuel_gal=usable_fuel_gal,
+    ))
     return {
         "altitude_selection": result["altitude_selection"],
         "legs": result["legs"],
@@ -70,7 +86,9 @@ def generate_nav_log_briefing(
 
 @mcp.tool()
 def assemble_nav_log(
-    departure_ident: str, destination_ident: str, altitude_ft: float | None = None, aircraft_name: str | None = None
+    departure_ident: str, destination_ident: str, altitude_ft: float | None = None, aircraft_name: str | None = None,
+    depart: str | None = None, altitude_choice: str | None = None, cruise_tas_kt: float | None = None,
+    fuel_burn_gph: float | None = None, usable_fuel_gal: float | None = None,
 ) -> dict:
     """Everything a VFR nav-log briefing is made of, without writing the
     briefing: the nav log the planner flies -- the checkpoints worth
@@ -89,8 +107,15 @@ def assemble_nav_log(
     keeps a briefing written here consistent with one written there, and
     it carries the constraints that matter (plain prose, no Markdown, and
     nothing invented that the data does not support).
+
+    Pass `depart`, `altitude_choice` and the aeroplane's own numbers as
+    for generate_nav_log_briefing to get the nav log the pilot planned.
     """
-    result = _graph_unnarrated.invoke(_route(departure_ident, destination_ident, altitude_ft, aircraft_name))
+    result = _graph_unnarrated.invoke(_route(
+        departure_ident, destination_ident, altitude_ft, aircraft_name, depart=depart,
+        altitude_choice=altitude_choice, cruise_tas_kt=cruise_tas_kt, fuel_burn_gph=fuel_burn_gph,
+        usable_fuel_gal=usable_fuel_gal,
+    ))
     return {
         "departure_ident": departure_ident,
         "destination_ident": destination_ident,

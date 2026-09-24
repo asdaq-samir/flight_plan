@@ -12,8 +12,8 @@ def planner(monkeypatch):
     calls = []
 
     def record(name, answer):
-        def fake(*args):
-            calls.append((name, *args))
+        def fake(*args, **kwargs):
+            calls.append((name, *args, *(f"{k}={v}" for k, v in kwargs.items() if v is not None)))
             return answer
         return fake
 

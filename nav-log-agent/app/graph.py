@@ -42,6 +42,13 @@ class NavLogState(TypedDict, total=False):
     destination_ident: str
     altitude_ft: float  # optional input override; the planner's own choice if omitted
     aircraft_name: str  # optional; the planner's default aeroplane if omitted
+    # Optional, what the pilot planned with (see vfr.planner_client.plan):
+    # the departure time, the plan flown, and their own aeroplane's numbers.
+    depart: str
+    altitude_choice: str
+    cruise_tas_kt: float
+    fuel_burn_gph: float
+    usable_fuel_gal: float
     selected_checkpoints: list[dict]  # the checkpoints the legs fly between
     altitude_selection: dict
     legs: list[dict]
@@ -49,6 +56,10 @@ class NavLogState(TypedDict, total=False):
     similar_briefings: list[dict]
     briefing: str
     briefing_failed: bool  # set by generate_briefing's own except branch
+
+
+#: The inputs a pilot plans with, passed through to the planner as given.
+PILOT_INPUTS = ("depart", "altitude_choice", "cruise_tas_kt", "fuel_burn_gph", "usable_fuel_gal")
 
 
 def fetch_nav_log(state: NavLogState) -> dict:
@@ -59,6 +70,7 @@ def fetch_nav_log(state: NavLogState) -> dict:
     """
     plan = planner_client.plan(
         state["departure_ident"], state["destination_ident"], state.get("altitude_ft"), state.get("aircraft_name"),
+        **{k: state[k] for k in PILOT_INPUTS if state.get(k) is not None},
     )
     return {
         "selected_checkpoints": plan["selected"],

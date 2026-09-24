@@ -43,11 +43,13 @@ def get_recommended_altitude(departure_ident: str, destination_ident: str, aircr
 @tool("compute_dead_reckoning_legs")
 def compute_dead_reckoning_legs(
     departure_ident: str, destination_ident: str, altitude_ft: float, aircraft_name: str | None = None,
+    depart: str | None = None,
 ) -> str:
     """Compute the dead-reckoning nav-log legs at altitude_ft, from the
     departure airport through each checkpoint to the destination (true
     and magnetic heading, wind correction angle, groundspeed, ETE, fuel
     burn, the climb from the field), and the route's totals with the fuel
-    check, as JSON."""
-    plan = planner_client.plan(departure_ident, destination_ident, altitude_ft, aircraft_name)
+    check, as JSON. `depart` (ISO 8601) is the departure time the winds
+    and the fuel reserve are for; omitted, now."""
+    plan = planner_client.plan(departure_ident, destination_ident, altitude_ft, aircraft_name, depart=depart)
     return json.dumps({"legs": plan["legs"], "totals": plan["totals"]})
