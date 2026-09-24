@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 # SageMaker-Training-Job-shaped: retrain only. See requirements-training.txt
 # for why this is a separate image from Dockerfile.processing.
-FROM python:3.13-slim
+FROM python:3.14-slim
 
 WORKDIR /workspace
 
