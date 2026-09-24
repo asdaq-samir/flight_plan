@@ -13,9 +13,10 @@
 #
 # A new third-party import in src/vfr belongs here -- or in
 # requirements-charts.txt if only vfr.charts/vfr.chartvision need it.
-# The one exception is vfr.narrative's pydantic: only the two agents
-# import that module, and both install pydantic through their own
-# frameworks.
+# The two agents are the one kind of caller that doesn't install it:
+# they run only vfr.planner_client and vfr.narrative, and take what
+# those need (requests; pydantic, through their frameworks) in their
+# own files.
 # The CI build job imports what each service imports inside its built
 # image, so a missing line fails there rather than on a restart.
 #
@@ -28,6 +29,7 @@ pyarrow==25.0.1     # vfr.faa_data's Parquet cache of the obstacle table; the pi
 shapely==2.1.2      # vfr.airspace polygons, vfr.weather's hazards, vfr.osm's representative points
 pyshp==3.1.6        # vfr.airspace reads the FAA Class Airspace shapefile
 pyproj==3.8.0       # vfr.geo -- PROJ's distance/azimuth, scalar and vectorised over a whole corridor
+pydantic==2.13.5    # vfr.narrative -- the agents' request model; what planning-service's FastAPI resolves too
 scipy==1.18.1       # vfr.geo's cluster_points KD-tree (imported at vfr.geo's module level)
 pygeomag==1.1.0     # vfr.magnetic -- the World Magnetic Model, evaluated locally
 astral==3.2         # vfr.sun -- civil twilight, which sets the night fuel reserve

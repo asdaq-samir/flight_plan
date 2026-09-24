@@ -9,9 +9,9 @@ altitude formatting word for word in two files, the request model in two
 servers -- which is two chances for the comparison to stop being fair.
 
 Here, beside vfr.planner_client, because both agents already import vfr
-for that and nothing else. Unlike the rest of vfr this needs pydantic,
-which both agents install through their own frameworks (mcp, fastapi);
-nothing else imports this module.
+for that and nothing else. Its pydantic is on vfr's own list with the
+rest (src/requirements.txt); the agents, which install only what they
+import from vfr, get it with their frameworks (mcp, fastapi).
 """
 from typing import Literal
 
