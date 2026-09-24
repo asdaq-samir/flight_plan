@@ -248,12 +248,8 @@ export default function PlanWorkspace({ dep, dest, onRoute, sidebarOpen, childre
       onAltitudeChoiceChange={changeAltitudeChoice}
       depart={depart} onDepartChange={changeDepart}
       dep={planned.dep} dest={planned.dest}
-      depName={course?.departure.name ?? null} destName={course?.destination.name ?? null}
-      depLat={course?.departure.lat ?? 0} depLon={course?.departure.lon ?? 0}
-      destLat={course?.destination.lat ?? 0} destLon={course?.destination.lon ?? 0}
+      ends={course}
       selected={selected}
-      depElevationFt={course?.departure.elevation_ft ?? null}
-      destElevationFt={course?.destination.elevation_ft ?? null}
       descriptions={s.descriptions}
       onSaveDescription={s.saveDescription}
       onGenerateDescriptions={s.generateDescriptions}

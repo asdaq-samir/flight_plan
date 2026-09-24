@@ -11,6 +11,7 @@ import type {
 } from "../../../../lib/api/types";
 import type { FrameworkNarrative } from "../../hooks/usePlan";
 import { altFt, deg } from "../../format";
+import { navLogRows, savedCheckpoints } from "../navlog/rows";
 import { colourOf } from "../../../../lib/map/flightCategory";
 
 interface Props {
@@ -146,42 +147,11 @@ function SaveFlightSection({
 
   useEffect(() => { void api.me().then(setPilot); }, []);
 
-  // The same row shape the nav log table draws (departure, no leg --
-  // then one row per selected checkpoint and one for the destination,
-  // each carrying the leg that arrived there) -- just as a plain
-  // request payload instead of table cells.
-  const buildCheckpoints = useCallback((): SaveFlightRequest["checkpoints"] => {
-    if (!course) return [];
-    const rows: SaveFlightRequest["checkpoints"] = [{
-      sequenceNo: 0, name: dep, category: "departure",
-      lat: course.departure.lat, lon: course.departure.lon, alongTrackNm: 0,
-      legDistanceNm: null, trueCourseDeg: null, magneticHeadingDeg: null,
-      groundspeedKt: null, eteMin: null, fuelGal: null, altitudeFt: null,
-    }];
-    selected.forEach((cp, i) => {
-      const leg = legs[i];
-      rows.push({
-        sequenceNo: i + 1, name: cp.name || cp.category, category: cp.category,
-        lat: cp.lat, lon: cp.lon, alongTrackNm: cp.along_track_nm,
-        legDistanceNm: leg?.distance_nm ?? null, trueCourseDeg: leg?.true_course_deg ?? null,
-        magneticHeadingDeg: leg?.magnetic_heading_deg ?? null, groundspeedKt: leg?.groundspeed_kt ?? null,
-        eteMin: leg?.ete_min ?? null, fuelGal: leg?.fuel_gal ?? null,
-        // Each leg's own altitude: a plan may step, so the flight's one
-        // cruise altitude is not the whole story.
-        altitudeFt: leg?.altitude_ft ?? null,
-      });
-    });
-    const finalLeg = legs[selected.length];
-    rows.push({
-      sequenceNo: selected.length + 1, name: dest, category: "destination",
-      lat: course.destination.lat, lon: course.destination.lon, alongTrackNm: course.distance_nm,
-      legDistanceNm: finalLeg?.distance_nm ?? null, trueCourseDeg: finalLeg?.true_course_deg ?? null,
-      magneticHeadingDeg: finalLeg?.magnetic_heading_deg ?? null, groundspeedKt: finalLeg?.groundspeed_kt ?? null,
-      eteMin: finalLeg?.ete_min ?? null, fuelGal: finalLeg?.fuel_gal ?? null,
-      altitudeFt: finalLeg?.altitude_ft ?? null,
-    });
-    return rows;
-  }, [course, dep, dest, selected, legs]);
+  // The nav log's own rows (navLogRows), as the checkpoints Spring files.
+  const buildCheckpoints = useCallback(
+    (): SaveFlightRequest["checkpoints"] => (course ? savedCheckpoints(navLogRows(course, selected, legs), course.distance_nm) : []),
+    [course, selected, legs],
+  );
 
   if (pilot === "loading" || pilot === null) return null;
 

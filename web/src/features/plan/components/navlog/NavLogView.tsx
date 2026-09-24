@@ -23,6 +23,7 @@ import { altFt, clockTime, deg, describeSteps, describeTime, etaAt, one, signed,
 import BriefingSection from "../briefing/BriefingSection";
 import { BRIEFING_SECTIONS } from "../briefing/sections";
 import DepartPicker from "./DepartPicker";
+import { legOf, navLogRows, rowPoint, type NavLogRow, type RouteEnds } from "./rows";
 
 /** Every section of the drawer, the nav log's own first: what the
  *  printer gets, whatever is open on screen. */
@@ -46,24 +47,6 @@ declare module "@tanstack/react-table" {
 // documented way to say "just the core row/column/header model," not
 // a placeholder waiting to be filled in.
 const navLogTableFeatures = tableFeatures({});
-
-/** One row of the nav log's own data -- the departure, every scored
- *  checkpoint, and the destination all end up here in this same shape
- *  (unified from three previously-separate cases) since every numeric
- *  column already reduces to "—" whenever `leg` is undefined, which is
- *  true for the departure row the same way it's true for a checkpoint
- *  whose own leg hasn't streamed in yet -- the one column that
- *  genuinely needs to know it's the departure specifically is Alt,
- *  handled in that column's own `cell` below. */
-interface WaypointRow {
-  key: string;
-  isDeparture: boolean;
-  cp: Candidate | null;
-  name: string;
-  lat: number;
-  lon: number;
-  leg: Leg | undefined;
-}
 
 interface Props {
   totals: Totals | null;
@@ -102,32 +85,21 @@ interface Props {
   legs: Leg[];
   dep: string;
   dest: string;
-  /** The airport's own full name (e.g. "Osceola Municipal"), not the
-   *  ident already shown in the Waypoint column -- shown as a plain
-   *  line under each, the same spot a checkpoint's own description
-   *  sits, but never editable or AI-generated: there's no "how to
-   *  spot it" for an airport, and no LLM service behind this one, just
-   *  a fact the course response already carries. null before a course
-   *  has loaded. */
-  depName: string | null;
-  destName: string | null;
-  depLat: number;
-  depLon: number;
-  destLat: number;
-  destLon: number;
+  /** The course's two airports -- where the first and last rows are,
+   *  their field elevations (the Alt column's first and last rows: the
+   *  aircraft starts and lands there, not at a cruise altitude) and
+   *  their full names (shown under each, the same spot a checkpoint's
+   *  note sits, never editable). null until the course is known, and
+   *  then there are no rows at all. */
+  ends: RouteEnds | null;
   /** In the same order as `legs` -- the checkpoint leg `i` arrives at
    *  is `selected[i]`, matching how PlanWorkspace already builds the leg
    *  list itself (fixes = [departure, ...selected, destination]). */
   selected: Candidate[];
-  /** Field elevation at each end -- the altitude column's own first
-   *  and last rows, since the aircraft starts and lands there rather
-   *  than at the one constant cruise altitude every checkpoint in
-   *  between flies at. null when OurAirports has no recorded
-   *  elevation for that airport. */
-  depElevationFt: number | null;
-  destElevationFt: number | null;
   descriptions: Record<string, Description>;
-  onSaveDescription: (lat: number, lon: number, text: string) => void;
+  /** Resolves once the note is saved; the box keeps a pilot's typing
+   *  until then, and keeps it if the save fails. */
+  onSaveDescription: (lat: number, lon: number, text: string) => Promise<unknown>;
   /** The nav log section's own one-shot "generate now" for every
    *  checkpoint's description at once -- descriptions are visible
    *  (and editable) in every row regardless of whether this has ever
@@ -159,11 +131,11 @@ interface Props {
  * typing feel immediate without saving on every keystroke; the save
  * itself happens on blur.
  */
-function DescriptionCell({
+export function DescriptionCell({
   description, onSave, selected, onFocus,
 }: {
   description: Description | undefined;
-  onSave: (text: string) => void;
+  onSave: (text: string) => Promise<unknown>;
   /** Inverted the same way its own waypoint row is -- the two read as
    *  one selected group rather than a highlighted row sitting above
    *  an unrelated one. */
@@ -175,30 +147,28 @@ function DescriptionCell({
    *  its own description is what's actually being edited. */
   onFocus: () => void;
 }) {
-  const [draft, setDraft] = useState(description?.text ?? "");
-  // A fresh arrival from the stream (or someone else's edit) should
-  // overwrite an untouched draft -- but not fight typing in progress,
-  // which is why this only resets when the underlying text itself
-  // changes. Compared and reset during render, not in a useEffect: an
-  // effect only runs after the stale draft has already committed and
-  // painted, which is a visible one-frame flash of the old text every
-  // time a fresh description arrives; this react-hooks-docs-recommended
-  // "adjust state while rendering" pattern applies the reset before
-  // that first paint instead.
-  const [lastSeenText, setLastSeenText] = useState(description?.text);
-  if (description?.text !== lastSeenText) {
-    setLastSeenText(description?.text);
-    setDraft(description?.text ?? "");
-  }
-
+  // null while nobody is editing: the box shows the note as it stands,
+  // and a line that streams in shows at once. A string while a pilot
+  // types, kept until it is saved -- a generated line arriving in the
+  // middle does not replace it, and a save that fails leaves it in the
+  // box to try again. It used to be one string reset whenever the note
+  // changed, so a line arriving mid-typing replaced the typing, and the
+  // blur that followed saw nothing new to save.
+  const [draft, setDraft] = useState<string | null>(null);
   return (
     <Textarea
-      value={draft}
+      value={draft ?? description?.text ?? ""}
       onChange={e => setDraft(e.target.value)}
       onFocus={onFocus}
       onBlur={() => {
+        if (draft === null) return;
         const trimmed = draft.trim();
-        if (trimmed && trimmed !== (description?.text ?? "")) onSave(trimmed);
+        // Nothing new, or emptied: back to the note as it stands.
+        if (!trimmed || trimmed === (description?.text ?? "")) { setDraft(null); return; }
+        const typed = draft;
+        // Cleared once saved -- unless the pilot is typing again by then.
+        // A failure keeps the text; the query client reports it.
+        onSave(trimmed).then(() => setDraft(d => (d === typed ? null : d)), () => {});
       }}
       rows={1}
       placeholder={description?.source === "error" ? "Couldn't auto-generate — type one" : "How to spot it…"}
@@ -246,8 +216,8 @@ function DescriptionCell({
  */
 export default function NavLogView({
   totals, nav, onAltitudeChoiceChange, depart, onDepartChange,
-  legs, dep, dest, depName, destName, depLat, depLon, destLat, destLon,
-  selected, depElevationFt, destElevationFt, descriptions, onSaveDescription,
+  legs, dep, dest, ends,
+  selected, descriptions, onSaveDescription,
   onGenerateDescriptions, descriptionsLoading, actions, children,
   selectedPoint, onSelectPoint, alt, onAltChange, onSubmit,
   aircraftValue, aircraftOptions, onAircraftChange,
@@ -270,38 +240,17 @@ export default function NavLogView({
       window.removeEventListener("afterprint", after);
     };
   }, []);
-  // One row per waypoint the plan already knows about -- every scored
-  // checkpoint plus the destination -- regardless of how many of
-  // their legs have actually streamed in yet. `undefined` for `leg`
-  // is a real, expected state (not yet arrived), not an error.
-  const waypoints = [...selected, null].map((cp, i) => ({
-    cp,
-    name: cp ? (cp.name || cp.category) : dest,
-    lat: cp ? cp.lat : destLat,
-    lon: cp ? cp.lon : destLon,
-    leg: legs[i] as Leg | undefined,
-  }));
-
-  // The departure and every waypoint below it, unified into one data
-  // array TanStack Table can drive the header/cells from -- see
-  // `WaypointRow`'s own comment on why the departure's own special
-  // cases collapse into the same shape as everything else. Column
-  // defs are declared here, not module scope, since Alt's own header
-  // cell is a live form bound to this render's own `alt`/`onAltChange`
-  // -- the same reason `nav`/`destElevationFt`/`depElevationFt` are
-  // just closed over below rather than threaded through as TanStack's
-  // own per-column `meta`.
-  const data: WaypointRow[] = [
-    ...(selected.length > 0
-      ? [{ key: "departure", isDeparture: true, cp: null, name: dep, lat: depLat, lon: depLon, leg: undefined }]
-      : []),
-    ...waypoints.map(({ cp, name, lat, lon, leg }, i) => ({ key: String(i), isDeparture: false, cp, name, lat, lon, leg })),
-  ];
-  const columns: ColumnDef<typeof navLogTableFeatures, WaypointRow>[] = [
+  // One row per waypoint the plan knows about, regardless of how many
+  // legs have streamed in: a row whose leg has not arrived shows a dash
+  // in every column that needs one. Column defs are declared here, not
+  // at module scope, since they close over this render's `nav` and
+  // `depart`.
+  const data = navLogRows(ends, selected, legs);
+  const columns: ColumnDef<typeof navLogTableFeatures, NavLogRow>[] = [
     {
       id: "waypoint",
       header: "Waypoint",
-      cell: ({ row }) => row.original.name,
+      cell: ({ row }) => rowPoint(row.original).name,
       meta: { className: "text-left" },
     },
     {
@@ -316,53 +265,53 @@ export default function NavLogView({
       // at it -- a plan may step, so each leg carries its own -- and
       // the plan's first altitude until that leg streams in.
       cell: ({ row }) => {
-        const { isDeparture, cp, leg } = row.original;
-        return altFt(isDeparture ? depElevationFt : (cp ? (leg?.altitude_ft ?? nav?.altitude_ft) : destElevationFt));
+        const r = row.original;
+        return altFt(r.kind === "checkpoint" ? (r.leg?.altitude_ft ?? nav?.altitude_ft) : r.airport.elevation_ft);
       },
     },
     {
       id: "dist",
       header: "Dist",
-      cell: ({ row }) => (row.original.leg ? row.original.leg.distance_nm.toFixed(1) : "—"),
+      cell: ({ row }) => (legOf(row.original) ? legOf(row.original)!.distance_nm.toFixed(1) : "—"),
     },
     {
       id: "tc",
       header: "TC",
-      cell: ({ row }) => (row.original.leg ? deg(row.original.leg.true_course_deg) : "—"),
+      cell: ({ row }) => (legOf(row.original) ? deg(legOf(row.original)!.true_course_deg) : "—"),
     },
     {
       id: "wind",
       header: "Wind",
       cell: ({ row }) => {
-        const { leg } = row.original;
+        const leg = legOf(row.original);
         return leg ? (leg.wind ? `${deg(leg.wind.wind_dir_true_deg)}/${Math.round(leg.wind.wind_speed_kt)}` : "no data") : "—";
       },
     },
     {
       id: "wca",
       header: "WCA",
-      cell: ({ row }) => (row.original.leg ? signed(row.original.leg.wca_deg) : "—"),
+      cell: ({ row }) => (legOf(row.original) ? signed(legOf(row.original)!.wca_deg) : "—"),
     },
     {
       id: "th",
       header: "TH",
-      cell: ({ row }) => (row.original.leg ? deg(row.original.leg.true_heading_deg) : "—"),
+      cell: ({ row }) => (legOf(row.original) ? deg(legOf(row.original)!.true_heading_deg) : "—"),
     },
     {
       id: "var",
       header: "Var",
-      cell: ({ row }) => (row.original.leg ? signed(row.original.leg.magnetic_variation_deg) : "—"),
+      cell: ({ row }) => (legOf(row.original) ? signed(legOf(row.original)!.magnetic_variation_deg) : "—"),
     },
     {
       id: "mh",
       header: "MH",
-      cell: ({ row }) => (row.original.leg ? deg(row.original.leg.magnetic_heading_deg) : "—"),
+      cell: ({ row }) => (legOf(row.original) ? deg(legOf(row.original)!.magnetic_heading_deg) : "—"),
     },
     {
       id: "gs",
       header: "GS",
       cell: ({ row }) => {
-        const { leg } = row.original;
+        const leg = legOf(row.original);
         return leg ? (leg.groundspeed_kt === null ? "—" : Math.round(leg.groundspeed_kt)) : "—";
       },
     },
@@ -370,33 +319,23 @@ export default function NavLogView({
       id: "ete",
       header: "ETE",
       cell: ({ row }) => {
-        const { leg } = row.original;
+        const leg = legOf(row.original);
         return leg ? (leg.ete_min === null ? "unflyable" : one(leg.ete_min)) : "—";
       },
     },
     {
       id: "fuel",
       header: "Fuel",
-      cell: ({ row }) => (row.original.leg ? one(row.original.leg.fuel_gal) : "—"),
+      cell: ({ row }) => (legOf(row.original) ? one(legOf(row.original)!.fuel_gal) : "—"),
     },
   ];
-  // With a departure time, every row gets its ETA: the departure's
-  // own time, then the time each leg ends -- the minutes flown so far,
-  // unknown from the first leg that is not in yet or cannot be flown.
-  const minutesTo: (number | null)[] = [];
-  let flown: number | null = 0;
-  for (const leg of legs) {
-    flown = flown === null || leg.ete_min === null ? null : flown + leg.ete_min;
-    minutesTo.push(flown);
-  }
-  const etaColumn: ColumnDef<typeof navLogTableFeatures, WaypointRow> = {
+  // With a departure time, every row gets its ETA: the departure's own
+  // time, then the time each leg ends -- "—" from the first leg that is
+  // not in yet or cannot be flown (see navLogRows).
+  const etaColumn: ColumnDef<typeof navLogTableFeatures, NavLogRow> = {
     id: "eta",
     header: "ETA",
-    cell: ({ row }) => {
-      const { isDeparture, key } = row.original;
-      if (isDeparture) return clockTime(new Date(depart));
-      return etaAt(depart, minutesTo[Number(key)] ?? null);
-    },
+    cell: ({ row }) => etaAt(depart, row.original.minutesFlown),
   };
   if (depart) columns.push(etaColumn);
   // On paper only: the two columns a pilot fills in by hand in flight,
@@ -452,7 +391,7 @@ export default function NavLogView({
         ))}
       </TableHeader>
       <TableBody>
-        {selected.length === 0 && (
+        {data.length === 0 && (
           <TableRow><TableCell className="text-left text-muted-foreground" colSpan={columns.length}>No route planned yet</TableCell></TableRow>
         )}
         {/* One row per waypoint the plan already knows about, not
@@ -460,11 +399,12 @@ export default function NavLogView({
             undefined until its own line streams in, and every cell
             that depends on it shows a dash rather than waiting. The
             departure (when present) is `table`'s own first row,
-            unified with the rest -- see `WaypointRow`'s comment. */}
+            one kind of row among the three -- see rows.ts. */}
         {table.getRowModel().rows.map(row => {
-          const { isDeparture, cp, lat, lon } = row.original;
+          const r = row.original;
+          const { lat, lon } = rowPoint(r);
           const rowSelected = isSelected(lat, lon);
-          const leg = row.original.leg;
+          const leg = legOf(r);
           return (
             <Fragment key={row.id}>
               {/* A leg with no nearby winds-aloft station is a
@@ -477,7 +417,7 @@ export default function NavLogView({
                   it never has wind data of its own to judge. */}
               <SelectableRow
                 selected={rowSelected}
-                mutedWhenUnselected={isDeparture || !leg?.wind}
+                mutedWhenUnselected={r.kind === "departure" || !leg?.wind}
                 onSelect={() => onSelectPoint(lat, lon)}
                 scrollRef={rowSelected ? selectedRef : undefined}
               >
@@ -488,7 +428,7 @@ export default function NavLogView({
                 ))}
               </SelectableRow>
               <NoteRow selected={rowSelected} colSpan={columns.length}>
-                {isDeparture ? (
+                {r.kind === "departure" ? (
                   // The departure airport's own name, not editable
                   // and never AI-generated -- there's no "how to
                   // spot it" for an airport and no LLM service
@@ -497,20 +437,20 @@ export default function NavLogView({
                   // checkpoint's own description sits in, and
                   // inverts the same way when selected, so the
                   // pair still reads as one group.
-                  (depName ?? "—")
-                ) : cp ? (
+                  (r.airport.name ?? "—")
+                ) : r.kind === "checkpoint" ? (
                   <DescriptionCell
-                    description={descriptions[descriptionKey(cp.lat, cp.lon)]}
-                    onSave={text => onSaveDescription(cp.lat, cp.lon, text)}
+                    description={descriptions[r.key]}
+                    onSave={text => onSaveDescription(r.cp.lat, r.cp.lon, text)}
                     selected={rowSelected}
-                    onFocus={() => onSelectPoint(cp.lat, cp.lon)}
+                    onFocus={() => onSelectPoint(r.cp.lat, r.cp.lon)}
                   />
                 ) : (
                   // The destination airport's own name -- same
                   // plain, non-editable treatment as the
                   // departure's own row above; see NoteRow's own
                   // comment.
-                  (destName ?? "—")
+                  (r.airport.name ?? "—")
                 )}
               </NoteRow>
             </Fragment>
