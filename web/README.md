@@ -66,7 +66,7 @@ image `springboot-app/Dockerfile` builds the bundle with.
 
 ```bash
 # from the repo root
-docker compose up -d --build webapp       # full stack; pages at http://localhost:8080/app
+docker compose up -d --build --wait webapp   # full stack; returns once the pages answer (webapp's healthcheck)
 
 # typecheck, lint and unit tests
 docker run --rm -v "$PWD/web":/w -w /w node:26-slim \

@@ -302,6 +302,26 @@ services:
         condition: service_healthy
       planning-service:
         condition: service_healthy
+    # Ready means Spring's readiness group (the app and its database)
+    # says UP -- 20-30 s after the container starts, during which the
+    # pages 404. `docker compose up --wait` holds until this passes, so
+    # a test run started after it never meets a half-booted server.
+    # bash's /dev/tcp, not curl: the JRE image has neither curl nor
+    # wget. And CMD, not CMD-SHELL, which runs dash, where /dev/tcp
+    # does not exist.
+    healthcheck:
+      test:
+        - CMD
+        - bash
+        - -c
+        - >-
+          exec 3<>/dev/tcp/127.0.0.1/8080 &&
+          printf 'GET /actuator/health/readiness HTTP/1.0\r\nHost: localhost\r\n\r\n' >&3 &&
+          grep -q '"status":"UP"' <&3
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 90s
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/vfr_route
       SPRING_DATASOURCE_USERNAME: vfr
