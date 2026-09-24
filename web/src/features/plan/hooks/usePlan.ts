@@ -120,11 +120,14 @@ export function usePlan(
   });
   const needsBuild = notCollected(checkpoints.error);
 
+  // Everything the nav log is computed from -- the narratives below are
+  // keyed on the same, so a narrative is always about the log on screen.
+  const planKey = [
+    dep, dest, altitudeFt, altitudeChoice, depart, load,
+    aircraft.profile, aircraft.cruiseTasKt ?? null, aircraft.fuelBurnGph ?? null, aircraft.usableFuelGal ?? null,
+  ];
   const navlog = useQuery({
-    queryKey: [
-      "navlog", dep, dest, altitudeFt, altitudeChoice, depart, load,
-      aircraft.profile, aircraft.cruiseTasKt ?? null, aircraft.fuelBurnGph ?? null, aircraft.usableFuelGal ?? null,
-    ],
+    queryKey: ["navlog", ...planKey],
     queryFn: streamedQuery({
       streamFn: ({ signal }) => ended(
         api.navlog(dep, dest, altitudeFt || undefined, aircraft, altitudeChoice, depart || undefined, signal), "nav log",
@@ -256,8 +259,11 @@ export function usePlan(
     departure_ident: dep, destination_ident: dest, aircraft_name: nav.aircraft.name,
     altitude_ft: nav.altitude_ft, altitude_selection: nav.altitude_selection, legs,
   };
-  const narrativeKey = (framework: Framework) =>
-    ["narrative", framework, dep, dest, nav?.altitude_ft ?? null, nav?.aircraft.name ?? null, legs.length];
+  // The nav log's own key, not a few fields of it: this one left out the
+  // departure time, the choice of plan, Load and the aeroplane's own
+  // numbers, and held the leg count, which changes while legs stream --
+  // so a narrative could be shown, or printed, beside a different log.
+  const narrativeKey = (framework: Framework) => ["narrative", framework, ...planKey];
   const narrativeQuery = (framework: Framework) => ({
     queryKey: narrativeKey(framework),
     queryFn: streamedQuery({
@@ -275,9 +281,11 @@ export function usePlan(
     return { text: text || null, error: query.error ? describeError(query.error) : null, loading: query.isFetching };
   };
   const generateNarrative = useCallback((framework: Framework) => {
-    if (!nav) { toast.error("The nav log isn't fully loaded yet."); return; }
+    // Only a whole log: the request carries its legs, and a narrative of
+    // half of them would be kept for this key as if it were the whole.
+    if (!totals) { toast.error("The nav log isn't fully loaded yet."); return; }
     void (framework === "langgraph" ? langgraph : crewai).refetch();
-  }, [nav, langgraph, crewai]);
+  }, [totals, langgraph, crewai]);
 
   // Collecting a corridor nobody has collected: minutes of Overpass,
   // the FAA subscription and an elevation lookup per candidate, so the
