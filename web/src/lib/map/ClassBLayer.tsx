@@ -8,7 +8,7 @@ import type { ClassBAirport, Course } from "../api/types";
 import { usePreferences } from "../preferences";
 import { AirportCard } from "./AirportCard";
 import { colourOf } from "./flightCategory";
-import { classBIcon } from "./icons";
+import { airportIcon } from "./icons";
 import { MapPopup } from "./MapPopup";
 import { MapTooltip } from "./MapTooltip";
 import { useCardedMarker } from "./useCardedMarker";
@@ -29,6 +29,8 @@ function Details({ airport, leading }: { airport: ClassBAirport; leading?: React
       // Every weather field is optional in the planner's schema: a
       // field with no report is absent, and absent is shown as absent.
       weather={{
+        status: airport.flight_category || airport.metar ? "reported" : "no-report",
+        observedAt: airport.metar_observed_at ?? null,
         category: airport.flight_category ?? null,
         ceilingFt: airport.ceiling_ft ?? null,
         visibilitySm: airport.visibility_sm ?? null,
@@ -100,13 +102,17 @@ export function ClassBLayer({ course, onPreview }: { course: Course; onPreview: 
   });
 
   if (!show || !data) return null;
+  // The route's own departure and destination draw themselves (RouteMap),
+  // with this airport's forecast when it is one of these; drawing it here
+  // too stacked two chips on one field, each answering a tap differently.
+  const endpoints = new Set([course.departure.ident, course.destination.ident]);
   return (
     <>
-      {data.map(airport => (
+      {data.filter(airport => !endpoints.has(airport.ident)).map(airport => (
         <Marker
           key={airport.ident}
           position={[airport.lat, airport.lon]}
-          icon={classBIcon(colourOf(airport.flight_category), airport.ident)}
+          icon={airportIcon(colourOf(airport.flight_category), airport.ident, { classB: true })}
           eventHandlers={{
             // Close in, where the tiles exist, hovering previews the
             // sheet. mouseout rather than a timer: a marker that

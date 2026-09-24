@@ -2,12 +2,14 @@ import L from "leaflet";
 import { CircleMarker, Marker } from "react-leaflet";
 import type { ZoomControl } from "../../../components/MapControls";
 import { Badge } from "../../../components/ui/badge";
-import type { Briefing, Candidate, Course } from "../../../lib/api/types";
+import { useQuery } from "@tanstack/react-query";
+import { api } from "../../../lib/api/client";
+import type { Briefing, Candidate, ClassBAirport, Course } from "../../../lib/api/types";
 import { AirportCard, type AirportWeather } from "../../../lib/map/AirportCard";
+import { chipColourOf } from "../../../lib/map/flightCategory";
 import { CourseLine } from "../../../lib/map/CourseLine";
-import { colourOf } from "../../../lib/map/flightCategory";
 import { Halo } from "../../../lib/map/Halo";
-import { classBIcon, dotIcon } from "../../../lib/map/icons";
+import { airportIcon, dotIcon } from "../../../lib/map/icons";
 import { FocusOn } from "../../../lib/map/MapEffects";
 import { MapCard } from "../../../lib/map/MapCard";
 import { MapPopup } from "../../../lib/map/MapPopup";
@@ -16,6 +18,7 @@ import { MapTooltip } from "../../../lib/map/MapTooltip";
 import { OwnShipLayer } from "../../../lib/map/OwnShipLayer";
 import { useCardedMarker } from "../../../lib/map/useCardedMarker";
 import { useMarkerZooms, useZoomLevel } from "../../../lib/map/useZoomLevel";
+import { usePreferences } from "../../../lib/preferences";
 import { inkOn } from "../../../lib/scoreScale";
 import { scoreColor } from "../format";
 
@@ -42,11 +45,17 @@ interface Props {
   /** The "every landmark the model rated" switch, in the same popover
    *  the chart layers live in. */
   showAll: { on: boolean; onToggle: (on: boolean) => void };
-  /** The departure and destination's own current METAR, keyed by
-   *  ident -- the briefing's, fetched for the map now rather than only
-   *  once a pilot opens that drawer (see `usePlan`). Null before it
-   *  arrives, same as Class B reads an airport with no report yet. */
+  /** The departure and destination's own current METARs, keyed by
+   *  ident -- the briefing's (see `usePlan`) -- with whether that answer
+   *  is still on its way or could not be had. */
+  airportWeather: EndpointWeather;
+}
+
+export interface EndpointWeather {
   metars: Briefing["metars"] | null;
+  loading: boolean;
+  /** The briefing failed, or aviationweather.gov did not answer it. */
+  unavailable: boolean;
 }
 
 /** What a checkpoint's popup says: the same small card whether the
@@ -79,18 +88,69 @@ function CheckpointCard({ candidate, number }: { candidate: Candidate; number?: 
   );
 }
 
-/** A departure or destination's own METAR, in `AirportCard`'s shape --
- *  no forecast, which is a Class B field's own thing to have. `metar`
- *  is undefined before the briefing answers; either way this reads as
- *  `AirportCard`'s "no report" case, same as Class B's own unknown
- *  field. */
-function weatherOf(metar: Briefing["metars"][string] | undefined): AirportWeather {
+/** A departure or destination's weather, in `AirportCard`'s shape: its
+ *  own METAR from the briefing, and -- when it is a Class B field on the
+ *  Class B layer -- that layer's forecast for it. Each of "still
+ *  checking", "could not be checked" and "checked, no report" says so;
+ *  they used to share one "no report". */
+function weatherOf(ident: string, weather: EndpointWeather, classB: ClassBAirport | undefined): AirportWeather {
+  const forecast = classB && (classB.taf || classB.taf_ceiling_ft != null || classB.taf_visibility_sm != null)
+    ? { ceilingFt: classB.taf_ceiling_ft ?? null, visibilitySm: classB.taf_visibility_sm ?? null, raw: classB.taf ?? null }
+    : undefined;
+  const metar = weather.metars?.[ident];
+  const status = weather.unavailable ? "unavailable"
+    : weather.loading || !weather.metars ? "checking"
+      : metar ? "reported" : "no-report";
   return {
+    status,
     category: metar?.flight_category ?? null,
     ceilingFt: metar?.ceiling_ft ?? null,
     visibilitySm: metar?.visibility_sm ?? null,
     raw: metar?.raw ?? null,
+    observedAt: metar?.observed_at ?? null,
+    forecast,
   };
+}
+
+/**
+ * The route's departure and destination. Selectable like every other
+ * marker: a tap brings the map to it and selects it, which is also what
+ * the nav log's first and last rows do. They are the two markers drawn
+ * at every zoom, so on a route whose checkpoints are still too far out
+ * to draw they are the only ones there to tap. An airport chip coloured
+ * by the field's own current METAR; the Class B pill, and its forecast,
+ * when the field is one on the Class B layer (which then leaves it to
+ * this rather than drawing a second chip on top).
+ */
+function Endpoints({ course, weather, onSelectPoint }: { course: Course; weather: EndpointWeather; onSelectPoint: Props["onSelectPoint"] }) {
+  const { carded, cardEvents } = useCardedMarker<string>();
+  const classBShown = usePreferences(p => p.classB);
+  // The Class B layer's own answer, read from its cache rather than asked
+  // for again; only while that layer is showing.
+  const { data: classB } = useQuery({ queryKey: ["classB"], queryFn: api.classB, enabled: false });
+  return (
+    <>
+      {[course.departure, course.destination].map(a => {
+        const field = classBShown ? classB?.find(b => b.ident === a.ident) : undefined;
+        const w = weatherOf(a.ident, weather, field);
+        return (
+          <Marker
+            key={a.ident} position={[a.lat, a.lon]}
+            icon={airportIcon(chipColourOf(w), a.ident, { classB: !!field })}
+            eventHandlers={{
+              click: e => { L.DomEvent.stopPropagation(e); onSelectPoint(a.lat, a.lon); },
+              ...cardEvents(a.ident),
+            }}
+          >
+            {carded !== a.ident && (
+              <MapTooltip><AirportCard ident={a.ident} name={a.name} weather={w} /></MapTooltip>
+            )}
+            <MapPopup><AirportCard ident={a.ident} name={a.name} weather={w} /></MapPopup>
+          </Marker>
+        );
+      })}
+    </>
+  );
 }
 
 /** The candidates and the chosen checkpoints, each from its own zoom
@@ -143,10 +203,9 @@ function Checkpoints({ candidates, selected, showCandidates, onSelectCandidate }
  */
 export default function RouteMap({
   course, candidates, selected, showCandidates, focus, onSelectCandidate, onSelectPoint,
-  onReady, onZoomChange, zoom, showAll, metars,
+  onReady, onZoomChange, zoom, showAll, airportWeather,
 }: Props) {
   const focusZoom = course?.max_zoom ?? 12;
-  const { carded: endpointCarded, cardEvents: endpointCardEvents } = useCardedMarker<string>();
 
   return (
     <MapShell course={course} onReady={onReady} zoom={zoom} ownShip candidates={showAll} onZoomChange={onZoomChange}>
@@ -156,32 +215,7 @@ export default function RouteMap({
             line={course.course_line as [number, number][]}
             tooltip={`${course.departure.ident} → ${course.destination.ident} · ${course.distance_nm} nm`}
           />
-          {[course.departure, course.destination].map(a => {
-            const weather = weatherOf(metars?.[a.ident]);
-            return (
-              // Selectable like every other marker: a tap brings the map
-              // to it and selects it, which is also what the nav log's
-              // first and last rows do. They are the two markers drawn at
-              // every zoom, so on a route whose checkpoints are still too
-              // far out to draw they are the only ones there to tap. Same
-              // chip and card as a Class B airport, coloured by its own
-              // current METAR: it is an airport like any of those, not a
-              // plain waypoint.
-              <Marker
-                key={a.ident} position={[a.lat, a.lon]}
-                icon={classBIcon(colourOf(weather.category), a.ident)}
-                eventHandlers={{
-                  click: e => { L.DomEvent.stopPropagation(e); onSelectPoint(a.lat, a.lon); },
-                  ...endpointCardEvents(a.ident),
-                }}
-              >
-                {endpointCarded !== a.ident && (
-                  <MapTooltip><AirportCard ident={a.ident} name={a.name} weather={weather} /></MapTooltip>
-                )}
-                <MapPopup><AirportCard ident={a.ident} name={a.name} weather={weather} /></MapPopup>
-              </Marker>
-            );
-          })}
+          <Endpoints course={course} weather={airportWeather} onSelectPoint={onSelectPoint} />
           <Checkpoints candidates={candidates} selected={selected} showCandidates={showCandidates} onSelectCandidate={onSelectCandidate} />
           <OwnShipLayer />
           {focus && <Halo at={focus} />}

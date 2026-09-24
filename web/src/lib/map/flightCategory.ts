@@ -17,3 +17,10 @@ const UNKNOWN_COLOUR = "#8fa3b0";
 export function colourOf(category: string | null | undefined): string {
   return (category && CATEGORY_COLOURS[category]) || UNKNOWN_COLOUR;
 }
+
+/** A chip's colour for what is known of a field's weather: its category
+ *  once there is a report, grey while checking, when it could not be
+ *  checked, and when the field has no report. */
+export function chipColourOf(weather: { status: string; category: string | null } | null | undefined): string {
+  return colourOf(weather?.status === "reported" ? weather.category : null);
+}

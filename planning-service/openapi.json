@@ -1318,6 +1318,17 @@
             ],
             "title": "Metar"
           },
+          "metar_observed_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Metar Observed At"
+          },
           "name": {
             "title": "Name",
             "type": "string"
@@ -2297,6 +2308,17 @@
               }
             ],
             "title": "Flight Category"
+          },
+          "observed_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observed At"
           },
           "raw": {
             "anyOf": [

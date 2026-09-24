@@ -424,6 +424,10 @@ def _parse_metars(xml_bytes: bytes) -> dict:
         period = _period(el)
         latest[ident] = (observed, {
             "raw": el.findtext("raw_text"),
+            # When the report was made, so a page can say how old it is:
+            # the server keeps serving a copy for hours when a refresh
+            # fails, and a colour alone says nothing about its age.
+            "observed_at": observed or None,
             "flight_category": el.findtext("flight_category"),
             "ceiling_ft": _ceiling_ft(period),
             "visibility_sm": _visibility_sm(period),

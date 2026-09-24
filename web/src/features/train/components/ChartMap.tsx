@@ -7,9 +7,8 @@ import type { Course, Point, Rating } from "../../../lib/api/types";
 import { isEndpoint } from "../../../lib/api/types";
 import { AirportCard } from "../../../lib/map/AirportCard";
 import { CourseLine } from "../../../lib/map/CourseLine";
-import { colourOf } from "../../../lib/map/flightCategory";
 import { Halo } from "../../../lib/map/Halo";
-import { classBIcon, dotIcon } from "../../../lib/map/icons";
+import { airportIcon, dotIcon } from "../../../lib/map/icons";
 import { MapCard } from "../../../lib/map/MapCard";
 import { MapPopup } from "../../../lib/map/MapPopup";
 import { MapShell } from "../../../lib/map/MapShell";
@@ -119,13 +118,11 @@ export default function ChartMap({
             onClick={latlng => onAddAt(latlng.lat, latlng.lng)}
           />
           {endpoints.filter(isEndpoint).map((e, i) => (
-            // Same pin as a Class B or a route's own airport -- an
-            // airport is an airport on either map -- just uncoloured:
-            // training has no METAR for it to read, and grey is
-            // already what Class B draws for a field with no report,
-            // not a colour invented for this one.
+            // The same airport chip as the route map's, in white: the
+            // training map never asks about its weather, and grey is
+            // what a field that was asked and had no report looks like.
             <Marker
-              key={e.ident} position={[e.lat, e.lon]} icon={classBIcon(colourOf(null), e.ident)}
+              key={e.ident} position={[e.lat, e.lon]} icon={airportIcon("#ffffff", e.ident, { unchecked: true })}
               eventHandlers={{ click: ev => { L.DomEvent.stopPropagation(ev); onSelect("endpoint", i); } }}
             >
               {selected !== e && <MapTooltip><PointPreview point={e} /></MapTooltip>}

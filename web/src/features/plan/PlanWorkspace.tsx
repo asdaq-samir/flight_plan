@@ -298,7 +298,11 @@ export default function PlanWorkspace({ dep, dest, onRoute, sidebarOpen, childre
           onZoomChange={setZoomedIn}
           zoom={{ zoomedIn, onToggle: toggleZoom, disabled: !course }}
           showAll={{ on: showCandidates, onToggle: setShowCandidates }}
-          metars={s.briefing?.metars ?? null}
+          airportWeather={{
+            metars: s.briefing?.metars ?? null,
+            loading: s.loadingBriefing,
+            unavailable: !!s.briefingError || (s.briefing?.weather_unavailable.includes("metars") ?? false),
+          }}
         />
       </div>
     ),

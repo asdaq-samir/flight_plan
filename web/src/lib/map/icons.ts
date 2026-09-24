@@ -73,23 +73,36 @@ export function ownShipIcon(headingDeg: number | null) {
 }
 
 /**
- * An airport: the ident on a coloured chip, in its current flight
- * category's own colour where one applies (see `AirportCard`) -- grey
- * where it doesn't, a route's own departure/destination before their
- * METAR answers, or a training corridor's endpoint, which has none.
+ * An airport: the ident on a chip coloured by what is known of its
+ * weather (see `AirportCard`) -- grey where nothing is reported yet.
  *
  * A chip rather than a dot because an airport is always worth naming
  * outright -- a pilot deciding whether to route around Chicago wants
  * to see "ORD", not a coloured spot they have to hover to identify.
  * The white casing is the same reasoning as the checkpoint dots': a
  * coloured shape alone disappears into chart of the same hue.
+ *
+ * `classB` draws the pill a Class B field has had since the layer was
+ * added; every other airport gets squarer corners, so the route's own
+ * C81 no longer looks like O'Hare. `unchecked` is a field nobody asked
+ * about at all -- a training corridor's endpoint -- in white rather than
+ * the grey that means "asked, and no report".
+ *
+ * The box is sized from the ident, with the chip centred in it: a fixed
+ * 56 px box left-aligned a short ident off the airport's position and
+ * cut a seven-character one (US-1234) off its own tap target.
  */
-export function classBIcon(colour: string, ident: string) {
+export function airportIcon(colour: string, ident: string, { classB = false, unchecked = false } = {}) {
+  const width = Math.max(40, Math.ceil(ident.length * 7.5) + 22);
+  const shape = classB ? "rounded-full" : "rounded-md";
+  const fill = unchecked
+    ? "background-color:#ffffff;color:#1c1a17"
+    : `background-color:${text(colour)};color:#ffffff`;
   return L.divIcon({
     className: "",
-    iconSize: [56, 22], iconAnchor: [28, 11],
+    iconSize: [width, 24], iconAnchor: [width / 2, 12],
     html:
-      `<span class="rounded-full border-2 border-white px-1.5 py-0.5 text-[11px] font-bold text-white shadow-sm"` +
-      ` style="background-color:${text(colour)}">${text(ident)}</span>`,
+      `<span class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap ${shape} border-2 border-white px-1.5 py-0.5 text-[11px] font-bold shadow-sm outline outline-1 outline-[rgba(10,20,28,.45)]"` +
+      ` style="${fill}">${text(ident)}</span>`,
   });
 }

@@ -328,6 +328,8 @@ class Forecast(BaseModel):
 
 class Metar(BaseModel):
     raw: str | None = None
+    #: When the station made the report (ISO 8601, UTC).
+    observed_at: str | None = None
     flight_category: str | None = None
     ceiling_ft: float | None = None
     visibility_sm: float | None = None
@@ -846,6 +848,8 @@ class ClassBAirport(BaseModel):
     #: project's arithmetic.
     flight_category: str | None = None
     metar: str | None = None
+    #: When the METAR was made (ISO 8601, UTC).
+    metar_observed_at: str | None = None
     ceiling_ft: float | None = None
     visibility_sm: float | None = None
     wind_dir_true_deg: float | None = None
