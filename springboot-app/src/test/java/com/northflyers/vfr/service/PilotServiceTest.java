@@ -43,12 +43,40 @@ class PilotServiceTest {
     private PilotRepository pilots;
 
     private static OAuth2User oidcUser(String subject, String email, String name) {
-        OidcIdToken token = OidcIdToken.withTokenValue("token")
+        return oidcUser(subject, email, name, true);
+    }
+
+    private static OAuth2User oidcUser(String subject, String email, String name, Object emailVerified) {
+        OidcIdToken.Builder token = OidcIdToken.withTokenValue("token")
                 .claim("sub", subject)
                 .claim("email", email)
-                .claim("name", name)
-                .build();
-        return new DefaultOidcUser(java.util.List.of(), token);
+                .claim("name", name);
+        if (emailVerified != null) {
+            token.claim("email_verified", emailVerified);
+        }
+        return new DefaultOidcUser(java.util.List.of(), token.build());
+    }
+
+    /** An address the provider does not vouch for must not claim the
+     *  pilot who owns it -- nor make one for its owner to sign into. */
+    @Test
+    void anUnverifiedAddressAdoptsNobodyAndCreatesNobody() {
+        String email = UUID.randomUUID() + "@example.com";
+        Pilot owner = pilotService.fromVerifiedEmail(email);
+
+        assertThatThrownBy(() -> pilotService.fromOidcUser(oidcUser(UUID.randomUUID().toString(), email, "Mallory", false), "google"))
+                .isInstanceOf(UnverifiedEmailException.class);
+        assertThatThrownBy(() -> pilotService.fromOidcUser(oidcUser(UUID.randomUUID().toString(), UUID.randomUUID() + "@example.com", "M", null), "google"))
+                .isInstanceOf(UnverifiedEmailException.class);
+        assertThat(pilots.findById(owner.getId()).orElseThrow().getGoogleSubject()).isNull();
+    }
+
+    /** Apple sends the claim as a string. */
+    @Test
+    void applesStringClaimCounts() {
+        String email = UUID.randomUUID() + "@example.com";
+        Pilot pilot = pilotService.fromOidcUser(oidcUser(UUID.randomUUID().toString(), email, "A", "true"), "apple");
+        assertThat(pilot.getEmail()).isEqualTo(email);
     }
 
     @Test

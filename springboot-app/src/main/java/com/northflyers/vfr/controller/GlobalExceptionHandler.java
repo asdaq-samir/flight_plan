@@ -2,6 +2,7 @@ package com.northflyers.vfr.controller;
 
 import com.northflyers.vfr.dto.ErrorResponse;
 import com.northflyers.vfr.service.NoSuchAircraftException;
+import com.northflyers.vfr.service.UnverifiedEmailException;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -50,6 +51,18 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(NoSuchAircraftException.class)
     public ResponseEntity<ErrorResponse> handleNoSuchAircraft(NoSuchAircraftException ex) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ErrorResponse(ex.getMessage()));
+    }
+
+    /**
+     * Handles an OIDC sign-in whose provider has not verified the email
+     * address it carries.
+     *
+     * @param ex says which address and what to do about it
+     * @return 403 with that detail
+     */
+    @ExceptionHandler(UnverifiedEmailException.class)
+    public ResponseEntity<ErrorResponse> handleUnverifiedEmail(UnverifiedEmailException ex) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(new ErrorResponse(ex.getMessage()));
     }
 
     /**

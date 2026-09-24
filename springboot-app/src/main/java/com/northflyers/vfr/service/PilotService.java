@@ -69,6 +69,17 @@ public class PilotService {
             return bySubject.get();
         }
 
+        // Past this point the address is what identifies the pilot: an
+        // existing pilot with it is adopted, or a new one is made with it
+        // (and a later magic-link sign-in finds that one). So it must be
+        // an address the provider says this person controls. Without the
+        // check, an account at a provider that allows unverified
+        // addresses could claim anyone's pilot -- a developer's included,
+        // now that the role is enforced on the server -- or make one in
+        // their name for its owner to sign into later.
+        if (!emailVerified(user)) {
+            throw new UnverifiedEmailException(email);
+        }
         Optional<Pilot> byEmail = pilots.findByEmail(email);
         if (byEmail.isPresent()) {
             // Adopt the pre-existing record rather than creating a second
@@ -93,6 +104,13 @@ public class PilotService {
      * what a magic link asserts, and email is already {@link Pilot}'s
      * own stable identity column.
      */
+    /** Google sends `email_verified` as a boolean, Apple as the string
+     *  "true"; anything else, or nothing, is unverified. */
+    private static boolean emailVerified(OAuth2User user) {
+        Object verified = user.getAttribute("email_verified");
+        return Boolean.TRUE.equals(verified) || "true".equalsIgnoreCase(String.valueOf(verified));
+    }
+
     @Transactional
     public Pilot fromVerifiedEmail(String email) {
         return pilots.findByEmail(email).orElseGet(() -> pilots.save(new Pilot(email, email, null)));

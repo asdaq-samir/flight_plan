@@ -1,6 +1,7 @@
 package com.northflyers.vfr.security;
 
 import com.northflyers.vfr.service.PilotService;
+import com.northflyers.vfr.service.UnverifiedEmailException;
 import java.util.function.Supplier;
 import org.springframework.security.authorization.AuthorizationDecision;
 import org.springframework.security.authorization.AuthorizationManager;
@@ -31,9 +32,14 @@ final class DeveloperOnly implements AuthorizationManager<RequestAuthorizationCo
 
     @Override
     public AuthorizationDecision check(Supplier<Authentication> authentication, RequestAuthorizationContext context) {
-        boolean developer = pilots.current(authentication.get())
-                .map(pilot -> pilot.getRole().isDeveloper())
-                .orElse(false);
+        boolean developer;
+        try {
+            developer = pilots.current(authentication.get())
+                    .map(pilot -> pilot.getRole().isDeveloper())
+                    .orElse(false);
+        } catch (UnverifiedEmailException unverified) {
+            developer = false;
+        }
         return new AuthorizationDecision(developer);
     }
 }
