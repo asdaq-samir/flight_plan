@@ -94,6 +94,36 @@ def test_any_other_status_is_relayed_with_its_detail(monkeypatch):
     assert str(err.value) == "no model promoted"
 
 
+def _getting(monkeypatch, response):
+    monkeypatch.setattr(model_client._session, "get", lambda url, timeout: response)
+
+
+def test_the_built_routes_are_relayed_as_model_service_lists_them(monkeypatch):
+    _getting(monkeypatch, _Response(200, {"routes": [{"departure_ident": "C81", "destination_ident": "KDLH"}]}))
+
+    assert model_client.list_routes()["routes"][0]["departure_ident"] == "C81"
+
+
+def test_an_error_listing_the_routes_is_relayed_with_its_detail(monkeypatch):
+    # It was parsed as the list itself.
+    _getting(monkeypatch, _Response(503, {"detail": "features dir unreadable"}))
+
+    with pytest.raises(model_client.ModelServiceError) as err:
+        model_client.list_routes()
+
+    assert (err.value.status, str(err.value)) == (503, "features dir unreadable")
+
+
+def test_a_routes_answer_that_is_not_json_is_a_model_service_error(monkeypatch):
+    # It escaped as a ValueError, which the planner turned into a 500.
+    _getting(monkeypatch, _Response(200, None, text="<html>proxy</html>"))
+
+    with pytest.raises(model_client.ModelServiceError) as err:
+        model_client.list_routes()
+
+    assert err.value.status == 502
+
+
 def test_the_sagemaker_client_is_built_once_and_reused(monkeypatch):
     # boto3 is not installed here on purpose (see model_client.py's own
     # comment on the import) -- a fake module in sys.modules stands in for
