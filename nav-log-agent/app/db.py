@@ -62,12 +62,19 @@ def embed(text: str) -> list[float]:
     return _get_embedder().encode(text).tolist()
 
 
+def _connect() -> psycopg.Connection:
+    """The agent's own schema first, so its tables are made and found
+    there (migrations.py says why), then public, where an existing
+    `vector` extension lives."""
+    return psycopg.connect(DATABASE_URL, autocommit=True, options=f"-c search_path={migrations.SCHEMA},public")
+
+
 def ensure_schema() -> None:
     """Run once, at process startup -- applies any migration not yet
     recorded in schema_migrations. Must run before any register_vector()
     call (that needs the `vector` extension/type to already exist).
     """
-    conn = psycopg.connect(DATABASE_URL, autocommit=True)
+    conn = _connect()
     try:
         migrations.apply_all(conn)
     finally:
@@ -77,7 +84,7 @@ def ensure_schema() -> None:
 def get_connection() -> psycopg.Connection:
     """A fresh pgvector-aware connection -- one per call, not pooled, since
     this agent's request volume doesn't yet warrant a connection pool."""
-    conn = psycopg.connect(DATABASE_URL, autocommit=True)
+    conn = _connect()
     register_vector(conn)
     return conn
 

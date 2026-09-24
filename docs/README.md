@@ -273,7 +273,10 @@ service discovery at `planning-service.vfr-route.internal`.
 
 Two independent schemas on the same `db` Postgres container, each owned by
 its service and managed by versioned SQL migrations rather than an ORM
-auto-generating schema from code:
+auto-generating schema from code: `public` is the webapp's (Flyway), and
+`nav_log_agent` is the agent's. Flyway refuses to migrate a `public` that
+holds tables it has no history for, so the agent keeps out of it and the
+two can start in either order.
 
 ```mermaid
 erDiagram
@@ -337,10 +340,13 @@ erDiagram
   and it runs automatically on next startup. `ddl-auto` is `validate`, so
   drift between the JPA entities and the actual schema fails loudly at
   startup instead of silently altering a table.
-- **`nav-log-agent`** (`route_briefings`) — a minimal versioned-SQL runner
-  (`app/migrations.py`), no ORM. Add a file as
+- **`nav-log-agent`** (`nav_log_agent.route_briefings`) — a minimal
+  versioned-SQL runner (`app/migrations.py`), no ORM. Add a file as
   `app/migrations/V<N>__description.sql`; `ensure_schema()` (called at
-  agent startup) tracks applied versions and runs any new ones in order.
+  agent startup) tracks applied versions and runs any new ones in order,
+  each in one transaction with its history row. Its connections put
+  `nav_log_agent` first on the search path, so a migration names its
+  tables unqualified.
 
 ## AWS Target & Status
 

@@ -849,13 +849,16 @@ startup, in version order, once each, forever. Never edit an already-applied
 migration file — add a new one instead; Flyway (like every migration
 tool) assumes each version's content is immutable once it's run anywhere.
 
-**`nav-log-agent` uses a ~15-line hand-rolled equivalent**
+**`nav-log-agent` uses a ~30-line hand-rolled equivalent**
 ([`app/migrations.py`](../nav-log-agent/app/migrations.py)), because
 there's no ORM on the Python side to bring a full migration framework
 along with it, and pulling one in for one table would be overkill. It does
 the same conceptual thing at a much smaller scale: a `schema_migrations`
 table tracking applied version numbers, and a loop that runs any
-`V*.sql` file whose version isn't in that table yet. Reading this file is
+`V*.sql` file whose version isn't in that table yet, each file and its
+row in one transaction. Its tables live in their own `nav_log_agent`
+schema: Flyway owns `public`, and refuses to start on a `public` holding
+tables it has no history for. Reading this file is
 a good exercise in its own right — it's short enough to fully understand
 in five minutes, and it'll teach you what tools like Flyway are actually
 doing underneath their much larger feature set.
