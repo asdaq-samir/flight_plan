@@ -70,7 +70,7 @@ async function* streamOf(detections: Detection[], added: LoosePick[]): AsyncGene
   yield { type: "done", total: detections.length + added.length, added, summary: { ...summary, added: added.length } };
 }
 
-const savedPickResponse = (pick: LoosePick) => ({ ok: true, pick, summary });
+const savedPickResponse = (pick: LoosePick, displaced: { lat: number; lon: number; category: string }[] = []) => ({ ok: true, pick, summary, displaced });
 const deletedResponse = { ok: true, summary };
 
 function renderLabels(initialProps = { dep: "C81", dest: "KDLH" }) {
@@ -368,5 +368,26 @@ describe("useTraining", () => {
 
     expect(result.current.selected).toBe(result.current.detections[0]);
     expect(result.current.detections[0]!.rating).toBeNull();
+  });
+
+  test("a rating that takes the place of a nearby pick shows that pick unrated, as the planner now holds it", async () => {
+    // One pick per place, whatever each point is: rating the bridge took
+    // the river's pick beside it, and the river still showed its rating.
+    mockCourse.mockResolvedValue(courseFixture());
+    const river = detectionFixture({ lat: 43, lon: -89, category: "river", rating: 4, rated: true });
+    const bridge = detectionFixture({ lat: 43.0005, lon: -89, category: "road_or_rail" });
+    mockDetect.mockReturnValue(streamOf([river, bridge], []));
+    mockSavePick.mockResolvedValue(savedPickResponse(
+      loosePickFixture({ lat: 43.0005, lon: -89, category: "road_or_rail", rating: 5, rated: true }),
+      [{ lat: 43, lon: -89, category: "river" }],
+    ));
+    const { result } = renderLabels();
+    await loaded(result);
+
+    act(() => result.current.select(result.current.detections[1]!));
+    await act(async () => { await result.current.rate(5); });
+
+    expect(result.current.detections[0]).toMatchObject({ category: "river", rating: null, rated: false });
+    expect(result.current.detections[1]).toMatchObject({ rating: 5, rated: true });
   });
 });

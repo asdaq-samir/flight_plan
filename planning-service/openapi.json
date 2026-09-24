@@ -1986,6 +1986,30 @@
         "title": "DevServices",
         "type": "object"
       },
+      "DisplacedPick": {
+        "description": "A pick on another point that a save took the place of: the store\nkeeps one pick per place (vfr.routecsv.SAME_PLACE_NM), whatever each\npoint is.",
+        "properties": {
+          "category": {
+            "title": "Category",
+            "type": "string"
+          },
+          "lat": {
+            "title": "Lat",
+            "type": "number"
+          },
+          "lon": {
+            "title": "Lon",
+            "type": "number"
+          }
+        },
+        "required": [
+          "lat",
+          "lon",
+          "category"
+        ],
+        "title": "DisplacedPick",
+        "type": "object"
+      },
       "Forecast": {
         "properties": {
           "min_ceiling_ft": {
@@ -3312,6 +3336,14 @@
       },
       "PickSaved": {
         "properties": {
+          "displaced": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/DisplacedPick"
+            },
+            "title": "Displaced",
+            "type": "array"
+          },
           "ok": {
             "title": "Ok",
             "type": "boolean"

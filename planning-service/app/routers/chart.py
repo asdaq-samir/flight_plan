@@ -132,7 +132,7 @@ def add_pick(pick: PickRequest) -> PickSaved:
             "note": pick.note,
         }
     )
-    return PickSaved(ok=True, pick=saved, summary=chartlabels.summarise(route))
+    return PickSaved(ok=True, pick=saved, displaced=saved["displaced"], summary=chartlabels.summarise(route))
 
 
 @router.delete("/api/picks")

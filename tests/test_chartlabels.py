@@ -61,6 +61,21 @@ def test_a_nearby_click_counts_as_the_same_place(picks_file):
     assert len(load_picks(ROUTE, path=picks_file)) == 1
 
 
+def test_a_pick_on_another_point_nearby_is_named_when_it_is_displaced(picks_file):
+    # One pick per place, whatever each point is: rating the bridge takes
+    # the river's pick beside it, and the save says so, so the page can
+    # stop showing the river as rated. Re-rating the same point is no
+    # displacement at all.
+    save_pick(_pick(category="river"), path=picks_file)
+    again = save_pick(_pick(lat=LAT + 0.0002, category="river", rating=2), path=picks_file)   # the same river, re-rated
+    assert again["replaced"] and again["displaced"] == []
+
+    bridge = save_pick(_pick(lat=LAT + 0.0005, category="road_or_rail"), path=picks_file)
+
+    assert bridge["displaced"] == [{"lat": LAT + 0.0002, "lon": LON, "category": "river"}]
+    assert [p["category"] for p in load_picks(ROUTE, path=picks_file)] == ["road_or_rail"]
+
+
 def test_a_genuinely_different_place_is_its_own_pick(picks_file):
     save_pick(_pick(), path=picks_file)
     save_pick(_pick(lat=LAT + 0.5, lon=LON + 0.5), path=picks_file)

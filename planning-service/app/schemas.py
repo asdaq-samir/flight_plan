@@ -458,10 +458,23 @@ class PicksResponse(BaseModel):
     summary: PickSummary
 
 
+class DisplacedPick(BaseModel):
+    """A pick on another point that a save took the place of: the store
+    keeps one pick per place (vfr.routecsv.SAME_PLACE_NM), whatever each
+    point is."""
+
+    lat: float
+    lon: float
+    category: str
+
+
 class PickSaved(BaseModel):
     ok: bool
     pick: Pick
     summary: PickSummary
+    #: Picks on other points nearby that this one replaced -- no longer
+    #: saved, though the page may still show them rated.
+    displaced: list[DisplacedPick] = []
 
 
 class PickDeleted(BaseModel):

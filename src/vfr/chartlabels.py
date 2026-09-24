@@ -119,6 +119,16 @@ def save_pick(pick: dict, path: Path = CHART_PICKS_PATH) -> dict:
         write_rows(path, COLUMNS, [*kept, row])
 
     row["replaced"] = len(kept) < len(existing)
+    # One pick per place, whatever it is: a pick on another kind of thing
+    # within SAME_PLACE_NM -- the river beside the bridge being rated --
+    # goes with this save. Named, so the page can stop showing it as rated
+    # and say why. The same category nearby is this same point again (a
+    # detection's centroid shifts between tile blocks), not another one.
+    row["displaced"] = [
+        {"lat": old["lat"], "lon": old["lon"], "category": old["category"]}
+        for old in existing
+        if old not in kept and old["category"] != row["category"]
+    ]
     return row
 
 

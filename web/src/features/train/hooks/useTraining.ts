@@ -4,9 +4,10 @@ import { api, errorMessage } from "../../../lib/api/client";
 import { courseQuery } from "../../../lib/queryClient";
 import { routeOf } from "../../../lib/identSchema";
 import { ended } from "../../../lib/api/streams";
-import type { Course, Detection, Endpoint, LoosePick, Point, Rating, Role } from "../../../lib/api/types";
+import type { Course, Detection, Endpoint, LoosePick, PickSaved, Point, Rating, Role } from "../../../lib/api/types";
 import { usePreferences } from "../../../lib/preferences";
 import { pointKey, type PointKind } from "../logic";
+import { toast } from "sonner";
 
 /**
  * The training workspace's data: what the chart reader found for the
@@ -65,6 +66,25 @@ interface Edits {
 }
 
 const editOf = (p: Detection | LoosePick): Edit => ({ rating: p.rating, rated: p.rated, role: p.role, category: p.category });
+/** Picks on other points nearby that a save took the place of (the
+ *  planner keeps one per place, whatever each point is): shown unrated
+ *  again, as the planner now holds them, and said out loud -- it used to
+ *  happen silently, with the other point still showing its rating. */
+const withoutDisplaced = (e: Edits, saved: PickSaved, points: Map<string, { point: Point }>): Edits => {
+  if (saved.displaced.length === 0) return e;
+  const overrides = { ...e.overrides };
+  for (const d of saved.displaced) {
+    const key = pointKey(d);
+    const was = points.get(key)?.point as Detection | LoosePick | undefined;
+    if (was) overrides[key] = { ...editOf(was), ...overrides[key], rating: null, rated: false };
+  }
+  const what = saved.displaced.map(d => d.category.replace(/_/g, " ")).join(", ");
+  toast.info(`That took the place of the pick on the ${what} beside it`, {
+    description: "The planner keeps one pick per place.",
+  });
+  return { ...e, overrides };
+};
+
 /** A point added by hand, placed along the route by the planner once
  *  saved: until then it has no distances of its own, and it used to
  *  stay at 0 nm -- first in the flight-order walk -- for the session. */
@@ -215,11 +235,14 @@ export function useTraining(dep: string, dest: string) {
     const key = pointKey(target.p);
     try {
       const saved = await savePick(pickBody(target.course, target.p, target.kind, { rating }));
-      update(e => ({
-        ...placed(e, key, saved.pick),
-        overrides: { ...e.overrides, [key]: { ...before, rating, rated: true, role: saved.pick.role } },
-        undo: { key, kind: target.kind, before },
-      }));
+      update(e => {
+        const next = withoutDisplaced(placed(e, key, saved.pick), saved, latest.current.byKey);
+        return {
+          ...next,
+          overrides: { ...next.overrides, [key]: { ...before, rating, rated: true, role: saved.pick.role } },
+          undo: { key, kind: target.kind, before },
+        };
+      });
     } catch {
       update(e => ({ ...e, undo: null }));   // nothing landed, so nothing to step back to
     }
@@ -231,10 +254,10 @@ export function useTraining(dep: string, dest: string) {
     const key = pointKey(target.p);
     try {
       const saved = await savePick(pickBody(target.course, target.p, target.kind, { category }));
-      update(e => ({
-        ...placed(e, key, saved.pick),
-        overrides: { ...e.overrides, [key]: { ...editOf(target.p), category, role: saved.pick.role } },
-      }));
+      update(e => {
+        const next = withoutDisplaced(placed(e, key, saved.pick), saved, latest.current.byKey);
+        return { ...next, overrides: { ...next.overrides, [key]: { ...editOf(target.p), category, role: saved.pick.role } } };
+      });
     } catch { /* reported by the query client */ }
   }, [savePick, update]);
 
