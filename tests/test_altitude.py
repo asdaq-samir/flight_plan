@@ -21,7 +21,6 @@ def sources(monkeypatch):
     monkeypatch.setattr(airspace, "ensure_class_airspace_shapefile", lambda cache_dir: Path("/nowhere"))
     monkeypatch.setattr(terrain, "floor_profile", lambda start, end, breaks, faa_cache_dir=None: [2000.0] * (len(breaks) - 1))
     monkeypatch.setattr(airspace, "airspace_ceiling_profile", lambda start, end, fixes, shp: [None] * (len(fixes) - 1))
-    monkeypatch.setattr(airspace, "max_airspace_altitude_msl", lambda start, end, shp: None)
     monkeypatch.setattr(airspace, "airspace_transits", lambda start, end, shp, fixes=None: [])
     monkeypatch.setattr(altitude, "magnetic_variation_deg", lambda lat, lon: 0.0)
     monkeypatch.setattr(weather, "freezing_level", lambda lat, lon, fcst_hr="06": state["freezing"])
@@ -120,3 +119,23 @@ def test_special_use_unavailable_is_said_rather_than_treated_as_none(sources, mo
     result = altitude.select_cruise_altitude(DEP, DEST, PROFILE)
 
     assert "special_use" in result["weather_unavailable"]
+
+
+def test_no_fixes_is_the_direct_line_as_one_leg(sources, monkeypatch):
+    """One path for the Class B rule: without fixes the route is asked of
+    the leg-by-leg function as a single leg, and the answer is the same
+    as with the ends given as the fixes."""
+    asked = []
+
+    def ceilings(start, end, fixes, shp):
+        asked.append(fixes)
+        return [4500.0] * (len(fixes) - 1)
+
+    monkeypatch.setattr(airspace, "airspace_ceiling_profile", ceilings)
+    bare = altitude.select_cruise_altitude(DEP, DEST, PROFILE)
+    ends = altitude.select_cruise_altitude(DEP, DEST, PROFILE, fixes=[DEP, DEST])
+
+    assert asked == [[DEP, DEST], [DEP, DEST]]
+    fields = ("airspace_ceiling_ft", "band_ceiling_ft", "recommended_ft", "candidates_ft")
+    assert {k: bare[k] for k in fields} == {k: ends[k] for k in fields}
+    assert bare["airspace_ceiling_ft"] == 4500.0

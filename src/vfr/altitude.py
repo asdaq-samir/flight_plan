@@ -198,16 +198,13 @@ def select_cruise_altitude(
             timed("terrain.floor_profile", terrain.floor_profile),
             route_start, route_end, breaks_nm, faa_cache_dir=faa_cache_dir,
         )
-        if fixes:
-            airspace_future = pool.submit(
-                timed("airspace.airspace_ceiling_profile", airspace.airspace_ceiling_profile),
-                route_start, route_end, fixes, shp_path,
-            )
-        else:
-            airspace_future = pool.submit(
-                timed("airspace.max_airspace_altitude_msl", airspace.max_airspace_altitude_msl),
-                route_start, route_end, shp_path,
-            )
+        # The legs flown, or the direct line as the one leg: one path
+        # for the Class B rule, where two functions of different shapes
+        # used to be chosen between and the answer coerced back.
+        airspace_future = pool.submit(
+            timed("airspace.airspace_ceiling_profile", airspace.airspace_ceiling_profile),
+            route_start, route_end, fixes or [route_start, route_end], shp_path,
+        )
         # Class C/D along the way are not a ceiling -- two-way comms is
         # all they take -- but a pilot still wants to know they are coming.
         transits_future = pool.submit(
@@ -243,8 +240,7 @@ def select_cruise_altitude(
         # icing/ceiling/hazard verdict pretending the missing source
         # means "no concern found."
         floors_ft = floor_future.result()
-        airspace_result = airspace_future.result()
-        airspace_ceilings_ft = airspace_result if fixes else [airspace_result]
+        airspace_ceilings_ft = airspace_future.result()
         transits = transits_future.result()
         # The hemispheric rule is written for magnetic course, and the
         # variation is the World Magnetic Model's (vfr.magnetic), worked

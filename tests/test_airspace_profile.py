@@ -42,3 +42,14 @@ def test_class_c_and_d_and_the_routes_own_surface_areas_impose_nothing(monkeypat
     monkeypatch.setattr(airspace, "load_controlled_airspace", lambda shp_path, bbox: shapes)
 
     assert airspace.airspace_ceiling_profile(START, END, [START, MID, END], shp_path="unused") == [None, None]
+
+
+def test_the_route_wide_ceiling_is_the_one_leg_profile_on_every_fixture(monkeypatch):
+    for shapes in (
+        [_shelf(3600.0, -90.2, 39.8, -89.5, 40.4)],
+        [_shelf(3600.0, -90.2, 39.8, -89.5, 40.4), _shelf(2600.0, -90.1, 39.9, -89.8, 40.2, name="INNER")],
+        [_shelf(2000.0, -90.2, 39.8, -89.5, 40.4, klass="C"), _shelf(0.0, -90.1, 39.9, -89.9, 40.1, name="OWN")],
+    ):
+        monkeypatch.setattr(airspace, "load_controlled_airspace", lambda shp_path, bbox, shapes=shapes: shapes)
+        assert airspace.max_airspace_altitude_msl(START, END, shp_path="unused") == \
+            airspace.airspace_ceiling_profile(START, END, [START, END], shp_path="unused")[0]

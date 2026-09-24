@@ -339,26 +339,12 @@ def max_airspace_altitude_msl(route_start: tuple, route_end: tuple, shp_path) ->
     not the surface -- C81/Grayslake sits laterally under Chicago's Class
     B, whose floor there is a few thousand feet, so it still imposes a
     ceiling exactly as before.
+
+    The same rule as airspace_ceiling_profile, over the route as its one
+    leg -- it was a second copy of the Class B filter and the own-surface
+    exclusion, which had to change in both places.
     """
-    from .geo import corridor_bbox
-
-    bbox = corridor_bbox(route_start, route_end, buffer_nm=2.0)
-    polygons = load_controlled_airspace(shp_path, bbox)
-    if not polygons:
-        return None
-
-    route_line = LineString([(route_start[1], route_start[0]), (route_end[1], route_end[0])])
-    start_point = Point(route_start[1], route_start[0])
-    end_point = Point(route_end[1], route_end[0])
-
-    floors = [
-        p["floor_ft_msl"]
-        for p in polygons
-        if p["class"] in CLEARANCE_CLASSES
-        and route_line.intersects(p["geometry"])
-        and not is_own_surface_area(p, start_point, end_point)
-    ]
-    return min(floors) if floors else None
+    return airspace_ceiling_profile(route_start, route_end, [route_start, route_end], shp_path)[0]
 
 
 def airspace_ceiling_profile(route_start: tuple, route_end: tuple, fixes: list, shp_path) -> list:
