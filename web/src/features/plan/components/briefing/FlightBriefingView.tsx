@@ -11,7 +11,8 @@ import AltitudeReasoning from "../AltitudeReasoning";
 import type {
   Briefing, Candidate, Course, Leg, NavLogAltitude, SaveFlightRequest, Totals,
 } from "../../../../lib/api/types";
-import type { BriefingState, FrameworkNarrative } from "../../hooks/usePlan";
+import type { FrameworkNarrative } from "../../hooks/useNarratives";
+import type { BriefingState } from "../../hooks/usePlan";
 import { altFt, clockTime, deg } from "../../format";
 import { navLogRows, savedCheckpoints } from "../navlog/rows";
 import { colourOf } from "../../../../lib/map/flightCategory";

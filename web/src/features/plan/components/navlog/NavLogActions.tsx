@@ -4,7 +4,7 @@ import IconButton from "../../../../components/IconButton";
 import { Popover, PopoverContent, PopoverTrigger } from "../../../../components/ui/popover";
 import { ScrollArea } from "../../../../components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../../../components/ui/tabs";
-import type { FrameworkNarrative } from "../../hooks/usePlan";
+import type { FrameworkNarrative } from "../../hooks/useNarratives";
 
 type Framework = "langgraph" | "crewai";
 

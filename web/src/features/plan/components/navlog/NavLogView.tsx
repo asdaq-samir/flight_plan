@@ -18,7 +18,7 @@ import {
   Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow,
 } from "../../../../components/ui/table";
 import type { AltitudeChoice, Candidate, Leg, NavLogAltitude, Totals } from "../../../../lib/api/types";
-import { type Description, descriptionKey } from "../../hooks/usePlan";
+import { type Description, descriptionKey } from "../../hooks/useCheckpointNotes";
 import { altFt, clockTime, deg, describeSteps, describeTime, etaAt, one, signed, totalsParts } from "../../format";
 import BriefingSection from "../briefing/BriefingSection";
 import { BRIEFING_SECTIONS } from "../briefing/sections";

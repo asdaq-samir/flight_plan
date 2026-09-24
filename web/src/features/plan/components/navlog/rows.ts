@@ -1,5 +1,5 @@
 import type { Airport, Candidate, Course, Leg, SaveFlightRequest } from "../../../../lib/api/types";
-import { descriptionKey } from "../../hooks/usePlan";
+import { descriptionKey } from "../../hooks/useCheckpointNotes";
 
 /**
  * The nav log's rows, in the order they are flown: the departure, each

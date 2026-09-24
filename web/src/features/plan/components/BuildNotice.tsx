@@ -1,6 +1,6 @@
 import { Button } from "../../../components/ui/button";
 import { Alert, AlertAction, AlertDescription, AlertTitle } from "../../../components/ui/alert";
-import type { Build } from "../hooks/usePlan";
+import type { Build } from "../hooks/useCorridorBuild";
 
 interface Props {
   dep: string;

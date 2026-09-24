@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, test, vi } from "vitest";
-import type { Description } from "../../hooks/usePlan";
+import type { Description } from "../../hooks/useCheckpointNotes";
 import { DescriptionCell } from "./NavLogView";
 
 afterEach(cleanup);
