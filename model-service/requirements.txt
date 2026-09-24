@@ -6,13 +6,15 @@ pydantic==2.13.5
 # stub before that), so the serving image now needs the model's own
 # runtime.
 #
-# These are PINNED on purpose while docker/requirements-training.txt is
-# not. A joblib artifact is a pickle of scikit-learn's own objects, so the
-# version that loads it has to match the version that wrote it -- an
-# unpinned serving image drifting ahead of the training image is a
+# Pinned exactly as the image that writes the model pins them
+# (docker/requirements-training.txt, numpy and pandas through
+# src/requirements.txt). A joblib artifact is a pickle of scikit-learn's
+# own objects, so the version that loads it has to match the version that
+# wrote it -- a serving image drifting from the training image is a
 # textbook way to get an InconsistentVersionWarning and, eventually, a
-# model that either fails to unpickle or silently mispredicts. Pinned to
-# what pipeline-training currently resolves to; bump both together.
+# model that either fails to unpickle or silently mispredicts. The
+# training side used to be unpinned under a "bump both together" note;
+# tests/test_requirements.py now fails if the two differ.
 scikit-learn==1.9.1
 numpy==2.5.3
 pandas==3.0.5
