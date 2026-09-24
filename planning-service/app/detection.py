@@ -18,8 +18,7 @@ def faa_airports(start, end, half_width_nm, dep_ident, dest_ident) -> list:
     other.
     """
     if "path" not in _APT_CACHE:
-        _, apt_csv_path, _dof = faa_data.ensure_nasr_data(DATA_DIR / "raw" / "faa_nasr")
-        _APT_CACHE["path"] = apt_csv_path
+        _APT_CACHE["path"] = faa_data.ensure_nasr_file("APT_BASE.csv", DATA_DIR / "raw" / "faa_nasr")
     bbox = geo.corridor_bbox(start, end, half_width_nm + 1.0)
     # APT_BASE is a large national CSV and re-parsing it per request cost
     # 2.1 s, which was the entire time-to-first-marker on a streamed

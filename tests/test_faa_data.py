@@ -67,3 +67,35 @@ def test_a_new_dof_cycle_rebuilds_the_cache(tmp_path, monkeypatch):
 
     assert parses == [dof]
     assert list(rebuilt["city"]) == ["DES MOINES", "OMAHA"]
+
+
+# --- each NASR file on its own ---
+
+def test_a_file_already_there_costs_no_download(tmp_path, monkeypatch):
+    (tmp_path / "DOF.DAT").write_text("x")
+    monkeypatch.setattr(faa_data, "find_current_cycle_page", lambda url: pytest.fail("scraped the NASR index"))
+    monkeypatch.setattr(faa_data, "download_and_extract", lambda url, dest: pytest.fail("downloaded"))
+
+    assert faa_data.ensure_nasr_file("DOF.DAT", tmp_path) == tmp_path / "DOF.DAT"
+
+
+def test_an_evicted_airport_file_fails_only_the_airports(tmp_path, monkeypatch):
+    """The three were ensured together: an evicted APT_BASE.csv failed the
+    terrain floor, which reads only DOF.DAT."""
+    (tmp_path / "DOF.DAT").write_text("x")
+    (tmp_path / ".APT_BASE.csv.icloud").write_text("placeholder")
+    monkeypatch.setattr(faa_data, "find_current_cycle_page", lambda url: "page")
+    monkeypatch.setattr(faa_data, "find_download_link", lambda page, pattern: "https://example/APT_CSV.zip")
+    monkeypatch.setattr(faa_data, "download_and_extract", lambda url, dest: None)   # iCloud takes it straight back
+
+    with pytest.raises(RuntimeError, match="iCloud evicted APT_BASE.csv"):
+        faa_data.ensure_nasr_file("APT_BASE.csv", tmp_path)
+    assert faa_data.ensure_nasr_file("DOF.DAT", tmp_path) == tmp_path / "DOF.DAT"
+
+
+def test_the_three_together_keep_their_order(tmp_path):
+    for name in ("NAV_BASE.csv", "APT_BASE.csv", "DOF.DAT"):
+        (tmp_path / name).write_text("x")
+    assert faa_data.ensure_nasr_data(tmp_path) == (
+        tmp_path / "NAV_BASE.csv", tmp_path / "APT_BASE.csv", tmp_path / "DOF.DAT",
+    )

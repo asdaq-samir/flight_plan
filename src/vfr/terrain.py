@@ -100,8 +100,7 @@ def floor_profile(
     terrain_ft = [(i * spacing_nm, elevations_m[p] * M_TO_FT) for i, p in enumerate(sample_points)]
 
     bbox = geo.corridor_bbox(route_start, route_end, buffer_nm=corridor_half_width_nm + 2)
-    *_, dof_path = faa_data.ensure_nasr_data(faa_cache_dir)
-    obstacles = faa_data.load_obstacles(dof_path, bbox, min_agl_ft=0)
+    obstacles = faa_data.load_obstacles(faa_data.ensure_nasr_file("DOF.DAT", faa_cache_dir), bbox, min_agl_ft=0)
     obstacle_ft = [
         (geo.along_track_distance_nm(lat, lon, route_start, route_end), tags["amsl_ft"])
         for lat, lon, tags in zip(obstacles["lat"], obstacles["lon"], obstacles["tags"])

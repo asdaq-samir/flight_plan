@@ -120,45 +120,47 @@ def _is_icloud_evicted(path: Path) -> bool:
     return not path.exists() and (path.parent / f".{path.name}.icloud").exists()
 
 
-def ensure_nasr_data(cache_dir) -> tuple:
-    """Download+extract the current-cycle NAV CSV, APT CSV and national
-    DOF data into cache_dir if not already cached. Returns
-    (nav_csv_path, apt_csv_path, dof_dat_path).
+# Where each file comes from: NAV and APT from the current NASR cycle's
+# page, DOF from its own index. Each is its own download, published on its
+# own, and read by different callers.
+_NASR_FILES = {
+    "NAV_BASE.csv": lambda: find_download_link(find_current_cycle_page(NASR_INDEX_URL), r'href="([^"]*NAV_CSV\.zip)"'),
+    "APT_BASE.csv": lambda: find_download_link(find_current_cycle_page(NASR_INDEX_URL), r'href="([^"]*APT_CSV\.zip)"'),
+    "DOF.DAT": lambda: find_download_link(DOF_INDEX_URL, r'href="(https://aeronav\.faa\.gov/Obst_Data/DOF_\d+\.zip)"'),
+}
+
+
+def ensure_nasr_file(name: str, cache_dir) -> Path:
+    """One of the NASR/DOF files -- "NAV_BASE.csv", "APT_BASE.csv" or
+    "DOF.DAT" -- downloaded and extracted into cache_dir if it is not
+    there, and its path.
+
+    Each file on its own: the three used to be ensured together and any
+    one missing failed all of them, so an evicted APT_BASE.csv failed the
+    terrain floor, which reads only DOF.DAT, after scraping the NASR index
+    and downloading a zip it did not need.
     """
     cache_dir = Path(cache_dir)
-    nav_path = cache_dir / "NAV_BASE.csv"
-    apt_path = cache_dir / "APT_BASE.csv"
-    dof_path = cache_dir / "DOF.DAT"
-
-    cycle_page = None
-    if not nav_path.exists():
-        cycle_page = find_current_cycle_page(NASR_INDEX_URL)
-        nav_url = find_download_link(cycle_page, r'href="([^"]*NAV_CSV\.zip)"')
-        download_and_extract(nav_url, cache_dir)
-
-    if not apt_path.exists():
-        cycle_page = cycle_page or find_current_cycle_page(NASR_INDEX_URL)
-        apt_url = find_download_link(cycle_page, r'href="([^"]*APT_CSV\.zip)"')
-        download_and_extract(apt_url, cache_dir)
-
-    if not dof_path.exists():
-        dof_url = find_download_link(DOF_INDEX_URL, r'href="(https://aeronav\.faa\.gov/Obst_Data/DOF_\d+\.zip)"')
-        download_and_extract(dof_url, cache_dir)
-
-    missing = [p for p in (nav_path, apt_path, dof_path) if not p.exists()]
-    if missing:
-        evicted = [p.name for p in missing if _is_icloud_evicted(p)]
-        if evicted:
-            raise RuntimeError(
-                f"iCloud evicted {', '.join(evicted)} from {cache_dir}. Re-downloading "
-                "will not hold while this directory syncs to iCloud -- exclude data/raw "
-                "from syncing (a parent directory named to end in '.nosync', or keeping "
-                "the project outside Desktop/Documents)."
-            )
+    path = cache_dir / name
+    if not path.exists():
+        download_and_extract(_NASR_FILES[name](), cache_dir)
+    if path.exists():
+        return path
+    if _is_icloud_evicted(path):
         raise RuntimeError(
-            f"Missing after download: {', '.join(p.name for p in missing)} in {cache_dir}."
+            f"iCloud evicted {name} from {cache_dir}. Re-downloading "
+            "will not hold while this directory syncs to iCloud -- exclude data/raw "
+            "from syncing (a parent directory named to end in '.nosync', or keeping "
+            "the project outside Desktop/Documents)."
         )
-    return nav_path, apt_path, dof_path
+    raise RuntimeError(f"Missing after download: {name} in {cache_dir}.")
+
+
+def ensure_nasr_data(cache_dir) -> tuple:
+    """(nav_csv_path, apt_csv_path, dof_dat_path), each ensured as
+    ensure_nasr_file does -- for the pipeline's collect and notebook 01,
+    which read all three."""
+    return tuple(ensure_nasr_file(name, cache_dir) for name in ("NAV_BASE.csv", "APT_BASE.csv", "DOF.DAT"))
 
 
 # Facility types the sectional draws as a landable airport. A heliport is
@@ -403,8 +405,7 @@ def _write_obstacle_cache(dof_dat_path: Path, key: tuple, df: pd.DataFrame) -> N
 def preload_obstacles(cache_dir) -> None:
     """Parses (or reads back) the obstacle table now, so a service can
     pay the cold cost at startup rather than on a pilot's first request."""
-    _, _, dof_path = ensure_nasr_data(cache_dir)
-    _load_all_obstacles(dof_path)
+    _load_all_obstacles(ensure_nasr_file("DOF.DAT", cache_dir))
 
 
 def load_obstacles(dof_dat_path, bbox: tuple, min_agl_ft: float = 200) -> pd.DataFrame:
