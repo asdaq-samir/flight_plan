@@ -26,7 +26,15 @@ def test_a_narrative_request_without_legs_is_refused_before_a_crew_is_built(monk
     body = {k: v for k, v in NAV_LOG.items() if k != "legs"}
     response = client.post("/compare", json=body)
     assert response.status_code == 422
+    # nav-log-agent's body, one string naming the field -- not FastAPI's list.
+    assert response.json() == {"detail": "invalid nav log: legs: Field required"}
     assert built == []
+
+
+def test_a_narrative_request_that_is_not_json_is_the_same_422_as_nav_log_agents():
+    response = client.post("/compare", content=b"not json", headers={"content-type": "application/json"})
+    assert response.status_code == 422
+    assert response.json() == {"detail": "invalid nav log: the request body is not JSON"}
 
 
 def test_a_narrative_request_hands_the_crew_the_nav_log_and_no_tools(monkeypatch):

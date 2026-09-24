@@ -11,14 +11,23 @@ import json
 from collections.abc import Iterator
 
 from crewai.types.streaming import StreamChunkType
-from fastapi import FastAPI
-from fastapi.responses import StreamingResponse
+from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse, StreamingResponse
 
-from vfr.narrative import NarrativeRequest
+from vfr.narrative import NarrativeRequest, invalid_detail
 
 from .main import build_crew
 
 app = FastAPI()
+
+
+@app.exception_handler(RequestValidationError)
+async def _invalid(request: Request, err: RequestValidationError) -> JSONResponse:
+    """The 422 nav-log-agent answers with, one `detail` string naming each
+    field -- FastAPI's own list of errors was a second shape for the
+    webapp to relay."""
+    return JSONResponse({"detail": invalid_detail(err)}, status_code=422)
 
 
 @app.get("/")

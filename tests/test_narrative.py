@@ -102,3 +102,17 @@ def test_no_value_is_printed_as_none():
     assert "None" not in text
     assert "GO/NO-GO: forecast visibility 2.5SM near the route" in text
     assert "no ceiling below Class A" in text
+
+
+def test_a_field_the_agents_do_not_know_is_refused_by_name():
+    """Both agents dropped one silently, so either could narrate a nav log
+    the other did not."""
+    with pytest.raises(ValidationError) as err:
+        narrative.NarrativeRequest.model_validate(_request(altitude_override=5500))
+    assert narrative.invalid_detail(err.value) == "invalid nav log: altitude_override: Extra inputs are not permitted"
+
+
+def test_which_altitudes_are_flown_may_be_said():
+    assert narrative.NarrativeRequest.model_validate(_request(flown="highest")).flown == "highest"
+    with pytest.raises(ValidationError):
+        narrative.NarrativeRequest.model_validate(_request(flown="sideways"))

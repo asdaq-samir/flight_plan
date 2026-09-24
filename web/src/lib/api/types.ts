@@ -188,11 +188,13 @@ export type SaveFlightRequest = Webapp["SaveFlightRequest"];
 
 /** The nav log on screen, handed to an agent to write about -- what
  *  `/api/comparison` forwards to nav-log-agent or crewai-agent. Both
- *  agents check it on arrival (a missing field is a 422 naming it). */
+ *  agents check it on arrival against vfr.narrative.NarrativeRequest: a
+ *  missing field, or one it does not know, is a 422 naming it. */
 export interface NarrativeRequest {
   departure_ident: string;
   destination_ident: string;
-  aircraft_name: string;
+  /** Omitted, the planner's default aeroplane. */
+  aircraft_name?: string | null;
   altitude_ft: number;
   altitude_selection: AltitudeBreakdown | null;
   legs: Leg[];

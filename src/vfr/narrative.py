@@ -13,6 +13,8 @@ for that and nothing else. Unlike the rest of vfr this needs pydantic,
 which both agents install through their own frameworks (mcp, fastapi);
 nothing else imports this module.
 """
+from typing import Literal
+
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 BRIEFING_WORDS = 200
@@ -50,14 +52,23 @@ class NarrativeRequest(BaseModel):
     """The nav log the flight planning drawer already shows, handed to an
     agent to write about rather than to recompute -- what the webapp's
     /api/comparison forwards untouched. `aircraft_name` omitted means the
-    planner's own default aeroplane; `altitude_selection` is null when the
-    pilot typed the altitude."""
+    planner's own default aeroplane. `flown`, when sent, says which
+    altitudes the legs fly: "custom" for the pilot's own, else the
+    planner's plan of that name.
+
+    A field it does not know is refused, not dropped: the two frameworks
+    are compared on the same input, and one that quietly ignored a field
+    the other read would be narrating a different nav log with nothing
+    to show for it."""
+
+    model_config = ConfigDict(extra="forbid")
 
     departure_ident: str = Field(max_length=10)
     destination_ident: str = Field(max_length=10)
     aircraft_name: str | None = Field(default=None, max_length=40)
     altitude_ft: float
     altitude_selection: dict | None = None
+    flown: Literal["custom", "lowest", "highest", "fastest"] | None = None
     legs: list[dict] = Field(min_length=1, max_length=MAX_LEGS)
 
     @field_validator("legs")
@@ -68,6 +79,25 @@ class NarrativeRequest(BaseModel):
         for leg in legs:
             NarrativeLeg.model_validate(leg)
         return legs
+
+
+def invalid_detail(err: Exception) -> str:
+    """The one 422 `detail` both agents answer a bad NarrativeRequest with,
+    naming each field and what was wrong -- nav-log-agent's own, which
+    crewai-agent's FastAPI list-of-errors used to differ from. `err` is a
+    pydantic ValidationError, FastAPI's RequestValidationError (whose
+    locations start at "body") or the ValueError of a body that is not
+    JSON."""
+    errors = err.errors() if hasattr(err, "errors") else []
+    if not errors or any(e.get("type") == "json_invalid" for e in errors):
+        return "invalid nav log: the request body is not JSON"
+    parts = []
+    for e in errors:
+        loc = [str(part) for part in e["loc"]]
+        if loc[:1] == ["body"]:
+            loc = loc[1:]
+        parts.append(f"{'.'.join(loc)}: {e['msg']}")
+    return "invalid nav log: " + "; ".join(parts)
 
 
 def briefing_prompt(

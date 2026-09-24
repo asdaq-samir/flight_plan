@@ -6,11 +6,10 @@ import json
 from collections.abc import Iterator
 
 from mcp.server.mcpserver import MCPServer
-from pydantic import ValidationError
 from starlette.requests import Request
 from starlette.responses import JSONResponse, StreamingResponse
 
-from vfr.narrative import NarrativeRequest
+from vfr.narrative import NarrativeRequest, invalid_detail
 
 from . import db
 from .graph import briefing_prompt, build_graph
@@ -177,12 +176,8 @@ def _narrative_lines(graph, state: dict) -> Iterator[str]:
 def _invalid(err: ValueError) -> JSONResponse:
     """A 422 naming what was wrong, in the `detail` string webapp's
     proxy passes on -- rather than the KeyError a missing field used to
-    raise inside the stream."""
-    if isinstance(err, ValidationError):
-        detail = "; ".join(f"{'.'.join(str(part) for part in e['loc'])}: {e['msg']}" for e in err.errors())
-    else:
-        detail = "the request body is not JSON"
-    return JSONResponse({"detail": f"invalid nav log: {detail}"}, status_code=422)
+    raise inside the stream. The same body crewai-agent answers with."""
+    return JSONResponse({"detail": invalid_detail(err)}, status_code=422)
 
 
 @mcp.custom_route("/compare", methods=["POST"])
