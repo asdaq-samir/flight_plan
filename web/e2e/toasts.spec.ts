@@ -170,6 +170,25 @@ test("dismissing a toast dismisses the toast, not the drawer under it", async ({
   }
 });
 
+test("dismissing a toast over the console leaves the console open", async ({ page }) => {
+  // The same guard, on the stock sheet the console is. A caller passing
+  // its own onInteractOutside used to replace the guard silently, and
+  // nothing covered the console to notice.
+  await plannerDown(page);
+  await page.goto(PLAN);
+  await page.getByTestId("pilot-button").click();
+  const console = page.locator('[data-slot="sheet-content"][data-side="top"]');
+  await expect(console).toBeVisible();
+
+  const closeable = page.locator("[data-sonner-toast]:has(button[data-close-button])");
+  await expect(closeable.first()).toBeVisible({ timeout: 20000 });
+  const before = await closeable.count();
+  await closeable.first().locator("button[data-close-button]").click({ force: true });
+
+  await expect.poll(() => closeable.count(), { timeout: 10000 }).toBe(before - 1);
+  await expect(console).toBeVisible();
+});
+
 test("a pile-up stays legible: at most three, stacked rather than marching up the screen", async ({ page }) => {
   await plannerDown(page);
   await page.goto(PLAN);

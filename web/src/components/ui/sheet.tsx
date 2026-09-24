@@ -48,6 +48,7 @@ function SheetContent({
   children,
   side = "right",
   showCloseButton = true,
+  onInteractOutside,
   ...props
 }: React.ComponentProps<typeof SheetPrimitive.Content> & {
   side?: "top" | "right" | "bottom" | "left"
@@ -61,8 +62,7 @@ function SheetContent({
         data-side={side}
         // A toast is not "outside" in the sense Radix means.
         //
-        // Sonner renders its stack in its own portal at the end of the
-        // body, so it is outside this sheet's tree, and Radix's
+        // Sonner's stack is outside this sheet's tree, and Radix's
         // outside-interaction listener is on the document: tapping the
         // toast's close button was closing the drawer instead of the
         // toast. On a phone that is the whole briefing disappearing
@@ -71,12 +71,14 @@ function SheetContent({
         //
         // Toasts sit above every sheet by design (sonner's own stacking
         // context is far above Radix's), so a tap that lands on one was
-        // always meant for it.
+        // always meant for it. A caller's own handler runs after the
+        // guard: it is taken out of `props` above, which are spread
+        // below and would otherwise replace the guard outright.
         onInteractOutside={event => {
           if ((event.target as Element | null)?.closest?.("[data-sonner-toaster]")) {
             event.preventDefault()
           }
-          props.onInteractOutside?.(event)
+          onInteractOutside?.(event)
         }}
         className={cn(
           "fixed z-50 flex flex-col gap-4 bg-popover bg-clip-padding text-sm text-popover-foreground shadow-lg transition duration-200 ease-in-out data-[side=bottom]:inset-x-0 data-[side=bottom]:bottom-0 data-[side=bottom]:h-auto data-[side=bottom]:border-t data-[side=left]:inset-y-0 data-[side=left]:left-0 data-[side=left]:h-full data-[side=left]:w-3/4 data-[side=left]:border-r data-[side=right]:inset-y-0 data-[side=right]:right-0 data-[side=right]:h-full data-[side=right]:w-3/4 data-[side=right]:border-l data-[side=top]:inset-x-0 data-[side=top]:top-0 data-[side=top]:h-auto data-[side=top]:border-b data-[side=left]:sm:max-w-sm data-[side=right]:sm:max-w-sm data-open:animate-in data-open:fade-in-0 data-[side=bottom]:data-open:slide-in-from-bottom-10 data-[side=left]:data-open:slide-in-from-left-10 data-[side=right]:data-open:slide-in-from-right-10 data-[side=top]:data-open:slide-in-from-top-10 data-closed:animate-out data-closed:fade-out-0 data-[side=bottom]:data-closed:slide-out-to-bottom-10 data-[side=left]:data-closed:slide-out-to-left-10 data-[side=right]:data-closed:slide-out-to-right-10 data-[side=top]:data-closed:slide-out-to-top-10",
