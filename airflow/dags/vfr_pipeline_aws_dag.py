@@ -104,6 +104,11 @@ def _processing_config(job_name: str, image_uri_var: str, container_arguments: l
     schedule=None,
     start_date=datetime(2026, 9, 9, tz="UTC"),
     catchup=False,
+    # One run at a time. Every stage hands off through one fixed place --
+    # the candidate model evaluate reads is the one promote copies later --
+    # so a second run's retrain between the two would put a model into
+    # service that never passed the gate. A second trigger queues.
+    max_active_runs=1,
     tags=["vfr", "ml", "aws"],
 )
 def vfr_pipeline_aws():

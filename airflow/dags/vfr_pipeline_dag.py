@@ -65,6 +65,11 @@ def _docker_task(task_id: str, image: str, command: list[str]) -> DockerOperator
     schedule=None,  # manual trigger for now -- not on a cron yet
     start_date=datetime(2026, 9, 7, tz="UTC"),
     catchup=False,
+    # One run at a time. Every stage hands off through one fixed place --
+    # the candidate model evaluate reads is the one promote copies later --
+    # so a second run's retrain between the two would put a model into
+    # service that never passed the gate. A second trigger queues.
+    max_active_runs=1,
     tags=["vfr", "ml"],
 )
 def vfr_pipeline():
