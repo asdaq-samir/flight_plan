@@ -887,8 +887,8 @@ STREAM_MESSAGES = {
 
 
 class ClassBAirport(BaseModel):
-    """One Class B airport: where it is, what the weather is doing
-    there, and which terminal area chart covers it.
+    """One Class B airport: where it is, and what the weather is doing
+    there.
 
     Every weather field is optional and often absent. A field with no
     current report has no flight category; a field with no TAF issued

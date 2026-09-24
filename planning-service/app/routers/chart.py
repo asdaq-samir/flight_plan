@@ -25,8 +25,8 @@ router = APIRouter()
 # Half a chart cycle, in seconds -- how long a browser (or a CDN in
 # front of this app) may keep a tile before asking again, so a new
 # edition reaches a returning pilot within a month of its date.
-# PlannerProxyController forwards Cache-Control for the two tile paths
-# alone; see its own comment.
+# PlannerProxyController forwards Cache-Control for the tile path alone;
+# see its own comment.
 _CHART_TILE_MAX_AGE_S = 28 * 24 * 3600
 
 

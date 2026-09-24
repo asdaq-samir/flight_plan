@@ -269,7 +269,7 @@ def fetch_tile(x: int, y: int, zoom: int = DEFAULT_ZOOM) -> Image.Image | None:
     the mosaic rather than failing the whole read.
 
     The same tiles back the map's own tile endpoint (planning-service's
-    /api/sectional-tile): a corridor planned once has its map tiles
+    /api/chart-tile/sec/...): a corridor planned once has its map tiles
     ready, and a map browsed once has its detection tiles ready. The
     transparency of an uncovered corner is white here, since the
     detector's road-and-rail class looks for black.

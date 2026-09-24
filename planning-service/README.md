@@ -9,12 +9,13 @@ It serves no pages. The front end is in [`web/`](../web) and ships inside
 
 Almost all of the thinking lives in [`src/vfr`](../src). This is a thin
 HTTP layer over it: `app/main.py` builds the app, `app/routers/` holds
-the endpoints one module per concern (plan, chart, build, briefing,
-notes, devml), and the work they share -- resolving a route
+the endpoints one module per concern (plan, chart, classb, build,
+briefing, notes, devml, devservices, system), and the work they share -- resolving a route
 (`common.py`), scoring and selecting its checkpoints (`scoring.py`), the
 cruise altitude and course line (`planning.py`), the corridor read
 (`detection.py`) -- sits beside them. The legs themselves are
-`vfr.navlog`'s, the same code both agents build theirs with.
+`vfr.navlog`'s; both agents take theirs from this service's `/api/plan`
+(`vfr.planner_client`) rather than building their own.
 Every response, streamed lines included, is a model in `app/schemas.py`:
 FastAPI validates against it and publishes it in `openapi.json`,
 committed here and checked by `tests/test_openapi.py`. After changing a
@@ -119,10 +120,8 @@ once in ten.
 | `GET /api/altitude-breakdown` | The reasoning behind a recommended cruise altitude. |
 | `GET /api/detect/stream` | Chart-vision detections, streamed as NDJSON. |
 | `GET /api/classify` | What the chart draws at one point. |
-| `GET /api/sectional-tile/{z}/{x}/{y}.png` | The sectional as a tile pyramid, for the map -- rendered from the FAA's own GeoTIFF of each sheet (`vfr.charts`), collar clipped away so sheets butt together. Zooms 3-12: the whole country on a phone screen, down to the chart's own print resolution. |
-| `GET /api/tac-tile/{z}/{x}/{y}.png` | The terminal area charts the same way, for the map's optional overlay; 404 wherever no TAC exists. Zooms 10-13. |
-| `GET /api/chart-tile/{kind}/{z}/{x}/{y}.png` | Any chart kind by key -- `sec`, `tac`, `ifr_low`, `ifr_high` (the IFR enroute charts, base layers the map's info popover can switch to), `ifr_area` (the enroute charts' terminal-area sheets, an overlay over the IFR bases the way the TAC is over the sectional). `chart_layers` on the course lists the kinds, their zooms and which base each overlay belongs over. On AWS the course also carries `chart_tiles_base`, the CloudFront URL the browser fetches tiles from instead (docs/README-AWS.md). |
-| `GET /api/class-b` | Every Class B airport: where it is, what its METAR/TAF are doing now and forecast, and which terminal area chart covers it. One call for all thirty rather than one per marker -- the airspace shapefile is parsed once and pickled (`vfr.classb`, `data/raw/faa_nasr/Shape_Files/Class_Airspace.controlled.v2.pkl`), and the METAR/TAF national caches are already held in memory by `vfr.weather`, so assembling all thirty costs about as much as assembling one. |
+| `GET /api/chart-tile/{kind}/{z}/{x}/{y}.png` | The map's tiles, rendered from the FAA's own GeoTIFF of each sheet (`vfr.charts`), collar clipped away so sheets butt together; 404 where no sheet of that kind covers the tile. Any chart kind by key -- `sec`, `tac`, `ifr_low`, `ifr_high` (the IFR enroute charts, base layers the map's info popover can switch to), `ifr_area` (the enroute charts' terminal-area sheets, an overlay over the IFR bases the way the TAC is over the sectional). `chart_layers` on the course lists the kinds, their zooms and which base each overlay belongs over. On AWS the course also carries `chart_tiles_base`, the CloudFront URL the browser fetches tiles from instead (docs/README-AWS.md). |
+| `GET /api/class-b` | Every Class B airport: where it is, and what its METAR/TAF are doing now and forecast. One call for all thirty rather than one per marker -- the airspace shapefile is parsed once and pickled (`vfr.classb`, `data/raw/faa_nasr/Shape_Files/Class_Airspace.controlled.v2.pkl`), and the METAR/TAF national caches are already held in memory by `vfr.weather`, so assembling all thirty costs about as much as assembling one. |
 | `GET/POST/DELETE /api/picks` | Hand-marked checkpoints. |
 | `POST /api/checkpoint-notes/generate`, `POST /api/checkpoint-notes` | A "how to spot it" note per checkpoint: streamed, generating (one Claude call each) only the checkpoints with no note yet; and a pilot's own edit. An edit is that pilot's alone (webapp's proxy sends `X-Pilot-Id` from the session) and is appended, so the note it replaced stays in `checkpoint_notes.csv`; everyone else keeps the shared note. |
 | `GET /api/airports/search` | Identifier and name lookup for the route form. |

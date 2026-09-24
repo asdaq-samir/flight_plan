@@ -1298,7 +1298,7 @@
         "type": "object"
       },
       "ClassBAirport": {
-        "description": "One Class B airport: where it is, what the weather is doing\nthere, and which terminal area chart covers it.\n\nEvery weather field is optional and often absent. A field with no\ncurrent report has no flight category; a field with no TAF issued\nhas no forecast. Absent is the honest answer -- a pilot must not\nread \"no data\" as \"nothing to worry about\", so the UI shows the gap\nrather than a default.",
+        "description": "One Class B airport: where it is, and what the weather is doing\nthere.\n\nEvery weather field is optional and often absent. A field with no\ncurrent report has no flight category; a field with no TAF issued\nhas no forecast. Absent is the honest answer -- a pilot must not\nread \"no data\" as \"nothing to worry about\", so the UI shows the gap\nrather than a default.",
         "properties": {
           "ceiling_ft": {
             "anyOf": [
