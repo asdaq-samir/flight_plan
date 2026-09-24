@@ -465,7 +465,8 @@ Resources:
 
   # ---------------------------------------------------------------------
   # Database -- RDS-managed master password (Secrets Manager), same
-  # Postgres 16 + pgvector setup as the local `db` service.
+  # Postgres + pgvector setup as the local `db` service (pg18 there; the
+  # EngineVersion below is RDS's, which trails it).
   # ---------------------------------------------------------------------
   Database:
     Type: AWS::RDS::DBInstance

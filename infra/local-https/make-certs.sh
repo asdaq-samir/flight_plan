@@ -40,7 +40,12 @@ out="$here/certs"
 ca_dir="${VFR_LOCAL_CA_DIR:-$HOME/.config/vfr-local-ca}"
 mkdir -p "$out" "$ca_dir"
 chmod 700 "$ca_dir"
-password="${WEBAPP_KEYSTORE_PASSWORD:-changeit}"
+# The PKCS12 container's password, the one the webapp opens it with by
+# default (app.https.keystore-password). It protects nothing -- the key
+# sits unencrypted beside it in certs/ -- and it used to be a setting
+# read here from the environment and by compose from .env: set in .env
+# alone, it made a keystore the webapp could not open.
+password=changeit
 
 # An authority made by an earlier version of this script kept its key
 # beside the certificates; move it out, once.

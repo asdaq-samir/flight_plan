@@ -387,8 +387,9 @@ services:
       # the certificate infra/local-https/make-certs.sh writes, read
       # only once that file exists. HSTS off: this machine's plain port
       # must keep working after the HTTPS one has been used once.
+      # Opened with the webapp's default password, which is the one
+      # make-certs.sh writes it with.
       APP_HTTPS_KEYSTORE: ${APP_HTTPS_KEYSTORE:-/certs/webapp.p12}
-      APP_HTTPS_KEYSTORE_PASSWORD: ${WEBAPP_KEYSTORE_PASSWORD:-changeit}
       APP_HSTS: "false"
       # No sign-in is configured here, so without this every planner
       # write (picks, notes, builds, retrain) and the narrative would be
