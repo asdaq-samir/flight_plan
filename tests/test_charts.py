@@ -494,12 +494,11 @@ def test_serving_cycle_is_the_newest_complete_pyramid(tmp_path, monkeypatch):
     assert charts.serving_cycle() == "09-03-2026"
     assert charts.refresh_due()
 
-    # A render of the current cycle in progress, by anyone, counts as
-    # running -- until its status file goes stale.
-    assert charts.refresh_running()
-    monkeypatch.setattr(charts, "_RENDER_STALE_S", -1)
+    # Running is the refresh lock held -- not a half-written status file.
     assert not charts.refresh_running()
-    monkeypatch.setattr(charts, "_RENDER_STALE_S", 600)
+    with charts.refresh_lock() as got:
+        assert got and charts.refresh_running()
+    assert not charts.refresh_running()
 
     for kind in charts.KINDS:
         charts._write_pyramid_status("10-29-2026", {**done, "kind": kind})
@@ -860,3 +859,70 @@ def test_two_threads_writing_one_tile_use_two_temp_files(tmp_path, monkeypatch):
 
     assert len(set(names)) == 2
     assert tile.read_bytes() in (b"png", b"pngpng")
+
+
+_HOLD = """
+import sys, time
+from pathlib import Path
+from vfr import charts
+charts.CHART_TILE_CACHE_DIR = Path(sys.argv[1])
+with charts.refresh_lock() as got:
+    print("held" if got else "busy", flush=True)
+    time.sleep(float(sys.argv[2]))
+"""
+
+
+def _hold_in_another_process(tiles, seconds):
+    import os
+    import subprocess
+    import sys
+
+    from pathlib import Path
+
+    env = {**os.environ, "PYTHONPATH": str(Path(charts.__file__).resolve().parents[1])}
+    child = subprocess.Popen([sys.executable, "-c", _HOLD, str(tiles), str(seconds)],
+                             stdout=subprocess.PIPE, text=True, env=env)
+    assert child.stdout.readline().strip() == "held"
+    return child
+
+
+def test_a_refresh_is_running_exactly_while_another_process_holds_the_lock(tmp_path, monkeypatch):
+    """It used to be a pid written into refresh.lock: the planner never
+    reaped its finished child, a zombie answers kill(pid, 0), and one
+    refresh read as running until the planner restarted."""
+    monkeypatch.setattr(charts, "CHART_TILE_CACHE_DIR", tmp_path / "tiles")
+    child = _hold_in_another_process(tmp_path / "tiles", 30)
+    try:
+        assert charts.refresh_running()
+    finally:
+        child.kill()
+        child.wait()
+    assert not charts.refresh_running()   # ended, however it ended: the kernel let go
+
+
+def test_a_refresh_or_pyramid_finding_the_lock_held_leaves_it_to_the_running_one(tmp_path, monkeypatch):
+    monkeypatch.setattr(charts, "CHART_TILE_CACHE_DIR", tmp_path / "tiles")
+    monkeypatch.setattr(charts, "refresh", lambda **kw: pytest.fail("refreshed beside a running one"))
+    monkeypatch.setattr(charts, "render_pyramid", lambda *a, **kw: pytest.fail("rendered beside a running one"))
+    child = _hold_in_another_process(tmp_path / "tiles", 30)
+    try:
+        assert charts._main(["refresh", "--bucket", ""]) == 0
+        assert charts._main(["pyramid", "--kind", "sec"]) == 1
+    finally:
+        child.kill()
+        child.wait()
+
+
+def test_unmask_waits_for_a_running_refresh(tmp_path, monkeypatch):
+    """It re-renders tiles and bumps the revision: interleaved with a
+    pyramid run, the pyramid could write the old pixels back after it."""
+    import time
+
+    monkeypatch.setattr(charts, "CHART_TILE_CACHE_DIR", tmp_path / "tiles")
+    ran = []
+    monkeypatch.setattr(charts, "unmask_prepared", lambda cycle, workers, again: ran.append(time.monotonic()) or {})
+    child = _hold_in_another_process(tmp_path / "tiles", 1.5)
+    started = time.monotonic()
+    assert charts._main(["unmask", "--cycle", "09-03-2026"]) == 0
+    child.wait()
+    assert ran and ran[0] - started >= 1.0

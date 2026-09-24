@@ -1346,6 +1346,36 @@ def unmask_prepared(cycle: str | None = None, workers: int = 2, again: bool = Fa
 _REFRESH_LOCK = "refresh.lock"
 
 
+@contextlib.contextmanager
+def refresh_lock(wait: bool = False):
+    """The lock every run that renders the cycle's tiles holds for its
+    whole life -- `refresh`, `pyramid` and `unmask`, from the planner's
+    subprocess or a shell in another container -- yielding whether it
+    got it. `wait` blocks until it is free; otherwise it yields False at
+    once when another run holds it. The kernel lets go when the process
+    ends, however it ends.
+
+    What "a refresh is running" used to be read from: a pid written into
+    this file (never deleted, and alive as a zombie -- the planner never
+    reaped its child -- so one refresh read as running until the planner
+    restarted), and failing that a pyramid status file touched in the
+    last ten minutes, which missed a shell refresh's hours of preparing
+    and a sheet slower than ten minutes."""
+    import fcntl
+
+    CHART_TILE_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    with (CHART_TILE_CACHE_DIR / _REFRESH_LOCK).open("a") as handle:
+        try:
+            fcntl.flock(handle, fcntl.LOCK_EX if wait else fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            yield False
+            return
+        try:
+            yield True
+        finally:
+            fcntl.flock(handle, fcntl.LOCK_UN)
+
+
 def refresh(kinds: tuple = tuple(KINDS), workers: int = 2, prune: bool = True,
             publish_bucket: str | None = None) -> str:
     """Bring the FAA's current cycle to a complete pyramid, publish it
@@ -1438,37 +1468,19 @@ def prune_cycles(keep: str) -> list[str]:
     return removed
 
 
-_RENDER_STALE_S = 600
-
-
 def refresh_running() -> bool:
-    """Whether a refresh subprocess started by this planner is alive --
-    or a render of the FAA's current cycle is being written by anyone
-    (a `python -m vfr.charts pyramid` run from the shell, say): its
-    status file is rewritten after every sheet, so one touched in the
-    last ten minutes is a render in progress. Two renders of the same
-    cycle at once would race each other on the seam tiles."""
-    try:
-        pid = int((CHART_TILE_CACHE_DIR / _REFRESH_LOCK).read_text().strip())
-        os.kill(pid, 0)
-        return True
-    except (OSError, ValueError):
-        pass
-    cycle = current_cycle(fetch=False)
-    progress = pyramid_status(cycle)
-    if any(p.get("started_at") and not p.get("finished_at") for p in progress.values()):
-        try:
-            return time.time() - (CHART_TILE_CACHE_DIR / cycle / _PYRAMID_STATUS).stat().st_mtime < _RENDER_STALE_S
-        except OSError:
-            return False
-    return False
+    """Whether a run that renders tiles -- a refresh, a `pyramid` or an
+    `unmask`, from anywhere -- holds the refresh lock. Two renders of the
+    same cycle at once would race each other on the seam tiles."""
+    with refresh_lock() as got:
+        return not got
 
 
 def refresh_in_background(workers: int = 2, nice: int = 10) -> bool:
     """Start `python -m vfr.charts refresh` as a subprocess, unless one
     is running. Returns whether one was started. Its log goes beside
-    the tiles (refresh.log); its pid into refresh.lock, which is how
-    `refresh_running` knows. Niced (where `nice` exists): it is hours
+    the tiles (refresh.log); it takes the refresh lock itself, which is
+    how `refresh_running` knows. Niced (where `nice` exists): it is hours
     of every core it is given, and the planner serving tiles beside it
     -- and, on a machine that is also somebody's desk, the browser
     looking at them -- come first."""
@@ -1484,7 +1496,8 @@ def refresh_in_background(workers: int = 2, nice: int = 10) -> bool:
     if nice and shutil.which("nice"):
         command = ["nice", "-n", str(nice), *command]
     process = subprocess.Popen(command, stdout=log_file, stderr=subprocess.STDOUT, start_new_session=True)
-    (CHART_TILE_CACHE_DIR / _REFRESH_LOCK).write_text(str(process.pid))
+    # Waited on, so a finished refresh does not linger as a zombie.
+    threading.Thread(target=process.wait, name="chart-refresh-reaper", daemon=True).start()
     log.info("chart refresh started (pid %d)", process.pid)
     return True
 
@@ -1576,6 +1589,22 @@ def _main(argv: list | None = None) -> int:
         global CHART_TILE_CACHE_DIR
         CHART_TILE_CACHE_DIR = Path(args.tiles_dir)
 
+    # The runs that write the cycle's tiles hold the refresh lock for
+    # their whole life. A refresh or a pyramid that finds it held leaves
+    # the running one to it; an unmask waits, then renders its tiles
+    # again on what that run left.
+    if args.command in ("refresh", "pyramid", "unmask"):
+        wait = args.command == "unmask"
+        with refresh_lock(wait=wait) as got:
+            if not got:
+                log.info("a refresh, pyramid or unmask is already running on %s; leaving it to that",
+                         CHART_TILE_CACHE_DIR)
+                return 0 if args.command == "refresh" else 1
+            return _run(args, parser)
+    return _run(args, parser)
+
+
+def _run(args, parser) -> int:
     if args.command == "prepare":
         charts = prepare_all(tuple(args.kind), redetect=args.redetect)
         log.info("%d charts ready under %s", len(charts), CHARTS_DIR)
