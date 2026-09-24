@@ -275,24 +275,15 @@ jobs:
 
   build-images:
     runs-on: ubuntu-latest
-    needs: [test, test-webapp, test-planning-service, test-model-service, test-nav-log-agent, test-crewai-agent, changes]
-    # `needs.changes` is skipped (not failed) outside a PR, and a skipped
-    # dependency still satisfies `needs:` as long as it's not this job's
-    # only reason to run -- `always()` plus the explicit `test*` and
-    # `changes` checks keeps this job from actually running when those
-    # failed. Without the `changes` check, a failed `changes` job would
-    # still let this job run, with every per-service step below silently
-    # skipping (its `if` reads an undefined output as false) and the job
-    # reporting green having built nothing.
-    if: |
-      always() &&
-      needs.test.result == 'success' &&
-      needs.test-webapp.result == 'success' &&
-      needs.test-planning-service.result == 'success' &&
-      needs.test-model-service.result == 'success' &&
-      needs.test-nav-log-agent.result == 'success' &&
-      needs.test-crewai-agent.result == 'success' &&
-      (needs.changes.result == 'success' || needs.changes.result == 'skipped')
+    # One list, and no `if:` -- the implicit success() is the rule: every
+    # test job passed and `changes` ran. It used to be written twice,
+    # here and again in an `always() && …` condition, and the two had
+    # drifted: test-web was in neither, so a red front-end suite still
+    # published the webapp image. (The condition existed because
+    # `changes` was once skipped outside a PR; it runs on every event
+    # now.) Should a need ever become skippable, the one-list form is
+    # `!cancelled() && !contains(needs.*.result, 'failure')`.
+    needs: [test, test-web, test-webapp, test-planning-service, test-model-service, test-nav-log-agent, test-crewai-agent, changes]
     permissions:
       contents: read
       packages: write
