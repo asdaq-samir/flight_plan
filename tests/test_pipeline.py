@@ -77,6 +77,24 @@ def test_the_temp_file_is_not_a_corridor_to_any_reader(tmp_path):
     assert seen == []
 
 
+def test_engineer_features_on_the_command_line_defaults_to_the_corridor_named(monkeypatch):
+    # Its paths defaulted to C81->KDLH's whatever idents were given, so the
+    # command model-service suggests for another route rebuilt that one.
+    import sys
+
+    from vfr import pipeline
+    from vfr.config import PROCESSED_DIR
+
+    calls = []
+    monkeypatch.setattr(pipeline, "engineer_features", lambda **kw: calls.append(kw))
+    monkeypatch.setattr(sys, "argv", ["pipeline", "engineer-features", "--dep-ident", "KDSM", "--dest-ident", "KOMA"])
+    pipeline._cli()
+    assert calls == [{
+        "in_path": PROCESSED_DIR / "candidates_kdsm_koma.csv",
+        "out_path": PROCESSED_DIR / "features_kdsm_koma.parquet",
+    }]
+
+
 def test_find_one_resolves_a_glob_match(tmp_path):
     (tmp_path / "whatever-sagemaker-named-it.parquet").write_text("not real data")
     found = _find_one(tmp_path, "*.parquet")

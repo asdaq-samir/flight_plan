@@ -294,12 +294,8 @@ def invocations(request: RouteRequest) -> RouteResponse:
             status_code=404,
             detail=(
                 f"No feature store for {dep}->{dest}. Build it first:\n"
-                f"  docker compose run --rm pipeline-processing collect "
-                f"--dep-ident {dep} --dest-ident {dest} "
-                f"--out-path /workspace/data/processed/candidates_{dep.lower()}_{dest.lower()}.csv\n"
-                f"  docker compose run --rm pipeline-processing engineer-features "
-                f"--in-path /workspace/data/processed/candidates_{dep.lower()}_{dest.lower()}.csv "
-                f"--out-path /workspace/data/processed/{path.name}"
+                f"  docker compose run --rm pipeline-processing collect --dep-ident {dep} --dest-ident {dest}\n"
+                f"  docker compose run --rm pipeline-processing engineer-features --dep-ident {dep} --dest-ident {dest}"
             ),
         )
 

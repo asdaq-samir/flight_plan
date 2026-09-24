@@ -15,7 +15,7 @@ from vfr import chartlabels, charts, checkpoint_notes, model_registry, weather
 from vfr.terrain import DEFAULT_FAA_CACHE_DIR
 
 from .. import chart_refresh
-from ..common import PROCESSED_DIR
+from ..common import PROCESSED_DIR, paths
 from ..settings import CHARTS_REFRESH_WINDOW, CHARTS_REFRESH_WORKERS
 from ..schemas import (
     CandidateModel,
@@ -152,7 +152,7 @@ def _corridors() -> list[CorridorStatus]:
         if not dep or not dest:
             continue
         dep, dest = dep.upper(), dest.upper()
-        candidates = PROCESSED_DIR / f"candidates_{slug}.csv"
+        candidates, _ = paths(dep, dest)
         n_candidates = None
         if candidates.exists():
             with candidates.open() as f:

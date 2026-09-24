@@ -15,8 +15,19 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DATA_DIR = PROJECT_ROOT / "data"
 
-CANDIDATES_PATH = DATA_DIR / "processed" / "candidates_c81_kdlh.csv"
-FEATURES_PATH = DATA_DIR / "processed" / "features_c81_kdlh.parquet"
+PROCESSED_DIR = DATA_DIR / "processed"
+
+
+def corridor_paths(dep: str, dest: str) -> tuple[Path, Path]:
+    """A corridor's candidates CSV and feature table, named for its two
+    idents. The one place the names are made: the planner's build and its
+    corridor list, and the pipeline's own defaults, all ask here.
+    (model-service, which has no vfr, reads the same names.)"""
+    slug = f"{dep.lower()}_{dest.lower()}"
+    return PROCESSED_DIR / f"candidates_{slug}.csv", PROCESSED_DIR / f"features_{slug}.parquet"
+
+
+CANDIDATES_PATH, FEATURES_PATH = corridor_paths("C81", "KDLH")
 LABELS_PATH = DATA_DIR / "labels" / "spottability_ratings.csv"
 
 # Below this many labeled examples, a train/test split and 5-fold CV

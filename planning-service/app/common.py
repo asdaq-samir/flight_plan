@@ -7,26 +7,18 @@ from fastapi import HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from vfr import airports, weather
-from vfr.config import DATA_DIR
+from vfr.config import PROCESSED_DIR  # noqa: F401  (re-exported for the routers)
+from vfr.config import corridor_paths as paths  # noqa: F401  (the routers' name for it)
 
 from .planning import StillComputing
 
 log = logging.getLogger(__name__)
 
-PROCESSED_DIR = DATA_DIR / "processed"
 DEFAULT_AIRCRAFT = "c172"
 
 
 def route_key(dep: str, dest: str) -> tuple:
     return dep.strip().upper(), dest.strip().upper()
-
-
-def paths(dep: str, dest: str) -> tuple:
-    slug = f"{dep.lower()}_{dest.lower()}"
-    return (
-        PROCESSED_DIR / f"candidates_{slug}.csv",
-        PROCESSED_DIR / f"features_{slug}.parquet",
-    )
 
 
 def resolve(dep: str, dest: str) -> tuple:

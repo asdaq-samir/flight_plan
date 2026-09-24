@@ -35,6 +35,7 @@ from vfr.config import (  # noqa: F401  (re-exported: callers import these from 
     LABELS_PATH,
     MIN_LABELED_ROWS,
     PROJECT_ROOT,
+    corridor_paths,
 )
 
 RANDOM_STATE = 42
@@ -196,11 +197,15 @@ def _ensure_local_dir(path) -> Path:
 def collect(
     dep_ident: str = "C81",
     dest_ident: str = "KDLH",
-    out_path: Path = CANDIDATES_PATH,
+    out_path: Path | None = None,
 ) -> Path:
     """Notebook 01: pull candidate checkpoints along the route corridor from
-    OSM (Overpass) + FAA NASR data, filter to the corridor, dedupe, and save.
+    OSM (Overpass) + FAA NASR data, filter to the corridor, dedupe, and save
+    -- by default to the corridor's own candidates file. (The default used
+    to be C81->KDLH's file whatever route was asked for, so collecting
+    another route without naming a path wrote over that corridor's.)
     """
+    out_path = out_path or corridor_paths(dep_ident, dest_ident)[0]
     dep = airports.get_airport(dep_ident)
     dest = airports.get_airport(dest_ident)
     route_distance_nm = geo.distance_nm(dep["lat"], dep["lon"], dest["lat"], dest["lon"])
@@ -547,14 +552,17 @@ def _cli() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="stage", required=True)
 
+    # The paths default to the corridor the idents name.
     p = sub.add_parser("collect")
     p.add_argument("--dep-ident", default="C81")
     p.add_argument("--dest-ident", default="KDLH")
-    p.add_argument("--out-path", type=Path, default=CANDIDATES_PATH)
+    p.add_argument("--out-path", type=Path)
 
     p = sub.add_parser("engineer-features")
-    p.add_argument("--in-path", type=Path, default=CANDIDATES_PATH)
-    p.add_argument("--out-path", type=Path, default=FEATURES_PATH)
+    p.add_argument("--dep-ident", default="C81")
+    p.add_argument("--dest-ident", default="KDLH")
+    p.add_argument("--in-path", type=Path)
+    p.add_argument("--out-path", type=Path)
 
     p = sub.add_parser("retrain")
     p.add_argument("--features-path", type=Path, default=retrain_defaults["features_path"])
@@ -568,7 +576,8 @@ def _cli() -> None:
     if args.stage == "collect":
         result = collect(**kwargs)
     elif args.stage == "engineer-features":
-        result = engineer_features(**kwargs)
+        candidates, features = corridor_paths(args.dep_ident, args.dest_ident)
+        result = engineer_features(in_path=args.in_path or candidates, out_path=args.out_path or features)
     elif args.stage == "retrain":
         result = retrain(**kwargs)
 
