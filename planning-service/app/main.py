@@ -127,9 +127,6 @@ def _warm_reference_data() -> None:
 async def _lifespan(app: FastAPI):
     threading.Thread(target=_warm_reference_data, name="reference-data-warm-up", daemon=True).start()
     yield
-    # uvicorn's graceful SIGTERM shutdown runs this before the process
-    # exits.
-    build.interrupt_running()
 
 
 app = FastAPI(title="vfr-route planner", lifespan=_lifespan)

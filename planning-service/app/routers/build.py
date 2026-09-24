@@ -44,18 +44,6 @@ class BuildRequest(BaseModel):
     destination_ident: str
 
 
-def interrupt_running() -> None:
-    """Called from the app's shutdown hook. It can't save a build's
-    in-memory progress across the restart that's about to happen, but it
-    closes the narrow window where a load balancer still routing a
-    drained connection's GET /api/build/{job_id} would otherwise see a
-    "running" job simply vanish with no explanation."""
-    with _builds_lock:
-        for job in _builds.values():
-            if job["state"] in ("queued", "running"):
-                job.update(state="failed", step="failed", detail="interrupted by service shutdown")
-
-
 def _forget_finished(now: float) -> None:
     """Drop jobs that finished more than KEEP_FINISHED_S ago. Call under
     _builds_lock."""
@@ -90,13 +78,16 @@ def _run_build(job_id: str, dep: str, dest: str) -> None:
 
 
 def _work(jobs: queue.Queue) -> None:
+    # Once POST /api/build has made a job, this thread is the only thing
+    # that writes it: queued, then running, then done or failed. A
+    # shutdown hook used to rewrite running jobs as failed as well, which
+    # no client could ever read (uvicorn drains requests first) and which
+    # this thread could then overwrite; a restart simply forgets the
+    # jobs, and a poll for one gets the 404 the page reports.
     while True:
         job_id, dep, dest = jobs.get()
         try:
-            with _builds_lock:
-                cancelled = _builds.get(job_id, {}).get("state") != "queued"
-            if not cancelled:
-                _run_build(job_id, dep, dest)
+            _run_build(job_id, dep, dest)
         finally:
             jobs.task_done()
 
