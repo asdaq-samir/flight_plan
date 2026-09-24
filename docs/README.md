@@ -482,15 +482,20 @@ docker compose run --rm crewai-agent python -m app.main \
   --departure-ident C81 --destination-ident KDLH   # one-shot CLI
 ```
 
-**On a phone, on the same Wi-Fi:** `http://<your Mac's address>:8080/app/plan`
-works for planning, but the two things a pilot wants in the air -- their
-own position on the chart, and the route's charts with no connection --
-the browser grants only to a secure origin. So the webapp also listens on
-HTTPS, with HTTP/2, once it has a certificate:
+**On a phone, on the same Wi-Fi:** the webapp's ports are on this
+machine's loopback by default, because with no sign-in configured every
+planner write is open to whoever can reach them. `docker-compose.phone.yml`
+publishes webapp alone on every interface, for as long as you are
+testing on a network you trust. `http://<your Mac's address>:8080/app/plan`
+then works for planning, but the two things a pilot wants in the air --
+their own position on the chart, and the route's charts with no
+connection -- the browser grants only to a secure origin. So the webapp
+also listens on HTTPS, with HTTP/2, once it has a certificate:
 
 ```bash
 infra/local-https/make-certs.sh 192.168.1.42   # your Mac's LAN address; writes infra/local-https/certs/
-docker compose up -d webapp                    # now also https://192.168.1.42:8443
+docker compose -f docker-compose.yml -f docker-compose.phone.yml up -d webapp
+                                               # now also https://192.168.1.42:8443
 ```
 
 Install `certs/ca.pem` on the phone once (the script prints the steps

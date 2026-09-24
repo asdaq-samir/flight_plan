@@ -72,25 +72,21 @@ class SecurityRulesTest {
     }
 
     /** This slice has neither OIDC credentials nor a mail host, so no
-     *  session can exist and planner writes must stay open -- the local
-     *  labeling page depends on it. It may 404 here (the proxy is not in
-     *  this slice); what matters is that security did not refuse it. See
-     *  {@link SecurityRulesWithSignInTest} for the other half. */
+     *  session can exist -- and it does not set app.open-writes, so the
+     *  planner's writes and the billed narrative are refused rather than
+     *  left open to every caller. The local stack opts in; see
+     *  {@link SecurityRulesOpenWritesTest}. */
     @Test
-    void plannerWritesStayOpenWhileNobodyCanSignIn() throws Exception {
-        mockMvc.perform(post("/api/planner/picks").with(csrf()))
-                .andExpect(result -> assertThat(result.getResponse().getStatus()).isNotIn(401, 403));
-        mockMvc.perform(post("/api/planner/retrain").with(csrf()))
-                .andExpect(result -> assertThat(result.getResponse().getStatus()).isNotIn(401, 403));
-        mockMvc.perform(get("/api/planner/status"))
-                .andExpect(result -> assertThat(result.getResponse().getStatus()).isNotIn(401, 403));
+    void plannerWritesAreRefusedWhereNobodyCanSignInUnlessTheDeploymentOptsIn() throws Exception {
+        mockMvc.perform(post("/api/planner/picks").with(csrf())).andExpect(status().isUnauthorized());
+        mockMvc.perform(post("/api/planner/retrain").with(csrf())).andExpect(status().isUnauthorized());
+        mockMvc.perform(post("/api/comparison").with(csrf())).andExpect(status().isUnauthorized());
     }
 
-    /** No role can be held where nobody can sign in, so the narrative
-     *  stays open locally too. */
+    /** Planning a route stays open to anyone: reads are not refused. */
     @Test
-    void theNarrativeStaysOpenWhileNobodyCanSignIn() throws Exception {
-        mockMvc.perform(post("/api/comparison").with(csrf()))
+    void plannerReadsStayOpen() throws Exception {
+        mockMvc.perform(get("/api/planner/course"))
                 .andExpect(result -> assertThat(result.getResponse().getStatus()).isNotIn(401, 403));
     }
 

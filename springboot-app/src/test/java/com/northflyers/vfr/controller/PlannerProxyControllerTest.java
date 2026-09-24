@@ -135,12 +135,36 @@ class PlannerProxyControllerTest {
 
     @Test
     void aDeleteIsForwardedToo() throws Exception {
-        MvcResult started = mockMvc.perform(delete("/api/planner/picks/7"))
+        MvcResult started = mockMvc.perform(delete("/api/planner/picks?dep=C81&dest=KDLH&lat=45&lon=-90"))
                 .andExpect(request().asyncStarted())
                 .andReturn();
         finish(started);
 
-        assertThat(received).contains("DELETE /api/picks/7");
+        assertThat(received).contains("DELETE /api/picks?dep=C81&dest=KDLH&lat=45&lon=-90");
+    }
+
+    /** Only the planner's own browser-facing routes are forwarded. Its
+     *  API docs, its root and any route it grows later are a 404 here,
+     *  and the planner is never asked. */
+    @Test
+    void aPathTheBrowserHasNoUseForIsA404AndNeverReachesThePlanner() throws Exception {
+        for (String path : new String[] {"/api/planner/../openapi.json", "/api/planner/docs",
+                "/api/planner/openapi.json", "/api/planner/internal/anything"}) {
+            mockMvc.perform(get(path)).andExpect(status().isNotFound());
+        }
+        mockMvc.perform(post("/api/planner/course")).andExpect(status().isNotFound());
+        mockMvc.perform(delete("/api/planner/build")).andExpect(status().isNotFound());
+        assertThat(received).isEmpty();
+    }
+
+    @Test
+    void theRouteTableCoversWhatTheBrowserCalls() {
+        assertThat(PlannerProxyController.isForwarded("GET", "/api/chart-tile/sectional/10/262/380.png")).isTrue();
+        assertThat(PlannerProxyController.isForwarded("POST", "/api/dev/services/ml/start")).isTrue();
+        assertThat(PlannerProxyController.isForwarded("GET", "/api/build/abc123")).isTrue();
+        assertThat(PlannerProxyController.isForwarded("POST", "/api/checkpoint-notes/generate")).isTrue();
+        assertThat(PlannerProxyController.isForwarded("GET", "/api/chart-tile/sectional/10/262/380.jpg")).isFalse();
+        assertThat(PlannerProxyController.isForwarded("POST", "/api/dev/services/ml/stop")).isFalse();
     }
 
     @Test

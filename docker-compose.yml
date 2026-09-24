@@ -273,12 +273,18 @@ services:
     build:
       context: .
       dockerfile: springboot-app/Dockerfile
+    # This machine only. With no sign-in configured (the local default)
+    # every planner write is open to whoever reaches this port, so a
+    # port on every interface put retrain, builds and chart refreshes in
+    # the hands of anyone on the same Wi-Fi. A phone on the LAN adds
+    # docker-compose.phone.yml, which publishes these two on every
+    # interface and says what that opens.
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
       # HTTPS, for a phone on the same Wi-Fi: only answers once
       # infra/local-https/make-certs.sh has written the certificate
       # (see HttpsConnectorConfig); otherwise the port is simply closed.
-      - "8443:8443"
+      - "127.0.0.1:8443:8443"
     volumes:
       - webapp-cds:/cds
       - ./infra/local-https/certs:/certs:ro
@@ -344,6 +350,12 @@ services:
       APP_HTTPS_KEYSTORE: ${APP_HTTPS_KEYSTORE:-/certs/webapp.p12}
       APP_HTTPS_KEYSTORE_PASSWORD: ${WEBAPP_KEYSTORE_PASSWORD:-changeit}
       APP_HSTS: "false"
+      # No sign-in is configured here, so without this every planner
+      # write (picks, notes, builds, retrain) and the narrative would be
+      # refused: an unconfigured deployment refuses callers. Locally the
+      # ports above are this machine's alone, which is what makes open
+      # writes acceptable. See SecurityConfig.
+      APP_OPEN_WRITES: "true"
 
 networks:
   # dev-services and planning-service only (see dev-services above).

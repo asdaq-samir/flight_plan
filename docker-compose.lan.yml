@@ -2,12 +2,12 @@
 #
 #   docker compose -f docker-compose.yml -f docker-compose.lan.yml up -d
 #
-# docker-compose.yml binds every non-webapp port to 127.0.0.1 on
-# purpose: Jupyter, Airflow, the database and both services answer
-# without authentication, and publishing them on 0.0.0.0 makes
+# docker-compose.yml binds every port to 127.0.0.1 on purpose: Jupyter,
+# Airflow, the database and both services answer without
+# authentication, webapp takes planner writes from anyone while no
+# sign-in is configured, and publishing any of them on 0.0.0.0 makes
 # `docker compose up` unsafe on a shared or internet-reachable host.
-# webapp is the one intended front door, and it is the only service
-# that binds 0.0.0.0 by default.
+# For the phone alone, docker-compose.phone.yml opens only webapp.
 #
 # That is the right default and it is also why the developer console's
 # links do not work from a phone: the ports are simply not there. This
@@ -19,8 +19,9 @@
 #   - Jupyter here runs with no token or password. Anyone who can reach
 #     port 8888 can execute code as the container's user, with this
 #     whole repository mounted.
-#   - Postgres is published too, with the credentials in this repo.
 #   - Airflow's web UI can trigger the training DAG.
+#   - webapp takes every planner write from anyone on the network
+#     while no sign-in is configured (APP_OPEN_WRITES).
 #
 # So: a home or office LAN you control, for as long as you are testing
 # on the phone. Not a cafe, not a conference, not a VPS. Stop it with
@@ -31,6 +32,11 @@
 # app from a phone needs a Postgres port, and it is the one service
 # here whose exposure would be worth someone's while.
 services:
+  webapp:
+    ports: !override
+      - "8080:8080"
+      - "8443:8443"
+
   ml:
     ports: !override
       - "8888:8888"

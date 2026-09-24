@@ -61,14 +61,21 @@ public class SecurityConfig {
     // everything on this machine uses. Off locally (docker-compose.yml),
     // on by default.
     private final boolean hsts;
+    // Where nobody can sign in, whether planner writes and the billed
+    // narrative are open to every caller (the local stack, bound to this
+    // machine, says so in docker-compose.yml) or refused (anything that
+    // did not say so -- a deployment that forgot its sign-in settings).
+    private final boolean openWrites;
 
     private final SignInOptions signIn;
 
     SecurityConfig(Optional<ClientRegistrationRepository> clientRegistrations,
                    @Value("${spring.mail.host:}") String mailHost,
                    @Value("${app.chart-tiles-origin:}") String chartTilesOrigin,
-                   @Value("${app.hsts:true}") boolean hsts) {
+                   @Value("${app.hsts:true}") boolean hsts,
+                   @Value("${app.open-writes:false}") boolean openWrites) {
         this.hsts = hsts;
+        this.openWrites = openWrites;
         // A session can be obtained through OIDC, or through the magic
         // link -- which only ever sends when a mail host is configured.
         this.oauthConfigured = clientRegistrations.isPresent();
@@ -122,17 +129,27 @@ public class SecurityConfig {
                     // call) -- and the flight planning drawer's narrative
                     // (ComparisonProxyController, a real billed Claude call
                     // every time) need a session as soon as this deployment
-                    // offers any way to get one. Locally nothing does, so
-                    // the training workspace and the narrative keep working
-                    // signed out.
+                    // offers any way to get one.
+                    //
+                    // Where nothing does, they are open only when the
+                    // deployment says so (app.open-writes). The local stack
+                    // does, with its ports on this machine alone, so the
+                    // training workspace and the narrative keep working
+                    // signed out there. Anything else is refused: open by
+                    // default made every write public on any host that
+                    // simply had no sign-in configured.
                     if (signInPossible) {
                         auth
                                 .requestMatchers("/api/planner/**").authenticated()
                                 .requestMatchers("/api/comparison/**").authenticated();
-                    } else {
+                    } else if (openWrites) {
                         auth
                                 .requestMatchers("/api/planner/**").permitAll()
                                 .requestMatchers("/api/comparison/**").permitAll();
+                    } else {
+                        auth
+                                .requestMatchers("/api/planner/**").denyAll()
+                                .requestMatchers("/api/comparison/**").denyAll();
                     }
                     auth
                             // The magic-link flow's own two steps -- request
