@@ -8,7 +8,7 @@ import { courseQuery, pilotQuery } from "../../../lib/queryClient";
 import { routeOf } from "../../../lib/identSchema";
 import { ended } from "../../../lib/api/streams";
 import type {
-  AircraftChoice, AltitudeChoice, Briefing, Leg, NarrativeMessage, NavLog, Totals,
+  AircraftChoice, AltitudeChoice, Briefing, Leg, NarrativeMessage, NavLogAltitude, NavLogMessage, Totals,
 } from "../../../lib/api/types";
 import { elapsed } from "../format";
 
@@ -139,10 +139,13 @@ export function usePlan(
     enabled: !!checkpoints.data, staleTime: Infinity,
   });
   const messages = useMemo(() => navlog.data ?? [], [navlog.data]);
-  const legs = useMemo(() => messages.flatMap(m => (m.type === "leg" ? [stripType(m) as Leg] : [])), [messages]);
-  const nav = useMemo<Omit<NavLog, "legs" | "totals"> | null>(() => {
-    const altitude = messages.find(m => m.type === "altitude");
-    return altitude ? (stripType(altitude) as Omit<NavLog, "legs" | "totals">) : null;
+  // Each message narrowed by its own `type`, not cast: the "altitude"
+  // line was cast to a hand-written copy of its shape, whose comments had
+  // gone stale while the cast kept compiling.
+  const legs = useMemo(() => messages.flatMap((m): Leg[] => (m.type === "leg" ? [stripType(m)] : [])), [messages]);
+  const nav = useMemo<NavLogAltitude | null>(() => {
+    const altitude = messages.find((m): m is Extract<NavLogMessage, { type: "altitude" }> => m.type === "altitude");
+    return altitude ? stripType(altitude) : null;
   }, [messages]);
   const totals = useMemo<Totals | null>(() => {
     const done = messages.find(m => m.type === "done");

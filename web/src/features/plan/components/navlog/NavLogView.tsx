@@ -17,7 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import {
   Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow,
 } from "../../../../components/ui/table";
-import type { AltitudeChoice, Candidate, Leg, NavLog, Totals } from "../../../../lib/api/types";
+import type { AltitudeChoice, Candidate, Leg, NavLogAltitude, Totals } from "../../../../lib/api/types";
 import { type Description, descriptionKey } from "../../hooks/usePlan";
 import { altFt, clockTime, deg, describeSteps, describeTime, etaAt, one, signed, totalsParts } from "../../format";
 import BriefingSection from "../briefing/BriefingSection";
@@ -50,7 +50,7 @@ const navLogTableFeatures = tableFeatures({});
 
 interface Props {
   totals: Totals | null;
-  nav: Omit<NavLog, "legs" | "totals"> | null;
+  nav: NavLogAltitude | null;
   /** Picks one of the three plans (lowest, highest, fastest) in the
    *  altitude's own popover, which re-plans; which one is flown is the
    *  nav log's own `choice`. */

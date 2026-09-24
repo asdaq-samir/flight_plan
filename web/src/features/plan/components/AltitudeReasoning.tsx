@@ -1,10 +1,10 @@
-import type { AltitudeOption, AltitudeSegment, NavLog } from "../../../lib/api/types";
+import type { AltitudeOption, AltitudeSegment, NavLogAltitude } from "../../../lib/api/types";
 import { altFt, deg, describeSteps, describeTime } from "../format";
 
 interface Props {
   /** The nav log's own altitude and, unless the pilot typed one, the
    *  planner's breakdown of how it chose it and the three plans. */
-  nav: Omit<NavLog, "legs" | "totals">;
+  nav: NavLogAltitude;
 }
 
 /** "a, b and c" -- the ceiling is the lowest of up to three things. */

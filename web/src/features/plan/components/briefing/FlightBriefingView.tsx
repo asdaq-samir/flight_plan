@@ -9,7 +9,7 @@ import { api } from "../../../../lib/api/client";
 import { pilotQuery } from "../../../../lib/queryClient";
 import AltitudeReasoning from "../AltitudeReasoning";
 import type {
-  Briefing, Candidate, Course, Leg, NavLog, SaveFlightRequest, Totals,
+  Briefing, Candidate, Course, Leg, NavLogAltitude, SaveFlightRequest, Totals,
 } from "../../../../lib/api/types";
 import type { BriefingState, FrameworkNarrative } from "../../hooks/usePlan";
 import { altFt, clockTime, deg } from "../../format";
@@ -19,7 +19,7 @@ import { colourOf } from "../../../../lib/map/flightCategory";
 interface Props {
   course: Course | null;
   totals: Totals | null;
-  nav: Omit<NavLog, "legs" | "totals"> | null;
+  nav: NavLogAltitude | null;
   legs: Leg[];
   dep: string;
   dest: string;
@@ -136,7 +136,7 @@ function SaveFlightSection({
 }: {
   course: Course | null;
   totals: Totals | null;
-  nav: Omit<NavLog, "legs" | "totals"> | null;
+  nav: NavLogAltitude | null;
   legs: Leg[];
   selected: Candidate[];
   aircraftId: number | null;

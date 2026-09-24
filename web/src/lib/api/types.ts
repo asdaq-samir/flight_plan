@@ -93,25 +93,9 @@ export interface AircraftChoice {
 export type CheckpointDescriptionMessage = Schemas["CheckpointNoteMessage"];
 export type CheckpointNoteSaved = Schemas["CheckpointNoteSaved"];
 
-/** Legs and totals plus what the "altitude" message carried: the page's
- *  own assembled nav log. `altitude_selection` is null when a pilot
- *  supplied their own altitude, since nothing was computed to break
- *  down. */
-export interface NavLog {
-  legs: Leg[];
-  totals: Totals;
-  /** The first leg's -- a plan may step; each leg carries its own. */
-  altitude_ft: number;
-  altitude_selection: AltitudeBreakdown | null;
-  /** The three plans and the one the legs fly -- empty and null when
-   *  the pilot supplied the altitude. */
-  options: AltitudeOption[];
-  choice: AltitudeChoice | null;
-  /** Which winds-aloft forecast period the legs were flown on: "06",
-   *  "12" or "24" hours out, from the departure time. */
-  winds_forecast_hr: string;
-  aircraft: AircraftProfile;
-}
+/** What the nav log stream's "altitude" message carries -- the generated
+ *  shape, less its `type`. */
+export type NavLogAltitude = Omit<Schemas["NavLogAltitude"], "type">;
 
 // ---------------------------------------------------------------------
 // The chart: what the detector found and what a pilot marked.
