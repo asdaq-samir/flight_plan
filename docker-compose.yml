@@ -70,7 +70,13 @@ services:
     ports:
       - "127.0.0.1:8081:8080"
     volumes:
-      - .:/opt/airflow/project
+      # data/ only -- promotion writes data/models -- and never the code:
+      # the DAGs and src are baked into the image (docker/Dockerfile.airflow),
+      # because this container holds the host's Docker socket and the
+      # repo is writable from ml, the pipeline jobs, planning-service and
+      # the agents. Code read from the repo here would run whatever any
+      # of them had written.
+      - ./data:/opt/project/data
       # airflow_home_v3, not airflow_home: the 2.x airflow.cfg this volume
       # held has no [api_auth]/jwt_secret -- a value Airflow 3's api-server
       # requires and refuses to autogenerate into an existing cfg file. A
@@ -79,13 +85,13 @@ services:
       - airflow_home_v3:/opt/airflow
       - /var/run/docker.sock:/var/run/docker.sock
     environment:
-      AIRFLOW__CORE__DAGS_FOLDER: /opt/airflow/project/airflow/dags
+      AIRFLOW__CORE__DAGS_FOLDER: /opt/project/airflow/dags
       AIRFLOW__CORE__LOAD_EXAMPLES: "false"
-      PYTHONPATH: /opt/airflow/project/src
+      PYTHONPATH: /opt/project/src
       # DockerOperator launches sibling containers via the mounted host
       # socket -- their -v mounts are resolved by the HOST's Docker daemon,
-      # so they need the HOST's path to this project, not this container's
-      # own /opt/airflow/project view of it.
+      # so they need the HOST's path to this project, not a path inside
+      # this container.
       PROJECT_HOST_PATH: ${PWD}
       # The DAG's DockerOperator tasks run the pipeline images Compose
       # built for this project -- named <project>-pipeline-processing

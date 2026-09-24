@@ -1,11 +1,13 @@
 # syntax=docker/dockerfile:1
 # The AWS-hosted Airflow image (see AirflowTaskDefinition in
 # infra/cloudformation/template.yaml) -- separate from Dockerfile.airflow
-# because that one relies on docker-compose's bind mount (.:/opt/airflow/project)
-# for both its DAGs and its DockerOperator sibling-container pattern,
-# neither of which exist on Fargate. This image instead bakes in only the
+# because that one runs DockerOperator sibling containers over the host's
+# Docker socket, which Fargate does not have. This image bakes in only the
 # AWS-mode DAG (vfr_pipeline_aws_dag.py, which launches SageMaker Jobs
-# instead of sibling containers) and the src/vfr package it imports.
+# instead of sibling containers) and the src/vfr package it imports --
+# under /opt/project, not /opt/airflow: the task mounts its EFS home at
+# /opt/airflow (AirflowTaskDefinition), which would hide anything baked
+# beneath it.
 FROM apache/airflow:3.3.1-python3.13
 
 # Constraints URL pinned in Dockerfile.airflow too -- keep both in sync
@@ -15,9 +17,9 @@ RUN --mount=type=cache,target=/root/.cache/pip,uid=50000,gid=0 pip install \
     "apache-airflow-providers-standard" \
     --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-3.3.1/constraints-3.13.txt"
 
-ENV AIRFLOW__CORE__DAGS_FOLDER=/opt/airflow/project/airflow/dags
+ENV AIRFLOW__CORE__DAGS_FOLDER=/opt/project/airflow/dags
 ENV AIRFLOW__CORE__LOAD_EXAMPLES=false
-ENV PYTHONPATH=/opt/airflow/project/src
+ENV PYTHONPATH=/opt/project/src
 
-COPY airflow/dags/vfr_pipeline_aws_dag.py /opt/airflow/project/airflow/dags/vfr_pipeline_aws_dag.py
-COPY src /opt/airflow/project/src
+COPY airflow/dags/vfr_pipeline_aws_dag.py /opt/project/airflow/dags/vfr_pipeline_aws_dag.py
+COPY src /opt/project/src

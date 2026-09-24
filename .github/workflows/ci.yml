@@ -253,6 +253,7 @@ jobs:
             airflow:
               - docker/Dockerfile.airflow
               - airflow/**
+              - src/vfr/**
             airflow-aws:
               - docker/Dockerfile.airflow.aws
               - airflow/dags/vfr_pipeline_aws_dag.py

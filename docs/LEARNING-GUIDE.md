@@ -482,9 +482,11 @@ One sharp edge worth understanding, not just copying: `DockerOperator`'s
 mounts are resolved by the **host's** Docker daemon, not by paths as seen
 from inside the `airflow` container. `PROJECT_HOST_PATH` (an env var
 Compose passes through as `${PWD}`) exists solely to give the DAG the
-*host's* real filesystem path to this project, since `/opt/airflow/project`
-(the path *inside* the `airflow` container) means nothing to the host
-daemon receiving the mount request.
+*host's* real filesystem path to this project, since a path *inside* the
+`airflow` container means nothing to the host daemon receiving the mount
+request. (The DAGs and `src` themselves are baked into the Airflow image at
+`/opt/project`, not read from the repo: that container holds the host's
+Docker socket, and the repo is writable from most other containers.)
 
 ### The same DAG, twice: local and AWS
 

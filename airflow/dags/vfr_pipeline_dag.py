@@ -26,13 +26,15 @@ from airflow.sdk import dag, task
 from docker.types import Mount
 from pendulum import datetime
 
-PROJECT_SRC = Path("/opt/airflow/project/src")
+# The image bakes this file and src/ in side by side (docker/Dockerfile.airflow),
+# so src/ is two levels up from here -- wherever that is.
+PROJECT_SRC = Path(__file__).resolve().parents[2] / "src"
 if str(PROJECT_SRC) not in sys.path:
     sys.path.insert(0, str(PROJECT_SRC))
 
 # DockerOperator talks to the HOST's Docker daemon over the mounted socket,
-# so its mounts must be HOST paths -- this container's own
-# /opt/airflow/project view of the repo means nothing to that daemon.
+# so its mounts must be HOST paths -- a path inside this container means
+# nothing to that daemon.
 PROJECT_HOST_PATH = os.environ["PROJECT_HOST_PATH"]
 PROJECT_MOUNT = Mount(source=PROJECT_HOST_PATH, target="/workspace", type="bind")
 
