@@ -4,9 +4,10 @@ import {
 } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ApiError, api, describeError } from "../../../lib/api/client";
+import { courseQuery, pilotQuery } from "../../../lib/queryClient";
 import { ended } from "../../../lib/api/streams";
 import type {
-  AircraftChoice, AltitudeChoice, CheckpointDescriptionMessage, Leg, NarrativeMessage, NavLog, Totals,
+  AircraftChoice, AltitudeChoice, Leg, NarrativeMessage, NavLog, Totals,
 } from "../../../lib/api/types";
 import { elapsed } from "../format";
 
@@ -82,10 +83,7 @@ export function usePlan(
 
   // The previous route's course stays on the map until the new one is
   // charted, so the map is never taken down between routes.
-  const course = useQuery({
-    queryKey: ["course", dep, dest], queryFn: () => api.course(dep, dest),
-    enabled: routeKnown, staleTime: Infinity, placeholderData: keepPreviousData,
-  });
+  const course = useQuery({ ...courseQuery(dep, dest), enabled: routeKnown, placeholderData: keepPreviousData });
 
   const checkpoints = useQuery({
     queryKey: ["checkpoints", dep, dest], queryFn: () => api.checkpoints(dep, dest),
@@ -150,9 +148,18 @@ export function usePlan(
   // One "how to spot it" line per checkpoint, streamed on a pilot's
   // own click (the nav log's button) and never on its own: every line
   // is an LLM call. Once asked for, kept for the route.
-  const descriptionsKey = ["descriptions", dep, dest, altitudeFt];
+  //
+  // Keyed as the planner keeps them: per route and per pilot -- a
+  // signed-in pilot's own edits are theirs alone, and after Log out the
+  // next person must not see them -- and not per altitude, which the
+  // request does not even send. The cache holds only what the stream
+  // said; the pilot's own edits are the overlay below, never written
+  // into it (writing a line in by hand made the query "fetched", and
+  // Generate then did nothing for that route).
+  const { data: pilot } = useQuery(pilotQuery);
+  const pilotId = pilot?.id ?? null;
   const descriptions = useQuery({
-    queryKey: descriptionsKey,
+    queryKey: ["descriptions", dep, dest, pilotId],
     queryFn: streamedQuery({
       streamFn: ({ signal }) => api.describeCheckpoints(dep, dest, signal),
     }),
@@ -162,13 +169,24 @@ export function usePlan(
     if (descriptions.isFetching || descriptions.isFetched) return;
     void descriptions.refetch();
   }, [descriptions]);
+
+  // The pilot's own edits, shown the moment they are made: an overlay
+  // on the stream, scoped the same way. Written when the save starts;
+  // a failed save takes its own text back out -- but only if the box
+  // still holds that text, so a later edit of the same checkpoint that
+  // did save is never undone by an earlier one's failure.
+  const scope = `${dep}\u0000${dest}\u0000${pilotId ?? ""}`;
+  const [edits, setEdits] = useState<{ scope: string; notes: Record<string, string> }>({ scope, notes: {} });
   const descriptionMap = useMemo(() => {
     const map: Record<string, Description> = {};
     for (const m of descriptions.data ?? []) {
       if (m.type === "checkpoint") map[descriptionKey(m.lat, m.lon)] = { text: m.description ?? "", source: m.source };
     }
+    if (edits.scope === scope) {
+      for (const [key, text] of Object.entries(edits.notes)) map[key] = { text, source: "saved" };
+    }
     return map;
-  }, [descriptions.data]);
+  }, [descriptions.data, edits, scope]);
   const descriptionError = (descriptions.data ?? []).flatMap(m => (m.type === "error" ? [m.detail] : [])).at(-1) ?? null;
   const descriptionProgress = useMemo(() => {
     if (!descriptions.isFetching) return null;
@@ -177,22 +195,29 @@ export function usePlan(
     return { done, total: started && started.type === "start" ? started.count : 0 };
   }, [descriptions.data, descriptions.isFetching]);
 
-  // A pilot's own edit, shown at once and put back if the save fails.
   const saveNote = useMutation({
     mutationFn: ({ lat, lon, text }: { lat: number; lon: number; text: string }) =>
       api.saveCheckpointNote(dep, dest, lat, lon, text),
     onMutate: ({ lat, lon, text }) => {
-      const previous = queryClient.getQueryData<CheckpointDescriptionMessage[]>(descriptionsKey);
-      queryClient.setQueryData<CheckpointDescriptionMessage[]>(descriptionsKey, old => [
-        ...(old ?? []),
-        { type: "checkpoint", lat, lon, description: text, source: "saved" } as CheckpointDescriptionMessage,
-      ]);
-      return { previous };
+      const key = descriptionKey(lat, lon);
+      setEdits(current => ({
+        scope, notes: { ...(current.scope === scope ? current.notes : {}), [key]: text },
+      }));
+      return { scope, key, text };
     },
-    onError: (_error, _vars, context) => queryClient.setQueryData(descriptionsKey, context?.previous),
+    onError: (_error, _vars, context) => {
+      if (!context) return;
+      setEdits(current => {
+        if (current.scope !== context.scope || current.notes[context.key] !== context.text) return current;
+        const { [context.key]: _failed, ...rest } = current.notes;
+        return { scope: current.scope, notes: rest };
+      });
+    },
   });
+  // The save's own promise, so the note's box can keep a pilot's typing
+  // until it is safely saved (DescriptionCell).
   const saveDescription = useCallback(
-    (lat: number, lon: number, text: string) => saveNote.mutate({ lat, lon, text }),
+    (lat: number, lon: number, text: string) => saveNote.mutateAsync({ lat, lon, text }),
     [saveNote],
   );
 
