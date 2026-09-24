@@ -67,10 +67,10 @@ export type RetrainStarted = Schemas["RetrainStarted"];
 export type ChartRefreshStarted = Schemas["ChartRefreshStarted"];
 export type AircraftProfileSummary = Schemas["AircraftProfileSummary"];
 export type AircraftProfiles = Schemas["AircraftProfiles"];
-/** One Class B airport, with what the weather is doing there and which
- *  terminal chart covers it. Every weather field is optional and often
- *  absent, and absent must read as absent rather than as "nothing to
- *  worry about". */
+/** One Class B airport, with what the weather is doing there. Every
+ *  weather field is optional and often absent, and absent must read as
+ *  absent rather than as "nothing to worry about". Which terminal chart
+ *  covers it is the map's own lookup (tiles.ts, sheetAt). */
 export type ClassBAirport = Schemas["ClassBAirport"];
 export type ClassBResponse = Schemas["ClassBResponse"];
 /** One service the developer console links to, and whether it is up.

@@ -1,5 +1,7 @@
-"""The Class B airports, with what the weather is doing at each and
-which terminal chart covers it.
+"""The Class B airports, with what the weather is doing at each. Which
+terminal chart covers each is the map's to say, from the sheets every
+course carries (the web's chartPair/sheetAt), over whichever base it
+draws.
 
 One call rather than thirty. The map draws a marker per Class B and a
 pilot hovers one to see whether they could get in today, so the
@@ -14,7 +16,7 @@ import logging
 import time
 
 from fastapi import APIRouter
-from vfr import airspace, altitude, charts, classb, weather
+from vfr import airspace, altitude, classb, weather
 
 from ..schemas import ClassBAirport, ClassBResponse
 
@@ -23,21 +25,10 @@ log = logging.getLogger(__name__)
 router = APIRouter()
 
 
-def _tac_sheet(lat: float, lon: float) -> str | None:
-    """The terminal area chart covering a point, by the label the map
-    shows. A Class B almost always has one -- that is what a TAC is for
-    -- but not always, so this may be None."""
-    for name, (west, south, east, north) in charts.sheets(charts.TAC):
-        if south <= lat <= north and west <= lon <= east:
-            return charts.sheet_label(charts.TAC, name)
-    return None
-
-
 @router.get("/api/class-b", response_model=ClassBResponse)
 def class_b_airports() -> ClassBResponse:
-    """Every Class B airport: where it is, what the weather is doing
-    there now and what it is forecast to do, and which terminal area
-    chart covers it.
+    """Every Class B airport: where it is, and what the weather is doing
+    there now and what it is forecast to do.
 
     `flight_category` is the METAR's own (VFR, MVFR, IFR, LIFR), not
     this project's arithmetic -- it is what the reporting station
@@ -74,7 +65,6 @@ def class_b_airports() -> ClassBResponse:
                 lon=a["lon"],
                 floor_ft_msl=a["floor_ft_msl"],
                 shelves=a["shelves"],
-                tac=_tac_sheet(a["lat"], a["lon"]),
                 flight_category=metar.get("flight_category"),
                 metar=metar.get("raw"),
                 metar_observed_at=metar.get("observed_at"),

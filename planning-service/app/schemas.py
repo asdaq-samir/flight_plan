@@ -895,9 +895,6 @@ class ClassBAirport(BaseModel):
     floor_ft_msl: float | None = None
     #: How many altitude tiers the airspace is drawn as.
     shelves: int
-    #: The terminal area chart covering this airport, by the label the
-    #: map's layer picker uses. None where the FAA publishes none.
-    tac: str | None = None
 
     #: The METAR's own category (VFR, MVFR, IFR, LIFR), not this
     #: project's arithmetic.

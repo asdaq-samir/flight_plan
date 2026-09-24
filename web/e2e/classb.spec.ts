@@ -25,14 +25,14 @@ const FIXTURE = {
   airports: [
     {
       ident: "KORD", name: "Chicago O'Hare International Airport",
-      lat: 41.978, lon: -87.908, floor_ft_msl: 0, shelves: 12, tac: "Chicago TAC",
+      lat: 41.978, lon: -87.908, floor_ft_msl: 0, shelves: 12,
       flight_category: "IFR", metar: "METAR KORD 221451Z 08014KT 1SM BR OVC004",
       ceiling_ft: 400, visibility_sm: 1, wind_dir_true_deg: 80, wind_speed_kt: 14,
       taf: "TAF KORD 221500Z 2215/2318 07012G20KT 2SM", taf_ceiling_ft: 800, taf_visibility_sm: 2,
     },
     {
       ident: "KMSP", name: "Minneapolis St Paul International Airport",
-      lat: 44.882, lon: -93.222, floor_ft_msl: 0, shelves: 9, tac: "Minneapolis-St Paul TAC",
+      lat: 44.882, lon: -93.222, floor_ft_msl: 0, shelves: 9,
       flight_category: null, metar: null,
       ceiling_ft: null, visibility_sm: null, wind_dir_true_deg: null, wind_speed_kt: null,
       taf: null, taf_ceiling_ft: null, taf_visibility_sm: null,

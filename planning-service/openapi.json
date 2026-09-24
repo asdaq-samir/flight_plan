@@ -1375,17 +1375,6 @@
             "title": "Shelves",
             "type": "integer"
           },
-          "tac": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Tac"
-          },
           "taf": {
             "anyOf": [
               {
@@ -4915,7 +4904,7 @@
     },
     "/api/class-b": {
       "get": {
-        "description": "Every Class B airport: where it is, what the weather is doing\nthere now and what it is forecast to do, and which terminal area\nchart covers it.\n\n`flight_category` is the METAR's own (VFR, MVFR, IFR, LIFR), not\nthis project's arithmetic -- it is what the reporting station\npublished, and a pilot already reads it that way. None where the\nfield has no current report.",
+        "description": "Every Class B airport: where it is, and what the weather is doing\nthere now and what it is forecast to do.\n\n`flight_category` is the METAR's own (VFR, MVFR, IFR, LIFR), not\nthis project's arithmetic -- it is what the reporting station\npublished, and a pilot already reads it that way. None where the\nfield has no current report.",
         "operationId": "class_b_airports_api_class_b_get",
         "responses": {
           "200": {
