@@ -47,7 +47,12 @@ test("a flight is filed once, whole, and a new plan is offered for saving again"
 
   // Load again: a fresh nav log is a new plan. "Saved" used to stay for
   // the session, and a click filed a duplicate of whatever was on screen.
+  // On a phone the drawer is a modal sheet over the header's Load, so it
+  // is closed for the press and opened again after.
+  const phone = (page.viewportSize()?.width ?? 0) < 768;
+  if (phone) await page.keyboard.press("Escape");
   await page.getByRole("button", { name: "Load" }).click();
+  if (phone) await page.getByTestId("sidebar-trigger-button").click();
   await expect(save).toHaveText("Save this flight", { timeout: 90_000 });
   await expect(save).toBeEnabled({ timeout: 90_000 });
 });
