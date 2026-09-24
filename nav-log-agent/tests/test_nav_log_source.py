@@ -19,7 +19,7 @@ PLAN = {
         {"from": "LAKE GENEVA", "to": "KDLH", "distance_nm": 270.0, "altitude_ft": 4500.0, "climb_min": 0.0,
          "magnetic_heading_deg": 336.0, "groundspeed_kt": 108.0, "ete_min": 150.0, "fuel_gal": 21.3},
     ],
-    "totals": {"distance_nm": 291.0, "ete_min": 162.9, "fuel_gal": 23.3, "required_gal": 27.6},
+    "totals": {"distance_nm": 291.0, "ete_min": 162.9, "fuel_gal": 23.3, "fuel_required_gal": 27.6},
 }
 
 
