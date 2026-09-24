@@ -6,6 +6,7 @@ import java.io.OutputStream;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.net.http.HttpTimeoutException;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.function.Function;
@@ -79,6 +80,12 @@ public class StreamingProxy {
             Upstream upstream, HttpRequest request, ResponseShaper onResponse) {
         try {
             return onResponse.apply(http.send(request, HttpResponse.BodyHandlers.ofInputStream()));
+        } catch (HttpTimeoutException err) {
+            // An IOException too, so caught first: an upstream that took
+            // too long answered, slowly -- it was reported as unreachable,
+            // and the 504 below was only ever an interrupted thread's.
+            log.warn("{} timed out at {}: {}", upstream.name(), request.uri(), err.toString());
+            return error(504, upstream.timedOutDetail());
         } catch (IOException err) {
             log.warn("{} unreachable at {}: {}", upstream.name(), request.uri(), err.toString());
             return error(502, upstream.unreachableDetail());
