@@ -24,6 +24,9 @@ interface Props {
   dep: string;
   dest: string;
   selected: Candidate[];
+  /** Whether the drawer holding this is open. The view stays mounted
+   *  beside a desktop map whether or not it is. */
+  open: boolean;
   /** Where the briefing stands (see `usePlan`'s BriefingState). The
    *  page keeps its standard sections visible and says which state
    *  applies, rather than making a failed briefing indistinguishable
@@ -215,7 +218,7 @@ function SaveFlightSection({
  */
 export default function FlightBriefingView({
   course, totals, nav, legs, dep, dest, selected,
-  briefing: briefingState,
+  open, briefing: briefingState,
   langgraphNarrative, crewaiNarrative, aircraftLabel, aircraftId, depart,
 }: Props) {
   const winds = windsAloftSummary(legs);
@@ -233,24 +236,21 @@ export default function FlightBriefingView({
   // top of the briefing, pushing every section below it down a line
   // whether a pilot needed the reminder again or not. A toast instead
   // -- same sonner instance (main.tsx) PlanWorkspace's own progress/error
-  // toasts use, so the same bottom-center position without having to
-  // say so again here -- says it once, prominently, each time this
-  // mounts (the drawer opening wide), then gets out of the way rather
-  // than sitting there for the whole session.
+  // toasts use -- says it once, prominently, each time the drawer
+  // opens, then gets out of the way. On opening, not on mounting: beside
+  // a desktop map this view is mounted for the whole visit, and the
+  // warning used to pop up on page load, over a map with no drawer open.
   useEffect(() => {
+    if (!open) return;
     toast.warning("Planning aid only.", {
       id: "briefing-planning-aid-only",
       description: "Before flight, obtain an official briefing and verify current weather, NOTAMs, TFRs, airport status, aircraft performance, and applicable regulations.",
       duration: 8000,
     });
     // sonner's own Toaster is mounted once at the app root (main.tsx),
-    // not inside this view -- without this, its 8s duration keeps
-    // counting down regardless of navigation, so narrowing the drawer
-    // back to the nav log (or leaving for Dev) within that window
-    // still shows a briefing-specific warning on whatever is on screen
-    // next.
+    // not inside this view: closing the drawer takes the warning with it.
     return () => { toast.dismiss("briefing-planning-aid-only"); };
-  }, []);
+  }, [open]);
 
   // The briefing's own conclusions, announced once when they arrive.
   // The sections below carry the same facts for the printed page, but a

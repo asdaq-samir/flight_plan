@@ -270,7 +270,7 @@ export default function PlanWorkspace({ dep, dest, onRoute, sidebarOpen, childre
       <FlightBriefingView
         course={course} totals={s.totals} nav={s.nav} legs={s.legs}
         dep={planned.dep} dest={planned.dest} selected={selected}
-        briefing={s.briefing}
+        open={sidebarOpen} briefing={s.briefing}
         langgraphNarrative={s.langgraphNarrative} crewaiNarrative={s.crewaiNarrative}
         aircraftLabel={aircraft.label} aircraftId={aircraft.aircraftId ?? null}
         depart={depart}
