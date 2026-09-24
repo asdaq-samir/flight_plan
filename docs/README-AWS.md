@@ -212,10 +212,29 @@ as local `docker compose up` with none of those set.
 ### Where this sits relative to the current state
 
 The Airflow DAG, both Gen AI agents, and CI/CD all run locally today; the
-AWS infrastructure and its AWS-mode DAG variant are fully written and
-validated but not provisioned — no AWS account exists in this project's
+AWS infrastructure and its AWS-mode DAG variant are written and lint
+clean but not provisioned — no AWS account exists in this project's
 environment. See the main [`README.md`](README.md) for the full local→AWS
-mapping table and current status.
+mapping table.
+
+**Deferred, and not deployable as it stands.** These gaps would each stop
+or undermine a real deploy, and are known:
+
+- planning-service is given `VFR_DATA_S3_BUCKET`, but no code reads it, so
+  a Fargate task finds no FAA data or feature stores (it has no repo
+  mount).
+- Chart picks, checkpoint notes and corridor builds are written to the
+  task's own disk, which a restart or deploy wipes. They need S3 or RDS
+  first.
+- The webapp task sets no `NAV_LOG_AGENT_URL`, `CREWAI_AGENT_URL` or agent
+  bearer key, so the narrative falls back to `localhost`; and
+  crewai-agent is a one-off task definition while webapp calls it as a
+  running service.
+- planning-service has no Anthropic key, so checkpoint notes fail.
+- The template takes no sign-in settings. With none, the webapp refuses
+  every planner write and the narrative (`app.open-writes` is off), so
+  the site would be read-only until Google, Apple or mail sign-in is
+  configured.
 
 ## Deployment Guide
 

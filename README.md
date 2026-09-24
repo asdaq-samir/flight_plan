@@ -28,7 +28,7 @@ Demo route: **Campbell Airport (C81)** → **Duluth International (KDLH)**.
 - **FAA-accurate flight planning.** Dead-reckoning legs (wind correction angle, true/magnetic heading, groundspeed, ETE, fuel burn) from live NOAA winds-aloft and magnetic-declination data. Cruising-altitude selection accounts for terrain/obstacle clearance (FAA MEF methodology), live Class B/C/D airspace, and current METAR/TAF/SIGMET data.
 - **A Gen AI agent with long-term memory.** A LangGraph agent, served over MCP, assembles the full nav log into a natural-language briefing and recalls similar past routes via a Postgres/pgvector semantic-search store.
 - **The same agent, two frameworks.** A second implementation in CrewAI runs the identical task — same tools, same model-serving backend, same Claude API — so LangGraph's explicit state-graph control flow and CrewAI's agent-driven tool selection can be compared on one real task, side by side, from the UI.
-- **A defined path to production.** Every local service maps to a named AWS target — SageMaker, ECS Fargate, RDS, CloudFormation — with no architectural rewrite between the two.
+- **A written path to production.** Every local service maps to a named AWS target — SageMaker, ECS Fargate, RDS, CloudFormation — in a template that is not yet deployable: the planner's data and its label and note files still need S3 or RDS behind them first ([`docs/README-AWS.md`](docs/README-AWS.md) lists what is left).
 
 ## Architecture
 
