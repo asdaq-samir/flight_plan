@@ -120,18 +120,23 @@ export function AircraftPanel({ pilot }: { pilot: PilotState }) {
     reset(EMPTY_AIRCRAFT_FORM);
   };
 
+  // Which aeroplane a save is for travels with it, the way `remove`'s id
+  // does: it used to be read from the form's state when the save
+  // finished, so an add still in flight when Edit was clicked on another
+  // row toasted "updated" and wiped the form just opened.
   const save = useMutation({
-    mutationFn: (request: AircraftRequest) =>
-      editingId ? api.aircraft.update(editingId, request) : api.aircraft.add(request),
+    mutationFn: ({ id, request }: { id: number | null; request: AircraftRequest }) =>
+      id ? api.aircraft.update(id, request) : api.aircraft.add(request),
     // The only other feedback a save gets is a row quietly changing in
     // a table below the form -- easy to miss with your eyes still on
     // the inputs you just submitted, unlike Plan/Label's own toasts
     // (usePageStatus), which confirm something already big and visible
     // (a route, a rating). This is the one place in the app a genuine
     // list-editing success has nothing else to announce it.
-    onSuccess: () => {
-      toast.success(editingId ? "Aircraft updated" : "Aircraft added");
-      cancelEdit();
+    onSuccess: (_data, { id }) => {
+      toast.success(id ? "Aircraft updated" : "Aircraft added");
+      // Cleared only while it still shows what was saved.
+      if (editingId === id) cancelEdit();
       void queryClient.invalidateQueries({ queryKey: ["aircraft"] });
     },
   });
@@ -155,12 +160,11 @@ export function AircraftPanel({ pilot }: { pilot: PilotState }) {
     });
   };
 
-  const onSubmit = (values: AircraftFormValues) => save.mutate({
+  const onSubmit = (values: AircraftFormValues) => save.mutate({ id: editingId, request: {
     tailNumber: values.tailNumber.trim(), typeDesignator: values.typeDesignator.trim(),
     cruiseTasKt: Number(values.cruiseTasKt), fuelBurnGph: Number(values.fuelBurnGph),
     usableFuelGal: values.usableFuelGal.trim() ? Number(values.usableFuelGal) : null,
-  });
-
+  } });
 
   return (
     <section>

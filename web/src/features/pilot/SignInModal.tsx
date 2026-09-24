@@ -10,7 +10,7 @@ import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger,
 } from "../../components/ui/dialog";
 import { Input } from "../../components/ui/input";
-import { api } from "../../lib/api/client";
+import { ApiError, api } from "../../lib/api/client";
 
 /**
  * Three ways in, the standard shape every "sign in" prompt (Auth.js,
@@ -28,21 +28,25 @@ import { api } from "../../lib/api/client";
 export default function SignInModal() {
   const [open, setOpen] = useState(false);
   const [email, setEmail] = useState("");
-  const [sent, setSent] = useState<string | null>(null);
   const trimmedEmail = email.trim();
+  // The address a link went to is the one it was asked for with -- the
+  // mutation's own variable -- not a copy taken from the box when the
+  // answer came back, which said "Check" whatever had been typed since,
+  // and survived a close and reopen mid-request.
   const magicLink = useMutation({
-    mutationFn: () => api.requestMagicLink(trimmedEmail),
-    onSuccess: () => setSent(trimmedEmail),
-    onError: () => toast.error("Couldn't send that link. Check the address and try again."),
+    mutationFn: (address: string) => api.requestMagicLink(address),
+    onError: error => toast.error(error instanceof ApiError && error.status === 429
+      ? "Too many sign-in links asked for. Wait a few minutes and try again."
+      : "Couldn't send that link. Check the address and try again."),
     meta: { silent: true },
   });
+  const sent = magicLink.isSuccess ? magicLink.variables : null;
 
   return (
     <Dialog open={open} onOpenChange={o => {
       setOpen(o);
       if (!o) {
         setEmail("");
-        setSent(null);
         magicLink.reset();
       }
     }}>
@@ -79,7 +83,7 @@ export default function SignInModal() {
         ) : (
           <form
             className="flex flex-col gap-2"
-            onSubmit={e => { e.preventDefault(); magicLink.mutate(); }}
+            onSubmit={e => { e.preventDefault(); magicLink.mutate(trimmedEmail); }}
           >
             <div className="flex gap-2">
               <Input
