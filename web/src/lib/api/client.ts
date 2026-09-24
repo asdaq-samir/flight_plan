@@ -270,10 +270,11 @@ export const api = {
    * checkpoint doesn't hold up the ones that already arrived.
    */
   async *describeCheckpoints(
-    dep: string, dest: string, altitudeFt?: string, signal?: AbortSignal,
+    dep: string, dest: string, signal?: AbortSignal,
   ): AsyncGenerator<CheckpointDescriptionMessage> {
-    const result = await planner.GET("/api/checkpoint-notes", {
-      params: { query: { dep, dest, altitude_ft: altitudeFt ? Number(altitudeFt) : undefined } },
+    // A POST: each checkpoint without a note is a billed Claude call.
+    const result = await planner.POST("/api/checkpoint-notes/generate", {
+      body: { departure_ident: dep, destination_ident: dest },
       parseAs: "stream", signal,
     });
     yield* ndjson<CheckpointDescriptionMessage>(result.data as ReadableStream | undefined);

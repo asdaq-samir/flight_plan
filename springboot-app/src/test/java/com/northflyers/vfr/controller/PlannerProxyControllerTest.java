@@ -33,7 +33,13 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MvcResult;
+import com.northflyers.vfr.domain.Pilot;
+import com.northflyers.vfr.service.PilotService;
+import java.util.Optional;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.BDDMockito.given;
 
 /**
  * The front door, against a real upstream.
@@ -66,6 +72,9 @@ class PlannerProxyControllerTest {
     @Autowired
     private MockMvc mockMvc;
 
+    @MockitoBean
+    private PilotService pilotService;
+
     @BeforeAll
     static void startUpstream() throws IOException {
         upstream = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
@@ -74,6 +83,10 @@ class PlannerProxyControllerTest {
             received.add(exchange.getRequestMethod() + " " + exchange.getRequestURI().getPath()
                     + (query == null ? "" : "?" + query));
             received.add("body=" + new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+            String pilotHeader = exchange.getRequestHeaders().getFirst("X-Pilot-Id");
+            if (pilotHeader != null) {
+                received.add("pilot=" + pilotHeader);
+            }
 
             responseHeaders.forEach((name, value) -> exchange.getResponseHeaders().add(name, value));
             byte[] body = responseBody.getOrDefault("body", "{}").getBytes(StandardCharsets.UTF_8);
@@ -252,10 +265,37 @@ class PlannerProxyControllerTest {
                 .andExpect(jsonPath("$.detail").value("planner service unreachable"));
     }
 
+    /** A checkpoint note is its pilot's own, so the planner is told who
+     *  saved it -- from the session, never from what the browser sent. */
+    @Test
+    void aNoteCarriesTheSignedInPilotAndNothingTheBrowserClaimed() throws Exception {
+        Pilot pilot = org.mockito.Mockito.mock(Pilot.class);
+        given(pilot.getId()).willReturn(42L);
+        given(pilotService.current(any())).willReturn(Optional.of(pilot));
+
+        finish(mockMvc.perform(post("/api/planner/checkpoint-notes")
+                        .header("X-Pilot-Id", "7")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(request().asyncStarted())
+                .andReturn());
+
+        assertThat(received).contains("pilot=42").doesNotContain("pilot=7");
+    }
+
+    @Test
+    void noOtherPathCarriesAPilot() throws Exception {
+        finish(mockMvc.perform(get("/api/planner/course?dep=C81&dest=KDLH").header("X-Pilot-Id", "7"))
+                .andExpect(request().asyncStarted())
+                .andReturn());
+
+        assertThat(received).noneMatch(line -> line.startsWith("pilot="));
+    }
+
     /** A second MockMvc whose planner points at a port nothing is on. */
     private MockMvc unreachablePlanner() {
         PlannerProxyController controller =
-                new PlannerProxyController(new StreamingProxy(), "http://127.0.0.1:1");
+                new PlannerProxyController(new StreamingProxy(), "http://127.0.0.1:1", pilotService);
         return standaloneSetup(controller)
                 .build();
     }

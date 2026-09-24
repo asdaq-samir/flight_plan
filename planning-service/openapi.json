@@ -2052,6 +2052,24 @@
         "title": "Frequency",
         "type": "object"
       },
+      "GenerateNotesRequest": {
+        "properties": {
+          "departure_ident": {
+            "title": "Departure Ident",
+            "type": "string"
+          },
+          "destination_ident": {
+            "title": "Destination Ident",
+            "type": "string"
+          }
+        },
+        "required": [
+          "departure_ident",
+          "destination_ident"
+        ],
+        "title": "GenerateNotesRequest",
+        "type": "object"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -4515,80 +4533,27 @@
       }
     },
     "/api/checkpoint-notes": {
-      "get": {
-        "description": "One \"how to spot it\" line per checkpoint, as newline-delimited\nJSON (each line one app.schemas.CheckpointNoteMessage), so a slow\nLLM call on checkpoint 3 does not hold up checkpoints 1 and 2 that\nalready arrived.\n\nTwo different kinds of failure, reported two different ways. A\nsingle checkpoint's own LLM call failing for a reason specific to\nit does not take the rest of the stream down -- every other\ncheckpoint is independent and still worth generating, so that one\ngets its own per-checkpoint \"error\" line and the loop moves on.\nGLOBAL_ANTHROPIC_ERRORS is the opposite case: a bad key or an\nexhausted rate limit fails identically for every checkpoint, so\nit's reported once as a single stream-level \"error\" (for one\nbanner instead of the same text repeated per row) -- but the\nstream itself keeps going: every remaining checkpoint still gets\nits own per-checkpoint \"error\" line too, just without spending a\ncall to learn what's already known. A pilot still gets a row to\ntype a note into for every checkpoint, not just the ones that\nhappened to come before the failure.",
-        "operationId": "describe_checkpoints_api_checkpoint_notes_get",
+      "post": {
+        "description": "A pilot's own edit to a checkpoint's identification note: what\nthey see at that place from now on. Other pilots keep the shared\nnote; where nobody can sign in, this becomes the shared note.",
+        "operationId": "save_checkpoint_note_api_checkpoint_notes_post",
         "parameters": [
           {
-            "in": "query",
-            "name": "dep",
-            "required": true,
-            "schema": {
-              "title": "Dep",
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "dest",
-            "required": true,
-            "schema": {
-              "title": "Dest",
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "altitude_ft",
+            "in": "header",
+            "name": "X-Pilot-Id",
             "required": false,
             "schema": {
               "anyOf": [
                 {
-                  "type": "number"
+                  "type": "string"
                 },
                 {
                   "type": "null"
                 }
               ],
-              "title": "Altitude Ft"
-            }
-          },
-          {
-            "in": "query",
-            "name": "aircraft",
-            "required": false,
-            "schema": {
-              "default": "c172",
-              "title": "Aircraft",
-              "type": "string"
+              "title": "X-Pilot-Id"
             }
           }
         ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Describe Checkpoints"
-      },
-      "post": {
-        "description": "A pilot's own edit to a checkpoint's identification note --\nreplaces whatever was saved at that place, generated or not.",
-        "operationId": "save_checkpoint_note_api_checkpoint_notes_post",
         "requestBody": {
           "content": {
             "application/json": {
@@ -4622,6 +4587,61 @@
           }
         },
         "summary": "Save Checkpoint Note"
+      }
+    },
+    "/api/checkpoint-notes/generate": {
+      "post": {
+        "description": "One \"how to spot it\" line per checkpoint, as newline-delimited\nJSON (each line one app.schemas.CheckpointNoteMessage), so a slow\nLLM call on checkpoint 3 does not hold up checkpoints 1 and 2 that\nalready arrived.\n\nTwo different kinds of failure, reported two different ways. A\nsingle checkpoint's own LLM call failing for a reason specific to\nit does not take the rest of the stream down -- every other\ncheckpoint is independent and still worth generating, so that one\ngets its own per-checkpoint \"error\" line and the loop moves on.\nGLOBAL_ANTHROPIC_ERRORS is the opposite case: a bad key or an\nexhausted rate limit fails identically for every checkpoint, so\nit's reported once as a single stream-level \"error\" (for one\nbanner instead of the same text repeated per row) -- but the\nstream itself keeps going: every remaining checkpoint still gets\nits own per-checkpoint \"error\" line too, just without spending a\ncall to learn what's already known. A pilot still gets a row to\ntype a note into for every checkpoint, not just the ones that\nhappened to come before the failure.\n\nA POST, not a GET: every checkpoint without a note is a billed\nClaude call and a write, which a GET invited from anything that\nprefetches a link, and which the gateway's rules left public in\nevery deployment. The caller's own edit is what they see where they\nmade one; generation only ever fills the shared note.",
+        "operationId": "describe_checkpoints_api_checkpoint_notes_generate_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Pilot-Id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Pilot-Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenerateNotesRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Describe Checkpoints"
       }
     },
     "/api/checkpoints": {
@@ -4849,7 +4869,7 @@
     },
     "/api/dev/services": {
       "get": {
-        "description": "Which of the services the console links to are running.\n\n`available` is false where there is no Docker socket at all, which\nis how the console knows to stop offering to start anything rather\nthan offering a button that will fail.",
+        "description": "Which of the services the console links to are running.\n\n`available` is false where there is no sidecar to ask, which is how\nthe console knows to stop offering to start anything rather than\noffering a button that will fail.",
         "operationId": "dev_services_api_dev_services_get",
         "responses": {
           "200": {

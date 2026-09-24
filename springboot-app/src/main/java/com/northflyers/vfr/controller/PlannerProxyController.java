@@ -1,5 +1,6 @@
 package com.northflyers.vfr.controller;
 
+import com.northflyers.vfr.service.PilotService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
@@ -13,6 +14,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.server.PathContainer;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -92,7 +94,6 @@ public class PlannerProxyController {
             route("GET", "/api/chart-tile/{kind}/{z}/{x}/{y}.png"),
             route("GET", "/api/sectional-tile/{z}/{x}/{y}.png"),
             route("GET", "/api/tac-tile/{z}/{x}/{y}.png"),
-            route("GET", "/api/checkpoint-notes"),
             route("POST", "/api/checkpoint-notes"),
             route("POST", "/api/checkpoint-notes/generate"),
             route("POST", "/api/build"),
@@ -115,14 +116,22 @@ public class PlannerProxyController {
         return ROUTES.stream().anyMatch(route -> route.matches(method, path));
     }
 
+    /** Who a checkpoint note belongs to, for the planner (its
+     *  routers/notes.py). Set here from the session and never from the
+     *  browser: no request header is forwarded but Content-Type. */
+    static final String PILOT_HEADER = "X-Pilot-Id";
+
     private final StreamingProxy proxy;
     private final String plannerBaseUrl;
+    private final PilotService pilots;
 
     public PlannerProxyController(
             StreamingProxy proxy,
-            @Value("${planner-service.base-url:http://planning-service:8000}") String plannerBaseUrl) {
+            @Value("${planner-service.base-url:http://planning-service:8000}") String plannerBaseUrl,
+            PilotService pilots) {
         this.proxy = proxy;
         this.plannerBaseUrl = plannerBaseUrl.replaceAll("/+$", "");
+        this.pilots = pilots;
     }
 
     @Operation(summary = "Any planner GET",
@@ -155,11 +164,18 @@ public class PlannerProxyController {
         HttpRequest.BodyPublisher publisher = body == null
                 ? HttpRequest.BodyPublishers.noBody()
                 : HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8);
-        HttpRequest upstream = HttpRequest.newBuilder(target)
+        HttpRequest.Builder upstreamBuilder = HttpRequest.newBuilder(target)
                 .method(method, publisher)
                 .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
-                .timeout(TIMEOUT)
-                .build();
+                .timeout(TIMEOUT);
+        // A pilot's own edit to a checkpoint note is theirs alone, so the
+        // planner is told whose it is. Only for the notes: looking the
+        // pilot up is a database call, and a tile request has no use for it.
+        if (path.startsWith("/api/checkpoint-notes")) {
+            pilots.current(SecurityContextHolder.getContext().getAuthentication())
+                    .ifPresent(pilot -> upstreamBuilder.header(PILOT_HEADER, String.valueOf(pilot.getId())));
+        }
+        HttpRequest upstream = upstreamBuilder.build();
 
         return proxy.exchange(PLANNER, upstream, response -> {
             ResponseEntity.BodyBuilder builder = StreamingProxy.unbuffered(

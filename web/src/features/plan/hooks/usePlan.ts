@@ -137,7 +137,7 @@ export function usePlan(
   const descriptions = useQuery({
     queryKey: descriptionsKey,
     queryFn: streamedQuery({
-      streamFn: ({ signal }) => api.describeCheckpoints(dep, dest, altitudeFt || undefined, signal),
+      streamFn: ({ signal }) => api.describeCheckpoints(dep, dest, signal),
     }),
     enabled: false, staleTime: Infinity,
   });

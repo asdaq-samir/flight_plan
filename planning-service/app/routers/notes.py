@@ -6,12 +6,12 @@ operational annotation a pilot edits, not a label."""
 import os
 
 import anthropic
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Header, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from vfr import checkpoint_notes
 
-from ..common import DEFAULT_AIRCRAFT, line, ndjson, route_key
+from ..common import line, ndjson, route_key
 from ..schemas import CheckpointNoteSaved, NoteCheckpoint, NoteDone, NoteError, NoteStart
 from ..scoring import scored_and_selected
 
@@ -39,6 +39,17 @@ class CheckpointNoteRequest(BaseModel):
     lat: float
     lon: float
     description: str
+
+
+class GenerateNotesRequest(BaseModel):
+    departure_ident: str
+    destination_ident: str
+
+
+#: Set by webapp's proxy from the signed-in pilot, and stripped from
+#: anything a browser sent (PlannerProxyController). Absent where nobody
+#: can sign in, which makes an edit the shared note -- one user, locally.
+PILOT_HEADER = "X-Pilot-Id"
 
 
 def _describe_checkpoint(
@@ -74,12 +85,10 @@ def _describe_checkpoint(
     return resp.content[0].text.strip()
 
 
-@router.get("/api/checkpoint-notes")
+@router.post("/api/checkpoint-notes/generate")
 def describe_checkpoints(
-    dep: str,
-    dest: str,
-    altitude_ft: float | None = None,
-    aircraft: str = DEFAULT_AIRCRAFT,
+    request: GenerateNotesRequest,
+    x_pilot_id: str | None = Header(default=None, alias=PILOT_HEADER),
 ) -> StreamingResponse:
     """One "how to spot it" line per checkpoint, as newline-delimited
     JSON (each line one app.schemas.CheckpointNoteMessage), so a slow
@@ -100,8 +109,14 @@ def describe_checkpoints(
     call to learn what's already known. A pilot still gets a row to
     type a note into for every checkpoint, not just the ones that
     happened to come before the failure.
+
+    A POST, not a GET: every checkpoint without a note is a billed
+    Claude call and a write, which a GET invited from anything that
+    prefetches a link, and which the gateway's rules left public in
+    every deployment. The caller's own edit is what they see where they
+    made one; generation only ever fills the shared note.
     """
-    dep_ident, dest_ident = route_key(dep, dest)
+    dep_ident, dest_ident = route_key(request.departure_ident, request.destination_ident)
     _, selected = scored_and_selected(dep_ident, dest_ident)  # already along-track order
     route = checkpoint_notes.route_key(dep_ident, dest_ident)
     existing = checkpoint_notes.load_notes(route)
@@ -116,7 +131,7 @@ def describe_checkpoints(
         yield line(NoteStart(count=len(selected)))
         global_error: str | None = None
         for i, cp in enumerate(selected):
-            saved = checkpoint_notes.find_note(existing, cp["lat"], cp["lon"])
+            saved = checkpoint_notes.find_note(existing, cp["lat"], cp["lon"], x_pilot_id)
             if saved is not None:
                 yield checkpoint_line(cp, saved["description"], "saved")
                 continue
@@ -145,12 +160,16 @@ def describe_checkpoints(
 
 
 @router.post("/api/checkpoint-notes")
-def save_checkpoint_note(note: CheckpointNoteRequest) -> CheckpointNoteSaved:
-    """A pilot's own edit to a checkpoint's identification note --
-    replaces whatever was saved at that place, generated or not."""
+def save_checkpoint_note(
+    note: CheckpointNoteRequest,
+    x_pilot_id: str | None = Header(default=None, alias=PILOT_HEADER),
+) -> CheckpointNoteSaved:
+    """A pilot's own edit to a checkpoint's identification note: what
+    they see at that place from now on. Other pilots keep the shared
+    note; where nobody can sign in, this becomes the shared note."""
     if not note.description.strip():
         raise HTTPException(422, "description must not be empty")
     dep_ident, dest_ident = route_key(note.departure_ident, note.destination_ident)
     route = checkpoint_notes.route_key(dep_ident, dest_ident)
-    saved = checkpoint_notes.save_note(route, note.lat, note.lon, note.description.strip())
+    saved = checkpoint_notes.save_note(route, note.lat, note.lon, note.description.strip(), x_pilot_id)
     return CheckpointNoteSaved(ok=True, note=saved)
