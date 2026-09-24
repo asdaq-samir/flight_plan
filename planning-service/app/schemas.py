@@ -184,6 +184,25 @@ class AirspaceTransit(BaseModel):
     along_track_nm: float
 
 
+class SpecialUseArea(BaseModel):
+    """One special-use area the route crosses, as the FAA publishes it."""
+
+    name: str
+    #: P, R, MOA, W, A or D.
+    type: str
+    kind: str
+    floor_ft: float | None = None
+    #: SFC, MSL or AGL.
+    floor_ref: str | None = None
+    ceiling_ft: float | None = None
+    ceiling_ref: str | None = None
+    times_of_use: str | None = None
+    controlling_agency: str | None = None
+    along_track_nm: float
+    #: The legs (between consecutive fixes) that cross it.
+    legs: list[int] = []
+
+
 class AltitudeSegment(BaseModel):
     """One leg's own band: its floor, the shelf over it alone, and the
     legal cruising altitudes between -- what lets a plan step down under
@@ -219,6 +238,9 @@ class AltitudeBreakdown(BaseModel):
     floor_ft: float
     airspace_ceiling_ft: float | None
     airspace_transits: list[AirspaceTransit]
+    #: Prohibited and restricted areas, MOAs and the like the legs cross
+    #: (vfr.sua); no candidate altitude enters a prohibited one.
+    special_use: list[SpecialUseArea] = []
     freezing_level_ft: float | None
     #: The freezing level is at or below `freezing_level_ft`: it was
     #: already below 0 degC at the lowest altitude the forecast reports.
@@ -232,7 +254,7 @@ class AltitudeBreakdown(BaseModel):
     min_visibility_sm: float | None
     hazards: list[Hazard]
     low_ceiling_or_visibility: bool | None
-    weather_unavailable: list[Literal["freezing_level", "ceiling_visibility", "hazards"]] = []
+    weather_unavailable: list[Literal["freezing_level", "ceiling_visibility", "hazards", "special_use"]] = []
     segments: list[AltitudeSegment] = []
 
 

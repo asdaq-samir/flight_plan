@@ -26,6 +26,7 @@ _STAGE_NAMES = {
     "airspace": "the airspace",
     "weather": "aviationweather.gov",
     "magnetic_variation_deg": "the magnetic variation",
+    "sua": "the FAA's special-use airspace",
 }
 
 
@@ -350,6 +351,12 @@ def forecast_hour_for(depart: datetime | None) -> str:
 
 
 def no_altitude_detail(selection: dict) -> str:
+    prohibited = [a["name"] for a in selection.get("special_use", []) if a.get("type") == "P"]
+    if prohibited:
+        return (
+            f"The route crosses prohibited airspace ({', '.join(prohibited)}), which no VFR "
+            "altitude may enter. Plan around it."
+        )
     return (
         "No legal VFR cruising altitude exists for this route and aircraft "
         f"(floor {selection.get('floor_ft')} ft, ceiling "

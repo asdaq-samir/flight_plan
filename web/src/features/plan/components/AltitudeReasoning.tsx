@@ -42,6 +42,13 @@ function ceilingRuns(segments: AltitudeSegment[]): AltitudeSegment[] {
  * the chart -- the nav log header's "why" popover and the briefing's
  * Cruise Altitude section are both this.
  */
+/** A special-use area's floor or ceiling as the FAA states it. */
+function limit(ft: number | null | undefined, ref: string | null | undefined): string {
+  if (ref === "SFC") return "the surface";
+  if (ft === null || ft === undefined) return "unstated";
+  return `${altFt(ft)} ft${ref === "AGL" ? " AGL" : ""}`;
+}
+
 export default function AltitudeReasoning({ nav }: Props) {
   const s = nav.altitude_selection;
   if (!s) {
@@ -155,6 +162,22 @@ export default function AltitudeReasoning({ nav }: Props) {
           }. `}
         {hazards.charAt(0).toUpperCase() + hazards.slice(1)}. {freezing}
       </li>
+      {(s.special_use?.length ?? 0) > 0 && (
+        <li>
+          <b>Special-use airspace on the way:</b>{" "}
+          {join((s.special_use ?? []).map(a =>
+            `${a.name} (${a.kind}, ${limit(a.floor_ft, a.floor_ref)} to ${limit(a.ceiling_ft, a.ceiling_ref)}, ${a.along_track_nm} nm out${
+              a.type === "P" ? ", no altitude through it" : a.times_of_use ? `, in use ${a.times_of_use}` : ""})`))}.
+          {(s.special_use ?? []).some(a => a.type !== "P") &&
+            " Check whether each is active with its controlling agency or flight service before you go."}
+        </li>
+      )}
+      {s.weather_unavailable.includes("special_use") && (
+        <li>
+          <b>Special-use airspace could not be checked.</b> Look for prohibited and restricted areas and MOAs on the
+          chart yourself.
+        </li>
+      )}
       {s.airspace_transits.length > 0 && (
         <li>
           <b>On the way, a radio call, not a ceiling:</b>{" "}

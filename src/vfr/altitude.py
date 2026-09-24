@@ -24,7 +24,7 @@ import logging
 import time
 from concurrent.futures import ThreadPoolExecutor
 
-from . import airspace, terrain, weather
+from . import airspace, sua, terrain, weather
 from .geo import along_track_distance_nm, bearing_deg, distance_nm
 from .magnetic import magnetic_variation_deg
 from .terrain import DEFAULT_FAA_CACHE_DIR
@@ -214,6 +214,10 @@ def select_cruise_altitude(
             timed("airspace.airspace_transits", airspace.airspace_transits), route_start, route_end, shp_path,
             fixes=fixes,
         )
+        # Special-use airspace (prohibited and restricted areas, MOAs):
+        # not in the Class B/C/D shapefile, so asked of the FAA's own
+        # feature service along the legs.
+        sua_future = pool.submit(timed("sua.along_route", sua.along_route), route_start, route_end, fixes)
         variation_future = pool.submit(timed("magnetic_variation_deg", magnetic_variation_deg), mid_lat, mid_lon)
         freezing_future = pool.submit(
             timed("weather.freezing_level", weather.freezing_level), mid_lat, mid_lon, fcst_hr,
@@ -264,6 +268,11 @@ def select_cruise_altitude(
         except weather.WeatherServiceError:
             hazards = []
             weather_unavailable.append("hazards")
+        try:
+            special_use = sua_future.result()
+        except sua.SpecialUseUnavailable:
+            special_use = []
+            weather_unavailable.append("special_use")
 
     freezing_level_ft = freezing["ft"] if freezing else None
     freezing_at_or_below = bool(freezing and freezing["at_or_below"])
@@ -278,7 +287,11 @@ def select_cruise_altitude(
     shelf_floors = [c for c in airspace_ceilings_ft if c is not None]
     airspace_ceiling_ft = min(shelf_floors) if shelf_floors else None
     band_ceiling_ft = band_ceiling(airspace_ceiling_ft)
-    candidates_ft = legal_cruising_altitudes(floor_ft, band_ceiling_ft, course_magnetic_deg)
+    # No altitude through a prohibited area the route crosses.
+    candidates_ft = [
+        a for a in legal_cruising_altitudes(floor_ft, band_ceiling_ft, course_magnetic_deg)
+        if not sua.blocked(a, special_use)
+    ]
 
     # The lowest legal VFR cruising altitude at or above the floor, not
     # the highest one under the ceiling.
@@ -318,7 +331,10 @@ def select_cruise_altitude(
                 "band_ceiling_ft": segment_ceiling_ft,
                 "course_magnetic_deg": round(leg_course, 1),
                 "eastbound": is_eastbound(leg_course),
-                "candidates_ft": legal_cruising_altitudes(floors_ft[i], segment_ceiling_ft, leg_course),
+                "candidates_ft": [
+                    a for a in legal_cruising_altitudes(floors_ft[i], segment_ceiling_ft, leg_course)
+                    if not sua.blocked(a, [area for area in special_use if i in area["legs"]])
+                ],
             })
 
     # Icing: an altitude this could recommend reaching the freezing level
@@ -352,6 +368,7 @@ def select_cruise_altitude(
         "floor_ft": floor_ft,
         "airspace_ceiling_ft": airspace_ceiling_ft,
         "airspace_transits": transits,
+        "special_use": special_use,
         "freezing_level_ft": freezing_level_ft,
         "freezing_level_at_or_below": freezing_at_or_below,
         "icing_possible": icing_possible,

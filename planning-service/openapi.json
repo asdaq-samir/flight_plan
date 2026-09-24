@@ -452,13 +452,22 @@
             "title": "Segments",
             "type": "array"
           },
+          "special_use": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/SpecialUseArea"
+            },
+            "title": "Special Use",
+            "type": "array"
+          },
           "weather_unavailable": {
             "default": [],
             "items": {
               "enum": [
                 "freezing_level",
                 "ceiling_visibility",
-                "hazards"
+                "hazards",
+                "special_use"
               ],
               "type": "string"
             },
@@ -3957,6 +3966,115 @@
           "crewai_agent"
         ],
         "title": "Services",
+        "type": "object"
+      },
+      "SpecialUseArea": {
+        "description": "One special-use area the route crosses, as the FAA publishes it.",
+        "properties": {
+          "along_track_nm": {
+            "title": "Along Track Nm",
+            "type": "number"
+          },
+          "ceiling_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Ceiling Ft"
+          },
+          "ceiling_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Ceiling Ref"
+          },
+          "controlling_agency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Controlling Agency"
+          },
+          "floor_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Floor Ft"
+          },
+          "floor_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Floor Ref"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "legs": {
+            "default": [],
+            "items": {
+              "type": "integer"
+            },
+            "title": "Legs",
+            "type": "array"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "times_of_use": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Times Of Use"
+          },
+          "type": {
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "type",
+          "kind",
+          "along_track_nm"
+        ],
+        "title": "SpecialUseArea",
         "type": "object"
       },
       "Status": {

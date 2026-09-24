@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from vfr import airspace, altitude, terrain, weather
+from vfr import airspace, altitude, sua, terrain, weather
 
 PROFILE = {"service_ceiling_ft": 14000, "cruise_tas_kt": 110}
 DEP, DEST = (45.0, -90.0), (46.0, -90.0)          # due north
@@ -27,6 +27,8 @@ def sources(monkeypatch):
     monkeypatch.setattr(weather, "freezing_level", lambda lat, lon, fcst_hr="06": state["freezing"])
     monkeypatch.setattr(weather, "ceiling_visibility_along_route", lambda start, end, window=None: state["cv"])
     monkeypatch.setattr(weather, "hazards_along_route", lambda start, end: state["hazards"])
+    state["special_use"] = []
+    monkeypatch.setattr(sua, "along_route", lambda start, end, fixes=None: state["special_use"])
     return state
 
 
@@ -78,3 +80,43 @@ def test_icing_is_unknown_when_the_freezing_level_could_not_be_checked(sources, 
 
     assert result["icing_possible"] is None
     assert "freezing_level" in result["weather_unavailable"]
+
+
+def test_no_altitude_enters_a_prohibited_area_the_route_crosses(sources):
+    """A prohibited area from the surface to 5,000 ft on the second leg:
+    that leg's altitudes start above it; the first leg's are untouched."""
+    sources["special_use"] = [{"name": "P-99", "type": "P", "kind": "prohibited area", "floor_ft": 0.0,
+                               "floor_ref": "SFC", "ceiling_ft": 5000.0, "ceiling_ref": "MSL",
+                               "times_of_use": "CONTINUOUS", "controlling_agency": None,
+                               "along_track_nm": 40.0, "legs": [1]}]
+
+    result = altitude.select_cruise_altitude(DEP, DEST, PROFILE, fixes=[DEP, DOGLEG, DEST])
+
+    first, second = result["segments"]
+    assert first["candidates_ft"][0] == 3500.0
+    assert min(second["candidates_ft"]) > 5000.0
+    assert min(result["candidates_ft"]) > 5000.0            # the whole route crosses it
+    assert result["special_use"][0]["name"] == "P-99"
+
+
+def test_a_restricted_area_is_listed_but_not_a_ceiling(sources):
+    sources["special_use"] = [{"name": "R-4501", "type": "R", "kind": "restricted area", "floor_ft": 0.0,
+                               "floor_ref": "SFC", "ceiling_ft": 18000.0, "ceiling_ref": "MSL",
+                               "times_of_use": "0700-2200 MON-FRI", "controlling_agency": "FAA",
+                               "along_track_nm": 20.0, "legs": [0]}]
+
+    result = altitude.select_cruise_altitude(DEP, DEST, PROFILE)
+
+    assert result["candidates_ft"][0] == 3500.0
+    assert result["special_use"][0]["type"] == "R"
+
+
+def test_special_use_unavailable_is_said_rather_than_treated_as_none(sources, monkeypatch):
+    def down(start, end, fixes=None):
+        raise sua.SpecialUseUnavailable("no answer")
+
+    monkeypatch.setattr(sua, "along_route", down)
+
+    result = altitude.select_cruise_altitude(DEP, DEST, PROFILE)
+
+    assert "special_use" in result["weather_unavailable"]
