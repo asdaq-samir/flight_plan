@@ -1,19 +1,26 @@
 package com.northflyers.vfr.security;
 
 /**
- * Whether this deployment offers any way to sign in at all.
+ * How this deployment is reached: the one answer the access rules and the
+ * front end both read.
  *
- * <p>Two answers depend on it and used to work it out separately.
- * {@link SecurityConfig} decides whether writing through the planner
- * needs a session -- where nobody can sign in, demanding one would lock
- * the app rather than protect it. And the front end decides whether to
- * offer the developer's workspace to a caller with no session, for the
- * same reason: a role cannot be checked where no role can be held.
+ * <ul>
+ *   <li>{@link Access#SIGN_IN} -- a session can be had (OIDC, or the
+ *       emailed link): writes need one, the developer's paths need the
+ *       role.
+ *   <li>{@link Access#OPEN} -- nobody can sign in, and the deployment says
+ *       so out loud ({@code app.open-writes}, the local stack): everything
+ *       is open, the developer's workspace included, since no role can be
+ *       held to open it with.
+ *   <li>{@link Access#CLOSED} -- nobody can sign in and nothing says to
+ *       open writes (the default, and AWS's): planning a route is open,
+ *       every write and every developer path is refused.
+ * </ul>
  *
- * <p>A session comes from OIDC, which needs a real Google or Apple
- * registration, or from the emailed one-time link, which only ever
- * sends when a mail host is configured. Locally neither is, which is
- * the case worth getting right.
+ * <p>It was two booleans, sign-in possible and open writes, which the
+ * rules combined three ways and the page read one of: in CLOSED the page
+ * offered the developer's workspace, whose every write was refused, and
+ * the stack's status fell through to the public read rule.
  *
  * <p>A plain value rather than a component, published as a bean by
  * {@link SecurityConfig}: a {@code @WebMvcTest} slice pulls in the
@@ -21,6 +28,14 @@ package com.northflyers.vfr.security;
  * here would break every controller slice test in the suite.
  *
  * @param oauthConfigured at least one of Google or Apple has real credentials
- * @param possible any route to a session exists: OIDC, or the magic link
+ * @param access how this deployment is reached
  */
-public record SignInOptions(boolean oauthConfigured, boolean possible) {}
+public record SignInOptions(boolean oauthConfigured, Access access) {
+
+    /** How a deployment is reached; see {@link SignInOptions}. */
+    public enum Access { SIGN_IN, OPEN, CLOSED }
+
+    static Access accessFor(boolean signInPossible, boolean openWrites) {
+        return signInPossible ? Access.SIGN_IN : openWrites ? Access.OPEN : Access.CLOSED;
+    }
+}

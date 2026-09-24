@@ -63,18 +63,19 @@
       },
       "Capabilities" : {
         "properties" : {
+          "access" : {
+            "description" : "SIGN_IN: a session can be had, and the developer's workspace needs the role. OPEN: nobody can sign in and everything is open (the local stack). CLOSED: nobody can sign in, and writes and the developer's workspace are refused.",
+            "enum" : [ "SIGN_IN", "OPEN", "CLOSED" ],
+            "example" : "SIGN_IN",
+            "type" : "string"
+          },
           "oauthConfigured" : {
             "description" : "Google or Apple has real credentials registered.",
             "example" : true,
             "type" : "boolean"
-          },
-          "signInPossible" : {
-            "description" : "Any route to a session exists: OIDC, or the emailed one-time link.",
-            "example" : true,
-            "type" : "boolean"
           }
         },
-        "required" : [ "oauthConfigured", "signInPossible" ],
+        "required" : [ "access", "oauthConfigured" ],
         "type" : "object"
       },
       "FlightCheckpointDto" : {

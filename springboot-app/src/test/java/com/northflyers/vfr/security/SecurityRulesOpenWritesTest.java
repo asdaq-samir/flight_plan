@@ -4,9 +4,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.northflyers.vfr.controller.PilotController;
+import com.northflyers.vfr.controller.SignInCapabilitiesController;
 import com.northflyers.vfr.service.PilotService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -23,7 +25,7 @@ import org.springframework.test.web.servlet.MockMvc;
  * the proxies are not in this slice -- what matters is that security did
  * not refuse them.
  */
-@WebMvcTest(PilotController.class)
+@WebMvcTest({PilotController.class, SignInCapabilitiesController.class})
 @Import(SecurityConfig.class)
 @TestPropertySource(properties = "app.open-writes=true")
 class SecurityRulesOpenWritesTest {
@@ -50,5 +52,12 @@ class SecurityRulesOpenWritesTest {
     @Test
     void pilotScopedDataStillNeedsASession() throws Exception {
         mockMvc.perform(get("/api/aircraft")).andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void theCapabilitiesSayHowThisDeploymentIsReached() throws Exception {
+        mockMvc.perform(get("/api/auth/capabilities"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.access").value("OPEN"));
     }
 }

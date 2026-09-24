@@ -11,6 +11,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.northflyers.vfr.controller.PilotController;
+import com.northflyers.vfr.controller.SignInCapabilitiesController;
 import com.northflyers.vfr.domain.Pilot;
 import com.northflyers.vfr.service.PilotService;
 import java.util.Optional;
@@ -30,7 +31,7 @@ import org.springframework.test.web.servlet.MockMvc;
  * {@code permitAll}. Each case here fails loudly if the split between
  * shared and pilot-scoped data moves.
  */
-@WebMvcTest(PilotController.class)
+@WebMvcTest({PilotController.class, SignInCapabilitiesController.class})
 @Import(SecurityConfig.class)
 class SecurityRulesTest {
 
@@ -120,5 +121,23 @@ class SecurityRulesTest {
     void theSameCallWithACsrfTokenIsNotRefusedByCsrf() throws Exception {
         mockMvc.perform(post("/api/aircraft").with(oidcLogin()).with(csrf()))
                 .andExpect(result -> assertThat(result.getResponse().getStatus()).isNotEqualTo(403));
+    }
+
+    @Test
+    void theCapabilitiesSayHowThisDeploymentIsReached() throws Exception {
+        mockMvc.perform(get("/api/auth/capabilities"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.access").value("CLOSED"));
+    }
+
+    /** Nobody can sign in and nothing opened it: the developer's
+     *  workspace is nobody's. The stack's status fell through to the
+     *  public read rule, and the page offered the workspace anyway. */
+    @Test
+    void theDevelopersReadsAreRefusedTooInAClosedDeployment() throws Exception {
+        for (String path : new String[] {"/api/planner/status", "/api/planner/dev/services"}) {
+            mockMvc.perform(get(path))
+                    .andExpect(result -> assertThat(result.getResponse().getStatus()).isIn(401, 403));
+        }
     }
 }

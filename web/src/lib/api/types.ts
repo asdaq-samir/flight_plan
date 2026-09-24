@@ -148,8 +148,8 @@ export function isEndpoint(p: Point): p is Endpoint {
  *  the V7 migration. */
 export type Pilot = Webapp["PilotDto"];
 
-/** What signing in can do in this deployment, asked before anyone has
- *  (`/api/auth/capabilities`). */
+/** How this deployment is reached -- SIGN_IN, OPEN or CLOSED -- asked
+ *  before anyone has signed in (`/api/auth/capabilities`). */
 export type SignInCapabilities = Webapp["Capabilities"];
 
 /** A pilot's own aeroplane, from `/api/aircraft`. `usableFuelGal` is

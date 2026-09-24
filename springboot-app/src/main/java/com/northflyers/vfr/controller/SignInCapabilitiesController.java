@@ -16,8 +16,8 @@ import org.springframework.web.bind.annotation.RestController;
  * developer's workspace: a deployment with no Google or Apple
  * credentials and no mail host has no way to hold a role at all, and
  * hiding the workspace there would hide it from the only person who
- * could use it. So this says whether a session is obtainable, and the
- * front end falls back to showing the switch when it is not.
+ * could use it. So this says how the deployment is reached, and the
+ * front end shows the switch where it is open to everyone.
  *
  * <p>Public by necessity -- it is the question asked before a session
  * exists -- and it gives nothing away: whether a login button would
@@ -28,11 +28,13 @@ import org.springframework.web.bind.annotation.RestController;
 @Tag(name = "Auth", description = "What signing in can do in this deployment")
 public class SignInCapabilitiesController {
 
-    /** @param signInPossible whether any route to a session exists.
+    /** @param access how this deployment is reached (SignInOptions).
      *  @param oauthConfigured whether Google or Apple is really registered. */
     public record Capabilities(
-            @Schema(description = "Any route to a session exists: OIDC, or the emailed one-time link.",
-                    example = "true") boolean signInPossible,
+            @Schema(description = "SIGN_IN: a session can be had, and the developer's workspace needs the role. "
+                    + "OPEN: nobody can sign in and everything is open (the local stack). "
+                    + "CLOSED: nobody can sign in, and writes and the developer's workspace are refused.",
+                    example = "SIGN_IN") SignInOptions.Access access,
             @Schema(description = "Google or Apple has real credentials registered.",
                     example = "true") boolean oauthConfigured) {}
 
@@ -45,6 +47,6 @@ public class SignInCapabilitiesController {
     @Operation(summary = "Whether anyone can sign in here")
     @GetMapping
     public Capabilities capabilities() {
-        return new Capabilities(signIn.possible(), signIn.oauthConfigured());
+        return new Capabilities(signIn.access(), signIn.oauthConfigured());
     }
 }

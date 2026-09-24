@@ -7,11 +7,14 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.authorization.AuthorizationDecision;
+import org.springframework.security.authorization.AuthorizationManager;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.access.intercept.RequestAuthorizationContext;
 import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.security.web.csrf.CsrfFilter;
@@ -52,7 +55,6 @@ import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWrite
 public class SecurityConfig {
 
     private final boolean oauthConfigured;
-    private final boolean signInPossible;
     private final String chartTilesOrigin;
     // HSTS is right behind a TLS-terminating load balancer and wrong on
     // the local HTTPS port (HttpsConnectorConfig): a browser that once
@@ -61,11 +63,6 @@ public class SecurityConfig {
     // everything on this machine uses. Off locally (docker-compose.yml),
     // on by default.
     private final boolean hsts;
-    // Where nobody can sign in, whether planner writes and the billed
-    // narrative are open to every caller (the local stack, bound to this
-    // machine, says so in docker-compose.yml) or refused (anything that
-    // did not say so -- a deployment that forgot its sign-in settings).
-    private final boolean openWrites;
 
     private final SignInOptions signIn;
 
@@ -75,12 +72,15 @@ public class SecurityConfig {
                    @Value("${app.hsts:true}") boolean hsts,
                    @Value("${app.open-writes:false}") boolean openWrites) {
         this.hsts = hsts;
-        this.openWrites = openWrites;
         // A session can be obtained through OIDC, or through the magic
         // link -- which only ever sends when a mail host is configured.
+        // Where nobody can sign in, writes are open to every caller only
+        // where the deployment says so (the local stack, bound to this
+        // machine, in docker-compose.yml), and refused anywhere that did
+        // not -- a deployment that forgot its sign-in settings.
         this.oauthConfigured = clientRegistrations.isPresent();
-        this.signInPossible = oauthConfigured || !mailHost.isBlank();
-        this.signIn = new SignInOptions(oauthConfigured, signInPossible);
+        boolean signInPossible = oauthConfigured || !mailHost.isBlank();
+        this.signIn = new SignInOptions(oauthConfigured, SignInOptions.accessFor(signInPossible, openWrites));
         // The CDN the chart tiles come from on AWS (application.yml's
         // app.chart-tiles-origin), which img-src must allow; blank
         // locally, where the tiles are same-origin.
@@ -107,20 +107,23 @@ public class SecurityConfig {
                             .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                             // The front end itself.
                             .requestMatchers("/app", "/app/**").permitAll();
-                    if (signInPossible) {
-                        // The developer's work, matched before the public
-                        // GET rule below so the stack's status and its
-                        // services are not read by anyone who asks.
-                        // Picks are the model's training labels, so
-                        // writing one is training the next model.
-                        DeveloperOnly developer = new DeveloperOnly(pilots);
-                        auth
-                                .requestMatchers(HttpMethod.POST, "/api/planner/retrain", "/api/planner/charts/refresh")
-                                .access(developer)
-                                .requestMatchers(HttpMethod.POST, "/api/planner/picks").access(developer)
-                                .requestMatchers(HttpMethod.DELETE, "/api/planner/picks").access(developer)
-                                .requestMatchers("/api/planner/status", "/api/planner/dev/**").access(developer);
-                    }
+                    // The developer's work, matched before the public GET
+                    // rule below so the stack's status and its services
+                    // are not read by anyone who asks. Picks are the
+                    // model's training labels, so writing one is training
+                    // the next model. The role where a session can hold
+                    // one; nobody where none can and nothing opened them.
+                    AuthorizationManager<RequestAuthorizationContext> developer = switch (signIn.access()) {
+                        case SIGN_IN -> new DeveloperOnly(pilots);
+                        case OPEN -> (authentication, context) -> new AuthorizationDecision(true);
+                        case CLOSED -> (authentication, context) -> new AuthorizationDecision(false);
+                    };
+                    auth
+                            .requestMatchers(HttpMethod.POST, "/api/planner/retrain", "/api/planner/charts/refresh")
+                            .access(developer)
+                            .requestMatchers(HttpMethod.POST, "/api/planner/picks").access(developer)
+                            .requestMatchers(HttpMethod.DELETE, "/api/planner/picks").access(developer)
+                            .requestMatchers("/api/planner/status", "/api/planner/dev/**").access(developer);
                     // Reading from the planner: planning a route needs no
                     // account.
                     auth.requestMatchers(HttpMethod.GET, "/api/planner/**").permitAll();
@@ -138,16 +141,14 @@ public class SecurityConfig {
                     // signed out there. Anything else is refused: open by
                     // default made every write public on any host that
                     // simply had no sign-in configured.
-                    if (signInPossible) {
-                        auth
+                    switch (signIn.access()) {
+                        case SIGN_IN -> auth
                                 .requestMatchers("/api/planner/**").authenticated()
                                 .requestMatchers("/api/comparison/**").authenticated();
-                    } else if (openWrites) {
-                        auth
+                        case OPEN -> auth
                                 .requestMatchers("/api/planner/**").permitAll()
                                 .requestMatchers("/api/comparison/**").permitAll();
-                    } else {
-                        auth
+                        case CLOSED -> auth
                                 .requestMatchers("/api/planner/**").denyAll()
                                 .requestMatchers("/api/comparison/**").denyAll();
                     }

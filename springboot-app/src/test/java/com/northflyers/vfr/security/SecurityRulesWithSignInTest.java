@@ -8,9 +8,11 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.northflyers.vfr.controller.PilotController;
+import com.northflyers.vfr.controller.SignInCapabilitiesController;
 import com.northflyers.vfr.domain.Pilot;
 import com.northflyers.vfr.domain.PilotRole;
 import com.northflyers.vfr.service.PilotService;
@@ -36,7 +38,7 @@ import org.springframework.test.web.servlet.ResultMatcher;
  * through ends in a 404 here. What each case checks is only whether
  * security refused it, and with which status.
  */
-@WebMvcTest(PilotController.class)
+@WebMvcTest({PilotController.class, SignInCapabilitiesController.class})
 @Import(SecurityConfig.class)
 @TestPropertySource(properties = "spring.mail.host=smtp.example.com")
 class SecurityRulesWithSignInTest {
@@ -114,5 +116,12 @@ class SecurityRulesWithSignInTest {
 
     private static ResultMatcher notRefused() {
         return result -> assertThat(result.getResponse().getStatus()).isNotIn(401, 403);
+    }
+
+    @Test
+    void theCapabilitiesSayHowThisDeploymentIsReached() throws Exception {
+        mockMvc.perform(get("/api/auth/capabilities"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.access").value("SIGN_IN"));
     }
 }

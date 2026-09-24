@@ -37,12 +37,14 @@ function routeSearch(search: string): string {
  * either of which is enough:
  *
  *   - the signed-in pilot has the developer role (pilots.role, V7)
- *   - nobody can sign in here at all
+ *   - the deployment is open to everyone (`access` "OPEN")
  *
  * The second is not a loophole, it is the local case: with no Google
  * or Apple credentials and no mail host there is no way to hold a role,
- * and hiding the switch would hide it from the only person who could
- * use it. A real deployment has at least one of those configured, and
+ * and the local stack says to open up (app.open-writes). One that
+ * cannot sign anyone in and did not say so ("CLOSED") refuses every
+ * developer path, and used to be offered the switch all the same. A
+ * real deployment has sign-in configured, and
  * there the role is the whole answer.
  *
  * Both queries are quiet on failure: the header is not the place to
@@ -71,7 +73,7 @@ export default function DevSwitch() {
   };
   // Undefined while either query is in flight: the switch appears when
   // the answer does, rather than flashing in and out.
-  const allowed = pilot?.developer === true || capabilities?.signInPossible === false;
+  const allowed = pilot?.developer === true || capabilities?.access === "OPEN";
   if (!allowed) return null;
 
   return (
