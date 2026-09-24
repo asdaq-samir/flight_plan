@@ -40,7 +40,7 @@ export const DR_CORRIDOR_NM = 0.5;
  * a value outside this list is shown too, never dropped.
  */
 export const CATEGORIES = [
-  "airport", "intersection", "lake_or_pond", "reservoir", "river",
+  "airport", "intersection", "lake_or_pond", "railroad", "reservoir", "river",
   "road_or_rail", "stadium", "tower", "town", "vor", "water",
   "wind_farm", "other",
 ] as const;
