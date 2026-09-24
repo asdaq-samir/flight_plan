@@ -382,6 +382,10 @@ an engineering gap:
   On those 77, **no model beats predicting the mean** (MAE 0.804), and
   the palette's hand-set constants are already level with it (0.810),
   while Ridge, RandomForest and GradientBoosting all come out worse.
+  The other direction does work, and the tabular model now uses it:
+  each rated chart pick labels the OSM candidate it lands on
+  (`vfr.pipeline._load_labeled`), and retrain and promotion score the
+  new model and the promoted one on the same fixed holdout.
 
   The cause is the target, not the features. 79% of the labels are 4 or 5
   and 3% are 0 or 1, because they were made by clicking points worth

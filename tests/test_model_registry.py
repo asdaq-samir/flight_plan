@@ -62,3 +62,31 @@ def test_promote_rejects_a_remote_current_dir(tmp_path):
     _write_metrics(candidate_dir, mae=0.5)
     with pytest.raises(NotImplementedError):
         promote(candidate_dir, "s3://some-bucket/current")
+
+
+def test_a_tie_keeps_the_promoted_model(tmp_path):
+    candidate_dir, current_dir = tmp_path / "candidate", tmp_path / "current"
+    _write_metrics(candidate_dir, mae=1.0)
+    _write_metrics(current_dir, mae=1.0)
+    assert evaluate(candidate_dir, current_dir) is False
+
+
+def test_the_holdout_both_models_answered_decides_not_their_own_cv_scores(tmp_path):
+    """The candidate's run scored the promoted model on its own holdout;
+    that comparison wins over the two runs' cross-validation scores, which
+    came from different labels."""
+    candidate_dir, current_dir = tmp_path / "candidate", tmp_path / "current"
+    _write_metrics(current_dir, mae=0.1)                 # its own CV looked great
+    candidate_dir.mkdir()
+    (candidate_dir / "metrics.json").write_text(json.dumps(
+        {PROMOTION_METRIC: 0.9, "held_out_mae": 0.6, "current_held_out_mae": 0.8}))
+    (candidate_dir / "model.joblib").write_text("placeholder")
+
+    assert evaluate(candidate_dir, current_dir) is True
+
+
+def test_promote_leaves_no_temporary_files(tmp_path):
+    candidate_dir, current_dir = tmp_path / "candidate", tmp_path / "current"
+    _write_metrics(candidate_dir, mae=0.5)
+    promote(candidate_dir, current_dir)
+    assert sorted(p.name for p in current_dir.iterdir()) == ["metrics.json", "model.joblib"]

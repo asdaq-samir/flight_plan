@@ -22,7 +22,7 @@ Demo route: **Campbell Airport (C81)** → **Duluth International (KDLH)**.
 
 ## Capabilities
 
-- **Chart-native checkpoint detection.** Ground features are read directly off the sectional's own raster tiles — a fixed cartographic palette, not an OpenStreetMap extract — so the training label ("could a pilot spot this on the chart") and the input data are the same source.
+- **Checkpoints a pilot can see on the chart.** Candidates come from OpenStreetMap and the FAA's own data along the corridor, and a model trained on ratings made against the sectional scores which ones a pilot could actually spot. Picks made on the chart itself in the training workspace — where a chart-vision detector reads features straight off the sectional's raster tiles — become training labels for the candidates they land on.
 - **Four-way model selection.** scikit-learn (Ridge, Random Forest, Gradient Boosting), PyTorch, TensorFlow/Keras, and Spark MLlib are trained and benchmarked on the same feature set, with nested cross-validation and permutation importance for the baseline.
 - **Orchestrated training pipeline.** An Airflow DAG runs collection, feature engineering, training, evaluation, and promotion; a new model goes live only if it beats the currently deployed one on held-out metrics.
 - **FAA-accurate flight planning.** Dead-reckoning legs (wind correction angle, true/magnetic heading, groundspeed, ETE, fuel burn) from live NOAA winds-aloft and magnetic-declination data. Cruising-altitude selection accounts for terrain/obstacle clearance (FAA MEF methodology), live Class B/C/D airspace, and current METAR/TAF/SIGMET data.

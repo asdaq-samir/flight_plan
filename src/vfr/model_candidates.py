@@ -34,6 +34,7 @@ from vfr.pipeline import (
     _ensure_local_dir,
     _load_labeled,
     held_out_scores,
+    holdout_split,
     metrics_record,
 )
 
@@ -41,8 +42,6 @@ CANDIDATES_DIR = MODELS_DIR / "candidates"
 
 
 def _split(features_path: Path, labels_path: Path, min_labeled_rows: int):
-    from sklearn.model_selection import train_test_split
-
     labeled_df, feature_cols = _load_labeled(features_path, labels_path)
     if len(labeled_df) < min_labeled_rows:
         raise InsufficientLabelsError(
@@ -51,10 +50,10 @@ def _split(features_path: Path, labels_path: Path, min_labeled_rows: int):
         )
     X = labeled_df[feature_cols].fillna({"name_uniqueness": 0.0})
     y = labeled_df["rating"].astype(float)
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.2, random_state=RANDOM_STATE, stratify=y
-    )
-    return X_train, X_test, y_train, y_test, feature_cols, len(labeled_df)
+    # The same fixed holdout vfr.pipeline.retrain scores on, so every
+    # model in the comparison answers the same questions.
+    held_out = holdout_split(labeled_df)
+    return X[~held_out], X[held_out], y[~held_out], y[held_out], feature_cols, len(labeled_df)
 
 
 def train_pytorch(

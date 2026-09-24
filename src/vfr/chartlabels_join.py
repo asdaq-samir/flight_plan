@@ -23,8 +23,9 @@ from pathlib import Path
 from .config import DATA_DIR
 from .geo import distance_nm
 
-# Same tolerance the labeling UI uses to decide two points are the same
-# place, for the same reason: a centroid shifts slightly between
+# Wider than the labeling UI's routecsv.SAME_PLACE_NM (0.2 nm) on
+# purpose: this carries OSM points onto chart detections, and an OSM
+# point sits off the feature the chart draws as well as shifting between
 # overlapping tile blocks.
 MATCH_NM = 0.3
 

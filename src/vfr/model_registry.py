@@ -10,6 +10,7 @@ sibling containers (pipeline-processing and pipeline-training in
 docker-compose.yml, launched by the DAG in airflow/dags).
 """
 import json
+import os
 import shutil
 import time
 from pathlib import Path
@@ -65,18 +66,36 @@ PROMOTION_METRIC = "cv_mae"
 
 
 def evaluate(candidate_dir: Path = CANDIDATE_MODEL_DIR, current_dir: Path = CURRENT_MODEL_DIR) -> bool:
-    """True (proceed to Promote) if the candidate beats the currently
-    promoted model on PROMOTION_METRIC, or if nothing is promoted yet.
+    """True (proceed to Promote) if the candidate strictly beats the
+    currently promoted model, or if nothing is promoted yet.
+
+    "Beats" is judged on one holdout: the training run scores the
+    promoted model on the very landmarks it held out itself
+    (`current_held_out_mae`, beside its own `held_out_mae`). Comparing the
+    two runs' cross-validation scores instead compared answers to
+    different questions once labels changed between them. PROMOTION_METRIC
+    is the fallback for a candidate written before that, or when the
+    promoted model could not be scored (other features). A tie keeps the
+    promoted model.
     """
     candidate_metrics_path = Path(candidate_dir) / "metrics.json"
     candidate_metrics = json.loads(candidate_metrics_path.read_text())
-
     current_metrics_path = Path(current_dir) / "metrics.json"
     if not current_metrics_path.exists():
         return True
-
+    current_on_holdout = candidate_metrics.get("current_held_out_mae")
+    if current_on_holdout is not None and candidate_metrics.get("held_out_mae") is not None:
+        return candidate_metrics["held_out_mae"] < current_on_holdout
     current_metrics = json.loads(current_metrics_path.read_text())
-    return candidate_metrics[PROMOTION_METRIC] <= current_metrics[PROMOTION_METRIC]
+    return candidate_metrics[PROMOTION_METRIC] < current_metrics[PROMOTION_METRIC]
+
+
+def _copy_into_place(source: Path, dest: Path) -> None:
+    """Copy beside `dest` and rename over it, so model-service -- which
+    reloads when these files change -- never reads a half-copied one."""
+    tmp = dest.with_name(f".{dest.name}.tmp")
+    shutil.copy2(source, tmp)
+    os.replace(tmp, dest)
 
 
 def promote(candidate_dir: Path = CANDIDATE_MODEL_DIR, current_dir: Path = CURRENT_MODEL_DIR) -> Path:
@@ -89,8 +108,8 @@ def promote(candidate_dir: Path = CANDIDATE_MODEL_DIR, current_dir: Path = CURRE
     current_dir = Path(current_dir)
     current_dir.mkdir(parents=True, exist_ok=True)
 
-    shutil.copy2(candidate_dir / "model.joblib", current_dir / "model.joblib")
-    shutil.copy2(candidate_dir / "metrics.json", current_dir / "metrics.json")
+    _copy_into_place(candidate_dir / "model.joblib", current_dir / "model.joblib")
+    _copy_into_place(candidate_dir / "metrics.json", current_dir / "metrics.json")
 
     run_id = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
     version_dir = current_dir.parent / "versions" / run_id

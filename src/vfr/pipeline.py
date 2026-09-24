@@ -300,7 +300,50 @@ def engineer_features(in_path: Path = CANDIDATES_PATH, out_path: Path = FEATURES
     return out_path
 
 
-def _load_labeled(features_path: Path, labels_path: Path) -> tuple[pd.DataFrame, list[str]]:
+def _route_of(features_path: Path) -> str | None:
+    """"C81->KDLH" from features_c81_kdlh.parquet -- the route key a chart
+    pick carries -- or None for a file not named that way."""
+    stem = Path(features_path).stem
+    if not stem.startswith("features_") or stem.count("_") != 2:
+        return None
+    _, dep, dest = stem.split("_")
+    return f"{dep.upper()}->{dest.upper()}"
+
+
+def _picks_as_labels(candidates_df: pd.DataFrame, route: str | None, picks_path: Path) -> pd.DataFrame:
+    """The training workspace's chart picks as OSM-candidate labels: each
+    rated pick (1-5; a 0 rejects a detection, which says nothing about
+    the landmark) claims the nearest candidate within SAME_PLACE_NM.
+
+    Without this the labeling workspace fed nothing: training read only
+    the older ratings file, so Retrain after a labeling session retrained
+    on what it already had.
+    """
+    from vfr import chartlabels, routecsv
+
+    columns = ["osm_id", "osm_type", "rating"]
+    if route is None:
+        return pd.DataFrame(columns=columns)
+    rows = []
+    for pick in chartlabels.load_picks(route, path=picks_path):
+        if not pick.get("rating"):
+            continue
+        gaps = candidates_df.apply(lambda c: geo.distance_nm(c["lat"], c["lon"], pick["lat"], pick["lon"]), axis=1)
+        if gaps.empty or gaps.min() >= routecsv.SAME_PLACE_NM:
+            continue
+        nearest = candidates_df.loc[gaps.idxmin()]
+        rows.append({"osm_id": str(nearest["osm_id"]), "osm_type": nearest["osm_type"], "rating": int(pick["rating"])})
+    # One label per candidate: the latest pick, as the file orders them.
+    return pd.DataFrame(rows, columns=columns).drop_duplicates(["osm_id", "osm_type"], keep="last")
+
+
+def _load_labeled(features_path: Path, labels_path: Path,
+                  picks_path: Path | None = None) -> tuple[pd.DataFrame, list[str]]:
+    """The candidates with a rating: the older ratings file, and the chart
+    picks made in the training workspace on top of it -- a pick is the
+    newer judgment, so it wins where both rate one candidate."""
+    from vfr.chartlabels import CHART_PICKS_PATH
+
     candidates_df = pd.read_parquet(features_path)
     labels_df = pd.read_csv(labels_path)
     # osm_id round-trips as str through the candidates CSV/parquet but as
@@ -308,10 +351,42 @@ def _load_labeled(features_path: Path, labels_path: Path) -> tuple[pd.DataFrame,
     # normalize both to str so the merge key types actually match.
     candidates_df["osm_id"] = candidates_df["osm_id"].astype(str)
     labels_df["osm_id"] = labels_df["osm_id"].astype(str)
-    labeled_df = candidates_df.merge(labels_df[["osm_id", "osm_type", "rating"]], on=["osm_id", "osm_type"])
+    picks_df = _picks_as_labels(candidates_df, _route_of(features_path), picks_path or CHART_PICKS_PATH)
+    ratings = pd.concat([labels_df[["osm_id", "osm_type", "rating"]], picks_df], ignore_index=True)
+    ratings = ratings.drop_duplicates(["osm_id", "osm_type"], keep="last")
+    labeled_df = candidates_df.merge(ratings, on=["osm_id", "osm_type"])
     category_cols = [c for c in candidates_df.columns if c.startswith("category_")]
     feature_cols = FEATURE_COLS_BASE + category_cols
     return labeled_df, feature_cols
+
+
+def holdout_split(labeled_df: pd.DataFrame) -> pd.Series:
+    """True for the rows every trainer holds out. Fixed by each
+    candidate's own id rather than drawn at random, so the holdout is the
+    same set of landmarks from one run to the next -- the only way a new
+    model and the promoted one can be scored on the same questions when
+    labels are added between runs. About a fifth of them."""
+    import zlib
+
+    return labeled_df.apply(lambda r: zlib.crc32(f"{r['osm_type']}/{r['osm_id']}".encode()) % 5 == 0, axis=1)
+
+
+def _score_current_model(X_test, y_test, feature_cols: list) -> float | None:
+    """The promoted model's MAE on this run's holdout, or None when there
+    is no promoted model, or it was trained on other features."""
+    import joblib
+    from sklearn.metrics import mean_absolute_error
+    from vfr.model_registry import CURRENT_MODEL_DIR
+
+    model_path, metrics_path = CURRENT_MODEL_DIR / "model.joblib", CURRENT_MODEL_DIR / "metrics.json"
+    if not model_path.exists() or not metrics_path.exists():
+        return None
+    if json.loads(metrics_path.read_text()).get("feature_cols") != feature_cols:
+        return None
+    try:
+        return float(mean_absolute_error(y_test, joblib.load(model_path).predict(X_test)))
+    except Exception:  # noqa: BLE001 -- an unreadable current model is "none to compare with"
+        return None
 
 
 def retrain(
@@ -329,7 +404,7 @@ def retrain(
     from sklearn.dummy import DummyRegressor
     from sklearn.ensemble import GradientBoostingRegressor, RandomForestRegressor
     from sklearn.linear_model import Ridge
-    from sklearn.model_selection import GridSearchCV, KFold, cross_val_score, train_test_split
+    from sklearn.model_selection import GridSearchCV, KFold, cross_val_score
 
     labeled_df, feature_cols = _load_labeled(features_path, labels_path)
     if len(labeled_df) < min_labeled_rows:
@@ -341,9 +416,8 @@ def retrain(
     X = labeled_df[feature_cols].fillna({"name_uniqueness": 0.0})
     y = labeled_df["rating"].astype(float)
 
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.2, random_state=RANDOM_STATE, stratify=y
-    )
+    held_out = holdout_split(labeled_df)
+    X_train, X_test, y_train, y_test = X[~held_out], X[held_out], y[~held_out], y[held_out]
     cv = KFold(n_splits=5, shuffle=True, random_state=RANDOM_STATE)
 
     param_grids = {
@@ -379,8 +453,12 @@ def retrain(
     # "cv_mae" (still the winner's score alone, still what
     # model_registry.PROMOTION_METRIC reads) rather than replacing it,
     # so the promotion gate's read path never has to change.
+    # The promoted model scored on the very same holdout, now, so the
+    # promotion gate compares two answers to one set of questions rather
+    # than two cross-validation scores from whatever labels each run had.
     metrics = metrics_record(
         best_name, held_out_scores(y_test, y_pred),
+        current_held_out_mae=_score_current_model(X_test, y_test, feature_cols),
         cv_mae=cv_mae[best_name],
         cv_mae_by_model={**cv_mae, "Dummy": dummy_mae},
         dummy_cv_mae=dummy_mae,
