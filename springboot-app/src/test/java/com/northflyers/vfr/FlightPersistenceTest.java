@@ -148,6 +148,23 @@ class FlightPersistenceTest {
         assertThat(found.getAircraft()).isNull();
     }
 
+    /**
+     * A flight read back for its pilot carries its aeroplane, read outside
+     * any transaction the way the controller reads it: the association
+     * is LAZY, open-in-view is off, and GET /api/flights/{id} was a 500
+     * for every flight filed with one of the pilot's aeroplanes.
+     */
+    @Test
+    void aFlightFoundForItsPilotCarriesItsAeroplane() {
+        Pilot pilot = newPilot();
+        Aircraft plane = aircraft.saveAndFlush(new Aircraft(pilot, "N24680", "PA28", 118.0, 9.9, 48.0));
+        Flight saved = flights.saveAndFlush(new Flight(pilot, plane, "C81", "KDLH"));
+
+        Flight found = flights.findByIdAndPilotId(saved.getId(), pilot.getId()).orElseThrow();
+
+        assertThat(found.getAircraft().getTailNumber()).isEqualTo("N24680");
+    }
+
     /** Deleting the pilot does cascade -- their flights are theirs. */
     @Test
     void deletingAPilotRemovesTheirFlights() {

@@ -16,6 +16,11 @@ public interface FlightRepository extends JpaRepository<Flight, Long> {
     List<Flight> findByPilotIdOrderByCreatedAtDesc(Long pilotId);
 
     /** Scoped by pilot for the same reason as {@code AircraftRepository}:
-     *  a flight is private to the person who planned it. */
+     *  a flight is private to the person who planned it. Fetches
+     *  {@code aircraft} with it: the controller reads its tail number
+     *  after the transaction has closed (open-in-view is off), and the
+     *  LAZY association then threw -- a 500 for every flight filed with
+     *  one of the pilot's aeroplanes. */
+    @EntityGraph(attributePaths = "aircraft")
     Optional<Flight> findByIdAndPilotId(Long id, Long pilotId);
 }
