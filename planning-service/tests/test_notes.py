@@ -64,3 +64,21 @@ def test_a_pilots_edit_is_theirs(monkeypatch, tmp_path):
 
     assert mine["description"] == "Mine: look for the island"
     assert theirs["description"] == "Generated: the lake south of the highway"
+
+
+def test_a_shared_edit_saved_while_the_stream_runs_is_kept(monkeypatch, tmp_path):
+    """Where nobody signs in every edit is shared, and one saved after the
+    stream took its snapshot was buried under the generated text."""
+    _setup(monkeypatch, tmp_path)
+
+    def describe(cp, dep, prev_name, next_name):
+        # The pilot saves while Claude is writing this checkpoint's note.
+        checkpoint_notes.save_note(checkpoint_notes.route_key("C81", "KDLH"), 45.0, -90.0, "Edited: the island")
+        return "Generated: the lake south of the highway"
+
+    monkeypatch.setattr(notes, "_describe_checkpoint", describe)
+    streamed = [m for m in _generate() if m["type"] == "checkpoint"][0]
+    again = [m for m in _generate() if m["type"] == "checkpoint"][0]
+
+    assert (streamed["source"], streamed["description"]) == ("saved", "Edited: the island")
+    assert again["description"] == "Edited: the island"

@@ -68,3 +68,37 @@ def test_a_failed_write_leaves_the_old_file_whole(tmp_path):
 
     assert path.read_text().splitlines() == ["route,lat", f"{ROUTE},1.0"]
     assert [p.name for p in tmp_path.iterdir()] == ["rows.csv"]
+
+
+def test_an_edit_a_little_off_the_place_is_found_from_either_point(tmp_path):
+    """A checkpoint's coordinates shift by a hair between requests. Rows a
+    little apart for one checkpoint left the older one read from the old
+    point, hiding the newer edit."""
+    path = tmp_path / "notes.csv"
+    checkpoint_notes.save_note(ROUTE, 45.0, -90.0, "first", path=path)
+    nudged = -90.0 + 0.1 / 42.4          # about 0.1 nm east, inside the same place
+    checkpoint_notes.save_note(ROUTE, 45.0, nudged, "second", path=path)
+
+    notes = checkpoint_notes.load_notes(ROUTE, path=path)
+    assert checkpoint_notes.find_note(notes, 45.0, -90.0)["description"] == "second"
+    assert checkpoint_notes.find_note(notes, 45.0, nudged)["description"] == "second"
+    assert checkpoint_notes.places(ROUTE, path=path) == 1
+
+
+def test_a_seeded_note_yields_to_a_shared_note_already_there(tmp_path):
+    path = tmp_path / "notes.csv"
+    checkpoint_notes.save_note(ROUTE, 45.0, -90.0, "Edited: the lake with the island", path=path)
+
+    held, written = checkpoint_notes.seed_note(ROUTE, 45.0, -90.0, "Generated", path=path)
+
+    assert not written and held["description"] == "Edited: the lake with the island"
+    assert len(checkpoint_notes.load_notes(ROUTE, path=path)) == 1
+
+
+def test_a_seeded_note_fills_an_empty_place_and_a_pilots_own_edit_does_not_count(tmp_path):
+    path = tmp_path / "notes.csv"
+    checkpoint_notes.save_note(ROUTE, 45.0, -90.0, "Mine", pilot="42", path=path)
+
+    held, written = checkpoint_notes.seed_note(ROUTE, 45.0, -90.0, "Generated", path=path)
+
+    assert written and held["description"] == "Generated" and held["pilot"] == ""

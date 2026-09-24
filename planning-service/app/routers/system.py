@@ -161,7 +161,7 @@ def _corridors() -> list[CorridorStatus]:
         out.append(CorridorStatus(
             departure_ident=dep, destination_ident=dest, candidates=n_candidates,
             features_built_at=_mtime(features), labels=chartlabels.summarise(route),
-            notes=len(checkpoint_notes.load_notes(route)),
+            notes=checkpoint_notes.places(route),
         ))
     return out
 

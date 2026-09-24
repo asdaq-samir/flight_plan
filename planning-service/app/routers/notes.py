@@ -147,7 +147,7 @@ def describe_checkpoints(
                 next_cp = selected[i + 1] if i + 1 < len(selected) else None
                 next_name = (next_cp["name"] or next_cp["category"]) if next_cp else None
                 description = _describe_checkpoint(cp, dep_ident, prev_name, next_name)
-                checkpoint_notes.save_note(route, cp["lat"], cp["lon"], description)
+                held, written = checkpoint_notes.seed_note(route, cp["lat"], cp["lon"], description)
             except GLOBAL_ANTHROPIC_ERRORS as err:
                 global_error = str(err)
                 yield line(NoteError(detail=global_error))
@@ -155,6 +155,10 @@ def describe_checkpoints(
                 continue
             except Exception as err:  # noqa: BLE001 -- one bad LLM call must not stop the rest
                 yield checkpoint_line(cp, None, "error", str(err))
+                continue
+            if not written:
+                # A shared note saved while this stream ran: it stays.
+                yield checkpoint_line(cp, held["description"], "saved")
                 continue
             yield checkpoint_line(cp, description, "generated")
         yield line(NoteDone())
