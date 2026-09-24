@@ -122,7 +122,9 @@ def build(request: BuildRequest) -> BuildJob:
     if dep == dest:
         raise HTTPException(422, "Departure and destination are the same airport")
     _, features_path = paths(dep, dest)
-    if features_path.exists():
+    if features_path.exists() or paths(dest, dep)[1].exists():
+        # Built either way round is built: the reverse corridor serves
+        # this one (see scoring.invoke_model).
         return {"job_id": None, "state": "done", "step": "already built"}
 
     route = f"{dep}->{dest}"

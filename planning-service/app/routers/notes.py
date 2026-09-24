@@ -119,7 +119,10 @@ def describe_checkpoints(
     dep_ident, dest_ident = route_key(request.departure_ident, request.destination_ident)
     _, selected = scored_and_selected(dep_ident, dest_ident)  # already along-track order
     route = checkpoint_notes.route_key(dep_ident, dest_ident)
-    existing = checkpoint_notes.load_notes(route)
+    # Notes are matched by place, so the same corridor flown the other
+    # way reads the same ones.
+    existing = checkpoint_notes.load_notes(route) + checkpoint_notes.load_notes(
+        checkpoint_notes.route_key(dest_ident, dep_ident))
 
     def checkpoint_line(cp: dict, description: str | None, source: str, detail: str | None = None) -> str:
         return line(NoteCheckpoint(

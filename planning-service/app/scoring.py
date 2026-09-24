@@ -5,8 +5,8 @@ import threading
 from cachetools import LRUCache
 
 from fastapi import HTTPException
+from vfr import airports, geo, model_client, model_registry
 from vfr import checkpoints as checkpoint_selection
-from vfr import model_client, model_registry
 
 from .common import paths
 
@@ -26,11 +26,29 @@ _SCORE_CACHE_LOCK = threading.Lock()
 def invoke_model(dep: str, dest: str) -> dict:
     """model-service's answer, with its failures as the HTTP statuses a
     browser caller expects: 404 for a corridor nobody has collected, 502
-    when the service is unreachable, otherwise whatever it said."""
+    when the service is unreachable, otherwise whatever it said.
+
+    A corridor collected the other way round serves this one too: the
+    candidates over the ground are the same and the model scores none of
+    them by direction, so KDLH->C81 is C81->KDLH's answer with the along-
+    track distances measured from the other end. It used to need a
+    minutes-long build of its own."""
     try:
         return model_client.invoke(dep, dest)
+    except model_client.RouteNotCollected as err:
+        if not paths(dest, dep)[1].exists():
+            raise HTTPException(err.status, str(err)) from err
     except model_client.ModelServiceError as err:
         raise HTTPException(err.status, str(err)) from err
+    try:
+        reverse = model_client.invoke(dest, dep)
+    except model_client.ModelServiceError as err:
+        raise HTTPException(err.status, str(err)) from err
+    start, end = airports.get_airport(dep), airports.get_airport(dest)
+    total_nm = geo.distance_nm(start["lat"], start["lon"], end["lat"], end["lon"])
+    flipped = [dict(c, along_track_nm=round(total_nm - c["along_track_nm"], 3)) for c in reverse["checkpoints"]]
+    return {**reverse, "departure_ident": dep, "destination_ident": dest,
+            "checkpoints": sorted(flipped, key=lambda c: c["along_track_nm"])}
 
 
 def _mtime_or_none(path) -> float | None:
@@ -42,6 +60,8 @@ def _mtime_or_none(path) -> float | None:
 
 def score(dep: str, dest: str) -> list:
     _, features_path = paths(dep, dest)
+    if not features_path.exists():
+        features_path = paths(dest, dep)[1]
     key = (
         dep, dest,
         _mtime_or_none(features_path),

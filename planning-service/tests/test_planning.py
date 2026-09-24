@@ -248,3 +248,51 @@ def test_stages_are_named_in_a_pilots_words():
     assert planning.describe_stages(["weather.freezing_level_ft", "terrain.floor_profile", "weather.hazards_along_route"]) \
         == "aviationweather.gov and the terrain and obstacles"
     assert planning.describe_stages([]) == ""
+
+
+def test_a_corridor_collected_the_other_way_round_serves_this_one(monkeypatch, tmp_path):
+    """KDLH->C81 with only C81->KDLH built: the same candidates, measured
+    from the other end, instead of a 404 and a minutes-long build."""
+    import pytest
+    from vfr import model_client
+
+    from app import scoring
+
+    built = tmp_path / "features_c81_kdlh.parquet"
+    built.write_text("x")
+    monkeypatch.setattr(scoring, "paths", lambda dep, dest: (
+        tmp_path / f"candidates_{dep.lower()}_{dest.lower()}.csv", tmp_path / f"features_{dep.lower()}_{dest.lower()}.parquet"))
+
+    def invoke(dep, dest, model=None):
+        if (dep, dest) != ("C81", "KDLH"):
+            raise model_client.RouteNotCollected(dep, dest)
+        return {"departure_ident": dep, "destination_ident": dest, "checkpoints": [
+            {"osm_id": "1", "name": "near C81", "along_track_nm": 10.0},
+            {"osm_id": "2", "name": "near KDLH", "along_track_nm": 280.0},
+        ]}
+
+    monkeypatch.setattr(model_client, "invoke", invoke)
+
+    answer = scoring.invoke_model("KDLH", "C81")
+
+    assert [c["name"] for c in answer["checkpoints"]] == ["near KDLH", "near C81"]
+    from vfr import geo
+    total = geo.distance_nm(42.3172, -88.0905, 46.8421, -92.1936)   # conftest's C81 and KDLH
+    assert answer["checkpoints"][0]["along_track_nm"] == pytest.approx(total - 280.0, abs=0.01)
+    assert answer["departure_ident"] == "KDLH"
+
+
+def test_a_corridor_built_neither_way_is_still_a_404(monkeypatch, tmp_path):
+    import pytest
+    from fastapi import HTTPException
+    from vfr import model_client
+
+    from app import scoring
+
+    monkeypatch.setattr(scoring, "paths", lambda dep, dest: (tmp_path / "c.csv", tmp_path / "f.parquet"))
+    monkeypatch.setattr(model_client, "invoke", lambda dep, dest, model=None: (_ for _ in ()).throw(
+        model_client.RouteNotCollected(dep, dest)))
+
+    with pytest.raises(HTTPException) as err:
+        scoring.invoke_model("KDLH", "C81")
+    assert err.value.status_code == 404
