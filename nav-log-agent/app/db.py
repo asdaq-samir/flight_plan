@@ -1,6 +1,6 @@
 """Long-term memory: past route briefings in pgvector (on the same Postgres
-instance `webapp` already uses -- see [[project-git-and-phase-sequencing]]
-in project memory for why that was chosen over a dedicated vector DB),
+instance `webapp` already uses -- docs/README.md says why that was chosen
+over a dedicated vector DB),
 embedded with a local sentence-transformer model so no extra API key is
 needed just to embed text (Anthropic has no embeddings endpoint).
 

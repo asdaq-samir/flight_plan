@@ -6,8 +6,7 @@ Collect/Feature-Engineer/Retrain each run in a separate sibling container
 (launched via DockerOperator over the host Docker socket mounted into this
 `airflow` container) rather than in-process here -- the local mirror of
 "Airflow orchestrates, SageMaker does the compute" (see the AWS-mapping
-table in docs/README.md, and [[project-airflow-pipeline-dag]] in project
-memory). Evaluate/Promote stay in-process: vfr.model_registry has zero
+table in docs/README.md). Evaluate/Promote stay in-process: vfr.model_registry has zero
 third-party dependencies, so there's no real compute to hand off -- on AWS
 these are just Model Registry API calls, not a job at all.
 

@@ -6,7 +6,8 @@ compute job on AWS at all, just bookkeeping. Kept to the standard library on
 purpose so it stays importable with zero third-party dependencies, in
 particular inside Airflow's own image, which no longer installs pandas/
 scikit-learn now that collect/engineer_features/retrain run in separate
-sibling containers (see [[project-airflow-pipeline-dag]] in project memory).
+sibling containers (pipeline-processing and pipeline-training in
+docker-compose.yml, launched by the DAG in airflow/dags).
 """
 import json
 import shutil

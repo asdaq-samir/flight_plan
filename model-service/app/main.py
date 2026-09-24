@@ -2,7 +2,7 @@
 
 Structured toward /ping + /invocations -- the health-check and inference
 route names a SageMaker inference container expects -- so the eventual
-AWS migration (deferred, see project memory) doesn't need a rename, even
+AWS migration (see docs/README-AWS.md) doesn't need a rename, even
 though nothing here actually talks to SageMaker yet. That shape extends
 to where things are read from: the promoted model is loaded from
 MODEL_DIR, defaulting to /opt/ml/model, which is the path SageMaker

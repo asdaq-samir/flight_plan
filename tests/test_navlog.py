@@ -1,6 +1,6 @@
-"""Hand-derived headwind/tailwind/crosswind cases -- these are the same
-sanity checks worked through manually while building vfr.navlog (see
-project memory: [[project-navlog-dr-math]]), formalized as regression tests.
+"""Hand-derived headwind/tailwind/crosswind cases -- the sanity checks
+worked through by hand while building vfr.navlog, formalized as
+regression tests -- and the flyability and fuel rules built on them.
 """
 import math
 
