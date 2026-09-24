@@ -58,7 +58,7 @@ const CHART_KIND_LABELS: Record<string, string> = {
  */
 export function DevPanel() {
   const queryClient = useQueryClient();
-  const { data: status, isFetching } = useQuery({
+  const { data: status, isFetching, isError: statusFailed } = useQuery({
     queryKey: ["status"], queryFn: api.status, refetchInterval: 30000,
   });
   // The tab the console was last on, remembered per browser: a
@@ -86,9 +86,9 @@ export function DevPanel() {
         </>
       }
       tabs={[
-        { value: "training", label: "Model Training", content: <TrainingTab status={status} /> },
-        { value: "performance", label: "Performance", content: <PerformanceTab status={status} /> },
-        { value: "system", label: "System", content: <SystemTab status={status} /> },
+        { value: "training", label: "Model Training", content: <TrainingTab status={status} failed={statusFailed} /> },
+        { value: "performance", label: "Performance", content: <PerformanceTab status={status} failed={statusFailed} /> },
+        { value: "system", label: "System", content: <SystemTab status={status} failed={statusFailed} /> },
       ]}
     />
   );
@@ -172,6 +172,11 @@ function ModelComparisonChart() {
   );
 }
 
+/** What a section shows before the snapshot is here: that it is on its
+ *  way, or that the planner did not answer. It said "Loading…" for
+ *  ever when /api/status failed. */
+const waiting = (failed: boolean) => (failed ? "The planner did not answer." : "Loading…");
+
 function Fact({ label, value }: { label: string; value: string }) {
   return (
     <div>
@@ -184,7 +189,7 @@ function Fact({ label, value }: { label: string; value: string }) {
 /** How good the models are: the comparison chart and the registry
  *  behind it -- what is serving, what it learned from, every version
  *  promoted before it. */
-function PerformanceTab({ status }: { status: Status | undefined }) {
+function PerformanceTab({ status, failed }: { status: Status | undefined; failed: boolean }) {
   const model = status?.model;
   return (
     <div className="space-y-6">
@@ -202,7 +207,7 @@ function PerformanceTab({ status }: { status: Status | undefined }) {
             <Fact label="Features" value={String(model.current.n_features)} />
           </div>
         ) : (
-          <p className="mt-1 text-sm text-muted-foreground">{status ? "No model has been promoted yet." : "Loading…"}</p>
+          <p className="mt-1 text-sm text-muted-foreground">{status ? "No model has been promoted yet." : waiting(failed)}</p>
         )}
         {model && model.versions.length > 0 && (
           <Table containerClassName="mt-3 rounded-md border" className="min-w-[28rem]">
@@ -326,8 +331,8 @@ function StackLink({ link }: { link: { label: string; href: string; service?: st
   );
 }
 
-function TrainingTab({ status }: { status: Status | undefined }) {
-  const { pipeline, lastRun } = useRetrain();
+function TrainingTab({ status, failed }: { status: Status | undefined; failed: boolean }) {
+  const { pipeline, lastRun, running } = useRetrain();
   const model = status?.model;
   const corridors = status?.corridors ?? [];
   // The route on the map behind the console, to mark its row and to
@@ -360,7 +365,7 @@ function TrainingTab({ status }: { status: Status | undefined }) {
             {corridors.length === 0 && (
               <TableRow>
                 <TableCell colSpan={7} className="h-16 text-center text-muted-foreground">
-                  {status ? "No route has been collected yet." : "Loading…"}
+                  {status ? "No route has been collected yet." : waiting(failed)}
                 </TableCell>
               </TableRow>
             )}
@@ -423,8 +428,7 @@ function TrainingTab({ status }: { status: Status | undefined }) {
           <div className="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm">
             {lastRun ? (
               <>
-                <StatusDot up={lastRun.state === "success" ? true : lastRun.state === "failed" ? false : undefined}
-                  pending={lastRun.state === "running" || lastRun.state === "queued"} />
+                <Dot tone={running ? "running" : lastRun.state === "success" ? "up" : lastRun.state === "failed" ? "down" : "checking"} />
                 <span className="font-medium">Last training run: {lastRun.state ?? "unknown"}</span>
                 <span className="text-muted-foreground">
                   started {ago(lastRun.start_date)}
@@ -472,12 +476,44 @@ function SectionHeading({ title, description }: { title: string; description?: s
   );
 }
 
-/** "up" / "down" / "checking…" as a small pill with the dot. */
-function StatusPill({ up }: { up: boolean | undefined }) {
+/**
+ * What the console knows about a service, as one value. It was
+ * `up: boolean | undefined`, and undefined meant in flight, failed, not
+ * configured and unknown alike: an agent not configured here read
+ * "checking…" for ever, as did every row once /api/status failed.
+ */
+type Health = "checking" | "up" | "down" | "no answer" | "not configured";
+
+const HEALTH: Record<Health, { tone: Tone; label: string }> = {
+  checking: { tone: "checking", label: "checking…" },
+  up: { tone: "up", label: "up" },
+  down: { tone: "down", label: "down" },
+  "no answer": { tone: "down", label: "no answer" },
+  "not configured": { tone: "checking", label: "not configured" },
+};
+
+/** A service the console asks itself. A check that failed is "no
+ *  answer", not the answer before it, which TanStack keeps as data. */
+function probed<T>(query: { data: T | undefined; isError: boolean }, up: (data: T) => boolean): Health {
+  if (query.isError) return "no answer";
+  if (query.data === undefined) return "checking";
+  return up(query.data) ? "up" : "down";
+}
+
+/** A service the planner's snapshot probed: null there means this
+ *  deployment does not run it. */
+function reported(service: { up: boolean } | null | undefined, snapshotFailed: boolean): Health {
+  if (snapshotFailed) return "no answer";
+  if (service === null) return "not configured";
+  if (service === undefined) return "checking";
+  return service.up ? "up" : "down";
+}
+
+function StatusPill({ health }: { health: Health }) {
   return (
     <Badge variant="outline" className="gap-1.5 font-normal">
-      <StatusDot up={up} />
-      {up === undefined ? "checking…" : up ? "up" : "down"}
+      <Dot tone={HEALTH[health].tone} />
+      {HEALTH[health].label}
     </Badge>
   );
 }
@@ -496,17 +532,16 @@ const DATASET_NAMES: Record<string, string> = {
 
 /** Green up, red down, grey unknown -- and amber, pulsing, for
  *  something under way (a training run). */
-function StatusDot({ up, pending = false }: { up: boolean | undefined; pending?: boolean }) {
-  return (
-    <span
-      aria-hidden
-      className={cn(
-        "inline-block size-2.5 shrink-0 rounded-full",
-        pending ? "animate-pulse bg-amber-500"
-          : up === undefined ? "bg-muted-foreground/40" : up ? "bg-emerald-500" : "bg-destructive",
-      )}
-    />
-  );
+type Tone = "up" | "down" | "checking" | "running";
+const TONES: Record<Tone, string> = {
+  up: "bg-emerald-500",
+  down: "bg-destructive",
+  checking: "bg-muted-foreground/40",
+  running: "animate-pulse bg-amber-500",
+};
+
+function Dot({ tone }: { tone: Tone }) {
+  return <span aria-hidden className={cn("inline-block size-2.5 shrink-0 rounded-full", TONES[tone])} />;
 }
 
 /** The FAA charts on disk and the tile pyramid rendered from them,
@@ -572,7 +607,7 @@ function ChartsSection({ charts, onRefresh, refreshing }: {
   );
 }
 
-function SystemTab({ status }: { status: Status | undefined }) {
+function SystemTab({ status, failed }: { status: Status | undefined; failed: boolean }) {
   const queryClient = useQueryClient();
   // The one chart action: fetch and render the FAA's current cycle
   // now rather than at the planner's next daily check -- the same
@@ -590,7 +625,7 @@ function SystemTab({ status }: { status: Status | undefined }) {
   // application.yml). The planner is asked for its cheapest own answer
   // through the proxy; the rest comes from the planner's snapshot,
   // which probed them.
-  const { data: webapp } = useQuery({
+  const webapp = useQuery({
     queryKey: ["webappHealth"],
     queryFn: async () => {
       const [live, ready] = await Promise.all([fetch("/actuator/health/liveness"), fetch("/actuator/health/readiness")]);
@@ -598,31 +633,25 @@ function SystemTab({ status }: { status: Status | undefined }) {
     },
     refetchInterval: 30000, retry: false,
   });
-  const { data: plannerUp } = useQuery({
+  const planner = useQuery({
     queryKey: ["plannerHealth"],
     queryFn: async () => (await fetch("/api/planner/aircraft-profiles")).ok,
     refetchInterval: 30000, retry: false,
   });
   const services = status?.services;
   const modelService = services?.model_service;
-  const rows: { name: string; up: boolean | undefined; detail: string }[] = [
-    { name: "webapp (Spring Boot)", up: webapp?.up, detail: "the gateway, sessions, aircraft and flights" },
-    { name: "db (Postgres + pgvector)", up: webapp?.db, detail: "application data and the agent's memory" },
-    { name: "planning-service", up: plannerUp, detail: "course, checkpoints, nav log, briefing, chart reading" },
+  const rows: { name: string; health: Health; detail: string }[] = [
+    { name: "webapp (Spring Boot)", health: probed(webapp, w => w.up), detail: "the gateway, sessions, aircraft and flights" },
+    { name: "db (Postgres + pgvector)", health: probed(webapp, w => w.db), detail: "application data and the agent's memory" },
+    { name: "planning-service", health: probed(planner, up => up), detail: "course, checkpoints, nav log, briefing, chart reading" },
     {
-      name: "model-service", up: modelService?.up,
+      name: "model-service", health: reported(modelService, failed),
       detail: modelService?.up && modelService.trained_at
         ? `serving a model trained ${ago(modelService.trained_at)}`
         : modelService?.detail ?? "scores candidate checkpoints",
     },
-    {
-      name: "nav-log-agent (LangGraph, MCP)", up: services?.nav_log_agent?.up,
-      detail: services && !services.nav_log_agent ? "not configured here" : "the briefing narrative, with memory",
-    },
-    {
-      name: "crewai-agent", up: services?.crewai_agent?.up,
-      detail: services && !services.crewai_agent ? "not configured here" : "the same narrative, in CrewAI",
-    },
+    { name: "nav-log-agent (LangGraph, MCP)", health: reported(services?.nav_log_agent, failed), detail: "the briefing narrative, with memory" },
+    { name: "crewai-agent", health: reported(services?.crewai_agent, failed), detail: "the same narrative, in CrewAI" },
   ];
   const host = window.location.hostname;
   const links: { label: string; href: string; localOnly?: boolean; service?: string }[] = [
@@ -672,7 +701,7 @@ function SystemTab({ status }: { status: Status | undefined }) {
             {rows.map(r => (
               <TableRow key={r.name}>
                 <TableCell className="font-medium">{r.name}</TableCell>
-                <TableCell><StatusPill up={r.up} /></TableCell>
+                <TableCell><StatusPill health={r.health} /></TableCell>
                 <TableCell className="text-muted-foreground">{r.detail}</TableCell>
               </TableRow>
             ))}
@@ -701,7 +730,7 @@ function SystemTab({ status }: { status: Status | undefined }) {
               </TableRow>
             ))}
             {datasets.length === 0 && (
-              <TableRow><TableCell colSpan={4} className="h-12 text-center text-muted-foreground">{status ? "Nothing on disk yet." : "Loading…"}</TableCell></TableRow>
+              <TableRow><TableCell colSpan={4} className="h-12 text-center text-muted-foreground">{status ? "Nothing on disk yet." : waiting(failed)}</TableCell></TableRow>
             )}
           </TableBody>
         </Table>
