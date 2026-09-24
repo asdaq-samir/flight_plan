@@ -48,10 +48,15 @@ function csrfHeaders(method: string): Record<string, string> {
 /** The server's own word for what went wrong: `detail` is the
  *  planner's (and the webapp's proxies'), `error` is Spring's where it
  *  sends one. A 401 carries no body at all (Spring Security's own entry
- *  point), and falls through to the status text. */
-async function detailOf(response: Response): Promise<string> {
-  const body = await response.json().catch(() => ({})) as { detail?: string; error?: string };
-  return body.detail ?? body.error ?? response.statusText ?? "request failed";
+ *  point), and falls through to the status text. FastAPI's own 422 --
+ *  a query parameter it could not parse -- sends `detail` as a list of
+ *  {loc, msg}, which read "[object Object]" in the toast. */
+export async function detailOf(response: Response): Promise<string> {
+  const body = await response.json().catch(() => ({})) as { detail?: unknown; error?: string };
+  const detail = Array.isArray(body.detail)
+    ? body.detail.map(d => (d && typeof d === "object" && "msg" in d ? String(d.msg) : String(d))).join("; ")
+    : typeof body.detail === "string" ? body.detail : undefined;
+  return detail || body.error || response.statusText || "request failed";
 }
 
 /** A response that is not OK, as the `ApiError` every caller expects --
