@@ -11,13 +11,13 @@ from cachetools import TTLCache
 from vfr import aircraft as aircraft_module
 from vfr import altitude as altitude_module
 from vfr import geo, navlog, sun, weather
+from vfr.config import PLAN_LIMIT_S
 
 
 # How long a caller waits on a computation that is already running before
-# saying so, and after which that computation counts as abandoned. The
-# slowest real altitude selection seen was a little over two minutes, on
-# a bad aviationweather.gov day; the agents' own client waits 300 s.
-COMPUTE_LIMIT_S = 240
+# saying so, and after which that computation counts as abandoned: the
+# planner's one bound, vfr.config's (see there).
+COMPUTE_LIMIT_S = PLAN_LIMIT_S
 
 # What the stages of vfr.altitude's selection are called to a pilot, by
 # the part of their label before the dot.
@@ -27,6 +27,7 @@ _STAGE_NAMES = {
     "weather": "aviationweather.gov",
     "magnetic_variation_deg": "the magnetic variation",
     "sua": "the FAA's special-use airspace",
+    "model-service": "model-service's checkpoint scores",
 }
 
 

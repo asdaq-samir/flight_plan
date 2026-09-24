@@ -258,3 +258,27 @@ def test_each_outcome_of_the_altitude_resolver(monkeypatch, altitude):
     _no_winds(monkeypatch)
     outcome = resolve_altitude(r, fix_list, profile, "c172", None, "lowest")
     assert isinstance(outcome, NoWinds) and outcome.options == []
+
+
+def test_a_plan_whose_scoring_hangs_answers_within_the_bound(monkeypatch):
+    """Scoring ran before the bounded wait, so a slow model-service put the
+    plan past the agents' client timeout."""
+    import threading
+
+    from app.routers import plan as plan_router
+
+    release = threading.Event()
+
+    def slow_model(dep, dest, model=None):
+        release.wait(timeout=5)
+        return {"checkpoints": []}
+
+    monkeypatch.setattr(scoring, "invoke_model", slow_model)
+    monkeypatch.setattr(plan_router, "COMPUTE_LIMIT_S", 0.3)
+    try:
+        resp = client.get("/api/plan", params={"dep": "C81", "dest": "KDLH"})
+    finally:
+        release.set()
+
+    assert resp.status_code == 504
+    assert "model-service's checkpoint scores" in resp.json()["detail"]

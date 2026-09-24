@@ -19,13 +19,17 @@ import os
 
 import requests
 
+from .config import PLAN_LIMIT_S
 from .retry import upstream_detail
 
 PLANNING_SERVICE_URL = os.environ.get("PLANNING_SERVICE_URL", "http://planning-service:8000")
-# An uncached plan reads terrain, obstacles and airspace and then the
-# winds at every legal altitude of every leg; on a slow
-# aviationweather.gov day one was observed taking over two minutes.
-TIMEOUT_S = 300
+# The planner answers within its own bound -- with the plan, or with a 504
+# saying what it is still waiting on -- so this waits that long and a
+# little more for the answer to arrive. It was 300 s beside a 240 s bound
+# linked only by a comment, and the plan's scoring and a typed altitude's
+# legs ran outside the bound: a slow plan read as "could not reach
+# planning-service".
+TIMEOUT_S = PLAN_LIMIT_S + 30
 
 # One Session per process, for the same reason as vfr.model_client's:
 # a pooled connection to the same host instead of a handshake per call.

@@ -250,17 +250,26 @@ def plan(
     fuel reserve is the day or the night one.
     """
     r = load_route(dep, dest)
-    scored, selected = scored_and_selected(r.dep_ident, r.dest_ident)
     profile = aircraft_profile(aircraft, cruise_tas_kt, fuel_burn_gph, usable_fuel_gal)
-    fix_list = navlog.fixes(r.dep_ident, r.dest_ident, r.start, r.end, selected)
     fcst_hr = forecast_hour_for(depart)
     window = flight_window(depart, geo.distance_nm(*r.start, *r.end), profile["cruise_tas_kt"])
 
+    # Everything slow inside the one bound, scoring included: the agents'
+    # client waits exactly that long (vfr.planner_client).
+    fixes: list = []
+
+    def work():
+        scored, selected = scored_and_selected(r.dep_ident, r.dest_ident)
+        fixes.append(navlog.fixes(r.dep_ident, r.dest_ident, r.start, r.end, selected))
+        return scored, selected, resolve_altitude(
+            r, fixes[0], profile, aircraft, altitude_ft, altitude_choice, fcst_hr, window,
+        )
+
     pool = ThreadPoolExecutor(max_workers=1)
     try:
-        outcome = _result(_waited(
-            pool.submit(resolve_altitude, r, fix_list, profile, aircraft, altitude_ft, altitude_choice, fcst_hr, window),
-            COMPUTE_LIMIT_S, lambda: _running_stages(r, fix_list, aircraft, fcst_hr, window),
+        scored, selected, outcome = _result(_waited(
+            pool.submit(work), COMPUTE_LIMIT_S,
+            lambda: _running_stages(r, fixes[0], aircraft, fcst_hr, window) if fixes else ["model-service"],
         ))
     finally:
         pool.shutdown(wait=False)

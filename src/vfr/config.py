@@ -30,6 +30,14 @@ def corridor_paths(dep: str, dest: str) -> tuple[Path, Path]:
 CANDIDATES_PATH, FEATURES_PATH = corridor_paths("C81", "KDLH")
 LABELS_PATH = DATA_DIR / "labels" / "spottability_ratings.csv"
 
+# How long the planner works on a plan before answering that it is still
+# working (a 504 naming what it waits on; the answer is kept for the next
+# ask). The slowest real altitude selection seen was a little over two
+# minutes, on a bad aviationweather.gov day. Its clients' own timeouts
+# follow from it (vfr.planner_client), so a slow plan reads as the
+# planner's answer and not as a planner that could not be reached.
+PLAN_LIMIT_S = 240
+
 # Below this many labeled examples, a train/test split and 5-fold CV
 # aren't meaningful (some rating classes may have 0-1 examples), so
 # retrain() refuses to run rather than let scikit-learn raise an opaque
