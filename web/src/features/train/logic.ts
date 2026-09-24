@@ -1,5 +1,6 @@
 import { isEndpoint, type Point, type Rating, type Role, type Source } from "../../lib/api/types";
 import { compassPoint } from "../../lib/compass";
+import { SCORE_STEPS } from "../../lib/scoreScale";
 
 export { compassPoint };
 
@@ -14,9 +15,11 @@ export { compassPoint };
  * banner did not count. None needed a browser to go wrong.
  */
 
+/** 0 is a rejection (grey); 1-5 are lib/scoreScale's steps, the same
+ *  colours the planner draws its scores in. */
 export const COLORS: Record<Rating, string> = {
-  0: "#8a8f94", 1: "#b3261e", 2: "#c2681a",
-  3: "#b8860b", 4: "#4a9d4a", 5: "#1a7f37",
+  0: "#8a8f94", 1: SCORE_STEPS[0], 2: SCORE_STEPS[1],
+  3: SCORE_STEPS[2], 4: SCORE_STEPS[3], 5: SCORE_STEPS[4],
 };
 
 /** The scale, in the order the buttons show it. */

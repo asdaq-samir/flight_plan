@@ -1,5 +1,6 @@
 import type { AltitudeOption, Totals } from "../../lib/api/types";
 import { compassPoint } from "../../lib/compass";
+import { SCORE_STEPS } from "../../lib/scoreScale";
 import { altFt } from "../../lib/units";
 
 export { altFt, compassPoint };
@@ -13,14 +14,14 @@ export { altFt, compassPoint };
  * testable while they have no map and no DOM attached.
  */
 
-/** Score bands, matching the rating scale so a colour means one thing
- *  across both views. */
+/** Score bands, on the rating scale's own steps (lib/scoreScale) so a
+ *  colour means one thing across both views. */
 export function scoreColor(s: number): string {
-  if (s >= 4.5) return "#1a7f37";
-  if (s >= 4.0) return "#4a9d4a";
-  if (s >= 3.5) return "#b8860b";
-  if (s >= 3.0) return "#c2681a";
-  return "#b3261e";
+  if (s >= 4.5) return SCORE_STEPS[4];
+  if (s >= 4.0) return SCORE_STEPS[3];
+  if (s >= 3.5) return SCORE_STEPS[2];
+  if (s >= 3.0) return SCORE_STEPS[1];
+  return SCORE_STEPS[0];
 }
 
 /**

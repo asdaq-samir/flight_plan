@@ -5,6 +5,7 @@ import { Button } from "../../../components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../../components/ui/select";
 import { MapCard } from "../../../lib/map/MapCard";
 import { isEndpoint, type Point, type Rating } from "../../../lib/api/types";
+import { inkOn } from "../../../lib/scoreScale";
 import { CATEGORIES, COLORS, RATINGS, compassPoint, roleOf, sourceOf } from "../logic";
 
 interface Props {
@@ -132,10 +133,10 @@ export default function PointPopup({
             type="button"
             variant="ghost"
             onClick={() => onRate(r)}
-            className={`h-9 px-2.5 font-bold text-white hover:text-white ${
+            className={`h-9 px-2.5 font-bold ${
               rating === r ? "ring-2 ring-offset-1 ring-foreground" : "opacity-70 hover:opacity-100"
             }`}
-            style={{ backgroundColor: COLORS[r] }}
+            style={{ backgroundColor: COLORS[r], color: inkOn(COLORS[r]) }}
           >
             {r}
           </Button>

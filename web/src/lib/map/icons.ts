@@ -1,4 +1,5 @@
 import L from "leaflet";
+import { inkOn } from "../scoreScale";
 
 /**
  * Leaflet's div icons take HTML, so these are HTML -- the same Tailwind
@@ -42,7 +43,7 @@ export function dotIcon(fill: string, label?: string | number) {
   // inside the curve, and a browser's own line-height slack would sit
   // the number off-centre.
   const size = withLabel
-    ? "grid h-[22px] w-[22px] place-items-center text-[8px] font-bold leading-none text-white"
+    ? "grid h-[22px] w-[22px] place-items-center text-[8px] font-bold leading-none"
     : "h-4 w-4";
   return L.divIcon({
     className: "",
@@ -50,7 +51,7 @@ export function dotIcon(fill: string, label?: string | number) {
     iconAnchor: [tapSize / 2, tapSize / 2],
     html:
       `<div class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border-[2.5px] border-background shadow-[0_1px_4px_rgba(0,0,0,.45)] outline outline-1 outline-[rgba(10,20,28,.55)] ${size}"` +
-      ` style="background-color:${text(fill)}">${withLabel ? text(label) : ""}</div>`,
+      ` style="background-color:${text(fill)};color:${text(inkOn(fill))}">${withLabel ? text(label) : ""}</div>`,
   });
 }
 

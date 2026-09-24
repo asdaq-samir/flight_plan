@@ -16,6 +16,7 @@ import { MapTooltip } from "../../../lib/map/MapTooltip";
 import { OwnShipLayer } from "../../../lib/map/OwnShipLayer";
 import { useCardedMarker } from "../../../lib/map/useCardedMarker";
 import { useMarkerZooms, useZoomLevel } from "../../../lib/map/useZoomLevel";
+import { inkOn } from "../../../lib/scoreScale";
 import { scoreColor } from "../format";
 
 interface Props {
@@ -66,7 +67,10 @@ function CheckpointCard({ candidate, number }: { candidate: Candidate; number?: 
           the dot on the chart and the number in the card are the same
           fact twice rather than two things to reconcile. */}
       <div className="flex items-center justify-center gap-2">
-        <Badge className="tabular-nums text-white" style={{ backgroundColor: scoreColor(candidate.predicted_score) }}>
+        <Badge
+          className="tabular-nums"
+          style={{ backgroundColor: scoreColor(candidate.predicted_score), color: inkOn(scoreColor(candidate.predicted_score)) }}
+        >
           {candidate.predicted_score.toFixed(2)}
         </Badge>
         <span className="text-muted-foreground">{candidate.category}</span>

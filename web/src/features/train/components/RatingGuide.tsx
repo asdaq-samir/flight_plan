@@ -1,6 +1,7 @@
 import { Badge } from "../../../components/ui/badge";
 import { Kbd } from "../../../components/ui/kbd";
 import type { Rating } from "../../../lib/api/types";
+import { inkOn } from "../../../lib/scoreScale";
 import { COLORS } from "../logic";
 
 /** Two keys, and everything else is a button -- the zoom on the map,
@@ -36,7 +37,7 @@ export default function RatingGuide() {
       <div className="space-y-1">
         {SCALE.map(([n, lead, text]) => (
           <div key={n} className="flex items-start gap-2">
-            <Badge style={{ backgroundColor: COLORS[n], color: "white" }}>{n}</Badge>
+            <Badge style={{ backgroundColor: COLORS[n], color: inkOn(COLORS[n]) }}>{n}</Badge>
             <span>{lead && <b>{lead}</b>} {text}</span>
           </div>
         ))}

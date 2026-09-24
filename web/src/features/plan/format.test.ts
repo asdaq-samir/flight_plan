@@ -1,16 +1,29 @@
 import { describe, expect, it } from "vitest";
 import type { Totals } from "../../lib/api/types";
+import { inkOn, SCORE_STEPS } from "../../lib/scoreScale";
 import { deg, elapsed, hhmm, one, scoreColor, signed, totalsParts } from "./format";
 
 describe("scoreColor", () => {
   it("bands on the boundary, not just inside it", () => {
-    expect(scoreColor(4.5)).toBe("#1a7f37");
-    expect(scoreColor(4.0)).toBe("#4a9d4a");
-    expect(scoreColor(3.5)).toBe("#b8860b");
-    expect(scoreColor(3.0)).toBe("#c2681a");
+    expect(scoreColor(4.5)).toBe(SCORE_STEPS[4]);
+    expect(scoreColor(4.0)).toBe(SCORE_STEPS[3]);
+    expect(scoreColor(3.5)).toBe(SCORE_STEPS[2]);
+    expect(scoreColor(3.0)).toBe(SCORE_STEPS[1]);
   });
   it("falls to the low band below 3", () => {
-    expect(scoreColor(2.99)).toBe("#b3261e");
+    expect(scoreColor(2.99)).toBe(SCORE_STEPS[0]);
+  });
+  it("never uses a flight-category colour, which the same map draws airports in", () => {
+    for (const s of [0, 3, 3.5, 4, 4.5]) {
+      expect(["#1a7f37", "#1f6feb", "#b3261e", "#a371f7"]).not.toContain(scoreColor(s));
+    }
+  });
+});
+
+describe("inkOn", () => {
+  it("puts ink on the pale steps and white on the dark ones", () => {
+    expect(inkOn(SCORE_STEPS[0])).toBe("#1c1a17");
+    expect(inkOn(SCORE_STEPS[4])).toBe("#ffffff");
   });
 });
 

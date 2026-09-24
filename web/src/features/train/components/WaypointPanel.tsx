@@ -12,6 +12,7 @@ import {
 } from "../../../components/ui/table";
 import { isEndpoint, type Point, type Rating } from "../../../lib/api/types";
 import { COLORS, RATINGS, prettyCategory, roleOf, type FilterKey, type Filters, type WalkEntry } from "../logic";
+import { inkOn } from "../../../lib/scoreScale";
 import FilterBar from "./FilterBar";
 
 interface Props {
@@ -216,7 +217,7 @@ export default function WaypointPanel({
                     <TableCell className="text-right">
                       {rating === null
                         ? <span className={cn(!isSelected && "text-muted-foreground")}>—</span>
-                        : <Badge style={{ backgroundColor: COLORS[rating], color: "white" }}>{rating}</Badge>}
+                        : <Badge style={{ backgroundColor: COLORS[rating], color: inkOn(COLORS[rating]) }}>{rating}</Badge>}
                     </TableCell>
                   </SelectableRow>
                   {/* The selected waypoint's own rating buttons, under
@@ -234,10 +235,10 @@ export default function WaypointPanel({
                               onClick={() => onRate(r)}
                               aria-label={`Rate ${r}`} aria-pressed={rating === r}
                               className={cn(
-                                "w-7 font-bold text-white hover:text-white",
+                                "w-7 font-bold",
                                 rating === r ? "ring-2 ring-background" : "opacity-80 hover:opacity-100",
                               )}
-                              style={{ backgroundColor: COLORS[r] }}
+                              style={{ backgroundColor: COLORS[r], color: inkOn(COLORS[r]) }}
                             >
                               {r}
                             </Button>
