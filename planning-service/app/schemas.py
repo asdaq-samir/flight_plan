@@ -591,7 +591,6 @@ class BuildJob(BaseModel):
     step: str
     route: str | None = None
     detail: str | None = None
-    traceback: str | None = None
 
 
 class BuiltRoute(BaseModel):

@@ -759,17 +759,6 @@
           "step": {
             "title": "Step",
             "type": "string"
-          },
-          "traceback": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Traceback"
           }
         },
         "required": [
@@ -4372,7 +4361,7 @@
     },
     "/api/build": {
       "post": {
-        "description": "Start collecting a corridor. Returns a job id to poll.\n\nAsynchronous because this is minutes of network I/O -- Overpass, the\nFAA subscription, and an elevation lookup per candidate -- not\nsomething to hold an HTTP request open for.",
+        "description": "Queue collecting a corridor. Returns a job id to poll.\n\nAsynchronous because this is minutes of network I/O -- Overpass, the\nFAA subscription, and an elevation lookup per candidate -- not\nsomething to hold an HTTP request open for. A route already queued\nor building answers with that job; a full queue is a 429.",
         "operationId": "build_api_build_post",
         "requestBody": {
           "content": {
