@@ -150,8 +150,16 @@ container has had it killed for memory twice.
 Both resume where they stopped. The sheets land in
 `data/raw/charts.nosync/<cycle>/`, the tiles in
 `data/raw/chart_tiles.nosync/<cycle>/` (the suffix keeps iCloud Drive
-from syncing them; elsewhere it is just a name). The Dev console's
-System tab shows the sheets prepared and the pyramid's progress.
+from syncing them; elsewhere it is just a name). A tile a render has
+drawn only part of -- a seam its second sheet has yet to reach -- waits
+beside the served tile as `<y>.partial`, never served, until it is
+finished or the pass ends. The Dev console's System tab shows the
+sheets prepared and the pyramid's progress.
+
+A change to how a tile is drawn goes with a bump of
+`vfr.charts.RENDERER_VERSION`. The next refresh then counts the cycle
+as due, draws every tile again (serving the old ones meanwhile), and
+bumps the tile revision at the end, as `unmask` does below.
 
 The planner keeps up with the 56-day cycle by itself: at start-up and
 once an hour it asks the FAA's products page which cycle is current

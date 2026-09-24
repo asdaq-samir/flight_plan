@@ -793,6 +793,24 @@ def _decode_rgba(png: bytes) -> np.ndarray:
     return np.array(Image.open(io.BytesIO(png)).convert("RGBA"))  # a copy: the caller writes into it
 
 
+def _encode_lossless(rgba: np.ndarray) -> bytes:
+    """A tile still being drawn, kept exactly: encode_png's palette is
+    for the finished tile, and quantising at every sheet drew the seams
+    a little further off each pass."""
+    buffer = io.BytesIO()
+    Image.fromarray(rgba, "RGBA").save(buffer, format="PNG")
+    return buffer.getvalue()
+
+
+# The pyramid render's own version. A pass records it when it finishes,
+# and a later pass under a different one draws every tile again rather
+# than keeping the ones on disk -- a change to how a tile is drawn (the
+# sheet rims of 9ace720, say) used to reach only tiles not yet rendered.
+# Records from before it was kept count as this version. Raise it with
+# any change to what a rendered tile looks like.
+RENDERER_VERSION = 1
+
+
 # ---------------------------------------------------------------------------
 # The tile cache, and what the rest of the app calls
 # ---------------------------------------------------------------------------
@@ -1083,12 +1101,25 @@ def _tile_range(face: Box, zoom: int) -> tuple:
 def _render_row(args: tuple) -> int:
     """One tile row of one raster at one zoom: warped in a single
     strip, cut into tiles, each clipped to the face, composited over
-    whatever another sheet already left on disk, and written. Returns
+    whatever another sheet already drew there, and written. Returns
     the number of tiles written. A top-level function because it runs
-    in a worker process."""
-    path, face, kind_key, cycle, zoom, y, x0, x1, mask = args
+    in a worker process.
+
+    A tile the composite leaves unfinished -- a seam another sheet has
+    yet to draw its side of, or the edge of the country -- goes to a
+    `.partial` beside the served file, kept lossless, and becomes the
+    tile only when finished or when the pass ends
+    (_promote_partials). The served file used to be the blend buffer
+    too: a half-drawn seam tile was served, and kept by browsers for
+    weeks, while the pass went on. `since`, for a pass under a new
+    renderer, is when it began: a tile on disk from before then is drawn
+    again rather than kept."""
+    path, face, kind_key, cycle, zoom, y, x0, x1, mask, since = args
     kind = KINDS[kind_key]
     lats = _tile_lats(y, zoom)
+
+    def current(p: Path) -> bool:
+        return p.exists() and (since is None or p.stat().st_mtime >= since)
 
     # What this row still owes, before the warp: on a resumed or
     # repeated render most rows owe nothing, and the warp is the cost.
@@ -1098,10 +1129,12 @@ def _render_row(args: tuple) -> int:
         if not covered.any():
             continue
         tile_path = _tile_path(kind, cycle, x, y, zoom)
+        partial = tile_path.with_suffix(".partial")
+        source = partial if current(partial) else tile_path if current(tile_path) else None
         rgba = None
-        if tile_path.exists():
+        if source is not None:
             try:
-                rgba = _decode_rgba(tile_path.read_bytes())
+                rgba = _decode_rgba(source.read_bytes())
             except OSError:
                 rgba = None
         if rgba is None:
@@ -1126,26 +1159,30 @@ def _render_row(args: tuple) -> int:
             continue  # the face runs past this sheet's own edge here; the neighbour draws it
         rgba = _composite(rgba, strip[:, columns], share)
         tile_path.parent.mkdir(parents=True, exist_ok=True)
-        _write_atomically(tile_path, encode_png(rgba))
+        partial = tile_path.with_suffix(".partial")
+        if (rgba[:, :, 3] == 255).all():
+            _write_atomically(tile_path, encode_png(rgba))
+            partial.unlink(missing_ok=True)
+        else:
+            _write_atomically(partial, _encode_lossless(rgba))
         tile_path.with_suffix(".none").unlink(missing_ok=True)
         written += 1
     return written
 
 
-# A cycle's pyramid record, per kind, in two parts. What is permanent:
-# the sheets finished passes have rendered, when the last one finished,
-# and the tiles written. And the pass under way, if any: when it
-# started, sheets done of sheets to do, the one on now. A pass updates
-# only its own part while it runs and the permanent part when it ends,
-# so re-rendering a finished kind never makes it read unfinished.
-#
-# It used to be one record whose `finished_at` meant both "the loop
-# ended" and "the cycle is whole", written back to None by every pass: a
-# sheet that failed to download was simply not rendered, the pass still
-# finished, the cycle read complete with a hole in it -- and the same
-# refresh then pruned the older cycle's copy of that sheet, and never
-# tried again. Complete now means every sheet the FAA publishes of the
-# kind (COVERAGE) is among those rendered.
+def _promote_partials(kind: ChartKind, cycle: str, since: float | None = None) -> int:
+    """Every tile a pass left unfinished made the served tile, once the
+    last sheet has drawn: what is not drawn by now is where no sheet
+    reaches. One older than `since` is another renderer's that this
+    pass never touched, and goes. Returns how many were made tiles."""
+    root = CHART_TILE_CACHE_DIR / cycle / kind.key
+    count = 0
+    for partial in sorted(root.rglob("*.partial")) if root.exists() else []:
+        if since is None or partial.stat().st_mtime >= since:
+            _write_atomically(partial.with_suffix(".png"), encode_png(_decode_rgba(partial.read_bytes())))
+            count += 1
+        partial.unlink(missing_ok=True)
+    return count
 
 
 def _write_pyramid_status(cycle: str, record: dict) -> None:
@@ -1207,6 +1244,14 @@ def pyramid_complete(cycle: str, kinds: tuple = tuple(KINDS)) -> bool:
     )
 
 
+def pyramid_due(cycle: str, kinds: tuple = tuple(KINDS)) -> tuple:
+    """The kinds of `kinds` a refresh has to render for `cycle`: those
+    not complete, and those last drawn under another RENDERER_VERSION."""
+    progress = pyramid_status(cycle)
+    return tuple(k for k in kinds if not pyramid_complete(cycle, (k,))
+                 or progress[k].get("renderer", 1) != RENDERER_VERSION)
+
+
 def render_pyramid(kind: ChartKind, zooms: tuple | None = None, workers: int = 4, charts: list | None = None,
                    cycle: str | None = None) -> int:
     """Every tile of every prepared chart of `kind` in `cycle` (the
@@ -1216,7 +1261,9 @@ def render_pyramid(kind: ChartKind, zooms: tuple | None = None, workers: int = 4
     sheets never race for the same seam tile. Returns the number of
     tiles written. Re-runnable: a tile already complete on disk is left
     alone, so an interrupted render resumes where it stopped (an
-    already-rendered sheet costs a scan)."""
+    already-rendered sheet costs a scan) -- unless the last finished
+    pass was under another RENDERER_VERSION, when every tile is drawn
+    again and the cycle's revision bumped at the end."""
     zooms = tuple(zooms or range(kind.min_zoom, kind.max_zoom + 1))
     if charts is None:
         cycle = cycle or current_cycle()
@@ -1228,11 +1275,24 @@ def render_pyramid(kind: ChartKind, zooms: tuple | None = None, workers: int = 4
     rasters = [(chart, raster) for chart in charts for raster in chart.rasters]
     total = 0
     before = pyramid_status(cycle).get(kind.key) or {"sheets": [], "finished_at": None, "tiles": 0}
+    started = datetime.now(tz=timezone.utc)
+    # Tiles on disk from a pass under another renderer are drawn again:
+    # `since`, the time before which a tile does not count as drawn. A
+    # pass under this one that was cut short is resumed with its own.
+    cut_short = before.get("current_pass") or {}
+    if cut_short and cut_short.get("renderer", 1) == RENDERER_VERSION:
+        since = cut_short.get("since")
+    elif cut_short or (before["finished_at"] and before.get("renderer", 1) != RENDERER_VERSION):
+        # A little before now: a file's time comes from the kernel's
+        # coarser clock, which can read a few milliseconds behind this.
+        since = time.time() - 0.05
+    else:
+        since = None
     record = {
         "kind": kind.key, "zooms": list(zooms), "sheets": before["sheets"], "finished_at": before["finished_at"],
-        "tiles": before["tiles"],
-        "current_pass": {"started_at": datetime.now(tz=timezone.utc).isoformat(), "done": 0, "total": len(rasters),
-                         "current": None},
+        "tiles": before["tiles"], "renderer": before.get("renderer", 1),
+        "current_pass": {"started_at": started.isoformat(), "done": 0, "total": len(rasters), "current": None,
+                         "renderer": RENDERER_VERSION, "since": since},
     }
     _write_pyramid_status(cycle, record)
 
@@ -1247,7 +1307,7 @@ def render_pyramid(kind: ChartKind, zooms: tuple | None = None, workers: int = 4
                 x0, x1, y0, y1 = _tile_range(raster.face, zoom)
                 jobs = [
                     (str(raster.path), raster.face, kind.key, chart.cycle, zoom, y, x0, x1,
-                     str(raster.mask) if raster.mask else None)
+                     str(raster.mask) if raster.mask else None, since)
                     for y in range(y0, y1 + 1)
                 ]
                 if pool is None:
@@ -1262,13 +1322,20 @@ def render_pyramid(kind: ChartKind, zooms: tuple | None = None, workers: int = 4
     finally:
         if pool is not None:
             pool.shutdown()
+    promoted = _promote_partials(kind, cycle, since)
     # The permanent part, at the end of the pass only: the sheets it
     # rendered join those before it.
     record.update(
         sheets=sorted(set(record["sheets"]) | {c.name for c in charts}),
         finished_at=datetime.now(tz=timezone.utc).isoformat(), tiles=record["tiles"] + total, current_pass=None,
+        renderer=RENDERER_VERSION,
     )
     _write_pyramid_status(cycle, record)
+    if since is not None:
+        # Every tile drawn again, under URLs browsers hold for weeks: a
+        # new revision, and the publish ledger struck for this kind.
+        _bump_revision(cycle, strike=lambda key: key.startswith(f"{kind.key}/"))
+    log.info("%s %s: pass finished, %d tiles written, %d finished at its end", cycle, kind.key, total, promoted)
     missing = sorted(set(COVERAGE.get(kind.key, {})) - set(record["sheets"]))
     if missing:
         log.warning("%s %s: not complete, %d sheet(s) never rendered: %s", cycle, kind.key, len(missing),
@@ -1459,10 +1526,11 @@ def refresh(kinds: tuple = tuple(KINDS), workers: int = 2, prune: bool = True,
     then drop older cycles. Returns the cycle. Idempotent: a complete,
     published cycle costs one status read and one listing."""
     cycle = current_cycle()
-    # Only the kinds not complete: a finished kind is not rendered again,
-    # and one with a sheet missing is tried again every run -- it used to
-    # read complete, and nothing ever retried it.
-    todo = tuple(key for key in kinds if not pyramid_complete(cycle, (key,)))
+    # Only the kinds due: a finished kind is not rendered again unless
+    # the renderer has changed since, and one with a sheet missing is
+    # tried again every run -- it used to read complete, and nothing
+    # ever retried it.
+    todo = pyramid_due(cycle, kinds)
     if todo:
         log.info("cycle %s: preparing sheets", cycle)
         prepare_all(todo, cycle)
@@ -1583,8 +1651,9 @@ def refresh_in_background(workers: int = 2, nice: int = 10) -> bool:
 
 
 def refresh_due() -> bool:
-    """Whether the FAA's current cycle is not yet complete on disk."""
-    return not pyramid_complete(current_cycle())
+    """Whether the FAA's current cycle is not yet complete on disk, or
+    was drawn under another renderer."""
+    return bool(pyramid_due(current_cycle()))
 
 
 def face_gaps(charts: list | None = None) -> list[tuple]:
