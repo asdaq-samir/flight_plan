@@ -22,12 +22,10 @@ export interface WorkspacePieces {
 }
 
 export interface WorkspaceProps {
+  /** The route in the header's form: the address's, or what the pilot
+   *  has typed over it. */
   dep: string;
   dest: string;
-  /** The route the workspace chose itself -- the first collected
-   *  corridor, when the address names none -- for the header's form. */
-  onRoute: (dep: string, dest: string) => void;
   sidebarOpen: boolean;
-  onSidebarOpenChange: (open: boolean) => void;
   children: (pieces: WorkspacePieces) => ReactNode;
 }

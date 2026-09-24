@@ -9,7 +9,7 @@ import { test, expect, type Page } from "@playwright/test";
 
 const A_PILOT = { id: 1, email: "pilot@example.com", displayName: "A Pilot", developer: false };
 
-async function signedIn(page: Page, filed: Record<string, unknown>[]) {
+async function signedIn(page: Page, filed: Record<string, unknown>[], list: object[] = []) {
   await page.route("**/api/me", route =>
     route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(A_PILOT) }));
   await page.route("**/api/aircraft", route =>
@@ -19,7 +19,7 @@ async function signedIn(page: Page, filed: Record<string, unknown>[]) {
       filed.push(route.request().postDataJSON());
       await route.fulfill({ status: 201, contentType: "application/json", body: JSON.stringify({ id: filed.length }) });
     } else {
-      await route.fulfill({ status: 200, contentType: "application/json", body: "[]" });
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(list) });
     }
   });
 }
@@ -62,4 +62,27 @@ test("signed out, there is nothing to save", async ({ page }) => {
   await page.goto("/app/plan?dep=C81&dest=KDLH&view=briefing");
   await expect(page.getByTestId("print-button")).toBeVisible({ timeout: 30_000 });
   await expect(page.getByRole("button", { name: /Save this flight/ })).toHaveCount(0);
+});
+
+test("opening a saved flight puts its route in the header, and Load plans that route", async ({ page }) => {
+  // The header read the address once. Opening a saved flight changes the
+  // address in the page, so the header still showed the old route, and
+  // Load quietly re-planned that one instead of the flight.
+  await signedIn(page, [], [{
+    id: 9, departureIdent: "KMSP", destinationIdent: "KDLH", cruiseAltitudeFt: 5500, aircraftTailNumber: null,
+    createdAt: "2026-09-20T12:00:00Z", plannedFor: null, totalDistanceNm: 120, totalEteMin: 55, totalFuelGal: 8,
+  }]);
+  await page.goto("/app/plan?dep=C81&dest=KDLH");
+  await expect(page.getByLabel("Departure", { exact: true })).toContainText("C81", { timeout: 15_000 });
+
+  await page.getByTestId("pilot-button").click();
+  await page.getByRole("tab", { name: "Flights" }).click();
+  await page.getByRole("link", { name: "Open" }).click();
+  await expect(page).toHaveURL(/dep=KMSP/);
+  await page.keyboard.press("Escape");
+
+  await expect(page.getByLabel("Departure", { exact: true })).toContainText("KMSP");
+  await page.getByRole("button", { name: "Load" }).click();
+  await expect(page).toHaveURL(/dep=KMSP/);
+  await expect(page).toHaveURL(/altitude_ft=5500/);
 });

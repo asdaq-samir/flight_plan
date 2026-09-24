@@ -63,7 +63,7 @@ function baseProfile(typeDesignator: string, profiles: AircraftProfileSummary[])
  * a key; and the screen is derived from the queries on each render,
  * nothing kept in step by hand.
  */
-export default function PlanWorkspace({ dep, dest, onRoute, sidebarOpen, children }: WorkspaceProps) {
+export default function PlanWorkspace({ dep, dest, sidebarOpen, children }: WorkspaceProps) {
   const [searchParams, setSearchParams] = useSearchParams();
   const planned = { dep: identOf(searchParams.get("dep")), dest: identOf(searchParams.get("dest")) };
   const altitudeFt = searchParams.get("altitude_ft") ?? "";
@@ -72,8 +72,13 @@ export default function PlanWorkspace({ dep, dest, onRoute, sidebarOpen, childre
   // the winds forecast period the planner flies the legs on, gives
   // every checkpoint an ETA, and is what a saved flight is planned for.
   const depart = searchParams.get("depart") ?? "";
-  // The Custom altitude box's own draft, sent with the next load.
-  const [alt, setAlt] = useState(altitudeFt);
+  // The Custom altitude box's own draft, sent with the next load -- and,
+  // like the header's route, belonging to the plan it was typed over: a
+  // different route or altitude in the address shows that one.
+  const altKey = `${planned.dep}-${planned.dest}-${altitudeFt}`;
+  const [altDraft, setAltDraft] = useState<{ of: string; value: string } | null>(null);
+  const alt = altDraft?.of === altKey ? altDraft.value : altitudeFt;
+  const setAlt = useCallback((value: string) => setAltDraft({ of: altKey, value }), [altKey]);
   // Load pressed again for the same route: a fresh nav log, fresh winds.
   const [load, setLoad] = useState(0);
   // The aeroplane the nav log is computed for: remembered per browser
@@ -93,14 +98,13 @@ export default function PlanWorkspace({ dep, dest, onRoute, sidebarOpen, childre
     const first = routes.data.routes[0] ?? { departure_ident: "C81", destination_ident: "KDLH" };
     const d = planned.dep || first.departure_ident;
     const a = planned.dest || first.destination_ident;
-    onRoute(d, a);
     setSearchParams(prev => {
       const next = new URLSearchParams(prev);
       next.set("dep", d);
       next.set("dest", a);
       return next;
     }, { replace: true });
-  }, [planned.dep, planned.dest, routes.data, onRoute, setSearchParams]);
+  }, [planned.dep, planned.dest, routes.data, setSearchParams]);
 
   // The stock profiles, plus a signed-in pilot's own aeroplanes on top
   // of them -- the same ["pilot"]/["aircraft"] queries the pilot
@@ -166,11 +170,10 @@ export default function PlanWorkspace({ dep, dest, onRoute, sidebarOpen, childre
   }, [setSearchParams]);
 
   // A different plan -- lowest, highest, fastest -- means different
-  // legs too. A plan replaces a typed altitude: the Custom box empties
-  // and the address drops it, so the log flies the plan and nothing
-  // else.
+  // legs too. A plan replaces a typed altitude: the address drops it, so
+  // the log flies the plan and nothing else, and the Custom box (whose
+  // draft belonged to the old address) empties with it.
   const changeAltitudeChoice = useCallback((choice: AltitudeChoice) => {
-    setAlt("");
     setSearchParams(prev => {
       const next = new URLSearchParams(prev);
       next.delete("altitude_ft");

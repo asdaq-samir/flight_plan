@@ -67,9 +67,22 @@ const MODES = {
 export default function MapPage({ mode }: { mode: Mode }) {
   const { title, sidebar, console: consoleLabel, Workspace, ConsoleButton, route } = MODES[mode];
   const [searchParams, setSearchParams] = useSearchParams();
-  const [dep, setDep] = useState(searchParams.get("dep")?.toUpperCase() || route[0]);
-  const [dest, setDest] = useState(searchParams.get("dest")?.toUpperCase() || route[1]);
-  const onRoute = useCallback((d: string, a: string) => { setDep(d); setDest(a); }, []);
+  // The route in the header: the address's, unless the pilot has typed
+  // over it -- and a draft belongs to the address it was typed over. The
+  // address is what every query keys on, and it changes in more ways
+  // than the form: opening a saved flight, a link from the developer
+  // console, Back. The header used to read it once, and was kept in step
+  // for only one of those, so after opening a saved flight it still
+  // showed the old route, and Load quietly re-planned that instead.
+  const addressDep = searchParams.get("dep")?.toUpperCase() || route[0];
+  const addressDest = searchParams.get("dest")?.toUpperCase() || route[1];
+  const addressKey = `${addressDep}-${addressDest}`;
+  const [draft, setDraft] = useState<{ of: string; dep: string; dest: string } | null>(null);
+  const typed = draft?.of === addressKey ? draft : null;
+  const dep = typed?.dep ?? addressDep;
+  const dest = typed?.dest ?? addressDest;
+  const setDep = useCallback((d: string) => setDraft({ of: addressKey, dep: d, dest }), [addressKey, dest]);
+  const setDest = useCallback((a: string) => setDraft({ of: addressKey, dep, dest: a }), [addressKey, dep]);
 
   const [localOpen, setLocalOpen] = useState(false);
   const sidebarOpen = mode === "pilot" ? searchParams.get("view") === "briefing" : localOpen;
@@ -88,7 +101,7 @@ export default function MapPage({ mode }: { mode: Mode }) {
     // it is on screen for one request, and a flash of "loading" where
     // a chart is about to be is worse than a moment of nothing.
     <Suspense fallback={<div className="h-dvh w-full bg-background" />}>
-    <Workspace dep={dep} dest={dest} onRoute={onRoute} sidebarOpen={sidebarOpen} onSidebarOpenChange={setSidebarOpen}>
+    <Workspace dep={dep} dest={dest} sidebarOpen={sidebarOpen}>
       {pieces => (
         <SidebarProvider
           open={sidebarOpen} onOpenChange={setSidebarOpen}
