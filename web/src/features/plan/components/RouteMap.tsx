@@ -1,6 +1,5 @@
 import L from "leaflet";
 import { CircleMarker, Marker } from "react-leaflet";
-import type { ZoomControl } from "../../../components/MapControls";
 import { Badge } from "../../../components/ui/badge";
 import { useQuery } from "@tanstack/react-query";
 import { classBQuery } from "../../../lib/queryClient";
@@ -14,7 +13,7 @@ import { airportIcon, dotIcon } from "../../../lib/map/icons";
 import { FocusOn } from "../../../lib/map/MapEffects";
 import { MapCard } from "../../../lib/map/MapCard";
 import { MapPopup } from "../../../lib/map/MapPopup";
-import { MapShell } from "../../../lib/map/MapShell";
+import { MapShell, type ShowSelected } from "../../../lib/map/MapShell";
 import { MapTooltip } from "../../../lib/map/MapTooltip";
 import { OwnShipLayer } from "../../../lib/map/OwnShipLayer";
 import { useCardedMarker } from "../../../lib/map/useCardedMarker";
@@ -36,13 +35,8 @@ interface Props {
   /** The same for the two airports, which are not candidates but are
    *  waypoints the nav log lists and the map can be brought to. */
   onSelectPoint: (lat: number, lon: number) => void;
-  onReady: (map: L.Map, fit: () => void) => void;
-  /** Whether the map is closer in than the whole route needs -- the
-   *  page's zoom toggle reads this to decide whether a press should
-   *  show the selected point or fit the route (see `MapShell`). */
-  onZoomChange?: (zoomedIn: boolean) => void;
-  /** The fit-route / show-selected toggle, drawn on the map (`MapControls`). */
-  zoom: ZoomControl;
+  /** The page's half of the map's zoom button (see `MapShell`). */
+  zoom: ShowSelected;
   /** The "every landmark the model rated" switch, in the same popover
    *  the chart layers live in. */
   showAll: { on: boolean; onToggle: (on: boolean) => void };
@@ -198,12 +192,12 @@ function Checkpoints({ candidates, selected, showCandidates, onSelectCandidate }
  */
 export default function RouteMap({
   course, candidates, selected, showCandidates, focus, onSelectCandidate, onSelectPoint,
-  onReady, onZoomChange, zoom, showAll, airportWeather,
+  zoom, showAll, airportWeather,
 }: Props) {
   const focusZoom = course?.max_zoom ?? 12;
 
   return (
-    <MapShell course={course} onReady={onReady} zoom={zoom} ownShip candidates={showAll} onZoomChange={onZoomChange}>
+    <MapShell course={course} zoom={zoom} ownShip candidates={showAll}>
       {course && (
         <>
           <CourseLine

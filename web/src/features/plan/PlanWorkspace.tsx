@@ -1,7 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
-import type { Map as LeafletMap } from "leaflet";
 import { cn } from "cn";
 import { api } from "../../lib/api/client";
 import { pilotQuery } from "../../lib/queryClient";
@@ -123,16 +122,6 @@ export default function PlanWorkspace({ dep, dest, onRoute, sidebarOpen, childre
     return options.some(o => aircraftKey(o) === aircraftKey(aircraft)) ? options : [aircraft, ...options];
   }, [profiles, myAircraft, aircraft]);
 
-  const fitRoute = useRef<(() => void) | null>(null);
-  // A stable identity, not an inline arrow at the RouteMap call site --
-  // that map's own course-load effect lists onReady as a dependency,
-  // and a fresh function every render would re-run it (tearing down and
-  // rebuilding every map layer) on every unrelated re-render, not just
-  // when the course actually changes.
-  const handleMapReady = useCallback((_map: LeafletMap, fit: () => void) => {
-    fitRoute.current = fit;
-  }, []);
-
   // Whichever waypoint is focused -- by its own coordinates, not a row
   // index, since the map's markers and the nav log's rows are two
   // orderings of the same points -- and only for the route it was
@@ -198,21 +187,18 @@ export default function PlanWorkspace({ dep, dest, onRoute, sidebarOpen, childre
     [selectPoint],
   );
 
-  // The map's zoom button: zoomed out, this zooms in to whatever's
-  // selected (or departure, the first point, if nothing is yet);
-  // zoomed in, it zooms back out to the whole route. `zoomedIn` comes
-  // from RouteMap's own real zoom level, not which of these two actions
-  // last ran.
-  const [zoomedIn, setZoomedIn] = useState(false);
-  const toggleZoom = useCallback(() => {
+  // The map's zoom button, this page's half of it: showing whatever is
+  // selected (or the departure, the first point, if nothing is yet).
+  // Whether a press does that or fits the whole route is the map's own
+  // call, from its real zoom (MapShell).
+  const showSelected = useCallback(() => {
     if (!course) return;
-    if (zoomedIn) { fitRoute.current?.(); return; }
     // A fresh object, deliberately: the map re-centres when the point
     // it is given changes, and "show me the selection" has to be a
     // change even when the selection itself has not moved -- otherwise
     // the button did nothing at all once a point was already picked.
     selectPoint({ ...(selectedPoint ?? { lat: course.departure.lat, lon: course.departure.lon }) });
-  }, [course, selectedPoint, selectPoint, zoomedIn]);
+  }, [course, selectedPoint, selectPoint]);
 
   // This page binds no keys of its own. Walking the nav log used to be
   // Up and Down on the document, which meant deciding by hand, on every
@@ -291,9 +277,7 @@ export default function PlanWorkspace({ dep, dest, onRoute, sidebarOpen, childre
           focus={selectedPoint}
           onSelectCandidate={selectCandidate}
           onSelectPoint={(lat, lon) => selectPoint({ lat, lon })}
-          onReady={handleMapReady}
-          onZoomChange={setZoomedIn}
-          zoom={{ zoomedIn, onToggle: toggleZoom, disabled: !course }}
+          zoom={{ showSelected, disabled: !course }}
           showAll={{ on: showCandidates, onToggle: setShowCandidates }}
           airportWeather={s.briefing}
         />

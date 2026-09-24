@@ -1,7 +1,6 @@
 import L from "leaflet";
 import { type ReactNode } from "react";
 import { Marker } from "react-leaflet";
-import type { ZoomControl } from "../../../components/MapControls";
 import { Badge } from "../../../components/ui/badge";
 import type { Course, Point, Rating } from "../../../lib/api/types";
 import { isEndpoint } from "../../../lib/api/types";
@@ -11,7 +10,7 @@ import { Halo } from "../../../lib/map/Halo";
 import { airportIcon, dotIcon } from "../../../lib/map/icons";
 import { MapCard } from "../../../lib/map/MapCard";
 import { MapPopup } from "../../../lib/map/MapPopup";
-import { MapShell } from "../../../lib/map/MapShell";
+import { MapShell, type ShowSelected } from "../../../lib/map/MapShell";
 import { MapTooltip } from "../../../lib/map/MapTooltip";
 import { useMarkerZooms, useZoomLevel } from "../../../lib/map/useZoomLevel";
 import { COLORS, hasRating, isVisible, pointKey, prettyCategory, type Filters } from "../logic";
@@ -33,8 +32,8 @@ interface Props {
   onDeselect: () => void;
   onAddAt: (lat: number, lon: number) => void;
   onMapReady?: (map: L.Map) => void;
-  /** The fit-line / show-selected toggle, drawn on the map (`MapControls`). */
-  zoom: ZoomControl;
+  /** The page's half of the map's zoom button (see `MapShell`). */
+  zoom: ShowSelected;
 }
 
 /** The read-only preview a hover shows before a tap opens the full

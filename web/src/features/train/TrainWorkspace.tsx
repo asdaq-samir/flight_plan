@@ -48,11 +48,6 @@ export default function TrainWorkspace({ dep, dest, children }: WorkspaceProps) 
     select, rate, setCategory, removeSelected, addPick,
   } = store;
   const [map, setMap] = useState<L.Map | null>(null);
-  // Tracks the map's own zoom so the one Controls button can read as
-  // "Start"/"Resume"/"Fit line" -- Leaflet's zoom lives outside React,
-  // so without this the label would only update on some unrelated
-  // re-render, not the moment a zoom actually happens.
-  const [zoomedIn, setZoomedIn] = useState(false);
 
   // Fetched the moment this workspace mounts, not the moment the Sheet
   // first opens: `DevPanel` is its own chunk (recharts and the model
@@ -64,14 +59,6 @@ export default function TrainWorkspace({ dep, dest, children }: WorkspaceProps) 
   // developer is already on the training page by the time they reach
   // for the console, so the fetch has a head start.
   useEffect(() => { void import("../dev/DevPanel"); }, []);
-
-  useEffect(() => {
-    if (!map) return;
-    const onZoom = () => setZoomedIn(map.getZoom() >= FOCUS_ZOOM);
-    onZoom();
-    map.on("zoomend", onZoom);
-    return () => { map.off("zoomend", onZoom); };
-  }, [map]);
 
   // Everything the screen shows is computed from the store. Nothing is
   // kept in step by hand, which is what makes the old class of bug --
@@ -192,12 +179,6 @@ export default function TrainWorkspace({ dep, dest, children }: WorkspaceProps) 
 
   /** Zooms out to see the whole leg -- Escape, and its own toolbar
    *  button for touch, which has no Escape key. */
-  const fitLine = useCallback(() => {
-    if (!course || !map) return;
-    map.invalidateSize();
-    map.fitBounds(course.course_line as [number, number][], { padding: [30, 30] });
-  }, [course, map]);
-
   /** Zooms into the point you're on, or the first one if you haven't
    *  started yet -- "Start" and "Resume" are the same action, the
    *  button just reads differently depending on whether `point` is set. */
@@ -206,13 +187,6 @@ export default function TrainWorkspace({ dep, dest, children }: WorkspaceProps) 
     if (target) focus(target);
   }, [point, walk, focus]);
 
-  /** Space toggles between the point you are on and the whole leg: both are
-   *  the same intention, and which you want is obvious from the screen. */
-  const toggleView = useCallback(() => {
-    if (!map) return;
-    if (map.getZoom() >= FOCUS_ZOOM) return fitLine();
-    startOrResume();
-  }, [map, fitLine, startOrResume]);
 
   // Two keys, and only two: Up and Down walk the points in flight
   // order, and a digit rates the one you are on and moves to the next.
@@ -276,7 +250,7 @@ export default function TrainWorkspace({ dep, dest, children }: WorkspaceProps) 
     map: (
       <div className="h-full w-full">
         <ChartMap
-          zoom={{ zoomedIn, onToggle: toggleView, disabled: !walk.length }}
+          zoom={{ showSelected: startOrResume, disabled: !walk.length }}
           course={store.course}
           endpoints={store.endpoints}
           detections={store.detections}

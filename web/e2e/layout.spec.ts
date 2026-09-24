@@ -570,6 +570,28 @@ test("plan page: the map's zoom toggle goes to the selection and back, however m
   await expect(button).toHaveAttribute("aria-label", "Show Selected", { timeout: 10000 });
 });
 
+test("dev page: the map's zoom button follows the map's real zoom, as the planner's does", async ({ page }) => {
+  // It used to decide from a fixed zoom 12 of its own, so a scroll-wheel
+  // step in from the whole route still offered to show the selection.
+  await page.goto("/app/dev?dep=C81&dest=KDLH");
+  await settle(page);
+  const button = page.getByTestId("map-action-button");
+  await expect.poll(() => button.isDisabled(), { timeout: 60000 }).toBe(false);
+  await expect(button).toHaveAttribute("aria-label", "Show Selected");
+
+  await button.click();
+  await expect(button).toHaveAttribute("aria-label", "Fit Route", { timeout: 10000 });
+  await button.click();
+  await expect(button).toHaveAttribute("aria-label", "Show Selected", { timeout: 10000 });
+
+  // One wheel step in from the whole route: closer than the route needs.
+  const map = await page.locator(".leaflet-container").boundingBox();
+  if (!map) throw new Error("no map");
+  await page.mouse.move(map.x + map.width / 2, map.y + map.height / 2);
+  await page.mouse.wheel(0, -300);
+  await expect(button).toHaveAttribute("aria-label", "Fit Route", { timeout: 10000 });
+});
+
 test("plan page: panning the map with own ship off leaves 'Keep the map on me' as it was", async ({ page }) => {
   // `follow` is remembered per browser. A pan at the desk -- own ship
   // off, and over plain http it cannot even be turned on -- used to

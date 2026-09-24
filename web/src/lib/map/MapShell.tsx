@@ -1,7 +1,7 @@
 import L from "leaflet";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { AttributionControl, MapContainer, useMap } from "react-leaflet";
-import MapControls, { type ZoomControl } from "../../components/MapControls";
+import MapControls from "../../components/MapControls";
 import type { Course } from "../api/types";
 import { ChartTiles } from "./ChartTiles";
 import { ClassBLayer } from "./ClassBLayer";
@@ -10,21 +10,23 @@ import { useZoomLevel } from "./useZoomLevel";
 
 interface Props {
   course: Course | null;
-  /** The map, and a fit-to-route, once there is a course to fit. The
-   *  planner keeps the fit for its own button and key; the training
-   *  page keeps the map. */
-  onReady?: (map: L.Map, fit: () => void) => void;
-  /** The fit-route / show-selected toggle, drawn on the map. */
-  zoom: ZoomControl;
+  /** The map, once there is a course on it -- the training page keeps
+   *  it to bring the map to a point. */
+  onReady?: (map: L.Map) => void;
+  /** The page's half of the map's one zoom button: how to show what it
+   *  has selected, and whether there is anything to show yet. */
+  zoom: ShowSelected;
   /** Whether the layers popover also offers own ship and the
    *  every-landmark switch -- the planner's map has both. */
   ownShip?: boolean;
   candidates?: { on: boolean; onToggle: (on: boolean) => void };
-  /** Whether the map is closer in than the whole route needs -- what
-   *  the zoom toggle offers next. */
-  onZoomChange?: (zoomedIn: boolean) => void;
   /** The layers this particular map draws, inside the container. */
   children: ReactNode;
+}
+
+export interface ShowSelected {
+  showSelected: () => void;
+  disabled: boolean;
 }
 
 /**
@@ -57,8 +59,14 @@ function FitReporter({ bounds, onChange }: { bounds: L.LatLngBounds; onChange: (
  * preview state and the placeholder before a course arrives were the
  * same code in both files.
  */
-export function MapShell({ course, onReady, zoom, ownShip, candidates, onZoomChange, children }: Props) {
+export function MapShell({ course, onReady, zoom, ownShip, candidates, children }: Props) {
   const [map, setMap] = useState<L.Map | null>(null);
+  // The one zoom button offers the whole route when the map is closer in
+  // than the route needs, and the page's selection otherwise -- decided
+  // here, from the map's real zoom, for both pages. The planner used to
+  // be handed this and hand it back; the training page worked it out
+  // again from a fixed zoom 12, the rule the comment above calls wrong.
+  const [zoomedIn, setZoomedIn] = useState(false);
   const [previewing, setPreviewing] = useState(false);
   const bounds = useMemo(() => (course ? L.latLngBounds(course.course_line as [number, number][]) : null), [course]);
 
@@ -70,7 +78,7 @@ export function MapShell({ course, onReady, zoom, ownShip, candidates, onZoomCha
     map.fitBounds(bounds, { padding: [30, 30] });
   }, [map, bounds]);
 
-  // Fit to the route when it changes, and hand the page the same fit.
+  // Fit to the route when it changes.
   //
   // Once per route, not once per `bounds`. The course is a query: it
   // can be answered again -- a refetch, a retry, the same route asked
@@ -83,7 +91,7 @@ export function MapShell({ course, onReady, zoom, ownShip, candidates, onZoomCha
   const fitted = useRef<string | null>(null);
   useEffect(() => {
     if (!map || !bounds || !routeKey) return;
-    onReady?.(map, fit);
+    onReady?.(map);
     if (fitted.current === routeKey) return;
     fitted.current = routeKey;
     fit();
@@ -110,13 +118,16 @@ export function MapShell({ course, onReady, zoom, ownShip, candidates, onZoomCha
               planning a route past it or rating chart detections
               near it. Draws nothing unless switched on. */}
           <ClassBLayer course={course} onPreview={setPreviewing} />
-          {onZoomChange && <FitReporter bounds={bounds} onChange={onZoomChange} />}
+          <FitReporter bounds={bounds} onChange={setZoomedIn} />
           {children}
         </MapContainer>
       ) : (
         <div className="h-full w-full bg-slate-100 dark:bg-slate-900" />
       )}
-      <MapControls zoom={zoom} ownShip={ownShip} candidates={candidates} />
+      <MapControls
+        zoom={{ zoomedIn, onToggle: zoomedIn ? fit : zoom.showSelected, disabled: zoom.disabled }}
+        ownShip={ownShip} candidates={candidates}
+      />
     </div>
   );
 }
