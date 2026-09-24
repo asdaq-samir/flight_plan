@@ -16,6 +16,7 @@ import requests
 
 from .geo import destination_point
 from .retry import with_retries
+from .routecsv import locked, write_rows
 
 EPQS_URL = "https://epqs.nationalmap.gov/v1/json"
 REQUEST_HEADERS = {"User-Agent": "vfr-route-learning-project/0.1"}
@@ -49,13 +50,16 @@ def _load_cache(cache_path: Path) -> dict:
         }
 
 
-def _save_cache(cache: dict, cache_path: Path) -> None:
-    cache_path.parent.mkdir(parents=True, exist_ok=True)
-    with cache_path.open("w", newline="") as f:
-        writer = csv.writer(f)
-        writer.writerow(["lat", "lon", "elevation_m"])
-        for (lat, lon), elev in cache.items():
-            writer.writerow([lat, lon, elev])
+def _save_cache(fetched: dict, cache_path: Path) -> None:
+    """Adds `fetched` to the file: read again under its lock and written
+    whole beside it, then renamed over it. It was rewritten in place from
+    the copy read before the lookups -- two requests at once dropped each
+    other's points, and a reader mid-write met half a file."""
+    with locked(cache_path):
+        cache = {**_load_cache(cache_path), **fetched}
+        write_rows(cache_path, ["lat", "lon", "elevation_m"], (
+            {"lat": lat, "lon": lon, "elevation_m": elev} for (lat, lon), elev in cache.items()
+        ))
 
 
 def _fetch_many(keys: list, max_workers: int) -> dict:
@@ -111,8 +115,9 @@ def get_elevations_m(points: list, cache_path: Path = DEFAULT_CACHE_PATH, max_wo
     to_fetch = sorted(set(k for k in keys if k not in cache))
 
     if to_fetch:
-        cache.update(_fetch_many(to_fetch, max_workers))
-        _save_cache(cache, cache_path)
+        fetched = _fetch_many(to_fetch, max_workers)
+        cache.update(fetched)
+        _save_cache(fetched, cache_path)
 
     return {point: cache[key] for point, key in zip(points, keys)}
 
