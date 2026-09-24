@@ -60,9 +60,11 @@ FEATURES_PATTERN = "features_{dep}_{dest}.parquet"
 
 app = FastAPI(title="vfr-route model-service")
 
-# name -> that model's loaded state, populated lazily by _LOADERS below.
-_state: dict = {}
-_features_cache: dict = {}
+# Everything read from disk -- each model and each corridor's feature
+# store -- by one rule: kept while its files are unchanged, read again
+# the moment any of them changes. key -> (the files' signature, what was
+# read from them).
+_cache: dict = {}
 
 
 def _features_path(dep: str, dest: str) -> Path:
@@ -80,19 +82,53 @@ def available_routes() -> list:
     return routes
 
 
-def _load_current() -> dict:
-    """The promoted sklearn model -- unchanged behavior from before
-    multiple models existed, just keyed into _state under "current"
-    instead of being the only thing this service could ever load.
+def _signature(files: list) -> tuple | None:
+    """When and how big each file was last written, or None while any
+    of them is missing. The size as well as the time, so a rewrite in
+    the same clock tick still counts."""
+    stats = []
+    for path in files:
+        try:
+            st = path.stat()
+        except FileNotFoundError:
+            return None
+        stats.append((st.st_mtime_ns, st.st_size))
+    return tuple(stats)
+
+
+def _fresh(key, files: list, load):
+    """What `load()` reads from `files`, read on first use and again
+    whenever any of them changes on disk; None while any is missing.
+
+    A missing file is an unhealthy /ping or a 503 (or a 404 for a
+    corridor), not a container that crashloops before it can say why,
+    and a model or corridor that appears later is served from the next
+    request. A promotion (vfr.model_registry.promote) and a feature
+    rebuild (the pipeline, or the planner's build) both rewrite files in
+    place under a running service: a stat each per request is what makes
+    the next answer come from the new ones. The feature stores used to be
+    read once for the life of the process, so a rebuilt corridor was
+    scored from the old table -- and a category new to it was silently
+    zeroed by the reindex in _score. The signature is taken before the
+    read, so a read that races a write is read again next time.
     """
-    model_path = MODEL_DIR / "model.joblib"
-    metrics_path = MODEL_DIR / "metrics.json"
-    if not model_path.exists() or not metrics_path.exists():
-        return {}
-    metrics = json.loads(metrics_path.read_text())
+    signature = _signature(files)
+    if signature is None:
+        _cache.pop(key, None)
+        return None
+    held = _cache.get(key)
+    if held is None or held[0] != signature:
+        held = (signature, load())
+        _cache[key] = held
+    return held[1]
+
+
+def _load_current() -> dict:
+    """The promoted sklearn model."""
+    metrics = json.loads((MODEL_DIR / "metrics.json").read_text())
     return {
         "kind": "sklearn",
-        "model": joblib.load(model_path),
+        "model": joblib.load(MODEL_DIR / "model.joblib"),
         "metrics": metrics,
         # metrics.json is the authority on column order and membership.
         # Reading it back rather than hardcoding a list is what keeps this
@@ -104,36 +140,30 @@ def _load_current() -> dict:
 
 
 def _load_pytorch() -> dict:
-    d = CANDIDATES_DIR / "pytorch"
-    model_path, scaler_path, metrics_path = d / "model_state.pt", d / "scaler.joblib", d / "metrics.json"
-    if not (model_path.exists() and scaler_path.exists() and metrics_path.exists()):
-        return {}
     import torch
 
     from .torch_model import SpottabilityMLP
 
-    metrics = json.loads(metrics_path.read_text())
+    d = CANDIDATES_DIR / "pytorch"
+    metrics = json.loads((d / "metrics.json").read_text())
     feature_cols = metrics["feature_cols"]
     model = SpottabilityMLP(n_features=len(feature_cols))
-    model.load_state_dict(torch.load(model_path, map_location="cpu"))
+    model.load_state_dict(torch.load(d / "model_state.pt", map_location="cpu"))
     model.eval()  # disables dropout -- this is inference, not training
     return {
-        "kind": "pytorch", "model": model, "scaler": joblib.load(scaler_path),
+        "kind": "pytorch", "model": model, "scaler": joblib.load(d / "scaler.joblib"),
         "metrics": metrics, "feature_cols": feature_cols,
     }
 
 
 def _load_tensorflow() -> dict:
-    d = CANDIDATES_DIR / "tensorflow"
-    model_path, scaler_path, metrics_path = d / "model.keras", d / "scaler.joblib", d / "metrics.json"
-    if not (model_path.exists() and scaler_path.exists() and metrics_path.exists()):
-        return {}
     import tensorflow as tf
 
-    metrics = json.loads(metrics_path.read_text())
+    d = CANDIDATES_DIR / "tensorflow"
+    metrics = json.loads((d / "metrics.json").read_text())
     return {
-        "kind": "tensorflow", "model": tf.keras.models.load_model(model_path), "scaler": joblib.load(scaler_path),
-        "metrics": metrics, "feature_cols": metrics["feature_cols"],
+        "kind": "tensorflow", "model": tf.keras.models.load_model(d / "model.keras"),
+        "scaler": joblib.load(d / "scaler.joblib"), "metrics": metrics, "feature_cols": metrics["feature_cols"],
     }
 
 
@@ -141,65 +171,36 @@ def _load_spark() -> dict:
     """Not a Spark session -- see the module docstring on why. Just the
     predictions its trainer already computed, keyed by osm_id."""
     d = CANDIDATES_DIR / "spark"
-    predictions_path, metrics_path = d / "predictions.json", d / "metrics.json"
-    if not (predictions_path.exists() and metrics_path.exists()):
-        return {}
     return {
         "kind": "spark",
-        "predictions": json.loads(predictions_path.read_text()),
-        "metrics": json.loads(metrics_path.read_text()),
+        "predictions": json.loads((d / "predictions.json").read_text()),
+        "metrics": json.loads((d / "metrics.json").read_text()),
     }
 
 
-_LOADERS = {"current": _load_current, "pytorch": _load_pytorch, "tensorflow": _load_tensorflow, "spark": _load_spark}
-
-# The files each model is read from, for noticing a change on disk.
-_ARTIFACTS = {
-    "current": lambda: [MODEL_DIR / "model.joblib", MODEL_DIR / "metrics.json"],
-    "pytorch": lambda: [CANDIDATES_DIR / "pytorch" / "model_state.pt", CANDIDATES_DIR / "pytorch" / "metrics.json"],
-    "tensorflow": lambda: [CANDIDATES_DIR / "tensorflow" / "model.keras", CANDIDATES_DIR / "tensorflow" / "metrics.json"],
-    "spark": lambda: [CANDIDATES_DIR / "spark" / "predictions.json", CANDIDATES_DIR / "spark" / "metrics.json"],
+# Each model once: the files it is read from, and how. The scaler is one
+# of those files -- it used to be missing from the list that noticed a
+# change, so a retrained scaler was not picked up.
+_MODELS = {
+    "current": (lambda: [MODEL_DIR / "model.joblib", MODEL_DIR / "metrics.json"], _load_current),
+    "pytorch": (lambda: [CANDIDATES_DIR / "pytorch" / f for f in ("model_state.pt", "scaler.joblib", "metrics.json")],
+                _load_pytorch),
+    "tensorflow": (lambda: [CANDIDATES_DIR / "tensorflow" / f for f in ("model.keras", "scaler.joblib", "metrics.json")],
+                   _load_tensorflow),
+    "spark": (lambda: [CANDIDATES_DIR / "spark" / f for f in ("predictions.json", "metrics.json")], _load_spark),
 }
 
 
-def _signature(name: str) -> tuple:
-    """When each of a model's files was last written -- what changes
-    when a retrain promotes a new one into the same path."""
-    return tuple(p.stat().st_mtime_ns if p.exists() else None for p in _ARTIFACTS[name]())
+def _load(name: str = "current") -> dict | None:
+    """One named model's state, or None while its files are not all there."""
+    files, load = _MODELS[name]
+    return _fresh(("model", name), files(), load)
 
 
-def _load(name: str = "current") -> dict:
-    """Load one named model's state on first *successful* use, and
-    again whenever its files change on disk -- same reasoning as the
-    single-model version this replaced: a missing artifact should
-    surface as an unhealthy /ping (or a 503 for that one model), not a
-    container that crashloops before it can report why, and one not
-    yet trained when first asked for should start being served the
-    moment it exists rather than staying cached as absent for the life
-    of the container. A promotion (vfr.model_registry.promote, from
-    the pipeline or the Dev console's retrain) writes new files into
-    data/models/current; their timestamps are checked on every request,
-    a stat each, so the new model is what scores the next route rather
-    than the one this process happened to start with.
-    """
-    if name not in _LOADERS:
-        return {}
-    signature = _signature(name)
-    loaded = _state.get(name)
-    if not loaded or loaded.get("_signature") != signature:
-        loaded = _LOADERS[name]()
-        if loaded:
-            loaded["_signature"] = signature
-        _state[name] = loaded
-    return _state[name]
-
-
-def _features(dep: str, dest: str):
-    """The feature store for one corridor, cached after first read."""
-    key = (dep.lower(), dest.lower())
-    if key not in _features_cache:
-        _features_cache[key] = pd.read_parquet(_features_path(dep, dest))
-    return _features_cache[key]
+def _features(dep: str, dest: str) -> pd.DataFrame | None:
+    """One corridor's feature store, or None if it has not been built."""
+    path = _features_path(dep, dest)
+    return _fresh(("features", dep.lower(), dest.lower()), [path], lambda: pd.read_parquet(path))
 
 
 @app.get("/ping")
@@ -213,11 +214,11 @@ def ping() -> dict:
     current = _load("current")
     return {
         "status": "ok" if current else "no model loaded",
-        "model_loaded": bool(current),
+        "model_loaded": current is not None,
         "model_dir": str(MODEL_DIR),
-        "trained_at": current.get("metrics", {}).get("trained_at"),
+        "trained_at": current["metrics"].get("trained_at") if current else None,
         "routes": available_routes(),
-        "models": {name: bool(_load(name)) for name in _LOADERS},
+        "models": {name: _load(name) is not None for name in _MODELS},
     }
 
 
@@ -267,8 +268,8 @@ def _score(state: dict, df: pd.DataFrame) -> pd.Series:
 @app.post("/invocations", response_model=RouteResponse)
 def invocations(request: RouteRequest) -> RouteResponse:
     model_name = (request.model or "current").lower()
-    state = _load(model_name)
-    if not state:
+    state = _load(model_name) if model_name in _MODELS else None
+    if state is None:
         raise HTTPException(
             status_code=503,
             detail=(
@@ -283,8 +284,8 @@ def invocations(request: RouteRequest) -> RouteResponse:
 
     dep = request.departure_ident.strip().upper()
     dest = request.destination_ident.strip().upper()
-    path = _features_path(dep, dest)
-    if not path.exists():
+    df = _features(dep, dest)
+    if df is None:
         # 404 rather than "just build it": collecting a corridor is
         # Overpass queries, FAA downloads and a per-candidate elevation
         # lookup -- minutes of network I/O. That is a batch job, so this
@@ -299,7 +300,6 @@ def invocations(request: RouteRequest) -> RouteResponse:
             ),
         )
 
-    df = _features(dep, dest)
     scores = _score(state, df)
 
     scored = df.assign(predicted_score=scores).sort_values("along_track_nm")

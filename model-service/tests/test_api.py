@@ -7,13 +7,14 @@ pointed at via `app.main`'s own MODEL_DIR/FEATURES_DIR/CANDIDATES_DIR
 joblib/parquet files through the service's own real loading and
 inference code is what actually exercises it.
 
-`_state`/`_features_cache` are populated lazily and cached at module
-scope for the life of the process (see main.py's own comment on why),
-which would otherwise leak one test's model/feature-store artifacts
-into the next -- the autouse fixture below clears both before every
-test so each one starts from "nothing loaded yet."
+`_cache` is populated lazily and kept at module scope while the files
+are unchanged (see main.py's `_fresh`), which would otherwise leak one
+test's model/feature-store artifacts into the next -- the autouse
+fixture below clears it before every test so each one starts from
+"nothing loaded yet."
 """
 import json
+import os
 
 import joblib
 import pandas as pd
@@ -28,8 +29,7 @@ client = TestClient(main.app)
 
 @pytest.fixture(autouse=True)
 def _reset_loaded_state():
-    main._state.clear()
-    main._features_cache.clear()
+    main._cache.clear()
 
 
 def _write_current_model(model_dir, feature_cols=("x",)):
@@ -84,6 +84,13 @@ def test_ping_reports_model_loaded_and_the_routes_built_for_it(tmp_path, monkeyp
     assert body["models"] == {"current": True, "pytorch": False, "tensorflow": False, "spark": False}
 
 
+def test_a_changed_scaler_is_a_changed_model():
+    # The list that noticed a change left the scaler out.
+    for name in ("pytorch", "tensorflow"):
+        files, _ = main._MODELS[name]
+        assert main.CANDIDATES_DIR / name / "scaler.joblib" in files()
+
+
 # --- /routes ---
 
 
@@ -127,6 +134,43 @@ def test_invocations_503s_with_a_train_command_for_an_unbuilt_named_model(tmp_pa
 
     assert resp.status_code == 503
     assert "vfr.model_candidates pytorch" in resp.json()["detail"]
+
+
+def test_a_model_promoted_after_the_first_request_is_served_from_the_next(tmp_path, monkeypatch):
+    features_dir = tmp_path / "features"
+    features_dir.mkdir()
+    monkeypatch.setattr(main, "MODEL_DIR", tmp_path / "model")
+    monkeypatch.setattr(main, "FEATURES_DIR", features_dir)
+    _write_features(features_dir / "features_c81_kdlh.parquet", {
+        "osm_id": [1], "category": ["lake"], "name": ["A"], "lat": [42.0], "lon": [-88.0],
+        "along_track_nm": [5.0], "x": [1.0],
+    })
+    route = {"departure_ident": "C81", "destination_ident": "KDLH"}
+
+    assert client.post("/invocations", json=route).status_code == 503
+    _write_current_model(tmp_path / "model")
+    assert client.post("/invocations", json=route).status_code == 200
+
+
+def test_a_rebuilt_feature_store_is_scored_without_a_restart(tmp_path, monkeypatch):
+    # It was read once for the life of the process: a rebuilt corridor was
+    # scored from the old table.
+    features_dir = tmp_path / "features"
+    features_dir.mkdir()
+    monkeypatch.setattr(main, "MODEL_DIR", tmp_path / "model")
+    monkeypatch.setattr(main, "FEATURES_DIR", features_dir)
+    _write_current_model(tmp_path / "model")
+    store = features_dir / "features_c81_kdlh.parquet"
+    row = {"category": ["lake"], "name": ["A"], "lat": [42.0], "lon": [-88.0], "along_track_nm": [5.0], "x": [1.0]}
+    route = {"departure_ident": "C81", "destination_ident": "KDLH"}
+
+    _write_features(store, {"osm_id": [1], **row})
+    os.utime(store, (1_700_000_000, 1_700_000_000))
+    assert [c["osm_id"] for c in client.post("/invocations", json=route).json()["checkpoints"]] == ["1"]
+
+    _write_features(store, {"osm_id": [2], **row})
+    os.utime(store, (1_700_000_060, 1_700_000_060))
+    assert [c["osm_id"] for c in client.post("/invocations", json=route).json()["checkpoints"]] == ["2"]
 
 
 def test_invocations_404s_with_the_collection_commands_for_an_uncollected_route(tmp_path, monkeypatch):

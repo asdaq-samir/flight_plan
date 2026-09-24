@@ -23,7 +23,7 @@ def _write_model(model_dir, constant: float, mtime_s: float):
 
 
 def test_a_promoted_model_replaces_the_loaded_one_without_a_restart(tmp_path, monkeypatch):
-    main._state.clear()
+    main._cache.clear()
     monkeypatch.setattr(main, "MODEL_DIR", tmp_path / "model")
     _write_model(tmp_path / "model", constant=3.0, mtime_s=1_700_000_000)
 
