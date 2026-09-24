@@ -1,5 +1,6 @@
 import L from "leaflet";
-import type { Course } from "../api/types";
+import { create } from "zustand";
+import type { ChartLayer, Course } from "../api/types";
 import { tileUrl } from "./tiles";
 
 /**
@@ -70,10 +71,33 @@ export function corridorTiles(line: [number, number][], zooms: number[], corrido
   return [...tiles.values()];
 }
 
-/** Whether a service worker is holding this app, which is what makes
+/** Whether a service worker can hold this app, which is what makes
  *  kept tiles come back without a network. */
 export function keepingAvailable(): boolean {
   return typeof navigator !== "undefined" && "serviceWorker" in navigator && window.isSecureContext;
+}
+
+/** How long to wait for the service worker to be ready. The dev server
+ *  registers none, and `ready` then never settles: "Keeping…" sat there
+ *  for ever. */
+export const WORKER_WAIT_MS = 5000;
+
+export class NoServiceWorker extends Error {
+  constructor() {
+    super("No service worker is holding this app here, so nothing would be kept. The dev server registers none.");
+    this.name = "NoServiceWorker";
+  }
+}
+
+async function workerReady(): Promise<boolean> {
+  if (!keepingAvailable()) return false;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const late = new Promise<false>(resolve => { timer = setTimeout(() => resolve(false), WORKER_WAIT_MS); });
+  try {
+    return await Promise.race([navigator.serviceWorker.ready.then(() => true as const), late]);
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 /**
@@ -84,7 +108,7 @@ export function keepingAvailable(): boolean {
 export async function keepRouteCharts(
   course: Course, kind: string, zooms: number[], onProgress: (p: KeepProgress) => void, signal?: AbortSignal,
 ): Promise<KeepProgress> {
-  if (keepingAvailable()) await navigator.serviceWorker.ready;
+  if (!(await workerReady())) throw new NoServiceWorker();
   const tiles = corridorTiles(course.course_line as [number, number][], zooms);
   const progress: KeepProgress = { done: 0, total: tiles.length, failed: 0 };
   onProgress({ ...progress });
@@ -105,4 +129,55 @@ export async function keepRouteCharts(
   };
   await Promise.all(Array.from({ length: CONCURRENCY }, worker));
   return progress;
+}
+
+/**
+ * The one keep in progress, or the last one's outcome, held by the page
+ * rather than by the button that started it: that lived in the pilot
+ * console's Guide tab, and closing the console or changing tabs
+ * unmounted it and cancelled the download, silently, and reopening it
+ * had lost where it had got to. Which download it is (`key`) is the
+ * route, the chart, the edition and the revision -- the tile URLs it
+ * fetches -- so the button shows it only for the chart it would keep
+ * now.
+ */
+export type KeepJob =
+  | { status: "idle" }
+  | { status: "keeping"; key: string; progress: KeepProgress | null }
+  | { status: "kept"; key: string; progress: KeepProgress }
+  | { status: "failed"; key: string; detail: string };
+
+export const useKeepJob = create<KeepJob>(() => ({ status: "idle" }));
+
+export function keepKey(course: Course, kind: string): string {
+  return `${course.departure.ident}->${course.destination.ident}/${kind}/${course.chart_cycle}/${course.chart_revision ?? 0}`;
+}
+
+/** The zooms kept: from a whole-route view (8) down to the chart's own detail. */
+export function keptZooms(layer: ChartLayer): number[] {
+  return Array.from({ length: layer.max_zoom - 8 + 1 }, (_, i) => 8 + i).filter(z => z >= layer.min_zoom);
+}
+
+let current: AbortController | null = null;
+
+/** Keeps `layer`'s tiles of the route, cancelling any keep before it.
+ *  Only the latest keep writes the job: an earlier one finishing late
+ *  cannot overwrite it. */
+export async function keep(course: Course, layer: ChartLayer): Promise<void> {
+  current?.abort();
+  const mine = new AbortController();
+  current = mine;
+  const key = keepKey(course, layer.kind);
+  const write = (job: KeepJob) => { if (current === mine) useKeepJob.setState(job, true); };
+  write({ status: "keeping", key, progress: null });
+  try {
+    const progress = await keepRouteCharts(
+      course, layer.kind, keptZooms(layer), p => write({ status: "keeping", key, progress: p }), mine.signal,
+    );
+    write({ status: "kept", key, progress });
+  } catch (err) {
+    write({ status: "failed", key, detail: err instanceof Error ? err.message : String(err) });
+  } finally {
+    if (current === mine) current = null;
+  }
 }
