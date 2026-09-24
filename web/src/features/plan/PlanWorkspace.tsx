@@ -314,8 +314,8 @@ export default function PlanWorkspace({ dep, dest, onRoute, sidebarOpen, childre
           {planned.dep} is both the departure and the destination. Change one of them and press Load.
         </AlertDescription>
       </Alert>
-    ) : s.needsBuild ? (
-      <BuildNotice dep={s.needsBuild.dep} dest={s.needsBuild.dest} building={s.building} onBuild={s.build} />
+    ) : s.build.phase !== "idle" ? (
+      <BuildNotice dep={planned.dep} dest={planned.dest} build={s.build} onBuild={s.collect} />
     ) : null,
   });
 }

@@ -77,7 +77,7 @@ describe("a corridor nobody has collected", () => {
 
     const { result } = renderHook(() => usePlan(params), { wrapper });
 
-    await waitFor(() => expect(result.current.needsBuild).toEqual({ dep: "C81", dest: "KDLH" }));
+    await waitFor(() => expect(result.current.build).toEqual({ phase: "needed" }));
     expect(api.navlog).not.toHaveBeenCalled();
     expect(toast.error).not.toHaveBeenCalled();
   });
@@ -90,11 +90,11 @@ describe("a corridor nobody has collected", () => {
     vi.mocked(api.navlog).mockReturnValue((async function* () {})());
 
     const { result } = renderHook(() => usePlan(params), { wrapper });
-    await waitFor(() => expect(result.current.needsBuild).not.toBeNull());
+    await waitFor(() => expect(result.current.build.phase).toBe("needed"));
 
-    result.current.build();
+    act(() => result.current.collect());
 
-    await waitFor(() => expect(result.current.needsBuild).toBeNull());
+    await waitFor(() => expect(result.current.build.phase).toBe("idle"));
     expect(api.checkpoints).toHaveBeenCalledTimes(2);
   });
 
@@ -105,7 +105,75 @@ describe("a corridor nobody has collected", () => {
     const { result } = renderHook(() => usePlan(params), { wrapper });
 
     await waitFor(() => expect(toast.error).toHaveBeenCalled());
-    expect(result.current.needsBuild).toBeNull();
+    expect(result.current.build.phase).toBe("idle");
+  });
+});
+
+describe("collecting a route", () => {
+  const job = (state: string, over: object = {}) => ({ job_id: "j1", state, step: `${state} step`, route: "C81->KDLH", ...over }) as never;
+
+  beforeEach(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.mocked(api.checkpoints).mockRejectedValue(notCollected());
+  });
+  afterEach(() => vi.useRealTimers());
+
+  test("queued, then running, then failed -- and Collect again starts a new one", async () => {
+    vi.mocked(api.startBuild).mockResolvedValue(job("queued"));
+    vi.mocked(api.buildStatus)
+      .mockResolvedValueOnce(job("queued", { step: "waiting for the builds ahead of it" }))
+      .mockResolvedValueOnce(job("running", { step: "collecting candidates" }))
+      .mockResolvedValue(job("failed", { detail: "Overpass timed out" }));
+    const { result } = renderHook(() => usePlan(params), { wrapper });
+    await waitFor(() => expect(result.current.build.phase).toBe("needed"));
+
+    act(() => result.current.collect());
+    await waitFor(() => expect(result.current.build).toEqual({ phase: "queued", detail: "waiting for the builds ahead of it" }));
+    await act(() => vi.advanceTimersByTimeAsync(2000));
+    await waitFor(() => expect(result.current.build.phase).toBe("running"));
+    await act(() => vi.advanceTimersByTimeAsync(2000));
+    await waitFor(() => expect(result.current.build).toEqual({ phase: "failed", detail: "Overpass timed out" }));
+
+    // It used to stay locked: the failure was the busy flag's own string.
+    act(() => result.current.collect());
+    await waitFor(() => expect(api.startBuild).toHaveBeenCalledTimes(2));
+  });
+
+  test("a full queue is a failure to retry, not a button locked until reload", async () => {
+    vi.mocked(api.startBuild).mockRejectedValue(new ApiError("3 corridors are already waiting to be built -- try again in a few minutes", 429));
+    const { result } = renderHook(() => usePlan(params), { wrapper });
+    await waitFor(() => expect(result.current.build.phase).toBe("needed"));
+
+    act(() => result.current.collect());
+
+    await waitFor(() => expect(result.current.build.phase).toBe("failed"));
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  test("a job the planner forgot (it restarted) ends as failed, and the polling stops", async () => {
+    vi.mocked(api.startBuild).mockResolvedValue(job("running"));
+    vi.mocked(api.buildStatus).mockRejectedValue(new ApiError("No build job j1", 404));
+    const { result } = renderHook(() => usePlan(params), { wrapper });
+    await waitFor(() => expect(result.current.build.phase).toBe("needed"));
+
+    act(() => result.current.collect());
+    await waitFor(() => expect(result.current.build.phase).toBe("failed"));
+    const polls = vi.mocked(api.buildStatus).mock.calls.length;
+    await act(() => vi.advanceTimersByTimeAsync(10_000));
+    expect(api.buildStatus).toHaveBeenCalledTimes(polls);
+  });
+
+  test("another route's collection does not show on this one", async () => {
+    vi.mocked(api.startBuild).mockResolvedValue(job("running"));
+    vi.mocked(api.buildStatus).mockResolvedValue(job("running", { step: "collecting candidates" }));
+    const { result, rerender } = renderHook((p: PlanParams) => usePlan(p), { wrapper, initialProps: params });
+    await waitFor(() => expect(result.current.build.phase).toBe("needed"));
+    act(() => result.current.collect());
+    await waitFor(() => expect(result.current.build.phase).toBe("running"));
+
+    rerender({ ...params, dest: "KMSP" });
+
+    await waitFor(() => expect(result.current.build.phase).toBe("needed"));
   });
 });
 
