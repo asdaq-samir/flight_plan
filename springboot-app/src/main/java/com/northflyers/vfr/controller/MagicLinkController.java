@@ -6,6 +6,8 @@ import com.northflyers.vfr.repository.MagicLinkRepository;
 import com.northflyers.vfr.security.MagicLinkAuthenticationToken;
 import com.northflyers.vfr.service.PilotService;
 import io.swagger.v3.oas.annotations.Operation;
+import jakarta.servlet.ServletRequest;
+import jakarta.servlet.ServletRequestWrapper;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
@@ -117,7 +119,7 @@ public class MagicLinkController {
         // address has an account, so the answer still says nothing about
         // who does -- but nobody can fill a stranger's inbox from here.
         if (!allow("email:" + body.email().toLowerCase(), perAddressPerHour, now)
-                || !allow("client:" + request.getRemoteAddr(), perClientPerHour, now)) {
+                || !allow("client:" + clientOf(request), perClientPerHour, now)) {
             return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).build();
         }
         magicLinks.deleteExpiredBefore(now.minus(Duration.ofDays(1)));
@@ -132,6 +134,32 @@ public class MagicLinkController {
                 + "/api/auth/magic-link/verify?token=" + rawToken;
         sendEmail(body.email(), verifyUrl);
         return ResponseEntity.status(HttpStatus.ACCEPTED).build();
+    }
+
+    /**
+     * Who is asking, for the per-client limit: the last X-Forwarded-For
+     * entry -- the one the load balancer in front of this app appended,
+     * the address it was connected from -- or, with no proxy in front,
+     * the connection's own address. Read from the request as the
+     * container received it: {@code forward-headers-strategy: framework}
+     * makes {@code getRemoteAddr()} the <em>first</em> entry, which the
+     * caller writes, and hides the header. Keyed on that, a caller could
+     * dodge the limit with a new X-Forwarded-For on every request (seen:
+     * 25 in a row accepted against a limit of 20). With no proxy in front
+     * the caller can still write the last entry too; but mail is only
+     * ever sent from a deployment behind the load balancer.
+     */
+    static String clientOf(HttpServletRequest request) {
+        ServletRequest received = request;
+        while (received instanceof ServletRequestWrapper wrapper) {
+            received = wrapper.getRequest();
+        }
+        String forwarded = received instanceof HttpServletRequest http ? http.getHeader("X-Forwarded-For") : null;
+        if (forwarded != null && !forwarded.isBlank()) {
+            String[] hops = forwarded.split(",");
+            return hops[hops.length - 1].trim();
+        }
+        return received.getRemoteAddr();
     }
 
     /** Whether one more request for `key` fits in the last hour, and if
