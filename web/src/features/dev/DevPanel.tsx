@@ -268,9 +268,9 @@ function Step({ n, title, description, children }: { n: number; title: string; d
  *
  * A link to a stopped service is a dead link, and telling a developer
  * to go and type the compose command is a worse answer than doing it.
- * The planner starts it through a Docker API proxy that allows the
- * containers endpoints and nothing else (docker-compose.yml's own
- * docker-api service), from a fixed list of four names.
+ * The planner starts it through docker-compose.yml's dev-services
+ * sidecar, which holds the Docker socket and can start nothing but a
+ * fixed list of four names.
  *
  * The tab is opened *before* the start, not after: a browser only
  * allows window.open during the click that asked for it, and one

@@ -236,7 +236,7 @@ def test_a_straight_bordered_face_reaches_the_bow_of_its_top_edge(tmp_path):
         ds.write_colormap(1, PALETTE)
 
     def lat_at(col, row):
-        x, y = transform * (col, row)
+        x, y = transform @ (col, row)
         return rasterio.warp.transform(crs, "EPSG:4326", [x], [y])[1][0]
 
     # The ruling lines (rows 19-21 and 228-230) are inside the chart

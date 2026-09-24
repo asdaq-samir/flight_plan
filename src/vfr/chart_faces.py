@@ -296,7 +296,7 @@ def _straight_face(ink: _Ink, crs, transform, mask_path: Path) -> Box:
     inside[r_lo:r_hi, c_lo:c_hi] = 255
     with rasterio.open(
         mask_path, "w", driver="GTiff", width=cols, height=rows, count=1, dtype="uint8",
-        crs=crs, transform=transform * Affine.scale(_POOL_PX), compress="deflate",
+        crs=crs, transform=transform @ Affine.scale(_POOL_PX), compress="deflate",
     ) as out:
         out.write(inside, 1)
 
@@ -312,7 +312,7 @@ def _straight_face(ink: _Ink, crs, transform, mask_path: Path) -> Box:
     along = np.linspace(0.0, 1.0, 256)
     xs = np.concatenate([x0 + along * (x1 - x0), x0 + along * (x1 - x0), np.full_like(along, x0), np.full_like(along, x1)])
     ys = np.concatenate([np.full_like(along, y0), np.full_like(along, y1), y0 + along * (y1 - y0), y0 + along * (y1 - y0)])
-    px, py = transform * (xs, ys)
+    px, py = transform @ (xs, ys)
     lons, lats = rasterio.warp.transform(crs, "EPSG:4326", list(px), list(py))
     return (min(lons), min(lats), max(lons), max(lats))
 

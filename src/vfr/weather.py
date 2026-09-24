@@ -780,10 +780,6 @@ def refresh() -> None:
         _FD_STATIONS.pop(fcst_hr, None)
 
 
-# The winds/temperatures-aloft product comes in three forecast periods.
-FD_FORECAST_HOURS = ("06", "12", "24")
-
-
 def forecast_hour(hours_ahead: float | None) -> str:
     """Which FD forecast period fits a departure `hours_ahead` hours from
     now: the 6-hour product up to nine hours out, the 12-hour product

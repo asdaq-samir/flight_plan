@@ -245,7 +245,7 @@ def test_a_second_abandoned_computation_is_not_replaced_while_the_first_still_ru
 
 
 def test_stages_are_named_in_a_pilots_words():
-    assert planning.describe_stages(["weather.freezing_level_ft", "terrain.floor_profile", "weather.hazards_along_route"]) \
+    assert planning.describe_stages(["weather.freezing_level", "terrain.floor_profile", "weather.hazards_along_route"]) \
         == "aviationweather.gov and the terrain and obstacles"
     assert planning.describe_stages([]) == ""
 

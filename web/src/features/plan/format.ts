@@ -1,9 +1,8 @@
 import type { AltitudeOption, Totals } from "../../lib/api/types";
-import { compassPoint } from "../../lib/compass";
 import { SCORE_STEPS } from "../../lib/scoreScale";
 import { altFt } from "../../lib/units";
 
-export { altFt, compassPoint };
+export { altFt };
 
 /**
  * The planner's pure half: colours and number formatting.

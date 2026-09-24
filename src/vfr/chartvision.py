@@ -827,40 +827,6 @@ def iter_landmarks_along_route(
         }
 
 
-def landmarks_along_route(
-    start: tuple,
-    end: tuple,
-    half_width_nm: float = 1.0,
-    zoom: int = DEFAULT_ZOOM,
-    margin_nm: float = 5.0,
-) -> dict:
-    """Everything the chart draws inside the route corridor, in one call.
-
-    Drains iter_landmarks_along_route. Callers that can show partial
-    results should stream that instead -- the first block covers the
-    departure end of the route and is ready in a fraction of a second,
-    while the whole corridor takes seconds.
-    """
-    found, stats = [], {"missing": 0, "fetched": 0, "cached": 0}
-    tiles = blocks = 0
-    for batch in iter_landmarks_along_route(start, end, half_width_nm, zoom, margin_nm):
-        found.extend(batch["landmarks"])
-        for key in stats:
-            stats[key] += batch[key]
-        tiles, blocks = batch["tiles"], batch["blocks"]
-
-    found = _dedupe(found)
-    found.sort(key=lambda candidate: candidate.extras["along_track_nm"])
-    return {
-        "landmarks": found,
-        "tiles": tiles,
-        "blocks": blocks,
-        "tiles_missing": stats["missing"],
-        "tiles_fetched": stats["fetched"],
-        "tiles_cached": stats["cached"],
-        "route_nm": distance_nm(start[0], start[1], end[0], end[1]),
-    }
-
 # Order matters: the tests are not mutually exclusive and the first match
 # wins. Airport magenta and river dark-blue are both dark enough to also
 # satisfy the near-black linework test, so both are checked before it --
