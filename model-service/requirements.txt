@@ -1,5 +1,5 @@
 fastapi==0.141.1
-uvicorn[standard]==0.52.4
+uvicorn[standard]==0.53.0
 pydantic==2.13.5
 
 # Real inference as of 2026-09-10 (this service returned a hand-written
@@ -17,7 +17,7 @@ pydantic==2.13.5
 # tests/test_requirements.py now fails if the two differ.
 scikit-learn==1.9.1
 numpy==2.5.3
-pandas==3.0.5
+pandas==3.0.6
 joblib==1.6.0
 pyarrow
 

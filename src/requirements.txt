@@ -22,7 +22,7 @@
 # Pinned to what python:3.13-slim resolves; Dependabot keeps the pins
 # moving (.github/dependabot.yml watches /src).
 numpy==2.5.3        # vfr.geo, vfr.features, vfr.osm, vfr.weather
-pandas==3.0.5       # vfr.airports, vfr.faa_data, vfr.features, vfr.pipeline
+pandas==3.0.6       # vfr.airports, vfr.faa_data, vfr.features, vfr.pipeline
 requests==2.34.2    # every external source (vfr.retry), vfr.model_client, vfr.planner_client
 pyarrow==25.0.1     # vfr.faa_data's Parquet cache of the obstacle table; the pipeline's feature store
 shapely==2.1.2      # vfr.airspace polygons, vfr.weather's hazards, vfr.osm's representative points
