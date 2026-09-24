@@ -30,3 +30,8 @@ springboot-app/target/
 .pytest_cache/
 .ruff_cache/
 web/test-results/
+# iCloud's numbered conflict copies ("UnverifiedEmailException 2.java"),
+# which .gitignore already hides from git but which still reached the
+# build context: a copy of a Java class compiled as a duplicate and
+# broke the webapp image on 2026-09-24. Never wanted in an image.
+**/* [0-9].*
