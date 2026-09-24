@@ -6,8 +6,9 @@ up the map. /api/plan returns all of it at once, and is what both
 agents (nav-log-agent, crewai-agent) fetch their nav log from, so the
 nav log an agent briefs is the one a pilot sees."""
 import time
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import Future, ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FuturesTimeoutError
+from dataclasses import dataclass
 from datetime import datetime
 
 from fastapi import APIRouter, HTTPException
@@ -67,69 +68,106 @@ def departure_elevation(r) -> float | None:
     return r.departure.get("elevation_ft")
 
 
-def planned_altitudes(
-    r, fix_list: list, profile: dict, aircraft: str, choice: AltitudeChoice, fcst_hr: str = "06",
-    window: tuple | None = None,
-) -> tuple:
-    """The altitude selection for the route's own fixes, the three plans
-    it allows, and the one chosen: (selection, options, plan, failure).
-    `plan` is None when no plan can fly the route -- some leg has no
-    legal altitude at all, and the selection says why -- or when the
-    winds the plans need could not be read, in which case `failure` is
-    that WeatherServiceError: the selection itself still stands, and a
-    caller can report it before the failure. `fcst_hr` is the winds
-    forecast period for the departure (see forecast_hour_for), `window`
-    the flight's own hours the go/no-go forecast is read over (see
-    flight_window)."""
+@dataclass(frozen=True)
+class Flown:
+    """Legs to fly: the chosen plan's (`choice`), or at a pilot's own
+    altitude (`choice` None), with the selection and the three plans
+    beside them either way. `legs` of a plan is the planner's cached
+    list: read it, never change it."""
+    selection: dict
+    options: list[AltitudeOption]
+    choice: AltitudeChoice | None
+    altitude_ft: float
+    legs: list
+
+
+@dataclass(frozen=True)
+class Unflyable:
+    """Some leg has no legal cruising altitude; the selection says why."""
+    selection: dict
+
+
+@dataclass(frozen=True)
+class NoWinds:
+    """The winds the legs need could not be read. The selection -- and
+    the plans, when it was only a pilot's own altitude that failed --
+    still stand, and a caller can report them before the failure."""
+    selection: dict
+    options: list[AltitudeOption]
+    error: WeatherServiceError
+
+
+def resolve_altitude(
+    r, fix_list: list, profile: dict, aircraft: str, altitude_ft: float | None, choice: AltitudeChoice,
+    fcst_hr: str = "06", window: tuple | None = None,
+) -> Flown | Unflyable | NoWinds:
+    """What the log flies, decided once for /api/plan and /api/navlog
+    alike. It used to be a 4-tuple (selection, options, plan, failure)
+    each endpoint decoded with its own order-dependent ladder, and the
+    stream then worked out a pilot's own altitude's legs after its
+    heartbeat had stopped -- a winds outage there was a silent retry
+    cycle. `fcst_hr` is the winds forecast period for the departure (see
+    forecast_hour_for), `window` the flight's own hours the go/no-go
+    forecast is read over (see flight_window).
+
+    The three plans are made beside a pilot's own altitude as well, as
+    what the planner would have flown."""
     selection = cruise_altitude(r.start, r.end, profile, aircraft, fixes=_fixes(fix_list), fcst_hr=fcst_hr, window=window)
     try:
         plans = altitude_plans(fix_list, selection, profile, aircraft, fcst_hr, departure_elevation(r))
+        failure = None
     except WeatherServiceError as err:
-        return selection, [], None, err
-    if not plans:
-        return selection, [], None, None
+        plans, failure = {}, err
     options = [AltitudeOption(kind=kind, **{k: v for k, v in plans[kind].items() if k not in ("legs", "totals")})
-               for kind in navlog.PLAN_KINDS]
-    return selection, options, plans[choice], None
+               for kind in navlog.PLAN_KINDS] if plans else []
+    if altitude_ft is not None:
+        try:
+            legs = navlog.with_climbs(navlog.legs(fix_list, altitude_ft, profile, fcst_hr), departure_elevation(r), profile)
+        except WeatherServiceError as err:
+            return NoWinds(selection, options, err)
+        return Flown(selection, options, None, altitude_ft, legs)
+    if failure is not None:
+        return NoWinds(selection, options, failure)
+    if not plans:
+        return Unflyable(selection)
+    legs = plans[choice]["legs"]
+    return Flown(selection, options, choice, legs[0]["altitude_ft"], legs)
 
 
 def _fixes(fix_list: list) -> list:
     return [(f["lat"], f["lon"]) for f in fix_list]
 
 
-def planned_altitudes_within_limit(
-    r, fix_list: list, profile: dict, aircraft: str, choice: AltitudeChoice, fcst_hr: str = "06",
-    window: tuple | None = None,
-) -> tuple:
-    """planned_altitudes, given up on after COMPUTE_LIMIT_S with
-    StillComputing naming what it was waiting on. The work goes on in
-    the background and its answer is cached, so asking again gets it."""
-    pool = ThreadPoolExecutor(max_workers=1)
-    try:
-        return pool.submit(
-            planned_altitudes, r, fix_list, profile, aircraft, choice, fcst_hr, window,
-        ).result(timeout=COMPUTE_LIMIT_S)
-    except FuturesTimeoutError:
-        raise StillComputing(
-            COMPUTE_LIMIT_S, _running_stages(r, fix_list, aircraft, fcst_hr, window),
-        ) from None
-    finally:
-        pool.shutdown(wait=False)
+def _waited(future: Future, tick_s: float, stages):
+    """Waits on `future` for at most COMPUTE_LIMIT_S, yielding the seconds
+    waited every `tick_s`; returns its result, or raises StillComputing
+    naming `stages()`. The one bounded wait, which /api/plan runs quietly
+    and the stream turns into heartbeats; the work goes on in the
+    background past the limit and its answer is cached, so asking again
+    gets it."""
+    started = time.monotonic()
+    while True:
+        try:
+            return future.result(timeout=tick_s)
+        except FuturesTimeoutError:
+            elapsed = time.monotonic() - started
+            if elapsed >= COMPUTE_LIMIT_S:
+                raise StillComputing(elapsed, stages()) from None
+            yield elapsed
+
+
+def _result(waiting):
+    """A _waited run to its end, reporting nothing."""
+    while True:
+        try:
+            next(waiting)
+        except StopIteration as done:
+            return done.value
 
 
 def _running_stages(r, fix_list: list, aircraft: str, fcst_hr: str, window: tuple | None = None) -> list:
     running = altitude_waiting_on(r.start, r.end, aircraft, _fixes(fix_list), fcst_hr, window)
     return [running] if running else []
-
-
-def legs_flown(r, fix_list: list, profile: dict, fcst_hr: str, altitude_ft: float | None, chosen: dict | None) -> list:
-    """The legs the log flies: the chosen plan's own, or -- for a
-    pilot's own altitude -- the legs at it, with the climb from the
-    field flown on the first. The one place /api/plan and /api/navlog
-    decide it, so the two cannot fly different legs for one request."""
-    if altitude_ft is None:
-        return chosen["legs"]
-    return navlog.with_climbs(navlog.legs(fix_list, altitude_ft, profile, fcst_hr), departure_elevation(r), profile)
 
 
 @router.get("/api/course")
@@ -218,20 +256,19 @@ def plan(
     fcst_hr = forecast_hour_for(depart)
     window = flight_window(depart, geo.distance_nm(*r.start, *r.end), profile["cruise_tas_kt"])
 
-    # The plans are worked out either way: beside a pilot's own altitude
-    # they are what the planner would have flown, and the reasoning
-    # still has its floor and ceiling to show.
-    altitude_selection, options, chosen, failure = planned_altitudes_within_limit(
-        r, fix_list, profile, aircraft, altitude_choice, fcst_hr, window,
-    )
-    choice = None
-    if altitude_ft is None:
-        if failure is not None:
-            raise failure
-        if chosen is None:
-            raise HTTPException(422, no_altitude_detail(altitude_selection))
-        choice = altitude_choice
-    leg_list = legs_flown(r, fix_list, profile, fcst_hr, altitude_ft, chosen)
+    pool = ThreadPoolExecutor(max_workers=1)
+    try:
+        outcome = _result(_waited(
+            pool.submit(resolve_altitude, r, fix_list, profile, aircraft, altitude_ft, altitude_choice, fcst_hr, window),
+            COMPUTE_LIMIT_S, lambda: _running_stages(r, fix_list, aircraft, fcst_hr, window),
+        ))
+    finally:
+        pool.shutdown(wait=False)
+    if isinstance(outcome, NoWinds):
+        raise outcome.error
+    if isinstance(outcome, Unflyable):
+        raise HTTPException(422, no_altitude_detail(outcome.selection))
+    leg_list = outcome.legs
 
     return Plan(
         departure=r.departure,
@@ -242,10 +279,10 @@ def plan(
         selected=selected,
         legs=leg_list,
         totals=flight_totals(leg_list, profile, r, depart),
-        altitude_ft=leg_list[0]["altitude_ft"] if altitude_ft is None else altitude_ft,
-        altitude_selection=altitude_selection,
-        altitude_options=options,
-        altitude_choice=choice,
+        altitude_ft=outcome.altitude_ft,
+        altitude_selection=outcome.selection,
+        altitude_options=outcome.options,
+        altitude_choice=outcome.choice,
         winds_forecast_hr=fcst_hr,
         aircraft={"name": aircraft, **profile},
         max_zoom=VFR_SECTIONAL_MAX_ZOOM,
@@ -312,11 +349,9 @@ def navlog_stream(
         # browser saw the nav log simply end with no legs and no error.
         # A stage line every few seconds keeps the connection visibly
         # alive (and tells the pilot what it's still waiting on) for
-        # however long the fetch takes. The three plans need the winds
-        # at every legal altitude of every leg, so they are made here
-        # too, before the altitude line, rather than leg by leg after
-        # it -- and beside a pilot's own altitude as well, as what the
-        # planner would have flown.
+        # however long the fetch takes. The legs are worked out there
+        # too, a pilot's own altitude's included, so none of the waiting
+        # on winds happens after the heartbeat has stopped.
         # The heartbeat names what the selection is actually waiting on --
         # it used to say "aviationweather.gov" whatever the cause -- and
         # the wait ends at COMPUTE_LIMIT_S with an error line saying so,
@@ -324,67 +359,58 @@ def navlog_stream(
         # would wait on a stuck thread on the way out.
         altitude_pool = ThreadPoolExecutor(max_workers=1)
         try:
-            future = altitude_pool.submit(
-                planned_altitudes, r, fix_list, profile, aircraft, altitude_choice, fcst_hr, window,
+            waiting = _waited(
+                altitude_pool.submit(
+                    resolve_altitude, r, fix_list, profile, aircraft, altitude_ft, altitude_choice, fcst_hr, window,
+                ),
+                HEARTBEAT_S, lambda: _running_stages(r, fix_list, aircraft, fcst_hr, window),
             )
-            started = time.monotonic()
             while True:
                 try:
-                    altitude_selection, options, chosen, failure = future.result(timeout=HEARTBEAT_S)
+                    elapsed = next(waiting)
+                except StopIteration as done:
+                    outcome = done.value
                     break
-                except FuturesTimeoutError:
-                    elapsed = time.monotonic() - started
-                    if elapsed >= COMPUTE_LIMIT_S:
-                        yield line(NavLogError(detail=str(StillComputing(
-                            elapsed, _running_stages(r, fix_list, aircraft, fcst_hr, window),
-                        ))))
-                        return
-                    waiting = altitude_waiting_on(r.start, r.end, aircraft, _fixes(fix_list), fcst_hr, window)
-                    yield line(NavLogStage(detail=(
-                        f"Planning cruise altitudes ({elapsed:.0f} s, waiting on {waiting})…" if waiting
-                        else f"Planning cruise altitudes ({elapsed:.0f} s, working out the winds for each plan)…"
-                    )))
+                named = altitude_waiting_on(r.start, r.end, aircraft, _fixes(fix_list), fcst_hr, window)
+                yield line(NavLogStage(detail=(
+                    f"Planning cruise altitudes ({elapsed:.0f} s, waiting on {named})…" if named
+                    else f"Planning cruise altitudes ({elapsed:.0f} s, working out the winds for each plan)…"
+                )))
         finally:
             altitude_pool.shutdown(wait=False)
-        choice = None
-        if altitude_ft is None:
-            if failure is not None:
-                # The selection stands -- terrain, airspace, the legal
-                # altitudes -- even though the winds the plans need did
-                # not come: say what was decided, then what failed.
-                yield line(NavLogAltitude(
-                    altitude_ft=altitude_selection.get("recommended_ft") or 0.0,
-                    altitude_selection=altitude_selection,
-                    winds_forecast_hr=fcst_hr,
-                    aircraft={"name": aircraft, **profile},
-                ))
-                yield line(NavLogError(detail=str(failure)))
-                return
-            if chosen is None:
-                yield line(NavLogError(detail=no_altitude_detail(altitude_selection)))
-                return
-            choice = altitude_choice
 
-        # Sent the moment it's decided, well before any leg -- the
-        # checkpoints already on screen from /api/checkpoints can show
-        # their own cruise altitude immediately rather than waiting on
-        # the first leg to carry it.
+        aircraft_line = {"name": aircraft, **profile}
+        if isinstance(outcome, Unflyable):
+            yield line(NavLogError(detail=no_altitude_detail(outcome.selection)))
+            return
+        if isinstance(outcome, NoWinds):
+            # The selection stands -- terrain, airspace, the legal
+            # altitudes -- even though the winds did not come: say what
+            # was decided, then what failed.
+            yield line(NavLogAltitude(
+                altitude_ft=altitude_ft or outcome.selection.get("recommended_ft") or 0.0,
+                altitude_selection=outcome.selection,
+                options=outcome.options,
+                winds_forecast_hr=fcst_hr,
+                aircraft=aircraft_line,
+            ))
+            yield line(NavLogError(detail=str(outcome.error)))
+            return
+
+        # Before any leg -- the checkpoints already on screen from
+        # /api/checkpoints can show their own cruise altitude
+        # immediately rather than waiting on the first leg to carry it.
         yield line(NavLogAltitude(
-            altitude_ft=chosen["legs"][0]["altitude_ft"] if altitude_ft is None else altitude_ft,
-            altitude_selection=altitude_selection,
-            options=options,
-            choice=choice,
+            altitude_ft=outcome.altitude_ft,
+            altitude_selection=outcome.selection,
+            options=outcome.options,
+            choice=outcome.choice,
             winds_forecast_hr=fcst_hr,
-            aircraft={"name": aircraft, **profile},
+            aircraft=aircraft_line,
         ))
-
-        # For a pilot's own altitude this is where the legs are worked
-        # out; the winds were read for the plans a moment ago, so it is
-        # quick.
-        leg_list = legs_flown(r, fix_list, profile, fcst_hr, altitude_ft, chosen)
-        for leg in leg_list:
+        for leg in outcome.legs:
             yield line(NavLogLeg.model_validate(leg))
 
-        yield line(NavLogDone(totals=flight_totals(leg_list, profile, r, depart)))
+        yield line(NavLogDone(totals=flight_totals(outcome.legs, profile, r, depart)))
 
     return ndjson(lines(), NavLogError)

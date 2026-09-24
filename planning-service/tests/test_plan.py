@@ -189,3 +189,72 @@ def test_navlog_reports_an_unflyable_route_as_an_error_line(monkeypatch, altitud
     last = messages(resp)[-1]
     assert last["type"] == "error"
     assert "No legal VFR cruising altitude" in last["detail"]
+
+
+# --- the altitude outcome, decided once ---
+
+def _no_winds(monkeypatch):
+    from vfr.weather import WeatherServiceError
+
+    def fail(*args, **kwargs):
+        raise WeatherServiceError("aviationweather.gov winds-06 unavailable: timed out")
+
+    monkeypatch.setattr(navlog, "assemble_leg", fail)
+
+
+def test_navlog_at_a_pilots_own_altitude_streams_it_then_its_legs(messages):
+    """No stream test passed an altitude before."""
+    lines = messages(client.get("/api/navlog", params={"dep": "C81", "dest": "KDLH", "altitude_ft": 3500}))
+
+    altitude = next(m for m in lines if m["type"] == "altitude")
+    assert altitude["altitude_ft"] == 3500.0 and altitude["choice"] is None
+    assert [o["kind"] for o in altitude["options"]] == ["lowest", "highest", "fastest"]
+    assert all(m["altitude_ft"] == 3500.0 for m in lines if m["type"] == "leg")
+    assert lines[-1]["type"] == "done"
+
+
+def test_navlog_at_a_pilots_own_altitude_without_winds_says_the_altitude_then_the_failure(monkeypatch, messages):
+    _no_winds(monkeypatch)
+    lines = messages(client.get("/api/navlog", params={"dep": "C81", "dest": "KDLH", "altitude_ft": 3500}))
+
+    assert [m["type"] for m in lines if m["type"] != "stage"] == ["altitude", "error"]
+    assert lines[-2]["altitude_ft"] == 3500.0
+    assert "winds-06 unavailable" in lines[-1]["detail"]
+
+
+def test_plan_without_winds_is_a_502(monkeypatch):
+    _no_winds(monkeypatch)
+    resp = client.get("/api/plan", params={"dep": "C81", "dest": "KDLH"})
+
+    assert resp.status_code == 502
+    assert "winds-06 unavailable" in resp.json()["detail"]
+
+
+def test_each_outcome_of_the_altitude_resolver(monkeypatch, altitude):
+    from app.planning import aircraft_profile
+    from app.common import load_route
+    from app.routers.plan import Flown, NoWinds, Unflyable, resolve_altitude
+
+    r = load_route("C81", "KDLH")
+    fix_list = navlog.fixes(r.dep_ident, r.dest_ident, r.start, r.end, [])
+    profile = aircraft_profile("c172")
+
+    chosen = resolve_altitude(r, fix_list, profile, "c172", None, "highest")
+    assert isinstance(chosen, Flown) and chosen.choice == "highest" and chosen.altitude_ft == 4500.0
+
+    typed = resolve_altitude(r, fix_list, profile, "c172", 3500.0, "lowest")
+    assert isinstance(typed, Flown) and typed.choice is None and len(typed.options) == 3
+
+    monkeypatch.setattr(altitude_module, "select_cruise_altitude",
+                        select_cruise_altitude_stub({**altitude, "recommended_ft": None}))
+    from app import planning
+    planning._ALTITUDE_CACHE.clear()
+    planning._PLANS_CACHE.clear()
+    assert isinstance(resolve_altitude(r, fix_list, profile, "c172", None, "lowest"), Unflyable)
+
+    monkeypatch.setattr(altitude_module, "select_cruise_altitude", select_cruise_altitude_stub(altitude))
+    planning._ALTITUDE_CACHE.clear()
+    planning._PLANS_CACHE.clear()
+    _no_winds(monkeypatch)
+    outcome = resolve_altitude(r, fix_list, profile, "c172", None, "lowest")
+    assert isinstance(outcome, NoWinds) and outcome.options == []
