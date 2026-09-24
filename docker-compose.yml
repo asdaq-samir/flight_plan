@@ -96,7 +96,7 @@ services:
       # built for this project -- named <project>-pipeline-processing
       # and <project>-pipeline-training, the project being this
       # directory's name unless COMPOSE_PROJECT_NAME says otherwise.
-      PIPELINE_IMAGE_PREFIX: ${COMPOSE_PROJECT_NAME:-flight_plan}
+      PIPELINE_IMAGE_PREFIX: ${COMPOSE_PROJECT_NAME}
     command: standalone
 
   db:

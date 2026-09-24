@@ -38,5 +38,6 @@ COPY airflow/dags/vfr_pipeline_dag.py /opt/project/airflow/dags/vfr_pipeline_dag
 COPY src /opt/project/src
 # The build fails if the DAG does not load here -- a provider or a vfr
 # import missing -- rather than Airflow listing an import error later.
-# (The host path is compose's to give; any path does for loading.)
-RUN PROJECT_HOST_PATH=/build-check python -B -c "from airflow.dag_processing.dagbag import DagBag; bag = DagBag('/opt/project/airflow/dags'); assert not bag.import_errors, bag.import_errors; assert set(bag.dags) == {'vfr_pipeline'}, set(bag.dags)"
+# (The host path and the project name are compose's to give; any will do
+# for loading.)
+RUN PROJECT_HOST_PATH=/build-check PIPELINE_IMAGE_PREFIX=build-check python -B -c "from airflow.dag_processing.dagbag import DagBag; bag = DagBag('/opt/project/airflow/dags'); assert not bag.import_errors, bag.import_errors; assert set(bag.dags) == {'vfr_pipeline'}, set(bag.dags)"

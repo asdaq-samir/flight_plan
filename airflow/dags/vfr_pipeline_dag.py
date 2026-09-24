@@ -41,10 +41,11 @@ PROJECT_MOUNT = Mount(source=PROJECT_HOST_PATH, target="/workspace", type="bind"
 # Compose names the images it builds <project>-<service>, and the project
 # is the directory's name unless COMPOSE_PROJECT_NAME says otherwise --
 # docker-compose.yml passes that in, so a checkout under another name
-# still finds its own pipeline images. The old hard-coded "vfr_route-"
-# prefix was the repo's previous name, and every task failed to find its
-# image once it was renamed.
-IMAGE_PREFIX = os.environ.get("PIPELINE_IMAGE_PREFIX", "flight_plan")
+# still finds its own pipeline images. Required, like the host path: the
+# old hard-coded "vfr_route-" prefix was the repo's previous name, and
+# every task failed to find its image once it was renamed -- a default
+# here is the same name written a second time.
+IMAGE_PREFIX = os.environ["PIPELINE_IMAGE_PREFIX"]
 
 
 def _docker_task(task_id: str, image: str, command: list[str]) -> DockerOperator:
