@@ -213,6 +213,37 @@ def test_a_computation_past_the_limit_is_replaced_not_joined():
     release.set()
     stuck.join(timeout=5)
     assert cache.running("k") is None
+    # And the late one's answer, from older inputs, does not replace it.
+    assert cache.get("k") == "fresh"
+
+
+def test_an_abandoned_computation_finishing_first_fills_the_empty_slot():
+    """Nothing newer to keep: its answer is the best there is, until the
+    fresh one lands."""
+    cache = planning.SingleFlightTTLCache(maxsize=8, ttl=60)
+    make, release = _stuck()
+    stuck_pending: set = set()
+    stuck = threading.Thread(target=lambda: cache.get_or_compute("k", make(stuck_pending), 5, stuck_pending))
+    stuck.start()
+    time.sleep(0.3)
+
+    fresh_started, fresh_release = threading.Event(), threading.Event()
+
+    def fresh():
+        fresh_started.set()
+        fresh_release.wait(timeout=5)
+        return "fresh"
+
+    replacing = threading.Thread(target=lambda: cache.get_or_compute("k", fresh, limit_s=0.2))
+    replacing.start()
+    fresh_started.wait(timeout=5)
+    release.set()
+    stuck.join(timeout=5)
+    assert cache.get("k") == "late"
+
+    fresh_release.set()
+    replacing.join(timeout=5)
+    assert cache.get("k") == "fresh"
 
 
 def test_a_second_abandoned_computation_is_not_replaced_while_the_first_still_runs():

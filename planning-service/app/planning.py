@@ -176,7 +176,12 @@ class SingleFlightTTLCache:
             self._finish(key, flight)
             raise
         with self._lock:
-            self._cache[key] = value
+            # The current flight owns the slot. One replaced as abandoned
+            # only fills an empty one: it used to overwrite the newer
+            # flight's answer with its own, from inputs at least limit_s
+            # older, and a fresh TTL.
+            if self._inflight.get(key) is flight or key not in self._cache:
+                self._cache[key] = value
         self._finish(key, flight)
         return value
 
