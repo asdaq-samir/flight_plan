@@ -32,6 +32,8 @@ class NarrativeLeg(BaseModel):
     from_: str = Field(alias="from", max_length=80)
     to: str = Field(max_length=80)
     distance_nm: float
+    altitude_ft: float | None = None
+    climb_min: float | None = None
     magnetic_heading_deg: float | None = None
     groundspeed_kt: float | None = None
     ete_min: float | None = None
@@ -81,7 +83,7 @@ def briefing_prompt(
     precedent; crewai-agent keeps no memory and leaves it out."""
     prompt = (
         f"Write a concise VFR pilot briefing, under {BRIEFING_WORDS} words, for a flight from "
-        f"{departure_ident} to {destination_ident} at {float(altitude_ft):.0f}ft. "
+        f"{departure_ident} to {destination_ident} {_cruising(altitude_ft, legs)}. "
         "Plain prose in short paragraphs -- no Markdown headings, bold or bullet lists; it is shown as plain text. "
         "Every number you need is below; do not look anything up.\n\n"
         f"Altitude selection:\n{_format_altitude_selection(altitude_selection)}\n\n"
@@ -95,44 +97,90 @@ def briefing_prompt(
     return prompt
 
 
+def _ft(value) -> str:
+    return f"{float(value):,.0f}ft"
+
+
+def _cruising(altitude_ft: float, legs: list[dict]) -> str:
+    """The altitude the whole flight cruises at, when it has one. A plan
+    steps from leg to leg -- under a Class B shelf, then up past it -- and
+    naming the first leg's altitude as the flight's briefed a stepped plan
+    as a level one; each leg's own is in its line."""
+    altitudes = {leg["altitude_ft"] for leg in legs if leg.get("altitude_ft") is not None}
+    if len(altitudes) > 1:
+        return f"stepping between {_ft(min(altitudes))} and {_ft(max(altitudes))} (each leg's altitude is on its line)"
+    return f"at {_ft(altitudes.pop() if altitudes else altitude_ft)}"
+
+
 def _format_legs(legs: list[dict]) -> str:
-    """One line per leg. An unflyable leg (a headwind at or above cruise
-    TAS -- ETE, fuel and groundspeed are None) is named as such rather
-    than formatted as a number."""
+    """One line per leg, at its own altitude, with the climb from the
+    field where the leg has one. An unflyable leg (a headwind at or above
+    cruise TAS -- ETE, fuel and groundspeed are None) is named as such
+    rather than formatted as a number."""
     lines = []
     for leg in legs:
+        where = f"{leg['from']} -> {leg['to']}: {leg['distance_nm']:.1f}nm"
+        if leg.get("altitude_ft") is not None:
+            where += f" at {_ft(leg['altitude_ft'])}"
         if leg.get("ete_min") is None:
-            lines.append(
-                f"- {leg['from']} -> {leg['to']}: {leg['distance_nm']:.1f}nm, "
-                "UNFLYABLE at this altitude (headwind at or above cruise TAS)"
-            )
+            lines.append(f"- {where}, UNFLYABLE at this altitude (headwind at or above cruise TAS)")
             continue
+        climb = f", climbing for {leg['climb_min']:.0f}min" if (leg.get("climb_min") or 0) > 0 else ""
         lines.append(
-            f"- {leg['from']} -> {leg['to']}: {leg['distance_nm']:.1f}nm, "
-            f"heading {leg['magnetic_heading_deg']:.0f}M, GS {leg['groundspeed_kt']:.0f}kt, "
+            f"- {where}{climb}, heading {leg['magnetic_heading_deg']:.0f}M, GS {leg['groundspeed_kt']:.0f}kt, "
             f"ETE {leg['ete_min']:.0f}min, fuel {leg['fuel_gal']:.1f}gal"
         )
     return "\n".join(lines)
 
 
 def _format_altitude_selection(sel: dict | None) -> str:
+    """The planner's reasoning, each fact from the field that owns it. The
+    weather is a row per check -- could not be read, flagged, or fine --
+    by `weather_unavailable`: a check that failed used to read as a check
+    that found nothing, and a value that is None was printed as "Noneft".
+    Without a selection there is nothing to say about it; this used to
+    claim the pilot had typed the altitude, which nothing told it."""
     if not sel:
-        return "(the pilot set this altitude by hand; nothing was auto-selected)"
+        return "(none given)"
+    unavailable = set(sel.get("weather_unavailable") or [])
+    band = sel.get("band_ceiling_ft")
     lines = [
-        f"Terrain/obstacle floor: {sel['floor_ft']:.0f}ft",
-        f"Airspace/service-ceiling band: {sel['band_ceiling_ft']}ft",
+        f"Terrain/obstacle floor: {_ft(sel['floor_ft'])}",
+        f"Airspace/service-ceiling band: {_ft(band) if band is not None else 'no ceiling below Class A'}",
     ]
-    if sel.get("icing_possible"):
+
+    if "freezing_level" in unavailable:
+        lines.append("Icing: UNKNOWN -- the freezing level could not be read")
+    elif sel.get("icing_possible"):
         level = sel.get("freezing_level_ft")
-        where = (f"at or below {level:.0f}ft" if sel.get("freezing_level_at_or_below") else f"at {level:.0f}ft") if level else ""
+        where = ""
+        if level is not None:
+            where = f"at or below {_ft(level)}" if sel.get("freezing_level_at_or_below") else f"at {_ft(level)}"
         lines.append(f"ICING POSSIBLE: freezing level {where}, with cloud or an icing AIRMET forecast along the route")
-    if sel.get("low_ceiling_or_visibility"):
-        lines.append(
-            f"GO/NO-GO: ceiling {sel['min_ceiling_ft']}ft / visibility {sel['min_visibility_sm']}SM "
-            "near the route is below typical VFR minimums"
-        )
-    if sel.get("hazards"):
+    else:
+        lines.append("Icing: not expected")
+
+    if "ceiling_visibility" in unavailable:
+        lines.append("Ceiling/visibility: UNKNOWN -- the forecast along the route could not be read")
+    elif sel.get("low_ceiling_or_visibility"):
+        parts = []
+        if sel.get("min_ceiling_ft") is not None:
+            parts.append(f"ceiling {_ft(sel['min_ceiling_ft'])}")
+        if sel.get("min_visibility_sm") is not None:
+            parts.append(f"visibility {sel['min_visibility_sm']:g}SM")
+        lines.append(f"GO/NO-GO: forecast {' / '.join(parts)} near the route is below typical VFR minimums")
+    else:
+        lines.append("Ceiling/visibility: at or above VFR minimums along the route")
+
+    if "hazards" in unavailable:
+        lines.append("SIGMETs: UNKNOWN -- they could not be checked")
+    elif sel.get("hazards"):
         lines.append(f"GO/NO-GO: {len(sel['hazards'])} SIGMET/AIRMET(s) intersect the route")
+    else:
+        lines.append("SIGMETs: none on the route")
+
+    if "special_use" in unavailable:
+        lines.append("Special-use airspace: UNKNOWN -- it could not be checked")
     return "\n".join(lines)
 
 
