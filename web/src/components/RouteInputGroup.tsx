@@ -37,21 +37,21 @@ export default function RouteInputGroup({
         placeholder="DEP"
         ariaLabel="Departure"
         invalid={invalid}
-        className="min-w-16 px-1.5 sm:min-w-24 sm:px-2.5"
+        className="min-w-20"
       />
-      <span className="px-0.5 text-muted-foreground sm:px-1" aria-hidden="true">→</span>
+      <span className="text-muted-foreground" aria-hidden="true">→</span>
       <AirportPicker
         value={dest}
         onChange={onDestChange}
         placeholder="DEST"
         ariaLabel="Destination"
         invalid={invalid}
-        className="min-w-16 px-1.5 sm:min-w-24 sm:px-2.5"
+        className="min-w-20"
       />
       {/* pr-2/sm:pr-2.5: the Load button is inset inside the group's own
           border rather than nearly touching it, which read as the
           button bursting out of the group. */}
-      <InputGroupAddon align="inline-end" className="gap-1.5 pr-2 sm:pr-2.5">
+      <InputGroupAddon align="inline-end" className="gap-1.5">
         {children}
       </InputGroupAddon>
     </InputGroup>
