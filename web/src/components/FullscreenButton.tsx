@@ -1,5 +1,4 @@
-import { useEffect, useState } from "react";
-import { Maximize, Minimize } from "lucide-react";
+import { Maximize } from "lucide-react";
 import IconButton from "./IconButton";
 
 /** Whether this browser will actually take an element full screen.
@@ -32,34 +31,16 @@ function fullscreenWorks(): boolean {
  * it like any other layout change.
  */
 export default function FullscreenButton() {
-  // Read once during render rather than in an effect: this is a fact
-  // about the browser, not state to synchronise, and an effect that
-  // set it would cascade a second render on every mount.
-  const [works, setWorks] = useState(fullscreenWorks);
-  const [on, setOn] = useState(false);
-
-  useEffect(() => {
-    const sync = () => setOn(!!document.fullscreenElement);
-    document.addEventListener("fullscreenchange", sync);
-    return () => document.removeEventListener("fullscreenchange", sync);
-  }, []);
-
-  if (!works) return null;
+  if (!fullscreenWorks()) return null;
   return (
     <IconButton
-      label={on ? "Leave full screen" : "Full screen"}
+      label="Full screen"
       variant="outline"
       className="bg-background shadow-sm"
-      onClick={() => {
-        if (on) { void document.exitFullscreen().catch(() => { /* already out */ }); return; }
-        // A refusal means this browser said yes to `fullscreenEnabled`
-        // and no to the request; take the button away rather than
-        // leave one that does nothing.
-        void document.documentElement.requestFullscreen().catch(() => setWorks(false));
-      }}
+      onClick={() => { void document.documentElement.requestFullscreen(); }}
       data-testid="fullscreen-button"
     >
-      {on ? <Minimize className="size-5" /> : <Maximize className="size-5" />}
+      <Maximize className="size-5" />
     </IconButton>
   );
 }
