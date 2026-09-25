@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useDeferredValue, useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { ChevronsUpDown } from "lucide-react";
 import { cn } from "cn";
@@ -14,18 +14,6 @@ interface Props {
   ariaLabel: string;
   invalid?: boolean;
   className?: string;
-}
-
-/** 200ms, not on every keystroke -- a lookup this app already treats
- *  as cheap server-side (an in-memory prefix filter) still isn't worth
- *  a request per character while someone's still mid-word. */
-function useDebounced<T>(value: T, delayMs: number): T {
-  const [debounced, setDebounced] = useState(value);
-  useEffect(() => {
-    const id = setTimeout(() => setDebounced(value), delayMs);
-    return () => clearTimeout(id);
-  }, [value, delayMs]);
-  return debounced;
 }
 
 /**
@@ -44,15 +32,14 @@ export default function AirportPicker({ value, onChange, placeholder, ariaLabel,
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const typed = query.trim();
-  const q = useDebounced(typed, 200);
+  const q = useDeferredValue(typed);
   const { data, isPlaceholderData } = useQuery({
     queryKey: ["airportSearch", q],
     queryFn: () => api.airportSearch(q),
     enabled: open && q.length > 0,
     placeholderData: keepPreviousData,
   });
-  // The rows answer `q`, which trails the box by the debounce and then by
-  // the request (the last answer stays up while the next one loads).
+  // The rows answer the deferred query while React keeps typing responsive;\n  // the last answer stays up while the next request loads.
   // Enter takes the highlighted row only once the rows answer what is in
   // the box: it used to take it whenever there were rows, so "KD", a
   // pause, then "LH" and a quick Enter set the field to the first "KD..."
