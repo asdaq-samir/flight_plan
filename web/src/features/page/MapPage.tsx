@@ -189,37 +189,7 @@ export default function MapPage({ mode }: { mode: Mode }) {
 /** The header's drawer button: the stock trigger, named for what the
  *  drawer holds, drawn filled while the drawer is out. */
 function DrawerTrigger({ label }: { label: string }) {
-  const { open, openMobile, isMobile } = useSidebar();
   return (
-    <SidebarTrigger
-      aria-label={label}
-      aria-expanded={isMobile ? openMobile : open}
-      className={cn("size-9", EXPANDED_BUTTON)}
-      data-testid="sidebar-trigger-button"
-    />
+    <SidebarTrigger aria-label={label} className={cn("size-9", EXPANDED_BUTTON)} data-testid="sidebar-trigger-button" />
   );
-}
-
-/**
- * On a phone the stock sidebar is a Sheet with an open state of its
- * own (`openMobile`), which the provider's controlled `open` does not
- * reach: this keeps the two together both ways -- the page's state
- * (the address, the `n` key) opens and closes the Sheet, and the Sheet
- * closing itself (its overlay, Escape) is written back. Whichever side
- * changed since the last commit is the one followed, so the two never
- * chase each other; with neither changed (the page has just found out
- * it is on a phone), the page's state wins.
- */
-function SidebarSync({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
-  const { isMobile, openMobile, setOpenMobile } = useSidebar();
-  const previous = useRef({ open, openMobile });
-  useEffect(() => {
-    const { open: wasOpen, openMobile: wasOpenMobile } = previous.current;
-    previous.current = { open, openMobile };
-    if (!isMobile) return;
-    if (open !== wasOpen) setOpenMobile(open);
-    else if (openMobile !== wasOpenMobile) onOpenChange(openMobile);
-    else if (open !== openMobile) setOpenMobile(open);
-  }, [open, openMobile, isMobile, setOpenMobile, onOpenChange]);
-  return null;
 }
