@@ -39,7 +39,8 @@ export default function AirportPicker({ value, onChange, placeholder, ariaLabel,
     enabled: open && q.length > 0,
     placeholderData: keepPreviousData,
   });
-  // The rows answer the deferred query while React keeps typing responsive;\n  // the last answer stays up while the next request loads.
+  // The rows answer the deferred query while React keeps typing responsive;
+  // the last answer stays up while the next request loads.
   // Enter takes the highlighted row only once the rows answer what is in
   // the box: it used to take it whenever there were rows, so "KD", a
   // pause, then "LH" and a quick Enter set the field to the first "KD..."
