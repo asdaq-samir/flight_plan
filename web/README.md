@@ -125,7 +125,7 @@ src/
     MapHeader.tsx, RouteForm.tsx, RouteInputGroup.tsx, AirportPicker.tsx   The route form both pages share
     MapControls.tsx          The map's own corner stack: the layers popover, the zoom toggle, full screen
     ChartLayers.tsx           The layers popover's contents: base chart, TAC pin, Class B, marker zoom
-    ConsoleTabs.tsx, DevSwitch.tsx, ThemeToggle.tsx, FullscreenButton.tsx, KeepRoute.tsx, SelectableRows.tsx
+    ConsoleTabs.tsx, ThemeToggle.tsx, FullscreenButton.tsx, KeepRoute.tsx, SelectableRows.tsx
     ui/                      shadcn/ui primitives (components.json), stock unless a comment says why not
   lib/
     api/client.ts             Every network call, one function per endpoint
