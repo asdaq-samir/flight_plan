@@ -13,7 +13,8 @@ already says so and links to a real briefing service.
 """
 from __future__ import annotations
 
-import requests\nfrom cachetools import TTLCache
+import requests
+from cachetools import TTLCache
 from shapely.geometry import LineString, shape
 
 from .geo import along_track_distance_nm, corridor_bbox
@@ -56,7 +57,8 @@ def _query(bbox: tuple) -> list:
     """GeoJSON features intersecting bbox (min_lat, min_lon, max_lat,
     max_lon), cached a day per bbox rounded to a tenth of a degree."""
     key = tuple(round(v, 1) for v in bbox)
-    if key in _CACHE:\n        return _CACHE[key]
+    if key in _CACHE:
+        return _CACHE[key]
     min_lat, min_lon, max_lat, max_lon = key
     params = {
         "where": "1=1",
