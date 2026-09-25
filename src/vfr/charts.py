@@ -46,6 +46,7 @@ reason other than rendering, serving or keeping up with the cycle.
 """
 from __future__ import annotations
 
+from cachetools import TTLCache
 import contextlib
 import io
 import json
@@ -386,7 +387,7 @@ COVERAGE: dict[str, dict] = {
 
 _CYCLE_RE = re.compile(r"aeronav\.faa\.gov/visual/(\d{2}-\d{2}-\d{4})/sectional-files")
 _CYCLE_TTL_S = 6 * 3600
-_cycle_cache: dict = {"value": None, "at": 0.0}
+_cycle_cache = TTLCache(maxsize=1, ttl=_CYCLE_TTL_S)
 _cycle_lock = threading.Lock()
 
 
@@ -420,10 +421,9 @@ def current_cycle(today: date | None = None, fetch: bool = True) -> str:
     never touches the network: the status endpoint's own choice."""
     today = today or datetime.now(tz=timezone.utc).date()
     with _cycle_lock:
-        if _cycle_cache["value"] and time.time() - _cycle_cache["at"] < _CYCLE_TTL_S:
-            return _cycle_cache["value"]
+        if "value" in _cycle_cache:\n            return _cycle_cache["value"]
     if not fetch:
-        return _cycle_cache["value"] or cycle_from_anchor(today)
+        return _cycle_cache.get("value") or cycle_from_anchor(today)
     value = None
     try:
         resp = requests.get(FAA_VFR_PRODUCTS_PAGE, headers=REQUEST_HEADERS, timeout=15)
@@ -433,7 +433,7 @@ def current_cycle(today: date | None = None, fetch: bool = True) -> str:
         log.info("FAA VFR products page unreachable; using the cycle arithmetic")
     value = value or cycle_from_anchor(today)
     with _cycle_lock:
-        _cycle_cache.update(value=value, at=time.time())
+        _cycle_cache["value"] = value
     return value
 
 
@@ -969,8 +969,7 @@ def _cycles_on_disk(root: Path) -> list[str]:
     return [name for _, name in sorted(found, reverse=True)]
 
 
-_serving_cache: dict = {"value": None, "at": 0.0}
-_SERVING_TTL_S = 60
+_SERVING_TTL_S = 60\n_serving_cache = TTLCache(maxsize=1, ttl=_SERVING_TTL_S)
 
 
 def serving_cycle() -> str:
@@ -982,12 +981,11 @@ def serving_cycle() -> str:
     FAA's current cycle, rendered on demand. Where the tiles live in
     the cloud (CHART_TILES_URL) it is whatever the published pointer
     there says. Held for a minute: this is asked once per tile."""
-    if _serving_cache["value"] and time.time() - _serving_cache["at"] < _SERVING_TTL_S:
-        return _serving_cache["value"]
+    if "value" in _serving_cache:\n        return _serving_cache["value"]
     value = _published_cycle() if CHART_TILES_URL else None
     value = value or next((c for c in _cycles_on_disk(CHART_TILE_CACHE_DIR) if pyramid_complete(c, ("sec",))), None)
     value = value or current_cycle()
-    _serving_cache.update(value=value, at=time.time())
+    _serving_cache["value"] = value
     return value
 
 
@@ -1207,7 +1205,7 @@ def _write_pyramid_status(cycle: str, record: dict) -> None:
         data = {}
     data[record["kind"]] = record
     _write_atomically(path, json.dumps(data, indent=1).encode())
-    _serving_cache["at"] = 0.0  # a pass just ended, or began: re-decide what to serve
+    _serving_cache.clear()  # a pass just ended, or began: re-decide what to serve
 
 
 def _record(kind_key: str, raw: dict) -> dict:
@@ -1623,7 +1621,7 @@ def prune_cycles(keep: str) -> list[str]:
             shutil.rmtree(root / cycle, ignore_errors=True)
             removed.append(f"{root.name}/{cycle}")
             log.info("removed %s/%s", root.name, cycle)
-    _serving_cache["at"] = 0.0
+    _serving_cache.clear()
     return removed
 
 
