@@ -52,19 +52,19 @@ export default function MapHeader({ leading, form, actions, dev = false }: Props
       // button. A plain padding there instead, a little wider than the
       // left's, which is enough to clear a rounded corner with the
       // drawer shut.
-      className="grid shrink-0 grid-cols-[auto_1fr_auto] items-center gap-2 border-b bg-background p-2 sm:px-4 print:hidden"
+      className="flex shrink-0 flex-wrap items-center gap-1.5 border-b border-border bg-background pt-[max(0.5rem,env(safe-area-inset-top))] pr-3 pb-2 pl-[max(0.5rem,env(safe-area-inset-left))] sm:grid sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] sm:gap-2 sm:pr-4 sm:pl-[max(0.75rem,env(safe-area-inset-left))] print:hidden"
     >
-      <div className="flex items-center">{leading}</div>
+      <div className="flex items-center sm:justify-self-start">{leading}</div>
       {/* mx-auto below `sm`: the flex row's free space split either side
           of the form, so it sits centred between the switch and the
           buttons rather than packed against the switch (the grid from
           `sm` up centres it against the whole header by itself). */}
-      <div className="min-w-0 justify-self-center">{form}</div>
+      <div className="mx-auto sm:mx-0 sm:justify-self-center">{form}</div>
       {/* gap-2 either side of `sm`, not gap-3 above it: the ring on an
           open button (see `EXPANDED_BUTTON`) is what separates these
           two now, and the extra 4px only cost width in the one place
           the row is tight -- a landscape phone with the drawer open. */}
-      <div className="flex items-center gap-2 justify-self-end">
+      <div className="ml-auto flex items-center gap-2 [&>*]:size-8 sm:ml-0 sm:justify-self-end sm:[&>*]:size-9">
         {actions}
       </div>
     </header>
