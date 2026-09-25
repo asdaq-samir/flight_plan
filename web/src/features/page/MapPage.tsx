@@ -1,16 +1,13 @@
-import { Suspense, lazy, useCallback, useEffect, useState, type CSSProperties } from "react";
+import { Suspense, lazy, useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
-import { cn } from "cn";
-import { EXPANDED_BUTTON } from "../../lib/expandedButton";
 import MapHeader from "../../components/MapHeader";
 import RouteForm from "../../components/RouteForm";
 import {
   Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger,
 } from "../../components/ui/sheet";
-import {
-  Sidebar, SidebarContent, SidebarInset, SidebarProvider, SidebarTrigger,
-} from "../../components/ui/sidebar";
+import { Button } from "../../components/ui/button";
+import { PanelRightIcon } from "lucide-react";
 import { DevButton } from "../dev/DevButton";
 import { PilotButton } from "../pilot/PilotPanel";
 import PlanWorkspace from "../plan/PlanWorkspace";
@@ -119,16 +116,12 @@ export default function MapPage({ mode }: { mode: Mode }) {
     <Suspense fallback={<div className="h-dvh w-full bg-background" />}>
     <Workspace dep={dep} dest={dest} sidebarOpen={sidebarOpen}>
       {pieces => (
-        <SidebarProvider
-          open={sidebarOpen} onOpenChange={setSidebarOpen}
-          style={{ "--sidebar-width": "22rem" } as CSSProperties}
-          className="h-dvh min-h-0 print:h-auto"
-        >
+                <div className="flex h-dvh min-h-0 w-full print:h-auto">
           {/* React hoists a rendered <title> into the document head
               itself, so the browser tab says which page this is
               without an effect writing document.title by hand. */}
           <title>{title}</title>
-          <SidebarInset className="min-h-0 min-w-0 print:hidden">
+          <main className="relative flex min-h-0 min-w-0 flex-1 flex-col bg-background print:hidden">
             <MapHeader
               dev={mode === "dev"}
               form={(
@@ -156,7 +149,7 @@ export default function MapPage({ mode }: { mode: Mode }) {
                       {pieces.console}
                     </SheetContent>
                   </Sheet>
-                  <DrawerTrigger label={sidebar} />
+                  <DrawerTrigger label={sidebar} open={sidebarOpen} onOpenChange={setSidebarOpen} />
                 </>
               )}
             />
@@ -165,19 +158,17 @@ export default function MapPage({ mode }: { mode: Mode }) {
                 up to 1000; contained here, the map is one flat layer
                 under the sidebar and the sheets. */}
             <div className="relative isolate min-h-0 flex-1 overflow-hidden">{pieces.map}</div>
-          </SidebarInset>
-          {/* h-dvh, overriding the stock panel's own `h-svh`: `svh` is
-              the viewport height with the browser's chrome shown, so
-              with Safari's toolbar hidden (or collapsed by a scroll)
-              the panel ended short by the chrome's height and the page
-              showed through below it -- the same white, so it read as
-              dead space under the last section. `dvh` is what the rest
-              of the shell is sized by, and it tracks what is actually
-              visible. */}
-          <Sidebar side="right" collapsible="offcanvas" aria-label={sidebar} className="h-dvh">
-            <SidebarContent className="gap-0 overflow-hidden print:overflow-visible">{pieces.sidebar}</SidebarContent>
-          </Sidebar>
-        </SidebarProvider>
+          </main>
+          <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
+            <SheetContent side="right" aria-label={sidebar} className="w-[min(22rem,90vw)] gap-0 p-0 sm:max-w-[22rem]" data-testid="side-drawer">
+              <SheetHeader className="sr-only">
+                <SheetTitle>{sidebar}</SheetTitle>
+                <SheetDescription>{sidebar}</SheetDescription>
+              </SheetHeader>
+              <div className="min-h-0 flex-1 overflow-hidden">{pieces.sidebar}</div>
+            </SheetContent>
+          </Sheet>
+        </div>
       )}
     </Workspace>
     </Suspense>
@@ -186,8 +177,11 @@ export default function MapPage({ mode }: { mode: Mode }) {
 
 /** The header's drawer button: the stock trigger, named for what the
  *  drawer holds, drawn filled while the drawer is out. */
-function DrawerTrigger({ label }: { label: string }) {
+function DrawerTrigger({ label, open, onOpenChange }: { label: string; open: boolean; onOpenChange: (open: boolean) => void }) {
   return (
-    <SidebarTrigger aria-label={label} className={cn("size-9", EXPANDED_BUTTON)} data-testid="sidebar-trigger-button" />
+    <Button variant="ghost" size="icon-sm" aria-label={label} aria-expanded={open}
+      data-testid="sidebar-trigger-button" onClick={() => onOpenChange(!open)}>
+      <PanelRightIcon />
+    </Button>
   );
 }
