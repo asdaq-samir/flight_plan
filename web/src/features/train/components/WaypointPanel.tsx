@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useRef } from "react";
+import { Fragment } from "react";
 import { cn } from "cn";
 import { BrainCircuit, Eraser, ListFilter, Undo2 } from "lucide-react";
 import { useRetrain } from "../../dev/useRetrain";
@@ -63,20 +63,11 @@ export default function WaypointPanel({
   entries, selected, onFocus, onRate, distanceNm, bearingDeg, departureIdent, destinationIdent,
   rated, total, hidden, filters, counts, onFilterChange, canUndo, onUndo, onResetAll,
 }: Props) {
-  const selectedRef = useRef<HTMLTableRowElement>(null);
   // Retrain from here, beside Undo and Reset: the ratings this drawer
   // makes are what a retrain learns from, so the button that starts
   // one belongs with them. The dev console's Training Model tab
   // reports the run.
   const retrain = useRetrain();
-  // Selecting a point on the map (or by stepping) should be as visible
-  // here as clicking the row itself would have been -- otherwise the
-  // highlighted row can be scrolled out of view and looks like nothing
-  // happened.
-  useEffect(() => {
-    selectedRef.current?.scrollIntoView({ block: "nearest" });
-  }, [selected]);
-
   // Numbered over the walk with the endpoints skipped -- the same
   // "n of total" the map popup shows for the same point. A separate
   // pass, not a counter mutated inside the JSX map below.
@@ -175,7 +166,7 @@ export default function WaypointPanel({
                   <Fragment key={key}>
                     <SelectableRow
                       selected={isSelected} mutedWhenUnselected
-                      onSelect={() => onFocus(entry)} scrollRef={isSelected ? selectedRef : undefined}
+                      onSelect={() => onFocus(entry)}
                     >
                       <TableCell />
                       <TableCell className="text-left font-medium">{p.ident}</TableCell>
@@ -200,7 +191,7 @@ export default function WaypointPanel({
                 <Fragment key={key}>
                   <SelectableRow
                     selected={isSelected}
-                    onSelect={() => onFocus(entry)} scrollRef={isSelected ? selectedRef : undefined}
+                    onSelect={() => onFocus(entry)}
                   >
                     <TableCell className={cn("text-right tabular-nums", !isSelected && "text-muted-foreground")}>
                       {numbers.get(entry)}
