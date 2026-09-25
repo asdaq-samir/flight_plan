@@ -7,7 +7,7 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.5.3</version>
+        <version>3.5.16</version>
         <relativePath/>
     </parent>
 
@@ -18,7 +18,7 @@
     <description>VFR route planning API -- calls the model-service microservice, persists saved routes.</description>
 
     <properties>
-        <!-- 25, not 26: spring-boot-maven-plugin 3.5.3's bundled ASM can't
+        <!-- 25, not 26: spring-boot-maven-plugin 3.5.x's bundled ASM can't
              parse a Java 26 class file yet ("Unsupported class file major
              version 70" at repackage). 25 is the newest it supports. -->
         <java.version>25</java.version>
