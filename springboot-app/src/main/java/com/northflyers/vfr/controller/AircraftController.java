@@ -1,6 +1,5 @@
 package com.northflyers.vfr.controller;
 
-import com.northflyers.vfr.domain.Aircraft;
 import com.northflyers.vfr.domain.Pilot;
 import com.northflyers.vfr.dto.AircraftDto;
 import com.northflyers.vfr.dto.AircraftRequest;
@@ -37,21 +36,23 @@ public class AircraftController {
 
     private final AircraftService aircraftService;
     private final PilotService pilots;
+    private final FlightApiMapper mapper;
 
-    public AircraftController(AircraftService aircraftService, PilotService pilots) {
+    public AircraftController(AircraftService aircraftService, PilotService pilots, FlightApiMapper mapper) {
         this.aircraftService = aircraftService;
         this.pilots = pilots;
+        this.mapper = mapper;
     }
 
     @GetMapping
     public ResponseEntity<List<AircraftDto>> list(Authentication authentication) {
         return withPilot(authentication, pilot ->
-                ResponseEntity.ok(aircraftService.list(pilot).stream().map(AircraftController::toDto).toList()));
+                ResponseEntity.ok(aircraftService.list(pilot).stream().map(mapper::toDto).toList()));
     }
 
     @PostMapping
     public ResponseEntity<AircraftDto> add(Authentication authentication, @Valid @RequestBody AircraftRequest request) {
-        return withPilot(authentication, pilot -> ResponseEntity.ok(toDto(aircraftService.add(
+        return withPilot(authentication, pilot -> ResponseEntity.ok(mapper.toDto(aircraftService.add(
                 pilot, request.tailNumber(), request.typeDesignator(), request.cruiseTasKt(), request.fuelBurnGph(),
                 request.usableFuelGal()))));
     }
@@ -62,7 +63,7 @@ public class AircraftController {
         return withPilot(authentication, pilot -> aircraftService
                 .update(pilot, id, request.tailNumber(), request.typeDesignator(), request.cruiseTasKt(), request.fuelBurnGph(),
                         request.usableFuelGal())
-                .map(a -> ResponseEntity.ok(toDto(a)))
+                .map(a -> ResponseEntity.ok(mapper.toDto(a)))
                 .orElse(ResponseEntity.notFound().build()));
     }
 
@@ -76,8 +77,4 @@ public class AircraftController {
         return pilots.current(authentication).map(action).orElseGet(() -> ResponseEntity.status(401).build());
     }
 
-    private static AircraftDto toDto(Aircraft a) {
-        return new AircraftDto(a.getId(), a.getTailNumber(), a.getTypeDesignator(), a.getCruiseTasKt(),
-                a.getFuelBurnGph(), a.getUsableFuelGal(), a.getCreatedAt());
-    }
 }
