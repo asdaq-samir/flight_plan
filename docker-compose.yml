@@ -301,7 +301,6 @@ services:
       # (see HttpsConnectorConfig); otherwise the port is simply closed.
       - "127.0.0.1:8443:8443"
     volumes:
-      - webapp-cds:/cds
       - ./infra/local-https/certs:/certs:ro
     depends_on:
       db:
@@ -333,13 +332,6 @@ services:
       SPRING_DATASOURCE_USERNAME: vfr
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-vfr}
       PLANNER_SERVICE_URL: http://planning-service:8000
-      # Local start-up time, not a production setting. The class-data
-      # archive (kept on the webapp-cds volume, see the Dockerfile) lets
-      # a restart of the same jar skip the class loading and
-      # verification it already did; C1-only JIT starts faster and
-      # this proxy never runs hot enough locally to miss C2. The AWS
-      # task definition sets neither.
-      JAVA_TOOL_OPTIONS: -XX:+AutoCreateSharedArchive -XX:SharedArchiveFile=/cds/webapp.jsa -XX:TieredStopAtLevel=1
       # The flight planning drawer's narrative popover (ComparisonProxyController) --
       # neither is in `depends_on` above, unlike planning-service: that
       # popover is a developer-facing extra, not core to planning a
@@ -413,5 +405,3 @@ volumes:
   pgdata_pg18:
   airflow_home:
   airflow_home_v3:
-  # webapp's JVM class-data archive -- see JAVA_TOOL_OPTIONS on webapp.
-  webapp-cds:
