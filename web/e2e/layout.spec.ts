@@ -33,27 +33,20 @@ async function settle(page: Page) {
   await page.waitForTimeout(1500);
 }
 
-/** The side drawer is shadcn's own Sidebar: a fixed panel beside the
- *  map from `md` up, a Sheet over it on a phone. Both carry
- *  `data-slot="sidebar"` and the side. */
-const sideDrawer = (page: Page) => page.locator('[data-slot="sidebar"][data-side="right"]');
+/** The side drawer is a stock Sheet. Tests target its public role/test id,
+ * not the deleted Sidebar implementation. */
+const sideDrawer = (page: Page) => page.getByTestId("side-drawer");
 /** The console is a stock Sheet from the top. */
 const consoleSheet = (page: Page) => page.locator('[data-slot="sheet-content"][data-side="top"]');
 
 /** Closed: on a phone the Sheet is not in the page at all; on a
  *  desktop the panel stays mounted, collapsed off screen. */
 async function expectDrawerClosed(page: Page) {
-  const viewport = page.viewportSize();
-  if (!viewport) throw new Error("no viewport configured");
-  if (viewport.width < 768) await expect(page.locator('[data-slot="sidebar"][data-mobile="true"]')).toHaveCount(0);
-  else await expect(sideDrawer(page)).toHaveAttribute("data-state", "collapsed");
+  await expect(sideDrawer(page)).toHaveCount(0);
 }
 
 async function expectDrawerOpen(page: Page) {
-  const viewport = page.viewportSize();
-  if (!viewport) throw new Error("no viewport configured");
-  if (viewport.width < 768) await expect(page.locator('[data-slot="sidebar"][data-mobile="true"]')).toBeVisible();
-  else await expect(sideDrawer(page)).toHaveAttribute("data-state", "expanded");
+  await expect(sideDrawer(page)).toBeVisible();
 }
 
 /** Opening and closing the drawer is one shape on both pages: the
@@ -62,9 +55,7 @@ async function expectDrawerOpen(page: Page) {
  *  is a Radix Sheet, and Cmd/Ctrl+B on a desktop, where it is shadcn's
  *  panel. This app binds no key of its own to it. */
 async function closeSidebarWithTheStockKey(page: Page) {
-  const viewport = page.viewportSize();
-  if (!viewport) throw new Error("no viewport configured");
-  await page.keyboard.press(viewport.width < 768 ? "Escape" : "ControlOrMeta+b");
+  await page.keyboard.press("Escape");
 }
 
 async function openSidebar(page: Page) {
@@ -97,7 +88,7 @@ test.describe("/app/plan", () => {
     await expectDrawerClosed(page);
   });
 
-  test("sidebar opens from its own trigger, closes on Escape", async ({ page }) => {
+  test("sidebar opens from its own trigger, closes with stock Sheet Escape", async ({ page }) => {
     await page.goto("/app/plan");
     await settle(page);
     await openSidebar(page);
