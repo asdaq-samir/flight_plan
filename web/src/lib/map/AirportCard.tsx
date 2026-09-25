@@ -1,7 +1,8 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { type ReactNode } from "react";
 import { chipColourOf } from "./flightCategory";
 import { feet, miles } from "../units";
 import { MapCard } from "./MapCard";
+import { formatDistanceToNowStrict } from "date-fns";
 
 /**
  * What is known about a field's weather, which is not always a report:
@@ -47,21 +48,11 @@ function ceiling(ft: number | null): string {
   return ft === null ? "none" : feet(ft);
 }
 
-function useMinuteClock(): number {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const timer = window.setInterval(() => setNow(Date.now()), 60_000);
-    return () => window.clearInterval(timer);
-  }, []);
-  return now;
-}
-
 function Observed({ at }: { at: string }) {
-  const now = useMinuteClock();
   const observed = new Date(at);
   if (Number.isNaN(observed.getTime())) return null;
-  const minutes = Math.max(0, Math.round((now - observed.getTime()) / 60_000));
-  const ago = minutes < 60 ? `${minutes} min ago` : `${Math.floor(minutes / 60)} h ${minutes % 60} min ago`;
+  const minutes = Math.max(0, Math.round((Date.now() - observed.getTime()) / 60_000));
+  const ago = `${formatDistanceToNowStrict(observed)} ago`;
   const zulu = `${String(observed.getUTCHours()).padStart(2, "0")}${String(observed.getUTCMinutes()).padStart(2, "0")}Z`;
   const old = minutes > OLD_REPORT_MIN;
   return (
