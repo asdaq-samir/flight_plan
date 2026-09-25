@@ -24,7 +24,7 @@ test("a winds outage never reads as an altitude the pilot typed", async ({ page 
   });
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await page.getByTestId("sidebar-trigger-button").click();
-  await page.locator('[data-slot="sidebar"][data-side="right"]').getByText("Nav log", { exact: true }).click();
+  await page.getByTestId("side-drawer").getByText("Nav log", { exact: true }).click();
 
   const why = page.getByTestId("altitude-why");
   await expect(why).toContainText("No altitude", { timeout: 60000 });
