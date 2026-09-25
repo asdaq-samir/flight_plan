@@ -179,6 +179,18 @@ def _read_apt_base(apt_csv_path) -> pd.DataFrame:
     return _read_apt_base_cached(str(path), path.stat().st_mtime)
 
 
+
+# APT_BASE encodes the facility type as a single letter.
+_SITE_TYPE_NAMES = {
+    "A": "AIRPORT", "B": "BALLOONPORT", "C": "SEAPLANE BASE",
+    "G": "GLIDERPORT", "H": "HELIPORT", "U": "ULTRALIGHT",
+}
+
+
+def _in_bbox(lat: pd.Series, lon: pd.Series, bbox: tuple) -> pd.Series:
+    min_lat, min_lon, max_lat, max_lon = bbox
+    return lat.between(min_lat, max_lat) & lon.between(min_lon, max_lon)
+
 def load_route_airports(apt_csv_path, bbox: tuple, exclude_idents: tuple = ()) -> pd.DataFrame:
     """Operational airports from the NASR APT_BASE.csv extract, within
     bbox, in the shared candidate schema.
