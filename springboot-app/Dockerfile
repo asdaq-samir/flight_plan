@@ -9,7 +9,7 @@
 # stage and a Java change only the `build` stage -- neither waits on the
 # other's toolchain.
 
-FROM node:26-slim AS web
+FROM node:24-slim AS web
 WORKDIR /web
 COPY web/package.json web/package-lock.json ./
 # --mount=type=cache: npm's own download/extract cache, keyed by this
@@ -25,10 +25,6 @@ COPY planning-service/openapi.json /planning-service/openapi.json
 COPY springboot-app/openapi.json /springboot-app/openapi.json
 RUN npm run types && npx vite build --outDir /web/dist --emptyOutDir
 
-# 25, not the truly-latest 26: spring-boot-maven-plugin 3.5.3's bundled
-# ASM can't yet parse a Java 26 class file (major version 70) --
-# `repackage` fails with "Unsupported class file major version 70".
-# 25 (major version 69) is the newest JDK it actually understands.
 FROM maven:3.9.16-eclipse-temurin-25 AS build
 WORKDIR /build
 COPY springboot-app/pom.xml .
@@ -41,11 +37,7 @@ WORKDIR /app
 COPY --from=build /build/target/*.jar app.jar
 COPY --from=web /web/dist ./static/app
 ENV APP_STATIC_LOCATION=file:/app/static/app/
-# /cds: where the JVM keeps its class-data-sharing archive when
-# docker-compose.yml asks for one (-XX:+AutoCreateSharedArchive) -- a
-# named volume, so it outlives the container and the next start of the
-# same jar skips class loading and verification it already did.
-RUN useradd -m appuser && chown appuser /app/app.jar && mkdir /cds && chown appuser /cds
+RUN useradd -m appuser && chown appuser /app/app.jar
 USER appuser
 EXPOSE 8080
 CMD ["java", "-jar", "app.jar"]
