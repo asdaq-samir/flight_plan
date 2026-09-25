@@ -421,7 +421,7 @@ def current_cycle(today: date | None = None, fetch: bool = True) -> str:
     never touches the network: the status endpoint's own choice."""
     today = today or datetime.now(tz=timezone.utc).date()
     with _cycle_lock:
-        if "value" in _cycle_cache:
+        if _cycle_cache.get("value"):
             return _cycle_cache["value"]
     if not fetch:
         return _cycle_cache.get("value") or cycle_from_anchor(today)
@@ -983,7 +983,7 @@ def serving_cycle() -> str:
     FAA's current cycle, rendered on demand. Where the tiles live in
     the cloud (CHART_TILES_URL) it is whatever the published pointer
     there says. Held for a minute: this is asked once per tile."""
-    if "value" in _serving_cache:
+    if _serving_cache.get("value"):
         return _serving_cache["value"]
     value = _published_cycle() if CHART_TILES_URL else None
     value = value or next((c for c in _cycles_on_disk(CHART_TILE_CACHE_DIR) if pyramid_complete(c, ("sec",))), None)
