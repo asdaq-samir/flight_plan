@@ -10,7 +10,9 @@ once and cached under data/raw/ rather than re-fetched every notebook
 run -- ensure_nasr_data() only downloads if the cache is empty.
 """
 import io
+import json
 import re
+import threading
 import zipfile
 from functools import lru_cache
 from pathlib import Path
