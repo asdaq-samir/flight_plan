@@ -18,7 +18,6 @@ import com.northflyers.vfr.service.PilotService;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
-import com.northflyers.vfr.controller.FlightApiMapperImpl;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
@@ -29,9 +28,8 @@ import org.springframework.test.web.servlet.MockMvc;
 /** Same shape as {@link AircraftControllerTest} -- see there for why
  *  {@link FlightService}/{@link PilotService} are mocked rather than a
  *  real pilot-scoping check. */
-@org.springframework.context.annotation.Import(FlightApiMapperImpl.class)
 @WebMvcTest(FlightController.class)
-@Import(com.northflyers.vfr.security.SecurityConfig.class)
+@Import({com.northflyers.vfr.security.SecurityConfig.class, FlightApiMapperImpl.class})
 class FlightControllerTest {
 
     @Autowired
