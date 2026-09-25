@@ -1,4 +1,4 @@
-import { Suspense, lazy, useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
+import { Suspense, lazy, useCallback, useEffect, useState, type CSSProperties } from "react";
 import { useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { cn } from "cn";
@@ -10,7 +10,7 @@ import {
   Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger,
 } from "../../components/ui/sheet";
 import {
-  Sidebar, SidebarContent, SidebarInset, SidebarProvider, SidebarTrigger, useSidebar,
+  Sidebar, SidebarContent, SidebarInset, SidebarProvider, SidebarTrigger,
 } from "../../components/ui/sidebar";
 import { DevButton } from "../dev/DevButton";
 import { PilotButton } from "../pilot/PilotPanel";
@@ -129,7 +129,6 @@ export default function MapPage({ mode }: { mode: Mode }) {
               itself, so the browser tab says which page this is
               without an effect writing document.title by hand. */}
           <title>{title}</title>
-          <SidebarSync open={sidebarOpen} onOpenChange={setSidebarOpen} />
           <SidebarInset className="min-h-0 min-w-0 print:hidden">
             <MapHeader
               dev={mode === "dev"}
