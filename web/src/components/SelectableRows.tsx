@@ -17,14 +17,10 @@ export function SelectableRow({
   selected: boolean;
   mutedWhenUnselected?: boolean;
   onSelect: () => void;
-  /** Only the actually-selected row needs this -- see the callers'
-   *  own scrollIntoView effects. */
-  scrollRef?: Ref<HTMLTableRowElement>;
   children: ReactNode;
 }) {
   return (
     <TableRow
-      ref={scrollRef}
       onClick={onSelect}
       tabIndex={0}
       data-selected={selected || undefined}
