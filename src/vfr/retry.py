@@ -1,10 +1,6 @@
-"""The one retry loop behind every external request this package makes:
-aviationweather.gov, Overpass, the USGS elevation service, the FAA's
-data downloads -- and the one way this package reads a service's own
-reason out of an error response (upstream_detail)."""
-import time
-
+"""Retry policy and upstream error helpers for external requests."""
 import requests
+from tenacity import Retrying, retry_if_exception, stop_after_attempt, wait_incrementing
 
 
 def with_retries(
@@ -16,33 +12,27 @@ def with_retries(
     transient: tuple = (requests.RequestException,),
     error: type = RuntimeError,
 ):
-    """Runs `action()` up to `retries` times, sleeping `backoff_s`, then
-    twice that, and so on between attempts, and raises `error` -- naming
-    `describe` and the last failure -- once they are spent.
+    """Run action with the shared retry/backoff policy."""
+    def retryable(exc):
+        return isinstance(exc, transient) and not isinstance(exc, requests.exceptions.SSLError)
 
-    A certificate problem is raised at once instead: it fails identically
-    on every attempt (aviationweather.gov's own certificate expired on
-    2026-09-19), so the back-off would only delay the same answer.
-    """
-    last_err = None
-    for attempt in range(retries):
-        try:
-            return action()
-        except requests.exceptions.SSLError as err:
-            raise error(f"{describe} failed: {err}") from err
-        except transient as err:
-            last_err = err
-            if attempt < retries - 1:
-                time.sleep(backoff_s * (attempt + 1))
-    raise error(f"{describe} failed after {retries} attempts: {last_err}") from last_err
+    try:
+        for attempt in Retrying(
+            stop=stop_after_attempt(retries),
+            wait=wait_incrementing(start=backoff_s, increment=backoff_s),
+            retry=retry_if_exception(retryable),
+            reraise=True,
+        ):
+            with attempt:
+                return action()
+    except requests.exceptions.SSLError as err:
+        raise error(f"{describe} failed: {err}") from err
+    except transient as err:
+        raise error(f"{describe} failed after {retries} attempts: {err}") from err
 
 
 def upstream_detail(response, service: str) -> str:
-    """Why `service` answered with an error, in its own words: the
-    `detail` of a JSON body (FastAPI's shape, which model-service and
-    planning-service both send), else the body's text, else just which
-    service answered with which status. vfr.model_client and
-    vfr.planner_client both report upstream failures through this."""
+    """Return an upstream service's useful error detail when available."""
     try:
         detail = response.json().get("detail")
     except (ValueError, AttributeError):
