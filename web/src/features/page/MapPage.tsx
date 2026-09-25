@@ -3,7 +3,6 @@ import { useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { cn } from "cn";
 import { EXPANDED_BUTTON } from "../../lib/expandedButton";
-import DevSwitch from "../../components/DevSwitch";
 import MapHeader from "../../components/MapHeader";
 import RouteForm from "../../components/RouteForm";
 import {
@@ -45,7 +44,7 @@ const MODES = {
 /**
  * The one page, in two modes: the pilot's planner and the developer's
  * training workspace are the same shell -- shadcn's Sidebar layout,
- * the header with the DEV switch, the route form and two buttons, the
+ * the header with the route form and two buttons, the
  * map, a console in a Sheet from the top and the drawer at the side --
  * around a different workspace. Everything the two used to keep
  * separately (the route in the header, which drawer is open, the
@@ -55,7 +54,7 @@ const MODES = {
  * up, a Sheet over it on a phone, opened from the stock trigger in the
  * header. On the pilot's page open is the address (`?view=briefing`),
  * so a pasted link lands on the briefing, `n` toggles it, the DEV
- * switch brings it back with the route and the back button leaves it;
+ * address remains the source of truth for a shared route;
  * the developer's drawer is plain state.
  *
  * Closing it is whatever the stock components already do, and nothing
@@ -132,7 +131,6 @@ export default function MapPage({ mode }: { mode: Mode }) {
           <SidebarInset className="min-h-0 min-w-0 print:hidden">
             <MapHeader
               dev={mode === "dev"}
-              leading={<DevSwitch />}
               form={(
                 <RouteForm
                   dep={dep} dest={dest} onDepChange={setDep} onDestChange={setDest}
