@@ -1,4 +1,4 @@
-import type { ReactNode, Ref } from "react";
+import type { ReactNode } from "react";
 import { cn } from "cn";
 import { TableCell, TableRow } from "./ui/table";
 
@@ -12,7 +12,7 @@ import { TableCell, TableRow } from "./ui/table";
  * a reader who moves between them.
  */
 export function SelectableRow({
-  selected, mutedWhenUnselected = false, onSelect, scrollRef, children,
+  selected, mutedWhenUnselected = false, onSelect, children,
 }: {
   selected: boolean;
   mutedWhenUnselected?: boolean;
