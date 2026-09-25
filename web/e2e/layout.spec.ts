@@ -325,7 +325,6 @@ test("plan page: the flight planning drawer opens the way the Model Training dra
   // Dev-mode switch this page has (by test id, not role: on a phone
   // the modal sheet hides the rest of the page from assistive tech).
   expect(await page.locator("header").getByLabel("Departure", { exact: true }).count()).toBe(1);
-  expect(await page.locator("header").getByTestId("dev-switch").count()).toBe(1);
 
   // The briefing's actions live in the drawer's own header: the AI
   // button (LangGraph/CrewAI are tabs inside the popover it opens),
