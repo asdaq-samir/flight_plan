@@ -26,7 +26,7 @@ numpy==2.5.3        # vfr.geo, vfr.features, vfr.osm, vfr.weather
 pandas==3.0.5       # vfr.airports, vfr.faa_data, vfr.features, vfr.pipeline
 requests==2.34.2    # every external source, vfr.model_client, vfr.planner_client
 tenacity==9.1.4     # vfr.retry: retry policy/backoff instead of a hand-rolled loop
-cachetools==6.2.0   # vfr.sua, vfr.charts: bounded TTL caches instead of custom expiry bookkeeping
+cachetools==7.2.0   # vfr.sua, vfr.charts: bounded TTL caches instead of custom expiry bookkeeping
 pyarrow==25.0.1     # vfr.faa_data's Parquet cache of the obstacle table; the pipeline's feature store
 shapely==2.1.2      # vfr.airspace polygons, vfr.weather's hazards, vfr.osm's representative points
 pyshp==3.1.6        # vfr.airspace reads the FAA Class Airspace shapefile
