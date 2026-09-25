@@ -178,3 +178,63 @@ def _read_apt_base(apt_csv_path) -> pd.DataFrame:
     path = Path(apt_csv_path)
     return _read_apt_base_cached(str(path), path.stat().st_mtime)
 
+
+def load_route_airports(apt_csv_path, bbox: tuple, exclude_idents: tuple = ()) -> pd.DataFrame:
+    """Operational airports from the NASR APT_BASE.csv extract, within
+    bbox, in the shared candidate schema.
+
+    FAA rather than OSM or OurAirports for the same reason
+    load_vor_navaids is: the FAA is the authority on its own airport
+    data. Here that authority is the filter itself -- being listed in
+    APT_BASE at all is what tracks with being drawn on the sectional.
+    OurAirports was tried first and its "small_airport" type pulled in
+    unregistered private strips; checking Barker Strip (35WI) and Rox
+    (WS09) against the chart tile found nothing drawn at their
+    coordinates, and neither appears in APT_BASE. A candidate the chart
+    does not draw cannot be rated, which is why towers, water towers,
+    quarries and unnamed lakes were dropped too.
+
+    Private-use fields are kept: the sectional draws a registered private
+    airport as a circled magenta "R", verified at Wag-Aero (WI92), so it
+    is identifiable on the chart. Whether a grass strip is *easy* to pick
+    out is a different question, and that is exactly what the 1-5 rating
+    is there to answer.
+
+    exclude_idents drops the departure and destination fields -- both sit
+    in the corridor by construction, and neither is a checkpoint: you are
+    taking off from one and landing at the other.
+    """
+    df = _read_apt_base(apt_csv_path)
+    df = df[
+        df["SITE_TYPE_CODE"].map(_SITE_TYPE_NAMES).isin(CHARTED_FACILITY_TYPES)
+        & (df["ARPT_STATUS"] == "O")
+    ]
+    df["lat"] = df["LAT_DECIMAL"].astype(float)
+    df["lon"] = df["LONG_DECIMAL"].astype(float)
+    df = df[_in_bbox(df["lat"], df["lon"], bbox)]
+
+    excluded = {i.strip().upper() for i in exclude_idents}
+    if excluded:
+        keep = ~(
+            df["ARPT_ID"].str.upper().isin(excluded)
+            | df["ICAO_ID"].fillna("").str.upper().isin(excluded)
+        )
+        df = df[keep]
+
+    return pd.DataFrame(
+        {
+            "osm_id": df["ARPT_ID"],
+            "osm_type": "faa_airport",
+            "category": "airport",
+            # The chart labels a field by name and identifier, so the
+            # candidate carries both -- that is what you read off it.
+            "name": df["ARPT_NAME"].str.title() + " (" + df["ARPT_ID"] + ")",
+            "lat": df["lat"],
+            "lon": df["lon"],
+            "bbox_area_m2": 0.0,
+            "tags": [
+                {"arpt_id": a, "city": c if isinstance(c, str) else "", "use": u}
+                for a, c, u in zip(df["ARPT_ID"], df["CITY"], df["FACILITY_USE_CODE"])
+            ],
+        }
+    ).reset_index(drop=True)
