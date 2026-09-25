@@ -170,7 +170,12 @@ def ensure_nasr_data(cache_dir) -> tuple:
 CHARTED_FACILITY_TYPES = {"AIRPORT"}
 
 
-@lru_cache(maxsize=8)\ndef _read_apt_base_cached(path: str, mtime: float) -> pd.DataFrame:\n    return pd.read_csv(path, dtype=str, low_memory=False)\n\n\ndef _read_apt_base(apt_csv_path) -> pd.DataFrame:
+@lru_cache(maxsize=8)
+def _read_apt_base_cached(path: str, mtime: float) -> pd.DataFrame:
+    return pd.read_csv(path, dtype=str, low_memory=False)
+
+
+def _read_apt_base(apt_csv_path) -> pd.DataFrame:
     """APT_BASE.csv, parsed once per file version per process."""
     path = Path(apt_csv_path)
     return _read_apt_base_cached(str(path), path.stat().st_mtime)
