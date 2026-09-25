@@ -102,12 +102,7 @@ export default function WaypointPanel({
             <IconButton
               label="Reset all ratings"
               className="text-destructive hover:text-destructive"
-              onClick={() => {
-                // Bulk and only reversible one point at a time (this
-                // isn't itself an undo step), so a stray tap can't wipe
-                // a leg's worth of ratings with nothing to walk it back.
-                if (window.confirm("Reset every rating on this route? This can't be undone.")) onResetAll();
-              }}
+              onClick={onResetAll}
               disabled={rated === 0}
             >
               <Eraser className="size-5" />
