@@ -40,8 +40,7 @@ are the better scorer and the honest one.
 """
 from __future__ import annotations
 
-import math
-
+import numpy as np
 import pandas as pd
 
 from . import geo
@@ -107,7 +106,7 @@ def build(detections: list) -> pd.DataFrame:
     # Area spans four orders of magnitude between a pond and a town, and
     # a crossing has none at all, so it is logged with a floor rather than
     # used raw.
-    df["log_area"] = df["area_m2"].clip(lower=1.0).apply(math.log10)
+    df["log_area"] = np.log10(df["area_m2"].clip(lower=1.0))
     df["linework_px"] = df["pixels"]
     df["abs_cross_track_nm"] = df["cross_track_nm"].abs()
     df["nn_dist_nm"] = _nearest_neighbour_nm(lats, lons)
