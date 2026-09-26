@@ -130,7 +130,7 @@ export default function MapPage({ mode }: { mode: Mode }) {
                     and guide, or the developer's training, performance
                     and system -- a stock Sheet from the top, modal, so
                     the page waits while it is out. */}
-                <Sheet>
+                <Sheet open={consoleOpen} onOpenChange={setConsoleOpen}>
                   <SheetTrigger asChild>
                     <IconButton label={consoleLabel} data-testid={mode === "dev" ? "dev-console-button" : "pilot-button"}>
                       {mode === "dev" ? <SquareTerminal className="size-5" /> : <UserRound className="size-5" />}
@@ -141,7 +141,7 @@ export default function MapPage({ mode }: { mode: Mode }) {
                       <SheetTitle>{consoleLabel}</SheetTitle>
                       <SheetDescription className="sr-only">The {consoleLabel.toLowerCase()} console</SheetDescription>
                     </SheetHeader>
-                    {pieces.console}
+                    {consoleOpen && pieces.console}
                   </SheetContent>
                 </Sheet>
                 <IconButton label={sidebar} aria-expanded={sidebarOpen}
