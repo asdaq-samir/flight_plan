@@ -94,7 +94,8 @@ export default function MapPage({ mode }: { mode: Mode }) {
     }, { replace: true });
   }, [refused, setSearchParams]);
 
-  const [localOpen, setLocalOpen] = useState(false);\n  const [consoleOpen, setConsoleOpen] = useState(false);
+  const [localOpen, setLocalOpen] = useState(false);
+  const [consoleOpen, setConsoleOpen] = useState(false);
   const sidebarOpen = mode === "pilot" ? searchParams.get("view") === "briefing" : localOpen;
   const setSidebarOpen = useCallback((open: boolean) => {
     if (mode !== "pilot") { setLocalOpen(open); return; }
