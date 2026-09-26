@@ -122,7 +122,7 @@ def search_airports(query: str, limit: int = 8, cache_path: Path = DEFAULT_CACHE
         }
         for display_ident, name, municipality, region in matches[
             ["_display_ident", "name", "municipality", "iso_region"]
-        ].itertuples(index=False, name=None)
+        ].to_numpy()
     ]
 
 
