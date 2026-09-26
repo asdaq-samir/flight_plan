@@ -23,7 +23,7 @@ def airports_csv(tmp_path):
             "latitude_deg": 42.3172, "longitude_deg": -88.0905, "elevation_ft": 860,
             "municipality": "Wonder Lake", "iso_region": "US-IL", "iso_country": "US", "icao_code": None,
         },
-    ]).to_csvth, index=False)
+    ]).to_csv(path, index=False)
     return path
 
 
