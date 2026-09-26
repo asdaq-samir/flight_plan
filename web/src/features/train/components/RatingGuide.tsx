@@ -1,16 +1,7 @@
 import { Badge } from "../../../components/ui/badge";
-import { Kbd } from "../../../components/ui/kbd";
 import type { Rating } from "../../../lib/api/types";
 import { inkOn } from "../../../lib/scoreScale";
 import { COLORS } from "../logic";
-
-/** Two keys, and everything else is a button -- the zoom on the map,
- *  Remove in the point's own popup, the filters in this drawer. */
-const SHORTCUTS: [string | null, string][] = [
-  ["↑↓", "step through the points, in flight order"],
-  ["0–5", "rate the one you are on, and move to the next"],
-  [null, "click the course to add a point"],
-];
 
 const SCALE: [Rating, string, string][] = [
   [0, "Not a feature.", "Contour, boundary, chart text. The detector is wrong."],
@@ -47,14 +38,6 @@ export default function RatingGuide() {
         1 means it&rsquo;s real but poor. <b>Ignore spacing</b>; selection already enforces
         separation. <b>Judge at this zoom</b>.
       </p>
-      <div className="flex flex-wrap gap-x-4 gap-y-1.5 text-muted-foreground">
-        {SHORTCUTS.map(([key, text]) => (
-          <div key={text} className="flex items-center gap-2">
-            {key && <Kbd>{key}</Kbd>}
-            <span>{text}</span>
-          </div>
-        ))}
-      </div>
     </div>
   );
 }
