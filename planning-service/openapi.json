@@ -1571,7 +1571,7 @@
             "type": "array"
           },
           "chart_revision": {
-            "default": 0,
+            "default": 0.0,
             "title": "Chart Revision",
             "type": "integer"
           },
@@ -1679,12 +1679,12 @@
             "type": "array"
           },
           "missing": {
-            "default": 0,
+            "default": 0.0,
             "title": "Missing",
             "type": "integer"
           },
           "tiles": {
-            "default": 0,
+            "default": 0.0,
             "title": "Tiles",
             "type": "integer"
           },
@@ -2218,7 +2218,7 @@
             "type": "number"
           },
           "climb_min": {
-            "default": 0,
+            "default": 0.0,
             "title": "Climb Min",
             "type": "number"
           },
@@ -2814,7 +2814,7 @@
             "type": "number"
           },
           "climb_min": {
-            "default": 0,
+            "default": 0.0,
             "title": "Climb Min",
             "type": "number"
           },
@@ -3089,7 +3089,7 @@
             "type": "number"
           },
           "area_m2": {
-            "default": 0,
+            "default": 0.0,
             "title": "Area M2",
             "type": "number"
           },
@@ -3595,7 +3595,7 @@
             "type": "array"
           },
           "chart_revision": {
-            "default": 0,
+            "default": 0.0,
             "title": "Chart Revision",
             "type": "integer"
           },
@@ -5080,7 +5080,7 @@
             "name": "half_width_nm",
             "required": false,
             "schema": {
-              "default": 4,
+              "default": 4.0,
               "title": "Half Width Nm",
               "type": "number"
             }
@@ -5687,7 +5687,7 @@
     },
     "/api/status": {
       "get": {
-        "description": "One snapshot of the whole stack, for Settings' Dev tab. The\nnetwork probes run side by side so a service that is down costs one\ntimeout, not one per service.",
+        "description": "One snapshot of the whole stack, for the developer console.\n\nNetwork probes run side by side. Local-file work runs while those\nprobes are in flight instead of waiting until all four have answered.\nThis preserves the response contract while reducing its critical path\nto max(network probes, local work), rather than their sum.",
         "operationId": "status_api_status_get",
         "responses": {
           "200": {
