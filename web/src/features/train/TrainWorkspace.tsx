@@ -1,4 +1,4 @@
-import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { identOf, routeOf } from "../../lib/identSchema";
 // Without this Leaflet's tiles, markers and controls have no
@@ -93,12 +93,6 @@ export default function TrainWorkspace({ dep, dest, children }: WorkspaceProps) 
     return at >= 0 ? `${at + 1} of ${waypoints.length}` : "";
   }, [point, positionOf, waypoints.length]);
 
-  // The total climbs fast while detections stream in -- worth a flash
-  // in the popup, but only when it actually went up, not on every
-  // content refresh (a rating click shouldn't flash a number that
-  // didn't change). Tracked here, outside the memo's own churn, since
-  // the total is one figure shared by whichever point is showing.
-  const lastTotal = useRef<number | null>(null);
 
   const focus = useCallback((entry: (typeof walk)[number]) => {
     map?.setView([entry.point.lat, entry.point.lon], Math.max(map.getZoom(), FOCUS_ZOOM));
@@ -121,30 +115,9 @@ export default function TrainWorkspace({ dep, dest, children }: WorkspaceProps) 
 
   const walkIndex = point ? walk.findIndex(e => e.point === point) : -1;
 
-  // Memoized deliberately: without it, this is a new element on every
-  // render -- including one for each block of a streaming detection --
-  // and ChartMap's halo effect depends on it, so an unrelated re-render
-  // would tear the popup down and remount it, not just re-render it.
-  // Written after render (an effect), read during it (inside the
-  // useMemo below) -- reading and writing the same ref inside the memo
-  // itself would mutate it as a side effect of a supposedly pure
-  // calculation, which React is free to invoke more than once per
-  // commit (Strict Mode does, today) or skip and reuse a prior result.
-  useEffect(() => {
-    lastTotal.current = waypoints.length;
-  }, [waypoints.length]);
 
   const selectedContent = useMemo(() => {
     if (!point) return null;
-    // Reads lastTotal.current as it stood after the PREVIOUS commit --
-    // the write above only ever happens in an effect, strictly after a
-    // render finishes, so this can never observe a value written by
-    // the render currently in progress. Safe in practice; the
-    // react-hooks/refs rule can't prove that statically across two
-    // separate hooks, only warn that ref reads during render aren't
-    // generally guaranteed to be.
-    // eslint-disable-next-line react-hooks/refs
-    const countChanged = lastTotal.current !== null && lastTotal.current !== waypoints.length;
     // Same idea as the arrow keys: which screen side is "forward" (step
     // +1) depends on which way the course actually runs, not a fixed
     // left-back/right-forward assumption -- a route heading roughly
@@ -157,10 +130,6 @@ export default function TrainWorkspace({ dep, dest, children }: WorkspaceProps) 
       <PointPopup
         point={point}
         place={place}
-        // Same ref-read this rule already flagged above, propagated to
-        // its one use site -- see the comment there.
-        // eslint-disable-next-line react-hooks/refs
-        countChanged={countChanged}
         bearingDeg={bearing}
         departureIdent={course?.departure.ident ?? ""}
         onRate={r => void rate(r)}
