@@ -243,29 +243,45 @@ def _pipeline_status() -> PipelineStatus:
     )
 
 
+def _local_status() -> dict:
+    """The snapshot fields that only read this process and local files.
+
+    Keeping these separate from network probes lets the developer console
+    paint useful data immediately even when another service is down.
+    """
+    return {
+        "checked_at": datetime.now(tz=timezone.utc).isoformat(),
+        "faa_files": _faa_files(),
+        "weather": _weather_datasets(),
+        "charts": {**charts.status(), "refresh_window": CHARTS_REFRESH_WINDOW, "refresh_workers": CHARTS_REFRESH_WORKERS},
+        "model": {"current": _current_model(), "versions": _versions(), "candidates": _candidates()},
+        "corridors": _corridors(),
+    }
+
+
 @router.get("/api/status")
 def status() -> Status:
-    """One snapshot of the whole stack, for Settings' Dev tab. The
-    network probes run side by side so a service that is down costs one
-    timeout, not one per service."""
+    """One snapshot of the whole stack, for the developer console.
+
+    Network probes run side by side. Local-file work runs while those
+    probes are in flight instead of waiting until all four have answered.
+    This preserves the response contract while reducing its critical path
+    to max(network probes, local work), rather than their sum.
+    """
     with ThreadPoolExecutor(max_workers=4) as pool:
         model_service = pool.submit(_model_service_status)
         nav_log_agent = pool.submit(_agent_status, NAV_LOG_AGENT_URL)
         crewai_agent = pool.submit(_agent_status, CREWAI_AGENT_URL)
         pipeline = pool.submit(_pipeline_status)
+        local = _local_status()
         return Status(
-            checked_at=datetime.now(tz=timezone.utc).isoformat(),
+            **local,
             services={
                 "model_service": model_service.result(),
                 "nav_log_agent": nav_log_agent.result(),
                 "crewai_agent": crewai_agent.result(),
             },
-            faa_files=_faa_files(),
-            weather=_weather_datasets(),
-            charts={**charts.status(), "refresh_window": CHARTS_REFRESH_WINDOW, "refresh_workers": CHARTS_REFRESH_WORKERS},
-            model={"current": _current_model(), "versions": _versions(), "candidates": _candidates()},
             pipeline=pipeline.result(),
-            corridors=_corridors(),
         )
 
 
