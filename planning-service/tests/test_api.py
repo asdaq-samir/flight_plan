@@ -115,6 +115,38 @@ def test_status_reports_every_service_and_the_data_on_disk(monkeypatch):
         assert corridor["departure_ident"].isupper() and "by_rating" in corridor["labels"]
 
 
+def test_status_overlaps_local_work_with_network_probes(monkeypatch):
+    """Local snapshot work must start before a slow probe is released."""
+    import threading
+
+    probe_started = threading.Event()
+    release_probe = threading.Event()
+    local_started = threading.Event()
+
+    def slow_model():
+        probe_started.set()
+        assert release_probe.wait(timeout=1)
+        return system.ModelServiceStatus(up=True, detail="HTTP 200")
+
+    def local_status():
+        assert probe_started.wait(timeout=1)
+        local_started.set()
+        release_probe.set()
+        return {
+            "checked_at": "2026-09-26T00:00:00+00:00",
+            "faa_files": [], "weather": [], "charts": system.charts.status(),
+            "model": {"current": None, "versions": [], "candidates": []}, "corridors": [],
+        }
+
+    monkeypatch.setattr(system, "_model_service_status", slow_model)
+    monkeypatch.setattr(system, "_agent_status", lambda _url: None)
+    monkeypatch.setattr(system, "_pipeline_status", lambda: system._pipeline_unreachable("test", False))
+    monkeypatch.setattr(system, "_local_status", local_status)
+
+    assert client.get("/api/status").status_code == 200
+    assert local_started.is_set()
+
+
 def test_retrain_says_how_when_airflow_is_not_configured(monkeypatch):
     monkeypatch.setattr(system, "AIRFLOW_URL", None)
 
