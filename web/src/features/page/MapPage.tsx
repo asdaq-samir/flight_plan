@@ -5,10 +5,9 @@ import RouteForm from "../../components/RouteForm";
 import {
   Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger,
 } from "../../components/ui/sheet";
-import { PanelRightIcon } from "lucide-react";
+import { PanelRightIcon, SquareTerminal, UserRound } from "lucide-react";
 import IconButton from "../../components/IconButton";
-import { DevButton } from "../dev/DevButton";
-import { PilotButton } from "../pilot/PilotPanel";
+import { PilotPanel } from "../pilot/PilotPanel";
 import PlanWorkspace from "../plan/PlanWorkspace";
 
 /**
@@ -29,11 +28,11 @@ export type Mode = "pilot" | "dev";
 const MODES = {
   pilot: {
     title: "Plan a route — VFR Route", sidebar: "Flight Planning", console: "Pilot",
-    Workspace: PlanWorkspace, ConsoleButton: PilotButton, route: ["", ""] as const,
+    Workspace: PlanWorkspace, route: ["", ""] as const,
   },
   dev: {
     title: "Dev — VFR Route", sidebar: "Model Training", console: "Developer",
-    Workspace: TrainWorkspace, ConsoleButton: DevButton, route: ["C81", "KDLH"] as const,
+    Workspace: TrainWorkspace, route: ["C81", "KDLH"] as const,
   },
 };
 
@@ -61,7 +60,7 @@ const MODES = {
  * binds itself is a keystroke this app has to keep working.
  */
 export default function MapPage({ mode }: { mode: Mode }) {
-  const { title, sidebar, console: consoleLabel, Workspace, ConsoleButton, route } = MODES[mode];
+  const { title, sidebar, console: consoleLabel, Workspace, route } = MODES[mode];
   const [searchParams, setSearchParams] = useSearchParams();
   // The route in the header: the address's, unless the pilot has typed
   // over it -- and a draft belongs to the address it was typed over. The
@@ -132,7 +131,11 @@ export default function MapPage({ mode }: { mode: Mode }) {
                     and system -- a stock Sheet from the top, modal, so
                     the page waits while it is out. */}
                 <Sheet>
-                  <SheetTrigger asChild><ConsoleButton /></SheetTrigger>
+                  <SheetTrigger asChild>
+                    <IconButton label={consoleLabel} data-testid={mode === "dev" ? "dev-console-button" : "pilot-button"}>
+                      {mode === "dev" ? <SquareTerminal className="size-5" /> : <UserRound className="size-5" />}
+                    </IconButton>
+                  </SheetTrigger>
                   <SheetContent side="top" className="max-h-[85dvh] gap-0 p-0">
                     <SheetHeader className="border-b py-3">
                       <SheetTitle>{consoleLabel}</SheetTitle>
