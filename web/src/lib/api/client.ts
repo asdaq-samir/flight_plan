@@ -209,7 +209,10 @@ export const api = {
   aircraftProfiles: () => planner.GET("/api/aircraft-profiles").then(data<AircraftProfiles>).then(r => r.profiles),
 
   /** The whole stack in one snapshot -- the developer console. */
-  status: () => planner.GET("/api/status").then(data<Status>),\n\n  /** Local developer-console data without waiting for service probes. */\n  localStatus: () => planner.GET("/api/status/local").then(data<Partial<Status>>),
+  status: () => planner.GET("/api/status").then(data<Status>),
+
+  /** Local developer-console data without waiting for service probes. */
+  localStatus: () => planner.GET("/api/status/local").then(data<Partial<Status>>),
 
   /** One run of the training DAG through Airflow; 501 with the CLI
    *  alternative when the planner has no Airflow to reach. */
