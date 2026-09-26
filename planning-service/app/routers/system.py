@@ -259,6 +259,16 @@ def _local_status() -> dict:
     }
 
 
+@router.get("/api/status/local")
+def local_status() -> dict:
+    """Fast developer-console data with no cross-service network probes.
+
+    Training and performance can render from this immediately. The full
+    status endpoint remains the System tab's live whole-stack check.
+    """
+    return _local_status()
+
+
 @router.get("/api/status")
 def status() -> Status:
     """One snapshot of the whole stack, for the developer console.
