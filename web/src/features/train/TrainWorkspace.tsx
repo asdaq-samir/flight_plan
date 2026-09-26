@@ -14,7 +14,7 @@ const DevPanel = lazy(() => import("../dev/DevPanel").then(m => ({ default: m.De
 import ChartMap from "./components/ChartMap";
 import WaypointPanel from "./components/WaypointPanel";
 import PointPopup from "./components/PointPopup";
-import { isEndpoint, type Point, type Rating } from "../../lib/api/types";
+import { isEndpoint, type Point } from "../../lib/api/types";
 import {
   filterCounts, forwardIsLeft, hasRating, hiddenCount, orderedPoints,
 } from "./logic";
