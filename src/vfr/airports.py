@@ -115,12 +115,14 @@ def search_airports(query: str, limit: int = 8, cache_path: Path = DEFAULT_CACHE
     matches = matches.sort_values(["_rank", "_display_ident"]).head(limit)
     return [
         {
-            "ident": row._display_ident,
-            "name": row.name,
-            "municipality": row.municipality if pd.notna(row.municipality) else None,
-            "region": row.iso_region if pd.notna(row.iso_region) else None,
+            "ident": display_ident,
+            "name": name,
+            "municipality": municipality if pd.notna(municipality) else None,
+            "region": region if pd.notna(region) else None,
         }
-        for row in matches.itertuples(index=False)
+        for display_ident, name, municipality, region in matches[
+            ["_display_ident", "name", "municipality", "iso_region"]
+        ].itertuples(index=False, name=None)
     ]
 
 
