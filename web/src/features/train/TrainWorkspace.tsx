@@ -188,35 +188,6 @@ export default function TrainWorkspace({ dep, dest, children }: WorkspaceProps) 
   }, [point, walk, focus]);
 
 
-  // Two keys, and only two: Up and Down walk the points in flight
-  // order, and a digit rates the one you are on and moves to the next.
-  // Everything this used to bind -- Space and Escape for the two zooms,
-  // Delete to remove, `v` for the visual filter, and the four arrows
-  // stepping the way the course runs rather than the way the list does
-  // -- has a button of its own, on the map or in this drawer, and each
-  // was a letter or a key that had to be kept out of the way of typing.
-  // Skipped while a field has focus, and for a press a Radix layer
-  // already used (its own list walks with the same arrows), which it
-  // marks by preventing the default or keeping focus inside itself.
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      const target = e.target instanceof HTMLElement ? e.target : null;
-      const tag = target?.tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA") return;
-      if (e.defaultPrevented || target?.closest('[role="listbox"],[role="dialog"][aria-modal="true"],[role="menu"]')) return;
-      if (e.key === "ArrowUp" || e.key === "ArrowDown") {
-        e.preventDefault();
-        step(e.key === "ArrowDown" ? 1 : -1);
-        return;
-      }
-      if (/^[0-5]$/.test(e.key) && point && !isEndpoint(point)) {
-        void rate(Number(e.key) as Rating).then(() => step(1));
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [point, rate, step]);
-
   // Loading a route writes the address, which is what the queries key
   // on -- the same route again costs nothing, being kept.
   const submit = useCallback(() => {
