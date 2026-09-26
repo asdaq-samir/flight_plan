@@ -2218,7 +2218,7 @@
             "type": "number"
           },
           "climb_min": {
-            "default": 0.0,
+            "default": 0,
             "title": "Climb Min",
             "type": "number"
           },
@@ -2702,7 +2702,7 @@
         "type": "object"
       },
       "NavLogAltitude": {
-        "description": "Which altitudes the legs that follow fly. `flown` is the planner's\nplan of that name, or \"custom\" for a pilot's own altitude; None when\nthe winds the legs need could not be read, so no leg follows -- the\nstream's next line is the error. `altitude_ft` is the first leg's (a\nplan may step), and None exactly when `flown` is. `options` are the\nthree plans, offered beside a pilot's own as well; empty only when the\nwinds failed before they could be made.\n\nIt used to say all of that with `choice: null` and an empty `options`,\nwhich a winds outage produced too: the page showed \"0 ft \u00b7 yours\",\nwith Custom pressed, for an altitude nobody typed.",
+        "description": "Which altitudes the legs that follow fly. `flown` is the planner's\nplan of that name, or \"custom\" for a pilot's own altitude; None when\nthe winds the legs need could not be read, so no leg follows -- the\nstream's next line is the error. `altitude_ft` is the first leg's (a\nplan may step), and None exactly when `flown` is. `options` are the\nthree plans, offered beside a pilot's own as well; empty only when the\nwinds failed before they could be made.\n\nIt used to say all of that with `choice: null` and an empty `options`,\nwhich a winds outage produced too: the page showed \"0 ft · yours\",\nwith Custom pressed, for an altitude nobody typed.",
         "properties": {
           "aircraft": {
             "$ref": "#/components/schemas/AircraftProfile"
@@ -2814,7 +2814,7 @@
             "type": "number"
           },
           "climb_min": {
-            "default": 0.0,
+            "default": 0,
             "title": "Climb Min",
             "type": "number"
           },
@@ -3089,7 +3089,7 @@
             "type": "number"
           },
           "area_m2": {
-            "default": 0.0,
+            "default": 0,
             "title": "Area M2",
             "type": "number"
           },
@@ -5080,7 +5080,7 @@
             "name": "half_width_nm",
             "required": false,
             "schema": {
-              "default": 4.0,
+              "default": 4,
               "title": "Half Width Nm",
               "type": "number"
             }
@@ -5723,6 +5723,25 @@
           }
         },
         "summary": "Local Status"
+      }
+    },
+    "/api/status/pipeline": {
+      "get": {
+        "description": "Airflow-only status for retraining controls, without probing unrelated services.",
+        "operationId": "pipeline_status_api_status_pipeline_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PipelineStatus"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Pipeline Status"
       }
     }
   }
