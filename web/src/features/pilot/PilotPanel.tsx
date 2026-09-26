@@ -1,24 +1,10 @@
-import type { ComponentProps } from "react";
 import { usePreferences } from "../../lib/preferences";
 import { useQuery } from "@tanstack/react-query";
-import { UserRound } from "lucide-react";
 import ConsoleTabs from "../../components/ConsoleTabs";
-import IconButton from "../../components/IconButton";
 import { pilotQuery } from "../../lib/queryClient";
 import type { Course } from "../../lib/api/types";
 import { AircraftPanel, FlightsPanel, SignInStatus, type PilotState } from "./AccountPanels";
 import PilotGuide from "./PilotGuide";
-
-/** The header button that opens the pilot's console: a `SheetTrigger`
- *  child, so the sheet's own open state, click and `aria-expanded`
- *  arrive as props and land on the button. */
-export function PilotButton(props: Omit<ComponentProps<typeof IconButton>, "label" | "children">) {
-  return (
-    <IconButton label="Pilot" data-testid="pilot-button" {...props}>
-      <UserRound className="size-5" />
-    </IconButton>
-  );
-}
 
 /**
  * The pilot's own drawer, dropping down over the map (see PlanWorkspace):
