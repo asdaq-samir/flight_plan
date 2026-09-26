@@ -269,6 +269,12 @@ def local_status() -> dict:
     return _local_status()
 
 
+@router.get("/api/status/pipeline")
+def pipeline_status() -> PipelineStatus:
+    """Airflow-only status for retraining controls, without probing unrelated services."""
+    return _pipeline_status()
+
+
 @router.get("/api/status")
 def status() -> Status:
     """One snapshot of the whole stack, for the developer console.
