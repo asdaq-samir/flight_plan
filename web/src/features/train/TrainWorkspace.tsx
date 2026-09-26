@@ -79,8 +79,7 @@ export default function TrainWorkspace({ dep, dest, children }: WorkspaceProps) 
   /** Walks the waypoint list and brings the map to whatever it lands
    *  on, the same as clicking that row would. The list is the walk
    *  itself -- every point the filters admit, in flight order -- so the
-   *  popup's arrows, the drawer's rows and the keys all move by the
-   *  same step. There were two copies of this, identical, with a
+   *  popup's arrows and the drawer's rows both move by the same step. There were two copies of this, identical, with a
    *  comment on one claiming it walked a different order. */
   const step = useCallback((delta: number) => {
     if (!walk.length) return;
@@ -95,7 +94,7 @@ export default function TrainWorkspace({ dep, dest, children }: WorkspaceProps) 
 
   const selectedContent = useMemo(() => {
     if (!point) return null;
-    // Same idea as the arrow keys: which screen side is "forward" (step
+    // Which screen side is "forward" (step
     // +1) depends on which way the course actually runs, not a fixed
     // left-back/right-forward assumption -- a route heading roughly
     // west has forward on the left.
@@ -185,7 +184,7 @@ export default function TrainWorkspace({ dep, dest, children }: WorkspaceProps) 
     // One panel, the shape of the pilot's nav log: the route's numbers
     // and the drawer's actions in a header (the filters in a popover
     // from it), and the walk as one table under it. Rating from the
-    // selected row moves on to the next one, the way the digit keys do.
+    // selected row moves on to the next one.
     sidebar: (
       <WaypointPanel
         entries={walk} selected={point} onFocus={focus}
