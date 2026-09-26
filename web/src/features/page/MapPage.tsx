@@ -6,8 +6,8 @@ import RouteForm from "../../components/RouteForm";
 import {
   Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger,
 } from "../../components/ui/sheet";
-import { Button } from "../../components/ui/button";
 import { PanelRightIcon } from "lucide-react";
+import IconButton from "../../components/IconButton";
 import { DevButton } from "../dev/DevButton";
 import { PilotButton } from "../pilot/PilotPanel";
 import PlanWorkspace from "../plan/PlanWorkspace";
@@ -149,7 +149,10 @@ export default function MapPage({ mode }: { mode: Mode }) {
                       {pieces.console}
                     </SheetContent>
                   </Sheet>
-                  <DrawerTrigger label={sidebar} open={sidebarOpen} onOpenChange={setSidebarOpen} />
+                  <IconButton label={sidebar} aria-expanded={sidebarOpen}
+                    data-testid="sidebar-trigger-button" onClick={() => setSidebarOpen(!sidebarOpen)}>
+                    <PanelRightIcon />
+                  </IconButton>
                 </>
               )}
             />
@@ -175,13 +178,3 @@ export default function MapPage({ mode }: { mode: Mode }) {
   );
 }
 
-/** The header's drawer button: the stock trigger, named for what the
- *  drawer holds, drawn filled while the drawer is out. */
-function DrawerTrigger({ label, open, onOpenChange }: { label: string; open: boolean; onOpenChange: (open: boolean) => void }) {
-  return (
-    <Button variant="ghost" size="icon-sm" aria-label={label} aria-expanded={open}
-      data-testid="sidebar-trigger-button" onClick={() => onOpenChange(!open)}>
-      <PanelRightIcon />
-    </Button>
-  );
-}
