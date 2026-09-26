@@ -81,7 +81,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7
         with:
-          node-version: "26"
+          node-version: "24"
           cache: npm
           cache-dependency-path: web/package-lock.json
       - run: npm ci
@@ -154,7 +154,8 @@ jobs:
         with:
           python-version: "3.13"
           cache: pip
-          cache-dependency-path: model-service/requirements-dev.txt
+          cache-dependency-path: |
+            model-service/requirements*.txt
       - run: pip install -r requirements-dev.txt
       - run: ruff check app tests
       - run: pytest tests/ -v
@@ -174,7 +175,8 @@ jobs:
         with:
           python-version: "3.13"
           cache: pip
-          cache-dependency-path: nav-log-agent/requirements-dev.txt
+          cache-dependency-path: |
+            nav-log-agent/requirements*.txt
       - run: pip install torch --index-url https://download.pytorch.org/whl/cpu
       - run: pip install -r requirements-dev.txt
       - run: ruff check app tests
@@ -191,7 +193,8 @@ jobs:
         with:
           python-version: "3.13"
           cache: pip
-          cache-dependency-path: crewai-agent/requirements-dev.txt
+          cache-dependency-path: |
+            crewai-agent/requirements*.txt
       - run: pip install -r requirements-dev.txt
       - run: ruff check app tests
       - run: pytest tests/ -v

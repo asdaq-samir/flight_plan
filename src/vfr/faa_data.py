@@ -170,22 +170,28 @@ def ensure_nasr_data(cache_dir) -> tuple:
 CHARTED_FACILITY_TYPES = {"AIRPORT"}
 
 
-_APT_BASE_CACHE: dict = {}
+@lru_cache(maxsize=8)
+def _read_apt_base_cached(path: str, mtime: float) -> pd.DataFrame:
+    return pd.read_csv(path, dtype=str, low_memory=False)
 
 
 def _read_apt_base(apt_csv_path) -> pd.DataFrame:
-    """APT_BASE.csv, parsed once per process.
+    """APT_BASE.csv, parsed once per file version per process."""
+    path = Path(apt_csv_path)
+    return _read_apt_base_cached(str(path), path.stat().st_mtime)
 
-    It is a large national table and a route request only ever wants a
-    bounding box out of it, so re-reading it per call was 2.1 s of pure
-    waste -- and on a streamed route that was the whole time-to-first
-    result, since airports are the cheap thing shown first.
-    """
-    key = str(apt_csv_path)
-    if key not in _APT_BASE_CACHE:
-        _APT_BASE_CACHE[key] = pd.read_csv(apt_csv_path, dtype=str, low_memory=False)
-    return _APT_BASE_CACHE[key]
 
+
+# APT_BASE encodes the facility type as a single letter.
+_SITE_TYPE_NAMES = {
+    "A": "AIRPORT", "B": "BALLOONPORT", "C": "SEAPLANE BASE",
+    "G": "GLIDERPORT", "H": "HELIPORT", "U": "ULTRALIGHT",
+}
+
+
+def _in_bbox(lat: pd.Series, lon: pd.Series, bbox: tuple) -> pd.Series:
+    min_lat, min_lon, max_lat, max_lon = bbox
+    return lat.between(min_lat, max_lat) & lon.between(min_lon, max_lon)
 
 def load_route_airports(apt_csv_path, bbox: tuple, exclude_idents: tuple = ()) -> pd.DataFrame:
     """Operational airports from the NASR APT_BASE.csv extract, within
@@ -246,23 +252,6 @@ def load_route_airports(apt_csv_path, bbox: tuple, exclude_idents: tuple = ()) -
             ],
         }
     ).reset_index(drop=True)
-
-
-# APT_BASE encodes the facility type as a single letter.
-_SITE_TYPE_NAMES = {
-    "A": "AIRPORT",
-    "B": "BALLOONPORT",
-    "C": "SEAPLANE BASE",
-    "G": "GLIDERPORT",
-    "H": "HELIPORT",
-    "U": "ULTRALIGHT",
-}
-
-
-def _in_bbox(lat: pd.Series, lon: pd.Series, bbox: tuple) -> pd.Series:
-    min_lat, min_lon, max_lat, max_lon = bbox
-    return lat.between(min_lat, max_lat) & lon.between(min_lon, max_lon)
-
 
 @lru_cache(maxsize=4)
 def _read_nav_base_cached(path: str, _mtime: float) -> pd.DataFrame:
@@ -427,3 +416,4 @@ def load_obstacles(dof_dat_path, bbox: tuple, min_agl_ft: float = 200) -> pd.Dat
     all_obstacles = _load_all_obstacles(dof_dat_path)
     wanted = (all_obstacles["agl_ft"] >= min_agl_ft) & _in_bbox(all_obstacles["lat"], all_obstacles["lon"], bbox)
     return all_obstacles[wanted].reset_index(drop=True)
+

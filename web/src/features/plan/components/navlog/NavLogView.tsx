@@ -419,7 +419,6 @@ export default function NavLogView({
                 selected={rowSelected}
                 mutedWhenUnselected={r.kind === "departure" || !leg?.wind}
                 onSelect={() => onSelectPoint(lat, lon)}
-                scrollRef={rowSelected ? selectedRef : undefined}
               >
                 {row.getAllCells().map(cell => (
                   <TableCell key={cell.id} className={cell.column.columnDef.meta?.className}>

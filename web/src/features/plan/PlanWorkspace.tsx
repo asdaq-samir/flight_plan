@@ -14,13 +14,23 @@ import "leaflet/dist/leaflet.css";
 import { useProgressToast } from "../../lib/useProgressToast";
 import type { WorkspaceProps } from "../page/workspace";
 import { PilotPanel } from "../pilot/PilotPanel";
-import { Alert, AlertDescription, AlertTitle } from "../../components/ui/alert";
-import BuildNotice from "./components/BuildNotice";
+import { Alert, AlertAction, AlertDescription, AlertTitle } from "../../components/ui/alert";
+import { Button } from "../../components/ui/button";
 import FlightBriefingView from "./components/briefing/FlightBriefingView";
 import NavLogActions from "./components/navlog/NavLogActions";
 import NavLogView from "./components/navlog/NavLogView";
 import RouteMap from "./components/RouteMap";
 import { usePlan } from "./hooks/usePlan";
+
+function buildDescription(build: Exclude<ReturnType<typeof usePlan>["build"], { phase: "idle" }>): string {
+  switch (build.phase) {
+    case "needed": return "Collecting its candidate landmarks takes a few minutes.";
+    case "starting": return "starting…";
+    case "queued": return `Queued: ${build.detail}.`;
+    case "running": return build.progress;
+    case "failed": return `The collection failed (${build.detail}). Collect again to retry.`;
+  }
+}
 
 // The three stages a plan actually goes through, in order -- there's
 // no finer-grained number to report while one of them is running, so
@@ -298,7 +308,11 @@ export default function PlanWorkspace({ dep, dest, sidebarOpen, children }: Work
         </AlertDescription>
       </Alert>
     ) : s.build.phase !== "idle" ? (
-      <BuildNotice dep={planned.dep} dest={planned.dest} build={s.build} onBuild={s.collect} />
+      <Alert className="rounded-none border-x-0 border-t-0 border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/40">
+        <AlertTitle>{planned.dep} → {planned.dest} has not been collected yet.</AlertTitle>
+        <AlertDescription>{buildDescription(s.build)}</AlertDescription>
+        <AlertAction><Button size="sm" disabled={["starting", "queued", "running"].includes(s.build.phase)} onClick={s.collect}>Collect this route</Button></AlertAction>
+      </Alert>
     ) : null,
   });
 }

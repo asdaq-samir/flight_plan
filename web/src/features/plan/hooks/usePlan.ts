@@ -1,4 +1,3 @@
-import { useMemo } from "react";
 import { experimental_streamedQuery as streamedQuery, keepPreviousData, useQuery } from "@tanstack/react-query";
 import { ApiError, api, describeError } from "../../../lib/api/client";
 import { courseQuery } from "../../../lib/queryClient";
@@ -102,19 +101,15 @@ export function usePlan(
     }),
     enabled: !!checkpoints.data, staleTime: Infinity,
   });
-  const messages = useMemo(() => navlog.data ?? [], [navlog.data]);
+  const messages = navlog.data ?? [];
   // Each message narrowed by its own `type`, not cast: the "altitude"
   // line was cast to a hand-written copy of its shape, whose comments had
   // gone stale while the cast kept compiling.
-  const legs = useMemo(() => messages.flatMap((m): Leg[] => (m.type === "leg" ? [stripType(m)] : [])), [messages]);
-  const nav = useMemo<NavLogAltitude | null>(() => {
-    const altitude = messages.find((m): m is Extract<NavLogMessage, { type: "altitude" }> => m.type === "altitude");
-    return altitude ? stripType(altitude) : null;
-  }, [messages]);
-  const totals = useMemo<Totals | null>(() => {
-    const done = messages.find(m => m.type === "done");
-    return done && done.type === "done" ? done.totals : null;
-  }, [messages]);
+  const legs = messages.flatMap((m): Leg[] => (m.type === "leg" ? [stripType(m)] : []));
+  const altitude = messages.find((m): m is Extract<NavLogMessage, { type: "altitude" }> => m.type === "altitude");
+  const nav: NavLogAltitude | null = altitude ? stripType(altitude) : null;
+  const done = messages.find(m => m.type === "done");
+  const totals: Totals | null = done && done.type === "done" ? done.totals : null;
   const stages = messages.filter(m => m.type === "stage");
   const navStage = navlog.isFetching ? (stages.at(-1) as { detail?: string } | undefined)?.detail ?? null : null;
 

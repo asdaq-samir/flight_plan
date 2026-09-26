@@ -29,7 +29,7 @@ import org.springframework.test.web.servlet.MockMvc;
  *  {@link FlightService}/{@link PilotService} are mocked rather than a
  *  real pilot-scoping check. */
 @WebMvcTest(FlightController.class)
-@Import(com.northflyers.vfr.security.SecurityConfig.class)
+@Import({com.northflyers.vfr.security.SecurityConfig.class, FlightApiMapperImpl.class})
 class FlightControllerTest {
 
     @Autowired

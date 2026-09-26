@@ -1,6 +1,10 @@
 import type { ReactNode } from "react";
-import ThemeToggle from "./ThemeToggle";
+import { Monitor, Moon, Sun } from "lucide-react";
+import { useTheme } from "next-themes";
+import IconButton from "./IconButton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
+
+const THEMES = ["system", "light", "dark"] as const;
 
 export interface ConsoleTab {
   value: string;
@@ -32,6 +36,10 @@ interface Props {
  */
 export default function ConsoleTabs({ tabs, saved, onChange, actions }: Props) {
   const tab = tabs.some(t => t.value === saved) ? saved : tabs[0].value;
+  const { theme = "system", setTheme } = useTheme();
+  const current = THEMES.includes(theme as typeof THEMES[number]) ? theme as typeof THEMES[number] : "system";
+  const ThemeIcon = current === "dark" ? Moon : current === "light" ? Sun : Monitor;
+  const nextTheme = THEMES[(THEMES.indexOf(current) + 1) % THEMES.length] ?? "system";
   return (
     <div className="min-h-0 flex-1 overflow-y-auto">
       <div className="mx-auto max-w-3xl p-4">
@@ -42,7 +50,7 @@ export default function ConsoleTabs({ tabs, saved, onChange, actions }: Props) {
             </TabsList>
             <div className="flex items-center gap-2">
               {actions}
-              <ThemeToggle />
+              <IconButton label={`Theme: ${current}`} onClick={() => setTheme(nextTheme)} data-testid="theme-toggle"><ThemeIcon className="size-5" /></IconButton>
             </div>
           </div>
           {tabs.map(t => (

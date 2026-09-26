@@ -34,7 +34,7 @@ import org.springframework.test.web.servlet.MockMvc;
  *  in {@code AircraftRepository#findByIdAndPilotId} and is exercised by
  *  actually running the app, not re-proven with a mock here. */
 @WebMvcTest(AircraftController.class)
-@Import(com.northflyers.vfr.security.SecurityConfig.class)
+@Import({com.northflyers.vfr.security.SecurityConfig.class, FlightApiMapperImpl.class})
 class AircraftControllerTest {
 
     @Autowired

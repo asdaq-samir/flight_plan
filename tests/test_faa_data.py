@@ -114,3 +114,23 @@ def test_load_obstacles_is_the_typed_dof_columns_filtered(tmp_path, monkeypatch)
 
     elsewhere = faa_data.load_obstacles(dof, (45.0, -90.0, 46.0, -89.0), min_agl_ft=0)
     assert elsewhere.empty and "amsl_ft" in elsewhere.columns
+
+
+def test_route_airports_filters_operational_charted_fields_and_endpoints(tmp_path):
+    """The route-airport public API must survive cache implementation changes."""
+    apt = tmp_path / "APT_BASE.csv"
+    pd.DataFrame([
+        {"SITE_TYPE_CODE": "A", "ARPT_STATUS": "O", "LAT_DECIMAL": "41.5", "LONG_DECIMAL": "-93.5",
+         "ARPT_ID": "KEEP", "ICAO_ID": "KKEEP", "ARPT_NAME": "KEEP FIELD", "CITY": "AMES", "FACILITY_USE_CODE": "PU"},
+        {"SITE_TYPE_CODE": "A", "ARPT_STATUS": "O", "LAT_DECIMAL": "41.6", "LONG_DECIMAL": "-93.6",
+         "ARPT_ID": "DEP", "ICAO_ID": "KDEP", "ARPT_NAME": "DEPARTURE", "CITY": "AMES", "FACILITY_USE_CODE": "PU"},
+        {"SITE_TYPE_CODE": "A", "ARPT_STATUS": "C", "LAT_DECIMAL": "41.7", "LONG_DECIMAL": "-93.7",
+         "ARPT_ID": "CLOSED", "ICAO_ID": "KCLOSED", "ARPT_NAME": "CLOSED FIELD", "CITY": "AMES", "FACILITY_USE_CODE": "PU"},
+    ]).to_csv(apt, index=False)
+    faa_data._read_apt_base_cached.cache_clear()
+
+    result = faa_data.load_route_airports(apt, (41.0, -94.0, 42.0, -93.0), exclude_idents=("DEP",))
+
+    assert list(result["osm_id"]) == ["KEEP"]
+    assert list(result["category"]) == ["airport"]
+    assert result.iloc[0]["name"] == "Keep Field (KEEP)"

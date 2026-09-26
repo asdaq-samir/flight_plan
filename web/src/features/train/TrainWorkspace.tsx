@@ -1,4 +1,4 @@
-import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, lazy, useCallback, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { identOf, routeOf } from "../../lib/identSchema";
 // Without this Leaflet's tiles, markers and controls have no
@@ -14,7 +14,7 @@ const DevPanel = lazy(() => import("../dev/DevPanel").then(m => ({ default: m.De
 import ChartMap from "./components/ChartMap";
 import WaypointPanel from "./components/WaypointPanel";
 import PointPopup from "./components/PointPopup";
-import { isEndpoint, type Point, type Rating } from "../../lib/api/types";
+import { isEndpoint, type Point } from "../../lib/api/types";
 import {
   filterCounts, forwardIsLeft, hasRating, hiddenCount, orderedPoints,
 } from "./logic";
@@ -49,16 +49,6 @@ export default function TrainWorkspace({ dep, dest, children }: WorkspaceProps) 
   } = store;
   const [map, setMap] = useState<L.Map | null>(null);
 
-  // Fetched the moment this workspace mounts, not the moment the Sheet
-  // first opens: `DevPanel` is its own chunk (recharts and the model
-  // tables, split out so a pilot never downloads them), and the stock
-  // Sheet doesn't mount its content until it opens, so without this the
-  // console's first open paid for that chunk's own network round trip
-  // on top of the stock open animation -- a lag the pilot's console and
-  // the nav-log drawer don't have, since neither is split out. This
-  // developer is already on the training page by the time they reach
-  // for the console, so the fetch has a head start.
-  useEffect(() => { void import("../dev/DevPanel"); }, []);
 
   // Everything the screen shows is computed from the store. Nothing is
   // kept in step by hand, which is what makes the old class of bug --
@@ -70,35 +60,16 @@ export default function TrainWorkspace({ dep, dest, children }: WorkspaceProps) 
     ),
     [store.endpoints, store.detections, store.added, store.filters],
   );
-  const waypoints = useMemo(() => walk.filter(e => !isEndpoint(e.point)), [walk]);
-  const counts = useMemo(
-    () => filterCounts([...store.detections, ...store.added]),
-    [store.detections, store.added],
-  );
-  const picks = useMemo(
-    () => [...store.detections, ...store.added].filter(hasRating),
-    [store.detections, store.added],
-  );
+  const waypoints = walk.filter(e => !isEndpoint(e.point));
+  const counts = filterCounts([...store.detections, ...store.added]);
+  const picks = [...store.detections, ...store.added].filter(hasRating);
   const hidden = hiddenCount(picks, store.filters);
 
-  const positionOf = useCallback(
-    (p: Point) => waypoints.findIndex(e => e.point === p),
-    [waypoints],
-  );
-
-  /** Where the selected point sits in the walk, for the popup's own line. */
-  const place = useMemo(() => {
-    if (!point) return "";
-    const at = positionOf(point);
+  const place = point ? (() => {
+    const at = waypoints.findIndex(e => e.point === point);
     return at >= 0 ? `${at + 1} of ${waypoints.length}` : "";
-  }, [point, positionOf, waypoints.length]);
+  })() : "";
 
-  // The total climbs fast while detections stream in -- worth a flash
-  // in the popup, but only when it actually went up, not on every
-  // content refresh (a rating click shouldn't flash a number that
-  // didn't change). Tracked here, outside the memo's own churn, since
-  // the total is one figure shared by whichever point is showing.
-  const lastTotal = useRef<number | null>(null);
 
   const focus = useCallback((entry: (typeof walk)[number]) => {
     map?.setView([entry.point.lat, entry.point.lon], Math.max(map.getZoom(), FOCUS_ZOOM));
@@ -108,8 +79,7 @@ export default function TrainWorkspace({ dep, dest, children }: WorkspaceProps) 
   /** Walks the waypoint list and brings the map to whatever it lands
    *  on, the same as clicking that row would. The list is the walk
    *  itself -- every point the filters admit, in flight order -- so the
-   *  popup's arrows, the drawer's rows and the keys all move by the
-   *  same step. There were two copies of this, identical, with a
+   *  popup's arrows and the drawer's rows both move by the same step. There were two copies of this, identical, with a
    *  comment on one claiming it walked a different order. */
   const step = useCallback((delta: number) => {
     if (!walk.length) return;
@@ -121,31 +91,10 @@ export default function TrainWorkspace({ dep, dest, children }: WorkspaceProps) 
 
   const walkIndex = point ? walk.findIndex(e => e.point === point) : -1;
 
-  // Memoized deliberately: without it, this is a new element on every
-  // render -- including one for each block of a streaming detection --
-  // and ChartMap's halo effect depends on it, so an unrelated re-render
-  // would tear the popup down and remount it, not just re-render it.
-  // Written after render (an effect), read during it (inside the
-  // useMemo below) -- reading and writing the same ref inside the memo
-  // itself would mutate it as a side effect of a supposedly pure
-  // calculation, which React is free to invoke more than once per
-  // commit (Strict Mode does, today) or skip and reuse a prior result.
-  useEffect(() => {
-    lastTotal.current = waypoints.length;
-  }, [waypoints.length]);
 
   const selectedContent = useMemo(() => {
     if (!point) return null;
-    // Reads lastTotal.current as it stood after the PREVIOUS commit --
-    // the write above only ever happens in an effect, strictly after a
-    // render finishes, so this can never observe a value written by
-    // the render currently in progress. Safe in practice; the
-    // react-hooks/refs rule can't prove that statically across two
-    // separate hooks, only warn that ref reads during render aren't
-    // generally guaranteed to be.
-    // eslint-disable-next-line react-hooks/refs
-    const countChanged = lastTotal.current !== null && lastTotal.current !== waypoints.length;
-    // Same idea as the arrow keys: which screen side is "forward" (step
+    // Which screen side is "forward" (step
     // +1) depends on which way the course actually runs, not a fixed
     // left-back/right-forward assumption -- a route heading roughly
     // west has forward on the left.
@@ -157,10 +106,6 @@ export default function TrainWorkspace({ dep, dest, children }: WorkspaceProps) 
       <PointPopup
         point={point}
         place={place}
-        // Same ref-read this rule already flagged above, propagated to
-        // its one use site -- see the comment there.
-        // eslint-disable-next-line react-hooks/refs
-        countChanged={countChanged}
         bearingDeg={bearing}
         departureIdent={course?.departure.ident ?? ""}
         onRate={r => void rate(r)}
@@ -173,7 +118,7 @@ export default function TrainWorkspace({ dep, dest, children }: WorkspaceProps) 
       />
     );
   }, [
-    point, place, waypoints.length, course?.bearing_deg, course?.departure.ident,
+    point, place, course?.bearing_deg, course?.departure.ident,
     rate, setCategory, removeSelected, step, walkIndex, walk.length,
   ]);
 
@@ -187,35 +132,6 @@ export default function TrainWorkspace({ dep, dest, children }: WorkspaceProps) 
     if (target) focus(target);
   }, [point, walk, focus]);
 
-
-  // Two keys, and only two: Up and Down walk the points in flight
-  // order, and a digit rates the one you are on and moves to the next.
-  // Everything this used to bind -- Space and Escape for the two zooms,
-  // Delete to remove, `v` for the visual filter, and the four arrows
-  // stepping the way the course runs rather than the way the list does
-  // -- has a button of its own, on the map or in this drawer, and each
-  // was a letter or a key that had to be kept out of the way of typing.
-  // Skipped while a field has focus, and for a press a Radix layer
-  // already used (its own list walks with the same arrows), which it
-  // marks by preventing the default or keeping focus inside itself.
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      const target = e.target instanceof HTMLElement ? e.target : null;
-      const tag = target?.tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA") return;
-      if (e.defaultPrevented || target?.closest('[role="listbox"],[role="dialog"][aria-modal="true"],[role="menu"]')) return;
-      if (e.key === "ArrowUp" || e.key === "ArrowDown") {
-        e.preventDefault();
-        step(e.key === "ArrowDown" ? 1 : -1);
-        return;
-      }
-      if (/^[0-5]$/.test(e.key) && point && !isEndpoint(point)) {
-        void rate(Number(e.key) as Rating).then(() => step(1));
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [point, rate, step]);
 
   // Loading a route writes the address, which is what the queries key
   // on -- the same route again costs nothing, being kept.
@@ -268,7 +184,7 @@ export default function TrainWorkspace({ dep, dest, children }: WorkspaceProps) 
     // One panel, the shape of the pilot's nav log: the route's numbers
     // and the drawer's actions in a header (the filters in a popover
     // from it), and the walk as one table under it. Rating from the
-    // selected row moves on to the next one, the way the digit keys do.
+    // selected row moves on to the next one.
     sidebar: (
       <WaypointPanel
         entries={walk} selected={point} onFocus={focus}

@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useRef } from "react";
+import { Fragment } from "react";
 import { cn } from "cn";
 import { BrainCircuit, Eraser, ListFilter, Undo2 } from "lucide-react";
 import { useRetrain } from "../../dev/useRetrain";
@@ -6,6 +6,7 @@ import IconButton from "../../../components/IconButton";
 import { NoteRow, SelectableRow } from "../../../components/SelectableRows";
 import { Badge } from "../../../components/ui/badge";
 import { Button } from "../../../components/ui/button";
+import { Checkbox } from "../../../components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "../../../components/ui/popover";
 import {
   Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow,
@@ -13,7 +14,14 @@ import {
 import { isEndpoint, type Point, type Rating } from "../../../lib/api/types";
 import { COLORS, RATINGS, pointKey, prettyCategory, roleOf, type FilterKey, type Filters, type WalkEntry } from "../logic";
 import { inkOn } from "../../../lib/scoreScale";
-import FilterBar from "./FilterBar";
+
+
+const FILTER_AXES: [string, FilterKey, FilterKey][] = [
+  ["Role", "dr", "visual"], ["Source", "detected", "added"], ["Status", "rated", "unrated"],
+];
+const FILTER_LABEL: Record<FilterKey, string> = {
+  dr: "DR", visual: "visual", detected: "detected", added: "added", rated: "rated", unrated: "unrated",
+};
 
 interface Props {
   /** Every point the walk can land on, in flight order: the endpoints
@@ -47,7 +55,7 @@ const COLUMNS = 4;
 /**
  * The developer's waypoint drawer, shaped like the pilot's nav log:
  * a header with the corridor's numbers and the drawer's own actions,
- * then one table walked with Up/Down or a click, the map following.
+ * then one table walked by selecting a row, with the map following.
  * It is a worklist, not a record: every candidate the filters admit is
  * a row, the unrated ones included, numbered the way the map popup
  * numbers them, with the rating (or a dash) at the end -- the old list
@@ -63,20 +71,11 @@ export default function WaypointPanel({
   entries, selected, onFocus, onRate, distanceNm, bearingDeg, departureIdent, destinationIdent,
   rated, total, hidden, filters, counts, onFilterChange, canUndo, onUndo, onResetAll,
 }: Props) {
-  const selectedRef = useRef<HTMLTableRowElement>(null);
   // Retrain from here, beside Undo and Reset: the ratings this drawer
   // makes are what a retrain learns from, so the button that starts
   // one belongs with them. The dev console's Training Model tab
   // reports the run.
   const retrain = useRetrain();
-  // Selecting a point on the map (or by stepping) should be as visible
-  // here as clicking the row itself would have been -- otherwise the
-  // highlighted row can be scrolled out of view and looks like nothing
-  // happened.
-  useEffect(() => {
-    selectedRef.current?.scrollIntoView({ block: "nearest" });
-  }, [selected]);
-
   // Numbered over the walk with the endpoints skipped -- the same
   // "n of total" the map popup shows for the same point. A separate
   // pass, not a counter mutated inside the JSX map below.
@@ -102,7 +101,21 @@ export default function WaypointPanel({
                   (13)") needs the room; a narrower popover clipped its
                   last count. */}
               <PopoverContent align="end" className="w-80">
-                <FilterBar filters={filters} onChange={onFilterChange} counts={counts} />
+                <div className="space-y-2 text-sm">
+                  {FILTER_AXES.map(([axis, a, b]) => (
+                    <div key={axis}>
+                      <div className="text-xs font-semibold uppercase text-muted-foreground">{axis}</div>
+                      <div className="grid grid-cols-2 gap-x-1">
+                        {[a, b].map(key => (
+                          <label key={key} htmlFor={`filter-${key}`} className="inline-flex items-center gap-1.5 rounded px-1 py-1 whitespace-nowrap hover:bg-accent active:bg-accent">
+                            <Checkbox id={`filter-${key}`} checked={filters[key]} onCheckedChange={v => onFilterChange(key, v === true)} />
+                            {FILTER_LABEL[key]} <span className="text-muted-foreground">({counts[key]})</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </PopoverContent>
             </Popover>
             <IconButton label="Undo" onClick={onUndo} disabled={!canUndo} data-testid="undo-button">
@@ -111,12 +124,7 @@ export default function WaypointPanel({
             <IconButton
               label="Reset all ratings"
               className="text-destructive hover:text-destructive"
-              onClick={() => {
-                // Bulk and only reversible one point at a time (this
-                // isn't itself an undo step), so a stray tap can't wipe
-                // a leg's worth of ratings with nothing to walk it back.
-                if (window.confirm("Reset every rating on this route? This can't be undone.")) onResetAll();
-              }}
+              onClick={onResetAll}
               disabled={rated === 0}
             >
               <Eraser className="size-5" />
@@ -141,14 +149,9 @@ export default function WaypointPanel({
           </span>
         </div>
       </div>
-      {/* data-waypoint-list marks the scope TrainWorkspace's keyboard handler
-          checks to tell "arrows should walk this list" apart from
-          "arrows should walk the map" -- set once focus lands inside
-          here (a row is focusable), not on hover, so it survives
-          scrolling. */}
       <div
         className="min-h-0 flex-1 overflow-auto p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]"
-        data-waypoint-list data-testid="waypoint-scroller"
+        data-testid="waypoint-scroller"
       >
         <Table containerClassName="overflow-visible" className="text-xs whitespace-nowrap">
           <TableCaption className="sr-only">Waypoints from {departureIdent} to {destinationIdent}</TableCaption>
@@ -175,7 +178,7 @@ export default function WaypointPanel({
                   <Fragment key={key}>
                     <SelectableRow
                       selected={isSelected} mutedWhenUnselected
-                      onSelect={() => onFocus(entry)} scrollRef={isSelected ? selectedRef : undefined}
+                      onSelect={() => onFocus(entry)}
                     >
                       <TableCell />
                       <TableCell className="text-left font-medium">{p.ident}</TableCell>
@@ -200,7 +203,7 @@ export default function WaypointPanel({
                 <Fragment key={key}>
                   <SelectableRow
                     selected={isSelected}
-                    onSelect={() => onFocus(entry)} scrollRef={isSelected ? selectedRef : undefined}
+                    onSelect={() => onFocus(entry)}
                   >
                     <TableCell className={cn("text-right tabular-nums", !isSelected && "text-muted-foreground")}>
                       {numbers.get(entry)}
@@ -221,10 +224,9 @@ export default function WaypointPanel({
                     </TableCell>
                   </SelectableRow>
                   {/* The selected waypoint's own rating buttons, under
-                      it -- the same six the map popup has, and the
-                      digit keys' own scale. Rating from here moves on
-                      to the next row (TrainWorkspace's onRate), the way the
-                      keys do, so a corridor rates top to bottom. */}
+                      it -- the same six the map popup has. Rating from
+                      here moves on to the next row, so a corridor rates
+                      top to bottom. */}
                   {isSelected && (
                     <NoteRow selected colSpan={COLUMNS}>
                       <div className="flex flex-wrap items-center gap-1 py-0.5">

@@ -12,9 +12,6 @@ interface Props {
   point: Point;
   /** "3 of 12", or "" when the point isn't in the current walk. */
   place: string;
-  /** True only when the total just went up (more detections streamed
-   *  in) -- not on every popup refresh, e.g. a rating click. */
-  countChanged: boolean;
   /** The course's own bearing and departure ident, so distance reads as
    *  a direction on the chart rather than "along" an axis nobody sees. */
   bearingDeg: number;
@@ -42,7 +39,7 @@ interface Props {
  * there's one place on screen this happens, right where the point is.
  */
 export default function PointPopup({
-  point, place, countChanged, bearingDeg, departureIdent, onRate, onCategoryChange, onRemove,
+  point, place, bearingDeg, departureIdent, onRate, onCategoryChange, onRemove,
   onLeft, onRight, canLeft = true, canRight = true,
 }: Props) {
   // Same row either way -- an endpoint is the first or last stop in the
@@ -71,16 +68,7 @@ export default function PointPopup({
     </IconButton>
   );
 
-  /** Where in the walk this point is: the card's own title, because in
-   *  a rating pass that is what you are keeping track of -- which of
-   *  the hundred and seventy-six you are on -- rather than what kind of
-   *  thing it is, which the category control below already says.
-   *  Flashed when the total goes up as more detections stream in. */
-  const counter = place && (
-    <span className={`rounded px-0.5 ${countChanged ? "animate-[count-flash_0.8s_ease-out]" : ""}`}>
-      #{place}
-    </span>
-  );
+  const counter = place && <span className="rounded px-0.5">#{place}</span>;
 
 
   if (isEndpoint(point)) {

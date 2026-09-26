@@ -413,7 +413,7 @@ function TrainingTab({ status, failed }: { status: Status | undefined; failed: b
       <Step
         n={2}
         title="Rate its checkpoints"
-        description="Close this drawer and walk the route on the map behind it, from the Model Training drawer at the side: every candidate in flight order, rated 0 to 5 for how findable it is from the air (Space starts, the arrow keys step, the digits rate). Each rating is one labelled example; the model learns from nothing else."
+        description="Close this drawer and walk the route on the map behind it, from the Model Training drawer at the side: select each candidate and rate it 0 to 5 for how findable it is from the air. Each rating is one labelled example; the model learns from nothing else."
       >
         {onMap ? (
           <p className="text-sm text-muted-foreground">

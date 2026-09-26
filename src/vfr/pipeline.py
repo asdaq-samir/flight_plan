@@ -358,7 +358,10 @@ def _picks_as_labels(candidates_df: pd.DataFrame, route: str | None, picks_path:
     for pick in chartlabels.load_picks(route, path=picks_path):
         if not pick.get("rating"):
             continue
-        gaps = candidates_df.apply(lambda c: geo.distance_nm(c["lat"], c["lon"], pick["lat"], pick["lon"]), axis=1)
+        gaps = pd.Series(
+            geo.distance_nm(candidates_df["lat"].to_numpy(), candidates_df["lon"].to_numpy(), pick["lat"], pick["lon"]),
+            index=candidates_df.index,
+        )
         if gaps.empty or gaps.min() >= routecsv.SAME_PLACE_NM:
             continue
         nearest = candidates_df.loc[gaps.idxmin()]

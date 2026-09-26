@@ -33,27 +33,20 @@ async function settle(page: Page) {
   await page.waitForTimeout(1500);
 }
 
-/** The side drawer is shadcn's own Sidebar: a fixed panel beside the
- *  map from `md` up, a Sheet over it on a phone. Both carry
- *  `data-slot="sidebar"` and the side. */
-const sideDrawer = (page: Page) => page.locator('[data-slot="sidebar"][data-side="right"]');
+/** The side drawer is a stock Sheet. Tests target its public role/test id,
+ * not the deleted Sidebar implementation. */
+const sideDrawer = (page: Page) => page.getByTestId("side-drawer");
 /** The console is a stock Sheet from the top. */
 const consoleSheet = (page: Page) => page.locator('[data-slot="sheet-content"][data-side="top"]');
 
 /** Closed: on a phone the Sheet is not in the page at all; on a
  *  desktop the panel stays mounted, collapsed off screen. */
 async function expectDrawerClosed(page: Page) {
-  const viewport = page.viewportSize();
-  if (!viewport) throw new Error("no viewport configured");
-  if (viewport.width < 768) await expect(page.locator('[data-slot="sidebar"][data-mobile="true"]')).toHaveCount(0);
-  else await expect(sideDrawer(page)).toHaveAttribute("data-state", "collapsed");
+  await expect(sideDrawer(page)).toHaveCount(0);
 }
 
 async function expectDrawerOpen(page: Page) {
-  const viewport = page.viewportSize();
-  if (!viewport) throw new Error("no viewport configured");
-  if (viewport.width < 768) await expect(page.locator('[data-slot="sidebar"][data-mobile="true"]')).toBeVisible();
-  else await expect(sideDrawer(page)).toHaveAttribute("data-state", "expanded");
+  await expect(sideDrawer(page)).toBeVisible();
 }
 
 /** Opening and closing the drawer is one shape on both pages: the
@@ -62,9 +55,7 @@ async function expectDrawerOpen(page: Page) {
  *  is a Radix Sheet, and Cmd/Ctrl+B on a desktop, where it is shadcn's
  *  panel. This app binds no key of its own to it. */
 async function closeSidebarWithTheStockKey(page: Page) {
-  const viewport = page.viewportSize();
-  if (!viewport) throw new Error("no viewport configured");
-  await page.keyboard.press(viewport.width < 768 ? "Escape" : "ControlOrMeta+b");
+  await page.keyboard.press("Escape");
 }
 
 async function openSidebar(page: Page) {
@@ -97,7 +88,7 @@ test.describe("/app/plan", () => {
     await expectDrawerClosed(page);
   });
 
-  test("sidebar opens from its own trigger, closes on Escape", async ({ page }) => {
+  test("sidebar opens from its own trigger, closes with stock Sheet Escape", async ({ page }) => {
     await page.goto("/app/plan");
     await settle(page);
     await openSidebar(page);
@@ -325,7 +316,6 @@ test("plan page: the flight planning drawer opens the way the Model Training dra
   // Dev-mode switch this page has (by test id, not role: on a phone
   // the modal sheet hides the rest of the page from assistive tech).
   expect(await page.locator("header").getByLabel("Departure", { exact: true }).count()).toBe(1);
-  expect(await page.locator("header").getByTestId("dev-switch").count()).toBe(1);
 
   // The briefing's actions live in the drawer's own header: the AI
   // button (LangGraph/CrewAI are tabs inside the popover it opens),
@@ -637,60 +627,6 @@ test("plan page: the briefing's nav log scrolls inside the drawer, not the page"
   }
 });
 
-test("the Dev-mode switch leads the route form, flips to the dev page with the route, and back to where it was flipped from", async ({ page }) => {
-  await page.goto("/app/plan?dep=C81&dest=KDLH");
-  await settle(page);
-  // With the briefing open on a desktop, where the header stays in
-  // reach beside the sidebar; on a phone the drawer is a modal sheet
-  // over the header, so the switch is flipped with it closed.
-  const viewport = page.viewportSize();
-  if (!viewport) throw new Error("no viewport configured");
-  const wide = viewport.width >= 768;
-  if (wide) await openBriefing(page);
-
-  // Off on Plan, and on the route form's left -- the one control that
-  // switches roles, in the same place on both pages.
-  const devSwitch = page.locator("header").getByRole("switch", { name: "Dev mode" });
-  await expect(devSwitch).toHaveAttribute("aria-checked", "false");
-  const switchBox = await devSwitch.boundingBox();
-  const loadBox = await page.getByRole("button", { name: "Load" }).boundingBox();
-  expect(switchBox).not.toBeNull();
-  expect(loadBox).not.toBeNull();
-  expect(switchBox!.x).toBeLessThan(loadBox!.x);
-
-  // On: the dev page, with the route on screen carried along and
-  // Plan's own briefing parameter left behind.
-  await devSwitch.click();
-  await page.waitForURL(/\/app\/dev\?dep=C81&dest=KDLH$/);
-  await page.waitForTimeout(300);
-  await expect(page.locator("header").getByRole("switch", { name: "Dev mode" })).toHaveAttribute("aria-checked", "true");
-
-  // Off again: back to exactly where it was flipped from (`state.from`,
-  // DevSwitch's own), the open briefing included, not a flat /app/plan.
-  await page.locator("header").getByRole("switch", { name: "Dev mode" }).click();
-  if (wide) {
-    await page.waitForURL(/\/app\/plan\?dep=C81&dest=KDLH&view=briefing$/);
-    await expectDrawerOpen(page);
-    await expect(sideDrawer(page).getByTestId("print-button")).toBeVisible();
-  } else {
-    await page.waitForURL(/\/app\/plan\?dep=C81&dest=KDLH$/);
-  }
-});
-
-test("the DEV switch is the one sign of which page this is: the header itself looks the same on both", async ({ page }) => {
-  await page.goto("/app/plan");
-  await settle(page);
-  const pilotBg = await page.locator("header").evaluate(el => getComputedStyle(el).backgroundColor);
-  await expect(page.locator("header")).toHaveAttribute("data-mode", "pilot");
-  await expect(page.locator("header").getByRole("switch", { name: "Dev mode" })).toHaveAttribute("aria-checked", "false");
-  await page.goto("/app/dev");
-  await settle(page);
-  const devBg = await page.locator("header").evaluate(el => getComputedStyle(el).backgroundColor);
-  await expect(page.locator("header")).toHaveAttribute("data-mode", "dev");
-  await expect(page.locator("header").getByRole("switch", { name: "Dev mode" })).toHaveAttribute("aria-checked", "true");
-  expect(devBg).toBe(pilotBg);
-});
-
 test("plan page: the nav log's altitude opens the planner's own reasoning, and the briefing's Cruise Altitude section carries the same steps", async ({ page }) => {
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
@@ -802,13 +738,6 @@ test("plan page: a departure time gives every checkpoint an ETA and picks the wi
   // with the day reserve for a mid-afternoon flight.
   await expect(page.getByTestId("fuel-check")).toContainText("of 40 usable", { timeout: 60000 });
   await expect(page.getByTestId("fuel-check")).toContainText("30 min day reserve");
-});
-
-test("dev page opened on its own: the switch falls back to the planner with the dev page's own route", async ({ page }) => {
-  await page.goto("/app/dev?dep=C81&dest=KDLH");
-  await settle(page);
-  await page.locator("header").getByRole("switch", { name: "Dev mode" }).click();
-  await page.waitForURL(/\/app\/plan\?dep=C81&dest=KDLH$/);
 });
 
 test("the old Settings address lands on the planner", async ({ page }) => {

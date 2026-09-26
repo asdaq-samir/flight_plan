@@ -6,7 +6,7 @@ tmp_path and _load_table keys its cache on that exact path.
 import pandas as pd
 import pytest
 
-from vfr.airports import get_airport, get_frequencies, get_runways
+from vfr.airports import get_airport, get_frequencies, get_runways, search_airports
 
 
 @pytest.fixture
@@ -14,9 +14,9 @@ def airports_csv(tmp_path):
     path = tmp_path / "airports.csv"
     pd.DataFrame([
         {"ident": "KDLH", "local_code": "DLH", "name": "Duluth Intl", "latitude_deg": 46.8421,
-         "longitude_deg": -92.1936, "elevation_ft": 1428, "municipality": "Duluth", "iso_region": "US-MN"},
+         "longitude_deg": -92.1936, "elevation_ft": 1428, "municipality": "Duluth", "iso_region": "US-MN",\n         "iso_country": "US", "icao_code": "KDLH"},
         {"ident": "US-0C81", "local_code": "C81", "name": "C81 Field", "latitude_deg": 42.3172,
-         "longitude_deg": -88.0905, "elevation_ft": 860, "municipality": "Wonder Lake", "iso_region": "US-IL"},
+         "longitude_deg": -88.0905, "elevation_ft": 860, "municipality": "Wonder Lake", "iso_region": "US-IL",\n         "iso_country": "US", "icao_code": None},
     ]).to_csv(path, index=False)
     return path
 
@@ -88,3 +88,14 @@ def test_get_frequencies_sorts_ctaf_first(frequencies_csv):
     frequencies = get_frequencies("KDLH", cache_path=frequencies_csv)
 
     assert [f["type"] for f in frequencies] == ["CTAF", "TWR", "ATIS"]
+
+
+def test_search_airports_preserves_display_ident(airports_csv):
+    results = search_airports("Duluth", cache_path=airports_csv)
+
+    assert results == [{
+        "ident": "KDLH",
+        "name": "Duluth Intl",
+        "municipality": "Duluth",
+        "region": "US-MN",
+    }]

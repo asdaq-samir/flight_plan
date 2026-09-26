@@ -1,6 +1,6 @@
 import { ArrowRight } from "lucide-react";
-import RouteInputGroup from "./RouteInputGroup";
-import { InputGroupButton } from "./ui/input-group";
+import AirportPicker from "./AirportPicker";
+import { InputGroup, InputGroupAddon, InputGroupButton } from "./ui/input-group";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
 interface Props {
@@ -39,21 +39,22 @@ export default function RouteForm({
         onSubmit();
       }}
     >
-      <RouteInputGroup
-        dep={dep} dest={dest}
-        onDepChange={v => onDepChange(v.toUpperCase())}
-        onDestChange={v => onDestChange(v.toUpperCase())}
-      >
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <InputGroupButton type="submit" variant="default" size="icon-sm" disabled={disabled}>
-              <ArrowRight />
-              <span className="sr-only">Load</span>
-            </InputGroupButton>
-          </TooltipTrigger>
-          <TooltipContent>Load</TooltipContent>
-        </Tooltip>
-      </RouteInputGroup>
+      <InputGroup className="w-auto">
+        <AirportPicker value={dep} onChange={v => onDepChange(v.toUpperCase())} placeholder="DEP" ariaLabel="Departure" className="min-w-20" />
+        <span className="text-muted-foreground" aria-hidden="true">→</span>
+        <AirportPicker value={dest} onChange={v => onDestChange(v.toUpperCase())} placeholder="DEST" ariaLabel="Destination" className="min-w-20" />
+        <InputGroupAddon align="inline-end" className="gap-1.5">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <InputGroupButton type="submit" variant="default" size="icon-sm" disabled={disabled}>
+                <ArrowRight />
+                <span className="sr-only">Load</span>
+              </InputGroupButton>
+            </TooltipTrigger>
+            <TooltipContent>Load</TooltipContent>
+          </Tooltip>
+        </InputGroupAddon>
+      </InputGroup>
     </form>
   );
 }
