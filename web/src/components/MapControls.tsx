@@ -1,9 +1,8 @@
-import { Layers } from "lucide-react";
+import { Layers, ZoomIn, ZoomOut } from "lucide-react";
 import ChartLayers from "./ChartLayers";
 import FullscreenButton from "./FullscreenButton";
 import IconButton from "./IconButton";
 import OwnShipControls from "./OwnShipControls";
-import ZoomToggleButton from "./ZoomToggleButton";
 import { Checkbox } from "./ui/checkbox";
 import { Label } from "./ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
@@ -77,10 +76,13 @@ export default function MapControls({ zoom, ownShip = false, candidates }: Props
         </PopoverContent>
       </Popover>
       {zoom && (
-        <ZoomToggleButton
-          zoomedIn={zoom.zoomedIn} onClick={zoom.onToggle} disabled={zoom.disabled}
+        <IconButton
+          onClick={zoom.onToggle} disabled={zoom.disabled}
+          label={zoom.zoomedIn ? "Fit Route" : "Show Selected"}
           variant="outline" className="bg-background shadow-sm" data-testid="map-action-button"
-        />
+        >
+          {zoom.zoomedIn ? <ZoomOut className="size-5" /> : <ZoomIn className="size-5" />}
+        </IconButton>
       )}
       {/* Draws itself only where full screen actually works: a desktop
           browser and an iPad, never an iPhone. */}
