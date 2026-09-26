@@ -1,4 +1,4 @@
-import { Suspense, lazy, useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, lazy, useCallback, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { identOf, routeOf } from "../../lib/identSchema";
 // Without this Leaflet's tiles, markers and controls have no
@@ -49,16 +49,6 @@ export default function TrainWorkspace({ dep, dest, children }: WorkspaceProps) 
   } = store;
   const [map, setMap] = useState<L.Map | null>(null);
 
-  // Fetched the moment this workspace mounts, not the moment the Sheet
-  // first opens: `DevPanel` is its own chunk (recharts and the model
-  // tables, split out so a pilot never downloads them), and the stock
-  // Sheet doesn't mount its content until it opens, so without this the
-  // console's first open paid for that chunk's own network round trip
-  // on top of the stock open animation -- a lag the pilot's console and
-  // the nav-log drawer don't have, since neither is split out. This
-  // developer is already on the training page by the time they reach
-  // for the console, so the fetch has a head start.
-  useEffect(() => { void import("../dev/DevPanel"); }, []);
 
   // Everything the screen shows is computed from the store. Nothing is
   // kept in step by hand, which is what makes the old class of bug --
@@ -81,17 +71,10 @@ export default function TrainWorkspace({ dep, dest, children }: WorkspaceProps) 
   );
   const hidden = hiddenCount(picks, store.filters);
 
-  const positionOf = useCallback(
-    (p: Point) => waypoints.findIndex(e => e.point === p),
-    [waypoints],
-  );
-
-  /** Where the selected point sits in the walk, for the popup's own line. */
-  const place = useMemo(() => {
-    if (!point) return "";
-    const at = positionOf(point);
+  const place = point ? (() => {
+    const at = waypoints.findIndex(e => e.point === point);
     return at >= 0 ? `${at + 1} of ${waypoints.length}` : "";
-  }, [point, positionOf, waypoints.length]);
+  })() : "";
 
 
   const focus = useCallback((entry: (typeof walk)[number]) => {
