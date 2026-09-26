@@ -82,13 +82,6 @@ export function keepingAvailable(): boolean {
  *  for ever. */
 export const WORKER_WAIT_MS = 5000;
 
-export class NoServiceWorker extends Error {
-  constructor() {
-    super("No service worker is holding this app here, so nothing would be kept. The dev server registers none.");
-    this.name = "NoServiceWorker";
-  }
-}
-
 async function workerReady(): Promise<boolean> {
   if (!keepingAvailable()) return false;
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -108,7 +101,7 @@ async function workerReady(): Promise<boolean> {
 export async function keepRouteCharts(
   course: Course, kind: string, zooms: number[], onProgress: (p: KeepProgress) => void, signal?: AbortSignal,
 ): Promise<KeepProgress> {
-  if (!(await workerReady())) throw new NoServiceWorker();
+  if (!(await workerReady())) throw new Error("No service worker is holding this app here, so nothing would be kept. The dev server registers none.");
   const tiles = corridorTiles(course.course_line as [number, number][], zooms);
   const progress: KeepProgress = { done: 0, total: tiles.length, failed: 0 };
   onProgress({ ...progress });
