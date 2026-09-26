@@ -74,7 +74,7 @@ def _nearest_neighbour_nm(lats, lons) -> list:
     use for.
     """
     nearest = geo.nearest_neighbour_nm(lats, lons)
-    return [0.0 if math.isinf(d) else float(d) for d in nearest]
+    return [0.0 if np.isinf(d) else float(d) for d in nearest]
 
 
 def build(detections: list) -> pd.DataFrame:
