@@ -6,7 +6,7 @@ tmp_path and _load_table keys its cache on that exact path.
 import pandas as pd
 import pytest
 
-from vfr.airports import get_airport, get_frequencies, get_runways
+from vfr.airports import get_airport, get_frequencies, get_runways, search_airports
 
 
 @pytest.fixture
@@ -88,3 +88,14 @@ def test_get_frequencies_sorts_ctaf_first(frequencies_csv):
     frequencies = get_frequencies("KDLH", cache_path=frequencies_csv)
 
     assert [f["type"] for f in frequencies] == ["CTAF", "TWR", "ATIS"]
+
+
+def test_search_airports_preserves_display_ident(airports_csv):
+    results = search_airports("Duluth", cache_path=airports_csv)
+
+    assert results == [{
+        "ident": "KDLH",
+        "name": "Duluth Intl",
+        "municipality": "Duluth",
+        "region": "US-MN",
+    }]
