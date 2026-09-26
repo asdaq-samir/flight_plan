@@ -1571,7 +1571,7 @@
             "type": "array"
           },
           "chart_revision": {
-            "default": 0.0,
+            "default": 0,
             "title": "Chart Revision",
             "type": "integer"
           },
@@ -1679,12 +1679,12 @@
             "type": "array"
           },
           "missing": {
-            "default": 0.0,
+            "default": 0,
             "title": "Missing",
             "type": "integer"
           },
           "tiles": {
-            "default": 0.0,
+            "default": 0,
             "title": "Tiles",
             "type": "integer"
           },
@@ -3595,7 +3595,7 @@
             "type": "array"
           },
           "chart_revision": {
-            "default": 0.0,
+            "default": 0,
             "title": "Chart Revision",
             "type": "integer"
           },
