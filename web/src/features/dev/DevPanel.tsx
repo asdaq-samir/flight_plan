@@ -58,9 +58,14 @@ const CHART_KIND_LABELS: Record<string, string> = {
  */
 export function DevPanel() {
   const queryClient = useQueryClient();
-  const { data: status, isFetching, isError: statusFailed } = useQuery({
-    queryKey: ["status"], queryFn: api.status, refetchInterval: 30000,
-  });
+  // Paint training/performance from local files immediately. The slow
+  // whole-stack probes continue in parallel and enrich System/Airflow
+  // when they arrive, rather than blocking the first useful content.
+  const local = useQuery({ queryKey: ["localStatus"], queryFn: api.localStatus, refetchInterval: 30000 });
+  const remote = useQuery({ queryKey: ["status"], queryFn: api.status, refetchInterval: 30000 });
+  const status = local.data ? { ...local.data, ...remote.data } as Status : remote.data;
+  const isFetching = local.isFetching || remote.isFetching;
+  const statusFailed = local.isError && remote.isError;
   // The tab the console was last on, remembered per browser: a
   // developer watching a retrain or a route being collected reopens the
   // console to the same tab, not to Model Training every time.
@@ -71,7 +76,7 @@ export function DevPanel() {
   // two health probes the System tab runs itself and which services the
   // sidecar can start.
   const refreshAll = () => void queryClient.invalidateQueries({
-    predicate: q => ["status", "modelComparison", "webappHealth", "plannerHealth", "devServices"].includes(String(q.queryKey[0])),
+    predicate: q => ["status", "localStatus", "modelComparison", "webappHealth", "plannerHealth", "devServices"].includes(String(q.queryKey[0])),
   });
 
   return (
