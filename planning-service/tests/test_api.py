@@ -106,6 +106,19 @@ def test_local_status_never_runs_network_probes(monkeypatch):
     assert "services" not in body and "pipeline" not in body
 
 
+def test_pipeline_status_only_runs_airflow_probe(monkeypatch):
+    expected = system._pipeline_unreachable("test", configured=True)
+    monkeypatch.setattr(system, "_pipeline_status", lambda: expected)
+    monkeypatch.setattr(system, "_model_service_status", lambda: (_ for _ in ()).throw(AssertionError("unrelated probe")))
+    monkeypatch.setattr(system, "_agent_status", lambda _url: (_ for _ in ()).throw(AssertionError("unrelated probe")))
+    monkeypatch.setattr(system, "_local_status", lambda: (_ for _ in ()).throw(AssertionError("local snapshot")))
+
+    resp = client.get("/api/status/pipeline")
+
+    assert resp.status_code == 200
+    assert resp.json()["detail"] == "test"
+
+
 def test_status_reports_every_service_and_the_data_on_disk(monkeypatch):
     monkeypatch.setattr(system, "NAV_LOG_AGENT_URL", "http://nav-log-agent:8000")
     monkeypatch.setattr(system, "CREWAI_AGENT_URL", None)
