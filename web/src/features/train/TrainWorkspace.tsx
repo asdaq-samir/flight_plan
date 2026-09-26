@@ -1,4 +1,4 @@
-import { Suspense, lazy, useCallback, useMemo, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { identOf, routeOf } from "../../lib/identSchema";
 // Without this Leaflet's tiles, markers and controls have no
@@ -8,9 +8,11 @@ import "leaflet/dist/leaflet.css";
 import { useProgressToast } from "../../lib/useProgressToast";
 import type { WorkspaceProps } from "../page/workspace";
 /** The console's own chunk: recharts and the model tables are a third
- *  of this page's JavaScript and are parsed only when the console is
- *  actually opened. */
-const DevPanel = lazy(() => import("../dev/DevPanel").then(m => ({ default: m.DevPanel })));
+ *  of this page's JavaScript. Load it after the training workspace is
+ *  interactive so the first console click usually has no chunk-download
+ *  penalty, while keeping it off the critical path for the map itself. */
+const loadDevPanel = () => import("../dev/DevPanel").then(m => ({ default: m.DevPanel }));
+const DevPanel = lazy(loadDevPanel);
 import ChartMap from "./components/ChartMap";
 import WaypointPanel from "./components/WaypointPanel";
 import PointPopup from "./components/PointPopup";
@@ -29,7 +31,14 @@ const FOCUS_ZOOM = 12;
  * console for the training run. The page owns the shell and the route
  * typed into its form; this owns everything about the labels.
  */
-export default function TrainWorkspace({ dep, dest, children }: WorkspaceProps) {
+export default function TrainWorkspace({
+  // Warm the console chunk only after the workspace has mounted. The
+  // console itself is still mounted on demand by MapPage, so none of its
+  // status queries run until the developer actually opens it.
+  useEffect(() => {
+    const id = window.setTimeout(() => { void loadDevPanel(); }, 0);
+    return () => window.clearTimeout(id);
+  }, []); dep, dest, children }: WorkspaceProps) {
   const [searchParams, setSearchParams] = useSearchParams();
   // The address is the route the labels are for -- what the queries
   // read, and what a load writes; the header's form is a draft until
