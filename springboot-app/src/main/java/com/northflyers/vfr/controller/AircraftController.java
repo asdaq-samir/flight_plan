@@ -1,6 +1,5 @@
 package com.northflyers.vfr.controller;
 
-import com.northflyers.vfr.domain.Pilot;
 import com.northflyers.vfr.dto.AircraftDto;
 import com.northflyers.vfr.dto.AircraftRequest;
 import com.northflyers.vfr.service.AircraftService;
