@@ -7,7 +7,7 @@ import type {
   Flight, FlightSummary, ModelComparison, NarrativeMessage, NarrativeRequest, NavLogMessage, PickDeleted, PickSaved,
   ClassBResponse, DevServices, DevServiceStarted, PicksResponse, Pilot, Rating, RetrainStarted, Role, SaveFlightRequest,
   SignInCapabilities,
-  Status, StreamMessage,
+  Status, PipelineStatus, StreamMessage,
 } from "./types";
 
 /**
@@ -213,6 +213,9 @@ export const api = {
 
   /** Local developer-console data without waiting for service probes. */
   localStatus: () => planner.GET("/api/status/local").then(data<Partial<Status>>),
+
+  /** Airflow-only status for retraining controls. */
+  pipelineStatus: () => planner.GET("/api/status/pipeline").then(data<PipelineStatus>),
 
   /** One run of the training DAG through Airflow; 501 with the CLI
    *  alternative when the planner has no Airflow to reach. */
