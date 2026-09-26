@@ -61,7 +61,7 @@ interface Edits {
    *  position in the list of added points, and that list gets the picks
    *  no detection claimed put in front of it when the chart read ends:
    *  a point added mid-read then pointed at one of those, and the next
-   *  digit key rated the wrong pick. */
+   *  rating could target the wrong pick. */
   selection: string | null;
 }
 
