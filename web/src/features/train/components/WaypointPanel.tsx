@@ -55,7 +55,7 @@ const COLUMNS = 4;
 /**
  * The developer's waypoint drawer, shaped like the pilot's nav log:
  * a header with the corridor's numbers and the drawer's own actions,
- * then one table walked with Up/Down or a click, the map following.
+ * then one table walked by selecting a row, with the map following.
  * It is a worklist, not a record: every candidate the filters admit is
  * a row, the unrated ones included, numbered the way the map popup
  * numbers them, with the rating (or a dash) at the end -- the old list
@@ -149,14 +149,9 @@ export default function WaypointPanel({
           </span>
         </div>
       </div>
-      {/* data-waypoint-list marks the scope TrainWorkspace's keyboard handler
-          checks to tell "arrows should walk this list" apart from
-          "arrows should walk the map" -- set once focus lands inside
-          here (a row is focusable), not on hover, so it survives
-          scrolling. */}
       <div
         className="min-h-0 flex-1 overflow-auto p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]"
-        data-waypoint-list data-testid="waypoint-scroller"
+        data-testid="waypoint-scroller"
       >
         <Table containerClassName="overflow-visible" className="text-xs whitespace-nowrap">
           <TableCaption className="sr-only">Waypoints from {departureIdent} to {destinationIdent}</TableCaption>
@@ -229,10 +224,9 @@ export default function WaypointPanel({
                     </TableCell>
                   </SelectableRow>
                   {/* The selected waypoint's own rating buttons, under
-                      it -- the same six the map popup has, and the
-                      digit keys' own scale. Rating from here moves on
-                      to the next row (TrainWorkspace's onRate), the way the
-                      keys do, so a corridor rates top to bottom. */}
+                      it -- the same six the map popup has. Rating from
+                      here moves on to the next row, so a corridor rates
+                      top to bottom. */}
                   {isSelected && (
                     <NoteRow selected colSpan={COLUMNS}>
                       <div className="flex flex-wrap items-center gap-1 py-0.5">
