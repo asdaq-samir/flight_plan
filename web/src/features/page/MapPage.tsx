@@ -7,7 +7,6 @@ import {
 } from "../../components/ui/sheet";
 import { PanelRightIcon, SquareTerminal, UserRound } from "lucide-react";
 import IconButton from "../../components/IconButton";
-import "../pilot/PilotPanel";
 import PlanWorkspace from "../plan/PlanWorkspace";
 
 /**
