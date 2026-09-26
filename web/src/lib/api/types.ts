@@ -62,6 +62,7 @@ export type AirportSearch = Schemas["AirportSearch"];
 export type ModelComparisonEntry = Schemas["ModelComparisonEntry"];
 export type ModelComparison = Schemas["ModelComparison"];
 export type Status = Schemas["Status"];
+export type PipelineStatus = Schemas["PipelineStatus"];
 export type CorridorStatus = Schemas["CorridorStatus"];
 export type RetrainStarted = Schemas["RetrainStarted"];
 export type ChartRefreshStarted = Schemas["ChartRefreshStarted"];
