@@ -1,7 +1,6 @@
 import { Suspense, lazy, useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
-import MapHeader from "../../components/MapHeader";
 import RouteForm from "../../components/RouteForm";
 import {
   Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger,
@@ -122,40 +121,32 @@ export default function MapPage({ mode }: { mode: Mode }) {
               without an effect writing document.title by hand. */}
           <title>{title}</title>
           <main className="relative flex min-h-0 min-w-0 flex-1 flex-col bg-background print:hidden">
-            <MapHeader
-              dev={mode === "dev"}
-              form={(
-                <RouteForm
-                  dep={dep} dest={dest} onDepChange={setDep} onDestChange={setDest}
-                  onSubmit={pieces.submit} disabled={pieces.loading}
-                />
-              )}
-              actions={(
-                <>
-                  {/* The console: the pilot's account, aeroplanes, flights
-                      and guide, or the developer's training, performance
-                      and system -- a stock Sheet from the top, modal, so
-                      the page waits while it is out. */}
-                  <Sheet>
-                    <SheetTrigger asChild><ConsoleButton /></SheetTrigger>
-                    <SheetContent side="top" className="max-h-[85dvh] gap-0 p-0">
-                      {/* The stock header row, with the sheet's own close
-                          button at its end; the console's content starts
-                          under it. */}
-                      <SheetHeader className="border-b py-3">
-                        <SheetTitle>{consoleLabel}</SheetTitle>
-                        <SheetDescription className="sr-only">The {consoleLabel.toLowerCase()} console</SheetDescription>
-                      </SheetHeader>
-                      {pieces.console}
-                    </SheetContent>
-                  </Sheet>
-                  <IconButton label={sidebar} aria-expanded={sidebarOpen}
-                    data-testid="sidebar-trigger-button" onClick={() => setSidebarOpen(!sidebarOpen)}>
-                    <PanelRightIcon />
-                  </IconButton>
-                </>
-              )}
-            />
+            <header data-mode={mode} className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b bg-background p-2 sm:px-4 print:hidden">
+              <div className="min-w-0">
+                <RouteForm dep={dep} dest={dest} onDepChange={setDep} onDestChange={setDest}
+                  onSubmit={pieces.submit} disabled={pieces.loading} />
+              </div>
+              <div className="flex items-center gap-2 [&>*]:size-8 sm:[&>*]:size-9">
+                {/* The console: the pilot's account, aeroplanes, flights
+                    and guide, or the developer's training, performance
+                    and system -- a stock Sheet from the top, modal, so
+                    the page waits while it is out. */}
+                <Sheet>
+                  <SheetTrigger asChild><ConsoleButton /></SheetTrigger>
+                  <SheetContent side="top" className="max-h-[85dvh] gap-0 p-0">
+                    <SheetHeader className="border-b py-3">
+                      <SheetTitle>{consoleLabel}</SheetTitle>
+                      <SheetDescription className="sr-only">The {consoleLabel.toLowerCase()} console</SheetDescription>
+                    </SheetHeader>
+                    {pieces.console}
+                  </SheetContent>
+                </Sheet>
+                <IconButton label={sidebar} aria-expanded={sidebarOpen}
+                  data-testid="sidebar-trigger-button" onClick={() => setSidebarOpen(!sidebarOpen)}>
+                  <PanelRightIcon />
+                </IconButton>
+              </div>
+            </header>
             {pieces.notices}
             {/* `isolate`: Leaflet's own panes and controls carry z-indexes
                 up to 1000; contained here, the map is one flat layer
