@@ -93,6 +93,19 @@ def test_checkpoints_translates_a_down_model_service_to_502(monkeypatch):
 # --- /api/status, /api/retrain, /api/aircraft-profiles ---
 
 
+def test_local_status_never_runs_network_probes(monkeypatch):
+    monkeypatch.setattr(system, "_model_service_status", lambda: (_ for _ in ()).throw(AssertionError("network probe")))
+    monkeypatch.setattr(system, "_pipeline_status", lambda: (_ for _ in ()).throw(AssertionError("network probe")))
+    monkeypatch.setattr(system, "_agent_status", lambda _url: (_ for _ in ()).throw(AssertionError("network probe")))
+
+    resp = client.get("/api/status/local")
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert "corridors" in body and "model" in body and "charts" in body
+    assert "services" not in body and "pipeline" not in body
+
+
 def test_status_reports_every_service_and_the_data_on_disk(monkeypatch):
     monkeypatch.setattr(system, "NAV_LOG_AGENT_URL", "http://nav-log-agent:8000")
     monkeypatch.setattr(system, "CREWAI_AGENT_URL", None)
