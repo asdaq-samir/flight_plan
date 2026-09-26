@@ -14,7 +14,7 @@ import { api } from "../../lib/api/client";
 export function useRetrain() {
   const queryClient = useQueryClient();
   const { data: pipeline } = useQuery({
-    queryKey: ["pipelineStatus"], queryFn: api.pipelineStatus, refetchInterval: 30000, retry: false,
+    queryKey: ["pipelineStatus"], queryFn: api.pipelineStatus, refetchInterval: 30000, staleTime: 30000, retry: false,
   });
   const start = useMutation({
     mutationFn: api.retrain,
