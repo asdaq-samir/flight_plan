@@ -60,15 +60,9 @@ export default function TrainWorkspace({ dep, dest, children }: WorkspaceProps) 
     ),
     [store.endpoints, store.detections, store.added, store.filters],
   );
-  const waypoints = useMemo(() => walk.filter(e => !isEndpoint(e.point)), [walk]);
-  const counts = useMemo(
-    () => filterCounts([...store.detections, ...store.added]),
-    [store.detections, store.added],
-  );
-  const picks = useMemo(
-    () => [...store.detections, ...store.added].filter(hasRating),
-    [store.detections, store.added],
-  );
+  const waypoints = walk.filter(e => !isEndpoint(e.point));
+  const counts = filterCounts([...store.detections, ...store.added]);
+  const picks = [...store.detections, ...store.added].filter(hasRating);
   const hidden = hiddenCount(picks, store.filters);
 
   const place = point ? (() => {
@@ -125,7 +119,7 @@ export default function TrainWorkspace({ dep, dest, children }: WorkspaceProps) 
       />
     );
   }, [
-    point, place, waypoints.length, course?.bearing_deg, course?.departure.ident,
+    point, place, course?.bearing_deg, course?.departure.ident,
     rate, setCategory, removeSelected, step, walkIndex, walk.length,
   ]);
 
