@@ -58,25 +58,25 @@ const CHART_KIND_LABELS: Record<string, string> = {
  */
 export function DevPanel() {
   const queryClient = useQueryClient();
-  // Paint training/performance from local files immediately. The slow
-  // whole-stack probes continue in parallel and enrich System/Airflow
-  // when they arrive, rather than blocking the first useful content.
-  const local = useQuery({ queryKey: ["localStatus"], queryFn: api.localStatus, refetchInterval: 30000 });
-  const remote = useQuery({ queryKey: ["status"], queryFn: api.status, refetchInterval: 30000 });
+  // The remembered tab is known before the queries: only System needs
+  // the expensive cross-service snapshot. Training/performance render
+  // entirely from the fast local snapshot (and their own narrow queries).
+  const savedTab = usePreferences(s => s.devTab);
+  const changeTab = usePreferences(s => s.setDevTab);
+  const local = useQuery({ queryKey: ["localStatus"], queryFn: api.localStatus, refetchInterval: 30000, staleTime: 30000 });
+  const remote = useQuery({
+    queryKey: ["status"], queryFn: api.status, refetchInterval: 30000,
+    staleTime: 30000, enabled: savedTab === "system",
+  });
   const status = local.data ? { ...local.data, ...remote.data } as Status : remote.data;
   const isFetching = local.isFetching || remote.isFetching;
   const statusFailed = local.isError && remote.isError;
-  // The tab the console was last on, remembered per browser: a
-  // developer watching a retrain or a route being collected reopens the
-  // console to the same tab, not to Model Training every time.
-  const savedTab = usePreferences(s => s.devTab);
-  const changeTab = usePreferences(s => s.setDevTab);
   // Everything the console shows, asked for again now rather than at
   // the next 30-second tick: the snapshot, the model comparison, the
   // two health probes the System tab runs itself and which services the
   // sidecar can start.
   const refreshAll = () => void queryClient.invalidateQueries({
-    predicate: q => ["status", "localStatus", "modelComparison", "webappHealth", "plannerHealth", "devServices"].includes(String(q.queryKey[0])),
+    predicate: q => ["status", "localStatus", "pipelineStatus", "modelComparison", "webappHealth", "plannerHealth", "devServices"].includes(String(q.queryKey[0])),
   });
 
   return (
