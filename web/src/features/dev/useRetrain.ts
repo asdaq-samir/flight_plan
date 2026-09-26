@@ -13,8 +13,8 @@ import { api } from "../../lib/api/client";
  */
 export function useRetrain() {
   const queryClient = useQueryClient();
-  const { data: status } = useQuery({
-    queryKey: ["status"], queryFn: api.status, refetchInterval: 30000, retry: false,
+  const { data: pipeline } = useQuery({
+    queryKey: ["pipelineStatus"], queryFn: api.pipelineStatus, refetchInterval: 30000, retry: false,
   });
   const start = useMutation({
     mutationFn: api.retrain,
@@ -24,14 +24,12 @@ export function useRetrain() {
       });
       // Returned, so the mutation stays pending until the snapshot shows
       // the run: Retrain was enabled again in between, for a second press.
-      return queryClient.invalidateQueries({ queryKey: ["status"] });
+      return queryClient.invalidateQueries({ queryKey: ["pipelineStatus"] });
     },
   });
-  const pipeline = status?.pipeline;
   const lastRun = pipeline?.last_run ?? null;
   const running = lastRun?.state === "running" || lastRun?.state === "queued";
   return {
-    status,
     pipeline,
     lastRun,
     reachable: pipeline?.airflow_reachable ?? false,
