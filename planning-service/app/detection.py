@@ -2,11 +2,15 @@
 route, plus the charted airports that come first."""
 import threading
 import time
+from functools import lru_cache
 
 from vfr import chartvision, faa_data, geo
 from vfr.config import DATA_DIR
 
-_APT_CACHE: dict = {}
+
+@lru_cache(maxsize=1)
+def _airport_path():
+    return faa_data.ensure_nasr_file("APT_BASE.csv", DATA_DIR / "raw" / "faa_nasr")
 
 
 def faa_airports(start, end, half_width_nm, dep_ident, dest_ident) -> list:
@@ -17,14 +21,12 @@ def faa_airports(start, end, half_width_nm, dep_ident, dest_ident) -> list:
     are not using them as references, you are flying from one to the
     other.
     """
-    if "path" not in _APT_CACHE:
-        _APT_CACHE["path"] = faa_data.ensure_nasr_file("APT_BASE.csv", DATA_DIR / "raw" / "faa_nasr")
     bbox = geo.corridor_bbox(start, end, half_width_nm + 1.0)
     # APT_BASE is a large national CSV and re-parsing it per request cost
     # 2.1 s, which was the entire time-to-first-marker on a streamed
     # route -- airports are meant to be the cheap thing shown first.
     df = faa_data.load_route_airports(
-        _APT_CACHE["path"], bbox, exclude_idents=(dep_ident, dest_ident)
+        _airport_path(), bbox, exclude_idents=(dep_ident, dest_ident)
     )
 
     landmarks = []
