@@ -6,6 +6,7 @@ import IconButton from "../../../components/IconButton";
 import { NoteRow, SelectableRow } from "../../../components/SelectableRows";
 import { Badge } from "../../../components/ui/badge";
 import { Button } from "../../../components/ui/button";
+import { Checkbox } from "../../../components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "../../../components/ui/popover";
 import {
   Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow,
@@ -13,7 +14,14 @@ import {
 import { isEndpoint, type Point, type Rating } from "../../../lib/api/types";
 import { COLORS, RATINGS, pointKey, prettyCategory, roleOf, type FilterKey, type Filters, type WalkEntry } from "../logic";
 import { inkOn } from "../../../lib/scoreScale";
-import FilterBar from "./FilterBar";
+
+
+const FILTER_AXES: [string, FilterKey, FilterKey][] = [
+  ["Role", "dr", "visual"], ["Source", "detected", "added"], ["Status", "rated", "unrated"],
+];
+const FILTER_LABEL: Record<FilterKey, string> = {
+  dr: "DR", visual: "visual", detected: "detected", added: "added", rated: "rated", unrated: "unrated",
+};
 
 interface Props {
   /** Every point the walk can land on, in flight order: the endpoints
@@ -93,7 +101,21 @@ export default function WaypointPanel({
                   (13)") needs the room; a narrower popover clipped its
                   last count. */}
               <PopoverContent align="end" className="w-80">
-                <FilterBar filters={filters} onChange={onFilterChange} counts={counts} />
+                <div className="space-y-2 text-sm">
+                  {FILTER_AXES.map(([axis, a, b]) => (
+                    <div key={axis}>
+                      <div className="text-xs font-semibold uppercase text-muted-foreground">{axis}</div>
+                      <div className="grid grid-cols-2 gap-x-1">
+                        {[a, b].map(key => (
+                          <label key={key} htmlFor={`filter-${key}`} className="inline-flex items-center gap-1.5 rounded px-1 py-1 whitespace-nowrap hover:bg-accent active:bg-accent">
+                            <Checkbox id={`filter-${key}`} checked={filters[key]} onCheckedChange={v => onFilterChange(key, v === true)} />
+                            {FILTER_LABEL[key]} <span className="text-muted-foreground">({counts[key]})</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </PopoverContent>
             </Popover>
             <IconButton label="Undo" onClick={onUndo} disabled={!canUndo} data-testid="undo-button">
