@@ -1,6 +1,5 @@
-import { Layers, ZoomIn, ZoomOut } from "lucide-react";
+import { Layers, Maximize, ZoomIn, ZoomOut } from "lucide-react";
 import ChartLayers from "./ChartLayers";
-import FullscreenButton from "./FullscreenButton";
 import IconButton from "./IconButton";
 import OwnShipControls from "./OwnShipControls";
 import { Checkbox } from "./ui/checkbox";
@@ -84,9 +83,14 @@ export default function MapControls({ zoom, ownShip = false, candidates }: Props
           {zoom.zoomedIn ? <ZoomOut className="size-5" /> : <ZoomIn className="size-5" />}
         </IconButton>
       )}
-      {/* Draws itself only where full screen actually works: a desktop
-          browser and an iPad, never an iPhone. */}
-      <FullscreenButton />
+      {typeof document !== "undefined" && document.fullscreenEnabled && typeof document.documentElement.requestFullscreen === "function" && (
+        <IconButton
+          label="Full screen" variant="outline" className="bg-background shadow-sm"
+          onClick={() => { void document.documentElement.requestFullscreen(); }} data-testid="fullscreen-button"
+        >
+          <Maximize className="size-5" />
+        </IconButton>
+      )}
     </div>
   );
 }
