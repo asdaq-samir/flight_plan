@@ -115,12 +115,12 @@ def search_airports(query: str, limit: int = 8, cache_path: Path = DEFAULT_CACHE
     matches = matches.sort_values(["_rank", "_display_ident"]).head(limit)
     return [
         {
-            "ident": row["_display_ident"],
-            "name": row["name"],
-            "municipality": row["municipality"] if pd.notna(row.get("municipality")) else None,
-            "region": row["iso_region"] if pd.notna(row.get("iso_region")) else None,
+            "ident": row._display_ident,
+            "name": row.name,
+            "municipality": row.municipality if pd.notna(row.municipality) else None,
+            "region": row.iso_region if pd.notna(row.iso_region) else None,
         }
-        for _, row in matches.iterrows()
+        for row in matches.itertuples(index=False)
     ]
 
 
@@ -134,17 +134,17 @@ def get_runways(ident: str, cache_path: Path = RUNWAYS_CACHE_PATH) -> list[dict]
     df = _load_table(RUNWAYS_URL, cache_path)
     rows = df[df["airport_ident"].str.upper() == ident]
     runways = []
-    for _, row in rows.iterrows():
-        le, he = row.get("le_ident"), row.get("he_ident")
+    for row in rows.itertuples(index=False):
+        le, he = row.le_ident, row.he_ident
         ends = "/".join(str(e) for e in (le, he) if pd.notna(e)) or None
-        length, width = row.get("length_ft"), row.get("width_ft")
+        length, width = row.length_ft, row.width_ft
         runways.append({
             "ends": ends,
             "length_ft": int(length) if pd.notna(length) else None,
             "width_ft": int(width) if pd.notna(width) else None,
-            "surface": row.get("surface") if pd.notna(row.get("surface")) else None,
-            "lighted": bool(row.get("lighted")),
-            "closed": bool(row.get("closed")),
+            "surface": row.surface if pd.notna(row.surface) else None,
+            "lighted": bool(row.lighted),
+            "closed": bool(row.closed),
         })
     return runways
 
@@ -165,10 +165,10 @@ def get_frequencies(ident: str, cache_path: Path = FREQUENCIES_CACHE_PATH) -> li
 
     frequencies = [
         {
-            "type": row.get("type") if pd.notna(row.get("type")) else None,
-            "description": row.get("description") if pd.notna(row.get("description")) else None,
-            "frequency_mhz": float(row["frequency_mhz"]) if pd.notna(row.get("frequency_mhz")) else None,
+            "type": row.type if pd.notna(row.type) else None,
+            "description": row.description if pd.notna(row.description) else None,
+            "frequency_mhz": float(row.frequency_mhz) if pd.notna(row.frequency_mhz) else None,
         }
-        for _, row in rows.iterrows()
+        for row in rows.itertuples(index=False)
     ]
     return sorted(frequencies, key=lambda f: sort_key(f["type"] or ""))
