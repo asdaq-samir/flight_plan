@@ -210,8 +210,9 @@ def _nearest_station(lat: float, lon: float, station_ids, airports_df) -> str | 
     # Station choice depends on position and the FD station set, not altitude,
     # so do the vector search once and reuse it across those wind lookups.
     station_ids = frozenset(station_ids)
-    rows = _station_rows(station_ids, airports_df)
-    _STATION_ROWS[(station_ids, id(airports_df))] = rows
+    key = (station_ids, id(airports_df))
+    if key not in _STATION_ROWS:
+        _station_rows(station_ids, airports_df)
     return _nearest_station_cached(round(lat, 6), round(lon, 6), station_ids, id(airports_df))
 
 
