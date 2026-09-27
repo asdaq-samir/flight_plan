@@ -235,8 +235,16 @@ def test_nearest_winds_station_is_reused_across_altitudes(monkeypatch):
 
     monkeypatch.setattr("vfr.airports.load_airports", lambda: airports_df)
     monkeypatch.setattr(weather, "_station_rows", station_rows)
+    monkeypatch.setattr(weather, "_STATION_ROWS", {})
     stations = {"AAA", "BBB"}
 
+    # The mocked row loader stands in for the production helper's cache write.
+    def cached_station_rows(station_ids, frame):
+        rows = station_rows(station_ids, frame)
+        weather._STATION_ROWS[(frozenset(station_ids), id(frame))] = rows
+        return rows
+
+    monkeypatch.setattr(weather, "_station_rows", cached_station_rows)
     assert weather._nearest_station(40.1, -90.1, stations, airports_df) == "AAA"
     assert weather._nearest_station(40.1, -90.1, stations, airports_df) == "AAA"
     assert calls == 1
