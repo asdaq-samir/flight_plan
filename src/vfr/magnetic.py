@@ -18,6 +18,7 @@ best" automatically once the sign is applied consistently -- see
 vfr.navlog.magnetic_heading_deg).
 """
 from datetime import date
+from functools import lru_cache
 
 from pygeomag import GeoMag
 
@@ -33,6 +34,14 @@ def _decimal_year(day: date) -> float:
     return day.year + (day - start).days / days_in_year
 
 
+@lru_cache(maxsize=4096)
+def _magnetic_variation_cached(lat: float, lon: float, on: date) -> float:
+    when = _decimal_year(on)
+    first, last = _MODEL.life_span
+    clamped = min(max(when, first), last - 1e-6)
+    return _MODEL.calculate(glat=lat, glon=lon, alt=0, time=clamped).d
+
+
 def magnetic_variation_deg(lat: float, lon: float, on: date | None = None) -> float:
     """Magnetic declination at (lat, lon), positive east / negative west,
     for `on` (today by default).
@@ -44,8 +53,8 @@ def magnetic_variation_deg(lat: float, lon: float, on: date | None = None) -> fl
     so the edge of a lapsed model is far closer to the truth than no
     heading at all. Upgrading pygeomag brings the next edition.
     """
-    when = _decimal_year(on or date.today())
-    first, last = _MODEL.life_span
-    # `last` is the exclusive end of the span, so step just inside it.
-    clamped = min(max(when, first), last - 1e-6)
-    return _MODEL.calculate(glat=lat, glon=lon, alt=0, time=clamped).d
+    # Altitude selection and nav-log construction ask for the same leg
+    # midpoints. Keep the public API's "today" behavior while sharing the
+    # model evaluation between those phases.
+    day = on or date.today()
+    return _magnetic_variation_cached(round(lat, 6), round(lon, 6), day)
