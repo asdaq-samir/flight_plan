@@ -194,10 +194,10 @@ def _station_rows(station_ids, airports_df):
 
 @lru_cache(maxsize=4096)
 def _nearest_station_cached(lat: float, lon: float, station_ids: frozenset, airports_df_id: int) -> str | None:
-    from . import airports
-
-    airports_df = airports.load_airports()
-    codes, lats, lons = _station_rows(station_ids, airports_df)
+    # The id is deliberately part of the key: load_airports() returns a
+    # cached frame, and a refreshed frame must not inherit its predecessor's
+    # nearest-station answers.
+    codes, lats, lons = _STATION_ROWS[(station_ids, airports_df_id)]
     if len(codes) == 0:
         return None
     lat0, lon0 = np.radians(lat), np.radians(lon)
@@ -209,7 +209,10 @@ def _nearest_station(lat: float, lon: float, station_ids, airports_df) -> str | 
     # A plan asks for the same leg midpoint at every candidate altitude.
     # Station choice depends on position and the FD station set, not altitude,
     # so do the vector search once and reuse it across those wind lookups.
-    return _nearest_station_cached(round(lat, 6), round(lon, 6), frozenset(station_ids), id(airports_df))
+    station_ids = frozenset(station_ids)
+    rows = _station_rows(station_ids, airports_df)
+    _STATION_ROWS[(station_ids, id(airports_df))] = rows
+    return _nearest_station_cached(round(lat, 6), round(lon, 6), station_ids, id(airports_df))
 
 
 def _nearest_station_uncached(lat: float, lon: float, station_ids, airports_df) -> str | None:
