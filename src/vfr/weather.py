@@ -25,6 +25,7 @@ or two is stale, not "the current cycle".
 import gzip
 import logging
 import re
+from functools import lru_cache
 import threading
 import time
 import xml.etree.ElementTree as ET
@@ -191,7 +192,27 @@ def _station_rows(station_ids, airports_df):
     return rows
 
 
+@lru_cache(maxsize=4096)
+def _nearest_station_cached(lat: float, lon: float, station_ids: frozenset, airports_df_id: int) -> str | None:
+    from . import airports
+
+    airports_df = airports.load_airports()
+    codes, lats, lons = _station_rows(station_ids, airports_df)
+    if len(codes) == 0:
+        return None
+    lat0, lon0 = np.radians(lat), np.radians(lon)
+    a = np.sin((lats - lat0) / 2) ** 2 + np.cos(lat0) * np.cos(lats) * np.sin((lons - lon0) / 2) ** 2
+    return str(codes[int(np.argmin(a))])
+
+
 def _nearest_station(lat: float, lon: float, station_ids, airports_df) -> str | None:
+    # A plan asks for the same leg midpoint at every candidate altitude.
+    # Station choice depends on position and the FD station set, not altitude,
+    # so do the vector search once and reuse it across those wind lookups.
+    return _nearest_station_cached(round(lat, 6), round(lon, 6), frozenset(station_ids), id(airports_df))
+
+
+def _nearest_station_uncached(lat: float, lon: float, station_ids, airports_df) -> str | None:
     codes, lats, lons = _station_rows(station_ids, airports_df)
     if len(codes) == 0:
         return None
