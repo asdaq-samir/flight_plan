@@ -217,6 +217,32 @@ def test_hazards_along_the_route_are_the_current_sigmets_the_line_crosses(mock_g
     }]
 
 
+def test_nearest_winds_station_is_reused_across_altitudes(monkeypatch):
+    """A leg midpoint uses one nearest-station search however many altitudes are evaluated."""
+    weather._nearest_station_cached.cache_clear()
+    airports_df = object()
+    calls = 0
+
+    def station_rows(station_ids, frame):
+        nonlocal calls
+        calls += 1
+        assert frame is airports_df
+        return (
+            __import__("numpy").array(["AAA", "BBB"]),
+            __import__("numpy").radians(__import__("numpy").array([40.0, 45.0])),
+            __import__("numpy").radians(__import__("numpy").array([-90.0, -95.0])),
+        )
+
+    monkeypatch.setattr("vfr.airports.load_airports", lambda: airports_df)
+    monkeypatch.setattr(weather, "_station_rows", station_rows)
+    stations = {"AAA", "BBB"}
+
+    assert weather._nearest_station(40.1, -90.1, stations, airports_df) == "AAA"
+    assert weather._nearest_station(40.1, -90.1, stations, airports_df) == "AAA"
+    assert calls == 1
+    weather._nearest_station_cached.cache_clear()
+
+
 # --- the basic VFR minimums, and the briefing's "VFR not recommended" ---
 
 
