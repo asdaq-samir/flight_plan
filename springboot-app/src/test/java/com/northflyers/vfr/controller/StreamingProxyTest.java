@@ -1,9 +1,12 @@
 package com.northflyers.vfr.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.sun.net.httpserver.HttpServer;
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.net.http.HttpRequest;
@@ -12,6 +15,7 @@ import java.time.Duration;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.context.request.async.AsyncRequestNotUsableException;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
 /** An upstream that answers too slowly is a 504 that says so, not a 502
@@ -55,5 +59,21 @@ class StreamingProxyTest {
         ByteArrayOutputStream body = new ByteArrayOutputStream();
         answer.getBody().writeTo(body);
         assertThat(body.toString(StandardCharsets.UTF_8)).contains("planner service timed out");
+    }
+
+    /** A response the container has recycled -- its client gone mid-stream
+     *  -- fails inside Tomcat with a RuntimeException, not an IOException.
+     *  The pipe reports it as the client having left, which the exception
+     *  handler logs quietly rather than as an unhandled error. */
+    @Test
+    void aStreamWhoseReaderIsGoneStopsAsAClientThatLeft() {
+        OutputStream recycled = new OutputStream() {
+            @Override
+            public void write(int b) {
+                throw new NullPointerException("this.headers[i] is null");
+            }
+        };
+        StreamingResponseBody body = StreamingProxy.pipe(new ByteArrayInputStream("{\"type\":\"leg\"}\n".getBytes(StandardCharsets.UTF_8)));
+        assertThatThrownBy(() -> body.writeTo(recycled)).isInstanceOf(AsyncRequestNotUsableException.class);
     }
 }

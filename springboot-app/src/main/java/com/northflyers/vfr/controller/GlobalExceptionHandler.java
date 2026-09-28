@@ -2,6 +2,7 @@ package com.northflyers.vfr.controller;
 
 import com.northflyers.vfr.dto.ErrorResponse;
 import com.northflyers.vfr.service.NoSuchAircraftException;
+import jakarta.servlet.http.HttpServletResponse;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -12,6 +13,7 @@ import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.util.DisconnectedClientHelper;
 
 /**
  * Turns failure classes into a uniform ErrorResponse instead of an
@@ -25,6 +27,16 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 public class GlobalExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
+    /** A browser that left mid-response -- a nav log or detection stream
+     *  it stopped reading, a tab closed -- is nobody's error, and there is
+     *  nobody left to answer. Spring's own helper knows the signs (a
+     *  broken pipe, a reset connection, Tomcat's client abort) and logs
+     *  one line on its own category, at debug. Each used to be an ERROR
+     *  "Unhandled exception" with a stack trace, then a second failure
+     *  writing a JSON body into an NDJSON stream already under way. */
+    private static final DisconnectedClientHelper DISCONNECTED =
+            new DisconnectedClientHelper("com.northflyers.vfr.disconnected-client");
 
     /**
      * Handles a failed {@code @Valid} check on a request body.
@@ -92,10 +104,21 @@ public class GlobalExceptionHandler {
      * the server broke, and the log said "Unhandled exception".
      *
      * @param ex the unexpected exception, logged in full server-side
-     * @return its own status for a client error Spring MVC names, else 500 with a generic message
+     * @param response the answer under way, which may already be committed
+     * @return its own status for a client error Spring MVC names, else 500 with a generic message;
+     *         nothing for a client that has gone, or once the response is committed
      */
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<ErrorResponse> handleUnexpected(Exception ex) {
+    public ResponseEntity<ErrorResponse> handleUnexpected(Exception ex, HttpServletResponse response) {
+        if (DISCONNECTED.checkAndLogClientDisconnectedException(ex)) {
+            return null;
+        }
+        if (response.isCommitted()) {
+            // Part of an answer is already on its way (a stream): no body
+            // can follow it, so the failure is logged and that is all.
+            log.error("Failed after the response was sent", ex);
+            return null;
+        }
         if (ex instanceof org.springframework.web.ErrorResponse known && known.getStatusCode().is4xxClientError()) {
             String detail = known.getBody().getDetail();
             return ResponseEntity.status(known.getStatusCode())

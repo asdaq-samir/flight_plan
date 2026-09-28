@@ -16,6 +16,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
+import org.springframework.web.context.request.async.AsyncRequestNotUsableException;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
 /**
@@ -123,8 +124,20 @@ public class StreamingProxy {
             byte[] buffer = new byte[8192];
             int read;
             while ((read = in.read(buffer)) != -1) {
-                out.write(buffer, 0, read);
-                out.flush();
+                try {
+                    out.write(buffer, 0, read);
+                    out.flush();
+                } catch (RuntimeException gone) {
+                    // Tomcat recycles a response once its client has gone (a
+                    // page that moved on mid-stream), and a write to it then
+                    // fails inside the container -- an NPE in its header
+                    // table -- rather than with an IOException. It means the
+                    // same thing: nobody is reading. Said the way Spring MVC
+                    // says it, so GlobalExceptionHandler treats it as a
+                    // client that left rather than an error; closing the
+                    // upstream (the try above) stops the planner's stream.
+                    throw new AsyncRequestNotUsableException("the client stopped reading the stream", gone);
+                }
             }
         }
     }
