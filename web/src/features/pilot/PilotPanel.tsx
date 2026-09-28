@@ -23,8 +23,8 @@ export function PilotButton(props: Omit<ComponentProps<typeof IconButton>, "labe
 /**
  * The pilot's own drawer, dropping down over the map (see PlanWorkspace):
  * who is signed in and the theme on its top line, then one tab each
- * for their aeroplanes, their filed flights, and the guide to the
- * planner. The shape is `ConsoleTabs`, shared with the developer's
+ * for the guide to the planner (first: where a newcomer starts), their
+ * aeroplanes and their filed flights. The shape is `ConsoleTabs`, shared with the developer's
  * drawer. Not the nav log or the briefing: those are the Flight
  * Planning drawer at the side.
  */
@@ -42,9 +42,9 @@ export function PilotPanel({ course }: { course: Course | null }) {
       onChange={changeTab}
       actions={<SignInStatus pilot={pilotState} onRetry={() => void refetch()} />}
       tabs={[
+        { value: "guide", label: "Guide", content: <PilotGuide course={course} /> },
         { value: "aircraft", label: "Aircraft", content: <AircraftPanel pilot={pilotState} /> },
         { value: "flights", label: "Flights", content: <FlightsPanel pilot={pilotState} /> },
-        { value: "guide", label: "Guide", content: <PilotGuide course={course} /> },
       ]}
     />
   );

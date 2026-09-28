@@ -81,7 +81,7 @@ export const usePreferences = create<Preferences>()(
       aircraft: DEFAULT_AIRCRAFT,
       filters: DEFAULT_FILTERS,
       devTab: "training",
-      pilotTab: "aircraft",
+      pilotTab: "guide",
       setBase: base => set({ base }),
       setTac: tac => set({ tac }),
       setMarkerZoom: markerZoom => set({ markerZoom }),

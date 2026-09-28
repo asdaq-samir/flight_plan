@@ -876,6 +876,9 @@ test("plan page: the pilot console is a sheet from the top with the account, aer
   await expect(pilot).toBeVisible();
   await expect(page.getByTestId("pilot-button")).toHaveAttribute("aria-expanded", "true");
   await expect(pilot.getByRole("button", { name: "Log out" })).toBeVisible();
+  // The guide first, where someone new to the planner starts.
+  await expect(pilot.getByRole("tab").first()).toHaveText("Guide");
+  await pilot.getByRole("tab", { name: "Aircraft" }).click();
   await expect(pilot.getByRole("heading", { name: "Aircraft" })).toBeVisible();
   await pilot.getByRole("tab", { name: "Flights" }).click();
   await expect(pilot.getByRole("heading", { name: "My Flights" })).toBeVisible();
