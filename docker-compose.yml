@@ -300,6 +300,23 @@ services:
       # connection, since nothing leaves this machine.
       MP_SMTP_AUTH_ACCEPT_ANY: "true"
       MP_SMTP_AUTH_ALLOW_INSECURE: "true"
+      # Off unless .env says otherwise: mail for the addresses matching
+      # MAILPIT_RELAY_TO (a regular expression, e.g. your own) also goes
+      # on to their real inbox through an external SMTP server, so a
+      # sign-in link arrives where you read mail. Everything else, the
+      # e2e suite's addresses included, stays here. Relaying from the
+      # inbox by hand is held to the same addresses, since the inbox is
+      # open to the Wi-Fi in the phone overlay. The From is rewritten to
+      # the relay account, which iCloud and most providers require.
+      MP_SMTP_RELAY_HOST: ${MAILPIT_RELAY_HOST:-}
+      MP_SMTP_RELAY_PORT: ${MAILPIT_RELAY_PORT:-587}
+      MP_SMTP_RELAY_STARTTLS: "true"
+      MP_SMTP_RELAY_AUTH: ${MAILPIT_RELAY_AUTH:-plain}
+      MP_SMTP_RELAY_USERNAME: ${MAILPIT_RELAY_USERNAME:-}
+      MP_SMTP_RELAY_PASSWORD: ${MAILPIT_RELAY_PASSWORD:-}
+      MP_SMTP_RELAY_OVERRIDE_FROM: ${MAILPIT_RELAY_USERNAME:-}
+      MP_SMTP_RELAY_MATCHING: ${MAILPIT_RELAY_TO:-}
+      MP_SMTP_RELAY_ALLOWED_RECIPIENTS: ${MAILPIT_RELAY_TO:-}
 
   webapp:
     # Context is the repo root: the image builds web/ and bakes the

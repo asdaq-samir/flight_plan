@@ -199,7 +199,11 @@ catcher (Mailpit, its inbox at http://localhost:8025) as the webapp's
 `MAIL_HOST`, so the emailed link is how the local stack signs in, and
 `APP_DEVELOPER_EMAILS` defaults to `developer@example.com`, the
 address the end-to-end tests sign in as. Put your own address in
-`.env` to be a developer under it.
+`.env` to be a developer under it. To get your own links in your real
+inbox, set `.env`'s `MAILPIT_RELAY_*` (an SMTP account, e.g. iCloud's
+`smtp.mail.me.com` with an app-specific password, and `MAILPIT_RELAY_TO`,
+a regular expression for the addresses to pass on): Mailpit relays
+those and keeps every other address, the tests' included, local.
 
 **`openapi.json` is committed, and a test holds it to the code.** The
 front end's types for this app's endpoints are generated from it
