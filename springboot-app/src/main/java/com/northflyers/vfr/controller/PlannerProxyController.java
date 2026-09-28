@@ -8,6 +8,7 @@ import java.net.URI;
 import java.net.http.HttpRequest;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
@@ -119,14 +120,20 @@ public class PlannerProxyController {
     private final StreamingProxy proxy;
     private final String plannerBaseUrl;
     private final PilotService pilots;
+    /** A day's checkpoint-note generations per pilot: each is one Claude
+     *  call per checkpoint without a note, which this app pays for. */
+    private final SlidingWindowLimiter noteGenerations = new SlidingWindowLimiter(Duration.ofDays(1));
+    private final int noteGenerationsPerDay;
 
     public PlannerProxyController(
             StreamingProxy proxy,
             @Value("${planner-service.base-url:http://planning-service:8000}") String plannerBaseUrl,
-            PilotService pilots) {
+            PilotService pilots,
+            @Value("${app.paid-calls.per-day:40}") int noteGenerationsPerDay) {
         this.proxy = proxy;
         this.plannerBaseUrl = plannerBaseUrl.replaceAll("/+$", "");
         this.pilots = pilots;
+        this.noteGenerationsPerDay = noteGenerationsPerDay;
     }
 
     @Operation(summary = "Any planner GET",
@@ -153,6 +160,11 @@ public class PlannerProxyController {
         String path = upstreamPath(request);
         if (!isForwarded(method, path)) {
             return StreamingProxy.error(404, "no such planner endpoint: " + method + " " + path);
+        }
+        if ("POST".equals(method) && path.equals("/api/checkpoint-notes/generate")
+                && !noteGenerations.allow(SlidingWindowLimiter.callerOf(request), noteGenerationsPerDay, Instant.now())) {
+            return StreamingProxy.error(429, "That is today's " + noteGenerationsPerDay
+                    + " checkpoint-note generations used. Notes already written still show; more tomorrow.");
         }
         URI target = URI.create(plannerBaseUrl + path + query(request));
 

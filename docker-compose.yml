@@ -429,6 +429,11 @@ services:
       # would meet the deployed limits of 5 and 20 an hour.
       APP_MAGIC_LINK_PER_ADDRESS_PER_HOUR: "60"
       APP_MAGIC_LINK_PER_CLIENT_PER_HOUR: "200"
+      # The paid calls' daily allowance (narratives, generating notes),
+      # loose here for the same reason: the e2e suite asks for notes on
+      # most runs, though for a collected route they are already written
+      # and cost nothing. Deployed, 40 a day each per pilot.
+      APP_PAID_CALLS_PER_DAY: "500"
       # The HTTPS port for a phone on the same Wi-Fi (HttpsConnectorConfig):
       # the certificate infra/local-https/make-certs.sh writes, read
       # only once that file exists. HSTS off: this machine's plain port

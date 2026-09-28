@@ -7,8 +7,6 @@ import com.northflyers.vfr.security.MagicLinkAuthenticationToken;
 import com.northflyers.vfr.security.SignInLanding;
 import com.northflyers.vfr.service.PilotService;
 import io.swagger.v3.oas.annotations.Operation;
-import jakarta.servlet.ServletRequest;
-import jakarta.servlet.ServletRequestWrapper;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
@@ -21,11 +19,7 @@ import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Base64;
-import java.util.ArrayDeque;
-import java.util.Deque;
 import java.util.HexFormat;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -82,7 +76,7 @@ public class MagicLinkController {
     private final String publicBaseUrl;
     private final int perAddressPerHour;
     private final int perClientPerHour;
-    private final Map<String, Deque<Instant>> recentRequests = new ConcurrentHashMap<>();
+    private final SlidingWindowLimiter recentRequests = new SlidingWindowLimiter(THROTTLE_WINDOW);
     private final SecureRandom random = new SecureRandom();
     private final SecurityContextRepository securityContextRepository = new HttpSessionSecurityContextRepository();
     // A new session, not the old one renamed. Sessions live in Postgres
@@ -126,8 +120,8 @@ public class MagicLinkController {
         // Throttled per address and per caller, whether or not the
         // address has an account, so the answer still says nothing about
         // who does -- but nobody can fill a stranger's inbox from here.
-        if (!allow("email:" + body.email().toLowerCase(), perAddressPerHour, now)
-                || !allow("client:" + clientOf(request), perClientPerHour, now)) {
+        if (!recentRequests.allow("email:" + body.email().toLowerCase(), perAddressPerHour, now)
+                || !recentRequests.allow("client:" + SlidingWindowLimiter.clientOf(request), perClientPerHour, now)) {
             return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).build();
         }
         magicLinks.deleteExpiredBefore(now.minus(Duration.ofDays(1)));
@@ -144,56 +138,7 @@ public class MagicLinkController {
         return ResponseEntity.status(HttpStatus.ACCEPTED).build();
     }
 
-    /**
-     * Who is asking, for the per-client limit: the last X-Forwarded-For
-     * entry -- the one the load balancer in front of this app appended,
-     * the address it was connected from -- or, with no proxy in front,
-     * the connection's own address. Read from the request as the
-     * container received it: {@code forward-headers-strategy: framework}
-     * makes {@code getRemoteAddr()} the <em>first</em> entry, which the
-     * caller writes, and hides the header. Keyed on that, a caller could
-     * dodge the limit with a new X-Forwarded-For on every request (seen:
-     * 25 in a row accepted against a limit of 20). With no proxy in front
-     * the caller can still write the last entry too; but mail is only
-     * ever sent from a deployment behind the load balancer.
-     */
-    static String clientOf(HttpServletRequest request) {
-        ServletRequest received = request;
-        while (received instanceof ServletRequestWrapper wrapper) {
-            received = wrapper.getRequest();
-        }
-        String forwarded = received instanceof HttpServletRequest http ? http.getHeader("X-Forwarded-For") : null;
-        if (forwarded != null && !forwarded.isBlank()) {
-            String[] hops = forwarded.split(",");
-            return hops[hops.length - 1].trim();
-        }
-        return received.getRemoteAddr();
-    }
 
-    /** Whether one more request for `key` fits in the last hour, and if
-     *  so, count it. */
-    private boolean allow(String key, int limit, Instant now) {
-        if (recentRequests.size() > 10_000) {
-            // Forget callers with nothing in the window, so a spray of
-            // one-off addresses cannot grow this without bound.
-            recentRequests.values().removeIf(times -> {
-                synchronized (times) {
-                    return times.isEmpty() || times.peekLast().isBefore(now.minus(THROTTLE_WINDOW));
-                }
-            });
-        }
-        Deque<Instant> times = recentRequests.computeIfAbsent(key, k -> new ArrayDeque<>());
-        synchronized (times) {
-            while (!times.isEmpty() && times.peekFirst().isBefore(now.minus(THROTTLE_WINDOW))) {
-                times.pollFirst();
-            }
-            if (times.size() >= limit) {
-                return false;
-            }
-            times.addLast(now);
-            return true;
-        }
-    }
 
     @Operation(summary = "Where a magic link opens",
             description = "Sends the browser to the planner, which asks the pilot to confirm with its own sign-in "

@@ -14,6 +14,7 @@ import java.net.URI;
 import java.net.http.HttpRequest;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.time.Instant;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -81,13 +82,20 @@ public class ComparisonProxyController {
     private final String navLogAgentBaseUrl;
     private final String navLogAgentApiKey;
     private final String crewaiAgentBaseUrl;
+    /** A day's narratives per pilot: each one is a Claude call this app
+     *  pays for, and a signed-in session could otherwise ask for them
+     *  without end. */
+    private final SlidingWindowLimiter narratives = new SlidingWindowLimiter(Duration.ofDays(1));
+    private final int narrativesPerDay;
 
     public ComparisonProxyController(
             StreamingProxy proxy,
             @Value("${nav-log-agent.base-url}") String navLogAgentBaseUrl,
             @Value("${nav-log-agent.api-key}") String navLogAgentApiKey,
-            @Value("${crewai-agent.base-url}") String crewaiAgentBaseUrl) {
+            @Value("${crewai-agent.base-url}") String crewaiAgentBaseUrl,
+            @Value("${app.paid-calls.per-day:40}") int narrativesPerDay) {
         this.proxy = proxy;
+        this.narrativesPerDay = narrativesPerDay;
         this.navLogAgentBaseUrl = navLogAgentBaseUrl.replaceAll("/+$", "");
         this.navLogAgentApiKey = navLogAgentApiKey;
         this.crewaiAgentBaseUrl = crewaiAgentBaseUrl.replaceAll("/+$", "");
@@ -109,6 +117,10 @@ public class ComparisonProxyController {
         byte[] body = request.getInputStream().readNBytes(BODY_LIMIT + 1);
         if (body.length > BODY_LIMIT) {
             return StreamingProxy.error(413, "a nav log is at most " + (BODY_LIMIT / 1024) + " KB");
+        }
+        if (!narratives.allow(SlidingWindowLimiter.callerOf(request), narrativesPerDay, Instant.now())) {
+            return StreamingProxy.error(429, "That is today's " + narrativesPerDay
+                    + " AI narratives used. The nav log and briefing still work; narratives are back tomorrow.");
         }
         String navLog = new String(body, StandardCharsets.UTF_8);
         String baseUrl;

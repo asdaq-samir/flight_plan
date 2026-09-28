@@ -180,6 +180,13 @@ app:
   # The emailed link's own throttle (MagicLinkController): requests an
   # hour per address and per caller. docker-compose.yml loosens both for
   # the local stack, where the e2e suite signs in.
+  # The calls this app pays Anthropic for, a day's worth per pilot (or
+  # per address, where nobody is signed in), each counted on its own:
+  # the framework narratives (ComparisonProxyController) and generating
+  # a route's checkpoint notes (PlannerProxyController). Past it, a 429
+  # that says when there are more.
+  paid-calls:
+    per-day: ${APP_PAID_CALLS_PER_DAY:40}
   magic-link:
     per-address-per-hour: ${APP_MAGIC_LINK_PER_ADDRESS_PER_HOUR:5}
     per-client-per-hour: ${APP_MAGIC_LINK_PER_CLIENT_PER_HOUR:20}

@@ -292,7 +292,7 @@ class PlannerProxyControllerTest {
     /** A second MockMvc whose planner points at a port nothing is on. */
     private MockMvc unreachablePlanner() {
         PlannerProxyController controller =
-                new PlannerProxyController(new StreamingProxy(), "http://127.0.0.1:1", pilotService);
+                new PlannerProxyController(new StreamingProxy(), "http://127.0.0.1:1", pilotService, 40);
         return standaloneSetup(controller)
                 .build();
     }
