@@ -70,6 +70,20 @@ class SecurityRulesWithSignInTest {
                 .andExpect(status().isUnauthorized());
     }
 
+    /** A refused request is not saved for a redirect back after sign-in,
+     *  which this app never makes (sign-in lands by SignInLanding). Saving
+     *  it is what made a session for every signed-out visit, and with
+     *  sessions kept in Postgres for 30 days, a row there for each. */
+    @Test
+    void aRefusedRequestIsNotSavedForLater() throws Exception {
+        mockMvc.perform(get("/api/me"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(result -> {
+                    var session = result.getRequest().getSession(false);
+                    assertThat(session == null ? null : session.getAttribute("SPRING_SECURITY_SAVED_REQUEST")).isNull();
+                });
+    }
+
     @Test
     void aSignedInPilotMayWriteThroughThePlanner() throws Exception {
         signedInAs(PilotRole.PILOT);

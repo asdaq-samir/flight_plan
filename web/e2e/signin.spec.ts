@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import { test, expect, type Page } from "@playwright/test";
 import { DEVELOPER, openLinkFor, signInByEmail } from "./emailSignIn";
 
@@ -12,6 +11,12 @@ import { DEVELOPER, openLinkFor, signInByEmail } from "./emailSignIn";
 test.use({ storageState: { cookies: [], origins: [] } });
 
 const consoleSheet = (page: Page) => page.locator('[data-slot="sheet-content"][data-side="top"]');
+
+/** One pilot per test and project, the same on every run: a fresh
+ *  address each time added a pilot row to the local database on every
+ *  run, 76 of them in a day. Per project, so the phone's and the
+ *  desktop's runs never read each other's link. */
+const pilotAddress = (test: string, project: string) => `pilot-${test}-${project}@example.com`;
 
 test("signed out, the planner opens on the map, and the sign-in is in the pilot console", async ({ page }) => {
   // The console used to come down by itself for anyone signed out,
@@ -33,11 +38,11 @@ test("signed out, the dev page sends you to the planner", async ({ page }) => {
   await expect(page.getByTestId("dev-switch")).toHaveCount(0);
 });
 
-test("the emailed link opens the app's own sign-in dialog, over the planner, and a spent link says so", async ({ page }) => {
+test("the emailed link opens the app's own sign-in dialog, over the planner, and a spent link says so", async ({ page }, testInfo) => {
   // It used to open a bare server page with one button. The button
   // stays -- a mail scanner fetching the link must not spend it -- but
   // it is the app's dialog now, and the token never leaves the fragment.
-  const address = `pilot-${randomUUID()}@example.com`;
+  const address = pilotAddress("link", testInfo.project.name);
   await page.goto("/app/plan");
   const link = await openLinkFor(page, address);
   await expect(page.getByTestId("pilot-button")).toBeVisible();
@@ -53,8 +58,8 @@ test("the emailed link opens the app's own sign-in dialog, over the planner, and
   await expect(page.getByRole("dialog").getByRole("alert")).toContainText("expired or was already used");
 });
 
-test("a pilot's link lands on the planner, with no dev switch, and the pilot console logs out", async ({ page }) => {
-  const address = `pilot-${randomUUID()}@example.com`;
+test("a pilot's link lands on the planner, with no dev switch, and the pilot console logs out", async ({ page }, testInfo) => {
+  const address = pilotAddress("landing", testInfo.project.name);
   await page.goto("/app/plan");
   await signInByEmail(page, address);
 

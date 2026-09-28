@@ -20,6 +20,7 @@ import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.security.web.csrf.CsrfFilter;
 import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
 import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter.ReferrerPolicy;
+import org.springframework.security.web.savedrequest.NullRequestCache;
 
 /**
  * Who may call what.
@@ -248,6 +249,11 @@ public class SecurityConfig {
         // over a renamed row, signing the pilot straight out again. The
         // magic link does the same by hand (MagicLinkController).
         http.sessionManagement(session -> session.sessionFixation(fixation -> fixation.migrateSession()));
+        // No request is saved for a redirect back after sign-in: this app
+        // never makes one (a sign-in lands by SignInLanding), and saving
+        // it made a session for every refused request -- with sessions in
+        // Postgres for 30 days, a row per signed-out visit (94 of 145).
+        http.requestCache(cache -> cache.requestCache(new NullRequestCache()));
         if (oauthConfigured) {
             // The pilot is resolved at sign-in (PilotOidcUserService), and
             // a sign-in it refuses lands here -- Spring's default
