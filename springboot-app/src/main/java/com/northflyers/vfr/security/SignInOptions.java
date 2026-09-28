@@ -9,7 +9,8 @@ package com.northflyers.vfr.security;
  *       emailed link): writes need one, the developer's paths need the
  *       role.
  *   <li>{@link Access#OPEN} -- nobody can sign in, and the deployment says
- *       so out loud ({@code app.open-writes}, the local stack): everything
+ *       so out loud ({@code app.open-writes}, a machine of one's own with
+ *       no inbox): everything
  *       is open, the developer's workspace included, since no role can be
  *       held to open it with.
  *   <li>{@link Access#CLOSED} -- nobody can sign in and nothing says to

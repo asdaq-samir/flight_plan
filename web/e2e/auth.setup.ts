@@ -1,0 +1,18 @@
+import { test as setup, expect } from "@playwright/test";
+import { DEVELOPER, DEVELOPER_STATE, signInByEmail } from "./emailSignIn";
+
+/**
+ * The session the rest of the suite runs as (playwright.config.ts's
+ * "setup" project), signed in the way anyone signs in: the planner
+ * opens on the pilot console's sign-in, the link comes by email, and a
+ * developer's lands in dev mode with the switch on.
+ */
+setup("the developer signs in from the console the planner opens on, and lands in dev mode", async ({ page }) => {
+  await page.goto("/app/plan");
+  await expect(page.locator('[data-slot="sheet-content"][data-side="top"]')).toBeVisible();
+  await signInByEmail(page, DEVELOPER);
+
+  await page.waitForURL("**/app/dev**");
+  await expect(page.getByTestId("dev-switch")).toBeChecked();
+  await page.context().storageState({ path: DEVELOPER_STATE });
+});

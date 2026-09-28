@@ -7,14 +7,16 @@ import { test, expect, type Page } from "@playwright/test";
  * model, not on a flight, so a pilot should not see the way in. The
  * switch asks two questions and either answer is enough: does the
  * signed-in pilot hold the developer role, and is this deployment open
- * to everyone (the local stack, which says so).
+ * to everyone (one that says so, app.open-writes).
  *
- * That second one is the local case rather than a loophole. With no
- * Google or Apple credentials and no mail host there is no way to hold
- * a role, and hiding the switch would hide it from the only person who
- * could use it. A deployment that cannot sign anyone in and did not say
- * to open up refuses the developer's paths, and does not offer them. Every case below is reached by mocking those two
- * endpoints, because a running stack can only be in one of them.
+ * That second one is not a loophole. With no Google or Apple
+ * credentials and no mail host there is no way to hold a role, and
+ * hiding the switch would hide it from the only person who could use
+ * it. A deployment that cannot sign anyone in and did not say to open
+ * up refuses the developer's paths, and does not offer them. Every case
+ * below is reached by mocking those two endpoints, because a running
+ * stack can only be in one of them (the local one signs in: see
+ * signin.spec.ts for it unmocked).
  */
 
 const devSwitch = (page: Page) => page.getByTestId("dev-switch");
@@ -34,7 +36,7 @@ async function withAuth(page: Page, opts: { access: "SIGN_IN" | "OPEN" | "CLOSED
 const A_PILOT = { id: 1, email: "pilot@example.com", displayName: "A Pilot", developer: false };
 const A_DEVELOPER = { id: 2, email: "dev@example.com", displayName: "A Developer", developer: true };
 
-test("with no way to sign in and everything opened, the switch is there -- that is the local case", async ({ page }) => {
+test("with no way to sign in and everything opened, the switch is there", async ({ page }) => {
   await withAuth(page, { access: "OPEN", pilot: null });
   await page.goto("/app/plan");
   await expect(devSwitch(page)).toBeVisible({ timeout: 15000 });

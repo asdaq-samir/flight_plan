@@ -137,6 +137,20 @@ class MagicLinkControllerTest {
     }
 
     @Test
+    void aDeveloperSigningInLandsInDevMode() throws Exception {
+        String token = requestAndReadTheEmailedToken();
+        Pilot developer = new Pilot(EMAIL, "A Developer", null);
+        developer.grantDeveloper();
+        given(pilots.fromVerifiedEmail(anyString())).willReturn(developer);
+        given(magicLinks.consumeIfUsable(anyString(), any())).willReturn(1);
+        given(magicLinks.findByTokenHash(anyString())).willReturn(Optional.of(link()));
+
+        mockMvc.perform(signInWith(token))
+                .andExpect(status().isFound())
+                .andExpect(header().string("Location", "/app/dev"));
+    }
+
+    @Test
     void signingInChangesTheSessionId() throws Exception {
         // Session fixation. This endpoint is outside the filter chain, so
         // nothing else applies Spring Security's own session-fixation

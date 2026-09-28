@@ -151,14 +151,25 @@ app:
   hsts: ${APP_HSTS:true}
   # With no sign-in configured, whether planner writes and the billed
   # narrative are open to every caller (true) or refused (false, the
-  # default). docker-compose.yml turns it on for the local stack, whose
-  # ports are this machine's alone; see SecurityConfig.
+  # default) -- for a machine of one's own with no inbox. The local
+  # stack signs in through its own (mailpit); see SecurityConfig.
   open-writes: ${APP_OPEN_WRITES:false}
   # Where a magic-link email's sign-in link points, e.g.
   # https://planner.example.com. Required as soon as MAIL_HOST is set:
   # a link built from the request's own Host or X-Forwarded-Host would
   # point wherever the caller asking for it said.
   public-base-url: ${APP_PUBLIC_BASE_URL:}
+  # The addresses whose pilot is a developer (the training workspace, the
+  # developer console), comma-separated: granted at that pilot's next
+  # request. docker-compose.yml lists the e2e suite's own address; add
+  # yours in .env. See PilotService.
+  developer-emails: ${APP_DEVELOPER_EMAILS:}
+  # The emailed link's own throttle (MagicLinkController): requests an
+  # hour per address and per caller. docker-compose.yml loosens both for
+  # the local stack, where the e2e suite signs in.
+  magic-link:
+    per-address-per-hour: ${APP_MAGIC_LINK_PER_ADDRESS_PER_HOUR:5}
+    per-client-per-hour: ${APP_MAGIC_LINK_PER_CLIENT_PER_HOUR:20}
   # Where the chart tiles come from when they are published to a CDN
   # (the AWS stack sets this to its CloudFront domain, and the planner
   # tells the browser the same base): the content security policy has

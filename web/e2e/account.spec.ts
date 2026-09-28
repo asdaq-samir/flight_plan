@@ -4,7 +4,7 @@ import { test, expect, type Page, type Route } from "@playwright/test";
  * The pilot console's two saves, each answered only when the test lets
  * it go: what a save does when it lands must follow what it was for, not
  * whatever the form or the box shows by then. Spring's endpoints are
- * mocked; a signed-in session is not something the local stack has.
+ * mocked, so each test is whichever pilot it says, or nobody.
  */
 
 const A_PILOT = { id: 1, email: "pilot@example.com", displayName: "A Pilot", developer: false };
@@ -19,10 +19,19 @@ function held() {
   return { gate, release: () => release() };
 }
 
+const consoleSheet = (page: Page) => page.locator('[data-slot="sheet-content"][data-side="top"]');
+
 async function openConsole(page: Page) {
   await page.goto("/app/plan");
   await page.getByTestId("pilot-button").click();
-  return page.locator('[data-slot="sheet-content"][data-side="top"]');
+  return consoleSheet(page);
+}
+
+/** Signed out, the planner opens on the console by itself. */
+async function signedOutConsole(page: Page) {
+  await page.goto("/app/plan");
+  await expect(consoleSheet(page)).toBeVisible();
+  return consoleSheet(page);
 }
 
 test("an add still saving when Edit is clicked says added, and leaves the aeroplane being edited in the form", async ({ page }) => {
@@ -66,7 +75,7 @@ test.describe("the email sign-in link", () => {
       await hold.gate;
       await route.fulfill({ status: 204, body: "" });
     });
-    const console = await openConsole(page);
+    const console = await signedOutConsole(page);
     await console.getByRole("button", { name: "Sign in" }).click();
     const box = page.getByLabel("Email address");
     await box.fill("a@example.com");
@@ -83,7 +92,7 @@ test.describe("the email sign-in link", () => {
       await hold.gate;
       await route.fulfill({ status: 204, body: "" });
     });
-    const console = await openConsole(page);
+    const console = await signedOutConsole(page);
     await console.getByRole("button", { name: "Sign in" }).click();
     await page.getByLabel("Email address").fill("a@example.com");
     await page.getByRole("button", { name: "Send sign-in link" }).click();
@@ -98,7 +107,7 @@ test.describe("the email sign-in link", () => {
 
   test("too many asked for says so, not to check the address", async ({ page }) => {
     await page.route("**/api/auth/magic-link", route => route.fulfill({ status: 429, body: "" }));
-    const console = await openConsole(page);
+    const console = await signedOutConsole(page);
     await console.getByRole("button", { name: "Sign in" }).click();
     await page.getByLabel("Email address").fill("a@example.com");
     await page.getByRole("button", { name: "Send sign-in link" }).click();

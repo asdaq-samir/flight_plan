@@ -2,9 +2,9 @@ import { test, expect, type Page } from "@playwright/test";
 
 /**
  * "Save this flight", at the head of the briefing drawer's sections, for
- * a signed-in pilot. Spring's own endpoints are mocked (a signed-in
- * session is not something the local stack has); the planner and its
- * nav log are real.
+ * a signed-in pilot. Spring's own endpoints are mocked, so the pilot is
+ * one with no aeroplanes and a known list of flights; the planner and
+ * its nav log are real.
  */
 
 const A_PILOT = { id: 1, email: "pilot@example.com", displayName: "A Pilot", developer: false };
@@ -60,7 +60,14 @@ test("a flight is filed once, whole, and a new plan is offered for saving again"
 test("signed out, there is nothing to save", async ({ page }) => {
   await page.route("**/api/me", route => route.fulfill({ status: 401, body: "" }));
   await page.goto("/app/plan?dep=C81&dest=KDLH&view=briefing");
+  // The console the planner opens on, put away: while it is up the
+  // page under it is hidden from the queries below, and so is any
+  // button there.
+  await expect(page.locator('[data-slot="sheet-content"][data-side="top"]')).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.locator('[data-slot="sheet-content"][data-side="top"]')).toHaveCount(0);
   await expect(page.getByTestId("print-button")).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole("button", { name: /Print/ })).toBeVisible();
   await expect(page.getByRole("button", { name: /Save this flight/ })).toHaveCount(0);
 });
 

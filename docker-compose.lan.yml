@@ -20,8 +20,9 @@
 #     port 8888 can execute code as the container's user, with this
 #     whole repository mounted.
 #   - Airflow's web UI can trigger the training DAG.
-#   - webapp takes every planner write from anyone on the network
-#     while no sign-in is configured (APP_OPEN_WRITES).
+#   - webapp's sign-in inbox (mailpit) stays on loopback here, so
+#     sign in on this machine, or use docker-compose.phone.yml, which
+#     opens the inbox to the Wi-Fi behind a password.
 #
 # So: a home or office LAN you control, for as long as you are testing
 # on the phone. Not a cafe, not a conference, not a VPS. Stop it with

@@ -4,6 +4,7 @@ import com.northflyers.vfr.domain.MagicLink;
 import com.northflyers.vfr.dto.MagicLinkRequest;
 import com.northflyers.vfr.repository.MagicLinkRepository;
 import com.northflyers.vfr.security.MagicLinkAuthenticationToken;
+import com.northflyers.vfr.security.SignInLanding;
 import com.northflyers.vfr.service.PilotService;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.servlet.ServletRequest;
@@ -207,7 +208,8 @@ public class MagicLinkController {
     }
 
     @Operation(summary = "Sign in from a magic link",
-            description = "302 to the planner, now signed in, on success; 400 for an expired, already-used or unrecognized token.")
+            description = "302 into the app, now signed in -- a developer to dev mode, anyone else to the planner -- on success; "
+                    + "400 for an expired, already-used or unrecognized token.")
     @PostMapping(value = "/verify", consumes = MediaType.APPLICATION_FORM_URLENCODED_VALUE)
     public ResponseEntity<String> verify(
             @RequestParam String token, HttpServletRequest request, HttpServletResponse response) {
@@ -245,7 +247,7 @@ public class MagicLinkController {
         // session for the next request.
         securityContextRepository.saveContext(context, request, response);
         return ResponseEntity.status(HttpStatus.FOUND)
-                .location(URI.create("/app/plan"))
+                .location(URI.create(SignInLanding.after(pilot)))
                 .build();
     }
 

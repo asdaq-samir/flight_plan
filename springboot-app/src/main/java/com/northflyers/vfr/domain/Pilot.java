@@ -89,4 +89,10 @@ public class Pilot {
     public void changeEmail(String email) {
         this.email = email;
     }
+
+    /** Made a developer: an address `app.developer-emails` lists (see
+     *  PilotService), or by hand with an UPDATE. */
+    public void grantDeveloper() {
+        this.role = PilotRole.DEVELOPER;
+    }
 }

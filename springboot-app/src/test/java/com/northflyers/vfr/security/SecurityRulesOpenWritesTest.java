@@ -19,9 +19,9 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 /**
- * The local stack's rules: nobody can sign in, and the deployment has
- * said so out loud (app.open-writes, docker-compose.yml), so the
- * training workspace and the narrative work signed out. May 404 here --
+ * An open deployment's rules: nobody can sign in, and the deployment
+ * has said so out loud (app.open-writes), so the training workspace and
+ * the narrative work signed out. May 404 here --
  * the proxies are not in this slice -- what matters is that security did
  * not refuse them.
  */

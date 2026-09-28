@@ -3,7 +3,12 @@ package com.northflyers.vfr.service;
 import com.northflyers.vfr.domain.Pilot;
 import com.northflyers.vfr.repository.PilotRepository;
 import com.northflyers.vfr.security.MagicLinkAuthenticationToken;
+import java.util.Arrays;
+import java.util.Locale;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
 import org.springframework.security.oauth2.core.user.OAuth2User;
@@ -36,9 +41,29 @@ import org.springframework.util.StringUtils;
 public class PilotService {
 
     private final PilotRepository pilots;
+    private final Set<String> developerEmails;
 
-    public PilotService(PilotRepository pilots) {
+    /**
+     * @param developerEmails {@code app.developer-emails}: the addresses
+     *     whose pilot is a developer, comma-separated, case ignored
+     */
+    public PilotService(PilotRepository pilots, @Value("${app.developer-emails:}") String developerEmails) {
         this.pilots = pilots;
+        this.developerEmails = Arrays.stream(developerEmails.split(","))
+                .map(String::trim).filter(StringUtils::hasText)
+                .map(address -> address.toLowerCase(Locale.ROOT))
+                .collect(Collectors.toUnmodifiableSet());
+    }
+
+    /** The pilot, made a developer when `app.developer-emails` lists
+     *  their address. Asked on every resolution, not only the first, so
+     *  an address listed later takes effect on that pilot's next request. */
+    private Pilot withListedRole(Pilot pilot) {
+        if (pilot.getRole().isDeveloper() || !developerEmails.contains(pilot.getEmail().toLowerCase(Locale.ROOT))) {
+            return pilot;
+        }
+        pilot.grantDeveloper();
+        return pilots.save(pilot);
     }
 
     /**
@@ -56,6 +81,10 @@ public class PilotService {
      */
     @Transactional
     public Pilot fromOidcUser(OAuth2User user, String registrationId) {
+        return withListedRole(resolveOidcUser(user, registrationId));
+    }
+
+    private Pilot resolveOidcUser(OAuth2User user, String registrationId) {
         String subject = user.getAttribute("sub");
         String email = user.getAttribute("email");
         if (!StringUtils.hasText(subject) || !StringUtils.hasText(email)) {
@@ -123,7 +152,7 @@ public class PilotService {
 
     @Transactional
     public Pilot fromVerifiedEmail(String email) {
-        return pilots.findByEmail(email).orElseGet(() -> pilots.save(new Pilot(email, email, null)));
+        return withListedRole(pilots.findByEmail(email).orElseGet(() -> pilots.save(new Pilot(email, email, null))));
     }
 
     /**

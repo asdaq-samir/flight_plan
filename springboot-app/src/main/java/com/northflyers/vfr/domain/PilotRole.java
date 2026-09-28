@@ -10,7 +10,10 @@ package com.northflyers.vfr.domain;
  * rather than work on a flight.
  *
  * <p>Granted deliberately, never inherited: the column defaults to
- * {@code PILOT} and a developer is made with an UPDATE.
+ * {@code PILOT}, and a developer is made by listing the address in
+ * {@code app.developer-emails} (granted at their next request) or with
+ * an UPDATE. Taking an address off the list does not take the role back;
+ * an UPDATE does.
  *
  * <p>Enforced by the server, not only by what the page shows: once
  * anyone can sign in, {@code SecurityConfig} sends the developer's

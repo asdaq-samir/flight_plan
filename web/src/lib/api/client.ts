@@ -326,10 +326,9 @@ export const api = {
    */
   capabilities: () => webapp.GET("/api/auth/capabilities").then(data<SignInCapabilities>),
 
-  /** POSTs to Spring Security's own default logout endpoint, which no
-   *  schema describes and whose response is a redirect (a login page's
-   *  HTML), not JSON -- the caller re-checks `me()` afterwards; session
-   *  cookies are cleared either way. */
+  /** POSTs to Spring Security's own logout endpoint, which no schema
+   *  describes: a 204 once the session is gone (SecurityConfig). The
+   *  caller re-checks `me()` afterwards. */
   async logout(): Promise<void> {
     const res = await fetch("/logout", { method: "POST", headers: csrfHeaders("POST") });
     await failIfNotOk(res);

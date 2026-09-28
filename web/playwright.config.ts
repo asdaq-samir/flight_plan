@@ -1,4 +1,5 @@
 import { defineConfig } from "@playwright/test";
+import { DEVELOPER_STATE } from "./e2e/emailSignIn";
 
 /**
  * Layout tests, not the jsdom-based vitest suite above -- these exist
@@ -59,8 +60,21 @@ export default defineConfig({
   // below its own breakpoint, a real behavior change, not just a
   // resize) skip themselves on "desktop" -- see layout.spec.ts's own
   // `mobileOnly` helper.
+  //
+  // Both as the developer: the local stack signs in the way a
+  // deployment does (docker-compose.yml's inbox), so "setup" signs in
+  // once, by email, and every test opens that session unless it says
+  // otherwise -- a signed-out one with
+  // test.use({ storageState: { cookies: [], origins: [] } }).
   projects: [
-    { name: "mobile", use: { viewport: { width: 390, height: 844 } } },
-    { name: "desktop", use: { viewport: { width: 1280, height: 800 } } },
+    { name: "setup", testMatch: /auth\.setup\.ts/ },
+    {
+      name: "mobile", dependencies: ["setup"],
+      use: { viewport: { width: 390, height: 844 }, storageState: DEVELOPER_STATE },
+    },
+    {
+      name: "desktop", dependencies: ["setup"],
+      use: { viewport: { width: 1280, height: 800 }, storageState: DEVELOPER_STATE },
+    },
   ],
 });

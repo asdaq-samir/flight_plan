@@ -282,18 +282,35 @@ services:
       <<: *python-healthcheck
       test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/')"]
 
+  # Where the local stack's sign-in emails go: an inbox of its own at
+  # http://localhost:8025, sent nowhere. A mail host is what makes
+  # signing in possible, so the local stack runs the way a deployment
+  # does (SignInOptions' SIGN_IN): writes need a session, the training
+  # workspace and the developer console need the developer role
+  # (APP_DEVELOPER_EMAILS below). docker-compose.phone.yml opens the
+  # inbox to the Wi-Fi, behind a password, for signing in on the phone.
+  # Set MAIL_HOST and the rest in .env to send real mail instead.
+  mailpit:
+    image: axllent/mailpit:v1.31.3
+    ports:
+      - "127.0.0.1:8025:8025"
+    environment:
+      # The webapp always authenticates to its mail host
+      # (application.yml): take whatever it sends, over the plain
+      # connection, since nothing leaves this machine.
+      MP_SMTP_AUTH_ACCEPT_ANY: "true"
+      MP_SMTP_AUTH_ALLOW_INSECURE: "true"
+
   webapp:
     # Context is the repo root: the image builds web/ and bakes the
     # bundle into the jar, so this one service serves both.
     build:
       context: .
       dockerfile: springboot-app/Dockerfile
-    # This machine only. With no sign-in configured (the local default)
-    # every planner write is open to whoever reaches this port, so a
-    # port on every interface put retrain, builds and chart refreshes in
-    # the hands of anyone on the same Wi-Fi. A phone on the LAN adds
-    # docker-compose.phone.yml, which publishes these two on every
-    # interface and says what that opens.
+    # This machine only, like everything else here. A phone on the LAN
+    # adds docker-compose.phone.yml, which publishes these two on every
+    # interface, and the inbox behind a password, and says what that
+    # opens.
     ports:
       - "127.0.0.1:8080:8080"
       # HTTPS, for a phone on the same Wi-Fi: only answers once
@@ -308,6 +325,8 @@ services:
         condition: service_healthy
       planning-service:
         condition: service_healthy
+      mailpit:
+        condition: service_started
     # Ready means Spring's readiness group (the app and its database)
     # says UP -- 20-30 s after the container starts, during which the
     # pages 404. `docker compose up --wait` holds until this passes, so
@@ -370,19 +389,29 @@ services:
       APPLE_PRIVATE_KEY: ${APPLE_PRIVATE_KEY:-}
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-}
       # The magic-link email flow's own sender -- independent of the
-      # `oauth` profile above (see application.yml's own comment);
-      # unset, MagicLinkController still runs, it just logs instead of
-      # actually sending on every request.
-      MAIL_HOST: ${MAIL_HOST:-}
-      MAIL_PORT: ${MAIL_PORT:-587}
-      MAIL_USERNAME: ${MAIL_USERNAME:-}
-      MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+      # `oauth` profile above (see application.yml's own comment). The
+      # local inbox by default (mailpit above), which accepts any login;
+      # a real mail server needs all four set in .env.
+      MAIL_HOST: ${MAIL_HOST:-mailpit}
+      MAIL_PORT: ${MAIL_PORT:-1025}
+      MAIL_USERNAME: ${MAIL_USERNAME:-local}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:-local}
       MAIL_FROM: ${MAIL_FROM:-no-reply@northflyers.com}
-      # Where the emailed sign-in link points (e.g. https://10.0.0.218:8443
-      # for the phone). Required once MAIL_HOST is set -- the webapp will
-      # not start without it -- because a link built from the request's
-      # own Host header points wherever the caller said.
-      APP_PUBLIC_BASE_URL: ${APP_PUBLIC_BASE_URL:-}
+      # Where the emailed sign-in link points. Required once a mail host
+      # is set -- the webapp will not start without it -- because a link
+      # built from the request's own Host header points wherever the
+      # caller said. docker-compose.phone.yml points it at this Mac's
+      # LAN address so the link opens on the phone.
+      APP_PUBLIC_BASE_URL: ${APP_PUBLIC_BASE_URL:-http://localhost:8080}
+      # Whose pilot is a developer: the address the e2e suite signs in
+      # as (web/e2e/auth.setup.ts), and whichever APP_DEVELOPER_EMAILS in
+      # .env adds -- yours, comma-separated.
+      APP_DEVELOPER_EMAILS: developer@example.com,${APP_DEVELOPER_EMAILS:-}
+      # The emailed link's throttle, per address and per caller, loose
+      # here: a Playwright run asks for a handful, and a morning of runs
+      # would meet the deployed limits of 5 and 20 an hour.
+      APP_MAGIC_LINK_PER_ADDRESS_PER_HOUR: "60"
+      APP_MAGIC_LINK_PER_CLIENT_PER_HOUR: "200"
       # The HTTPS port for a phone on the same Wi-Fi (HttpsConnectorConfig):
       # the certificate infra/local-https/make-certs.sh writes, read
       # only once that file exists. HSTS off: this machine's plain port
@@ -391,12 +420,6 @@ services:
       # make-certs.sh writes it with.
       APP_HTTPS_KEYSTORE: ${APP_HTTPS_KEYSTORE:-/certs/webapp.p12}
       APP_HSTS: "false"
-      # No sign-in is configured here, so without this every planner
-      # write (picks, notes, builds, retrain) and the narrative would be
-      # refused: an unconfigured deployment refuses callers. Locally the
-      # ports above are this machine's alone, which is what makes open
-      # writes acceptable. See SecurityConfig.
-      APP_OPEN_WRITES: "true"
 
 networks:
   # dev-services and planning-service only (see dev-services above).

@@ -9,13 +9,13 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authorization.AuthorizationDecision;
 import org.springframework.security.authorization.AuthorizationManager;
-import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.intercept.RequestAuthorizationContext;
 import org.springframework.security.web.authentication.HttpStatusEntryPoint;
+import org.springframework.security.web.authentication.logout.HttpStatusReturningLogoutSuccessHandler;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.security.web.csrf.CsrfFilter;
 import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
@@ -135,12 +135,13 @@ public class SecurityConfig {
                     // offers any way to get one.
                     //
                     // Where nothing does, they are open only when the
-                    // deployment says so (app.open-writes). The local stack
-                    // does, with its ports on this machine alone, so the
-                    // training workspace and the narrative keep working
-                    // signed out there. Anything else is refused: open by
-                    // default made every write public on any host that
-                    // simply had no sign-in configured.
+                    // deployment says so (app.open-writes): a machine of
+                    // one's own, its ports on loopback, with no inbox to
+                    // sign in from. The local stack used to be that; it has
+                    // its own inbox now (mailpit, docker-compose.yml) and
+                    // signs in like anywhere else. Anything else is
+                    // refused: open by default made every write public on
+                    // any host that simply had no sign-in configured.
                     switch (signIn.access()) {
                         case SIGN_IN -> auth
                                 .requestMatchers("/api/planner/**").authenticated()
@@ -236,14 +237,19 @@ public class SecurityConfig {
         // ClientRegistrationRepository at all) still needs the same
         // /logout endpoint the front end always calls. oauth2Login()
         // alone requires a real registration to exist, which is what
-        // stays conditional.
-        http.logout(Customizer.withDefaults());
+        // stays conditional. It answers 204: the default redirect went to
+        // /login?logout, a page this app does not have, whose 401 the
+        // page's fetch followed and read as the logout failing, so the
+        // page stayed signed in until it was reloaded.
+        http.logout(logout -> logout.logoutSuccessHandler(new HttpStatusReturningLogoutSuccessHandler(HttpStatus.NO_CONTENT)));
         if (oauthConfigured) {
             // The pilot is resolved at sign-in (PilotOidcUserService), and
             // a sign-in it refuses lands here -- Spring's default
             // /login?error is a page this app does not have.
             http.oauth2Login(login -> login
                     .userInfoEndpoint(userInfo -> userInfo.oidcUserService(new PilotOidcUserService(pilots)))
+                    .successHandler((request, response, authentication) -> response.sendRedirect(
+                            pilots.current(authentication).map(SignInLanding::after).orElse("/app/plan")))
                     .failureUrl("/app/plan?signin=refused"));
         }
         return http.build();

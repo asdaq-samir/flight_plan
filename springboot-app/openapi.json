@@ -555,7 +555,7 @@
         "tags" : [ "magic-link-controller" ]
       },
       "post" : {
-        "description" : "302 to the planner, now signed in, on success; 400 for an expired, already-used or unrecognized token.",
+        "description" : "302 into the app, now signed in -- a developer to dev mode, anyone else to the planner -- on success; 400 for an expired, already-used or unrecognized token.",
         "operationId" : "verify",
         "requestBody" : {
           "content" : {

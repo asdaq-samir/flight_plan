@@ -49,6 +49,15 @@ class SecurityRulesWithSignInTest {
     @MockitoBean
     private PilotService pilotService;
 
+    /** A 204, not the default redirect to /login?logout: this app has no
+     *  such page, and the page's fetch read its 401 as the logout failing. */
+    @Test
+    void loggingOutAnswersNoContent() throws Exception {
+        signedInAs(PilotRole.PILOT);
+        mockMvc.perform(post("/logout").with(oidcLogin()).with(csrf()))
+                .andExpect(status().isNoContent());
+    }
+
     @Test
     void readingFromThePlannerStaysPublic() throws Exception {
         mockMvc.perform(get("/api/planner/course"))

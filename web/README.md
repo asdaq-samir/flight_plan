@@ -74,9 +74,17 @@ docker run --rm -v "$PWD/web":/w -w /w node:24-slim \
 
 # real-browser layout tests, against the running stack
 docker run --rm --add-host=host.docker.internal:host-gateway -v "$PWD/web":/w -w /w \
-  -e BASE_URL=http://host.docker.internal:8080 \
+  -e BASE_URL=http://host.docker.internal:8080 -e MAILPIT_URL=http://host.docker.internal:8025 \
   mcr.microsoft.com/playwright:v1.55.1-noble sh -c "npm ci && npx playwright test"
 ```
+
+The suite signs in first, as the stack's own developer
+(`developer@example.com`): its "setup" project asks for an emailed link
+the way a person does and reads it from the local inbox
+(`e2e/emailSignIn.ts`), and every test then runs with that session
+unless it opens a signed-out one itself. With
+`docker-compose.phone.yml` up the inbox has a password; pass it as
+`-e MAILPIT_UI_AUTH=<user:password>`, the value in `.env`.
 
 `vite build` writes into `springboot-app/src/main/resources/static/app`
 (`vite.config.ts`) for a local `mvn package`; the Docker image builds

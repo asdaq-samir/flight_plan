@@ -188,8 +188,18 @@ model's training labels), a retrain, a chart refresh,
 `/api/planner/status` and `/api/planner/dev/**` -- needs
 `PilotRole.DEVELOPER` on top of that, read from the pilot's row on
 every request (`DeveloperOnly`), so granting or revoking the role with
-an `UPDATE` takes effect at once. Locally none of it applies: nobody can
-sign in, so the training workspace keeps working signed out.
+an `UPDATE` takes effect at once. `app.developer-emails`
+(`APP_DEVELOPER_EMAILS`) names addresses that are developers without
+the `UPDATE`: each is given the role at its next sign-in or request.
+Signing in lands a developer on `/app/dev` and anyone else on
+`/app/plan` (`SignInLanding`), whichever way they signed in.
+
+Locally it all applies the same way. docker-compose.yml runs a mail
+catcher (Mailpit, its inbox at http://localhost:8025) as the webapp's
+`MAIL_HOST`, so the emailed link is how the local stack signs in, and
+`APP_DEVELOPER_EMAILS` defaults to `developer@example.com`, the
+address the end-to-end tests sign in as. Put your own address in
+`.env` to be a developer under it.
 
 **`openapi.json` is committed, and a test holds it to the code.** The
 front end's types for this app's endpoints are generated from it

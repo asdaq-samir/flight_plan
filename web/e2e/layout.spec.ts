@@ -692,6 +692,10 @@ test("the DEV switch is the one sign of which page this is: the header itself lo
 });
 
 test("plan page: the nav log's altitude opens the planner's own reasoning, and the briefing's Cruise Altitude section carries the same steps", async ({ page }) => {
+  // Three re-plans, each allowed 30 s below, inside the default 30 s for
+  // the whole test: 18 s on a quiet machine, and past the limit in a
+  // full run, where the other workers are asking the planner too.
+  test.slow();
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
   await page.getByTestId("sidebar-trigger-button").click();
@@ -816,7 +820,7 @@ test("the old Settings address lands on the planner", async ({ page }) => {
   await page.waitForURL("**/app/plan");
 });
 
-test("plan page: the pilot console is a sheet from the top with sign-in, aeroplanes and flights, and the drawer opens once it is closed", async ({ page }) => {
+test("plan page: the pilot console is a sheet from the top with the account, aeroplanes and flights, and the drawer opens once it is closed", async ({ page }) => {
   await page.goto("/app/plan");
   await settle(page);
   await expectDrawerClosed(page);
@@ -826,7 +830,7 @@ test("plan page: the pilot console is a sheet from the top with sign-in, aeropla
   const pilot = consoleSheet(page);
   await expect(pilot).toBeVisible();
   await expect(page.getByTestId("pilot-button")).toHaveAttribute("aria-expanded", "true");
-  await expect(pilot.getByRole("button", { name: "Sign in" })).toBeVisible();
+  await expect(pilot.getByRole("button", { name: "Log out" })).toBeVisible();
   await expect(pilot.getByRole("heading", { name: "Aircraft" })).toBeVisible();
   await pilot.getByRole("tab", { name: "Flights" }).click();
   await expect(pilot.getByRole("heading", { name: "My Flights" })).toBeVisible();

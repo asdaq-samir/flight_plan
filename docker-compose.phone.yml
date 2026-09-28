@@ -2,23 +2,34 @@
 #
 #   docker compose -f docker-compose.yml -f docker-compose.phone.yml up -d
 #
-# docker-compose.yml publishes webapp on this machine's loopback only.
-# This file publishes its two ports on every interface, so the phone can
-# reach https://<this Mac's LAN address>:8443 (see infra/local-https for
-# the certificate it needs).
+# docker-compose.yml publishes webapp and the local sign-in inbox
+# (mailpit) on this machine's loopback only. This file publishes webapp's
+# two ports on every interface, so the phone can reach
+# https://<this Mac's LAN address>:8443 (see infra/local-https for the
+# certificate it needs), points the emailed sign-in link there, and
+# opens the inbox to the Wi-Fi so the phone can read it. Two settings in
+# .env, both required:
 #
-# Read this before using it: with no sign-in configured, which is the
-# local default, every planner write is open to anyone on the network --
-# picks, notes, corridor builds, a retrain, a chart refresh -- because
-# docker-compose.yml sets APP_OPEN_WRITES for the local stack. That is
-# the trade this file makes: a network you trust, for as long as you
-# are testing on the phone. The plain `docker compose up -d` puts the
-# loopback-only binding back.
+#   PHONE_BASE_URL=https://<this Mac's LAN address>:8443
+#   MAILPIT_UI_AUTH=<user>:<password>
 #
-# Unlike docker-compose.lan.yml this opens nothing but webapp: no
-# Jupyter, no Airflow, no direct planner port.
+# The password is not a formality: the inbox holds sign-in links, and
+# the developer's is among them. With it, the rest of the planner is as
+# closed from the Wi-Fi as it is anywhere -- writes need a session and
+# the developer's workspace needs the role. The plain
+# `docker compose up -d` puts the loopback-only bindings back.
+#
+# Unlike docker-compose.lan.yml this opens nothing else: no Jupyter, no
+# Airflow, no direct planner port.
 services:
   webapp:
     ports: !override
       - "8080:8080"
       - "8443:8443"
+    environment:
+      APP_PUBLIC_BASE_URL: ${PHONE_BASE_URL:?set PHONE_BASE_URL=https://<this Mac's LAN address>:8443 in .env}
+  mailpit:
+    ports: !override
+      - "8025:8025"
+    environment:
+      MP_UI_AUTH: ${MAILPIT_UI_AUTH:?set MAILPIT_UI_AUTH=<user>:<password> in .env -- the inbox holds sign-in links}

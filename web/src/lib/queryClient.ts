@@ -83,6 +83,14 @@ function failed(message: string) {
  *  Dev switch, which observes it too, simply stays hidden. */
 export const pilotQuery = queryOptions({ queryKey: ["pilot"], queryFn: () => api.me(), meta: { silent: true } });
 
+/** How this deployment is reached (SIGN_IN, OPEN or CLOSED) and which
+ *  sign-ins it offers: asked once, and quiet on failure -- whoever reads
+ *  it treats no answer as "not offered". */
+export const capabilitiesQuery = queryOptions({
+  queryKey: ["signInCapabilities"], queryFn: () => api.capabilities(), retry: false,
+  staleTime: Infinity, meta: { silent: true },
+});
+
 /** A route's course: the two airports and the line between them, the
  *  same answer for as long as the page is open. No `meta` -- a course
  *  that fails is the page's first news that the planner is down. */

@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.northflyers.vfr.domain.Pilot;
+import com.northflyers.vfr.domain.PilotRole;
 import com.northflyers.vfr.repository.PilotRepository;
 import java.util.Map;
 import java.util.UUID;
@@ -28,7 +29,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
  * kind of rule that reads as arbitrary until it is written down as a
  * failing alternative.
  */
-@SpringBootTest
+@SpringBootTest(properties = "app.developer-emails= Listed@Example.com , google-dev@example.com,later@example.com")
 @Testcontainers
 class PilotServiceTest {
 
@@ -212,6 +213,31 @@ class PilotServiceTest {
         assertThat(pilot.getId()).isNotNull();
         assertThat(pilot.getEmail()).isEqualTo(email);
         assertThat(pilot.getDisplayName()).isEqualTo(email);
+    }
+
+    /** app.developer-emails, case ignored: the address is who they are. */
+    @Test
+    void aListedAddressIsADeveloperFromItsFirstSignIn() {
+        assertThat(pilotService.fromVerifiedEmail("listed@example.com").getRole()).isEqualTo(PilotRole.DEVELOPER);
+        Pilot viaGoogle = pilotService.fromOidcUser(oidcUser(UUID.randomUUID().toString(), "google-dev@example.com", "Dev"), "google");
+        assertThat(viaGoogle.getRole()).isEqualTo(PilotRole.DEVELOPER);
+        assertThat(pilots.findById(viaGoogle.getId()).orElseThrow().getRole()).isEqualTo(PilotRole.DEVELOPER);
+    }
+
+    @Test
+    void anAddressTheListDoesNotNameIsAPilot() {
+        assertThat(pilotService.fromVerifiedEmail(UUID.randomUUID() + "@example.com").getRole()).isEqualTo(PilotRole.PILOT);
+    }
+
+    /** Listed after they first signed in: made a developer at their next
+     *  request, not only at their next sign-in. */
+    @Test
+    void aPilotListedLaterIsMadeADeveloperAtTheirNextRequest() {
+        Pilot before = pilots.save(new Pilot("later@example.com", "Later", null));
+        assertThat(before.getRole()).isEqualTo(PilotRole.PILOT);
+
+        assertThat(pilotService.fromVerifiedEmail("later@example.com").getRole()).isEqualTo(PilotRole.DEVELOPER);
+        assertThat(pilots.findById(before.getId()).orElseThrow().getRole()).isEqualTo(PilotRole.DEVELOPER);
     }
 
     @Test

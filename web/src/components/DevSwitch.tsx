@@ -1,8 +1,7 @@
-import { useId } from "react";
+import { useEffect, useId } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation, useNavigate } from "react-router-dom";
-import { api } from "../lib/api/client";
-import { pilotQuery } from "../lib/queryClient";
+import { capabilitiesQuery, pilotQuery } from "../lib/queryClient";
 import { Label } from "./ui/label";
 import { Switch } from "./ui/switch";
 
@@ -39,9 +38,9 @@ function routeSearch(search: string): string {
  *   - the signed-in pilot has the developer role (pilots.role, V7)
  *   - the deployment is open to everyone (`access` "OPEN")
  *
- * The second is not a loophole, it is the local case: with no Google
- * or Apple credentials and no mail host there is no way to hold a role,
- * and the local stack says to open up (app.open-writes). One that
+ * The second is not a loophole: with no Google or Apple credentials and
+ * no mail host there is no way to hold a role, and a deployment that
+ * says to open up (app.open-writes) means everyone. One that
  * cannot sign anyone in and did not say so ("CLOSED") refuses every
  * developer path, and used to be offered the switch all the same. A
  * real deployment has sign-in configured, and
@@ -50,13 +49,14 @@ function routeSearch(search: string): string {
  * Both queries are quiet on failure: the header is not the place to
  * report that a capability probe 500'd, and either failing simply
  * leaves the switch hidden.
+ *
+ * On the dev page, someone it is not for -- signed out from the
+ * developer console, or a session that ended -- is taken to the map
+ * rather than left on a workspace whose every call the server refuses.
  */
 export default function DevSwitch() {
-  const { data: pilot } = useQuery(pilotQuery);
-  const { data: capabilities } = useQuery({
-    queryKey: ["signInCapabilities"], queryFn: api.capabilities, retry: false,
-    staleTime: Infinity, meta: { silent: true },
-  });
+  const { data: pilot, isSuccess: pilotKnown } = useQuery(pilotQuery);
+  const { data: capabilities } = useQuery(capabilitiesQuery);
   const { pathname, search, state } = useLocation();
   const navigate = useNavigate();
   const id = useId();
@@ -74,6 +74,10 @@ export default function DevSwitch() {
   // Undefined while either query is in flight: the switch appears when
   // the answer does, rather than flashing in and out.
   const allowed = pilot?.developer === true || capabilities?.access === "OPEN";
+  const refused = on && pilotKnown && capabilities !== undefined && !allowed;
+  useEffect(() => {
+    if (refused) void navigate(`/plan${routeSearch(search)}`, { replace: true });
+  }, [refused, navigate, search]);
   if (!allowed) return null;
 
   return (

@@ -1,9 +1,11 @@
 import { Suspense, lazy, useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { cn } from "cn";
 import { EXPANDED_BUTTON } from "../../lib/expandedButton";
 import DevSwitch from "../../components/DevSwitch";
+import { capabilitiesQuery, pilotQuery } from "../../lib/queryClient";
 import MapHeader from "../../components/MapHeader";
 import RouteForm from "../../components/RouteForm";
 import {
@@ -101,6 +103,17 @@ export default function MapPage({ mode }: { mode: Mode }) {
     }, { replace: true });
   }, [refused, setSearchParams]);
 
+  // Signed out where signing in is possible, the pilot's page opens
+  // with the pilot console down and its sign-in in front of them, once
+  // both answers are in. Until someone opens or closes the console
+  // themselves, that is: then it is theirs. A developer who signs in
+  // lands in dev mode (the server's redirect).
+  const [consoleChoice, setConsoleChoice] = useState<boolean | null>(null);
+  const { data: pilot, isSuccess: pilotKnown } = useQuery(pilotQuery);
+  const { data: capabilities } = useQuery(capabilitiesQuery);
+  const signInFirst = mode === "pilot" && pilotKnown && pilot === null && capabilities?.access === "SIGN_IN";
+  const consoleOpen = consoleChoice ?? signInFirst;
+
   const [localOpen, setLocalOpen] = useState(false);
   const sidebarOpen = mode === "pilot" ? searchParams.get("view") === "briefing" : localOpen;
   const setSidebarOpen = useCallback((open: boolean) => {
@@ -146,7 +159,7 @@ export default function MapPage({ mode }: { mode: Mode }) {
                       and guide, or the developer's training, performance
                       and system -- a stock Sheet from the top, modal, so
                       the page waits while it is out. */}
-                  <Sheet>
+                  <Sheet open={consoleOpen} onOpenChange={setConsoleChoice}>
                     <SheetTrigger asChild><ConsoleButton /></SheetTrigger>
                     <SheetContent side="top" className="max-h-[85dvh] gap-0 p-0">
                       {/* The stock header row, with the sheet's own close
