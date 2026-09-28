@@ -2,7 +2,6 @@ package com.northflyers.vfr.controller;
 
 import com.northflyers.vfr.domain.Flight;
 import com.northflyers.vfr.domain.FlightCheckpoint;
-import com.northflyers.vfr.domain.Pilot;
 import com.northflyers.vfr.dto.FlightCheckpointDto;
 import com.northflyers.vfr.dto.FlightDto;
 import com.northflyers.vfr.dto.FlightSummaryDto;
@@ -11,7 +10,6 @@ import com.northflyers.vfr.service.FlightService;
 import com.northflyers.vfr.service.PilotService;
 import jakarta.validation.Valid;
 import java.util.List;
-import java.util.function.Function;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -39,30 +37,27 @@ public class FlightController {
 
     @GetMapping
     public ResponseEntity<List<FlightSummaryDto>> list(Authentication authentication) {
-        return withPilot(authentication, pilot ->
+        return PilotResponses.withPilot(pilots, authentication, pilot ->
                 ResponseEntity.ok(flightService.list(pilot).stream().map(FlightController::toSummaryDto).toList()));
     }
 
     @GetMapping("/{id}")
     public ResponseEntity<FlightDto> get(Authentication authentication, @PathVariable Long id) {
-        return withPilot(authentication, pilot -> flightService.get(pilot, id)
+        return PilotResponses.withPilot(pilots, authentication, pilot -> flightService.get(pilot, id)
                 .map(f -> ResponseEntity.ok(toDto(f)))
                 .orElse(ResponseEntity.notFound().build()));
     }
 
     @PostMapping
     public ResponseEntity<FlightDto> save(Authentication authentication, @Valid @RequestBody SaveFlightRequest request) {
-        return withPilot(authentication, pilot -> ResponseEntity.ok(toDto(flightService.save(pilot, request))));
+        return PilotResponses.withPilot(pilots, authentication, pilot ->
+                ResponseEntity.ok(toDto(flightService.save(pilot, request))));
     }
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(Authentication authentication, @PathVariable Long id) {
-        return withPilot(authentication, pilot ->
+        return PilotResponses.withPilot(pilots, authentication, pilot ->
                 flightService.delete(pilot, id) ? ResponseEntity.noContent().build() : ResponseEntity.notFound().build());
-    }
-
-    private <T> ResponseEntity<T> withPilot(Authentication authentication, Function<Pilot, ResponseEntity<T>> action) {
-        return pilots.current(authentication).map(action).orElseGet(() -> ResponseEntity.status(401).build());
     }
 
     private static FlightSummaryDto toSummaryDto(Flight f) {
