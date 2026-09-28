@@ -116,6 +116,7 @@ PALETTE = {
     3: (184, 168, 168, 255),  # a Class B ring's magenta over the tint ...
     4: (213, 183, 200, 255),  # ... and over paper
     9: (184, 216, 184, 255),  # the darker column of a scan's edge ramp
+    5: (200, 224, 196, 255),  # a lighter shade of the tint: a letter's halo, a line's anti-aliasing
 }
 
 
@@ -685,6 +686,25 @@ def test_remove_masked_lines_gives_the_band_its_tint_back_and_nothing_else(tmp_p
 
     # Run again, it finds nothing left to take out.
     assert chart_faces.remove_masked_lines(path, [box]) == ()
+
+
+def test_a_band_takes_the_tint_beside_it_not_the_halo_along_its_edge(tmp_path):
+    # Specks of a lighter shade just outside the band's soft edge, as a
+    # letter's halo or a road's anti-aliasing leave there, and a stretch
+    # of the chart stippled with it so it is one of the colours the chart
+    # is painted in. Copied from the nearest pixel, each speck was a
+    # streak across the band.
+    box, path = (-90.0, 41.0, -88.0, 43.0), tmp_path / "sheet.tif"
+    data = np.full((1600, 1600), 8, np.uint8)
+    data[100:1500, 700:736] = 0
+    data[100:1500:10, 696:698] = 5
+    data[100:1000:3, 100:500:3] = 5
+    _palette_raster(path, box, data)
+
+    assert chart_faces.remove_masked_lines(path, [box])
+    with rasterio.open(path) as src:
+        band = src.read(1)[100:1500, 700:736]
+    assert (band == 8).all()
 
 
 def test_masked_lines_outside_the_face_are_the_collar_and_are_left_alone(tmp_path):

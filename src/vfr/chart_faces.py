@@ -453,6 +453,13 @@ _BAND_LIGHT_MIN_SUM = 450
 _BAND_UNSEEN_SHARE = 0.001
 _BAND_FILL_CHUNK_PX = 1024
 _BAND_FILL_MARGIN_PX = 64
+# ... and from inside a flat patch of one of them, where one is this
+# near. The pixels right along a band's edge are as often a letter's
+# halo, a road's anti-aliasing or the scan's soft rim as the tint, and
+# the nearest of those, copied across, drew each column of the band a
+# different colour: a strip of streaks where the band had been.
+_BAND_FILL_FLAT_PX = 5
+_BAND_FILL_FLAT_REACH_PX = 96
 
 
 def _light(lut: np.ndarray, paper_lut: np.ndarray) -> np.ndarray:
@@ -711,8 +718,9 @@ def _band_region(shape: tuple, band: tuple) -> tuple:
 def _fill_bands(data: np.ndarray, region: np.ndarray, paper_lut: np.ndarray, light_lut: np.ndarray) -> int:
     """Every pixel of the bands' own background in `region` -- paper, or
     paper under something translucent -- given the palette index of the
-    nearest pixel of the surrounding chart's light colours, in place.
-    Returns the number of pixels changed."""
+    nearest flat patch of the surrounding chart's light colours (or,
+    with none near, the nearest pixel of them), in place. Returns the
+    number of pixels changed."""
     from scipy import ndimage as ndi
 
     chunk, margin = _BAND_FILL_CHUNK_PX, _BAND_FILL_MARGIN_PX
@@ -740,6 +748,11 @@ def _fill_bands(data: np.ndarray, region: np.ndarray, paper_lut: np.ndarray, lig
             usual[values[counts >= _BAND_FILL_MIN_SHARE * counts.sum()]] = True
             source = around & usual[window]
             _, (rows, cols) = ndi.distance_transform_edt(~source, return_indices=True)
+            flat = source & (ndi.maximum_filter(window, _BAND_FILL_FLAT_PX) == ndi.minimum_filter(window, _BAND_FILL_FLAT_PX))
+            if flat.any():
+                distance, (flat_rows, flat_cols) = ndi.distance_transform_edt(~flat, return_indices=True)
+                close = distance <= _BAND_FILL_FLAT_REACH_PX
+                rows[close], cols[close] = flat_rows[close], flat_cols[close]
             window[target] = window[rows[target], cols[target]]
             changed += int(target.sum())
     return changed
