@@ -26,7 +26,7 @@ export const COLORS: Record<Rating, string> = {
 export const RATINGS: readonly Rating[] = [0, 1, 2, 3, 4, 5];
 
 /** Beyond this far off course you are looking at it, not flying over it. */
-export const DR_CORRIDOR_NM = 0.5;
+const DR_CORRIDOR_NM = 0.5;
 
 
 /**

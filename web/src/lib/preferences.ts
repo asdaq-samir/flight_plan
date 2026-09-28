@@ -38,7 +38,7 @@ export const MARKER_ZOOMS: { from: number; label: string }[] = [
 
 /** What the map has always done, kept as the default: a 300 nm route
  *  fits a phone at about this zoom. */
-export const DEFAULT_MARKER_ZOOM = 6;
+const DEFAULT_MARKER_ZOOM = 6;
 
 /** The stock C172 until a pilot picks one of their own. */
 export const DEFAULT_AIRCRAFT: AircraftChoice = { profile: "c172", label: "C172 · Cessna 172" };

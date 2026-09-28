@@ -82,7 +82,7 @@ export function keepingAvailable(): boolean {
  *  for ever. */
 export const WORKER_WAIT_MS = 5000;
 
-export class NoServiceWorker extends Error {
+class NoServiceWorker extends Error {
   constructor() {
     super("No service worker is holding this app here, so nothing would be kept. The dev server registers none.");
     this.name = "NoServiceWorker";
@@ -105,7 +105,7 @@ async function workerReady(): Promise<boolean> {
  * resolves with the final count. A tile that fails (a 404 where the
  * kind has no sheet, a dropped connection) is counted and skipped.
  */
-export async function keepRouteCharts(
+async function keepRouteCharts(
   course: Course, kind: string, zooms: number[], onProgress: (p: KeepProgress) => void, signal?: AbortSignal,
 ): Promise<KeepProgress> {
   if (!(await workerReady())) throw new NoServiceWorker();
@@ -154,7 +154,7 @@ export function keepKey(course: Course, kind: string): string {
 }
 
 /** The zooms kept: from a whole-route view (8) down to the chart's own detail. */
-export function keptZooms(layer: ChartLayer): number[] {
+function keptZooms(layer: ChartLayer): number[] {
   return Array.from({ length: layer.max_zoom - 8 + 1 }, (_, i) => 8 + i).filter(z => z >= layer.min_zoom);
 }
 
