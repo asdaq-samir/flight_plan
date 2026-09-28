@@ -27,13 +27,6 @@ async function openConsole(page: Page) {
   return consoleSheet(page);
 }
 
-/** Signed out, the planner opens on the console by itself. */
-async function signedOutConsole(page: Page) {
-  await page.goto("/app/plan");
-  await expect(consoleSheet(page)).toBeVisible();
-  return consoleSheet(page);
-}
-
 test("an add still saving when Edit is clicked says added, and leaves the aeroplane being edited in the form", async ({ page }) => {
   await page.route("**/api/me", route =>
     route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(A_PILOT) }));
@@ -75,7 +68,7 @@ test.describe("the email sign-in link", () => {
       await hold.gate;
       await route.fulfill({ status: 204, body: "" });
     });
-    const console = await signedOutConsole(page);
+    const console = await openConsole(page);
     await console.getByRole("button", { name: "Sign in" }).click();
     const box = page.getByLabel("Email address");
     await box.fill("a@example.com");
@@ -92,7 +85,7 @@ test.describe("the email sign-in link", () => {
       await hold.gate;
       await route.fulfill({ status: 204, body: "" });
     });
-    const console = await signedOutConsole(page);
+    const console = await openConsole(page);
     await console.getByRole("button", { name: "Sign in" }).click();
     await page.getByLabel("Email address").fill("a@example.com");
     await page.getByRole("button", { name: "Send sign-in link" }).click();
@@ -107,7 +100,7 @@ test.describe("the email sign-in link", () => {
 
   test("too many asked for says so, not to check the address", async ({ page }) => {
     await page.route("**/api/auth/magic-link", route => route.fulfill({ status: 429, body: "" }));
-    const console = await signedOutConsole(page);
+    const console = await openConsole(page);
     await console.getByRole("button", { name: "Sign in" }).click();
     await page.getByLabel("Email address").fill("a@example.com");
     await page.getByRole("button", { name: "Send sign-in link" }).click();

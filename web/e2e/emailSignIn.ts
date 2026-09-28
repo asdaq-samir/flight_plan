@@ -43,8 +43,9 @@ async function linkIn(id: string): Promise<URL> {
 }
 
 /**
- * Asks for a link for `address` from the pilot console, which must be
- * open, then opens the link from the inbox and signs in. The link
+ * Asks for a link for `address` from the pilot console, opening it
+ * first if it is not already, then opens the link from the inbox and
+ * signs in. The link
  * points at APP_PUBLIC_BASE_URL; it is opened at the address this run
  * is testing instead, so the session lands in this browser.
  *
@@ -54,6 +55,7 @@ async function linkIn(id: string): Promise<URL> {
 export async function signInByEmail(page: Page, address: string) {
   const console = page.locator('[data-slot="sheet-content"][data-side="top"]');
   const before = new Set(await messagesTo(address));
+  if (!(await console.isVisible())) await page.getByTestId("pilot-button").click();
   await console.getByRole("button", { name: "Sign in" }).click();
   await page.getByLabel("Email address").fill(address);
   await page.getByRole("button", { name: "Send sign-in link" }).click();
