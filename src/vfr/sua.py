@@ -14,9 +14,9 @@ already says so and links to a real briefing service.
 from __future__ import annotations
 
 import threading
-import time
 
 import requests
+from cachetools import TTLCache
 from shapely.geometry import LineString, shape
 
 from .geo import along_track_distance_nm, corridor_bbox
@@ -35,8 +35,11 @@ TYPES = {
     "D": "danger area",
 }
 
-_CACHE_TTL_S = 24 * 3600
-_CACHE: dict = {}
+# A day per area, and at most 256 areas: the key is a route's bounding
+# box, so every new route adds one, and a plain dict kept them all for
+# as long as the process ran. TTLCache is not thread-safe and the
+# planner asks from its request threads, hence the lock.
+_CACHE: TTLCache = TTLCache(maxsize=256, ttl=24 * 3600)
 _CACHE_LOCK = threading.Lock()
 
 
@@ -62,8 +65,8 @@ def _query(bbox: tuple) -> list:
     key = tuple(round(v, 1) for v in bbox)
     with _CACHE_LOCK:
         hit = _CACHE.get(key)
-        if hit and time.time() - hit[0] < _CACHE_TTL_S:
-            return hit[1]
+    if hit is not None:
+        return hit
     min_lat, min_lon, max_lat, max_lon = key
     params = {
         "where": "1=1",
@@ -80,7 +83,7 @@ def _query(bbox: tuple) -> list:
     except (requests.RequestException, ValueError) as err:
         raise SpecialUseUnavailable(f"the FAA's special-use airspace service did not answer: {err}") from err
     with _CACHE_LOCK:
-        _CACHE[key] = (time.time(), features)
+        _CACHE[key] = features
     return features
 
 

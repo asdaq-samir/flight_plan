@@ -170,21 +170,22 @@ def ensure_nasr_data(cache_dir) -> tuple:
 CHARTED_FACILITY_TYPES = {"AIRPORT"}
 
 
-_APT_BASE_CACHE: dict = {}
+@lru_cache(maxsize=2)
+def _read_apt_base_cached(path: str, _mtime: float) -> pd.DataFrame:
+    return pd.read_csv(path, dtype=str, low_memory=False)
 
 
 def _read_apt_base(apt_csv_path) -> pd.DataFrame:
-    """APT_BASE.csv, parsed once per process.
+    """APT_BASE.csv, parsed once per file version, like NAV_BASE below.
 
     It is a large national table and a route request only ever wants a
     bounding box out of it, so re-reading it per call was 2.1 s of pure
     waste -- and on a streamed route that was the whole time-to-first
-    result, since airports are the cheap thing shown first.
+    result, since airports are the cheap thing shown first. Keyed by
+    mtime too, so a new NASR cycle is read without a restart; two
+    entries, so the one it replaces is dropped rather than held.
     """
-    key = str(apt_csv_path)
-    if key not in _APT_BASE_CACHE:
-        _APT_BASE_CACHE[key] = pd.read_csv(apt_csv_path, dtype=str, low_memory=False)
-    return _APT_BASE_CACHE[key]
+    return _read_apt_base_cached(str(apt_csv_path), Path(apt_csv_path).stat().st_mtime)
 
 
 def load_route_airports(apt_csv_path, bbox: tuple, exclude_idents: tuple = ()) -> pd.DataFrame:
@@ -279,8 +280,8 @@ def load_vor_navaids(nav_csv_path, bbox: tuple) -> pd.DataFrame:
     navigationaid-tag-based approach -- the FAA is definitionally the
     authority on its own navaid network.
 
-    Same `_read_apt_base`/`_APT_BASE_CACHE` idea as this file's own
-    airport table just above -- collecting more than one route in the
+    Same once-per-file-version read as this file's own airport table
+    (`_read_apt_base`) -- collecting more than one route in the
     same process used to re-read and re-parse this national file from
     scratch every time.
     """
