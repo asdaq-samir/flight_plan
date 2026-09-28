@@ -83,11 +83,12 @@ test("the marker's colour is the field's own flight category", async ({ page }) 
   await expect(ord).toBeVisible({ timeout: 15000 });
 
   // IFR is red. A field with no report is grey, deliberately not the
-  // green one: "unknown" must not look like "fine".
-  const ifrColour = await ord.evaluate(el => getComputedStyle(el).backgroundColor);
-  const unknownColour = await msp.evaluate(el => getComputedStyle(el).backgroundColor);
-  expect(ifrColour).toBe("rgb(179, 38, 30)");
-  expect(unknownColour).toBe("rgb(143, 163, 176)");
+  // green one: "unknown" must not look like "fine". Asked of the
+  // locator, which retries: Leaflet redraws a marker's icon as the
+  // layer settles, and a colour read once off the element it had just
+  // replaced came back "" (a detached node has no computed style).
+  await expect(ord).toHaveCSS("background-color", "rgb(179, 38, 30)");
+  await expect(msp).toHaveCSS("background-color", "rgb(143, 163, 176)");
 });
 
 test("hovering one shows what it is doing and what it is forecast to do", async ({ page }) => {
