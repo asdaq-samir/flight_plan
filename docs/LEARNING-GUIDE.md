@@ -130,7 +130,7 @@ an argument to a fixed `python3 -m vfr.pipeline` — see
 multi-stage build in this repo, trimmed here to its shape:
 
 ```dockerfile
-FROM node:26-slim AS web
+FROM node:24-slim AS web
 COPY web/ ./
 RUN npx vite build --outDir /web/dist
 
@@ -168,7 +168,7 @@ from its cache.
 | [`docker/Dockerfile.airflow.aws`](../docker/Dockerfile.airflow.aws) | `apache/airflow:3.3.1-python3.13` | The AWS-hosted counterpart: `apache-airflow-providers-amazon` instead of `-docker`, and it `COPY`s the AWS DAG and `src/` in rather than relying on a bind mount that Fargate has no way to provide. See [Section 3](#the-same-dag-twice-local-and-aws). |
 | [`model-service/Dockerfile`](../model-service/Dockerfile) | `python:3.13-slim` | A plain FastAPI service: install deps, copy `app/`, run `uvicorn`. |
 | [`planning-service/Dockerfile`](../planning-service/Dockerfile) | `python:3.13-slim` | FastAPI plus the chart-vision stack (numpy, Pillow, shapely). Bind-mounts the repo, so a `src/vfr` edit needs a restart, not a rebuild. |
-| [`springboot-app/Dockerfile`](../springboot-app/Dockerfile) | `node:26-slim` → `maven:...` → `eclipse-temurin:25-jre` | Multi-stage, see above. |
+| [`springboot-app/Dockerfile`](../springboot-app/Dockerfile) | `node:24-slim` → `maven:...` → `eclipse-temurin:25-jre` | Multi-stage, see above. |
 | [`nav-log-agent/Dockerfile`](../nav-log-agent/Dockerfile) / [`crewai-agent/Dockerfile`](../crewai-agent/Dockerfile) | `python:3.13-slim` | Both set `PYTHONPATH=/workspace/src` so `import vfr...` resolves inside the container without installing `vfr` as a package — the bind-mounted repo is just put on the path directly. `nav-log-agent` also installs the CPU-only PyTorch wheel before its requirements, for the reason `Dockerfile.ml` does (see [the disk lesson](#the-disk-lesson)). |
 
 ### The images those Dockerfiles produce
@@ -188,7 +188,7 @@ the rest exist for building, training, orchestrating or testing.
 **The ones pulled, not built.** These look like clutter and are not;
 deleting one only forces a re-download on the next build. `python:3.13-slim`
 is the base for most of the nine above, stored once, which is why image
-sizes are not additive. `node:26-slim` and `maven:...` are build-only and
+sizes are not additive. `node:24-slim` and `maven:...` are build-only and
 never ship. `pgvector/pgvector` is the database. `postgres` and
 `testcontainers/ryuk` are started by the JUnit suite ([Section 8](#8-what-gets-tested-and-what-deliberately-doesnt)),
 and `golang:1.25-alpine` builds the Lambda ([Section 7](#7-infrastructure-as-code-cloudformation)).

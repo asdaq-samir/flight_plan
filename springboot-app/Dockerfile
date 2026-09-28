@@ -9,7 +9,8 @@
 # stage and a Java change only the `build` stage -- neither waits on the
 # other's toolchain.
 
-FROM node:26-slim AS web
+# Node's LTS line, the major in .nvmrc (which CI's web job reads).
+FROM node:24-slim AS web
 WORKDIR /web
 COPY web/package.json web/package-lock.json ./
 # --mount=type=cache: npm's own download/extract cache, keyed by this

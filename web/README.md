@@ -61,7 +61,7 @@ flights, checkpoint notes).
 
 ## Running it
 
-No native Node toolchain is used. Everything runs in `node:26-slim`, the
+No native Node toolchain is used. Everything runs in `node:24-slim`, the
 image `springboot-app/Dockerfile` builds the bundle with.
 
 ```bash
@@ -69,7 +69,7 @@ image `springboot-app/Dockerfile` builds the bundle with.
 docker compose up -d --build --wait webapp   # full stack; returns once the pages answer (webapp's healthcheck)
 
 # typecheck, lint and unit tests
-docker run --rm -v "$PWD/web":/w -w /w node:26-slim \
+docker run --rm -v "$PWD/web":/w -w /w node:24-slim \
   sh -c "npm ci && npm run types && npx tsc -b && npx eslint . && npx vitest run"
 
 # real-browser layout tests, against the running stack

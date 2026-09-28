@@ -602,7 +602,7 @@ docker run --rm -v "$PWD":/w -w /w/model-service python:3.13-slim \
 
 # Web front end (web/): typecheck plus unit tests. No browser needed:
 # the filters, ordering, rating and nav-log rules are pure functions.
-docker run --rm -v "$PWD":/w -w /w/web node:26-slim \
+docker run --rm -v "$PWD":/w -w /w/web node:24-slim \
   sh -c "npm ci && npm run types && npx tsc --noEmit && npx vitest run"
 
 # Java (webapp). No native Maven needed, matching the rest of this
