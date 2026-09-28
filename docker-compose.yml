@@ -23,8 +23,15 @@ x-python-healthcheck: &python-healthcheck
 # without one themselves, which is the same fail-fast a level later.
 x-anthropic-api-key: &anthropic-api-key ${ANTHROPIC_API_KEY:-}
 
+# Every long-running service below restarts with Docker (restart:
+# unless-stopped): after a reboot, Docker Desktop brings back whatever
+# was running -- the phone overlay's ports included, since it is the
+# same container -- and a service someone stopped stays stopped. The
+# pipeline jobs are one-shot and have none.
+
 services:
   ml:
+    restart: unless-stopped
     build:
       context: .
       dockerfile: docker/Dockerfile.ml
@@ -64,6 +71,7 @@ services:
       - .:/workspace
 
   airflow:
+    restart: unless-stopped
     build:
       context: .
       dockerfile: docker/Dockerfile.airflow
@@ -100,6 +108,7 @@ services:
     command: standalone
 
   db:
+    restart: unless-stopped
     image: pgvector/pgvector:pg18
     environment:
       POSTGRES_DB: vfr_route
@@ -150,6 +159,7 @@ services:
     restart: unless-stopped
 
   planning-service:
+    restart: unless-stopped
     # Planning and chart vision: reads FAA sectional tiles, walks the great
     # circle, selects checkpoints and computes the dead-reckoning nav log.
     # Serves no pages -- the front end is built into webapp's jar, and the
@@ -198,6 +208,7 @@ services:
       test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/')"]
 
   model-service:
+    restart: unless-stopped
     build: ./model-service
     ports:
       - "127.0.0.1:8000:8000"
@@ -221,6 +232,7 @@ services:
       test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/ping')"]
 
   nav-log-agent:
+    restart: unless-stopped
     # Behind a profile because it is opt-in and wants a bearer token of
     # its own (below), not because it needs an Anthropic key -- its MCP
     # tools fetch the planner's nav log and do the memory lookup with no
@@ -257,6 +269,7 @@ services:
       DATABASE_URL: postgresql://vfr:${POSTGRES_PASSWORD:-vfr}@db:5432/vfr_route
 
   crewai-agent:
+    restart: unless-stopped
     # Behind the same `ai` profile as nav-log-agent, and for the same
     # reason: every one of its crew's steps is a Claude call.
     profiles: ["ai"]
@@ -291,6 +304,7 @@ services:
   # inbox to the Wi-Fi, behind a password, for signing in on the phone.
   # Set MAIL_HOST and the rest in .env to send real mail instead.
   mailpit:
+    restart: unless-stopped
     image: axllent/mailpit:v1.31.3
     ports:
       - "127.0.0.1:8025:8025"
@@ -319,6 +333,7 @@ services:
       MP_SMTP_RELAY_ALLOWED_RECIPIENTS: ${MAILPIT_RELAY_TO:-}
 
   webapp:
+    restart: unless-stopped
     # Context is the repo root: the image builds web/ and bakes the
     # bundle into the jar, so this one service serves both.
     build:
