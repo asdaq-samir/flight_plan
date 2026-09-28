@@ -1,6 +1,7 @@
 package com.northflyers.vfr.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.asyncDispatch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.request;
@@ -18,6 +19,9 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.test.web.servlet.RequestBuilder;
+import org.springframework.test.web.servlet.ResultActions;
 
 /**
  * The calls this app pays Anthropic for -- a framework narrative, and
@@ -46,7 +50,7 @@ class PaidCallAllowanceTest {
 
     @Test
     void aNarrativePastTheDaysAllowanceIsA429ThatSaysSo() throws Exception {
-        mockMvc.perform(post("/api/comparison?framework=langgraph")
+        finish(post("/api/comparison?framework=langgraph")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"departure_ident\":\"C81\"}"))
                 .andExpect(status().isTooManyRequests())
@@ -55,20 +59,22 @@ class PaidCallAllowanceTest {
 
     @Test
     void generatingNotesPastTheDaysAllowanceIsA429ThatSaysSo() throws Exception {
-        mockMvc.perform(post("/api/planner/checkpoint-notes/generate")
+        finish(post("/api/planner/checkpoint-notes/generate")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"departure_ident\":\"C81\",\"destination_ident\":\"KDLH\"}"))
                 .andExpect(status().isTooManyRequests())
                 .andExpect(jsonPath("$.detail").value(org.hamcrest.Matchers.containsString("checkpoint-note generations")));
     }
 
-    /** Saving a pilot's own note costs nothing, so it is not counted. */
+    /** Saving a pilot's own note costs nothing, so it is not counted: it
+     *  goes on to the planner, which is not there (a 502), where a
+     *  counted call would have stopped at the 429. */
     @Test
     void savingANoteIsNotCounted() throws Exception {
-        mockMvc.perform(post("/api/planner/checkpoint-notes")
+        finish(post("/api/planner/checkpoint-notes")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
-                .andExpect(request().asyncStarted());
+                .andExpect(status().isBadGateway());
     }
 
     @Test
@@ -80,5 +86,14 @@ class PaidCallAllowanceTest {
         assertThat(limiter.allow("user:a", 2, morning.plusSeconds(120))).isFalse();
         assertThat(limiter.allow("user:b", 2, morning.plusSeconds(120))).isTrue();
         assertThat(limiter.allow("user:a", 2, morning.plus(Duration.ofDays(1)).plusSeconds(1))).isTrue();
+    }
+
+    /** Every answer here, a 429 included, is a StreamingResponseBody,
+     *  written on another thread: its status and body are only there
+     *  once the async dispatch has run. Read before it, the body can be
+     *  empty -- as it was on CI's runner, never locally. */
+    private ResultActions finish(RequestBuilder call) throws Exception {
+        MvcResult started = mockMvc.perform(call).andExpect(request().asyncStarted()).andReturn();
+        return mockMvc.perform(asyncDispatch(started));
     }
 }
