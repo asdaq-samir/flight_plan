@@ -117,6 +117,26 @@ jobs:
       - name: mvn test (webapp)
         working-directory: springboot-app
         run: mvn -B test
+      # A job's log takes admin rights on the repository to read; an
+      # annotation shows on the commit's checks to anyone who can see it.
+      # So each failing test is one: its assertion or exception, and the
+      # causes under it (the stack between them says little).
+      - name: Failing tests, as annotations
+        if: failure()
+        working-directory: springboot-app
+        run: |
+          python3 - <<'EOF'
+          import glob, xml.etree.ElementTree as ET
+          for path in sorted(glob.glob("target/surefire-reports/TEST-*.xml")):
+              for case in ET.parse(path).getroot().iter("testcase"):
+                  for problem in [*case.iter("failure"), *case.iter("error")]:
+                      lines = (problem.text or problem.get("message") or "").strip().splitlines()
+                      kept = lines[:6] + [line for line in lines[6:] if line.startswith("Caused by")]
+                      text = "\n".join(kept).replace("%", "%25").replace("\r", "").replace("\n", "%0A")
+                      test = case.get("classname").rsplit(".", 1)[-1] + "." + case.get("name")
+                      test = test.replace("%", "%25").replace(":", "%3A").replace(",", "%2C")
+                      print(f"::error title={test}::{text}")
+          EOF
 
   # planning-service's own FastAPI-layer suite. Separate job for the same
   # reason as test-webapp: its own dependency set (requirements-dev.txt,
