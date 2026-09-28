@@ -91,6 +91,10 @@ test.describe("the email sign-in link", () => {
     await page.getByLabel("Email address").fill("a@example.com");
     await page.getByRole("button", { name: "Send sign-in link" }).click();
     await page.keyboard.press("Escape");
+    // Escape closes the sign-in dialog, the top layer, and leaves the
+    // console under it open.
+    await expect(page.getByLabel("Email address")).toHaveCount(0);
+    await expect(console).toBeVisible();
     hold.release();
     await page.waitForTimeout(500);
 

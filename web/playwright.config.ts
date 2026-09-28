@@ -21,7 +21,14 @@ import { DEVELOPER_STATE } from "./e2e/emailSignIn";
  */
 export default defineConfig({
   testDir: "./e2e",
-  timeout: 30_000,
+  // 60s, not Playwright's 30s. The suite runs every test against the real
+  // stack, both viewports at once, and a full run's slowest tests take
+  // 25-31s there (the departure-time ETAs, the map's popups, the Class B
+  // cards) though each takes under 10s alone -- the planner is drawing
+  // tiles and nav logs for every worker together. At 30s those failed
+  // now and then on nothing but load. A hung test still fails, in a
+  // minute.
+  timeout: 60_000,
   // Playwright's own default for an `expect()` wait is 5s, which is a
   // reasonable figure for a page that is already built and a poor one
   // for this app: much of what these tests assert on arrives from the
@@ -29,7 +36,7 @@ export default defineConfig({
   // and is being asked for several routes at once by the workers
   // below. The flake this fixes was a 5s wait for the map's first tile
   // -- an assertion about the full-screen button, failing on tile
-  // latency. It costs nothing when things are fast, and the 30s test
+  // latency. It costs nothing when things are fast, and the test
   // timeout above still catches anything genuinely hung.
   expect: { timeout: 15_000 },
   // One retry: a handful of tests wait on the planner's live nav log,

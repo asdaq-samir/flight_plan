@@ -177,8 +177,13 @@ for (const path of PAGES) {
 }
 
 /** The briefing is the flight planning drawer: open it from its header
- *  toggle, and the URL says so. */
+ *  toggle, and the URL says so. Only once the planner has written its
+ *  route into the address: an address with none gets the first
+ *  collected route written in when the list of routes arrives, and a
+ *  toggle clicked before that was overwritten by it -- the URL came
+ *  back with the route and without view=briefing. */
 async function openBriefing(page: Page) {
+  await expect(page).toHaveURL(/[?&]dest=/);
   await page.getByTestId("sidebar-trigger-button").click();
   await page.waitForTimeout(300);
   await expect(page).toHaveURL(/[?&]view=briefing/);
