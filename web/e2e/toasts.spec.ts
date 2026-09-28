@@ -170,6 +170,24 @@ test("dismissing a toast dismisses the toast, not the drawer under it", async ({
   }
 });
 
+test("a tap on a toast over the open drawer is the toast's, not the drawer's", async ({ page }) => {
+  // Over the chart a toast is transparent to the pointer (the test
+  // above). Over the drawer that made a tap on the card fall through to
+  // the drawer's own controls: tapping a toast opened the briefing
+  // section behind it.
+  await page.goto(`${PLAN}&view=briefing`);
+  const first = toasts(page).first();
+  await expect(first).toBeVisible({ timeout: 20000 });
+  await page.waitForTimeout(1000);
+  const box = (await first.boundingBox())!;
+
+  const hit = await page.evaluate(([x, y]) => {
+    const el = document.elementFromPoint(x, y);
+    return el?.closest("[data-sonner-toast]") ? "the toast" : "something under it";
+  }, [box.x + box.width / 2, box.y + box.height / 2]);
+  expect(hit).toBe("the toast");
+});
+
 test("dismissing a toast over the console leaves the console open", async ({ page }) => {
   // The same guard, on the stock sheet the console is. A caller passing
   // its own onInteractOutside used to replace the guard silently, and

@@ -249,3 +249,13 @@ input, select, textarea {
 [data-sonner-toast] button {
   pointer-events: auto;
 }
+/* Except while a drawer or a dialog is open. The toasts are anchored to
+   the viewport, not the map, so an open drawer (the whole screen on a
+   phone, the right edge on a narrow desktop) sits under them -- and a
+   tap on a card that is transparent to the pointer lands on whatever
+   the drawer has there: an accordion trigger, which opened a briefing
+   section nobody touched. While one is open the cards take their own
+   taps back; the chart loses the wheel under a toast for that long. */
+body:has([data-slot="sidebar"][data-state="expanded"], [role="dialog"][data-state="open"]) [data-sonner-toast] {
+  pointer-events: auto;
+}
