@@ -40,7 +40,12 @@ export default function ConsoleTabs({ tabs, saved, onChange, actions }: Props) {
             <TabsList>
               {tabs.map(t => <TabsTrigger key={t.value} value={t.value}>{t.label}</TabsTrigger>)}
             </TabsList>
-            <div className="flex items-center gap-2">
+            {/* Held to the row's width and wrapping within it: signed in,
+                "Signed in as <address>" and Log out share this row with
+                the developer's own status and buttons, and at a phone's
+                width they ran off the right edge of the screen. The
+                address truncates rather than pushing the rest out. */}
+            <div className="flex min-w-0 max-w-full flex-wrap items-center justify-end gap-2">
               {actions}
               <ThemeToggle />
             </div>

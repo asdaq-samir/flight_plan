@@ -691,6 +691,51 @@ test("the DEV switch is the one sign of which page this is: the header itself lo
   expect(devBg).toBe(pilotBg);
 });
 
+test("signed in, each console fits the screen's width: nothing but a table's own scroller runs past its edge", async ({ page }) => {
+  // "Signed in as <address>" and Log out share the tab row with the
+  // developer's status and buttons, and on a phone they ran off the
+  // right edge. Wide tables scroll inside their own container, which is
+  // the one thing allowed past the edge.
+  for (const [path, button] of [["/app/plan", "pilot-button"], ["/app/dev", "dev-console-button"]] as const) {
+    await page.goto(path);
+    await page.getByTestId(button).click();
+    await expect(consoleSheet(page)).toContainText("Signed in as");
+    const past = await consoleSheet(page).evaluate(sheet => {
+      const edge = document.documentElement.clientWidth + 1;
+      return [...sheet.querySelectorAll("*")]
+        .filter(el => !el.closest('[data-slot="table-container"]'))
+        .filter(el => { const r = el.getBoundingClientRect(); return r.width > 0 && r.right > edge; })
+        .map(el => (el.textContent ?? "").trim().slice(0, 40));
+    });
+    expect(past, `${path}: past the right edge`).toEqual([]);
+  }
+});
+
+test("the route form sits in the middle of the header on both pages, with the DEV switch or without it", async ({ page, browser }) => {
+  // On a phone the header was a flex row that centred the form between
+  // the switch and the buttons: the planner of anyone signed out, who
+  // has no switch, put it 55px left of where the dev page did.
+  const offCentre = (p: Page) => p.locator("header").evaluate(header => {
+    const form = header.children[1].getBoundingClientRect();
+    const box = header.getBoundingClientRect();
+    return Math.round((form.left + form.right) / 2 - (box.left + box.right) / 2);
+  });
+  for (const path of PAGES) {
+    await page.goto(path);
+    await settle(page);
+    expect(Math.abs(await offCentre(page)), path).toBeLessThanOrEqual(4);
+  }
+  const signedOut = await browser.newContext({
+    baseURL: new URL(page.url()).origin, viewport: page.viewportSize(), storageState: { cookies: [], origins: [] },
+  });
+  const planner = await signedOut.newPage();
+  await planner.goto("/app/plan");
+  await settle(planner);
+  await expect(planner.locator("header").getByRole("switch", { name: "Dev mode" })).toHaveCount(0);
+  expect(Math.abs(await offCentre(planner)), "the signed-out planner").toBeLessThanOrEqual(4);
+  await signedOut.close();
+});
+
 test("plan page: the nav log's altitude opens the planner's own reasoning, and the briefing's Cruise Altitude section carries the same steps", async ({ page }) => {
   // Three re-plans, each allowed 30 s below, inside the default 30 s for
   // the whole test: 18 s on a quiet machine, and past the limit in a

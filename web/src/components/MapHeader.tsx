@@ -19,13 +19,17 @@ interface Props {
 
 /**
  * The one-row header both pages share: the Dev-mode switch leading,
- * the route form centred, the icon buttons trailing. From `sm` up, a
- * three-column grid whose flanking columns match each other's width
- * (the switch in one, the actions in the other), which is what centres
- * the form against the header's full width rather than against
- * whatever is left beside the actions. Below `sm` a plain flex row
- * puts the switch and the form first and the actions at the right,
- * and everything is slimmed to share one line on a phone: the
+ * the route form centred, the icon buttons trailing. A three-column
+ * grid whose flanking columns share the space left over equally (the
+ * switch in one, the actions in the other), which is what centres the
+ * form against the header's full width rather than against whatever is
+ * left beside the actions -- on a phone too. It used to be a flex row
+ * below `sm`, which centred the form between the switch and the
+ * buttons: on the planner of anyone signed out or not a developer
+ * there is no switch, and the form sat 55px left of centre, where the
+ * dev page's did not. Only a screen under 360px, too narrow for the
+ * three side by side, is still a wrapping flex row. Below `sm`
+ * everything is slimmed to share one line on a phone: the
  * header's own padding and gaps close up, and every icon button drops
  * to `icon-sm` (`size-8`, the same size the form's own Load button
  * already is) -- set here, on the groups, rather than on each button
@@ -52,19 +56,17 @@ export default function MapHeader({ leading, form, actions, dev = false }: Props
       // button. A plain padding there instead, a little wider than the
       // left's, which is enough to clear a rounded corner with the
       // drawer shut.
-      className="flex shrink-0 flex-wrap items-center gap-1.5 border-b border-border bg-background pt-[max(0.5rem,env(safe-area-inset-top))] pr-3 pb-2 pl-[max(0.5rem,env(safe-area-inset-left))] sm:grid sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] sm:gap-2 sm:pr-4 sm:pl-[max(0.75rem,env(safe-area-inset-left))] print:hidden"
+      className="flex shrink-0 flex-wrap items-center gap-1.5 border-b border-border bg-background pt-[max(0.5rem,env(safe-area-inset-top))] pr-3 pb-2 pl-[max(0.5rem,env(safe-area-inset-left))] min-[360px]:grid min-[360px]:grid-cols-[1fr_auto_1fr] sm:gap-2 sm:pr-4 sm:pl-[max(0.75rem,env(safe-area-inset-left))] print:hidden"
     >
-      <div className="flex items-center sm:justify-self-start">{leading}</div>
-      {/* mx-auto below `sm`: the flex row's free space split either side
-          of the form, so it sits centred between the switch and the
-          buttons rather than packed against the switch (the grid from
-          `sm` up centres it against the whole header by itself). */}
-      <div className="mx-auto sm:mx-0 sm:justify-self-center">{form}</div>
+      <div className="flex items-center min-[360px]:justify-self-start">{leading}</div>
+      {/* mx-auto for the wrapping row under 360px; the grid above that
+          centres it against the whole header by itself. */}
+      <div className="mx-auto min-[360px]:mx-0 min-[360px]:justify-self-center">{form}</div>
       {/* gap-2 either side of `sm`, not gap-3 above it: the ring on an
           open button (see `EXPANDED_BUTTON`) is what separates these
           two now, and the extra 4px only cost width in the one place
           the row is tight -- a landscape phone with the drawer open. */}
-      <div className="ml-auto flex items-center gap-2 [&>*]:size-8 sm:ml-0 sm:justify-self-end sm:[&>*]:size-9">
+      <div className="ml-auto flex items-center gap-2 [&>*]:size-8 min-[360px]:ml-0 min-[360px]:justify-self-end sm:[&>*]:size-9">
         {actions}
       </div>
     </header>

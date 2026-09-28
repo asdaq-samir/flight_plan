@@ -83,7 +83,7 @@ export function SignInStatus({ pilot, onRetry }: { pilot: PilotState; onRetry: (
     return <SignInModal />;
   }
   return (
-    <div className="flex min-w-0 items-center gap-2 text-sm">
+    <div className="flex min-w-0 max-w-full items-center gap-2 text-sm">
       <span className="truncate text-muted-foreground" title={`Signed in as ${pilot.displayName}`}>
         Signed in as <span className="font-semibold text-foreground">{pilot.displayName}</span>
       </span>
