@@ -113,6 +113,9 @@ PALETTE = {
     2: (0, 0, 255, 255),
     7: (0, 0, 0, 255),        # ink
     8: (216, 232, 206, 255),  # the sectional's land tint
+    3: (184, 168, 168, 255),  # a Class B ring's magenta over the tint ...
+    4: (213, 183, 200, 255),  # ... and over paper
+    9: (184, 216, 184, 255),  # the darker column of a scan's edge ramp
 }
 
 
@@ -481,6 +484,9 @@ def test_render_pyramid_writes_every_tile_of_every_sheet_and_composites_seams(tm
 
 
 def test_serving_cycle_is_the_newest_complete_pyramid(tmp_path, monkeypatch):
+    # The records written here are in the shape from before the renderer
+    # was kept, which reads as version 1: this is not about renderers.
+    monkeypatch.setattr(charts, "RENDERER_VERSION", 1)
     monkeypatch.setattr(charts, "CHART_TILE_CACHE_DIR", tmp_path / "tiles")
     monkeypatch.setattr(charts, "CHARTS_DIR", tmp_path / "charts")
     monkeypatch.setattr(charts, "current_cycle", lambda *a, **k: "10-29-2026")
@@ -571,6 +577,9 @@ def test_publish_uploads_every_tile_once_and_points_serving_at_the_cycle(tmp_pat
 
 
 def test_refresh_prepares_renders_and_prunes_only_when_complete(tmp_path, monkeypatch):
+    # The records written here are in the shape from before the renderer
+    # was kept, which reads as version 1: this is not about renderers.
+    monkeypatch.setattr(charts, "RENDERER_VERSION", 1)
     monkeypatch.setattr(charts, "CHART_TILE_CACHE_DIR", tmp_path / "tiles")
     monkeypatch.setattr(charts, "CHARTS_DIR", tmp_path / "charts")
     monkeypatch.setattr(charts, "current_cycle", lambda *a, **k: "10-29-2026")
@@ -801,11 +810,11 @@ def test_what_is_left_of_a_band_is_found_along_the_border_of_what_was_taken_out(
 
 def test_a_scans_paper_border_does_not_draw_a_hairline_down_the_seam(tmp_path):
     # The first sheet's chart runs on to its raster's edge, and so does
-    # its face; its scan ends in a column of paper. The neighbour covers
-    # the strip beyond it.
+    # its face; its scan ends in a ramp -- a paler column, a darker one --
+    # and a column of paper. The neighbour covers the strip beyond it.
     left_box, right_box = (-90.0, 41.0, -88.0, 43.0), (-88.3, 41.0, -86.0, 43.0)
     left = np.full((512, 512), 1, np.uint8)
-    left[:, -1] = 0
+    left[:, -3], left[:, -2], left[:, -1] = 9, 8, 0
     _palette_raster(tmp_path / "left.tif", left_box, left)
     _palette_raster(tmp_path / "right.tif", right_box, np.full((512, 512), 2, np.uint8))
     rasters = [
@@ -814,8 +823,8 @@ def test_a_scans_paper_border_does_not_draw_a_hairline_down_the_seam(tmp_path):
     ]
     x0, _, y0, _ = charts._tile_range((-88.001, 41.999, -87.999, 42.001), 10)
     rgba = charts.render_tile(rasters, x0, y0, 10)
-    paper = (rgba[:, :, :3] == 255).all(axis=2) & (rgba[:, :, 3] > 0)
-    assert not paper.any()
+    drawn = rgba[rgba[:, :, 3] > 0][:, :3]
+    assert {tuple(int(v) for v in c) for c in np.unique(drawn, axis=0)} == {(255, 0, 0), (0, 0, 255)}
     west, _, east, _ = charts.tile_bbox_wgs84(x0, y0, 10)
     col = lambda lon: int((lon - west) / (east - west) * 256)  # noqa: E731
     assert tuple(rgba[128, col(-88.05)]) == (255, 0, 0, 255)   # the first sheet, up to its edge
@@ -1133,7 +1142,7 @@ def test_a_new_renderer_draws_every_tile_again_and_the_browsers_are_told(two_she
     _backdate(tmp_path / "tiles")
     assert charts.pyramid_due(cycle, ("sec",)) == ()
 
-    monkeypatch.setattr(charts, "RENDERER_VERSION", 2)
+    monkeypatch.setattr(charts, "RENDERER_VERSION", charts.RENDERER_VERSION + 1)
     assert charts.pyramid_due(cycle, ("sec",)) == ("sec",) and charts.refresh_due()
     served = []
     real_row = charts._render_row
@@ -1147,7 +1156,7 @@ def test_a_new_renderer_draws_every_tile_again_and_the_browsers_are_told(two_she
 
     assert set(served) == {cycle}                           # the old tiles served meanwhile
     record = charts.pyramid_status(cycle)["sec"]
-    assert record["renderer"] == 2 and record["tiles"] == 16
+    assert record["renderer"] == charts.RENDERER_VERSION and record["tiles"] == 16
     assert charts.tiles_revision(cycle) == 1
     assert json.loads((tmp_path / "tiles" / cycle / charts._PUBLISHED).read_text()) == ["tac/11/1/1.png"]
     assert charts.pyramid_due(cycle, ("sec",)) == ()
@@ -1160,7 +1169,7 @@ def test_a_pass_under_a_new_renderer_cut_short_is_resumed_not_begun_again(two_sh
     sheets = [_sheet(tmp_path, "Left", LEFT, 1), _sheet(tmp_path, "Right", RIGHT, 2)]
     charts.render_pyramid(charts.SECTIONAL, zooms=(8,), workers=0, charts=sheets, cycle=cycle)
     _backdate(tmp_path / "tiles")
-    monkeypatch.setattr(charts, "RENDERER_VERSION", 2)
+    monkeypatch.setattr(charts, "RENDERER_VERSION", charts.RENDERER_VERSION + 1)
     real_row = charts._render_row
     first = []
 
@@ -1179,4 +1188,40 @@ def test_a_pass_under_a_new_renderer_cut_short_is_resumed_not_begun_again(two_sh
     monkeypatch.setattr(charts, "_render_row", real_row)
     assert charts.render_pyramid(charts.SECTIONAL, zooms=(8,), workers=0, charts=sheets, cycle=cycle) == 4   # the second's
     assert charts.tiles_revision(cycle) == 1
-    assert charts.pyramid_status(cycle)["sec"]["renderer"] == 2
+    assert charts.pyramid_status(cycle)["sec"]["renderer"] == charts.RENDERER_VERSION
+
+
+def _ringed_band_sheet(path, box, ring_rows):
+    """A band down the sheet to its bottom edge, a Class B ring printed
+    across it: magenta over the tint either side, pale pink over the
+    band's paper."""
+    data = np.full((1600, 800), 8, np.uint8)
+    data[100:1600, 380:416] = 0
+    rows, cols = np.mgrid[0:1600, 0:800]
+    ring = (rows >= ring_rows[0]) & (rows < ring_rows[1])
+    data[ring & (data == 8)] = 3
+    data[ring & (data == 0)] = 4
+    _palette_raster(path, box, data)
+    return data
+
+
+def test_a_band_under_a_class_b_ring_gets_the_rings_colour_back(tmp_path):
+    box, path = (-90.0, 40.0, -89.5, 42.0), tmp_path / "sheet.tif"
+    before = _ringed_band_sheet(path, box, (700, 760))
+    assert chart_faces.remove_masked_lines(path, [(-90.0, 39.0, -89.5, 42.0)])
+    with rasterio.open(path) as src:
+        after = src.read(1)
+    under = after[700:760, 380:416]
+    assert not (under == 4).any() and not (under == 0).any()
+    assert (under == 3).mean() > 0.9                       # the ring runs on across it, unbroken
+    assert (after[100:1600, 380:416][before[100:1600, 380:416] == 0] == 8).all()
+
+
+def test_a_band_is_carried_under_a_ring_too_long_to_bridge_to_the_sheets_edge(tmp_path):
+    box, path = (-90.0, 40.0, -89.5, 42.0), tmp_path / "sheet.tif"
+    _ringed_band_sheet(path, box, (1150, 1450))             # and only 150 px of band after it
+    assert chart_faces.remove_masked_lines(path, [(-90.0, 39.0, -89.5, 42.0)])
+    with rasterio.open(path) as src:
+        after = src.read(1)
+    assert not (after[100:1600, 380:416] == 0).any()
+    assert not (after[1150:1450, 380:416] == 4).any()

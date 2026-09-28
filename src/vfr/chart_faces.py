@@ -433,16 +433,43 @@ _BAND_PAPER_IN_NEAR = 0.3
 # sheet's own edge cuts it off.
 _BAND_MIN_BLOCKS_NEAR = 40
 # A measured band is carried on along its line while the strip between
-# its edges stays this much paper, across this many cuts that are not.
+# its edges stays this much its background, across this many cuts that
+# are not.
 _BAND_EXTEND_PAPER = 0.3
 _BAND_EXTEND_MISSES = 2
 # The tint a band pixel takes is one of the colours the chart around it
 # is mostly painted in, not whatever halo or hairline is nearest; the
 # fill is worked in chunks so a band around a whole Caribbean inset is
 # not one distance transform the size of the sheet.
-_BAND_FILL_MIN_SHARE = 0.02
+_BAND_FILL_MIN_SHARE = 0.003
+# Where something translucent is printed across a band -- a Class B
+# ring's magenta -- the band's paper under it is a pale pink the chart
+# has nowhere else, not paper: the magenta over the tint either side is
+# a darker mauve. So a band's background is its paper and any light
+# colour the chart around it hardly has. And a band's fill comes from
+# colours the chart around it has even a little of: the ring's mauve is
+# under one percent of it, and without it the fill broke the ring.
+_BAND_LIGHT_MIN_SUM = 450
+_BAND_UNSEEN_SHARE = 0.001
 _BAND_FILL_CHUNK_PX = 1024
 _BAND_FILL_MARGIN_PX = 64
+
+
+def _light(lut: np.ndarray, paper_lut: np.ndarray) -> np.ndarray:
+    """Per palette entry: is it a light colour that is not paper -- a
+    tint, or paper under a translucent overprint -- rather than ink."""
+    return ~paper_lut & (lut.astype(int).sum(axis=1) >= _BAND_LIGHT_MIN_SUM)
+
+
+def _background(window: np.ndarray, band: np.ndarray, around: np.ndarray, paper_lut: np.ndarray,
+                light_lut: np.ndarray) -> np.ndarray:
+    """Which pixels of `band` are the band's own background: paper, or a
+    light colour the chart `around` it hardly has (see _BAND_UNSEEN_SHARE)."""
+    values, counts = np.unique(window[around], return_counts=True)
+    seen = np.zeros(256, bool)
+    if len(values):
+        seen[values[counts >= _BAND_UNSEEN_SHARE * counts.sum()]] = True
+    return band & (paper_lut[window] | (light_lut[window] & ~seen[window]))
 
 
 def _paper_and_tint(lut: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
@@ -617,30 +644,45 @@ def _measure_band(data: np.ndarray, paper_lut: np.ndarray, tint_lut: np.ndarray,
     return axis, int(pos.min()), int(pos.max()), fits[0], fits[1]
 
 
-def _extend_band(data: np.ndarray, paper_lut: np.ndarray, band: tuple) -> tuple:
+def _extend_band(data: np.ndarray, paper_lut: np.ndarray, light_lut: np.ndarray, band: tuple) -> tuple:
     """A measured band carried on along its own line past where its
     measurement stopped, for as long as the strip between its edges is
-    still mostly paper: through the name lettered across it in the last
-    kilometres before a sheet's edge, up to the edge itself."""
+    still mostly the band's background: through the name lettered across
+    it and under the Class B ring printed over it in the last kilometres
+    before a sheet's edge, up to the edge itself."""
     axis, first, last, left_fit, right_fit = band
     grid = data if axis == 0 else data.T
 
-    def paper_at(pos: int) -> float | None:
+    def edges(pos: int) -> tuple | None:
         lo = int(np.floor(np.polyval(left_fit, pos)))
         hi = int(np.ceil(np.polyval(right_fit, pos))) + 1
         if not 0 <= pos < grid.shape[0] or lo < 0 or hi > grid.shape[1] or hi - lo < 3:
             return None
-        return float(paper_lut[grid[pos, lo:hi]].mean())
+        return lo, hi
+
+    # What the chart either side of the measured band looks like, to
+    # tell the band's own background from it further on.
+    beside = []
+    for pos in range(first, last + 1, _BAND_STEP_PX):
+        found = edges(pos)
+        if found:
+            lo, hi = found
+            beside += [grid[pos, max(lo - 60, 0):max(lo - 8, 0)], grid[pos, hi + 8:hi + 60]]
+    values, counts = np.unique(np.concatenate(beside), return_counts=True) if beside else ((), ())
+    seen = np.zeros(256, bool)
+    if len(values):
+        seen[values[counts >= _BAND_UNSEEN_SHARE * counts.sum()]] = True
+    background = paper_lut | (light_lut & ~seen)
 
     ends = []
     for start, step in ((first, -_BAND_STEP_PX), (last, _BAND_STEP_PX)):
         pos, end, misses = start, start, 0
         while misses <= _BAND_EXTEND_MISSES:
             pos += step
-            share = paper_at(pos)
-            if share is None:
+            found = edges(pos)
+            if found is None:
                 break
-            if share >= _BAND_EXTEND_PAPER:
+            if background[grid[pos, found[0]:found[1]]].mean() >= _BAND_EXTEND_PAPER:
                 end, misses = pos, 0
             else:
                 misses += 1
@@ -666,9 +708,10 @@ def _band_region(shape: tuple, band: tuple) -> tuple:
     return (along_idx, across_idx) if axis == 0 else (across_idx, along_idx)
 
 
-def _fill_bands(data: np.ndarray, region: np.ndarray, paper_lut: np.ndarray, tint_lut: np.ndarray) -> int:
-    """Every paper pixel in `region` given the palette index of the
-    nearest pixel of the surrounding chart's own tints, in place.
+def _fill_bands(data: np.ndarray, region: np.ndarray, paper_lut: np.ndarray, light_lut: np.ndarray) -> int:
+    """Every pixel of the bands' own background in `region` -- paper, or
+    paper under something translucent -- given the palette index of the
+    nearest pixel of the surrounding chart's light colours, in place.
     Returns the number of pixels changed."""
     from scipy import ndimage as ndi
 
@@ -684,12 +727,12 @@ def _fill_bands(data: np.ndarray, region: np.ndarray, paper_lut: np.ndarray, tin
             left, right = max(c0 - margin, 0), min(c1 + margin, width)
             window = data[top:bottom, left:right]
             near = region[top:bottom, left:right]
-            target = np.zeros_like(near)
-            target[r0 - top:r1 - top, c0 - left:c1 - left] = near[r0 - top:r1 - top, c0 - left:c1 - left]
-            target &= paper_lut[window]
+            core = np.zeros_like(near)
+            core[r0 - top:r1 - top, c0 - left:c1 - left] = True
+            target = _background(window, near & core, ~near, paper_lut, light_lut)
             if not target.any():
                 continue
-            around = ~near & tint_lut[window]
+            around = ~near & light_lut[window]
             values, counts = np.unique(window[around], return_counts=True)
             if not len(values):
                 continue
@@ -734,6 +777,7 @@ def find_masked_lines(data: np.ndarray, lut: np.ndarray, crs, transform, faces: 
 
     b = _BAND_BLOCK
     paper_lut, tint_lut = _paper_and_tint(lut)
+    light_lut = _light(lut, paper_lut)
     paper = paper_lut[data[::b, ::b]]
     inside = _faces_in_blocks(crs, transform, faces, paper.shape)
     anchors = _box_outlines(crs, transform, known, paper.shape) if known else np.zeros(paper.shape, bool)
@@ -741,7 +785,7 @@ def find_masked_lines(data: np.ndarray, lut: np.ndarray, crs, transform, faces: 
     for axis, mask, span in _band_candidates(paper, inside):
         band = _measure_band(data, paper_lut, tint_lut, axis, mask, span)
         if band is not None:
-            region[_band_region(data.shape, _extend_band(data, paper_lut, band))] = True
+            region[_band_region(data.shape, _extend_band(data, paper_lut, light_lut, band))] = True
     if not region.any() and not anchors.any():
         return None
     waiting = _band_candidates(paper, inside, paper_in=_BAND_PAPER_IN_NEAR, min_blocks=_BAND_MIN_BLOCKS_NEAR)
@@ -755,7 +799,7 @@ def find_masked_lines(data: np.ndarray, lut: np.ndarray, crs, transform, faces: 
             if band is None:
                 still.append((axis, mask, span))
             else:
-                region[_band_region(data.shape, _extend_band(data, paper_lut, band))] = True
+                region[_band_region(data.shape, _extend_band(data, paper_lut, light_lut, band))] = True
                 found = True
         if not found:
             break
@@ -788,14 +832,14 @@ def remove_masked_lines(path: Path, faces: list, known: tuple = ()) -> tuple:
         lut = _palette(src)
         if lut is None:
             return ()
-        paper_lut, tint_lut = _paper_and_tint(lut)
+        paper_lut, _ = _paper_and_tint(lut)
         data = src.read(1)
         profile, colormap, tags, band_tags = src.profile, src.colormap(1), src.tags(), src.tags(1)
         crs, transform = src.crs, src.transform
     region = find_masked_lines(data, lut, crs, transform, faces, known)
     if region is None:
         return ()
-    changed = _fill_bands(data, region, paper_lut, tint_lut)
+    changed = _fill_bands(data, region, paper_lut, _light(lut, paper_lut))
     if not changed:
         return ()
 
@@ -829,19 +873,28 @@ def remove_masked_lines(path: Path, faces: list, known: tuple = ()) -> tuple:
 # except where the chart runs on to the raster's edge and the face with
 # it. Drawn there, it was a white hairline down the seam, with the
 # neighbouring sheet on the far side of it.
-_RASTER_RIM_PX = 2
+_RASTER_RIM_PX = 3
+# ... and inside the border, a ramp: on the Twin Cities sheet a column of
+# paper, then a pale one, then a darker one, each a faint line down the
+# seam. So in a palette sheet's outermost pixels anything this pale is
+# dropped too and the neighbour draws there; a chart that runs on to
+# its raster's edge in colour, as two sheets meeting there do, stays.
+_RIM_PALE_MIN_CHANNEL = 180
 
 
 def without_raster_rim(inside: np.ndarray, rgb: np.ndarray, src, bbox_3857: tuple) -> np.ndarray:
     """`inside` -- which pixels of a warp grid the source raster covers --
-    with the paper in the raster's outermost `_RASTER_RIM_PX` pixels
-    taken out: the scan's border, not a chart that runs to the edge of
-    its raster, which two sheets meeting there need. Only pixels near
+    with the pale in a palette raster's outermost `_RASTER_RIM_PX` pixels
+    taken out: the scan's border and the ramp inside it, not a chart that
+    runs to the edge of its raster in colour, which two sheets meeting
+    there need. A three-band raster (the IFR charts) is left as it is. Only pixels near
     the edge of what is covered are looked at, so a warp well inside a
     sheet costs nothing."""
     from rasterio.warp import transform as transform_points
     from scipy import ndimage as ndi
 
+    if src.count >= 3:
+        return inside
     height, width = inside.shape
     xmin, ymin, xmax, ymax = bbox_3857
     dest_px_m = (xmax - xmin) / width
@@ -856,7 +909,7 @@ def without_raster_rim(inside: np.ndarray, rgb: np.ndarray, src, bbox_3857: tupl
     sx, sy = np.asarray(sx), np.asarray(sy)
     c, r = inverse.a * sx + inverse.b * sy + inverse.c, inverse.d * sx + inverse.e * sy + inverse.f
     rim = (c < _RASTER_RIM_PX) | (r < _RASTER_RIM_PX) | (c > src.width - _RASTER_RIM_PX) | (r > src.height - _RASTER_RIM_PX)
-    rim &= rgb[rows, cols].min(axis=1) >= _WHITE_MIN_CHANNEL
+    rim &= rgb[rows, cols].min(axis=1) >= _RIM_PALE_MIN_CHANNEL
     inside = inside.copy()
     inside[rows[rim], cols[rim]] = False
     return inside

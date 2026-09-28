@@ -817,9 +817,10 @@ def _encode_lossless(rgba: np.ndarray) -> bytes:
 # and a later pass under a different one draws every tile again rather
 # than keeping the ones on disk -- a change to how a tile is drawn (the
 # sheet rims of 9ace720, say) used to reach only tiles not yet rendered.
-# Records from before it was kept count as this version. Raise it with
-# any change to what a rendered tile looks like.
-RENDERER_VERSION = 1
+# Records from before it was kept count as version 1. Raise it with
+# any change to what a rendered tile looks like. 2: a palette sheet's
+# pale rim, not only its paper, gives way to the neighbour.
+RENDERER_VERSION = 2
 
 
 # ---------------------------------------------------------------------------
