@@ -242,6 +242,12 @@ public class SecurityConfig {
         // page's fetch followed and read as the logout failing, so the
         // page stayed signed in until it was reloaded.
         http.logout(logout -> logout.logoutSuccessHandler(new HttpStatusReturningLogoutSuccessHandler(HttpStatus.NO_CONTENT)));
+        // A sign-in gets a new session rather than the old one renamed:
+        // with sessions in Postgres, a request still running on the old
+        // session saves its copy when it ends and writes the old id back
+        // over a renamed row, signing the pilot straight out again. The
+        // magic link does the same by hand (MagicLinkController).
+        http.sessionManagement(session -> session.sessionFixation(fixation -> fixation.migrateSession()));
         if (oauthConfigured) {
             // The pilot is resolved at sign-in (PilotOidcUserService), and
             // a sign-in it refuses lands here -- Spring's default

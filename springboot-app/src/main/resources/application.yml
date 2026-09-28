@@ -11,6 +11,14 @@ spring:
       # read is tens of seconds and a collection job is minutes; the
       # client is what should give up").
       request-timeout: 600000
+  # Signed-in sessions live in Postgres (spring-session-jdbc) and last
+  # 30 days of not being used, with a cookie that outlives the browser
+  # (server.servlet.session below): sign in once per device a month,
+  # not after every half hour away or every webapp restart. The tables
+  # come from Flyway (V8__spring_session.sql).
+  session:
+    jdbc:
+      initialize-schema: never
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/vfr_route}
     username: ${SPRING_DATASOURCE_USERNAME:vfr}
@@ -77,6 +85,11 @@ crewai-agent:
 
 server:
   port: 8080
+  servlet:
+    session:
+      timeout: 30d
+      cookie:
+        max-age: 30d
   # Trusts X-Forwarded-Proto/-Host/-Port from the ALB doing TLS
   # termination, so the app sees itself as HTTPS -- without this,
   # Spring Security's HSTS header writer (only fires on a request it

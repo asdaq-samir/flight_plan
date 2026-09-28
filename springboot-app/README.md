@@ -205,6 +205,11 @@ inbox, set `.env`'s `MAILPIT_RELAY_*` (an SMTP account, e.g. iCloud's
 a regular expression for the addresses to pass on): Mailpit relays
 those and keeps every other address, the tests' included, local.
 
+A sign-in lasts: sessions are kept in Postgres (spring-session-jdbc,
+tables from Flyway's `V8__spring_session.sql`) and expire after 30 days
+unused, with a cookie that outlives the browser, so a restart of the
+webapp signs nobody out.
+
 **`openapi.json` is committed, and a test holds it to the code.** The
 front end's types for this app's endpoints are generated from it
 (`web/`'s `npm run types`), so `OpenApiDocumentTest` compares it with

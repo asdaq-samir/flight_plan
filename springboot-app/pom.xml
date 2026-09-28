@@ -80,6 +80,14 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-oauth2-client</artifactId>
         </dependency>
+        <!-- Sessions kept in Postgres rather than the JVM's memory, so a
+             sign-in survives a webapp restart (every rebuild used to sign
+             everyone out) and can last the 30 days application.yml sets.
+             The tables are Flyway's (V8), not created at startup. -->
+        <dependency>
+            <groupId>org.springframework.session</groupId>
+            <artifactId>spring-session-jdbc</artifactId>
+        </dependency>
         <!-- The magic-link email flow's own sender. Configured, or left
              unconfigured (see application.yml's MAIL_HOST default), the
              same way Google/Apple's credentials are: present and working,

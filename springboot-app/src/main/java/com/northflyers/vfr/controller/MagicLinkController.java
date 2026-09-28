@@ -36,8 +36,8 @@ import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.web.authentication.session.ChangeSessionIdAuthenticationStrategy;
 import org.springframework.security.web.authentication.session.SessionAuthenticationStrategy;
+import org.springframework.security.web.authentication.session.SessionFixationProtectionStrategy;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.security.web.csrf.CsrfToken;
@@ -86,8 +86,16 @@ public class MagicLinkController {
     private final Map<String, Deque<Instant>> recentRequests = new ConcurrentHashMap<>();
     private final SecureRandom random = new SecureRandom();
     private final SecurityContextRepository securityContextRepository = new HttpSessionSecurityContextRepository();
+    // A new session, not the old one renamed. Sessions live in Postgres
+    // (spring-session-jdbc), and a request still running on the old
+    // session when this one signs in -- the planner's nav log stream,
+    // left open in the tab the pilot asked for the link from -- saves
+    // its copy when it ends, writing the old id back over the renamed
+    // row: the new cookie then names no session, and the pilot reads as
+    // signed out. A migrated session has a row of its own, so the old
+    // request's late save finds nothing to overwrite.
     private final SessionAuthenticationStrategy sessionAuthenticationStrategy =
-            new ChangeSessionIdAuthenticationStrategy();
+            new SessionFixationProtectionStrategy();
 
     public MagicLinkController(MagicLinkRepository magicLinks, PilotService pilots, JavaMailSender mailSender,
             @Value("${MAIL_FROM:no-reply@northflyers.com}") String fromAddress,

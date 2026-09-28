@@ -29,6 +29,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.http.MediaType;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
+import jakarta.servlet.http.HttpSession;
 import org.springframework.mock.web.MockHttpSession;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
@@ -126,11 +127,13 @@ class MagicLinkControllerTest {
         given(magicLinks.findByTokenHash(anyString())).willReturn(Optional.of(link()));
 
         MockHttpSession session = new MockHttpSession();
-        mockMvc.perform(signInWith(token).session(session))
+        HttpSession signedIn = mockMvc.perform(signInWith(token).session(session))
                 .andExpect(status().isFound())
-                .andExpect(header().string("Location", "/app/plan"));
+                .andExpect(header().string("Location", "/app/plan"))
+                .andReturn().getRequest().getSession(false);
 
-        SecurityContext context = (SecurityContext) session.getAttribute(
+        assertThat(signedIn).isNotNull();
+        SecurityContext context = (SecurityContext) signedIn.getAttribute(
                 HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY);
         assertThat(context).isNotNull();
         assertThat(context.getAuthentication().getPrincipal()).isEqualTo(EMAIL);
@@ -151,12 +154,15 @@ class MagicLinkControllerTest {
     }
 
     @Test
-    void signingInChangesTheSessionId() throws Exception {
+    void signingInGivesANewSessionAndEndsTheOldOne() throws Exception {
         // Session fixation. This endpoint is outside the filter chain, so
         // nothing else applies Spring Security's own session-fixation
         // strategy to it: without this, someone who can plant a session
         // cookie on a pilot's browser before they click the link keeps a
-        // signed-in session afterwards.
+        // signed-in session afterwards. A new session rather than the old
+        // one renamed: with sessions in Postgres, a request still running
+        // on the old one writes its id back over a renamed row when it
+        // ends, and the pilot reads as signed out.
         String token = requestAndReadTheEmailedToken();
         given(magicLinks.consumeIfUsable(anyString(), any())).willReturn(1);
         given(magicLinks.findByTokenHash(anyString())).willReturn(Optional.of(link()));
@@ -164,10 +170,13 @@ class MagicLinkControllerTest {
         MockHttpSession session = new MockHttpSession();
         String before = session.getId();
 
-        mockMvc.perform(signInWith(token).session(session))
-                .andExpect(status().isFound());
+        HttpSession after = mockMvc.perform(signInWith(token).session(session))
+                .andExpect(status().isFound())
+                .andReturn().getRequest().getSession(false);
 
-        assertThat(session.getId()).isNotEqualTo(before);
+        assertThat(after).isNotNull();
+        assertThat(after.getId()).isNotEqualTo(before);
+        assertThat(session.isInvalid()).isTrue();
     }
 
     @Test
