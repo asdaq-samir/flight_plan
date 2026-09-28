@@ -13,6 +13,7 @@ import {
   Sidebar, SidebarContent, SidebarInset, SidebarProvider, SidebarTrigger, useSidebar,
 } from "../../components/ui/sidebar";
 import { DevButton } from "../dev/DevButton";
+import LinkSignIn from "../pilot/LinkSignIn";
 import { PilotButton } from "../pilot/PilotPanel";
 import PlanWorkspace from "../plan/PlanWorkspace";
 
@@ -129,6 +130,9 @@ export default function MapPage({ mode }: { mode: Mode }) {
               itself, so the browser tab says which page this is
               without an effect writing document.title by hand. */}
           <title>{title}</title>
+          {/* An emailed sign-in link lands here (#signin=…) and is
+              finished in the app's own dialog. */}
+          <LinkSignIn />
           <SidebarSync open={sidebarOpen} onOpenChange={setSidebarOpen} />
           <SidebarInset className="min-h-0 min-w-0 print:hidden">
             <MapHeader

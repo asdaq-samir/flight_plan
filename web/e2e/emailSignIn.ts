@@ -45,7 +45,7 @@ async function linkIn(id: string): Promise<URL> {
 /**
  * Asks for a link for `address` from the pilot console, opening it
  * first if it is not already, then opens the link from the inbox and
- * signs in. The link
+ * presses Sign in in the planner's dialog it lands on. The link
  * points at APP_PUBLIC_BASE_URL; it is opened at the address this run
  * is testing instead, so the session lands in this browser.
  *
@@ -53,6 +53,13 @@ async function linkIn(id: string): Promise<URL> {
  * whichever link came in first.
  */
 export async function signInByEmail(page: Page, address: string) {
+  await openLinkFor(page, address);
+  await page.getByRole("dialog").getByRole("button", { name: "Sign in" }).click();
+}
+
+/** Asks for a link for `address` and opens it: the planner, with its
+ *  sign-in dialog up. Answers the link, to open again. */
+export async function openLinkFor(page: Page, address: string): Promise<string> {
   const console = page.locator('[data-slot="sheet-content"][data-side="top"]');
   const before = new Set(await messagesTo(address));
   if (!(await console.isVisible())) await page.getByTestId("pilot-button").click();
@@ -65,6 +72,8 @@ export async function signInByEmail(page: Page, address: string) {
   await expect.poll(async () => (id = (await messagesTo(address)).find(m => !before.has(m))),
     { message: `a sign-in email to ${address}` }).toBeTruthy();
   const link = await linkIn(id!);
-  await page.goto(link.pathname + link.search);
-  await page.getByRole("button", { name: "Sign in" }).click();
+  const path = link.pathname + link.search;
+  await page.goto(path);
+  await expect(page.getByRole("dialog").getByRole("button", { name: "Sign in" })).toBeVisible();
+  return path;
 }

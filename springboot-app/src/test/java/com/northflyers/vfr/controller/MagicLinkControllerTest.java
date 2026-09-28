@@ -7,7 +7,6 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -214,15 +213,15 @@ class MagicLinkControllerTest {
         assertThat(sent.getValue().getTo()).containsExactly(EMAIL);
     }
 
-    /** Opening the link shows a button and signs nobody in: a mail
-     *  scanner fetching it first must not spend the pilot's token. */
+    /** Opening the link takes the browser to the planner's own sign-in
+     *  dialog and signs nobody in: a mail scanner fetching it first must
+     *  not spend the pilot's token. The token goes in the fragment,
+     *  encoded, where the browser keeps it to itself. */
     @Test
     void openingTheLinkUsesNothingUp() throws Exception {
-        mockMvc.perform(get("/api/auth/magic-link/verify").param("token", "abc<script>"))
-                .andExpect(status().isOk())
-                .andExpect(content().contentTypeCompatibleWith(MediaType.TEXT_HTML))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("method=\"post\"")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("value=\"abc&lt;script&gt;\"")));
+        mockMvc.perform(get("/api/auth/magic-link/verify").param("token", "abc<script>&x"))
+                .andExpect(status().isFound())
+                .andExpect(header().string("Location", "/app/plan#signin=abc%3Cscript%3E%26x"));
         org.mockito.Mockito.verify(magicLinks, org.mockito.Mockito.never()).consumeIfUsable(anyString(), any());
     }
 

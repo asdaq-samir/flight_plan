@@ -345,6 +345,26 @@ export const api = {
   },
 
   /**
+   * The last step of an emailed-link sign-in: the one POST that spends
+   * the token (MagicLinkController#verify), made from the planner's own
+   * dialog. Answers where the server sent the browser -- the planner,
+   * or the dev page for a developer -- for the caller to open, now with
+   * the new session's cookie. A link already used or past its 15
+   * minutes throws an ApiError with status 400.
+   */
+  finishMagicLink: async (token: string): Promise<string> => {
+    const res = await fetch("/api/auth/magic-link/verify", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded", ...csrfHeaders("POST") },
+      body: new URLSearchParams({ token }),
+    });
+    await failIfNotOk(res);
+    if (!res.redirected) return "/app/plan";
+    const landing = new URL(res.url);
+    return landing.pathname + landing.search;
+  },
+
+  /**
    * One framework's narrative for the nav log on screen, streamed as
    * Claude writes it -- a separate top-level controller
    * (ComparisonProxyController), since neither nav-log-agent (LangGraph)

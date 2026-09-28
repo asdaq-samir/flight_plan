@@ -13,6 +13,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import java.net.URI;
+import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -40,7 +41,6 @@ import org.springframework.security.web.authentication.session.SessionAuthentica
 import org.springframework.security.web.authentication.session.SessionFixationProtectionStrategy;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.security.web.context.SecurityContextRepository;
-import org.springframework.security.web.csrf.CsrfToken;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -48,7 +48,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
-import org.springframework.web.util.HtmlUtils;
 
 /**
  * The magic-link sign-in flow's own two steps. Deliberately not folded
@@ -196,23 +195,19 @@ public class MagicLinkController {
         }
     }
 
-    @Operation(summary = "The page a magic link opens",
-            description = "A one-button page that signs in with a POST. Opening the link uses nothing up, so a mail "
-                    + "scanner that fetches it before the pilot does cannot spend their token.")
-    @GetMapping(value = "/verify", produces = MediaType.TEXT_HTML_VALUE)
-    public ResponseEntity<String> confirm(@RequestParam String token, HttpServletRequest request) {
-        CsrfToken csrf = (CsrfToken) request.getAttribute(CsrfToken.class.getName());
-        String csrfField = csrf == null ? "" : "<input type=\"hidden\" name=\"" + HtmlUtils.htmlEscape(csrf.getParameterName())
-                + "\" value=\"" + HtmlUtils.htmlEscape(csrf.getToken()) + "\">";
-        String page = "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\">"
-                + "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Sign in</title></head>"
-                + "<body style=\"font-family:system-ui,sans-serif;max-width:28rem;margin:4rem auto;padding:0 1rem\">"
-                + "<h1 style=\"font-size:1.4rem\">Sign in to VFR Route</h1>"
-                + "<form method=\"post\" action=\"/api/auth/magic-link/verify\">"
-                + "<input type=\"hidden\" name=\"token\" value=\"" + HtmlUtils.htmlEscape(token) + "\">" + csrfField
-                + "<button type=\"submit\" style=\"font-size:1rem;padding:.6rem 1.2rem\">Sign in</button>"
-                + "</form></body></html>";
-        return ResponseEntity.ok().contentType(MediaType.TEXT_HTML).body(page);
+    @Operation(summary = "Where a magic link opens",
+            description = "Sends the browser to the planner, which asks the pilot to confirm with its own sign-in "
+                    + "dialog and then POSTs the token. Opening the link uses nothing up, so a mail scanner that "
+                    + "fetches it before the pilot does cannot spend their token.")
+    @GetMapping("/verify")
+    public ResponseEntity<Void> confirm(@RequestParam String token) {
+        // The token rides in the fragment, which the browser keeps to
+        // itself: it is not sent with the page request, logged, or passed
+        // on as a Referer. The planner reads it (LinkSignIn) and signs in
+        // only when the pilot presses Sign in -- the button a scanner
+        // never presses.
+        String fragment = "signin=" + URLEncoder.encode(token, StandardCharsets.UTF_8);
+        return ResponseEntity.status(HttpStatus.FOUND).location(URI.create("/app/plan#" + fragment)).build();
     }
 
     @Operation(summary = "Sign in from a magic link",

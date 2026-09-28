@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { test, expect, type Page } from "@playwright/test";
-import { DEVELOPER, signInByEmail } from "./emailSignIn";
+import { DEVELOPER, openLinkFor, signInByEmail } from "./emailSignIn";
 
 /**
  * Signing in and out on the running stack, from a browser with no
@@ -31,6 +31,26 @@ test("signed out, the dev page sends you to the planner", async ({ page }) => {
   await page.waitForURL(/\/app\/plan/);
   await expect(page.getByTestId("pilot-button")).toBeVisible();
   await expect(page.getByTestId("dev-switch")).toHaveCount(0);
+});
+
+test("the emailed link opens the app's own sign-in dialog, over the planner, and a spent link says so", async ({ page }) => {
+  // It used to open a bare server page with one button. The button
+  // stays -- a mail scanner fetching the link must not spend it -- but
+  // it is the app's dialog now, and the token never leaves the fragment.
+  const address = `pilot-${randomUUID()}@example.com`;
+  await page.goto("/app/plan");
+  const link = await openLinkFor(page, address);
+  await expect(page.getByTestId("pilot-button")).toBeVisible();
+  expect(new URL(page.url()).hash).toMatch(/^#signin=/);
+
+  await page.getByRole("dialog").getByRole("button", { name: "Sign in" }).click();
+  await page.waitForURL(url => url.pathname === "/app/plan" && url.hash === "");
+  await page.getByTestId("pilot-button").click();
+  await expect(consoleSheet(page)).toContainText(`Signed in as ${address}`);
+
+  await page.goto(link);
+  await page.getByRole("dialog").getByRole("button", { name: "Sign in" }).click();
+  await expect(page.getByRole("dialog").getByRole("alert")).toContainText("expired or was already used");
 });
 
 test("a pilot's link lands on the planner, with no dev switch, and the pilot console logs out", async ({ page }) => {
