@@ -19,19 +19,6 @@ input, select, textarea {
   user-select: text;
 }
 
-/* Plays once whenever the element mounts -- used for the point popup's
-   "of N" count, which remounts fresh (setPopupContent, not a React
-   re-render) each time it changes. A live-updating number with no
-   feedback at all reads as nothing happening; rebuilding the whole
-   popup around it reads as the selection itself reloading. This is the
-   middle ground: the number visibly changed, nothing else moved. */
-@keyframes count-flash {
-  0% { background-color: var(--count-flash); }
-  100% { background-color: transparent; }
-}
-:root { --count-flash: #fef08a; }
-.dark { --count-flash: #713f12; }
-
 /* Leaflet insets a popup's content by `13px 24px 13px 20px` -- wider on
    the right to clear the close button it draws in the corner. `MapPopup`
    turns that button off, because the cards carry their own, so the

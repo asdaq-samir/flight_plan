@@ -119,7 +119,7 @@ narrative, streamed from `webapp`'s own `/api/comparison`.
 e2e/*.spec.ts             Real-browser tests (Playwright): layout, toasts, Class B
 src/
   main.tsx                Entry point: route table (basename /app), the course prefetched before React mounts
-  index.css                Leaflet popup/tooltip theming, print rules, the count-flash keyframe
+  index.css                Leaflet popup/tooltip theming, print rules
   components/              Shared UI, one level above any single page
     IconButton.tsx           Every icon-only button: a stock shadcn Button + Tooltip + accessible name, one size
     MapHeader.tsx, RouteForm.tsx, RouteInputGroup.tsx, AirportPicker.tsx   The route form both pages share
