@@ -101,7 +101,10 @@ test("hovering one shows what it is doing and what it is forecast to do", async 
   await expect(ord).toBeVisible({ timeout: 15000 });
   await ord.hover();
 
-  const tip = page.locator(".leaflet-tooltip");
+  // The chip's own tooltip: the pointer's way to the chip can cross a
+  // checkpoint marker, whose tooltip then stands beside it (seen on
+  // CI's runner: "7. Wind Farm (61 turbines)" next to KORD's).
+  const tip = page.locator(".leaflet-tooltip").filter({ hasText: "KORD" });
   await expect(tip).toContainText("IFR");
   await expect(tip).toContainText("Chicago TAC");
   await expect(tip).toContainText("METAR KORD");
@@ -126,7 +129,8 @@ test("a field with no report says so rather than showing a blank", async ({ page
   const msp = chips(page).filter({ hasText: "KMSP" }).first();
   await expect(msp).toBeVisible({ timeout: 15000 });
   await msp.hover();
-  await expect(page.locator(".leaflet-tooltip")).toContainText("no report");
+  // The chip's own tooltip, as above.
+  await expect(page.locator(".leaflet-tooltip").filter({ hasText: "KMSP" })).toContainText("no report");
 });
 
 test("tapping one opens a card, and the card pins its terminal chart", async ({ page }) => {
