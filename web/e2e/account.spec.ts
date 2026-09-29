@@ -43,22 +43,27 @@ test("an add still saving when Edit is clicked says added, and leaves the aeropl
   });
   const console = await openConsole(page);
   await console.getByRole("tab", { name: "Aircraft" }).click();
-  // The form is behind the plus beside the heading.
-  await expect(console.getByLabel("Tail number")).toHaveCount(0);
+  // The form pops down from the plus beside the heading (a popover, so
+  // it is on the page, not inside the console's own element).
+  await expect(page.getByLabel("Tail number")).toHaveCount(0);
   await console.getByTestId("new-aircraft-button").click();
-  await console.getByLabel("Tail number").fill("N3");
-  await console.getByLabel("Type designator").fill("C172");
-  await console.getByLabel("Cruise TAS in knots").fill("110");
-  await console.getByLabel("Fuel burn in gallons per hour").fill("8");
-  await console.getByRole("button", { name: "Add aircraft" }).click();
+  await page.getByLabel("Tail number").fill("N3");
+  await page.getByLabel("Type designator").fill("C172");
+  await page.getByLabel("Cruise TAS in knots").fill("110");
+  await page.getByLabel("Fuel burn in gallons per hour").fill("8");
+  await page.getByRole("button", { name: "Add aircraft" }).click();
 
+  // The popover away first (the add is in flight regardless): on a
+  // phone it covers the rows, and their Edit buttons, under it.
+  await page.keyboard.press("Escape");
+  await expect(page.getByLabel("Tail number")).toHaveCount(0);
   await console.getByRole("row", { name: /N2/ }).getByRole("button", { name: "Edit" }).click();
-  await expect(console.getByLabel("Tail number")).toHaveValue("N2");
+  await expect(page.getByLabel("Tail number")).toHaveValue("N2");
   hold.release();
 
   await expect(page.locator("[data-sonner-toast]", { hasText: "Aircraft added" })).toBeVisible();
   await expect(page.locator("[data-sonner-toast]", { hasText: "Aircraft updated" })).toHaveCount(0);
-  await expect(console.getByLabel("Tail number")).toHaveValue("N2");
+  await expect(page.getByLabel("Tail number")).toHaveValue("N2");
 });
 
 test.describe("the email sign-in link", () => {

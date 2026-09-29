@@ -10,6 +10,7 @@ import IconButton from "../../components/IconButton";
 import { Button } from "../../components/ui/button";
 import { Field, FieldError } from "../../components/ui/field";
 import { Input } from "../../components/ui/input";
+import { Popover, PopoverContent, PopoverTrigger } from "../../components/ui/popover";
 import {
   Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow,
 } from "../../components/ui/table";
@@ -181,14 +182,68 @@ export function AircraftPanel({ pilot }: { pilot: PilotState }) {
       <div className="flex items-center gap-1">
         <h3 className="text-sm font-semibold">Aircraft</h3>
         {signedIn && (
-          <IconButton
-            size="icon-xs" label="New aircraft"
-            aria-expanded={formOpen}
-            onClick={() => (formOpen ? cancelEdit() : setAdding(true))}
-            data-testid="new-aircraft-button"
-          >
-            <Plus />
-          </IconButton>
+          // The input group pops down from the plus, a popover on it,
+          // rather than appearing under the list: for a new aeroplane
+          // from the plus, for one of the rows from its Edit (filled
+          // in). Closing it -- Cancel, Escape, a tap outside, the plus
+          // again -- is cancelling.
+          <Popover open={formOpen} onOpenChange={open => (open ? setAdding(true) : cancelEdit())}>
+            <PopoverTrigger asChild>
+              <IconButton size="icon-xs" label={editingId ? "Editing an aircraft" : "New aircraft"} data-testid="new-aircraft-button">
+                <Plus />
+              </IconButton>
+            </PopoverTrigger>
+            <PopoverContent
+              align="start" className="w-80"
+              // A row's Edit, pressed while the popover is open, is not
+              // "outside": it switches the form to that aeroplane, where
+              // the stock dismissal would have closed the popover on the
+              // press and reopened it empty on the click.
+              onInteractOutside={e => { if ((e.target as Element | null)?.closest?.("[data-aircraft-edit]")) e.preventDefault(); }}
+            >
+              <form className="flex flex-col gap-2" onSubmit={handleSubmit(onSubmit)} noValidate>
+                <Field data-invalid={!!errors.tailNumber} className="w-full">
+                  <Input
+                    {...register("tailNumber")} placeholder="Tail #"
+                    aria-label="Tail number" aria-invalid={!!errors.tailNumber}
+                  />
+                  <FieldError errors={[errors.tailNumber]} />
+                </Field>
+                <Field data-invalid={!!errors.typeDesignator} className="w-full">
+                  <Input
+                    {...register("typeDesignator")} placeholder="Type (e.g. C172)"
+                    aria-label="Type designator" aria-invalid={!!errors.typeDesignator}
+                  />
+                  <FieldError errors={[errors.typeDesignator]} />
+                </Field>
+                <Field data-invalid={!!errors.cruiseTasKt} className="w-full">
+                  <Input
+                    {...register("cruiseTasKt")} placeholder="Cruise TAS (kt)"
+                    aria-label="Cruise TAS in knots" inputMode="decimal" aria-invalid={!!errors.cruiseTasKt}
+                  />
+                  <FieldError errors={[errors.cruiseTasKt]} />
+                </Field>
+                <Field data-invalid={!!errors.fuelBurnGph} className="w-full">
+                  <Input
+                    {...register("fuelBurnGph")} placeholder="Fuel burn (gph)"
+                    aria-label="Fuel burn in gallons per hour" inputMode="decimal" aria-invalid={!!errors.fuelBurnGph}
+                  />
+                  <FieldError errors={[errors.fuelBurnGph]} />
+                </Field>
+                <Field data-invalid={!!errors.usableFuelGal} className="w-full">
+                  <Input
+                    {...register("usableFuelGal")} placeholder="Usable fuel (gal)"
+                    aria-label="Usable fuel in gallons" inputMode="decimal" aria-invalid={!!errors.usableFuelGal}
+                  />
+                  <FieldError errors={[errors.usableFuelGal]} />
+                </Field>
+                <div className="flex items-center gap-2">
+                  <Button type="submit" disabled={save.isPending}>{editingId ? "Save changes" : "Add aircraft"}</Button>
+                  <Button type="button" variant="link" size="sm" onClick={cancelEdit}>Cancel</Button>
+                </div>
+              </form>
+            </PopoverContent>
+          </Popover>
         )}
       </div>
       {pilot === null || pilot === "error" ? (
@@ -227,7 +282,7 @@ export function AircraftPanel({ pilot }: { pilot: PilotState }) {
                     <TableCell className="text-right tabular-nums">{a.fuelBurnGph} gph</TableCell>
                     <TableCell className="text-right tabular-nums">{a.usableFuelGal == null ? "—" : `${a.usableFuelGal} gal`}</TableCell>
                     <TableCell className="text-right">
-                      <Button type="button" variant="link" size="sm" onClick={() => edit(a)}>Edit</Button>
+                      <Button type="button" variant="link" size="sm" onClick={() => edit(a)} data-aircraft-edit>Edit</Button>
                       <Button type="button" variant="link" size="sm" className="text-destructive" onClick={() => setAircraftToDelete(a)}>
                         Delete
                       </Button>
@@ -247,47 +302,6 @@ export function AircraftPanel({ pilot }: { pilot: PilotState }) {
                 <Button type="button" variant="outline" size="sm" onClick={() => setAircraftToDelete(null)} disabled={remove.isPending}>Cancel</Button>
               </div>
             </div>
-          )}
-          {formOpen && (
-          <form className="flex flex-wrap items-start gap-2" onSubmit={handleSubmit(onSubmit)} noValidate>
-            <Field data-invalid={!!errors.tailNumber} className="w-24">
-              <Input
-                {...register("tailNumber")} placeholder="Tail #"
-                aria-label="Tail number" aria-invalid={!!errors.tailNumber}
-              />
-              <FieldError errors={[errors.tailNumber]} />
-            </Field>
-            <Field data-invalid={!!errors.typeDesignator} className="w-32">
-              <Input
-                {...register("typeDesignator")} placeholder="Type (e.g. C172)"
-                aria-label="Type designator" aria-invalid={!!errors.typeDesignator}
-              />
-              <FieldError errors={[errors.typeDesignator]} />
-            </Field>
-            <Field data-invalid={!!errors.cruiseTasKt} className="w-32">
-              <Input
-                {...register("cruiseTasKt")} placeholder="Cruise TAS (kt)"
-                aria-label="Cruise TAS in knots" inputMode="decimal" aria-invalid={!!errors.cruiseTasKt}
-              />
-              <FieldError errors={[errors.cruiseTasKt]} />
-            </Field>
-            <Field data-invalid={!!errors.fuelBurnGph} className="w-32">
-              <Input
-                {...register("fuelBurnGph")} placeholder="Fuel burn (gph)"
-                aria-label="Fuel burn in gallons per hour" inputMode="decimal" aria-invalid={!!errors.fuelBurnGph}
-              />
-              <FieldError errors={[errors.fuelBurnGph]} />
-            </Field>
-            <Field data-invalid={!!errors.usableFuelGal} className="w-32">
-              <Input
-                {...register("usableFuelGal")} placeholder="Usable fuel (gal)"
-                aria-label="Usable fuel in gallons" inputMode="decimal" aria-invalid={!!errors.usableFuelGal}
-              />
-              <FieldError errors={[errors.usableFuelGal]} />
-            </Field>
-            <Button type="submit" disabled={save.isPending}>{editingId ? "Save changes" : "Add aircraft"}</Button>
-            <Button type="button" variant="link" size="sm" onClick={cancelEdit}>Cancel</Button>
-          </form>
           )}
         </>
       )}
