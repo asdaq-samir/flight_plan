@@ -19,6 +19,12 @@ import { DEVELOPER_STATE } from "./e2e/emailSignIn";
  * needed). BASE_URL overrides the default of the local docker-compose
  * webapp port.
  */
+// In CI (the e2e job) four cores carry the whole stack, the browsers
+// and a planner rendering map tiles for a cold cache at once: the
+// waits below are doubled there, a test gets two more goes, and two
+// workers rather than a share of the cores.
+const ci = !!process.env.CI;
+
 export default defineConfig({
   testDir: "./e2e",
   // 60s, not Playwright's 30s. The suite runs every test against the real
@@ -28,7 +34,7 @@ export default defineConfig({
   // tiles and nav logs for every worker together. At 30s those failed
   // now and then on nothing but load. A hung test still fails, in a
   // minute.
-  timeout: 60_000,
+  timeout: ci ? 120_000 : 60_000,
   // Playwright's own default for an `expect()` wait is 5s, which is a
   // reasonable figure for a page that is already built and a poor one
   // for this app: much of what these tests assert on arrives from the
@@ -38,13 +44,14 @@ export default defineConfig({
   // -- an assertion about the full-screen button, failing on tile
   // latency. It costs nothing when things are fast, and the test
   // timeout above still catches anything genuinely hung.
-  expect: { timeout: 15_000 },
+  expect: { timeout: ci ? 30_000 : 15_000 },
   // One retry: a handful of tests wait on the planner's live nav log,
   // and under two workers on a busy machine one has missed a wait once
   // and passed every run since. A retry keeps a transient miss from
   // failing the run without hiding a real regression, which fails
   // twice.
-  retries: 1,
+  retries: ci ? 2 : 1,
+  workers: ci ? 2 : undefined,
   fullyParallel: true,
   reporter: "list",
   use: {

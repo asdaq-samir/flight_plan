@@ -86,6 +86,13 @@ unless it opens a signed-out one itself. With
 `docker-compose.phone.yml` up the inbox has a password; pass it as
 `-e MAILPIT_UI_AUTH=<user:password>`, the value in `.env`.
 
+CI runs the same suite on every push and pull request (the `e2e` job in
+`.github/workflows/ci.yml`): the webapp, the planner and the model
+service built from the commit, under `docker-compose.ci.yml`, with the
+suite's own small trained model (`e2e/fixtures/model`) and the planner's
+reference data kept in the Actions cache between runs. Failures show on
+the commit's checks, with traces and screenshots as a run artifact.
+
 `vite build` writes into `springboot-app/src/main/resources/static/app`
 (`vite.config.ts`) for a local `mvn package`; the Docker image builds
 the bundle in its own stage and serves it from a directory beside the

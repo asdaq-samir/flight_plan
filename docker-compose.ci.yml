@@ -1,0 +1,30 @@
+# The stack the browser suite runs against in CI (the e2e job in
+# .github/workflows/ci.yml), on top of docker-compose.yml: the three
+# images that job built and loaded, under the names it gave them, and
+# the suite's own small trained model in place of data/models/current,
+# which is not in git. Everything else is the local stack's own
+# defaults -- Mailpit for the sign-in link, developer@example.com a
+# developer, no agents (their profile is not asked for), no charts on
+# disk -- and the FAA, airport and elevation data the planner fetches
+# for itself into data/raw, which the job keeps between runs.
+services:
+  webapp:
+    image: flight_plan-webapp:ci
+  planning-service:
+    image: flight_plan-planning-service:ci
+    environment:
+      # The hourly check that fetches and renders the FAA's whole chart
+      # set (7 GB, hours) is off: the corridor's own sheets, which the
+      # planner prepares at startup, are all the suite needs. The daily
+      # refresh is the local stack's and AWS's job, not a test run's.
+      CHARTS_AUTO_REFRESH: "0"
+      # One chart sheet prepared at a time: preparing one (its overviews,
+      # its neatline) takes the planner to about 3 GB, and a zoomed-out
+      # map asks for several sheets at once. The runner has 16 GB for
+      # the whole stack and the browsers; the default of two is for a
+      # machine of one's own.
+      CHARTS_PREPARE_AT_ONCE: "1"
+  model-service:
+    image: flight_plan-model-service:ci
+    volumes:
+      - ./web/e2e/fixtures/model:/opt/ml/model:ro

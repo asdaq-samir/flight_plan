@@ -299,6 +299,138 @@ jobs:
             webapp:
               - web/**
               - springboot-app/**
+            # The browser suite runs the whole stack a pilot touches, so
+            # it is due whenever any of that could have changed.
+            e2e:
+              - web/**
+              - springboot-app/**
+              - planning-service/**
+              - model-service/**
+              - src/vfr/**
+              - src/requirements*.txt
+              - docker-compose.yml
+              - docker-compose.ci.yml
+              - .github/workflows/ci.yml
+
+  # The browser suite (web/e2e, Playwright) against the stack a pilot
+  # uses: the webapp, the planner and the model service built here from
+  # this commit, Postgres and Mailpit as docker-compose.yml runs them,
+  # under docker-compose.ci.yml. It is what catches what no unit test
+  # can -- a tap lost to a race, a drawer that opens empty, a request
+  # the phone's port dropped -- and until this job it ran only by hand.
+  #
+  # The planner fetches its reference data for itself into data/raw:
+  # the FAA obstacle file, the airport tables and the route's elevations
+  # (about 800 MB, from an FAA page and a USGS lookup that are the slow
+  # and the fickle part) are kept in the Actions cache between runs,
+  # restored in under a minute, and so are the map tiles the suite has
+  # had rendered (a few megabytes, served from that cache without their
+  # sheet). The chart sheets themselves (a gigabyte and more, from
+  # aeronav.faa.gov in about a minute) are fetched afresh each run
+  # rather than carried in the cache: the corridor's at startup, and
+  # whatever a zoomed-out map asks for beyond the tiles already
+  # rendered. The key names what is fetched; a change to that fetches
+  # afresh.
+  #
+  # The tests run in the Playwright image, the same one web/README.md
+  # runs them in locally, on the runner's network so localhost is the
+  # stack's. About ten minutes warm.
+  e2e:
+    runs-on: ubuntu-26.04
+    needs: [changes]
+    if: github.event_name != 'pull_request' || needs.changes.outputs.e2e == 'true'
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069  # v4
+      # The same images build-images builds, from the same cache scopes,
+      # loaded into this runner's Docker under the names
+      # docker-compose.ci.yml gives them.
+      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc  # v7
+        with:
+          context: .
+          file: ./springboot-app/Dockerfile
+          load: true
+          tags: flight_plan-webapp:ci
+          cache-from: type=gha,scope=webapp
+      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc  # v7
+        with:
+          context: .
+          file: planning-service/Dockerfile
+          load: true
+          tags: flight_plan-planning-service:ci
+          cache-from: type=gha,scope=planning-service
+      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc  # v7
+        with:
+          context: ./model-service
+          file: ./model-service/Dockerfile
+          load: true
+          tags: flight_plan-model-service:ci
+          cache-from: type=gha,scope=model-service
+
+      - name: Restore the planner's reference data
+        id: data
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: |
+            data/raw
+            !data/raw/charts.nosync
+          key: planner-data-v1-${{ hashFiles('data/processed/candidates_*.csv', 'src/vfr/faa_data.py', 'src/vfr/airports.py', 'src/vfr/elevation.py', 'src/vfr/charts.py') }}
+          restore-keys: planner-data-v1-
+
+      - name: Start the stack
+        run: docker compose -f docker-compose.yml -f docker-compose.ci.yml up -d --no-build --wait webapp
+      # Healthy is not ready: the webapp answers its readiness probe a
+      # little before it serves the page, and the planner answers its
+      # probe while still loading airspace and obstacles (and, from a
+      # cold cache, fetching them) -- under which the first tests timed
+      # out. So: the page, then the planner's own word that it is warm.
+      - name: Wait for the page and a warm planner
+        run: |
+          for i in $(seq 1 60); do
+            curl -sf -o /dev/null http://localhost:8080/app/plan && break
+            sleep 5
+          done
+          for i in $(seq 1 180); do
+            curl -sf http://localhost:8084/ | grep -q '"warm":true' && exit 0
+            sleep 5
+          done
+          echo "the planner never reported itself warm"; exit 1
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Browser tests
+        # The runner's npm cache is the container's, so `npm ci` is a
+        # copy, not a download. The github reporter puts each failure on
+        # the commit's checks, as the webapp's job does for its tests.
+        run: |
+          docker run --rm --network host -e CI=1 \
+            -v "$PWD/web:/w" -v "$HOME/.npm:/root/.npm" -w /w \
+            mcr.microsoft.com/playwright:v1.55.1-noble \
+            sh -c "npm ci --prefer-offline --no-audit --no-fund && npx playwright test --reporter=list,github"
+      - name: The stack's logs, on failure
+        if: failure()
+        run: docker compose -f docker-compose.yml -f docker-compose.ci.yml logs --no-color --tail 300 webapp planning-service model-service
+      - name: Traces and screenshots, on failure
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: playwright-results
+          path: web/test-results
+          if-no-files-found: ignore
+      # Saved whether or not the tests passed, so a run that failed on
+      # a test does not fetch a gigabyte again next time.
+      - name: Keep the planner's reference data
+        if: always() && steps.data.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: |
+            data/raw
+            !data/raw/charts.nosync
+          key: ${{ steps.data.outputs.cache-primary-key }}
 
   build-images:
     runs-on: ubuntu-26.04
@@ -310,7 +442,7 @@ jobs:
     # `changes` was once skipped outside a PR; it runs on every event
     # now.) Should a need ever become skippable, the one-list form is
     # `!cancelled() && !contains(needs.*.result, 'failure')`.
-    needs: [test, test-web, test-webapp, test-planning-service, test-model-service, test-nav-log-agent, test-crewai-agent, changes]
+    needs: [test, test-web, test-webapp, test-planning-service, test-model-service, test-nav-log-agent, test-crewai-agent, e2e, changes]
     permissions:
       contents: read
       packages: write
