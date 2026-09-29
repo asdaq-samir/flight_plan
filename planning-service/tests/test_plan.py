@@ -62,10 +62,10 @@ def test_plan_returns_legs_with_from_and_to_and_totals():
     assert body["totals"]["unflyable_legs"] == 0
     assert body["altitude_ft"] == 4500.0
     assert body["aircraft"]["name"] == "c172" and body["aircraft"]["cruise_tas_kt"] > 0
-    # The three plans, the lowest flown unless asked otherwise. One legal
-    # altitude here, so all three are the same plan.
+    # The three plans, the fastest flown unless asked otherwise. One
+    # legal altitude here, so all three are the same plan.
     assert [o["kind"] for o in body["altitude_options"]] == ["lowest", "highest", "fastest"]
-    assert body["altitude_choice"] == "lowest"
+    assert body["altitude_choice"] == "fastest"
     assert body["altitude_options"][0]["steps"] == [
         {"from": "C81", "to": "KDLH", "altitude_ft": 4500.0, "distance_nm": 30.0},
     ]
@@ -113,7 +113,7 @@ def test_navlog_streams_altitude_then_legs_then_done(messages):
     assert lines[-1]["totals"]["distance_nm"] == 10.0 * len(legs)
     altitude = next(m for m in lines if m["type"] == "altitude")
     assert [o["kind"] for o in altitude["options"]] == ["lowest", "highest", "fastest"]
-    assert altitude["flown"] == "lowest" and altitude["altitude_ft"] == 4500.0
+    assert altitude["flown"] == "fastest" and altitude["altitude_ft"] == 4500.0
 
 
 def test_a_departure_time_picks_the_winds_forecast_period(messages):

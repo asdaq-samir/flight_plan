@@ -8,6 +8,7 @@ import {
 } from "@tanstack/react-table";
 import { NoteRow, SelectableRow } from "../../../../components/SelectableRows";
 import { Accordion } from "../../../../components/ui/accordion";
+import IconButton from "../../../../components/IconButton";
 import { Button } from "../../../../components/ui/button";
 import { Input } from "../../../../components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "../../../../components/ui/popover";
@@ -28,7 +29,7 @@ import { legOf, navLogRows, rowPoint, type NavLogRow, type RouteEnds } from "./r
 
 /** Every section of the drawer, the nav log's own first: what the
  *  printer gets, whatever is open on screen. */
-const ALL_SECTIONS = ["Nav log", ...BRIEFING_SECTIONS];
+const ALL_SECTIONS = ["Nav Log", ...BRIEFING_SECTIONS];
 
 // TanStack Table's own extension point for arbitrary per-column data --
 // used below to carry each numeric column's shared className (bordered,
@@ -121,6 +122,9 @@ interface Props {
    *  nothing is selected. */
   selectedPoint: { lat: number; lon: number } | null;
   onSelectPoint: (lat: number, lon: number) => void;
+  /** Whether the drawer holding this is open. The view stays mounted
+   *  beside a desktop map whether or not it is. */
+  drawerOpen: boolean;
 }
 
 /**
@@ -221,7 +225,7 @@ export default function NavLogView({
   legs, dep, dest, ends,
   selected, descriptions, onSaveDescription,
   onGenerateDescriptions, descriptionsLoading, actions, children,
-  selectedPoint, onSelectPoint, alt, onAltChange, onSubmit,
+  selectedPoint, onSelectPoint, drawerOpen, alt, onAltChange, onSubmit,
   aircraftValue, aircraftOptions, onAircraftChange,
 }: Props) {
   const parts = totals ? totalsParts(totals) : null;
@@ -231,6 +235,19 @@ export default function NavLogView({
   // Opened in the browser's own beforeprint event, flushed before it
   // lays the page out, and put back after.
   const [open, setOpen] = useState<string[]>([]);
+  // Except the nav log's own, when the drawer opens with a checkpoint
+  // picked on the map, or one is picked with the drawer open: that is
+  // what the pilot opened it to see, and it used to sit behind a
+  // closed title. Once per such pick -- a section the pilot then
+  // closes stays closed until the next pick or the next opening. State
+  // adjusted during render, React's own pattern for a change of props,
+  // rather than an effect that would render the drawer twice.
+  const pick = drawerOpen && selectedPoint ? descriptionKey(selectedPoint.lat, selectedPoint.lon) : null;
+  const [openedFor, setOpenedFor] = useState<string | null>(null);
+  if (pick !== openedFor) {
+    setOpenedFor(pick);
+    if (pick && !open.includes("Nav Log")) setOpen([...open, "Nav Log"]);
+  }
   const [printing, setPrinting] = useState(false);
   useEffect(() => {
     const before = () => flushSync(() => setPrinting(true));
@@ -251,7 +268,24 @@ export default function NavLogView({
   const columns: ColumnDef<typeof navLogTableFeatures, NavLogRow>[] = [
     {
       id: "waypoint",
-      header: "Waypoint",
+      // The wand that fills the blank notes in -- one for the whole
+      // log -- sits in this heading, beside the names it writes for,
+      // rather than as a button of its own above the table. A wand,
+      // not the narrative's own sparkles: this one acts on the rows,
+      // where the narrative in the drawer's header writes a text of
+      // its own.
+      header: () => (
+        <span className="inline-flex items-center gap-1">
+          <IconButton
+            size="icon-xs" label="Generate descriptions" className="print:hidden"
+            onClick={onGenerateDescriptions} disabled={descriptionsLoading || selected.length === 0}
+            data-testid="generate-descriptions-button"
+          >
+            {descriptionsLoading ? <Loader2 className="animate-spin" /> : <WandSparkles />}
+          </IconButton>
+          Waypoint
+        </span>
+      ),
       cell: ({ row }) => rowPoint(row.original).name,
       meta: { className: "text-left" },
     },
@@ -367,8 +401,11 @@ export default function NavLogView({
   // it is when it is not (the row itself clicked). On the sections
   // changing too: on a phone the drawer is mounted afresh each time it
   // opens, with every section closed, and the row is only there to
-  // reveal once the nav log's own section has been opened.
-  useEffect(() => revealRow(selectedRef.current), [selectedPoint, open]);
+  // reveal once the nav log's own section has been opened. And on the
+  // drawer opening: beside a desktop map the view is mounted, and its
+  // rows laid out, while the drawer is closed, so a row revealed then
+  // was revealed off screen.
+  useEffect(() => revealRow(selectedRef.current), [selectedPoint, open, drawerOpen]);
   const isSelected = (lat: number, lon: number) =>
     !!selectedPoint && descriptionKey(lat, lon) === descriptionKey(selectedPoint.lat, selectedPoint.lon);
 
@@ -472,9 +509,14 @@ export default function NavLogView({
   // holds only what the log is computed from.
   const summary = (
     <div className="mb-3 flex flex-col gap-1 text-sm" data-testid="navlog-summary">
-      <div className="flex flex-wrap items-center gap-2">
+      {/* One line, however narrow the drawer: the distance, the time,
+          the fuel and the altitude that opens the reasoning. It wrapped,
+          and the altitude sat on a line of its own under the rest. Past
+          the drawer's width -- a phone with its text turned up -- it
+          scrolls sideways rather than wraps. */}
+      <div className="flex flex-nowrap items-center gap-1.5 overflow-x-auto whitespace-nowrap">
         {parts && (
-          <span>
+          <span className="shrink-0">
             <b>{parts.distance}</b> · <b>{parts.time}</b> · <b>{parts.fuel}</b>
             {depart && totals && totals.ete_min !== null && <> · ETA <b>{etaAt(depart, totals.ete_min)}</b></>}
             {parts.warning && <> · <span className="text-destructive">{parts.warning}</span></>}
@@ -487,11 +529,13 @@ export default function NavLogView({
             the plain figure; the briefing's Cruise Altitude section
             carries the same steps onto the paper. */}
         {nav && (() => {
-          // "2,500 ft · lowest", or "2,500–6,500 ft · fastest" for a
-          // plan that steps; "· yours" for a typed altitude; and, when
-          // the winds could not be read, no altitude at all -- that used
-          // to read "0 ft · yours", with Custom pressed, for an altitude
-          // nobody typed.
+          // "2,500 ft", or "2,500–6,500 ft" for a plan that steps; and,
+          // when the winds could not be read, no altitude at all -- that
+          // used to read "0 ft · yours", with Custom pressed, for an
+          // altitude nobody typed. The figure alone: which plan it is,
+          // or that it is the pilot's own, is the pressed row in the
+          // popover it opens, and "· fastest" after every altitude was
+          // a word in the way.
           const plan = nav.options.find(o => o.kind === nav.flown);
           const altitudes = plan ? plan.steps.map(st => st.altitude_ft) : nav.altitude_ft !== null ? [nav.altitude_ft] : [];
           const range = altitudes.length === 0
@@ -499,13 +543,13 @@ export default function NavLogView({
             : altitudes.length > 1 && Math.min(...altitudes) !== Math.max(...altitudes)
               ? `${altFt(Math.min(...altitudes))}–${altFt(Math.max(...altitudes))} ft`
               : `${altFt(altitudes[0])} ft`;
-          const label = nav.flown === null ? "No altitude: no winds" : `${range} · ${nav.flown === "custom" ? "yours" : nav.flown}`;
+          const label = nav.flown === null ? "No altitude: no winds" : range;
           return (
             <>
               <Popover>
                 <PopoverTrigger asChild>
                   <Button
-                    variant="ghost" size="sm" className="px-1.5 font-normal text-muted-foreground print:hidden"
+                    variant="ghost" size="sm" className="shrink-0 px-1 font-normal text-muted-foreground print:hidden"
                     aria-label="How the altitude was chosen" data-testid="altitude-why"
                   >
                     {label}
@@ -575,48 +619,39 @@ export default function NavLogView({
             </>
           );
         })()}
-        {/* Which winds forecast period the legs are flown on -- named
-            so a pilot knows the winds are the 12-hour forecast, say,
-            not now's. Only with a departure time: without one the
-            legs are flown on the nearest period to now. */}
-        {depart && (
-          <span className="text-xs text-muted-foreground" data-testid="winds-forecast">
-            winds: {nav ? `${Number(nav.winds_forecast_hr)}-hour forecast` : "…"}
-          </span>
-        )}
-        {/* A wand, not the narrative's own sparkles: this one acts on
-            the rows -- it fills the blank notes in -- where the
-            narrative in the header writes a text of its own. */}
-        <Button
-          variant="outline" size="sm" className="ml-auto print:hidden"
-          onClick={onGenerateDescriptions} disabled={descriptionsLoading || selected.length === 0}
-          data-testid="generate-descriptions-button"
-        >
-          {descriptionsLoading ? <Loader2 className="animate-spin" /> : <WandSparkles />}
-          Generate descriptions
-        </Button>
       </div>
-      {/* The fuel check (14 CFR 91.151): the legs' fuel plus the
-          reserve -- 30 minutes by day, 45 at night, the day one
-          assumed and said so without a departure time -- against the
-          aeroplane's usable fuel when it has one, red when the tanks
-          do not hold it. */}
-      {totals && totals.fuel_required_gal != null && (
-        <div
-          className={cn(
-            "text-xs",
-            totals.fuel_margin_gal != null && totals.fuel_margin_gal < 0
-              ? "font-semibold text-destructive"
-              : "text-muted-foreground",
-          )}
-          data-testid="fuel-check"
-        >
-          Fuel required {one(totals.fuel_required_gal)} gal
-          {` (with ${one(totals.taxi_gal)} gal to start, taxi and take off and a ${totals.reserve_min} min ${totals.night == null ? "day reserve, no departure time" : totals.night ? "night reserve" : "day reserve"})`}
-          {totals.usable_fuel_gal != null && ` of ${totals.usable_fuel_gal} usable`}
-          {totals.fuel_margin_gal != null && totals.fuel_margin_gal < 0 && ` · short by ${one(-totals.fuel_margin_gal)} gal`}
-        </div>
+      {/* Which winds forecast period the legs are flown on -- named
+          so a pilot knows the winds are the 12-hour forecast, say,
+          not now's. Only with a departure time: without one the
+          legs are flown on the nearest period to now. */}
+      {depart && (
+        <span className="text-xs text-muted-foreground" data-testid="winds-forecast">
+          winds: {nav ? `${Number(nav.winds_forecast_hr)}-hour forecast` : "…"}
+        </span>
       )}
+    </div>
+  );
+
+  // The fuel check (14 CFR 91.151): the legs' fuel plus the reserve --
+  // 30 minutes by day, 45 at night, the day one assumed and said so
+  // without a departure time -- against the aeroplane's usable fuel
+  // when it has one, red when the tanks do not hold it. Under the
+  // table, where the fuel column it sums ends, rather than among the
+  // totals above it.
+  const fuelNote = totals && totals.fuel_required_gal != null && (
+    <div
+      className={cn(
+        "mt-2 text-xs",
+        totals.fuel_margin_gal != null && totals.fuel_margin_gal < 0
+          ? "font-semibold text-destructive"
+          : "text-muted-foreground",
+      )}
+      data-testid="fuel-check"
+    >
+      Fuel required {one(totals.fuel_required_gal)} gal
+      {` (with ${one(totals.taxi_gal)} gal to start, taxi and take off and a ${totals.reserve_min} min ${totals.night == null ? "day reserve, no departure time" : totals.night ? "night reserve" : "day reserve"})`}
+      {totals.usable_fuel_gal != null && ` of ${totals.usable_fuel_gal} usable`}
+      {totals.fuel_margin_gal != null && totals.fuel_margin_gal < 0 && ` · short by ${one(-totals.fuel_margin_gal)} gal`}
     </div>
   );
 
@@ -661,7 +696,8 @@ export default function NavLogView({
         </div>
       </div>
       {/* One stock accordion for the whole drawer: the nav log's own
-          section first (the summary, then the table), the briefing's
+          section first (the summary, the table, the fuel check under
+          it), the briefing's
           sections after it (`children`). Every section starts closed:
           the drawer opens as the list of what the briefing holds, and
           a pilot opens what they want on its title, rather than
@@ -675,9 +711,10 @@ export default function NavLogView({
         data-testid="navlog-scroller"
       >
         <Accordion type="multiple" value={printing ? ALL_SECTIONS : open} onValueChange={setOpen}>
-          <BriefingSection title="Nav log">
+          <BriefingSection title="Nav Log">
             {summary}
             {navLogTable}
+            {fuelNote}
           </BriefingSection>
           {children}
         </Accordion>

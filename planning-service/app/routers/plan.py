@@ -225,7 +225,7 @@ def plan(
     dep: str,
     dest: str,
     altitude_ft: float | None = None,
-    altitude_choice: AltitudeChoice = "lowest",
+    altitude_choice: AltitudeChoice = "fastest",
     aircraft: str = DEFAULT_AIRCRAFT,
     cruise_tas_kt: CruiseTas = None,
     fuel_burn_gph: float | None = None,
@@ -241,7 +241,9 @@ def plan(
     ceiling, on the hemispheric rule for that leg's own course
     -- and vfr.navlog makes three plans of them: the lowest, the
     highest, and the fastest for the winds aloft. altitude_choice picks
-    which one the legs fly, and the reasoning comes back with it, since
+    which one the legs fly -- the fastest unless asked otherwise, the
+    plan a pilot with the winds in hand picks (it was the lowest, as the
+    predictable one) -- and the reasoning comes back with it, since
     "why am I at 6,500" is a question a pilot will actually ask.
 
     aircraft names a stock profile; cruise_tas_kt, fuel_burn_gph and
@@ -311,7 +313,7 @@ def navlog_stream(
     dep: str,
     dest: str,
     altitude_ft: float | None = None,
-    altitude_choice: AltitudeChoice = "lowest",
+    altitude_choice: AltitudeChoice = "fastest",
     aircraft: str = DEFAULT_AIRCRAFT,
     cruise_tas_kt: CruiseTas = None,
     fuel_burn_gph: float | None = None,

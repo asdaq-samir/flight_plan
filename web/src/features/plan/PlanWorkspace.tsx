@@ -30,10 +30,11 @@ const STAGE_PERCENT: Record<"course" | "checkpoints" | "navlog", number> = {
   course: 25, checkpoints: 60, navlog: 90,
 };
 
-/** Which of the three altitude plans the log flies -- lowest unless the
- *  URL says otherwise, since it is the predictable one. */
+/** Which of the three altitude plans the log flies -- the fastest for
+ *  the winds unless the URL says otherwise, the plan a pilot with the
+ *  winds in hand picks; it was the lowest, as the predictable one. */
 function altitudeChoiceOf(value: string | null): AltitudeChoice {
-  return value === "highest" || value === "fastest" ? value : "lowest";
+  return value === "lowest" || value === "highest" ? value : "fastest";
 }
 
 /** One value per choice for the Select: a pilot's own by id, a stock
@@ -144,7 +145,7 @@ export default function PlanWorkspace({ dep, dest, sidebarOpen, children }: Work
     if (!route) return;
     const next: Record<string, string> = { ...route };
     if (alt.trim()) next.altitude_ft = alt.trim();
-    if (altitudeChoice !== "lowest") next.altitude_choice = altitudeChoice;
+    if (altitudeChoice !== "fastest") next.altitude_choice = altitudeChoice;
     if (depart) next.depart = depart;
     if (sidebarOpen) next.view = "briefing";
     setSearchParams(next, { replace: true });
@@ -177,7 +178,7 @@ export default function PlanWorkspace({ dep, dest, sidebarOpen, children }: Work
     setSearchParams(prev => {
       const next = new URLSearchParams(prev);
       next.delete("altitude_ft");
-      if (choice === "lowest") next.delete("altitude_choice");
+      if (choice === "fastest") next.delete("altitude_choice");
       else next.set("altitude_choice", choice);
       return next;
     }, { replace: true });
@@ -257,6 +258,7 @@ export default function PlanWorkspace({ dep, dest, sidebarOpen, children }: Work
         </>
       )}
       selectedPoint={selectedPoint} onSelectPoint={(lat, lon) => selectPoint({ lat, lon })}
+      drawerOpen={sidebarOpen}
       alt={alt} onAltChange={setAlt} onSubmit={submit}
       aircraftValue={aircraftKey(aircraft)}
       aircraftOptions={aircraftOptions.map(o => ({ value: aircraftKey(o), label: o.label }))}

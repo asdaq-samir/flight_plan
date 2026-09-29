@@ -310,7 +310,7 @@ test("plan page: the flight planning drawer opens the way the Model Training dra
   expect(await drawer.locator('[data-slot="accordion-content"] [data-testid="depart-picker"]').count()).toBe(0);
   // Every section starts closed, the nav log's own first among them:
   // the drawer opens as the list of what the briefing holds.
-  await expect(drawer.getByText("Nav log", { exact: true })).toBeVisible();
+  await expect(drawer.getByText("Nav Log", { exact: true })).toBeVisible();
   await expect(drawer.getByText("Adverse Conditions")).toBeVisible();
   await expect(drawer.getByText("Airport Information")).toBeVisible();
   expect(await drawer.locator('[data-slot="accordion-content"][data-state="open"]').count()).toBe(0);
@@ -318,7 +318,7 @@ test("plan page: the flight planning drawer opens the way the Model Training dra
   // Opened, the nav log's section holds the totals and the
   // descriptions button above the table -- inside the section, not
   // the header.
-  await drawer.getByText("Nav log", { exact: true }).click();
+  await drawer.getByText("Nav Log", { exact: true }).click();
   await expect(drawer.getByRole("table", { name: /Navigation log from/i })).toBeVisible();
   await expect(drawer.locator('[data-slot="accordion-content"] [data-testid="generate-descriptions-button"]')).toBeVisible();
   await expect(drawer.locator('[data-slot="accordion-content"] [data-testid="navlog-summary"]')).toBeVisible();
@@ -361,15 +361,15 @@ test("plan page: opening the briefing pops a 'planning aid only' warning toast, 
   const navLog = drawer.locator("table");
   // A closed accordion section has no content in the page at all.
   await expect(navLog).toHaveCount(0);
-  await expect(drawer.getByText("Nav log", { exact: true })).toBeVisible();
+  await expect(drawer.getByText("Nav Log", { exact: true })).toBeVisible();
   await expect(drawer.getByText("Flight Plan Summary")).toHaveCount(0);
   await expect(drawer.getByText("Adverse Conditions")).toBeVisible();
   await expect(drawer.getByText("Airport Information")).toBeVisible();
   // A section unfolds on its title and folds again.
-  await drawer.getByText("Nav log", { exact: true }).click();
+  await drawer.getByText("Nav Log", { exact: true }).click();
   await expect(drawer.getByRole("table", { name: /Navigation log from/i })).toBeVisible();
   await expect(navLog).toHaveCount(1);
-  await drawer.getByText("Nav log", { exact: true }).click();
+  await drawer.getByText("Nav Log", { exact: true }).click();
   await expect(navLog).toHaveCount(0);
 });
 
@@ -466,7 +466,7 @@ test("plan page: a click or Enter selects a nav log checkpoint, with the briefin
   await settle(page);
   await page.getByTestId("sidebar-trigger-button").click();
   // The sections start closed: open the nav log's to walk its rows.
-  await sideDrawer(page).getByText("Nav log", { exact: true }).click();
+  await sideDrawer(page).getByText("Nav Log", { exact: true }).click();
   const table = page.getByRole("table", { name: /Navigation log from/i });
   // The rows arrive with the scored checkpoints; wait for more than
   // the departure and the destination.
@@ -515,8 +515,10 @@ test("plan page: a checkpoint picked on the map is brought to the middle of the 
   await page.setViewportSize({ width: viewport.width, height: 420 });
   await page.waitForTimeout(300);
   await page.getByTestId("sidebar-trigger-button").click();
-  await sideDrawer(page).getByText("Nav log", { exact: true }).click();
+  // The drawer opens the nav log's own section itself, for the pick:
+  // no title to find and press first.
   const table = page.getByRole("table", { name: /Navigation log from/i });
+  await expect(table).toBeVisible();
   const selectedRow = table.locator("tbody tr[data-selected]");
   await expect(selectedRow).toHaveCount(1);
   const scroller = sideDrawer(page).getByTestId("navlog-scroller");
@@ -811,11 +813,14 @@ test("plan page: the nav log's altitude opens the planner's own reasoning, and t
   await settle(page);
   await page.getByTestId("sidebar-trigger-button").click();
   // The sections start closed: the altitude is in the nav log's own.
-  await sideDrawer(page).getByText("Nav log", { exact: true }).click();
+  await sideDrawer(page).getByText("Nav Log", { exact: true }).click();
   // The altitude arrives with the nav log stream, after the checkpoints.
   const why = page.getByTestId("altitude-why");
   await expect(why).toBeVisible({ timeout: 60000 });
-  await expect(why).toContainText(/\d ft · lowest/);
+  // The figure alone: which plan it is shows as the pressed row in the
+  // popover, not as a word after every altitude.
+  await expect(why).toContainText(/\d ft/);
+  await expect(why).not.toContainText("·");
   await why.click();
   const popover = page.locator("[data-slot=popover-content]");
   await expect(popover).toBeVisible();
@@ -824,40 +829,52 @@ test("plan page: the nav log's altitude opens the planner's own reasoning, and t
   await expect(popover).toContainText("14 CFR 91.159");
   await expect(popover).toContainText("Three plans");
   await expect(popover).toContainText("Checked, not part of the choice");
-  // The three plans are buttons, the flown one pressed; picking another
+  // The three plans are buttons, the flown one pressed -- the fastest
+  // for the winds unless the address says otherwise; picking another
   // re-plans on it and the URL carries the choice.
   for (const kind of ["lowest", "highest", "fastest"]) {
     await expect(popover.getByTestId(`altitude-plan-${kind}`)).toBeVisible();
   }
-  await expect(popover.getByTestId("altitude-plan-lowest")).toHaveAttribute("aria-pressed", "true");
-  await popover.getByTestId("altitude-plan-fastest").click();
-  await expect(page).toHaveURL(/[?&]altitude_choice=fastest/);
-  await expect(page.getByTestId("altitude-why")).toContainText("fastest", { timeout: 30000 });
+  await expect(popover.getByTestId("altitude-plan-fastest")).toHaveAttribute("aria-pressed", "true");
+  await popover.getByTestId("altitude-plan-lowest").click();
+  await expect(page).toHaveURL(/[?&]altitude_choice=lowest/);
+  await expect(page.getByTestId("altitude-why")).toContainText(/\d ft/, { timeout: 30000 });
   await page.getByTestId("altitude-why").click();
   await expect(popover).toBeVisible();
-  await expect(popover.getByTestId("altitude-plan-fastest")).toHaveAttribute("aria-pressed", "true");
+  await expect(popover.getByTestId("altitude-plan-lowest")).toHaveAttribute("aria-pressed", "true", { timeout: 30000 });
 
   // A custom altitude: the fourth row under the plans. Typed and flown,
-  // the whole log is at it, the header says it is the pilot's own, and
-  // the plans stay offered beside it with none pressed.
+  // the whole log is at it, the header shows it, and the plans stay
+  // offered beside it with none pressed.
   await popover.getByTestId("custom-altitude").fill("3500");
   await popover.getByTestId("custom-altitude-fly").click();
   await expect(page).toHaveURL(/[?&]altitude_ft=3500/);
-  await expect(page.getByTestId("altitude-why")).toContainText("3,500 ft · yours", { timeout: 30000 });
+  await expect(page.getByTestId("altitude-why")).toHaveText(/^3,500 ft$/, { timeout: 30000 });
   await expect(sideDrawer(page).locator('table tbody tr[tabindex="0"]').nth(1).locator("td").nth(1)).toHaveText("3,500", { timeout: 30000 });
   await page.getByTestId("altitude-why").click();
   await expect(popover).toBeVisible();
-  await expect(popover.getByTestId("altitude-plan-fastest")).toHaveAttribute("aria-pressed", "false");
-  // Back to a plan: the custom box empties and the URL drops it.
-  await popover.getByTestId("altitude-plan-lowest").click();
+  await expect(popover.getByTestId("altitude-plan-lowest")).toHaveAttribute("aria-pressed", "false");
+  // Back to the default plan: the custom box empties and the URL drops
+  // both the altitude and the choice.
+  await popover.getByTestId("altitude-plan-fastest").click();
   await expect(page).not.toHaveURL(/[?&]altitude_ft=/);
-  await expect(page.getByTestId("altitude-why")).toContainText("lowest", { timeout: 30000 });
+  await expect(page).not.toHaveURL(/[?&]altitude_choice=/);
+  // Picking a plan closes the popover, and the re-plan takes the
+  // altitude figure (and so the popover) off the page and back: opened
+  // again, and again if the re-plan closed it, the plan is the pressed
+  // one once the log flies it.
+  await expect.poll(async () => {
+    if (!(await popover.isVisible())) await page.getByTestId("altitude-why").click();
+    const plan = popover.getByTestId("altitude-plan-fastest");
+    return (await plan.count()) ? plan.getAttribute("aria-pressed") : null;
+  }, { timeout: 30000 }).toBe("true");
   // No altitude box in the table's head any more: Alt is a plain heading.
   await expect(sideDrawer(page).locator('table thead')).not.toContainText("Cruise altitude");
   expect(await sideDrawer(page).locator('table thead input').count()).toBe(0);
 
-  // Escape closes the popover and leaves the drawer open.
-  await page.getByTestId("altitude-why").click();
+  // Escape closes the popover (open from the check above, opened here
+  // if the re-plan has closed it since) and leaves the drawer open.
+  if (!(await popover.isVisible())) await page.getByTestId("altitude-why").click();
   await expect(popover).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(popover).toHaveCount(0);
@@ -876,7 +893,7 @@ test("plan page: a departure time gives every checkpoint an ETA and picks the wi
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
   await page.getByTestId("sidebar-trigger-button").click();
-  await sideDrawer(page).getByText("Nav log", { exact: true }).click();
+  await sideDrawer(page).getByText("Nav Log", { exact: true }).click();
   const table = page.getByRole("table", { name: /Navigation log from/i });
   await expect(table.locator("thead")).not.toContainText("ETA");
 
@@ -914,9 +931,13 @@ test("plan page: a departure time gives every checkpoint an ETA and picks the wi
   // Every later row has a time once its leg is in.
   await expect.poll(async () => (await table.locator("tbody tr[tabindex='0']").last().locator("td").nth(etaIndex).textContent())?.trim(), { timeout: 60000 }).toMatch(/^\d\d:\d\d$/);
   // And the fuel check, against the stock C172's 40 usable gallons,
-  // with the day reserve for a mid-afternoon flight.
+  // with the day reserve for a mid-afternoon flight -- under the table,
+  // where the fuel column it sums ends.
   await expect(page.getByTestId("fuel-check")).toContainText("of 40 usable", { timeout: 60000 });
   await expect(page.getByTestId("fuel-check")).toContainText("30 min day reserve");
+  const tableBox = (await table.boundingBox())!;
+  const noteBox = (await page.getByTestId("fuel-check").boundingBox())!;
+  expect(noteBox.y).toBeGreaterThanOrEqual(tableBox.y + tableBox.height);
 });
 
 test("dev page opened on its own: the switch falls back to the planner with the dev page's own route", async ({ page }) => {
@@ -1123,7 +1144,7 @@ test("plan page: every text field is at least 16px on a phone, so iOS never zoom
   await page.getByTestId("sidebar-trigger-button").click();
   // The description boxes are in the nav log's section, closed until
   // its title is clicked.
-  await sideDrawer(page).getByText("Nav log", { exact: true }).click();
+  await sideDrawer(page).getByText("Nav Log", { exact: true }).click();
   await expect.poll(() => page.locator("textarea").count(), { timeout: 15000 }).toBeGreaterThan(0);
   const small = await page.evaluate(() =>
     [...document.querySelectorAll<HTMLElement>("input, textarea, select")]

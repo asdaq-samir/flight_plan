@@ -13,7 +13,9 @@ import { AccordionContent, AccordionItem, AccordionTrigger } from "../../../../c
 export default function BriefingSection({ title, children }: { title: string; children: ReactNode }) {
   return (
     <AccordionItem value={title}>
-      <AccordionTrigger>{title}</AccordionTrigger>
+      {/* Bold, over the stock trigger's medium: a section title is what
+          the drawer is read by, and medium read as one more line. */}
+      <AccordionTrigger className="font-semibold">{title}</AccordionTrigger>
       <AccordionContent>{children}</AccordionContent>
     </AccordionItem>
   );

@@ -187,7 +187,7 @@ export const api = {
         query: {
           dep, dest,
           altitude_ft: altitudeFt ? Number(altitudeFt) : undefined,
-          altitude_choice: altitudeChoice && altitudeChoice !== "lowest" ? altitudeChoice : undefined,
+          altitude_choice: altitudeChoice && altitudeChoice !== "fastest" ? altitudeChoice : undefined,
           aircraft: aircraft?.profile,
           cruise_tas_kt: aircraft?.cruiseTasKt,
           fuel_burn_gph: aircraft?.fuelBurnGph,
