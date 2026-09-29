@@ -6,13 +6,12 @@ import { useSearchParamsNow } from "../../lib/useSearchParamsNow";
 import DevSwitch from "../../components/DevSwitch";
 import MapHeader from "../../components/MapHeader";
 import RouteForm from "../../components/RouteForm";
-import {
-  Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger,
-} from "../../components/ui/sheet";
+import { Sheet, SheetContent, SheetTrigger } from "../../components/ui/sheet";
 import {
   Sidebar, SidebarContent, SidebarInset, SidebarProvider, SidebarTrigger, useSidebar,
 } from "../../components/ui/sidebar";
 import { DevButton } from "../dev/DevButton";
+import ConsoleHeader from "../pilot/ConsoleHeader";
 import LinkSignIn from "../pilot/LinkSignIn";
 import { PilotButton } from "../pilot/PilotPanel";
 import PlanWorkspace from "../plan/PlanWorkspace";
@@ -167,14 +166,11 @@ export default function MapPage({ mode }: { mode: Mode }) {
                       the page waits while it is out. */}
                   <Sheet>
                     <SheetTrigger asChild><ConsoleButton /></SheetTrigger>
-                    <SheetContent side="top" className="max-h-[85dvh] gap-0 p-0">
-                      {/* The stock header row, with the sheet's own close
-                          button at its end; the console's content starts
+                    <SheetContent side="top" className="max-h-[85dvh] gap-0 p-0" showCloseButton={false}>
+                      {/* The greeting, the way in or out and the close
+                          button on one row; the console's content starts
                           under it. */}
-                      <SheetHeader className="border-b py-3">
-                        <SheetTitle>{consoleLabel}</SheetTitle>
-                        <SheetDescription className="sr-only">The {consoleLabel.toLowerCase()} console</SheetDescription>
-                      </SheetHeader>
+                      <ConsoleHeader console={consoleLabel.toLowerCase()} />
                       <AfterTheSheet>{pieces.console}</AfterTheSheet>
                     </SheetContent>
                   </Sheet>

@@ -770,14 +770,15 @@ test("the DEV switch is the one sign of which page this is: the header itself lo
 });
 
 test("signed in, each console fits the screen's width: nothing but a table's own scroller runs past its edge", async ({ page }) => {
-  // "Signed in as <address>" and Log out share the tab row with the
-  // developer's status and buttons, and on a phone they ran off the
-  // right edge. Wide tables scroll inside their own container, which is
-  // the one thing allowed past the edge.
+  // "Hello <address>", Log out and the close button share the sheet's
+  // top line (once "Signed in as <address>" and Log out shared the tab
+  // row with the developer's buttons, and on a phone ran off the right
+  // edge). Wide tables scroll inside their own container, which is the
+  // one thing allowed past the edge.
   for (const [path, button] of [["/app/plan", "pilot-button"], ["/app/dev", "dev-console-button"]] as const) {
     await page.goto(path);
     await page.getByTestId(button).click();
-    await expect(consoleSheet(page)).toContainText("Signed in as");
+    await expect(consoleSheet(page)).toContainText("Hello developer@example.com");
     const past = await consoleSheet(page).evaluate(sheet => {
       const edge = document.documentElement.clientWidth + 1;
       return [...sheet.querySelectorAll("*")]
@@ -972,7 +973,13 @@ test("plan page: the pilot console is a sheet from the top with the account, aer
   const pilot = consoleSheet(page);
   await expect(pilot).toBeVisible();
   await expect(page.getByTestId("pilot-button")).toHaveAttribute("aria-expanded", "true");
-  await expect(pilot.getByRole("button", { name: "Log out" })).toBeVisible();
+  // The greeting names the pilot, and their name opens the menu with
+  // Log out in it.
+  await expect(pilot).toContainText("Hello developer@example.com");
+  await pilot.getByTestId("pilot-menu").click();
+  await expect(page.getByRole("menuitem", { name: "Log out" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("menuitem", { name: "Log out" })).toHaveCount(0);
   // The guide first, where someone new to the planner starts.
   await expect(pilot.getByRole("tab").first()).toHaveText("Guide");
   await pilot.getByRole("tab", { name: "Aircraft" }).click();

@@ -6,7 +6,7 @@ import ConsoleTabs from "../../components/ConsoleTabs";
 import IconButton from "../../components/IconButton";
 import { pilotQuery } from "../../lib/queryClient";
 import type { Course } from "../../lib/api/types";
-import { AircraftPanel, FlightsPanel, SignInStatus, type PilotState } from "./AccountPanels";
+import { AircraftPanel, FlightsPanel, type PilotState } from "./AccountPanels";
 import PilotGuide from "./PilotGuide";
 
 /** The header button that opens the pilot's console: a `SheetTrigger`
@@ -22,16 +22,15 @@ export function PilotButton(props: Omit<ComponentProps<typeof IconButton>, "labe
 
 /**
  * The pilot's own drawer, dropping down over the map (see PlanWorkspace):
- * who is signed in and the theme on its top line, then one tab each
+ * the greeting and the way in or out on its top line (ConsoleHeader),
+ * the theme beside the tabs, then one tab each
  * for the guide to the planner (first: where a newcomer starts), their
  * aeroplanes and their filed flights. The shape is `ConsoleTabs`, shared with the developer's
  * drawer. Not the nav log or the briefing: those are the Flight
  * Planning drawer at the side.
  */
 export function PilotPanel({ course }: { course: Course | null }) {
-  const {
-    data: pilot, isLoading, isError, refetch,
-  } = useQuery(pilotQuery);
+  const { data: pilot, isLoading, isError } = useQuery(pilotQuery);
   const pilotState: PilotState = isLoading ? "loading" : (pilot ?? (isError ? "error" : null));
   const savedTab = usePreferences(s => s.pilotTab);
   const changeTab = usePreferences(s => s.setPilotTab);
@@ -40,7 +39,6 @@ export function PilotPanel({ course }: { course: Course | null }) {
     <ConsoleTabs
       saved={savedTab}
       onChange={changeTab}
-      actions={<SignInStatus pilot={pilotState} onRetry={() => void refetch()} />}
       tabs={[
         { value: "guide", label: "Guide", content: <PilotGuide course={course} /> },
         { value: "aircraft", label: "Aircraft", content: <AircraftPanel pilot={pilotState} /> },

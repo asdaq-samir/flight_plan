@@ -58,7 +58,7 @@ test("the emailed link opens the app's own sign-in dialog, over the planner, and
   await page.getByRole("dialog").getByRole("button", { name: "Sign in" }).click();
   await page.waitForURL(url => url.pathname === "/app/plan" && url.hash === "");
   await page.getByTestId("pilot-button").click();
-  await expect(consoleSheet(page)).toContainText(`Signed in as ${address}`);
+  await expect(consoleSheet(page)).toContainText(`Hello ${address}`);
 
   await page.goto(link);
   await page.getByRole("dialog").getByRole("button", { name: "Sign in" }).click();
@@ -77,8 +77,10 @@ test("a pilot's link lands on the planner, with no dev switch, and the pilot con
   await expect(page.getByTestId("dev-switch")).toHaveCount(0);
 
   await page.getByTestId("pilot-button").click();
-  await expect(consoleSheet(page)).toContainText(`Signed in as ${address}`);
-  await consoleSheet(page).getByRole("button", { name: "Log out" }).click();
+  await expect(consoleSheet(page)).toContainText(`Hello ${address}`);
+  // Log out is in the menu the pilot's own name opens.
+  await consoleSheet(page).getByTestId("pilot-menu").click();
+  await page.getByRole("menuitem", { name: "Log out" }).click();
   await expect(consoleSheet(page).getByRole("button", { name: "Sign in" })).toBeVisible();
   await page.reload();
   await expect(consoleSheet(page)).toHaveCount(0);
@@ -97,8 +99,9 @@ test("a developer's link lands in dev mode, and the dev console logs out to the 
   await page.waitForURL("**/app/dev**");
   await expect(page.getByTestId("dev-switch")).toBeChecked();
   await page.getByTestId("dev-console-button").click();
-  await expect(consoleSheet(page)).toContainText(`Signed in as ${DEVELOPER}`);
-  await consoleSheet(page).getByRole("button", { name: "Log out" }).click();
+  await expect(consoleSheet(page)).toContainText(`Hello ${DEVELOPER}`);
+  await consoleSheet(page).getByTestId("pilot-menu").click();
+  await page.getByRole("menuitem", { name: "Log out" }).click();
 
   await page.waitForURL("**/app/plan**");
   await expect(page.getByTestId("pilot-button")).toBeVisible();

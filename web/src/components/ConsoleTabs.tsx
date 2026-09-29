@@ -20,9 +20,6 @@ interface Props {
   /** Icon buttons that sit with the tabs, before the theme toggle --
    *  the developer's refresh. */
   buttons?: ReactNode;
-  /** Whatever else belongs on the tab row and may wrap under it -- the
-   *  sign-in status. */
-  actions?: ReactNode;
   /** A last line under whichever tab is open -- when the developer's
    *  snapshot was checked. */
   footer?: ReactNode;
@@ -32,11 +29,12 @@ interface Props {
  * Both consoles that drop down over the map: the developer's and the
  * pilot's. One thing per tab rather than everything in one long
  * scroll, the tab row sharing its line with the theme toggle and
- * whatever else that console offers, and the whole thing centred on a
- * readable column. Only the tabs and those actions differ between the
- * two, so only those are props.
+ * whatever buttons that console offers, and the whole thing centred on
+ * a readable column. Only the tabs and those buttons differ between
+ * the two, so only those are props; who is signed in is the sheet's
+ * own header (ConsoleHeader), above both.
  */
-export default function ConsoleTabs({ tabs, saved, onChange, buttons, actions, footer }: Props) {
+export default function ConsoleTabs({ tabs, saved, onChange, buttons, footer }: Props) {
   const tab = tabs.some(t => t.value === saved) ? saved : tabs[0].value;
   return (
     <div className="min-h-0 flex-1 overflow-y-auto">
@@ -54,16 +52,6 @@ export default function ConsoleTabs({ tabs, saved, onChange, buttons, actions, f
               <ThemeToggle />
             </div>
           </div>
-          {/* Who is signed in, on a line of its own under the tabs: held
-              to the console's width and wrapping within it, since at a
-              phone's width "Signed in as <address>" and Log out ran off
-              the right edge of the screen. The address truncates rather
-              than pushing the rest out. */}
-          {actions && (
-            <div className="mt-2 flex min-w-0 max-w-full flex-wrap items-center gap-2">
-              {actions}
-            </div>
-          )}
           {tabs.map(t => (
             <TabsContent key={t.value} value={t.value} className="mt-3">{t.content}</TabsContent>
           ))}

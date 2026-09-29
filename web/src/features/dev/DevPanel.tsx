@@ -17,10 +17,9 @@ import {
   Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow,
 } from "../../components/ui/table";
 import { api, errorMessage } from "../../lib/api/client";
-import { pilotQuery, statusQuery } from "../../lib/queryClient";
+import { statusQuery } from "../../lib/queryClient";
 import type { ModelComparisonEntry, Status } from "../../lib/api/types";
 import RatingGuide from "../train/components/RatingGuide";
-import { SignInStatus } from "../pilot/AccountPanels";
 import { elapsed } from "../plan/format";
 import { useRetrain } from "./useRetrain";
 
@@ -72,10 +71,6 @@ export function DevPanel() {
   // console to the same tab, not to the Guide every time.
   const savedTab = usePreferences(s => s.devTab);
   const changeTab = usePreferences(s => s.setDevTab);
-  // Who is signed in, and the way out, on the developer's own console:
-  // dev mode has no pilot console to sign out from. Signing in is the
-  // pilot console's, so there is nothing here until someone has.
-  const { data: pilot, refetch: checkPilot } = useQuery(pilotQuery);
   // Everything the console shows, asked for again now rather than at
   // the next 30-second tick: the snapshot, the model comparison, the
   // two health probes the System tab runs itself and which services the
@@ -93,7 +88,6 @@ export function DevPanel() {
           <RefreshCw className={cn("size-4", isFetching && "animate-spin")} />
         </IconButton>
       }
-      actions={pilot && <SignInStatus pilot={pilot} onRetry={() => void checkPilot()} />}
       // When the snapshot every tab draws on was taken, as the console's
       // last line rather than in its tab row.
       footer={status && (

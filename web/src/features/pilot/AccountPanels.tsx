@@ -14,16 +14,13 @@ import { Popover, PopoverContent, PopoverTrigger } from "../../components/ui/pop
 import {
   Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow,
 } from "../../components/ui/table";
-import SignInModal from "./SignInModal";
 import { api } from "../../lib/api/client";
-import { pilotQuery } from "../../lib/queryClient";
 import type { Aircraft, AircraftRequest, FlightSummary, Pilot } from "../../lib/api/types";
 import { feet } from "../../lib/units";
 
 /** Who is signed in, or why nobody is: null signed out, "loading"
  *  while the check is in flight, "error" when it failed. */
 export type PilotState = Pilot | null | "loading" | "error";
-
 
 // Mirrors springboot-app's own AircraftRequest validation
 // (@NotBlank/@Positive in dto/AircraftRequest.java) so a bad value is
@@ -55,47 +52,6 @@ type AircraftFormValues = z.infer<typeof aircraftSchema>;
 const EMPTY_AIRCRAFT_FORM: AircraftFormValues = {
   tailNumber: "", typeDesignator: "", cruiseTasKt: "", fuelBurnGph: "", usableFuelGal: "",
 };
-
-/**
- * Signed-in status, at the top of the pilot console. `pilot` is
- * lifted to the parent rather than owned here, since the Aircraft and
- * Flights panels below also need to know whether anyone's signed in;
- * the ["pilot"] query itself is shared cache, not re-fetched per
- * panel. Signed out, this is just `SignInModal`'s own trigger button --
- * the three-provider prompt lives entirely in that component.
- */
-export function SignInStatus({ pilot, onRetry }: { pilot: PilotState; onRetry: () => void }) {
-  const queryClient = useQueryClient();
-  const logout = useMutation({
-    mutationFn: api.logout,
-    onSuccess: () => {
-      queryClient.setQueryData(pilotQuery.queryKey, null);
-      queryClient.removeQueries({ queryKey: ["aircraft"] });
-      queryClient.removeQueries({ queryKey: ["flights"] });
-      void queryClient.invalidateQueries({ queryKey: pilotQuery.queryKey });
-    },
-  });
-
-  if (pilot === "loading") {
-    return <span className="text-sm text-muted-foreground">Checking sign-in…</span>;
-  }
-  if (pilot === "error") {
-    return <Button variant="outline" size="sm" onClick={onRetry}>Retry sign-in check</Button>;
-  }
-  if (pilot === null) {
-    return <SignInModal />;
-  }
-  return (
-    <div className="flex min-w-0 max-w-full items-center gap-2 text-sm">
-      <span className="truncate text-muted-foreground" title={`Signed in as ${pilot.displayName}`}>
-        Signed in as <span className="font-semibold text-foreground">{pilot.displayName}</span>
-      </span>
-      <Button variant="ghost" size="sm" onClick={() => logout.mutate()} disabled={logout.isPending}>
-        Log out
-      </Button>
-    </div>
-  );
-}
 
 /** A signed-in pilot's own aeroplanes -- list, add, edit (the same
  *  form, switched into "editing" mode by clicking a row), delete. The
