@@ -63,9 +63,15 @@ function AccordionContent({
       className="overflow-hidden text-sm data-open:animate-accordion-down data-closed:animate-accordion-up"
       {...props}
     >
+      {/* No fixed height on the inner div: Radix measures the content
+          once, as the section opens, and a height pinned to that
+          measurement clipped whatever arrived afterwards -- a table
+          filling in from a query, a chart growing to its rows. The
+          open/close animation is the Content's own, from zero to that
+          measured height, and it ends at `auto`. */}
       <div
         className={cn(
-          "h-(--radix-accordion-content-height) pt-0 pb-4 [&_a]:underline [&_a]:underline-offset-3 [&_a]:hover:text-foreground [&_p:not(:last-child)]:mb-4",
+          "pt-0 pb-4 [&_a]:underline [&_a]:underline-offset-3 [&_a]:hover:text-foreground [&_p:not(:last-child)]:mb-4",
           className
         )}
       >
