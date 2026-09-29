@@ -52,6 +52,10 @@ export default defineConfig({
   // twice.
   retries: ci ? 2 : 1,
   workers: ci ? 2 : undefined,
+  // A whole run that is not done in half an hour is a stack that is
+  // not answering, and the report of what did and did not pass is
+  // worth more than the job's own time limit cutting it off unsaid.
+  globalTimeout: ci ? 30 * 60_000 : undefined,
   fullyParallel: true,
   reporter: "list",
   use: {

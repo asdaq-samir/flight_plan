@@ -339,7 +339,7 @@ jobs:
     runs-on: ubuntu-26.04
     needs: [changes]
     if: github.event_name != 'pull_request' || needs.changes.outputs.e2e == 'true'
-    timeout-minutes: 40
+    timeout-minutes: 50
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069  # v4
@@ -392,10 +392,51 @@ jobs:
             sleep 5
           done
           for i in $(seq 1 180); do
-            curl -sf http://localhost:8084/ | grep -q '"warm":true' && exit 0
+            curl -sf http://localhost:8084/ | grep -q '"warm":true' && break
             sleep 5
           done
-          echo "the planner never reported itself warm"; exit 1
+          curl -sf http://localhost:8084/ | grep -q '"warm":true' || { echo "the planner never reported itself warm"; exit 1; }
+      # What the planner has to work with, on the commit's checks: a
+      # job's log takes admin rights to read, an annotation does not.
+      # "Warm" means the warm-up finished, not that every fetch in it
+      # succeeded, and a planner without its obstacle file or its charts
+      # answers every nav log and tile slowly and wrongly.
+      - name: The planner's data, as annotations
+        run: |
+          python3 - <<'EOF'
+          import json, subprocess, urllib.request
+          def notice(title, text):
+              text = text.replace("%", "%25").replace("\r", "").replace("\n", "%0A")[:4000]
+              print(f"::notice title={title}::{text}")
+          try:
+              s = json.load(urllib.request.urlopen("http://localhost:8084/api/status", timeout=60))
+              notice("planner data", json.dumps({
+                  "faa_files": [f["name"] for f in s["faa_files"]],
+                  "weather": {w["name"]: w["fetched_at"] for w in s["weather"]},
+                  "charts": s["charts"]["prepared"],
+                  "corridors": len(s["corridors"]),
+                  "services": {k: (v or {}).get("up") for k, v in s["services"].items()},
+              }))
+          except Exception as err:
+              notice("planner status", f"unavailable: {err!r}")
+          log = subprocess.run(["docker", "compose", "-f", "docker-compose.yml", "-f", "docker-compose.ci.yml",
+                                "logs", "--no-color", "--tail", "400", "planning-service"], capture_output=True, text=True).stdout
+          kept = [l.split("| ", 1)[-1] for l in log.splitlines()
+                  if any(k in l for k in ("warm-up", "unavailable", "downloaded", "prepared ", "Error", "error", "Traceback", "refreshed"))]
+          notice("planner log", "\n".join(kept[-40:]) or "(nothing matched)")
+          reach = {}
+          for url in ("https://www.faa.gov/air_traffic/flight_info/aeronav/aero_data/NASR_Subscription/",
+                      "https://aeronav.faa.gov/visual/09-03-2026/sectional-files/Chicago.zip",
+                      "https://epqs.nationalmap.gov/v1/json?x=-88.09&y=42.32&units=Feet&wkid=4326",
+                      "https://davidmegginson.github.io/ourairports-data/airports.csv",
+                      "https://aviationweather.gov/data/cache/metars.cache.csv.gz"):
+              try:
+                  r = urllib.request.Request(url, method="HEAD", headers={"User-Agent": "vfr-route-learning-project/0.1"})
+                  reach[url] = urllib.request.urlopen(r, timeout=20).status
+              except Exception as err:
+                  reach[url] = repr(err)[:120]
+          notice("reachable from the runner", json.dumps(reach))
+          EOF
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7
         with:
@@ -403,6 +444,7 @@ jobs:
           cache: npm
           cache-dependency-path: web/package-lock.json
       - name: Browser tests
+        id: tests
         # The runner's npm cache is the container's, so `npm ci` is a
         # copy, not a download. The github reporter puts each failure on
         # the commit's checks, as the webapp's job does for its tests.
@@ -411,16 +453,21 @@ jobs:
             -v "$PWD/web:/w" -v "$HOME/.npm:/root/.npm" -w /w \
             mcr.microsoft.com/playwright:v1.55.1-noble \
             sh -c "npm ci --prefer-offline --no-audit --no-fund && npx playwright test --reporter=list,github"
-      - name: The stack's logs, on failure
-        if: failure()
-        run: docker compose -f docker-compose.yml -f docker-compose.ci.yml logs --no-color --tail 300 webapp planning-service model-service
-      - name: Traces and screenshots, on failure
-        if: failure()
+      - name: The stack's logs, when the tests did not pass
+        if: always() && steps.tests.outcome != 'success'
+        run: |
+          docker compose -f docker-compose.yml -f docker-compose.ci.yml logs --no-color --tail 300 webapp planning-service model-service
+          docker compose -f docker-compose.yml -f docker-compose.ci.yml logs --no-color --tail 60 planning-service \
+            | grep -vE "GET /api/(chart-tile|tiles)|200 OK|404 Not Found" | tail -25 \
+            | python3 -c 'import sys; t=sys.stdin.read().replace("%","%25").replace("\n","%0A"); print(f"::warning title=planner log, at the end::{t[:4000]}")'
+      - name: Traces and screenshots, when the tests did not pass
+        if: always() && steps.tests.outcome != 'success'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: playwright-results
           path: web/test-results
           if-no-files-found: ignore
+
       # Saved whether or not the tests passed, so a run that failed on
       # a test does not fetch a gigabyte again next time.
       - name: Keep the planner's reference data
