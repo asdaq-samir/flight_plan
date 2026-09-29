@@ -124,7 +124,14 @@ export default function MapPage({ mode }: { mode: Mode }) {
         <SidebarProvider
           open={sidebarOpen} onOpenChange={setSidebarOpen}
           style={{ "--sidebar-width": "22rem" } as CSSProperties}
-          className="h-dvh min-h-0 print:h-auto"
+          // Pinned to the viewport rather than sized to it (`h-dvh`): a
+          // page that can scroll at all, iOS Safari scrolls for its
+          // own reasons -- turned to landscape and back, it was left
+          // scrolled by the height of the toolbar it had collapsed,
+          // with the header off the top of the screen. Pinned, there is
+          // nothing to scroll; the drawer and the consoles scroll
+          // inside themselves. On paper the drawer flows as a document.
+          className="fixed inset-0 min-h-0 print:static print:h-auto"
         >
           {/* React hoists a rendered <title> into the document head
               itself, so the browser tab says which page this is
