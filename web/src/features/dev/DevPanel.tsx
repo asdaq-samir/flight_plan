@@ -94,7 +94,11 @@ export function DevPanel() {
       actions={pilot && <SignInStatus pilot={pilot} onRetry={() => void checkPilot()} />}
       // When the snapshot every tab draws on was taken, as the console's
       // last line rather than in its tab row.
-      footer={status && <p className="mt-6 text-xs text-muted-foreground">Checked {ago(status.checked_at)}</p>}
+      footer={status && (
+        <p className="mt-6 text-xs text-muted-foreground">
+          Checked {ago(status.checked_at)}{isStale(status) && " — the planner has not answered since"}
+        </p>
+      )}
       tabs={[
         // "Guide", as the pilot console's first tab is: it walks the
         // three steps. (The value stays "training", which is what a
@@ -634,7 +638,20 @@ function ChartsSection({ charts, onRefresh, refreshing }: {
   );
 }
 
+/** Ten seconds, then "no answer": a probe to an address the phone
+ *  cannot reach -- off the Wi-Fi, on 5G -- hung for minutes as
+ *  "checking…". */
+const PROBE = { signal: AbortSignal.timeout(10_000) };
+
+/** Whether a snapshot is one the service worker served from its cache
+ *  with the planner out of reach: its own clock says when it was taken,
+ *  and one taken more than five minutes ago cannot be this half-minute's
+ *  -- however fresh the response that carried it looked. */
+const isStale = (status: Status | undefined) =>
+  !!status && Date.now() - new Date(status.checked_at).getTime() > 5 * 60_000;
+
 function SystemTab({ status, failed }: { status: Status | undefined; failed: boolean }) {
+  const stale = isStale(status);
   const queryClient = useQueryClient();
   // The one chart action: fetch and render the FAA's current cycle
   // now rather than at the planner's next daily check -- the same
@@ -655,14 +672,14 @@ function SystemTab({ status, failed }: { status: Status | undefined; failed: boo
   const webapp = useQuery({
     queryKey: ["webappHealth"],
     queryFn: async () => {
-      const [live, ready] = await Promise.all([fetch("/actuator/health/liveness"), fetch("/actuator/health/readiness")]);
+      const [live, ready] = await Promise.all([fetch("/actuator/health/liveness", PROBE), fetch("/actuator/health/readiness", PROBE)]);
       return { up: live.ok, db: ready.ok };
     },
     refetchInterval: 30000, retry: false,
   });
   const planner = useQuery({
     queryKey: ["plannerHealth"],
-    queryFn: async () => (await fetch("/api/planner/aircraft-profiles")).ok,
+    queryFn: async () => (await fetch("/api/planner/aircraft-profiles", PROBE)).ok,
     refetchInterval: 30000, retry: false,
   });
   const services = status?.services;
@@ -718,7 +735,17 @@ function SystemTab({ status, failed }: { status: Status | undefined; failed: boo
     <div className="space-y-6">
       <section>
         <SectionHeading title="Services" description="What answers right now. The gateway and its database report through Spring's actuator, the planner through its own proxy, the rest through the planner's probes." />
-        <Table containerClassName="mt-2 rounded-md border" className="min-w-[28rem]">
+        {stale && status && (
+          // The service worker serves the last snapshot it has when the
+          // planner is out of reach, and it arrives looking like an
+          // answer; its own clock gives it away. Said here, and the
+          // table dimmed, rather than "up" in green for services that
+          // may be anything by now.
+          <p className="mt-2 text-sm text-amber-700 dark:text-amber-400" data-testid="stale-snapshot">
+            The planner has not answered since this snapshot, {ago(status.checked_at)}: what follows is what was true then.
+          </p>
+        )}
+        <Table containerClassName={cn("mt-2 rounded-md border", stale && "opacity-60")} className="min-w-[28rem]">
           <TableCaption className="sr-only">Services and whether each answers</TableCaption>
           <TableHeader>
             <TableRow>

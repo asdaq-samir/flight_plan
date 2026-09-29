@@ -38,3 +38,19 @@ test("a snapshot that failed reads no answer, and nothing waits for it for ever"
   await expect(consoleSheet(page).getByText("The planner did not answer.")).toBeVisible();
   await expect(consoleSheet(page).getByText("Loading…")).toHaveCount(0);
 });
+
+test("a snapshot from long ago -- the service worker's, with the planner out of reach -- says so, and is not read as up", async ({ page }) => {
+  // What a phone off the Wi-Fi gets: the last snapshot the service
+  // worker holds, arriving as a 200 with every service "up" as of
+  // forty minutes ago.
+  await page.route("**/api/planner/status", async route => {
+    const response = await route.fetch();
+    const json = await response.json();
+    json.checked_at = new Date(Date.now() - 40 * 60_000).toISOString();
+    await route.fulfill({ response, json });
+  });
+  await openSystemTab(page);
+
+  await expect(consoleSheet(page).getByTestId("stale-snapshot")).toContainText("has not answered since this snapshot, 40 min ago");
+  await expect(consoleSheet(page).getByText(/Checked 40 min ago — the planner has not answered since/)).toBeVisible();
+});
