@@ -5,8 +5,10 @@
 # which is not in git. Everything else is the local stack's own
 # defaults -- Mailpit for the sign-in link, developer@example.com a
 # developer, no agents (their profile is not asked for), no charts on
-# disk -- and the FAA, airport and elevation data the planner fetches
-# for itself into data/raw, which the job keeps between runs.
+# disk -- and the FAA and airport data the planner fetches for itself
+# into data/raw, which the job keeps between runs, with the corridor's
+# elevations seeded from web/e2e/fixtures (the USGS lookup refuses a
+# GitHub runner).
 services:
   webapp:
     image: flight_plan-webapp:ci

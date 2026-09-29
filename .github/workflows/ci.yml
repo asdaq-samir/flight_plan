@@ -320,9 +320,8 @@ jobs:
   # the phone's port dropped -- and until this job it ran only by hand.
   #
   # The planner fetches its reference data for itself into data/raw:
-  # the FAA obstacle file, the airport tables and the route's elevations
-  # (about 800 MB, from an FAA page and a USGS lookup that are the slow
-  # and the fickle part) are kept in the Actions cache between runs,
+  # the FAA obstacle file and the airport tables (about 800 MB, from an
+  # FAA page that is the slow part) are kept in the Actions cache between runs,
   # restored in under a minute, and so are the map tiles the suite has
   # had rendered (a few megabytes, served from that cache without their
   # sheet). The chart sheets themselves (a gigabyte and more, from
@@ -378,8 +377,21 @@ jobs:
           key: planner-data-v1-${{ hashFiles('data/processed/candidates_*.csv', 'src/vfr/faa_data.py', 'src/vfr/airports.py', 'src/vfr/elevation.py', 'src/vfr/charts.py') }}
           restore-keys: planner-data-v1-
 
+      # The planner runs as a user of its own and writes under data/:
+      # what it fetches into data/raw, the ratings and notes the training
+      # tests make in data/labels. The checkout is the runner's, and the
+      # planner's first run here could not so much as create data/raw. So
+      # the tree is opened to it first. And the route's elevations are
+      # seeded from the suite's own copy (163 points of the C81-KDLH
+      # corridor): the USGS lookup the planner would make for each
+      # answers a GitHub runner with 403, and without them there is no
+      # terrain, so no altitude, so no nav log.
       - name: Start the stack
-        run: docker compose -f docker-compose.yml -f docker-compose.ci.yml up -d --no-build --wait webapp
+        run: |
+          mkdir -p data/raw
+          cp -n web/e2e/fixtures/elevation_cache.csv data/raw/elevation_cache.csv
+          chmod -R a+rwX data
+          docker compose -f docker-compose.yml -f docker-compose.ci.yml up -d --no-build --wait webapp
       # Healthy is not ready: the webapp answers its readiness probe a
       # little before it serves the page, and the planner answers its
       # probe while still loading airspace and obstacles (and, from a
