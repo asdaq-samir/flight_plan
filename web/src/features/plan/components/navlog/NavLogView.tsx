@@ -556,7 +556,7 @@ export default function NavLogView({
                     <CircleHelp className="size-4" />
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent align="start" className="max-h-[70vh] w-80 overflow-y-auto">
+                <PopoverContent align="start" className="w-80">
                   {/* The three plans first, each a button: the pilot
                       picks one and the log re-plans on it. Then why. */}
                   <div className="mb-3 space-y-1.5" role="group" aria-label="Cruise altitude plans">

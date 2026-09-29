@@ -263,36 +263,36 @@ body:has([data-slot="sidebar"][data-state="expanded"], [role="dialog"][data-stat
   pointer-events: auto;
 }
 
-/* Apple's floor for anything a finger taps is 44 points. Measured on a
-   phone, the header's buttons were 32, the map's 36, the console's tabs
-   29, a table row's Edit 32 and a toast's close 20. On a coarse pointer
-   -- a finger, not a mouse -- every button, tab, field and map control
-   is at least 44 on both sides; a desktop keeps the tighter sizes. The
-   two whose look is their size, the switch and a toast's close, keep
-   it and grow their hit area instead. Leaflet's markers are placed by
+/* Touch targets. Apple asks for 44 points on both sides of anything a
+   finger taps; the stock controls are smaller than that -- an icon
+   button is 36, a table row's Edit 32, a checkbox 16, a toast's close
+   20 -- and those sizes are the design: grown to 44 each, a header of
+   squares read as a different app. So on a coarse pointer nothing
+   grows. Every button reaches 44 through a pseudo-element hit area
+   around it instead, the way a toolbar glyph does on iOS: `min(0, …)`
+   so a control already that size is not shrunk. Not for a tab, whose
+   own ::after is the line variant's underline, the sidebar's rail
+   (likewise), or a calendar cell, where areas reaching twelve pixels
+   into the neighbouring day would hand a tap to the wrong one. A
+   desktop keeps the tighter targets. Leaflet's markers are placed by
    their own size and are left alone. */
 @media (pointer: coarse) {
-  button:not([data-close-button]):not([role="switch"]),
-  [role="tab"],
-  input:not([type="checkbox"]):not([type="radio"]),
-  select,
-  .leaflet-control a {
-    min-height: 44px;
-    min-width: 44px;
-  }
-  [role="tablist"] {
-    height: auto;
-  }
-  [role="switch"]::after {
-    inset: -13px -6px;
-  }
-  [data-sonner-toast] [data-close-button] {
-    position: absolute;
-  }
-  [data-sonner-toast] [data-close-button]::after {
+  button:not([data-slot="tabs-trigger"]):not([data-slot="sidebar-rail"]):not([data-slot="calendar"] button)::after,
+  a[data-slot="button"]::after,
+  .leaflet-popup-close-button::after {
     content: "";
     position: absolute;
-    inset: -12px;
+    inset: min(0px, calc(50% - 22px));
+  }
+}
+/* Positioned so the pseudo-element is placed against the button: in
+   the base layer, so a button's own `absolute` or `fixed` utility
+   still wins. */
+@layer base {
+  @media (pointer: coarse) {
+    button, a[data-slot="button"] {
+      position: relative;
+    }
   }
 }
 
