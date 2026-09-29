@@ -123,7 +123,12 @@ export default function WaypointPanel({
             </IconButton>
             <IconButton
               label={retrain.running ? "Retraining…" : retrain.reachable ? "Retrain the model on every rating" : "Retrain (Airflow is not reachable)"}
-              onClick={retrain.start}
+              onClick={() => {
+                // A retrain is minutes of Airflow's time and, when it
+                // ends, a new model serving in place of this one -- so,
+                // like Reset beside it, not on a stray tap.
+                if (window.confirm("Retrain the model on every rating? When it finishes, the new model replaces the one serving. It takes a few minutes.")) retrain.start();
+              }}
               disabled={!retrain.canStart}
               data-testid="retrain-button"
             >
