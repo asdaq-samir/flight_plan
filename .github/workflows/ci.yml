@@ -443,16 +443,47 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
           cache-dependency-path: web/package-lock.json
+      # The suite's packages into the checkout, from the runner's npm
+      # cache (mounted as the container's), so this is a copy, not a
+      # download; and each half of the step under its own time limit, so
+      # that whichever hangs is named rather than the job's limit cutting
+      # both off unsaid.
+      - name: The suite's packages
+        run: |
+          mkdir -p /tmp/e2e-out
+          docker run --rm --network host -v "$PWD/web:/w" -v "$HOME/.npm:/root/.npm" -v /tmp/e2e-out:/out -w /w \
+            mcr.microsoft.com/playwright:v1.55.1-noble \
+            sh -c "timeout 600 npm ci --prefer-offline --no-audit --no-fund 2>&1 | tail -20 | tee /out/npm.log"
       - name: Browser tests
         id: tests
-        # The runner's npm cache is the container's, so `npm ci` is a
-        # copy, not a download. The github reporter puts each failure on
-        # the commit's checks, as the webapp's job does for its tests.
+        # CI=1 is what playwright.config.ts doubles its waits on. The
+        # github reporter puts each failure on the commit's checks, as
+        # the webapp's job does for its tests; the list goes to a file
+        # for the step below, since the job's log takes admin rights to
+        # read. Thirty-five minutes, five more than the suite gives
+        # itself (globalTimeout), and then the step ends and says so.
         run: |
           docker run --rm --network host -e CI=1 \
-            -v "$PWD/web:/w" -v "$HOME/.npm:/root/.npm" -w /w \
+            -v "$PWD/web:/w" -v /tmp/e2e-out:/out -w /w \
             mcr.microsoft.com/playwright:v1.55.1-noble \
-            sh -c "npm ci --prefer-offline --no-audit --no-fund && npx playwright test --reporter=list,github"
+            bash -o pipefail -c "timeout 2100 npx playwright test --reporter=list,github 2>&1 | tee /out/playwright.log"
+      - name: How the tests went, as an annotation
+        if: always()
+        run: |
+          python3 - <<'EOF'
+          import os, re
+          def say(level, title, text):
+              text = text.replace("%", "%25").replace("\r", "").replace("\n", "%0A")[:4000]
+              print(f"::{level} title={title}::{text}")
+          for name in ("npm", "playwright"):
+              path = f"/tmp/e2e-out/{name}.log"
+              if not os.path.exists(path):
+                  say("warning", f"{name}: no output", "the step never wrote its log")
+                  continue
+              lines = open(path, errors="replace").read().splitlines()
+              summary = [l for l in lines if re.match(r"\s*\d+ (passed|failed|flaky|skipped)", l)]
+              say("notice" if summary else "warning", f"{name} output", "\n".join(summary + ["--"] + lines[-40:]))
+          EOF
       - name: The stack's logs, when the tests did not pass
         if: always() && steps.tests.outcome != 'success'
         run: |
