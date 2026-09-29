@@ -5,6 +5,8 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
+import { Plus } from "lucide-react";
+import IconButton from "../../components/IconButton";
 import { Button } from "../../components/ui/button";
 import { Field, FieldError } from "../../components/ui/field";
 import { Input } from "../../components/ui/input";
@@ -109,6 +111,11 @@ export function AircraftPanel({ pilot }: { pilot: PilotState }) {
     enabled: signedIn,
   });
   const [editingId, setEditingId] = useState<number | null>(null);
+  // The form is behind a button beside the heading: open for a new
+  // aeroplane from there, or for one of the rows from its Edit. Closed
+  // again when the save lands, on Cancel, or from the same button.
+  const [adding, setAdding] = useState(false);
+  const formOpen = adding || editingId !== null;
   const [aircraftToDelete, setAircraftToDelete] = useState<Aircraft | null>(null);
   const {
     register, handleSubmit, reset, formState: { errors },
@@ -119,6 +126,7 @@ export function AircraftPanel({ pilot }: { pilot: PilotState }) {
 
   const cancelEdit = () => {
     setEditingId(null);
+    setAdding(false);
     reset(EMPTY_AIRCRAFT_FORM);
   };
 
@@ -170,7 +178,19 @@ export function AircraftPanel({ pilot }: { pilot: PilotState }) {
 
   return (
     <section>
-      <h3 className="text-sm font-semibold">Aircraft</h3>
+      <div className="flex items-center gap-1">
+        <h3 className="text-sm font-semibold">Aircraft</h3>
+        {signedIn && (
+          <IconButton
+            size="icon-xs" label="New aircraft"
+            aria-expanded={formOpen}
+            onClick={() => (formOpen ? cancelEdit() : setAdding(true))}
+            data-testid="new-aircraft-button"
+          >
+            <Plus />
+          </IconButton>
+        )}
+      </div>
       {pilot === null || pilot === "error" ? (
         <p className="mt-1 text-sm text-muted-foreground">
           {pilot === "error" ? "Your sign-in status could not be checked." : "Sign in to keep your own aeroplanes; the nav log then flies them."}
@@ -228,6 +248,7 @@ export function AircraftPanel({ pilot }: { pilot: PilotState }) {
               </div>
             </div>
           )}
+          {formOpen && (
           <form className="flex flex-wrap items-start gap-2" onSubmit={handleSubmit(onSubmit)} noValidate>
             <Field data-invalid={!!errors.tailNumber} className="w-24">
               <Input
@@ -265,10 +286,9 @@ export function AircraftPanel({ pilot }: { pilot: PilotState }) {
               <FieldError errors={[errors.usableFuelGal]} />
             </Field>
             <Button type="submit" disabled={save.isPending}>{editingId ? "Save changes" : "Add aircraft"}</Button>
-            {editingId && (
-              <Button type="button" variant="link" size="sm" onClick={cancelEdit}>Cancel</Button>
-            )}
+            <Button type="button" variant="link" size="sm" onClick={cancelEdit}>Cancel</Button>
           </form>
+          )}
         </>
       )}
     </section>

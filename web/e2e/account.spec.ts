@@ -43,6 +43,9 @@ test("an add still saving when Edit is clicked says added, and leaves the aeropl
   });
   const console = await openConsole(page);
   await console.getByRole("tab", { name: "Aircraft" }).click();
+  // The form is behind the plus beside the heading.
+  await expect(console.getByLabel("Tail number")).toHaveCount(0);
+  await console.getByTestId("new-aircraft-button").click();
   await console.getByLabel("Tail number").fill("N3");
   await console.getByLabel("Type designator").fill("C172");
   await console.getByLabel("Cruise TAS in knots").fill("110");
