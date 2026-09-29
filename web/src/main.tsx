@@ -7,13 +7,27 @@ import { courseQuery, queryClient } from "./lib/queryClient";
 import { Toaster } from "./components/ui/sonner";
 import { TooltipProvider } from "./components/ui/tooltip";
 import { registerSW } from "virtual:pwa-register";
+import { toast } from "sonner";
 import "./index.css";
 
 // The service worker (vite.config.ts): the app shell, the chart tiles
 // the map has drawn or kept ahead, and the planner's answers, held for
-// the air. It registers only on a secure origin (https, or localhost)
-// and takes a new build over on the next load without asking.
-registerSW({ immediate: true });
+// the air. It registers only on a secure origin (https, or localhost).
+// A new build is offered, not imposed: it used to reload the page the
+// moment its worker had installed, which on a phone was a minute or so
+// after every deploy, with the nav log just loaded. Reload takes it
+// now; otherwise a page opened fresh once every tab is closed has it.
+const updateSW = registerSW({
+  immediate: true,
+  onNeedRefresh() {
+    toast("A new version of the planner is ready", {
+      id: "app-update",
+      duration: Infinity,
+      description: "Reload for it now, or carry on; the next fresh start has it.",
+      action: { label: "Reload", onClick: () => void updateSW(true) },
+    });
+  },
+});
 
 // Three views, one app -- which is the point of the port. As separate
 // HTML files they drifted: one grew a basemap fix the other never
