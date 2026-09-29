@@ -321,19 +321,19 @@ jobs:
   #
   # The planner fetches its reference data for itself into data/raw:
   # the FAA obstacle file and the airport tables (about 800 MB, from an
-  # FAA page that is the slow part) are kept in the Actions cache between runs,
-  # restored in under a minute, and so are the map tiles the suite has
-  # had rendered (a few megabytes, served from that cache without their
-  # sheet). The chart sheets themselves (a gigabyte and more, from
-  # aeronav.faa.gov in about a minute) are fetched afresh each run
-  # rather than carried in the cache: the corridor's at startup, and
-  # whatever a zoomed-out map asks for beyond the tiles already
-  # rendered. The key names what is fetched; a change to that fetches
-  # afresh.
+  # FAA page that is the slow part) are kept in the Actions cache
+  # between runs, restored in under a minute; its key names what is
+  # fetched, and a change to that fetches afresh. The corridor's chart
+  # sheets (half a gigabyte from aeronav.faa.gov, and two and a half
+  # minutes to prepare) and the tiles the suite has had rendered from
+  # them are a second cache, keyed by the FAA cycle: fetched once a
+  # cycle, not once a run, and without them the planner rendered every
+  # tile from a cold sheet while two browsers waited, which is where
+  # the suite's timeouts came from.
   #
   # The tests run in the Playwright image, the same one web/README.md
   # runs them in locally, on the runner's network so localhost is the
-  # stack's. About ten minutes warm.
+  # stack's.
   e2e:
     runs-on: ubuntu-26.04
     needs: [changes]
@@ -344,28 +344,28 @@ jobs:
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069  # v4
       # The same images build-images builds, from the same cache scopes,
       # loaded into this runner's Docker under the names
-      # docker-compose.ci.yml gives them.
-      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc  # v7
+      # docker-compose.ci.yml gives them (.github/ci-images.hcl). One
+      # bake of the three rather than three build steps: bake builds
+      # them at once, and the planner's image alone took as long as the
+      # other two together. The cache is written as well as read, so
+      # build-images, which runs once this job has passed, finds every
+      # layer of these three already there.
+      - uses: docker/bake-action@018cb6412ab401ebaa809aa5f85966b74628600f  # v7.4.0
         with:
-          context: .
-          file: ./springboot-app/Dockerfile
+          source: .
+          files: .github/ci-images.hcl
+          targets: ci
           load: true
-          tags: flight_plan-webapp:ci
-          cache-from: type=gha,scope=webapp
-      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc  # v7
-        with:
-          context: .
-          file: planning-service/Dockerfile
-          load: true
-          tags: flight_plan-planning-service:ci
-          cache-from: type=gha,scope=planning-service
-      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc  # v7
-        with:
-          context: ./model-service
-          file: ./model-service/Dockerfile
-          load: true
-          tags: flight_plan-model-service:ci
-          cache-from: type=gha,scope=model-service
+          # Images for this runner's Docker only: an attestation is
+          # for a registry, and the docker exporter refuses one.
+          provenance: false
+          set: |
+            webapp.cache-from=type=gha,scope=webapp
+            webapp.cache-to=type=gha,mode=max,scope=webapp
+            planning-service.cache-from=type=gha,scope=planning-service
+            planning-service.cache-to=type=gha,mode=max,scope=planning-service
+            model-service.cache-from=type=gha,scope=model-service
+            model-service.cache-to=type=gha,mode=max,scope=model-service
 
       - name: Restore the planner's reference data
         id: data
@@ -374,8 +374,25 @@ jobs:
           path: |
             data/raw
             !data/raw/charts.nosync
+            !data/raw/chart_tiles.nosync
           key: planner-data-v1-${{ hashFiles('data/processed/candidates_*.csv', 'src/vfr/faa_data.py', 'src/vfr/airports.py', 'src/vfr/elevation.py', 'src/vfr/charts.py') }}
           restore-keys: planner-data-v1-
+      # The corridor's chart sheets, and the tiles rendered from them,
+      # kept between runs as well: preparing the sheets was two and a
+      # half minutes of every run's warm-up, and rendering tiles from
+      # cold GeoTIFFs while two browsers asked for them is what starved
+      # the planner into the suite's timeouts. Keyed by the FAA cycle the
+      # planner reports once it is warm (below): a new cycle is fetched
+      # once and then kept, and a restore takes the newest cycle saved.
+      - name: Restore the corridor's charts
+        id: charts
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: |
+            data/raw/charts.nosync
+            data/raw/chart_tiles.nosync
+          key: planner-charts-v1-pending
+          restore-keys: planner-charts-v1-
 
       # The planner runs as a user of its own and writes under data/:
       # what it fetches into data/raw, the ratings and notes the training
@@ -408,6 +425,14 @@ jobs:
             sleep 5
           done
           curl -sf http://localhost:8084/ | grep -q '"warm":true' || { echo "the planner never reported itself warm"; exit 1; }
+      # The cycle the planner is serving: what the charts cache is
+      # keyed by, at the end of the job.
+      - name: The chart cycle
+        id: cycle
+        run: |
+          cycle=$(curl -sf http://localhost:8084/api/status | python3 -c 'import json, sys; print(json.load(sys.stdin)["charts"]["cycle"])')
+          echo "cycle=$cycle" >> "$GITHUB_OUTPUT"
+          echo "serving cycle $cycle; restored ${{ steps.charts.outputs.cache-matched-key || 'no chart cache' }}"
       # What the planner has to work with, on the commit's checks: a
       # job's log takes admin rights to read, an annotation does not.
       # "Warm" means the warm-up finished, not that every fetch in it
@@ -520,7 +545,19 @@ jobs:
           path: |
             data/raw
             !data/raw/charts.nosync
+            !data/raw/chart_tiles.nosync
           key: ${{ steps.data.outputs.cache-primary-key }}
+      # The charts and tiles, once per FAA cycle: saved when what was
+      # restored was another cycle's or nothing, with the tiles this
+      # run rendered in it.
+      - name: Keep the corridor's charts
+        if: always() && steps.cycle.outputs.cycle != '' && steps.charts.outputs.cache-matched-key != format('planner-charts-v1-{0}', steps.cycle.outputs.cycle)
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: |
+            data/raw/charts.nosync
+            data/raw/chart_tiles.nosync
+          key: planner-charts-v1-${{ steps.cycle.outputs.cycle }}
 
   build-images:
     runs-on: ubuntu-26.04
