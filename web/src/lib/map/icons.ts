@@ -98,21 +98,33 @@ export function airportIcon(
   colour: string, ident: string,
   { classB = false, unchecked = false, category = null as string | null } = {},
 ) {
-  // A Class B chip says its flight category in words beside the ident
-  // ("KORD IFR"), or "?" for a field with no report: the colour said
-  // it alone, and on a phone there is no hover for the tooltip that
-  // names it.
-  const label = classB ? `${ident} ${category ?? "?"}` : ident;
-  const width = Math.max(40, Math.ceil(label.length * 7.5) + 22);
-  const shape = classB ? "rounded-full" : "rounded-md";
-  const fill = unchecked
-    ? "background-color:#ffffff;color:#1c1a17"
-    : `background-color:${text(colour)};color:#ffffff`;
+  const width = Math.max(40, Math.ceil(ident.length * 7.5) + 22);
+  if (!classB) {
+    const fill = unchecked
+      ? "background-color:#ffffff;color:#1c1a17"
+      : `background-color:${text(colour)};color:#ffffff`;
+    return L.divIcon({
+      className: "",
+      iconSize: [width, 24], iconAnchor: [width / 2, 12],
+      html:
+        `<span class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded-md border-2 border-white px-1.5 py-0.5 text-[11px] font-bold shadow-sm outline outline-1 outline-[rgba(10,20,28,.45)]"` +
+        ` style="${fill}">${text(ident)}</span>`,
+    });
+  }
+  // A Class B field is one pill in two halves: the top half is the
+  // flight category, in its colour and in words ("IFR" on red; a dash
+  // on grey for a field with no report), the bottom half the ident on
+  // white. The colour alone named the category, and on a phone there
+  // is no hover for the tooltip that spelt it out. The icon's box is
+  // the pill's, so a card opens from its top and the tap lands on it.
+  const height = 38;
   return L.divIcon({
     className: "",
-    iconSize: [width, 24], iconAnchor: [width / 2, 12],
+    iconSize: [width, height], iconAnchor: [width / 2, height / 2],
     html:
-      `<span class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap ${shape} border-2 border-white px-1.5 py-0.5 text-[11px] font-bold shadow-sm outline outline-1 outline-[rgba(10,20,28,.45)]"` +
-      ` style="${fill}">${text(ident)}${classB ? `<span class="ml-1 font-semibold opacity-90">${text(category ?? "?")}</span>` : ""}</span>`,
+      `<span class="absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden whitespace-nowrap rounded-full border-2 border-white text-center text-[11px] font-bold leading-none shadow-sm outline outline-1 outline-[rgba(10,20,28,.45)]">` +
+      `<span class="px-2 pt-1 pb-0.5" style="background-color:${text(colour)};color:#ffffff">${text(category ?? "—")}</span>` +
+      `<span class="bg-white px-2 pt-0.5 pb-1 text-[#1c1a17]">${text(ident)}</span>` +
+      `</span>`,
   });
 }
