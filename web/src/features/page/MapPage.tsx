@@ -141,7 +141,15 @@ export default function MapPage({ mode }: { mode: Mode }) {
               finished in the app's own dialog. */}
           <LinkSignIn />
           <SidebarSync open={sidebarOpen} onOpenChange={setSidebarOpen} />
-          <SidebarInset className="min-h-0 min-w-0 print:hidden">
+          {/* For a keyboard: past the header's controls to the map in
+              one press. Visible only while it has focus. */}
+          <a
+            href="#content"
+            className="sr-only z-50 rounded-md bg-background px-3 py-2 text-sm shadow focus:not-sr-only focus:fixed focus:top-2 focus:left-2"
+          >
+            Skip to the map
+          </a>
+          <SidebarInset id="content" className="min-h-0 min-w-0 print:hidden">
             <MapHeader
               dev={mode === "dev"}
               leading={<DevSwitch />}
