@@ -221,6 +221,13 @@ input, select, textarea {
 }
 
 @layer base {
+  /* One weight for emphasis: <b> and <strong> at 600, as every
+     font-semibold heading, figure and name is, rather than the
+     browser's 700 beside them. */
+  b, strong {
+    font-weight: var(--font-weight-semibold);
+  }
+
   * {
     @apply border-border outline-ring/50;
   }
@@ -294,6 +301,16 @@ body:has([data-slot="sidebar"][data-state="expanded"], [role="dialog"][data-stat
       position: relative;
     }
   }
+}
+
+/* A warning toast's words at 4.5:1. sonner's rich-colour warning text
+   is hsl(31 92% 45%) on its cream, 3.1:1 -- the VFR-not-recommended
+   line, read in a cockpit. Darker, the same hue, in the light theme
+   only: the dark theme's own is already past 4.5, and this darker one
+   on the dark toast was 3.3. Four attributes, to outrank sonner's own
+   three on the same element. */
+html:not(.dark) [data-sonner-toaster] [data-rich-colors="true"][data-sonner-toast][data-type="warning"] {
+  --warning-text: hsl(31 92% 34%);
 }
 
 /* Reduce Motion, honoured: sheets and popovers arrive, sections open,

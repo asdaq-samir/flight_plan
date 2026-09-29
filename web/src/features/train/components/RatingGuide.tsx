@@ -50,7 +50,7 @@ export default function RatingGuide() {
       <div className="flex flex-wrap gap-x-4 gap-y-1.5 text-muted-foreground">
         {SHORTCUTS.map(([key, text]) => (
           <div key={text} className="flex items-center gap-2">
-            {key && <Kbd>{key}</Kbd>}
+            {key && <Kbd className="whitespace-nowrap">{key}</Kbd>}
             <span>{text}</span>
           </div>
         ))}

@@ -76,7 +76,7 @@ export default function NavLogActions({ onGenerateNarrative, langgraphNarrative,
   return (
     // One flex item, so the pair sits together between the drawer
     // header's other buttons.
-    <div className="flex items-center gap-1">
+    <div className="flex items-center gap-2">
       <Popover
         open={open}
         onOpenChange={next => {

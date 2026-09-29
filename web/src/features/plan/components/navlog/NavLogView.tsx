@@ -560,7 +560,7 @@ export default function NavLogView({
                   {/* The three plans first, each a button: the pilot
                       picks one and the log re-plans on it. Then why. */}
                   <div className="mb-3 space-y-1.5" role="group" aria-label="Cruise altitude plans">
-                    <div className="text-xs font-semibold uppercase text-muted-foreground">Three plans, or your own</div>
+                    <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Three plans, or your own</div>
                     {nav.options.map(o => (
                       <Button
                         key={o.kind} type="button" size="sm"
@@ -609,7 +609,7 @@ export default function NavLogView({
                       </Button>
                     </form>
                   </div>
-                  <div className="mb-2 text-xs font-semibold uppercase text-muted-foreground">How the altitude was chosen</div>
+                  <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">How the altitude was chosen</div>
                   <AltitudeReasoning nav={nav} />
                 </PopoverContent>
               </Popover>
@@ -668,9 +668,12 @@ export default function NavLogView({
           the buttons drop out. */}
       <div className="flex flex-col gap-2 border-b border-border p-3 text-sm">
         <div className="flex items-center gap-2">
-          <span className="font-semibold text-muted-foreground" data-testid="drawer-title">Flight Planning</span>
+          {/* 16/600 in the foreground colour: the drawer's title, a step
+              above the sections' 14/600 (it was 14 and muted, and read
+              as weaker than the sections under it). */}
+          <span className="text-base font-semibold" data-testid="drawer-title">Flight Planning</span>
           <span className="hidden text-muted-foreground print:inline">{dep} → {dest}</span>
-          <div className="ml-auto flex items-center gap-1 print:hidden">{actions}</div>
+          <div className="ml-auto flex items-center gap-2 print:hidden">{actions}</div>
         </div>
         {/* The two inputs the log is computed from, and nothing else
             of it: the aeroplane (a stock profile or one of the pilot's

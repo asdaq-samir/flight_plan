@@ -151,6 +151,12 @@ export function describeError(err: unknown, fallback = "request failed"): string
   if (err instanceof TypeError && NO_ANSWER.test(err.message)) {
     return "The connection dropped before the answer arrived";
   }
+  // A fetch that gave up on its own `AbortSignal.timeout` -- the
+  // developer console's probes -- rejects with the DOM's "signal timed
+  // out", which a phone showed in a toast, word for word.
+  if (err instanceof DOMException && err.name === "TimeoutError") {
+    return "No answer in time";
+  }
   const firstLine = err instanceof Error ? err.message.split("\n")[0] : undefined;
   return firstLine || fallback;
 }

@@ -45,7 +45,9 @@ export default function MapControls({ zoom, ownShip = false, candidates }: Props
     // map's own right edge, which is the drawer's left edge whenever
     // it is open, and the inset pushed them a landscape phone's 59px
     // clear of a screen edge that was not there.
-    <div className="absolute top-2 right-2 z-[1000] flex flex-col items-end gap-1.5">
+    // gap-2: each control's 44-point hit area (index.css) abuts the
+    // next one's rather than overlapping it.
+    <div className="absolute top-2 right-2 z-[1000] flex flex-col items-end gap-2">
       <Popover>
         <PopoverTrigger asChild>
           <IconButton label="Chart layers" variant="outline" className="bg-background shadow-sm" data-testid="layers-button">
@@ -57,7 +59,7 @@ export default function MapControls({ zoom, ownShip = false, candidates }: Props
             <ChartLayers />
             {candidates && (
               <div className="space-y-2 border-t border-border pt-2">
-                <div className="text-xs font-semibold uppercase text-muted-foreground">Checkpoints</div>
+                <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Checkpoints</div>
                 <div className="flex items-center gap-2">
                   <Checkbox
                     id="show-candidates"

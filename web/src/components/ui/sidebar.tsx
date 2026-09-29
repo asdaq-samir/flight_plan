@@ -27,7 +27,12 @@ import { PanelLeftIcon } from "lucide-react"
 const SIDEBAR_COOKIE_NAME = "sidebar_state"
 const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7
 const SIDEBAR_WIDTH = "16rem"
-const SIDEBAR_WIDTH_MOBILE = "18rem"
+// 20rem, over the stock 18, or 85% of a narrower phone: the nav log's
+// summary line (distance, time, fuel, altitude) and the training
+// drawer's title beside its four icons fit at 320px and not at 292,
+// where the altitude ran off the edge and the title wrapped. A 390px
+// phone keeps 70px of map beside the drawer.
+const SIDEBAR_WIDTH_MOBILE = "min(20rem, 85vw)"
 const SIDEBAR_WIDTH_ICON = "3rem"
 const SIDEBAR_KEYBOARD_SHORTCUT = "b"
 
@@ -187,9 +192,14 @@ function Sidebar({
           data-slot="sidebar"
           data-mobile="true"
           className="w-(--sidebar-width) bg-sidebar p-0 text-sidebar-foreground [&>button]:hidden"
+          // The width as a style too: the sheet's own side variant
+          // (`data-[side=right]:w-3/4`) outranks the plain `w-(...)`
+          // above, and the drawer was three quarters of the screen
+          // whatever SIDEBAR_WIDTH_MOBILE said.
           style={
             {
               "--sidebar-width": SIDEBAR_WIDTH_MOBILE,
+              width: "var(--sidebar-width)",
             } as React.CSSProperties
           }
           side={side}

@@ -40,7 +40,9 @@ export function SelectableRow({
       }}
       className={cn(
         "cursor-pointer focus:outline-none",
-        mutedWhenUnselected && "text-muted-foreground",
+        // Muted rows take the foreground colour under the hover and
+        // focus tint: muted on the tint was 4.35:1, under WCAG's 4.5.
+        mutedWhenUnselected && "text-muted-foreground hover:text-foreground focus-visible:text-foreground",
         "hover:bg-accent focus-visible:bg-accent",
         // Inverted (bg-foreground/text-background), not just a tint --
         // the same treatment shadcn's own Tooltip uses for "this one
@@ -68,7 +70,9 @@ export function NoteRow({ selected, colSpan, children }: { selected: boolean; co
   return (
     <TableRow className={cn(selected && "bg-foreground text-background hover:bg-foreground")}>
       <TableCell
-        className={cn("py-1 pr-2 pl-4 text-left text-xs", !selected && "bg-muted/60 text-muted-foreground")}
+        // bg-muted/20, not /60: muted text on the darker tint was 4.4:1,
+        // a hair under WCAG's 4.5 for 12px type (and /40 was 4.46).
+        className={cn("py-1 pr-2 pl-4 text-left text-xs", !selected && "bg-muted/20 text-muted-foreground")}
         colSpan={colSpan}
       >
         {children}

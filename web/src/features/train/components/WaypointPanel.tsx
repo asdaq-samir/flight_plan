@@ -90,8 +90,10 @@ export default function WaypointPanel({
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       <div className="flex flex-col gap-1 border-b border-border p-3 text-sm">
         <div className="flex items-center gap-2">
-          <span className="font-semibold text-muted-foreground" data-testid="drawer-title">Model Training</span>
-          <div className="ml-auto flex items-center gap-1">
+          <span className="text-base font-semibold" data-testid="drawer-title">Model Training</span>
+          {/* gap-2: the icons' 44-point hit areas abut rather than
+              overlap, so a tap at one's edge is that one's. */}
+          <div className="ml-auto flex items-center gap-2">
             <Popover>
               <PopoverTrigger asChild>
                 <IconButton label="Filters" data-testid="waypoint-filters-button">
@@ -228,14 +230,19 @@ export default function WaypointPanel({
                   {isSelected && (
                     <NoteRow selected colSpan={COLUMNS}>
                       <div className="flex flex-wrap items-center gap-1 py-0.5">
-                        <div className="flex gap-1" role="group" aria-label="Rate this waypoint">
+                        {/* Six of 36 by 32, eight apart: each reaches
+                            44 points through its own hit area (index.css)
+                            without reaching into the next one's -- these
+                            are tapped a few hundred times a route. The
+                            coordinates wrap under them on a phone. */}
+                        <div className="flex gap-2" role="group" aria-label="Rate this waypoint">
                           {RATINGS.map(r => (
                             <Button
-                              key={r} type="button" size="xs"
+                              key={r} type="button" size="sm"
                               onClick={() => onRate(r)}
                               aria-label={`Rate ${r}`} aria-pressed={rating === r}
                               className={cn(
-                                "w-7 font-bold",
+                                "w-9 px-0 font-bold",
                                 rating === r ? "ring-2 ring-background" : "opacity-80 hover:opacity-100",
                               )}
                               style={{ backgroundColor: COLORS[r], color: inkOn(COLORS[r]) }}
