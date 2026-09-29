@@ -6,6 +6,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.sun.net.httpserver.HttpServer;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.net.URI;
@@ -75,5 +77,41 @@ class StreamingProxyTest {
         };
         StreamingResponseBody body = StreamingProxy.pipe(new ByteArrayInputStream("{\"type\":\"leg\"}\n".getBytes(StandardCharsets.UTF_8)));
         assertThatThrownBy(() -> body.writeTo(recycled)).isInstanceOf(AsyncRequestNotUsableException.class);
+    }
+
+    /** The container cancelling the request -- its client reset the
+     *  HTTP/2 stream -- interrupts the thread reading the upstream, which
+     *  the JDK's client reports as an IOException around the interrupt.
+     *  The pipe reports that as the client having left too, and leaves
+     *  the interrupt flag set for whoever runs the thread next. */
+    @Test
+    void aCopyInterruptedByTheContainerStopsAsAClientThatLeft() {
+        InputStream interrupted = new InputStream() {
+            @Override
+            public int read() throws IOException {
+                throw new IOException(new InterruptedException());
+            }
+        };
+        try {
+            assertThatThrownBy(() -> StreamingProxy.pipe(interrupted).writeTo(new ByteArrayOutputStream()))
+                    .isInstanceOf(AsyncRequestNotUsableException.class);
+            assertThat(Thread.currentThread().isInterrupted()).isTrue();
+        } finally {
+            assertThat(Thread.interrupted()).isTrue();
+        }
+    }
+
+    /** Any other failure reading the upstream is what it is. */
+    @Test
+    void anUpstreamThatFailsMidStreamIsStillAFailure() {
+        InputStream broken = new InputStream() {
+            @Override
+            public int read() throws IOException {
+                throw new IOException("connection reset by peer");
+            }
+        };
+        assertThatThrownBy(() -> StreamingProxy.pipe(broken).writeTo(new ByteArrayOutputStream()))
+                .isInstanceOf(IOException.class)
+                .isNot(new org.assertj.core.api.Condition<>(t -> t instanceof AsyncRequestNotUsableException, "a client that left"));
     }
 }

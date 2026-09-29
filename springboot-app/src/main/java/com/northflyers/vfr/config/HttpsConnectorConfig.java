@@ -4,7 +4,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 import org.apache.catalina.connector.Connector;
-import org.apache.coyote.http2.Http2Protocol;
 import org.apache.tomcat.util.net.SSLHostConfig;
 import org.apache.tomcat.util.net.SSLHostConfigCertificate;
 import org.slf4j.Logger;
@@ -30,9 +29,18 @@ import org.springframework.context.annotation.Configuration;
  * the plain port stays for everything on this machine (the e2e suite,
  * the planner's own health probe, a terminal's curl).
  *
- * <p>HTTP/2 is on for this connector. It is what makes a pan across
- * the chart feel light on a phone: the dozen tiles a pan asks for
- * arrive over one connection instead of queueing six at a time.
+ * <p>HTTP/1.1 only, no HTTP/2. HTTP/2 was on, on the reasoning that a
+ * pan's dozen tiles would arrive over one connection instead of
+ * queueing six at a time; measured on the LAN, at phone speed, the
+ * last tile of a pan arrived 1266 ms after the drag over HTTP/2 and
+ * 1267 ms over HTTP/1.1 (median of 15 pans each). What HTTP/2 did
+ * cost: a page reloaded with a detection stream in flight resets its
+ * streams, and Tomcat (10.1.55 and 10.1.60 alike) recycling a reset
+ * stream while a request still ran on it died with a
+ * NullPointerException in the thread and failed the request the phone
+ * was making -- 2 to 4 of every 240 cancelled requests -- which a
+ * pilot met as "Load failed" in a toast. Over HTTP/1.1 the same 240
+ * cancelled requests killed no thread.
  *
  * <p>"Configured" is one check: the keystore names a readable regular
  * file. It used to be two gates a blank value passed -- the property is
@@ -59,7 +67,7 @@ public class HttpsConnectorConfig {
                         + "(infra/local-https/make-certs.sh writes one)", keystore);
                 return;
             }
-            log.info("HTTPS with HTTP/2 on port {}, certificate from {}", port, keystore);
+            log.info("HTTPS on port {}, certificate from {}", port, keystore);
             Connector connector = new Connector("org.apache.coyote.http11.Http11NioProtocol");
             connector.setPort(port);
             connector.setScheme("https");
@@ -72,7 +80,6 @@ public class HttpsConnectorConfig {
             certificate.setCertificateKeystoreType("PKCS12");
             ssl.addCertificate(certificate);
             connector.addSslHostConfig(ssl);
-            connector.addUpgradeProtocol(new Http2Protocol());
             factory.addAdditionalTomcatConnectors(connector);
         };
     }

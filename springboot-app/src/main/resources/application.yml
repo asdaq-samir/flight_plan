@@ -150,7 +150,7 @@ management:
 # local `mvn package` after `vite build` finds it on the classpath.
 app:
   static-location: ${APP_STATIC_LOCATION:classpath:/static/app/}
-  # A second, HTTPS port with HTTP/2 for a phone on the same Wi-Fi
+  # A second, HTTPS port for a phone on the same Wi-Fi
   # (HttpsConnectorConfig) -- only when the keystore is named and the
   # file exists; docker-compose.yml names it, infra/local-https/
   # make-certs.sh writes it. Unset on AWS, where the load balancer

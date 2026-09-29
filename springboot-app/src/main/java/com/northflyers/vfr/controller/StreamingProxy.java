@@ -122,8 +122,27 @@ public class StreamingProxy {
     private static void copy(InputStream in, OutputStream out) throws IOException {
         try (in) {
             byte[] buffer = new byte[8192];
-            int read;
-            while ((read = in.read(buffer)) != -1) {
+            while (true) {
+                int read;
+                try {
+                    read = in.read(buffer);
+                } catch (IOException failed) {
+                    if (!(failed.getCause() instanceof InterruptedException)) {
+                        throw failed;
+                    }
+                    // The container cancelled this request -- over HTTP/2
+                    // a page that reloads resets its streams; seen while
+                    // the phone's connector spoke it -- and interrupted the
+                    // thread reading the upstream, which the JDK's client reports as an
+                    // IOException around the interrupt. The same thing as
+                    // below, said the same way; the flag is put back as
+                    // exchange() puts it back.
+                    Thread.currentThread().interrupt();
+                    throw new AsyncRequestNotUsableException("the client stopped reading the stream", failed);
+                }
+                if (read == -1) {
+                    break;
+                }
                 try {
                     out.write(buffer, 0, read);
                     out.flush();

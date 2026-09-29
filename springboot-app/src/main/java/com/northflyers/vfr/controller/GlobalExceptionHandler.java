@@ -3,7 +3,9 @@ package com.northflyers.vfr.controller;
 import com.northflyers.vfr.dto.ErrorResponse;
 import com.northflyers.vfr.service.NoSuchAircraftException;
 import jakarta.servlet.http.HttpServletResponse;
+import java.io.IOException;
 import java.util.List;
+import org.apache.coyote.CloseNowException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -37,6 +39,35 @@ public class GlobalExceptionHandler {
      *  writing a JSON body into an NDJSON stream already under way. */
     private static final DisconnectedClientHelper DISCONNECTED =
             new DisconnectedClientHelper("com.northflyers.vfr.disconnected-client");
+    private static final Logger disconnected = LoggerFactory.getLogger("com.northflyers.vfr.disconnected-client");
+
+    /**
+     * The same, in Tomcat's HTTP/2 words, which Spring's helper (written
+     * for HTTP/1.1's broken pipe and reset connection) does not know: the
+     * stream reset by the client while its request was still being read
+     * or its response written, and a write to a stream already reset
+     * ({@link CloseNowException}), wherever in the cause chain Spring MVC
+     * left it. Seen while the phone's connector spoke HTTP/2: a page
+     * reloaded there with a detection stream in flight logged each of
+     * these as an ERROR with a stack trace, then a second failure writing
+     * the 500's JSON into the NDJSON already under way -- 240 requests
+     * cancelled mid-flight left 262 such lines, against 4 over HTTP/1.1.
+     * That connector is HTTP/1.1 now (HttpsConnectorConfig says why);
+     * this stays for any connector that speaks HTTP/2 again.
+     */
+    static boolean streamReset(Throwable ex) {
+        Throwable cause = ex;
+        for (int depth = 0; cause != null && depth < 10; depth++, cause = cause.getCause()) {
+            if (cause instanceof CloseNowException) {
+                return true;
+            }
+            String message = cause.getMessage();
+            if (cause instanceof IOException && message != null && message.startsWith("Client reset the stream")) {
+                return true;
+            }
+        }
+        return false;
+    }
 
     /**
      * Handles a failed {@code @Valid} check on a request body.
@@ -111,6 +142,10 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleUnexpected(Exception ex, HttpServletResponse response) {
         if (DISCONNECTED.checkAndLogClientDisconnectedException(ex)) {
+            return null;
+        }
+        if (streamReset(ex)) {
+            disconnected.debug("Looks like the client has gone away: {}", ex.toString());
             return null;
         }
         if (response.isCommitted()) {

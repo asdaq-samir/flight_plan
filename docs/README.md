@@ -500,7 +500,7 @@ testing on a network you trust. `http://<your Mac's address>:8080/app/plan`
 then works for planning, but the two things a pilot wants in the air --
 their own position on the chart, and the route's charts with no
 connection -- the browser grants only to a secure origin. So the webapp
-also listens on HTTPS, with HTTP/2, once it has a certificate:
+also listens on HTTPS once it has a certificate:
 
 ```bash
 infra/local-https/make-certs.sh 192.168.1.42   # your Mac's LAN address; writes infra/local-https/certs/
