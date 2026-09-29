@@ -7,7 +7,8 @@ import { courseQuery, queryClient } from "./lib/queryClient";
 import { Toaster } from "./components/ui/sonner";
 import { TooltipProvider } from "./components/ui/tooltip";
 import { registerSW } from "virtual:pwa-register";
-import { toast } from "sonner";
+import UpdateNotice from "./components/UpdateNotice";
+import { useAppUpdate } from "./lib/appUpdate";
 import "./index.css";
 
 // The service worker (vite.config.ts): the app shell, the chart tiles
@@ -15,18 +16,12 @@ import "./index.css";
 // the air. It registers only on a secure origin (https, or localhost).
 // A new build is offered, not imposed: it used to reload the page the
 // moment its worker had installed, which on a phone was a minute or so
-// after every deploy, with the nav log just loaded. Reload takes it
-// now; otherwise a page opened fresh once every tab is closed has it.
+// after every deploy, with the nav log just loaded. UpdateNotice offers
+// it -- a toast, then a pill -- until Reload takes it; otherwise a page
+// opened fresh once every tab is closed has it.
 const updateSW = registerSW({
   immediate: true,
-  onNeedRefresh() {
-    toast("A new version of the planner is ready", {
-      id: "app-update",
-      duration: Infinity,
-      description: "Reload for it now, or carry on; the next fresh start has it.",
-      action: { label: "Reload", onClick: () => void updateSW(true) },
-    });
-  },
+  onNeedRefresh() { useAppUpdate.getState().ready(updateSW); },
 });
 
 // Three views, one app -- which is the point of the port. As separate
@@ -180,6 +175,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
         // already the deliberate way to dismiss one by hand.
         swipeDirections={[]}
       />
+      <UpdateNotice />
     </QueryClientProvider>
     </ThemeProvider>
   </React.StrictMode>,
