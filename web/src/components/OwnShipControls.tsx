@@ -20,7 +20,7 @@ export default function OwnShipControls() {
   const available = ownShipAvailable();
   return (
     <div className="space-y-2 border-t border-border pt-2">
-      <div className="text-xs font-semibold uppercase text-muted-foreground">Position</div>
+      <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Position</div>
       <div className="flex items-center gap-2">
         <Checkbox
           id="own-ship"

@@ -28,7 +28,7 @@ export default function ChartLayers() {
   const setClassB = usePreferences(s => s.setClassB);
   return (
     <div className="space-y-2 border-t border-border pt-2">
-      <div className="text-xs font-semibold uppercase text-muted-foreground">Chart layers</div>
+      <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Chart layers</div>
       <div className="flex items-center gap-2">
         <Label htmlFor="base-chart" className="w-24 shrink-0 font-normal">Base chart</Label>
         <Select value={base} onValueChange={value => setBase(value as BaseChart)}>

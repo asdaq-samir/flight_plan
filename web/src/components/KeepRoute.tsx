@@ -55,7 +55,7 @@ export default function KeepRoute({ course }: Props) {
 
   return (
     <div className="space-y-2 border-t border-border pt-2">
-      <div className="text-xs font-semibold uppercase text-muted-foreground">In the air</div>
+      <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">In the air</div>
       <Button
         type="button" size="sm" variant="outline" className="w-full"
         disabled={!available || !course || !layer || running}

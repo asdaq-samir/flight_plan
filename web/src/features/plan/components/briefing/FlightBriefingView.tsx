@@ -57,13 +57,13 @@ function BriefingNarrativePrintBlock({ langgraph, crewai }: { langgraph: string 
     <div className="hidden break-inside-avoid-page border-b border-border px-4 py-3 print:block print:break-inside-avoid">
       {langgraph && (
         <>
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">LangGraph Narrative</h2>
+          <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">LangGraph Narrative</h2>
           <p className="mt-2 text-sm text-muted-foreground">{langgraph}</p>
         </>
       )}
       {crewai && (
         <>
-          <h2 className={cn("text-sm font-semibold uppercase tracking-wide text-muted-foreground", langgraph && "mt-3")}>
+          <h2 className={cn("text-xs font-semibold uppercase tracking-wide text-muted-foreground", langgraph && "mt-3")}>
             CrewAI Narrative
           </h2>
           <p className="mt-2 text-sm text-muted-foreground">{crewai}</p>

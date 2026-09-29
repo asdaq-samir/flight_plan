@@ -32,7 +32,7 @@ export default function FilterBar({ filters, onChange, counts }: Props) {
     <div className="space-y-2 text-sm">
       {AXES.map(([axis, a, b]) => (
         <div key={axis}>
-          <div className="text-xs font-semibold uppercase text-muted-foreground">{axis}</div>
+          <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{axis}</div>
           <div className="grid grid-cols-2 gap-x-1">
             {[a, b].map(key => (
               <label

@@ -312,7 +312,7 @@ function ModelSection({ status, failed }: { status: Status | undefined; failed: 
       {current ? (
         <>
           <div className="mt-2 flex flex-wrap items-center gap-2" data-testid="serving-model">
-            <span className="text-base font-semibold">{current.model_type ?? "Unknown model"}</span>
+            <span className="font-semibold">{current.model_type ?? "Unknown model"}</span>
             <Badge>Serving</Badge>
             {unseen > 0 && <Badge variant="outline" className="tabular-nums">{unseen} newer ratings unseen</Badge>}
             <span className="text-xs text-muted-foreground">trained {ago(current.trained_at)} · {current.n_features} features</span>
