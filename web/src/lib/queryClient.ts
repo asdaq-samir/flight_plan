@@ -83,6 +83,15 @@ function failed(message: string) {
  *  Dev switch, which observes it too, simply stays hidden. */
 export const pilotQuery = queryOptions({ queryKey: ["pilot"], queryFn: () => api.me(), meta: { silent: true } });
 
+/** The planner's snapshot of the stack, which the Developer console
+ *  and the training drawer's Retrain button poll together. Fresh for
+ *  one poll's interval: opening the console within it shows the
+ *  snapshot already here, where it used to ask again on every open and
+ *  draw the console twice. */
+export const statusQuery = queryOptions({
+  queryKey: ["status"], queryFn: () => api.status(), staleTime: 30_000, refetchInterval: 30_000,
+});
+
 /** How this deployment is reached (SIGN_IN, OPEN or CLOSED) and which
  *  sign-ins it offers: asked once, and quiet on failure -- whoever reads
  *  it treats no answer as "not offered". */

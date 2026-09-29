@@ -1035,6 +1035,20 @@ def test_a_cycle_missing_a_sheet_is_not_complete_so_nothing_is_published_or_prun
     assert published == [] and pruned == []
 
 
+def test_status_counts_the_prepared_charts_of_each_kind(two_sheet_country):
+    """A count per kind, any cycle, from the marker each prepared chart
+    leaves: the console shows no more, and loading every chart to count
+    it was most of the status endpoint's time."""
+    for cycle, kind, name in [("10-29-2026", "sec", "Left"), ("10-29-2026", "sec", "Right"),
+                              ("10-29-2026", "tac", "Chicago"), ("09-03-2026", "sec", "Left"),
+                              ("10-29-2026", "not_a_kind", "Stray")]:
+        directory = charts.CHARTS_DIR / cycle / kind / name
+        directory.mkdir(parents=True)
+        (directory / charts._READY).write_text("{}")
+
+    assert charts.status()["prepared"] == {"sec": 3, "tac": 1}
+
+
 def test_refresh_renders_only_the_kinds_not_complete(two_sheet_country, monkeypatch):
     tmp_path = two_sheet_country
     charts.render_pyramid(charts.SECTIONAL, zooms=(7,), workers=0,

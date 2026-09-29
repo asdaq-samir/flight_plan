@@ -1,16 +1,14 @@
-import { Suspense, lazy, useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
 import { identOf, routeOf } from "../../lib/identSchema";
+import { statusQuery } from "../../lib/queryClient";
 // Without this Leaflet's tiles, markers and controls have no
 // positioning at all -- this is the library's own stylesheet, not
 // app styling.
 import "leaflet/dist/leaflet.css";
 import { useProgressToast } from "../../lib/useProgressToast";
 import type { WorkspaceProps } from "../page/workspace";
-/** The console's own chunk: recharts and the model tables are a third
- *  of this page's JavaScript and are parsed only when the console is
- *  actually opened. */
-const DevPanel = lazy(() => import("../dev/DevPanel").then(m => ({ default: m.DevPanel })));
 import ChartMap from "./components/ChartMap";
 import WaypointPanel from "./components/WaypointPanel";
 import PointPopup from "./components/PointPopup";
@@ -49,16 +47,26 @@ export default function TrainWorkspace({ dep, dest, children }: WorkspaceProps) 
   } = store;
   const [map, setMap] = useState<L.Map | null>(null);
 
-  // Fetched the moment this workspace mounts, not the moment the Sheet
-  // first opens: `DevPanel` is its own chunk (recharts and the model
-  // tables, split out so a pilot never downloads them), and the stock
-  // Sheet doesn't mount its content until it opens, so without this the
-  // console's first open paid for that chunk's own network round trip
-  // on top of the stock open animation -- a lag the pilot's console and
-  // the nav-log drawer don't have, since neither is split out. This
-  // developer is already on the training page by the time they reach
-  // for the console, so the fetch has a head start.
-  useEffect(() => { void import("../dev/DevPanel"); }, []);
+  // The console, its own chunk -- recharts and the model tables, split
+  // out so a pilot never downloads them -- fetched the moment this
+  // workspace mounts, not the moment the Sheet first opens, and the
+  // snapshot it opens on with it (on a phone the side drawer, whose
+  // Retrain button polls that too, is not mounted until it is opened).
+  // The developer is already on this page by the time they reach for
+  // the console, so both have a head start.
+  //
+  // Kept as the module itself rather than behind React's `lazy`: a
+  // `lazy` component is only asked for its chunk on its first render,
+  // so the first open still suspended, and React holds a suspended
+  // boundary's content back for 300 ms after showing its fallback --
+  // the console sat empty for that long with everything it needed
+  // already here.
+  const queryClient = useQueryClient();
+  const [devPanel, setDevPanel] = useState<typeof import("../dev/DevPanel") | null>(null);
+  useEffect(() => {
+    void import("../dev/DevPanel").then(setDevPanel);
+    void queryClient.prefetchQuery(statusQuery);
+  }, [queryClient]);
 
   // Everything the screen shows is computed from the store. Nothing is
   // kept in step by hand, which is what makes the old class of bug --
@@ -253,7 +261,7 @@ export default function TrainWorkspace({ dep, dest, children }: WorkspaceProps) 
         canUndo={store.canUndo} onUndo={() => void store.undo()} onResetAll={() => void store.resetAll()}
       />
     ),
-    console: <Suspense fallback={<div className="h-40" />}><DevPanel /></Suspense>,
+    console: devPanel ? <devPanel.DevPanel /> : <div className="h-40" />,
     submit,
     loading: store.loading,
   });

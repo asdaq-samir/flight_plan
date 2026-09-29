@@ -795,17 +795,6 @@ class CorridorStatus(BaseModel):
     notes: int
 
 
-class PreparedChart(BaseModel):
-    """One FAA chart zip downloaded and ready to draw: `rasters` are
-    the sheets inside it (a TAC zip can carry two)."""
-
-    name: str
-    kind: str
-    cycle: str
-    prepared_at: str | None
-    rasters: list[str]
-
-
 class PyramidPass(BaseModel):
     """A pass of `python -m vfr.charts pyramid` under way: sheets done of
     the sheets it set out to render, and the one it is on."""
@@ -840,7 +829,9 @@ class ChartsStatus(BaseModel):
 
     cycle: str
     current_cycle: str
-    charts: list[PreparedChart]
+    # How many FAA chart zips of each kind are downloaded and ready to
+    # draw, any cycle.
+    prepared: dict[str, int]
     tiles_cached: int
     pyramid: dict[str, PyramidProgress] = {}
     building: dict[str, PyramidProgress] = {}

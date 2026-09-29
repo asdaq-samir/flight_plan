@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { api } from "../../lib/api/client";
+import { statusQuery } from "../../lib/queryClient";
 
 /**
  * The one action that changes the model, and what a button for it
@@ -13,9 +14,7 @@ import { api } from "../../lib/api/client";
  */
 export function useRetrain() {
   const queryClient = useQueryClient();
-  const { data: status } = useQuery({
-    queryKey: ["status"], queryFn: api.status, refetchInterval: 30000, retry: false,
-  });
+  const { data: status } = useQuery(statusQuery);
   const start = useMutation({
     mutationFn: api.retrain,
     onSuccess: run => {

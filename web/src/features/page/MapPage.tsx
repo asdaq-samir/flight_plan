@@ -1,4 +1,4 @@
-import { Suspense, lazy, useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
+import { Suspense, lazy, useCallback, useDeferredValue, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { toast } from "sonner";
 import { cn } from "cn";
 import { EXPANDED_BUTTON } from "../../lib/expandedButton";
@@ -160,7 +160,7 @@ export default function MapPage({ mode }: { mode: Mode }) {
                         <SheetTitle>{consoleLabel}</SheetTitle>
                         <SheetDescription className="sr-only">The {consoleLabel.toLowerCase()} console</SheetDescription>
                       </SheetHeader>
-                      {pieces.console}
+                      <AfterTheSheet>{pieces.console}</AfterTheSheet>
                     </SheetContent>
                   </Sheet>
                   <DrawerTrigger label={sidebar} />
@@ -189,6 +189,19 @@ export default function MapPage({ mode }: { mode: Mode }) {
     </Workspace>
     </Suspense>
   );
+}
+
+/**
+ * A console's content, drawn a moment after the Sheet that holds it.
+ * Either console is a few hundred milliseconds of rendering on a
+ * phone's processor, and in the same render as the Sheet it held the
+ * Sheet back for all of it: the tap seemed to do nothing, then the
+ * console arrived whole. Deferred, the Sheet is on screen and sliding
+ * in on the next frame, and the console fills it while it does.
+ */
+function AfterTheSheet({ children }: { children: ReactNode }) {
+  const drawn = useDeferredValue(true, false);
+  return drawn ? children : <div className="h-40" />;
 }
 
 /** The header's drawer button: the stock trigger, named for what the

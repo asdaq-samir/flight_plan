@@ -57,6 +57,7 @@ import shutil
 import threading
 import time
 import zipfile
+from collections import Counter
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
@@ -1011,16 +1012,18 @@ def tiles_base_url() -> str | None:
 
 def status() -> dict:
     """What the Dev console shows: the cycle being served and the one
-    the FAA is on, the charts prepared (any cycle), how many tiles have
-    been rendered, how far the served cycle's pyramid got and whether
-    a newer one is being built. Never touches the network."""
-    charts = [
-        {
-            "name": c.name, "kind": c.kind.key, "cycle": c.cycle, "prepared_at": c.prepared_at,
-            "rasters": [r.path.stem for r in c.rasters],
-        }
-        for c in prepared_charts()
-    ]
+    the FAA is on, how many charts of each kind are prepared (any
+    cycle), how many tiles have been rendered, how far the served
+    cycle's pyramid got and whether a newer one is being built. Never
+    touches the network."""
+    # Counted from the marker each prepared chart leaves, not by loading
+    # them: reading every chart's description (its faces, its mask
+    # lines) was two thirds of the status endpoint's time, and each
+    # chart's name, cycle and rasters made up 19 of its 24 KB -- for a
+    # console that shows a count per kind.
+    prepared = Counter(
+        ready.parent.parent.name for ready in CHARTS_DIR.glob(f"*/*/*/{_READY}") if ready.parent.parent.name in KINDS
+    )
     serving, current = serving_cycle(), current_cycle(fetch=False)
 
     def described(cycle: str) -> dict:
@@ -1034,7 +1037,7 @@ def status() -> dict:
     tiles = sum(p["tiles"] for p in pyramid.values())
     building = described(current) if current != serving else {}
     return {
-        "cycle": serving, "current_cycle": current, "charts": charts, "tiles_cached": tiles,
+        "cycle": serving, "current_cycle": current, "prepared": dict(prepared), "tiles_cached": tiles,
         "pyramid": pyramid, "building": building, "refresh_running": refresh_running(),
     }
 

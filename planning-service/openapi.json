@@ -1105,13 +1105,6 @@
             "title": "Building",
             "type": "object"
           },
-          "charts": {
-            "items": {
-              "$ref": "#/components/schemas/PreparedChart"
-            },
-            "title": "Charts",
-            "type": "array"
-          },
           "current_cycle": {
             "title": "Current Cycle",
             "type": "string"
@@ -1119,6 +1112,13 @@
           "cycle": {
             "title": "Cycle",
             "type": "string"
+          },
+          "prepared": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Prepared",
+            "type": "object"
           },
           "pyramid": {
             "additionalProperties": {
@@ -1151,7 +1151,7 @@
         "required": [
           "cycle",
           "current_cycle",
-          "charts",
+          "prepared",
           "tiles_cached"
         ],
         "title": "ChartsStatus",
@@ -3686,50 +3686,6 @@
           "chart_layers"
         ],
         "title": "Plan",
-        "type": "object"
-      },
-      "PreparedChart": {
-        "description": "One FAA chart zip downloaded and ready to draw: `rasters` are\nthe sheets inside it (a TAC zip can carry two).",
-        "properties": {
-          "cycle": {
-            "title": "Cycle",
-            "type": "string"
-          },
-          "kind": {
-            "title": "Kind",
-            "type": "string"
-          },
-          "name": {
-            "title": "Name",
-            "type": "string"
-          },
-          "prepared_at": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Prepared At"
-          },
-          "rasters": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Rasters",
-            "type": "array"
-          }
-        },
-        "required": [
-          "name",
-          "kind",
-          "cycle",
-          "prepared_at",
-          "rasters"
-        ],
-        "title": "PreparedChart",
         "type": "object"
       },
       "PyramidPass": {

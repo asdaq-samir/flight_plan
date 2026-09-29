@@ -15,7 +15,7 @@ import {
   Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow,
 } from "../../components/ui/table";
 import { api, errorMessage } from "../../lib/api/client";
-import { pilotQuery } from "../../lib/queryClient";
+import { pilotQuery, statusQuery } from "../../lib/queryClient";
 import type { ModelComparisonEntry, Status } from "../../lib/api/types";
 import RatingGuide from "../train/components/RatingGuide";
 import { SignInStatus } from "../pilot/AccountPanels";
@@ -26,6 +26,10 @@ const mae = (n: number) => n.toFixed(4);
 /** Every rating on every collected route: what the next retrain reads. */
 const ratings = (status: Status) => status.corridors.reduce((n, c) => n + c.labels.total, 0);
 
+/** One formatter for every date the console shows: `toLocaleDateString`
+ *  builds a new one per call, and was the console's costliest function. */
+const DATE = new Intl.DateTimeFormat();
+
 /** "just now", "12 min ago", "3 h ago", or the date -- for a timestamp
  *  that may be missing altogether. */
 function ago(iso: string | null | undefined): string {
@@ -35,7 +39,7 @@ function ago(iso: string | null | undefined): string {
   if (min < 60) return `${min} min ago`;
   const h = Math.round(min / 60);
   if (h < 48) return `${h} h ago`;
-  return new Date(iso).toLocaleDateString();
+  return DATE.format(new Date(iso));
 }
 
 const CHART_KIND_LABELS: Record<string, string> = {
@@ -60,9 +64,7 @@ const CHART_KIND_LABELS: Record<string, string> = {
  */
 export function DevPanel() {
   const queryClient = useQueryClient();
-  const { data: status, isFetching, isError: statusFailed } = useQuery({
-    queryKey: ["status"], queryFn: api.status, refetchInterval: 30000,
-  });
+  const { data: status, isFetching, isError: statusFailed } = useQuery(statusQuery);
   // The tab the console was last on, remembered per browser: a
   // developer watching a retrain or a route being collected reopens the
   // console to the same tab, not to Model Training every time.
@@ -164,7 +166,9 @@ function ModelComparisonChart() {
                 />
               )}
             />
-            <Bar dataKey="score" radius={4}>
+            {/* No entry animation: the bars grew in for 400 ms after the
+                data had arrived, and the numbers are the point. */}
+            <Bar dataKey="score" radius={4} isAnimationActive={false}>
               {rows.map(m => (
                 <Cell key={m.name} fill={m.promoted ? PROMOTED_BAR_COLOR : "var(--color-score)"} />
               ))}
@@ -570,7 +574,7 @@ function Dot({ tone }: { tone: Tone }) {
 function ChartsSection({ charts, onRefresh, refreshing }: {
   charts: NonNullable<Status["charts"]>; onRefresh: () => void; refreshing: boolean;
 }) {
-  const sheets = charts.charts.reduce<Record<string, number>>((n, c) => ({ ...n, [c.kind]: (n[c.kind] ?? 0) + 1 }), {});
+  const sheets = charts.prepared;
   const kinds = Object.keys(CHART_KIND_LABELS).filter(k => sheets[k] || charts.pyramid?.[k] || charts.building?.[k]);
   const newer = charts.current_cycle !== charts.cycle;
   type Pyramid = NonNullable<Status["charts"]>["pyramid"][string];
