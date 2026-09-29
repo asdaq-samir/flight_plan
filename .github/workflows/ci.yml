@@ -20,6 +20,12 @@ name: CI
 # (`gh api repos/<owner>/<repo>/git/ref/tags/<tag>`, following the
 # object through `git/tags/<sha>` for an annotated tag) and update both.
 # Dependabot updates a pinned action and its comment together.
+#
+# The runner image is named rather than `ubuntu-latest`, for a smaller
+# version of the same reason: GitHub moves that label to a new Ubuntu
+# over several weeks (24.04 to 26.04 from October 19, 2026), and while
+# it does, one run's jobs can land on either image. The next LTS is a
+# change to this file, tested like any other.
 
 on:
   push:
@@ -47,7 +53,7 @@ permissions:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7
@@ -73,7 +79,7 @@ jobs:
   # as rated, which way the arrows step, which leg leaves a checkpoint --
   # which need no browser and so run like anything else.
   test-web:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     defaults:
       run:
         working-directory: web
@@ -106,7 +112,7 @@ jobs:
   # Postgres for the migration/persistence tests; GitHub runners provide
   # the Docker daemon it needs.
   test-webapp:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
       - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6  # v6
@@ -143,7 +149,7 @@ jobs:
   # on top of the service's own requirements.txt), and no reason to gate
   # it on the root `test` job's unrelated src/vfr dependencies.
   test-planning-service:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     defaults:
       run:
         working-directory: planning-service
@@ -164,7 +170,7 @@ jobs:
   # tensorflow (the candidates it serves), which is most of this job's
   # time, and none of the other suites needs them.
   test-model-service:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     defaults:
       run:
         working-directory: model-service
@@ -184,7 +190,7 @@ jobs:
   # first for the same reason its Dockerfile does. The suites mock the
   # database, planning-service and Claude, so nothing here is billed.
   test-nav-log-agent:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     defaults:
       run:
         working-directory: nav-log-agent
@@ -201,7 +207,7 @@ jobs:
       - run: pytest tests/ -v
 
   test-crewai-agent:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     defaults:
       run:
         working-directory: crewai-agent
@@ -224,7 +230,7 @@ jobs:
   # stay fully in sync with every dependency bump merged, path-filter
   # blind spots included.
   changes:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     # Runs on pushes as well, where it compares against the previous
     # commit. `build-images` ignores it outside a PR on purpose (see
     # above), but `docs` uses it either way: three of its steps build
@@ -295,7 +301,7 @@ jobs:
               - springboot-app/**
 
   build-images:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     # One list, and no `if:` -- the implicit success() is the rule: every
     # test job passed and `changes` ran. It used to be written twice,
     # here and again in an `always() && …` condition, and the two had
@@ -386,7 +392,7 @@ jobs:
   # minutes per run, so it's scoped to pushes to main rather than charged
   # to every PR.
   docs:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     needs: [test, changes]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
@@ -484,7 +490,7 @@ jobs:
   # AirflowImageUri) even though its GHA cache scope stays `airflow-aws`
   # (distinct from the *local* airflow image also built above).
   push-ecr:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     needs: build-images
     if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.AWS_ROLE_ARN != ''
     permissions:
