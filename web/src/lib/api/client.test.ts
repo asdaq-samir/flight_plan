@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { detailOf } from "./client";
+import { describeError, detailOf } from "./client";
 
 const response = (status: number, body: unknown, statusText = "") =>
   new Response(body === undefined ? null : JSON.stringify(body), { status, statusText });
@@ -17,5 +17,21 @@ describe("detailOf", () => {
   test("Spring's `error`, then the status text", async () => {
     expect(await detailOf(response(409, { error: "Conflict" }))).toBe("Conflict");
     expect(await detailOf(response(401, undefined, "Unauthorized"))).toBe("Unauthorized");
+  });
+});
+
+describe("describeError", () => {
+  test("a fetch that never got an answer reads as a dropped connection, not the browser's words", () => {
+    const dropped = "The connection dropped before the answer arrived";
+    expect(describeError(new TypeError("Load failed"))).toBe(dropped);
+    expect(describeError(new TypeError("FetchEvent.respondWith received an error: TypeError: Load failed"))).toBe(dropped);
+    expect(describeError(new TypeError("Failed to fetch"))).toBe(dropped);
+    expect(describeError(new TypeError("NetworkError when attempting to fetch resource."))).toBe(dropped);
+  });
+
+  test("anything else is its own first line, or the fallback", () => {
+    expect(describeError(new Error("planner service unreachable\n    at fetch"))).toBe("planner service unreachable");
+    expect(describeError(new TypeError("x is not a function"))).toBe("x is not a function");
+    expect(describeError("nope", "request failed")).toBe("request failed");
   });
 });

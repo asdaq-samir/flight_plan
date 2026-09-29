@@ -139,7 +139,18 @@ async function* ndjson<T>(stream: ReadableStream | undefined): AsyncGenerator<T>
  * fallback otherwise. Only the first line -- a server's detail can run
  * to a traceback, and a toast is not the place for one.
  */
+/** The browsers' own words for a fetch that never got an answer --
+ *  Safari's "Load failed", Chrome's "Failed to fetch", Firefox's
+ *  "NetworkError when attempting to fetch resource" -- and Safari's for
+ *  the same on a page a service worker answers for, "FetchEvent.respondWith
+ *  received an error: TypeError: Load failed", which a pilot read on a
+ *  phone, word for word, in a toast. */
+const NO_ANSWER = /load failed|failed to fetch|networkerror|respondwith/i;
+
 export function describeError(err: unknown, fallback = "request failed"): string {
+  if (err instanceof TypeError && NO_ANSWER.test(err.message)) {
+    return "The connection dropped before the answer arrived";
+  }
   const firstLine = err instanceof Error ? err.message.split("\n")[0] : undefined;
   return firstLine || fallback;
 }
