@@ -16,7 +16,7 @@ import type { WorkspaceProps } from "../page/workspace";
 import { PilotPanel } from "../pilot/PilotPanel";
 import { Alert, AlertDescription, AlertTitle } from "../../components/ui/alert";
 import BuildNotice from "./components/BuildNotice";
-import FlightBriefingView from "./components/briefing/FlightBriefingView";
+import FlightBriefingView, { SaveFlightButton } from "./components/briefing/FlightBriefingView";
 import NavLogActions from "./components/navlog/NavLogActions";
 import NavLogView from "./components/navlog/NavLogView";
 import RouteMap from "./components/RouteMap";
@@ -244,11 +244,17 @@ export default function PlanWorkspace({ dep, dest, sidebarOpen, children }: Work
       onGenerateDescriptions={s.generateDescriptions}
       descriptionsLoading={s.descriptionProgress !== null}
       actions={(
-        <NavLogActions
-          onGenerateNarrative={s.generateNarrative}
-          langgraphNarrative={s.langgraphNarrative}
-          crewaiNarrative={s.crewaiNarrative}
-        />
+        <>
+          <SaveFlightButton
+            course={course} totals={s.totals} nav={s.nav} legs={s.legs} selected={selected}
+            aircraftId={aircraft.aircraftId ?? null} depart={depart}
+          />
+          <NavLogActions
+            onGenerateNarrative={s.generateNarrative}
+            langgraphNarrative={s.langgraphNarrative}
+            crewaiNarrative={s.crewaiNarrative}
+          />
+        </>
       )}
       selectedPoint={selectedPoint} onSelectPoint={(lat, lon) => selectPoint({ lat, lon })}
       alt={alt} onAltChange={setAlt} onSubmit={submit}
@@ -257,12 +263,10 @@ export default function PlanWorkspace({ dep, dest, sidebarOpen, children }: Work
       onAircraftChange={changeAircraft}
     >
       <FlightBriefingView
-        course={course} totals={s.totals} nav={s.nav} legs={s.legs}
-        dep={planned.dep} dest={planned.dest} selected={selected}
+        nav={s.nav} legs={s.legs}
+        dep={planned.dep} dest={planned.dest}
         open={sidebarOpen} briefing={s.briefing}
         langgraphNarrative={s.langgraphNarrative} crewaiNarrative={s.crewaiNarrative}
-        aircraftLabel={aircraft.label} aircraftId={aircraft.aircraftId ?? null}
-        depart={depart}
       />
     </NavLogView>
   );

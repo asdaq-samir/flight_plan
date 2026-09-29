@@ -32,11 +32,12 @@ test("a flight is filed once, whole, and a new plan is offered for saving again"
   const save = page.getByRole("button", { name: /Save this flight|Saved|Saving/ });
 
   // Offered once the nav log is whole -- it used to be enabled
-  // mid-stream, and filed null totals.
-  await expect(save).toHaveText("Save this flight", { timeout: 90_000 });
+  // mid-stream, and filed null totals. An icon button in the drawer's
+  // header, beside the narrative and Print: its state is its name.
+  await expect(save).toHaveAccessibleName("Save this flight", { timeout: 90_000 });
   await expect(save).toBeEnabled({ timeout: 90_000 });
   await save.click();
-  await expect(save).toHaveText("Saved");
+  await expect(save).toHaveAccessibleName("Saved");
   await expect(save).toBeDisabled();
 
   expect(filed).toHaveLength(1);
@@ -53,7 +54,7 @@ test("a flight is filed once, whole, and a new plan is offered for saving again"
   if (phone) await page.keyboard.press("Escape");
   await page.getByRole("button", { name: "Load" }).click();
   if (phone) await page.getByTestId("sidebar-trigger-button").click();
-  await expect(save).toHaveText("Save this flight", { timeout: 90_000 });
+  await expect(save).toHaveAccessibleName("Save this flight", { timeout: 90_000 });
   await expect(save).toBeEnabled({ timeout: 90_000 });
 });
 

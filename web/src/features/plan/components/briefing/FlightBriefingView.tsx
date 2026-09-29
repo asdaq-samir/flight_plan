@@ -2,8 +2,9 @@ import { useEffect, useMemo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { cn } from "cn";
 import { toast } from "sonner";
+import { Check, Loader2, Save } from "lucide-react";
+import IconButton from "../../../../components/IconButton";
 import { Badge } from "../../../../components/ui/badge";
-import { Button } from "../../../../components/ui/button";
 import BriefingSection from "./BriefingSection";
 import { api } from "../../../../lib/api/client";
 import { pilotQuery } from "../../../../lib/queryClient";
@@ -18,13 +19,10 @@ import { navLogRows, savedCheckpoints } from "../navlog/rows";
 import { colourOf } from "../../../../lib/map/flightCategory";
 
 interface Props {
-  course: Course | null;
-  totals: Totals | null;
   nav: NavLogAltitude | null;
   legs: Leg[];
   dep: string;
   dest: string;
-  selected: Candidate[];
   /** Whether the drawer holding this is open. The view stays mounted
    *  beside a desktop map whether or not it is. */
   open: boolean;
@@ -40,14 +38,6 @@ interface Props {
    *  component's. */
   langgraphNarrative: FrameworkNarrative;
   crewaiNarrative: FrameworkNarrative;
-  /** The aeroplane the nav log was computed for (chosen in the nav log's
-   *  own header): its label for the summary, and its id -- a pilot's
-   *  own, or null for a stock profile -- for the saved flight. */
-  aircraftLabel: string;
-  aircraftId: number | null;
-  /** The departure time as an ISO instant, or "" -- what a saved
-   *  flight is planned for. */
-  depart: string;
 }
 
 /**
@@ -131,17 +121,27 @@ function windsAloftSummary(legs: Leg[]): { dir: number; speed: number }[] {
  * shown disabled -- there is nothing a signed-out pilot could do
  * about it from here, and a disabled button with no explanation reads
  * as broken rather than as "sign in first."
+ *
+ * An icon button in the drawer's header, beside the narrative and
+ * Print (PlanWorkspace puts it there), its state its name: Save this
+ * flight, Saving…, Saved. It was a line of its own at the head of the
+ * sections, with the aeroplane the flight would be filed in spelled
+ * out beside it; that aeroplane is the header's own picker, a line
+ * above.
  */
-function SaveFlightSection({
-  course, totals, nav, legs, selected, aircraftId, aircraftLabel, depart,
+export function SaveFlightButton({
+  course, totals, nav, legs, selected, aircraftId, depart,
 }: {
   course: Course | null;
   totals: Totals | null;
   nav: NavLogAltitude | null;
   legs: Leg[];
   selected: Candidate[];
+  /** The aeroplane the nav log was computed for: a pilot's own, or
+   *  null for a stock profile. */
   aircraftId: number | null;
-  aircraftLabel: string;
+  /** The departure time as an ISO instant, or "" -- what the saved
+   *  flight is planned for. */
   depart: string;
 }) {
   const queryClient = useQueryClient();
@@ -184,20 +184,16 @@ function SaveFlightSection({
 
   if (!pilot) return null;
 
+  const label = save.isPending ? "Saving…" : saved ? "Saved" : "Save this flight";
   return (
-    // One line and a button at the top of the sections, ruled off
-    // from them the way the accordion rules its own items apart.
-    <div className="flex flex-wrap items-center justify-between gap-2 border-b py-3 text-sm print:hidden">
-      {/* The aeroplane is whatever the nav log was computed for (its
-          own header's picker), not a second choice made here -- a
-          filed flight should record the numbers on the page. */}
-      <span className="text-muted-foreground">
-        {aircraftId === null ? `Planned for a stock ${aircraftLabel}; no aeroplane of yours on file for it` : `Flown in ${aircraftLabel}`}
-      </span>
-      <Button onClick={() => request && save.mutate(request)} disabled={!request || save.isPending || saved}>
-        {save.isPending ? "Saving…" : saved ? "Saved" : "Save this flight"}
-      </Button>
-    </div>
+    <IconButton
+      label={label}
+      onClick={() => request && save.mutate(request)}
+      disabled={!request || save.isPending || saved}
+      data-testid="save-flight-button"
+    >
+      {save.isPending ? <Loader2 className="size-5 animate-spin" /> : saved ? <Check className="size-5" /> : <Save className="size-5" />}
+    </IconButton>
   );
 }
 
@@ -218,9 +214,9 @@ function SaveFlightSection({
  * silently disappearing the way an unnamed gap would.
  */
 export default function FlightBriefingView({
-  course, totals, nav, legs, dep, dest, selected,
+  nav, legs, dep, dest,
   open, briefing: briefingState,
-  langgraphNarrative, crewaiNarrative, aircraftLabel, aircraftId, depart,
+  langgraphNarrative, crewaiNarrative,
 }: Props) {
   const winds = windsAloftSummary(legs);
   // "VFR flight not recommended" (AIM 7-1-5) and its reasons are the
@@ -289,13 +285,10 @@ export default function FlightBriefingView({
       {/* No summary section: the drawer's own header already carries
           the route's totals, the altitude and the aeroplane, and a
           second copy of them behind a fold was the same facts twice.
-          "Save this flight" is what that section had of its own, and it
-          leads the sections on its own line. Every weather section
-          below stays collapsed -- skim the titles, open what applies. */}
-      <SaveFlightSection
-        course={course} totals={totals} nav={nav} legs={legs} selected={selected}
-        aircraftId={aircraftId} aircraftLabel={aircraftLabel} depart={depart}
-      />
+          "Save this flight" is what that section had of its own, and
+          it is in that header now too (SaveFlightButton). Every
+          weather section below stays collapsed -- skim the titles,
+          open what applies. */}
       {briefingState.state === "ready" && briefingState.refreshError && (
         // The last briefing stays up after a refresh that failed -- say
         // so, and how old it is, as the map's airport chips do.

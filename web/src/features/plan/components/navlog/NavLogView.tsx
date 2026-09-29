@@ -18,6 +18,7 @@ import {
   Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow,
 } from "../../../../components/ui/table";
 import type { AltitudeChoice, Candidate, Leg, NavLogAltitude, Totals } from "../../../../lib/api/types";
+import { revealRow } from "../../../../lib/revealRow";
 import { type Description, descriptionKey } from "../../hooks/useCheckpointNotes";
 import { altFt, clockTime, deg, describeSteps, describeTime, etaAt, one, signed, totalsParts } from "../../format";
 import BriefingSection from "../briefing/BriefingSection";
@@ -106,7 +107,8 @@ interface Props {
    *  been clicked. */
   onGenerateDescriptions: () => void;
   descriptionsLoading: boolean;
-  /** The briefing's own header actions (the narrative popover, Print). */
+  /** The briefing's own header actions (Save this flight, the narrative
+   *  popover, Print). */
   actions?: ReactNode;
   /** The briefing's sections, rendered under the nav log's own
    *  section in the same scroller. */
@@ -360,10 +362,13 @@ export default function NavLogView({
   // clicking the row itself would have been -- otherwise the
   // highlighted row can be scrolled out of view in this (now often
   // narrow, since it's a draggable sidebar) column and looks like
-  // nothing happened.
-  useEffect(() => {
-    selectedRef.current?.scrollIntoView({ block: "nearest" });
-  }, [selectedPoint]);
+  // nothing happened. Brought to the middle when it is out of view
+  // (a point picked on the map, the drawer opened after), left where
+  // it is when it is not (the row itself clicked). On the sections
+  // changing too: on a phone the drawer is mounted afresh each time it
+  // opens, with every section closed, and the row is only there to
+  // reveal once the nav log's own section has been opened.
+  useEffect(() => revealRow(selectedRef.current), [selectedPoint, open]);
   const isSelected = (lat: number, lon: number) =>
     !!selectedPoint && descriptionKey(lat, lon) === descriptionKey(selectedPoint.lat, selectedPoint.lon);
 

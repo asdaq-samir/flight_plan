@@ -12,6 +12,7 @@ import {
 } from "../../../components/ui/table";
 import { isEndpoint, type Point, type Rating } from "../../../lib/api/types";
 import { COLORS, RATINGS, pointKey, prettyCategory, roleOf, type FilterKey, type Filters, type WalkEntry } from "../logic";
+import { revealRow } from "../../../lib/revealRow";
 import { inkOn } from "../../../lib/scoreScale";
 import FilterBar from "./FilterBar";
 
@@ -72,10 +73,9 @@ export default function WaypointPanel({
   // Selecting a point on the map (or by stepping) should be as visible
   // here as clicking the row itself would have been -- otherwise the
   // highlighted row can be scrolled out of view and looks like nothing
-  // happened.
-  useEffect(() => {
-    selectedRef.current?.scrollIntoView({ block: "nearest" });
-  }, [selected]);
+  // happened. To the middle when it is out of view, left alone when
+  // it is not (see revealRow).
+  useEffect(() => revealRow(selectedRef.current), [selected]);
 
   // Numbered over the walk with the endpoints skipped -- the same
   // "n of total" the map popup shows for the same point. A separate

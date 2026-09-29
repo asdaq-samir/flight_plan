@@ -303,6 +303,9 @@ test("plan page: the flight planning drawer opens the way the Model Training dra
   // of the log's: neither is inside a section.
   await expect(drawer.getByTestId("aircraft-select")).toBeVisible();
   await expect(drawer.getByTestId("depart-picker")).toBeVisible();
+  // And, signed in, Save this flight beside the narrative and Print.
+  await expect(drawer.getByTestId("save-flight-button")).toBeVisible();
+  await expect(drawer.getByTestId("ai-narrative-button")).toBeVisible();
   expect(await drawer.locator('[data-slot="accordion-content"] [data-testid="aircraft-select"]').count()).toBe(0);
   expect(await drawer.locator('[data-slot="accordion-content"] [data-testid="depart-picker"]').count()).toBe(0);
   // Every section starts closed, the nav log's own first among them:
@@ -491,6 +494,50 @@ test("plan page: a click or Enter selects a nav log checkpoint, with the briefin
   await titles.first().focus();
   await page.keyboard.press("ArrowDown");
   await expect(titles.nth(1)).toBeFocused();
+});
+
+test("plan page: a checkpoint picked on the map is brought to the middle of the nav log, and a row clicked in view stays put", async ({ page }) => {
+  await page.goto("/app/plan?dep=C81&dest=KDLH");
+  await settle(page);
+  const marker = page.locator(".leaflet-marker-icon", { hasText: /^1[01]$/ }).first();
+  await expect(marker).toBeVisible({ timeout: 15000 });
+  // A DOM click, not a pointer one: the legs are still streaming in
+  // and each re-draws the markers, so Playwright's wait for the marker
+  // to hold still ran the test out of time.
+  await marker.dispatchEvent("click");
+
+  // Then a short window, so the nav log has to scroll: the row used to
+  // come to rest at the bottom edge (scrollIntoView "nearest"), the
+  // last visible line when the drawer was opened after the pick. (The
+  // pick first, at full height: at 420px a phone's map is too short
+  // for a marker along the route to be clicked.)
+  const viewport = page.viewportSize()!;
+  await page.setViewportSize({ width: viewport.width, height: 420 });
+  await page.waitForTimeout(300);
+  await page.getByTestId("sidebar-trigger-button").click();
+  await sideDrawer(page).getByText("Nav log", { exact: true }).click();
+  const table = page.getByRole("table", { name: /Navigation log from/i });
+  const selectedRow = table.locator("tbody tr[data-selected]");
+  await expect(selectedRow).toHaveCount(1);
+  const scroller = sideDrawer(page).getByTestId("navlog-scroller");
+  const middle = async () => {
+    const row = (await selectedRow.boundingBox())!;
+    const view = (await scroller.boundingBox())!;
+    return Math.abs((row.y + row.height / 2) - (view.y + view.height / 2)) / view.height;
+  };
+  // Within a quarter of the scroller's height of its middle.
+  await expect.poll(middle, { timeout: 5000 }).toBeLessThan(0.25);
+
+  // The row above it, in view beside it, clicked: selected, and
+  // nothing moves.
+  const before = await scroller.evaluate(el => el.scrollTop);
+  const rows = table.locator("tbody tr[tabindex='0']");
+  const index = await selectedRow.evaluate(row => Array.from(row.parentElement!.querySelectorAll("tr[tabindex='0']")).indexOf(row));
+  const neighbour = rows.nth(index - 1);
+  await neighbour.click();
+  await expect(selectedRow.first().locator("td").first()).toHaveText(await neighbour.locator("td").first().innerText());
+  await page.waitForTimeout(400);
+  expect(await scroller.evaluate(el => el.scrollTop)).toBe(before);
 });
 
 test("plan page: a route from an airport to itself says so, rather than showing nothing at all", async ({ page }) => {
