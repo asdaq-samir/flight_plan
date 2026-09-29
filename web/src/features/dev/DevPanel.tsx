@@ -91,12 +91,10 @@ export function DevPanel() {
           <RefreshCw className={cn("size-4", isFetching && "animate-spin")} />
         </IconButton>
       }
-      actions={
-        <>
-          {pilot && <SignInStatus pilot={pilot} onRetry={() => void checkPilot()} />}
-          {status && <span className="whitespace-nowrap text-xs text-muted-foreground">Checked {ago(status.checked_at)}</span>}
-        </>
-      }
+      actions={pilot && <SignInStatus pilot={pilot} onRetry={() => void checkPilot()} />}
+      // When the snapshot every tab draws on was taken, as the console's
+      // last line rather than in its tab row.
+      footer={status && <p className="mt-6 text-xs text-muted-foreground">Checked {ago(status.checked_at)}</p>}
       tabs={[
         { value: "training", label: "Model Training", content: <TrainingTab status={status} failed={statusFailed} /> },
         { value: "performance", label: "Performance", content: <PerformanceTab status={status} failed={statusFailed} /> },

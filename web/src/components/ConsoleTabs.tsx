@@ -21,8 +21,11 @@ interface Props {
    *  the developer's refresh. */
   buttons?: ReactNode;
   /** Whatever else belongs on the tab row and may wrap under it -- the
-   *  sign-in status, when the snapshot was checked. */
+   *  sign-in status. */
   actions?: ReactNode;
+  /** A last line under whichever tab is open -- when the developer's
+   *  snapshot was checked. */
+  footer?: ReactNode;
 }
 
 /**
@@ -33,7 +36,7 @@ interface Props {
  * readable column. Only the tabs and those actions differ between the
  * two, so only those are props.
  */
-export default function ConsoleTabs({ tabs, saved, onChange, buttons, actions }: Props) {
+export default function ConsoleTabs({ tabs, saved, onChange, buttons, actions, footer }: Props) {
   const tab = tabs.some(t => t.value === saved) ? saved : tabs[0].value;
   return (
     <div className="min-h-0 flex-1 overflow-y-auto">
@@ -65,6 +68,7 @@ export default function ConsoleTabs({ tabs, saved, onChange, buttons, actions }:
             <TabsContent key={t.value} value={t.value} className="mt-3">{t.content}</TabsContent>
           ))}
         </Tabs>
+        {footer}
       </div>
     </div>
   );
