@@ -158,41 +158,49 @@ export function AircraftPanel({ pilot }: { pilot: PilotState }) {
               onInteractOutside={e => { if ((e.target as Element | null)?.closest?.("[data-aircraft-edit]")) e.preventDefault(); }}
             >
               <form className="flex flex-col gap-2" onSubmit={handleSubmit(onSubmit)} noValidate>
-                <Field data-invalid={!!errors.tailNumber} className="w-full">
-                  <Input
-                    {...register("tailNumber")} placeholder="Tail #"
-                    aria-label="Tail number" aria-invalid={!!errors.tailNumber}
-                  />
-                  <FieldError errors={[errors.tailNumber]} />
-                </Field>
-                <Field data-invalid={!!errors.typeDesignator} className="w-full">
-                  <Input
-                    {...register("typeDesignator")} placeholder="Type (e.g. C172)"
-                    aria-label="Type designator" aria-invalid={!!errors.typeDesignator}
-                  />
-                  <FieldError errors={[errors.typeDesignator]} />
-                </Field>
-                <Field data-invalid={!!errors.cruiseTasKt} className="w-full">
-                  <Input
-                    {...register("cruiseTasKt")} placeholder="Cruise TAS (kt)"
-                    aria-label="Cruise TAS in knots" inputMode="decimal" aria-invalid={!!errors.cruiseTasKt}
-                  />
-                  <FieldError errors={[errors.cruiseTasKt]} />
-                </Field>
-                <Field data-invalid={!!errors.fuelBurnGph} className="w-full">
-                  <Input
-                    {...register("fuelBurnGph")} placeholder="Fuel burn (gph)"
-                    aria-label="Fuel burn in gallons per hour" inputMode="decimal" aria-invalid={!!errors.fuelBurnGph}
-                  />
-                  <FieldError errors={[errors.fuelBurnGph]} />
-                </Field>
-                <Field data-invalid={!!errors.usableFuelGal} className="w-full">
-                  <Input
-                    {...register("usableFuelGal")} placeholder="Usable fuel (gal)"
-                    aria-label="Usable fuel in gallons" inputMode="decimal" aria-invalid={!!errors.usableFuelGal}
-                  />
-                  <FieldError errors={[errors.usableFuelGal]} />
-                </Field>
+                {/* Two lines: what the aeroplane is (tail, type, speed),
+                    then its fuel (burn, usable). The placeholders are the
+                    visible labels and are short for three to a line;
+                    the accessible names say the units in full. */}
+                <div className="grid grid-cols-3 gap-2">
+                  <Field data-invalid={!!errors.tailNumber}>
+                    <Input
+                      {...register("tailNumber")} placeholder="Tail #"
+                      aria-label="Tail number" aria-invalid={!!errors.tailNumber}
+                    />
+                    <FieldError errors={[errors.tailNumber]} />
+                  </Field>
+                  <Field data-invalid={!!errors.typeDesignator}>
+                    <Input
+                      {...register("typeDesignator")} placeholder="Type"
+                      aria-label="Type designator" aria-invalid={!!errors.typeDesignator}
+                    />
+                    <FieldError errors={[errors.typeDesignator]} />
+                  </Field>
+                  <Field data-invalid={!!errors.cruiseTasKt}>
+                    <Input
+                      {...register("cruiseTasKt")} placeholder="TAS kt"
+                      aria-label="Cruise TAS in knots" inputMode="decimal" aria-invalid={!!errors.cruiseTasKt}
+                    />
+                    <FieldError errors={[errors.cruiseTasKt]} />
+                  </Field>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <Field data-invalid={!!errors.fuelBurnGph}>
+                    <Input
+                      {...register("fuelBurnGph")} placeholder="Fuel burn gph"
+                      aria-label="Fuel burn in gallons per hour" inputMode="decimal" aria-invalid={!!errors.fuelBurnGph}
+                    />
+                    <FieldError errors={[errors.fuelBurnGph]} />
+                  </Field>
+                  <Field data-invalid={!!errors.usableFuelGal}>
+                    <Input
+                      {...register("usableFuelGal")} placeholder="Usable fuel gal"
+                      aria-label="Usable fuel in gallons" inputMode="decimal" aria-invalid={!!errors.usableFuelGal}
+                    />
+                    <FieldError errors={[errors.usableFuelGal]} />
+                  </Field>
+                </div>
                 <div className="flex items-center gap-2">
                   <Button type="submit" disabled={save.isPending}>{editingId ? "Save changes" : "Add aircraft"}</Button>
                   <Button type="button" variant="link" size="sm" onClick={cancelEdit}>Cancel</Button>
