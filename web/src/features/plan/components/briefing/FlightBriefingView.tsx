@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { Check, Loader2, Save } from "lucide-react";
 import IconButton from "../../../../components/IconButton";
 import { Badge } from "../../../../components/ui/badge";
-import BriefingSection from "./BriefingSection";
+import AccordionSection from "../../../../components/AccordionSection";
 import { api } from "../../../../lib/api/client";
 import { pilotQuery } from "../../../../lib/queryClient";
 import AltitudeReasoning from "../AltitudeReasoning";
@@ -316,7 +316,7 @@ export default function FlightBriefingView({
           action), so the sections below only ever show their own
           content or a placeholder line. */}
 
-      <BriefingSection title="Adverse Conditions">
+      <AccordionSection title="Adverse Conditions">
         {!briefing ? (
           <p className="text-sm text-muted-foreground">{briefingPendingMessage}</p>
         ) : briefing.weather_unavailable.includes("hazards") ? (
@@ -339,9 +339,9 @@ export default function FlightBriefingView({
             ))}
           </ul>
         )}
-      </BriefingSection>
+      </AccordionSection>
 
-      <BriefingSection title="Current Conditions">
+      <AccordionSection title="Current Conditions">
         {/* Its own standard element (AIM 7-1-5(b)), stated up front
             inside the section it's actually drawn from (current METAR
             categories, plus the route's own forecast minimums) rather
@@ -385,14 +385,14 @@ export default function FlightBriefingView({
             })}
           </div>
         )}
-      </BriefingSection>
+      </AccordionSection>
 
       {/* Split into its own two standard elements (AIM 7-1-5(e)/(f))
           rather than one blended list -- a briefer states the
           destination's own forecast as its own line, not one entry
           among however many en route stations happen to have a TAF,
           since it's the one that actually decides go/no-go on arrival. */}
-      <BriefingSection title="Destination Forecast">
+      <AccordionSection title="Destination Forecast">
         {!briefing ? (
           <p className="text-sm text-muted-foreground">{briefingPendingMessage}</p>
         ) : briefing.weather_unavailable.includes("forecast") ? (
@@ -409,9 +409,9 @@ export default function FlightBriefingView({
             <p className="text-sm text-muted-foreground">No TAF published for {dest}.</p>
           );
         })()}
-      </BriefingSection>
+      </AccordionSection>
 
-      <BriefingSection title="En Route Forecast">
+      <AccordionSection title="En Route Forecast">
         {!briefing ? (
           <p className="text-sm text-muted-foreground">{briefingPendingMessage}</p>
         ) : briefing.weather_unavailable.includes("forecast") ? (
@@ -435,7 +435,7 @@ export default function FlightBriefingView({
             )}
           </>
         )}
-      </BriefingSection>
+      </AccordionSection>
 
       {/* Not gated behind `briefing` -- everything here comes from
           `nav.altitude_selection`, the same "altitude" stream message
@@ -459,15 +459,15 @@ export default function FlightBriefingView({
           briefing top to bottom. A grid of bare figures used to sit
           here; the steps carry every one of those figures with the
           rule that used it. */}
-      <BriefingSection title="Cruise Altitude">
+      <AccordionSection title="Cruise Altitude">
         {!nav ? (
           <p className="text-sm text-muted-foreground">Loading…</p>
         ) : (
           <AltitudeReasoning nav={nav} />
         )}
-      </BriefingSection>
+      </AccordionSection>
 
-      <BriefingSection title="Winds Aloft">
+      <AccordionSection title="Winds Aloft">
         {winds.length === 0 ? (
           <p className="text-sm text-muted-foreground">No winds-aloft data available for this route.</p>
         ) : (
@@ -475,9 +475,9 @@ export default function FlightBriefingView({
             {winds.map(w => `${deg(w.dir)}/${w.speed}kt`).join(", ")} at {altFt(nav?.altitude_ft)} ft
           </p>
         )}
-      </BriefingSection>
+      </AccordionSection>
 
-      <BriefingSection title="NOTAMs">
+      <AccordionSection title="NOTAMs">
         <p className="text-sm text-muted-foreground">
           Not fetched here (the official FAA NOTAM API requires operator credentials) --
           check current NOTAMs directly before you fly:{" "}
@@ -494,7 +494,7 @@ export default function FlightBriefingView({
             notams.aim.faa.gov
           </a>.
         </p>
-      </BriefingSection>
+      </AccordionSection>
 
       {/* The last of the AIM 7-1-5 standard elements this page can name
           but not actually fetch -- ATC flow-control advisories need a
@@ -503,7 +503,7 @@ export default function FlightBriefingView({
           real rather than silently dropped, which is the one thing
           that made those two elements different from every other one
           on this page before this section existed. */}
-      <BriefingSection title="ATC Delays">
+      <AccordionSection title="ATC Delays">
         <p className="text-sm text-muted-foreground">
           Not fetched here -- check current delays and flow-control advisories:{" "}
           <a
@@ -513,9 +513,9 @@ export default function FlightBriefingView({
             fly.faa.gov
           </a>.
         </p>
-      </BriefingSection>
+      </AccordionSection>
 
-      <BriefingSection title="Airport Information">
+      <AccordionSection title="Airport Information">
         {!briefing ? (
           <p className="text-sm text-muted-foreground">{briefingPendingMessage}</p>
         ) : (
@@ -553,7 +553,7 @@ export default function FlightBriefingView({
             })}
           </div>
         )}
-      </BriefingSection>
+      </AccordionSection>
     </>
   );
 }

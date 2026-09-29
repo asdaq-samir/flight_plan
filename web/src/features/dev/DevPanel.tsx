@@ -6,7 +6,9 @@ import { ExternalLink, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { Bar, BarChart, Cell, LabelList, XAxis, YAxis } from "recharts";
 import { cn } from "cn";
+import AccordionSection from "../../components/AccordionSection";
 import ConsoleTabs from "../../components/ConsoleTabs";
+import { Accordion } from "../../components/ui/accordion";
 import IconButton from "../../components/IconButton";
 import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
@@ -592,8 +594,7 @@ function ChartsSection({ charts, onRefresh, refreshing }: {
       : `missing ${p.missing.length} sheet${p.missing.length === 1 ? "" : "s"}: ${p.missing.slice(0, 3).join(", ")}${p.missing.length > 3 ? "…" : ""}`;
   const workers = `${charts.refresh_workers} worker${charts.refresh_workers === 1 ? "" : "s"}`;
   return (
-    <section data-testid="charts-status">
-      <SectionHeading title="Charts" description="The FAA GeoTIFFs on disk and the tile pyramid the map is served from. A new cycle is fetched and rendered by the planner itself." />
+    <AccordionSection title="Charts" description="The FAA GeoTIFFs on disk and the tile pyramid the map is served from. A new cycle is fetched and rendered by the planner itself." data-testid="charts-status">
       <div className="mt-2 flex flex-wrap items-end justify-between gap-3">
         <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-4">
           <Fact label="Serving cycle" value={charts.cycle} />
@@ -634,7 +635,7 @@ function ChartsSection({ charts, onRefresh, refreshing }: {
           )}
         </TableBody>
       </Table>
-    </section>
+    </AccordionSection>
   );
 }
 
@@ -732,9 +733,13 @@ function SystemTab({ status, failed }: { status: Status | undefined; failed: boo
   ];
 
   return (
-    <div className="space-y-6">
-      <section>
-        <SectionHeading title="Services" description="What answers right now. The gateway and its database report through Spring's actuator, the planner through its own proxy, the rest through the planner's probes." />
+    // One stock accordion, as the flight planning drawer is: Services
+    // open, since what answers right now is what the tab is opened
+    // for, and the reference data, the charts and the links folded
+    // under their titles -- four tables at once was a screen and a
+    // half of scrolling on a phone to reach the last of them.
+    <Accordion type="multiple" defaultValue={["Services"]}>
+      <AccordionSection title="Services" description="What answers right now. The gateway and its database report through Spring's actuator, the planner through its own proxy, the rest through the planner's probes.">
         {stale && status && (
           // The service worker serves the last snapshot it has when the
           // planner is out of reach, and it arrives looking like an
@@ -764,9 +769,8 @@ function SystemTab({ status, failed }: { status: Status | undefined; failed: boo
             ))}
           </TableBody>
         </Table>
-      </section>
-      <section>
-        <SectionHeading title="Reference data" description="The files the planner reads and how old each copy is." />
+      </AccordionSection>
+      <AccordionSection title="Reference data" description="The files the planner reads and how old each copy is.">
         <Table containerClassName="mt-2 rounded-md border" className="min-w-[28rem]">
           <TableCaption className="sr-only">Reference datasets and when each was fetched</TableCaption>
           <TableHeader>
@@ -791,10 +795,9 @@ function SystemTab({ status, failed }: { status: Status | undefined; failed: boo
             )}
           </TableBody>
         </Table>
-      </section>
+      </AccordionSection>
       {status?.charts && <ChartsSection charts={status.charts} onRefresh={() => refreshCharts.mutate()} refreshing={refreshCharts.isPending} />}
-      <section>
-        <SectionHeading title="Elsewhere in the stack" description="The other doors into the running stack, each in a new tab." />
+      <AccordionSection title="Elsewhere in the stack" description="The other doors into the running stack, each in a new tab.">
         <div className="mt-2 flex flex-wrap gap-2">
           {shown.map(l => <StackLink key={l.href} link={l} />)}
         </div>
@@ -808,7 +811,7 @@ function SystemTab({ status, failed }: { status: Status | undefined; failed: boo
         <p className="mt-2 text-xs text-muted-foreground">
           MCP server at <span className="font-mono">http://{host}:8082/mcp/sse</span>, bearer token as nav-log-agent's README says.
         </p>
-      </section>
-    </div>
+      </AccordionSection>
+    </Accordion>
   );
 }

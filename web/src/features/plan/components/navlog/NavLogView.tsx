@@ -22,7 +22,7 @@ import type { AltitudeChoice, Candidate, Leg, NavLogAltitude, Totals } from "../
 import { revealRow } from "../../../../lib/revealRow";
 import { type Description, descriptionKey } from "../../hooks/useCheckpointNotes";
 import { altFt, clockTime, deg, describeSteps, describeTime, etaAt, one, signed, totalsParts } from "../../format";
-import BriefingSection from "../briefing/BriefingSection";
+import AccordionSection from "../../../../components/AccordionSection";
 import { BRIEFING_SECTIONS } from "../briefing/sections";
 import DepartPicker from "./DepartPicker";
 import { legOf, navLogRows, rowPoint, type NavLogRow, type RouteEnds } from "./rows";
@@ -711,11 +711,11 @@ export default function NavLogView({
         data-testid="navlog-scroller"
       >
         <Accordion type="multiple" value={printing ? ALL_SECTIONS : open} onValueChange={setOpen}>
-          <BriefingSection title="Nav Log">
+          <AccordionSection title="Nav Log">
             {summary}
             {navLogTable}
             {fuelNote}
-          </BriefingSection>
+          </AccordionSection>
           {children}
         </Accordion>
       </div>
