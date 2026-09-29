@@ -45,8 +45,15 @@ test("the emailed link opens the app's own sign-in dialog, over the planner, and
   const address = pilotAddress("link", testInfo.project.name);
   await page.goto("/app/plan");
   const link = await openLinkFor(page, address);
+  // The dialog, over the planner; and the token in the fragment or
+  // nowhere, never in the query string, which the server would see.
+  // (The fragment itself goes as soon as the planner writes the route
+  // into the address, which is why it is not looked for here: the
+  // dialog has the token by then, and checking the address for it was
+  // a race the test lost once the page got quicker.)
+  await expect(page.getByRole("dialog").getByRole("button", { name: "Sign in" })).toBeVisible();
   await expect(page.getByTestId("pilot-button")).toBeVisible();
-  expect(new URL(page.url()).hash).toMatch(/^#signin=/);
+  expect(new URL(page.url()).search).not.toContain("signin");
 
   await page.getByRole("dialog").getByRole("button", { name: "Sign in" }).click();
   await page.waitForURL(url => url.pathname === "/app/plan" && url.hash === "");
