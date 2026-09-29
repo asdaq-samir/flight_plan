@@ -2,11 +2,14 @@
 data -- all backed by OurAirports' free, no-API-key-required dataset
 (three sibling CSVs from the same host).
 """
+import os
 from functools import lru_cache
 from pathlib import Path
 
 import pandas as pd
 import requests
+
+from .routecsv import locked
 
 OURAIRPORTS_URL = "https://davidmegginson.github.io/ourairports-data/airports.csv"
 RUNWAYS_URL = "https://davidmegginson.github.io/ourairports-data/runways.csv"
@@ -25,11 +28,22 @@ _FREQUENCY_TYPE_ORDER = ["CTAF", "UNIC", "TWR", "GND", "APP", "DEP", "ATIS", "AW
 
 
 def _ensure_cached(url: str, cache_path: Path) -> Path:
+    """The table on disk, downloaded once if it is not there yet.
+
+    One download at a time per file, and the file whole or absent: a
+    briefing asks for the runways from two of its stages at once, and
+    on a cold cache each stage downloaded the table and one read the
+    other's half-written file -- "No columns to parse from file", a
+    500 for the first briefing after a fresh start.
+    """
     cache_path.parent.mkdir(parents=True, exist_ok=True)
-    if not cache_path.exists():
-        resp = requests.get(url, headers=REQUEST_HEADERS, timeout=30)
-        resp.raise_for_status()
-        cache_path.write_bytes(resp.content)
+    with locked(cache_path):
+        if not cache_path.exists():
+            resp = requests.get(url, headers=REQUEST_HEADERS, timeout=30)
+            resp.raise_for_status()
+            partial = cache_path.with_name(cache_path.name + ".part")
+            partial.write_bytes(resp.content)
+            os.replace(partial, cache_path)
     return cache_path
 
 

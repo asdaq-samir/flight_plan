@@ -88,3 +88,48 @@ def test_get_frequencies_sorts_ctaf_first(frequencies_csv):
     frequencies = get_frequencies("KDLH", cache_path=frequencies_csv)
 
     assert [f["type"] for f in frequencies] == ["CTAF", "TWR", "ATIS"]
+
+
+def test_two_stages_asking_for_a_table_at_once_download_it_once_and_both_read_it_whole(tmp_path, monkeypatch):
+    """A briefing asks for the runways from two stages at once. On a
+    cold cache each downloaded the table, and one read the other's
+    half-written file: "No columns to parse from file", a 500 for the
+    first briefing after a fresh start."""
+    import threading
+    from vfr import airports
+
+    downloads = []
+    body = b"id,airport_ident,le_ident,he_ident\n1,KDLH,09,27\n" + b"2,KDLH,03,21\n" * 20000
+
+    class SlowResponse:
+        content = body
+
+        @staticmethod
+        def raise_for_status():
+            pass
+
+    def slow_get(url, headers=None, timeout=None):
+        downloads.append(url)
+        threading.Event().wait(0.05)
+        return SlowResponse()
+
+    monkeypatch.setattr(airports.requests, "get", slow_get)
+    path = tmp_path / "runways.csv"
+    sizes, errors = [], []
+
+    def read():
+        try:
+            sizes.append(airports._ensure_cached("https://example.test/runways.csv", path).stat().st_size)
+        except Exception as err:  # noqa: BLE001 -- the assertion below names it
+            errors.append(err)
+
+    threads = [threading.Thread(target=read) for _ in range(4)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    assert errors == []
+    assert downloads == ["https://example.test/runways.csv"]
+    assert sizes == [len(body)] * 4
+    assert not list(tmp_path.glob("*.part"))
