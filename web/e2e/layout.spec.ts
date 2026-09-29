@@ -25,6 +25,12 @@ import { test, expect, type Page } from "@playwright/test";
 
 const PAGES = ["/app/plan", "/app/dev"] as const;
 
+/** An explicit wait, doubled in CI: playwright.config.ts doubles the
+ *  default waits there, and a wait written out here would otherwise
+ *  stay at its local figure -- which on a runner carrying the stack,
+ *  the browsers and a planner rendering tiles on four cores ran out. */
+const slow = (ms: number) => ms * (process.env.CI ? 2 : 1);
+
 async function settle(page: Page) {
   // Long enough for the initial course/checkpoint fetch to resolve (or
   // fail) and the map to finish its first layout pass -- these tests
@@ -321,7 +327,9 @@ test("plan page: the flight planning drawer opens the way the Model Training dra
   await drawer.getByText("Nav Log", { exact: true }).click();
   await expect(drawer.getByRole("table", { name: /Navigation log from/i })).toBeVisible();
   await expect(drawer.locator('[data-slot="accordion-content"] [data-testid="generate-descriptions-button"]')).toBeVisible();
-  await expect(drawer.locator('[data-slot="accordion-content"] [data-testid="navlog-summary"]')).toBeVisible();
+  // The summary has its totals once the log has streamed in; empty until
+  // then, and Playwright counts an empty box as not visible.
+  await expect(drawer.locator('[data-slot="accordion-content"] [data-testid="navlog-summary"]')).toContainText(/\d nm/, { timeout: slow(60000) });
   expect(await drawer.locator('[data-slot="accordion-content"][data-state="open"]').count()).toBe(1);
 
   // The page's own header is still there: the route form, and the one
@@ -419,7 +427,9 @@ test("plan page: the drawer closes the way the stock components close, and nothi
 // just after the tap, it was every time.
 test("plan page: the briefing opened just as the default route arrives stays open", async ({ page, context }) => {
   const cdp = await context.newCDPSession(page);
-  await cdp.send("Emulation.setCPUThrottlingRate", { rate: 6 });
+  // Six times slower here, where that is what made the old race show;
+  // twice in CI, whose runner is slow enough already.
+  await cdp.send("Emulation.setCPUThrottlingRate", { rate: process.env.CI ? 2 : 6 });
   let release = () => {};
   const listed = new Promise<void>(resolve => { release = resolve; });
   await page.route("**/api/planner/routes", async route => { await listed; await route.continue(); });
@@ -470,7 +480,7 @@ test("plan page: a click or Enter selects a nav log checkpoint, with the briefin
   const table = page.getByRole("table", { name: /Navigation log from/i });
   // The rows arrive with the scored checkpoints; wait for more than
   // the departure and the destination.
-  await expect.poll(async () => table.locator("tbody tr[data-selected], tbody tr").count(), { timeout: 15000 }).toBeGreaterThan(4);
+  await expect.poll(async () => table.locator("tbody tr[data-selected], tbody tr").count(), { timeout: slow(15000) }).toBeGreaterThan(4);
   const selectedRow = table.locator("tbody tr[data-selected]");
   await expect(selectedRow).toHaveCount(0);
 
@@ -500,7 +510,7 @@ test("plan page: a checkpoint picked on the map is brought to the middle of the 
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
   const marker = page.locator(".leaflet-marker-icon", { hasText: /^1[01]$/ }).first();
-  await expect(marker).toBeVisible({ timeout: 15000 });
+  await expect(marker).toBeVisible({ timeout: slow(15000) });
   // A DOM click, not a pointer one: the legs are still streaming in
   // and each re-draws the markers, so Playwright's wait for the marker
   // to hold still ran the test out of time.
@@ -528,7 +538,7 @@ test("plan page: a checkpoint picked on the map is brought to the middle of the 
     return Math.abs((row.y + row.height / 2) - (view.y + view.height / 2)) / view.height;
   };
   // Within a quarter of the scroller's height of its middle.
-  await expect.poll(middle, { timeout: 5000 }).toBeLessThan(0.25);
+  await expect.poll(middle, { timeout: slow(5000) }).toBeLessThan(0.25);
 
   // The row above it, in view beside it, clicked: selected, and
   // nothing moves.
@@ -556,7 +566,7 @@ test("plan page: a route from an airport to itself says so, rather than showing 
   await page.getByPlaceholder("Ident or airport name").fill("KDLH");
   await page.getByRole("option", { name: /KDLH/ }).first().click();
   await page.getByRole("button", { name: "Load" }).click();
-  await expect(page.getByText("A route needs two different airports.")).toBeHidden({ timeout: 25000 });
+  await expect(page.getByText("A route needs two different airports.")).toBeHidden({ timeout: slow(25000) });
 });
 
 test("plan page: every popup the map opens dismisses the same way", async ({ page }) => {
@@ -583,15 +593,15 @@ test("plan page: every popup the map opens dismisses the same way", async ({ pag
   await page.mouse.click(empty.x, empty.y);
   await expect(popups).toHaveCount(0);
   const zoomToggle = page.getByTestId("map-action-button");
-  await expect(zoomToggle).toHaveAttribute("aria-label", "Fit Route", { timeout: 10000 });
+  await expect(zoomToggle).toHaveAttribute("aria-label", "Fit Route", { timeout: slow(10000) });
   await zoomToggle.click();
-  await expect(zoomToggle).toHaveAttribute("aria-label", "Show Selected", { timeout: 10000 });
+  await expect(zoomToggle).toHaveAttribute("aria-label", "Show Selected", { timeout: slow(10000) });
 
   await page.getByTestId("layers-button").click();
   await page.getByTestId("class-b-toggle").click();
   await page.keyboard.press("Escape");
   const chip = page.locator(".leaflet-marker-icon span.rounded-full").filter({ hasText: "KORD" }).first();
-  await expect(chip).toBeVisible({ timeout: 25000 });
+  await expect(chip).toBeVisible({ timeout: slow(25000) });
   await chip.click();
   await expect(popups).toHaveCount(1);
 
@@ -619,23 +629,23 @@ test("plan page: the map's zoom toggle goes to the selection and back, however m
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
   const button = page.getByTestId("map-action-button");
-  await expect.poll(() => button.isDisabled(), { timeout: 20000 }).toBe(false);
+  await expect.poll(() => button.isDisabled(), { timeout: slow(20000) }).toBe(false);
   await expect(button).toHaveAttribute("aria-label", "Show Selected");
 
   // In: the map is now closer than the whole route needs, so the button
   // offers the way back, and the selection ring is drawn.
   await button.click();
-  await expect(button).toHaveAttribute("aria-label", "Fit Route", { timeout: 10000 });
+  await expect(button).toHaveAttribute("aria-label", "Fit Route", { timeout: slow(10000) });
   await expect(page.locator(".leaflet-overlay-pane path")).not.toHaveCount(0);
 
   // Out, and in again -- the second press is the one that used to do
   // nothing at all, the point being already selected.
   await button.click();
-  await expect(button).toHaveAttribute("aria-label", "Show Selected", { timeout: 10000 });
+  await expect(button).toHaveAttribute("aria-label", "Show Selected", { timeout: slow(10000) });
   await button.click();
-  await expect(button).toHaveAttribute("aria-label", "Fit Route", { timeout: 10000 });
+  await expect(button).toHaveAttribute("aria-label", "Fit Route", { timeout: slow(10000) });
   await button.click();
-  await expect(button).toHaveAttribute("aria-label", "Show Selected", { timeout: 10000 });
+  await expect(button).toHaveAttribute("aria-label", "Show Selected", { timeout: slow(10000) });
 });
 
 test("dev page: the map's zoom button follows the map's real zoom, as the planner's does", async ({ page }) => {
@@ -644,20 +654,20 @@ test("dev page: the map's zoom button follows the map's real zoom, as the planne
   await page.goto("/app/dev?dep=C81&dest=KDLH");
   await settle(page);
   const button = page.getByTestId("map-action-button");
-  await expect.poll(() => button.isDisabled(), { timeout: 60000 }).toBe(false);
+  await expect.poll(() => button.isDisabled(), { timeout: slow(60000) }).toBe(false);
   await expect(button).toHaveAttribute("aria-label", "Show Selected");
 
   await button.click();
-  await expect(button).toHaveAttribute("aria-label", "Fit Route", { timeout: 10000 });
+  await expect(button).toHaveAttribute("aria-label", "Fit Route", { timeout: slow(10000) });
   await button.click();
-  await expect(button).toHaveAttribute("aria-label", "Show Selected", { timeout: 10000 });
+  await expect(button).toHaveAttribute("aria-label", "Show Selected", { timeout: slow(10000) });
 
   // One wheel step in from the whole route: closer than the route needs.
   const map = await page.locator(".leaflet-container").boundingBox();
   if (!map) throw new Error("no map");
   await page.mouse.move(map.x + map.width / 2, map.y + map.height / 2);
   await page.mouse.wheel(0, -300);
-  await expect(button).toHaveAttribute("aria-label", "Fit Route", { timeout: 10000 });
+  await expect(button).toHaveAttribute("aria-label", "Fit Route", { timeout: slow(10000) });
 });
 
 test("plan page: panning the map with own ship off leaves 'Keep the map on me' as it was", async ({ page }) => {
@@ -816,7 +826,7 @@ test("plan page: the nav log's altitude opens the planner's own reasoning, and t
   await sideDrawer(page).getByText("Nav Log", { exact: true }).click();
   // The altitude arrives with the nav log stream, after the checkpoints.
   const why = page.getByTestId("altitude-why");
-  await expect(why).toBeVisible({ timeout: 60000 });
+  await expect(why).toBeVisible({ timeout: slow(60000) });
   // The figure alone: which plan it is shows as the pressed row in the
   // popover, not as a word after every altitude.
   await expect(why).toContainText(/\d ft/);
@@ -838,10 +848,10 @@ test("plan page: the nav log's altitude opens the planner's own reasoning, and t
   await expect(popover.getByTestId("altitude-plan-fastest")).toHaveAttribute("aria-pressed", "true");
   await popover.getByTestId("altitude-plan-lowest").click();
   await expect(page).toHaveURL(/[?&]altitude_choice=lowest/);
-  await expect(page.getByTestId("altitude-why")).toContainText(/\d ft/, { timeout: 30000 });
+  await expect(page.getByTestId("altitude-why")).toContainText(/\d ft/, { timeout: slow(30000) });
   await page.getByTestId("altitude-why").click();
   await expect(popover).toBeVisible();
-  await expect(popover.getByTestId("altitude-plan-lowest")).toHaveAttribute("aria-pressed", "true", { timeout: 30000 });
+  await expect(popover.getByTestId("altitude-plan-lowest")).toHaveAttribute("aria-pressed", "true", { timeout: slow(30000) });
 
   // A custom altitude: the fourth row under the plans. Typed and flown,
   // the whole log is at it, the header shows it, and the plans stay
@@ -849,8 +859,8 @@ test("plan page: the nav log's altitude opens the planner's own reasoning, and t
   await popover.getByTestId("custom-altitude").fill("3500");
   await popover.getByTestId("custom-altitude-fly").click();
   await expect(page).toHaveURL(/[?&]altitude_ft=3500/);
-  await expect(page.getByTestId("altitude-why")).toHaveText(/^3,500 ft$/, { timeout: 30000 });
-  await expect(sideDrawer(page).locator('table tbody tr[tabindex="0"]').nth(1).locator("td").nth(1)).toHaveText("3,500", { timeout: 30000 });
+  await expect(page.getByTestId("altitude-why")).toHaveText(/^3,500 ft$/, { timeout: slow(30000) });
+  await expect(sideDrawer(page).locator('table tbody tr[tabindex="0"]').nth(1).locator("td").nth(1)).toHaveText("3,500", { timeout: slow(30000) });
   await page.getByTestId("altitude-why").click();
   await expect(popover).toBeVisible();
   await expect(popover.getByTestId("altitude-plan-lowest")).toHaveAttribute("aria-pressed", "false");
@@ -867,7 +877,7 @@ test("plan page: the nav log's altitude opens the planner's own reasoning, and t
     if (!(await popover.isVisible())) await page.getByTestId("altitude-why").click();
     const plan = popover.getByTestId("altitude-plan-fastest");
     return (await plan.count()) ? plan.getAttribute("aria-pressed") : null;
-  }, { timeout: 30000 }).toBe("true");
+  }, { timeout: slow(30000) }).toBe("true");
   // No altitude box in the table's head any more: Alt is a plain heading.
   await expect(sideDrawer(page).locator('table thead')).not.toContainText("Cruise altitude");
   expect(await sideDrawer(page).locator('table thead input').count()).toBe(0);
@@ -927,13 +937,13 @@ test("plan page: a departure time gives every checkpoint an ETA and picks the wi
   expect(etaIndex).toBeGreaterThan(0);
   // The departure row's own ETA is the departure time itself.
   await expect(table.locator("tbody tr[tabindex='0']").first().locator("td").nth(etaIndex)).toHaveText("15:00");
-  await expect(page.getByTestId("winds-forecast")).toContainText("24-hour forecast", { timeout: 60000 });
+  await expect(page.getByTestId("winds-forecast")).toContainText("24-hour forecast", { timeout: slow(60000) });
   // Every later row has a time once its leg is in.
-  await expect.poll(async () => (await table.locator("tbody tr[tabindex='0']").last().locator("td").nth(etaIndex).textContent())?.trim(), { timeout: 60000 }).toMatch(/^\d\d:\d\d$/);
+  await expect.poll(async () => (await table.locator("tbody tr[tabindex='0']").last().locator("td").nth(etaIndex).textContent())?.trim(), { timeout: slow(60000) }).toMatch(/^\d\d:\d\d$/);
   // And the fuel check, against the stock C172's 40 usable gallons,
   // with the day reserve for a mid-afternoon flight -- under the table,
   // where the fuel column it sums ends.
-  await expect(page.getByTestId("fuel-check")).toContainText("of 40 usable", { timeout: 60000 });
+  await expect(page.getByTestId("fuel-check")).toContainText("of 40 usable", { timeout: slow(60000) });
   await expect(page.getByTestId("fuel-check")).toContainText("30 min day reserve");
   const tableBox = (await table.boundingBox())!;
   const noteBox = (await page.getByTestId("fuel-check").boundingBox())!;
@@ -1098,7 +1108,7 @@ test("dev page: the waypoint drawer is a worklist -- every candidate in flight o
   const rows = table.locator("tbody tr[tabindex='0']");
   // Detections stream in: far more rows than the two endpoints, the
   // unrated ones included -- the old list showed only rated points.
-  await expect.poll(() => rows.count(), { timeout: 30000 }).toBeGreaterThan(10);
+  await expect.poll(() => rows.count(), { timeout: slow(30000) }).toBeGreaterThan(10);
   // And then wait for the stream to *stop*. The walk below steps from
   // whichever row is selected, and rows arriving between the click and
   // the keypress shift what nth(3) refers to -- which is what made this
@@ -1108,7 +1118,7 @@ test("dev page: the waypoint drawer is a worklist -- every candidate in flight o
     const before = await rows.count();
     await page.waitForTimeout(1200);
     return (await rows.count()) === before;
-  }, { timeout: 40000 }).toBe(true);
+  }, { timeout: slow(40000) }).toBe(true);
   await expect(drawer.getByText(/of \d+ rated/)).toBeVisible();
   await expect(rows.first()).toContainText("C81");
 
@@ -1145,7 +1155,7 @@ test("plan page: every text field is at least 16px on a phone, so iOS never zoom
   // The description boxes are in the nav log's section, closed until
   // its title is clicked.
   await sideDrawer(page).getByText("Nav Log", { exact: true }).click();
-  await expect.poll(() => page.locator("textarea").count(), { timeout: 15000 }).toBeGreaterThan(0);
+  await expect.poll(() => page.locator("textarea").count(), { timeout: slow(15000) }).toBeGreaterThan(0);
   const small = await page.evaluate(() =>
     [...document.querySelectorAll<HTMLElement>("input, textarea, select")]
       .map(el => ({
@@ -1169,12 +1179,12 @@ for (const path of PAGES) {
     // Pinned here from the layers popover, which is the setting itself.
     // A Class B marker's card pins the same thing for its own field;
     // that is classb.spec.ts.
-    test.setTimeout(90000);
+    test.setTimeout(slow(90000));
     await page.goto(`${path}?dep=C81&dest=KDLH`);
     await settle(page);
     const tacTiles = page.locator('img.leaflet-tile[src*="/api/planner/chart-tile/tac/"]');
     const sectionalTiles = page.locator('img.leaflet-tile[src*="/api/planner/chart-tile/sec/"]');
-    await expect(page.locator("img.leaflet-tile").first()).toBeAttached({ timeout: 15000 });
+    await expect(page.locator("img.leaflet-tile").first()).toBeAttached({ timeout: slow(15000) });
     expect(await tacTiles.count()).toBe(0);
 
     // Wheel-zoom in over the departure marker, a level at a time
@@ -1188,7 +1198,7 @@ for (const path of PAGES) {
       await page.mouse.wheel(0, -60);
       await page.waitForTimeout(400);
     }
-    await expect(sectionalTiles.first()).toBeAttached({ timeout: 10000 });
+    await expect(sectionalTiles.first()).toBeAttached({ timeout: slow(10000) });
     expect(await tacTiles.count()).toBe(0);
 
     // Pinned: both chart layers are asked for, the sectional and the TAC.
@@ -1198,12 +1208,12 @@ for (const path of PAGES) {
     await pin.click();
     await expect(pin).toHaveAttribute("aria-checked", "true");
     await page.keyboard.press("Escape");
-    await expect(tacTiles.first()).toBeAttached({ timeout: 10000 });
+    await expect(tacTiles.first()).toBeAttached({ timeout: slow(10000) });
     await expect.poll(
       () => page.evaluate(() =>
         [...document.querySelectorAll<HTMLImageElement>('img.leaflet-tile[src*="/api/planner/chart-tile/tac/"]')]
           .some(img => img.complete && img.naturalWidth > 0)),
-      { timeout: 45000 },
+      { timeout: slow(45000) },
     ).toBe(true);
 
     // Remembered per browser: a reload still has it pinned, and
@@ -1224,30 +1234,30 @@ for (const path of PAGES) {
     // swaps the base layer for the IFR enroute chart's own tiles (and
     // the TAC checkbox, meaningless over it, is disabled); picking
     // "Sectional" brings the sectional back.
-    test.setTimeout(90000);
+    test.setTimeout(slow(90000));
     await page.goto(`${path}?dep=C81&dest=KDLH`);
     await settle(page);
     const ifrTiles = page.locator('img.leaflet-tile[src*="/api/planner/chart-tile/ifr_low/"]');
     const sectionalTiles = page.locator('img.leaflet-tile[src*="/api/planner/chart-tile/sec/"]');
-    await expect(sectionalTiles.first()).toBeAttached({ timeout: 15000 });
+    await expect(sectionalTiles.first()).toBeAttached({ timeout: slow(15000) });
     expect(await ifrTiles.count()).toBe(0);
 
     await page.getByTestId("layers-button").click();
     await page.getByTestId("base-chart-select").click();
     await page.getByRole("option", { name: "IFR low" }).click();
     await expect(page.getByText("IFR area chart pinned")).toBeVisible();
-    await expect(ifrTiles.first()).toBeAttached({ timeout: 10000 });
+    await expect(ifrTiles.first()).toBeAttached({ timeout: slow(10000) });
     await expect.poll(
       () => page.evaluate(() =>
         [...document.querySelectorAll<HTMLImageElement>('img.leaflet-tile[src*="/api/planner/chart-tile/ifr_low/"]')]
           .some(img => img.complete && img.naturalWidth > 0)),
-      { timeout: 45000 },
+      { timeout: slow(45000) },
     ).toBe(true);
     expect(await sectionalTiles.count()).toBe(0);
 
     await page.getByTestId("base-chart-select").click();
     await page.getByRole("option", { name: "Sectional" }).click();
-    await expect(sectionalTiles.first()).toBeAttached({ timeout: 10000 });
+    await expect(sectionalTiles.first()).toBeAttached({ timeout: slow(10000) });
     await expect(page.getByText("Terminal area chart pinned")).toBeVisible();
   });
 }
