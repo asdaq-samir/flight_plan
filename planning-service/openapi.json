@@ -2201,6 +2201,11 @@
           "ui": {
             "title": "Ui",
             "type": "string"
+          },
+          "warm": {
+            "default": false,
+            "title": "Warm",
+            "type": "boolean"
           }
         },
         "required": [

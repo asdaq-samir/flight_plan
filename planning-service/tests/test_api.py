@@ -215,3 +215,18 @@ def test_the_briefing_forecast_is_read_over_the_flight(monkeypatch):
     assert resp.status_code == 200
     start = 1790341200.0  # 2026-09-25T13:00:00Z
     assert windows == [(start, start + 150 * 60 + 3600)]
+
+
+# --- / ---
+
+
+def test_the_health_probe_says_whether_the_warm_up_is_done(monkeypatch):
+    """CI waits on this before the browser suite starts: a planner that
+    answers its probe while still loading airspace and obstacles had
+    the first tests timing out under it."""
+    from app import main
+
+    main.WARM.clear()
+    assert client.get("/").json()["warm"] is False
+    main.WARM.set()
+    assert client.get("/").json()["warm"] is True

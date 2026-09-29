@@ -866,6 +866,10 @@ class RetrainStarted(BaseModel):
 class Index(BaseModel):
     service: str
     ui: str
+    # Whether the reference data (airspace, obstacles, weather, the
+    # corridors' charts) is loaded: false for the first minute or so
+    # after a start, longer from a cold cache.
+    warm: bool = False
 
 
 # The unions no route returns, published into the OpenAPI components by

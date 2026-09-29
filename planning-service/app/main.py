@@ -59,6 +59,11 @@ log = logging.getLogger(__name__)
 # Inside the datasets' own five-minute time-to-live, so a held copy is
 # replaced before a request could find it stale.
 WEATHER_REFRESH_S = 240
+# Set once the reference data below is loaded: the health probe reports
+# it, so a test run against a fresh stack can wait for a planner that
+# answers at full speed rather than one still parsing airspace under
+# its first requests.
+WARM = threading.Event()
 def _prepare_corridor_charts() -> None:
     """The FAA charts under every corridor already built here -- a
     sectional is a 70 MB download and a minute of preparation the first
@@ -74,9 +79,14 @@ def _prepare_corridor_charts() -> None:
                 except (KeyError, ValueError):
                     continue
         if lats:
-            # The VFR charts only: the IFR sheets are an optional
-            # layer, and the daily refresh fetches every kind anyway.
-            charts.prepare_for_bbox((min(lons), min(lats), max(lons), max(lats)), kinds=("sec", "tac"))
+            # Every kind the map can draw over the corridor: the base
+            # charts (sectional, IFR low) and the two a Class B card
+            # pins over them (TAC, IFR area). It was the VFR pair only,
+            # the daily refresh fetching the rest -- and a stack started
+            # from nothing with that refresh off, CI's, had no IFR chart
+            # for the tests that switch to one.
+            charts.prepare_for_bbox((min(lons), min(lats), max(lons), max(lats)),
+                                    kinds=("sec", "tac", "ifr_low", "ifr_area"))
 
 
 def _warm_reference_data() -> None:
@@ -98,6 +108,7 @@ def _warm_reference_data() -> None:
             load()
         except Exception:  # noqa: BLE001 -- the first altitude selection will load it, and report its own error
             log.exception("%s warm-up failed", name)
+    WARM.set()
 
     if chart_refresh.AUTO_REFRESH:
         chart_refresh.maybe_refresh()
@@ -156,7 +167,7 @@ def index() -> Index:
     Boot gateway's jar and served from there, which is also the only
     thing that calls this -- so this answers a health probe and says
     where the UI went."""
-    return Index(service="planner", ui="served by the gateway at /app")
+    return Index(service="planner", ui="served by the gateway at /app", warm=WARM.is_set())
 
 
 for module in (plan, chart, build, briefing, notes, devml, system, classb, devservices):
