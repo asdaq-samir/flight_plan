@@ -95,17 +95,18 @@ updates:
       - /nav-log-agent
       - /planning-service
       - /springboot-app
-      - /web
     schedule:
       interval: monthly
     open-pull-requests-limit: 5
     groups:
       base-images:
         patterns: ["*"]
-    # Except Node's majors. The web build follows Node's LTS line
-    # (.nvmrc, which CI reads too), and a new even major only becomes
-    # LTS in the October after it ships -- a monthly bump would move
-    # the webapp's build onto a Current release in the months between.
+    # Except Node's majors. The web build (the node stage of
+    # springboot-app's Dockerfile; web/ has none of its own) follows
+    # Node's LTS line (.nvmrc, which CI reads too), and a new even major
+    # only becomes LTS in the October after it ships -- a monthly bump
+    # would move the webapp's build onto a Current release in the months
+    # between.
     ignore:
       - dependency-name: node
         update-types: ["version-update:semver-major"]

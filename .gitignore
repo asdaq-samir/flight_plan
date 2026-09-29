@@ -12,6 +12,10 @@ springboot-app/target/
 # clones it.
 .claude/
 
+# The editor's per-machine state. The only file ever committed here was
+# an empty setting VS Code's Python extension wrote on its own.
+.vscode/
+
 .env
 
 # Trained model artifacts. Regenerable from the committed labels and code
