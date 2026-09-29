@@ -8,9 +8,10 @@ import { statusQuery } from "../../lib/queryClient";
  * needs to know: whether Airflow is reachable, whether a run is
  * already going, and how the last one ended. Shared by the side
  * drawer's own Retrain button (beside Undo and Reset, where the
- * ratings it learns from are made) and the Developer drawer's Model
- * Training tab, which reports the run. The status snapshot is the same
- * query both poll, so a run started from either shows in both.
+ * ratings it learns from are made) and the developer console's
+ * Performance tab, which reports the run on each route's card and
+ * offers it there too. The status snapshot is the same query both
+ * poll, so a run started from either shows in both.
  */
 export function useRetrain() {
   const queryClient = useQueryClient();
@@ -38,6 +39,11 @@ export function useRetrain() {
     starting: start.isPending,
     /** Whether the button should be enabled: Airflow reachable, no run in progress, none just asked for. */
     canStart: (pipeline?.airflow_reachable ?? false) && !running && !start.isPending,
-    start: () => start.mutate(),
+    /** Asks first, wherever the button is: a retrain is minutes of
+     *  Airflow's time and, when it ends, a new model serving in place
+     *  of this one -- not something a stray tap should start. */
+    start: () => {
+      if (window.confirm("Retrain the model on every rating? When it finishes, the new model replaces the one serving. It takes a few minutes.")) start.mutate();
+    },
   };
 }

@@ -12,6 +12,7 @@ import { Accordion } from "../../components/ui/accordion";
 import IconButton from "../../components/IconButton";
 import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
+import { Progress } from "../../components/ui/progress";
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "../../components/ui/chart";
 import {
   Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow,
@@ -71,6 +72,9 @@ export function DevPanel() {
   // console to the same tab, not to the Guide every time.
   const savedTab = usePreferences(s => s.devTab);
   const changeTab = usePreferences(s => s.setDevTab);
+  // A retrain in progress is said on the Performance tab's own name,
+  // so it shows from any tab.
+  const { running } = useRetrain();
   // Everything the console shows, asked for again now rather than at
   // the next 30-second tick: the snapshot, the model comparison, the
   // two health probes the System tab runs itself and which services the
@@ -83,11 +87,6 @@ export function DevPanel() {
     <ConsoleTabs
       saved={savedTab}
       onChange={changeTab}
-      buttons={
-        <IconButton label="Check again" onClick={refreshAll} disabled={isFetching} data-testid="dev-refresh">
-          <RefreshCw className={cn("size-4", isFetching && "animate-spin")} />
-        </IconButton>
-      }
       // When the snapshot every tab draws on was taken, as the console's
       // last line rather than in its tab row.
       footer={status && (
@@ -99,9 +98,22 @@ export function DevPanel() {
         // "Guide", as the pilot console's first tab is: it walks the
         // three steps. (The value stays "training", which is what a
         // browser has remembered as its last tab.)
-        { value: "training", label: "Guide", content: <TrainingTab status={status} failed={statusFailed} /> },
-        { value: "performance", label: "Performance", content: <PerformanceTab status={status} failed={statusFailed} /> },
-        { value: "system", label: "System", content: <SystemTab status={status} failed={statusFailed} /> },
+        { value: "training", label: "Guide", content: <TrainingTab /> },
+        {
+          value: "performance",
+          label: <>Performance{running && <Badge variant="secondary" className="ml-1.5 animate-pulse">Training…</Badge>}</>,
+          content: <PerformanceTab status={status} failed={statusFailed} />,
+        },
+        {
+          value: "system", label: "System", content: <SystemTab status={status} failed={statusFailed} />,
+          // The one tab with a refresh: the services and the data are
+          // probed on a 30-second tick, and this asks now.
+          buttons: (
+            <IconButton label="Check again" onClick={refreshAll} disabled={isFetching} data-testid="dev-refresh">
+              <RefreshCw className={cn("size-4", isFetching && "animate-spin")} />
+            </IconButton>
+          ),
+        },
       ]}
     />
   );
@@ -129,9 +141,8 @@ function ModelComparisonChart() {
   const rows = data ? [...data.models].sort((a, b) => (a.score ?? Infinity) - (b.score ?? Infinity)) : null;
 
   return (
-    <section>
-      <h3 className="text-sm font-semibold">Model comparison</h3>
-      <p className="mt-1 mb-3 text-sm text-muted-foreground">
+    <>
+      <p className="mb-3 text-xs text-muted-foreground">
         Mean absolute error on the {data?.n_labeled ?? "—"} hand-rated checkpoints -- lower is
         better. Every algorithm this project has actually trained, not just the one serving
         predictions; the green bar is the one Plan scores checkpoints with.
@@ -183,7 +194,7 @@ function ModelComparisonChart() {
           </BarChart>
         </ChartContainer>
       )}
-    </section>
+    </>
   );
 }
 
@@ -201,59 +212,200 @@ function Fact({ label, value }: { label: string; value: string }) {
   );
 }
 
-/** How good the models are: the comparison chart and the registry
- *  behind it -- what is serving, what it learned from, every version
- *  promoted before it. */
-function PerformanceTab({ status, failed }: { status: Status | undefined; failed: boolean }) {
-  const model = status?.model;
+/** The Performance tab: the routes collected, the last training run,
+ *  the model serving, the comparison of every algorithm trained, and
+ *  the registry's history -- the pipeline, in the order it runs. */
+/** How a training run ended, as a badge with the status dot the
+ *  Services table uses. */
+function RunBadge({ state, running }: { state: string | null | undefined; running: boolean }) {
+  const [tone, text]: [Tone, string] =
+    running ? ["running", "Running…"]
+    : state === "success" ? ["up", "Succeeded"]
+    : state === "failed" ? ["down", "Failed"]
+    : ["checking", state ?? "Unknown"];
+  return <Badge variant="outline" className="gap-1.5"><Dot tone={tone} />{text}</Badge>;
+}
+
+/**
+ * What the model learns from: every collected route with a bar for
+ * how far its rating has got, and above them what there is to learn
+ * from now against what the serving model saw -- the one number that
+ * says whether a retrain is worth starting. A card a route rather
+ * than a seven-column table: the counts sit under the bar, Plan and
+ * Rate stay in reach on a phone.
+ */
+function DataSection({ status, failed }: { status: Status | undefined; failed: boolean }) {
+  const corridors = status?.corridors ?? [];
+  const onMap = useOnMap(corridors);
+  const retrain = useRetrain();
+  const total = status ? ratings(status) : 0;
+  const learned = status?.model?.current?.n_labeled ?? 0;
+  const unseen = Math.max(0, total - learned);
   return (
-    <div className="space-y-6">
-      <ModelComparisonChart />
-      <section>
-        <SectionHeading title="Registry" description="The model serving predictions now, and every version promoted before it." />
-        <div className="mb-1" />
-        {model?.current ? (
-          <div className="mt-1 grid grid-cols-2 gap-2 text-sm sm:grid-cols-3">
-            <Fact label="Promoted" value={model.current.model_type ?? "—"} />
-            <Fact label="Trained" value={ago(model.current.trained_at)} />
-            <Fact label="Ratings it trained on" value={String(model.current.n_labeled ?? "—")} />
-            <Fact label="CV MAE" value={model.current.cv_mae == null ? "—" : mae(model.current.cv_mae)} />
-            <Fact label="Held-out MAE" value={model.current.held_out_mae == null ? "—" : mae(model.current.held_out_mae)} />
-            <Fact label="Features" value={String(model.current.n_features)} />
+    <AccordionSection title="Data" description="What the model learns from: every collected route, how far its rating has got, and what has been rated since the serving model trained. A route's name brings it onto the map to rate.">
+      {status && (
+        <div className="mt-2 flex flex-wrap items-center gap-2 text-sm" data-testid="data-summary">
+          <Badge variant="secondary" className="tabular-nums">{total} ratings</Badge>
+          <Badge variant="secondary" className="tabular-nums">{corridors.length} route{corridors.length === 1 ? "" : "s"}</Badge>
+          {status.model?.current
+            ? unseen > 0
+              ? <Badge className="tabular-nums">+{unseen} since the last train</Badge>
+              : <Badge variant="outline">The serving model has seen them all</Badge>
+            : null}
+        </div>
+      )}
+      <ul className="mt-3 divide-y rounded-md border" aria-label="Collected routes">
+        {corridors.length === 0 && (
+          <li className="p-3 text-center text-sm text-muted-foreground">{status ? "No route has been collected yet." : waiting(failed)}</li>
+        )}
+        {corridors.map(c => {
+          const route = new URLSearchParams({ dep: c.departure_ident, dest: c.destination_ident }).toString();
+          const pct = c.candidates ? Math.round((c.labels.total / c.candidates) * 100) : null;
+          const here = c === onMap;
+          return (
+            <li key={`${c.departure_ident}-${c.destination_ident}`} className="p-3 text-sm" data-state={here ? "selected" : undefined} data-testid="route-card">
+              {/* The route's name brings it onto the map to rate, unless
+                  it is there already; at the right, how the last training
+                  run on these ratings ended, and the way to run it again. */}
+              <div className="flex flex-wrap items-center gap-2">
+                {here
+                  ? <span className="font-mono font-semibold">{c.departure_ident} → {c.destination_ident}</span>
+                  : <Link to={`/dev?${route}`} className="font-mono font-semibold underline underline-offset-4">{c.departure_ident} → {c.destination_ident}</Link>}
+                {here && <Badge variant="secondary">on the map</Badge>}
+                <div className="ml-auto flex shrink-0 items-center gap-2">
+                  {retrain.reachable && retrain.lastRun && <RunBadge state={retrain.lastRun.state} running={retrain.running} />}
+                  <Button variant="link" size="sm" onClick={retrain.start} disabled={!retrain.canStart} data-testid="retrain-route-button">
+                    {retrain.running ? "Retraining…" : "Retrain"}
+                  </Button>
+                </div>
+              </div>
+              <div className="mt-2 flex items-center gap-3">
+                <Progress value={pct ?? 0} className="h-1.5" aria-label={`${c.departure_ident} to ${c.destination_ident}: ${c.labels.total} of ${c.candidates ?? "an unknown number of"} candidates rated`} />
+                <span className="shrink-0 text-xs text-muted-foreground tabular-nums">{c.labels.total} of {c.candidates ?? "—"} rated{pct !== null && ` (${pct}%)`}</span>
+              </div>
+              <div className="mt-1 text-xs text-muted-foreground tabular-nums">
+                {c.labels.added} added by hand · {c.notes} notes · collected {ago(c.features_built_at)}
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    </AccordionSection>
+  );
+}
+
+/**
+ * The model serving predictions and the pipeline that would replace
+ * it, in one place: what it is and how it scored, the last training
+ * run as a badge with the way into Airflow, and the versions promoted
+ * before it with how each moved the error. What a developer looks at
+ * after a retrain, without a table wider than a phone.
+ */
+function ModelSection({ status, failed }: { status: Status | undefined; failed: boolean }) {
+  const { pipeline, lastRun, running } = useRetrain();
+  const model = status?.model;
+  const current = model?.current;
+  const total = status ? ratings(status) : 0;
+  const unseen = current?.n_labeled != null ? Math.max(0, total - current.n_labeled) : 0;
+  return (
+    <AccordionSection title="Model" description="The model Plan scores checkpoints with, how it scored, the training run that would replace it, and the versions before it.">
+      {current ? (
+        <>
+          <div className="mt-2 flex flex-wrap items-center gap-2" data-testid="serving-model">
+            <span className="text-base font-semibold">{current.model_type ?? "Unknown model"}</span>
+            <Badge>Serving</Badge>
+            {unseen > 0 && <Badge variant="outline" className="tabular-nums">{unseen} newer ratings unseen</Badge>}
+            <span className="text-xs text-muted-foreground">trained {ago(current.trained_at)} · {current.n_features} features</span>
           </div>
+          <div className="mt-3 grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
+            <Fact label="CV MAE" value={current.cv_mae == null ? "—" : mae(current.cv_mae)} />
+            <Fact label="Held-out MAE" value={current.held_out_mae == null ? "—" : mae(current.held_out_mae)} />
+            <Fact label="Ratings it trained on" value={String(current.n_labeled ?? "—")} />
+            <Fact label="Versions promoted" value={String(model?.versions.length ?? 0)} />
+          </div>
+        </>
+      ) : (
+        <p className="mt-2 text-sm text-muted-foreground">{status ? "No model has been promoted yet." : waiting(failed)}</p>
+      )}
+      {/* The run's outcome is the badge on the route's card above;
+          here, when it ran and for how long, and the way into Airflow. */}
+      <div className="mt-4 flex flex-wrap items-center gap-2 text-sm text-muted-foreground" data-testid="training-run">
+        {pipeline?.airflow_reachable ? (
+          lastRun ? (
+            <span>
+              Last training run {running ? "started" : "ran"} {ago(lastRun.start_date)}
+              {!running && lastRun.end_date && lastRun.start_date
+                && `, took ${elapsed(new Date(lastRun.end_date).getTime() - new Date(lastRun.start_date).getTime())}`}
+            </span>
+          ) : (
+            <span>No training run yet; Airflow is reachable</span>
+          )
         ) : (
-          <p className="mt-1 text-sm text-muted-foreground">{status ? "No model has been promoted yet." : waiting(failed)}</p>
+          <span>{pipeline?.detail ?? "Airflow is not reachable from here"}</span>
         )}
-        {model && model.versions.length > 0 && (
-          <Table containerClassName="mt-3 rounded-md border" className="min-w-[28rem]">
-            <TableCaption className="sr-only">Every version the registry has promoted</TableCaption>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Version</TableHead>
-                <TableHead>Model</TableHead>
-                <TableHead>Trained</TableHead>
-                <TableHead className="text-right">CV MAE</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {model.versions.slice(0, 5).map(v => (
-                <TableRow key={v.name}>
-                  <TableCell className="font-mono">{v.name}</TableCell>
-                  <TableCell>{v.model_type ?? "—"}</TableCell>
-                  <TableCell className="text-muted-foreground">{ago(v.trained_at)}</TableCell>
-                  <TableCell className="text-right font-mono">{v.cv_mae == null ? "—" : mae(v.cv_mae)}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+        {pipeline?.dag_id && (
+          <a
+            href={`http://${window.location.hostname}:8081/dags/${pipeline.dag_id}`} target="_blank" rel="noreferrer"
+            className="underline underline-offset-4"
+          >
+            open in Airflow
+          </a>
         )}
-        {model && model.candidates.length > 0 && (
-          <p className="mt-2 text-sm text-muted-foreground">
-            Other frameworks trained: {model.candidates.map(c => `${c.name} (${ago(c.trained_at)})`).join(", ")}.
-          </p>
-        )}
-      </section>
-    </div>
+      </div>
+      {pipeline && !pipeline.airflow_reachable && (
+        <p className="mt-1 text-xs text-muted-foreground">
+          A retrain runs by hand: <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">docker compose run --rm pipeline-training retrain</code> -- the registry promotes it if it beats the current model.
+        </p>
+      )}
+      {model && model.versions.length > 0 && (
+        <div className="mt-4">
+          <div className="text-xs text-muted-foreground">Promoted, newest first</div>
+          <ul className="mt-1 divide-y rounded-md border text-sm" aria-label="Every version the registry has promoted">
+            {model.versions.slice(0, 5).map((v, i, all) => {
+              const older = all[i + 1];
+              const delta = v.cv_mae != null && older?.cv_mae != null ? v.cv_mae - older.cv_mae : null;
+              return (
+                <li key={v.name} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2">
+                  <span className="font-mono">{v.name}</span>
+                  <span>{v.model_type ?? "—"}</span>
+                  <span className="text-muted-foreground">{ago(v.trained_at)}</span>
+                  <span className="ml-auto font-mono tabular-nums">{v.cv_mae == null ? "—" : mae(v.cv_mae)}</span>
+                  {/* How this version moved the error against the one
+                      before it: down is better. A retrain that landed on
+                      the same numbers says so in words. */}
+                  {delta !== null && (
+                    <span className={cn("w-20 text-right font-mono text-xs tabular-nums", delta < -0.00005 ? "text-emerald-600 dark:text-emerald-400" : delta > 0.00005 ? "text-destructive" : "text-muted-foreground")}>
+                      {Math.abs(delta) <= 0.00005 ? "no change" : `${delta < 0 ? "▼" : "▲"} ${mae(Math.abs(delta))}`}
+                    </span>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
+      {model && model.candidates.length > 0 && (
+        <p className="mt-2 text-xs text-muted-foreground">
+          Also trained, not promoted: {model.candidates.map(c => `${c.name} (${ago(c.trained_at)})`).join(", ")}.
+        </p>
+      )}
+    </AccordionSection>
+  );
+}
+
+/** The Performance tab, for the developer training the model: the
+ *  data it learns from, the model serving and the run that would
+ *  replace it, and every algorithm compared -- three sections, each
+ *  open, none wider than a phone. */
+function PerformanceTab({ status, failed }: { status: Status | undefined; failed: boolean }) {
+  return (
+    <Accordion type="multiple" defaultValue={["Data", "Model", "Model comparison"]}>
+      <DataSection status={status} failed={failed} />
+      <ModelSection status={status} failed={failed} />
+      <AccordionSection title="Model comparison">
+        <ModelComparisonChart />
+      </AccordionSection>
+    </Accordion>
   );
 }
 
@@ -353,90 +505,31 @@ function StackLink({ link }: { link: { label: string; href: string; service?: st
   );
 }
 
-function TrainingTab({ status, failed }: { status: Status | undefined; failed: boolean }) {
-  const { pipeline, lastRun, running } = useRetrain();
-  const model = status?.model;
-  const corridors = status?.corridors ?? [];
-  // The route on the map behind the console, to mark its row and to
-  // point the rating step at it.
+/** The collected route on the map behind the console, if it is one:
+ *  the Routes section marks its row and says how far its rating has
+ *  got. */
+function useOnMap(corridors: Status["corridors"]) {
   const params = new URLSearchParams(useLocation().search);
   const onMapKey = `${params.get("dep") ?? ""}-${params.get("dest") ?? ""}`.toUpperCase();
-  const onMap = corridors.find(c => `${c.departure_ident}-${c.destination_ident}`.toUpperCase() === onMapKey);
+  return corridors.find(c => `${c.departure_ident}-${c.destination_ident}`.toUpperCase() === onMapKey);
+}
+
+function TrainingTab() {
 
   return (
     <div className="space-y-6">
       <Step
         n={1}
         title="Collect a route"
-        description="Collecting a route gathers every candidate landmark from OpenStreetMap and the FAA files within ten miles of the course, with the features the model scores them by -- Overpass, the FAA files and an elevation lookup per candidate, a few minutes in the background. The planner can score checkpoints only on a collected route. Load a route in the header above; one not yet collected offers to be. These are collected so far:"
-      >
-        <Table containerClassName="rounded-md border" className="min-w-[40rem]">
-          <TableCaption className="sr-only">Collected routes</TableCaption>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Route</TableHead>
-              <TableHead className="text-right">Candidates</TableHead>
-              <TableHead className="text-right">Rated</TableHead>
-              <TableHead className="text-right">Added</TableHead>
-              <TableHead className="text-right">Notes</TableHead>
-              <TableHead>Built</TableHead>
-              <TableHead className="text-right"><span className="sr-only">Actions</span></TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {corridors.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={7} className="h-16 text-center text-muted-foreground">
-                  {status ? "No route has been collected yet." : waiting(failed)}
-                </TableCell>
-              </TableRow>
-            )}
-            {corridors.map(c => {
-              const route = new URLSearchParams({ dep: c.departure_ident, dest: c.destination_ident }).toString();
-              const key = `${c.departure_ident}-${c.destination_ident}`;
-              const current = c === onMap;
-              const rated = c.candidates ? Math.round((c.labels.total / c.candidates) * 100) : null;
-              return (
-                <TableRow key={key} data-state={current ? "selected" : undefined}>
-                  <TableCell className="font-mono">
-                    {c.departure_ident} → {c.destination_ident}
-                    {current && <Badge variant="secondary" className="ml-2 font-sans">on the map</Badge>}
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums">{c.candidates ?? "—"}</TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {c.labels.total}
-                    {rated !== null && <span className="ml-1 text-xs text-muted-foreground">({rated}%)</span>}
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums">{c.labels.added}</TableCell>
-                  <TableCell className="text-right tabular-nums">{c.notes}</TableCell>
-                  <TableCell className="text-muted-foreground">{ago(c.features_built_at)}</TableCell>
-                  <TableCell className="text-right">
-                    <Button asChild variant="link" size="sm"><Link to={`/plan?${route}`}>Plan</Link></Button>
-                    <Button asChild variant="link" size="sm"><Link to={`/dev?${route}`}>Rate</Link></Button>
-                  </TableCell>
-                </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
-        <p className="mt-2 text-xs text-muted-foreground">
-          Rated counts every pick on the chart, 0 included, against the candidates scored; added are the ones a pilot put on the chart themselves.
-        </p>
-      </Step>
+        description="Collecting a route gathers every candidate landmark from OpenStreetMap and the FAA files within ten miles of the course, with the features the model scores them by -- Overpass, the FAA files and an elevation lookup per candidate, a few minutes in the background. The planner can score checkpoints only on a collected route. Load a route in the header above; one not yet collected offers to be. The routes collected so far are in the Performance tab."
+      />
 
       <Step
         n={2}
         title="Rate its checkpoints"
-        description="Close this drawer and walk the route on the map behind it, from the Model Training drawer at the side: every candidate in flight order, rated 0 to 5 for how findable it is from the air (Space starts, the arrow keys step, the digits rate). Each rating is one labelled example; the model learns from nothing else."
+        description="Close this drawer and walk the route on the map behind it, from the Model Training drawer at the side: every candidate in flight order, rated 0 to 5 for how findable it is from the air (Space starts, the arrow keys step, the digits rate). Each rating is one labelled example; the model learns from nothing else. A route's name in the Performance tab's Data brings it onto the map; which one is there now, and how far its rating has got, is said there too."
       >
-        {onMap ? (
-          <p className="text-sm text-muted-foreground">
-            {onMap.departure_ident} → {onMap.destination_ident} is on the map now: {onMap.labels.total} of {onMap.candidates ?? "—"} candidates rated.
-          </p>
-        ) : (
-          <p className="text-sm text-muted-foreground">Pick a route above with Rate to bring it onto the map.</p>
-        )}
-        <div className="mt-3 rounded-md border border-border p-3">
+        <div className="rounded-md border border-border p-3">
           <RatingGuide />
         </div>
       </Step>
@@ -444,45 +537,11 @@ function TrainingTab({ status, failed }: { status: Status | undefined; failed: b
       <Step
         n={3}
         title="Retrain"
-        description="The Retrain button is in the Model Training drawer at the side, beside Undo and Reset. It reads every rating across every route, fits every algorithm in the Performance tab's comparison, and promotes the best one only if it beats the model serving now."
+        description="Retrain is on each route's card in the Performance tab, and in the Model Training drawer beside Undo and Reset. It reads every rating across every route, fits every algorithm in the Performance tab's comparison, and promotes the best one only if it beats the model serving now."
       >
-        {pipeline?.airflow_reachable ? (
-          <div className="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm">
-            {lastRun ? (
-              <>
-                <Dot tone={running ? "running" : lastRun.state === "success" ? "up" : lastRun.state === "failed" ? "down" : "checking"} />
-                <span className="font-medium">Last training run: {lastRun.state ?? "unknown"}</span>
-                <span className="text-muted-foreground">
-                  started {ago(lastRun.start_date)}
-                  {lastRun.end_date && lastRun.start_date
-                    && `, took ${elapsed(new Date(lastRun.end_date).getTime() - new Date(lastRun.start_date).getTime())}`}
-                </span>
-              </>
-            ) : (
-              <span className="text-muted-foreground">Airflow is reachable; the training DAG has not run yet.</span>
-            )}
-            {pipeline.dag_id && (
-              <a
-                href={`http://${window.location.hostname}:8081/dags/${pipeline.dag_id}`} target="_blank" rel="noreferrer"
-                className="underline underline-offset-4"
-              >
-                open in Airflow
-              </a>
-            )}
-          </div>
-        ) : (
-          <p className="mt-1 text-sm text-muted-foreground">
-            {pipeline?.detail ?? "Airflow is not reachable from here"}, so a retrain runs by hand:{" "}
-            <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">docker compose run --rm pipeline-training retrain</code>
-            {" "}-- the registry promotes it if it beats the current model.
-          </p>
-        )}
-        {status && (
-          <p className="mt-2 text-xs text-muted-foreground">
-            {ratings(status)} ratings across {status.corridors.length} route{status.corridors.length === 1 ? "" : "s"} to learn from
-            {model?.current?.n_labeled != null && `; the serving model learned from ${model.current.n_labeled}`}.
-          </p>
-        )}
+        <p className="mt-1 text-sm text-muted-foreground">
+          Its last run, and the ratings the next one would read, are in the Performance tab.
+        </p>
       </Step>
     </div>
   );
