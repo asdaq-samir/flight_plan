@@ -86,13 +86,15 @@ export function DevPanel() {
     <ConsoleTabs
       saved={savedTab}
       onChange={changeTab}
+      buttons={
+        <IconButton label="Check again" onClick={refreshAll} disabled={isFetching} data-testid="dev-refresh">
+          <RefreshCw className={cn("size-4", isFetching && "animate-spin")} />
+        </IconButton>
+      }
       actions={
         <>
           {pilot && <SignInStatus pilot={pilot} onRetry={() => void checkPilot()} />}
           {status && <span className="whitespace-nowrap text-xs text-muted-foreground">Checked {ago(status.checked_at)}</span>}
-          <IconButton label="Check again" onClick={refreshAll} disabled={isFetching} data-testid="dev-refresh">
-            <RefreshCw className={cn("size-4", isFetching && "animate-spin")} />
-          </IconButton>
         </>
       }
       tabs={[
