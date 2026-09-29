@@ -1005,12 +1005,12 @@ test("dev page: the dev console is a sheet from the top, and the waypoint drawer
   // The developer's drawer opens on training -- the three steps that
   // change the model -- then how good the models are, then the stack.
   await expect(devMl.getByText("Collect a route")).toBeVisible();
-  for (const name of ["Model Training", "Performance", "System"]) {
+  for (const name of ["Guide", "Performance", "System"]) {
     await expect(devMl.getByRole("tab", { name })).toBeVisible();
   }
   await devMl.getByRole("tab", { name: "Performance" }).click();
   await expect(devMl.getByText("Model comparison")).toBeVisible();
-  await devMl.getByRole("tab", { name: "Model Training" }).click();
+  await devMl.getByRole("tab", { name: "Guide" }).click();
   await expect(devMl.getByText("Collect a route")).toBeVisible();
   await expect(devMl.getByText("Rate its checkpoints")).toBeVisible();
   await expect(devMl.getByText("Retrain", { exact: true })).toBeVisible();

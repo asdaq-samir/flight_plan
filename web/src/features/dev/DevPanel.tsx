@@ -48,7 +48,7 @@ const CHART_KIND_LABELS: Record<string, string> = {
 /**
  * The developer's own console, in a `MapDrawer` dropping down over the
  * training map (see MapPage): what the repo does that a pilot never
- * sees, one tab each. Model Training, first -- the three steps that
+ * sees, one tab each. Guide, first -- the three steps that
  * change the model (collect a route, rate it, retrain), the routes
  * collected and how far their ratings have come, the rating guide and
  * the last training run; no inputs of its own, since the header's
@@ -67,7 +67,7 @@ export function DevPanel() {
   const { data: status, isFetching, isError: statusFailed } = useQuery(statusQuery);
   // The tab the console was last on, remembered per browser: a
   // developer watching a retrain or a route being collected reopens the
-  // console to the same tab, not to Model Training every time.
+  // console to the same tab, not to the Guide every time.
   const savedTab = usePreferences(s => s.devTab);
   const changeTab = usePreferences(s => s.setDevTab);
   // Who is signed in, and the way out, on the developer's own console:
@@ -96,7 +96,10 @@ export function DevPanel() {
       // last line rather than in its tab row.
       footer={status && <p className="mt-6 text-xs text-muted-foreground">Checked {ago(status.checked_at)}</p>}
       tabs={[
-        { value: "training", label: "Model Training", content: <TrainingTab status={status} failed={statusFailed} /> },
+        // "Guide", as the pilot console's first tab is: it walks the
+        // three steps. (The value stays "training", which is what a
+        // browser has remembered as its last tab.)
+        { value: "training", label: "Guide", content: <TrainingTab status={status} failed={statusFailed} /> },
         { value: "performance", label: "Performance", content: <PerformanceTab status={status} failed={statusFailed} /> },
         { value: "system", label: "System", content: <SystemTab status={status} failed={statusFailed} /> },
       ]}
