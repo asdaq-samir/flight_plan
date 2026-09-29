@@ -513,6 +513,15 @@ def _lock_for(key: tuple) -> threading.Lock:
         return _locks.setdefault(key, threading.Lock())
 
 
+# How many sheets may be downloaded and prepared at once, across every
+# request thread: preparing one (its overviews, its neatline search)
+# takes the process to about 3 GB, and a map zoomed out over the country
+# asks for a dozen sheets in one breath. The per-sheet locks above stop
+# the same sheet being prepared twice; this stops different sheets being
+# prepared all at once. Two by default; CI sets one (docker-compose.ci.yml).
+_PREPARE_SLOTS = threading.BoundedSemaphore(int(os.environ.get("CHARTS_PREPARE_AT_ONCE", "2")))
+
+
 def _load_ready(directory: Path, kind: ChartKind, name: str, cycle: str) -> Chart | None:
     try:
         data = json.loads((directory / _READY).read_text())
@@ -580,7 +589,8 @@ def ensure_chart(kind: ChartKind, name: str, cycle: str | None = None) -> Chart 
         if failed_at and time.time() - failed_at < _FAIL_TTL_S:
             return _latest_on_disk(kind, name)
         try:
-            chart = _download_and_prepare(kind, name, cycle)
+            with _PREPARE_SLOTS:
+                chart = _download_and_prepare(kind, name, cycle)
         except (requests.RequestException, OSError, zipfile.BadZipFile, RuntimeError) as err:
             log.warning("chart %s/%s (%s) unavailable: %s", kind.key, name, cycle, err)
             _failed[(kind.key, name)] = time.time()
