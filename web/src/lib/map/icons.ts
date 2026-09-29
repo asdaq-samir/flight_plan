@@ -37,13 +37,15 @@ export function dotIcon(fill: string, label?: string | number) {
   // `.leaflet-marker-icon { display: block }`, which wins the cascade
   // over a `flex` utility class of the same specificity.
   const tapSize = withLabel ? 36 : 32;
-  // leading-none and text-[8px]: a circle has less usable width near
+  // leading-none and text-[11px]: a circle has less usable width near
   // its edges than a square of the same size, so bold digits (a
   // route's checkpoint count runs to three) need real headroom to stay
   // inside the curve, and a browser's own line-height slack would sit
-  // the number off-centre.
+  // the number off-centre. 11px is Apple's floor for text meant to be
+  // read; these were 8, and they are the numbers a pilot matches to
+  // the nav log.
   const size = withLabel
-    ? "grid h-[22px] w-[22px] place-items-center text-[8px] font-bold leading-none"
+    ? "grid h-[24px] w-[24px] place-items-center text-[11px] font-bold leading-none tracking-tight"
     : "h-4 w-4";
   return L.divIcon({
     className: "",
@@ -92,8 +94,16 @@ export function ownShipIcon(headingDeg: number | null) {
  * 56 px box left-aligned a short ident off the airport's position and
  * cut a seven-character one (US-1234) off its own tap target.
  */
-export function airportIcon(colour: string, ident: string, { classB = false, unchecked = false } = {}) {
-  const width = Math.max(40, Math.ceil(ident.length * 7.5) + 22);
+export function airportIcon(
+  colour: string, ident: string,
+  { classB = false, unchecked = false, category = null as string | null } = {},
+) {
+  // A Class B chip says its flight category in words beside the ident
+  // ("KORD IFR"), or "?" for a field with no report: the colour said
+  // it alone, and on a phone there is no hover for the tooltip that
+  // names it.
+  const label = classB ? `${ident} ${category ?? "?"}` : ident;
+  const width = Math.max(40, Math.ceil(label.length * 7.5) + 22);
   const shape = classB ? "rounded-full" : "rounded-md";
   const fill = unchecked
     ? "background-color:#ffffff;color:#1c1a17"
@@ -103,6 +113,6 @@ export function airportIcon(colour: string, ident: string, { classB = false, unc
     iconSize: [width, 24], iconAnchor: [width / 2, 12],
     html:
       `<span class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap ${shape} border-2 border-white px-1.5 py-0.5 text-[11px] font-bold shadow-sm outline outline-1 outline-[rgba(10,20,28,.45)]"` +
-      ` style="${fill}">${text(ident)}</span>`,
+      ` style="${fill}">${text(ident)}${classB ? `<span class="ml-1 font-semibold opacity-90">${text(category ?? "?")}</span>` : ""}</span>`,
   });
 }

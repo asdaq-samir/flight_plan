@@ -258,7 +258,29 @@ export function AircraftPanel({ pilot }: { pilot: PilotState }) {
             // shadcn's own data-table framing (a bordered, rounded container
             // around stock cells) -- numbers right-aligned in tabular
             // figures so the units line up down a column.
-            <Table containerClassName="mt-2 mb-3 rounded-md border" className="min-w-[34rem]">
+            // On a phone, a card a line and a half tall per aeroplane
+            // rather than a table six columns wide scrolling sideways
+            // under the finger (Apple: no horizontal scrolling for the
+            // primary content); the table from md up.
+            <>
+            <ul className="mt-2 mb-3 divide-y rounded-md border md:hidden" aria-label="Your saved aircraft">
+              {list.length === 0 && <li className="p-3 text-center text-sm text-muted-foreground">No aircraft yet.</li>}
+              {list.map(a => (
+                <li key={a.id} className="flex items-start justify-between gap-3 p-3 text-sm" data-aircraft-row>
+                  <div className="min-w-0">
+                    <div className="font-mono font-semibold">{a.tailNumber} <span className="font-sans font-normal text-muted-foreground">{a.typeDesignator}</span></div>
+                    <div className="text-xs text-muted-foreground tabular-nums">
+                      {a.cruiseTasKt} kt · {a.fuelBurnGph} gph{a.usableFuelGal != null && ` · ${a.usableFuelGal} gal usable`}
+                    </div>
+                  </div>
+                  <div className="flex shrink-0 items-center">
+                    <Button type="button" variant="link" size="sm" onClick={() => edit(a)} data-aircraft-edit>Edit</Button>
+                    <Button type="button" variant="link" size="sm" className="text-destructive" onClick={() => setAircraftToDelete(a)}>Delete</Button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+            <Table containerClassName="mt-2 mb-3 hidden rounded-md border md:block" className="min-w-[34rem]">
               <TableCaption className="sr-only">Your saved aircraft</TableCaption>
               <TableHeader>
                 <TableRow>
@@ -275,7 +297,7 @@ export function AircraftPanel({ pilot }: { pilot: PilotState }) {
                   <TableRow><TableCell colSpan={6} className="h-16 text-center text-muted-foreground">No aircraft yet.</TableCell></TableRow>
                 )}
                 {list.map(a => (
-                  <TableRow key={a.id}>
+                  <TableRow key={a.id} data-aircraft-row>
                     <TableCell className="font-mono">{a.tailNumber}</TableCell>
                     <TableCell>{a.typeDesignator}</TableCell>
                     <TableCell className="text-right tabular-nums">{a.cruiseTasKt} kt</TableCell>
@@ -291,6 +313,7 @@ export function AircraftPanel({ pilot }: { pilot: PilotState }) {
                 ))}
               </TableBody>
             </Table>
+            </>
           )}
           {aircraftToDelete && (
             <div className="mb-3 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm" role="alert">
@@ -352,7 +375,27 @@ export function FlightsPanel({ pilot }: { pilot: PilotState }) {
           No flights filed yet -- plan a route, open Flight Planning, and save it there.
         </p>
       ) : (
-        <Table containerClassName="mt-2 rounded-md border" className="min-w-[36rem]">
+        <>
+        <ul className="mt-2 divide-y rounded-md border md:hidden" aria-label="Your filed flights">
+          {list?.map(f => (
+            <li key={f.id} className="flex items-start justify-between gap-3 p-3 text-sm" data-flight-row>
+              <div className="min-w-0">
+                <div className="font-mono font-semibold">
+                  {f.departureIdent} → {f.destinationIdent}
+                  {f.aircraftTailNumber && <span className="ml-2 font-normal text-muted-foreground">{f.aircraftTailNumber}</span>}
+                </div>
+                <div className="text-xs text-muted-foreground tabular-nums">
+                  {feet(f.cruiseAltitudeFt)}{f.totalDistanceNm != null && ` · ${f.totalDistanceNm.toFixed(1)} nm`} · filed {new Date(f.createdAt).toLocaleDateString()}
+                </div>
+              </div>
+              <div className="flex shrink-0 items-center">
+                <Button asChild variant="link" size="sm"><Link to={planHref(f)}>Open</Link></Button>
+                <Button type="button" variant="link" size="sm" className="text-destructive" onClick={() => setFlightToDelete(f)}>Delete</Button>
+              </div>
+            </li>
+          ))}
+        </ul>
+        <Table containerClassName="mt-2 hidden rounded-md border md:block" className="min-w-[36rem]">
           <TableCaption className="sr-only">Your filed flights</TableCaption>
           <TableHeader>
             <TableRow>
@@ -382,6 +425,7 @@ export function FlightsPanel({ pilot }: { pilot: PilotState }) {
             ))}
           </TableBody>
         </Table>
+        </>
       )}
       {flightToDelete && (
         <div className="mt-3 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm" role="alert">

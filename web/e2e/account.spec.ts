@@ -57,7 +57,8 @@ test("an add still saving when Edit is clicked says added, and leaves the aeropl
   // phone it covers the rows, and their Edit buttons, under it.
   await page.keyboard.press("Escape");
   await expect(page.getByLabel("Tail number")).toHaveCount(0);
-  await console.getByRole("row", { name: /N2/ }).getByRole("button", { name: "Edit" }).click();
+  // The aeroplane's row, or on a phone its card: whichever is shown.
+  await console.locator("[data-aircraft-row]:visible", { hasText: "N2" }).getByRole("button", { name: "Edit" }).click();
   await expect(page.getByLabel("Tail number")).toHaveValue("N2");
   hold.release();
 
