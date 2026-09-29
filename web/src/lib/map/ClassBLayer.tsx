@@ -113,7 +113,7 @@ export function ClassBLayer({ course, onPreview }: { course: Course; onPreview: 
         <Marker
           key={airport.ident}
           position={[airport.lat, airport.lon]}
-          icon={airportIcon(colourOf(airport.flight_category), airport.ident, { classB: true, category: airport.flight_category ?? null })}
+          icon={airportIcon(colourOf(airport.flight_category), airport.ident, { classB: true })}
           eventHandlers={{
             // Close in, where the tiles exist, hovering previews the
             // sheet. mouseout rather than a timer: a marker that

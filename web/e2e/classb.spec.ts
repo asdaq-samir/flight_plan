@@ -82,17 +82,13 @@ test("the marker's colour is the field's own flight category", async ({ page }) 
   const msp = chips(page).filter({ hasText: "KMSP" }).first();
   await expect(ord).toBeVisible({ timeout: 15000 });
 
-  // The pill's top half is the category, in its colour and in words:
   // IFR is red. A field with no report is grey, deliberately not the
-  // green one, and a dash: "unknown" must not look like "fine", and
-  // the colour is not the only thing that says it. Asked of the
+  // green one: "unknown" must not look like "fine". Asked of the
   // locator, which retries: Leaflet redraws a marker's icon as the
   // layer settles, and a colour read once off the element it had just
   // replaced came back "" (a detached node has no computed style).
-  await expect(ord.locator("span").first()).toHaveCSS("background-color", "rgb(179, 38, 30)");
-  await expect(ord.locator("span").first()).toHaveText("IFR");
-  await expect(msp.locator("span").first()).toHaveCSS("background-color", "rgb(143, 163, 176)");
-  await expect(msp.locator("span").first()).toHaveText("—");
+  await expect(ord).toHaveCSS("background-color", "rgb(179, 38, 30)");
+  await expect(msp).toHaveCSS("background-color", "rgb(143, 163, 176)");
 });
 
 test("hovering one shows what it is doing and what it is forecast to do", async ({ page }) => {
