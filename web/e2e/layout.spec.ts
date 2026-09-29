@@ -177,13 +177,8 @@ for (const path of PAGES) {
 }
 
 /** The briefing is the flight planning drawer: open it from its header
- *  toggle, and the URL says so. Only once the planner has written its
- *  route into the address: an address with none gets the first
- *  collected route written in when the list of routes arrives, and a
- *  toggle clicked before that was overwritten by it -- the URL came
- *  back with the route and without view=briefing. */
+ *  toggle, and the URL says so. */
 async function openBriefing(page: Page) {
-  await expect(page).toHaveURL(/[?&]dest=/);
   await page.getByTestId("sidebar-trigger-button").click();
   await page.waitForTimeout(300);
   await expect(page).toHaveURL(/[?&]view=briefing/);
@@ -411,6 +406,25 @@ test("plan page: the drawer closes the way the stock components close, and nothi
   await closeSidebarWithTheStockKey(page);
   await expectDrawerClosed(page);
   await expect(page).not.toHaveURL(/[?&]view=briefing/);
+});
+
+// An address that names no route gets the first collected one written
+// in when the list of routes arrives. A tap on the toggle just before
+// that was undone by it -- the route was worked out from the address as
+// it stood before the tap -- and the drawer shut again with no
+// view=briefing. On a processor slowed sixfold, with the list arriving
+// just after the tap, it was every time.
+test("plan page: the briefing opened just as the default route arrives stays open", async ({ page, context }) => {
+  const cdp = await context.newCDPSession(page);
+  await cdp.send("Emulation.setCPUThrottlingRate", { rate: 6 });
+  let release = () => {};
+  const listed = new Promise<void>(resolve => { release = resolve; });
+  await page.route("**/api/planner/routes", async route => { await listed; await route.continue(); });
+  await page.goto("/app/plan");
+  await page.getByTestId("sidebar-trigger-button").click();
+  release();
+  await expect(page).toHaveURL(/[?&]dest=/);
+  await expect(page).toHaveURL(/[?&]view=briefing/);
 });
 
 test("plan page: a pasted briefing link opens the drawer, and the header's toggle closes and reopens it", async ({ page }) => {

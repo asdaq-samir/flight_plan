@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useSearchParams } from "react-router-dom";
 import { cn } from "cn";
 import { api } from "../../lib/api/client";
 import { pilotQuery } from "../../lib/queryClient";
@@ -12,6 +11,7 @@ import { DEFAULT_AIRCRAFT, usePreferences } from "../../lib/preferences";
 // app styling.
 import "leaflet/dist/leaflet.css";
 import { useProgressToast } from "../../lib/useProgressToast";
+import { useSearchParamsNow } from "../../lib/useSearchParamsNow";
 import type { WorkspaceProps } from "../page/workspace";
 import { PilotPanel } from "../pilot/PilotPanel";
 import { Alert, AlertDescription, AlertTitle } from "../../components/ui/alert";
@@ -64,7 +64,7 @@ function baseProfile(typeDesignator: string, profiles: AircraftProfileSummary[])
  * nothing kept in step by hand.
  */
 export default function PlanWorkspace({ dep, dest, sidebarOpen, children }: WorkspaceProps) {
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParamsNow();
   const planned = { dep: identOf(searchParams.get("dep")), dest: identOf(searchParams.get("dest")) };
   const altitudeFt = searchParams.get("altitude_ft") ?? "";
   const altitudeChoice = altitudeChoiceOf(searchParams.get("altitude_choice"));

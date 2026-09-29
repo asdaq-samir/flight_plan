@@ -1,8 +1,8 @@
 import { Suspense, lazy, useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
-import { useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { cn } from "cn";
 import { EXPANDED_BUTTON } from "../../lib/expandedButton";
+import { useSearchParamsNow } from "../../lib/useSearchParamsNow";
 import DevSwitch from "../../components/DevSwitch";
 import MapHeader from "../../components/MapHeader";
 import RouteForm from "../../components/RouteForm";
@@ -68,7 +68,7 @@ const MODES = {
  */
 export default function MapPage({ mode }: { mode: Mode }) {
   const { title, sidebar, console: consoleLabel, Workspace, ConsoleButton, route } = MODES[mode];
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParamsNow();
   // The route in the header: the address's, unless the pilot has typed
   // over it -- and a draft belongs to the address it was typed over. The
   // address is what every query keys on, and it changes in more ways
