@@ -574,6 +574,15 @@ jobs:
           mkdir -p data/raw web/node_modules
           sudo mount -t tmpfs -o "size=8g,mode=0777,uid=$(id -u),gid=$(id -g)" tmpfs data/raw
           sudo mount -t tmpfs -o "size=2g,mode=0777,uid=$(id -u),gid=$(id -g)" tmpfs web/node_modules
+          # And what is written to the disk goes to it as it is written,
+          # a few hundred MB behind at most, rather than up to a fifth of
+          # the memory (3 GB). On a slow disk each service's start waited
+          # 20 to 27 seconds (run 36743209328): starting a container
+          # syncs a file or two, and ext4 syncs first everything written
+          # before it -- there, the gigabytes of images just unpacked. The
+          # writing is the disk's pace either way; the syncs no longer
+          # wait behind it.
+          sudo sysctl -q -w vm.dirty_bytes=$((256 << 20)) vm.dirty_background_bytes=$((64 << 20))
           T0=$(date +%s)
           export T0
           echo "T0=$T0" >> "$GITHUB_ENV"
