@@ -113,6 +113,11 @@ export default function MapPage({ mode }: { mode: Mode }) {
 
   const [localOpen, setLocalOpen] = useState(false);
   const sidebarOpen = mode === "pilot" ? searchParams.get("view") === "briefing" : localOpen;
+  // flushSync: the drawer is on screen the moment the address says so.
+  // React Router lands a navigation in a transition, which a busy page
+  // (the plan streaming in) holds back, and the drawer's own toggle --
+  // Cmd/Ctrl+B, a second tap -- read the open state from before it: a
+  // close pressed then opened it again, one run in three under load.
   const setSidebarOpen = useCallback((open: boolean) => {
     if (mode !== "pilot") { setLocalOpen(open); return; }
     setSearchParams(prev => {
@@ -120,7 +125,7 @@ export default function MapPage({ mode }: { mode: Mode }) {
       if (open) next.set("view", "briefing");
       else next.delete("view");
       return next;
-    }, { replace: true });
+    }, { replace: true, flushSync: true });
   }, [mode, setSearchParams]);
 
   return (

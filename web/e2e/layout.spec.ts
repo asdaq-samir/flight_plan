@@ -1,4 +1,4 @@
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect, type Locator, type Page } from "@playwright/test";
 
 /**
  * The regressions this file exists to catch (see playwright.config.ts
@@ -85,11 +85,31 @@ async function closeSidebarWithTheStockKey(page: Page) {
     // the drawer has slid in, one of their tooltips opens, and Escape
     // closes the tooltip -- the drawer stayed open about one run in ten.
     // The drawer is on the left: the overlay beside it on the right.
+    // And the sheet at rest first: an Escape pressed while it was still
+    // sliding in left it open, now and then, on a loaded machine.
     await page.mouse.move(viewport.width - 4, viewport.height / 2);
+    await settled(page.locator('[data-slot="sidebar"][data-mobile="true"]'));
     await page.keyboard.press("Escape");
   } else {
     await page.keyboard.press("ControlOrMeta+b");
   }
+}
+
+/** Every finite animation on and under an element run out -- a
+ *  sheet's slide, the panel's width easing in. A spinner's spin is
+ *  endless and left alone: waited on, it never finished. */
+async function settled(locator: Locator) {
+  await locator.evaluate(el => Promise.all(el.getAnimations({ subtree: true })
+    .filter(a => a.effect?.getTiming().iterations !== Infinity)
+    .map(a => a.finished)));
+}
+
+/** The drawer's box once it is open and done opening: measured 300 ms
+ *  after the tap, it was 29 px short of its width on a loaded runner. */
+async function openedDrawerBox(page: Page) {
+  await expectDrawerOpen(page);
+  await settled(sideDrawer(page));
+  return sideDrawer(page).boundingBox();
 }
 
 async function openSidebar(page: Page) {
@@ -205,8 +225,8 @@ for (const path of PAGES) {
  *  toggle, and the URL says so. */
 async function openBriefing(page: Page) {
   await page.getByTestId("sidebar-trigger-button").click();
-  await page.waitForTimeout(300);
   await expect(page).toHaveURL(/[?&]view=briefing/);
+  await expectDrawerOpen(page);
 }
 
 test.describe("/app/plan", () => {
@@ -315,9 +335,7 @@ test("plan page: the flight planning drawer opens the way the Model Training dra
   await settle(page);
   await page.getByTestId("sidebar-trigger-button").click();
   const drawer = sideDrawer(page);
-  await expect(drawer).toBeVisible();
-  await page.waitForTimeout(300);
-  const devBox = await drawer.boundingBox();
+  const devBox = await openedDrawerBox(page);
   expect(devBox).not.toBeNull();
 
   // The flight planning drawer: the URL says briefing, and it is the
@@ -326,10 +344,8 @@ test("plan page: the flight planning drawer opens the way the Model Training dra
   await page.goto("/app/plan");
   await settle(page);
   await page.getByTestId("sidebar-trigger-button").click();
-  await page.waitForTimeout(300);
-  await expect(drawer).toBeVisible();
   await expect(page).toHaveURL(/[?&]view=briefing/);
-  const box = await drawer.boundingBox();
+  const box = await openedDrawerBox(page);
   expect(box).not.toBeNull();
   expect(Math.abs(box!.width - devBox!.width)).toBeLessThan(2);
   expect(Math.abs(box!.x - devBox!.x)).toBeLessThan(2);
@@ -639,8 +655,23 @@ test("plan page: every popup the map opens dismisses the same way", async ({ pag
   await settle(page);
   await expect(page.locator("img.leaflet-tile").first()).toBeAttached();
   const popups = page.locator(".leaflet-popup");
-  const box = (await page.locator(".leaflet-container").boundingBox())!;
-  const empty = { x: box.x + 60, y: box.y + box.height - 60 };
+  // A tap on the chart itself, where nothing is drawn: a fixed corner
+  // had a Class B chip under it once the pin had flown the map to KORD.
+  const tapTheChart = async () => {
+    const at = await page.locator(".leaflet-container").evaluate(map => {
+      const r = map.getBoundingClientRect();
+      for (let fy = 0.85; fy > 0.1; fy -= 0.1) {
+        for (let fx = 0.15; fx < 0.9; fx += 0.1) {
+          const x = r.left + r.width * fx, y = r.top + r.height * fy;
+          const hit = document.elementFromPoint(x, y);
+          if (hit && map.contains(hit) && (hit.matches("img.leaflet-tile") || hit.matches(".leaflet-container, .leaflet-pane, .leaflet-layer, .leaflet-tile-container"))) return { x, y };
+        }
+      }
+      return null;
+    });
+    expect(at, "somewhere on the chart with nothing on it").not.toBeNull();
+    await page.mouse.click(at!.x, at!.y);
+  };
 
   // The departure marker: a tap opens its card, a tap on the chart puts
   // it away. There is no close button on a card -- closing one is
@@ -649,7 +680,7 @@ test("plan page: every popup the map opens dismisses the same way", async ({ pag
   // the next step needs before it can find KORD.
   await page.locator(".leaflet-marker-icon", { hasText: "C81" }).first().click();
   await expect(popups).toHaveCount(1);
-  await page.mouse.click(empty.x, empty.y);
+  await tapTheChart();
   await expect(popups).toHaveCount(0);
   const zoomToggle = page.getByTestId("map-action-button");
   await expect(zoomToggle).toHaveAttribute("aria-label", "Fit Route", { timeout: slow(10000) });
@@ -671,7 +702,7 @@ test("plan page: every popup the map opens dismisses the same way", async ({ pag
   await expect(popups).toHaveCount(1);
 
   // A tap on the chart does, exactly as it does for every other popup.
-  await page.mouse.click(empty.x, empty.y);
+  await tapTheChart();
   await expect(popups).toHaveCount(0);
 });
 
@@ -794,9 +825,14 @@ test("the Dev-mode switch is in the settings, flips to the dev page with the rou
   // Plan's own briefing parameter left behind.
   await devSwitch.click();
   await page.waitForURL(/\/app\/dev\?dep=C81&dest=KDLH$/);
-  await page.waitForTimeout(300);
-  await page.keyboard.press("Escape");
-  await expect(await devSwitchInSettings(page)).toHaveAttribute("aria-checked", "true");
+  // The settings can come through the change of page open or closed:
+  // opened again until the switch is there, rather than an Escape and a
+  // click that toggled them shut when they were already.
+  const onDev = page.getByRole("switch", { name: "Dev mode" });
+  await expect(async () => {
+    if (!(await onDev.isVisible())) await page.getByTestId("settings-button").click();
+    await expect(onDev).toHaveAttribute("aria-checked", "true", { timeout: 2000 });
+  }).toPass({ timeout: 15000 });
 
   // Off again: back to exactly where it was flipped from (`state.from`,
   // DevSwitch's own), the open briefing included, not a flat /app/plan.
