@@ -8,13 +8,32 @@ RUN apt-get update && apt-get install -y --no-install-recommends default-jdk-hea
     && rm -rf /var/lib/apt/lists/*
 ENV JAVA_HOME=/usr/lib/jvm/default-java
 
-# Copied at the paths they have in the repo, so the image's list finds
-# vfr's own through its -r ../src/requirements.txt.
-COPY src/requirements.txt src/
-COPY docker/requirements-ml.txt docker/
+# The heaviest and least-changing first, each layer ahead of the file
+# the next one reads: torch (reads nothing), the frameworks (their own
+# list), then vfr's list and the notebooks' -- which change most, a
+# pinned bump in src/requirements.txt being the usual reason this image
+# rebuilds. Copied in before torch, as they were, one such bump
+# downloaded, built (pyspark is a 450 MB source archive) and compressed
+# every framework again: four and a half minutes of a CI run, where the
+# last layer alone is well under one. What that costs: an unpinned
+# framework is resolved when its layer is built and stays at that
+# version until requirements-ml-frameworks.txt (or the base image)
+# changes, rather than moving to the latest release with each bump of
+# vfr's; and a package vfr pins that a framework pulled in at another
+# version is installed again, in the last layer, at vfr's.
+#
 # CPU-only wheel -- this container has no GPU to use, and the default
 # torch wheel pulls several GB of unused CUDA/cuDNN dependencies.
 RUN --mount=type=cache,target=/root/.cache/pip pip install torch --index-url https://download.pytorch.org/whl/cpu
+COPY docker/requirements-ml-frameworks.txt docker/
+RUN --mount=type=cache,target=/root/.cache/pip pip install -r docker/requirements-ml-frameworks.txt
+# Copied at the paths they have in the repo, so the image's list finds
+# vfr's own through its -r ../src/requirements.txt. This install is the
+# whole list resolved together, as it always was; the frameworks are
+# already satisfied, so it adds and adjusts only what the layers above
+# do not have.
+COPY src/requirements.txt src/
+COPY docker/requirements-ml.txt docker/
 RUN --mount=type=cache,target=/root/.cache/pip pip install -r docker/requirements-ml.txt
 # The build fails here if a package the notebooks and vfr import is
 # missing, rather than a notebook cell later. This image carries no

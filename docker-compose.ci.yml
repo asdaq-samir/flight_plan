@@ -9,11 +9,36 @@
 # into data/raw, which the job keeps between runs, with the corridor's
 # elevations seeded from web/e2e/fixtures (the USGS lookup refuses a
 # GitHub runner).
+#
+# The stack starts at once rather than in turn. docker-compose.yml has
+# the webapp wait for a healthy planner, which waits for a healthy
+# model service, each noticed at the next of its five-second checks:
+# the three one after the other were most of the half-minute before
+# the first test. Neither wait is needed to start. The webapp's
+# readiness is its own and the database's (application.yml), and
+# nothing in its startup calls the planner; the planner's warm-up loads
+# airspace, obstacles, weather and charts, and asks the model service
+# only when a route is scored. So here all three start together, and
+# the job waits for all three to be healthy, and the planner warm,
+# before the suite asks anything. While each service starts, its check
+# runs every second (start_interval): healthy when it is ready, not up
+# to five seconds later.
 services:
   webapp:
     image: flight_plan-webapp:ci
+    depends_on: !override
+      db:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
+    healthcheck:
+      start_interval: 1s
   planning-service:
     image: flight_plan-planning-service:ci
+    depends_on: !reset {}
+    healthcheck:
+      start_period: 60s
+      start_interval: 1s
     environment:
       # The hourly check that fetches and renders the FAA's whole chart
       # set (7 GB, hours) is off: the corridor's own sheets, which the
@@ -28,5 +53,8 @@ services:
       CHARTS_PREPARE_AT_ONCE: "1"
   model-service:
     image: flight_plan-model-service:ci
+    healthcheck:
+      start_period: 60s
+      start_interval: 1s
     volumes:
       - ./web/e2e/fixtures/model:/opt/ml/model:ro

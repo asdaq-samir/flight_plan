@@ -13,10 +13,6 @@ scikit-learn
 matplotlib
 pillow
 folium
-jupyter
 
-# For later modules (HuggingFace/PyTorch/TensorFlow/Spark).
-transformers
-tensorflow
-sentence-transformers
-pyspark
+# For later modules (HuggingFace/PyTorch/TensorFlow/Spark), and jupyter.
+-r requirements-ml-frameworks.txt

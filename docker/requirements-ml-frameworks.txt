@@ -1,0 +1,15 @@
+# The frameworks of the later modules (HuggingFace/PyTorch/TensorFlow/
+# Spark) and the notebook server: nearly all of the ml image's
+# gigabytes, and the list that changes least. Dockerfile.ml installs it
+# in a layer of its own, before vfr's list is even copied in, so a bump
+# to src/requirements.txt reinstalls vfr's packages and not these.
+# requirements-ml.txt takes it with -r, so the image's last install is
+# still the whole list resolved together.
+#
+# torch is installed on its own first (Dockerfile.ml), from the CPU-only
+# index; sentence-transformers then finds it already satisfied.
+tensorflow
+transformers
+sentence-transformers
+pyspark
+jupyter
