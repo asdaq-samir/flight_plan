@@ -16,20 +16,48 @@
  * sideways only and is as tall as the table -- judged against that
  * one alone, a row far below the drawer's bottom edge read as in view.
  *
- * The wait is for an accordion section still opening: its content
- * clips and grows for 200 ms, and a scrollIntoView in that time
- * scrolls the clipping element too, which then keeps its top rows
- * clipped for good.
+ * The wait is for whatever around the row is still moving: an
+ * accordion section opening, whose content clips and grows for 200 ms,
+ * or the drawer sliding in or widening. A scrollIntoView while a
+ * section grows scrolls its clipping content too, and as it finishes
+ * growing that scroll snaps back to zero, taking the row down to where
+ * it had been: the drawer had not moved, and the row was still off
+ * screen. A fixed 250 ms was the wait once, 50 ms more than the
+ * section's animation, and on a busy phone the animation, started late
+ * behind the rendering of its rows, outlasted it. So the row is looked
+ * at once two frames in a row have had nothing around it moving, which
+ * also catches an animation that starts a frame after the reveal was
+ * asked for -- and at the latest after 90 frames, whatever is moving.
  */
 export function revealRow(row: HTMLElement | null): () => void {
   if (!row) return () => {};
-  const timer = window.setTimeout(() => {
+  let frame = 0;
+  let still = 0;
+  let frames = 0;
+  const look = () => {
+    still = moving(row) ? 0 : still + 1;
+    if (still < 2 && ++frames < 90) {
+      frame = requestAnimationFrame(look);
+      return;
+    }
+    if (!row.isConnected) return;
     const box = row.getBoundingClientRect();
     const view = visibleBand(row);
     if (box.top >= view.top && box.bottom <= view.bottom) return;
     row.scrollIntoView({ block: "center" });
-  }, 250);
-  return () => window.clearTimeout(timer);
+  };
+  frame = requestAnimationFrame(look);
+  return () => cancelAnimationFrame(frame);
+}
+
+/** Whether an animation or transition is running on `el` or an ancestor
+ *  of it -- one that will end: a spinner's never would. */
+function moving(el: HTMLElement): boolean {
+  return document.getAnimations().some(animation => {
+    const effect = animation.effect;
+    const target = effect instanceof KeyframeEffect ? effect.target : null;
+    return animation.playState === "running" && !!target?.contains(el) && effect?.getTiming().iterations !== Infinity;
+  });
 }
 
 /** The vertical band of the page not clipped away from `el` by any of
