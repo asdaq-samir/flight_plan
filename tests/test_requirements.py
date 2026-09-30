@@ -23,6 +23,8 @@ def test_the_image_that_writes_the_model_and_the_one_that_loads_it_pin_the_same_
     # first training rebuild after a scikit-learn release wrote a model
     # the service would load with a different version.
     writer = _pins(ROOT / "docker" / "requirements-training.txt")
-    reader = _pins(ROOT / "model-service" / "requirements.txt")
+    # The serving stack's own list: requirements.txt takes it with -r and
+    # adds only torch and tensorflow.
+    reader = _pins(ROOT / "model-service" / "requirements-serving.txt")
     assert {name: writer.get(name) for name in MODEL_RUNTIME} == {name: reader.get(name) for name in MODEL_RUNTIME}
     assert all(writer.get(name) for name in MODEL_RUNTIME)

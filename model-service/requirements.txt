@@ -1,25 +1,6 @@
-fastapi==0.141.1
-uvicorn[standard]==0.52.4
-pydantic==2.13.5
-
-# Real inference as of 2026-09-10 (this service returned a hand-written
-# stub before that), so the serving image now needs the model's own
-# runtime.
-#
-# Pinned exactly as the image that writes the model pins them
-# (docker/requirements-training.txt, numpy and pandas through
-# src/requirements.txt). A joblib artifact is a pickle of scikit-learn's
-# own objects, so the version that loads it has to match the version that
-# wrote it -- a serving image drifting from the training image is a
-# textbook way to get an InconsistentVersionWarning and, eventually, a
-# model that either fails to unpickle or silently mispredicts. The
-# training side used to be unpinned under a "bump both together" note;
-# tests/test_requirements.py now fails if the two differ.
-scikit-learn==1.9.1
-numpy==2.5.3
-pandas==3.0.5
-joblib==1.6.0
-pyarrow
+# The service as it ships: the scikit-learn serving stack, and the two
+# framework candidates it can also serve.
+-r requirements-serving.txt
 
 # The PyTorch and TensorFlow candidates (vfr.model_candidates, trained
 # one-off inside the `ml` image) -- pinned to exactly what that image

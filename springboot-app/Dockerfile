@@ -33,9 +33,18 @@ RUN npm run types && npx vite build --outDir /web/dist --emptyOutDir
 FROM maven:3.9.16-eclipse-temurin-25 AS build
 WORKDIR /build
 COPY springboot-app/pom.xml .
-RUN --mount=type=cache,target=/root/.m2/repository mvn -q dependency:go-offline
-COPY springboot-app/src ./src
-RUN --mount=type=cache,target=/root/.m2/repository mvn -q package -DskipTests
+# The dependencies into the layer itself (/build/m2), not only into the
+# cache mount. A cache mount belongs to the machine that built it and is
+# not exported with the layer cache: on a CI runner restoring the layers
+# from the registry this step was a hit, the mount was empty, and
+# `mvn package` below downloaded every dependency again on each commit.
+# The mount stays, as the local download cache for a changed pom.
+RUN --mount=type=cache,target=/root/.m2/repository \
+    mvn -B -q dependency:go-offline && cp -R /root/.m2/repository /build/m2
+# src/main alone: the tests are neither run here (-DskipTests) nor
+# wanted in the layer, where an edited test rebuilt the jar.
+COPY springboot-app/src/main ./src/main
+RUN mvn -B -q package -DskipTests -Dmaven.repo.local=/build/m2
 
 FROM eclipse-temurin:25-jre
 WORKDIR /app

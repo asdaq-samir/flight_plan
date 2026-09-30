@@ -30,6 +30,15 @@ springboot-app/target/
 .pytest_cache/
 .ruff_cache/
 web/test-results/
+# The browser suite, its reports and a host build of the bundle: none
+# read by springboot-app/Dockerfile, and an edited spec used to
+# invalidate `COPY web/` and rebuild the bundle for nothing.
+web/e2e/
+web/playwright-report/
+web/dist/
+# The webapp's own tests: the image is built with -DskipTests, and a
+# test edit used to rebuild the jar for nothing.
+springboot-app/src/test/
 # iCloud's numbered conflict copies ("UnverifiedEmailException 2.java"),
 # which .gitignore already hides from git but which still reached the
 # build context: a copy of a Java class compiled as a duplicate and

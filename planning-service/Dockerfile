@@ -6,7 +6,15 @@ WORKDIR /workspace/planning-service
 # rasterio's wheel bundles GDAL, which links libexpat for its XML
 # (GeoTIFF metadata, VRTs) and does not bundle it; without this the
 # import fails on the slim image.
-RUN apt-get update && apt-get install -y --no-install-recommends libexpat1 && rm -rf /var/lib/apt/lists/*
+# apt's package cache in a cache mount, like pip's below: the layer is
+# what CI restores, the mount only saves a local rebuild the download.
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
+    rm -f /etc/apt/apt.conf.d/docker-clean \
+    && apt-get update && apt-get install -y --no-install-recommends libexpat1
+# The user before the source, which changes every commit: this layer
+# then stays cached with the dependencies.
+RUN useradd -m appuser
 
 # The service's own list includes vfr's (-r ../src/requirements-charts.txt),
 # so both are copied to where that relative path points.
@@ -17,7 +25,6 @@ RUN --mount=type=cache,target=/root/.cache/pip pip install -r requirements.txt
 COPY planning-service/app ./app
 COPY src /workspace/src
 
-RUN useradd -m appuser
 USER appuser
 
 ENV PYTHONPATH=/workspace/src
