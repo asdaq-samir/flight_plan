@@ -3,6 +3,14 @@
     "schemas" : {
       "AircraftDto" : {
         "properties" : {
+          "climbFuelBurnGph" : {
+            "format" : "double",
+            "type" : [ "number", "null" ]
+          },
+          "climbTasKt" : {
+            "format" : "double",
+            "type" : [ "number", "null" ]
+          },
           "createdAt" : {
             "format" : "date-time",
             "type" : "string"
@@ -30,11 +38,19 @@
             "type" : [ "number", "null" ]
           }
         },
-        "required" : [ "createdAt", "cruiseTasKt", "fuelBurnGph", "id", "tailNumber", "typeDesignator", "usableFuelGal" ],
+        "required" : [ "climbFuelBurnGph", "climbTasKt", "createdAt", "cruiseTasKt", "fuelBurnGph", "id", "tailNumber", "typeDesignator", "usableFuelGal" ],
         "type" : "object"
       },
       "AircraftRequest" : {
         "properties" : {
+          "climbFuelBurnGph" : {
+            "format" : "double",
+            "type" : [ "number", "null" ]
+          },
+          "climbTasKt" : {
+            "format" : "double",
+            "type" : [ "number", "null" ]
+          },
           "cruiseTasKt" : {
             "format" : "double",
             "type" : "number"
@@ -58,7 +74,7 @@
             "type" : [ "number", "null" ]
           }
         },
-        "required" : [ "cruiseTasKt", "fuelBurnGph", "tailNumber", "typeDesignator", "usableFuelGal" ],
+        "required" : [ "climbFuelBurnGph", "climbTasKt", "cruiseTasKt", "fuelBurnGph", "tailNumber", "typeDesignator", "usableFuelGal" ],
         "type" : "object"
       },
       "Capabilities" : {

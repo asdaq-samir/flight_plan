@@ -4,6 +4,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.oidcLogin;
@@ -51,7 +52,7 @@ class AircraftControllerTest {
     }
 
     private static Aircraft sampleAircraft() {
-        return new Aircraft(samplePilot(), "N12345", "C172", 110, 8.5, 40.0);
+        return new Aircraft(samplePilot(), "N12345", "C172", 110, 8.5, null, null, 40.0);
     }
 
     /** A method the path doesn't map is a 405, not the catch-all 500 --
@@ -116,7 +117,7 @@ class AircraftControllerTest {
     @Test
     void add_returns200_forAValidRequest() throws Exception {
         given(pilotService.current(any())).willReturn(Optional.of(samplePilot()));
-        given(aircraftService.add(any(), anyString(), anyString(), anyDouble(), anyDouble(), any()))
+        given(aircraftService.add(any(), anyString(), anyString(), anyDouble(), anyDouble(), any(), any(), any()))
                 .willReturn(sampleAircraft());
 
         mockMvc.perform(post("/api/aircraft").with(oidcLogin()).with(csrf())
@@ -124,6 +125,34 @@ class AircraftControllerTest {
                         .content("{\"tailNumber\":\"N12345\",\"typeDesignator\":\"C172\",\"cruiseTasKt\":110,\"fuelBurnGph\":8.5}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.tailNumber").value("N12345"));
+    }
+
+    /** The climb's own speed and burn go through to the aeroplane and
+     *  back: the nav log flies every climb on them. */
+    @Test
+    void add_passesTheClimbsOwnSpeedAndBurnThrough() throws Exception {
+        given(pilotService.current(any())).willReturn(Optional.of(samplePilot()));
+        given(aircraftService.add(any(), eq("N12345"), eq("C172"), eq(110.0), eq(8.5), eq(74.0), eq(11.0), eq(40.0)))
+                .willReturn(new Aircraft(samplePilot(), "N12345", "C172", 110, 8.5, 74.0, 11.0, 40.0));
+
+        mockMvc.perform(post("/api/aircraft").with(oidcLogin()).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"tailNumber\":\"N12345\",\"typeDesignator\":\"C172\",\"cruiseTasKt\":110,"
+                                + "\"fuelBurnGph\":8.5,\"climbTasKt\":74,\"climbFuelBurnGph\":11,\"usableFuelGal\":40}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.climbTasKt").value(74.0))
+                .andExpect(jsonPath("$.climbFuelBurnGph").value(11.0));
+    }
+
+    @Test
+    void add_returns400_whenTheClimbSpeedIsNotPositive() throws Exception {
+        given(pilotService.current(any())).willReturn(Optional.of(samplePilot()));
+
+        mockMvc.perform(post("/api/aircraft").with(oidcLogin()).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"tailNumber\":\"N1\",\"typeDesignator\":\"C172\",\"cruiseTasKt\":110,"
+                                + "\"fuelBurnGph\":8.5,\"climbTasKt\":0}"))
+                .andExpect(status().isBadRequest());
     }
 
     @Test

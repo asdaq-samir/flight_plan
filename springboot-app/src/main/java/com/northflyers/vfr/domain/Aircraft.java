@@ -22,7 +22,12 @@ import lombok.Getter;
  * numbers, and the dead-reckoning math consumes these two values
  * directly, so a wrong one is a wrong nav log rather than a wrong label.
  *
- * <p>Usable fuel is the third such number: what the tanks actually hold
+ * <p>The climb has its own two: the speed it is flown at and what it
+ * burns, which is more than the cruise. Nullable: an aeroplane added
+ * before they were asked for, or whose owner has not said, climbs at
+ * the planner's book figures for its type.
+ *
+ * <p>Usable fuel is the last such number: what the tanks actually hold
  * for the trip and the reserve, which the nav log checks the total
  * against. Nullable, since an aeroplane added before it was asked for
  * -- or one whose owner has not said -- should get no fuel check rather
@@ -55,6 +60,10 @@ public class Aircraft {
     @Column(nullable = false)
     private double fuelBurnGph;
 
+    private Double climbTasKt;
+
+    private Double climbFuelBurnGph;
+
     private Double usableFuelGal;
 
     @Column(nullable = false)
@@ -64,13 +73,15 @@ public class Aircraft {
         // JPA
     }
 
-    public Aircraft(Pilot pilot, String tailNumber, String typeDesignator,
-                    double cruiseTasKt, double fuelBurnGph, Double usableFuelGal) {
+    public Aircraft(Pilot pilot, String tailNumber, String typeDesignator, double cruiseTasKt, double fuelBurnGph,
+                    Double climbTasKt, Double climbFuelBurnGph, Double usableFuelGal) {
         this.pilot = pilot;
         this.tailNumber = tailNumber;
         this.typeDesignator = typeDesignator;
         this.cruiseTasKt = cruiseTasKt;
         this.fuelBurnGph = fuelBurnGph;
+        this.climbTasKt = climbTasKt;
+        this.climbFuelBurnGph = climbFuelBurnGph;
         this.usableFuelGal = usableFuelGal;
         this.createdAt = Instant.now();
     }
@@ -79,11 +90,13 @@ public class Aircraft {
      *  numbers change together (a new owner, a re-rigged engine) often
      *  enough that a partial update isn't worth the extra API shape. */
     public Aircraft update(String tailNumber, String typeDesignator, double cruiseTasKt, double fuelBurnGph,
-                           Double usableFuelGal) {
+                           Double climbTasKt, Double climbFuelBurnGph, Double usableFuelGal) {
         this.tailNumber = tailNumber;
         this.typeDesignator = typeDesignator;
         this.cruiseTasKt = cruiseTasKt;
         this.fuelBurnGph = fuelBurnGph;
+        this.climbTasKt = climbTasKt;
+        this.climbFuelBurnGph = climbFuelBurnGph;
         this.usableFuelGal = usableFuelGal;
         return this;
     }

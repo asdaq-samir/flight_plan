@@ -51,7 +51,7 @@ public class AircraftController {
     public ResponseEntity<AircraftDto> add(Authentication authentication, @Valid @RequestBody AircraftRequest request) {
         return PilotResponses.withPilot(pilots, authentication, pilot -> ResponseEntity.ok(toDto(aircraftService.add(
                 pilot, request.tailNumber(), request.typeDesignator(), request.cruiseTasKt(), request.fuelBurnGph(),
-                request.usableFuelGal()))));
+                request.climbTasKt(), request.climbFuelBurnGph(), request.usableFuelGal()))));
     }
 
     @PutMapping("/{id}")
@@ -59,7 +59,7 @@ public class AircraftController {
             Authentication authentication, @PathVariable Long id, @Valid @RequestBody AircraftRequest request) {
         return PilotResponses.withPilot(pilots, authentication, pilot -> aircraftService
                 .update(pilot, id, request.tailNumber(), request.typeDesignator(), request.cruiseTasKt(), request.fuelBurnGph(),
-                        request.usableFuelGal())
+                        request.climbTasKt(), request.climbFuelBurnGph(), request.usableFuelGal())
                 .map(a -> ResponseEntity.ok(toDto(a)))
                 .orElse(ResponseEntity.notFound().build()));
     }
@@ -72,6 +72,6 @@ public class AircraftController {
 
     private static AircraftDto toDto(Aircraft a) {
         return new AircraftDto(a.getId(), a.getTailNumber(), a.getTypeDesignator(), a.getCruiseTasKt(),
-                a.getFuelBurnGph(), a.getUsableFuelGal(), a.getCreatedAt());
+                a.getFuelBurnGph(), a.getClimbTasKt(), a.getClimbFuelBurnGph(), a.getUsableFuelGal(), a.getCreatedAt());
     }
 }

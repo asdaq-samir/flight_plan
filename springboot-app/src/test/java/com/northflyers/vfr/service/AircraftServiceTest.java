@@ -47,7 +47,7 @@ class AircraftServiceTest {
     void updateIsEmptyWhenTheAircraftBelongsToAnotherPilot() {
         given(aircraftRepository.findByIdAndPilotId(1L, stranger.getId())).willReturn(Optional.empty());
 
-        Optional<Aircraft> result = aircraftService.update(stranger, 1L, "N12345", "C172", 110.0, 8.5, null);
+        Optional<Aircraft> result = aircraftService.update(stranger, 1L, "N12345", "C172", 110.0, 8.5, null, null, null);
 
         assertThat(result).isEmpty();
         verify(aircraftRepository, never()).save(any());
@@ -55,14 +55,16 @@ class AircraftServiceTest {
 
     @Test
     void updateSavesWhenTheAircraftBelongsToThisPilot() {
-        Aircraft existing = new Aircraft(owner, "N12345", "C172", 110.0, 8.5, null);
+        Aircraft existing = new Aircraft(owner, "N12345", "C172", 110.0, 8.5, null, null, null);
         given(aircraftRepository.findByIdAndPilotId(1L, owner.getId())).willReturn(Optional.of(existing));
         given(aircraftRepository.save(existing)).willReturn(existing);
 
-        Optional<Aircraft> result = aircraftService.update(owner, 1L, "N54321", "PA28", 115.0, 9.0, 48.0);
+        Optional<Aircraft> result = aircraftService.update(owner, 1L, "N54321", "PA28", 115.0, 9.0, 80.0, 12.0, 48.0);
 
         assertThat(result).isPresent();
         assertThat(result.get().getTailNumber()).isEqualTo("N54321");
+        assertThat(result.get().getClimbTasKt()).isEqualTo(80.0);
+        assertThat(result.get().getClimbFuelBurnGph()).isEqualTo(12.0);
     }
 
     @Test
@@ -77,7 +79,7 @@ class AircraftServiceTest {
 
     @Test
     void deleteReturnsTrueWhenTheAircraftBelongsToThisPilot() {
-        Aircraft existing = new Aircraft(owner, "N12345", "C172", 110.0, 8.5, null);
+        Aircraft existing = new Aircraft(owner, "N12345", "C172", 110.0, 8.5, null, null, null);
         given(aircraftRepository.findByIdAndPilotId(1L, owner.getId())).willReturn(Optional.of(existing));
 
         boolean deleted = aircraftService.delete(owner, 1L);

@@ -115,18 +115,18 @@ class FlightPersistenceTest {
     @Test
     void aPilotCannotRegisterTheSameTailNumberTwice() {
         Pilot pilot = newPilot();
-        aircraft.saveAndFlush(new Aircraft(pilot, "N12345", "C172", 110.0, 8.5, null));
+        aircraft.saveAndFlush(new Aircraft(pilot, "N12345", "C172", 110.0, 8.5, null, null, null));
 
-        assertThatThrownBy(() -> aircraft.saveAndFlush(new Aircraft(pilot, "N12345", "C172", 110.0, 8.5, null)))
+        assertThatThrownBy(() -> aircraft.saveAndFlush(new Aircraft(pilot, "N12345", "C172", 110.0, 8.5, null, null, null)))
                 .isInstanceOf(DataIntegrityViolationException.class);
     }
 
     /** Two pilots may each have an N12345; the constraint is per pilot. */
     @Test
     void differentPilotsMayHoldTheSameTailNumber() {
-        aircraft.saveAndFlush(new Aircraft(newPilot(), "N12345", "C172", 110.0, 8.5, null));
+        aircraft.saveAndFlush(new Aircraft(newPilot(), "N12345", "C172", 110.0, 8.5, null, null, null));
 
-        assertThat(aircraft.saveAndFlush(new Aircraft(newPilot(), "N12345", "C172", 110.0, 8.5, null)).getId())
+        assertThat(aircraft.saveAndFlush(new Aircraft(newPilot(), "N12345", "C172", 110.0, 8.5, null, null, null)).getId())
                 .isNotNull();
     }
 
@@ -137,7 +137,7 @@ class FlightPersistenceTest {
     @Test
     void deletingAnAircraftKeepsTheFlightsFlownInIt() {
         Pilot pilot = newPilot();
-        Aircraft plane = aircraft.saveAndFlush(new Aircraft(pilot, "N54321", "C172", 110.0, 8.5, 40.0));
+        Aircraft plane = aircraft.saveAndFlush(new Aircraft(pilot, "N54321", "C172", 110.0, 8.5, null, null, 40.0));
         Flight saved = flights.saveAndFlush(new Flight(pilot, plane, "C81", "KDLH"));
 
         aircraft.deleteById(plane.getId());
@@ -157,7 +157,7 @@ class FlightPersistenceTest {
     @Test
     void aFlightFoundForItsPilotCarriesItsAeroplane() {
         Pilot pilot = newPilot();
-        Aircraft plane = aircraft.saveAndFlush(new Aircraft(pilot, "N24680", "PA28", 118.0, 9.9, 48.0));
+        Aircraft plane = aircraft.saveAndFlush(new Aircraft(pilot, "N24680", "PA28", 118.0, 9.9, null, null, 48.0));
         Flight saved = flights.saveAndFlush(new Flight(pilot, plane, "C81", "KDLH"));
 
         Flight found = flights.findByIdAndPilotId(saved.getId(), pilot.getId()).orElseThrow();
