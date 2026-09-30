@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Maximize, Minimize } from "lucide-react";
 import IconButton from "./IconButton";
+import { MAP_BUTTON } from "../lib/mapButton";
 
 /** Whether this browser will actually take an element full screen.
  *  `fullscreenEnabled` is the standard's own "is this allowed here"
@@ -49,7 +50,7 @@ export default function FullscreenButton() {
     <IconButton
       label={on ? "Leave full screen" : "Full screen"}
       variant="outline"
-      className="bg-background shadow-sm"
+      className={MAP_BUTTON}
       onClick={() => {
         if (on) { void document.exitFullscreen().catch(() => { /* already out */ }); return; }
         // A refusal means this browser said yes to `fullscreenEnabled`

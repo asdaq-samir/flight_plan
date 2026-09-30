@@ -1,4 +1,5 @@
 import FullscreenButton from "./FullscreenButton";
+import { MAP_BUTTON } from "../lib/mapButton";
 import ZoomToggleButton from "./ZoomToggleButton";
 
 export interface ZoomControl {
@@ -31,7 +32,7 @@ export default function MapControls({ zoom }: { zoom?: ZoomControl }) {
       {zoom && (
         <ZoomToggleButton
           zoomedIn={zoom.zoomedIn} onClick={zoom.onToggle} disabled={zoom.disabled}
-          variant="outline" className="bg-background shadow-sm" data-testid="map-action-button"
+          variant="outline" className={MAP_BUTTON} data-testid="map-action-button"
         />
       )}
       {/* Draws itself only where full screen actually works: a desktop
