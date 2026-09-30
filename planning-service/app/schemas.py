@@ -718,11 +718,18 @@ class ModelServiceStatus(ServiceStatus):
 
 
 class Services(BaseModel):
-    """None for an agent this planner was not told the address of."""
+    """None for an agent this planner was not told the address of. The
+    webapp and its database are probed from here too -- its liveness
+    and its readiness group, which includes the database -- rather
+    than by the browser: a phone's probes queued behind its chart
+    tiles on one HTTP/1.1 connection pool and timed out, and the
+    console read "no answer" for a gateway that had just served it."""
 
     model_service: ModelServiceStatus
     nav_log_agent: ServiceStatus | None
     crewai_agent: ServiceStatus | None
+    webapp: ServiceStatus | None = None
+    db: ServiceStatus | None = None
 
 
 class DataFile(BaseModel):

@@ -98,6 +98,8 @@ def test_status_reports_every_service_and_the_data_on_disk(monkeypatch):
     monkeypatch.setattr(system, "CREWAI_AGENT_URL", None)
     monkeypatch.setattr(system, "AIRFLOW_URL", None)
     monkeypatch.setattr(system, "probe", lambda url: (True, "HTTP 401"))
+    monkeypatch.setattr(system, "_webapp_status", lambda: (
+        system.ServiceStatus(up=True, detail="HTTP 200"), system.ServiceStatus(up=False, detail="HTTP 503")))
     monkeypatch.setattr(system, "_model_service_status",
                         lambda: system.ModelServiceStatus(up=False, detail="connection refused"))
 
@@ -108,6 +110,8 @@ def test_status_reports_every_service_and_the_data_on_disk(monkeypatch):
     assert body["services"]["model_service"] == {"up": False, "detail": "connection refused", "trained_at": None, "models": {}}
     assert body["services"]["nav_log_agent"] == {"up": True, "detail": "HTTP 401"}
     assert body["services"]["crewai_agent"] is None
+    assert body["services"]["webapp"] == {"up": True, "detail": "HTTP 200"}
+    assert body["services"]["db"] == {"up": False, "detail": "HTTP 503"}
     assert body["pipeline"]["airflow_configured"] is False
     # Every weather source, the winds for each forecast period included.
     assert {w["name"] for w in body["weather"]} == {"metars", "tafs", "airsigmets", "winds-06", "winds-12", "winds-24"}

@@ -36,11 +36,13 @@ test("a snapshot that failed reads no answer, and nothing waits for it for ever"
 
   await expect(row(page, /model-service/)).toContainText("no answer");
   await expect(row(page, /crewai-agent/)).toContainText("no answer");
+  await expect(row(page, /webapp/)).toContainText("no answer");
+  await expect(row(page, /planning-service/)).toContainText("no answer");
   // The reference data's table says so too, once its section is opened:
   // the tab opens on Services alone, the rest folded under their titles.
   await consoleSheet(page).getByRole("button", { name: "Reference data" }).click();
   await expect(consoleSheet(page).getByText("The planner did not answer.")).toBeVisible();
-  await expect(consoleSheet(page).getByText("Loading…")).toHaveCount(0);
+  await expect(consoleSheet(page).getByText("Asking the planner for its status…")).toHaveCount(0);
 });
 
 test("a snapshot from long ago -- the service worker's, with the planner out of reach -- says so, and is not read as up", async ({ page }) => {

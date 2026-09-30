@@ -83,7 +83,7 @@ export function DevPanel() {
   // two health probes the System tab runs itself and which services the
   // sidecar can start.
   const refreshAll = () => void queryClient.invalidateQueries({
-    predicate: q => ["status", "modelComparison", "webappHealth", "plannerHealth", "devServices"].includes(String(q.queryKey[0])),
+    predicate: q => ["status", "modelComparison", "devServices"].includes(String(q.queryKey[0])),
   });
 
   return (
@@ -150,7 +150,7 @@ function ModelComparisonChart() {
         better. Every algorithm this project has actually trained, not just the one serving
         predictions; the green bar is the one Plan scores checkpoints with.
       </p>
-      {!error && !rows && <p className="text-sm text-muted-foreground">Loading…</p>}
+      {!error && !rows && <p className="text-sm text-muted-foreground">Reading each model's metrics…</p>}
       {rows?.length === 0 && <p className="text-sm text-muted-foreground">No trained models are available.</p>}
       {rows && rows.length > 0 && (
         <ChartContainer
@@ -204,7 +204,7 @@ function ModelComparisonChart() {
 /** What a section shows before the snapshot is here: that it is on its
  *  way, or that the planner did not answer. It said "Loading…" for
  *  ever when /api/status failed. */
-const waiting = (failed: boolean) => (failed ? "The planner did not answer." : "Loading…");
+const waiting = (failed: boolean) => (failed ? "The planner did not answer." : "Asking the planner for its status…");
 
 function Fact({ label, value }: { label: string; value: string }) {
   return (
@@ -578,13 +578,6 @@ const HEALTH: Record<Health, { tone: Tone; label: string }> = {
   "not configured": { tone: "checking", label: "not configured" },
 };
 
-/** A service the console asks itself. A check that failed is "no
- *  answer", not the answer before it, which TanStack keeps as data. */
-function probed<T>(query: { data: T | undefined; isError: boolean }, up: (data: T) => boolean): Health {
-  if (query.isError) return "no answer";
-  if (query.data === undefined) return "checking";
-  return up(query.data) ? "up" : "down";
-}
 
 /** A service the planner's snapshot probed: null there means this
  *  deployment does not run it. */
@@ -664,7 +657,7 @@ function ChartsSection({ charts, onRefresh, refreshing }: {
           <Fact label="Next render" value={charts.refresh_window ? `${charts.refresh_window}, ${workers}` : `any time, ${workers}`} />
         </div>
         <Button type="button" variant="outline" size="sm" onClick={onRefresh} disabled={refreshing || charts.refresh_running}>
-          {charts.refresh_running ? "Rendering…" : "Render now"}
+          {charts.refresh_running ? "Fetching and rendering…" : "Render now"}
         </Button>
       </div>
       <Table containerClassName="mt-3 rounded-md border" className="min-w-[24rem]">
@@ -697,11 +690,6 @@ function ChartsSection({ charts, onRefresh, refreshing }: {
   );
 }
 
-/** Ten seconds, then "no answer": a probe to an address the phone
- *  cannot reach -- off the Wi-Fi, on 5G -- hung for minutes as
- *  "checking…". */
-const PROBE = { signal: AbortSignal.timeout(10_000) };
-
 /** Whether a snapshot is one the service worker served from its cache
  *  with the planner out of reach: its own clock says when it was taken,
  *  and one taken more than five minutes ago cannot be this half-minute's
@@ -725,31 +713,19 @@ function SystemTab({ status, failed }: { status: Status | undefined; failed: boo
       void queryClient.invalidateQueries({ queryKey: ["status"] });
     },
   });
-  // webapp and its database answer for themselves through Spring's
-  // public actuator: liveness for the process, readiness for the
-  // database (its readiness group includes the DataSource check, see
-  // application.yml). The planner is asked for its cheapest own answer
-  // through the proxy; the rest comes from the planner's snapshot,
-  // which probed them.
-  const webapp = useQuery({
-    queryKey: ["webappHealth"],
-    queryFn: async () => {
-      const [live, ready] = await Promise.all([fetch("/actuator/health/liveness", PROBE), fetch("/actuator/health/readiness", PROBE)]);
-      return { up: live.ok, db: ready.ok };
-    },
-    refetchInterval: 30000, retry: false,
-  });
-  const planner = useQuery({
-    queryKey: ["plannerHealth"],
-    queryFn: async () => (await fetch("/api/planner/aircraft-profiles", PROBE)).ok,
-    refetchInterval: 30000, retry: false,
-  });
+  // Every row from the planner's one snapshot, which probed the others
+  // -- the webapp's liveness and its readiness group (the database)
+  // included -- and the planner itself by having answered. The browser
+  // used to probe the webapp and the planner too, and on a phone those
+  // requests queued behind the chart tiles on one HTTP/1.1 connection
+  // pool, timed out at ten seconds, and read "no answer" for a gateway
+  // that had just served the page.
   const services = status?.services;
   const modelService = services?.model_service;
   const rows: { name: string; health: Health; detail: string }[] = [
-    { name: "webapp (Spring Boot)", health: probed(webapp, w => w.up), detail: "the gateway, sessions, aircraft and flights" },
-    { name: "db (Postgres + pgvector)", health: probed(webapp, w => w.db), detail: "application data and the agent's memory" },
-    { name: "planning-service", health: probed(planner, up => up), detail: "course, checkpoints, nav log, briefing, chart reading" },
+    { name: "webapp (Spring Boot)", health: reported(services?.webapp, failed), detail: "the gateway, sessions, aircraft and flights" },
+    { name: "db (Postgres + pgvector)", health: reported(services?.db, failed), detail: "application data and the agent's memory" },
+    { name: "planning-service", health: reported(status ? { up: true } : null, failed), detail: "course, checkpoints, nav log, briefing, chart reading" },
     {
       name: "model-service", health: reported(modelService, failed),
       detail: modelService?.up && modelService.trained_at
@@ -800,7 +776,7 @@ function SystemTab({ status, failed }: { status: Status | undefined; failed: boo
     // under their titles -- four tables at once was a screen and a
     // half of scrolling on a phone to reach the last of them.
     <Accordion type="multiple" defaultValue={["Services"]}>
-      <AccordionSection title="Services" description="What answers right now. The gateway and its database report through Spring's actuator, the planner through its own proxy, the rest through the planner's probes.">
+      <AccordionSection title="Services" description="What answers right now, as the planner found it a moment ago: the gateway and its database through Spring's actuator, the model service and the agents through their own probes, and the planner by having answered.">
         {stale && status && (
           // The service worker serves the last snapshot it has when the
           // planner is out of reach, and it arrives looking like an
