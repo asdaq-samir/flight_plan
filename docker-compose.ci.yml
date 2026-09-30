@@ -1,9 +1,14 @@
 # The stack the browser suite runs against in CI (the e2e job in
 # .github/workflows/ci.yml), on top of docker-compose.yml: the three
 # images that job pulled (or, for a pull request, built), under the
-# names it gave them, and
-# the suite's own small trained model in place of data/models/current,
-# which is not in git. Everything else is the local stack's own
+# names it gave them; the page the job built from the commit, in place
+# of the one in the webapp's image; and the suite's own small trained
+# model in place of data/models/current, which is not in git. The
+# images are built once per key (.github/e2e-keys.sh): the webapp's for
+# its jar, the planner's for its packages -- its code is the checkout,
+# mounted by docker-compose.yml -- so the page and the planner's code
+# are always this commit's, whichever commit built the image. Everything
+# else is the local stack's own
 # defaults -- Mailpit for the sign-in link, developer@example.com a
 # developer, no agents (their profile is not asked for), no charts on
 # disk -- and the FAA and airport data the planner fetches for itself
@@ -41,6 +46,9 @@ services:
         condition: service_started
     healthcheck:
       start_interval: 1s
+    # Where the image serves the page from (APP_STATIC_LOCATION).
+    volumes:
+      - ./web/dist:/app/static/app:ro
   planning-service:
     image: flight_plan-planning-service:ci
     depends_on: !reset {}

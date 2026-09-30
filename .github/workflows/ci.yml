@@ -373,6 +373,7 @@ jobs:
               - src/**
               - docker-compose.yml
               - docker-compose.ci.yml
+              - .github/e2e-keys.sh
             # Javadoc and godoc; each Python suite's job makes its pdoc.
             docs:
               - springboot-app/**
@@ -524,7 +525,9 @@ jobs:
       # warm-up are time it goes on arriving in.
       - name: The public images, in the background
         run: |
-          mkdir -p /tmp/e2e-out
+          # web/dist: where the page will be built, mounted into the
+          # webapp -- made now, so that Docker does not make it, as root.
+          mkdir -p /tmp/e2e-out web/dist
           T0=$(date +%s)
           export T0
           echo "T0=$T0" >> "$GITHUB_ENV"
@@ -537,18 +540,18 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       # Then the three images this commit runs, under the names
-      # docker-compose.ci.yml runs them by. On a push they are built once,
-      # by e2e-images, and pushed under this commit's tag, and each shard
-      # pulls them. Each shard used to build them itself: the same work
-      # six times over, on runners restoring caches and starting Postgres
-      # at the same time, and when web/ had changed (most commits) that
-      # was the webapp's npm install and bundle, six times -- 50 to 70
-      # seconds before a shard could start its stack. A shard does not
-      # wait for that job to start (`needs`): it starts beside it, pulls
-      # the images the last run pushed (`e2e`), which have nearly every
-      # layer this commit's have, and pulls this commit's the moment they
-      # are there -- only what changed. If that job ends without them, a
-      # shard stops waiting and says so.
+      # docker-compose.ci.yml runs them by: each the one e2e-images built
+      # for its key (.github/e2e-keys.sh), which nearly always an earlier
+      # commit's run did, so it is pulled at once. Each shard used to
+      # build all three itself: the same work six times over, on runners
+      # restoring caches and starting Postgres at the same time, and when
+      # web/ had changed (most commits) that was the webapp's npm install
+      # and bundle, six times -- 50 to 70 seconds before a shard could
+      # start its stack. When this commit has a new key, a shard does not
+      # wait for e2e-images to start (`needs`): it pulls the last image
+      # pushed (`e2e`), which has most of the layers the new one will,
+      # and pulls the new one the moment it is there -- only what changed.
+      # If that job ends without it, the shard stops waiting and says so.
       #
       # Each service is started the moment it can be, not once all three
       # images are in: the webapp and the model service as soon as their
@@ -565,17 +568,17 @@ jobs:
       # (a waypoint-drawer test on the dev page, 2026-09-30). Nothing
       # waits for these; when each ended goes in the shard's annotation.
       #
-      # A pull request's token cannot push, so its shards still build
-      # their own, from the registry cache main writes: with the runner's
-      # own builder, Docker's, whose image store is containerd's, so it
-      # reads the registry cache and builds straight into Docker (a
-      # BuildKit container of setup-buildx's took 5 to 15 seconds to start
-      # and then copied each image into Docker as a tarball).
+      # A pull request's token cannot push, so a key no image has yet is
+      # built by its shards themselves, from the registry cache main
+      # writes: with the runner's own builder, Docker's, whose image store
+      # is containerd's, so it reads the registry cache and builds straight
+      # into Docker (a BuildKit container of setup-buildx's took 5 to 15
+      # seconds to start and then copied each image into Docker as a
+      # tarball).
       - name: The stack, in the background
         env:
           REGISTRY: ghcr.io/${{ github.repository }}
           EVENT: ${{ github.event_name }}
-          SHA: ${{ github.sha }}
           REPOSITORY: ${{ github.repository }}
           RUN_ID: ${{ github.run_id }}
           GH_TOKEN: ${{ github.token }}
@@ -583,30 +586,34 @@ jobs:
         run: |
           cat > /tmp/e2e-out/stack.sh <<'EOF'
           mark() { echo "$(($(date +%s) - T0)) $*" >> /tmp/e2e-out/timeline; }
-          # One image: this commit's if it is there already; if not, the
-          # last one pushed while this commit's is made, then this one's.
           there() { docker buildx imagetools inspect --raw "$1" > /dev/null 2>&1; }
+          # One image, $1, for its key, $2.
           fetch() {
             local ref=$REGISTRY/$1 built
-            if ! there "$ref:e2e-$SHA"; then
+            if ! there "$ref:e2e-$2"; then
+              if [ "$EVENT" = pull_request ]; then
+                docker buildx bake -f .github/ci-images.hcl "$1" --load || return 1
+                mark "$1 built"
+                return 0
+              fi
               docker pull -q "$ref:e2e" > /dev/null 2>&1
-              until there "$ref:e2e-$SHA"; do
+              until there "$ref:e2e-$2"; do
                 sleep 2
                 # After a minute, ask after the job that pushes it, every
                 # twenty seconds: once that has ended, it never will.
                 if [ "$SECONDS" -ge 60 ]; then
                   built=$(gh api "repos/$REPOSITORY/actions/runs/$RUN_ID/jobs?per_page=100" \
                     --jq '.jobs[] | select(.name == "build (e2e)") | .conclusion // "running"')
-                  if [ "$built" != running ] && [ -n "$built" ] && ! there "$ref:e2e-$SHA"; then
-                    echo "no $ref:e2e-$SHA, and build (e2e) ended: $built"
+                  if [ "$built" != running ] && [ -n "$built" ] && ! there "$ref:e2e-$2"; then
+                    echo "no $ref:e2e-$2, and build (e2e) ended: $built"
                     return 1
                   fi
                   sleep 18
                 fi
               done
             fi
-            docker pull -q "$ref:e2e-$SHA" > /dev/null || return 1
-            docker tag "$ref:e2e-$SHA" "flight_plan-$1:ci"
+            docker pull -q "$ref:e2e-$2" > /dev/null || return 1
+            docker tag "$ref:e2e-$2" "flight_plan-$1:ci"
             mark "$1 pulled"
           }
           start() {
@@ -621,14 +628,10 @@ jobs:
               nohup bash /tmp/e2e-out/first-reads.sh > /tmp/e2e-out/first-reads.log 2>&1 < /dev/null &
             fi
           }
-          if [ "$EVENT" = pull_request ]; then
-            docker buildx bake -f .github/ci-images.hcl ci --load || exit 1
-            mark "the three images built"
-            service() { start "$1"; }
-          else
-            service() { fetch "$1" && start "$1"; }
-          fi
-          service webapp & service planning-service & service model-service &
+          keys=$(bash .github/e2e-keys.sh) || exit 1
+          while read -r image key; do
+            { fetch "$image" "$key" && start "$image"; } &
+          done <<< "$keys"
           failed=0
           for job in $(jobs -p); do wait "$job" || failed=1; done
           exit "$failed"
@@ -707,6 +710,28 @@ jobs:
         with:
           path: web/node_modules
           key: e2e-node-modules-pw1.55.1-${{ hashFiles('web/package-lock.json') }}
+
+      # The page the webapp serves, built here from this commit's web/ --
+      # `npm run types` and `vite build`, as springboot-app/Dockerfile
+      # builds it -- and mounted over the image's (docker-compose.ci.yml),
+      # as the planner's code is mounted over its image's. So a change to
+      # the page, which most commits make, needs no image built: the
+      # webapp's is built again only for its jar (.github/e2e-keys.sh),
+      # and build (webapp) still builds the whole image, page and all,
+      # whenever web/ changes. Node as .nvmrc has it, the Dockerfile's;
+      # the packages are the suite's, from the same lock file. The webapp
+      # reads the page from disk when it is asked for, so it is started
+      # before the page is here, and the step below waits for the page.
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7
+        with:
+          node-version-file: .nvmrc
+      - name: The page, built from this commit
+        working-directory: web
+        run: |
+          [ -d node_modules ] || npm ci --no-audit --no-fund
+          npm run types
+          npx vite build --outDir dist --emptyOutDir
+          echo "$(($(date +%s) - T0)) the page built" >> /tmp/e2e-out/timeline
 
       # Every piece of the stack started (a failed one ends the job here,
       # with its log as an annotation), then healthy -- `up --wait` starts
@@ -932,24 +957,28 @@ jobs:
             data/raw/chart_tiles.nosync
           key: planner-charts-v3-${{ steps.cycle.outputs.cycle }}
 
-  # The browser suite's three images, built once a run and pushed for its
-  # shards to pull (.github/ci-images.hcl): the webapp, the planner, and
-  # the model service's `slim` stage, without the torch and tensorflow the
-  # suite's scikit-learn fixture never loads. Under this commit's tag,
-  # `e2e-<commit>`, and `e2e`, the last pushed -- never `latest`, which
-  # only promote gives an image, and the model service's here is not the
-  # image that ships.
+  # The browser suite's three images (.github/ci-images.hcl): the webapp,
+  # the planner, and the model service's `slim` stage, without the torch
+  # and tensorflow the suite's scikit-learn fixture never loads. Each is
+  # built once per key -- a hash of what decides what it does in the
+  # suite's stack (.github/e2e-keys.sh) -- and pushed under `e2e-<key>`
+  # and `e2e`, the last pushed; never `latest`, which only promote gives
+  # an image, and none of these is quite the image that ships. Most
+  # commits change no key (4 of the 59 before this one changed one), and
+  # the job then builds nothing: the shards pull what an earlier commit
+  # built. It was built on every commit, the webapp's npm install and
+  # bundle included, and the shards waited for it -- 1.8 minutes on
+  # fec57e0, which had changed the planner's code and the page.
   #
   # Not after `changes`, as every other job is: a shard starts ten
-  # seconds into the run, and this job, started with `changes`, has the
-  # images there by then or soon after, where after `changes` it would
-  # start as the shards do and they would wait for it. So it runs on every
-  # push, the suite due or not -- a run that does not need the images
-  # spends half a minute of a runner on them. Not on a pull request, whose
-  # token cannot push: its shards build their own. With a BuildKit
-  # container of setup-buildx's rather than the runner's own builder: it
-  # pushes what the registry cache already holds without first pulling
-  # it. No attestation: nothing verifies these.
+  # seconds into the run, and a key's image, when there is one to build,
+  # should be on its way by then. So it runs on every push, the suite due
+  # or not; with nothing to build it is a checkout and three lookups. Not
+  # on a pull request, whose token cannot push: its shards build what
+  # they cannot pull. With a BuildKit container of setup-buildx's rather
+  # than the runner's own builder: it pushes what the registry cache
+  # already holds without first pulling it. No attestation: nothing
+  # verifies these.
   e2e-images:
     name: build (e2e)
     runs-on: ubuntu-26.04
@@ -959,18 +988,39 @@ jobs:
       packages: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
-      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069  # v4
       - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f  # v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: The three images, pushed under this commit's tag
+      - name: The keys no image has yet
+        id: keys
         env:
           REGISTRY: ghcr.io/${{ github.repository }}
-          TAG: e2e-${{ github.sha }}
+        run: |
+          keys=$(bash .github/e2e-keys.sh)
+          missing=""
+          while read -r image key; do
+            echo "$(echo "$image" | tr 'a-z-' 'A-Z_')_KEY=$key" >> "$GITHUB_ENV"
+            if docker buildx imagetools inspect --raw "$REGISTRY/$image:e2e-$key" > /dev/null 2>&1; then
+              echo "$image: e2e-$key is there"
+            else
+              echo "$image: e2e-$key to build"
+              missing="$missing $image"
+            fi
+          done <<< "$keys"
+          echo "missing=${missing# }" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069  # v4
+        if: steps.keys.outputs.missing != ''
+      - name: Those images, built and pushed
+        if: steps.keys.outputs.missing != ''
+        env:
+          REGISTRY: ghcr.io/${{ github.repository }}
+          MISSING: ${{ steps.keys.outputs.missing }}
           BUILDX_NO_DEFAULT_ATTESTATIONS: "1"
-        run: docker buildx bake -f .github/ci-images.hcl ci --push
+        run: |
+          read -ra targets <<< "$MISSING"
+          docker buildx bake -f .github/ci-images.hcl "${targets[@]}" --push
 
   # Every image whose inputs changed, built beside the tests rather than
   # after them, each on a runner of its own. On main each is pushed under
