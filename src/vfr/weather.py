@@ -29,11 +29,13 @@ import threading
 import time
 import xml.etree.ElementTree as ET
 from datetime import datetime
+from itertools import pairwise
 from typing import NamedTuple
 
 import numpy as np
 import requests
 
+from .performance import isa_temp_c
 from .retry import with_retries
 
 log = logging.getLogger(__name__)
@@ -68,7 +70,7 @@ def _get(url: str, params: dict, retries: int = 3) -> requests.Response:
     )
 
 
-# --- Freezing level, from the winds/temps-aloft ("FD") text product ---
+# --- Temperatures and the freezing level, from the winds/temps-aloft ("FD") text product ---
 
 
 def _fd_stations(fcst_hr: str = "06") -> dict:
@@ -202,6 +204,44 @@ def _nearest_station(lat: float, lon: float, station_ids, airports_df) -> str | 
     return str(codes[int(np.argmin(a))])
 
 
+def temperatures_aloft(lat: float, lon: float, fcst_hr: str = "06") -> list:
+    """The nearest station's forecast temperatures, [(altitude_ft,
+    temp_c)] from the lowest reported altitude up -- 6,000 ft, since the
+    product gives none at 3,000. Empty where no station is found or it
+    reports no temperature."""
+    from . import airports
+
+    stations = _fd_stations(fcst_hr)
+    station_id = _nearest_station(lat, lon, set(stations.keys()), airports.load_airports())
+    if station_id is None:
+        return []
+    return sorted((float(alt), v["temp_c"]) for alt, v in stations[station_id].items() if v["temp_c"] is not None)
+
+
+def temperature_at(profile: list, altitude_ft: float) -> float | None:
+    """The temperature at `altitude_ft` from a temperatures_aloft
+    profile: interpolated between the reported altitudes either side of
+    it, and past the ends the nearest one's difference from a standard
+    day kept -- the standard lapse rate, all there is to go on below the
+    lowest report. None for an empty profile."""
+    if not profile:
+        return None
+    if altitude_ft <= profile[0][0] or altitude_ft >= profile[-1][0]:
+        alt, temp = profile[0] if altitude_ft <= profile[0][0] else profile[-1]
+        return temp + isa_temp_c(altitude_ft) - isa_temp_c(alt)
+    for (alt1, t1), (alt2, t2) in pairwise(profile):
+        if alt1 <= altitude_ft <= alt2:
+            return t1 + (altitude_ft - alt1) / (alt2 - alt1) * (t2 - t1)
+    return None
+
+
+def temperature_at_altitude(lat: float, lon: float, altitude_ft: float, fcst_hr: str = "06") -> float | None:
+    """The forecast temperature at `altitude_ft` near (lat, lon), from
+    the nearest station (temperature_at). None where there is none: a
+    standard day then, assumed rather than known."""
+    return temperature_at(temperatures_aloft(lat, lon, fcst_hr), altitude_ft)
+
+
 def freezing_level(lat: float, lon: float, fcst_hr: str = "06") -> dict | None:
     """Where the nearest station's forecast temperature profile crosses
     0 degC: {"ft", "at_or_below"}, by linear interpolation between the two
@@ -217,15 +257,7 @@ def freezing_level(lat: float, lon: float, fcst_hr: str = "06") -> dict | None:
     conservative, which let everything under it pass as above freezing on
     exactly the coldest days.
     """
-    from . import airports
-
-    stations = _fd_stations(fcst_hr)
-    airports_df = airports.load_airports()
-    station_id = _nearest_station(lat, lon, set(stations.keys()), airports_df)
-    if station_id is None:
-        return None
-
-    profile = sorted((alt, v["temp_c"]) for alt, v in stations[station_id].items() if v["temp_c"] is not None)
+    profile = temperatures_aloft(lat, lon, fcst_hr)
     if not profile:
         return None
     if profile[0][1] <= 0:

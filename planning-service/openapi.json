@@ -41,6 +41,18 @@
             "default": null,
             "title": "Climb Tas Kt"
           },
+          "cruise_power_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Cruise Power Pct"
+          },
           "cruise_tas_kt": {
             "title": "Cruise Tas Kt",
             "type": "number"
@@ -505,6 +517,18 @@
             "title": "Segments",
             "type": "array"
           },
+          "service_ceiling_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Service Ceiling Ft"
+          },
           "special_use": {
             "default": [],
             "items": {
@@ -733,6 +757,18 @@
           "from_nm": {
             "title": "From Nm",
             "type": "number"
+          },
+          "service_ceiling_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Service Ceiling Ft"
           },
           "to_nm": {
             "title": "To Nm",
@@ -2311,7 +2347,7 @@
         "type": "object"
       },
       "Leg": {
-        "description": "One dead-reckoning leg. `wind` is None when no winds-aloft station\nis near enough, which is not the same as calm: groundspeed then falls\nback to true airspeed. groundspeed/ETE/fuel are None when the wind\nexceeds true airspeed, i.e. the leg cannot be flown.",
+        "description": "One dead-reckoning leg. `wind` is None when no winds-aloft station\nis near enough, which is not the same as calm: groundspeed then falls\nback to true airspeed. groundspeed/ETE/fuel are None when the wind\nexceeds true airspeed, i.e. the leg cannot be flown.\n\nThe true airspeed and fuel flow are the aeroplane's in the leg's own\nair (vfr.performance): its cruise figures are at a reference\naltitude on a standard day, and the forecast temperature at this\naltitude gives the density altitude they are flown at, at the power\nit allows -- the cruise power, or less where full throttle cannot\nmake it. `oat_c` is None where no forecast temperature was near: a\nstandard day is assumed there.",
         "properties": {
           "altitude_ft": {
             "title": "Altitude Ft",
@@ -2320,6 +2356,10 @@
           "climb_min": {
             "default": 0.0,
             "title": "Climb Min",
+            "type": "number"
+          },
+          "density_altitude_ft": {
+            "title": "Density Altitude Ft",
             "type": "number"
           },
           "distance_nm": {
@@ -2340,6 +2380,10 @@
           "from": {
             "title": "From",
             "type": "string"
+          },
+          "fuel_burn_gph": {
+            "title": "Fuel Burn Gph",
+            "type": "number"
           },
           "fuel_gal": {
             "anyOf": [
@@ -2369,6 +2413,25 @@
           },
           "magnetic_variation_deg": {
             "title": "Magnetic Variation Deg",
+            "type": "number"
+          },
+          "oat_c": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Oat C"
+          },
+          "power_pct": {
+            "title": "Power Pct",
+            "type": "number"
+          },
+          "tas_kt": {
+            "title": "Tas Kt",
             "type": "number"
           },
           "to": {
@@ -2411,7 +2474,11 @@
           "magnetic_heading_deg",
           "groundspeed_kt",
           "ete_min",
-          "fuel_gal"
+          "fuel_gal",
+          "tas_kt",
+          "fuel_burn_gph",
+          "power_pct",
+          "density_altitude_ft"
         ],
         "title": "Leg",
         "type": "object"
@@ -2919,6 +2986,10 @@
             "title": "Climb Min",
             "type": "number"
           },
+          "density_altitude_ft": {
+            "title": "Density Altitude Ft",
+            "type": "number"
+          },
           "distance_nm": {
             "title": "Distance Nm",
             "type": "number"
@@ -2937,6 +3008,10 @@
           "from": {
             "title": "From",
             "type": "string"
+          },
+          "fuel_burn_gph": {
+            "title": "Fuel Burn Gph",
+            "type": "number"
           },
           "fuel_gal": {
             "anyOf": [
@@ -2966,6 +3041,26 @@
           },
           "magnetic_variation_deg": {
             "title": "Magnetic Variation Deg",
+            "type": "number"
+          },
+          "oat_c": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Oat C"
+          },
+          "power_pct": {
+            "title": "Power Pct",
+            "type": "number"
+          },
+          "tas_kt": {
+            "title": "Tas Kt",
             "type": "number"
           },
           "to": {
@@ -3014,7 +3109,11 @@
           "magnetic_heading_deg",
           "groundspeed_kt",
           "ete_min",
-          "fuel_gal"
+          "fuel_gal",
+          "tas_kt",
+          "fuel_burn_gph",
+          "power_pct",
+          "density_altitude_ft"
         ],
         "title": "NavLogLeg",
         "type": "object"
@@ -5416,6 +5515,24 @@
           },
           {
             "in": "query",
+            "name": "cruise_power_pct",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 100,
+                  "minimum": 40,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cruise Power Pct"
+            }
+          },
+          {
+            "in": "query",
             "name": "depart",
             "required": false,
             "schema": {
@@ -5605,7 +5722,7 @@
     },
     "/api/plan": {
       "get": {
-        "description": "The whole plan: course line, every scored candidate, the selected\ncheckpoints, and a nav log leg between each consecutive pair.\n\naltitude_ft is optional. Omitted, vfr.altitude works out each leg's\nown legal altitudes -- clear of terrain and obstacles, under the\nClass B shelf over that leg alone and the aircraft's service\nceiling, on the hemispheric rule for that leg's own course\n-- and vfr.navlog makes four plans of them: the lowest, the\nhighest, the fastest for the winds aloft, and the one that burns the\nleast fuel, climb and cruise. altitude_choice picks\nwhich one the legs fly -- the fastest unless asked otherwise, the\nplan a pilot with the winds in hand picks (it was the lowest, as the\npredictable one) -- and the reasoning comes back with it, since\n\"why am I at 6,500\" is a question a pilot will actually ask.\n\naircraft names a stock profile; cruise_tas_kt, fuel_burn_gph,\nusable_fuel_gal, climb_tas_kt and climb_fuel_burn_gph, when given,\nare a pilot's own aeroplane's numbers laid over it. depart, an ISO time (UTC when naive), picks the\nwinds-aloft forecast period the legs are flown on -- the 6-, 12- or\n24-hour product, whichever is valid closest to the departure;\nwithout it, the 6-hour product, i.e. about now -- and whether the\nfuel reserve is the day or the night one.",
+        "description": "The whole plan: course line, every scored candidate, the selected\ncheckpoints, and a nav log leg between each consecutive pair.\n\naltitude_ft is optional. Omitted, vfr.altitude works out each leg's\nown legal altitudes -- clear of terrain and obstacles, under the\nClass B shelf over that leg alone and the aircraft's service\nceiling, on the hemispheric rule for that leg's own course\n-- and vfr.navlog makes four plans of them: the lowest, the\nhighest, the fastest for the winds aloft, and the one that burns the\nleast fuel, climb and cruise. altitude_choice picks\nwhich one the legs fly -- the fastest unless asked otherwise, the\nplan a pilot with the winds in hand picks (it was the lowest, as the\npredictable one) -- and the reasoning comes back with it, since\n\"why am I at 6,500\" is a question a pilot will actually ask.\n\naircraft names a stock profile; cruise_tas_kt, fuel_burn_gph,\nusable_fuel_gal, climb_tas_kt, climb_fuel_burn_gph and\ncruise_power_pct (the power the cruise figures are at), when given,\nare a pilot's own aeroplane's numbers laid over it. Each leg flies\nthem in its own air: the cruise figures are the aeroplane's at a\nreference altitude on a standard day, and the forecast temperature\nat the leg's altitude gives the density altitude they are flown at\n(vfr.performance). depart, an ISO time (UTC when naive), picks the\nwinds-aloft forecast period the legs are flown on -- the 6-, 12- or\n24-hour product, whichever is valid closest to the departure;\nwithout it, the 6-hour product, i.e. about now -- and whether the\nfuel reserve is the day or the night one.",
         "operationId": "plan_api_plan_get",
         "parameters": [
           {
@@ -5750,6 +5867,24 @@
                 }
               ],
               "title": "Climb Fuel Burn Gph"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cruise_power_pct",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 100,
+                  "minimum": 40,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cruise Power Pct"
             }
           },
           {

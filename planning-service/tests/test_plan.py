@@ -31,6 +31,7 @@ def _leg(start, end, altitude_ft, profile, fcst_hr="06") -> dict:
         "wind": {"wind_dir_true_deg": 270.0, "wind_speed_kt": 15.0},
         "wca_deg": -6.0, "true_heading_deg": 314.0, "magnetic_variation_deg": -3.0,
         "magnetic_heading_deg": 317.0, "groundspeed_kt": 105.0, "ete_min": 5.7, "fuel_gal": 0.8,
+        "tas_kt": 111.4, "fuel_burn_gph": 8.5, "power_pct": 65.0, "oat_c": 4.0, "density_altitude_ft": 4600,
     }
 
 
@@ -171,7 +172,7 @@ def test_navlog_flies_the_chosen_plan_and_says_so(messages):
 def test_navlog_flies_a_pilots_own_aeroplane_over_a_stock_profile(messages):
     resp = client.get("/api/navlog", params={
         "dep": "C81", "dest": "KDLH", "aircraft": "pa28", "cruise_tas_kt": 118, "fuel_burn_gph": 9.9,
-        "climb_tas_kt": 79, "climb_fuel_burn_gph": 13.2,
+        "climb_tas_kt": 79, "climb_fuel_burn_gph": 13.2, "cruise_power_pct": 65,
     })
 
     assert resp.status_code == 200
@@ -179,7 +180,20 @@ def test_navlog_flies_a_pilots_own_aeroplane_over_a_stock_profile(messages):
     assert aircraft["name"] == "pa28"
     assert aircraft["cruise_tas_kt"] == 118 and aircraft["fuel_burn_gph"] == 9.9
     assert aircraft["climb_tas_kt"] == 79 and aircraft["climb_fuel_burn_gph"] == 13.2
+    assert aircraft["cruise_power_pct"] == 65
     assert aircraft["service_ceiling_ft"] == 14100   # the profile's own, untouched
+
+
+def test_a_stock_profile_says_the_power_its_cruise_is_at(messages):
+    resp = client.get("/api/navlog", params={"dep": "C81", "dest": "KDLH", "aircraft": "pa28"})
+    aircraft = next(m for m in messages(resp) if m["type"] == "altitude")["aircraft"]
+    assert aircraft["cruise_power_pct"] == 75
+
+
+@pytest.mark.parametrize("power", [30, 101])
+def test_a_cruise_power_outside_a_cruise_table_is_refused(power):
+    resp = client.get("/api/navlog", params={"dep": "C81", "dest": "KDLH", "cruise_power_pct": power})
+    assert resp.status_code == 422
 
 
 def test_navlog_flies_the_economical_plan_when_asked(messages):

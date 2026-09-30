@@ -201,7 +201,7 @@ class SingleFlightTTLCache:
 def aircraft_profile(
     name: str, cruise_tas_kt: float | None = None, fuel_burn_gph: float | None = None,
     usable_fuel_gal: float | None = None, climb_tas_kt: float | None = None,
-    climb_fuel_burn_gph: float | None = None,
+    climb_fuel_burn_gph: float | None = None, cruise_power_pct: float | None = None,
 ) -> dict:
     """One of data/aircraft's profiles, with a pilot's own aeroplane's
     numbers on top when given: the profile still supplies the service
@@ -211,6 +211,7 @@ def aircraft_profile(
     overrides = {
         "cruise_tas_kt": cruise_tas_kt, "fuel_burn_gph": fuel_burn_gph, "usable_fuel_gal": usable_fuel_gal,
         "climb_tas_kt": climb_tas_kt, "climb_fuel_burn_gph": climb_fuel_burn_gph,
+        "cruise_power_pct": cruise_power_pct,
     }
     profile.update({k: v for k, v in overrides.items() if v is not None})
     return profile
@@ -334,7 +335,8 @@ def altitude_plans(
 ) -> dict:
     key = (
         aircraft, profile.get("cruise_tas_kt"), profile.get("fuel_burn_gph"),
-        profile.get("climb_tas_kt"), profile.get("climb_fuel_burn_gph"), fcst_hr, departure_elevation_ft,
+        profile.get("climb_tas_kt"), profile.get("climb_fuel_burn_gph"), profile.get("cruise_power_pct"),
+        fcst_hr, departure_elevation_ft,
         tuple((round(f["lat"], 4), round(f["lon"], 4)) for f in fix_list),
         tuple(tuple(s["candidates_ft"]) for s in selection.get("segments", [])),
     )

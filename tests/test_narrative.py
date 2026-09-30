@@ -21,6 +21,13 @@ def test_the_prompt_carries_every_leg_and_names_an_unflyable_one():
     assert "by hand" not in text
 
 
+def test_a_leg_says_its_true_airspeed_in_its_own_air():
+    leg = dict(LEG, tas_kt=112.4, density_altitude_ft=7240)
+    text = narrative.briefing_prompt("C81", "KDLH", 6500.0, None, [leg])
+    assert "heading 335M, TAS 112kt at density altitude 7,240ft, GS 110kt" in text
+
+
+
 def test_memory_is_added_only_when_the_caller_has_one():
     assert "Similar past route briefings" not in narrative.briefing_prompt("C81", "KDLH", 4500, None, [LEG])
     text = narrative.briefing_prompt("C81", "KDLH", 4500, None, [LEG], similar_briefings=[])

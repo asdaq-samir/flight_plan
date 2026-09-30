@@ -45,6 +45,9 @@ router = APIRouter()
 # A pilot's own cruise speed: above zero, since every leg's time divides
 # by it -- zero was a ZeroDivisionError and a 500 rather than a 422.
 CruiseTas = Annotated[float | None, Query(gt=0, le=1000)]
+# The power a pilot's own cruise figures are at, in percent: from the
+# lowest a handbook's cruise table goes, about 40, to full power.
+CruisePower = Annotated[float | None, Query(ge=40, le=100)]
 
 # How often the nav log stream says it is still working while the
 # altitude plans are being made.
@@ -232,6 +235,7 @@ def plan(
     usable_fuel_gal: float | None = None,
     climb_tas_kt: CruiseTas = None,
     climb_fuel_burn_gph: float | None = None,
+    cruise_power_pct: CruisePower = None,
     depart: datetime | None = None,
 ) -> Plan:
     """The whole plan: course line, every scored candidate, the selected
@@ -250,15 +254,22 @@ def plan(
     "why am I at 6,500" is a question a pilot will actually ask.
 
     aircraft names a stock profile; cruise_tas_kt, fuel_burn_gph,
-    usable_fuel_gal, climb_tas_kt and climb_fuel_burn_gph, when given,
-    are a pilot's own aeroplane's numbers laid over it. depart, an ISO time (UTC when naive), picks the
+    usable_fuel_gal, climb_tas_kt, climb_fuel_burn_gph and
+    cruise_power_pct (the power the cruise figures are at), when given,
+    are a pilot's own aeroplane's numbers laid over it. Each leg flies
+    them in its own air: the cruise figures are the aeroplane's at a
+    reference altitude on a standard day, and the forecast temperature
+    at the leg's altitude gives the density altitude they are flown at
+    (vfr.performance). depart, an ISO time (UTC when naive), picks the
     winds-aloft forecast period the legs are flown on -- the 6-, 12- or
     24-hour product, whichever is valid closest to the departure;
     without it, the 6-hour product, i.e. about now -- and whether the
     fuel reserve is the day or the night one.
     """
     r = load_route(dep, dest)
-    profile = aircraft_profile(aircraft, cruise_tas_kt, fuel_burn_gph, usable_fuel_gal, climb_tas_kt, climb_fuel_burn_gph)
+    profile = aircraft_profile(
+        aircraft, cruise_tas_kt, fuel_burn_gph, usable_fuel_gal, climb_tas_kt, climb_fuel_burn_gph, cruise_power_pct,
+    )
     fcst_hr = forecast_hour_for(depart)
     window = flight_window(depart, geo.distance_nm(*r.start, *r.end), profile["cruise_tas_kt"])
 
@@ -323,6 +334,7 @@ def navlog_stream(
     usable_fuel_gal: float | None = None,
     climb_tas_kt: CruiseTas = None,
     climb_fuel_burn_gph: float | None = None,
+    cruise_power_pct: CruisePower = None,
     depart: datetime | None = None,
 ) -> StreamingResponse:
     """Altitude and the dead-reckoning legs, as newline-delimited JSON --
@@ -353,7 +365,9 @@ def navlog_stream(
         yield line(NavLogStage(detail="Scoring and choosing the checkpoints…"))
         _, selected = scored_and_selected(r.dep_ident, r.dest_ident)
 
-        profile = aircraft_profile(aircraft, cruise_tas_kt, fuel_burn_gph, usable_fuel_gal, climb_tas_kt, climb_fuel_burn_gph)
+        profile = aircraft_profile(
+            aircraft, cruise_tas_kt, fuel_burn_gph, usable_fuel_gal, climb_tas_kt, climb_fuel_burn_gph, cruise_power_pct,
+        )
         fix_list = navlog.fixes(r.dep_ident, r.dest_ident, r.start, r.end, selected)
         fcst_hr = forecast_hour_for(depart)
         window = flight_window(depart, geo.distance_nm(*r.start, *r.end), profile["cruise_tas_kt"])

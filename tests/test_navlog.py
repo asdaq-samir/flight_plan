@@ -45,14 +45,15 @@ def test_circular_interpolation_normal_case():
     assert _interp_circular_deg(100, 200, 0.25) == pytest.approx(125.0, abs=1e-9)
 
 
-def _leg_with_wind(monkeypatch, wind_dir, wind_speed, tas=100.0):
+def _leg_with_wind(monkeypatch, wind_dir, wind_speed, tas=100.0, oat_c=None, altitude_ft=6000.0):
     from vfr import navlog
     monkeypatch.setattr(navlog, "wind_at_altitude", lambda lat, lon, alt, fcst_hr="06": {
         "wind_dir_true_deg": wind_dir, "wind_speed_kt": wind_speed})
+    monkeypatch.setattr(navlog, "temperature_at_altitude", lambda lat, lon, alt, fcst_hr="06": oat_c)
     monkeypatch.setattr(navlog, "magnetic_variation_deg", lambda lat, lon: 0.0)
     a = {"name": "A", "category": "departure", "lat": 45.0, "lon": -90.0}
     b = {"name": "B", "category": "destination", "lat": 45.0, "lon": -89.0}   # due east, 090
-    return navlog.leg_between(a, b, 4500, {"cruise_tas_kt": tas, "fuel_burn_gph": 8.5})
+    return navlog.leg_between(a, b, altitude_ft, {"cruise_tas_kt": tas, "fuel_burn_gph": 8.5})
 
 
 def test_a_crosswind_stronger_than_tas_is_unflyable(monkeypatch):
@@ -73,6 +74,22 @@ def test_an_unflyable_headwind_has_no_ground_speed_either(monkeypatch):
 def test_a_strong_but_holdable_crosswind_still_flies(monkeypatch):
     leg = _leg_with_wind(monkeypatch, 180, 60)
     assert leg["ete_min"] is not None and leg["groundspeed_kt"] > 0
+
+
+def test_a_leg_flies_the_aeroplanes_figures_in_its_own_air(monkeypatch):
+    """At the reference altitude on a standard day, the profile's own
+    figures; 15 degC warmer there, a higher density altitude and a
+    faster TAS for the same power and burn -- and the ground speed and
+    fuel follow the leg's own TAS and burn."""
+    standard = _leg_with_wind(monkeypatch, 270, 20)
+    assert standard["tas_kt"] == pytest.approx(100.0) and standard["fuel_burn_gph"] == pytest.approx(8.5)
+    assert standard["density_altitude_ft"] == 6000 and standard["oat_c"] is None
+    assert standard["groundspeed_kt"] == pytest.approx(120.0, abs=0.01)
+
+    warm = _leg_with_wind(monkeypatch, 270, 20, oat_c=18.0)
+    assert warm["density_altitude_ft"] > 7500 and warm["tas_kt"] > 101.0
+    assert warm["groundspeed_kt"] == pytest.approx(warm["tas_kt"] + 20, abs=0.01)
+    assert warm["fuel_gal"] == pytest.approx(warm["ete_min"] / 60 * warm["fuel_burn_gph"])
 
 
 def test_the_fuel_required_includes_start_taxi_and_takeoff():

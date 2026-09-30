@@ -51,6 +51,7 @@ class NavLogState(TypedDict, total=False):
     usable_fuel_gal: float
     climb_tas_kt: float
     climb_fuel_burn_gph: float
+    cruise_power_pct: float
     selected_checkpoints: list[dict]  # the checkpoints the legs fly between
     altitude_selection: dict
     flown: str  # whose altitudes: a plan's name, or "custom" (vfr.narrative.NarrativeRequest)
@@ -64,7 +65,7 @@ class NavLogState(TypedDict, total=False):
 #: The inputs a pilot plans with, passed through to the planner as given.
 PILOT_INPUTS = (
     "depart", "altitude_choice", "cruise_tas_kt", "fuel_burn_gph", "usable_fuel_gal", "climb_tas_kt",
-    "climb_fuel_burn_gph",
+    "climb_fuel_burn_gph", "cruise_power_pct",
 )
 
 

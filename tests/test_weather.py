@@ -328,6 +328,20 @@ def test_a_freezing_level_between_readings_is_interpolated(monkeypatch):
     assert weather.freezing_level(46.8, -92.2) == {"ft": 8000.0, "at_or_below": False}
 
 
+def test_the_temperature_between_two_reports_is_interpolated_and_below_them_lapsed(monkeypatch):
+    """6,000 ft is the lowest temperature the product gives; under it the
+    standard lapse rate (about 2 degC per 1,000 ft) is all there is."""
+    from vfr import airports, weather
+    monkeypatch.setattr(weather, "_fd_stations", lambda fcst_hr: {"DLH": {
+        3000: {"temp_c": None}, 6000: {"temp_c": 4}, 9000: {"temp_c": -2}}})
+    monkeypatch.setattr(weather, "_nearest_station", lambda lat, lon, ids, df: "DLH")
+    monkeypatch.setattr(airports, "load_airports", lambda: None)
+    assert weather.temperatures_aloft(46.8, -92.2) == [(6000.0, 4), (9000.0, -2)]
+    assert weather.temperature_at_altitude(46.8, -92.2, 7500.0) == pytest.approx(1.0)
+    assert weather.temperature_at_altitude(46.8, -92.2, 3000.0) == pytest.approx(4 + 3 * 1.9812)
+    assert weather.temperature_at([], 5000.0) is None
+
+
 # --- one download at a time, and nobody with a copy waits for it ------------
 
 def test_a_reader_during_a_refresh_is_served_the_held_copy_at_once(monkeypatch):

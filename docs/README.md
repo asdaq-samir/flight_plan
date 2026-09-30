@@ -201,7 +201,12 @@ service discovery at `planning-service.vfr-route.internal`.
   least fuel, climb and cruise -- every climb flown on
   the leg that makes it, none above 12,500 ft without oxygen -- and
   the nav log header's own "why" popover and the briefing's "Cruise
-  Altitude" section walk the pilot through it, step by step. A
+  Altitude" section walk the pilot through it, step by step. Every leg
+  and climb is flown in the day's air (`vfr.performance`): the
+  aeroplane's cruise figures are its own at 6,000 ft on a standard day,
+  and the forecast temperature at each leg's altitude gives the density
+  altitude its true airspeed, fuel flow and climb rate follow, and
+  where the service ceiling is. A
   departure time picks the winds forecast period, gives every row an
   ETA, and sets the fuel reserve (day or night, by civil twilight at
   either end) the totals hold the aeroplane's usable fuel against

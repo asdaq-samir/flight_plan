@@ -55,7 +55,7 @@ def generate_nav_log_briefing(
     departure_ident: str, destination_ident: str, altitude_ft: float | None = None, aircraft_name: str | None = None,
     depart: str | None = None, altitude_choice: str | None = None, cruise_tas_kt: float | None = None,
     fuel_burn_gph: float | None = None, usable_fuel_gal: float | None = None, climb_tas_kt: float | None = None,
-    climb_fuel_burn_gph: float | None = None,
+    climb_fuel_burn_gph: float | None = None, cruise_power_pct: float | None = None,
 ) -> dict:
     """Generate a VFR nav-log briefing for a route: the nav log the
     planner flies (checkpoints from the trained model, each leg's legal
@@ -68,14 +68,18 @@ def generate_nav_log_briefing(
     with: `depart` (ISO 8601; the winds period, day or night reserve and
     the forecast's hours), `altitude_choice` (lowest, highest, fastest
     or economical), and their aeroplane's `cruise_tas_kt`,
-    `fuel_burn_gph`, `usable_fuel_gal`, `climb_tas_kt` and
-    `climb_fuel_burn_gph`. Left out: a departure now (the 6-hour winds, a
-    day reserve), the planner's own plan, and the profile's numbers.
+    `fuel_burn_gph`, `usable_fuel_gal`, `climb_tas_kt`,
+    `climb_fuel_burn_gph` and `cruise_power_pct` (the power the cruise
+    figures are at). Left out: a departure now (the 6-hour winds, a day
+    reserve), the planner's own plan, and the profile's numbers. Each
+    leg flies the cruise figures in its own air: the planner scales them
+    for the density altitude the forecast temperature gives.
     """
     result = _graph.invoke(_route(
         departure_ident, destination_ident, altitude_ft, aircraft_name, depart=depart,
         altitude_choice=altitude_choice, cruise_tas_kt=cruise_tas_kt, fuel_burn_gph=fuel_burn_gph,
         usable_fuel_gal=usable_fuel_gal, climb_tas_kt=climb_tas_kt, climb_fuel_burn_gph=climb_fuel_burn_gph,
+        cruise_power_pct=cruise_power_pct,
     ))
     return {
         "altitude_selection": result["altitude_selection"],
@@ -90,7 +94,7 @@ def assemble_nav_log(
     departure_ident: str, destination_ident: str, altitude_ft: float | None = None, aircraft_name: str | None = None,
     depart: str | None = None, altitude_choice: str | None = None, cruise_tas_kt: float | None = None,
     fuel_burn_gph: float | None = None, usable_fuel_gal: float | None = None, climb_tas_kt: float | None = None,
-    climb_fuel_burn_gph: float | None = None,
+    climb_fuel_burn_gph: float | None = None, cruise_power_pct: float | None = None,
 ) -> dict:
     """Everything a VFR nav-log briefing is made of, without writing the
     briefing: the nav log the planner flies -- the checkpoints worth
@@ -117,6 +121,7 @@ def assemble_nav_log(
         departure_ident, destination_ident, altitude_ft, aircraft_name, depart=depart,
         altitude_choice=altitude_choice, cruise_tas_kt=cruise_tas_kt, fuel_burn_gph=fuel_burn_gph,
         usable_fuel_gal=usable_fuel_gal, climb_tas_kt=climb_tas_kt, climb_fuel_burn_gph=climb_fuel_burn_gph,
+        cruise_power_pct=cruise_power_pct,
     ))
     return {
         "departure_ident": departure_ident,

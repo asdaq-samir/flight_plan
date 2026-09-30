@@ -113,7 +113,15 @@ class Leg(BaseModel):
     """One dead-reckoning leg. `wind` is None when no winds-aloft station
     is near enough, which is not the same as calm: groundspeed then falls
     back to true airspeed. groundspeed/ETE/fuel are None when the wind
-    exceeds true airspeed, i.e. the leg cannot be flown."""
+    exceeds true airspeed, i.e. the leg cannot be flown.
+
+    The true airspeed and fuel flow are the aeroplane's in the leg's own
+    air (vfr.performance): its cruise figures are at a reference
+    altitude on a standard day, and the forecast temperature at this
+    altitude gives the density altitude they are flown at, at the power
+    it allows -- the cruise power, or less where full throttle cannot
+    make it. `oat_c` is None where no forecast temperature was near: a
+    standard day is assumed there."""
 
     model_config = ConfigDict(populate_by_name=True)
 
@@ -130,6 +138,11 @@ class Leg(BaseModel):
     groundspeed_kt: float | None
     ete_min: float | None
     fuel_gal: float | None
+    tas_kt: float
+    fuel_burn_gph: float
+    power_pct: float
+    oat_c: float | None = None
+    density_altitude_ft: float
     # How much of the leg's time is climb -- from the field on the first
     # leg, and up to a new level where a plan steps -- flown at climb
     # speed and burn, and already in `ete_min` and `fuel_gal`.
@@ -209,6 +222,9 @@ class AltitudeSegment(BaseModel):
     to_nm: float
     floor_ft: float
     airspace_ceiling_ft: float | None
+    #: The aeroplane's service ceiling over this leg in the forecast air
+    #: (see AltitudeBreakdown's).
+    service_ceiling_ft: float | None = None
     #: The lowest cloud base (MSL) the TAFs near this leg forecast for
     #: the flight, and the station: the leg keeps 14 CFR 91.155's
     #: distance below it, up to `cloud_ceiling_ft`. None where no
@@ -245,6 +261,12 @@ class AltitudeBreakdown(BaseModel):
     eastbound: bool
     floor_ft: float
     airspace_ceiling_ft: float | None
+    #: The aeroplane's service ceiling where it is in the forecast air,
+    #: the lowest over any leg: a service ceiling is a density altitude
+    #: (the profile's `service_ceiling_ft`, the book figure), so a warm
+    #: day brings it down and a cold one lifts it. The book figure where
+    #: the temperatures aloft could not be read.
+    service_ceiling_ft: float | None = None
     #: The lowest forecast cloud base (MSL) along the route, and the TAF
     #: station it is from; `cloud_ceiling_ft` is the highest altitude
     #: that keeps 14 CFR 91.155's distance below it (500 ft, 1,000 ft at
@@ -329,6 +351,10 @@ class AircraftProfile(BaseModel):
     fuel_burn_gph: float
     service_ceiling_ft: float
     type: str | None = None
+    #: The power `cruise_tas_kt` and `fuel_burn_gph` are at, in percent,
+    #: at vfr.performance's reference altitude on a standard day; its
+    #: default where None.
+    cruise_power_pct: float | None = None
     climb_rate_fpm_sea_level: float | None = None
     climb_tas_kt: float | None = None
     climb_fuel_burn_gph: float | None = None

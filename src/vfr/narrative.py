@@ -157,9 +157,11 @@ def _provenance(flown: str) -> str:
 
 def _format_legs(legs: list[dict]) -> str:
     """One line per leg, at its own altitude, with the climb from the
-    field where the leg has one. An unflyable leg (a headwind at or above
-    cruise TAS -- ETE, fuel and groundspeed are None) is named as such
-    rather than formatted as a number."""
+    field where the leg has one, and the true airspeed it cruises at in
+    its own air where the leg says (a planner leg does: the density
+    altitude sets it). An unflyable leg (a headwind at or above cruise
+    TAS -- ETE, fuel and groundspeed are None) is named as such rather
+    than formatted as a number."""
     lines = []
     for leg in legs:
         where = f"{leg['from']} -> {leg['to']}: {leg['distance_nm']:.1f}nm"
@@ -169,8 +171,13 @@ def _format_legs(legs: list[dict]) -> str:
             lines.append(f"- {where}, UNFLYABLE at this altitude (headwind at or above cruise TAS)")
             continue
         climb = f", climbing for {leg['climb_min']:.0f}min" if (leg.get("climb_min") or 0) > 0 else ""
+        air = ""
+        if leg.get("tas_kt") is not None:
+            air = f", TAS {leg['tas_kt']:.0f}kt"
+            if leg.get("density_altitude_ft") is not None:
+                air += f" at density altitude {_ft(leg['density_altitude_ft'])}"
         lines.append(
-            f"- {where}{climb}, heading {leg['magnetic_heading_deg']:.0f}M, GS {leg['groundspeed_kt']:.0f}kt, "
+            f"- {where}{climb}, heading {leg['magnetic_heading_deg']:.0f}M{air}, GS {leg['groundspeed_kt']:.0f}kt, "
             f"ETE {leg['ete_min']:.0f}min, fuel {leg['fuel_gal']:.1f}gal"
         )
     return "\n".join(lines)
@@ -191,6 +198,8 @@ def _format_altitude_selection(sel: dict | None) -> str:
         f"Terrain/obstacle floor: {_ft(sel['floor_ft'])}",
         f"Airspace/service-ceiling/cloud band: {_ft(band) if band is not None else 'no ceiling below Class A'}",
     ]
+    if sel.get("service_ceiling_ft") is not None:
+        lines.append(f"Service ceiling in the forecast temperatures (a density altitude): {_ft(sel['service_ceiling_ft'])}")
     if sel.get("cloud_clearance_kept") is False:
         lines.append(
             f"CLOUD CLEARANCE NOT POSSIBLE (14 CFR 91.155): the clouds forecast near {sel.get('cloud_station')} "

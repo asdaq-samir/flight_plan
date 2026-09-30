@@ -1,8 +1,9 @@
 """Dead-reckoning leg math -- true course/heading, wind correction angle,
 magnetic heading, groundspeed, ETE, and fuel burn for one leg of a nav log.
-Building blocks (bearing/distance, wind aloft, magnetic variation) already
-exist in vfr.geo / vfr.weather / vfr.magnetic; this module is where they get
-combined per FAA-standard E6B formulas.
+Building blocks (bearing/distance, winds and temperatures aloft, magnetic
+variation, the aeroplane's performance in the day's air) already exist in
+vfr.geo / vfr.weather / vfr.magnetic / vfr.performance; this module is
+where they get combined per FAA-standard E6B formulas.
 
 Compass heading (correcting magnetic for the specific aircraft's compass
 deviation) is deliberately not computed here -- that needs a per-aircraft
@@ -12,9 +13,10 @@ don't carry one). Magnetic heading is as far as this goes for now.
 import math
 from itertools import pairwise
 
+from . import performance
 from .geo import bearing_deg, distance_nm
 from .magnetic import magnetic_variation_deg
-from .weather import wind_at_altitude
+from .weather import temperature_at_altitude, wind_at_altitude
 
 
 def wind_correction_angle_deg(true_course_deg: float, wind_dir_true_deg: float, wind_speed_kt: float, tas_kt: float) -> float:
@@ -45,11 +47,20 @@ def assemble_leg(
     fcst_hr: str = "06",
 ) -> dict:
     """One nav-log leg between two (lat, lon) points: true course/distance
-    (vfr.geo), wind at altitude_ft along the way (vfr.weather -- sampled at
-    the leg's midpoint), magnetic variation (vfr.magnetic), and the
-    resulting WCA/heading/groundspeed/ETE/fuel burn. aircraft_profile is a
-    vfr.aircraft.load_aircraft_profile() dict, which has already refused a
-    profile without "cruise_tas_kt" and "fuel_burn_gph".
+    (vfr.geo), wind and temperature at altitude_ft along the way
+    (vfr.weather -- sampled at the leg's midpoint), magnetic variation
+    (vfr.magnetic), and the resulting WCA/heading/groundspeed/ETE/fuel
+    burn. aircraft_profile is a vfr.aircraft.load_aircraft_profile()
+    dict, which has already refused a profile without "cruise_tas_kt"
+    and "fuel_burn_gph".
+
+    The true airspeed and fuel flow are the profile's in the leg's own
+    air (vfr.performance.cruise): its cruise figures are at a reference
+    altitude on a standard day, and the forecast temperature at this
+    altitude makes the density altitude they are flown at. The leg says
+    which (`tas_kt`, `fuel_burn_gph`, `power_pct`, `density_altitude_ft`,
+    and `oat_c`, None where no forecast temperature was near, when a
+    standard day is assumed).
 
     If no wind data is available for this leg (vfr.weather.wind_at_altitude
     returned None -- no nearby FD station), WCA is 0 and groundspeed is
@@ -57,12 +68,13 @@ def assemble_leg(
     flagged in the returned dict via "wind": None so callers/humans can see
     the leg is a no-wind-data estimate, not a real zero-wind calculation.
     """
-    tas_kt = aircraft_profile["cruise_tas_kt"]
-
     true_course_deg = bearing_deg(*start, *end)
     leg_distance_nm = distance_nm(*start, *end)
     mid_lat, mid_lon = (start[0] + end[0]) / 2, (start[1] + end[1]) / 2
 
+    oat_c = temperature_at_altitude(mid_lat, mid_lon, altitude_ft, fcst_hr)
+    cruise = performance.cruise(aircraft_profile, altitude_ft, oat_c)
+    tas_kt = cruise.tas_kt
     wind = wind_at_altitude(mid_lat, mid_lon, altitude_ft, fcst_hr)
     if wind is None:
         wca_deg = 0.0
@@ -83,7 +95,7 @@ def assemble_leg(
     magnetic_heading_deg = (true_heading_deg - variation_deg) % 360
 
     ete_min = (leg_distance_nm / gs_kt) * 60 if gs_kt > 0 else float("inf")
-    fuel_gal = (ete_min / 60) * aircraft_profile["fuel_burn_gph"]
+    fuel_gal = (ete_min / 60) * cruise.fuel_burn_gph
 
     return {
         "true_course_deg": true_course_deg,
@@ -97,6 +109,11 @@ def assemble_leg(
         "groundspeed_kt": gs_kt,
         "ete_min": ete_min,
         "fuel_gal": fuel_gal,
+        "tas_kt": tas_kt,
+        "fuel_burn_gph": cruise.fuel_burn_gph,
+        "power_pct": cruise.power_pct,
+        "oat_c": oat_c,
+        "density_altitude_ft": round(cruise.density_altitude_ft),
     }
 
 
@@ -202,13 +219,6 @@ def fuel_plan(total_fuel_gal: float | None, aircraft_profile: dict, night: bool 
 
 # --- Four plans: lowest, highest, fastest, economical ---------------------
 
-DEFAULT_CLIMB_RATE_FPM = 500.0
-# A sea-level book figure decays with altitude; three quarters of it is
-# a fair average over a light aeroplane's climb to a few thousand feet.
-CLIMB_RATE_FACTOR = 0.75
-# Climb speed as a fraction of cruise TAS when the profile has none
-# (Vy is around 70% of cruise on a C172 or an Archer).
-DEFAULT_CLIMB_TAS_FRACTION = 0.7
 # What a step costs the lowest/highest plans, in feet times miles: an
 # altitude change is only worth it when it lowers (or raises) the
 # profile by more than 1,000 ft over 10 nm, so neither plan zig-zags
@@ -222,52 +232,46 @@ PLAN_KINDS = ("lowest", "highest", "fastest", "economical")
 OXYGEN_CAP_FT = 12500.0
 
 
-# A climb at full power burns more than cruise; the book figure for a
-# light single is around a third more. For a profile, or a pilot's own
-# aeroplane, with no climb burn of its own.
-CLIMB_FUEL_FACTOR = 1.3
-
-
-def _climb_performance(aircraft_profile: dict) -> tuple:
-    rate_fpm = aircraft_profile.get("climb_rate_fpm_sea_level", DEFAULT_CLIMB_RATE_FPM) * CLIMB_RATE_FACTOR
-    cruise_tas = aircraft_profile["cruise_tas_kt"]
-    climb_tas = aircraft_profile.get("climb_tas_kt") or DEFAULT_CLIMB_TAS_FRACTION * cruise_tas
-    return rate_fpm, cruise_tas, climb_tas
-
-
-def _climb_burn_gph(aircraft_profile: dict) -> float:
-    """The climb's fuel flow: the profile's (a pilot's own aeroplane's)
-    `climb_fuel_burn_gph`, or CLIMB_FUEL_FACTOR times the cruise burn."""
-    return aircraft_profile.get("climb_fuel_burn_gph") or CLIMB_FUEL_FACTOR * aircraft_profile["fuel_burn_gph"]
+def _isa_dev_c(leg: dict | None) -> float:
+    """How much warmer than a standard day a leg's air is, at its own
+    altitude: what its climb is flown in. Nothing without a leg, or
+    where no forecast temperature was near it."""
+    if leg is None or leg.get("oat_c") is None:
+        return 0.0
+    return leg["oat_c"] - performance.isa_temp_c(leg["altitude_ft"])
 
 
 def with_climbs(leg_list: list, start_altitude_ft: float | None, aircraft_profile: dict) -> list:
     """The legs with their climbs flown: from `start_altitude_ft` (the
     departure field, or None to start level at the first leg's own
     altitude) up to each leg's altitude, and up again wherever a plan
-    steps up, at the profile's climb rate, climb speed and climb burn
-    (see _climb_burn_gph). A climb's minutes are
-    flown over the ground at the climb speed scaled by the leg's own
-    wind, the rest of the leg at cruise, and a climb longer than the
-    leg carries into the next one. Each leg says how much of its time
-    is climb (`climb_min`); a descent costs nothing here, since at
-    cruise power it is if anything faster. The cruise-only legs are not
-    changed in place."""
-    rate_fpm, cruise_tas, climb_tas = _climb_performance(aircraft_profile)
-    burn_gph = aircraft_profile["fuel_burn_gph"]
-    climb_burn_gph = _climb_burn_gph(aircraft_profile)
+    steps up -- at the best rate, slower the thinner the air, and at
+    the climb's fuel flow, less as full throttle makes less, in the air
+    of the leg flown at the top (vfr.performance.climb), at the climb
+    speed. A climb's minutes are flown over the ground at the climb
+    speed scaled by the leg's own wind, the rest of the leg at the
+    leg's cruise, and a climb longer than the leg carries into the next
+    one. Each leg says how much of its time is climb (`climb_min`); a
+    descent costs nothing here, since at cruise power it is if anything
+    faster. The cruise-only legs are not changed in place."""
+    climb_tas = performance.climb_tas_kt(aircraft_profile)
     level_ft = start_altitude_ft
     climb_left_min = 0.0
+    # The fuel flow of the climb in hand, over all its minutes: one that
+    # carries into the next leg burns there what it burned on average.
+    climb_burn_gph = 0.0
     out = []
     for leg in leg_list:
         leg = dict(leg)
         target_ft = leg["altitude_ft"]
         if level_ft is not None and target_ft > level_ft:
-            climb_left_min += (target_ft - level_ft) / rate_fpm
+            climb = performance.climb(aircraft_profile, level_ft, target_ft, _isa_dev_c(leg))
+            climb_burn_gph = (climb_left_min * climb_burn_gph + climb.gallons * 60) / (climb_left_min + climb.minutes)
+            climb_left_min += climb.minutes
         level_ft = target_ft if level_ft is None else max(level_ft, target_ft)
         leg["climb_min"] = 0.0
         if climb_left_min > 0 and leg["groundspeed_kt"] and leg["ete_min"] is not None:
-            climb_gs = max(1.0, leg["groundspeed_kt"] * climb_tas / cruise_tas)
+            climb_gs = max(1.0, leg["groundspeed_kt"] * climb_tas / leg["tas_kt"])
             climb_nm = climb_gs * climb_left_min / 60
             if climb_nm >= leg["distance_nm"]:
                 climb_min = leg["distance_nm"] / climb_gs * 60
@@ -279,55 +283,60 @@ def with_climbs(leg_list: list, start_altitude_ft: float | None, aircraft_profil
                 climb_left_min = 0.0
             leg["climb_min"] = round(climb_min, 1)
             leg["ete_min"] = climb_min + cruise_min
-            leg["fuel_gal"] = (climb_min / 60) * climb_burn_gph + (cruise_min / 60) * burn_gph
+            leg["fuel_gal"] = (climb_min / 60) * climb_burn_gph + (cruise_min / 60) * leg["fuel_burn_gph"]
         out.append(leg)
     return out
 
 
-def climb_penalty_min(delta_ft: float, aircraft_profile: dict) -> float:
-    """Minutes a climb of delta_ft costs over cruising level: the climb
-    takes delta_ft / rate minutes, flown at climb speed rather than
-    cruise, and the difference is ground not covered. A descent costs
-    nothing here -- at cruise power it is, if anything, faster. The
-    profile's `climb_rate_fpm_sea_level` (scaled by CLIMB_RATE_FACTOR)
-    and `climb_tas_kt` when it has them, defaults otherwise. Never
-    below nothing: a pilot's climb speed typed above their cruise does
-    not make climbing pay.
+def climb_penalty_min(from_ft: float, to_ft: float, aircraft_profile: dict, leg: dict | None = None) -> float:
+    """Minutes a climb from from_ft to to_ft costs over cruising level:
+    the climb's minutes (vfr.performance.climb, in the air of `leg`, the
+    leg flown at to_ft, where given), flown at climb speed rather than
+    the leg's cruise, and the difference is ground not covered. A
+    descent costs nothing here -- at cruise power it is, if anything,
+    faster. Never below nothing: a pilot's climb speed typed above their
+    cruise does not make climbing pay.
     """
-    if delta_ft <= 0:
+    if to_ft <= from_ft:
         return 0.0
-    rate_fpm, cruise_tas, climb_tas = _climb_performance(aircraft_profile)
-    return max(0.0, (delta_ft / rate_fpm) * (1 - climb_tas / cruise_tas))
+    minutes = performance.climb(aircraft_profile, from_ft, to_ft, _isa_dev_c(leg)).minutes
+    cruise_tas = leg["tas_kt"] if leg else aircraft_profile["cruise_tas_kt"]
+    return max(0.0, minutes * (1 - performance.climb_tas_kt(aircraft_profile) / cruise_tas))
 
 
-def climb_fuel_penalty_gal(delta_ft: float, aircraft_profile: dict) -> float:
-    """Gallons a climb of delta_ft burns over cruising the same ground:
-    its minutes at the climb burn (_climb_burn_gph), less the cruise the
-    ground it covers at climb speed would have taken. Twice or so what
-    climb_penalty_min charges in time, for a light single: the climb is
-    slower and burns more. A descent saves nothing here, as it costs
-    nothing there, and neither does a climb: never below nothing.
+def climb_fuel_penalty_gal(from_ft: float, to_ft: float, aircraft_profile: dict, leg: dict | None = None) -> float:
+    """Gallons a climb from from_ft to to_ft burns over cruising the
+    same ground: its gallons (vfr.performance.climb, in the air of
+    `leg` as for climb_penalty_min), less what the leg's cruise would
+    have burned over the ground the climb covers at climb speed. More
+    than climb_penalty_min charges in time, for a light single: the
+    climb is slower and burns more. A descent saves nothing here, as it
+    costs nothing there, and neither does a climb: never below nothing.
     """
-    if delta_ft <= 0:
+    if to_ft <= from_ft:
         return 0.0
-    rate_fpm, cruise_tas, climb_tas = _climb_performance(aircraft_profile)
-    cruise_burn_gph = aircraft_profile["fuel_burn_gph"] * climb_tas / cruise_tas
-    return max(0.0, (delta_ft / rate_fpm) / 60 * (_climb_burn_gph(aircraft_profile) - cruise_burn_gph))
+    climb = performance.climb(aircraft_profile, from_ft, to_ft, _isa_dev_c(leg))
+    cruise_tas = leg["tas_kt"] if leg else aircraft_profile["cruise_tas_kt"]
+    cruise_burn_gph = leg["fuel_burn_gph"] if leg else aircraft_profile["fuel_burn_gph"]
+    cruise_gal = climb.minutes / 60 * cruise_burn_gph * performance.climb_tas_kt(aircraft_profile) / cruise_tas
+    return max(0.0, climb.gallons - cruise_gal)
 
 
 def _best_path(candidates: list, leg_cost, step_cost) -> list:
     """The altitude for each leg that minimises the summed leg and step
     costs -- dynamic programming over legs, one state per legal
-    altitude of the leg. Ties go to the lower altitude."""
+    altitude of the leg. A step's cost is the leg's own, since a climb
+    is flown in the air of the leg it climbs to. Ties go to the lower
+    altitude."""
     best = []  # per leg: {altitude: (cost so far, previous altitude)}
     for i, options in enumerate(candidates):
         layer = {}
         for a in options:
             if i == 0:
-                layer[a] = (leg_cost(i, a) + step_cost(None, a), None)
+                layer[a] = (leg_cost(i, a) + step_cost(i, None, a), None)
             else:
                 cost, prev = min(
-                    ((c + leg_cost(i, a) + step_cost(p, a), p) for p, (c, _) in best[i - 1].items()),
+                    ((c + leg_cost(i, a) + step_cost(i, p, a), p) for p, (c, _) in best[i - 1].items()),
                     key=lambda t: (t[0], t[1]),
                 )
                 layer[a] = (cost, prev)
@@ -371,13 +380,16 @@ def altitude_profiles(
     with the least time, the winds aloft at every legal altitude of
     every leg tried and each climb charged at climb_penalty_min.
     Economical is the plan that burns the least fuel, climb and cruise:
-    the same winds, each climb charged at climb_fuel_penalty_gal. With
-    one cruise speed and burn at every altitude, it parts from the
-    fastest only where a climb's wind saves time but not the fuel the
-    climb burns -- it climbs for a tailwind less readily. All four pay
-    for the initial climb from the lowest altitude anyone could fly, so
-    their totals compare like for like. Empty when some leg has no
-    legal altitude at all: then no plan can fly the route.
+    the same winds, each climb charged at climb_fuel_penalty_gal. Every
+    leg is flown at its altitude's own true airspeed and fuel flow
+    (assemble_leg): faster in thinner air at the same power, and burning
+    less where full throttle no longer makes the cruise power -- so the
+    economical plan weighs the climb's fuel against what the thinner air
+    and the winds give back, and the fastest counts the speed as well as
+    the wind. All four pay for the initial climb from the departure
+    field -- from the lowest altitude anyone could fly, without one -- so
+    their totals compare like for like. Empty when some leg has no legal
+    altitude at all: then no plan can fly the route.
     """
     leg_count = len(fix_list) - 1
     if len(segments) != leg_count or any(not s["candidates_ft"] for s in segments):
@@ -388,8 +400,11 @@ def altitude_profiles(
         # leg whose only legal altitudes are above it keeps them, since
         # the alternative is no plan at all.
         candidates = [([a for a in options if a <= OXYGEN_CAP_FT] or options) for options in candidates]
-    base_ft = min(a for options in candidates for a in options)
-    cruise_tas = aircraft_profile["cruise_tas_kt"]
+    # Where every plan's first climb starts. The field's elevation when
+    # it is known: the climb from it is flown in the air, and at the
+    # cruise, of the altitude climbed to, and so costs a higher plan more
+    # than a lower one below the lowest altitude too.
+    start_ft = min(a for options in candidates for a in options) if departure_elevation_ft is None else departure_elevation_ft
 
     cache = {}
 
@@ -398,18 +413,18 @@ def altitude_profiles(
             cache[(i, altitude_ft)] = leg_between(fix_list[i], fix_list[i + 1], altitude_ft, aircraft_profile, fcst_hr)
         return cache[(i, altitude_ft)]
 
-    def climb_step(prev, a):
-        return climb_penalty_min(a - (base_ft if prev is None else prev), aircraft_profile)
+    def climb_step(i, prev, a):
+        return climb_penalty_min(start_ft if prev is None else prev, a, aircraft_profile, leg_at(i, a))
 
-    def fixed_step(prev, a):
+    def fixed_step(i, prev, a):
         return STEP_PENALTY_FT_NM if prev is not None and a != prev else 0.0
 
     def minutes(i, a):
         ete = leg_at(i, a)["ete_min"]
         return math.inf if ete is None else ete
 
-    def fuel_step(prev, a):
-        return climb_fuel_penalty_gal(a - (base_ft if prev is None else prev), aircraft_profile)
+    def fuel_step(i, prev, a):
+        return climb_fuel_penalty_gal(start_ft if prev is None else prev, a, aircraft_profile, leg_at(i, a))
 
     def gallons(i, a):
         fuel = leg_at(i, a)["fuel_gal"]
@@ -433,7 +448,7 @@ def altitude_profiles(
         climb_min = round(sum(leg["climb_min"] for leg in leg_list), 1)
         with_wind = [leg for leg in leg_list if leg.get("wind") is not None and leg["groundspeed_kt"] is not None]
         tailwind = (
-            sum((leg["groundspeed_kt"] - cruise_tas) * leg["distance_nm"] for leg in with_wind)
+            sum((leg["groundspeed_kt"] - leg["tas_kt"]) * leg["distance_nm"] for leg in with_wind)
             / sum(leg["distance_nm"] for leg in with_wind)
         ) if with_wind else None
         plans[kind] = {

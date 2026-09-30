@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from vfr import airspace, altitude, sua, terrain, weather
+from vfr import airspace, altitude, performance, sua, terrain, weather
 
 PROFILE = {"service_ceiling_ft": 14000, "cruise_tas_kt": 110}
 DEP, DEST = (45.0, -90.0), (46.0, -90.0)          # due north
@@ -15,9 +15,9 @@ DOGLEG = (45.5, -89.85)                            # east of the line
 @pytest.fixture
 def sources(monkeypatch):
     """Flat 2,000 ft floor, no airspace, no variation, and weather the
-    test sets."""
+    test sets -- a standard day's temperatures unless it sets them."""
     state = {"freezing": None, "cv": {"min_ceiling_ft": None, "min_visibility_sm": None, "stations": []},
-             "hazards": []}
+             "hazards": [], "temperatures": []}
     monkeypatch.setattr(airspace, "ensure_class_airspace_shapefile", lambda cache_dir: Path("/nowhere"))
     monkeypatch.setattr(terrain, "floor_profile", lambda start, end, breaks, faa_cache_dir=None: [2000.0] * (len(breaks) - 1))
     monkeypatch.setattr(airspace, "airspace_ceiling_profile", lambda start, end, fixes, shp: [None] * (len(fixes) - 1))
@@ -26,6 +26,7 @@ def sources(monkeypatch):
     monkeypatch.setattr(weather, "freezing_level", lambda lat, lon, fcst_hr="06": state["freezing"])
     monkeypatch.setattr(weather, "ceiling_visibility_along_route", lambda start, end, window=None: state["cv"])
     monkeypatch.setattr(weather, "hazards_along_route", lambda start, end: state["hazards"])
+    monkeypatch.setattr(weather, "temperatures_aloft", lambda lat, lon, fcst_hr="06": state["temperatures"])
     state["special_use"] = []
     monkeypatch.setattr(sua, "along_route", lambda start, end, fixes=None: state["special_use"])
     return state
@@ -199,3 +200,27 @@ def test_a_station_far_from_the_leg_does_not_cap_it(sources):
     result = altitude.select_cruise_altitude(DEP, DEST, PROFILE, fixes=[DEP, DEST])
 
     assert result["cloud_base_ft"] is None and result["segments"][0]["candidates_ft"]
+
+
+def test_the_service_ceiling_is_where_it_is_in_the_forecast_air(sources):
+    # 15 degC warmer than a standard day all the way up: the 14,000 ft
+    # service ceiling, a density altitude, is 12,000 ft or so of altitude.
+    sources["temperatures"] = [(h, performance.isa_temp_c(h) + 15) for h in (6000.0, 9000.0, 12000.0, 18000.0)]
+
+    result = altitude.select_cruise_altitude(DEP, DEST, PROFILE, fixes=[DEP, DOGLEG, DEST])
+
+    assert 12000 <= result["service_ceiling_ft"] <= 12500
+    assert result["band_ceiling_ft"] == result["service_ceiling_ft"] == result["segments"][0]["service_ceiling_ft"]
+    assert max(result["candidates_ft"]) < result["service_ceiling_ft"]
+
+
+def test_the_book_service_ceiling_where_the_temperatures_are_unknown(sources, monkeypatch):
+    def down(lat, lon, fcst_hr="06"):
+        raise weather.WeatherServiceError("aviationweather.gov is down")
+
+    monkeypatch.setattr(weather, "freezing_level", down)
+    sources["temperatures"] = [(6000.0, 40.0)]           # never read: the forecast failed
+
+    result = altitude.select_cruise_altitude(DEP, DEST, PROFILE)
+
+    assert result["service_ceiling_ft"] == result["band_ceiling_ft"] == 14000
