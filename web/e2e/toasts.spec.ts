@@ -112,6 +112,23 @@ test("the toast spans the screen and is centred on it", async ({ page }) => {
   }
 });
 
+test("a toast sits clear of the header: above it on a phone, where it is the bottom row", async ({ page }) => {
+  // The toasts are anchored to the bottom of the screen, and on a phone
+  // the header became the bottom row: they covered the route form and
+  // the buttons until they were lifted over it.
+  await plannerDown(page);
+  await page.goto(PLAN);
+  await settle(page);
+
+  const first = toasts(page).first();
+  await expect(first).toBeVisible({ timeout: 15000 });
+  await page.waitForTimeout(500);
+  const box = (await first.boundingBox())!;
+  const header = (await page.locator("header").boundingBox())!;
+  if (page.viewportSize()!.width < 768) expect(box.y + box.height).toBeLessThanOrEqual(header.y);
+  else expect(box.y).toBeGreaterThanOrEqual(header.y + header.height);
+});
+
 test("the chart underneath stays draggable while a toast is showing", async ({ page }) => {
   // Sonner gives its container and cards pointer-events, so the band
   // they occupy was swallowing wheel and drag events meant for the

@@ -7,7 +7,9 @@ import DevSwitch from "../../components/DevSwitch";
 import MapHeader from "../../components/MapHeader";
 import RouteForm from "../../components/RouteForm";
 import { Sheet, SheetContent, SheetTrigger } from "../../components/ui/sheet";
-import { Dialog, DialogContent, DialogTrigger } from "../../components/ui/dialog";
+// Under other names: `DrawerTrigger` below is the header's button for
+// the sidebar, which this page calls its drawer.
+import { Drawer as BottomSheet, DrawerContent as BottomSheetContent, DrawerTrigger as BottomSheetTrigger } from "../../components/ui/drawer";
 import { useIsMobile } from "../../hooks/use-mobile";
 import {
   Sidebar, SidebarContent, SidebarInset, SidebarProvider, SidebarTrigger, useSidebar,
@@ -157,7 +159,10 @@ export default function MapPage({ mode }: { mode: Mode }) {
               media query's does not -- so with the text set larger, the
               header falls back to its wrapping row instead of running
               off the edge. */}
-          <SidebarInset id="content" className="@container min-h-0 min-w-0 print:hidden">
+          {/* On a phone the header is the bottom row (MapHeader), so the
+              top of this column clears the notch or the Dynamic Island
+              itself. */}
+          <SidebarInset id="content" className="@container min-h-0 min-w-0 max-md:pt-[env(safe-area-inset-top)] print:hidden">
             <MapHeader
               dev={mode === "dev"}
               leading={<DevSwitch />}
@@ -173,26 +178,26 @@ export default function MapPage({ mode }: { mode: Mode }) {
                       and guide, or the developer's training, performance
                       and system -- modal, so the page waits while it is
                       out. From `md` up a stock Sheet from the top, under
-                      its button; on a phone a dialog in the middle of the
-                      screen, a margin all round, on the card surface the
-                      Sheet has, so a menu opened in it stands off it in
-                      the dark theme. The dialog's height is fixed rather
-                      than its content's: sized to the tab showing, it
-                      shrank and grew about its centre as the tabs
+                      its button; on a phone, where the header is the
+                      bottom row, a sheet up from the bottom edge with a
+                      grabber, as iOS presents one (shadcn's Drawer), on
+                      the card surface the Sheet has, so a menu opened in
+                      it stands off it in the dark theme. Its height is
+                      fixed rather than its content's: sized to the tab
+                      showing, its top edge rose and fell as the tabs
                       changed, and the tab row moved out from under the
                       finger that had just tapped it. */}
                   {onPhone ? (
-                    <Dialog>
-                      <DialogTrigger asChild><ConsoleButton /></DialogTrigger>
-                      <DialogContent
-                        showCloseButton={false}
-                        className="flex h-[85dvh] w-[calc(100%-2rem)] max-w-none flex-col gap-0 overflow-hidden bg-card p-0 text-card-foreground"
+                    <BottomSheet>
+                      <BottomSheetTrigger asChild><ConsoleButton /></BottomSheetTrigger>
+                      <BottomSheetContent
+                        className="h-[85dvh] gap-0 bg-card text-card-foreground data-[vaul-drawer-direction=bottom]:max-h-none"
                         data-testid="console-sheet"
                       >
                         <ConsoleHeader console={consoleLabel.toLowerCase()} />
                         <AfterTheSheet>{pieces.console}</AfterTheSheet>
-                      </DialogContent>
-                    </Dialog>
+                      </BottomSheetContent>
+                    </BottomSheet>
                   ) : (
                     <Sheet>
                       <SheetTrigger asChild><ConsoleButton /></SheetTrigger>

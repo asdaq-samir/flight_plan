@@ -159,7 +159,11 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
         style={{ "--width": "min(34rem, calc(100vw - 2rem))" } as CSSProperties}
         expand={false}
         visibleToasts={3}
-        mobileOffset={{ bottom: "max(1rem, env(safe-area-inset-bottom))", left: "1rem", right: "1rem" }}
+        // Above the header on a phone, where it is the bottom row
+        // (index.css's --toast-offset-bottom): both offsets, since
+        // sonner's mobile one stops at 600px and the header at 768.
+        offset={{ bottom: "var(--toast-offset-bottom)" }}
+        mobileOffset={{ bottom: "var(--toast-offset-bottom)", left: "1rem", right: "1rem" }}
         // A toast still on screen ("VFR flight not recommended") was
         // printing over the briefing's table; the paper is the
         // briefing alone.

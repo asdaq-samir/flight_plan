@@ -45,8 +45,8 @@ async function settle(page: Page) {
  *  map from `md` up, a Sheet over it on a phone. Both carry
  *  `data-slot="sidebar"` and the side. */
 const sideDrawer = (page: Page) => page.locator('[data-slot="sidebar"][data-side="right"]');
-/** The console: a stock Sheet from the top from `md` up, a Dialog in the
- *  middle of the screen on a phone. */
+/** The console: a stock Sheet from the top from `md` up, a sheet up from
+ *  the bottom edge on a phone (shadcn's Drawer). */
 const consoleSheet = (page: Page) => page.getByTestId("console-sheet");
 
 /** Closed: on a phone the Sheet is not in the page at all; on a
@@ -207,18 +207,24 @@ test.describe("/app/plan", () => {
   // the flight planning drawer, not a second view), and the drawer's
   // toggle in the header's own trailing group, not floating over the
   // map.
-  test("the header is one row with no tabs, and the sidebar trigger toggles the nav log from it", async ({ page }) => {
+  test("the header is one row with no tabs, the screen's bottom row on a phone and its top row from md up, and the sidebar trigger toggles the nav log from it", async ({ page }) => {
     await page.goto("/app/plan");
     await settle(page);
     const viewport = page.viewportSize();
     if (!viewport) throw new Error("no viewport configured");
 
     await expect(page.locator("header").getByRole("tablist")).toHaveCount(0);
+    // On a phone the bottom row, where a thumb reaches it; from md up
+    // the top one.
+    const headerBox = (await page.locator("header").boundingBox())!;
+    if (viewport.width < 768) expect(Math.round(headerBox.y + headerBox.height)).toBe(viewport.height);
+    else expect(headerBox.y).toBe(0);
     const loadBox = await page.getByRole("button", { name: "Load" }).boundingBox();
     const triggerBox = await page.getByTestId("sidebar-trigger-button").boundingBox();
     expect(loadBox).not.toBeNull();
     expect(triggerBox).not.toBeNull();
-    expect(triggerBox!.y).toBeLessThan(viewport.height - 100);
+    expect(triggerBox!.y).toBeGreaterThanOrEqual(headerBox.y);
+    expect(triggerBox!.y + triggerBox!.height).toBeLessThanOrEqual(headerBox.y + headerBox.height);
     // Trailing the form: to its right, on its row (a desktop) or the
     // row under it (a phone), never above it.
     expect(triggerBox!.x).toBeGreaterThan(loadBox!.x);
@@ -230,7 +236,7 @@ test.describe("/app/plan", () => {
 });
 
 for (const path of PAGES) {
-  test(`${path}: the layers button and the zoom toggle sit on the map's top-right corner, under the header`, async ({ page }) => {
+  test(`${path}: the layers button and the zoom toggle sit on the map's top-right corner, clear of the header`, async ({ page }) => {
     await page.goto(`${path}?dep=C81&dest=KDLH`);
     await settle(page);
     const viewport = page.viewportSize();
@@ -242,9 +248,16 @@ for (const path of PAGES) {
     expect(headerBox).not.toBeNull();
     expect(layersBox).not.toBeNull();
     expect(actionBox).not.toBeNull();
-    // On the map, below the header, the layers button above the zoom
-    // toggle, both flush with the right edge -- the same on both pages.
-    expect(layersBox!.y).toBeGreaterThanOrEqual(headerBox!.y + headerBox!.height);
+    // On the map, the layers button above the zoom toggle, both flush
+    // with the right edge -- the same on both pages: below the header
+    // from md up, and at the top of the screen on a phone, whose header
+    // is the bottom row.
+    if (viewport.width < 768) {
+      expect(layersBox!.y).toBeLessThan(24);
+      expect(actionBox!.y + actionBox!.height).toBeLessThanOrEqual(headerBox!.y);
+    } else {
+      expect(layersBox!.y).toBeGreaterThanOrEqual(headerBox!.y + headerBox!.height);
+    }
     expect(actionBox!.y).toBeGreaterThan(layersBox!.y + layersBox!.height - 1);
     expect(viewport.width - (layersBox!.x + layersBox!.width)).toBeLessThan(16);
     expect(viewport.width - (actionBox!.x + actionBox!.width)).toBeLessThan(16);
@@ -1077,12 +1090,13 @@ test("dev page: the dev console opens on training, and the waypoint drawer opens
   await expectDrawerClosed(page);
 });
 
-test("the console holds still as its tabs change: in the middle of a phone's screen, from the top of a desktop's", async ({ page }) => {
-  // On a phone the console is a dialog with a margin all round. Sized
-  // to the tab showing, it shrank and grew about its centre as the tabs
-  // changed, and the tab row moved out from under the finger that had
-  // just tapped it; its height is now fixed. From `md` up it is the
-  // Sheet from the top, whose tab row stays put however tall it is.
+test("the console holds still as its tabs change: up from the bottom of a phone's screen, down from the top of a desktop's", async ({ page }) => {
+  // On a phone the console is a sheet from the bottom edge, where the
+  // header is. Sized to the tab showing, its top edge rose and fell as
+  // the tabs changed, and the tab row moved out from under the finger
+  // that had just tapped it; its height is now fixed. From `md` up it
+  // is the Sheet from the top, whose tab row stays put however tall it
+  // is.
   await page.goto("/app/plan");
   await settle(page);
   await page.getByTestId("pilot-button").click();
@@ -1093,9 +1107,9 @@ test("the console holds still as its tabs change: in the middle of a phone's scr
   if (!viewport) throw new Error("no viewport configured");
   const box = (await pilot.boundingBox())!;
   if (viewport.width < 768) {
-    expect(Math.round(box.x)).toBe(16);
-    expect(Math.round(viewport.width - box.x - box.width)).toBe(16);
-    expect(Math.abs(box.y - (viewport.height - box.y - box.height))).toBeLessThanOrEqual(1);
+    expect(Math.round(box.x)).toBe(0);
+    expect(Math.round(box.width)).toBe(viewport.width);
+    expect(Math.round(box.y + box.height)).toBe(viewport.height);
   } else {
     expect(box.y).toBe(0);
   }
@@ -1154,7 +1168,7 @@ test("plan page: the header's toggle closes and reopens the drawer; a tap beside
     // The stock sidebar on a phone is a modal sheet: the header is
     // under its overlay, and a tap on the map beside it (the overlay)
     // is what closes it; the trigger opens it again.
-    await page.mouse.click(12, headerBox!.y + headerBox!.height + 40);
+    await page.mouse.click(12, viewport.height / 2);
     await expectDrawerClosed(page);
     await page.getByTestId("sidebar-trigger-button").click();
     await expectDrawerOpen(page);

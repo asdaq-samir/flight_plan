@@ -331,6 +331,19 @@ html:not(.dark) [data-sonner-toaster] [data-rich-colors="true"][data-sonner-toas
   height: 24px;
 }
 
+/* Where the toasts sit (main.tsx): sonner's own 24px up from the
+   bottom of the screen, and on a phone half a rem above the header,
+   which is the screen's bottom row there (MapHeader, which keeps its
+   height in --header-height). */
+:root {
+  --toast-offset-bottom: 24px;
+}
+@media (width < 48rem) {
+  :root {
+    --toast-offset-bottom: calc(var(--header-height, 0.5rem) + 0.5rem);
+  }
+}
+
 /* Reduce Motion, honoured: sheets and popovers arrive, sections open,
    the map zooms and the spinners hold still, all without the motion.
    The durations are near zero rather than none, so the events the

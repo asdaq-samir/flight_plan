@@ -54,8 +54,9 @@ export default function MapControls({ zoom, ownShip = false, candidates }: Props
             <Layers className="size-5" />
           </IconButton>
         </ResponsivePopoverTrigger>
-        {/* On a phone a sheet from the bottom: as a popover it was the
-            screen's height, over the header, its last line cut off. */}
+        {/* On a phone a dialog in the middle of the screen: as a
+            popover it was the screen's height, over the header, its
+            last line cut off. */}
         <ResponsivePopoverContent title="Chart layers" titleHidden side="left" align="start" className="w-72">
           <div className="space-y-3 text-sm [&>div:first-child]:border-t-0 [&>div:first-child]:pt-0">
             <ChartLayers />
