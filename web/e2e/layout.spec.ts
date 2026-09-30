@@ -72,7 +72,16 @@ async function expectDrawerOpen(page: Page) {
 async function closeSidebarWithTheStockKey(page: Page) {
   const viewport = page.viewportSize();
   if (!viewport) throw new Error("no viewport configured");
-  await page.keyboard.press(viewport.width < 768 ? "Escape" : "ControlOrMeta+b");
+  if (viewport.width < 768) {
+    // The pointer off the drawer first, as a finger is: left where the
+    // trigger was clicked, it is over the drawer's own header icons once
+    // the drawer has slid in, one of their tooltips opens, and Escape
+    // closes the tooltip -- the drawer stayed open about one run in ten.
+    await page.mouse.move(4, viewport.height - 4);
+    await page.keyboard.press("Escape");
+  } else {
+    await page.keyboard.press("ControlOrMeta+b");
+  }
 }
 
 async function openSidebar(page: Page) {
