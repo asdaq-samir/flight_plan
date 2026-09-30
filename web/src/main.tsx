@@ -7,21 +7,21 @@ import { courseQuery, queryClient } from "./lib/queryClient";
 import { Toaster } from "./components/ui/sonner";
 import { TooltipProvider } from "./components/ui/tooltip";
 import { registerSW } from "virtual:pwa-register";
-import UpdateNotice from "./components/UpdateNotice";
-import { useAppUpdate } from "./lib/appUpdate";
 import "./index.css";
 
 // The service worker (vite.config.ts): the app shell, the chart tiles
 // the map has drawn or kept ahead, and the planner's answers, held for
 // the air. It registers only on a secure origin (https, or localhost).
-// A new build is offered, not imposed: it used to reload the page the
-// moment its worker had installed, which on a phone was a minute or so
-// after every deploy, with the nav log just loaded. UpdateNotice offers
-// it -- a toast, then a pill -- until Reload takes it; otherwise a page
-// opened fresh once every tab is closed has it.
-const updateSW = registerSW({
+// A new build is taken at once (vite.config.ts, "autoUpdate"): the
+// page reloads itself the moment the new worker has installed. The
+// browser checks for a new worker on its own only on a navigation, so
+// a page kept open -- the phone, all day -- asks every minute; the
+// check is one small request for sw.js.
+registerSW({
   immediate: true,
-  onNeedRefresh() { useAppUpdate.getState().ready(updateSW); },
+  onRegisteredSW(_url, registration) {
+    if (registration) window.setInterval(() => void registration.update(), 60_000);
+  },
 });
 
 // Three views, one app -- which is the point of the port. As separate
@@ -175,7 +175,6 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
         // already the deliberate way to dismiss one by hand.
         swipeDirections={[]}
       />
-      <UpdateNotice />
     </QueryClientProvider>
     </ThemeProvider>
   </React.StrictMode>,

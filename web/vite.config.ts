@@ -21,13 +21,14 @@ export default defineConfig({
     // handler serves a real file as itself), scoped to /app/. Installs
     // only on a secure origin: https, or localhost.
     VitePWA({
-      // "prompt", not "autoUpdate": with autoUpdate a new build took the
-      // page over the moment its worker had installed -- a reload of
-      // the whole page, under the pilot, a minute or so after every
-      // deploy (about when the nav log had just finished loading). Now
-      // the new worker waits; main.tsx offers a reload in a toast, and
-      // a page opened fresh once every tab is closed has it anyway.
-      registerType: "prompt",
+      // "autoUpdate": a new build takes the page over as soon as its
+      // worker has installed -- the page reloads itself, with no prompt
+      // (main.tsx asks the server for a new worker every minute, so an
+      // open page finds one within that). "prompt" was tried, with a
+      // toast offering the reload, and dropped: the pilot wants the
+      // latest build at once, not a question. The cost is a reload
+      // under whoever is on the page at that moment.
+      registerType: "autoUpdate",
       manifest: {
         name: "VFR Route", short_name: "VFR Route", description: "A charted course, checkpoints, nav log and briefing.",
         start_url: "/app/plan", scope: "/app/", display: "standalone",
