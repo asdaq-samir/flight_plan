@@ -39,7 +39,9 @@ export function SelectableRow({
         }
       }}
       className={cn(
-        "cursor-pointer focus:outline-none",
+        // A ring for the keyboard, inside the row so the table's own
+        // border is not painted over; the tint alone was easy to miss.
+        "cursor-pointer focus:outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring",
         // Muted rows take the foreground colour under the hover and
         // focus tint: muted on the tint was 4.35:1, under WCAG's 4.5.
         mutedWhenUnselected && "text-muted-foreground hover:text-foreground focus-visible:text-foreground",

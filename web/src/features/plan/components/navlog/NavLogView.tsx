@@ -220,6 +220,24 @@ export function DescriptionCell({
  * is the exception: it opens the log with nothing to its right, since
  * no leg has been flown yet.
  */
+/** The leg's figures a phone's table has no columns for, as one line
+ *  under the row (the columns themselves from md up, see the column
+ *  defs): course, wind, correction, heading, variation, groundspeed and
+ *  fuel, in the nav log's own order. */
+function LegLine({ leg }: { leg: Leg }) {
+  return (
+    <div className="mb-1 flex flex-wrap gap-x-3 text-xs tabular-nums md:hidden">
+      <span>TC {deg(leg.true_course_deg)}</span>
+      <span>Wind {leg.wind ? `${deg(leg.wind.wind_dir_true_deg)}/${Math.round(leg.wind.wind_speed_kt)}` : "no data"}</span>
+      <span>WCA {signed(leg.wca_deg)}</span>
+      <span>TH {deg(leg.true_heading_deg)}</span>
+      <span>Var {signed(leg.magnetic_variation_deg)}</span>
+      <span>GS {leg.groundspeed_kt === null ? "—" : Math.round(leg.groundspeed_kt)}</span>
+      <span>Fuel {one(leg.fuel_gal)} gal</span>
+    </div>
+  );
+}
+
 export default function NavLogView({
   totals, nav, onAltitudeChoiceChange, depart, onDepartChange,
   legs, dep, dest, ends,
@@ -265,6 +283,11 @@ export default function NavLogView({
   // at module scope, since they close over this render's `nav` and
   // `depart`.
   const data = navLogRows(ends, selected, legs);
+  // On a phone the table keeps five columns -- the waypoint, altitude,
+  // distance, magnetic heading and ETE (and the ETA with a departure
+  // time) -- and the other seven, which had it fourteen wide and
+  // scrolling sideways under the finger, are the leg line under each
+  // row instead (see LegLine); from md up, and on paper, every column.
   const columns: ColumnDef<typeof navLogTableFeatures, NavLogRow>[] = [
     {
       id: "waypoint",
@@ -287,7 +310,7 @@ export default function NavLogView({
         </span>
       ),
       cell: ({ row }) => rowPoint(row.original).name,
-      meta: { className: "text-left" },
+      meta: { className: "text-left max-md:whitespace-normal" },
     },
     {
       id: "alt",
@@ -313,11 +336,13 @@ export default function NavLogView({
     {
       id: "tc",
       header: "TC",
+      meta: { className: "hidden md:table-cell print:table-cell" },
       cell: ({ row }) => (legOf(row.original) ? deg(legOf(row.original)!.true_course_deg) : "—"),
     },
     {
       id: "wind",
       header: "Wind",
+      meta: { className: "hidden md:table-cell print:table-cell" },
       cell: ({ row }) => {
         const leg = legOf(row.original);
         return leg ? (leg.wind ? `${deg(leg.wind.wind_dir_true_deg)}/${Math.round(leg.wind.wind_speed_kt)}` : "no data") : "—";
@@ -326,16 +351,19 @@ export default function NavLogView({
     {
       id: "wca",
       header: "WCA",
+      meta: { className: "hidden md:table-cell print:table-cell" },
       cell: ({ row }) => (legOf(row.original) ? signed(legOf(row.original)!.wca_deg) : "—"),
     },
     {
       id: "th",
       header: "TH",
+      meta: { className: "hidden md:table-cell print:table-cell" },
       cell: ({ row }) => (legOf(row.original) ? deg(legOf(row.original)!.true_heading_deg) : "—"),
     },
     {
       id: "var",
       header: "Var",
+      meta: { className: "hidden md:table-cell print:table-cell" },
       cell: ({ row }) => (legOf(row.original) ? signed(legOf(row.original)!.magnetic_variation_deg) : "—"),
     },
     {
@@ -346,6 +374,7 @@ export default function NavLogView({
     {
       id: "gs",
       header: "GS",
+      meta: { className: "hidden md:table-cell print:table-cell" },
       cell: ({ row }) => {
         const leg = legOf(row.original);
         return leg ? (leg.groundspeed_kt === null ? "—" : Math.round(leg.groundspeed_kt)) : "—";
@@ -362,6 +391,7 @@ export default function NavLogView({
     {
       id: "fuel",
       header: "Fuel",
+      meta: { className: "hidden md:table-cell print:table-cell" },
       cell: ({ row }) => (legOf(row.original) ? one(legOf(row.original)!.fuel_gal) : "—"),
     },
   ];
@@ -416,7 +446,10 @@ export default function NavLogView({
   const navLogTable = (
     <Table
       containerClassName="overflow-x-auto print:overflow-visible"
-      className="text-right text-xs whitespace-nowrap"
+      // On a phone the cells' padding is halved and the waypoint's name
+      // may wrap (see its column), so the five columns fit the drawer
+      // without a sideways scroll; from md up the stock padding.
+      className="text-right text-xs whitespace-nowrap max-md:[&_td]:px-1 max-md:[&_th]:px-1"
     >
       <TableCaption className="sr-only">
         Navigation log from {dep} to {dest}
@@ -470,6 +503,7 @@ export default function NavLogView({
                 ))}
               </SelectableRow>
               <NoteRow selected={rowSelected} colSpan={columns.length}>
+                {leg && <LegLine leg={leg} />}
                 {r.kind === "departure" ? (
                   // The departure airport's own name, not editable
                   // and never AI-generated -- there's no "how to
@@ -514,7 +548,7 @@ export default function NavLogView({
           and the altitude sat on a line of its own under the rest. Past
           the drawer's width -- a phone with its text turned up -- it
           scrolls sideways rather than wraps. */}
-      <div className="flex flex-nowrap items-center gap-1.5 overflow-x-auto whitespace-nowrap">
+      <div className="flex flex-wrap items-center gap-1.5 overflow-x-auto whitespace-nowrap @min-[18rem]:flex-nowrap">
         {parts && (
           <span className="shrink-0">
             <b>{parts.distance}</b> · <b>{parts.time}</b> · <b>{parts.fuel}</b>
@@ -710,7 +744,11 @@ export default function NavLogView({
       <div
         // The bottom inset clears the home indicator on an installed
         // app, so the last section's content is not under it.
-        className="flight-briefing min-h-0 flex-1 overflow-auto px-3 pb-[env(safe-area-inset-bottom)] print:h-auto print:overflow-visible print:pb-0"
+        // `@container`: the summary line below keeps to one line from
+        // 18rem of this width -- a container query, so with the text
+        // set larger (the root font size up, the rem with it) the line
+        // wraps rather than running off the edge.
+        className="flight-briefing @container min-h-0 flex-1 overflow-auto px-3 pb-[env(safe-area-inset-bottom)] print:h-auto print:overflow-visible print:pb-0"
         data-testid="navlog-scroller"
       >
         <Accordion type="multiple" value={printing ? ALL_SECTIONS : open} onValueChange={setOpen}>
