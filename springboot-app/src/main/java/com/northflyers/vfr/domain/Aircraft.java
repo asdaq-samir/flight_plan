@@ -22,6 +22,13 @@ import lombok.Getter;
  * numbers, and the dead-reckoning math consumes these two values
  * directly, so a wrong one is a wrong nav log rather than a wrong label.
  *
+ * <p>With them, the power they are at, in percent: the planner takes the
+ * two as the aeroplane's at that power at 6,000 ft on a standard day and
+ * flies each leg at what they come to in its own air (the density
+ * altitude the forecast temperature gives). Nullable: an aeroplane added
+ * before it was asked for, or whose owner has not said, is flown at its
+ * type's.
+ *
  * <p>The climb has its own two: the speed it is flown at and what it
  * burns, which is more than the cruise. Nullable: an aeroplane added
  * before they were asked for, or whose owner has not said, climbs at
@@ -60,6 +67,8 @@ public class Aircraft {
     @Column(nullable = false)
     private double fuelBurnGph;
 
+    private Double cruisePowerPct;
+
     private Double climbTasKt;
 
     private Double climbFuelBurnGph;
@@ -74,12 +83,13 @@ public class Aircraft {
     }
 
     public Aircraft(Pilot pilot, String tailNumber, String typeDesignator, double cruiseTasKt, double fuelBurnGph,
-                    Double climbTasKt, Double climbFuelBurnGph, Double usableFuelGal) {
+                    Double cruisePowerPct, Double climbTasKt, Double climbFuelBurnGph, Double usableFuelGal) {
         this.pilot = pilot;
         this.tailNumber = tailNumber;
         this.typeDesignator = typeDesignator;
         this.cruiseTasKt = cruiseTasKt;
         this.fuelBurnGph = fuelBurnGph;
+        this.cruisePowerPct = cruisePowerPct;
         this.climbTasKt = climbTasKt;
         this.climbFuelBurnGph = climbFuelBurnGph;
         this.usableFuelGal = usableFuelGal;
@@ -90,11 +100,12 @@ public class Aircraft {
      *  numbers change together (a new owner, a re-rigged engine) often
      *  enough that a partial update isn't worth the extra API shape. */
     public Aircraft update(String tailNumber, String typeDesignator, double cruiseTasKt, double fuelBurnGph,
-                           Double climbTasKt, Double climbFuelBurnGph, Double usableFuelGal) {
+                           Double cruisePowerPct, Double climbTasKt, Double climbFuelBurnGph, Double usableFuelGal) {
         this.tailNumber = tailNumber;
         this.typeDesignator = typeDesignator;
         this.cruiseTasKt = cruiseTasKt;
         this.fuelBurnGph = fuelBurnGph;
+        this.cruisePowerPct = cruisePowerPct;
         this.climbTasKt = climbTasKt;
         this.climbFuelBurnGph = climbFuelBurnGph;
         this.usableFuelGal = usableFuelGal;
