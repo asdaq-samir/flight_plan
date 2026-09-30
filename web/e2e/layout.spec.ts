@@ -97,11 +97,15 @@ async function closeSidebarWithTheStockKey(page: Page) {
 
 /** Every finite animation on and under an element run out -- a
  *  sheet's slide, the panel's width easing in. A spinner's spin is
- *  endless and left alone: waited on, it never finished. */
+ *  endless and left alone: waited on, it never finished. And one
+ *  cancelled on the way is as done as one that ran out: its `finished`
+ *  rejects, with an AbortError, and Promise.all used to take that for
+ *  the whole wait failing (the Model Training drawer, its table drawn
+ *  at once from the planner's kept read, three times running on CI). */
 async function settled(locator: Locator) {
   await locator.evaluate(el => Promise.all(el.getAnimations({ subtree: true })
     .filter(a => a.effect?.getTiming().iterations !== Infinity)
-    .map(a => a.finished)));
+    .map(a => a.finished.catch(() => undefined))));
 }
 
 /** The drawer's box once it is open and done opening: measured 300 ms
