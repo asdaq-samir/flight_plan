@@ -540,13 +540,14 @@ jobs:
       # store in place of containerd's made no difference there worth a
       # restart of Docker (ab57887's measurement).
       #
-      # Mailpit first of all, the smallest: its start makes the stack's
-      # network, which the other services' starts need there before them
-      # (two at once each make it, and one fails). Postgres is pulled
-      # meanwhile and started after it; only the webapp waits for
-      # Postgres. The planner and the model service used to wait for it
-      # too, and on a runner with a slow disk it came up 50 seconds in,
-      # with both of them ready long before.
+      # Postgres and Mailpit are pulled first, before any other image:
+      # they are small, and among the large ones they were in last, 20 to
+      # 37 seconds into the job -- and no other service had started
+      # before Postgres did, though nothing here asked them to wait for it
+      # (run 36742507724). Then Mailpit is started, which makes the
+      # stack's network, which the other services' starts need there
+      # before them (two at once each make it, and one fails), and then
+      # Postgres; only the webapp waits for Postgres.
       #
       # And the image the tests run in: the slim copy of the Playwright
       # image that e2e-images makes once for each of its digests
@@ -580,6 +581,7 @@ jobs:
           echo "0 the runner's disk: $(lsblk -e 7 -dno NAME,MODEL | xargs)" >> /tmp/e2e-out/timeline
           cat > /tmp/e2e-out/playwright.sh <<'EOF'
           digest=$(docker buildx imagetools inspect --raw "$PLAYWRIGHT_IMAGE" | sha256sum | cut -c1-16)
+          until [ -f /tmp/e2e-out/small.pulled ]; do sleep 0.5; done
           if docker pull -q "$REGISTRY/e2e-playwright:$digest" > /dev/null 2>&1; then
             docker tag "$REGISTRY/e2e-playwright:$digest" "$PLAYWRIGHT_IMAGE" && echo "its slim copy"
           else
@@ -591,9 +593,13 @@ jobs:
           compose() { docker compose -f docker-compose.yml -f docker-compose.ci.yml "$@"; }
           compose pull -q db > /tmp/e2e-out/db.log 2>&1 &
           db=$!
-          { compose pull -q mailpit && compose up -d mailpit; } > /tmp/e2e-out/net.log 2>&1
+          compose pull -q mailpit > /tmp/e2e-out/net.log 2>&1
+          wait $db
+          mark "Postgres and Mailpit pulled"
+          touch /tmp/e2e-out/small.pulled
+          compose up -d mailpit >> /tmp/e2e-out/net.log 2>&1
           r=$?; mark "Mailpit up"; echo $r > /tmp/e2e-out/net.exit
-          { wait $db && compose up -d db; } >> /tmp/e2e-out/db.log 2>&1
+          compose up -d db >> /tmp/e2e-out/db.log 2>&1
           r=$?; mark "Postgres up"; echo $r > /tmp/e2e-out/db.exit
           EOF
           nohup bash /tmp/e2e-out/public.sh > /dev/null 2>&1 < /dev/null &
@@ -665,10 +671,14 @@ jobs:
               fi
             done
           }
+          # Until Postgres and Mailpit are pulled, which go first.
+          small() { until [ -f /tmp/e2e-out/small.pulled ]; do sleep 0.5; done; }
           # One image, $1, for its key, $2.
           fetch() {
-            local ref=$REGISTRY/$1
-            if ! there "$ref:e2e-$2"; then
+            local ref=$REGISTRY/$1 built=yes
+            there "$ref:e2e-$2" || built=""
+            small
+            if [ -z "$built" ]; then
               if [ "$EVENT" = pull_request ]; then
                 docker buildx bake -f .github/ci-images.hcl "$1" --load || return 1
                 mark "$1 built"
@@ -701,6 +711,7 @@ jobs:
             fi
             until [ -f /tmp/e2e-out/$after.exit ]; do sleep 1; done
             [ "$(cat /tmp/e2e-out/$after.exit)" = 0 ] || return 1
+            mark "$1 starting"
             docker compose -f docker-compose.yml -f docker-compose.ci.yml up -d --no-build "$1" || return 1
             mark "$1 started"
             if [ "$1" = planning-service ]; then
