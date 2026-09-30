@@ -58,8 +58,20 @@ permissions:
 # cache is keyed by it too.
 env:
   PLAYWRIGHT_IMAGE: mcr.microsoft.com/playwright:v1.55.1-noble
+  # The Python suites install with uv (the `test` job says why), reading
+  # an extra index as pip does: the best version across every index, not
+  # the first index's -- model-service's requirements add PyTorch's CPU
+  # index to PyPI for torch alone.
+  UV_INDEX_STRATEGY: unsafe-best-match
 
 jobs:
+  # The Python suites install their requirements with uv, the same
+  # pinned lists pip installs into each image, several times faster:
+  # pip spent 68 of test-model-service's 83 seconds on torch and
+  # tensorflow, and 50 of test-nav-log-agent's 90, when the browser
+  # suite's shards end at about that. No pip cache in the Actions cache
+  # either: the suites' pip caches were 6.5 of its 10 GB, and what they
+  # pushed out was the browser suite's own planner data.
   test:
     runs-on: ubuntu-26.04
     needs: [changes]
@@ -69,11 +81,8 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7
         with:
           python-version: "3.13"
-          cache: pip
-          cache-dependency-path: |
-            requirements-dev.txt
-            src/requirements*.txt
-      - run: pip install -r requirements-dev.txt
+      - run: pip install uv
+      - run: uv pip install --system -r requirements-dev.txt
       - run: ruff check src/vfr tests
       - run: pytest tests/ -v
       # vfr's API documentation, from its docstrings. pdoc imports every
@@ -84,8 +93,8 @@ jobs:
       # After the tests, so they run with the packages they always had.
       - name: pdoc (src/vfr)
         run: |
-          pip install torch --index-url https://download.pytorch.org/whl/cpu
-          pip install pdoc
+          uv pip install --system torch --index-url https://download.pytorch.org/whl/cpu
+          uv pip install --system pdoc
           PYTHONPATH=src python -m pdoc src/vfr -o /tmp/pdoc-vfr --no-show-source
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
         with:
@@ -190,11 +199,8 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7
         with:
           python-version: "3.13"
-          cache: pip
-          cache-dependency-path: |
-            planning-service/requirements*.txt
-            src/requirements*.txt
-      - run: pip install -r requirements-dev.txt
+      - run: pip install uv
+      - run: uv pip install --system -r requirements-dev.txt
       - run: ruff check app tests
       - run: pytest tests/ -v
 
@@ -213,9 +219,8 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7
         with:
           python-version: "3.13"
-          cache: pip
-          cache-dependency-path: model-service/requirements*.txt
-      - run: pip install -r requirements-dev.txt
+      - run: pip install uv
+      - run: uv pip install --system -r requirements-dev.txt
       - run: ruff check app tests
       - run: pytest tests/ -v
 
@@ -235,17 +240,16 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7
         with:
           python-version: "3.13"
-          cache: pip
-          cache-dependency-path: nav-log-agent/requirements*.txt
-      - run: pip install torch --index-url https://download.pytorch.org/whl/cpu
-      - run: pip install -r requirements-dev.txt
+      - run: pip install uv
+      - run: uv pip install --system torch --index-url https://download.pytorch.org/whl/cpu
+      - run: uv pip install --system -r requirements-dev.txt
       - run: ruff check app tests
       - run: pytest tests/ -v
       # The agent's API documentation, from the packages its tests just
       # ran with -- its image's own list. pdoc imports every module.
       - name: pdoc (nav-log-agent)
         run: |
-          pip install pdoc
+          uv pip install --system pdoc
           PYTHONPATH="$GITHUB_WORKSPACE/src" python -m pdoc app -o /tmp/pdoc-nav-log-agent --no-show-source
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
         with:
@@ -265,14 +269,13 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7
         with:
           python-version: "3.13"
-          cache: pip
-          cache-dependency-path: crewai-agent/requirements*.txt
-      - run: pip install -r requirements-dev.txt
+      - run: pip install uv
+      - run: uv pip install --system -r requirements-dev.txt
       - run: ruff check app tests
       - run: pytest tests/ -v
       - name: pdoc (crewai-agent)
         run: |
-          pip install pdoc
+          uv pip install --system pdoc
           PYTHONPATH="$GITHUB_WORKSPACE/src" python -m pdoc app -o /tmp/pdoc-crewai-agent --no-show-source
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
         with:
