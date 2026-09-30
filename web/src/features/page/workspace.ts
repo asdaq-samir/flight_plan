@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import type { PageSettings } from "../../components/SettingsPanel";
 
 /**
  * What a workspace (the pilot's planner, the developer's training)
@@ -13,9 +14,8 @@ export interface WorkspacePieces {
   map: ReactNode;
   sidebar: ReactNode;
   console: ReactNode;
-  /** What the page adds to the header's settings, under the chart
-   *  layers. */
-  settings?: ReactNode;
+  /** What the page adds to the header's settings (SettingsPanel). */
+  settings?: PageSettings;
   /** Loads the route in the header's form. */
   submit: () => void;
   /** A load in progress: the form's own button is disabled. */

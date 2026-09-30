@@ -3,7 +3,7 @@ import { toast } from "sonner";
 import { cn } from "cn";
 import { EXPANDED_BUTTON } from "../../lib/expandedButton";
 import { useSearchParamsNow } from "../../lib/useSearchParamsNow";
-import { DevGuard } from "../../components/DevSwitch";
+import DevGuard from "../../components/DevGuard";
 import MapHeader from "../../components/MapHeader";
 import RouteForm from "../../components/RouteForm";
 import SettingsButton from "../../components/SettingsButton";
@@ -239,7 +239,7 @@ export default function MapPage({ mode }: { mode: Mode }) {
                       </SheetContent>
                     </Sheet>
                   )}
-                  <SettingsButton>{pieces.settings}</SettingsButton>
+                  <SettingsButton page={pieces.settings} />
                 </>
               )}
             />

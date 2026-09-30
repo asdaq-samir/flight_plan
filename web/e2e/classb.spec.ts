@@ -214,8 +214,7 @@ test("on an IFR base, a Class B card pins the IFR area chart, and that is what d
   await page.goto(PLAN);
   await routeDrawn(page);
   await page.getByTestId("settings-button").click();
-  await page.getByTestId("base-chart-select").click();
-  await page.getByRole("option", { name: "IFR low" }).click();
+  await page.getByTestId("base-chart-select").getByRole("radio", { name: "IFR low" }).click();
   await page.getByTestId("class-b-toggle").click();
   await page.keyboard.press("Escape");
 

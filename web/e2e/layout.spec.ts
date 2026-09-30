@@ -1104,8 +1104,7 @@ test("the header's edge is a setting: the map's buttons and the console follow i
   if (!viewport) throw new Error("no viewport configured");
   const phone = viewport.width < 768;
   await page.getByTestId("settings-button").click();
-  await page.getByTestId("nav-bar-select").click();
-  await page.getByRole("option", { name: phone ? "Top" : "Bottom" }).click();
+  await page.getByTestId("nav-bar-select").getByRole("radio", { name: phone ? "Top" : "Bottom" }).click();
   await page.keyboard.press("Escape");
   await expect(page.locator("[data-slot=drawer-content], [data-slot=popover-content]")).toHaveCount(0);
 
@@ -1169,20 +1168,26 @@ test("the console holds still as its tabs change: up from the bottom of a phone'
   }
 });
 
-test("plan page: the pilot console's theme toggle cycles system, light, dark, and the choice survives a reload", async ({ page }) => {
+test("the settings' theme is system, light or dark, all three on show, and the choice survives a reload", async ({ page }) => {
   await page.goto("/app/plan");
   await settle(page);
-  await page.getByTestId("pilot-button").click();
+  await page.getByTestId("settings-button").click();
   const html = page.locator("html");
-  const toggle = page.getByTestId("theme-toggle");
+  const theme = page.getByTestId("theme-select");
+  await expect(theme.getByRole("radio", { name: "System" })).toHaveAttribute("aria-checked", "true");
   await expect(html).not.toHaveClass(/dark/);   // "system", and the test browser prefers light
-  await toggle.click();
-  await expect(html).not.toHaveClass(/dark/);   // light
-  await toggle.click();
-  await expect(html).toHaveClass(/dark/);       // dark
+  await theme.getByRole("radio", { name: "Dark" }).click();
+  await expect(html).toHaveClass(/dark/);
+  // The one already chosen, tapped again, stays chosen: a segmented
+  // control, not a set of toggles that can all be off.
+  await theme.getByRole("radio", { name: "Dark" }).click();
+  await expect(theme.getByRole("radio", { name: "Dark" })).toHaveAttribute("aria-checked", "true");
   await page.reload();
   await page.waitForTimeout(300);
   await expect(html).toHaveClass(/dark/);
+  await page.getByTestId("settings-button").click();
+  await page.getByTestId("theme-select").getByRole("radio", { name: "Light" }).click();
+  await expect(html).not.toHaveClass(/dark/);
 });
 
 test("plan page: the nav log is computed for an aeroplane the pilot picks in its own header", async ({ page }) => {
@@ -1383,9 +1388,8 @@ for (const path of PAGES) {
     expect(await ifrTiles.count()).toBe(0);
 
     await page.getByTestId("settings-button").click();
-    await page.getByTestId("base-chart-select").click();
-    await page.getByRole("option", { name: "IFR low" }).click();
-    await expect(page.getByText("IFR area chart pinned")).toBeVisible();
+    await page.getByTestId("base-chart-select").getByRole("radio", { name: "IFR low" }).click();
+    await expect(page.getByText("IFR area chart", { exact: true })).toBeVisible();
     await expect(ifrTiles.first()).toBeAttached({ timeout: slow(10000) });
     await expect.poll(
       () => page.evaluate(() =>
@@ -1395,9 +1399,8 @@ for (const path of PAGES) {
     ).toBe(true);
     expect(await sectionalTiles.count()).toBe(0);
 
-    await page.getByTestId("base-chart-select").click();
-    await page.getByRole("option", { name: "Sectional" }).click();
+    await page.getByTestId("base-chart-select").getByRole("radio", { name: "Sectional" }).click();
     await expect(sectionalTiles.first()).toBeAttached({ timeout: slow(10000) });
-    await expect(page.getByText("Terminal area chart pinned")).toBeVisible();
+    await expect(page.getByText("Terminal area chart", { exact: true })).toBeVisible();
   });
 }

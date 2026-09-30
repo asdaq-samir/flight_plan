@@ -24,7 +24,7 @@ const devSwitch = (page: Page) => page.getByTestId("dev-switch");
 /** The switch is in the header's settings: opened first. */
 async function openSettings(page: Page) {
   await page.getByTestId("settings-button").click();
-  await expect(page.getByText("Chart layers", { exact: true })).toBeVisible();
+  await expect(page.getByTestId("settings-panel")).toBeVisible();
 }
 
 /** The settings drawn without the switch: the pilot button is there

@@ -1,5 +1,4 @@
 import type { ReactNode } from "react";
-import ThemeToggle from "./ThemeToggle";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 
 export interface ConsoleTab {
@@ -29,8 +28,9 @@ interface Props {
 /**
  * Both consoles that drop down over the map: the developer's and the
  * pilot's. One thing per tab rather than everything in one long
- * scroll, the tab row sharing its line with the theme toggle and
- * whatever buttons the open tab brings with it, and the whole thing
+ * scroll, the tab row sharing its line with whatever buttons the open
+ * tab brings with it (the theme is in the header's settings), and the
+ * whole thing
  * centred on a readable column. Only the tabs differ between the two,
  * so only those are props; who is signed in is the sheet's own header
  * (ConsoleHeader), above both.
@@ -51,7 +51,6 @@ export default function ConsoleTabs({ tabs, saved, onChange, footer }: Props) {
             </TabsList>
             <div className="ml-auto flex items-center gap-1">
               {open.buttons}
-              <ThemeToggle />
             </div>
           </div>
           {tabs.map(t => (

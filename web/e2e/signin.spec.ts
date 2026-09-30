@@ -16,7 +16,7 @@ const consoleSheet = (page: Page) => page.getByTestId("console-sheet");
  *  or absent, it is looked for with the settings open. */
 async function devSwitchInSettings(page: Page) {
   await page.getByTestId("settings-button").click();
-  await expect(page.getByText("Chart layers", { exact: true })).toBeVisible();
+  await expect(page.getByTestId("settings-panel")).toBeVisible();
   return page.getByTestId("dev-switch");
 }
 

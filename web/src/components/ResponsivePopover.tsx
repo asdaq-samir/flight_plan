@@ -1,6 +1,7 @@
 import { createContext, useContext, type ComponentProps, type ReactNode } from "react";
 import { cn } from "cn";
-import { Drawer, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle, DrawerTrigger } from "./ui/drawer";
+import { Button } from "./ui/button";
+import { Drawer, DrawerClose, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle, DrawerTrigger } from "./ui/drawer";
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 import { useIsMobile } from "../hooks/use-mobile";
 import { useNavEdge } from "../hooks/use-nav-edge";
@@ -50,9 +51,12 @@ type ContentProps = ComponentProps<typeof PopoverContent> & {
   /** For a panel whose content opens with its own heading: the sheet's
    *  title is then for the screen reader only. */
   titleHidden?: boolean;
+  /** A Done at the top of the sheet, by its title, as an iOS sheet of
+   *  settings has: a way out on sight, besides a swipe or a tap off it. */
+  done?: boolean;
 };
 
-export function ResponsivePopoverContent({ title, description, titleHidden, className, children, align, side, sideOffset, alignOffset, ...props }: ContentProps) {
+export function ResponsivePopoverContent({ title, description, titleHidden, done, className, children, align, side, sideOffset, alignOffset, ...props }: ContentProps) {
   const edge = useContext(OnPhone);
   if (!edge) {
     return (
@@ -72,9 +76,19 @@ export function ResponsivePopoverContent({ title, description, titleHidden, clas
         : "data-[vaul-drawer-direction=bottom]:max-h-[85dvh]"}
       {...props}
     >
-      <DrawerHeader className={titleHidden ? "sr-only" : "pb-2 group-data-[vaul-drawer-direction=bottom]/drawer-content:text-left group-data-[vaul-drawer-direction=top]/drawer-content:text-left"}>
-        <DrawerTitle>{title}</DrawerTitle>
-        {description ? <DrawerDescription>{description}</DrawerDescription> : null}
+      <DrawerHeader
+        className={titleHidden ? "sr-only" : cn(
+          "pb-2 group-data-[vaul-drawer-direction=bottom]/drawer-content:text-left group-data-[vaul-drawer-direction=top]/drawer-content:text-left",
+          done && "flex-row flex-wrap items-center justify-between",
+        )}
+      >
+        <DrawerTitle className={done ? "text-base font-semibold" : undefined}>{title}</DrawerTitle>
+        {done && (
+          <DrawerClose asChild>
+            <Button variant="ghost" size="sm" className="-mr-2 font-semibold">Done</Button>
+          </DrawerClose>
+        )}
+        {description ? <DrawerDescription className={done ? "basis-full" : undefined}>{description}</DrawerDescription> : null}
       </DrawerHeader>
       <div className={cn("min-h-0 overflow-y-auto px-4", edge === "top" ? "pb-4" : "pb-[max(1rem,env(safe-area-inset-bottom))]", titleHidden && "pt-4")}>
         {children}

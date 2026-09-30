@@ -112,7 +112,7 @@ if (openingDep && openingDest && openingDep !== openingDest) {
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    {/* Light, dark, or the OS's own choice -- the consoles' ThemeToggle
+    {/* Light, dark, or the OS's own choice -- the settings' Theme
         sets it, next-themes keeps it and puts the `dark` class on
         <html>, which is what every colour token in index.css keys off
         (and what the Toaster below already reads). */}

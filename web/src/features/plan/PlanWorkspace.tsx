@@ -19,7 +19,6 @@ import BuildNotice from "./components/BuildNotice";
 import FlightBriefingView, { BriefingNotices, PlanningAidNote, SaveFlightButton } from "./components/briefing/FlightBriefingView";
 import NavLogActions from "./components/navlog/NavLogActions";
 import NavLogView from "./components/navlog/NavLogView";
-import PlannerSettings from "./components/PlannerSettings";
 import RouteMap from "./components/RouteMap";
 import { usePlan } from "./hooks/usePlan";
 
@@ -297,7 +296,7 @@ export default function PlanWorkspace({ dep, dest, sidebarOpen, children }: Work
     ),
     sidebar: navLog,
     console: <PilotPanel course={course} />,
-    settings: <PlannerSettings candidates={{ on: showCandidates, onToggle: setShowCandidates }} />,
+    settings: { candidates: { on: showCandidates, onToggle: setShowCandidates }, ownShip: true },
     submit,
     loading: s.stage !== null,
     notices: s.sameAirport ? (
