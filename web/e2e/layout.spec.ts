@@ -1160,8 +1160,12 @@ test("plan page: every text field is at least 16px on a phone, so iOS never zoom
   await settle(page);
   await page.getByTestId("sidebar-trigger-button").click();
   // The description boxes are in the nav log's section, closed until
-  // its title is clicked.
+  // its title is clicked, and each under its own row, closed until
+  // that row is selected.
   await sideDrawer(page).getByText("Nav Log", { exact: true }).click();
+  const rows = sideDrawer(page).locator("table tbody tr[tabindex='0']");
+  await expect.poll(() => rows.count(), { timeout: slow(15000) }).toBeGreaterThan(2);
+  await rows.nth(1).click();
   await expect.poll(() => page.locator("textarea").count(), { timeout: slow(15000) }).toBeGreaterThan(0);
   const small = await page.evaluate(() =>
     [...document.querySelectorAll<HTMLElement>("input, textarea, select")]

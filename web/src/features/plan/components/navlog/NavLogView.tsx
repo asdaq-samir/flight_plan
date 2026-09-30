@@ -493,6 +493,7 @@ export default function NavLogView({
               <SelectableRow
                 selected={rowSelected}
                 mutedWhenUnselected={r.kind === "departure" || !leg?.wind}
+                expands
                 onSelect={() => onSelectPoint(lat, lon)}
                 scrollRef={rowSelected ? selectedRef : undefined}
               >
@@ -502,6 +503,15 @@ export default function NavLogView({
                   </TableCell>
                 ))}
               </SelectableRow>
+              {/* The row's own note -- the leg's figures a phone has no
+                  columns for, and the checkpoint's description or the
+                  airport's name -- under the selected row only, the way
+                  the training drawer's rating buttons are: every row
+                  open at once was three rows a waypoint, and a log of
+                  twenty scrolled for a screen and a half. A tap on a row
+                  selects it, on the map too, and opens it. On paper
+                  every row is open. */}
+              {(rowSelected || printing) && (
               <NoteRow selected={rowSelected} colSpan={columns.length}>
                 {leg && <LegLine leg={leg} />}
                 {r.kind === "departure" ? (
@@ -529,6 +539,7 @@ export default function NavLogView({
                   (r.airport.name ?? "—")
                 )}
               </NoteRow>
+              )}
             </Fragment>
           );
         })}

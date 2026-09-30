@@ -12,10 +12,13 @@ import { TableCell, TableRow } from "./ui/table";
  * a reader who moves between them.
  */
 export function SelectableRow({
-  selected, mutedWhenUnselected = false, onSelect, scrollRef, children,
+  selected, mutedWhenUnselected = false, expands = false, onSelect, scrollRef, children,
 }: {
   selected: boolean;
   mutedWhenUnselected?: boolean;
+  /** Whether selecting the row opens a note row under it (the nav
+   *  log's), said to a reader as aria-expanded. */
+  expands?: boolean;
   onSelect: () => void;
   /** Only the actually-selected row needs this -- see the callers'
    *  own scrollIntoView effects. */
@@ -28,6 +31,7 @@ export function SelectableRow({
       onClick={onSelect}
       tabIndex={0}
       data-selected={selected || undefined}
+      aria-expanded={expands ? selected : undefined}
       onKeyDown={e => {
         // The row's own keys, not a button's inside it (Dev's inline
         // rating buttons sit in the note row below, but a control in
