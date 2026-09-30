@@ -474,11 +474,16 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069  # v4
+        with:
+          # The runner is thrown away after the job: removing the builder
+          # first was ten seconds at the end of every shard.
+          cleanup: false
       # In the background, each with its own log and its exit status in a
       # file (a later step waits on those): the three images, loaded into
       # this runner's Docker under the names docker-compose.ci.yml gives
       # them (.github/ci-images.hcl), and the three images pulled rather
-      # than built. The model service is its `slim` stage, without the
+      # than built -- Postgres and Mailpit started as soon as they are,
+      # so the stack below waits only on the services built here. The model service is its `slim` stage, without the
       # torch and tensorflow the suite's scikit-learn fixture never loads.
       # No attestation: these are for this runner's Docker only, and the
       # docker exporter refuses one.
@@ -489,7 +494,7 @@ jobs:
         run: |
           mkdir -p /tmp/e2e-out
           nohup bash -c 'docker buildx bake -f .github/ci-images.hcl ci --load > /tmp/e2e-out/bake.log 2>&1; echo $? > /tmp/e2e-out/bake.exit' > /dev/null 2>&1 < /dev/null &
-          nohup bash -c '{ docker pull -q mcr.microsoft.com/playwright:v1.55.1-noble && docker compose -f docker-compose.yml -f docker-compose.ci.yml pull -q db mailpit; } > /tmp/e2e-out/pull.log 2>&1; echo $? > /tmp/e2e-out/pull.exit' > /dev/null 2>&1 < /dev/null &
+          nohup bash -c '{ docker compose -f docker-compose.yml -f docker-compose.ci.yml pull -q db mailpit && docker compose -f docker-compose.yml -f docker-compose.ci.yml up -d db mailpit && docker pull -q mcr.microsoft.com/playwright:v1.55.1-noble; } > /tmp/e2e-out/pull.log 2>&1; echo $? > /tmp/e2e-out/pull.exit' > /dev/null 2>&1 < /dev/null &
 
       - name: Restore the planner's reference data
         id: data
@@ -720,6 +725,11 @@ jobs:
       packages: write
     strategy:
       fail-fast: false
+      # Six at a time. The account runs twenty jobs at once, and a run
+      # that changes everything is seven test jobs, four shards, the docs
+      # and ten images: the last shard waited 1.8 minutes for a runner
+      # behind the image builds, which are not what the run waits on.
+      max-parallel: 6
       matrix:
         include: ${{ fromJSON(needs.changes.outputs.images) }}
     steps:
@@ -763,20 +773,25 @@ jobs:
       contents: read
       packages: write
     steps:
-      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069  # v4
       - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f  # v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      # `imagetools` needs no builder of its own: the runner's buildx
+      # copies a manifest with the docker driver it already has. All at
+      # once, and the step fails if any copy did.
       - name: This commit's images, as latest
         env:
           IMAGES: ${{ needs.changes.outputs.images }}
           REPO: ghcr.io/${{ github.repository }}
         run: |
           for service in $(jq -r '.[].service' <<<"$IMAGES"); do
-            docker buildx imagetools create --tag "$REPO/$service:latest" "$REPO/$service:sha-$GITHUB_SHA"
+            docker buildx imagetools create --tag "$REPO/$service:latest" "$REPO/$service:sha-$GITHUB_SHA" &
           done
+          failed=0
+          for job in $(jobs -p); do wait "$job" || failed=1; done
+          exit "$failed"
 
   # Regenerates documentation so a broken {@link}, an import that stops
   # working under pdoc, or a docstring regression is caught here rather
