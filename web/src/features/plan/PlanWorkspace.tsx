@@ -258,6 +258,7 @@ export default function PlanWorkspace({ dep, dest, sidebarOpen, children }: Work
         </>
       )}
       selectedPoint={selectedPoint} onSelectPoint={(lat, lon) => selectPoint({ lat, lon })}
+      onDeselectPoint={() => selectPoint(null)}
       drawerOpen={sidebarOpen}
       alt={alt} onAltChange={setAlt} onSubmit={submit}
       aircraftValue={aircraftKey(aircraft)}

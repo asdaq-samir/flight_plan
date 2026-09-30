@@ -550,6 +550,24 @@ test("plan page: a checkpoint picked on the map is brought to the middle of the 
   await expect(selectedRow.first().locator("td").first()).toHaveText(await neighbour.locator("td").first().innerText());
   await page.waitForTimeout(400);
   expect(await scroller.evaluate(el => el.scrollTop)).toBe(before);
+
+  // Another section opened, with the drawer scrolled elsewhere: the
+  // drawer stays where it is. (Every section's opening used to reveal
+  // the selected row again, scrolling back up to it.)
+  await scroller.evaluate(el => el.scrollTo(0, el.scrollHeight));
+  await page.waitForTimeout(300);
+  const elsewhere = await scroller.evaluate(el => el.scrollTop);
+  await sideDrawer(page).getByRole("button", { name: "Cruise Altitude" }).click();
+  await page.waitForTimeout(600);
+  expect(Math.abs((await scroller.evaluate(el => el.scrollTop)) - elsewhere)).toBeLessThan(2);
+  await sideDrawer(page).getByRole("button", { name: "Cruise Altitude" }).click();
+  await neighbour.scrollIntoViewIfNeeded();
+
+  // The selected row clicked again: deselected, and its note closed.
+  await expect(selectedRow).toHaveAttribute("aria-expanded", "true");
+  await neighbour.click();
+  await expect(selectedRow).toHaveCount(0);
+  await expect(table.locator('tbody tr[aria-expanded="true"]')).toHaveCount(0);
 });
 
 test("plan page: a route from an airport to itself says so, rather than showing nothing at all", async ({ page }) => {

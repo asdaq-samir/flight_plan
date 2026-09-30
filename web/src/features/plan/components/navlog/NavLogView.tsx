@@ -122,6 +122,8 @@ interface Props {
    *  nothing is selected. */
   selectedPoint: { lat: number; lon: number } | null;
   onSelectPoint: (lat: number, lon: number) => void;
+  /** Nothing selected: a tap on the selected row, which closes it. */
+  onDeselectPoint: () => void;
   /** Whether the drawer holding this is open. The view stays mounted
    *  beside a desktop map whether or not it is. */
   drawerOpen: boolean;
@@ -222,16 +224,16 @@ export function DescriptionCell({
  */
 /** The leg's figures a phone's table has no columns for, as one line
  *  under the row (the columns themselves from md up, see the column
- *  defs): course, wind, correction, heading, variation, groundspeed and
- *  fuel, in the nav log's own order. */
+ *  defs): course, wind, correction, variation, magnetic heading,
+ *  groundspeed and fuel, in the nav log's own order. */
 function LegLine({ leg }: { leg: Leg }) {
   return (
     <div className="mb-1 flex flex-wrap gap-x-3 text-xs tabular-nums md:hidden">
       <span>TC {deg(leg.true_course_deg)}</span>
       <span>Wind {leg.wind ? `${deg(leg.wind.wind_dir_true_deg)}/${Math.round(leg.wind.wind_speed_kt)}` : "no data"}</span>
       <span>WCA {signed(leg.wca_deg)}</span>
-      <span>TH {deg(leg.true_heading_deg)}</span>
       <span>Var {signed(leg.magnetic_variation_deg)}</span>
+      <span>MH {deg(leg.magnetic_heading_deg)}</span>
       <span>GS {leg.groundspeed_kt === null ? "—" : Math.round(leg.groundspeed_kt)}</span>
       <span>Fuel {one(leg.fuel_gal)} gal</span>
     </div>
@@ -243,7 +245,7 @@ export default function NavLogView({
   legs, dep, dest, ends,
   selected, descriptions, onSaveDescription,
   onGenerateDescriptions, descriptionsLoading, actions, children,
-  selectedPoint, onSelectPoint, drawerOpen, alt, onAltChange, onSubmit,
+  selectedPoint, onSelectPoint, onDeselectPoint, drawerOpen, alt, onAltChange, onSubmit,
   aircraftValue, aircraftOptions, onAircraftChange,
 }: Props) {
   const parts = totals ? totalsParts(totals) : null;
@@ -284,7 +286,7 @@ export default function NavLogView({
   // `depart`.
   const data = navLogRows(ends, selected, legs);
   // On a phone the table keeps five columns -- the waypoint, altitude,
-  // distance, magnetic heading and ETE (and the ETA with a departure
+  // distance, true heading and ETE (and the ETA with a departure
   // time) -- and the other seven, which had it fourteen wide and
   // scrolling sideways under the finger, are the leg line under each
   // row instead (see LegLine); from md up, and on paper, every column.
@@ -357,7 +359,6 @@ export default function NavLogView({
     {
       id: "th",
       header: "TH",
-      meta: { className: "hidden md:table-cell print:table-cell" },
       cell: ({ row }) => (legOf(row.original) ? deg(legOf(row.original)!.true_heading_deg) : "—"),
     },
     {
@@ -369,6 +370,7 @@ export default function NavLogView({
     {
       id: "mh",
       header: "MH",
+      meta: { className: "hidden md:table-cell print:table-cell" },
       cell: ({ row }) => (legOf(row.original) ? deg(legOf(row.original)!.magnetic_heading_deg) : "—"),
     },
     {
@@ -428,14 +430,17 @@ export default function NavLogView({
   // narrow, since it's a draggable sidebar) column and looks like
   // nothing happened. Brought to the middle when it is out of view
   // (a point picked on the map, the drawer opened after), left where
-  // it is when it is not (the row itself clicked). On the sections
-  // changing too: on a phone the drawer is mounted afresh each time it
-  // opens, with every section closed, and the row is only there to
-  // reveal once the nav log's own section has been opened. And on the
-  // drawer opening: beside a desktop map the view is mounted, and its
-  // rows laid out, while the drawer is closed, so a row revealed then
-  // was revealed off screen.
-  useEffect(() => revealRow(selectedRef.current), [selectedPoint, open, drawerOpen]);
+  // it is when it is not (the row itself clicked). On the nav log's
+  // own section opening too: on a phone the drawer is mounted afresh
+  // each time it opens, with every section closed, and the row is only
+  // there to reveal once that section has been opened -- and on that
+  // section alone, not on any section: opening the winds or the
+  // NOTAMs further down used to scroll the drawer back up to the
+  // selected row. And on the drawer opening: beside a desktop map the
+  // view is mounted, and its rows laid out, while the drawer is
+  // closed, so a row revealed then was revealed off screen.
+  const navLogOpen = open.includes("Nav Log");
+  useEffect(() => revealRow(selectedRef.current), [selectedPoint, navLogOpen, drawerOpen]);
   const isSelected = (lat: number, lon: number) =>
     !!selectedPoint && descriptionKey(lat, lon) === descriptionKey(selectedPoint.lat, selectedPoint.lon);
 
@@ -494,7 +499,9 @@ export default function NavLogView({
                 selected={rowSelected}
                 mutedWhenUnselected={r.kind === "departure" || !leg?.wind}
                 expands
-                onSelect={() => onSelectPoint(lat, lon)}
+                // The selected row tapped again is deselected, on the
+                // map too, which closes its note.
+                onSelect={() => (rowSelected ? onDeselectPoint() : onSelectPoint(lat, lon))}
                 scrollRef={rowSelected ? selectedRef : undefined}
               >
                 {row.getAllCells().map(cell => (
@@ -671,7 +678,7 @@ export default function NavLogView({
           legs are flown on the nearest period to now. */}
       {depart && (
         <span className="text-xs text-muted-foreground" data-testid="winds-forecast">
-          winds: {nav ? `${Number(nav.winds_forecast_hr)}-hour forecast` : "…"}
+          winds: {nav ? `${Number(nav.winds_forecast_hr)}-hour forecast` : "waiting on the nav log"}
         </span>
       )}
     </div>
