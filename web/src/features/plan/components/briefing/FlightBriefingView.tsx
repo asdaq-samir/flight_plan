@@ -4,9 +4,9 @@ import { cn } from "cn";
 import { Check, CloudOff, Loader2, Save, TriangleAlert } from "lucide-react";
 import ToolbarButton from "../../../../components/ToolbarButton";
 import { Alert, AlertDescription, AlertTitle } from "../../../../components/ui/alert";
-import { Badge } from "../../../../components/ui/badge";
 import AccordionSection from "../../../../components/AccordionSection";
 import { ListGroup, ListRow } from "../../../../components/GroupedList";
+import StatusBadge from "../../../../components/StatusBadge";
 import { api } from "../../../../lib/api/client";
 import { pilotQuery } from "../../../../lib/queryClient";
 import AltitudeReasoning from "../AltitudeReasoning";
@@ -123,10 +123,12 @@ function ceilingAndVisibility(ceilingFt: number | null | undefined, visibilitySm
   return `${ceilingFt == null ? "no ceiling" : `${altFt(ceilingFt)} ft`} · ${visibilitySm == null ? "—" : `${visibilitySm} sm`}`;
 }
 
-/** A flight category as a badge in its own colour. */
+/** A flight category as the app's status badge, its dot in the
+ *  category's own colour. It was a badge filled in the colour with white
+ *  letters, LIFR's magenta 3.2:1 under them. */
 function CategoryBadge({ category }: { category: string | null | undefined }) {
   if (!category) return null;
-  return <Badge style={{ backgroundColor: colourOf(category), color: "white" }}>{category}</Badge>;
+  return <StatusBadge color={colourOf(category)}>{category}</StatusBadge>;
 }
 
 /** Frequency types by what a pilot calls them. The FAA's own
@@ -375,18 +377,20 @@ export default function FlightBriefingView({
         ) : briefing.hazards.length === 0 ? (
           <p className="text-sm text-muted-foreground">No SIGMETs or AIRMETs reported along this route.</p>
         ) : (
-          <ul className="space-y-2">
+          // A row a SIGMET or AIRMET, as the rest of the briefing's lists
+          // are, marked with the warning triangle: it was an amber card
+          // each.
+          <ListGroup>
             {briefing.hazards.map((h, i) => (
-              <li key={i} className="rounded border border-amber-300 bg-amber-50 px-2 py-1.5 text-sm dark:border-amber-800 dark:bg-amber-950/40">
-                <div className="font-semibold text-amber-800 dark:text-amber-200">
-                  {h.hazard ?? h.type ?? "Hazard"}
-                  {hazardAltitudeRange(h.altitude_low_ft, h.altitude_high_ft) &&
-                    ` — ${hazardAltitudeRange(h.altitude_low_ft, h.altitude_high_ft)}`}
-                </div>
-                {h.raw && <div className="mt-0.5 whitespace-pre-wrap font-mono text-xs text-muted-foreground">{h.raw}</div>}
-              </li>
+              <ListRow
+                key={i}
+                media={<TriangleAlert className="size-4 text-amber-600 dark:text-amber-400" aria-hidden />}
+                title={`${h.hazard ?? h.type ?? "Hazard"}${hazardAltitudeRange(h.altitude_low_ft, h.altitude_high_ft)
+                  ? ` — ${hazardAltitudeRange(h.altitude_low_ft, h.altitude_high_ft)}` : ""}`}
+                description={h.raw && <span className="font-mono whitespace-pre-wrap">{h.raw}</span>}
+              />
             ))}
-          </ul>
+          </ListGroup>
         )}
       </AccordionSection>
 
@@ -423,22 +427,21 @@ export default function FlightBriefingView({
             Current conditions could not be checked — aviationweather.gov didn’t respond. Verify separately before flight.
           </p>
         ) : (
-          <div className="grid gap-2 sm:grid-cols-2">
+          // The departure's and the destination's METARs, a row each
+          // with the category at its end: they were two bordered boxes.
+          <ListGroup>
             {[dep, dest].map(ident => {
               const metar = briefing.metars[ident];
               return (
-                <div key={ident} className="rounded border border-border px-2 py-1.5">
-                  <div className="flex items-baseline justify-between gap-2">
-                    <span className="font-semibold">{ident}</span>
-                    <CategoryBadge category={metar?.flight_category} />
-                  </div>
-                  <div className="mt-0.5 whitespace-pre-wrap font-mono text-xs text-muted-foreground">
-                    {metar?.raw ?? "No current report available."}
-                  </div>
-                </div>
+                <ListRow
+                  key={ident} title={ident}
+                  description={metar?.raw ? <span className="font-mono whitespace-pre-wrap">{metar.raw}</span> : "No current report available."}
+                >
+                  <CategoryBadge category={metar?.flight_category} />
+                </ListRow>
               );
             })}
-          </div>
+          </ListGroup>
         )}
       </AccordionSection>
 

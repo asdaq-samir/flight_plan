@@ -138,7 +138,7 @@ export default function AltitudeReasoning({ nav, legs }: Props) {
       <li>
         <b>Ceiling {s.band_ceiling_ft !== null ? `${altFt(s.band_ceiling_ft)} ft` : "none"} for the whole route.</b>{" "}
         The lowest of {join(ceilingParts)}.
-        {runsText && ` Leg by leg: ${runsText} -- a shelf or a cloud caps only the legs under it.`}
+        {runsText && ` Leg by leg: ${runsText}. A shelf or a cloud caps only the legs under it.`}
         {!s.cloud_clearance_kept && s.cloud_base_ft != null && (
           <span className="text-destructive">
             {" "}No altitude keeps 500 ft below the clouds forecast at {altFt(s.cloud_base_ft)} ft near {s.cloud_station} on

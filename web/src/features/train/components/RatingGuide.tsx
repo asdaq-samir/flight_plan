@@ -1,3 +1,4 @@
+import { ListGroup, ListRow } from "../../../components/GroupedList";
 import { Badge } from "../../../components/ui/badge";
 import { Kbd } from "../../../components/ui/kbd";
 import type { Rating } from "../../../lib/api/types";
@@ -26,7 +27,9 @@ const SCALE: [Rating, string, string][] = [
  * developer reads before walking a route. It lives in the Developer
  * drawer's own "rate its checkpoints" step (see DevPanel),
  * beside the instructions for it, rather than behind an info button
- * in the header the way the planner's own score key does.
+ * in the header the way the planner's own score key does. The scale is
+ * a grouped list, a row a rating with its badge, as the app's lists
+ * are; it was a box of its own.
  */
 export default function RatingGuide() {
   return (
@@ -34,14 +37,15 @@ export default function RatingGuide() {
       <p className="italic text-muted-foreground">
         Flying this leg, would I look up and know <i>that&rsquo;s the one</i> — not one like it?
       </p>
-      <div className="space-y-1">
+      <ListGroup>
         {SCALE.map(([n, lead, text]) => (
-          <div key={n} className="flex items-start gap-2">
-            <Badge style={{ backgroundColor: COLORS[n], color: inkOn(COLORS[n]) }}>{n}</Badge>
-            <span>{lead && <b>{lead}</b>} {text}</span>
-          </div>
+          <ListRow
+            key={n}
+            media={<Badge style={{ backgroundColor: COLORS[n], color: inkOn(COLORS[n]) }}>{n}</Badge>}
+            title={<span>{lead && <b>{lead}</b>} {text}</span>}
+          />
         ))}
-      </div>
+      </ListGroup>
       <p className="text-muted-foreground">
         <b>0 vs 1 matters most</b> — 0 means the detector should never have surfaced it,
         1 means it&rsquo;s real but poor. <b>Ignore spacing</b>; selection already enforces

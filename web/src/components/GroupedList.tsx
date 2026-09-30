@@ -1,6 +1,6 @@
 import { Children, Fragment, useId, type ComponentProps, type ReactNode } from "react";
 import { ChevronRight, ExternalLink } from "lucide-react";
-import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemSeparator, ItemTitle } from "./ui/item";
+import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemSeparator, ItemTitle } from "./ui/item";
 import { Label } from "./ui/label";
 
 /**
@@ -38,16 +38,18 @@ export function ListGroup({ title, footer, children, className }: {
 /**
  * One row: its name and a line of help, and at its end a control
  * (`children`) or a value (`value`, muted, in tabular figures) -- under
- * the words, when the row is too narrow for both. With `id`, the name is
- * the control's label, so a tap on the words works it. With `href`, the
- * whole row is a link out, marked as one. With `onClick` (or as a
- * trigger's `asChild` child, which hands it one), the whole row is a
- * button, and `chevron` marks it as opening something, as an iOS row
- * does; the rest of the props (a name, a test id, a trigger's own) go on
- * that button.
+ * the words, when the row is too narrow for both; before them, `media`,
+ * a mark of what the row is (a rating's badge, a hazard's triangle).
+ * With `id`, the name is the control's label, so a tap on the words
+ * works it. With `href`, the whole row is a link out, marked as one.
+ * With `onClick` (or as a trigger's `asChild` child, which hands it
+ * one), the whole row is a button, and `chevron` marks it as opening
+ * something, as an iOS row does; the rest of the props (a name, a test
+ * id, a trigger's own, `disabled`) go on that button.
  */
-export function ListRow({ id, title, description, value, href, chevron, children, ...buttonProps }: {
+export function ListRow({ id, media, title, description, value, href, chevron, children, ...buttonProps }: {
   id?: string;
+  media?: ReactNode;
   title: ReactNode;
   description?: ReactNode;
   value?: ReactNode;
@@ -55,13 +57,17 @@ export function ListRow({ id, title, description, value, href, chevron, children
   chevron?: boolean;
   children?: ReactNode;
 } & Omit<ComponentProps<"button">, "title" | "value" | "children">) {
+  // The words wrap, where the stock Item cuts its title at one line and
+  // its description at two: as an iOS row's do with the text set larger,
+  // and a row's words are all of what it says.
   const body = (
     <>
+      {media && <ItemMedia>{media}</ItemMedia>}
       <ItemContent className="min-w-0 gap-0.5">
-        <ItemTitle className="font-normal">
+        <ItemTitle className="line-clamp-none font-normal">
           {id ? <Label htmlFor={id} className="font-normal">{title}</Label> : title}
         </ItemTitle>
-        {description && <ItemDescription className="text-xs">{description}</ItemDescription>}
+        {description && <ItemDescription className="line-clamp-none text-xs">{description}</ItemDescription>}
       </ItemContent>
       {(value !== undefined || children || href || chevron) && (
         <ItemActions className="ml-auto">
@@ -84,7 +90,7 @@ export function ListRow({ id, title, description, value, href, chevron, children
   }
   if (buttonProps.onClick) {
     return (
-      <Item asChild size="sm" className="min-h-11 rounded-none border-0 py-2 text-left hover:bg-muted/50 pointer-coarse:active:bg-muted">
+      <Item asChild size="sm" className="min-h-11 rounded-none border-0 py-2 text-left hover:bg-muted/50 disabled:pointer-events-none disabled:opacity-50 pointer-coarse:active:bg-muted">
         <button type="button" {...buttonProps}>{body}</button>
       </Item>
     );

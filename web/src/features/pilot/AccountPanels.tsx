@@ -383,7 +383,7 @@ export function FlightsPanel({ pilot }: { pilot: PilotState }) {
         <p className="mt-1 text-sm text-muted-foreground">Fetching your flights…</p>
       ) : error ? null : list?.length === 0 ? (
         <p className="mt-1 text-sm text-muted-foreground">
-          No flights filed yet -- plan a route, open Flight Planning, and save it there.
+          No flights filed yet. Plan a route, open Flight Planning, and save it there.
         </p>
       ) : (
         <>

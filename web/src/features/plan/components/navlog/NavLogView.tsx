@@ -735,21 +735,27 @@ export default function NavLogView({
   // without a departure time -- against the aeroplane's usable fuel
   // when it has one, red when the tanks do not hold it. Under the
   // table, where the fuel column it sums ends, rather than among the
-  // totals above it.
+  // totals above it: rows like theirs, each figure at its row's end and
+  // what the fuel allows for under its name, where it was a sentence of
+  // two or three lines.
+  const fuelShort = totals?.fuel_margin_gal != null && totals.fuel_margin_gal < 0 ? -totals.fuel_margin_gal : null;
   const fuelNote = totals && totals.fuel_required_gal != null && (
-    <div
-      className={cn(
-        "mt-2 text-xs",
-        totals.fuel_margin_gal != null && totals.fuel_margin_gal < 0
-          ? "font-semibold text-destructive"
-          : "text-muted-foreground",
-      )}
-      data-testid="fuel-check"
-    >
-      Fuel required {one(totals.fuel_required_gal)} gal
-      {` (with ${one(totals.taxi_gal)} gal to start, taxi and take off and a ${totals.reserve_min} min ${totals.night == null ? "day reserve, no departure time" : totals.night ? "night reserve" : "day reserve"})`}
-      {totals.usable_fuel_gal != null && ` of ${totals.usable_fuel_gal} usable`}
-      {totals.fuel_margin_gal != null && totals.fuel_margin_gal < 0 && ` · short by ${one(-totals.fuel_margin_gal)} gal`}
+    <div className="mt-3 text-sm" data-testid="fuel-check">
+      <ListGroup>
+        <ListRow
+          title="Fuel required"
+          description={`With ${one(totals.taxi_gal)} gal to start, taxi and take off, and a ${totals.reserve_min} min ${
+            totals.night == null ? "day reserve (no departure time)" : totals.night ? "night reserve" : "day reserve"}`}
+          value={`${one(totals.fuel_required_gal)} gal`}
+        />
+        {totals.usable_fuel_gal != null && (
+          <ListRow
+            title="Usable fuel"
+            value={fuelShort === null ? `${totals.usable_fuel_gal} gal`
+              : <span className="font-semibold text-destructive">{totals.usable_fuel_gal} gal, {one(fuelShort)} short</span>}
+          />
+        )}
+      </ListGroup>
     </div>
   );
 

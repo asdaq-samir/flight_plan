@@ -141,8 +141,9 @@ test("plan page: a departure time gives every checkpoint an ETA and picks the wi
   // And the fuel check, against the stock C172's 40 usable gallons,
   // with the day reserve for a mid-afternoon flight -- under the table,
   // where the fuel column it sums ends.
-  await expect(page.getByTestId("fuel-check")).toContainText("of 40 usable", { timeout: slow(60000) });
-  await expect(page.getByTestId("fuel-check")).toContainText("30 min day reserve");
+  const fuel = page.getByTestId("fuel-check");
+  await expect(fuel.locator("[data-slot=item]", { hasText: "Usable fuel" })).toContainText("40 gal", { timeout: slow(60000) });
+  await expect(fuel).toContainText("30 min day reserve");
   const tableBox = (await table.boundingBox())!;
   const noteBox = (await page.getByTestId("fuel-check").boundingBox())!;
   expect(noteBox.y).toBeGreaterThanOrEqual(tableBox.y + tableBox.height);
