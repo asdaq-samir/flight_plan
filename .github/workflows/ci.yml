@@ -588,9 +588,26 @@ jobs:
           cat > /tmp/e2e-out/stack.sh <<'EOF'
           mark() { echo "$(($(date +%s) - T0)) $*" >> /tmp/e2e-out/timeline; }
           there() { docker buildx imagetools inspect --raw "$1" > /dev/null 2>&1; }
+          # Until e2e-images has pushed $1. After a minute, ask after that
+          # job every twenty seconds: once it has ended, it never will.
+          await() {
+            local built
+            until there "$1"; do
+              sleep 2
+              if [ "$SECONDS" -ge 60 ]; then
+                built=$(gh api "repos/$REPOSITORY/actions/runs/$RUN_ID/jobs?per_page=100" \
+                  --jq '.jobs[] | select(.name == "build (e2e)") | .conclusion // "running"')
+                if [ "$built" != running ] && [ -n "$built" ] && ! there "$1"; then
+                  echo "no $1, and build (e2e) ended: $built"
+                  return 1
+                fi
+                sleep 18
+              fi
+            done
+          }
           # One image, $1, for its key, $2.
           fetch() {
-            local ref=$REGISTRY/$1 built
+            local ref=$REGISTRY/$1
             if ! there "$ref:e2e-$2"; then
               if [ "$EVENT" = pull_request ]; then
                 docker buildx bake -f .github/ci-images.hcl "$1" --load || return 1
@@ -598,24 +615,22 @@ jobs:
                 return 0
               fi
               docker pull -q "$ref:e2e" > /dev/null 2>&1
-              until there "$ref:e2e-$2"; do
-                sleep 2
-                # After a minute, ask after the job that pushes it, every
-                # twenty seconds: once that has ended, it never will.
-                if [ "$SECONDS" -ge 60 ]; then
-                  built=$(gh api "repos/$REPOSITORY/actions/runs/$RUN_ID/jobs?per_page=100" \
-                    --jq '.jobs[] | select(.name == "build (e2e)") | .conclusion // "running"')
-                  if [ "$built" != running ] && [ -n "$built" ] && ! there "$ref:e2e-$2"; then
-                    echo "no $ref:e2e-$2, and build (e2e) ended: $built"
-                    return 1
-                  fi
-                  sleep 18
-                fi
-              done
+              await "$ref:e2e-$2" || return 1
             fi
             docker pull -q "$ref:e2e-$2" > /dev/null || return 1
             docker tag "$ref:e2e-$2" "flight_plan-$1:ci"
             mark "$1 pulled"
+          }
+          # The page, for its key, $1: copied out of the image e2e-images
+          # made of it into web/dist, which the webapp serves.
+          page() {
+            local ref=$REGISTRY/webapp:e2e-page-$1
+            await "$ref" || return 1
+            docker pull -q "$ref" > /dev/null || return 1
+            docker create --name e2e-page "$ref" none > /dev/null || return 1
+            docker cp e2e-page:/page/. web/dist/ > /dev/null || return 1
+            docker rm e2e-page > /dev/null
+            mark "the page copied"
           }
           start() {
             if [ "$1" = planning-service ]; then
@@ -630,8 +645,12 @@ jobs:
             fi
           }
           keys=$(bash .github/e2e-keys.sh) || exit 1
-          while read -r image key; do
-            { fetch "$image" "$key" && start "$image"; } &
+          while read -r name key; do
+            if [ "$name" != page ]; then
+              { fetch "$name" "$key" && start "$name"; } &
+            elif [ "$EVENT" != pull_request ]; then
+              page "$key" &
+            fi
           done <<< "$keys"
           failed=0
           for job in $(jobs -p); do wait "$job" || failed=1; done
@@ -707,21 +726,25 @@ jobs:
           path: web/node_modules
           key: e2e-node-modules-pw1.55.1-${{ hashFiles('web/package-lock.json') }}
 
-      # The page the webapp serves, built here from this commit's web/ --
-      # `npm run types` and `vite build`, as springboot-app/Dockerfile
-      # builds it -- and mounted over the image's (docker-compose.ci.yml),
-      # as the planner's code is mounted over its image's. So a change to
-      # the page, which most commits make, needs no image built: the
-      # webapp's is built again only for its jar (.github/e2e-keys.sh),
-      # and build (webapp) still builds the whole image, page and all,
-      # whenever web/ changes. Node as .nvmrc has it, the Dockerfile's;
-      # the packages are the suite's, from the same lock file. The webapp
-      # reads the page from disk when it is asked for, so it is started
-      # before the page is here, and the step below waits for the page.
+      # The page the webapp serves, from this commit's web/ -- `npm run
+      # types` and `vite build`, as springboot-app/Dockerfile builds it --
+      # in web/dist, mounted over the image's (docker-compose.ci.yml), as
+      # the planner's code is mounted over its image's. So a change to the
+      # page, which most commits make, needs no image built: the webapp's
+      # is built again only for its jar (.github/e2e-keys.sh), and build
+      # (webapp) still builds the whole image, page and all, whenever web/
+      # changes. On a push, e2e-images builds the page once for its key
+      # and the stack's background piece copies it in; on a pull request,
+      # which e2e-images does not run for, it is built here, with Node as
+      # .nvmrc has it and the suite's packages, from the same lock file.
+      # The webapp reads the page from disk when it is asked for, so it is
+      # started before the page is there, and the step below waits for it.
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7
+        if: github.event_name == 'pull_request'
         with:
           node-version-file: .nvmrc
       - name: The page, built from this commit
+        if: github.event_name == 'pull_request'
         working-directory: web
         run: |
           [ -d node_modules ] || npm ci --no-audit --no-fund
@@ -953,28 +976,37 @@ jobs:
             data/raw/chart_tiles.nosync
           key: planner-charts-v3-${{ steps.cycle.outputs.cycle }}
 
-  # The browser suite's three images (.github/ci-images.hcl): the webapp,
-  # the planner, and the model service's `slim` stage, without the torch
-  # and tensorflow the suite's scikit-learn fixture never loads. Each is
-  # built once per key -- a hash of what decides what it does in the
-  # suite's stack (.github/e2e-keys.sh) -- and pushed under `e2e-<key>`
-  # and `e2e`, the last pushed; never `latest`, which only promote gives
-  # an image, and none of these is quite the image that ships. Most
-  # commits change no key (4 of the 59 before this one changed one), and
-  # the job then builds nothing: the shards pull what an earlier commit
-  # built. It was built on every commit, the webapp's npm install and
-  # bundle included, and the shards waited for it -- 1.8 minutes on
-  # fec57e0, which had changed the planner's code and the page.
+  # The browser suite's three images (.github/ci-images.hcl) -- the
+  # webapp, the planner, and the model service's `slim` stage, without the
+  # torch and tensorflow the suite's scikit-learn fixture never loads --
+  # and the page the webapp serves there. Each is built once per key, a
+  # hash of what decides what it does in the suite's stack
+  # (.github/e2e-keys.sh). The images are pushed under `e2e-<key>` and
+  # `e2e`, the last pushed; never `latest`, which only promote gives an
+  # image, and none of these is quite the image that ships. Most commits
+  # change none of their keys (4 of the 59 before 1deccfc changed one),
+  # and the shards pull what an earlier commit built. They were built on
+  # every commit, the webapp's npm install and bundle included, and the
+  # shards waited for them -- 1.8 minutes on fec57e0, which had changed
+  # the planner's code and the page.
+  #
+  # The page's key changes on about half the commits (22 of 39). It is
+  # built here, once, as the Dockerfile builds it (`npm run types`, `vite
+  # build`) with the browser suite's own packages and Node from .nvmrc,
+  # and pushed as an image of its files alone (webapp:e2e-page-<key>),
+  # which each shard copies out and mounts over the webapp image's page
+  # (docker-compose.ci.yml). Each shard built it itself in 1deccfc's run,
+  # 10 to 20 seconds of processors already fully busy with its setup.
   #
   # Not after `changes`, as every other job is: a shard starts ten
   # seconds into the run, and a key's image, when there is one to build,
   # should be on its way by then. So it runs on every push, the suite due
-  # or not; with nothing to build it is a checkout and three lookups. Not
+  # or not; with nothing to build it is a checkout and four lookups. Not
   # on a pull request, whose token cannot push: its shards build what
-  # they cannot pull. With a BuildKit container of setup-buildx's rather
-  # than the runner's own builder: it pushes what the registry cache
-  # already holds without first pulling it. No attestation: nothing
-  # verifies these.
+  # they cannot pull. The images with a BuildKit container of
+  # setup-buildx's rather than the runner's own builder: it pushes what
+  # the registry cache already holds without first pulling it. No
+  # attestation: nothing verifies these.
   e2e-images:
     name: build (e2e)
     runs-on: ubuntu-26.04
@@ -989,23 +1021,56 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: The keys no image has yet
+      - name: The keys nothing has been built for yet
         id: keys
         env:
           REGISTRY: ghcr.io/${{ github.repository }}
         run: |
+          there() { docker buildx imagetools inspect --raw "$1" > /dev/null 2>&1; }
           keys=$(bash .github/e2e-keys.sh)
           missing=""
-          while read -r image key; do
-            echo "$(echo "$image" | tr 'a-z-' 'A-Z_')_KEY=$key" >> "$GITHUB_ENV"
-            if docker buildx imagetools inspect --raw "$REGISTRY/$image:e2e-$key" > /dev/null 2>&1; then
-              echo "$image: e2e-$key is there"
+          while read -r name key; do
+            if [ "$name" = page ]; then
+              if there "$REGISTRY/webapp:e2e-page-$key"; then
+                echo "the page: webapp:e2e-page-$key is there"
+              else
+                echo "the page: webapp:e2e-page-$key to build"
+                echo "page=$REGISTRY/webapp:e2e-page-$key" >> "$GITHUB_OUTPUT"
+              fi
+              continue
+            fi
+            echo "$(echo "$name" | tr 'a-z-' 'A-Z_')_KEY=$key" >> "$GITHUB_ENV"
+            if there "$REGISTRY/$name:e2e-$key"; then
+              echo "$name: e2e-$key is there"
             else
-              echo "$image: e2e-$key to build"
-              missing="$missing $image"
+              echo "$name: e2e-$key to build"
+              missing="$missing $name"
             fi
           done <<< "$keys"
           echo "missing=${missing# }" >> "$GITHUB_OUTPUT"
+      - name: Restore the suite's packages, for the page
+        if: steps.keys.outputs.page != ''
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: web/node_modules
+          key: e2e-node-modules-pw1.55.1-${{ hashFiles('web/package-lock.json') }}
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7
+        if: steps.keys.outputs.page != ''
+        with:
+          node-version-file: .nvmrc
+      # Before setup-buildx, whose builder would otherwise be the one
+      # `docker build` uses, and would leave the image out of Docker.
+      - name: The page, built and pushed
+        if: steps.keys.outputs.page != ''
+        working-directory: web
+        env:
+          PAGE: ${{ steps.keys.outputs.page }}
+        run: |
+          [ -d node_modules ] || npm ci --no-audit --no-fund
+          npm run types
+          npx vite build --outDir dist --emptyOutDir
+          printf 'FROM scratch\nCOPY . /page/\n' | docker build -q -t "$PAGE" -f - dist
+          docker push -q "$PAGE"
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069  # v4
         if: steps.keys.outputs.missing != ''
       - name: Those images, built and pushed
