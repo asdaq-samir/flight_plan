@@ -9,8 +9,8 @@
 # REGISTRY: ghcr.io/<owner>/<repo>, where each image's layer cache lives
 # (`<image>:buildcache`, every stage's layers, written from main only)
 # and where main pushes the image under this commit's tag,
-# `<image>:sha-<SHA>`, never `latest`: promote gives it that name once
-# every test has passed. PUSH is "true" on main; anywhere else the
+# `<image>:sha-<SHA>`, never `latest`: the Promote workflow
+# (workflows/promote.yml) gives it that name once CI has passed. PUSH is "true" on main; anywhere else the
 # images are built and not pushed, the build being the check that each
 # Dockerfile still builds.
 variable "REGISTRY" {
@@ -21,6 +21,13 @@ variable "SHA" {
 }
 variable "PUSH" {
   default = "false"
+}
+
+# Every image, for a bake with no target named -- and the list the
+# Promote workflow walks, promoting each this commit built.
+group "default" {
+  targets = ["ml", "pipeline-processing", "pipeline-training", "airflow", "airflow-aws",
+             "nav-log-agent", "crewai-agent", "planning-service", "model-service", "webapp"]
 }
 
 function "image" {
