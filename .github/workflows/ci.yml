@@ -562,6 +562,17 @@ jobs:
           # web/dist: where the page will be built, mounted into the
           # webapp -- made now, so that Docker does not make it, as root.
           mkdir -p /tmp/e2e-out web/dist
+          # The caches below are restored into memory, not onto the disk:
+          # the planner's data and charts, and the suite's packages, about
+          # 1.6 GB. On a runner whose disk writes at most about 230 MB/s
+          # (an "NVMe Accelerator"), they took it for the first seconds
+          # that every image needed it too. The stack's containers see them
+          # as before: Docker's bind mounts take the mounts under them. The
+          # runner's user owns them, as it owns what it restores into them
+          # (a restore sets the directory's own mode and times).
+          mkdir -p data/raw web/node_modules
+          sudo mount -t tmpfs -o "size=8g,mode=0777,uid=$(id -u),gid=$(id -g)" tmpfs data/raw
+          sudo mount -t tmpfs -o "size=2g,mode=0777,uid=$(id -u),gid=$(id -g)" tmpfs web/node_modules
           T0=$(date +%s)
           export T0
           echo "T0=$T0" >> "$GITHUB_ENV"
