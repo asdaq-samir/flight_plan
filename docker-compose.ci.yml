@@ -1,6 +1,7 @@
 # The stack the browser suite runs against in CI (the e2e job in
 # .github/workflows/ci.yml), on top of docker-compose.yml: the three
-# images that job built and loaded, under the names it gave them, and
+# images that job pulled (or, for a pull request, built), under the
+# names it gave them, and
 # the suite's own small trained model in place of data/models/current,
 # which is not in git. Everything else is the local stack's own
 # defaults -- Mailpit for the sign-in link, developer@example.com a
@@ -18,12 +19,19 @@
 # readiness is its own and the database's (application.yml), and
 # nothing in its startup calls the planner; the planner's warm-up loads
 # airspace, obstacles, weather and charts, and asks the model service
-# only when a route is scored. So here all three start together, and
-# the job waits for all three to be healthy, and the planner warm,
-# before the suite asks anything. While each service starts, its check
-# runs every second (start_interval): healthy when it is ready, not up
-# to five seconds later.
+# only when a route is scored. So here each starts as soon as its own
+# image is in (the planner once its data is too), and the job waits for
+# all three to be healthy, and the planner warm, before the suite asks
+# anything. While each service starts, its check runs every second
+# (start_interval): healthy when it is ready, not up to five seconds
+# later.
 services:
+  # The webapp starts once the database is healthy: noticed within a
+  # second of it, not at the next of its five-second checks.
+  db:
+    healthcheck:
+      start_period: 30s
+      start_interval: 1s
   webapp:
     image: flight_plan-webapp:ci
     depends_on: !override
