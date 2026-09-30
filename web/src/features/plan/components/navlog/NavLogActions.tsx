@@ -1,7 +1,7 @@
 import { Loader2, Printer, Sparkles } from "lucide-react";
 import { useState } from "react";
+import { ResponsivePopover, ResponsivePopoverContent, ResponsivePopoverTrigger } from "../../../../components/ResponsivePopover";
 import ToolbarButton from "../../../../components/ToolbarButton";
-import { Popover, PopoverContent, PopoverTrigger } from "../../../../components/ui/popover";
 import { ScrollArea } from "../../../../components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../../../components/ui/tabs";
 import type { FrameworkNarrative } from "../../hooks/useNarratives";
@@ -78,20 +78,22 @@ export default function NavLogActions({ onGenerateNarrative, langgraphNarrative,
     // One flex item, so the pair sits together between the drawer
     // header's other buttons.
     <div className="flex items-center gap-2">
-      <Popover
+      {/* A popover from md up; on a phone a sheet from the navigation
+          bar's edge, the narrative the screen's width. */}
+      <ResponsivePopover
         open={open}
         onOpenChange={next => {
           setOpen(next);
           if (next) ensureGenerated(tab);
         }}
       >
-        <PopoverTrigger asChild>
+        <ResponsivePopoverTrigger asChild>
           <ToolbarButton
             text="Brief" label="Briefing narrative" data-testid="ai-narrative-button"
             icon={activeNarrative.loading ? <Loader2 className="animate-spin" /> : <Sparkles />}
           />
-        </PopoverTrigger>
-        <PopoverContent align="end" className="w-80 p-0 text-sm">
+        </ResponsivePopoverTrigger>
+        <ResponsivePopoverContent title="Briefing narrative" titleHidden align="end" className="w-80 p-0 text-sm">
           <Tabs
             value={tab}
             onValueChange={value => {
@@ -111,8 +113,8 @@ export default function NavLogActions({ onGenerateNarrative, langgraphNarrative,
               <NarrativeTabBody framework="crewai" narrative={crewaiNarrative} />
             </TabsContent>
           </Tabs>
-        </PopoverContent>
-      </Popover>
+        </ResponsivePopoverContent>
+      </ResponsivePopover>
       <ToolbarButton text="Print" icon={<Printer />} onClick={() => window.print()} data-testid="print-button" />
     </div>
   );

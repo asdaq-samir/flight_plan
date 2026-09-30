@@ -10,7 +10,7 @@ import { useConfirm } from "../../../components/useConfirm";
 import { NoteRow, SelectableRow } from "../../../components/SelectableRows";
 import { Badge } from "../../../components/ui/badge";
 import { Button } from "../../../components/ui/button";
-import { Popover, PopoverContent, PopoverTrigger } from "../../../components/ui/popover";
+import { ResponsivePopover, ResponsivePopoverContent, ResponsivePopoverTrigger } from "../../../components/ResponsivePopover";
 import {
   Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow,
 } from "../../../components/ui/table";
@@ -109,17 +109,17 @@ export default function WaypointPanel({
         <div className="flex items-center gap-2">
           <span className="text-base font-semibold" data-testid="drawer-title">Model Training</span>
           <div className="ml-auto flex items-center gap-1">
-            <Popover>
-              <PopoverTrigger asChild>
+            <ResponsivePopover>
+              <ResponsivePopoverTrigger asChild>
                 <ToolbarButton text="Filter" label="Filters" icon={<ListFilter />} data-testid="waypoint-filters-button" />
-              </PopoverTrigger>
+              </ResponsivePopoverTrigger>
               {/* w-80: the widest row ("Source detected (343) added
                   (13)") needs the room; a narrower popover clipped its
                   last count. */}
-              <PopoverContent align="end" className="w-80">
+              <ResponsivePopoverContent title="Filters" align="end" className="w-80">
                 <FilterBar filters={filters} onChange={onFilterChange} counts={counts} />
-              </PopoverContent>
-            </Popover>
+              </ResponsivePopoverContent>
+            </ResponsivePopover>
             <ToolbarButton text="Undo" icon={<Undo2 />} onClick={onUndo} disabled={!canUndo} data-testid="undo-button" />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>

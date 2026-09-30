@@ -4,7 +4,7 @@ import { ChevronsUpDown } from "lucide-react";
 import { cn } from "cn";
 import { Button } from "./ui/button";
 import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from "./ui/command";
-import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
+import { ResponsivePopover, ResponsivePopoverContent, ResponsivePopoverTrigger } from "./ResponsivePopover";
 import { api } from "../lib/api/client";
 
 interface Props {
@@ -38,7 +38,9 @@ function useDebounced<T>(value: T, delayMs: number): T {
  * (a private strip, say) still goes through on Enter. This replaced a
  * hand-rolled input-anchored combobox that carried its own keyboard
  * navigation and ARIA wiring; the stock shape costs one more tap and
- * gives a phone a full-width search box and rows the size of a finger.
+ * gives a phone a full-width search box and rows the size of a finger
+ * -- in a sheet from the navigation bar's edge there, as every panel
+ * is, where it was a popover the keyboard covered half of.
  */
 export default function AirportPicker({ value, onChange, placeholder, ariaLabel, invalid, className }: Props) {
   const [open, setOpen] = useState(false);
@@ -67,8 +69,8 @@ export default function AirportPicker({ value, onChange, placeholder, ariaLabel,
   };
 
   return (
-    <Popover open={open} onOpenChange={next => { setOpen(next); if (!next) setQuery(""); }}>
-      <PopoverTrigger asChild>
+    <ResponsivePopover open={open} onOpenChange={next => { setOpen(next); if (!next) setQuery(""); }}>
+      <ResponsivePopoverTrigger asChild>
         <Button
           type="button"
           variant="ghost"
@@ -82,8 +84,8 @@ export default function AirportPicker({ value, onChange, placeholder, ariaLabel,
           {value || placeholder}
           <ChevronsUpDown className="text-muted-foreground" />
         </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-72 p-0" align="start">
+      </ResponsivePopoverTrigger>
+      <ResponsivePopoverContent title={`${ariaLabel} airport`} titleHidden className="w-72 p-0" align="start">
         {/* The server already filters (an ident or name prefix), so
             cmdk's own filter is off: it would drop a row whose name
             matched but whose ident, the `value`, did not. */}
@@ -116,7 +118,7 @@ export default function AirportPicker({ value, onChange, placeholder, ariaLabel,
             ))}
           </CommandList>
         </Command>
-      </PopoverContent>
-    </Popover>
+      </ResponsivePopoverContent>
+    </ResponsivePopover>
   );
 }
