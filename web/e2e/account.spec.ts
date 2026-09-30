@@ -19,7 +19,7 @@ function held() {
   return { gate, release: () => release() };
 }
 
-const consoleSheet = (page: Page) => page.locator('[data-slot="sheet-content"][data-side="top"]');
+const consoleSheet = (page: Page) => page.getByTestId("console-sheet");
 
 async function openConsole(page: Page) {
   await page.goto("/app/plan");
@@ -43,8 +43,9 @@ test("an add still saving when Edit is clicked says added, and leaves the aeropl
   });
   const console = await openConsole(page);
   await console.getByRole("tab", { name: "Aircraft" }).click();
-  // The form pops down from the plus beside the heading (a popover, so
-  // it is on the page, not inside the console's own element).
+  // The form opens from the plus beside the heading -- a popover, or
+  // on a phone a dialog in the middle -- on the page, not inside the
+  // console's own element.
   await expect(page.getByLabel("Tail number")).toHaveCount(0);
   await console.getByTestId("new-aircraft-button").click();
   await page.getByLabel("Tail number").fill("N3");

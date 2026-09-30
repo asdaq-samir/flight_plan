@@ -1,9 +1,9 @@
-import { useEffect, useMemo } from "react";
+import { useMemo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { cn } from "cn";
-import { toast } from "sonner";
-import { Check, Loader2, Save } from "lucide-react";
+import { Check, CloudOff, Loader2, Save, TriangleAlert } from "lucide-react";
 import IconButton from "../../../../components/IconButton";
+import { Alert, AlertDescription, AlertTitle } from "../../../../components/ui/alert";
 import { Badge } from "../../../../components/ui/badge";
 import AccordionSection from "../../../../components/AccordionSection";
 import { api } from "../../../../lib/api/client";
@@ -23,9 +23,6 @@ interface Props {
   legs: Leg[];
   dep: string;
   dest: string;
-  /** Whether the drawer holding this is open. The view stays mounted
-   *  beside a desktop map whether or not it is. */
-  open: boolean;
   /** Where the briefing stands (see `usePlan`'s BriefingState). The
    *  page keeps its standard sections visible and says which state
    *  applies, rather than making a failed briefing indistinguishable
@@ -215,7 +212,7 @@ export function SaveFlightButton({
  */
 export default function FlightBriefingView({
   nav, legs, dep, dest,
-  open, briefing: briefingState,
+  briefing: briefingState,
   langgraphNarrative, crewaiNarrative,
 }: Props) {
   const winds = windsAloftSummary(legs);
@@ -228,51 +225,6 @@ export default function FlightBriefingView({
     briefingState.state === "waiting" ? "The briefing follows once the route's course is drawn."
       : briefingState.state === "failed" ? `Briefing data is unavailable (${briefingState.detail}).`
         : "Fetching METARs, forecasts, hazards, runways and frequencies…";
-
-  // "Planning aid only" used to be a permanently docked banner at the
-  // top of the briefing, pushing every section below it down a line
-  // whether a pilot needed the reminder again or not. A toast instead
-  // -- same sonner instance (main.tsx) PlanWorkspace's own progress/error
-  // toasts use -- says it once, prominently, each time the drawer
-  // opens, then gets out of the way. On opening, not on mounting: beside
-  // a desktop map this view is mounted for the whole visit, and the
-  // warning used to pop up on page load, over a map with no drawer open.
-  useEffect(() => {
-    if (!open) return;
-    toast.warning("Planning aid only.", {
-      id: "briefing-planning-aid-only",
-      description: "Before flight, obtain an official briefing and verify current weather, NOTAMs, TFRs, airport status, aircraft performance, and applicable regulations.",
-      duration: 8000,
-    });
-    // sonner's own Toaster is mounted once at the app root (main.tsx),
-    // not inside this view: closing the drawer takes the warning with it.
-    return () => { toast.dismiss("briefing-planning-aid-only"); };
-  }, [open]);
-
-  // The briefing's own conclusions, announced once when they arrive.
-  // The sections below carry the same facts for the printed page, but a
-  // pilot should not have to scroll to learn that a weather source was
-  // missing or that VFR is not recommended.
-  useEffect(() => {
-    if (!briefing) return;
-    if (briefing.weather_unavailable.length > 0) {
-      const missing = briefing.weather_unavailable.map(source => WEATHER_SOURCE_LABEL[source]).join(", ");
-      toast.warning(`Could not check ${missing}.`, {
-        id: "briefing-weather-gaps",
-        description: "aviationweather.gov didn’t respond. Verify separately before flight.",
-        duration: 10000,
-      });
-    }
-    if (briefing.vfr_not_recommended.length > 0) {
-      toast.warning("VFR flight not recommended", {
-        id: "briefing-vnr", description: briefing.vfr_not_recommended.join(" · "), duration: 10000,
-      });
-    }
-    return () => {
-      toast.dismiss("briefing-weather-gaps");
-      toast.dismiss("briefing-vnr");
-    };
-  }, [briefing]);
 
   return (
     // No header, title or scroller of its own: the flight planning
@@ -341,21 +293,30 @@ export default function FlightBriefingView({
         )}
       </AccordionSection>
 
-      <AccordionSection title="Current Conditions">
-        {/* Its own standard element (AIM 7-1-5(b)), stated up front
-            inside the section it's actually drawn from (current METAR
-            categories, plus the route's own forecast minimums) rather
-            than a separate banner above every other section --
-            impossible to miss while this one's open, the way a live
-            briefer states it before working through the detail that
-            justifies it. */}
+      <AccordionSection
+        title="Current Conditions"
+        // Seen with the section folded: the reasons are inside it, but
+        // that VFR is not recommended is on its title, not behind a tap.
+        aside={vnrReasons.length > 0 ? (
+          <span className="inline-flex items-center gap-1 text-xs font-semibold text-red-700 dark:text-red-400" data-testid="vnr-flag">
+            <TriangleAlert className="size-3.5" aria-hidden />
+            VFR not recommended
+          </span>
+        ) : undefined}
+      >
+        {/* Its own standard element (AIM 7-1-5(b)), stated first inside
+            the section it is drawn from -- current METAR categories and
+            the route's own forecast minimums -- the way a live briefer
+            states it before the detail that justifies it. Red on pale
+            red at 7:1, in both themes. */}
         {vnrReasons.length > 0 && (
-          <div role="alert" className="mb-2 rounded border border-destructive/30 bg-destructive/10 px-2 py-1.5 text-sm text-destructive">
-            <p className="font-semibold">VFR flight not recommended</p>
-            <ul className="mt-0.5 list-inside list-disc">
+          <Alert className="mb-2 border-red-200 bg-red-50 text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200">
+            <TriangleAlert />
+            <AlertTitle>VFR flight not recommended</AlertTitle>
+            <ul className="col-start-2 list-disc space-y-0.5 pl-4 text-sm">
               {vnrReasons.map(reason => <li key={reason}>{reason}</li>)}
             </ul>
-          </div>
+          </Alert>
         )}
         {!briefing ? (
           <p className="text-sm text-muted-foreground">{briefingPendingMessage}</p>
@@ -555,5 +516,44 @@ export default function FlightBriefingView({
         )}
       </AccordionSection>
     </>
+  );
+}
+
+/**
+ * Which weather sources the briefing could not check, above every
+ * section of the flight planning drawer (NavLogView's `notice`): what
+ * the briefing did not see is seen on opening the drawer, and on the
+ * printed page. It was a toast, gone in ten seconds and stacked behind
+ * the planning-aid reminder. (VFR-not-recommended is stated in Current
+ * Conditions, and flagged on its title.)
+ */
+export function BriefingNotices({ briefing: state }: { briefing: BriefingState }) {
+  const briefing = state.state === "ready" ? state.data : null;
+  const gaps = briefing?.weather_unavailable.map(source => WEATHER_SOURCE_LABEL[source]) ?? [];
+  if (gaps.length === 0) return null;
+  return (
+    <div className="pt-3" data-testid="briefing-notices">
+      <Alert className="border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+        <CloudOff />
+        <AlertTitle>Could not check {gaps.join(", ")}</AlertTitle>
+        <AlertDescription className="text-amber-900 dark:text-amber-200">
+          aviationweather.gov didn’t respond. Verify separately before flight.
+        </AlertDescription>
+      </Alert>
+    </div>
+  );
+}
+
+/**
+ * The reminder a planning aid owes its pilot, at the foot of the drawer
+ * and of the printed page: always there, never in the way. As a toast it
+ * covered the nav log's last rows each time the drawer opened, and hid
+ * the one warning that mattered behind it.
+ */
+export function PlanningAidNote() {
+  return (
+    <p className="py-3 text-xs text-muted-foreground" data-testid="planning-aid-note">
+      <span className="font-semibold">Planning aid only.</span> Before flight, obtain an official briefing and verify current weather, NOTAMs, TFRs, airport status, aircraft performance, and applicable regulations.
+    </p>
   );
 }

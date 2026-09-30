@@ -7,6 +7,8 @@ import DevSwitch from "../../components/DevSwitch";
 import MapHeader from "../../components/MapHeader";
 import RouteForm from "../../components/RouteForm";
 import { Sheet, SheetContent, SheetTrigger } from "../../components/ui/sheet";
+import { Dialog, DialogContent, DialogTrigger } from "../../components/ui/dialog";
+import { useIsMobile } from "../../hooks/use-mobile";
 import {
   Sidebar, SidebarContent, SidebarInset, SidebarProvider, SidebarTrigger, useSidebar,
 } from "../../components/ui/sidebar";
@@ -67,6 +69,7 @@ const MODES = {
  */
 export default function MapPage({ mode }: { mode: Mode }) {
   const { title, sidebar, console: consoleLabel, Workspace, ConsoleButton, route } = MODES[mode];
+  const onPhone = useIsMobile();
   const [searchParams, setSearchParams] = useSearchParamsNow();
   // The route in the header: the address's, unless the pilot has typed
   // over it -- and a draft belongs to the address it was typed over. The
@@ -144,7 +147,7 @@ export default function MapPage({ mode }: { mode: Mode }) {
               one press. Visible only while it has focus. */}
           <a
             href="#content"
-            className="sr-only z-50 rounded-md bg-background px-3 py-2 text-sm shadow focus:not-sr-only focus:fixed focus:top-2 focus:left-2"
+            className="sr-only z-50 rounded-md bg-background px-3 py-2 text-sm shadow outline-none focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
           >
             Skip to the map
           </a>
@@ -168,18 +171,40 @@ export default function MapPage({ mode }: { mode: Mode }) {
                 <>
                   {/* The console: the pilot's account, aeroplanes, flights
                       and guide, or the developer's training, performance
-                      and system -- a stock Sheet from the top, modal, so
-                      the page waits while it is out. */}
-                  <Sheet>
-                    <SheetTrigger asChild><ConsoleButton /></SheetTrigger>
-                    <SheetContent side="top" className="max-h-[85dvh] gap-0 p-0" showCloseButton={false}>
-                      {/* The greeting, the way in or out and the close
-                          button on one row; the console's content starts
-                          under it. */}
-                      <ConsoleHeader console={consoleLabel.toLowerCase()} />
-                      <AfterTheSheet>{pieces.console}</AfterTheSheet>
-                    </SheetContent>
-                  </Sheet>
+                      and system -- modal, so the page waits while it is
+                      out. From `md` up a stock Sheet from the top, under
+                      its button; on a phone a dialog in the middle of the
+                      screen, a margin all round, on the card surface the
+                      Sheet has, so a menu opened in it stands off it in
+                      the dark theme. The dialog's height is fixed rather
+                      than its content's: sized to the tab showing, it
+                      shrank and grew about its centre as the tabs
+                      changed, and the tab row moved out from under the
+                      finger that had just tapped it. */}
+                  {onPhone ? (
+                    <Dialog>
+                      <DialogTrigger asChild><ConsoleButton /></DialogTrigger>
+                      <DialogContent
+                        showCloseButton={false}
+                        className="flex h-[85dvh] w-[calc(100%-2rem)] max-w-none flex-col gap-0 overflow-hidden bg-card p-0 text-card-foreground"
+                        data-testid="console-sheet"
+                      >
+                        <ConsoleHeader console={consoleLabel.toLowerCase()} />
+                        <AfterTheSheet>{pieces.console}</AfterTheSheet>
+                      </DialogContent>
+                    </Dialog>
+                  ) : (
+                    <Sheet>
+                      <SheetTrigger asChild><ConsoleButton /></SheetTrigger>
+                      <SheetContent side="top" className="max-h-[85dvh] gap-0 p-0" showCloseButton={false} data-testid="console-sheet">
+                        {/* The greeting, the way in or out and the close
+                            button on one row; the console's content starts
+                            under it. */}
+                        <ConsoleHeader console={consoleLabel.toLowerCase()} />
+                        <AfterTheSheet>{pieces.console}</AfterTheSheet>
+                      </SheetContent>
+                    </Sheet>
+                  )}
                   <DrawerTrigger label={sidebar} />
                 </>
               )}

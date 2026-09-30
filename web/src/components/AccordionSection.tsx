@@ -12,14 +12,20 @@ import { AccordionContent, AccordionItem, AccordionTrigger } from "./ui/accordio
  * the page could have them instead; both are gone. A `description` is
  * the first line inside, so a folded section is its one bold line.
  */
-export default function AccordionSection({ title, description, children, ...props }: {
-  title: string; description?: string; children: ReactNode;
+export default function AccordionSection({ title, description, aside, children, ...props }: {
+  title: string; description?: string;
+  /** Beside the title, shown folded or open: what a folded section
+   *  must say without being opened (the briefing's VFR-not-recommended). */
+  aside?: ReactNode;
+  children: ReactNode;
 } & Omit<ComponentProps<typeof AccordionItem>, "value" | "title">) {
   return (
     <AccordionItem value={title} {...props}>
       {/* Bold, over the stock trigger's medium: a section title is what
           the drawer is read by, and medium read as one more line. */}
-      <AccordionTrigger className="font-semibold">{title}</AccordionTrigger>
+      <AccordionTrigger className="font-semibold">
+        {aside ? <span className="flex flex-wrap items-center gap-x-2 gap-y-1">{title}{aside}</span> : title}
+      </AccordionTrigger>
       <AccordionContent>
         {description && <div className="text-xs text-muted-foreground">{description}</div>}
         {children}

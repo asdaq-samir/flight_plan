@@ -60,7 +60,7 @@ export async function signInByEmail(page: Page, address: string) {
 /** Asks for a link for `address` and opens it: the planner, with its
  *  sign-in dialog up. Answers the link, to open again. */
 export async function openLinkFor(page: Page, address: string): Promise<string> {
-  const console = page.locator('[data-slot="sheet-content"][data-side="top"]');
+  const console = page.getByTestId("console-sheet");
   const before = new Set(await messagesTo(address));
   if (!(await console.isVisible())) await page.getByTestId("pilot-button").click();
   await console.getByRole("button", { name: "Sign in" }).click();

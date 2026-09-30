@@ -147,6 +147,9 @@ test("dismissing a toast dismisses the toast, not the drawer under it", async ({
   // The phone bug: sonner renders in its own portal at the end of the
   // body, so the drawer's outside-interaction listener counted a tap on
   // a toast as a tap outside itself and closed the whole briefing.
+  // Toasts to dismiss: the planner down (the briefing no longer raises
+  // one of its own on opening -- its reminder is the drawer's last line).
+  await plannerDown(page);
   await page.goto(PLAN);
   await page.waitForTimeout(4000);
 
@@ -195,7 +198,7 @@ test("dismissing a toast over the console leaves the console open", async ({ pag
   await plannerDown(page);
   await page.goto(PLAN);
   await page.getByTestId("pilot-button").click();
-  const console = page.locator('[data-slot="sheet-content"][data-side="top"]');
+  const console = page.getByTestId("console-sheet");
   await expect(console).toBeVisible();
 
   const closeable = page.locator("[data-sonner-toast]:has(button[data-close-button])");

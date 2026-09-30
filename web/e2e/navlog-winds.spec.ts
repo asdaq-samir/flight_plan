@@ -30,7 +30,8 @@ test("a winds outage never reads as an altitude the pilot typed", async ({ page 
   await expect(why).toContainText("No altitude", { timeout: 60000 });
   await expect(why).not.toContainText("yours");
   await why.click();
-  const popover = page.locator("[data-slot=popover-content]");
+  // A popover beside the altitude, or on a phone a dialog in the middle.
+  const popover = page.locator("[data-slot=popover-content], [data-slot=dialog-content]");
   await expect(popover).toContainText("winds aloft could not be read");
   await expect(popover).not.toContainText("no legal altitude");
   await expect(popover.getByRole("form", { name: "Custom altitude" })).not.toHaveClass(/bg-primary/);

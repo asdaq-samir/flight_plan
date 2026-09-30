@@ -10,6 +10,7 @@ import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger,
 } from "../../components/ui/dialog";
 import { Input } from "../../components/ui/input";
+import { Spinner } from "../../components/ui/spinner";
 import { ApiError, api } from "../../lib/api/client";
 
 /**
@@ -35,9 +36,13 @@ export default function SignInModal() {
   // and survived a close and reopen mid-request.
   const magicLink = useMutation({
     mutationFn: (address: string) => api.requestMagicLink(address),
-    onError: error => toast.error(error instanceof ApiError && error.status === 429
-      ? "Too many sign-in links asked for. Wait a few minutes and try again."
-      : "Couldn't send that link. Check the address and try again."),
+    // Whose fault it was: an address the server refused is the pilot's
+    // to fix; a server or network failure is not, and "check the
+    // address" sent them looking for a typo that was not there.
+    onError: error => toast.error(
+      error instanceof ApiError && error.status === 429 ? "Too many sign-in links asked for. Wait a few minutes and try again."
+        : error instanceof ApiError && error.status >= 400 && error.status < 500 ? "Couldn't send that link. Check the address and try again."
+          : "Couldn't reach the sign-in service. Try again in a minute."),
     meta: { silent: true },
   });
   const sent = magicLink.isSuccess ? magicLink.variables : null;
@@ -95,13 +100,16 @@ export default function SignInModal() {
                 value={email}
                 onChange={e => setEmail(e.target.value)}
               />
+              {/* A spinner in place of the envelope while the link is on
+                  its way: disabled alone looked like nothing happened. */}
               <IconButton
                 type="submit"
                 variant="default"
                 disabled={magicLink.isPending || !trimmedEmail}
+                aria-busy={magicLink.isPending}
                 label="Send sign-in link"
               >
-                <Mail className="size-5" />
+                {magicLink.isPending ? <Spinner className="size-5" role="presentation" aria-label={undefined} aria-hidden /> : <Mail className="size-5" />}
               </IconButton>
             </div>
           </form>

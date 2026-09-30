@@ -10,7 +10,7 @@ import { DEVELOPER, openLinkFor, signInByEmail } from "./emailSignIn";
  */
 test.use({ storageState: { cookies: [], origins: [] } });
 
-const consoleSheet = (page: Page) => page.locator('[data-slot="sheet-content"][data-side="top"]');
+const consoleSheet = (page: Page) => page.getByTestId("console-sheet");
 
 /** One pilot per test and project, the same on every run: a fresh
  *  address each time added a pilot row to the local database on every

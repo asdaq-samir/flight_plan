@@ -3,6 +3,7 @@ import { cn } from "cn";
 import { BrainCircuit, Eraser, ListFilter, Undo2 } from "lucide-react";
 import { useRetrain } from "../../dev/useRetrain";
 import IconButton from "../../../components/IconButton";
+import { useConfirm } from "../../../components/useConfirm";
 import { NoteRow, SelectableRow } from "../../../components/SelectableRows";
 import { Badge } from "../../../components/ui/badge";
 import { Button } from "../../../components/ui/button";
@@ -70,6 +71,16 @@ export default function WaypointPanel({
   // one belongs with them. The dev console's Training Model tab
   // reports the run.
   const retrain = useRetrain();
+  // Bulk and only reversible one point at a time (this isn't itself an
+  // undo step), so a stray tap can't wipe a leg's worth of ratings with
+  // nothing to walk it back: asked first, in red.
+  const [askReset, resetDialog] = useConfirm({
+    title: "Reset every rating on this route?",
+    description: "Every rating on this route is cleared. This can't be undone.",
+    confirmLabel: "Reset all ratings",
+    destructive: true,
+    onConfirm: onResetAll,
+  });
   // Selecting a point on the map (or by stepping) should be as visible
   // here as clicking the row itself would have been -- otherwise the
   // highlighted row can be scrolled out of view and looks like nothing
@@ -113,12 +124,7 @@ export default function WaypointPanel({
             <IconButton
               label="Reset all ratings"
               className="text-destructive hover:text-destructive"
-              onClick={() => {
-                // Bulk and only reversible one point at a time (this
-                // isn't itself an undo step), so a stray tap can't wipe
-                // a leg's worth of ratings with nothing to walk it back.
-                if (window.confirm("Reset every rating on this route? This can't be undone.")) onResetAll();
-              }}
+              onClick={askReset}
               disabled={rated === 0}
             >
               <Eraser className="size-5" />
@@ -131,6 +137,8 @@ export default function WaypointPanel({
             >
               <BrainCircuit className={retrain.running ? "size-5 animate-pulse" : "size-5"} />
             </IconButton>
+            {resetDialog}
+            {retrain.confirmDialog}
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">

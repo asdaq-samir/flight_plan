@@ -9,7 +9,7 @@ import { Button } from "../../../../components/ui/button";
  *  rather than with the page. */
 const Calendar = lazy(() => import("../../../../components/ui/calendar").then(m => ({ default: m.Calendar })));
 import { Input } from "../../../../components/ui/input";
-import { Popover, PopoverContent, PopoverTrigger } from "../../../../components/ui/popover";
+import { ResponsivePopover, ResponsivePopoverContent, ResponsivePopoverTrigger } from "../../../../components/ResponsivePopover";
 
 interface Props {
   /** The departure as an ISO instant, or "" for about now. */
@@ -46,8 +46,8 @@ export default function DepartPicker({ value, onChange }: Props) {
   const time = date ? format(date, "HH:mm") : "";
   return (
     <div className="flex items-center gap-1" data-testid="depart-picker">
-      <Popover open={open} onOpenChange={setOpen}>
-        <PopoverTrigger asChild>
+      <ResponsivePopover open={open} onOpenChange={setOpen}>
+        <ResponsivePopoverTrigger asChild>
           <Button
             variant="outline" size="sm" className="font-normal"
             aria-label="Departure date" data-testid="depart-date"
@@ -55,18 +55,21 @@ export default function DepartPicker({ value, onChange }: Props) {
             <CalendarIcon className="text-muted-foreground" />
             {date ? format(date, "EEE d MMM") : "Now"}
           </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-auto p-0" align="start">
-          {/* Sized like the grid it stands in for, so the popover does
-              not jump once it arrives. */}
-          <Suspense fallback={<div className="h-[21rem] w-[17rem]" />}>
-          <Calendar
-            mode="single" required selected={date} defaultMonth={date} captionLayout="dropdown"
-            onSelect={day => { onChange(instantAt(day, time || nextHour())); setOpen(false); }}
-          />
-          </Suspense>
-        </PopoverContent>
-      </Popover>
+        </ResponsivePopoverTrigger>
+        {/* A sheet from the bottom on a phone, the calendar centred in it. */}
+        <ResponsivePopoverContent title="Departure date" className="w-auto p-0" align="start">
+          <div className="flex justify-center">
+            {/* Sized like the grid it stands in for, so the popover does
+                not jump once it arrives. */}
+            <Suspense fallback={<div className="h-[21rem] w-[17rem]" />}>
+            <Calendar
+              mode="single" required selected={date} defaultMonth={date} captionLayout="dropdown"
+              onSelect={day => { onChange(instantAt(day, time || nextHour())); setOpen(false); }}
+            />
+            </Suspense>
+          </div>
+        </ResponsivePopoverContent>
+      </ResponsivePopover>
       {/* The time, and the way back to "now", only once a day is
           picked: with no departure the flight is planned for about now
           and a time means nothing, and an empty `type="time"` box

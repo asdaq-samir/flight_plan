@@ -45,8 +45,9 @@ async function settle(page: Page) {
  *  map from `md` up, a Sheet over it on a phone. Both carry
  *  `data-slot="sidebar"` and the side. */
 const sideDrawer = (page: Page) => page.locator('[data-slot="sidebar"][data-side="right"]');
-/** The console is a stock Sheet from the top. */
-const consoleSheet = (page: Page) => page.locator('[data-slot="sheet-content"][data-side="top"]');
+/** The console: a stock Sheet from the top from `md` up, a Dialog in the
+ *  middle of the screen on a phone. */
+const consoleSheet = (page: Page) => page.getByTestId("console-sheet");
 
 /** Closed: on a phone the Sheet is not in the page at all; on a
  *  desktop the panel stays mounted, collapsed off screen. */
@@ -362,15 +363,15 @@ test("plan page: the flight planning drawer opens the way the Model Training dra
   expect(await page.locator("header").getByTestId("print-button").count()).toBe(0);
 });
 
-test("plan page: opening the briefing pops a 'planning aid only' warning toast, with the nav log and the summary on screen", async ({ page }) => {
+test("plan page: the briefing ends on its 'planning aid only' reminder, with the nav log and the summary on screen", async ({ page }) => {
   await page.goto("/app/plan");
   await settle(page);
 
   await openBriefing(page);
-  // No more permanently docked banner -- a toast instead (see
-  // FlightBriefingView's own comment), same sonner instance the
-  // page's progress/error toasts use.
-  await expect(page.locator("[data-sonner-toast]", { hasText: "Planning aid only" })).toBeVisible();
+  // At the foot of the drawer, not a toast: as a toast it covered the
+  // nav log's last rows and hid the route's own warnings behind it.
+  await expect(sideDrawer(page).getByTestId("planning-aid-note")).toContainText("Planning aid only");
+  await expect(page.locator("[data-sonner-toast]", { hasText: "Planning aid only" })).toHaveCount(0);
 
   // One nav log, in a section of its own at the top, and every
   // briefing section under it, every one closed. No "Flight Plan
@@ -565,10 +566,16 @@ test("plan page: a checkpoint picked on the map is brought to the middle of the 
   // Another section opened, with the drawer scrolled elsewhere: the
   // drawer stays where it is. (Every section's opening used to reveal
   // the selected row again, scrolling back up to it.)
+  // To the end, and then just enough back that the section's title is
+  // on screen: at the very end it can sit above the visible band (the
+  // planning-aid line is the drawer's last), and Playwright would scroll
+  // it into view to click it -- a move of the test's, not the drawer's.
+  const cruise = sideDrawer(page).getByRole("button", { name: "Cruise Altitude" });
   await scroller.evaluate(el => el.scrollTo(0, el.scrollHeight));
+  await cruise.scrollIntoViewIfNeeded();
   await page.waitForTimeout(300);
   const elsewhere = await scroller.evaluate(el => el.scrollTop);
-  await sideDrawer(page).getByRole("button", { name: "Cruise Altitude" }).click();
+  await cruise.click();
   await page.waitForTimeout(600);
   expect(Math.abs((await scroller.evaluate(el => el.scrollTop)) - elsewhere)).toBeLessThan(2);
   await sideDrawer(page).getByRole("button", { name: "Cruise Altitude" }).click();
@@ -862,7 +869,8 @@ test("plan page: the nav log's altitude opens the planner's own reasoning, and t
   await expect(why).toContainText(/\d ft/);
   await expect(why).not.toContainText("·");
   await why.click();
-  const popover = page.locator("[data-slot=popover-content]");
+  // A popover beside the altitude, or on a phone a dialog in the middle.
+  const popover = page.locator("[data-slot=popover-content], [data-slot=dialog-content]");
   await expect(popover).toBeVisible();
   await expect(popover).toContainText("Floor");
   await expect(popover).toContainText("Ceiling");
@@ -992,7 +1000,7 @@ test("the old Settings address lands on the planner", async ({ page }) => {
   await page.waitForURL("**/app/plan");
 });
 
-test("plan page: the pilot console is a sheet from the top with the account, aeroplanes and flights, and the drawer opens once it is closed", { tag: "@smoke" }, async ({ page }) => {
+test("plan page: the pilot console holds the account, aeroplanes and flights, and the drawer opens once it is closed", { tag: "@smoke" }, async ({ page }) => {
   await page.goto("/app/plan");
   await settle(page);
   await expectDrawerClosed(page);
@@ -1016,7 +1024,7 @@ test("plan page: the pilot console is a sheet from the top with the account, aer
   await pilot.getByRole("tab", { name: "Flights" }).click();
   await expect(pilot.getByRole("heading", { name: "My Flights" })).toBeVisible();
 
-  // A stock sheet is modal: Escape puts it away, and then the drawer
+  // The console is modal: Escape puts it away, and then the drawer
   // opens from the header, and Escape closes that too.
   await page.keyboard.press("Escape");
   await expect(pilot).toHaveCount(0);
@@ -1026,7 +1034,7 @@ test("plan page: the pilot console is a sheet from the top with the account, aer
   await expectDrawerClosed(page);
 });
 
-test("dev page: the dev console is a sheet from the top, and the waypoint drawer opens once it is closed", { tag: "@smoke" }, async ({ page }) => {
+test("dev page: the dev console opens on training, and the waypoint drawer opens once it is closed", { tag: "@smoke" }, async ({ page }) => {
   await page.goto("/app/dev");
   await settle(page);
   // The training workspace is the page -- the console stays off screen
@@ -1059,7 +1067,7 @@ test("dev page: the dev console is a sheet from the top, and the waypoint drawer
   await expect(devMl.getByText("planning-service", { exact: true })).toBeVisible();
   await devMl.getByRole("tab", { name: "Performance" }).click();
 
-  // The sheet is modal: Escape puts it away, then the waypoint drawer
+  // The console is modal: Escape puts it away, then the waypoint drawer
   // opens from the header, and Escape closes that too.
   await page.keyboard.press("Escape");
   await expect(devMl).toHaveCount(0);
@@ -1067,6 +1075,37 @@ test("dev page: the dev console is a sheet from the top, and the waypoint drawer
   await expectDrawerOpen(page);
   await closeSidebarWithTheStockKey(page);
   await expectDrawerClosed(page);
+});
+
+test("the console holds still as its tabs change: in the middle of a phone's screen, from the top of a desktop's", async ({ page }) => {
+  // On a phone the console is a dialog with a margin all round. Sized
+  // to the tab showing, it shrank and grew about its centre as the tabs
+  // changed, and the tab row moved out from under the finger that had
+  // just tapped it; its height is now fixed. From `md` up it is the
+  // Sheet from the top, whose tab row stays put however tall it is.
+  await page.goto("/app/plan");
+  await settle(page);
+  await page.getByTestId("pilot-button").click();
+  const pilot = consoleSheet(page);
+  await expect(pilot.getByRole("tab", { name: "Guide" })).toBeVisible();
+  await pilot.evaluate(el => Promise.all(el.getAnimations({ subtree: true }).map(a => a.finished)));
+  const viewport = page.viewportSize();
+  if (!viewport) throw new Error("no viewport configured");
+  const box = (await pilot.boundingBox())!;
+  if (viewport.width < 768) {
+    expect(Math.round(box.x)).toBe(16);
+    expect(Math.round(viewport.width - box.x - box.width)).toBe(16);
+    expect(Math.abs(box.y - (viewport.height - box.y - box.height))).toBeLessThanOrEqual(1);
+  } else {
+    expect(box.y).toBe(0);
+  }
+  const tabRow = pilot.getByRole("tablist");
+  const rowTop = (await tabRow.boundingBox())!.y;
+  for (const name of ["Aircraft", "Flights", "Guide"]) {
+    await pilot.getByRole("tab", { name }).click();
+    await expect(pilot.getByRole("tab", { name })).toHaveAttribute("aria-selected", "true");
+    expect((await tabRow.boundingBox())!.y, `the tab row after ${name}`).toBe(rowTop);
+  }
 });
 
 test("plan page: the pilot console's theme toggle cycles system, light, dark, and the choice survives a reload", async ({ page }) => {

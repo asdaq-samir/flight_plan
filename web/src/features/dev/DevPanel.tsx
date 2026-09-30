@@ -293,6 +293,7 @@ function DataSection({ status, failed }: { status: Status | undefined; failed: b
           );
         })}
       </ul>
+      {retrain.confirmDialog}
     </AccordionSection>
   );
 }

@@ -16,7 +16,7 @@ import type { WorkspaceProps } from "../page/workspace";
 import { PilotPanel } from "../pilot/PilotPanel";
 import { Alert, AlertDescription, AlertTitle } from "../../components/ui/alert";
 import BuildNotice from "./components/BuildNotice";
-import FlightBriefingView, { SaveFlightButton } from "./components/briefing/FlightBriefingView";
+import FlightBriefingView, { BriefingNotices, PlanningAidNote, SaveFlightButton } from "./components/briefing/FlightBriefingView";
 import NavLogActions from "./components/navlog/NavLogActions";
 import NavLogView from "./components/navlog/NavLogView";
 import RouteMap from "./components/RouteMap";
@@ -264,11 +264,13 @@ export default function PlanWorkspace({ dep, dest, sidebarOpen, children }: Work
       aircraftValue={aircraftKey(aircraft)}
       aircraftOptions={aircraftOptions.map(o => ({ value: aircraftKey(o), label: o.label }))}
       onAircraftChange={changeAircraft}
+      notice={<BriefingNotices briefing={s.briefing} />}
+      footer={<PlanningAidNote />}
     >
       <FlightBriefingView
         nav={s.nav} legs={s.legs}
         dep={planned.dep} dest={planned.dest}
-        open={sidebarOpen} briefing={s.briefing}
+        briefing={s.briefing}
         langgraphNarrative={s.langgraphNarrative} crewaiNarrative={s.crewaiNarrative}
       />
     </NavLogView>

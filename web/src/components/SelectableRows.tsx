@@ -49,7 +49,9 @@ export function SelectableRow({
         // Muted rows take the foreground colour under the hover and
         // focus tint: muted on the tint was 4.35:1, under WCAG's 4.5.
         mutedWhenUnselected && "text-muted-foreground hover:text-foreground focus-visible:text-foreground",
-        "hover:bg-accent focus-visible:bg-accent",
+        // active: what a finger gets, where there is no hover -- the row
+        // answers the touch before the map and the note do.
+        "hover:bg-accent focus-visible:bg-accent active:bg-accent",
         // Inverted (bg-foreground/text-background), not just a tint --
         // the same treatment shadcn's own Tooltip uses for "this one
         // thing stands apart," which a selected row is exactly. It comes
@@ -57,7 +59,7 @@ export function SelectableRow({
         // favour of the last one: the muted text and the hover tint
         // above are simply overridden, where before they had to be
         // skipped by hand so they would not fight the inversion.
-        selected && "bg-foreground text-background hover:bg-foreground",
+        selected && "bg-foreground text-background hover:bg-foreground active:bg-foreground",
       )}
     >
       {children}

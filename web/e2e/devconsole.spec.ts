@@ -6,7 +6,7 @@ import { test, expect, type Page } from "@playwright/test";
  * answer. Each used to read "checking…" for ever.
  */
 
-const consoleSheet = (page: Page) => page.locator('[data-slot="sheet-content"][data-side="top"]');
+const consoleSheet = (page: Page) => page.getByTestId("console-sheet");
 // A service's row in the table, or on a phone its card.
 const row = (page: Page, service: RegExp) => consoleSheet(page).locator('tr, [data-testid="service-card"]').filter({ hasText: service });
 

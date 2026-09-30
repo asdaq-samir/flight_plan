@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { api } from "../../lib/api/client";
 import { statusQuery } from "../../lib/queryClient";
+import { useConfirm } from "../../components/useConfirm";
 
 /**
  * The one action that changes the model, and what a button for it
@@ -30,6 +31,15 @@ export function useRetrain() {
   const pipeline = status?.pipeline;
   const lastRun = pipeline?.last_run ?? null;
   const running = lastRun?.state === "running" || lastRun?.state === "queued";
+  // Asks first, wherever the button is: a retrain is minutes of
+  // Airflow's time and, when it ends, a new model serving in place of
+  // this one -- not something a stray tap should start.
+  const [ask, confirmDialog] = useConfirm({
+    title: "Retrain the model?",
+    description: "It learns from every rating. When it finishes, the new model replaces the one serving. It takes a few minutes.",
+    confirmLabel: "Retrain",
+    onConfirm: () => start.mutate(),
+  });
   return {
     status,
     pipeline,
@@ -39,11 +49,9 @@ export function useRetrain() {
     starting: start.isPending,
     /** Whether the button should be enabled: Airflow reachable, no run in progress, none just asked for. */
     canStart: (pipeline?.airflow_reachable ?? false) && !running && !start.isPending,
-    /** Asks first, wherever the button is: a retrain is minutes of
-     *  Airflow's time and, when it ends, a new model serving in place
-     *  of this one -- not something a stray tap should start. */
-    start: () => {
-      if (window.confirm("Retrain the model on every rating? When it finishes, the new model replaces the one serving. It takes a few minutes.")) start.mutate();
-    },
+    /** Opens the confirmation; the retrain starts from its button. */
+    start: ask,
+    /** The confirmation itself, rendered by whichever panel has the button. */
+    confirmDialog,
   };
 }

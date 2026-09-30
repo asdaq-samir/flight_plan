@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { useForm } from "react-hook-form";
@@ -8,9 +8,11 @@ import { toast } from "sonner";
 import { Plus } from "lucide-react";
 import IconButton from "../../components/IconButton";
 import { Button } from "../../components/ui/button";
-import { Field, FieldError } from "../../components/ui/field";
+import { Field, FieldError, FieldLabel } from "../../components/ui/field";
 import { Input } from "../../components/ui/input";
-import { Popover, PopoverContent, PopoverTrigger } from "../../components/ui/popover";
+import { InputGroup, InputGroupAddon, InputGroupInput, InputGroupText } from "../../components/ui/input-group";
+import { Spinner } from "../../components/ui/spinner";
+import { ResponsivePopover, ResponsivePopoverContent, ResponsivePopoverTrigger } from "../../components/ResponsivePopover";
 import {
   Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow,
 } from "../../components/ui/table";
@@ -73,6 +75,7 @@ export function AircraftPanel({ pilot }: { pilot: PilotState }) {
   // again when the save lands, on Cancel, or from the same button.
   const [adding, setAdding] = useState(false);
   const formOpen = adding || editingId !== null;
+  const formId = useId();
   const [aircraftToDelete, setAircraftToDelete] = useState<Aircraft | null>(null);
   const {
     register, handleSubmit, reset, formState: { errors },
@@ -143,13 +146,18 @@ export function AircraftPanel({ pilot }: { pilot: PilotState }) {
           // from the plus, for one of the rows from its Edit (filled
           // in). Closing it -- Cancel, Escape, a tap outside, the plus
           // again -- is cancelling.
-          <Popover open={formOpen} onOpenChange={open => (open ? setAdding(true) : cancelEdit())}>
-            <PopoverTrigger asChild>
+          <ResponsivePopover open={formOpen} onOpenChange={open => (open ? setAdding(true) : cancelEdit())}>
+            <ResponsivePopoverTrigger asChild>
               <IconButton size="icon-xs" label={editingId ? "Editing an aircraft" : "New aircraft"} data-testid="new-aircraft-button">
                 <Plus />
               </IconButton>
-            </PopoverTrigger>
-            <PopoverContent
+            </ResponsivePopoverTrigger>
+            {/* On a phone a sheet from the bottom, the screen's width,
+                over the console, which steps back behind it as one iOS
+                sheet does behind another; closing it brings the rows,
+                and their Edit, back. */}
+            <ResponsivePopoverContent
+              title={editingId ? "Edit aircraft" : "New aircraft"}
               align="start" className="w-80"
               // A row's Edit, pressed while the popover is open, is not
               // "outside": it switches the form to that aeroplane, where
@@ -159,55 +167,79 @@ export function AircraftPanel({ pilot }: { pilot: PilotState }) {
             >
               <form className="flex flex-col gap-2" onSubmit={handleSubmit(onSubmit)} noValidate>
                 {/* Two lines: what the aeroplane is (tail, type, speed),
-                    then its fuel (burn, usable). The placeholders are the
-                    visible labels and are short for three to a line;
-                    the accessible names say the units in full. */}
+                    then its fuel (burn, usable). Each field keeps its
+                    label and its unit while it is typed in -- they were
+                    placeholders, gone at the first digit; the placeholders
+                    are examples now. The accessible names say the units
+                    in full, and hold the visible labels. The identifiers
+                    are capitals and never autocorrected. */}
                 <div className="grid grid-cols-3 gap-2">
                   <Field data-invalid={!!errors.tailNumber}>
+                    <FieldLabel htmlFor={`${formId}-tail`} className="text-xs">Tail number</FieldLabel>
                     <Input
-                      {...register("tailNumber")} placeholder="Tail #"
+                      id={`${formId}-tail`} {...register("tailNumber")} placeholder="N12345"
                       aria-label="Tail number" aria-invalid={!!errors.tailNumber}
+                      autoCapitalize="characters" autoCorrect="off" autoComplete="off" spellCheck={false}
                     />
                     <FieldError errors={[errors.tailNumber]} />
                   </Field>
                   <Field data-invalid={!!errors.typeDesignator}>
+                    <FieldLabel htmlFor={`${formId}-type`} className="text-xs">Type</FieldLabel>
                     <Input
-                      {...register("typeDesignator")} placeholder="Type"
+                      id={`${formId}-type`} {...register("typeDesignator")} placeholder="C172"
                       aria-label="Type designator" aria-invalid={!!errors.typeDesignator}
+                      autoCapitalize="characters" autoCorrect="off" autoComplete="off" spellCheck={false}
                     />
                     <FieldError errors={[errors.typeDesignator]} />
                   </Field>
                   <Field data-invalid={!!errors.cruiseTasKt}>
-                    <Input
-                      {...register("cruiseTasKt")} placeholder="TAS kt"
-                      aria-label="Cruise TAS in knots" inputMode="decimal" aria-invalid={!!errors.cruiseTasKt}
-                    />
+                    <FieldLabel htmlFor={`${formId}-tas`} className="text-xs">Cruise TAS</FieldLabel>
+                    <InputGroup>
+                      <InputGroupInput
+                        id={`${formId}-tas`} {...register("cruiseTasKt")} placeholder="110"
+                        aria-label="Cruise TAS in knots" inputMode="decimal" aria-invalid={!!errors.cruiseTasKt}
+                      />
+                      <InputGroupAddon align="inline-end"><InputGroupText>kt</InputGroupText></InputGroupAddon>
+                    </InputGroup>
                     <FieldError errors={[errors.cruiseTasKt]} />
                   </Field>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <Field data-invalid={!!errors.fuelBurnGph}>
-                    <Input
-                      {...register("fuelBurnGph")} placeholder="Fuel burn gph"
-                      aria-label="Fuel burn in gallons per hour" inputMode="decimal" aria-invalid={!!errors.fuelBurnGph}
-                    />
+                    <FieldLabel htmlFor={`${formId}-burn`} className="text-xs">Fuel burn</FieldLabel>
+                    <InputGroup>
+                      <InputGroupInput
+                        id={`${formId}-burn`} {...register("fuelBurnGph")} placeholder="8.5"
+                        aria-label="Fuel burn in gallons per hour" inputMode="decimal" aria-invalid={!!errors.fuelBurnGph}
+                      />
+                      <InputGroupAddon align="inline-end"><InputGroupText>gph</InputGroupText></InputGroupAddon>
+                    </InputGroup>
                     <FieldError errors={[errors.fuelBurnGph]} />
                   </Field>
                   <Field data-invalid={!!errors.usableFuelGal}>
-                    <Input
-                      {...register("usableFuelGal")} placeholder="Usable fuel gal"
-                      aria-label="Usable fuel in gallons" inputMode="decimal" aria-invalid={!!errors.usableFuelGal}
-                    />
+                    <FieldLabel htmlFor={`${formId}-usable`} className="text-xs">Usable fuel</FieldLabel>
+                    <InputGroup>
+                      <InputGroupInput
+                        id={`${formId}-usable`} {...register("usableFuelGal")} placeholder="40"
+                        aria-label="Usable fuel in gallons" inputMode="decimal" aria-invalid={!!errors.usableFuelGal}
+                      />
+                      <InputGroupAddon align="inline-end"><InputGroupText>gal</InputGroupText></InputGroupAddon>
+                    </InputGroup>
                     <FieldError errors={[errors.usableFuelGal]} />
                   </Field>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Button type="submit" disabled={save.isPending}>{editingId ? "Save changes" : "Add aircraft"}</Button>
+                  {/* A spinner while it saves: disabled alone looked like
+                      nothing was happening. The name stays the words. */}
+                  <Button type="submit" disabled={save.isPending} aria-busy={save.isPending}>
+                    {save.isPending && <Spinner role="presentation" aria-label={undefined} aria-hidden />}
+                    {editingId ? "Save changes" : "Add aircraft"}
+                  </Button>
                   <Button type="button" variant="link" size="sm" onClick={cancelEdit}>Cancel</Button>
                 </div>
               </form>
-            </PopoverContent>
-          </Popover>
+            </ResponsivePopoverContent>
+          </ResponsivePopover>
         )}
       </div>
       {pilot === null || pilot === "error" ? (
@@ -228,7 +260,14 @@ export function AircraftPanel({ pilot }: { pilot: PilotState }) {
             // primary content); the table from md up.
             <>
             <ul className="mt-2 mb-3 divide-y rounded-md border md:hidden" aria-label="Your saved aircraft">
-              {list.length === 0 && <li className="p-3 text-center text-sm text-muted-foreground">No aircraft yet.</li>}
+              {list.length === 0 && (
+                // The empty state carries its own way on: the plus above
+                // is small, and "no aircraft yet" alone left it to be found.
+                <li className="p-3 text-center text-sm text-muted-foreground">
+                  No aircraft yet.{" "}
+                  <Button type="button" variant="link" size="sm" className="h-auto p-0" onClick={() => setAdding(true)}>Add your first aircraft</Button>
+                </li>
+              )}
               {list.map(a => (
                 <li key={a.id} className="flex items-start justify-between gap-3 p-3 text-sm" data-aircraft-row>
                   <div className="min-w-0">
@@ -258,7 +297,12 @@ export function AircraftPanel({ pilot }: { pilot: PilotState }) {
               </TableHeader>
               <TableBody>
                 {list.length === 0 && (
-                  <TableRow><TableCell colSpan={6} className="h-16 text-center text-muted-foreground">No aircraft yet.</TableCell></TableRow>
+                  <TableRow>
+                    <TableCell colSpan={6} className="h-16 text-center text-muted-foreground">
+                      No aircraft yet.{" "}
+                      <Button type="button" variant="link" size="sm" className="h-auto p-0" onClick={() => setAdding(true)}>Add your first aircraft</Button>
+                    </TableCell>
+                  </TableRow>
                 )}
                 {list.map(a => (
                   <TableRow key={a.id} data-aircraft-row>

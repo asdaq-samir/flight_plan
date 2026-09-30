@@ -11,7 +11,7 @@ import { Accordion } from "../../../../components/ui/accordion";
 import IconButton from "../../../../components/IconButton";
 import { Button } from "../../../../components/ui/button";
 import { Input } from "../../../../components/ui/input";
-import { Popover, PopoverContent, PopoverTrigger } from "../../../../components/ui/popover";
+import { ResponsivePopover, ResponsivePopoverContent, ResponsivePopoverTrigger } from "../../../../components/ResponsivePopover";
 import { Textarea } from "../../../../components/ui/textarea";
 import AltitudeReasoning from "../AltitudeReasoning";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../../../components/ui/select";
@@ -114,6 +114,12 @@ interface Props {
   /** The briefing's sections, rendered under the nav log's own
    *  section in the same scroller. */
   children?: ReactNode;
+  /** What must be seen on opening the drawer, above every section
+   *  (the briefing's warnings). */
+  notice?: ReactNode;
+  /** The drawer's last line, under every section (the planning-aid
+   *  reminder). */
+  footer?: ReactNode;
   /** Clicking a row focuses that waypoint on the map (pans/zooms to
    *  it, draws the halo) the same way clicking its marker there
    *  selects this row -- keyed by coordinates rather than a row
@@ -244,7 +250,7 @@ export default function NavLogView({
   totals, nav, onAltitudeChoiceChange, depart, onDepartChange,
   legs, dep, dest, ends,
   selected, descriptions, onSaveDescription,
-  onGenerateDescriptions, descriptionsLoading, actions, children,
+  onGenerateDescriptions, descriptionsLoading, actions, children, notice, footer,
   selectedPoint, onSelectPoint, onDeselectPoint, drawerOpen, alt, onAltChange, onSubmit,
   aircraftValue, aircraftOptions, onAircraftChange,
 }: Props) {
@@ -302,7 +308,9 @@ export default function NavLogView({
       header: () => (
         <span className="inline-flex items-center gap-1">
           <IconButton
-            size="icon-xs" label="Generate descriptions" className="print:hidden"
+            // relative z-10: its 44-point hit area (index.css) over the
+            // "Waypoint" beside it, which painted over the area's right.
+            size="icon-xs" label="Generate descriptions" className="relative z-10 print:hidden"
             onClick={onGenerateDescriptions} disabled={descriptionsLoading || selected.length === 0}
             data-testid="generate-descriptions-button"
           >
@@ -598,8 +606,8 @@ export default function NavLogView({
           const label = nav.flown === null ? "No altitude: no winds" : range;
           return (
             <>
-              <Popover>
-                <PopoverTrigger asChild>
+              <ResponsivePopover>
+                <ResponsivePopoverTrigger asChild>
                   <Button
                     variant="ghost" size="sm" className="shrink-0 px-1 font-normal text-muted-foreground print:hidden"
                     aria-label="How the altitude was chosen" data-testid="altitude-why"
@@ -607,8 +615,10 @@ export default function NavLogView({
                     {label}
                     <CircleHelp className="size-4" />
                   </Button>
-                </PopoverTrigger>
-                <PopoverContent align="start" className="w-80">
+                </ResponsivePopoverTrigger>
+                {/* On a phone a dialog in the middle of the screen: as a
+                    popover it was 70% of the screen, scrolling inside. */}
+                <ResponsivePopoverContent title="How the altitude was chosen" align="start" className="w-80">
                   {/* The three plans first, each a button: the pilot
                       picks one and the log re-plans on it. Then why. */}
                   <div className="mb-3 space-y-1.5" role="group" aria-label="Cruise altitude plans">
@@ -663,8 +673,8 @@ export default function NavLogView({
                   </div>
                   <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">How the altitude was chosen</div>
                   <AltitudeReasoning nav={nav} />
-                </PopoverContent>
-              </Popover>
+                </ResponsivePopoverContent>
+              </ResponsivePopover>
               <span className="hidden text-muted-foreground print:inline">
                 {label}
               </span>
@@ -769,6 +779,7 @@ export default function NavLogView({
         className="flight-briefing @container min-h-0 flex-1 overflow-auto px-3 pb-[env(safe-area-inset-bottom)] print:h-auto print:overflow-visible print:pb-0"
         data-testid="navlog-scroller"
       >
+        {notice}
         <Accordion type="multiple" value={printing ? ALL_SECTIONS : open} onValueChange={setOpen}>
           <AccordionSection title="Nav Log">
             {summary}
@@ -777,6 +788,7 @@ export default function NavLogView({
           </AccordionSection>
           {children}
         </Accordion>
+        {footer}
       </div>
     </div>
   );
