@@ -533,6 +533,7 @@ jobs:
       - name: The public images, in the background
         env:
           SHARD: ${{ matrix.shard }}
+          EVENT: ${{ github.event_name }}
         run: |
           # web/dist: where the page will be built, mounted into the
           # webapp -- made now, so that Docker does not make it, as root.
@@ -541,21 +542,27 @@ jobs:
           export T0
           echo "T0=$T0" >> "$GITHUB_ENV"
           nohup vmstat -n 1 180 > /tmp/e2e-out/vmstat.log 2>&1 < /dev/null &
-          echo "0 disks: / on $(findmnt -no SOURCE,SIZE / | xargs), /mnt on $(findmnt -no SOURCE,SIZE /mnt | xargs); $(lsblk -e 7 -dno NAME,SIZE,MODEL | xargs)" >> /tmp/e2e-out/timeline
-          # One run's measurement: on the odd shards, Docker's storage --
-          # containerd's image store and Docker's own -- on the runner's
-          # temporary disk rather than its system disk, which the caches
-          # below are restored to as well. Some runners' system disk writes
-          # at most about 230 MB/s, and a shard writes about 8 GB before its
-          # first test; on those, everything that touches the disk is late.
-          if [ $((SHARD % 2)) = 1 ] && mountpoint -q /mnt; then
-            sudo systemctl stop docker.socket docker.service containerd.service
-            sudo mkdir -p /mnt/containerd /mnt/docker
-            sudo mount --bind /mnt/containerd /var/lib/containerd
-            sudo mount --bind /mnt/docker /var/lib/docker
-            sudo systemctl start containerd.service docker.service
-            echo "$(($(date +%s) - T0)) Docker's storage on /mnt" >> /tmp/e2e-out/timeline
+          # One run's measurement, on the odd shards of a push: Docker's own
+          # image store (overlay2) rather than containerd's, and sixteen
+          # layers downloaded at once rather than three. The runners are of
+          # two kinds (the line below says which each shard had): on those
+          # whose disk is an "NVMe Accelerator" it writes at most about
+          # 230 MB/s, a quarter of the setup goes on waiting for it, and even
+          # the smallest images (Mailpit, the page) are in only 40 to 60
+          # seconds in, behind the large ones. containerd keeps each layer
+          # as downloaded as well as unpacked, and syncs each to disk as it
+          # lands; Docker's own store unpacks each from a temporary file. A
+          # pull request's shards keep containerd's, which their build reads
+          # the registry cache through.
+          if [ $((SHARD % 2)) = 1 ] && [ "$EVENT" != pull_request ]; then
+            { [ -s /etc/docker/daemon.json ] && cat /etc/docker/daemon.json || echo '{}'; } \
+              | jq '. + {"features": ((.features // {}) + {"containerd-snapshotter": false}), "max-concurrent-downloads": 16}' \
+              > /tmp/e2e-out/daemon.json
+            sudo cp /tmp/e2e-out/daemon.json /etc/docker/daemon.json
+            sudo systemctl restart docker
+            echo "$(($(date +%s) - T0)) Docker restarted with its own image store" >> /tmp/e2e-out/timeline
           fi
+          echo "0 the runner's disk: $(lsblk -e 7 -dno NAME,MODEL | xargs); Docker's storage: $(docker info --format '{{.Driver}}')" >> /tmp/e2e-out/timeline
           cat > /tmp/e2e-out/public.sh <<'EOF'
           mark() { echo "$(($(date +%s) - T0)) $*" >> /tmp/e2e-out/timeline; }
           compose() { docker compose -f docker-compose.yml -f docker-compose.ci.yml "$@"; }
