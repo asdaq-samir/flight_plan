@@ -158,6 +158,15 @@ function surfaceName(surface: string | null | undefined): string | null {
 
 const PLAN_LABEL: Record<string, string> = { lowest: "Lowest", highest: "Highest", fastest: "Fastest", economical: "Economical" };
 
+/** What sets the whole route's ceiling: the clouds (14 CFR 91.155's
+ *  distance under the lowest one forecast near a leg), a Class B shelf,
+ *  or the aeroplane. */
+function ceilingReason(s: NavLogAltitude["altitude_selection"]): string {
+  if (s.cloud_ceiling_ft != null && s.cloud_ceiling_ft === s.band_ceiling_ft) return `Under the clouds near ${s.cloud_station}`;
+  if (s.airspace_ceiling_ft != null && s.airspace_ceiling_ft === s.band_ceiling_ft) return "The Class B shelf";
+  return "The aeroplane's service ceiling";
+}
+
 /** The altitudes a plan flies as the nav log's header gives them: one
  *  figure, or its lowest and highest. */
 function altitudeRange(nav: NavLogAltitude): string {
@@ -487,7 +496,7 @@ export default function FlightBriefingView({
               <ListRow title="Floor" description="Terrain and obstacles, with margin" value={`${altFt(nav.altitude_selection.floor_ft)} ft`} />
               <ListRow
                 title="Ceiling"
-                description={nav.altitude_selection.airspace_ceiling_ft != null && nav.altitude_selection.airspace_ceiling_ft === nav.altitude_selection.band_ceiling_ft ? "The Class B shelf" : "The aeroplane's service ceiling"}
+                description={ceilingReason(nav.altitude_selection)}
                 value={nav.altitude_selection.band_ceiling_ft == null ? "none" : `${altFt(nav.altitude_selection.band_ceiling_ft)} ft`}
               />
             </ListGroup>

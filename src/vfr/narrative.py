@@ -189,8 +189,18 @@ def _format_altitude_selection(sel: dict | None) -> str:
     band = sel.get("band_ceiling_ft")
     lines = [
         f"Terrain/obstacle floor: {_ft(sel['floor_ft'])}",
-        f"Airspace/service-ceiling band: {_ft(band) if band is not None else 'no ceiling below Class A'}",
+        f"Airspace/service-ceiling/cloud band: {_ft(band) if band is not None else 'no ceiling below Class A'}",
     ]
+    if sel.get("cloud_clearance_kept") is False:
+        lines.append(
+            f"CLOUD CLEARANCE NOT POSSIBLE (14 CFR 91.155): the clouds forecast near {sel.get('cloud_station')} "
+            "leave no VFR altitude on some legs, and the altitudes there leave them out"
+        )
+    elif sel.get("cloud_base_ft") is not None and sel.get("cloud_ceiling_ft") is not None:
+        lines.append(
+            f"Cloud clearance (14 CFR 91.155): clouds forecast at {_ft(sel['cloud_base_ft'])} MSL near "
+            f"{sel.get('cloud_station')}, so no altitude above {_ft(sel['cloud_ceiling_ft'])}"
+        )
 
     if "freezing_level" in unavailable:
         lines.append("Icing: UNKNOWN -- the freezing level could not be read")

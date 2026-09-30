@@ -93,6 +93,20 @@ def test_weather_that_could_not_be_read_is_briefed_as_unknown_not_clear():
     assert "not expected" not in text and "none on the route" not in text
 
 
+def test_the_clouds_the_altitudes_keep_under_are_briefed():
+    sel = dict(SELECTION, cloud_base_ft=4100.0, cloud_station="KRHI", cloud_ceiling_ft=3600.0)
+    text = narrative.briefing_prompt("C81", "KDLH", 2500, sel, [LEG])
+
+    assert "Cloud clearance (14 CFR 91.155): clouds forecast at 4,100ft MSL near KRHI, so no altitude above 3,600ft" in text
+
+
+def test_clouds_that_leave_no_altitude_are_briefed_as_such():
+    sel = dict(SELECTION, cloud_base_ft=2200.0, cloud_station="KRHI", cloud_ceiling_ft=1700.0, cloud_clearance_kept=False)
+    text = narrative.briefing_prompt("C81", "KDLH", 2500, sel, [LEG])
+
+    assert "CLOUD CLEARANCE NOT POSSIBLE (14 CFR 91.155)" in text and "so no altitude above" not in text
+
+
 def test_no_value_is_printed_as_none():
     """Flagged on visibility alone, and with no band ceiling: both used to
     read "Noneft"."""

@@ -58,6 +58,17 @@ export default function AltitudeReasoning({ nav }: Props) {
   const ceilingParts: string[] = [
     s.airspace_ceiling_ft !== null ? `the Class B shelf at ${altFt(s.airspace_ceiling_ft)} ft` : "no Class B shelf across the route",
   ];
+  // The clouds, 14 CFR 91.155's distance below the lowest ceiling the
+  // TAFs near the legs forecast for the flight: 500 ft, or 1,000 ft
+  // where that is at 10,000 ft or above.
+  // Where the clouds leave no altitude, the band leaves them out, and a
+  // sentence of its own under the ceiling says so.
+  if (s.cloud_base_ft != null && s.cloud_ceiling_ft != null && s.cloud_clearance_kept) {
+    ceilingParts.push(`${s.cloud_ceiling_ft >= 10000 ? "1,000" : "500"} ft under the clouds forecast at ${
+      altFt(s.cloud_base_ft)} ft near ${s.cloud_station} (14 CFR 91.155)`);
+  } else if (!s.weather_unavailable.includes("ceiling_visibility")) {
+    ceilingParts.push("no ceiling forecast near the legs");
+  }
   // Icing is a warning, not a ceiling: the planner no longer caps the
   // band at the freezing level (icing needs cloud as well as cold).
   const freezing = s.weather_unavailable.includes("freezing_level")
@@ -75,9 +86,11 @@ export default function AltitudeReasoning({ nav }: Props) {
   const runs = ceilingRuns(s.segments);
   const runsText = runs.length > 1
     ? runs.map((r, i) => {
-      const why = r.airspace_ceiling_ft !== null && r.airspace_ceiling_ft === r.band_ceiling_ft
-        ? "the Class B shelf"
-        : "the service ceiling";
+      const why = r.cloud_ceiling_ft != null && r.cloud_ceiling_ft === r.band_ceiling_ft
+        ? `the clouds near ${r.cloud_station}`
+        : r.airspace_ceiling_ft !== null && r.airspace_ceiling_ft === r.band_ceiling_ft
+          ? "the Class B shelf"
+          : "the service ceiling";
       const where = i === 0 ? `for the first ${r.to_nm} nm` : i === runs.length - 1 ? "the rest of the way" : `from ${r.from_nm} to ${r.to_nm} nm`;
       return `${r.band_ceiling_ft === null ? "none" : `${altFt(r.band_ceiling_ft)} ft`} (${why}) ${where}`;
     }).join(", then ")
@@ -104,7 +117,14 @@ export default function AltitudeReasoning({ nav }: Props) {
       <li>
         <b>Ceiling {s.band_ceiling_ft !== null ? `${altFt(s.band_ceiling_ft)} ft` : "none"} for the whole route.</b>{" "}
         The lowest of {join(ceilingParts)}.
-        {runsText && ` Leg by leg: ${runsText} -- a shelf caps only the legs under it.`}
+        {runsText && ` Leg by leg: ${runsText} -- a shelf or a cloud caps only the legs under it.`}
+        {!s.cloud_clearance_kept && s.cloud_base_ft != null && (
+          <span className="text-destructive">
+            {" "}No altitude keeps 500 ft below the clouds forecast at {altFt(s.cloud_base_ft)} ft near {s.cloud_station} on
+            {" "}{s.segments.some(seg => seg.cloud_clearance_kept) ? "some legs" : "the route"}: VFR is not possible there as
+            forecast, and the altitudes there leave the clouds out.
+          </span>
+        )}
       </li>
       <li>
         <b>The rule.</b>{" "}
@@ -150,9 +170,9 @@ export default function AltitudeReasoning({ nav }: Props) {
         </li>
       )}
       <li>
-        <b>Checked, not part of the choice.</b>{" "}
+        <b>Checked as well.</b>{" "}
         {s.weather_unavailable.includes("ceiling_visibility")
-          ? "The forecast ceiling and visibility could not be checked. "
+          ? "The forecast ceiling and visibility could not be checked, so no altitude is kept under the clouds. "
           : `Forecast for the flight, its temporary changes included: ceiling ${
             s.min_ceiling_ft === null ? "none" : `${altFt(s.min_ceiling_ft)} ft`}, visibility ${s.min_visibility_sm ?? "—"} sm${
             s.low_ceiling_or_visibility ? ", below VFR minimums (1,000 ft, 3 sm) somewhere on the way" : ""

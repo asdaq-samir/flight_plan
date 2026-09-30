@@ -1,6 +1,6 @@
 """Recommended VFR cruising altitude for a route: terrain/obstacle floor,
-airspace/service-ceiling band, FAR 91.159 hemispheric rounding leg by
-leg, and go/no-go weather flags, icing among them.
+airspace/service-ceiling/cloud-clearance band, FAR 91.159 hemispheric
+rounding leg by leg, and go/no-go weather flags, icing among them.
 
 Notebook 08 walks the same steps one at a time -- floor, ceiling, weather,
 then the combined recommendation, with its explanation and printed output
@@ -20,9 +20,10 @@ those per-leg bands into the lowest, highest, fastest and economical plans.
 import logging
 import time
 from concurrent.futures import ThreadPoolExecutor
+from itertools import pairwise
 
 from . import airspace, sua, terrain, weather
-from .geo import along_track_distance_nm, bearing_deg, distance_nm
+from .geo import along_track_distance_nm, bearing_deg, distance_nm, track_distances_nm
 from .magnetic import magnetic_variation_deg
 from .terrain import DEFAULT_FAA_CACHE_DIR
 
@@ -30,6 +31,54 @@ log = logging.getLogger(__name__)
 
 # Class A begins at 18,000 ft: no VFR cruising above 17,500.
 CLASS_A_FLOOR_FT = 18000.0
+
+# 14 CFR 91.155(a), VFR under a cloud layer: 500 ft below it under
+# 10,000 ft MSL, 1,000 ft below it at 10,000 and above -- in Class E by
+# day and by night, and in Class G more than 1,200 ft above the surface.
+# Class G within 1,200 ft of the surface asks only "clear of clouds" by
+# day; the planner cannot tell Class G from Class E there, so it keeps
+# the 500 ft day and night, which is legal in both.
+CLOUD_CLEARANCE_FT = 500.0
+CLOUD_CLEARANCE_HIGH_FT = 1000.0
+CLOUD_CLEARANCE_HIGH_FROM_FT = 10000.0
+# A TAF speaks for the field it is issued for and a few miles around;
+# a leg takes the forecasts of the stations this close to its own line.
+CLOUD_STATION_RADIUS_NM = 25.0
+
+
+def highest_under_clouds_ft(cloud_base_ft: float) -> float:
+    """The highest altitude that keeps 91.155's distance below a cloud
+    base (MSL): 500 ft under it, or 1,000 ft under it where that is at or
+    above 10,000 ft -- and just under 10,000 ft where 500 ft below would
+    be up there but 1,000 ft below would not."""
+    high = cloud_base_ft - CLOUD_CLEARANCE_HIGH_FT
+    if high >= CLOUD_CLEARANCE_HIGH_FROM_FT:
+        return high
+    return min(cloud_base_ft - CLOUD_CLEARANCE_FT, CLOUD_CLEARANCE_HIGH_FROM_FT - 1)
+
+
+def _leg_cloud_bases(legs: list, stations: list) -> list:
+    """Each leg's lowest forecast cloud base, MSL, and the station it is
+    from: the ceiling (a broken or overcast layer, above the field) each
+    TAF station within CLOUD_STATION_RADIUS_NM of the leg's own line
+    forecasts for the flight, plus the field's elevation. (None, None)
+    where no station near the leg forecasts one: nothing known, nothing
+    capped. `legs` are ((lat, lon), (lat, lon)) pairs."""
+    bases = []
+    for a, b in legs:
+        length = distance_nm(*a, *b)
+        lowest = (None, None)
+        for station in stations:
+            if station.get("ceiling_ft") is None or station.get("elevation_ft") is None:
+                continue
+            cross, along = track_distances_nm(station["lat"], station["lon"], a, b)
+            off = abs(cross) if 0.0 <= along <= length else min(
+                distance_nm(station["lat"], station["lon"], *a), distance_nm(station["lat"], station["lon"], *b))
+            base = station["ceiling_ft"] + station["elevation_ft"]
+            if off <= CLOUD_STATION_RADIUS_NM and (lowest[0] is None or base < lowest[0]):
+                lowest = (base, station["icaoId"])
+        bases.append(lowest)
+    return bases
 
 
 def _timed(label: str, fn, pending: set | None = None):
@@ -165,6 +214,16 @@ def select_cruise_altitude(
     was wrong both ways: it forbade clear winter air, and said nothing
     about cloud. It is reported instead, with `icing_possible` where a
     legal altitude reaches it and cloud or an icing AIRMET is forecast.
+
+    The clouds do cap it: each leg keeps 14 CFR 91.155's distance below
+    the lowest ceiling the TAFs near it forecast for the flight
+    (highest_under_clouds_ft), where the forecast ceiling was only
+    reported before. The whole route's band keeps under the lowest of
+    them, as it does under the lowest shelf. Where the clouds leave a
+    leg no altitude at all, the leg keeps its band without them and
+    says so (`cloud_clearance_kept` False): a forecast is a reason to
+    warn, and a nav log refused for it could not be looked at for a
+    later departure either.
     """
     def timed(label, fn):
         return _timed(label, fn, pending)
@@ -270,21 +329,42 @@ def select_cruise_altitude(
     freezing_level_ft = freezing["ft"] if freezing else None
     freezing_at_or_below = bool(freezing and freezing["at_or_below"])
 
-    def band_ceiling(airspace_ceiling_ft):
-        ceilings = [c for c in [airspace_ceiling_ft, aircraft_profile["service_ceiling_ft"]] if c is not None]
+    # Each leg's lowest forecast cloud base (MSL), from the TAFs near it:
+    # the legs flown, or the direct line as the one leg.
+    legs = list(pairwise(fixes)) if fixes else [(route_start, route_end)]
+    cloud_bases = _leg_cloud_bases(legs, cv["stations"])
+    known_bases = [b for b in cloud_bases if b[0] is not None]
+    cloud_base_ft, cloud_station = min(known_bases) if known_bases else (None, None)
+
+    def band_ceiling(airspace_ceiling_ft, cloud_base=None):
+        ceilings = [c for c in [
+            airspace_ceiling_ft, aircraft_profile["service_ceiling_ft"],
+            None if cloud_base is None else highest_under_clouds_ft(cloud_base),
+        ] if c is not None]
         return min(ceilings) if ceilings else None
 
+    def band(floor, airspace_ceiling, cloud_base, course, areas):
+        """(ceiling, legal altitudes, cloud clearance kept): the legal
+        altitudes from the floor to the lowest ceiling, the clouds'
+        included, none through a prohibited area -- or, where the clouds
+        leave none, the band without them, and False."""
+        def legal(ceiling):
+            return [a for a in legal_cruising_altitudes(floor, ceiling, course) if not sua.blocked(a, areas)]
+        ceiling = band_ceiling(airspace_ceiling, cloud_base)
+        altitudes = legal(ceiling)
+        if altitudes or cloud_base is None:
+            return ceiling, altitudes, True
+        ceiling = band_ceiling(airspace_ceiling)
+        return ceiling, legal(ceiling), False
+
     # The whole route's own band: the highest floor and the lowest
-    # shelf anywhere along it -- the altitude that works everywhere.
+    # shelf and cloud anywhere along it -- the altitude that works
+    # everywhere.
     floor_ft = max(floors_ft)
     shelf_floors = [c for c in airspace_ceilings_ft if c is not None]
     airspace_ceiling_ft = min(shelf_floors) if shelf_floors else None
-    band_ceiling_ft = band_ceiling(airspace_ceiling_ft)
-    # No altitude through a prohibited area the route crosses.
-    candidates_ft = [
-        a for a in legal_cruising_altitudes(floor_ft, band_ceiling_ft, course_magnetic_deg)
-        if not sua.blocked(a, special_use)
-    ]
+    band_ceiling_ft, candidates_ft, cloud_clearance_kept = band(
+        floor_ft, airspace_ceiling_ft, cloud_base_ft, course_magnetic_deg, special_use)
 
     # The lowest legal VFR cruising altitude at or above the floor, not
     # the highest one under the ceiling.
@@ -314,20 +394,24 @@ def select_cruise_altitude(
     segments = []
     if fixes:
         for i, (a, b) in enumerate(zip(breaks_nm, breaks_nm[1:])):
-            segment_ceiling_ft = band_ceiling(airspace_ceilings_ft[i])
+            leg_cloud_base_ft, leg_cloud_station = cloud_bases[i]
             leg_course = _leg_course_magnetic_deg(fixes[i], fixes[i + 1])
+            segment_ceiling_ft, segment_candidates_ft, segment_clearance_kept = band(
+                floors_ft[i], airspace_ceilings_ft[i], leg_cloud_base_ft, leg_course,
+                [area for area in special_use if i in area["legs"]])
             segments.append({
                 "from_nm": round(a, 1),
                 "to_nm": round(b, 1),
                 "floor_ft": floors_ft[i],
                 "airspace_ceiling_ft": airspace_ceilings_ft[i],
+                "cloud_base_ft": leg_cloud_base_ft,
+                "cloud_station": leg_cloud_station,
+                "cloud_ceiling_ft": None if leg_cloud_base_ft is None else highest_under_clouds_ft(leg_cloud_base_ft),
+                "cloud_clearance_kept": segment_clearance_kept,
                 "band_ceiling_ft": segment_ceiling_ft,
                 "course_magnetic_deg": round(leg_course, 1),
                 "eastbound": is_eastbound(leg_course),
-                "candidates_ft": [
-                    a for a in legal_cruising_altitudes(floors_ft[i], segment_ceiling_ft, leg_course)
-                    if not sua.blocked(a, [area for area in special_use if i in area["legs"]])
-                ],
+                "candidates_ft": segment_candidates_ft,
             })
 
     # Icing: an altitude this could recommend reaching the freezing level
@@ -360,6 +444,15 @@ def select_cruise_altitude(
         "eastbound": is_eastbound(course_magnetic_deg),
         "floor_ft": floor_ft,
         "airspace_ceiling_ft": airspace_ceiling_ft,
+        # The lowest forecast cloud base (MSL) along the route and the
+        # TAF station it is from; None where no station near a leg
+        # forecasts a ceiling for the flight.
+        "cloud_base_ft": cloud_base_ft,
+        "cloud_station": cloud_station,
+        "cloud_ceiling_ft": None if cloud_base_ft is None else highest_under_clouds_ft(cloud_base_ft),
+        # False where the clouds leave the route, or a leg of it, no
+        # altitude: those altitudes are the band's without them.
+        "cloud_clearance_kept": cloud_clearance_kept and all(seg["cloud_clearance_kept"] for seg in segments),
         "airspace_transits": transits,
         "special_use": special_use,
         "freezing_level_ft": freezing_level_ft,

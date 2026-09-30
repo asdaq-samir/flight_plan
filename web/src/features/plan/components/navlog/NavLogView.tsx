@@ -596,6 +596,15 @@ export default function NavLogView({
     <div className="mb-3 text-sm" data-testid="navlog-summary">
       <ListGroup>
         {parts?.warning && <ListRow title={<span className="text-destructive">{parts.warning}</span>} />}
+        {/* The clouds forecast near a leg leave it no legal altitude (14
+            CFR 91.155): the plan still stands, over the band without
+            them, and says so here as well as in the reasoning. */}
+        {nav && !nav.altitude_selection.cloud_clearance_kept && (
+          <ListRow
+            title={<span className="text-destructive">Too low for VFR under the clouds near {nav.altitude_selection.cloud_station}</span>}
+            description="No altitude keeps 500 ft below the forecast clouds there"
+          />
+        )}
         {/* The altitude, and why: a pilot should never have to take a
             cruise altitude on trust, so the figure itself opens the
             planner's own reasoning -- floor, ceiling, the rule, the

@@ -365,6 +365,47 @@
             "title": "Candidates Ft",
             "type": "array"
           },
+          "cloud_base_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Cloud Base Ft"
+          },
+          "cloud_ceiling_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Cloud Ceiling Ft"
+          },
+          "cloud_clearance_kept": {
+            "default": true,
+            "title": "Cloud Clearance Kept",
+            "type": "boolean"
+          },
+          "cloud_station": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Cloud Station"
+          },
           "course_magnetic_deg": {
             "title": "Course Magnetic Deg",
             "type": "number"
@@ -589,7 +630,7 @@
         "type": "object"
       },
       "AltitudeSegment": {
-        "description": "One leg's own band: its floor, the shelf over it alone, and the\nlegal cruising altitudes between -- what lets a plan step down under\na Class B shelf and climb again past it.",
+        "description": "One leg's own band: its floor, the shelf and the clouds over it\nalone, and the legal cruising altitudes between -- what lets a plan\nstep down under a Class B shelf and climb again past it.",
         "properties": {
           "airspace_ceiling_ft": {
             "anyOf": [
@@ -619,6 +660,47 @@
             },
             "title": "Candidates Ft",
             "type": "array"
+          },
+          "cloud_base_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Cloud Base Ft"
+          },
+          "cloud_ceiling_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Cloud Ceiling Ft"
+          },
+          "cloud_clearance_kept": {
+            "default": true,
+            "title": "Cloud Clearance Kept",
+            "type": "boolean"
+          },
+          "cloud_station": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Cloud Station"
           },
           "course_magnetic_deg": {
             "anyOf": [

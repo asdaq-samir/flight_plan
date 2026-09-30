@@ -541,12 +541,18 @@ def metar_for_idents(idents: list) -> dict:
 # Within one start time, the base forecast (FM, or the TAF's own first
 # line) sorts first; BECMG/TEMPO/PROB lines modify it.
 _CHANGE_ORDER = {"": 0, "FM": 0, "BECMG": 1, "TEMPO": 2, "PROB": 3}
+# A TAF station's elevation comes in metres; everything here is feet
+# (vfr.terrain's own constant, not imported: this module stays free of
+# the terrain and FAA data it would bring).
+M_TO_FT = 3.28084
 
 
 def _parse_tafs(xml_bytes: bytes) -> list:
-    """[{"icaoId", "lat", "lon", "fcsts": [...]}] -- one entry per station,
-    its latest issue, periods in time order with the base forecast
-    first."""
+    """[{"icaoId", "lat", "lon", "elevation_ft", "fcsts": [...]}] -- one
+    entry per station, its latest issue, periods in time order with the
+    base forecast first. The field's elevation turns a ceiling, which a
+    TAF gives above the field, into the altitude a pilot keeps below it
+    (vfr.altitude's cloud clearance)."""
     latest: dict = {}
     for el in ET.fromstring(xml_bytes).iter("TAF"):
         ident = el.findtext("station_id")
@@ -567,8 +573,10 @@ def _parse_tafs(xml_bytes: bytes) -> list:
                 **_period(forecast),
             })
         fcsts.sort(key=lambda p: (p["timeFrom"], _CHANGE_ORDER.get(p["change"][:5], 3)))
+        elevation_m = _float(el.findtext("elevation_m"))
         latest[ident] = (issued, {
             "icaoId": ident, "lat": lat, "lon": lon,
+            "elevation_ft": None if elevation_m is None else round(elevation_m * M_TO_FT),
             # The forecast as issued. The derived ceiling and visibility
             # below are what a go/no-go reads; the text is what a pilot
             # reads, and only one of the two can be shown on a phone.
@@ -667,10 +675,10 @@ def ceiling_visibility_along_route(
 
     Returns {"min_ceiling_ft", "min_visibility_sm", "stations"} -- the
     first two are the worst (most restrictive) values found nearby, for
-    a conservative go/no-go read; "stations" is the per-station detail.
-    This is about *whether* conditions support VFR flight at all, not
-    *what altitude* to fly at -- kept separate from the altitude-band
-    constraints (terrain/airspace/aircraft/freezing-level) for that reason.
+    a conservative go/no-go read; "stations" is the per-station detail,
+    where each is and its field's elevation with its own worst ceiling
+    and visibility, which vfr.altitude keeps each leg's altitudes under
+    the clouds with (14 CFR 91.155).
     """
     from .geo import corridor_bbox
 
@@ -688,7 +696,10 @@ def ceiling_visibility_along_route(
             continue
         ceiling = worst["ceiling_ft"]
         visibility = worst["visibility_sm"]
-        per_station.append({"icaoId": station["icaoId"], "ceiling_ft": ceiling, "visibility_sm": visibility})
+        per_station.append({
+            "icaoId": station["icaoId"], "lat": station["lat"], "lon": station["lon"],
+            "elevation_ft": station.get("elevation_ft"), "ceiling_ft": ceiling, "visibility_sm": visibility,
+        })
         if ceiling is not None:
             ceilings.append(ceiling)
         if visibility is not None:

@@ -201,14 +201,25 @@ class SpecialUseArea(BaseModel):
 
 
 class AltitudeSegment(BaseModel):
-    """One leg's own band: its floor, the shelf over it alone, and the
-    legal cruising altitudes between -- what lets a plan step down under
-    a Class B shelf and climb again past it."""
+    """One leg's own band: its floor, the shelf and the clouds over it
+    alone, and the legal cruising altitudes between -- what lets a plan
+    step down under a Class B shelf and climb again past it."""
 
     from_nm: float
     to_nm: float
     floor_ft: float
     airspace_ceiling_ft: float | None
+    #: The lowest cloud base (MSL) the TAFs near this leg forecast for
+    #: the flight, and the station: the leg keeps 14 CFR 91.155's
+    #: distance below it, up to `cloud_ceiling_ft`. None where no
+    #: station near it forecasts one.
+    cloud_base_ft: float | None = None
+    cloud_station: str | None = None
+    cloud_ceiling_ft: float | None = None
+    #: False where the clouds leave this leg no altitude: VFR is not
+    #: possible there as forecast, and its altitudes are the band's
+    #: without the clouds.
+    cloud_clearance_kept: bool = True
     band_ceiling_ft: float | None
     #: This leg's own magnetic course and half of the hemispheric rule,
     #: which its legal altitudes are rounded to.
@@ -234,6 +245,16 @@ class AltitudeBreakdown(BaseModel):
     eastbound: bool
     floor_ft: float
     airspace_ceiling_ft: float | None
+    #: The lowest forecast cloud base (MSL) along the route, and the TAF
+    #: station it is from; `cloud_ceiling_ft` is the highest altitude
+    #: that keeps 14 CFR 91.155's distance below it (500 ft, 1,000 ft at
+    #: 10,000 and above), which the band keeps under.
+    cloud_base_ft: float | None = None
+    cloud_station: str | None = None
+    cloud_ceiling_ft: float | None = None
+    #: False where the clouds leave the route, or a leg of it, no
+    #: altitude: those altitudes are the band's without the clouds.
+    cloud_clearance_kept: bool = True
     airspace_transits: list[AirspaceTransit]
     #: Prohibited and restricted areas, MOAs and the like the legs cross
     #: (vfr.sua); no candidate altitude enters a prohibited one.

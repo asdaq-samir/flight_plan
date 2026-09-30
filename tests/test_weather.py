@@ -96,6 +96,7 @@ TAFS = _cache_file(
     # Periods listed newest-first, as the real file does.
     '<TAF><raw_text>TAF KDLH 200000Z 2000/2024 ...</raw_text><station_id>KDLH</station_id>'
     '<issue_time>2026-09-20T00:00:00.000Z</issue_time><latitude>46.8421</latitude><longitude>-92.1936</longitude>'
+    '<elevation_m>434.0</elevation_m>'
     '<forecast><fcst_time_from>2026-09-20T06:00:00.000Z</fcst_time_from><fcst_time_to>2026-09-20T12:00:00.000Z</fcst_time_to>'
     '<change_indicator>FM</change_indicator><visibility_statute_mi>6+</visibility_statute_mi>'
     '<sky_condition sky_cover="BKN" cloud_base_ft_agl="4000"/></forecast>'
@@ -202,7 +203,11 @@ def test_metar_for_idents_wraps_a_network_failure(mock_get, mock_sleep):
 def test_forecast_along_the_route_reads_each_nearby_stations_current_period(mock_get, mock_time):
     forecast = ceiling_visibility_along_route(C81, KDLH)
 
-    assert forecast["stations"] == [{"icaoId": "KDLH", "ceiling_ft": 1500, "visibility_sm": 3.0}]
+    # Where each station is and how high its field: a ceiling is above
+    # the field, and vfr.altitude keeps a leg under the clouds in MSL.
+    assert forecast["stations"] == [{
+        "icaoId": "KDLH", "lat": 46.8421, "lon": -92.1936, "elevation_ft": 1424, "ceiling_ft": 1500, "visibility_sm": 3.0,
+    }]
     assert forecast["min_ceiling_ft"] == 1500 and forecast["min_visibility_sm"] == 3.0
 
 

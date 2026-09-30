@@ -930,7 +930,7 @@ test("plan page: the nav log's altitude opens the planner's own reasoning, and t
   await expect(popover).toContainText("Ceiling");
   await expect(popover).toContainText("14 CFR 91.159");
   await expect(popover).toContainText("Four plans");
-  await expect(popover).toContainText("Checked, not part of the choice");
+  await expect(popover).toContainText("Checked as well");
   // The four plans are buttons, the flown one pressed -- the fastest
   // for the winds unless the address says otherwise; picking another
   // re-plans on it and the URL carries the choice.

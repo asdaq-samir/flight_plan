@@ -139,3 +139,63 @@ def test_no_fixes_is_the_direct_line_as_one_leg(sources, monkeypatch):
     fields = ("airspace_ceiling_ft", "band_ceiling_ft", "recommended_ft", "candidates_ft")
     assert {k: bare[k] for k in fields} == {k: ends[k] for k in fields}
     assert bare["airspace_ceiling_ft"] == 4500.0
+
+
+def _station(ident, lat, lon, ceiling_ft, elevation_ft=1000):
+    """A TAF station near the route, as ceiling_visibility_along_route
+    gives it: the ceiling above the field, the field's elevation."""
+    return {"icaoId": ident, "lat": lat, "lon": lon, "elevation_ft": elevation_ft,
+            "ceiling_ft": ceiling_ft, "visibility_sm": 5.0}
+
+
+def test_a_leg_keeps_500_ft_under_the_clouds_forecast_near_it(sources):
+    # A 4,500 ft ceiling over a 1,000 ft field on the second leg's line:
+    # cloud at 5,500 ft MSL, so nothing above 5,000 there. The first leg,
+    # with no station near it, keeps its whole band.
+    sources["cv"] = {"min_ceiling_ft": 4500, "min_visibility_sm": 5.0,
+                     "stations": [_station("KXYZ", 45.95, -89.99, 4500)]}
+
+    result = altitude.select_cruise_altitude(DEP, DEST, PROFILE, fixes=[DEP, DOGLEG, DEST])
+
+    first, second = result["segments"]
+    assert first["cloud_base_ft"] is None and max(first["candidates_ft"]) > 5000
+    assert second["cloud_base_ft"] == 5500 and second["cloud_station"] == "KXYZ"
+    assert second["cloud_ceiling_ft"] == 5000 == second["band_ceiling_ft"]
+    assert max(second["candidates_ft"]) == 4500 and second["cloud_clearance_kept"] is True
+    # The whole route keeps under the lowest cloud anywhere on it.
+    assert result["cloud_base_ft"] == 5500 and result["band_ceiling_ft"] == 5000
+
+
+def test_at_10000_ft_and_above_the_clouds_are_kept_1000_ft_above(sources):
+    assert altitude.highest_under_clouds_ft(6000.0) == 5500.0
+    assert altitude.highest_under_clouds_ft(12000.0) == 11000.0
+    # 500 ft under a 10,800 ft base is 10,300 -- but at 10,000 and above
+    # the rule is 1,000 ft, so the highest is just under 10,000.
+    assert 9500.0 < altitude.highest_under_clouds_ft(10800.0) < 10000.0
+
+
+def test_clouds_too_low_over_the_floor_are_said_and_the_leg_keeps_its_band(sources):
+    # A 1,200 ft ceiling over a 1,000 ft field: cloud at 2,200 ft MSL over
+    # a 2,000 ft floor, and nothing there keeps 500 ft below it. Not a
+    # refusal to plan: the leg keeps its band without the clouds, and
+    # says the clearance could not be kept.
+    sources["cv"] = {"min_ceiling_ft": 1200, "min_visibility_sm": 5.0,
+                     "stations": [_station("KXYZ", 45.5, -90.0, 1200)]}
+
+    result = altitude.select_cruise_altitude(DEP, DEST, PROFILE, fixes=[DEP, DEST])
+
+    (leg,) = result["segments"]
+    # Due north: odd thousands plus 500, the first over the floor 3,500.
+    assert leg["cloud_clearance_kept"] is False and leg["candidates_ft"][0] == 3500.0
+    assert leg["band_ceiling_ft"] == 14000 and leg["cloud_ceiling_ft"] == 1700
+    assert result["cloud_clearance_kept"] is False and result["recommended_ft"] == 3500.0
+
+
+def test_a_station_far_from_the_leg_does_not_cap_it(sources):
+    # 42 nm west of the line: its forecast is not this leg's.
+    sources["cv"] = {"min_ceiling_ft": 1200, "min_visibility_sm": 5.0,
+                     "stations": [_station("KFAR", 45.5, -91.0, 1200)]}
+
+    result = altitude.select_cruise_altitude(DEP, DEST, PROFILE, fixes=[DEP, DEST])
+
+    assert result["cloud_base_ft"] is None and result["segments"][0]["candidates_ft"]
