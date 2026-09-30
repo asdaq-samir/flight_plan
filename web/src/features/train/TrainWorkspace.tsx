@@ -246,7 +246,7 @@ export default function TrainWorkspace({ dep, dest, children }: WorkspaceProps) 
     ),
     // One panel, the shape of the pilot's nav log: the route's numbers
     // and the drawer's actions in a header (the filters in a popover
-    // from it), and the walk as one table under it. Rating from the
+    // from it), and the walk as one list under it. Rating from the
     // selected row moves on to the next one, the way the digit keys do.
     sidebar: (
       <WaypointPanel

@@ -31,8 +31,8 @@ test("dev page: the dev console opens on training, and the waypoint drawer opens
   await expect(devMl.getByText("Rate its checkpoints")).toBeVisible();
   await expect(devMl.getByText("Retrain", { exact: true })).toBeVisible();
   // No inputs of its own: the header's route form is the one that
-  // loads (and offers to collect) a route, and the Retrain button
-  // lives in the Model Training drawer at the side, beside Undo and Reset.
+  // loads (and offers to collect) a route, and Retrain lives in the
+  // Model Training drawer at the side, in its More menu with Reset.
   expect(await devMl.locator("input, textarea, [role=combobox]").count()).toBe(0);
   expect(await devMl.getByRole("button", { name: /Retrain/ }).count()).toBe(0);
   await devMl.getByRole("tab", { name: "System" }).click();
@@ -55,8 +55,8 @@ test("dev page: the waypoint drawer is a worklist -- every candidate in flight o
   await page.getByTestId("sidebar-trigger-button").click();
   const drawer = sideDrawer(page);
   await expect(drawer.getByTestId("drawer-title")).toHaveText("Model Training");
-  const table = drawer.getByRole("table", { name: /Waypoints from/i });
-  const rows = table.locator("tbody tr[tabindex='0']");
+  const list = drawer.getByRole("list", { name: /Waypoints from/i });
+  const rows = list.locator("[data-waypoint-row]");
   // Detections stream in: far more rows than the two endpoints, the
   // unrated ones included -- the old list showed only rated points.
   await expect.poll(() => rows.count(), { timeout: slow(30000) }).toBeGreaterThan(10);
@@ -80,11 +80,11 @@ test("dev page: the waypoint drawer is a worklist -- every candidate in flight o
 
   // Down, with focus in the list, walks the list top to bottom.
   await page.keyboard.press("ArrowDown");
-  await expect(table.locator("tbody tr[data-selected]")).toHaveCount(1);
+  await expect(list.locator("[data-waypoint-row][data-selected]")).toHaveCount(1);
   await expect(rows.nth(3)).toHaveAttribute("data-selected", "true");
 
-  // The filters live in a popover from the drawer's header, one named
-  // row per axis.
+  // The filters live in a popover (a sheet on a phone) from the
+  // drawer's header, one named group per axis.
   await drawer.getByTestId("waypoint-filters-button").click();
   for (const axis of ["Role", "Source", "Status"]) {
     await expect(page.getByText(axis, { exact: true })).toBeVisible();

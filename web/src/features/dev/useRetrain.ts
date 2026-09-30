@@ -8,8 +8,8 @@ import { useConfirm } from "../../components/useConfirm";
  * The one action that changes the model, and what a button for it
  * needs to know: whether Airflow is reachable, whether a run is
  * already going, and how the last one ended. Shared by the side
- * drawer's own Retrain button (beside Undo and Reset, where the
- * ratings it learns from are made) and the developer console's
+ * drawer's own Retrain (in its More menu, with Reset, in the drawer
+ * where the ratings it learns from are made) and the developer console's
  * Performance tab, which reports the run on each route's card and
  * offers it there too. The status snapshot is the same query both
  * poll, so a run started from either shows in both.

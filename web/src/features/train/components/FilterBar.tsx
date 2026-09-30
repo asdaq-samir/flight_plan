@@ -1,4 +1,5 @@
-import { Checkbox } from "../../../components/ui/checkbox";
+import { Check } from "lucide-react";
+import { ListGroup, ListRow } from "../../../components/GroupedList";
 import type { FilterKey, Filters } from "../logic";
 
 interface Props {
@@ -8,43 +9,36 @@ interface Props {
 }
 
 // Three independent axes (role, source, status) that all have to admit
-// a point -- one named block each, rather than six checkboxes in a row
-// whose grouping a reader had to work out from divider lines.
-const AXES: [string, FilterKey, FilterKey][] = [
-  ["Role", "dr", "visual"],
-  ["Source", "detected", "added"],
-  ["Status", "rated", "unrated"],
+// a point: a group each, the two choices a row each, said in words --
+// "DR" alone was the only name the role had.
+const AXES: [string, [FilterKey, string][]][] = [
+  ["Role", [["dr", "On course (DR)"], ["visual", "Off course (visual)"]]],
+  ["Source", [["detected", "Found on the chart"], ["added", "Added by hand"]]],
+  ["Status", [["rated", "Rated"], ["unrated", "Not rated yet"]]],
 ];
 
-const LABEL: Record<FilterKey, string> = {
-  dr: "DR", visual: "visual", detected: "detected", added: "added", rated: "rated", unrated: "unrated",
-};
-
 /** Which waypoints to show and count -- the body of the waypoint
- *  drawer's own Filters popover. Each count is over every candidate,
- *  on or off (see `filterCounts`), so an unticked box still says what
- *  ticking it would surface. Each axis is a heading over two equal
- *  columns: a label beside the pair ran the widest row ("detected
- *  (343) added (13)") past the popover's edge, and a column each is
- *  what keeps a three-digit count on its own line whatever the width. */
+ *  drawer's own Filters sheet, as an iOS list of choices: a row each,
+ *  a tap turns it on or off, a checkmark when it is on, and its count
+ *  at the end. Each count is over every candidate, on or off (see
+ *  `filterCounts`), so a row turned off still says what turning it back
+ *  on would surface. It was a grid of checkboxes, a control iOS does not
+ *  have, with the counts in brackets. */
 export default function FilterBar({ filters, onChange, counts }: Props) {
   return (
-    <div className="space-y-2 text-sm">
-      {AXES.map(([axis, a, b]) => (
-        <div key={axis}>
-          <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{axis}</div>
-          <div className="grid grid-cols-2 gap-x-1">
-            {[a, b].map(key => (
-              <label
-                key={key} htmlFor={`filter-${key}`}
-                className="inline-flex items-center gap-1.5 rounded px-1 py-1 whitespace-nowrap hover:bg-accent active:bg-accent"
-              >
-                <Checkbox id={`filter-${key}`} checked={filters[key]} onCheckedChange={c => onChange(key, c === true)} />
-                {LABEL[key]} <span className="text-muted-foreground">({counts[key]})</span>
-              </label>
-            ))}
-          </div>
-        </div>
+    <div className="space-y-4">
+      {AXES.map(([axis, keys]) => (
+        <ListGroup key={axis} title={axis}>
+          {keys.map(([key, label]) => (
+            <ListRow
+              key={key} title={label} value={counts[key]}
+              role="checkbox" aria-checked={filters[key]} data-testid={`filter-${key}`}
+              onClick={() => onChange(key, !filters[key])}
+            >
+              <Check aria-hidden className={filters[key] ? "size-4 text-primary" : "size-4 invisible"} />
+            </ListRow>
+          ))}
+        </ListGroup>
       ))}
     </div>
   );

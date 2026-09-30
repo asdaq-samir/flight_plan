@@ -23,7 +23,9 @@ export default function ToolbarButton({ icon, text, label, className, ...props }
       variant="ghost"
       aria-label={label}
       className={cn(
-        "h-auto min-w-11 flex-col gap-0.5 px-1.5 py-1 text-[11px] leading-none font-medium [&_svg:not([class*='size-'])]:size-5",
+        // The word at 11 points, in rem so it grows with the text size
+        // as everything round it does: in pixels it stayed 11 at any.
+        "h-auto min-w-11 flex-col gap-0.5 px-1.5 py-1 text-[0.6875rem] leading-none font-medium [&_svg:not([class*='size-'])]:size-5",
         EXPANDED_BUTTON,
         className,
       )}
