@@ -525,11 +525,14 @@ _PREPARE_SLOTS = threading.BoundedSemaphore(int(os.environ.get("CHARTS_PREPARE_A
 # 70 MB download and a minute of preparation, with the tile waiting.
 # CHARTS_FETCH_FOR_TILES=0 is CI's (docker-compose.ci.yml): there the
 # warm-up prepares the corridors' own sheets (prepare_for_bbox, which
-# always fetches) and a tile draws on what is on disk. One past them is
-# drawn from the sheets there are, or left blank, and is not cached as
-# if it were whole. The browser suite's zoomed-out views sent for 29
-# sheets beyond the corridor's 10, and the charts cache then carried
-# all 39 to every run.
+# always fetches), a tile over them is drawn and cached as ever, and a
+# tile that would need any other sheet is left blank (tile_png). The
+# browser suite's zoomed-out views sent for 29 sheets beyond the
+# corridor's 10, and the charts cache then carried all 39 to every run;
+# drawn instead from the sheets there were, such a tile was never whole,
+# so never cached, and was drawn again on every request -- the planner
+# busy drawing the country under the Class B test while every other
+# test on the stack waited on it.
 FETCH_FOR_TILES = os.environ.get("CHARTS_FETCH_FOR_TILES", "1") != "0"
 
 
@@ -917,6 +920,8 @@ def tile_png(x: int, y: int, zoom: int, kind: str = "sec") -> bytes | None:
         pass
 
     rasters, complete = rasters_covering(chart_kind, tile_bbox_wgs84(x, y, zoom), cycle)
+    if not complete and not FETCH_FOR_TILES:
+        return None  # where tiles do not fetch, part of a tile is not drawn (FETCH_FOR_TILES)
     rgba = render_tile(rasters, x, y, zoom) if rasters else None
     path.parent.mkdir(parents=True, exist_ok=True)
     if rgba is None:

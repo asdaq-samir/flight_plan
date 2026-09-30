@@ -665,6 +665,30 @@ def test_a_tile_sends_for_a_missing_sheet_only_where_tiles_may_fetch(tmp_path, m
     assert ("sec", "Chicago") in downloads
 
 
+def test_a_tile_missing_a_sheet_is_left_blank_where_tiles_do_not_fetch(tmp_path, monkeypatch):
+    """Where tiles do not fetch (CI), a tile that would need a sheet not
+    on disk is not drawn from part of what it needs: never whole, it was
+    never cached, and was drawn again on every request. Where they fetch,
+    it is drawn from what there is, and still not cached."""
+    monkeypatch.setattr(charts, "CHART_TILE_CACHE_DIR", tmp_path / "tiles")
+    monkeypatch.setattr(charts, "current_cycle", lambda *a, **k: "09-03-2026")
+    monkeypatch.setattr(charts, "_serving_cache", {"value": None, "at": 0.0})
+    box = (-90.0, 41.0, -86.0, 43.0)
+    _palette_raster(tmp_path / "sheet.tif", box, np.full((256, 256), 1, np.uint8))
+    raster = charts.Raster(tmp_path / "sheet.tif", face=box, envelope=box)
+    monkeypatch.setattr(charts, "rasters_covering", lambda kind, bbox, cycle=None: ([raster], False))
+    render = charts.render_tile
+
+    monkeypatch.setattr(charts, "FETCH_FOR_TILES", False)
+    monkeypatch.setattr(charts, "render_tile", lambda *a: pytest.fail("a tile missing a sheet is not drawn here"))
+    assert charts.tile_png(65, 94, 8, "sec") is None
+
+    monkeypatch.setattr(charts, "FETCH_FOR_TILES", True)
+    monkeypatch.setattr(charts, "render_tile", render)
+    assert charts.tile_png(65, 94, 8, "sec")[:8] == b"\x89PNG\r\n\x1a\n"
+    assert not charts.tile_cached(65, 94, 8, "sec")
+
+
 def _masked_sheet(path, box):
     """A sheet of land tint with a masked line down it -- a road across
     the band and lettering in it -- beside two things that are paper

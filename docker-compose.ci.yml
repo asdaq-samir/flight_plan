@@ -50,9 +50,8 @@ services:
       # send for 29 sheets past the corridor's 10 -- minutes of downloads
       # and preparation in the first run of an FAA cycle, and 2.1 GB of
       # charts cache that every shard of every run then restored. Past
-      # the corridor the suite's map is drawn from the sheets there are,
-      # which is all its assertions need (they are on structure, never
-      # on pixels).
+      # the corridor the suite's map is left blank, which is all its
+      # assertions need (they are on structure, never on pixels).
       CHARTS_FETCH_FOR_TILES: "0"
       # One chart sheet prepared at a time: preparing one (its overviews,
       # its neatline) takes the planner to about 3 GB, and the runner has
