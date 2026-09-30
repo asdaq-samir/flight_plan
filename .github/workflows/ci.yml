@@ -1146,9 +1146,11 @@ jobs:
           REGISTRY: ghcr.io/${{ github.repository }}
           MISSING: ${{ steps.keys.outputs.missing }}
           BUILDX_NO_DEFAULT_ATTESTATIONS: "1"
+        # Pushed by their own `output` (ci-images.hcl), with zstd layers:
+        # `--push` would set one of its own, gzip.
         run: |
           read -ra targets <<< "$MISSING"
-          docker buildx bake -f .github/ci-images.hcl "${targets[@]}" --push
+          docker buildx bake -f .github/ci-images.hcl "${targets[@]}"
       # After the images, which the shards may be waiting for; nothing
       # waits for this -- until it is there the shards pull the image
       # itself.

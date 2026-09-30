@@ -21,7 +21,7 @@ variable "REGISTRY" {
 # too: the model service's `slim` stage is in no other cache, since
 # build-images builds the full image. Empty (a pull request's shard
 # building one itself): tagged the name docker-compose.ci.yml runs it
-# by, and nothing pushed.
+# by, and loaded, not pushed.
 variable "WEBAPP_KEY" {
   default = ""
 }
@@ -42,6 +42,17 @@ function "tags" {
   result = key == "" ? ["flight_plan-${image}:ci"] : ["${REGISTRY}/${image}:e2e-${key}", "${REGISTRY}/${image}:e2e"]
 }
 
+# Pushed (with a key) with every layer zstd rather than gzip, the base
+# image's too: zstd unpacks several times faster, and on the faster
+# runners a shard's setup is its processors' -- 85 to 93% busy, a tenth
+# of it waiting on the disk -- most of it unpacking images. Recompressing
+# costs the build, which is once per key. Without a key, loaded
+# (`--load`), which sets its own output.
+function "pushed" {
+  params = [key]
+  result = key == "" ? [] : ["type=registry,compression=zstd,force-compression=true,oci-mediatypes=true"]
+}
+
 group "ci" {
   targets = ["webapp", "planning-service", "model-service"]
 }
@@ -52,6 +63,7 @@ target "webapp" {
   tags       = tags("webapp", WEBAPP_KEY)
   cache-from = cache("webapp")
   cache-to   = WEBAPP_KEY == "" ? [] : ["type=inline"]
+  output     = pushed(WEBAPP_KEY)
 }
 
 target "planning-service" {
@@ -60,6 +72,7 @@ target "planning-service" {
   tags       = tags("planning-service", PLANNING_SERVICE_KEY)
   cache-from = cache("planning-service")
   cache-to   = PLANNING_SERVICE_KEY == "" ? [] : ["type=inline"]
+  output     = pushed(PLANNING_SERVICE_KEY)
 }
 
 # The image the suite's tests run in: the Playwright image (PLAYWRIGHT_FROM,
@@ -104,4 +117,5 @@ target "model-service" {
   tags       = tags("model-service", MODEL_SERVICE_KEY)
   cache-from = cache("model-service")
   cache-to   = MODEL_SERVICE_KEY == "" ? [] : ["type=inline"]
+  output     = pushed(MODEL_SERVICE_KEY)
 }
