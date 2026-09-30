@@ -62,6 +62,38 @@ target "planning-service" {
   cache-to   = PLANNING_SERVICE_KEY == "" ? [] : ["type=inline"]
 }
 
+# The image the suite's tests run in: the Playwright image (PLAYWRIGHT_FROM,
+# by its digest) without the three browsers the suite never launches --
+# Chromium itself, Firefox and WebKit; the suite's headless Chromium is
+# the headless shell -- as one layer, so their 1.1 of its 2.6 GB are not
+# pulled, unpacked and written on every shard. Every other file is the
+# image's own, byte for byte; the same page drawn in both came out the
+# same, pixel for pixel. FROM scratch carries none of the image's
+# settings, so its four are set again, as `docker image inspect` gives
+# them. Pushed with zstd layers, which unpack several times faster than
+# gzip, under PLAYWRIGHT_TAG (the e2e-images job's).
+variable "PLAYWRIGHT_FROM" {
+  default = ""
+}
+variable "PLAYWRIGHT_TAG" {
+  default = ""
+}
+
+target "playwright" {
+  dockerfile-inline = <<-EOT
+    FROM ${PLAYWRIGHT_FROM} AS full
+    RUN rm -rf /ms-playwright/chromium-[0-9]* /ms-playwright/firefox-* /ms-playwright/webkit-*
+    FROM scratch
+    COPY --from=full / /
+    ENV PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+        LANG=C.UTF-8 LC_ALL=C.UTF-8 PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+    CMD ["/bin/bash"]
+  EOT
+  platforms         = ["linux/amd64"]
+  tags              = [PLAYWRIGHT_TAG]
+  output            = ["type=registry,compression=zstd,force-compression=true,oci-mediatypes=true"]
+}
+
 # `slim`: the scikit-learn serving stack alone, which is all the suite's
 # fixture model needs -- the full image's torch and tensorflow were four
 # of the five gigabytes each runner loaded. See model-service/Dockerfile.

@@ -51,6 +51,14 @@ concurrency:
 permissions:
   contents: read
 
+# The image the browser suite runs in (the e2e job), named once for the
+# jobs that pull it and the one that makes the slim copy the tests run
+# in (.github/ci-images.hcl's `playwright`). Its version is
+# web/package-lock.json's @playwright/test, and the e2e job's packages
+# cache is keyed by it too.
+env:
+  PLAYWRIGHT_IMAGE: mcr.microsoft.com/playwright:v1.55.1-noble
+
 jobs:
   test:
     runs-on: ubuntu-26.04
@@ -487,12 +495,14 @@ jobs:
   #
   # The tests run in the Playwright image, the same one web/README.md
   # runs them in locally, on the runner's network so localhost is the
-  # stack's. They ran on the runner itself for three runs (c797718 to
-  # f1cf1b7), with Playwright's own Chromium and no image to pull: one
-  # test -- a nav log row clicked in view stays where it is -- failed
-  # or flaked in each of them, and had passed in every run in the image.
+  # stack's -- in a copy of it without the browsers the suite never
+  # launches, every other file the image's own (.github/ci-images.hcl's
+  # `playwright`). They ran on the runner itself for three runs (c797718
+  # to f1cf1b7), with Playwright's own Chromium and no image to pull: one
+  # test -- a nav log row clicked in view stays where it is -- failed or
+  # flaked in each of them, and had passed in every run in the image.
   # The image is pulled in the background and waited for only before
-  # the tests, so it costs a run next to nothing.
+  # the tests.
   e2e:
     name: e2e (${{ matrix.shard }}/${{ strategy.job-total }})
     runs-on: ubuntu-26.04
@@ -512,12 +522,23 @@ jobs:
         shard: [1, 2, 3, 4, 5, 6]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f  # v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
       # What a shard fetches and starts, in the background, each piece
       # with its own log and its exit status in a file (later steps wait
       # on those), while the caches below are restored. Each piece also
       # notes when it was done, in seconds from here, and each shard's
       # annotation lists those: where its time before the first test
-      # went. The public images first, before the registry login.
+      # went. It starts with the kind of runner the shard got. They are
+      # of two kinds: on a runner whose disk is an "NVMe Accelerator" the
+      # disk writes at most about 230 MB/s, a quarter of the setup goes
+      # on waiting for it, and a shard's setup takes 10 to 20 seconds
+      # longer (runs 36738594839 and 36739489654). Docker's own image
+      # store in place of containerd's made no difference there worth a
+      # restart of Docker (ab57887's measurement).
       #
       # Mailpit first of all, the smallest: its start makes the stack's
       # network, which the other services' starts need there before them
@@ -525,15 +546,18 @@ jobs:
       # meanwhile and started after it; only the webapp waits for
       # Postgres. The planner and the model service used to wait for it
       # too, and on a runner with a slow disk it came up 50 seconds in,
-      # with both of them ready long before. Then the Playwright image --
-      # the largest thing a shard fetches (917 MB, nearly all of it one
-      # layer of browsers) and wanted only by the tests, so waited for
-      # just before them: the stack's start and warm-up are time it goes
-      # on arriving in.
+      # with both of them ready long before.
+      #
+      # And the image the tests run in: the slim copy of the Playwright
+      # image that e2e-images makes once for each of its digests
+      # (.github/ci-images.hcl's `playwright`: 1.5 GB unpacked rather than
+      # 2.6, zstd rather than gzip), under the image's own name, or the
+      # image itself until there is one. It is the largest thing a shard
+      # fetches, and often the last in before the tests, which alone
+      # want it -- so it is waited for just before them.
       - name: The public images, in the background
         env:
-          SHARD: ${{ matrix.shard }}
-          EVENT: ${{ github.event_name }}
+          REGISTRY: ghcr.io/${{ github.repository }}
         run: |
           # web/dist: where the page will be built, mounted into the
           # webapp -- made now, so that Docker does not make it, as root.
@@ -542,27 +566,15 @@ jobs:
           export T0
           echo "T0=$T0" >> "$GITHUB_ENV"
           nohup vmstat -n 1 180 > /tmp/e2e-out/vmstat.log 2>&1 < /dev/null &
-          # One run's measurement, on the odd shards of a push: Docker's own
-          # image store (overlay2) rather than containerd's, and sixteen
-          # layers downloaded at once rather than three. The runners are of
-          # two kinds (the line below says which each shard had): on those
-          # whose disk is an "NVMe Accelerator" it writes at most about
-          # 230 MB/s, a quarter of the setup goes on waiting for it, and even
-          # the smallest images (Mailpit, the page) are in only 40 to 60
-          # seconds in, behind the large ones. containerd keeps each layer
-          # as downloaded as well as unpacked, and syncs each to disk as it
-          # lands; Docker's own store unpacks each from a temporary file. A
-          # pull request's shards keep containerd's, which their build reads
-          # the registry cache through.
-          if [ $((SHARD % 2)) = 1 ] && [ "$EVENT" != pull_request ]; then
-            { [ -s /etc/docker/daemon.json ] && cat /etc/docker/daemon.json || echo '{}'; } \
-              | jq '. + {"features": ((.features // {}) + {"containerd-snapshotter": false}), "max-concurrent-downloads": 16}' \
-              > /tmp/e2e-out/daemon.json
-            sudo cp /tmp/e2e-out/daemon.json /etc/docker/daemon.json
-            sudo systemctl restart docker
-            echo "$(($(date +%s) - T0)) Docker restarted with its own image store" >> /tmp/e2e-out/timeline
+          echo "0 the runner's disk: $(lsblk -e 7 -dno NAME,MODEL | xargs)" >> /tmp/e2e-out/timeline
+          cat > /tmp/e2e-out/playwright.sh <<'EOF'
+          digest=$(docker buildx imagetools inspect --raw "$PLAYWRIGHT_IMAGE" | sha256sum | cut -c1-16)
+          if docker pull -q "$REGISTRY/e2e-playwright:$digest" > /dev/null 2>&1; then
+            docker tag "$REGISTRY/e2e-playwright:$digest" "$PLAYWRIGHT_IMAGE" && echo "its slim copy"
+          else
+            docker pull -q "$PLAYWRIGHT_IMAGE" > /dev/null && echo "the image itself"
           fi
-          echo "0 the runner's disk: $(lsblk -e 7 -dno NAME,MODEL | xargs); Docker's storage: $(docker info --format '{{.Driver}}')" >> /tmp/e2e-out/timeline
+          EOF
           cat > /tmp/e2e-out/public.sh <<'EOF'
           mark() { echo "$(($(date +%s) - T0)) $*" >> /tmp/e2e-out/timeline; }
           compose() { docker compose -f docker-compose.yml -f docker-compose.ci.yml "$@"; }
@@ -574,12 +586,7 @@ jobs:
           r=$?; mark "Postgres up"; echo $r > /tmp/e2e-out/db.exit
           EOF
           nohup bash /tmp/e2e-out/public.sh > /dev/null 2>&1 < /dev/null &
-          nohup bash -c 'docker pull -q mcr.microsoft.com/playwright:v1.55.1-noble > /tmp/e2e-out/playwright.log 2>&1; r=$?; echo "$(($(date +%s) - T0)) the Playwright image" >> /tmp/e2e-out/timeline; echo $r > /tmp/e2e-out/playwright.exit' > /dev/null 2>&1 < /dev/null &
-      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f  # v4
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          nohup bash -c 'bash /tmp/e2e-out/playwright.sh > /tmp/e2e-out/playwright.log 2>&1; r=$?; echo "$(($(date +%s) - T0)) the Playwright image, $(tail -1 /tmp/e2e-out/playwright.log)" >> /tmp/e2e-out/timeline; echo $r > /tmp/e2e-out/playwright.exit' > /dev/null 2>&1 < /dev/null &
       # Then the three images this commit runs, under the names
       # docker-compose.ci.yml runs them by: each the one e2e-images built
       # for its key (.github/e2e-keys.sh), which nearly always an earlier
@@ -894,7 +901,7 @@ jobs:
         if: steps.packages.outputs.cache-hit != 'true'
         run: |
           docker run --rm --network host -v "$PWD/web:/w" -v /tmp/e2e-out:/out -w /w \
-            mcr.microsoft.com/playwright:v1.55.1-noble \
+            "$PLAYWRIGHT_IMAGE" \
             sh -c "timeout 600 npm ci --no-audit --no-fund 2>&1 | tail -20 | tee /out/npm.log"
       - name: Browser tests
         id: tests
@@ -907,7 +914,7 @@ jobs:
           echo "$(($(date +%s) - T0)) the tests" >> /tmp/e2e-out/timeline
           docker run --rm --network host -e CI=1 \
             -v "$PWD/web:/w" -v /tmp/e2e-out:/out -w /w \
-            mcr.microsoft.com/playwright:v1.55.1-noble \
+            "$PLAYWRIGHT_IMAGE" \
             bash -o pipefail -c "timeout 1800 npx playwright test --shard=${{ matrix.shard }}/${{ strategy.job-total }} --reporter=list,github 2>&1 | tee /out/playwright.log"
       - name: How the tests went, as an annotation
         if: always()
@@ -1043,6 +1050,11 @@ jobs:
   # (docker-compose.ci.yml). Each shard built it itself in 1deccfc's run,
   # 10 to 20 seconds of processors already fully busy with its setup.
   #
+  # And the image the tests run in: a slim copy of the Playwright image
+  # (.github/ci-images.hcl's `playwright`), made once for each digest its
+  # name points at -- after everything else here, since until it is there
+  # the shards pull the image itself.
+  #
   # Not after `changes`, as every other job is: a shard starts ten
   # seconds into the run, and a key's image, when there is one to build,
   # should be on its way by then. So it runs on every push, the suite due
@@ -1093,6 +1105,16 @@ jobs:
             fi
           done <<< "$keys"
           echo "missing=${missing# }" >> "$GITHUB_OUTPUT"
+          # And the slim copy of the Playwright image, for the image's
+          # digest: made again whenever what its name points at changes.
+          digest=$(docker buildx imagetools inspect --raw "$PLAYWRIGHT_IMAGE" | sha256sum | cut -d' ' -f1)
+          if there "$REGISTRY/e2e-playwright:${digest:0:16}"; then
+            echo "Playwright: e2e-playwright:${digest:0:16} is there"
+          else
+            echo "Playwright: e2e-playwright:${digest:0:16} to make"
+            echo "playwright=$REGISTRY/e2e-playwright:${digest:0:16}" >> "$GITHUB_OUTPUT"
+            echo "PLAYWRIGHT_FROM=$PLAYWRIGHT_IMAGE@sha256:$digest" >> "$GITHUB_ENV"
+          fi
       - name: Restore the suite's packages, for the page
         if: steps.keys.outputs.page != ''
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
@@ -1117,7 +1139,7 @@ jobs:
           printf 'FROM scratch\nCOPY . /page/\n' | docker build -q -t "$PAGE" -f - dist
           docker push -q "$PAGE"
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069  # v4
-        if: steps.keys.outputs.missing != ''
+        if: steps.keys.outputs.missing != '' || steps.keys.outputs.playwright != ''
       - name: Those images, built and pushed
         if: steps.keys.outputs.missing != ''
         env:
@@ -1127,6 +1149,15 @@ jobs:
         run: |
           read -ra targets <<< "$MISSING"
           docker buildx bake -f .github/ci-images.hcl "${targets[@]}" --push
+      # After the images, which the shards may be waiting for; nothing
+      # waits for this -- until it is there the shards pull the image
+      # itself.
+      - name: The Playwright image's slim copy, made and pushed
+        if: steps.keys.outputs.playwright != ''
+        env:
+          PLAYWRIGHT_TAG: ${{ steps.keys.outputs.playwright }}
+          BUILDX_NO_DEFAULT_ATTESTATIONS: "1"
+        run: docker buildx bake -f .github/ci-images.hcl playwright
 
   # Every image whose inputs changed, built beside the tests rather than
   # after them, each on a runner of its own. On main each is pushed under
