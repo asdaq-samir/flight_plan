@@ -15,7 +15,7 @@ import type {
 } from "../../../../lib/api/types";
 import type { FrameworkNarrative } from "../../hooks/useNarratives";
 import type { BriefingState } from "../../hooks/usePlan";
-import { altFt, clockTime, deg, describeSteps, describeTime } from "../../format";
+import { altFt, clockTime, deg, describeFuel, describeSteps, describeTime } from "../../format";
 import { navLogRows, savedCheckpoints } from "../navlog/rows";
 import { CATEGORY_RANK, categoryOf, colourOf } from "../../../../lib/map/flightCategory";
 
@@ -156,7 +156,7 @@ function surfaceName(surface: string | null | undefined): string | null {
   return SURFACE_NAMES[code] ?? surface.toLowerCase();
 }
 
-const PLAN_LABEL: Record<string, string> = { lowest: "Lowest", highest: "Highest", fastest: "Fastest" };
+const PLAN_LABEL: Record<string, string> = { lowest: "Lowest", highest: "Highest", fastest: "Fastest", economical: "Economical" };
 
 /** The altitudes a plan flies as the nav log's header gives them: one
  *  figure, or its lowest and highest. */
@@ -482,7 +482,7 @@ export default function FlightBriefingView({
               <ListRow
                 title={nav.flown === "custom" ? "Your own" : chosen ? `${PLAN_LABEL[chosen.kind]} plan` : "No plan"}
                 description={nav.flown === "custom" ? `${altFt(nav.altitude_ft)} ft all the way` : chosen ? describeSteps(chosen) : "The winds aloft could not be read."}
-                value={chosen ? describeTime(chosen) : undefined}
+                value={chosen ? `${describeTime(chosen)} · ${describeFuel(chosen)}` : undefined}
               />
               <ListRow title="Floor" description="Terrain and obstacles, with margin" value={`${altFt(nav.altitude_selection.floor_ft)} ft`} />
               <ListRow

@@ -22,13 +22,11 @@ import NavLogView from "./components/navlog/NavLogView";
 import RouteMap from "./components/RouteMap";
 import { usePlan } from "./hooks/usePlan";
 
-// The three stages a plan actually goes through, in order -- there's
-// no finer-grained number to report while one of them is running, so
-/** Which of the three altitude plans the log flies -- the fastest for
+/** Which of the four altitude plans the log flies -- the fastest for
  *  the winds unless the URL says otherwise, the plan a pilot with the
  *  winds in hand picks; it was the lowest, as the predictable one. */
 function altitudeChoiceOf(value: string | null): AltitudeChoice {
-  return value === "lowest" || value === "highest" ? value : "fastest";
+  return value === "lowest" || value === "highest" || value === "economical" ? value : "fastest";
 }
 
 /** One value per choice for the Select: a pilot's own by id, a stock
@@ -79,10 +77,8 @@ export default function PlanWorkspace({ dep, dest, sidebarOpen, children }: Work
   // The aeroplane the nav log is computed for: remembered per browser
   // (the preferences store), since a pilot flies the same one for a
   // while; a stock profile until they pick one of their own.
-  const aircraft = usePreferences(p => p.aircraft);
+  const remembered = usePreferences(p => p.aircraft);
   const setAircraft = usePreferences(p => p.setAircraft);
-  const s = usePlan({ dep: planned.dep, dest: planned.dest, altitudeFt, altitudeChoice, depart, aircraft, load });
-  const { course, selected } = s;
 
   // Open on whatever corridor exists, so the page is never an empty
   // form with no hint of what it accepts: the first collected route
@@ -113,13 +109,21 @@ export default function PlanWorkspace({ dep, dest, sidebarOpen, children }: Work
       ...(myAircraft ?? []).map(a => ({
         profile: baseProfile(a.typeDesignator, profiles ?? []), label: `${a.tailNumber} · ${a.typeDesignator}`,
         cruiseTasKt: a.cruiseTasKt, fuelBurnGph: a.fuelBurnGph, usableFuelGal: a.usableFuelGal ?? undefined,
+        climbTasKt: a.climbTasKt ?? undefined, climbFuelBurnGph: a.climbFuelBurnGph ?? undefined,
         aircraftId: a.id,
       })),
     ];
     // The remembered choice stays selectable while the lists load, and
     // an aeroplane deleted since is still what this plan was flown in.
-    return options.some(o => aircraftKey(o) === aircraftKey(aircraft)) ? options : [aircraft, ...options];
-  }, [profiles, myAircraft, aircraft]);
+    return options.some(o => aircraftKey(o) === aircraftKey(remembered)) ? options : [remembered, ...options];
+  }, [profiles, myAircraft, remembered]);
+  // Flown with its numbers as they are now, not as they were when it
+  // was picked: the remembered choice is which aeroplane, and an edit
+  // in the pilot console (a climb burn added, say) re-plans. It used to
+  // fly the copy remembered at the pick until it was picked again.
+  const aircraft = aircraftOptions.find(o => aircraftKey(o) === aircraftKey(remembered)) ?? remembered;
+  const s = usePlan({ dep: planned.dep, dest: planned.dest, altitudeFt, altitudeChoice, depart, aircraft, load });
+  const { course, selected } = s;
 
   // Whichever waypoint is focused -- by its own coordinates, not a row
   // index, since the map's markers and the nav log's rows are two
@@ -164,8 +168,8 @@ export default function PlanWorkspace({ dep, dest, sidebarOpen, children }: Work
     }, { replace: true });
   }, [setSearchParams]);
 
-  // A different plan -- lowest, highest, fastest -- means different
-  // legs too. A plan replaces a typed altitude: the address drops it, so
+  // A different plan -- lowest, highest, fastest, economical -- means
+  // different legs too. A plan replaces a typed altitude: the address drops it, so
   // the log flies the plan and nothing else, and the Custom box (whose
   // draft belonged to the old address) empties with it.
   const changeAltitudeChoice = useCallback((choice: AltitudeChoice) => {

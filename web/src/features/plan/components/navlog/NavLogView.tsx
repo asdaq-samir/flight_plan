@@ -8,6 +8,7 @@ import {
 } from "@tanstack/react-table";
 import { NoteRow, SelectableRow } from "../../../../components/SelectableRows";
 import { Accordion } from "../../../../components/ui/accordion";
+import { ListGroup, ListRow } from "../../../../components/GroupedList";
 import IconButton from "../../../../components/IconButton";
 import { Button } from "../../../../components/ui/button";
 import { Input } from "../../../../components/ui/input";
@@ -21,7 +22,7 @@ import {
 import type { AltitudeChoice, Candidate, Leg, NavLogAltitude, Totals } from "../../../../lib/api/types";
 import { revealRow } from "../../../../lib/revealRow";
 import { type Description, descriptionKey } from "../../hooks/useCheckpointNotes";
-import { altFt, clockTime, deg, describeSteps, describeTime, etaAt, one, signed, totalsParts } from "../../format";
+import { altFt, clockTime, deg, describeFuel, describeSteps, describeTime, etaAt, one, signed, totalsParts } from "../../format";
 import AccordionSection from "../../../../components/AccordionSection";
 import { BRIEFING_SECTIONS } from "../briefing/sections";
 import DepartPicker from "./DepartPicker";
@@ -53,7 +54,7 @@ const navLogTableFeatures = tableFeatures({});
 interface Props {
   totals: Totals | null;
   nav: NavLogAltitude | null;
-  /** Picks one of the three plans (lowest, highest, fastest) in the
+  /** Picks one of the four plans (lowest, highest, fastest, economical) in the
    *  altitude's own popover, which re-plans; which one is flown is the
    *  nav log's own `choice`. */
   onAltitudeChoiceChange: (choice: AltitudeChoice) => void;
@@ -255,6 +256,31 @@ export default function NavLogView({
   aircraftValue, aircraftOptions, onAircraftChange,
 }: Props) {
   const parts = totals ? totalsParts(totals) : null;
+  // The altitude the log flies: "2,500 ft", or "2,500–6,500 ft" for a
+  // plan that steps; and, when the winds could not be read, no altitude
+  // at all -- that used to read "0 ft · yours", with Custom pressed, for
+  // an altitude nobody typed. The figure alone: which plan it is, or
+  // that it is the pilot's own, is the pressed row in the popover it
+  // opens, and "· fastest" after every altitude was a word in the way.
+  const flownPlan = nav?.options.find(o => o.kind === nav.flown);
+  const flownAltitudes = !nav ? [] : flownPlan ? flownPlan.steps.map(st => st.altitude_ft) : nav.altitude_ft !== null ? [nav.altitude_ft] : [];
+  const altitudeRange = flownAltitudes.length === 0
+    ? null
+    : flownAltitudes.length > 1 && Math.min(...flownAltitudes) !== Math.max(...flownAltitudes)
+      ? `${altFt(Math.min(...flownAltitudes))}–${altFt(Math.max(...flownAltitudes))} ft`
+      : `${altFt(flownAltitudes[0])} ft`;
+  const altitudeLabel = nav?.flown === null ? "No altitude: no winds" : altitudeRange;
+  // The nav log's section in one line under its title, folded or open,
+  // as every section's is: the distance, the time and the fuel. Inside,
+  // it is not said again; the altitude is the first row there (and the
+  // Cruise Altitude section's line).
+  // Each figure whole: a narrow drawer breaks the line between them,
+  // not inside one.
+  const foldedSummary = parts
+    ? [parts.distance, parts.time, parts.fuel].map((figure, i) => (
+      <Fragment key={i}>{i > 0 && " · "}<span className="whitespace-nowrap">{figure}</span></Fragment>
+    ))
+    : undefined;
   // Which sections are open: none to begin with (a pilot skims the
   // titles and opens what applies), and for the printer every one --
   // the paper is the whole briefing whatever was open on screen.
@@ -326,7 +352,7 @@ export default function NavLogView({
       id: "alt",
       // A plain heading: a pilot's own altitude is typed in the
       // altitude popover's Custom row (see the header below), under
-      // the three plans, not in this column's head.
+      // the four plans, not in this column's head.
       header: "Alt",
       // The last row lands at the destination -- shows its field
       // elevation, known immediately, rather than a cruise altitude.
@@ -562,26 +588,14 @@ export default function NavLogView({
     </Table>
   );
 
-  // What the log adds up to, and the one action on its rows: the
-  // totals, the altitude and why, the winds period, the fuel check,
-  // and the button that fills the blank notes in. The first thing in
-  // the nav log's own section, above the table, so the header above
-  // holds only what the log is computed from.
+  // What goes with the totals under the section's title, as rows like
+  // every section's: the altitude, which opens how it was chosen, and,
+  // with a departure time, the arrival and the winds forecast period
+  // flown on; and legs flown without wind, in red. Above the table.
   const summary = (
-    <div className="mb-3 flex flex-col gap-1 text-sm" data-testid="navlog-summary">
-      {/* One line, however narrow the drawer: the distance, the time,
-          the fuel and the altitude that opens the reasoning. It wrapped,
-          and the altitude sat on a line of its own under the rest. Past
-          the drawer's width -- a phone with its text turned up -- it
-          scrolls sideways rather than wraps. */}
-      <div className="flex flex-wrap items-center gap-1.5 overflow-x-auto whitespace-nowrap @min-[18rem]:flex-nowrap">
-        {parts && (
-          <span className="shrink-0">
-            <b>{parts.distance}</b> · <b>{parts.time}</b> · <b>{parts.fuel}</b>
-            {depart && totals && totals.ete_min !== null && <> · ETA <b>{etaAt(depart, totals.ete_min)}</b></>}
-            {parts.warning && <> · <span className="text-destructive">{parts.warning}</span></>}
-          </span>
-        )}
+    <div className="mb-3 text-sm" data-testid="navlog-summary">
+      <ListGroup>
+        {parts?.warning && <ListRow title={<span className="text-destructive">{parts.warning}</span>} />}
         {/* The altitude, and why: a pilot should never have to take a
             cruise altitude on trust, so the figure itself opens the
             planner's own reasoning -- floor, ceiling, the rule, the
@@ -589,23 +603,9 @@ export default function NavLogView({
             the plain figure; the briefing's Cruise Altitude section
             carries the same steps onto the paper. */}
         {nav && (() => {
-          // "2,500 ft", or "2,500–6,500 ft" for a plan that steps; and,
-          // when the winds could not be read, no altitude at all -- that
-          // used to read "0 ft · yours", with Custom pressed, for an
-          // altitude nobody typed. The figure alone: which plan it is,
-          // or that it is the pilot's own, is the pressed row in the
-          // popover it opens, and "· fastest" after every altitude was
-          // a word in the way.
-          const plan = nav.options.find(o => o.kind === nav.flown);
-          const altitudes = plan ? plan.steps.map(st => st.altitude_ft) : nav.altitude_ft !== null ? [nav.altitude_ft] : [];
-          const range = altitudes.length === 0
-            ? null
-            : altitudes.length > 1 && Math.min(...altitudes) !== Math.max(...altitudes)
-              ? `${altFt(Math.min(...altitudes))}–${altFt(Math.max(...altitudes))} ft`
-              : `${altFt(altitudes[0])} ft`;
-          const label = nav.flown === null ? "No altitude: no winds" : range;
+          const label = altitudeLabel;
           return (
-            <>
+            <ListRow title="Altitude">
               <ResponsivePopover>
                 <ResponsivePopoverTrigger asChild>
                   <Button
@@ -616,13 +616,14 @@ export default function NavLogView({
                     <CircleHelp className="size-4" />
                   </Button>
                 </ResponsivePopoverTrigger>
-                {/* On a phone a sheet from the bottom: as a popover it
-                    was 70% of the screen, scrolling inside. */}
+                {/* On a phone a sheet from the header's edge: as a
+                    popover it was 70% of the screen, scrolling inside. */}
                 <ResponsivePopoverContent title="How the altitude was chosen" align="start" className="w-80">
-                  {/* The three plans first, each a button: the pilot
-                      picks one and the log re-plans on it. Then why. */}
+                  {/* The four plans first, each a button with its time
+                      and fuel: the pilot picks one and the log re-plans
+                      on it. Then why. */}
                   <div className="mb-3 space-y-1.5" role="group" aria-label="Cruise altitude plans">
-                    <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Three plans, or your own</div>
+                    <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Four plans, or your own</div>
                     {nav.options.map(o => (
                       <Button
                         key={o.kind} type="button" size="sm"
@@ -636,12 +637,15 @@ export default function NavLogView({
                           <span className="font-semibold capitalize">{o.kind}</span>
                           <span className="block text-xs font-normal opacity-80">{describeSteps(o)}</span>
                         </span>
-                        <span className="shrink-0 text-xs tabular-nums">{describeTime(o)}</span>
+                        <span className="shrink-0 text-right text-xs tabular-nums">
+                          {describeTime(o)}
+                          <span className="block opacity-80">{describeFuel(o)}</span>
+                        </span>
                       </Button>
                     ))}
                     {/* The pilot's own altitude, one number for the
-                        whole route: a fourth row under the three
-                        plans, pressed while it is what the log flies.
+                        whole route: a row under the four plans,
+                        pressed while it is what the log flies.
                         Enter or Fly re-plans at it; the stock Input's
                         16px below md keeps a phone from zooming. */}
                     <form
@@ -678,19 +682,21 @@ export default function NavLogView({
               <span className="hidden text-muted-foreground print:inline">
                 {label}
               </span>
-            </>
+            </ListRow>
           );
         })()}
-      </div>
-      {/* Which winds forecast period the legs are flown on -- named
-          so a pilot knows the winds are the 12-hour forecast, say,
-          not now's. Only with a departure time: without one the
-          legs are flown on the nearest period to now. */}
-      {depart && (
-        <span className="text-xs text-muted-foreground" data-testid="winds-forecast">
-          winds: {nav ? `${Number(nav.winds_forecast_hr)}-hour forecast` : "waiting on the nav log"}
-        </span>
-      )}
+        {depart && totals && totals.ete_min !== null && <ListRow title="ETA" value={etaAt(depart, totals.ete_min)} />}
+        {/* Which winds forecast period the legs are flown on -- named
+            so a pilot knows the winds are the 12-hour forecast, say,
+            not now's. Only with a departure time: without one the
+            legs are flown on the nearest period to now. */}
+        {depart && (
+          <ListRow
+            title="Winds"
+            value={<span data-testid="winds-forecast">{nav ? `${Number(nav.winds_forecast_hr)}-hour forecast` : "waiting on the nav log"}</span>}
+          />
+        )}
+      </ListGroup>
     </div>
   );
 
@@ -781,7 +787,7 @@ export default function NavLogView({
       >
         {notice}
         <Accordion type="multiple" value={printing ? ALL_SECTIONS : open} onValueChange={setOpen}>
-          <AccordionSection title="Nav Log">
+          <AccordionSection title="Nav Log" summary={foldedSummary}>
             {summary}
             {navLogTable}
             {fuelNote}

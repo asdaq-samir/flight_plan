@@ -1,9 +1,9 @@
 import type { AltitudeOption, AltitudeSegment, NavLogAltitude } from "../../../lib/api/types";
-import { altFt, deg, describeSteps, describeTime } from "../format";
+import { altFt, deg, describeFuel, describeSteps, describeTime } from "../format";
 
 interface Props {
   /** The nav log's own altitude and, unless the pilot typed one, the
-   *  planner's breakdown of how it chose it and the three plans. */
+   *  planner's breakdown of how it chose it and the four plans. */
   nav: NavLogAltitude;
 }
 
@@ -14,7 +14,7 @@ function join(parts: string[]): string {
 }
 
 const KIND_LABEL: Record<AltitudeOption["kind"], string> = {
-  lowest: "Lowest", highest: "Highest", fastest: "Fastest",
+  lowest: "Lowest", highest: "Highest", fastest: "Fastest", economical: "Economical",
 };
 
 /** Consecutive segments under the same shelf, for "the ceiling leg by
@@ -36,7 +36,7 @@ function ceilingRuns(segments: AltitudeSegment[]): AltitudeSegment[] {
  * obstacles, the ceiling from airspace and the aeroplane -- leg by
  * leg, since a Class B shelf caps only the legs
  * under it -- the hemispheric rule that gives the legal altitudes in
- * between, the three plans made of them and the one being flown, and
+ * between, the four plans made of them and the one being flown, and
  * the weather that was checked but does not move the numbers. Every
  * figure is the planner's own, so the pilot can check each one against
  * the chart -- the nav log header's "why" popover and the briefing's
@@ -124,9 +124,11 @@ export default function AltitudeReasoning({ nav }: Props) {
       </li>
       {nav.options.length > 0 ? (
         <li>
-          <b>Three plans.</b>{" "}
+          <b>Four plans.</b>{" "}
+          Lowest and highest keep to the bottom and the top of the legal altitudes; fastest takes the winds
+          aloft for the least time, and economical for the least fuel, every climb counted.{" "}
           {nav.options.map(o => (
-            `${KIND_LABEL[o.kind]}: ${describeSteps(o)}, ${describeTime(o)}`
+            `${KIND_LABEL[o.kind]}: ${describeSteps(o)}, ${describeTime(o)}, ${describeFuel(o)}`
             + (o.climb_penalty_min > 0 ? `, ${Math.round(o.climb_penalty_min)} min of it climbing` : "")
             + (o.tailwind_kt !== null ? `, ${Math.abs(Math.round(o.tailwind_kt))} kt ${o.tailwind_kt >= 0 ? "tailwind" : "headwind"} on average` : "")
             + "."

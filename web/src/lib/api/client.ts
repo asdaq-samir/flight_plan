@@ -181,7 +181,7 @@ export const api = {
    * chart, and streamed rather than one blocking response so a pilot
    * sees which of those it's actually doing right now. `depart`, an ISO
    * instant, picks the winds forecast period; absent means about now.
-   * `altitudeChoice` is which of the planner's three plans the legs
+   * `altitudeChoice` is which of the planner's four plans the legs
    * fly, meaningful only without a typed altitude.
    */
   async *navlog(
@@ -198,6 +198,8 @@ export const api = {
           cruise_tas_kt: aircraft?.cruiseTasKt,
           fuel_burn_gph: aircraft?.fuelBurnGph,
           usable_fuel_gal: aircraft?.usableFuelGal,
+          climb_tas_kt: aircraft?.climbTasKt,
+          climb_fuel_burn_gph: aircraft?.climbFuelBurnGph,
           depart: depart || undefined,
         },
       },

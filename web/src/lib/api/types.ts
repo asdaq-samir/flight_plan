@@ -40,7 +40,8 @@ export type Hazard = Schemas["Hazard"];
 export type AirspaceTransit = Schemas["AirspaceTransit"];
 export type AltitudeBreakdown = Schemas["AltitudeBreakdown"];
 export type AltitudeSegment = Schemas["AltitudeSegment"];
-/** One of the three plans: lowest, highest, fastest for the winds. */
+/** One of the four plans: lowest, highest, fastest for the winds, and
+ *  economical, the least fuel, climb and cruise. */
 export type AltitudeOption = Schemas["AltitudeOption"];
 export type AltitudeStep = Schemas["AltitudeStep"];
 export type AltitudeChoice = AltitudeOption["kind"];
@@ -83,13 +84,16 @@ export type DevServices = Schemas["DevServices"];
 export type DevServiceStarted = Schemas["DevServiceStarted"];
 
 /** Which aeroplane the nav log is computed for: a stock profile by
- *  name, optionally with a pilot's own aeroplane's cruise TAS and fuel
- *  burn laid over it (and its id, so a saved flight records it). */
+ *  name, optionally with a pilot's own aeroplane's speeds and fuel
+ *  burns, climb and cruise, laid over it (and its id, so a saved
+ *  flight records it). */
 export interface AircraftChoice {
   profile: string;
   label: string;
   cruiseTasKt?: number;
   fuelBurnGph?: number;
+  climbTasKt?: number;
+  climbFuelBurnGph?: number;
   usableFuelGal?: number;
   aircraftId?: number;
 }

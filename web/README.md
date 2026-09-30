@@ -11,8 +11,8 @@ component (`MapPage`) in two modes:
   (off by default; the layers popover switches it on) are markers on
   the chart — tap one to go to it and open its card, tap the chart to
   put the card away. The altitude row in the nav log's header opens
-  the planner's own reasoning and its three plans (lowest, highest,
-  fastest for the winds), one tap to fly another, or a custom
+  the planner's own reasoning and its four plans (lowest, highest,
+  fastest for the winds, economical on fuel), one tap to fly another, or a custom
   altitude. A departure time gives every row an ETA, picks the winds
   forecast the legs are flown on, and sets the fuel reserve (30
   minutes by day, 45 at night) the fuel check holds the tanks against.

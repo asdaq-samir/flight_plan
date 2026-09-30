@@ -76,9 +76,15 @@ export function describeSteps(option: AltitudeOption): string {
 }
 
 /** One altitude plan's time: the flying time plus what its climbs
- *  cost, which is what the plans are compared on. */
+ *  cost, which is what the fastest is chosen on. */
 export function describeTime(option: AltitudeOption): string {
   return option.ete_min === null ? "unflyable" : hhmm(option.ete_min);
+}
+
+/** One altitude plan's fuel, its climbs' included -- what the
+ *  economical plan is chosen on. "—" while a leg cannot be flown. */
+export function describeFuel(option: AltitudeOption): string {
+  return option.fuel_gal === null ? "—" : `${one(option.fuel_gal)} gal`;
 }
 
 /** A clock time, "09:05", in the browser's own zone -- an ETA. */

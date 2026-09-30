@@ -360,7 +360,8 @@ test("plan page: the flight planning drawer opens the way the Model Training dra
   await expect(drawer.locator('[data-slot="accordion-content"] [data-testid="generate-descriptions-button"]')).toBeVisible();
   // The summary has its totals once the log has streamed in; empty until
   // then, and Playwright counts an empty box as not visible.
-  await expect(drawer.locator('[data-slot="accordion-content"] [data-testid="navlog-summary"]')).toContainText(/\d nm/, { timeout: slow(60000) });
+  await expect(drawer.locator('[data-slot="accordion-content"] [data-testid="navlog-summary"]')).toBeVisible();
+  await expect(drawer.locator('[data-slot="section-summary"]').first()).toContainText(/\d nm/, { timeout: slow(60000) });
   expect(await drawer.locator('[data-slot="accordion-content"][data-state="open"]').count()).toBe(1);
 
   // The page's own header is still there: the route form, and the
@@ -892,21 +893,33 @@ test("plan page: the nav log's altitude opens the planner's own reasoning, and t
   await expect(popover).toContainText("Floor");
   await expect(popover).toContainText("Ceiling");
   await expect(popover).toContainText("14 CFR 91.159");
-  await expect(popover).toContainText("Three plans");
+  await expect(popover).toContainText("Four plans");
   await expect(popover).toContainText("Checked, not part of the choice");
-  // The three plans are buttons, the flown one pressed -- the fastest
+  // The four plans are buttons, the flown one pressed -- the fastest
   // for the winds unless the address says otherwise; picking another
   // re-plans on it and the URL carries the choice.
-  for (const kind of ["lowest", "highest", "fastest"]) {
+  for (const kind of ["lowest", "highest", "fastest", "economical"]) {
     await expect(popover.getByTestId(`altitude-plan-${kind}`)).toBeVisible();
   }
   await expect(popover.getByTestId("altitude-plan-fastest")).toHaveAttribute("aria-pressed", "true");
+  // Picking a plan closes the popover, and the re-plan takes the
+  // altitude figure (and so the popover) off the page and back: opened
+  // again, and again if the re-plan closed it, the plan is the pressed
+  // one once the log flies it. Every step with a short wait of its own,
+  // retried as a whole (toPass, where expect.poll stops at the first
+  // throw): the attribute was once read off a popover the re-plan took
+  // away mid-read, and the read waited for it for the rest of the minute.
+  const flies = (kind: string) => expect(async () => {
+    if (!(await popover.isVisible())) await page.getByTestId("altitude-why").click({ timeout: 2000 });
+    await expect(popover.getByTestId(`altitude-plan-${kind}`)).toHaveAttribute("aria-pressed", "true", { timeout: 2000 });
+  }).toPass({ timeout: slow(30000) });
   await popover.getByTestId("altitude-plan-lowest").click();
   await expect(page).toHaveURL(/[?&]altitude_choice=lowest/);
-  await expect(page.getByTestId("altitude-why")).toContainText(/\d ft/, { timeout: slow(30000) });
-  await page.getByTestId("altitude-why").click();
-  await expect(popover).toBeVisible();
-  await expect(popover.getByTestId("altitude-plan-lowest")).toHaveAttribute("aria-pressed", "true", { timeout: slow(30000) });
+  await flies("lowest");
+  // The fourth, the least fuel: the planner takes it by name.
+  await popover.getByTestId("altitude-plan-economical").click();
+  await expect(page).toHaveURL(/[?&]altitude_choice=economical/);
+  await flies("economical");
 
   // A custom altitude: the fourth row under the plans. Typed and flown,
   // the whole log is at it, the header shows it, and the plans stay
@@ -924,15 +937,7 @@ test("plan page: the nav log's altitude opens the planner's own reasoning, and t
   await popover.getByTestId("altitude-plan-fastest").click();
   await expect(page).not.toHaveURL(/[?&]altitude_ft=/);
   await expect(page).not.toHaveURL(/[?&]altitude_choice=/);
-  // Picking a plan closes the popover, and the re-plan takes the
-  // altitude figure (and so the popover) off the page and back: opened
-  // again, and again if the re-plan closed it, the plan is the pressed
-  // one once the log flies it.
-  await expect.poll(async () => {
-    if (!(await popover.isVisible())) await page.getByTestId("altitude-why").click();
-    const plan = popover.getByTestId("altitude-plan-fastest");
-    return (await plan.count()) ? plan.getAttribute("aria-pressed") : null;
-  }, { timeout: slow(30000) }).toBe("true");
+  await flies("fastest");
   // No altitude box in the table's head any more: Alt is a plain heading.
   await expect(sideDrawer(page).locator('table thead')).not.toContainText("Cruise altitude");
   expect(await sideDrawer(page).locator('table thead input').count()).toBe(0);
