@@ -27,7 +27,7 @@ async function openConsole(page: Page) {
   return consoleSheet(page);
 }
 
-test("an add still saving when Edit is clicked says added, and leaves the aeroplane being edited in the form", async ({ page }) => {
+test("an add still saving when Edit is clicked says added, and leaves the aeroplane being edited in the form", { tag: "@smoke" }, async ({ page }) => {
   await page.route("**/api/me", route =>
     route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(A_PILOT) }));
   const hold = held();

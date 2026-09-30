@@ -24,7 +24,7 @@ async function signedIn(page: Page, filed: Record<string, unknown>[], list: obje
   });
 }
 
-test("a flight is filed once, whole, and a new plan is offered for saving again", async ({ page }) => {
+test("a flight is filed once, whole, and a new plan is offered for saving again", { tag: "@smoke" }, async ({ page }) => {
   test.setTimeout(120_000);
   const filed: Record<string, unknown>[] = [];
   await signedIn(page, filed);

@@ -21,6 +21,13 @@ const PLAN = "/app/plan?dep=C81&dest=KDLH";
 // Class B airports.
 const chips = (page: Page) => page.locator(".leaflet-marker-icon span.rounded-full");
 
+/** The route on the map: its destination chip drawn, which is after
+ *  the course has arrived and the markers laid out. It used to be a
+ *  flat four seconds a test. */
+async function routeDrawn(page: Page) {
+  await expect(page.locator(".leaflet-marker-icon", { hasText: "KDLH" }).first()).toBeVisible({ timeout: 20000 });
+}
+
 const FIXTURE = {
   airports: [
     {
@@ -59,13 +66,14 @@ test("off until asked for: a route does not come covered in them", async ({ page
   // Thirty extra markers are useful on a cross-country that passes one
   // and clutter on a route that does not.
   await page.goto(PLAN);
-  await page.waitForTimeout(4000);
+  await routeDrawn(page);
+  await page.waitForTimeout(500);   // a moment for any chips that were coming
   await expect(chips(page)).toHaveCount(0);
 });
 
-test("switched on, every Class B is on the map by name", async ({ page }) => {
+test("switched on, every Class B is on the map by name", { tag: "@smoke" }, async ({ page }) => {
   await page.goto(PLAN);
-  await page.waitForTimeout(4000);
+  await routeDrawn(page);
   await showClassB(page);
   // The real planner: thirty is what the FAA's own shapefile yields.
   await expect.poll(() => chips(page).count(), { timeout: 20000 }).toBe(30);
@@ -75,7 +83,7 @@ test("switched on, every Class B is on the map by name", async ({ page }) => {
 test("the marker's colour is the field's own flight category", async ({ page }) => {
   await mockClassB(page);
   await page.goto(PLAN);
-  await page.waitForTimeout(4000);
+  await routeDrawn(page);
   await showClassB(page);
 
   const ord = chips(page).filter({ hasText: "KORD" }).first();
@@ -94,7 +102,7 @@ test("the marker's colour is the field's own flight category", async ({ page }) 
 test("hovering one shows what it is doing and what it is forecast to do", async ({ page }) => {
   await mockClassB(page);
   await page.goto(PLAN);
-  await page.waitForTimeout(4000);
+  await routeDrawn(page);
   await showClassB(page);
 
   const ord = chips(page).filter({ hasText: "KORD" }).first();
@@ -123,7 +131,7 @@ test("hovering one shows what it is doing and what it is forecast to do", async 
 test("a field with no report says so rather than showing a blank", async ({ page }) => {
   await mockClassB(page);
   await page.goto(PLAN);
-  await page.waitForTimeout(4000);
+  await routeDrawn(page);
   await showClassB(page);
 
   const msp = chips(page).filter({ hasText: "KMSP" }).first();
@@ -145,7 +153,7 @@ test("tapping one opens a card, and the card pins its terminal chart", async ({ 
   page.on("request", r => { if (r.url().includes("/chart-tile/tac/")) tacTiles.push(r.url()); });
 
   await page.goto(PLAN);
-  await page.waitForTimeout(4000);
+  await routeDrawn(page);
   await showClassB(page);
   const ord = chips(page).filter({ hasText: "KORD" }).first();
   await expect(ord).toBeVisible({ timeout: 20000 });
@@ -204,7 +212,7 @@ test("on an IFR base, a Class B card pins the IFR area chart, and that is what d
   page.on("request", r => { if (r.url().includes("/chart-tile/ifr_area/")) areaTiles.push(r.url()); });
   await mockClassB(page);
   await page.goto(PLAN);
-  await page.waitForTimeout(4000);
+  await routeDrawn(page);
   await page.getByTestId("layers-button").click();
   await page.getByTestId("base-chart-select").click();
   await page.getByRole("option", { name: "IFR low" }).click();

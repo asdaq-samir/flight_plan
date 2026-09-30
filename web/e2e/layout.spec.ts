@@ -32,11 +32,13 @@ const PAGES = ["/app/plan", "/app/dev"] as const;
 const slow = (ms: number) => ms * (process.env.CI ? 2 : 1);
 
 async function settle(page: Page) {
-  // Long enough for the initial course/checkpoint fetch to resolve (or
-  // fail) and the map to finish its first layout pass -- these tests
-  // assert on structure and position, not on that data actually
-  // arriving, but a mid-fetch render shouldn't be what gets measured.
-  await page.waitForTimeout(1500);
+  // The map's first layout pass: its first tile attached, which is
+  // after the container has been measured and the chart asked for --
+  // these tests assert on structure and position, not on the route's
+  // data arriving. Capped at the flat 1.5 s this used to sleep every
+  // time (44 times a run, 66 s summed), for a page with no map to wait
+  // on; usually it is a few hundred milliseconds.
+  await page.locator("img.leaflet-tile").first().waitFor({ state: "attached", timeout: 1500 }).catch(() => {});
 }
 
 /** The side drawer is shadcn's own Sidebar: a fixed panel beside the
@@ -103,7 +105,7 @@ test.describe("/app/plan", () => {
     await expectDrawerClosed(page);
   });
 
-  test("sidebar opens from its own trigger, closes on Escape", async ({ page }) => {
+  test("sidebar opens from its own trigger, closes on Escape", { tag: "@smoke" }, async ({ page }) => {
     await page.goto("/app/plan");
     await settle(page);
     await openSidebar(page);
@@ -133,7 +135,7 @@ test.describe("/app/dev", () => {
     await expectDrawerClosed(page);
   });
 
-  test("sidebar opens from its own trigger, closes on Escape", async ({ page }) => {
+  test("sidebar opens from its own trigger, closes on Escape", { tag: "@smoke" }, async ({ page }) => {
     await page.goto("/app/dev");
     await settle(page);
     await openSidebar(page);
@@ -506,7 +508,7 @@ test("plan page: a click or Enter selects a nav log checkpoint, with the briefin
   await expect(titles.nth(1)).toBeFocused();
 });
 
-test("plan page: a checkpoint picked on the map is brought to the middle of the nav log, and a row clicked in view stays put", async ({ page }) => {
+test("plan page: a checkpoint picked on the map is brought to the middle of the nav log, and a row clicked in view stays put", { tag: "@smoke" }, async ({ page }) => {
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
   const marker = page.locator(".leaflet-marker-icon", { hasText: /^1[01]$/ }).first();
@@ -833,7 +835,7 @@ test("the route form sits in the middle of the header on both pages, with the DE
   await signedOut.close();
 });
 
-test("plan page: the nav log's altitude opens the planner's own reasoning, and the briefing's Cruise Altitude section carries the same steps", async ({ page }) => {
+test("plan page: the nav log's altitude opens the planner's own reasoning, and the briefing's Cruise Altitude section carries the same steps", { tag: "@smoke" }, async ({ page }) => {
   // Three re-plans, each allowed 30 s below, inside the default 30 s for
   // the whole test: 18 s on a quiet machine, and past the limit in a
   // full run, where the other workers are asking the planner too.
@@ -981,7 +983,7 @@ test("the old Settings address lands on the planner", async ({ page }) => {
   await page.waitForURL("**/app/plan");
 });
 
-test("plan page: the pilot console is a sheet from the top with the account, aeroplanes and flights, and the drawer opens once it is closed", async ({ page }) => {
+test("plan page: the pilot console is a sheet from the top with the account, aeroplanes and flights, and the drawer opens once it is closed", { tag: "@smoke" }, async ({ page }) => {
   await page.goto("/app/plan");
   await settle(page);
   await expectDrawerClosed(page);
@@ -1015,7 +1017,7 @@ test("plan page: the pilot console is a sheet from the top with the account, aer
   await expectDrawerClosed(page);
 });
 
-test("dev page: the dev console is a sheet from the top, and the waypoint drawer opens once it is closed", async ({ page }) => {
+test("dev page: the dev console is a sheet from the top, and the waypoint drawer opens once it is closed", { tag: "@smoke" }, async ({ page }) => {
   await page.goto("/app/dev");
   await settle(page);
   // The training workspace is the page -- the console stays off screen

@@ -29,7 +29,7 @@ test("an agent this deployment does not run reads not configured", async ({ page
   await expect(row(page, /nav-log-agent/)).not.toContainText("checking");
 });
 
-test("a snapshot that failed reads no answer, and nothing waits for it for ever", async ({ page }) => {
+test("a snapshot that failed reads no answer, and nothing waits for it for ever", { tag: "@smoke" }, async ({ page }) => {
   await page.route("**/api/planner/status", route =>
     route.fulfill({ status: 502, contentType: "application/json", body: JSON.stringify({ detail: "planner down" }) }));
   await openSystemTab(page);

@@ -21,6 +21,15 @@ import { test, expect, type Page } from "@playwright/test";
 
 const devSwitch = (page: Page) => page.getByTestId("dev-switch");
 
+/** The header drawn without the switch: the pilot button is there (the
+ *  header has rendered with who is signed in known), and the switch has
+ *  not followed within a moment. It used to be a flat three seconds. */
+async function noDevSwitch(page: Page) {
+  await expect(page.getByTestId("pilot-button")).toBeVisible();
+  await page.waitForTimeout(500);
+  await expect(devSwitch(page)).toHaveCount(0);
+}
+
 async function withAuth(page: Page, opts: { access: "SIGN_IN" | "OPEN" | "CLOSED"; pilot: object | null }) {
   await page.route("**/api/auth/capabilities", route =>
     route.fulfill({
@@ -47,15 +56,13 @@ test("with no way to sign in and nothing opened, it is not: every developer path
   // workspace whose every write and status read was refused.
   await withAuth(page, { access: "CLOSED", pilot: null });
   await page.goto("/app/plan");
-  await page.waitForTimeout(3000);
-  await expect(devSwitch(page)).toHaveCount(0);
+  await noDevSwitch(page);
 });
 
 test("where signing in is possible, a caller with no session does not get it", async ({ page }) => {
   await withAuth(page, { access: "SIGN_IN", pilot: null });
   await page.goto("/app/plan");
-  await page.waitForTimeout(3000);
-  await expect(devSwitch(page)).toHaveCount(0);
+  await noDevSwitch(page);
 });
 
 test("a signed-in pilot does not get it either", async ({ page }) => {
@@ -63,8 +70,7 @@ test("a signed-in pilot does not get it either", async ({ page }) => {
   // is a pilot who has no business retraining a model.
   await withAuth(page, { access: "SIGN_IN", pilot: A_PILOT });
   await page.goto("/app/plan");
-  await page.waitForTimeout(3000);
-  await expect(devSwitch(page)).toHaveCount(0);
+  await noDevSwitch(page);
 });
 
 test("a signed-in developer does", async ({ page }) => {
@@ -79,7 +85,7 @@ test("the header holds together without it", async ({ page }) => {
   // than sliding into the gap.
   await withAuth(page, { access: "SIGN_IN", pilot: A_PILOT });
   await page.goto("/app/plan");
-  await page.waitForTimeout(3000);
+  await noDevSwitch(page);
 
   await expect(devSwitch(page)).toHaveCount(0);
   await expect(page.getByLabel("Departure", { exact: true })).toBeVisible();

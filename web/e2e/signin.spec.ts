@@ -18,12 +18,12 @@ const consoleSheet = (page: Page) => page.locator('[data-slot="sheet-content"][d
  *  desktop's runs never read each other's link. */
 const pilotAddress = (test: string, project: string) => `pilot-${test}-${project}@example.com`;
 
-test("signed out, the planner opens on the map, and the sign-in is in the pilot console", async ({ page }) => {
+test("signed out, the planner opens on the map, and the sign-in is in the pilot console", { tag: "@smoke" }, async ({ page }) => {
   // The console used to come down by itself for anyone signed out,
   // over the map a pilot came to look at. It opens when asked.
   await page.goto("/app/plan");
   await expect(page.getByTestId("pilot-button")).toBeVisible();
-  await page.waitForTimeout(1500);
+  await page.waitForTimeout(500);   // a moment for a console that was coming down by itself
   await expect(consoleSheet(page)).toHaveCount(0);
   await expect(page.getByTestId("dev-switch")).toHaveCount(0);
 
@@ -72,7 +72,7 @@ test("a pilot's link lands on the planner, with no dev switch, and the pilot con
 
   await page.waitForURL("**/app/plan**");
   await expect(page.getByLabel("Departure", { exact: true })).toBeVisible();
-  await page.waitForTimeout(1500);
+  await page.waitForTimeout(500);   // a moment for a console that was coming down by itself
   await expect(consoleSheet(page)).toHaveCount(0);
   await expect(page.getByTestId("dev-switch")).toHaveCount(0);
 

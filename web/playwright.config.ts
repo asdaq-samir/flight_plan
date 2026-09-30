@@ -51,7 +51,10 @@ export default defineConfig({
   // failing the run without hiding a real regression, which fails
   // twice.
   retries: ci ? 2 : 1,
-  workers: ci ? 2 : undefined,
+  // Three quarters of the machine's cores locally (six of eight ran the
+  // suite in 4.0 minutes against 4.6 at the default half, with no more
+  // flakes); two in CI, where the four-core runner is the stack's too.
+  workers: ci ? 2 : "75%",
   // A whole run that is not done in half an hour is a stack that is
   // not answering, and the report of what did and did not pass is
   // worth more than the job's own time limit cutting it off unsaid.

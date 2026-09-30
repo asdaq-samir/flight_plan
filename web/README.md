@@ -107,7 +107,9 @@ restart.
 docker compose -f docker-compose.yml -f docker-compose.web-dev.yml up -d --no-deps webapp web-build
 docker compose logs -f web-build     # each rebuild, as it happens
 
-# each change: the spec you touched while iterating (a single test with -g)
+# each change: the spec you touched while iterating (a single test with -g;
+# the phone project alone with --project=mobile; the ten-test smoke subset
+# with -g @smoke, about a minute)
 docker run --rm --add-host=host.docker.internal:host-gateway -v "$PWD/web":/w -w /w \
   -e BASE_URL=http://host.docker.internal:8080 -e MAILPIT_URL=http://host.docker.internal:8025 \
   mcr.microsoft.com/playwright:v1.55.1-noble npx playwright test e2e/layout.spec.ts -g "nav log"
