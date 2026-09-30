@@ -450,9 +450,10 @@ jobs:
   # opens empty, a request the phone's port dropped.
   #
   # Split eight ways (`--shard`), each runner with a stack of its own:
-  # the suite is 180 tests, four and a half minutes on one runner (the
-  # split is by test, so layout.spec's forty-four spread over several
-  # shards). Six were 37 to 92 seconds of tests each, the same shard the
+  # the suite is 189 tests, four and a half minutes on one runner, split
+  # by test in file order -- so the slow ones are in files whose names
+  # spread them over the shards (web/e2e/layout.spec.ts's opening
+  # comment). Six were 37 to 92 seconds of tests each, the same shard the
   # longest in every run, and with the setup down to 35 to 60 seconds the
   # tests were most of the run. Eight, not more: the account runs twenty
   # jobs at once, and eight shards, the seven suites, the docs, the e2e

@@ -114,7 +114,7 @@ docker compose logs -f web-build     # each rebuild, as it happens
 # with -g @smoke, about a minute)
 docker run --rm --add-host=host.docker.internal:host-gateway -v "$PWD/web":/w -w /w \
   -e BASE_URL=http://host.docker.internal:8080 -e MAILPIT_URL=http://host.docker.internal:8025 \
-  mcr.microsoft.com/playwright:v1.55.1-noble npx playwright test e2e/layout.spec.ts -g "nav log"
+  mcr.microsoft.com/playwright:v1.55.1-noble npx playwright test e2e/checkpoints.spec.ts -g "nav log"
 
 # the checks, with their caches: seconds after the first run
 docker run --rm -v "$PWD/web":/w -w /w node:24-slim \

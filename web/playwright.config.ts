@@ -79,8 +79,7 @@ export default defineConfig({
   // at either size unmodified. The handful of tests that are
   // genuinely mobile-only (shadcn's Sidebar swaps to a Sheet overlay
   // below its own breakpoint, a real behavior change, not just a
-  // resize) skip themselves on "desktop" -- see layout.spec.ts's own
-  // `mobileOnly` helper.
+  // resize) skip themselves on "desktop", by the viewport's width.
   //
   // Both as the developer: the local stack signs in the way a
   // deployment does (docker-compose.yml's inbox), so "setup" signs in

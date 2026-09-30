@@ -202,7 +202,7 @@ test("tapping one opens a card, and the card pins its terminal chart", async ({ 
   // button on a card -- a tap on the map is what closes one, which is
   // Leaflet's own `closeOnClick` and what a tap on a map does
   // everywhere else too. The way back out to the whole route is the
-  // map's own zoom toggle, which is tested in layout.spec.ts.
+  // map's own zoom toggle, which is tested in map.spec.ts.
   const map = (await page.locator(".leaflet-container").boundingBox())!;
   await page.mouse.click(map.x + 60, map.y + map.height - 60);
   await expect(page.locator(".leaflet-popup")).toHaveCount(0);
