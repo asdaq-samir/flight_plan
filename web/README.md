@@ -91,11 +91,9 @@ CI runs the same suite on every push and pull request (the `e2e` job in
 service built from the commit, under `docker-compose.ci.yml`, with the
 suite's own small trained model (`e2e/fixtures/model`) and the planner's
 reference data kept in the Actions cache between runs. It runs the tests
-on the runner itself with Playwright's headless Chromium -- the browser
-build the image above carries, without the rest of the image -- split
-over six runners. Failures show on the commit's checks, with traces and
-screenshots as a run artifact, and each shard's notice lists its slowest
-tests.
+in the same Playwright image as above, split over six runners. Failures
+show on the commit's checks, with traces and screenshots as a run
+artifact, and each shard's notice lists its slowest tests.
 
 ### The loop: a change, a test, in seconds
 

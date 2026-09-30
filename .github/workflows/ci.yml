@@ -469,8 +469,8 @@ jobs:
   # and five image builds are nineteen. What each runner spends before
   # its first test is the rest, so that is done at once rather than in
   # turn: the three images are built (from the registry cache main
-  # writes), Postgres and Mailpit pulled and the suite's browser
-  # downloaded in the background while the caches below are restored.
+  # writes) and the Playwright, Postgres and Mailpit images pulled in the
+  # background while the caches below are restored.
   #
   # The planner fetches its reference data for itself into data/raw:
   # the FAA obstacle file and the airport tables (about 800 MB, from an
@@ -483,11 +483,14 @@ jobs:
   # (docker-compose.ci.yml). Only the first shard saves them: the six
   # would race to write the same keys.
   #
-  # The tests run on the runner itself, with Playwright's own headless
-  # Chromium: the same browser build as the Playwright image that
-  # web/README.md runs them in locally, without the other 800 MB of the
-  # image. The app ships its own font (Inter), so the runner's fonts
-  # change nothing it lays out, and the suite compares no screenshots.
+  # The tests run in the Playwright image, the same one web/README.md
+  # runs them in locally, on the runner's network so localhost is the
+  # stack's. They ran on the runner itself for three runs (c797718 to
+  # f1cf1b7), with Playwright's own Chromium and no image to pull: one
+  # test -- a nav log row clicked in view stays where it is -- failed
+  # or flaked in each of them, and had passed in every run in the image.
+  # The image is pulled in the background and waited for only before
+  # the tests, so it costs a run next to nothing.
   e2e:
     name: e2e (${{ matrix.shard }}/${{ strategy.job-total }})
     runs-on: ubuntu-26.04
@@ -497,12 +500,6 @@ jobs:
     permissions:
       contents: read
       packages: read
-    # Playwright 1.55 names any Ubuntu past 24.04 by its own number, has
-    # no build listed for "ubuntu26.04", and refuses to install one. Its
-    # Chromium is one Linux build whatever the release; this has it take
-    # 24.04's, for the install, the launch check and the tests alike.
-    env:
-      PLAYWRIGHT_HOST_PLATFORM_OVERRIDE: ubuntu24.04-x64
     timeout-minutes: 35
     strategy:
       fail-fast: false
@@ -512,12 +509,17 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
       # What a shard fetches, in the background, each with its own log and
       # its exit status in a file (later steps wait on those), while the
-      # caches below are restored. Postgres and Mailpit first -- public,
-      # so before the registry login -- started as soon as they are pulled.
-      - name: Postgres and Mailpit, in the background
+      # caches below are restored. The public images first, before the
+      # registry login: Postgres and Mailpit, started as soon as they are
+      # pulled, and the Playwright image -- the largest thing a shard
+      # fetches (917 MB, nearly all of it one layer of browsers) and wanted
+      # only by the tests, so waited for just before them: the stack's
+      # start and warm-up are time it goes on arriving in.
+      - name: The public images, in the background
         run: |
           mkdir -p /tmp/e2e-out
           nohup bash -c '{ docker compose -f docker-compose.yml -f docker-compose.ci.yml pull -q db mailpit && docker compose -f docker-compose.yml -f docker-compose.ci.yml up -d db mailpit; } > /tmp/e2e-out/pull.log 2>&1; r=$?; echo $SECONDS > /tmp/e2e-out/pull.secs; echo $r > /tmp/e2e-out/pull.exit' > /dev/null 2>&1 < /dev/null &
+          nohup bash -c 'docker pull -q mcr.microsoft.com/playwright:v1.55.1-noble > /tmp/e2e-out/playwright.log 2>&1; r=$?; echo $SECONDS > /tmp/e2e-out/playwright.secs; echo $r > /tmp/e2e-out/playwright.exit' > /dev/null 2>&1 < /dev/null &
       - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f  # v4
         with:
           registry: ghcr.io
@@ -540,34 +542,14 @@ jobs:
         run: |
           nohup bash -c 'docker buildx bake -f .github/ci-images.hcl ci --load > /tmp/e2e-out/bake.log 2>&1; r=$?; echo $SECONDS > /tmp/e2e-out/bake.secs; echo $r > /tmp/e2e-out/bake.exit' > /dev/null 2>&1 < /dev/null &
 
-      # The suite's own Node and packages: .nvmrc's major, and a restore of
-      # web/node_modules rather than an `npm ci` each run.
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7
-        with:
-          node-version-file: .nvmrc
+      # The suite's packages, as installed in the Playwright image: a
+      # restore of web/node_modules rather than an `npm ci` each run.
       - name: Restore the suite's packages
         id: packages
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: web/node_modules
           key: e2e-node-modules-pw1.55.1-${{ hashFiles('web/package-lock.json') }}
-      # Then its browser, in the background too: Playwright's headless
-      # Chromium alone (--only-shell, the one headless runs use), and the
-      # packages first if they were not restored. Launched once to prove
-      # it runs here: the runner carries Chrome, and with it the libraries
-      # Chromium needs, but should one be missing, Playwright's installer
-      # adds it (with sudo) and the launch is tried again.
-      - name: The suite's browser, in the background
-        run: |
-          cat > /tmp/e2e-out/browser.sh <<'EOF'
-          set -e
-          cd web
-          [ -d node_modules/@playwright/test ] || npm ci --no-audit --no-fund
-          npx playwright install --only-shell chromium
-          launch() { node -e 'require("@playwright/test").chromium.launch().then((b) => b.close())'; }
-          launch || { npx playwright install-deps chromium && launch; }
-          EOF
-          nohup bash -c 'bash /tmp/e2e-out/browser.sh > /tmp/e2e-out/browser.log 2>&1; r=$?; echo $SECONDS > /tmp/e2e-out/browser.secs; echo $r > /tmp/e2e-out/browser.exit' > /dev/null 2>&1 < /dev/null &
 
       # data/raw's entries, not data/raw itself: a directory the cache is
       # given is archived whole, and a "!" line drops only an entry the
@@ -702,38 +684,42 @@ jobs:
           notice("reachable from the runner", json.dumps(reach))
           EOF
 
-      # The browser, downloaded since the job's first steps. How long each
-      # piece of the background work took goes on the checks page (from
-      # one shard), beside the steps' own times, which are all the page
-      # shows otherwise.
-      - name: Wait for the browser
+      # The Playwright image, pulled since the job's first steps. How long
+      # each piece of the background work took goes on the checks page
+      # (from one shard), beside the steps' own times, which are all the
+      # page shows otherwise.
+      - name: Wait for the Playwright image
         env:
           SHARD: ${{ matrix.shard }}
         run: |
           start=$SECONDS
-          while [ ! -f /tmp/e2e-out/browser.exit ]; do sleep 1; done
-          if [ "$(cat /tmp/e2e-out/browser.exit)" != 0 ]; then
-            tail -40 /tmp/e2e-out/browser.log
-            tail -25 /tmp/e2e-out/browser.log | python3 -c 'import sys; t=sys.stdin.read().replace("%","%25").replace("\n","%0A"); print(f"::error title=the browser failed::{t[:4000]}")'
+          while [ ! -f /tmp/e2e-out/playwright.exit ]; do sleep 1; done
+          if [ "$(cat /tmp/e2e-out/playwright.exit)" != 0 ]; then
+            tail -20 /tmp/e2e-out/playwright.log
             exit 1
           fi
-          times="the three images built in $(cat /tmp/e2e-out/bake.secs) s; Postgres and Mailpit pulled in $(cat /tmp/e2e-out/pull.secs) s; the browser ready in $(cat /tmp/e2e-out/browser.secs) s, and waited for here $((SECONDS - start)) s"
+          times="the three images built in $(cat /tmp/e2e-out/bake.secs) s; Postgres and Mailpit pulled in $(cat /tmp/e2e-out/pull.secs) s; the Playwright image pulled in $(cat /tmp/e2e-out/playwright.secs) s, and waited for here $((SECONDS - start)) s"
           echo "$times"
           if [ "$SHARD" = 1 ]; then echo "::notice title=the background work::$times"; fi
 
+      - name: The suite's packages, when they were not restored
+        if: steps.packages.outputs.cache-hit != 'true'
+        run: |
+          docker run --rm --network host -v "$PWD/web:/w" -v /tmp/e2e-out:/out -w /w \
+            mcr.microsoft.com/playwright:v1.55.1-noble \
+            sh -c "timeout 600 npm ci --no-audit --no-fund 2>&1 | tail -20 | tee /out/npm.log"
       - name: Browser tests
         id: tests
-        working-directory: web
         # CI=1 is what playwright.config.ts doubles its waits on. The
         # github reporter puts each failure on the commit's checks, as
         # the webapp's job does for its tests; the list goes to a file
         # for the step below, since the job's log takes admin rights to
         # read. Thirty minutes, and then the step ends and says so.
-        env:
-          CI: "1"
         run: |
-          set -o pipefail
-          timeout 1800 npx playwright test --shard=${{ matrix.shard }}/${{ strategy.job-total }} --reporter=list,github 2>&1 | tee /tmp/e2e-out/playwright.log
+          docker run --rm --network host -e CI=1 \
+            -v "$PWD/web:/w" -v /tmp/e2e-out:/out -w /w \
+            mcr.microsoft.com/playwright:v1.55.1-noble \
+            bash -o pipefail -c "timeout 1800 npx playwright test --shard=${{ matrix.shard }}/${{ strategy.job-total }} --reporter=list,github 2>&1 | tee /out/playwright.log"
       - name: How the tests went, as an annotation
         if: always()
         env:
