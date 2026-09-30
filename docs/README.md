@@ -676,7 +676,7 @@ CI job breakdown is in the [Appendix](#appendix).
 | `docker compose up model-service` | FastAPI model serving; needs a promoted model | `8000` |
 | `docker compose up webapp` | Spring Boot API and the three browser pages; brings up `db`, `model-service` and `planning-service` too | `8080` |
 | `docker compose up ml` | Jupyter, for notebooks 01-08 | `8888` (token `vfr`) |
-| `docker compose run --rm pipeline-processing collect` | Runs `pipeline.collect()` | — |
+| `docker compose run --rm pipeline-processing collect` | Runs `pipeline.collect()`: downloads a corridor's candidates once, and again only with `--refresh` | — |
 | `docker compose run --rm pipeline-processing engineer-features` | Runs `pipeline.engineer_features()` | — |
 | `docker compose run --rm pipeline-training retrain` | Runs `pipeline.retrain()` | — |
 | `docker compose run --rm pipeline-training python -m vfr.model_registry evaluate` | Runs `evaluate`/`promote` | — |

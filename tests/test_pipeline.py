@@ -95,6 +95,42 @@ def test_engineer_features_on_the_command_line_defaults_to_the_corridor_named(mo
     }]
 
 
+def test_a_collected_corridor_is_kept_not_downloaded_again(tmp_path, monkeypatch):
+    """The retrain DAG collects first, and Overpass -- free and shared --
+    answers 504s for minutes at a time: a retrain failed on one for a
+    corridor that had not moved. Only a refresh downloads it again."""
+    from vfr import airports, osm, pipeline
+
+    out = tmp_path / "candidates.csv"
+    out.write_text("osm_id\n1\n")
+
+    class Asked(Exception):
+        pass
+
+    def overpass(*args, **kwargs):
+        raise Asked
+
+    monkeypatch.setattr(osm, "query_overpass", overpass)
+    monkeypatch.setattr(airports, "get_airport", lambda ident: {"lat": 42.4, "lon": -88.1})
+    assert pipeline.collect("C81", "KDLH", out_path=out) == out
+    assert out.read_text() == "osm_id\n1\n"
+    with pytest.raises(Asked):
+        pipeline.collect("C81", "KDLH", out_path=out, refresh=True)
+
+
+def test_collect_on_the_command_line_refreshes_only_when_asked(monkeypatch):
+    import sys
+
+    from vfr import pipeline
+
+    calls = []
+    monkeypatch.setattr(pipeline, "collect", lambda **kw: calls.append(kw))
+    for argv in (["pipeline", "collect"], ["pipeline", "collect", "--refresh"]):
+        monkeypatch.setattr(sys, "argv", argv)
+        pipeline._cli()
+    assert [c["refresh"] for c in calls] == [False, True]
+
+
 def test_find_one_resolves_a_glob_match(tmp_path):
     (tmp_path / "whatever-sagemaker-named-it.parquet").write_text("not real data")
     found = _find_one(tmp_path, "*.parquet")

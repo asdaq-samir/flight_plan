@@ -199,14 +199,23 @@ def collect(
     dep_ident: str = "C81",
     dest_ident: str = "KDLH",
     out_path: Path | None = None,
+    refresh: bool = False,
 ) -> Path:
     """Notebook 01: pull candidate checkpoints along the route corridor from
     OSM (Overpass) + FAA NASR data, filter to the corridor, dedupe, and save
     -- by default to the corridor's own candidates file. (The default used
     to be C81->KDLH's file whatever route was asked for, so collecting
     another route without naming a path wrote over that corridor's.)
+
+    A corridor already collected is kept, not downloaded again, unless
+    `refresh` says to: the retrain DAG runs this first, and every retrain
+    downloaded the same corridor from Overpass -- a free, shared service
+    that answers 504s for minutes at a time, which is what failed the
+    retrain of 2026-09-30 -- for candidates that had not moved.
     """
     out_path = out_path or corridor_paths(dep_ident, dest_ident)[0]
+    if not refresh and Path(out_path).exists():
+        return Path(out_path)
     dep = airports.get_airport(dep_ident)
     dest = airports.get_airport(dest_ident)
     route_distance_nm = geo.distance_nm(dep["lat"], dep["lon"], dest["lat"], dest["lon"])
@@ -606,6 +615,7 @@ def _cli() -> None:
     p.add_argument("--dep-ident", default="C81")
     p.add_argument("--dest-ident", default="KDLH")
     p.add_argument("--out-path", type=Path)
+    p.add_argument("--refresh", action="store_true", help="download the corridor again, though it has been collected")
 
     p = sub.add_parser("engineer-features")
     p.add_argument("--dep-ident", default="C81")
