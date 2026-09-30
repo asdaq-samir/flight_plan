@@ -559,14 +559,15 @@ jobs:
       # been restored too (a later step says so). Under
       # docker-compose.ci.yml none waits on another to start.
       #
-      # And once the planner is warm, the corridor is read for the first
-      # time -- its detections, and a nav log -- rather than by whichever
-      # test asks first. Each shard's planner is new, and the first read
-      # of the corridor's chart is a job of its own (app.detection) that
-      # any later request follows or replays: the test that started it
-      # was paying for all of it, once 50 seconds for a test that takes 5
-      # (a waypoint-drawer test on the dev page, 2026-09-30). Nothing
-      # waits for these; when each ended goes in the shard's annotation.
+      # And once the planner is warm, the corridor's nav log is asked for,
+      # rather than by whichever test asks first (the default aircraft,
+      # this hour: the key a test's own default request shares). Nothing
+      # waits for it; when it ended goes in the shard's annotation. Not
+      # the corridor's detections, which fb03710 asked for the same way:
+      # that read takes a minute or more of the planner's time on a busy
+      # runner, so it was still running long after the tests had started,
+      # on every shard, when only the dev page's training tests ask for
+      # it (they start it themselves, and the planner shares it).
       #
       # A pull request's token cannot push, so a key no image has yet is
       # built by its shards themselves, from the registry cache main
@@ -637,14 +638,9 @@ jobs:
           exit "$failed"
           EOF
           cat > /tmp/e2e-out/first-reads.sh <<'EOF'
-          mark() { echo "$(($(date +%s) - T0)) $*" >> /tmp/e2e-out/timeline; }
           until curl -sf http://localhost:8084/ | grep -q '"warm":true'; do sleep 1; done
-          first() {
-            curl -sf -o /dev/null --max-time 600 "http://localhost:8084/api/$1?dep=C81&dest=KDLH"
-            mark "$1 read, the first time (curl $?)"
-          }
-          first detect/stream & first navlog &
-          wait
+          curl -sf -o /dev/null --max-time 600 "http://localhost:8084/api/navlog?dep=C81&dest=KDLH"
+          echo "$(($(date +%s) - T0)) the nav log read, the first time (curl $?)" >> /tmp/e2e-out/timeline
           EOF
           nohup bash -c 'bash /tmp/e2e-out/stack.sh > /tmp/e2e-out/stack.log 2>&1; echo $? > /tmp/e2e-out/stack.exit' > /dev/null 2>&1 < /dev/null &
 
