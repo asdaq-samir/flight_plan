@@ -470,12 +470,14 @@ jobs:
   # catches what no unit test can -- a tap lost to a race, a drawer that
   # opens empty, a request the phone's port dropped.
   #
-  # Split six ways (`--shard`), each runner with a stack of its own:
-  # the suite is 180 tests, four and a half minutes on one runner, 38 to
-  # 78 seconds on each of four (the split is by test, so layout.spec's
-  # forty-four spread over several shards). Six, not more: the account
-  # runs twenty jobs at once, and six shards, the seven suites, the docs,
-  # five image builds and the e2e images are twenty. What each runner
+  # Split eight ways (`--shard`), each runner with a stack of its own:
+  # the suite is 180 tests, four and a half minutes on one runner (the
+  # split is by test, so layout.spec's forty-four spread over several
+  # shards). Six were 37 to 92 seconds of tests each, the same shard the
+  # longest in every run, and with the setup down to 35 to 60 seconds the
+  # tests were most of the run. Eight, not more: the account runs twenty
+  # jobs at once, and eight shards, the seven suites, the docs, the e2e
+  # images and three image builds at a time are twenty. What each runner
   # spends before its first test is the rest, so that is done at once
   # rather than in turn: the three images and the Playwright, Postgres
   # and Mailpit images are pulled in the background while the caches
@@ -490,7 +492,7 @@ jobs:
   # has had rendered from them are a second cache, keyed by the FAA
   # cycle: fetched once a cycle, not once a run -- and only the
   # corridor's ten sheets, since a tile here never sends for one
-  # (docker-compose.ci.yml). Only the first shard saves them: the six
+  # (docker-compose.ci.yml). Only the first shard saves them: the eight
   # would race to write the same keys.
   #
   # The tests run in the Playwright image, the same one web/README.md
@@ -519,7 +521,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4, 5, 6]
+        shard: [1, 2, 3, 4, 5, 6, 7, 8]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
       - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f  # v4
@@ -1219,13 +1221,13 @@ jobs:
       packages: write
     strategy:
       fail-fast: false
-      # Five at a time. The account runs twenty jobs at once, and a run
-      # that changes everything is seven test jobs, six shards, the docs,
+      # Three at a time. The account runs twenty jobs at once, and a run
+      # that changes everything is seven test jobs, eight shards, the docs,
       # the e2e images and ten images: with no cap, the last shard of four
       # once waited 1.8 minutes for a runner behind the image builds,
-      # which are not what the run waits on. Seven, six, one, one and five
-      # are twenty.
-      max-parallel: 5
+      # which are not what the run waits on. Seven, eight, one, one and
+      # three are twenty.
+      max-parallel: 3
       matrix:
         include: ${{ fromJSON(needs.changes.outputs.images) }}
     steps:
