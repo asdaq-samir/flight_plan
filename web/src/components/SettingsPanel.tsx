@@ -25,8 +25,8 @@ export interface PageSettings {
  * at most a line of help. A switch for anything on or off, a segmented
  * control for two or three choices, all on show and one tap each, and a
  * menu only for the four-way one. The map first, what is changed most
- * while planning; then the checkpoints, the pilot's own position, and
- * appearance. Dev mode is not a group but the title row's switch
+ * while planning; then the checkpoints, appearance, and the pilot's own
+ * position. Dev mode is not a group but the title row's switch
  * (DevModeSwitch). Everything else here is remembered per browser.
  *
  * It replaced a column of headings, checkboxes, dropdowns and a
@@ -39,8 +39,8 @@ export default function SettingsPanel({ page }: { page?: PageSettings }) {
     <div className="space-y-5 pb-1" data-testid="settings-panel">
       <MapGroup />
       <CheckpointsGroup candidates={page?.candidates} />
-      {page?.ownShip && <PositionGroup />}
       <AppearanceGroup />
+      {page?.ownShip && <PositionGroup />}
     </div>
   );
 }
@@ -84,10 +84,12 @@ function CheckpointsGroup({ candidates }: { candidates?: PageSettings["candidate
     <ListGroup title="Checkpoints">
       {/* How far in the map has to be before the markers draw: a long
           route fits the screen zoomed a long way out, where a few
-          hundred of them would hide the chart. */}
-      <ListRow id={zoomId} title="Show from" description="Zoomed out, markers hide the chart">
+          hundred of them would hide the chart. Named for what it
+          sets, the map's zoom level; it was "Show from". A slider was
+          tried here, and the menu of four stops kept. */}
+      <ListRow id={zoomId} title="Zoom level" description="Zoomed out, markers hide the chart">
         <Select value={String(markerZoom)} onValueChange={value => setMarkerZoom(Number(value))}>
-          <SelectTrigger id={zoomId} size="sm" aria-label="Show checkpoints from" data-testid="marker-zoom-select">
+          <SelectTrigger id={zoomId} size="sm" aria-label="Zoom level checkpoints show from" data-testid="marker-zoom-select">
             <SelectValue />
           </SelectTrigger>
           <SelectContent align="end">
