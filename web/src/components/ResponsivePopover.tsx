@@ -51,18 +51,23 @@ type ContentProps = ComponentProps<typeof PopoverContent> & {
    *  title is then for the screen reader only. */
   titleHidden?: boolean;
   /** A control at the top, at the end of the title's row (the settings'
-   *  Dev-mode switch): given one, the popover shows its title too. */
+   *  Dev-mode switch, a form's Add): given one, the popover shows its
+   *  title too. */
   action?: ReactNode;
+  /** A control at the start of the title's row -- a form's Cancel, as an
+   *  iOS sheet puts it -- and then the title sits between the two. */
+  leading?: ReactNode;
 };
 
-export function ResponsivePopoverContent({ title, description, titleHidden, action, className, children, align, side, sideOffset, alignOffset, ...props }: ContentProps) {
+export function ResponsivePopoverContent({ title, description, titleHidden, action, leading, className, children, align, side, sideOffset, alignOffset, ...props }: ContentProps) {
   const edge = useContext(OnPhone);
   if (!edge) {
     return (
       <PopoverContent aria-label={title} className={className} align={align} side={side} sideOffset={sideOffset} alignOffset={alignOffset} {...props}>
         {action !== undefined && (
           <div className="flex min-h-8 items-center justify-between gap-2">
-            <div className="text-sm font-semibold">{title}</div>
+            {leading}
+            <div className={cn("text-sm font-semibold", leading && "flex-1 text-center")}>{title}</div>
             {action}
           </div>
         )}
@@ -87,7 +92,8 @@ export function ResponsivePopoverContent({ title, description, titleHidden, acti
           action !== undefined && "flex-row flex-wrap items-center justify-between",
         )}
       >
-        <DrawerTitle className={action !== undefined ? "text-base font-semibold" : undefined}>{title}</DrawerTitle>
+        {leading}
+        <DrawerTitle className={cn(action !== undefined && "text-base font-semibold", leading && "flex-1 text-center")}>{title}</DrawerTitle>
         {action}
         {description ? <DrawerDescription className={action !== undefined ? "basis-full" : undefined}>{description}</DrawerDescription> : null}
       </DrawerHeader>

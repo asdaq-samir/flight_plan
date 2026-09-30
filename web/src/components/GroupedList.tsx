@@ -1,5 +1,5 @@
-import { Children, Fragment, useId, type ReactNode } from "react";
-import { ExternalLink } from "lucide-react";
+import { Children, Fragment, useId, type ComponentProps, type ReactNode } from "react";
+import { ChevronRight, ExternalLink } from "lucide-react";
 import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemSeparator, ItemTitle } from "./ui/item";
 import { Label } from "./ui/label";
 
@@ -40,16 +40,21 @@ export function ListGroup({ title, footer, children, className }: {
  * (`children`) or a value (`value`, muted, in tabular figures) -- under
  * the words, when the row is too narrow for both. With `id`, the name is
  * the control's label, so a tap on the words works it. With `href`, the
- * whole row is a link out, marked as one.
+ * whole row is a link out, marked as one. With `onClick` (or as a
+ * trigger's `asChild` child, which hands it one), the whole row is a
+ * button, and `chevron` marks it as opening something, as an iOS row
+ * does; the rest of the props (a name, a test id, a trigger's own) go on
+ * that button.
  */
-export function ListRow({ id, title, description, value, href, children }: {
+export function ListRow({ id, title, description, value, href, chevron, children, ...buttonProps }: {
   id?: string;
   title: ReactNode;
   description?: ReactNode;
   value?: ReactNode;
   href?: string;
+  chevron?: boolean;
   children?: ReactNode;
-}) {
+} & Omit<ComponentProps<"button">, "title" | "value" | "children">) {
   const body = (
     <>
       <ItemContent className="min-w-0 gap-0.5">
@@ -58,11 +63,12 @@ export function ListRow({ id, title, description, value, href, children }: {
         </ItemTitle>
         {description && <ItemDescription className="text-xs">{description}</ItemDescription>}
       </ItemContent>
-      {(value !== undefined || children || href) && (
+      {(value !== undefined || children || href || chevron) && (
         <ItemActions className="ml-auto">
           {value !== undefined && <span className="text-sm text-muted-foreground tabular-nums">{value}</span>}
           {children}
           {href && <ExternalLink className="size-4 text-muted-foreground" aria-hidden />}
+          {chevron && <ChevronRight className="size-4 text-muted-foreground" aria-hidden />}
         </ItemActions>
       )}
     </>
@@ -73,6 +79,13 @@ export function ListRow({ id, title, description, value, href, children }: {
       // accordion's content styles every <a>), and a row is not prose.
       <Item asChild size="sm" className="min-h-11 rounded-none border-0 py-2 no-underline!">
         <a href={href} target="_blank" rel="noreferrer">{body}</a>
+      </Item>
+    );
+  }
+  if (buttonProps.onClick) {
+    return (
+      <Item asChild size="sm" className="min-h-11 rounded-none border-0 py-2 text-left hover:bg-muted/50 pointer-coarse:active:bg-muted">
+        <button type="button" {...buttonProps}>{body}</button>
       </Item>
     );
   }

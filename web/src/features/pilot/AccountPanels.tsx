@@ -1,18 +1,18 @@
 import { useId, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
-import { useForm } from "react-hook-form";
+import { useForm, type UseFormRegisterReturn } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
 import { Plus } from "lucide-react";
-import IconButton from "../../components/IconButton";
 import { Button } from "../../components/ui/button";
-import { Field, FieldError, FieldLabel } from "../../components/ui/field";
 import { Input } from "../../components/ui/input";
 import { InputGroup, InputGroupAddon, InputGroupInput, InputGroupText } from "../../components/ui/input-group";
 import { Spinner } from "../../components/ui/spinner";
+import { ListGroup, ListRow } from "../../components/GroupedList";
 import { ResponsivePopover, ResponsivePopoverContent, ResponsivePopoverTrigger } from "../../components/ResponsivePopover";
+import { useConfirm } from "../../components/useConfirm";
 import {
   Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow,
 } from "../../components/ui/table";
@@ -35,24 +35,32 @@ const positiveNumber = (label: string) => z.string().trim().refine(
   value => Number.isFinite(Number(value)) && Number(value) > 0,
   `${label} must be a positive number`,
 );
+/** Blank, or a positive number: a figure the owner may leave unsaid. */
+const optionalPositiveNumber = (label: string) => z.string().trim().refine(
+  value => value === "" || (Number.isFinite(Number(value)) && Number(value) > 0),
+  `${label} must be a positive number`,
+);
+/** A form field as the request carries it: blank is null. */
+const orNull = (value: string) => (value.trim() ? Number(value) : null);
 
 const aircraftSchema = z.object({
   // The server's limits, which are the columns': longer was refused there
   // as though it were a tail number already on file.
   tailNumber: z.string().trim().min(1, "Tail number is required").max(16, "At most 16 characters"),
   typeDesignator: z.string().trim().min(1, "Type designator is required").max(16, "At most 16 characters"),
-  cruiseTasKt: positiveNumber("Cruise TAS"),
-  fuelBurnGph: positiveNumber("Fuel burn"),
+  cruiseTasKt: positiveNumber("Cruise speed"),
+  fuelBurnGph: positiveNumber("Cruise fuel burn"),
+  // Optional: blank climbs at the planner's book figures for the type.
+  climbTasKt: optionalPositiveNumber("Climb speed"),
+  climbFuelBurnGph: optionalPositiveNumber("Climb fuel burn"),
   // Optional: blank means the owner has not said, and the nav log then
   // makes no fuel check rather than a wrong one.
-  usableFuelGal: z.string().trim().refine(
-    value => value === "" || (Number.isFinite(Number(value)) && Number(value) > 0),
-    "Usable fuel must be a positive number",
-  ),
+  usableFuelGal: optionalPositiveNumber("Usable fuel"),
 });
 type AircraftFormValues = z.infer<typeof aircraftSchema>;
 const EMPTY_AIRCRAFT_FORM: AircraftFormValues = {
-  tailNumber: "", typeDesignator: "", cruiseTasKt: "", fuelBurnGph: "", usableFuelGal: "",
+  tailNumber: "", typeDesignator: "", cruiseTasKt: "", fuelBurnGph: "", climbTasKt: "", climbFuelBurnGph: "",
+  usableFuelGal: "",
 };
 
 /** A signed-in pilot's own aeroplanes -- list, add, edit (the same
@@ -76,7 +84,6 @@ export function AircraftPanel({ pilot }: { pilot: PilotState }) {
   const [adding, setAdding] = useState(false);
   const formOpen = adding || editingId !== null;
   const formId = useId();
-  const [aircraftToDelete, setAircraftToDelete] = useState<Aircraft | null>(null);
   const {
     register, handleSubmit, reset, formState: { errors },
   } = useForm<AircraftFormValues>({
@@ -115,7 +122,6 @@ export function AircraftPanel({ pilot }: { pilot: PilotState }) {
     mutationFn: (id: number) => api.aircraft.remove(id),
     onSuccess: (_data, id) => {
       toast.success("Aircraft deleted");
-      setAircraftToDelete(null);
       if (editingId === id) cancelEdit();
       void queryClient.invalidateQueries({ queryKey: ["aircraft"] });
     },
@@ -126,6 +132,8 @@ export function AircraftPanel({ pilot }: { pilot: PilotState }) {
     reset({
       tailNumber: a.tailNumber, typeDesignator: a.typeDesignator,
       cruiseTasKt: String(a.cruiseTasKt), fuelBurnGph: String(a.fuelBurnGph),
+      climbTasKt: a.climbTasKt == null ? "" : String(a.climbTasKt),
+      climbFuelBurnGph: a.climbFuelBurnGph == null ? "" : String(a.climbFuelBurnGph),
       usableFuelGal: a.usableFuelGal == null ? "" : String(a.usableFuelGal),
     });
   };
@@ -133,114 +141,26 @@ export function AircraftPanel({ pilot }: { pilot: PilotState }) {
   const onSubmit = (values: AircraftFormValues) => save.mutate({ id: editingId, request: {
     tailNumber: values.tailNumber.trim(), typeDesignator: values.typeDesignator.trim(),
     cruiseTasKt: Number(values.cruiseTasKt), fuelBurnGph: Number(values.fuelBurnGph),
-    usableFuelGal: values.usableFuelGal.trim() ? Number(values.usableFuelGal) : null,
+    climbTasKt: orNull(values.climbTasKt), climbFuelBurnGph: orNull(values.climbFuelBurnGph),
+    usableFuelGal: orNull(values.usableFuelGal),
   } });
+
+  // Delete is in the aeroplane's own form, asked first: it was a red
+  // word on every row, beside Edit.
+  const editing = list?.find(a => a.id === editingId) ?? null;
+  const [askDelete, deleteDialog] = useConfirm({
+    title: `Delete ${editing?.tailNumber ?? "this aircraft"}?`,
+    description: "It goes from your aircraft and from the nav log's picker. This can't be undone.",
+    confirmLabel: "Delete aircraft",
+    destructive: true,
+    onConfirm: () => { if (editingId !== null) remove.mutate(editingId); },
+  });
+  const formElementId = `${formId}-form`;
+  const problem = (message?: string) => (message ? <span className="text-destructive">{message}</span> : undefined);
 
   return (
     <section>
-      <div className="flex items-center gap-1">
-        <h3 className="text-sm font-semibold">Aircraft</h3>
-        {signedIn && (
-          // The input group pops down from the plus, a popover on it,
-          // rather than appearing under the list: for a new aeroplane
-          // from the plus, for one of the rows from its Edit (filled
-          // in). Closing it -- Cancel, Escape, a tap outside, the plus
-          // again -- is cancelling.
-          <ResponsivePopover open={formOpen} onOpenChange={open => (open ? setAdding(true) : cancelEdit())}>
-            <ResponsivePopoverTrigger asChild>
-              <IconButton size="icon-xs" label={editingId ? "Editing an aircraft" : "New aircraft"} data-testid="new-aircraft-button">
-                <Plus />
-              </IconButton>
-            </ResponsivePopoverTrigger>
-            {/* On a phone a sheet from the bottom, the screen's width,
-                over the console's own; closing it brings the rows, and
-                their Edit, back. */}
-            <ResponsivePopoverContent
-              title={editingId ? "Edit aircraft" : "New aircraft"}
-              align="start" className="w-80"
-              // A row's Edit, pressed while the popover is open, is not
-              // "outside": it switches the form to that aeroplane, where
-              // the stock dismissal would have closed the popover on the
-              // press and reopened it empty on the click.
-              onInteractOutside={e => { if ((e.target as Element | null)?.closest?.("[data-aircraft-edit]")) e.preventDefault(); }}
-            >
-              <form className="flex flex-col gap-2" onSubmit={handleSubmit(onSubmit)} noValidate>
-                {/* Two lines: what the aeroplane is (tail, type, speed),
-                    then its fuel (burn, usable). Each field keeps its
-                    label and its unit while it is typed in -- they were
-                    placeholders, gone at the first digit; the placeholders
-                    are examples now. The accessible names say the units
-                    in full, and hold the visible labels. The identifiers
-                    are capitals and never autocorrected. */}
-                <div className="grid grid-cols-3 gap-2">
-                  <Field data-invalid={!!errors.tailNumber}>
-                    <FieldLabel htmlFor={`${formId}-tail`} className="text-xs">Tail number</FieldLabel>
-                    <Input
-                      id={`${formId}-tail`} {...register("tailNumber")} placeholder="N12345"
-                      aria-label="Tail number" aria-invalid={!!errors.tailNumber}
-                      autoCapitalize="characters" autoCorrect="off" autoComplete="off" spellCheck={false}
-                    />
-                    <FieldError errors={[errors.tailNumber]} />
-                  </Field>
-                  <Field data-invalid={!!errors.typeDesignator}>
-                    <FieldLabel htmlFor={`${formId}-type`} className="text-xs">Type</FieldLabel>
-                    <Input
-                      id={`${formId}-type`} {...register("typeDesignator")} placeholder="C172"
-                      aria-label="Type designator" aria-invalid={!!errors.typeDesignator}
-                      autoCapitalize="characters" autoCorrect="off" autoComplete="off" spellCheck={false}
-                    />
-                    <FieldError errors={[errors.typeDesignator]} />
-                  </Field>
-                  <Field data-invalid={!!errors.cruiseTasKt}>
-                    <FieldLabel htmlFor={`${formId}-tas`} className="text-xs">Cruise TAS</FieldLabel>
-                    <InputGroup>
-                      <InputGroupInput
-                        id={`${formId}-tas`} {...register("cruiseTasKt")} placeholder="110"
-                        aria-label="Cruise TAS in knots" inputMode="decimal" aria-invalid={!!errors.cruiseTasKt}
-                      />
-                      <InputGroupAddon align="inline-end"><InputGroupText>kt</InputGroupText></InputGroupAddon>
-                    </InputGroup>
-                    <FieldError errors={[errors.cruiseTasKt]} />
-                  </Field>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <Field data-invalid={!!errors.fuelBurnGph}>
-                    <FieldLabel htmlFor={`${formId}-burn`} className="text-xs">Fuel burn</FieldLabel>
-                    <InputGroup>
-                      <InputGroupInput
-                        id={`${formId}-burn`} {...register("fuelBurnGph")} placeholder="8.5"
-                        aria-label="Fuel burn in gallons per hour" inputMode="decimal" aria-invalid={!!errors.fuelBurnGph}
-                      />
-                      <InputGroupAddon align="inline-end"><InputGroupText>gph</InputGroupText></InputGroupAddon>
-                    </InputGroup>
-                    <FieldError errors={[errors.fuelBurnGph]} />
-                  </Field>
-                  <Field data-invalid={!!errors.usableFuelGal}>
-                    <FieldLabel htmlFor={`${formId}-usable`} className="text-xs">Usable fuel</FieldLabel>
-                    <InputGroup>
-                      <InputGroupInput
-                        id={`${formId}-usable`} {...register("usableFuelGal")} placeholder="40"
-                        aria-label="Usable fuel in gallons" inputMode="decimal" aria-invalid={!!errors.usableFuelGal}
-                      />
-                      <InputGroupAddon align="inline-end"><InputGroupText>gal</InputGroupText></InputGroupAddon>
-                    </InputGroup>
-                    <FieldError errors={[errors.usableFuelGal]} />
-                  </Field>
-                </div>
-                <div className="flex items-center gap-2">
-                  {/* A spinner while it saves: disabled alone looked like
-                      nothing was happening. The name stays the words. */}
-                  <Button type="submit" disabled={save.isPending} aria-busy={save.isPending}>
-                    {save.isPending && <Spinner role="presentation" aria-label={undefined} aria-hidden />}
-                    {editingId ? "Save changes" : "Add aircraft"}
-                  </Button>
-                  <Button type="button" variant="link" size="sm" onClick={cancelEdit}>Cancel</Button>
-                </div>
-              </form>
-            </ResponsivePopoverContent>
-          </ResponsivePopover>
-        )}
-      </div>
+      <h3 className="text-sm font-semibold">Aircraft</h3>
       {pilot === null || pilot === "error" ? (
         <p className="mt-1 text-sm text-muted-foreground">
           {pilot === "error" ? "Your sign-in status could not be checked." : "Sign in to keep your own aeroplanes; the nav log then flies them."}
@@ -248,94 +168,153 @@ export function AircraftPanel({ pilot }: { pilot: PilotState }) {
       ) : pilot === "loading" || isLoading ? (
         <p className="mt-1 text-sm text-muted-foreground">Fetching your aircraft…</p>
       ) : (
-        <>
-          {list && (
-            // shadcn's own data-table framing (a bordered, rounded container
-            // around stock cells) -- numbers right-aligned in tabular
-            // figures so the units line up down a column.
-            // On a phone, a card a line and a half tall per aeroplane
-            // rather than a table six columns wide scrolling sideways
-            // under the finger (Apple: no horizontal scrolling for the
-            // primary content); the table from md up.
-            <>
-            <ul className="mt-2 mb-3 divide-y rounded-md border md:hidden" aria-label="Your saved aircraft">
-              {list.length === 0 && (
-                // The empty state carries its own way on: the plus above
-                // is small, and "no aircraft yet" alone left it to be found.
-                <li className="p-3 text-center text-sm text-muted-foreground">
-                  No aircraft yet.{" "}
-                  <Button type="button" variant="link" size="sm" className="h-auto p-0" onClick={() => setAdding(true)}>Add your first aircraft</Button>
-                </li>
-              )}
-              {list.map(a => (
-                <li key={a.id} className="flex items-start justify-between gap-3 p-3 text-sm" data-aircraft-row>
-                  <div className="min-w-0">
-                    <div className="font-mono font-semibold">{a.tailNumber} <span className="font-sans font-normal text-muted-foreground">{a.typeDesignator}</span></div>
-                    <div className="text-xs text-muted-foreground tabular-nums">
-                      {a.cruiseTasKt} kt · {a.fuelBurnGph} gph{a.usableFuelGal != null && ` · ${a.usableFuelGal} gal usable`}
-                    </div>
-                  </div>
-                  <div className="flex shrink-0 items-center">
-                    <Button type="button" variant="link" size="sm" onClick={() => edit(a)} data-aircraft-edit>Edit</Button>
-                    <Button type="button" variant="link" size="sm" className="text-destructive" onClick={() => setAircraftToDelete(a)}>Delete</Button>
-                  </div>
-                </li>
-              ))}
-            </ul>
-            <Table containerClassName="mt-2 mb-3 hidden rounded-md border md:block" className="min-w-[34rem]">
-              <TableCaption className="sr-only">Your saved aircraft</TableCaption>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Tail #</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead className="text-right">Cruise TAS</TableHead>
-                  <TableHead className="text-right">Fuel burn</TableHead>
-                  <TableHead className="text-right">Usable fuel</TableHead>
-                  <TableHead className="text-right"><span className="sr-only">Actions</span></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {list.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={6} className="h-16 text-center text-muted-foreground">
-                      No aircraft yet.{" "}
-                      <Button type="button" variant="link" size="sm" className="h-auto p-0" onClick={() => setAdding(true)}>Add your first aircraft</Button>
-                    </TableCell>
-                  </TableRow>
-                )}
-                {list.map(a => (
-                  <TableRow key={a.id} data-aircraft-row>
-                    <TableCell className="font-mono">{a.tailNumber}</TableCell>
-                    <TableCell>{a.typeDesignator}</TableCell>
-                    <TableCell className="text-right tabular-nums">{a.cruiseTasKt} kt</TableCell>
-                    <TableCell className="text-right tabular-nums">{a.fuelBurnGph} gph</TableCell>
-                    <TableCell className="text-right tabular-nums">{a.usableFuelGal == null ? "—" : `${a.usableFuelGal} gal`}</TableCell>
-                    <TableCell className="text-right">
-                      <Button type="button" variant="link" size="sm" onClick={() => edit(a)} data-aircraft-edit>Edit</Button>
-                      <Button type="button" variant="link" size="sm" className="text-destructive" onClick={() => setAircraftToDelete(a)}>
-                        Delete
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-            </>
-          )}
-          {aircraftToDelete && (
-            <div className="mb-3 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm" role="alert">
-              <p>Delete {aircraftToDelete.tailNumber}? This cannot be undone.</p>
-              <div className="mt-2 flex gap-2">
-                <Button type="button" variant="destructive" size="sm" onClick={() => remove.mutate(aircraftToDelete.id)} disabled={remove.isPending}>
-                  {remove.isPending ? "Deleting…" : "Delete aircraft"}
-                </Button>
-                <Button type="button" variant="outline" size="sm" onClick={() => setAircraftToDelete(null)} disabled={remove.isPending}>Cancel</Button>
+        // A grouped list at every width, as iOS lists things: a row per
+        // aeroplane, tapped to edit it, and New aircraft as the last
+        // row. It was a card per aeroplane with an Edit and a Delete on
+        // each on a phone, a table from md up, and a small plus beside
+        // the heading as the only way to add one.
+        <ResponsivePopover open={formOpen} onOpenChange={open => (open ? setAdding(true) : cancelEdit())}>
+          <ListGroup
+            className="mt-2"
+            footer={list?.length === 0 ? "Add your aeroplane, and the nav log flies its speed and fuel burn." : undefined}
+          >
+            {(list ?? []).map(a => (
+              <div key={a.id} data-aircraft-row>
+                <ListRow
+                  title={<><span className="font-mono font-semibold">{a.tailNumber}</span> <span className="text-muted-foreground">{a.typeDesignator}</span></>}
+                  description={`Cruise ${a.cruiseTasKt} kt, ${a.fuelBurnGph} gph${a.usableFuelGal != null ? ` · ${a.usableFuelGal} gal usable` : ""}`}
+                  chevron
+                  aria-label={`Edit ${a.tailNumber}`}
+                  onClick={() => edit(a)}
+                  // Not "outside" the open form: tapped with it open, the
+                  // form switches to this aeroplane (see onInteractOutside).
+                  data-aircraft-edit
+                />
               </div>
-            </div>
-          )}
-        </>
+            ))}
+            <ResponsivePopoverTrigger asChild>
+              <ListRow
+                title={<span className="flex items-center gap-2 font-medium"><Plus className="size-4" />New aircraft</span>}
+                data-testid="new-aircraft-button"
+              />
+            </ResponsivePopoverTrigger>
+          </ListGroup>
+          {/* On a phone a sheet from the header's edge, over the
+              console's own; from md up a popover by the rows. Cancel and
+              Add (or Save) in its title row, as an iOS form sheet has
+              them; each field a row, its label at the start and the
+              field at the end, units inside. */}
+          <ResponsivePopoverContent
+            title={editingId ? "Edit aircraft" : "New aircraft"}
+            align="start" className="w-80"
+            leading={<Button type="button" variant="ghost" size="sm" className="-ml-2" onClick={cancelEdit}>Cancel</Button>}
+            action={(
+              // A spinner while it saves: disabled alone looked like
+              // nothing was happening. The name stays the words.
+              <Button
+                type="submit" form={formElementId} size="sm" className="-mr-1"
+                disabled={save.isPending} aria-busy={save.isPending}
+                aria-label={editingId ? "Save changes" : "Add aircraft"}
+              >
+                {save.isPending && <Spinner role="presentation" aria-label={undefined} aria-hidden />}
+                {editingId ? "Save" : "Add"}
+              </Button>
+            )}
+            // A row, tapped while the form is open, is not "outside": it
+            // switches the form to that aeroplane, where the stock
+            // dismissal would have closed it on the press and reopened it
+            // empty on the click.
+            onInteractOutside={e => { if ((e.target as Element | null)?.closest?.("[data-aircraft-edit]")) e.preventDefault(); }}
+          >
+            <form id={formElementId} className="space-y-4" onSubmit={handleSubmit(onSubmit)} noValidate>
+              {/* What the aeroplane is, then its speeds and fuel burns --
+                  climb and cruise, a row each under the group's heading
+                  -- then its tanks. Each field keeps its label and unit
+                  while it is typed in; the placeholders are examples. The
+                  accessible names say the phase and the units in full.
+                  The identifiers are capitals and never autocorrected. */}
+              <ListGroup>
+                <ListRow id={`${formId}-tail`} title="Tail number" description={problem(errors.tailNumber?.message)}>
+                  <Input
+                    id={`${formId}-tail`} {...register("tailNumber")} placeholder="N12345" className="h-8 w-32 text-right"
+                    aria-label="Tail number" aria-invalid={!!errors.tailNumber}
+                    autoCapitalize="characters" autoCorrect="off" autoComplete="off" spellCheck={false}
+                  />
+                </ListRow>
+                <ListRow id={`${formId}-type`} title="Type" description={problem(errors.typeDesignator?.message)}>
+                  <Input
+                    id={`${formId}-type`} {...register("typeDesignator")} placeholder="C172" className="h-8 w-32 text-right"
+                    aria-label="Type designator" aria-invalid={!!errors.typeDesignator}
+                    autoCapitalize="characters" autoCorrect="off" autoComplete="off" spellCheck={false}
+                  />
+                </ListRow>
+              </ListGroup>
+              <ListGroup title="True airspeed">
+                <NumberRow
+                  id={`${formId}-climb-tas`} title="Climb" unit="kt" placeholder="74" name="Climb TAS in knots"
+                  field={register("climbTasKt")} error={errors.climbTasKt?.message}
+                />
+                <NumberRow
+                  id={`${formId}-tas`} title="Cruise" unit="kt" placeholder="110" name="Cruise TAS in knots"
+                  field={register("cruiseTasKt")} error={errors.cruiseTasKt?.message}
+                />
+              </ListGroup>
+              <ListGroup title="Fuel burn" footer="Climb is optional: left blank, the nav log climbs at the type's book figures.">
+                <NumberRow
+                  id={`${formId}-climb-burn`} title="Climb" unit="gph" placeholder="11" name="Climb fuel burn in gallons per hour"
+                  field={register("climbFuelBurnGph")} error={errors.climbFuelBurnGph?.message}
+                />
+                <NumberRow
+                  id={`${formId}-burn`} title="Cruise" unit="gph" placeholder="8.5" name="Cruise fuel burn in gallons per hour"
+                  field={register("fuelBurnGph")} error={errors.fuelBurnGph?.message}
+                />
+              </ListGroup>
+              <ListGroup footer="Usable fuel is optional; without it the nav log makes no fuel check.">
+                <NumberRow
+                  id={`${formId}-usable`} title="Usable fuel" unit="gal" placeholder="40" name="Usable fuel in gallons"
+                  field={register("usableFuelGal")} error={errors.usableFuelGal?.message}
+                />
+              </ListGroup>
+              {editingId !== null && (
+                <ListGroup>
+                  <ListRow
+                    title={<span className="font-medium text-destructive">Delete aircraft</span>}
+                    onClick={askDelete} disabled={remove.isPending} data-testid="delete-aircraft-button"
+                  />
+                </ListGroup>
+              )}
+            </form>
+          </ResponsivePopoverContent>
+          {deleteDialog}
+        </ResponsivePopover>
       )}
     </section>
+  );
+}
+
+/** One of the aircraft form's figures: its label at the start, the
+ *  number at the end with its unit inside the field, and what is wrong
+ *  with it under the label. `name` is the accessible name, the phase
+ *  and the unit in full ("Climb TAS in knots"). */
+function NumberRow({ id, title, unit, placeholder, name, field, error }: {
+  id: string;
+  title: string;
+  unit: string;
+  placeholder: string;
+  name: string;
+  field: UseFormRegisterReturn;
+  error?: string;
+}) {
+  return (
+    <ListRow id={id} title={title} description={error ? <span className="text-destructive">{error}</span> : undefined}>
+      <InputGroup className="h-8 w-32">
+        <InputGroupInput
+          id={id} {...field} placeholder={placeholder} className="text-right"
+          aria-label={name} inputMode="decimal" aria-invalid={!!error}
+        />
+        <InputGroupAddon align="inline-end"><InputGroupText>{unit}</InputGroupText></InputGroupAddon>
+      </InputGroup>
+    </ListRow>
   );
 }
 

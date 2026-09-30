@@ -51,7 +51,7 @@ test("an add still saving when Edit is clicked says added, and leaves the aeropl
   await page.getByLabel("Tail number").fill("N3");
   await page.getByLabel("Type designator").fill("C172");
   await page.getByLabel("Cruise TAS in knots").fill("110");
-  await page.getByLabel("Fuel burn in gallons per hour").fill("8");
+  await page.getByLabel("Cruise fuel burn in gallons per hour").fill("8");
   await page.getByRole("button", { name: "Add aircraft" }).click();
 
   // The popover away first (the add is in flight regardless): on a
@@ -87,7 +87,9 @@ test.describe("the email sign-in link", () => {
     await box.fill("b@example.com");
     hold.release();
 
-    await expect(page.getByRole("status")).toContainText("Check a@example.com");
+    // The dialog's own status line: a toast is a status too (sonner's),
+    // and the planner's progress toast is often up while this runs.
+    await expect(page.getByRole("dialog").getByRole("status")).toContainText("Check a@example.com");
   });
 
   test("closed while sending, it opens again on the form", async ({ page }) => {
@@ -110,7 +112,7 @@ test.describe("the email sign-in link", () => {
 
     await console.getByRole("button", { name: "Sign in" }).click();
     await expect(page.getByLabel("Email address")).toBeVisible();
-    await expect(page.getByRole("status")).toHaveCount(0);
+    await expect(page.getByRole("dialog").getByRole("status")).toHaveCount(0);
   });
 
   test("too many asked for says so, not to check the address", async ({ page }) => {
