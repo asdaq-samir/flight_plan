@@ -7,7 +7,8 @@ import { test, expect, type Page } from "@playwright/test";
  */
 
 const consoleSheet = (page: Page) => page.locator('[data-slot="sheet-content"][data-side="top"]');
-const row = (page: Page, service: RegExp) => consoleSheet(page).getByRole("row", { name: service });
+// A service's row in the table, or on a phone its card.
+const row = (page: Page, service: RegExp) => consoleSheet(page).locator('tr, [data-testid="service-card"]').filter({ hasText: service });
 
 async function openSystemTab(page: Page) {
   await page.goto("/app/dev");

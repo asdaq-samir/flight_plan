@@ -23,6 +23,7 @@ import type { ModelComparisonEntry, Status } from "../../lib/api/types";
 import RatingGuide from "../train/components/RatingGuide";
 import { elapsed } from "../plan/format";
 import { useRetrain } from "./useRetrain";
+import { useIsMobile } from "../../hooks/use-mobile";
 
 const mae = (n: number) => n.toFixed(4);
 /** Every rating on every collected route: what the next retrain reads. */
@@ -31,6 +32,8 @@ const ratings = (status: Status) => status.corridors.reduce((n, c) => n + c.labe
 /** One formatter for every date the console shows: `toLocaleDateString`
  *  builds a new one per call, and was the console's costliest function. */
 const DATE = new Intl.DateTimeFormat();
+/** A date and a time, for the registry's versions. */
+const WHEN = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" });
 
 /** "just now", "12 min ago", "3 h ago", or the date -- for a timestamp
  *  that may be missing altogether. */
@@ -365,10 +368,12 @@ function ModelSection({ status, failed }: { status: Status | undefined; failed: 
               const older = all[i + 1];
               const delta = v.cv_mae != null && older?.cv_mae != null ? v.cv_mae - older.cv_mae : null;
               return (
-                <li key={v.name} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2">
-                  <span className="font-mono">{v.name}</span>
+                <li key={v.name} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2" title={v.name}>
+                  {/* When it was trained, to the minute, rather than the
+                      registry's id (20260915T213500Z), which says the same
+                      thing less readably; the id is the row's title. */}
+                  <span className="tabular-nums">{v.trained_at ? WHEN.format(new Date(v.trained_at)) : v.name}</span>
                   <span>{v.model_type ?? "—"}</span>
-                  <span className="text-muted-foreground">{ago(v.trained_at)}</span>
                   <span className="ml-auto font-mono tabular-nums">{v.cv_mae == null ? "—" : mae(v.cv_mae)}</span>
                   {/* How this version moved the error against the one
                       before it: down is better. A retrain that landed on
@@ -706,6 +711,9 @@ const isStale = (status: Status | undefined) =>
 
 function SystemTab({ status, failed }: { status: Status | undefined; failed: boolean }) {
   const stale = isStale(status);
+  // Cards or the table, one of the two: both in the DOM with one
+  // hidden, a name was found twice by anything reading the page.
+  const mobile = useIsMobile();
   const queryClient = useQueryClient();
   // The one chart action: fetch and render the FAA's current cycle
   // now rather than at the planner's next daily check -- the same
@@ -803,6 +811,22 @@ function SystemTab({ status, failed }: { status: Status | undefined; failed: boo
             The planner has not answered since this snapshot, {ago(status.checked_at)}: what follows is what was true then.
           </p>
         )}
+        {/* On a phone a card a service, the status beside its name and
+            its role under; the three-column table from md up, where it
+            fits without a sideways scroll. */}
+        {mobile ? (
+        <ul className={cn("mt-2 divide-y rounded-md border", stale && "opacity-60")} aria-label="Services and whether each answers">
+          {rows.map(r => (
+            <li key={r.name} className="p-3 text-sm" data-testid="service-card">
+              <div className="flex items-center justify-between gap-3">
+                <span className="font-medium">{r.name}</span>
+                <StatusPill health={r.health} />
+              </div>
+              <div className="mt-0.5 text-xs text-muted-foreground">{r.detail}</div>
+            </li>
+          ))}
+        </ul>
+        ) : (
         <Table containerClassName={cn("mt-2 rounded-md border", stale && "opacity-60")} className="min-w-[28rem]">
           <TableCaption className="sr-only">Services and whether each answers</TableCaption>
           <TableHeader>
@@ -822,8 +846,28 @@ function SystemTab({ status, failed }: { status: Status | undefined; failed: boo
             ))}
           </TableBody>
         </Table>
+        )}
       </AccordionSection>
       <AccordionSection title="Reference data" description="The files the planner reads and how old each copy is.">
+        {/* On a phone a card a dataset, with when it was fetched -- the
+            one thing looked for -- beside its name, and the file and its
+            source under; the table from md up. */}
+        {mobile ? (
+        <ul className="mt-2 divide-y rounded-md border" aria-label="Reference datasets and when each was fetched">
+          {datasets.map(d => (
+            <li key={d.file} className="p-3 text-sm" data-testid="dataset-card">
+              <div className="flex items-center justify-between gap-3">
+                <span className="font-medium">{d.name}</span>
+                <span className="shrink-0 text-muted-foreground">{d.updated ? ago(d.updated) : "not fetched yet"}</span>
+              </div>
+              <div className="mt-0.5 text-xs text-muted-foreground"><span className="font-mono">{d.file}</span> · {d.source}</div>
+            </li>
+          ))}
+          {datasets.length === 0 && (
+            <li className="p-3 text-center text-sm text-muted-foreground">{status ? "Nothing on disk yet." : waiting(failed)}</li>
+          )}
+        </ul>
+        ) : (
         <Table containerClassName="mt-2 rounded-md border" className="min-w-[28rem]">
           <TableCaption className="sr-only">Reference datasets and when each was fetched</TableCaption>
           <TableHeader>
@@ -848,6 +892,7 @@ function SystemTab({ status, failed }: { status: Status | undefined; failed: boo
             )}
           </TableBody>
         </Table>
+        )}
       </AccordionSection>
       {status?.charts && <ChartsSection charts={status.charts} onRefresh={() => refreshCharts.mutate()} refreshing={refreshCharts.isPending} />}
       <AccordionSection title="Elsewhere in the stack" description="The other doors into the running stack, each in a new tab.">
