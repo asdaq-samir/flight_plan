@@ -497,6 +497,12 @@ jobs:
     permissions:
       contents: read
       packages: read
+    # Playwright 1.55 names any Ubuntu past 24.04 by its own number, has
+    # no build listed for "ubuntu26.04", and refuses to install one. Its
+    # Chromium is one Linux build whatever the release; this has it take
+    # 24.04's, for the install, the launch check and the tests alike.
+    env:
+      PLAYWRIGHT_HOST_PLATFORM_OVERRIDE: ubuntu24.04-x64
     timeout-minutes: 35
     strategy:
       fail-fast: false
@@ -579,9 +585,11 @@ jobs:
             !data/raw/chart_tiles.nosync
           key: planner-data-v1-${{ hashFiles('data/processed/candidates_*.csv', 'src/vfr/faa_data.py', 'src/vfr/airports.py', 'src/vfr/elevation.py', 'src/vfr/charts.py') }}
           restore-keys: planner-data-v1-
-      # v2: the charts cache without the 29 sheets past the corridor that
-      # v1 carried (2.1 GB). Its first run fetches and prepares the
-      # corridor's ten afresh, as the first run of every FAA cycle does.
+      # v3: the charts cache without the 29 sheets past the corridor that
+      # v1 carried (2.1 GB), now 0.3 GB. v2 was saved by a run whose tests
+      # never started, so it has the corridor's ten sheets and almost none
+      # of the tiles the suite asks for; v3 starts from it and is saved
+      # with them.
       - name: Restore the corridor's charts
         id: charts
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
@@ -589,8 +597,10 @@ jobs:
           path: |
             data/raw/charts.nosync
             data/raw/chart_tiles.nosync
-          key: planner-charts-v2-pending
-          restore-keys: planner-charts-v2-
+          key: planner-charts-v3-pending
+          restore-keys: |
+            planner-charts-v3-
+            planner-charts-v2-
 
       - name: Wait for the images
         run: |
@@ -791,9 +801,11 @@ jobs:
       # rendered in it -- and only this cycle's. An earlier cycle's
       # folders come back with the restore, and would otherwise ride
       # along into every cycle's cache after it. (The planner made some
-      # of what is under them, as a user of its own: hence sudo.)
+      # of what is under them, as a user of its own: hence sudo.) Only
+      # once the tests have run, passing or not: the tiles are theirs,
+      # and a run that stopped before them saves a cache without any.
       - name: This cycle's charts only
-        if: always() && matrix.shard == 1 && steps.cycle.outputs.cycle != '' && steps.charts.outputs.cache-matched-key != format('planner-charts-v2-{0}', steps.cycle.outputs.cycle)
+        if: always() && matrix.shard == 1 && steps.cycle.outputs.cycle != '' && (steps.tests.outcome == 'success' || steps.tests.outcome == 'failure') && steps.charts.outputs.cache-matched-key != format('planner-charts-v3-{0}', steps.cycle.outputs.cycle)
         env:
           CYCLE: ${{ steps.cycle.outputs.cycle }}
         run: |
@@ -801,13 +813,13 @@ jobs:
             if [ -d "$root" ]; then sudo find "$root" -mindepth 1 -maxdepth 1 -type d ! -name "$CYCLE" -print -exec rm -rf {} +; fi
           done
       - name: Keep the corridor's charts
-        if: always() && matrix.shard == 1 && steps.cycle.outputs.cycle != '' && steps.charts.outputs.cache-matched-key != format('planner-charts-v2-{0}', steps.cycle.outputs.cycle)
+        if: always() && matrix.shard == 1 && steps.cycle.outputs.cycle != '' && (steps.tests.outcome == 'success' || steps.tests.outcome == 'failure') && steps.charts.outputs.cache-matched-key != format('planner-charts-v3-{0}', steps.cycle.outputs.cycle)
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: |
             data/raw/charts.nosync
             data/raw/chart_tiles.nosync
-          key: planner-charts-v2-${{ steps.cycle.outputs.cycle }}
+          key: planner-charts-v3-${{ steps.cycle.outputs.cycle }}
 
   # Every image whose inputs changed, built beside the tests rather than
   # after them, each on a runner of its own. On main each is pushed under
