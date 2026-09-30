@@ -435,24 +435,12 @@ jobs:
           import json, os
           changed = set(json.loads(os.environ.get("CHANGED") or "[]"))
           everything = os.environ.get("ALL") == "true" or "global" in changed
-          # Every image this workflow builds: its context and Dockerfile.
-          # model-service's context is its own directory; every other
-          # image reads from the repository root (the webapp builds web/
-          # into its first stage, the Python images copy src/).
-          IMAGES = {
-              "ml": (".", "docker/Dockerfile.ml"),
-              "pipeline-processing": (".", "docker/Dockerfile.processing"),
-              "pipeline-training": (".", "docker/Dockerfile.training"),
-              "airflow": (".", "docker/Dockerfile.airflow"),
-              "airflow-aws": (".", "docker/Dockerfile.airflow.aws"),
-              "nav-log-agent": (".", "nav-log-agent/Dockerfile"),
-              "crewai-agent": (".", "crewai-agent/Dockerfile"),
-              "planning-service": (".", "planning-service/Dockerfile"),
-              "model-service": ("./model-service", "./model-service/Dockerfile"),
-              "webapp": (".", "./springboot-app/Dockerfile"),
-          }
+          # Every image this workflow builds, each a target of
+          # .github/images.hcl, which has its context and Dockerfile.
+          IMAGES = ("ml", "pipeline-processing", "pipeline-training", "airflow", "airflow-aws",
+                    "nav-log-agent", "crewai-agent", "planning-service", "model-service", "webapp")
           due = lambda name: everything or name in changed
-          images = [{"service": s, "context": c, "dockerfile": d} for s, (c, d) in IMAGES.items() if due(s)]
+          images = [{"service": s} for s in IMAGES if due(s)]
           outputs = {"images": json.dumps(images)}
           for name in ("test-root", "test-web", "test-webapp", "test-planning-service", "test-model-service",
                        "test-nav-log-agent", "test-crewai-agent", "e2e", "docs"):
@@ -477,7 +465,7 @@ jobs:
   # longest in every run, and with the setup down to 35 to 60 seconds the
   # tests were most of the run. Eight, not more: the account runs twenty
   # jobs at once, and eight shards, the seven suites, the docs, the e2e
-  # images and three image builds at a time are twenty. What each runner
+  # images and the image builds' one job are nineteen. What each runner
   # spends before its first test is the rest, so that is done at once
   # rather than in turn: the three images and the Playwright, Postgres
   # and Mailpit images are pulled in the background while the caches
@@ -1213,11 +1201,19 @@ jobs:
         run: docker buildx bake -f .github/ci-images.hcl playwright
 
   # Every image whose inputs changed, built beside the tests rather than
-  # after them, each on a runner of its own. On main each is pushed under
-  # this commit's tag (`:sha-<commit>`), never `:latest`: `promote` gives
-  # it that name once every test has passed, which is a copy of the
-  # manifest, seconds. A pull request builds without pushing -- the build
-  # is the check that its Dockerfile still builds.
+  # after them -- all in one job, by one BuildKit, in parallel
+  # (.github/images.hcl). On main each is pushed under this commit's tag
+  # (`:sha-<commit>`), never `:latest`: `promote` gives it that name once
+  # every test has passed, which is a copy of the manifest, seconds. A
+  # pull request builds without pushing -- the build is the check that
+  # its Dockerfile still builds.
+  #
+  # They were a job each, three at a time to stay inside the account's
+  # twenty jobs at once, and each job spent 8 to 19 seconds starting a
+  # builder of its own before a build of 8 to 12: on a run that changed
+  # them all (5b0f033), the last of ten started 104 seconds in and ended
+  # at 144, the run's longest wait but one. One job is also one of the
+  # twenty rather than three.
   #
   # The layer cache lives in the registry (ghcr.io/…/<service>:buildcache,
   # every stage's layers, mode=max), written from main: not evicted, and
@@ -1229,25 +1225,19 @@ jobs:
   # out, it still held the index of the ML image's layers but not the
   # layers, so every step matched, no layer could be fetched, and the
   # image was built from nothing anyway -- 4.5 minutes, 2026-09-29.
+  #
+  # Each Python image imports its own code, and the packages that code
+  # imports lazily, as the last step of its build -- so a missing
+  # dependency fails the build here and in a local `docker compose
+  # build` alike, and a broken image is never pushed.
   build-images:
-    name: build (${{ matrix.service }})
+    name: build (images)
     runs-on: ubuntu-26.04
     needs: [changes]
     if: needs.changes.outputs.images != '[]'
     permissions:
       contents: read
       packages: write
-    strategy:
-      fail-fast: false
-      # Three at a time. The account runs twenty jobs at once, and a run
-      # that changes everything is seven test jobs, eight shards, the docs,
-      # the e2e images and ten images: with no cap, the last shard of four
-      # once waited 1.8 minutes for a runner behind the image builds,
-      # which are not what the run waits on. Seven, eight, one, one and
-      # three are twenty.
-      max-parallel: 3
-      matrix:
-        include: ${{ fromJSON(needs.changes.outputs.images) }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069  # v4
@@ -1256,20 +1246,18 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      # Each Python image imports its own code, and the packages that code
-      # imports lazily, as the last step of its build -- so a missing
-      # dependency fails the build here and in a local `docker compose
-      # build` alike, and a broken image is never pushed.
-      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc  # v7
-        with:
-          context: ${{ matrix.context }}
-          file: ${{ matrix.dockerfile }}
-          push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
-          tags: ghcr.io/${{ github.repository }}/${{ matrix.service }}:sha-${{ github.sha }}
-          cache-from: type=registry,ref=ghcr.io/${{ github.repository }}/${{ matrix.service }}:buildcache
+      - name: The images whose inputs changed
+        env:
+          REGISTRY: ghcr.io/${{ github.repository }}
+          SHA: ${{ github.sha }}
           # Written from main only: a pull request (a fork's included)
           # has no business writing what main's builds read.
-          cache-to: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && format('type=registry,ref=ghcr.io/{0}/{1}:buildcache,mode=max,image-manifest=true,oci-mediatypes=true', github.repository, matrix.service) || '' }}
+          PUSH: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+          IMAGES: ${{ needs.changes.outputs.images }}
+        run: |
+          read -ra targets <<< "$(jq -r '[.[].service] | join(" ")' <<< "$IMAGES")"
+          echo "building ${targets[*]}"
+          docker buildx bake -f .github/images.hcl "${targets[@]}"
 
   # The images this run built become `:latest`, once every test has
   # passed: a copy of each manifest from its commit tag, which takes
