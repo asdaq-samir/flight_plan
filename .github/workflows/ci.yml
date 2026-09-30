@@ -54,6 +54,8 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-26.04
+    needs: [changes]
+    if: needs.changes.outputs.test-root == 'true'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7
@@ -80,6 +82,8 @@ jobs:
   # which need no browser and so run like anything else.
   test-web:
     runs-on: ubuntu-26.04
+    needs: [changes]
+    if: needs.changes.outputs.test-web == 'true'
     defaults:
       run:
         working-directory: web
@@ -113,6 +117,8 @@ jobs:
   # the Docker daemon it needs.
   test-webapp:
     runs-on: ubuntu-26.04
+    needs: [changes]
+    if: needs.changes.outputs.test-webapp == 'true'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
       - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6  # v6
@@ -150,6 +156,8 @@ jobs:
   # it on the root `test` job's unrelated src/vfr dependencies.
   test-planning-service:
     runs-on: ubuntu-26.04
+    needs: [changes]
+    if: needs.changes.outputs.test-planning-service == 'true'
     defaults:
       run:
         working-directory: planning-service
@@ -171,6 +179,8 @@ jobs:
   # time, and none of the other suites needs them.
   test-model-service:
     runs-on: ubuntu-26.04
+    needs: [changes]
+    if: needs.changes.outputs.test-model-service == 'true'
     defaults:
       run:
         working-directory: model-service
@@ -191,6 +201,8 @@ jobs:
   # database, planning-service and Claude, so nothing here is billed.
   test-nav-log-agent:
     runs-on: ubuntu-26.04
+    needs: [changes]
+    if: needs.changes.outputs.test-nav-log-agent == 'true'
     defaults:
       run:
         working-directory: nav-log-agent
@@ -208,6 +220,8 @@ jobs:
 
   test-crewai-agent:
     runs-on: ubuntu-26.04
+    needs: [changes]
+    if: needs.changes.outputs.test-crewai-agent == 'true'
     defaults:
       run:
         working-directory: crewai-agent
@@ -222,83 +236,100 @@ jobs:
       - run: ruff check app tests
       - run: pytest tests/ -v
 
-  # Path-aware build-images below: on a PR, most of those 10 images have
-  # nothing in their own build context changed, so building all 10 anyway
-  # (this repo's biggest CI cost -- torch/tensorflow/Spark images among
-  # them) buys nothing over building only the ones this PR could have
-  # broken. Always "true" outside a PR (push to main), so main's images
-  # stay fully in sync with every dependency bump merged, path-filter
-  # blind spots included.
+  # What this run has to do, from what changed: the one job everything
+  # else waits on, and quick (a checkout and a diff). Each test job, the
+  # browser suite and each image then runs only if something it reads
+  # changed -- a change to the planner's Python runs the planner's tests,
+  # the browser suite (the planner is in its stack) and the planner's
+  # image, and none of the React, Spring or agent jobs.
+  #
+  # Changed since when: on main, since the last commit whose run went
+  # green, not the commit before this push. A run that failed publishes
+  # nothing, so the next one has to build what that one did not; "since
+  # the previous commit" left an image unpublished for good whenever
+  # the run that changed it failed. On a pull request, what the PR
+  # changes. A run started by hand, a first run, or a main whose history
+  # was rewritten past its last green commit does everything.
   changes:
     runs-on: ubuntu-26.04
-    # Runs on pushes as well, where it compares against the previous
-    # commit. `build-images` ignores it outside a PR on purpose (see
-    # above), but `docs` uses it either way: three of its steps build
-    # torch/tensorflow-sized images to run pdoc inside, and a push that
-    # only touched web/ has no reason to pay for any of them.
-    #
-    # paths-filter asks the API which files the PR touches, which the
-    # default token cannot do. Without this the job fails with "Resource
-    # not accessible by integration" and, because build-images is gated
-    # on it, every image build on every PR is blocked behind it.
+    # paths-filter asks the API which files a PR touches, which the
+    # default token cannot do ("Resource not accessible by integration"
+    # otherwise); `actions: read` is for finding the last green run.
     permissions:
       contents: read
       pull-requests: read
+      actions: read
     outputs:
-      ml: ${{ steps.filter.outputs.ml }}
-      pipeline-processing: ${{ steps.filter.outputs.pipeline-processing }}
-      pipeline-training: ${{ steps.filter.outputs.pipeline-training }}
-      airflow: ${{ steps.filter.outputs.airflow }}
-      airflow-aws: ${{ steps.filter.outputs.airflow-aws }}
-      nav-log-agent: ${{ steps.filter.outputs.nav-log-agent }}
-      crewai-agent: ${{ steps.filter.outputs.crewai-agent }}
-      planning-service: ${{ steps.filter.outputs.planning-service }}
-      model-service: ${{ steps.filter.outputs.model-service }}
-      webapp: ${{ steps.filter.outputs.webapp }}
+      images: ${{ steps.plan.outputs.images }}
+      test-root: ${{ steps.plan.outputs.test-root }}
+      test-web: ${{ steps.plan.outputs.test-web }}
+      test-webapp: ${{ steps.plan.outputs.test-webapp }}
+      test-planning-service: ${{ steps.plan.outputs.test-planning-service }}
+      test-model-service: ${{ steps.plan.outputs.test-model-service }}
+      test-nav-log-agent: ${{ steps.plan.outputs.test-nav-log-agent }}
+      test-crewai-agent: ${{ steps.plan.outputs.test-crewai-agent }}
+      e2e: ${{ steps.plan.outputs.e2e }}
+      docs: ${{ steps.plan.outputs.docs }}
+      ml: ${{ steps.plan.outputs.ml }}
+      nav-log-agent: ${{ steps.plan.outputs.nav-log-agent }}
+      crewai-agent: ${{ steps.plan.outputs.crewai-agent }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
+      - name: The last green commit on main
+        id: base
+        if: github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          sha=$(gh api "repos/$REPO/actions/workflows/ci.yml/runs?branch=main&status=success&per_page=1" --jq '.workflow_runs[0].head_sha // ""' || true)
+          status=""
+          [ -n "$sha" ] && status=$(gh api "repos/$REPO/compare/$sha...$GITHUB_SHA" --jq .status || true)
+          if [ "$EVENT" = push ] && { [ "$status" = ahead ] || [ "$status" = identical ]; }; then
+            echo "sha=$sha" >> "$GITHUB_OUTPUT"
+            echo "since the last green commit, ${sha:0:7}"
+          else
+            echo "all=true" >> "$GITHUB_OUTPUT"
+            echo "everything: event $EVENT, last green ${sha:0:7}, compare '$status'"
+          fi
       - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d  # v4
         id: filter
         with:
+          # Ignored on a pull request, which diffs against its base.
+          base: ${{ steps.base.outputs.sha }}
           filters: |
-            ml:
-              - docker/Dockerfile.ml
-              - docker/requirements-ml.txt
-              - src/vfr/**
-              - src/requirements*.txt
-            pipeline-processing:
-              - docker/Dockerfile.processing
-              - docker/requirements-processing.txt
-              - src/vfr/**
-              - src/requirements*.txt
-            pipeline-training:
-              - docker/Dockerfile.training
-              - docker/requirements-training.txt
-              - src/vfr/**
-              - src/requirements*.txt
-            airflow:
-              - docker/Dockerfile.airflow
-              - airflow/**
-              - src/vfr/**
-            airflow-aws:
-              - docker/Dockerfile.airflow.aws
-              - airflow/dags/vfr_pipeline_aws_dag.py
-              - src/vfr/**
-            nav-log-agent:
-              - nav-log-agent/**
-              - src/vfr/**
-            crewai-agent:
-              - crewai-agent/**
-              - src/vfr/**
-            planning-service:
-              - planning-service/**
-              - src/vfr/**
-              - src/requirements*.txt
-            model-service:
-              - model-service/**
-            webapp:
+            # A change here can change what any job does: all of them.
+            global:
+              - .github/workflows/ci.yml
+              - .github/ci-images.hcl
+              - .dockerignore
+              - pyproject.toml
+            test-root:
+              - src/**
+              - tests/**
+              - requirements-dev.txt
+              # tests/test_requirements.py reads these
+              - model-service/requirements*.txt
+              - docker/requirements*.txt
+            test-web:
               - web/**
+              - .nvmrc
+              - planning-service/openapi.json
+              - springboot-app/openapi.json
+            test-webapp:
               - springboot-app/**
+            test-planning-service:
+              - planning-service/**
+              - src/**
+            test-model-service:
+              - model-service/**
+            test-nav-log-agent:
+              - nav-log-agent/**
+              - src/**
+            test-crewai-agent:
+              - crewai-agent/**
+              - src/**
             # The browser suite runs the whole stack a pilot touches, so
             # it is due whenever any of that could have changed.
             e2e:
@@ -306,65 +337,159 @@ jobs:
               - springboot-app/**
               - planning-service/**
               - model-service/**
-              - src/vfr/**
-              - src/requirements*.txt
+              - src/**
               - docker-compose.yml
               - docker-compose.ci.yml
-              - .github/workflows/ci.yml
+            docs:
+              - springboot-app/**
+              - infra/lambda-retrain-trigger/**
+              - src/**
+              - nav-log-agent/**
+              - crewai-agent/**
+              - docker/Dockerfile.ml
+              - docker/requirements-ml.txt
+            # The images, each by what its Dockerfile reads.
+            ml:
+              - docker/Dockerfile.ml
+              - docker/requirements-ml.txt
+              - src/**
+            pipeline-processing:
+              - docker/Dockerfile.processing
+              - docker/requirements-processing.txt
+              - src/**
+            pipeline-training:
+              - docker/Dockerfile.training
+              - docker/requirements-training.txt
+              - src/**
+            airflow:
+              - docker/Dockerfile.airflow
+              - airflow/**
+              - src/**
+            airflow-aws:
+              - docker/Dockerfile.airflow.aws
+              - airflow/dags/vfr_pipeline_aws_dag.py
+              - src/**
+            nav-log-agent:
+              - nav-log-agent/**
+              - src/**
+            crewai-agent:
+              - crewai-agent/**
+              - src/**
+            planning-service:
+              - planning-service/**
+              - src/**
+            model-service:
+              - model-service/**
+            # web/** rather than the files the Dockerfile copies: a file
+            # left off a hand-made list would leave the image stale, and
+            # a change the image does not read (a spec) is a cache hit.
+            webapp:
+              - web/**
+              - springboot-app/**
+              - planning-service/openapi.json
+      - name: What this run builds and tests
+        id: plan
+        env:
+          CHANGED: ${{ steps.filter.outputs.changes }}
+          ALL: ${{ steps.base.outputs.all }}
+        run: |
+          python3 - <<'EOF'
+          import json, os
+          changed = set(json.loads(os.environ.get("CHANGED") or "[]"))
+          everything = os.environ.get("ALL") == "true" or "global" in changed
+          # Every image this workflow builds: its context and Dockerfile.
+          # model-service's context is its own directory; every other
+          # image reads from the repository root (the webapp builds web/
+          # into its first stage, the Python images copy src/).
+          IMAGES = {
+              "ml": (".", "docker/Dockerfile.ml"),
+              "pipeline-processing": (".", "docker/Dockerfile.processing"),
+              "pipeline-training": (".", "docker/Dockerfile.training"),
+              "airflow": (".", "docker/Dockerfile.airflow"),
+              "airflow-aws": (".", "docker/Dockerfile.airflow.aws"),
+              "nav-log-agent": (".", "nav-log-agent/Dockerfile"),
+              "crewai-agent": (".", "crewai-agent/Dockerfile"),
+              "planning-service": (".", "planning-service/Dockerfile"),
+              "model-service": ("./model-service", "./model-service/Dockerfile"),
+              "webapp": (".", "./springboot-app/Dockerfile"),
+          }
+          due = lambda name: everything or name in changed
+          images = [{"service": s, "context": c, "dockerfile": d} for s, (c, d) in IMAGES.items() if due(s)]
+          outputs = {"images": json.dumps(images)}
+          for name in ("test-root", "test-web", "test-webapp", "test-planning-service", "test-model-service",
+                       "test-nav-log-agent", "test-crewai-agent", "e2e", "docs", "ml", "nav-log-agent", "crewai-agent"):
+              outputs[name] = "true" if due(name) else "false"
+          with open(os.environ["GITHUB_OUTPUT"], "a") as out:
+              for key, value in outputs.items():
+                  out.write(f"{key}={value}\n")
+          print(json.dumps({**outputs, "images": [i["service"] for i in images]}, indent=2))
+          EOF
 
   # The browser suite (web/e2e, Playwright) against the stack a pilot
   # uses: the webapp, the planner and the model service built here from
   # this commit, Postgres and Mailpit as docker-compose.yml runs them,
   # under docker-compose.ci.yml. It is what catches what no unit test
   # can -- a tap lost to a race, a drawer that opens empty, a request
-  # the phone's port dropped -- and until this job it ran only by hand.
+  # the phone's port dropped.
+  #
+  # Split four ways (`--shard`), each runner with a stack of its own:
+  # the suite is 180 tests, four and a half minutes on one runner, a
+  # little over one on each of four. What each runner then spends before
+  # its first test is the rest, so that is done at once rather than in
+  # turn: the three images are built (from the registry cache main
+  # writes) and the Playwright, Postgres and Mailpit images pulled in the
+  # background while the caches below are restored.
   #
   # The planner fetches its reference data for itself into data/raw:
   # the FAA obstacle file and the airport tables (about 800 MB, from an
   # FAA page that is the slow part) are kept in the Actions cache
-  # between runs, restored in under a minute; its key names what is
-  # fetched, and a change to that fetches afresh. The corridor's chart
-  # sheets (half a gigabyte from aeronav.faa.gov, and two and a half
-  # minutes to prepare) and the tiles the suite has had rendered from
-  # them are a second cache, keyed by the FAA cycle: fetched once a
-  # cycle, not once a run, and without them the planner rendered every
-  # tile from a cold sheet while two browsers waited, which is where
-  # the suite's timeouts came from.
+  # between runs; its key names what is fetched, and a change to that
+  # fetches afresh. The corridor's chart sheets and the tiles the suite
+  # has had rendered from them are a second cache, keyed by the FAA
+  # cycle: fetched once a cycle, not once a run. Only the first shard
+  # saves them: the four would race to write the same keys.
   #
   # The tests run in the Playwright image, the same one web/README.md
   # runs them in locally, on the runner's network so localhost is the
   # stack's.
   e2e:
+    name: e2e (${{ matrix.shard }}/4)
     runs-on: ubuntu-26.04
     needs: [changes]
-    if: github.event_name != 'pull_request' || needs.changes.outputs.e2e == 'true'
-    timeout-minutes: 50
+    if: needs.changes.outputs.e2e == 'true'
+    # packages: read -- the registry cache is private, like the images.
+    permissions:
+      contents: read
+      packages: read
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
-      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069  # v4
-      # The same images build-images builds, from the same cache scopes,
-      # loaded into this runner's Docker under the names
-      # docker-compose.ci.yml gives them (.github/ci-images.hcl). One
-      # bake of the three rather than three build steps: bake builds
-      # them at once, and the planner's image alone took as long as the
-      # other two together. The cache is read, not written: writing it
-      # here as well (mode=max, for build-images to find every layer)
-      # cost more in the upload -- the model service's torch layers --
-      # than the three builds themselves, and build-images writes the
-      # same scopes when it runs.
-      - uses: docker/bake-action@018cb6412ab401ebaa809aa5f85966b74628600f  # v7.4.0
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f  # v4
         with:
-          source: .
-          files: .github/ci-images.hcl
-          targets: ci
-          load: true
-          # Images for this runner's Docker only: an attestation is
-          # for a registry, and the docker exporter refuses one.
-          provenance: false
-          set: |
-            webapp.cache-from=type=gha,scope=webapp
-            planning-service.cache-from=type=gha,scope=planning-service
-            model-service.cache-from=type=gha,scope=model-service
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069  # v4
+      # In the background, each with its own log and its exit status in a
+      # file (a later step waits on those): the three images, loaded into
+      # this runner's Docker under the names docker-compose.ci.yml gives
+      # them (.github/ci-images.hcl), and the three images pulled rather
+      # than built. The model service is its `slim` stage, without the
+      # torch and tensorflow the suite's scikit-learn fixture never loads.
+      # No attestation: these are for this runner's Docker only, and the
+      # docker exporter refuses one.
+      - name: The images, in the background
+        env:
+          CACHE_REGISTRY: ghcr.io/${{ github.repository }}
+          BUILDX_NO_DEFAULT_ATTESTATIONS: "1"
+        run: |
+          mkdir -p /tmp/e2e-out
+          nohup bash -c 'docker buildx bake -f .github/ci-images.hcl ci --load > /tmp/e2e-out/bake.log 2>&1; echo $? > /tmp/e2e-out/bake.exit' > /dev/null 2>&1 < /dev/null &
+          nohup bash -c '{ docker pull -q mcr.microsoft.com/playwright:v1.55.1-noble && docker compose -f docker-compose.yml -f docker-compose.ci.yml pull -q db mailpit; } > /tmp/e2e-out/pull.log 2>&1; echo $? > /tmp/e2e-out/pull.exit' > /dev/null 2>&1 < /dev/null &
 
       - name: Restore the planner's reference data
         id: data
@@ -376,13 +501,6 @@ jobs:
             !data/raw/chart_tiles.nosync
           key: planner-data-v1-${{ hashFiles('data/processed/candidates_*.csv', 'src/vfr/faa_data.py', 'src/vfr/airports.py', 'src/vfr/elevation.py', 'src/vfr/charts.py') }}
           restore-keys: planner-data-v1-
-      # The corridor's chart sheets, and the tiles rendered from them,
-      # kept between runs as well: preparing the sheets was two and a
-      # half minutes of every run's warm-up, and rendering tiles from
-      # cold GeoTIFFs while two browsers asked for them is what starved
-      # the planner into the suite's timeouts. Keyed by the FAA cycle the
-      # planner reports once it is warm (below): a new cycle is fetched
-      # once and then kept, and a restore takes the newest cycle saved.
       - name: Restore the corridor's charts
         id: charts
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
@@ -392,6 +510,26 @@ jobs:
             data/raw/chart_tiles.nosync
           key: planner-charts-v1-pending
           restore-keys: planner-charts-v1-
+      # The suite's packages, as installed in the Playwright image before:
+      # a restore of web/node_modules rather than an `npm ci` each run.
+      - name: Restore the suite's packages
+        id: packages
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: web/node_modules
+          key: e2e-node-modules-pw1.55.1-${{ hashFiles('web/package-lock.json') }}
+
+      - name: Wait for the images
+        run: |
+          for job in pull bake; do
+            while [ ! -f /tmp/e2e-out/$job.exit ]; do sleep 1; done
+            if [ "$(cat /tmp/e2e-out/$job.exit)" != 0 ]; then
+              tail -40 /tmp/e2e-out/$job.log
+              tail -25 /tmp/e2e-out/$job.log | python3 -c 'import sys; t=sys.stdin.read().replace("%","%25").replace("\n","%0A"); print(f"::error title='"$job"' failed::{t[:4000]}")'
+              exit 1
+            fi
+          done
+          grep -E "^#[0-9]+ (DONE|CACHED)" /tmp/e2e-out/bake.log | tail -3 || true
 
       # The planner runs as a user of its own and writes under data/:
       # what it fetches into data/raw, the ratings and notes the training
@@ -415,19 +553,20 @@ jobs:
       # out. So: the page, then the planner's own word that it is warm.
       - name: Wait for the page and a warm planner
         run: |
-          for i in $(seq 1 60); do
+          for i in $(seq 1 120); do
             curl -sf -o /dev/null http://localhost:8080/app/plan && break
-            sleep 5
+            sleep 2
           done
-          for i in $(seq 1 180); do
+          for i in $(seq 1 450); do
             curl -sf http://localhost:8084/ | grep -q '"warm":true' && break
-            sleep 5
+            sleep 2
           done
           curl -sf http://localhost:8084/ | grep -q '"warm":true' || { echo "the planner never reported itself warm"; exit 1; }
       # The cycle the planner is serving: what the charts cache is
       # keyed by, at the end of the job.
       - name: The chart cycle
         id: cycle
+        if: matrix.shard == 1
         run: |
           cycle=$(curl -sf http://localhost:8084/api/status | python3 -c 'import json, sys; print(json.load(sys.stdin)["charts"]["cycle"])')
           echo "cycle=$cycle" >> "$GITHUB_OUTPUT"
@@ -436,8 +575,10 @@ jobs:
       # job's log takes admin rights to read, an annotation does not.
       # "Warm" means the warm-up finished, not that every fetch in it
       # succeeded, and a planner without its obstacle file or its charts
-      # answers every nav log and tile slowly and wrongly.
+      # answers every nav log and tile slowly and wrongly. Once, from the
+      # first shard: the four stacks are alike.
       - name: The planner's data, as annotations
+        if: matrix.shard == 1
         run: |
           python3 - <<'EOF'
           import json, subprocess, urllib.request
@@ -474,51 +615,42 @@ jobs:
           notice("reachable from the runner", json.dumps(reach))
           EOF
 
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7
-        with:
-          node-version-file: .nvmrc
-          cache: npm
-          cache-dependency-path: web/package-lock.json
-      # The suite's packages into the checkout, from the runner's npm
-      # cache (mounted as the container's), so this is a copy, not a
-      # download; and each half of the step under its own time limit, so
-      # that whichever hangs is named rather than the job's limit cutting
-      # both off unsaid.
-      - name: The suite's packages
+      - name: The suite's packages, when they were not restored
+        if: steps.packages.outputs.cache-hit != 'true'
         run: |
-          mkdir -p /tmp/e2e-out
-          docker run --rm --network host -v "$PWD/web:/w" -v "$HOME/.npm:/root/.npm" -v /tmp/e2e-out:/out -w /w \
+          docker run --rm --network host -v "$PWD/web:/w" -v /tmp/e2e-out:/out -w /w \
             mcr.microsoft.com/playwright:v1.55.1-noble \
-            sh -c "timeout 600 npm ci --prefer-offline --no-audit --no-fund 2>&1 | tail -20 | tee /out/npm.log"
+            sh -c "timeout 600 npm ci --no-audit --no-fund 2>&1 | tail -20 | tee /out/npm.log"
       - name: Browser tests
         id: tests
         # CI=1 is what playwright.config.ts doubles its waits on. The
         # github reporter puts each failure on the commit's checks, as
         # the webapp's job does for its tests; the list goes to a file
         # for the step below, since the job's log takes admin rights to
-        # read. Thirty-five minutes, five more than the suite gives
-        # itself (globalTimeout), and then the step ends and says so.
+        # read. Thirty minutes, and then the step ends and says so.
         run: |
           docker run --rm --network host -e CI=1 \
             -v "$PWD/web:/w" -v /tmp/e2e-out:/out -w /w \
             mcr.microsoft.com/playwright:v1.55.1-noble \
-            bash -o pipefail -c "timeout 2100 npx playwright test --reporter=list,github 2>&1 | tee /out/playwright.log"
+            bash -o pipefail -c "timeout 1800 npx playwright test --shard=${{ matrix.shard }}/4 --reporter=list,github 2>&1 | tee /out/playwright.log"
       - name: How the tests went, as an annotation
         if: always()
+        env:
+          SHARD: ${{ matrix.shard }}
         run: |
           python3 - <<'EOF'
           import os, re
           def say(level, title, text):
               text = text.replace("%", "%25").replace("\r", "").replace("\n", "%0A")[:4000]
               print(f"::{level} title={title}::{text}")
-          for name in ("npm", "playwright"):
-              path = f"/tmp/e2e-out/{name}.log"
-              if not os.path.exists(path):
-                  say("warning", f"{name}: no output", "the step never wrote its log")
-                  continue
+          shard = os.environ["SHARD"]
+          path = "/tmp/e2e-out/playwright.log"
+          if not os.path.exists(path):
+              say("warning", f"shard {shard}: no output", "the tests never wrote their log")
+          else:
               lines = open(path, errors="replace").read().splitlines()
               summary = [l for l in lines if re.match(r"\s*\d+ (passed|failed|flaky|skipped)", l)]
-              say("notice" if summary else "warning", f"{name} output", "\n".join(summary + ["--"] + lines[-40:]))
+              say("notice" if summary else "warning", f"shard {shard}/4", "\n".join(summary + ["--"] + lines[-40:]))
           EOF
       - name: The stack's logs, when the tests did not pass
         if: always() && steps.tests.outcome != 'success'
@@ -531,14 +663,20 @@ jobs:
         if: always() && steps.tests.outcome != 'success'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
-          name: playwright-results
+          name: playwright-results-${{ matrix.shard }}
           path: web/test-results
           if-no-files-found: ignore
 
+      - name: Keep the suite's packages
+        if: matrix.shard == 1 && steps.packages.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: web/node_modules
+          key: ${{ steps.packages.outputs.cache-primary-key }}
       # Saved whether or not the tests passed, so a run that failed on
       # a test does not fetch a gigabyte again next time.
       - name: Keep the planner's reference data
-        if: always() && steps.data.outputs.cache-hit != 'true'
+        if: always() && matrix.shard == 1 && steps.data.outputs.cache-hit != 'true'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: |
@@ -550,7 +688,7 @@ jobs:
       # restored was another cycle's or nothing, with the tiles this
       # run rendered in it.
       - name: Keep the corridor's charts
-        if: always() && steps.cycle.outputs.cycle != '' && steps.charts.outputs.cache-matched-key != format('planner-charts-v1-{0}', steps.cycle.outputs.cycle)
+        if: always() && matrix.shard == 1 && steps.cycle.outputs.cycle != '' && steps.charts.outputs.cache-matched-key != format('planner-charts-v1-{0}', steps.cycle.outputs.cycle)
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: |
@@ -558,84 +696,87 @@ jobs:
             data/raw/chart_tiles.nosync
           key: planner-charts-v1-${{ steps.cycle.outputs.cycle }}
 
+  # Every image whose inputs changed, built beside the tests rather than
+  # after them, each on a runner of its own. On main each is pushed under
+  # this commit's tag (`:sha-<commit>`), never `:latest`: `promote` gives
+  # it that name once every test has passed, which is a copy of the
+  # manifest, seconds. A pull request builds without pushing -- the build
+  # is the check that its Dockerfile still builds.
+  #
+  # The layer cache lives in the registry (ghcr.io/…/<service>:buildcache,
+  # every stage's layers, mode=max), written from main: not evicted, and
+  # a pull request and the browser suite's runners read it. The Actions
+  # cache it replaces is 10 GB for the whole repository, and the ML
+  # images' torch and tensorflow layers evicted each other out of it, so
+  # the ML image was built from nothing on most pushes (6.7 of a run's 15
+  # minutes). It is still read, second, while it ages out.
   build-images:
+    name: build (${{ matrix.service }})
     runs-on: ubuntu-26.04
-    # One list, and no `if:` -- the implicit success() is the rule: every
-    # test job passed and `changes` ran. It used to be written twice,
-    # here and again in an `always() && …` condition, and the two had
-    # drifted: test-web was in neither, so a red front-end suite still
-    # published the webapp image. (The condition existed because
-    # `changes` was once skipped outside a PR; it runs on every event
-    # now.) Should a need ever become skippable, the one-list form is
-    # `!cancelled() && !contains(needs.*.result, 'failure')`.
-    needs: [test, test-web, test-webapp, test-planning-service, test-model-service, test-nav-log-agent, test-crewai-agent, e2e, changes]
+    needs: [changes]
+    if: needs.changes.outputs.images != '[]'
     permissions:
       contents: read
       packages: write
     strategy:
       fail-fast: false
       matrix:
-        include:
-          # Each Python image imports its own code, and the packages that
-          # code imports lazily, as the last step of its build -- so a
-          # missing dependency fails the build here and in a local
-          # `docker compose build` alike, and a broken image is never
-          # pushed.
-          - service: ml
-            context: .
-            dockerfile: docker/Dockerfile.ml
-          - service: pipeline-processing
-            context: .
-            dockerfile: docker/Dockerfile.processing
-          - service: pipeline-training
-            context: .
-            dockerfile: docker/Dockerfile.training
-          - service: airflow
-            context: .
-            dockerfile: docker/Dockerfile.airflow
-          - service: airflow-aws
-            context: .
-            dockerfile: docker/Dockerfile.airflow.aws
-          - service: nav-log-agent
-            context: .
-            dockerfile: nav-log-agent/Dockerfile
-          - service: crewai-agent
-            context: .
-            dockerfile: crewai-agent/Dockerfile
-          - service: planning-service
-            context: .
-            dockerfile: planning-service/Dockerfile
-          - service: model-service
-            context: ./model-service
-            dockerfile: ./model-service/Dockerfile
-          # Context is the repo root, not ./springboot-app: the Dockerfile's
-          # first stage builds the React app from web/ and bakes the bundle
-          # into the jar, so it COPYs from both directories.
-          - service: webapp
-            context: .
-            dockerfile: ./springboot-app/Dockerfile
+        include: ${{ fromJSON(needs.changes.outputs.images) }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
-        if: github.event_name != 'pull_request' || needs.changes.outputs[matrix.service] == 'true'
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069  # v4
-        if: github.event_name != 'pull_request' || needs.changes.outputs[matrix.service] == 'true'
-      # Only authenticate/push on main -- PRs (including from forks) don't
-      # get write-scoped tokens, and shouldn't publish images anyway.
-      - if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f  # v4
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f  # v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      # Each Python image imports its own code, and the packages that code
+      # imports lazily, as the last step of its build -- so a missing
+      # dependency fails the build here and in a local `docker compose
+      # build` alike, and a broken image is never pushed.
       - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc  # v7
-        if: github.event_name != 'pull_request' || needs.changes.outputs[matrix.service] == 'true'
         with:
           context: ${{ matrix.context }}
           file: ${{ matrix.dockerfile }}
           push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
-          tags: ghcr.io/${{ github.repository }}/${{ matrix.service }}:latest
-          cache-from: type=gha,scope=${{ matrix.service }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.service }}
+          tags: ghcr.io/${{ github.repository }}/${{ matrix.service }}:sha-${{ github.sha }}
+          cache-from: |
+            type=registry,ref=ghcr.io/${{ github.repository }}/${{ matrix.service }}:buildcache
+            type=gha,scope=${{ matrix.service }}
+          # Written from main only: a pull request (a fork's included)
+          # has no business writing what main's builds read.
+          cache-to: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && format('type=registry,ref=ghcr.io/{0}/{1}:buildcache,mode=max,image-manifest=true,oci-mediatypes=true', github.repository, matrix.service) || '' }}
+
+  # The images this run built become `:latest`, once every test has
+  # passed: a copy of each manifest from its commit tag, which takes
+  # seconds -- the build is not repeated. `!contains(… 'failure')`
+  # rather than the implicit success(), which a skipped job fails: the
+  # jobs whose inputs did not change are skipped, not failed.
+  promote:
+    runs-on: ubuntu-26.04
+    needs: [changes, build-images, test, test-web, test-webapp, test-planning-service, test-model-service, test-nav-log-agent, test-crewai-agent, e2e]
+    if: >-
+      !cancelled() && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')
+      && github.event_name == 'push' && github.ref == 'refs/heads/main'
+      && needs.changes.outputs.images != '[]'
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069  # v4
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f  # v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: This commit's images, as latest
+        env:
+          IMAGES: ${{ needs.changes.outputs.images }}
+          REPO: ghcr.io/${{ github.repository }}
+        run: |
+          for service in $(jq -r '.[].service' <<<"$IMAGES"); do
+            docker buildx imagetools create --tag "$REPO/$service:latest" "$REPO/$service:sha-$GITHUB_SHA"
+          done
 
   # Regenerates documentation so a broken {@link}, an import that stops
   # working under pdoc, or a docstring regression is caught here rather
@@ -651,7 +792,8 @@ jobs:
   # to every PR.
   docs:
     runs-on: ubuntu-26.04
-    needs: [test, changes]
+    needs: [changes]
+    if: needs.changes.outputs.docs == 'true'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069  # v4
@@ -685,7 +827,9 @@ jobs:
           file: docker/Dockerfile.ml
           tags: vfr-docs-ml:latest
           load: true
-          cache-from: type=gha,scope=ml
+          cache-from: |
+            type=registry,ref=ghcr.io/${{ github.repository }}/ml:buildcache
+            type=gha,scope=ml
       - name: pdoc (src/vfr)
         if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.changes.outputs.ml == 'true'
         run: |
@@ -700,7 +844,9 @@ jobs:
           file: nav-log-agent/Dockerfile
           tags: vfr-docs-navlog:latest
           load: true
-          cache-from: type=gha,scope=nav-log-agent
+          cache-from: |
+            type=registry,ref=ghcr.io/${{ github.repository }}/nav-log-agent:buildcache
+            type=gha,scope=nav-log-agent
       - name: pdoc (nav-log-agent)
         if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.changes.outputs['nav-log-agent'] == 'true'
         run: |
@@ -715,7 +861,9 @@ jobs:
           file: crewai-agent/Dockerfile
           tags: vfr-docs-crewai:latest
           load: true
-          cache-from: type=gha,scope=crewai-agent
+          cache-from: |
+            type=registry,ref=ghcr.io/${{ github.repository }}/crewai-agent:buildcache
+            type=gha,scope=crewai-agent
       - name: pdoc (crewai-agent)
         if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.changes.outputs['crewai-agent'] == 'true'
         run: |
@@ -749,11 +897,12 @@ jobs:
   # (distinct from the *local* airflow image also built above).
   push-ecr:
     runs-on: ubuntu-26.04
-    needs: build-images
+    needs: promote
     if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.AWS_ROLE_ARN != ''
     permissions:
       contents: read
       id-token: write
+      packages: read
     strategy:
       matrix:
         include:
@@ -798,4 +947,6 @@ jobs:
           file: ${{ matrix.dockerfile }}
           push: true
           tags: ${{ steps.ecr-login.outputs.registry }}/vfr-route/${{ matrix.ecrRepo }}:latest
-          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-from: |
+            type=registry,ref=ghcr.io/${{ github.repository }}/${{ matrix.service }}:buildcache
+            type=gha,scope=${{ matrix.service }}
