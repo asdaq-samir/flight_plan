@@ -1282,14 +1282,25 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       # `imagetools` needs no builder of its own: the runner's buildx
       # copies a manifest with the docker driver it already has. All at
-      # once, and the step fails if any copy did.
+      # once, and the step fails if any copy did -- after three tries,
+      # with the registry's answer on the commit's checks: one failed a
+      # second in on 9cc4e6e, the run after passed, and a job's log,
+      # which alone said why, takes admin rights to read.
       - name: This commit's images, as latest
         env:
           IMAGES: ${{ needs.changes.outputs.images }}
           REPO: ghcr.io/${{ github.repository }}
         run: |
+          promote() {
+            for try in 1 2 3; do
+              docker buildx imagetools create --tag "$REPO/$1:latest" "$REPO/$1:sha-$GITHUB_SHA" > "/tmp/promote-$1.log" 2>&1 && return 0
+              sleep $((try * 5))
+            done
+            echo "::error title=$1 not promoted::$(tail -5 "/tmp/promote-$1.log" | tr '\n' ' ' | sed 's/%/%25/g')"
+            return 1
+          }
           for service in $(jq -r '.[].service' <<<"$IMAGES"); do
-            docker buildx imagetools create --tag "$REPO/$service:latest" "$REPO/$service:sha-$GITHUB_SHA" &
+            promote "$service" &
           done
           failed=0
           for job in $(jobs -p); do wait "$job" || failed=1; done
