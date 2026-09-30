@@ -24,12 +24,6 @@ import { usePlan } from "./hooks/usePlan";
 
 // The three stages a plan actually goes through, in order -- there's
 // no finer-grained number to report while one of them is running, so
-// the status toast shows progress as "whichever of these three just
-// finished," not a truly continuous percentage.
-const STAGE_PERCENT: Record<"course" | "checkpoints" | "navlog", number> = {
-  course: 25, checkpoints: 60, navlog: 90,
-};
-
 /** Which of the three altitude plans the log flies -- the fastest for
  *  the winds unless the URL says otherwise, the plan a pilot with the
  *  winds in hand picks; it was the lowest, as the predictable one. */
@@ -214,19 +208,25 @@ export default function PlanWorkspace({ dep, dest, sidebarOpen, children }: Work
   // Enter or Space selects it, which is the same thing without the
   // arbitration.
   //
-  // One floating progress line for the whole page: the briefing's own
-  // fetch first (it only runs while the drawer is open), then the nav
-  // log's own stage (scoring, altitude selection, the live
-  // aviationweather.gov fetch), then the plan's own stages, then the
-  // checkpoint description count -- never two at once. Failures are
-  // the query client's to report (queryClient.ts).
+  // One floating progress line for the whole page, saying what is
+  // actually being done, never two at once: the planner's own word on
+  // the nav log stream (scoring and choosing the checkpoints, planning
+  // the altitudes, waiting on the winds), or that the stream has been
+  // asked for and has not spoken yet; the course being plotted and the
+  // checkpoints scored before it; the briefing's fetch -- METARs,
+  // forecasts, hazards, runways and frequencies, which runs beside the
+  // nav log while the drawer is open; and the descriptions being
+  // written, counted. It used to say "Planning… 60%", a percentage
+  // nothing measured, and "Loading briefing…" over a nav log still
+  // streaming. Failures are the query client's to report
+  // (queryClient.ts).
   useProgressToast(
-    (s.briefing.state === "loading" ? "Loading briefing…" : null)
-    ?? s.navStage
-    ?? (s.stage === "course" ? "Drawing course…" : null)
+    s.navStage
+    ?? (s.stage === "navlog" ? "Asking the planner for the nav log…" : null)
+    ?? (s.stage === "course" ? "Plotting the course…" : null)
     ?? (s.stage === "checkpoints" ? "Scoring checkpoints…" : null)
-    ?? (s.stage ? `Planning… ${STAGE_PERCENT[s.stage]}%` : null)
-    ?? (s.descriptionProgress ? `Generating ${s.descriptionProgress.done}/${s.descriptionProgress.total}` : null),
+    ?? (s.briefing.state === "loading" ? "Fetching METARs, forecasts, hazards, runways and frequencies…" : null)
+    ?? (s.descriptionProgress ? `Writing descriptions ${s.descriptionProgress.done}/${s.descriptionProgress.total}…` : null),
   );
 
   // The flight planning drawer: the nav log as the first section, the

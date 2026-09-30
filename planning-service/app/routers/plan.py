@@ -345,7 +345,7 @@ def navlog_stream(
     r = load_route(dep, dest)
 
     def lines():
-        yield line(NavLogStage(detail="Scoring checkpoints…"))
+        yield line(NavLogStage(detail="Scoring and choosing the checkpoints…"))
         _, selected = scored_and_selected(r.dep_ident, r.dest_ident)
 
         profile = aircraft_profile(aircraft, cruise_tas_kt, fuel_burn_gph, usable_fuel_gal)

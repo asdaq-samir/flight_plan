@@ -227,7 +227,7 @@ export default function FlightBriefingView({
   const briefingPendingMessage =
     briefingState.state === "waiting" ? "The briefing follows once the route's course is drawn."
       : briefingState.state === "failed" ? `Briefing data is unavailable (${briefingState.detail}).`
-        : "Loading briefing data…";
+        : "Fetching METARs, forecasts, hazards, runways and frequencies…";
 
   // "Planning aid only" used to be a permanently docked banner at the
   // top of the briefing, pushing every section below it down a line
@@ -461,7 +461,7 @@ export default function FlightBriefingView({
           rule that used it. */}
       <AccordionSection title="Cruise Altitude">
         {!nav ? (
-          <p className="text-sm text-muted-foreground">Loading…</p>
+          <p className="text-sm text-muted-foreground">Waiting on the nav log's altitude…</p>
         ) : (
           <AltitudeReasoning nav={nav} />
         )}

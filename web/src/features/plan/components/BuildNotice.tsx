@@ -13,7 +13,7 @@ interface Props {
 function describe(build: Props["build"]): string {
   switch (build.phase) {
     case "needed": return "Collecting its candidate landmarks takes a few minutes.";
-    case "starting": return "starting…";
+    case "starting": return "Asking the planner to collect this route's landmarks…";
     case "queued": return `Queued: ${build.detail}.`;
     case "running": return build.progress;
     case "failed": return `The collection failed (${build.detail}). Collect again to retry.`;

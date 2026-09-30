@@ -3922,9 +3922,19 @@
         "type": "object"
       },
       "Services": {
-        "description": "None for an agent this planner was not told the address of.",
+        "description": "None for an agent this planner was not told the address of. The\nwebapp and its database are probed from here too -- its liveness\nand its readiness group, which includes the database -- rather\nthan by the browser: a phone's probes queued behind its chart\ntiles on one HTTP/1.1 connection pool and timed out, and the\nconsole read \"no answer\" for a gateway that had just served it.",
         "properties": {
           "crewai_agent": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ServiceStatus"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "db": {
             "anyOf": [
               {
                 "$ref": "#/components/schemas/ServiceStatus"
@@ -3938,6 +3948,16 @@
             "$ref": "#/components/schemas/ModelServiceStatus"
           },
           "nav_log_agent": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ServiceStatus"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "webapp": {
             "anyOf": [
               {
                 "$ref": "#/components/schemas/ServiceStatus"

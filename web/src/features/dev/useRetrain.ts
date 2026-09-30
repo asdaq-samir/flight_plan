@@ -20,7 +20,7 @@ export function useRetrain() {
     mutationFn: api.retrain,
     onSuccess: run => {
       toast.success("Retrain started", {
-        description: run.dag_run_id ? `Airflow run ${run.dag_run_id}; the Developer drawer follows it.` : undefined,
+        description: run.dag_run_id ? `Airflow run ${run.dag_run_id}; the Performance tab follows it.` : undefined,
       });
       // Returned, so the mutation stays pending until the snapshot shows
       // the run: Retrain was enabled again in between, for a second press.

@@ -6,7 +6,7 @@ const PROGRESS_ID = "page-progress";
 /**
  * The page's progress line, one sonner toast (the one `<Toaster>` in
  * main.tsx) updated in place: a route's own sequence ("Drawing
- * course…" -> "Scoring checkpoints…" -> "Planning… 60%") is one
+ * course…" -> "Scoring checkpoints…" -> "Planning cruise altitudes…") is one
  * operation's status narrating itself over time, not several
  * concurrent ones, so it should never pile up a toast per stage.
  * Failures are the query client's to report (queryClient.ts), not

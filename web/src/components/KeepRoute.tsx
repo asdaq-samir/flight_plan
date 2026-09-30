@@ -62,7 +62,7 @@ export default function KeepRoute({ course }: Props) {
         onClick={() => { if (course && layer) void keep(course, layer); }}
         data-testid="keep-route"
       >
-        {running ? "Keeping…" : "Keep this route's charts on this device"}
+        {running ? "Fetching tiles…" : "Keep this route's charts on this device"}
       </Button>
       <p className="text-xs text-muted-foreground" data-testid="keep-route-status">{status}</p>
     </div>

@@ -215,7 +215,7 @@ export function AircraftPanel({ pilot }: { pilot: PilotState }) {
           {pilot === "error" ? "Your sign-in status could not be checked." : "Sign in to keep your own aeroplanes; the nav log then flies them."}
         </p>
       ) : pilot === "loading" || isLoading ? (
-        <p className="mt-1 text-sm text-muted-foreground">Loading…</p>
+        <p className="mt-1 text-sm text-muted-foreground">Fetching your aircraft…</p>
       ) : (
         <>
           {list && (
@@ -333,7 +333,7 @@ export function FlightsPanel({ pilot }: { pilot: PilotState }) {
           {pilot === "error" ? "Your sign-in status could not be checked." : "Sign in to see flights you've filed."}
         </p>
       ) : pilot === "loading" || isLoading ? (
-        <p className="mt-1 text-sm text-muted-foreground">Loading…</p>
+        <p className="mt-1 text-sm text-muted-foreground">Fetching your flights…</p>
       ) : error ? null : list?.length === 0 ? (
         <p className="mt-1 text-sm text-muted-foreground">
           No flights filed yet -- plan a route, open Flight Planning, and save it there.

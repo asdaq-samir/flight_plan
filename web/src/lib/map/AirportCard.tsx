@@ -33,7 +33,7 @@ export interface AirportWeather {
 
 const STATUS_LABEL: Record<Exclude<WeatherStatus, "reported">, string> = {
   "no-report": "no report",
-  checking: "checking…",
+  checking: "fetching the METAR…",
   unavailable: "unavailable",
 };
 
