@@ -68,7 +68,7 @@ class NarrativeRequest(BaseModel):
     aircraft_name: str | None = Field(default=None, max_length=40)
     altitude_ft: float
     altitude_selection: dict | None = None
-    flown: Literal["custom", "lowest", "highest", "fastest"] | None = None
+    flown: Literal["custom", "lowest", "highest", "fastest", "economical"] | None = None
     legs: list[dict] = Field(min_length=1, max_length=MAX_LEGS)
 
     @field_validator("legs")

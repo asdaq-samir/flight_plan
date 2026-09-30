@@ -5,6 +5,18 @@
         "additionalProperties": true,
         "description": "The aircraft's name plus its performance profile -- every field a\ndata/aircraft/*.json file carries, declared, so a page reads them as\nfields rather than guessing at a dict. The three figures after the\nname are required when a profile is loaded (REQUIRED_FIELDS in\nvfr.aircraft); the rest fall back to defaults in vfr.navlog when a\nprofile leaves them out. `extra=\"allow\"` keeps a field a newer\nprofile adds on its way through.",
         "properties": {
+          "climb_fuel_burn_gph": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Climb Fuel Burn Gph"
+          },
           "climb_rate_fpm_sea_level": {
             "anyOf": [
               {
@@ -493,7 +505,7 @@
         "type": "object"
       },
       "AltitudeOption": {
-        "description": "One of the three plans -- lowest, highest, fastest -- as its steps\nand what it costs. `ete_min` is the flying time with every climb\nflown (`climb_penalty_min` is how many of those minutes are climb),\nthe figure the plans are compared on; `tailwind_kt` the\ndistance-weighted wind component along the course, positive helping,\nover the legs that had wind data.",
+        "description": "One of the four plans -- lowest, highest, fastest, economical --\nas its steps and what it costs. `ete_min` is the flying time with every climb\nflown (`climb_penalty_min` is how many of those minutes are climb),\nthe figure the plans are compared on; `tailwind_kt` the\ndistance-weighted wind component along the course, positive helping,\nover the legs that had wind data.",
         "properties": {
           "climb_penalty_min": {
             "title": "Climb Penalty Min",
@@ -525,7 +537,8 @@
             "enum": [
               "lowest",
               "highest",
-              "fastest"
+              "fastest",
+              "economical"
             ],
             "title": "Kind",
             "type": "string"
@@ -2707,7 +2720,7 @@
         "type": "object"
       },
       "NavLogAltitude": {
-        "description": "Which altitudes the legs that follow fly. `flown` is the planner's\nplan of that name, or \"custom\" for a pilot's own altitude; None when\nthe winds the legs need could not be read, so no leg follows -- the\nstream's next line is the error. `altitude_ft` is the first leg's (a\nplan may step), and None exactly when `flown` is. `options` are the\nthree plans, offered beside a pilot's own as well; empty only when the\nwinds failed before they could be made.\n\nIt used to say all of that with `choice: null` and an empty `options`,\nwhich a winds outage produced too: the page showed \"0 ft \u00b7 yours\",\nwith Custom pressed, for an altitude nobody typed.",
+        "description": "Which altitudes the legs that follow fly. `flown` is the planner's\nplan of that name, or \"custom\" for a pilot's own altitude; None when\nthe winds the legs need could not be read, so no leg follows -- the\nstream's next line is the error. `altitude_ft` is the first leg's (a\nplan may step), and None exactly when `flown` is. `options` are the\nfour plans, offered beside a pilot's own as well; empty only when the\nwinds failed before they could be made.\n\nIt used to say all of that with `choice: null` and an empty `options`,\nwhich a winds outage produced too: the page showed \"0 ft \u00b7 yours\",\nwith Custom pressed, for an altitude nobody typed.",
         "properties": {
           "aircraft": {
             "$ref": "#/components/schemas/AircraftProfile"
@@ -2732,7 +2745,8 @@
                 "enum": [
                   "lowest",
                   "highest",
-                  "fastest"
+                  "fastest",
+                  "economical"
                 ],
                 "type": "string"
               },
@@ -3549,7 +3563,8 @@
                 "enum": [
                   "lowest",
                   "highest",
-                  "fastest"
+                  "fastest",
+                  "economical"
                 ],
                 "type": "string"
               },
@@ -5170,7 +5185,7 @@
     },
     "/api/navlog": {
       "get": {
-        "description": "Altitude and the dead-reckoning legs, as newline-delimited JSON --\nthe slow half, because it reads terrain, the obstacle file, the\nairspace shapefile and live winds; asked for separately so none of\nthat delays the chart. Each line is one app.schemas.NavLogMessage.\n\nStreamed rather than a single blocking response so a pilot sees the\ntable fill in as it goes rather than a blank screen: a \"stage\" line\nbefore each real piece of work (scoring, the altitude plans), an\n\"altitude\" line the moment those are decided -- the three plans and\nthe one chosen (altitude_choice, see /api/plan) with it -- one \"leg\"\nline per leg, then one \"done\" line with the totals, which need\nevery leg in before they mean anything. Its own implementation, not\na wrapper over /api/plan: that one commits to a single synchronous\nJSON response, and mixing a streaming and a non-streaming contract\ninto one function would compromise both. The overlap is the same\nhandful of calls into app.planning and vfr.navlog either way.\n\nAn unflyable route (some leg with no legal cruising altitude at all)\nis reported as an \"error\" line, not an HTTP error status -- by the\ntime that's known, a 200 and a stream of NDJSON have already gone\nout, and an HTTP status can't change after that.",
+        "description": "Altitude and the dead-reckoning legs, as newline-delimited JSON --\nthe slow half, because it reads terrain, the obstacle file, the\nairspace shapefile and live winds; asked for separately so none of\nthat delays the chart. Each line is one app.schemas.NavLogMessage.\n\nStreamed rather than a single blocking response so a pilot sees the\ntable fill in as it goes rather than a blank screen: a \"stage\" line\nbefore each real piece of work (scoring, the altitude plans), an\n\"altitude\" line the moment those are decided -- the four plans and\nthe one chosen (altitude_choice, see /api/plan) with it -- one \"leg\"\nline per leg, then one \"done\" line with the totals, which need\nevery leg in before they mean anything. Its own implementation, not\na wrapper over /api/plan: that one commits to a single synchronous\nJSON response, and mixing a streaming and a non-streaming contract\ninto one function would compromise both. The overlap is the same\nhandful of calls into app.planning and vfr.navlog either way.\n\nAn unflyable route (some leg with no legal cruising altitude at all)\nis reported as an \"error\" line, not an HTTP error status -- by the\ntime that's known, a 200 and a stream of NDJSON have already gone\nout, and an HTTP status can't change after that.",
         "operationId": "navlog_stream_api_navlog_get",
         "parameters": [
           {
@@ -5216,7 +5231,8 @@
               "enum": [
                 "lowest",
                 "highest",
-                "fastest"
+                "fastest",
+                "economical"
               ],
               "title": "Altitude Choice",
               "type": "string"
@@ -5280,6 +5296,40 @@
                 }
               ],
               "title": "Usable Fuel Gal"
+            }
+          },
+          {
+            "in": "query",
+            "name": "climb_tas_kt",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "maximum": 1000,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Climb Tas Kt"
+            }
+          },
+          {
+            "in": "query",
+            "name": "climb_fuel_burn_gph",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Climb Fuel Burn Gph"
             }
           },
           {
@@ -5473,7 +5523,7 @@
     },
     "/api/plan": {
       "get": {
-        "description": "The whole plan: course line, every scored candidate, the selected\ncheckpoints, and a nav log leg between each consecutive pair.\n\naltitude_ft is optional. Omitted, vfr.altitude works out each leg's\nown legal altitudes -- clear of terrain and obstacles, under the\nClass B shelf over that leg alone and the aircraft's service\nceiling, on the hemispheric rule for that leg's own course\n-- and vfr.navlog makes three plans of them: the lowest, the\nhighest, and the fastest for the winds aloft. altitude_choice picks\nwhich one the legs fly -- the fastest unless asked otherwise, the\nplan a pilot with the winds in hand picks (it was the lowest, as the\npredictable one) -- and the reasoning comes back with it, since\n\"why am I at 6,500\" is a question a pilot will actually ask.\n\naircraft names a stock profile; cruise_tas_kt, fuel_burn_gph and\nusable_fuel_gal, when given, are a pilot's own aeroplane's numbers\nlaid over it. depart, an ISO time (UTC when naive), picks the\nwinds-aloft forecast period the legs are flown on -- the 6-, 12- or\n24-hour product, whichever is valid closest to the departure;\nwithout it, the 6-hour product, i.e. about now -- and whether the\nfuel reserve is the day or the night one.",
+        "description": "The whole plan: course line, every scored candidate, the selected\ncheckpoints, and a nav log leg between each consecutive pair.\n\naltitude_ft is optional. Omitted, vfr.altitude works out each leg's\nown legal altitudes -- clear of terrain and obstacles, under the\nClass B shelf over that leg alone and the aircraft's service\nceiling, on the hemispheric rule for that leg's own course\n-- and vfr.navlog makes four plans of them: the lowest, the\nhighest, the fastest for the winds aloft, and the one that burns the\nleast fuel, climb and cruise. altitude_choice picks\nwhich one the legs fly -- the fastest unless asked otherwise, the\nplan a pilot with the winds in hand picks (it was the lowest, as the\npredictable one) -- and the reasoning comes back with it, since\n\"why am I at 6,500\" is a question a pilot will actually ask.\n\naircraft names a stock profile; cruise_tas_kt, fuel_burn_gph,\nusable_fuel_gal, climb_tas_kt and climb_fuel_burn_gph, when given,\nare a pilot's own aeroplane's numbers laid over it. depart, an ISO time (UTC when naive), picks the\nwinds-aloft forecast period the legs are flown on -- the 6-, 12- or\n24-hour product, whichever is valid closest to the departure;\nwithout it, the 6-hour product, i.e. about now -- and whether the\nfuel reserve is the day or the night one.",
         "operationId": "plan_api_plan_get",
         "parameters": [
           {
@@ -5519,7 +5569,8 @@
               "enum": [
                 "lowest",
                 "highest",
-                "fastest"
+                "fastest",
+                "economical"
               ],
               "title": "Altitude Choice",
               "type": "string"
@@ -5583,6 +5634,40 @@
                 }
               ],
               "title": "Usable Fuel Gal"
+            }
+          },
+          {
+            "in": "query",
+            "name": "climb_tas_kt",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "maximum": 1000,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Climb Tas Kt"
+            }
+          },
+          {
+            "in": "query",
+            "name": "climb_fuel_burn_gph",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Climb Fuel Burn Gph"
             }
           },
           {

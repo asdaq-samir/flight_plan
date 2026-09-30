@@ -80,12 +80,14 @@ def test_what_the_pilot_planned_with_is_passed_through(monkeypatch):
     calls = []
     _getting(monkeypatch, _Response(200, {"legs": []}), calls)
 
-    planner_client.plan("C81", "KDLH", depart="2026-09-25T13:00:00Z", altitude_choice="fastest",
-                        cruise_tas_kt=118, fuel_burn_gph=9.0, usable_fuel_gal=50)
+    planner_client.plan("C81", "KDLH", depart="2026-09-25T13:00:00Z", altitude_choice="economical",
+                        cruise_tas_kt=118, fuel_burn_gph=9.0, usable_fuel_gal=50, climb_tas_kt=76,
+                        climb_fuel_burn_gph=12.5)
 
     (_, params), = calls
-    assert params == {"dep": "C81", "dest": "KDLH", "depart": "2026-09-25T13:00:00Z", "altitude_choice": "fastest",
-                      "cruise_tas_kt": 118, "fuel_burn_gph": 9.0, "usable_fuel_gal": 50}
+    assert params == {"dep": "C81", "dest": "KDLH", "depart": "2026-09-25T13:00:00Z", "altitude_choice": "economical",
+                      "cruise_tas_kt": 118, "fuel_burn_gph": 9.0, "usable_fuel_gal": 50, "climb_tas_kt": 76,
+                      "climb_fuel_burn_gph": 12.5}
 
 
 def test_the_client_waits_past_the_planners_own_bound():

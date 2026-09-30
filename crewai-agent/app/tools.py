@@ -42,7 +42,7 @@ def get_recommended_altitude(departure_ident: str, destination_ident: str, aircr
     """Get the cruising altitudes the planner flies this route at, as JSON:
     the altitude of the first leg, each leg's own reasoning (terrain and
     obstacle clearance, controlled airspace, current weather, the
-    aircraft's service ceiling), the three plans it considered and the
+    aircraft's service ceiling), the four plans it considered and the
     one chosen. aircraft_name is one of the planner's aircraft profiles
     (e.g. "c172", "pa28"); omit it for the planner's default.
 

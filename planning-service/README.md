@@ -114,7 +114,7 @@ once in ten.
 | `GET /` | Says the service is up and where the UI went. |
 | `GET /api/course` | The leg itself. Sub-second, so the map draws immediately. |
 | `GET /api/checkpoints` | Scored candidates and the subset worth flying. |
-| `GET /api/navlog` | The three altitude plans (lowest, highest, fastest for the winds, each stepping under a Class B shelf and up past it), the one chosen (`altitude_choice`), and the dead-reckoning legs, streamed as NDJSON. `depart`, an ISO time, picks the winds forecast period (6, 12 or 24 hours out) and whether the fuel reserve is the day or the night one; the totals carry the fuel check against the aeroplane's usable fuel (`usable_fuel_gal` overrides the profile's). Each leg carries its climb -- from the field on the first, up to a new level where a plan steps -- at the profile's climb rate, speed and burn. The slow one. |
+| `GET /api/navlog` | The four altitude plans (lowest, highest, fastest for the winds, and the least fuel, climb and cruise; each stepping under a Class B shelf and up past it), the one chosen (`altitude_choice`), and the dead-reckoning legs, streamed as NDJSON. `depart`, an ISO time, picks the winds forecast period (6, 12 or 24 hours out) and whether the fuel reserve is the day or the night one; the totals carry the fuel check against the aeroplane's usable fuel (`usable_fuel_gal` overrides the profile's). Each leg carries its climb -- from the field on the first, up to a new level where a plan steps -- at the profile's climb rate, speed and burn. The slow one. |
 | `GET /api/plan` | All three at once, for non-browser callers. |
 | `GET /api/briefing` | The FAA-sequence weather briefing behind Plan's briefing (the nav log drawer opened wide). |
 | `GET /api/altitude-breakdown` | The reasoning behind a recommended cruise altitude. |
@@ -227,7 +227,7 @@ one piece of the AWS path still unfinished.
 
 **A cache hit and two concurrent misses are different problems, and
 this service's caches (`app/planning.py`'s `SingleFlightTTLCache`, in
-front of the cruise-altitude selection and the three altitude plans)
+front of the cruise-altitude selection and the four altitude plans)
 solve both.** The obvious version -- lock, check the dict, unlock,
 compute on a miss, lock again to store it -- only ever protects the
 dict. It leaves the computation itself unguarded, so two requests for

@@ -255,7 +255,7 @@ class AltitudeBreakdown(BaseModel):
     segments: list[AltitudeSegment] = []
 
 
-AltitudeChoice = Literal["lowest", "highest", "fastest"]
+AltitudeChoice = Literal["lowest", "highest", "fastest", "economical"]
 
 
 class AltitudeStep(BaseModel):
@@ -270,8 +270,8 @@ class AltitudeStep(BaseModel):
 
 
 class AltitudeOption(BaseModel):
-    """One of the three plans -- lowest, highest, fastest -- as its steps
-    and what it costs. `ete_min` is the flying time with every climb
+    """One of the four plans -- lowest, highest, fastest, economical --
+    as its steps and what it costs. `ete_min` is the flying time with every climb
     flown (`climb_penalty_min` is how many of those minutes are climb),
     the figure the plans are compared on; `tailwind_kt` the
     distance-weighted wind component along the course, positive helping,
@@ -310,6 +310,7 @@ class AircraftProfile(BaseModel):
     type: str | None = None
     climb_rate_fpm_sea_level: float | None = None
     climb_tas_kt: float | None = None
+    climb_fuel_burn_gph: float | None = None
     usable_fuel_gal: float | None = None
     supplemental_oxygen: bool | None = None
     pressurized: bool | None = None
@@ -557,7 +558,7 @@ class NavLogAltitude(BaseModel):
     the winds the legs need could not be read, so no leg follows -- the
     stream's next line is the error. `altitude_ft` is the first leg's (a
     plan may step), and None exactly when `flown` is. `options` are the
-    three plans, offered beside a pilot's own as well; empty only when the
+    four plans, offered beside a pilot's own as well; empty only when the
     winds failed before they could be made.
 
     It used to say all of that with `choice: null` and an empty `options`,

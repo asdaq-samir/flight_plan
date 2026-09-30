@@ -196,8 +196,9 @@ service discovery at `planning-service.vfr-route.internal`.
 - `/api/altitude-breakdown` — the full reasoning behind a recommended
   cruise altitude for any route; the nav log works the same floor and
   ceiling out leg by leg (a Class B shelf caps only the legs under it)
-  and offers three plans of the legal altitudes -- the lowest, the
-  highest, and the fastest for the winds aloft, every climb flown on
+  and offers four plans of the legal altitudes -- the lowest, the
+  highest, the fastest for the winds aloft, and the one that burns the
+  least fuel, climb and cruise -- every climb flown on
   the leg that makes it, none above 12,500 ft without oxygen -- and
   the nav log header's own "why" popover and the briefing's "Cruise
   Altitude" section walk the pilot through it, step by step. A

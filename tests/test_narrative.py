@@ -121,6 +121,7 @@ def test_which_altitudes_are_flown_may_be_said():
 @pytest.mark.parametrize("flown, says", [
     ("custom", "The altitude is the pilot's own"),
     ("fastest", "The altitudes are the planner's fastest plan."),
+    ("economical", "The altitudes are the planner's economical plan."),
 ])
 def test_whose_altitude_it_is_comes_from_flown(flown, says):
     text = narrative.briefing_prompt("C81", "KDLH", 4500, SELECTION, [LEG], flown=flown)

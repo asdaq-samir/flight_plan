@@ -62,9 +62,9 @@ def test_plan_returns_legs_with_from_and_to_and_totals():
     assert body["totals"]["unflyable_legs"] == 0
     assert body["altitude_ft"] == 4500.0
     assert body["aircraft"]["name"] == "c172" and body["aircraft"]["cruise_tas_kt"] > 0
-    # The three plans, the fastest flown unless asked otherwise. One
-    # legal altitude here, so all three are the same plan.
-    assert [o["kind"] for o in body["altitude_options"]] == ["lowest", "highest", "fastest"]
+    # The four plans, the fastest flown unless asked otherwise. One
+    # legal altitude here, so all four are the same plan.
+    assert [o["kind"] for o in body["altitude_options"]] == ["lowest", "highest", "fastest", "economical"]
     assert body["altitude_choice"] == "fastest"
     assert body["altitude_options"][0]["steps"] == [
         {"from": "C81", "to": "KDLH", "altitude_ft": 4500.0, "distance_nm": 30.0},
@@ -87,7 +87,7 @@ def test_plan_with_a_pilots_own_altitude_flies_it_and_still_offers_the_plans():
     # No plan is being flown, but the three are there beside the pilot's
     # own, with the reasoning's floor and ceiling.
     assert body["altitude_choice"] is None
-    assert [o["kind"] for o in body["altitude_options"]] == ["lowest", "highest", "fastest"]
+    assert [o["kind"] for o in body["altitude_options"]] == ["lowest", "highest", "fastest", "economical"]
     assert body["altitude_selection"]["floor_ft"] == 2200.0
 
 
@@ -112,7 +112,7 @@ def test_navlog_streams_altitude_then_legs_then_done(messages):
     assert legs[0]["from"] == "C81" and legs[0]["wind"]["wind_speed_kt"] == 15.0
     assert lines[-1]["totals"]["distance_nm"] == 10.0 * len(legs)
     altitude = next(m for m in lines if m["type"] == "altitude")
-    assert [o["kind"] for o in altitude["options"]] == ["lowest", "highest", "fastest"]
+    assert [o["kind"] for o in altitude["options"]] == ["lowest", "highest", "fastest", "economical"]
     assert altitude["flown"] == "fastest" and altitude["altitude_ft"] == 4500.0
 
 
@@ -171,13 +171,22 @@ def test_navlog_flies_the_chosen_plan_and_says_so(messages):
 def test_navlog_flies_a_pilots_own_aeroplane_over_a_stock_profile(messages):
     resp = client.get("/api/navlog", params={
         "dep": "C81", "dest": "KDLH", "aircraft": "pa28", "cruise_tas_kt": 118, "fuel_burn_gph": 9.9,
+        "climb_tas_kt": 79, "climb_fuel_burn_gph": 13.2,
     })
 
     assert resp.status_code == 200
     aircraft = next(m for m in messages(resp) if m["type"] == "altitude")["aircraft"]
     assert aircraft["name"] == "pa28"
     assert aircraft["cruise_tas_kt"] == 118 and aircraft["fuel_burn_gph"] == 9.9
+    assert aircraft["climb_tas_kt"] == 79 and aircraft["climb_fuel_burn_gph"] == 13.2
     assert aircraft["service_ceiling_ft"] == 14100   # the profile's own, untouched
+
+
+def test_navlog_flies_the_economical_plan_when_asked(messages):
+    resp = client.get("/api/navlog", params={"dep": "C81", "dest": "KDLH", "altitude_choice": "economical"})
+
+    altitude = next(m for m in messages(resp) if m["type"] == "altitude")
+    assert altitude["flown"] == "economical"
 
 
 def test_navlog_reports_an_unflyable_route_as_an_error_line(monkeypatch, altitude, messages):
@@ -208,7 +217,7 @@ def test_navlog_at_a_pilots_own_altitude_streams_it_then_its_legs(messages):
 
     altitude = next(m for m in lines if m["type"] == "altitude")
     assert altitude["altitude_ft"] == 3500.0 and altitude["flown"] == "custom"
-    assert [o["kind"] for o in altitude["options"]] == ["lowest", "highest", "fastest"]
+    assert [o["kind"] for o in altitude["options"]] == ["lowest", "highest", "fastest", "economical"]
     assert all(m["altitude_ft"] == 3500.0 for m in lines if m["type"] == "leg")
     assert lines[-1]["type"] == "done"
 
@@ -246,7 +255,7 @@ def test_each_outcome_of_the_altitude_resolver(monkeypatch, altitude):
     assert isinstance(chosen, Flown) and chosen.choice == "highest" and chosen.altitude_ft == 4500.0
 
     typed = resolve_altitude(r, fix_list, profile, "c172", 3500.0, "lowest")
-    assert isinstance(typed, Flown) and typed.choice is None and len(typed.options) == 3
+    assert isinstance(typed, Flown) and typed.choice is None and len(typed.options) == 4
 
     monkeypatch.setattr(altitude_module, "select_cruise_altitude",
                         select_cruise_altitude_stub({**altitude, "recommended_ft": None}))
@@ -288,6 +297,7 @@ def test_a_plan_whose_scoring_hangs_answers_within_the_bound(monkeypatch):
 
 
 @pytest.mark.parametrize("path", ["/api/plan", "/api/navlog"])
-def test_a_cruise_speed_of_zero_is_refused_not_divided_by(path):
-    resp = client.get(path, params={"dep": "C81", "dest": "KDLH", "cruise_tas_kt": 0})
+@pytest.mark.parametrize("speed", ["cruise_tas_kt", "climb_tas_kt"])
+def test_a_speed_of_zero_is_refused_not_divided_by(path, speed):
+    resp = client.get(path, params={"dep": "C81", "dest": "KDLH", speed: 0})
     assert resp.status_code == 422

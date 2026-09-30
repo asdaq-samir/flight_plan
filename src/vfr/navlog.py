@@ -200,7 +200,7 @@ def fuel_plan(total_fuel_gal: float | None, aircraft_profile: dict, night: bool 
     }
 
 
-# --- Three plans: lowest, highest, fastest --------------------------------
+# --- Four plans: lowest, highest, fastest, economical ---------------------
 
 DEFAULT_CLIMB_RATE_FPM = 500.0
 # A sea-level book figure decays with altitude; three quarters of it is
@@ -214,32 +214,39 @@ DEFAULT_CLIMB_TAS_FRACTION = 0.7
 # profile by more than 1,000 ft over 10 nm, so neither plan zig-zags
 # for a leg's worth of slightly lower floor.
 STEP_PENALTY_FT_NM = 10_000.0
-PLAN_KINDS = ("lowest", "highest", "fastest")
+PLAN_KINDS = ("lowest", "highest", "fastest", "economical")
 # Above 12,500 ft, more than 30 minutes needs supplemental oxygen
 # (14 CFR 91.211): no plan goes there unless the profile says the
 # aeroplane carries it or is pressurised. The lowest plan cannot reach
-# it anyway; highest and fastest are held under it.
+# it anyway; the other three are held under it.
 OXYGEN_CAP_FT = 12500.0
 
 
 # A climb at full power burns more than cruise; the book figure for a
-# light single is around a third more.
+# light single is around a third more. For a profile, or a pilot's own
+# aeroplane, with no climb burn of its own.
 CLIMB_FUEL_FACTOR = 1.3
 
 
 def _climb_performance(aircraft_profile: dict) -> tuple:
     rate_fpm = aircraft_profile.get("climb_rate_fpm_sea_level", DEFAULT_CLIMB_RATE_FPM) * CLIMB_RATE_FACTOR
     cruise_tas = aircraft_profile["cruise_tas_kt"]
-    climb_tas = aircraft_profile.get("climb_tas_kt", DEFAULT_CLIMB_TAS_FRACTION * cruise_tas)
+    climb_tas = aircraft_profile.get("climb_tas_kt") or DEFAULT_CLIMB_TAS_FRACTION * cruise_tas
     return rate_fpm, cruise_tas, climb_tas
+
+
+def _climb_burn_gph(aircraft_profile: dict) -> float:
+    """The climb's fuel flow: the profile's (a pilot's own aeroplane's)
+    `climb_fuel_burn_gph`, or CLIMB_FUEL_FACTOR times the cruise burn."""
+    return aircraft_profile.get("climb_fuel_burn_gph") or CLIMB_FUEL_FACTOR * aircraft_profile["fuel_burn_gph"]
 
 
 def with_climbs(leg_list: list, start_altitude_ft: float | None, aircraft_profile: dict) -> list:
     """The legs with their climbs flown: from `start_altitude_ft` (the
     departure field, or None to start level at the first leg's own
     altitude) up to each leg's altitude, and up again wherever a plan
-    steps up, at the profile's climb rate and climb speed and at
-    CLIMB_FUEL_FACTOR times the cruise burn. A climb's minutes are
+    steps up, at the profile's climb rate, climb speed and climb burn
+    (see _climb_burn_gph). A climb's minutes are
     flown over the ground at the climb speed scaled by the leg's own
     wind, the rest of the leg at cruise, and a climb longer than the
     leg carries into the next one. Each leg says how much of its time
@@ -248,6 +255,7 @@ def with_climbs(leg_list: list, start_altitude_ft: float | None, aircraft_profil
     changed in place."""
     rate_fpm, cruise_tas, climb_tas = _climb_performance(aircraft_profile)
     burn_gph = aircraft_profile["fuel_burn_gph"]
+    climb_burn_gph = _climb_burn_gph(aircraft_profile)
     level_ft = start_altitude_ft
     climb_left_min = 0.0
     out = []
@@ -271,7 +279,7 @@ def with_climbs(leg_list: list, start_altitude_ft: float | None, aircraft_profil
                 climb_left_min = 0.0
             leg["climb_min"] = round(climb_min, 1)
             leg["ete_min"] = climb_min + cruise_min
-            leg["fuel_gal"] = (climb_min / 60) * burn_gph * CLIMB_FUEL_FACTOR + (cruise_min / 60) * burn_gph
+            leg["fuel_gal"] = (climb_min / 60) * climb_burn_gph + (cruise_min / 60) * burn_gph
         out.append(leg)
     return out
 
@@ -282,12 +290,29 @@ def climb_penalty_min(delta_ft: float, aircraft_profile: dict) -> float:
     cruise, and the difference is ground not covered. A descent costs
     nothing here -- at cruise power it is, if anything, faster. The
     profile's `climb_rate_fpm_sea_level` (scaled by CLIMB_RATE_FACTOR)
-    and `climb_tas_kt` when it has them, defaults otherwise.
+    and `climb_tas_kt` when it has them, defaults otherwise. Never
+    below nothing: a pilot's climb speed typed above their cruise does
+    not make climbing pay.
     """
     if delta_ft <= 0:
         return 0.0
     rate_fpm, cruise_tas, climb_tas = _climb_performance(aircraft_profile)
-    return (delta_ft / rate_fpm) * (1 - climb_tas / cruise_tas)
+    return max(0.0, (delta_ft / rate_fpm) * (1 - climb_tas / cruise_tas))
+
+
+def climb_fuel_penalty_gal(delta_ft: float, aircraft_profile: dict) -> float:
+    """Gallons a climb of delta_ft burns over cruising the same ground:
+    its minutes at the climb burn (_climb_burn_gph), less the cruise the
+    ground it covers at climb speed would have taken. Twice or so what
+    climb_penalty_min charges in time, for a light single: the climb is
+    slower and burns more. A descent saves nothing here, as it costs
+    nothing there, and neither does a climb: never below nothing.
+    """
+    if delta_ft <= 0:
+        return 0.0
+    rate_fpm, cruise_tas, climb_tas = _climb_performance(aircraft_profile)
+    cruise_burn_gph = aircraft_profile["fuel_burn_gph"] * climb_tas / cruise_tas
+    return max(0.0, (delta_ft / rate_fpm) / 60 * (_climb_burn_gph(aircraft_profile) - cruise_burn_gph))
 
 
 def _best_path(candidates: list, leg_cost, step_cost) -> list:
@@ -332,21 +357,27 @@ def altitude_profiles(
     fix_list: list, segments: list, aircraft_profile: dict, fcst_hr: str = "06",
     departure_elevation_ft: float | None = None,
 ) -> dict:
-    """The lowest, highest and fastest ways to fly the fixes, each as a
-    per-leg altitude plan: {"lowest"|"highest"|"fastest": {"legs",
-    "totals", "steps", "climb_penalty_min", "tailwind_kt",
-    ...}}. `segments` is vfr.altitude.select_cruise_altitude's own
-    `segments`, one per leg, with each leg's legal altitudes.
+    """The lowest, highest, fastest and most economical ways to fly the
+    fixes, each as a per-leg altitude plan: {"lowest"|"highest"|
+    "fastest"|"economical": {"legs", "totals", "steps",
+    "climb_penalty_min", "tailwind_kt", ...}}. `segments` is
+    vfr.altitude.select_cruise_altitude's own `segments`, one per leg,
+    with each leg's legal altitudes.
 
     Lowest and highest are the lowest (highest) profile overall, allowed
     to step only where the change is worth STEP_PENALTY_FT_NM -- under a
     Class B shelf near the departure and up again past it, say, not
     for a single leg's slightly different floor. Fastest is the plan
     with the least time, the winds aloft at every legal altitude of
-    every leg tried and each climb charged at climb_penalty_min. All
-    three pay for the initial climb from the lowest altitude anyone
-    could fly, so their totals compare like for like. Empty when some
-    leg has no legal altitude at all: then no plan can fly the route.
+    every leg tried and each climb charged at climb_penalty_min.
+    Economical is the plan that burns the least fuel, climb and cruise:
+    the same winds, each climb charged at climb_fuel_penalty_gal. With
+    one cruise speed and burn at every altitude, it parts from the
+    fastest only where a climb's wind saves time but not the fuel the
+    climb burns -- it climbs for a tailwind less readily. All four pay
+    for the initial climb from the lowest altitude anyone could fly, so
+    their totals compare like for like. Empty when some leg has no
+    legal altitude at all: then no plan can fly the route.
     """
     leg_count = len(fix_list) - 1
     if len(segments) != leg_count or any(not s["candidates_ft"] for s in segments):
@@ -377,10 +408,18 @@ def altitude_profiles(
         ete = leg_at(i, a)["ete_min"]
         return math.inf if ete is None else ete
 
+    def fuel_step(prev, a):
+        return climb_fuel_penalty_gal(a - (base_ft if prev is None else prev), aircraft_profile)
+
+    def gallons(i, a):
+        fuel = leg_at(i, a)["fuel_gal"]
+        return math.inf if fuel is None else fuel
+
     paths = {
         "lowest": _best_path(candidates, lambda i, a: a * leg_at(i, a)["distance_nm"], fixed_step),
         "highest": _best_path(candidates, lambda i, a: -a * leg_at(i, a)["distance_nm"], fixed_step),
         "fastest": _best_path(candidates, minutes, climb_step),
+        "economical": _best_path(candidates, gallons, fuel_step),
     }
 
     # The plans' own legs carry their climbs -- from the field to the

@@ -15,7 +15,7 @@ Given the nav log's fixes, the same floor and ceiling are also worked out
 leg by leg (`segments`), so a route can step down under a Class B shelf
 and climb again past it rather than fly the whole way at the lowest
 altitude the lowest shelf allows -- vfr.navlog.altitude_profiles turns
-those per-leg bands into the lowest, highest and fastest plans.
+those per-leg bands into the lowest, highest, fastest and economical plans.
 """
 import logging
 import time
@@ -98,7 +98,7 @@ def lowest_vfr_cruising_altitude(floor_ft: float, route_bearing_deg: float) -> f
     is a real cruising altitude, and climbing past it costs time and fuel
     on a short leg for nothing the pilot asked for. Anyone wanting to be
     higher -- smoother air, glide range, a tailwind aloft -- can say so,
-    or take the highest or fastest of the three plans the nav log offers.
+    or take the highest or fastest of the four plans the nav log offers.
     """
     eastbound = is_eastbound(route_bearing_deg)
     thousands = int(floor_ft // 1000)

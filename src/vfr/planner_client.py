@@ -3,7 +3,7 @@ nav log: ask planning-service for it.
 
 planning-service is where the nav log is built -- the departure and
 destination as the first and last fixes, each leg's own legal altitude
-from the three plans, the climb from the field, the winds period for
+from the four plans, the climb from the field, the winds period for
 the departure time and the fuel check against the tanks. Both agents
 used to assemble their own from vfr's pieces and got a different
 answer: no legs to or from the airports, one altitude for the whole
@@ -52,22 +52,24 @@ class PlannerError(Exception):
 def plan(departure_ident: str, destination_ident: str, altitude_ft: float | None = None,
          aircraft_name: str | None = None, *, depart: str | None = None, altitude_choice: str | None = None,
          cruise_tas_kt: float | None = None, fuel_burn_gph: float | None = None,
-         usable_fuel_gal: float | None = None) -> dict:
+         usable_fuel_gal: float | None = None, climb_tas_kt: float | None = None,
+         climb_fuel_burn_gph: float | None = None) -> dict:
     """The whole plan (`/api/plan`): the selected checkpoints, the
-    altitude selection and the three plans, the legs flown and their
+    altitude selection and the four plans, the legs flown and their
     totals -- the one a pilot sees, when given what the pilot planned
     with. With `altitude_ft` the legs are flown at it instead of the
     planner's own choice; without `aircraft_name` the planner's default
     aeroplane is used. `depart` (ISO time) picks the winds period, the
     day or night reserve and the forecast's hours -- without it, now;
-    `altitude_choice` the plan flown (lowest, highest, fastest; the
-    planner's own when omitted); the three numbers a pilot's own
-    aeroplane's, over the profile's."""
+    `altitude_choice` the plan flown (lowest, highest, fastest,
+    economical; the planner's own when omitted); the five numbers a
+    pilot's own aeroplane's, over the profile's."""
     params: dict = {"dep": departure_ident, "dest": destination_ident}
     optional = {
         "altitude_ft": altitude_ft, "aircraft": aircraft_name or None, "depart": depart,
         "altitude_choice": altitude_choice, "cruise_tas_kt": cruise_tas_kt,
         "fuel_burn_gph": fuel_burn_gph, "usable_fuel_gal": usable_fuel_gal,
+        "climb_tas_kt": climb_tas_kt, "climb_fuel_burn_gph": climb_fuel_burn_gph,
     }
     params.update({k: v for k, v in optional.items() if v is not None})
     return _get("/api/plan", params)

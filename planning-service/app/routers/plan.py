@@ -76,7 +76,7 @@ def departure_elevation(r) -> float | None:
 @dataclass(frozen=True)
 class Flown:
     """Legs to fly: the chosen plan's (`choice`), or at a pilot's own
-    altitude (`choice` None), with the selection and the three plans
+    altitude (`choice` None), with the selection and the four plans
     beside them either way. `legs` of a plan is the planner's cached
     list: read it, never change it."""
     selection: dict
@@ -115,7 +115,7 @@ def resolve_altitude(
     forecast_hour_for), `window` the flight's own hours the go/no-go
     forecast is read over (see flight_window).
 
-    The three plans are made beside a pilot's own altitude as well, as
+    The four plans are made beside a pilot's own altitude as well, as
     what the planner would have flown."""
     selection = cruise_altitude(r.start, r.end, profile, aircraft, fixes=_fixes(fix_list), fcst_hr=fcst_hr, window=window)
     try:
@@ -230,6 +230,8 @@ def plan(
     cruise_tas_kt: CruiseTas = None,
     fuel_burn_gph: float | None = None,
     usable_fuel_gal: float | None = None,
+    climb_tas_kt: CruiseTas = None,
+    climb_fuel_burn_gph: float | None = None,
     depart: datetime | None = None,
 ) -> Plan:
     """The whole plan: course line, every scored candidate, the selected
@@ -239,23 +241,24 @@ def plan(
     own legal altitudes -- clear of terrain and obstacles, under the
     Class B shelf over that leg alone and the aircraft's service
     ceiling, on the hemispheric rule for that leg's own course
-    -- and vfr.navlog makes three plans of them: the lowest, the
-    highest, and the fastest for the winds aloft. altitude_choice picks
+    -- and vfr.navlog makes four plans of them: the lowest, the
+    highest, the fastest for the winds aloft, and the one that burns the
+    least fuel, climb and cruise. altitude_choice picks
     which one the legs fly -- the fastest unless asked otherwise, the
     plan a pilot with the winds in hand picks (it was the lowest, as the
     predictable one) -- and the reasoning comes back with it, since
     "why am I at 6,500" is a question a pilot will actually ask.
 
-    aircraft names a stock profile; cruise_tas_kt, fuel_burn_gph and
-    usable_fuel_gal, when given, are a pilot's own aeroplane's numbers
-    laid over it. depart, an ISO time (UTC when naive), picks the
+    aircraft names a stock profile; cruise_tas_kt, fuel_burn_gph,
+    usable_fuel_gal, climb_tas_kt and climb_fuel_burn_gph, when given,
+    are a pilot's own aeroplane's numbers laid over it. depart, an ISO time (UTC when naive), picks the
     winds-aloft forecast period the legs are flown on -- the 6-, 12- or
     24-hour product, whichever is valid closest to the departure;
     without it, the 6-hour product, i.e. about now -- and whether the
     fuel reserve is the day or the night one.
     """
     r = load_route(dep, dest)
-    profile = aircraft_profile(aircraft, cruise_tas_kt, fuel_burn_gph, usable_fuel_gal)
+    profile = aircraft_profile(aircraft, cruise_tas_kt, fuel_burn_gph, usable_fuel_gal, climb_tas_kt, climb_fuel_burn_gph)
     fcst_hr = forecast_hour_for(depart)
     window = flight_window(depart, geo.distance_nm(*r.start, *r.end), profile["cruise_tas_kt"])
 
@@ -318,6 +321,8 @@ def navlog_stream(
     cruise_tas_kt: CruiseTas = None,
     fuel_burn_gph: float | None = None,
     usable_fuel_gal: float | None = None,
+    climb_tas_kt: CruiseTas = None,
+    climb_fuel_burn_gph: float | None = None,
     depart: datetime | None = None,
 ) -> StreamingResponse:
     """Altitude and the dead-reckoning legs, as newline-delimited JSON --
@@ -328,7 +333,7 @@ def navlog_stream(
     Streamed rather than a single blocking response so a pilot sees the
     table fill in as it goes rather than a blank screen: a "stage" line
     before each real piece of work (scoring, the altitude plans), an
-    "altitude" line the moment those are decided -- the three plans and
+    "altitude" line the moment those are decided -- the four plans and
     the one chosen (altitude_choice, see /api/plan) with it -- one "leg"
     line per leg, then one "done" line with the totals, which need
     every leg in before they mean anything. Its own implementation, not
@@ -348,7 +353,7 @@ def navlog_stream(
         yield line(NavLogStage(detail="Scoring and choosing the checkpoints…"))
         _, selected = scored_and_selected(r.dep_ident, r.dest_ident)
 
-        profile = aircraft_profile(aircraft, cruise_tas_kt, fuel_burn_gph, usable_fuel_gal)
+        profile = aircraft_profile(aircraft, cruise_tas_kt, fuel_burn_gph, usable_fuel_gal, climb_tas_kt, climb_fuel_burn_gph)
         fix_list = navlog.fixes(r.dep_ident, r.dest_ident, r.start, r.end, selected)
         fcst_hr = forecast_hour_for(depart)
         window = flight_window(depart, geo.distance_nm(*r.start, *r.end), profile["cruise_tas_kt"])
