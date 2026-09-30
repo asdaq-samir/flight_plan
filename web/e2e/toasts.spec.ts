@@ -200,9 +200,13 @@ test("a tap on a toast over the open drawer is the toast's, not the drawer's", a
   // Over the chart a toast is transparent to the pointer (the test
   // above). Over the drawer that made a tap on the card fall through to
   // the drawer's own controls: tapping a toast opened the briefing
-  // section behind it.
+  // section behind it. The planner down, for a toast that stays: a
+  // working planner's only toast is its progress line, gone in a
+  // moment once CI's warm planner has answered. The front one, the
+  // card on top of the stack.
+  await plannerDown(page);
   await page.goto(`${PLAN}&view=briefing`);
-  const first = toasts(page).first();
+  const first = page.locator('[data-sonner-toast][data-front="true"]');
   await expect(first).toBeVisible({ timeout: 20000 });
   await page.waitForTimeout(1000);
   const box = (await first.boundingBox())!;
@@ -224,10 +228,14 @@ test("dismissing a toast over the console leaves the console open", async ({ pag
   const console = page.getByTestId("console-sheet");
   await expect(console).toBeVisible();
 
+  // The front card's close button, once the card has come to rest: the
+  // first card in the page could still be sliding in from off screen
+  // (from the top, on a phone), where a forced click missed it.
   const closeable = page.locator("[data-sonner-toast]:has(button[data-close-button])");
-  await expect(closeable.first()).toBeVisible({ timeout: 20000 });
+  const front = page.locator('[data-sonner-toast][data-front="true"]:has(button[data-close-button])');
+  await expect(front).toBeVisible({ timeout: 20000 });
   const before = await closeable.count();
-  await closeable.first().locator("button[data-close-button]").click({ force: true });
+  await front.locator("button[data-close-button]").click();
 
   await expect.poll(() => closeable.count(), { timeout: 10000 }).toBe(before - 1);
   await expect(console).toBeVisible();
