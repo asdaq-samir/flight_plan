@@ -32,9 +32,22 @@
 # later.
 services:
   # The webapp starts once the database is healthy: noticed within a
-  # second of it, not at the next of its five-second checks.
+  # second of it, not at the next of its five-second checks. And the
+  # database is a runner's, thrown away with it, so nothing it writes is
+  # flushed to disk as it goes -- not its first files (initdb --no-sync),
+  # not a commit after. A runner's disk is busy with the images being
+  # unpacked, and on a slow one Postgres took until 50 seconds into the
+  # job to come up, the webapp behind it.
+  #
+  # Over TCP: the image first runs Postgres on its socket alone to set
+  # the database up, then restarts it, and a check on the socket, asked
+  # every second, can call it healthy in between.
   db:
+    command: postgres -c fsync=off -c synchronous_commit=off -c full_page_writes=off
+    environment:
+      POSTGRES_INITDB_ARGS: --no-sync
     healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U vfr -d vfr_route"]
       start_period: 30s
       start_interval: 1s
   webapp:

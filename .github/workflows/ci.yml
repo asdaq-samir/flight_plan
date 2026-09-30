@@ -517,12 +517,19 @@ jobs:
       # on those), while the caches below are restored. Each piece also
       # notes when it was done, in seconds from here, and each shard's
       # annotation lists those: where its time before the first test
-      # went. The public images first, before the registry login:
-      # Postgres and Mailpit, started as soon as they are pulled, and the
-      # Playwright image -- the largest thing a shard fetches (917 MB,
-      # nearly all of it one layer of browsers) and wanted only by the
-      # tests, so waited for just before them: the stack's start and
-      # warm-up are time it goes on arriving in.
+      # went. The public images first, before the registry login.
+      #
+      # Mailpit first of all, the smallest: its start makes the stack's
+      # network, which the other services' starts need there before them
+      # (two at once each make it, and one fails). Postgres is pulled
+      # meanwhile and started after it; only the webapp waits for
+      # Postgres. The planner and the model service used to wait for it
+      # too, and on a runner with a slow disk it came up 50 seconds in,
+      # with both of them ready long before. Then the Playwright image --
+      # the largest thing a shard fetches (917 MB, nearly all of it one
+      # layer of browsers) and wanted only by the tests, so waited for
+      # just before them: the stack's start and warm-up are time it goes
+      # on arriving in.
       - name: The public images, in the background
         run: |
           # web/dist: where the page will be built, mounted into the
@@ -532,7 +539,17 @@ jobs:
           export T0
           echo "T0=$T0" >> "$GITHUB_ENV"
           nohup vmstat -n 1 180 > /tmp/e2e-out/vmstat.log 2>&1 < /dev/null &
-          nohup bash -c '{ docker compose -f docker-compose.yml -f docker-compose.ci.yml pull -q db mailpit && docker compose -f docker-compose.yml -f docker-compose.ci.yml up -d db mailpit; } > /tmp/e2e-out/pull.log 2>&1; r=$?; echo "$(($(date +%s) - T0)) Postgres and Mailpit up" >> /tmp/e2e-out/timeline; echo $r > /tmp/e2e-out/pull.exit' > /dev/null 2>&1 < /dev/null &
+          cat > /tmp/e2e-out/public.sh <<'EOF'
+          mark() { echo "$(($(date +%s) - T0)) $*" >> /tmp/e2e-out/timeline; }
+          compose() { docker compose -f docker-compose.yml -f docker-compose.ci.yml "$@"; }
+          compose pull -q db > /tmp/e2e-out/db.log 2>&1 &
+          db=$!
+          { compose pull -q mailpit && compose up -d mailpit; } > /tmp/e2e-out/net.log 2>&1
+          r=$?; mark "Mailpit up"; echo $r > /tmp/e2e-out/net.exit
+          { wait $db && compose up -d db; } >> /tmp/e2e-out/db.log 2>&1
+          r=$?; mark "Postgres up"; echo $r > /tmp/e2e-out/db.exit
+          EOF
+          nohup bash /tmp/e2e-out/public.sh > /dev/null 2>&1 < /dev/null &
           nohup bash -c 'docker pull -q mcr.microsoft.com/playwright:v1.55.1-noble > /tmp/e2e-out/playwright.log 2>&1; r=$?; echo "$(($(date +%s) - T0)) the Playwright image" >> /tmp/e2e-out/timeline; echo $r > /tmp/e2e-out/playwright.exit' > /dev/null 2>&1 < /dev/null &
       - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f  # v4
         with:
@@ -554,10 +571,11 @@ jobs:
       # If that job ends without it, the shard stops waiting and says so.
       #
       # Each service is started the moment it can be, not once all three
-      # images are in: the webapp and the model service as soon as their
-      # image is here and Postgres is up, the planner once its data has
-      # been restored too (a later step says so). Under
-      # docker-compose.ci.yml none waits on another to start.
+      # images are in: the model service as soon as its image is here and
+      # the stack's network is made (Mailpit's start, above), the planner
+      # once its data has been restored too (a later step says so), the
+      # webapp once Postgres is up. Under docker-compose.ci.yml none waits
+      # on another to start.
       #
       # And once the planner is warm, the corridor's nav log is asked for,
       # rather than by whichever test asks first (the default aircraft,
@@ -633,11 +651,14 @@ jobs:
             mark "the page copied"
           }
           start() {
+            local after=net
             if [ "$1" = planning-service ]; then
               until [ -f /tmp/e2e-out/data.ready ]; do sleep 1; done
+            elif [ "$1" = webapp ]; then
+              after=db
             fi
-            until [ -f /tmp/e2e-out/pull.exit ]; do sleep 1; done
-            [ "$(cat /tmp/e2e-out/pull.exit)" = 0 ] || return 1
+            until [ -f /tmp/e2e-out/$after.exit ]; do sleep 1; done
+            [ "$(cat /tmp/e2e-out/$after.exit)" = 0 ] || return 1
             docker compose -f docker-compose.yml -f docker-compose.ci.yml up -d --no-build "$1" || return 1
             mark "$1 started"
             if [ "$1" = planning-service ]; then
@@ -762,7 +783,7 @@ jobs:
       # planner's own word that it is warm.
       - name: Wait for the stack, the page and a warm planner
         run: |
-          for job in pull stack; do
+          for job in net db stack; do
             while [ ! -f /tmp/e2e-out/$job.exit ]; do sleep 1; done
             if [ "$(cat /tmp/e2e-out/$job.exit)" != 0 ]; then
               tail -40 /tmp/e2e-out/$job.log
