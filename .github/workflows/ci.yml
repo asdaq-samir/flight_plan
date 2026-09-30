@@ -283,12 +283,12 @@ jobs:
           path: /tmp/pdoc-crewai-agent
           retention-days: 30
 
-  # What this run has to do, from what changed: the one job everything
-  # else waits on, and quick (a checkout and a diff). Each test job, the
-  # browser suite and each image then runs only if something it reads
-  # changed -- a change to the planner's Python runs the planner's tests,
-  # the browser suite (the planner is in its stack) and the planner's
-  # image, and none of the React, Spring or agent jobs.
+  # What this run has to do, from what changed: the one job the test
+  # jobs and the image builds wait on, and quick (a checkout and a diff).
+  # Each test job and each image then runs only if something it reads
+  # changed -- a change to the planner's Python runs the planner's tests
+  # and the planner's image, and none of the React, Spring or agent jobs.
+  # The browser suite and its images do not wait for it (see e2e).
   #
   # Changed since when: on main, since the last commit whose run went
   # green, not the commit before this push. A run that failed publishes
@@ -315,7 +315,6 @@ jobs:
       test-model-service: ${{ steps.plan.outputs.test-model-service }}
       test-nav-log-agent: ${{ steps.plan.outputs.test-nav-log-agent }}
       test-crewai-agent: ${{ steps.plan.outputs.test-crewai-agent }}
-      e2e: ${{ steps.plan.outputs.e2e }}
       docs: ${{ steps.plan.outputs.docs }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
@@ -374,17 +373,6 @@ jobs:
             test-crewai-agent:
               - crewai-agent/**
               - src/**
-            # The browser suite runs the whole stack a pilot touches, so
-            # it is due whenever any of that could have changed.
-            e2e:
-              - web/**
-              - springboot-app/**
-              - planning-service/**
-              - model-service/**
-              - src/**
-              - docker-compose.yml
-              - docker-compose.ci.yml
-              - .github/e2e-keys.sh
             # Javadoc and godoc; each Python suite's job makes its pdoc.
             docs:
               - springboot-app/**
@@ -446,7 +434,7 @@ jobs:
           images = [{"service": s} for s in IMAGES if due(s)]
           outputs = {"images": json.dumps(images)}
           for name in ("test-root", "test-web", "test-webapp", "test-planning-service", "test-model-service",
-                       "test-nav-log-agent", "test-crewai-agent", "e2e", "docs"):
+                       "test-nav-log-agent", "test-crewai-agent", "docs"):
               outputs[name] = "true" if due(name) else "false"
           with open(os.environ["GITHUB_OUTPUT"], "a") as out:
               for key, value in outputs.items():
@@ -496,11 +484,18 @@ jobs:
   # flaked in each of them, and had passed in every run in the image.
   # The image is pulled in the background and waited for only before
   # the tests.
+  #
+  # And not after `changes`, as the other test jobs are: the shards are
+  # the run's longest wait, and waiting for `changes` held each of them
+  # back 11 or 12 seconds, a tenth of the run. It was due whenever
+  # anything the stack runs had changed -- web/, springboot-app/, the
+  # planner, the model service, src/, the compose files -- and of the 150
+  # commits before this one, two had changed none of it (candidate data,
+  # and dependabot.yml with the editor's settings). So it runs on every
+  # commit.
   e2e:
     name: e2e (${{ matrix.shard }}/${{ strategy.job-total }})
     runs-on: ubuntu-26.04
-    needs: [changes]
-    if: needs.changes.outputs.e2e == 'true'
     # packages: read -- the images are private, like the registry cache a
     # pull request's shards build from; actions: read, to ask after the
     # job that pushes them (below).
