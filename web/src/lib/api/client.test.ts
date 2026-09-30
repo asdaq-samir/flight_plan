@@ -1,5 +1,16 @@
 import { describe, expect, test } from "vitest";
-import { describeError, detailOf } from "./client";
+import { describeError, detailOf, GatewayRequest } from "./client";
+
+describe("GatewayRequest", () => {
+  test("the planner's paths go through the gateway, the query and the body as they were", async () => {
+    const request = new GatewayRequest("http://localhost/api/picks?route=C81-KDLH", {
+      method: "POST", body: JSON.stringify({ rating: 3 }), headers: { "Content-Type": "application/json" },
+    });
+    expect(request.url).toBe("http://localhost/api/planner/picks?route=C81-KDLH");
+    expect(await request.json()).toEqual({ rating: 3 });
+    expect(new GatewayRequest("http://localhost/api/course?next=/api/x").url).toBe("http://localhost/api/planner/course?next=/api/x");
+  });
+});
 
 const response = (status: number, body: unknown, statusText = "") =>
   new Response(body === undefined ? null : JSON.stringify(body), { status, statusText });

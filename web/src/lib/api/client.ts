@@ -81,19 +81,24 @@ const csrfAndFailures: Middleware = {
  * reached through the Spring Boot gateway rather than directly: one
  * origin means one session and one set of access rules, and the
  * planner itself publishes no port. The schema's `/api/…` paths are
- * served under `/api/planner/…` (PlannerProxyController), which this
- * middleware writes in.
+ * served under `/api/planner/…` (PlannerProxyController), and this is
+ * the Request the planner's client makes, the prefix written into its
+ * address as it is made.
+ *
+ * It was a middleware that made a second Request of the first, which
+ * hands a body over as a stream -- and Safari cannot send one
+ * ("ReadableStream uploading is not supported"), so on an iPhone every
+ * POST to the planner failed before it left: a rating, a note, a build.
+ * Made here, the body is the JSON openapi-fetch serialised.
  */
-const throughGateway: Middleware = {
-  onRequest({ request }) {
-    const url = new URL(request.url);
-    url.pathname = url.pathname.replace(/^\/api\//, "/api/planner/");
-    return new Request(url, request);
-  },
-};
+export class GatewayRequest extends Request {
+  constructor(input: RequestInfo | URL, init?: RequestInit) {
+    super(typeof input === "string" ? input.replace(/^([a-z]+:\/\/[^/]+)?\/api\//i, "$1/api/planner/") : input, init);
+  }
+}
 
-const planner = createClient<paths>({ baseUrl: "" });
-planner.use(throughGateway, csrfAndFailures);
+const planner = createClient<paths>({ baseUrl: "", Request: GatewayRequest });
+planner.use(csrfAndFailures);
 
 /** The Spring Boot endpoints, on this same origin. */
 const webapp = createClient<WebappPaths>({ baseUrl: "" });
