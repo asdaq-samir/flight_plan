@@ -593,10 +593,15 @@ test("plan page: a checkpoint picked on the map is brought to the middle of the 
   // a desktop the table scrolls sideways inside the drawer, and the
   // middle of the row, where a bare click lands, is past the drawer's
   // edge -- over the map, so Playwright scrolled the drawer to reach it.
-  const before = await scroller.evaluate(el => el.scrollTop);
   const rows = table.locator("tbody tr[tabindex='0']");
   const index = await selectedRow.evaluate(row => Array.from(row.parentElement!.querySelectorAll("tr[tabindex='0']")).indexOf(row));
   const neighbour = rows.nth(index - 1);
+  // In view whole first, as the claim is about: centred to within a
+  // quarter of the middle, the row above can sit half under the top
+  // edge on a phone, and a row half out of view is rightly brought in.
+  await neighbour.scrollIntoViewIfNeeded();
+  await page.waitForTimeout(200);
+  const before = await scroller.evaluate(el => el.scrollTop);
   await neighbour.locator("td").first().click();
   await expect(selectedRow.first().locator("td").first()).toHaveText(await neighbour.locator("td").first().innerText());
   await page.waitForTimeout(400);
