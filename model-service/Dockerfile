@@ -12,7 +12,7 @@
 # layer of its own, so a change to the service's code rebuilds neither:
 # only the two small layers after `COPY app` run again.
 
-FROM python:3.13-slim AS serving
+FROM python:3.14-slim AS serving
 WORKDIR /service
 RUN useradd -m appuser
 COPY requirements-serving.txt .

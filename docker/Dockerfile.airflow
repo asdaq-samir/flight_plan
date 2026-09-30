@@ -7,7 +7,7 @@
 # in-process here (ShortCircuitOperator/PythonOperator in the DAG) since
 # they're plain file/JSON operations with zero third-party dependencies --
 # not real compute, so they don't need their own container either.
-FROM apache/airflow:3.3.1-python3.13
+FROM apache/airflow:3.3.2-python3.13
 
 # apache-airflow-providers-standard: Airflow 3 split PythonOperator,
 # ShortCircuitOperator etc. out of airflow-core into this provider --
