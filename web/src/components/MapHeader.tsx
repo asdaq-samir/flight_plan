@@ -45,6 +45,9 @@ export default function MapHeader({ leading, form, actions, dev = false }: Props
   return (
     <header
       data-mode={dev ? "dev" : "pilot"}
+      // The grid from 22.5rem of the inset's width (360px at the default
+      // type size; a container query, see MapPage), the wrapping row
+      // below that.
       // The safe-area insets on the top and the left only (and real
       // only because index.html asks for `viewport-fit=cover`): this
       // row is the top of the screen, so its padding grows to clear a
@@ -56,17 +59,17 @@ export default function MapHeader({ leading, form, actions, dev = false }: Props
       // button. A plain padding there instead, a little wider than the
       // left's, which is enough to clear a rounded corner with the
       // drawer shut.
-      className="flex shrink-0 flex-wrap items-center gap-1.5 border-b border-border bg-background pt-[max(0.5rem,env(safe-area-inset-top))] pr-3 pb-2 pl-[max(0.5rem,env(safe-area-inset-left))] min-[360px]:grid min-[360px]:grid-cols-[1fr_auto_1fr] sm:gap-2 sm:pr-4 sm:pl-[max(0.75rem,env(safe-area-inset-left))] print:hidden"
+      className="flex shrink-0 flex-wrap items-center gap-1.5 border-b border-border bg-background pt-[max(0.5rem,env(safe-area-inset-top))] pr-3 pb-2 pl-[max(0.5rem,env(safe-area-inset-left))] @min-[22.5rem]:grid @min-[22.5rem]:grid-cols-[1fr_auto_1fr] sm:gap-2 sm:pr-4 sm:pl-[max(0.75rem,env(safe-area-inset-left))] print:hidden"
     >
-      <div className="flex items-center min-[360px]:justify-self-start">{leading}</div>
+      <div className="flex items-center @min-[22.5rem]:justify-self-start">{leading}</div>
       {/* mx-auto for the wrapping row under 360px; the grid above that
           centres it against the whole header by itself. */}
-      <div className="mx-auto min-[360px]:mx-0 min-[360px]:justify-self-center">{form}</div>
+      <div className="mx-auto @min-[22.5rem]:mx-0 @min-[22.5rem]:justify-self-center">{form}</div>
       {/* gap-2 either side of `sm`, not gap-3 above it: the ring on an
           open button (see `EXPANDED_BUTTON`) is what separates these
           two now, and the extra 4px only cost width in the one place
           the row is tight -- a landscape phone with the drawer open. */}
-      <div className="ml-auto flex items-center gap-2 [&>*]:size-8 min-[360px]:ml-0 min-[360px]:justify-self-end sm:[&>*]:size-9">
+      <div className="ml-auto flex items-center gap-2 [&>*]:size-8 @min-[22.5rem]:ml-0 @min-[22.5rem]:justify-self-end sm:[&>*]:size-9">
         {actions}
       </div>
     </header>

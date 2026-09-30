@@ -148,7 +148,13 @@ export default function MapPage({ mode }: { mode: Mode }) {
           >
             Skip to the map
           </a>
-          <SidebarInset id="content" className="min-h-0 min-w-0 print:hidden">
+          {/* `@container`: the header's three-column grid is chosen by a
+              container query on this width, not a media query, because
+              a container query's rem follows the root font size and a
+              media query's does not -- so with the text set larger, the
+              header falls back to its wrapping row instead of running
+              off the edge. */}
+          <SidebarInset id="content" className="@container min-h-0 min-w-0 print:hidden">
             <MapHeader
               dev={mode === "dev"}
               leading={<DevSwitch />}

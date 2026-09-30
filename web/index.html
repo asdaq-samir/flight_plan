@@ -28,6 +28,13 @@
          crawler that never runs JS) still sees a real title. -->
     <title>VFR Route</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- The Home Screen icon on iOS, which reads neither the SVG nor
+         the manifest for it: a 180px PNG rendered from the same SVG.
+         The status bar over the installed app in the system's default
+         style; the theme colour is the page's own background. -->
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="theme-color" content="#ffffff" />
     <!-- Structural, not decorative: without this the page can grow a
          scrollbar of its own (even by a stray pixel), and a wheel over
          the map then fights the page for the scroll instead of Leaflet
