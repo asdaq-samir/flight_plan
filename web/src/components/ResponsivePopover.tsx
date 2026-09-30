@@ -1,7 +1,6 @@
 import { createContext, useContext, type ComponentProps, type ReactNode } from "react";
 import { cn } from "cn";
-import { Button } from "./ui/button";
-import { Drawer, DrawerClose, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle, DrawerTrigger } from "./ui/drawer";
+import { Drawer, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle, DrawerTrigger } from "./ui/drawer";
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 import { useIsMobile } from "../hooks/use-mobile";
 import { useNavEdge } from "../hooks/use-nav-edge";
@@ -51,16 +50,22 @@ type ContentProps = ComponentProps<typeof PopoverContent> & {
   /** For a panel whose content opens with its own heading: the sheet's
    *  title is then for the screen reader only. */
   titleHidden?: boolean;
-  /** A Done at the top of the sheet, by its title, as an iOS sheet of
-   *  settings has: a way out on sight, besides a swipe or a tap off it. */
-  done?: boolean;
+  /** A control at the top, at the end of the title's row (the settings'
+   *  Dev-mode switch): given one, the popover shows its title too. */
+  action?: ReactNode;
 };
 
-export function ResponsivePopoverContent({ title, description, titleHidden, done, className, children, align, side, sideOffset, alignOffset, ...props }: ContentProps) {
+export function ResponsivePopoverContent({ title, description, titleHidden, action, className, children, align, side, sideOffset, alignOffset, ...props }: ContentProps) {
   const edge = useContext(OnPhone);
   if (!edge) {
     return (
       <PopoverContent aria-label={title} className={className} align={align} side={side} sideOffset={sideOffset} alignOffset={alignOffset} {...props}>
+        {action !== undefined && (
+          <div className="flex min-h-8 items-center justify-between gap-2">
+            <div className="text-sm font-semibold">{title}</div>
+            {action}
+          </div>
+        )}
         {children}
       </PopoverContent>
     );
@@ -79,16 +84,12 @@ export function ResponsivePopoverContent({ title, description, titleHidden, done
       <DrawerHeader
         className={titleHidden ? "sr-only" : cn(
           "pb-2 group-data-[vaul-drawer-direction=bottom]/drawer-content:text-left group-data-[vaul-drawer-direction=top]/drawer-content:text-left",
-          done && "flex-row flex-wrap items-center justify-between",
+          action !== undefined && "flex-row flex-wrap items-center justify-between",
         )}
       >
-        <DrawerTitle className={done ? "text-base font-semibold" : undefined}>{title}</DrawerTitle>
-        {done && (
-          <DrawerClose asChild>
-            <Button variant="ghost" size="sm" className="-mr-2 font-semibold">Done</Button>
-          </DrawerClose>
-        )}
-        {description ? <DrawerDescription className={done ? "basis-full" : undefined}>{description}</DrawerDescription> : null}
+        <DrawerTitle className={action !== undefined ? "text-base font-semibold" : undefined}>{title}</DrawerTitle>
+        {action}
+        {description ? <DrawerDescription className={action !== undefined ? "basis-full" : undefined}>{description}</DrawerDescription> : null}
       </DrawerHeader>
       <div className={cn("min-h-0 overflow-y-auto px-4", edge === "top" ? "pb-4" : "pb-[max(1rem,env(safe-area-inset-bottom))]", titleHidden && "pt-4")}>
         {children}

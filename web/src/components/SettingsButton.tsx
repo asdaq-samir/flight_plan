@@ -1,16 +1,16 @@
 import { Settings } from "lucide-react";
 import IconButton from "./IconButton";
-import SettingsPanel, { type PageSettings } from "./SettingsPanel";
+import SettingsPanel, { DevModeSwitch, type PageSettings } from "./SettingsPanel";
 import { ResponsivePopover, ResponsivePopoverContent, ResponsivePopoverTrigger } from "./ResponsivePopover";
 import { useNavEdge } from "../hooks/use-nav-edge";
 
 /**
  * The header's settings, right of the console button on both pages
  * (SettingsPanel: the map, the checkpoints, own ship on the planner,
- * appearance, dev mode). On a phone a sheet from the header's edge with
- * a Done at its top (ResponsivePopover); from `md` up a popover under
- * the button, or over it with the header at the bottom, its end at the
- * button's.
+ * appearance), with the Dev-mode switch at the end of its title row for
+ * whoever it is for. On a phone a sheet from the header's edge
+ * (ResponsivePopover); from `md` up a popover under the button, or over
+ * it with the header at the bottom, its end at the button's.
  */
 export default function SettingsButton({ page }: { page?: PageSettings }) {
   const edge = useNavEdge();
@@ -21,7 +21,7 @@ export default function SettingsButton({ page }: { page?: PageSettings }) {
           <Settings className="size-5" />
         </IconButton>
       </ResponsivePopoverTrigger>
-      <ResponsivePopoverContent title="Settings" done side={edge === "top" ? "bottom" : "top"} align="end" className="w-96 p-3">
+      <ResponsivePopoverContent title="Settings" action={<DevModeSwitch />} side={edge === "top" ? "bottom" : "top"} align="end" className="w-96 p-3">
         <SettingsPanel page={page} />
       </ResponsivePopoverContent>
     </ResponsivePopover>

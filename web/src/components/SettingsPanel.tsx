@@ -24,11 +24,10 @@ export interface PageSettings {
  * between them, one label per row with its control at the row's end, and
  * at most a line of help. A switch for anything on or off, a segmented
  * control for two or three choices, all on show and one tap each, and a
- * menu only for the four-way one. Dev mode first, for whoever it is for
- * -- the switch between the two pages, which a developer flips all day,
- * and which a pilot never sees; then the map, what is changed most while
- * planning; the checkpoints, the pilot's own position, and appearance.
- * Everything else here is remembered per browser.
+ * menu only for the four-way one. The map first, what is changed most
+ * while planning; then the checkpoints, the pilot's own position, and
+ * appearance. Dev mode is not a group but the title row's switch
+ * (DevModeSwitch). Everything else here is remembered per browser.
  *
  * It replaced a column of headings, checkboxes, dropdowns and a
  * paragraph under nearly every control, twice the height, where a
@@ -38,7 +37,6 @@ export interface PageSettings {
 export default function SettingsPanel({ page }: { page?: PageSettings }) {
   return (
     <div className="space-y-5 pb-1" data-testid="settings-panel">
-      <DeveloperGroup />
       <MapGroup />
       <CheckpointsGroup candidates={page?.candidates} />
       {page?.ownShip && <PositionGroup />}
@@ -169,16 +167,19 @@ function AppearanceGroup() {
   );
 }
 
-function DeveloperGroup() {
+/** Dev mode, at the end of the settings' title row, for whoever it is
+ *  for (useDevMode): the switch between the two pages, which a developer
+ *  flips all day and a pilot never sees. It was a group of its own at
+ *  the top of the panel, with a Done where it is now. */
+export function DevModeSwitch() {
   const { on, flip, allowed } = useDevMode();
   const id = useId();
   if (!allowed) return null;
   return (
-    <Group title="Developer">
-      <Row id={id} title="Dev mode" description="Training and the developer console, on this route">
-        <Switch id={id} checked={on} onCheckedChange={flip} aria-label="Dev mode" data-testid="dev-switch" />
-      </Row>
-    </Group>
+    <div className="flex items-center gap-2">
+      <Label htmlFor={id} className="text-sm font-normal text-muted-foreground">Dev mode</Label>
+      <Switch id={id} checked={on} onCheckedChange={flip} aria-label="Dev mode" data-testid="dev-switch" />
+    </div>
   );
 }
 
