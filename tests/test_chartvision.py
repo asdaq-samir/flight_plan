@@ -260,3 +260,82 @@ def test_a_block_straddling_the_edge_is_still_read():
 
     straddling = [tile_of(41.98, -87.91), tile_of(45.0, -150.0)]
     assert _has_chart(straddling, zoom) is True
+
+
+# --- what the chart's blue is: a river, or a symbol drawn in its colour ---
+
+from vfr.chartvision import detect_landmarks, linear_crossings  # noqa: E402
+
+BACKGROUND = (220, 230, 210)   # the chart's pale green
+RIVER_BLUE = (3, 82, 113)      # sampled on a river a pilot marked by hand
+LAKE_FILL = (190, 223, 238)    # Nepco Lake's tint
+
+
+def _chart(width=300, height=200):
+    pixels = np.empty((height, width, 3), np.uint8)
+    pixels[:] = BACKGROUND
+    return pixels
+
+
+def _rivers(pixels, row=100):
+    """The river crossings of a course straight across the chart at `row`,
+    as the x of each marker in the chart's own pixels."""
+    mosaic = Mosaic(pixels=pixels, origin_px=(0, 0), zoom=DEFAULT_ZOOM)
+    course = np.column_stack([np.arange(pixels.shape[1], dtype=float), np.full(pixels.shape[1], float(row))])
+    return [
+        round(latlon_to_global_px(lm.lat, lm.lon)[0])
+        for lm in linear_crossings(mosaic, None, None, course_px=course) if lm.category == "river"
+    ]
+
+
+def test_a_thin_line_across_the_course_is_a_river_crossing():
+    pixels = _chart()
+    pixels[20:180, 149:152] = RIVER_BLUE
+    (x,) = _rivers(pixels)
+    assert 149 <= x <= 151
+
+
+def test_a_heavy_blue_symbol_under_the_course_is_not_a_river():
+    """An obstacle's glyph or a maximum elevation figure: dark blue, as long
+    as a short river, and thick -- thick throughout, so the thin tip of a
+    stroke under the course does not pass it."""
+    pixels = _chart()
+    pixels[60:140, 140:158] = RIVER_BLUE    # an 80 px stroke 18 thick
+    pixels[122:140, 140:220] = RIVER_BLUE
+    pixels[97:103, 158:170] = RIVER_BLUE    # and a thin spur off it, under the course
+    assert _rivers(pixels) == []
+
+
+def test_a_number_is_not_a_river_but_a_short_piece_of_one_is():
+    # An obstacle's height: thin strokes, packed -- 2 px bars a pixel
+    # apart on a baseline, 32 px across.
+    number = _chart()
+    for x in range(140, 172, 3):
+        number[88:102, x:x + 2] = RIVER_BLUE
+    number[100:102, 140:172] = RIVER_BLUE
+    assert _rivers(number) == []
+    # A piece of river between two roads drawn over it: short, and a line.
+    piece = _chart()
+    piece[85:115, 149:152] = RIVER_BLUE
+    (x,) = _rivers(piece)
+    assert 149 <= x <= 151
+
+
+def test_a_crossing_beside_a_symbol_is_marked_on_the_river():
+    pixels = _chart()
+    pixels[93:107, 136:150] = RIVER_BLUE    # a heavy dot, hit by the same stretch of course
+    pixels[20:180, 151:154] = RIVER_BLUE
+    (x,) = _rivers(pixels)
+    assert 151 <= x <= 153
+
+
+def test_a_boxed_label_is_not_water_but_a_lake_is():
+    pixels = _chart()
+    pixels[20:44, 20:80] = LAKE_FILL        # a label's box: a rectangle
+    yy, xx = np.mgrid[0:200, 0:300]
+    pixels[(yy - 120) ** 2 + (xx - 200) ** 2 <= 15 ** 2] = LAKE_FILL
+    mosaic = Mosaic(pixels=pixels, origin_px=(0, 0), zoom=DEFAULT_ZOOM)
+    water = [lm for lm in detect_landmarks(mosaic) if lm.category == "water"]
+    (lake,) = water
+    x, y = latlon_to_global_px(lake.lat, lake.lon)
+    assert abs(x - 200) <= 2 and abs(y - 120) <= 2

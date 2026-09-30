@@ -67,9 +67,14 @@ class PaletteClass:
     # county is airspace shading wearing the same colour.
     max_area_px: int | None = None
     # For linear classes: how far the feature must run before it counts
-    # as a line rather than a glyph. Only meaningful where the class can
-    # pick up chart text -- see MIN_LINE_EXTENT_PX.
+    # as a line rather than a glyph -- see MIN_LINE_EXTENT_PX.
     min_extent_px: int = 0
+    # For linear classes: how thick its stroke may be, as the furthest
+    # any of its pixels lies from its edge -- see MAX_LINE_HALF_WIDTH_PX.
+    max_half_width_px: float | None = None
+    # For fills: the most of its bounding box a blob may fill. A lake is
+    # never a rectangle; the pale fill inside a boxed chart label is.
+    max_box_fill: float | None = None
     # Roughly how confidently this class means "a pilot can find it".
     # Water and towns are unambiguous on a chart; anything softer would
     # need the learned scorer rather than a constant.
@@ -119,8 +124,14 @@ def _river_line(r, g, b):
     Distinct from _water and missed entirely by it: the chart fills a
     lake with a pale tint around (190,223,238) but draws a watercourse as
     a saturated dark blue line, sampled between (0,43,85) and (3,82,113)
-    at points a pilot marked by hand. Dark blue is unambiguous on a
-    sectional -- nothing else uses it -- so this needs no shape test.
+    at points a pilot marked by hand.
+
+    The colour alone is not a river, though. On the FAA's rasters the
+    same dark blue draws the obstacle symbols and their heights, the
+    maximum elevation figures, marsh symbols and airspace lines, and
+    taken at its word this read 89 "river" crossings on C81->KDLH of
+    which some 26 were rivers. The river class therefore also has a
+    shape (see LINEAR_PALETTE): a line runs, and it is thin.
     """
     return (b > r + 40) & (b > 55) & (r < 110) & (g < b + 20)
 
@@ -147,7 +158,7 @@ def _dark_line(r, g, b):
 # not a place -- see linear_crossings.
 # No airport class here, deliberately -- see _airport.
 PALETTE = (
-    PaletteClass("water", _water, min_area_px=40, base_score=4.2),
+    PaletteClass("water", _water, min_area_px=40, max_box_fill=0.9, base_score=4.2),
     PaletteClass("town", _urban, min_area_px=400, base_score=4.0),
 )
 
@@ -188,14 +199,41 @@ ON_COURSE_NM = 1.0
 # extent test removes it for the same reason it removes text: the glyph
 # is a dozen pixels across and goes nowhere.
 
+# A river runs at least this far, measured as for MIN_LINE_EXTENT_PX: a
+# single digit or a marsh symbol's tuft is shorter. Not much further --
+# where a road, a label or a symbol is drawn over a river the chart breaks
+# its line, and pieces of 27 to 36 px were crossings picked by hand. (The
+# rule once had no extent test at all: on the hosted tiles it ran against
+# then, text was never blue, and a 60 px test cost real crossings.)
+MIN_RIVER_EXTENT_PX = 24
+
+# And a river is thin where the course crosses it: its pixels there lay 2
+# to 5.4 px from its edge at zoom 12, where an obstacle symbol's lie 7 to
+# 8.5 (a filled, heavy glyph) and a maximum elevation figure's 9 to 15.
+MAX_LINE_HALF_WIDTH_PX = 6.0
+# How far either side of a crossing a long line's thickness is read. A
+# river that runs into a lake is one component with the lake's outline,
+# thick where they meet, and is still a thin line where the course cuts
+# it. Anything shorter than LOCAL_THICKNESS_FROM_PX is read whole: an
+# obstacle symbol is thin at its tips and its dots, and a course passing
+# by one of those is still passing a symbol.
+LINE_THICKNESS_WINDOW_PX = 8
+LOCAL_THICKNESS_FROM_PX = 120
+
+# A short piece of blue is a river only if it is a line: its pixels over
+# its length (its average width, near enough) no more than this. The
+# obstacle heights beside each obstacle, "1538 (430)", are as long as a
+# broken river's pieces and as thin in the stroke, but a number's digits
+# pack 6 to 16 px of ink per pixel of length, a line 3 to 5.
+SHORT_LINE_PX = 60
+MAX_SHORT_LINE_FILL = 5.5
+
 
 LINEAR_PALETTE = (
-    # No extent test on rivers. Chart text is near-black ink and is never
-    # dark blue, so the river class cannot pick up a label in the first
-    # place -- and requiring extent here cost real river crossings a
-    # pilot had marked by hand, dropping recall from 65% to 47% while
-    # removing nothing that was wrong.
-    PaletteClass("river", _river_line, min_area_px=12, base_score=4.3),
+    PaletteClass(
+        "river", _river_line, min_area_px=12,
+        min_extent_px=MIN_RIVER_EXTENT_PX, max_half_width_px=MAX_LINE_HALF_WIDTH_PX, base_score=4.3,
+    ),
     PaletteClass(
         "road_or_rail", _dark_line, min_area_px=12,
         min_extent_px=MIN_LINE_EXTENT_PX, base_score=3.6,
@@ -393,10 +431,12 @@ def detect_landmarks(mosaic: Mosaic, palette=PALETTE) -> list:
         # step in blob detection before this (18 ms a block against 6-9
         # for everything else).
         sizes = np.bincount(labelled.ravel(), minlength=count + 1)[1:]
+        boxes = ndimage.find_objects(labelled)
         keep = [
             i + 1 for i, size in enumerate(sizes)
             if size >= spec.min_area_px
             and (spec.max_area_px is None or size <= spec.max_area_px)
+            and (spec.max_box_fill is None or size <= spec.max_box_fill * _box_area(boxes[i]))
         ]
         if not keep:
             continue
@@ -413,7 +453,6 @@ def detect_landmarks(mosaic: Mosaic, palette=PALETTE) -> list:
         # reading a route took 25 seconds with every tile already cached:
         # it is a global operation repeated per palette class per block,
         # to answer a question about a few hundred small shapes.
-        boxes = ndimage.find_objects(labelled)
         positions = [_interior_point(labelled, boxes[label - 1], label) for label in keep]
         for label, (cy, cx) in zip(keep, positions):
             lat, lon = mosaic.to_latlon(cx, cy)
@@ -523,6 +562,10 @@ def _dedupe(landmarks: list, within_nm: float = DEDUPE_NM) -> list:
 
 
 
+# How many course steps either side of a crossing's middle its marker may
+# be looked for -- about the tolerance's width again (see linear_crossings).
+SNAP_STEPS = 6
+
 # How far from the course line a pixel may sit and still count as being
 # on it. The course is drawn as a mathematical line but chart linework
 # has width, and a pilot clicking a crossing does not hit the exact
@@ -621,18 +664,14 @@ def linear_crossings(
     centre_lat, _ = mosaic.to_latlon(width / 2, height / 2)
     m_per_px = metres_per_pixel(centre_lat, mosaic.zoom)
 
-    from scipy import ndimage
-
     found = []
     for spec in palette:
         mask = mosaic.on_chart(spec.test(r, g, b))
-        # Component labels are needed to ask how far the thing under a
-        # crossing actually extends -- see MIN_LINE_EXTENT_PX.
-        if spec.min_extent_px:
-            labelled, _count = ndimage.label(mask)
-            extents = _component_extents(labelled)
-        else:
-            labelled, extents = None, {}
+        # Whether the thing under a crossing is a line at all: how far it
+        # runs, how thick it is, whether it is a number -- see
+        # MIN_LINE_EXTENT_PX, MAX_LINE_HALF_WIDTH_PX and
+        # MAX_SHORT_LINE_FILL.
+        lines = _Lines(mask, spec) if spec.min_extent_px or spec.max_half_width_px is not None else None
         # Sampled per course point rather than by filtering the whole
         # block. Precomputing proximity with a uniform_filter was tried
         # and was twice as slow: the course touches a couple of thousand
@@ -649,18 +688,26 @@ def linear_crossings(
 
         # Collapse runs of consecutive hits into one crossing each.
         for group in _group_hits(hits):
-            mid = group[len(group) // 2]
             # The course point is where the line passes, which is up to
             # CROSSING_TOLERANCE_PX away from the linework it crossed.
             # Snap onto an actual pixel of the feature so the marker sits
-            # on the river, not beside it.
-            snapped = _nearest_mask_pixel(mask, mid[1], mid[2], CROSSING_TOLERANCE_PX)
+            # on the river, not beside it -- from the middle of the
+            # crossing's hits outwards, a few steps either way, and, where
+            # the class needs one, onto a line: a symbol drawn over a river
+            # is hit by the same stretch of course and can take its middle.
+            # No further than SNAP_STEPS: a long run of hits is a cluster
+            # of figures, and somewhere among them one stroke passes for a
+            # line. Nothing that is a line under the course -- a letter, a
+            # symbol or speckle -- and no crossing.
+            middle = len(group) // 2
+            snapped = None
+            for i in sorted(range(max(0, middle - SNAP_STEPS), min(len(group), middle + SNAP_STEPS + 1)),
+                            key=lambda i: abs(i - middle)):
+                snapped = _nearest_mask_pixel(mask, group[i][1], group[i][2], CROSSING_TOLERANCE_PX, lines)
+                if snapped is not None:
+                    break
             if snapped is None:
                 continue
-            if spec.min_extent_px:
-                component = labelled[snapped[1], snapped[0]]
-                if extents.get(int(component), 0) < spec.min_extent_px:
-                    continue  # a letter, an obstacle glyph or speckle -- not a line
             lat, lon = mosaic.to_latlon(snapped[0], snapped[1])
             weight = sum(h[3] for h in group)
             if weight < spec.min_area_px:
@@ -687,6 +734,11 @@ def _interior_point(labelled, box, label: int) -> tuple:
     Takes the component's own pixels within its bounding box and picks
     the one closest to the box centre, which is inside by construction
     and close enough to the middle to read as "where the feature is".
+    Kept where it is, though the pixel deepest inside would sit better
+    on a big town: a rating is matched to its detection by place
+    (vfr.routecsv.SAME_PLACE_NM), and moving the markers left the ratings
+    of half a dozen lakes and towns on C81->KDLH beside points of their
+    own.
     """
     ys, xs = np.nonzero(labelled[box] == label)
     cy = (ys.min() + ys.max()) / 2.0
@@ -695,22 +747,77 @@ def _interior_point(labelled, box, label: int) -> tuple:
     return ys[nearest] + box[0].start, xs[nearest] + box[1].start
 
 
-def _component_extents(labelled) -> dict:
-    """Longest bounding-box side of each labelled component, in pixels."""
-    from scipy import ndimage
-
-    extents = {}
-    for index, slices in enumerate(ndimage.find_objects(labelled), start=1):
-        if slices is None:
-            continue
-        height = slices[0].stop - slices[0].start
-        width = slices[1].stop - slices[1].start
-        extents[index] = max(height, width)
-    return extents
+def _box_area(box) -> int:
+    return (box[0].stop - box[0].start) * (box[1].stop - box[1].start)
 
 
-def _nearest_mask_pixel(mask, cx: int, cy: int, radius: int):
-    """The (x, y) of the mask pixel nearest (cx, cy), or None.
+class _Lines:
+    """Which of a block's `spec` pixels belong to a line the course could
+    cross: a component that runs at least min_extent_px -- and, where the
+    class has a max_half_width_px, is a line and not a number (see
+    MAX_SHORT_LINE_FILL) and is no thicker than that where the course
+    crosses it. One labelling of the block's mask; the thickness only
+    where the course crosses."""
+
+    def __init__(self, mask, spec: PaletteClass):
+        from scipy import ndimage
+
+        self.spec = spec
+        self.labelled, count = ndimage.label(mask)
+        self.boxes = ndimage.find_objects(self.labelled)
+        self.extents = np.zeros(count + 1, dtype=int)
+        for index, box in enumerate(self.boxes, start=1):
+            self.extents[index] = max(box[0].stop - box[0].start, box[1].stop - box[1].start)
+        self.areas = np.bincount(self.labelled.ravel(), minlength=count + 1)
+        self.thin_whole: dict = {}
+
+    def _is_line(self, label: int) -> bool:
+        extent = self.extents[label]
+        if extent < self.spec.min_extent_px:
+            return False
+        if self.spec.max_half_width_px is None or extent >= SHORT_LINE_PX:
+            return True
+        return self.areas[label] / extent <= MAX_SHORT_LINE_FILL
+
+    def _thin_at(self, label: int, cx: int, cy: int) -> bool:
+        """Whether the component is no thicker than max_half_width_px:
+        anywhere, for one shorter than LOCAL_THICKNESS_FROM_PX, and
+        otherwise within LINE_THICKNESS_WINDOW_PX of (cx, cy), measured on
+        a crop a little larger than that so the crop's edge is not taken
+        for the stroke's."""
+        from scipy import ndimage
+
+        if self.extents[label] < LOCAL_THICKNESS_FROM_PX:
+            if label not in self.thin_whole:
+                box = self.boxes[label - 1]
+                depth = ndimage.distance_transform_edt(np.pad(self.labelled[box] == label, 1))
+                self.thin_whole[label] = float(depth.max()) <= self.spec.max_half_width_px
+            return self.thin_whole[label]
+        r = LINE_THICKNESS_WINDOW_PX + int(self.spec.max_half_width_px) + 1
+        y0, x0 = max(0, cy - r), max(0, cx - r)
+        crop = self.labelled[y0:cy + r + 1, x0:cx + r + 1] == label
+        depth = ndimage.distance_transform_edt(np.pad(crop, 1))[1:-1, 1:-1]
+        inner = depth[max(0, cy - LINE_THICKNESS_WINDOW_PX - y0):cy + LINE_THICKNESS_WINDOW_PX + 1 - y0,
+                      max(0, cx - LINE_THICKNESS_WINDOW_PX - x0):cx + LINE_THICKNESS_WINDOW_PX + 1 - x0]
+        return float(inner.max(initial=0)) <= self.spec.max_half_width_px
+
+    def accept(self, window, lo_y: int, lo_x: int, cx: int, cy: int):
+        """`window` (the mask from (lo_y, lo_x)) less what is no line,
+        for a crossing at (cx, cy)."""
+        height, width = window.shape
+        labels = self.labelled[lo_y:lo_y + height, lo_x:lo_x + width]
+        for label in np.unique(labels[window]):
+            label = int(label)
+            if not self._is_line(label) or (
+                self.spec.max_half_width_px is not None and not self._thin_at(label, cx, cy)
+            ):
+                window = window & (labels != label)
+        return window
+
+
+def _nearest_mask_pixel(mask, cx: int, cy: int, radius: int, lines: _Lines | None = None):
+    """The (x, y) of the mask pixel nearest (cx, cy), or None. With
+    `lines`, only a pixel of a line (see _Lines).
 
     Used to put a crossing marker on the feature rather than on the
     course line beside it -- the two are up to `radius` apart by
@@ -721,6 +828,8 @@ def _nearest_mask_pixel(mask, cx: int, cy: int, radius: int):
     lo_y, hi_y = max(0, cy - radius), min(height, cy + radius + 1)
     lo_x, hi_x = max(0, cx - radius), min(width, cx + radius + 1)
     window = mask[lo_y:hi_y, lo_x:hi_x]
+    if lines is not None:
+        window = lines.accept(window, lo_y, lo_x, cx, cy)
     if not window.any():
         return None
     ys, xs = np.nonzero(window)
