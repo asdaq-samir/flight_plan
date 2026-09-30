@@ -41,10 +41,16 @@ async function settle(page: Page) {
   await page.locator("img.leaflet-tile").first().waitFor({ state: "attached", timeout: 1500 }).catch(() => {});
 }
 
-/** The side drawer is shadcn's own Sidebar: a fixed panel beside the
- *  map from `md` up, a Sheet over it on a phone. Both carry
+/** The side drawer is shadcn's own Sidebar, on the left: a fixed panel
+ *  beside the map from `md` up, a Sheet over it on a phone. Both carry
  *  `data-slot="sidebar"` and the side. */
-const sideDrawer = (page: Page) => page.locator('[data-slot="sidebar"][data-side="right"]');
+const sideDrawer = (page: Page) => page.locator('[data-slot="sidebar"][data-side="left"]');
+
+/** The Dev-mode switch, in the header's settings: opened first. */
+async function devSwitchInSettings(page: Page) {
+  await page.getByTestId("settings-button").click();
+  return page.getByRole("switch", { name: "Dev mode" });
+}
 /** The console: a stock Sheet from the top from `md` up, a sheet up from
  *  the bottom edge on a phone (shadcn's Drawer). */
 const consoleSheet = (page: Page) => page.getByTestId("console-sheet");
@@ -78,7 +84,8 @@ async function closeSidebarWithTheStockKey(page: Page) {
     // trigger was clicked, it is over the drawer's own header icons once
     // the drawer has slid in, one of their tooltips opens, and Escape
     // closes the tooltip -- the drawer stayed open about one run in ten.
-    await page.mouse.move(4, viewport.height - 4);
+    // The drawer is on the left: the overlay beside it on the right.
+    await page.mouse.move(viewport.width - 4, viewport.height / 2);
     await page.keyboard.press("Escape");
   } else {
     await page.keyboard.press("ControlOrMeta+b");
@@ -219,16 +226,14 @@ test.describe("/app/plan", () => {
     const headerBox = (await page.locator("header").boundingBox())!;
     if (viewport.width < 768) expect(Math.round(headerBox.y + headerBox.height)).toBe(viewport.height);
     else expect(headerBox.y).toBe(0);
-    const loadBox = await page.getByRole("button", { name: "Load" }).boundingBox();
+    const departureBox = await page.getByLabel("Departure", { exact: true }).boundingBox();
     const triggerBox = await page.getByTestId("sidebar-trigger-button").boundingBox();
-    expect(loadBox).not.toBeNull();
+    expect(departureBox).not.toBeNull();
     expect(triggerBox).not.toBeNull();
     expect(triggerBox!.y).toBeGreaterThanOrEqual(headerBox.y);
     expect(triggerBox!.y + triggerBox!.height).toBeLessThanOrEqual(headerBox.y + headerBox.height);
-    // Trailing the form: to its right, on its row (a desktop) or the
-    // row under it (a phone), never above it.
-    expect(triggerBox!.x).toBeGreaterThan(loadBox!.x);
-    expect(triggerBox!.y).toBeGreaterThanOrEqual(loadBox!.y - 20);
+    // Leading the form, on the drawer's own side: to its left.
+    expect(triggerBox!.x + triggerBox!.width).toBeLessThan(departureBox!.x);
 
     await page.getByTestId("sidebar-trigger-button").click();
     await expectDrawerOpen(page);
@@ -236,33 +241,34 @@ test.describe("/app/plan", () => {
 });
 
 for (const path of PAGES) {
-  test(`${path}: the settings button and the zoom toggle sit on the map's right edge, clear of the header: at its top from md up, at its bottom on a phone`, async ({ page }) => {
+  test(`${path}: the zoom toggle sits on the map's right edge, clear of the header, and the settings are the header's, right of the console`, async ({ page }) => {
     await page.goto(`${path}?dep=C81&dest=KDLH`);
     await settle(page);
     const viewport = page.viewportSize();
     if (!viewport) throw new Error("no viewport configured");
 
     const headerBox = await page.locator("header").boundingBox();
-    const settingsBox = await page.getByTestId("settings-button").boundingBox();
     const actionBox = await page.getByTestId("map-action-button").boundingBox();
     expect(headerBox).not.toBeNull();
-    expect(settingsBox).not.toBeNull();
     expect(actionBox).not.toBeNull();
-    // On the map, the settings button above the zoom toggle, both flush
-    // with the right edge -- the same on both pages: below the header
-    // from md up, and just above it on a phone, whose header is the
-    // bottom row, where a thumb reaches both.
+    // On the map, flush with its right edge -- the same on both pages:
+    // below the header from md up, and just above it on a phone, whose
+    // header is the bottom row, where a thumb reaches it.
     if (viewport.width < 768) {
       expect(actionBox!.y + actionBox!.height).toBeLessThanOrEqual(headerBox!.y);
       expect(headerBox!.y - (actionBox!.y + actionBox!.height)).toBeLessThan(120);
     } else {
-      expect(settingsBox!.y).toBeGreaterThanOrEqual(headerBox!.y + headerBox!.height);
+      expect(actionBox!.y).toBeGreaterThanOrEqual(headerBox!.y + headerBox!.height);
     }
-    expect(actionBox!.y).toBeGreaterThan(settingsBox!.y + settingsBox!.height - 1);
-    expect(viewport.width - (settingsBox!.x + settingsBox!.width)).toBeLessThan(16);
     expect(viewport.width - (actionBox!.x + actionBox!.width)).toBeLessThan(16);
-    // Neither is in the header any more.
     expect(await page.locator("header").getByTestId("map-action-button").count()).toBe(0);
+
+    // The settings in the header, the last of its buttons: right of the
+    // console's.
+    const header = page.locator("header");
+    const settingsBox = (await header.getByTestId("settings-button").boundingBox())!;
+    const consoleBox = (await header.getByTestId(/^(pilot|dev-console)-button$/).boundingBox())!;
+    expect(settingsBox.x).toBeGreaterThan(consoleBox.x + consoleBox.width - 1);
 
     // The settings hold the chart controls.
     await page.getByTestId("settings-button").click();
@@ -357,11 +363,11 @@ test("plan page: the flight planning drawer opens the way the Model Training dra
   await expect(drawer.locator('[data-slot="accordion-content"] [data-testid="navlog-summary"]')).toContainText(/\d nm/, { timeout: slow(60000) });
   expect(await drawer.locator('[data-slot="accordion-content"][data-state="open"]').count()).toBe(1);
 
-  // The page's own header is still there: the route form, and the one
-  // Dev-mode switch this page has (by test id, not role: on a phone
-  // the modal sheet hides the rest of the page from assistive tech).
+  // The page's own header is still there: the route form, and the
+  // settings (by test id, not role: on a phone the modal sheet hides the
+  // rest of the page from assistive tech).
   expect(await page.locator("header").getByLabel("Departure", { exact: true }).count()).toBe(1);
-  expect(await page.locator("header").getByTestId("dev-switch").count()).toBe(1);
+  expect(await page.locator("header").getByTestId("settings-button").count()).toBe(1);
 
   // The briefing's actions live in the drawer's own header: the AI
   // button (LangGraph/CrewAI are tabs inside the popover it opens),
@@ -566,12 +572,15 @@ test("plan page: a checkpoint picked on the map is brought to the middle of the 
   await expect.poll(middle, { timeout: slow(5000) }).toBeLessThan(0.25);
 
   // The row above it, in view beside it, clicked: selected, and
-  // nothing moves.
+  // nothing moves. Clicked on its first cell, where a finger would: on
+  // a desktop the table scrolls sideways inside the drawer, and the
+  // middle of the row, where a bare click lands, is past the drawer's
+  // edge -- over the map, so Playwright scrolled the drawer to reach it.
   const before = await scroller.evaluate(el => el.scrollTop);
   const rows = table.locator("tbody tr[tabindex='0']");
   const index = await selectedRow.evaluate(row => Array.from(row.parentElement!.querySelectorAll("tr[tabindex='0']")).indexOf(row));
   const neighbour = rows.nth(index - 1);
-  await neighbour.click();
+  await neighbour.locator("td").first().click();
   await expect(selectedRow.first().locator("td").first()).toHaveText(await neighbour.locator("td").first().innerText());
   await page.waitForTimeout(400);
   expect(await scroller.evaluate(el => el.scrollTop)).toBe(before);
@@ -596,7 +605,7 @@ test("plan page: a checkpoint picked on the map is brought to the middle of the 
 
   // The selected row clicked again: deselected, and its note closed.
   await expect(selectedRow).toHaveAttribute("aria-expanded", "true");
-  await neighbour.click();
+  await neighbour.locator("td").first().click();
   await expect(selectedRow).toHaveCount(0);
   await expect(table.locator('tbody tr[aria-expanded="true"]')).toHaveCount(0);
 });
@@ -764,7 +773,7 @@ test("plan page: the briefing's nav log scrolls inside the drawer, not the page"
   }
 });
 
-test("the Dev-mode switch leads the route form, flips to the dev page with the route, and back to where it was flipped from", async ({ page }) => {
+test("the Dev-mode switch is in the settings, flips to the dev page with the route, and back to where it was flipped from", async ({ page }) => {
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
   // With the briefing open on a desktop, where the header stays in
@@ -775,26 +784,22 @@ test("the Dev-mode switch leads the route form, flips to the dev page with the r
   const wide = viewport.width >= 768;
   if (wide) await openBriefing(page);
 
-  // Off on Plan, and on the route form's left -- the one control that
+  // Off on Plan, in the header's settings -- the one control that
   // switches roles, in the same place on both pages.
-  const devSwitch = page.locator("header").getByRole("switch", { name: "Dev mode" });
+  const devSwitch = await devSwitchInSettings(page);
   await expect(devSwitch).toHaveAttribute("aria-checked", "false");
-  const switchBox = await devSwitch.boundingBox();
-  const loadBox = await page.getByRole("button", { name: "Load" }).boundingBox();
-  expect(switchBox).not.toBeNull();
-  expect(loadBox).not.toBeNull();
-  expect(switchBox!.x).toBeLessThan(loadBox!.x);
 
   // On: the dev page, with the route on screen carried along and
   // Plan's own briefing parameter left behind.
   await devSwitch.click();
   await page.waitForURL(/\/app\/dev\?dep=C81&dest=KDLH$/);
   await page.waitForTimeout(300);
-  await expect(page.locator("header").getByRole("switch", { name: "Dev mode" })).toHaveAttribute("aria-checked", "true");
+  await page.keyboard.press("Escape");
+  await expect(await devSwitchInSettings(page)).toHaveAttribute("aria-checked", "true");
 
   // Off again: back to exactly where it was flipped from (`state.from`,
   // DevSwitch's own), the open briefing included, not a flat /app/plan.
-  await page.locator("header").getByRole("switch", { name: "Dev mode" }).click();
+  await page.getByRole("switch", { name: "Dev mode" }).click();
   if (wide) {
     await page.waitForURL(/\/app\/plan\?dep=C81&dest=KDLH&view=briefing$/);
     await expectDrawerOpen(page);
@@ -804,17 +809,17 @@ test("the Dev-mode switch leads the route form, flips to the dev page with the r
   }
 });
 
-test("the DEV switch is the one sign of which page this is: the header itself looks the same on both", async ({ page }) => {
+test("the header itself looks the same on both pages: the settings' Dev-mode switch says which one this is", async ({ page }) => {
   await page.goto("/app/plan");
   await settle(page);
   const pilotBg = await page.locator("header").evaluate(el => getComputedStyle(el).backgroundColor);
   await expect(page.locator("header")).toHaveAttribute("data-mode", "pilot");
-  await expect(page.locator("header").getByRole("switch", { name: "Dev mode" })).toHaveAttribute("aria-checked", "false");
+  await expect(await devSwitchInSettings(page)).toHaveAttribute("aria-checked", "false");
   await page.goto("/app/dev");
   await settle(page);
   const devBg = await page.locator("header").evaluate(el => getComputedStyle(el).backgroundColor);
   await expect(page.locator("header")).toHaveAttribute("data-mode", "dev");
-  await expect(page.locator("header").getByRole("switch", { name: "Dev mode" })).toHaveAttribute("aria-checked", "true");
+  await expect(await devSwitchInSettings(page)).toHaveAttribute("aria-checked", "true");
   expect(devBg).toBe(pilotBg);
 });
 
@@ -839,7 +844,7 @@ test("signed in, each console fits the screen's width: nothing but a table's own
   }
 });
 
-test("the route form sits in the middle of the header on both pages, with the DEV switch or without it", async ({ page, browser }) => {
+test("the route form sits in the middle of the header on both pages, signed in or out", async ({ page, browser }) => {
   // On a phone the header was a flex row that centred the form between
   // the switch and the buttons: the planner of anyone signed out, who
   // has no switch, put it 55px left of where the dev page did.
@@ -859,7 +864,6 @@ test("the route form sits in the middle of the header on both pages, with the DE
   const planner = await signedOut.newPage();
   await planner.goto("/app/plan");
   await settle(planner);
-  await expect(planner.locator("header").getByRole("switch", { name: "Dev mode" })).toHaveCount(0);
   expect(Math.abs(await offCentre(planner)), "the signed-out planner").toBeLessThanOrEqual(4);
   await signedOut.close();
 });
@@ -1004,7 +1008,7 @@ test("plan page: a departure time gives every checkpoint an ETA and picks the wi
 test("dev page opened on its own: the switch falls back to the planner with the dev page's own route", async ({ page }) => {
   await page.goto("/app/dev?dep=C81&dest=KDLH");
   await settle(page);
-  await page.locator("header").getByRole("switch", { name: "Dev mode" }).click();
+  await (await devSwitchInSettings(page)).click();
   await page.waitForURL(/\/app\/plan\?dep=C81&dest=KDLH$/);
 });
 
@@ -1106,15 +1110,15 @@ test("the header's edge is a setting: the map's buttons and the console follow i
   await expect(page.locator("[data-slot=drawer-content], [data-slot=popover-content]")).toHaveCount(0);
 
   const header = (await page.locator("header").boundingBox())!;
-  const settings = (await page.getByTestId("settings-button").boundingBox())!;
+  const zoomToggle = (await page.getByTestId("map-action-button").boundingBox())!;
   if (phone) {
     expect(header.y).toBe(0);
-    expect(settings.y).toBeGreaterThanOrEqual(header.y + header.height);
-    expect(settings.y).toBeLessThan(header.y + header.height + 24);
+    expect(zoomToggle.y).toBeGreaterThanOrEqual(header.y + header.height);
+    expect(zoomToggle.y).toBeLessThan(header.y + header.height + 24);
   } else {
     expect(Math.round(header.y + header.height)).toBe(viewport.height);
-    expect(settings.y + settings.height).toBeLessThanOrEqual(header.y);
-    expect(header.y - (settings.y + settings.height)).toBeLessThan(200);
+    expect(zoomToggle.y + zoomToggle.height).toBeLessThanOrEqual(header.y);
+    expect(header.y - (zoomToggle.y + zoomToggle.height)).toBeLessThan(200);
   }
 
   await page.getByTestId("pilot-button").click();
@@ -1209,9 +1213,9 @@ test("plan page: the header's toggle closes and reopens the drawer; a tap beside
   const headerBox = await page.locator("header").boundingBox();
   if (viewport.width < 768) {
     // The stock sidebar on a phone is a modal sheet: the header is
-    // under its overlay, and a tap on the map beside it (the overlay)
-    // is what closes it; the trigger opens it again.
-    await page.mouse.click(12, viewport.height / 2);
+    // under its overlay, and a tap on the map beside it (the overlay,
+    // on the right) is what closes it; the trigger opens it again.
+    await page.mouse.click(viewport.width - 12, viewport.height / 2);
     await expectDrawerClosed(page);
     await page.getByTestId("sidebar-trigger-button").click();
     await expectDrawerOpen(page);

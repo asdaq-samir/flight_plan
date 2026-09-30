@@ -16,10 +16,6 @@ interface Props {
   /** The page's half of the map's one zoom button: how to show what it
    *  has selected, and whether there is anything to show yet. */
   zoom: ShowSelected;
-  /** Whether the layers popover also offers own ship and the
-   *  every-landmark switch -- the planner's map has both. */
-  ownShip?: boolean;
-  candidates?: { on: boolean; onToggle: (on: boolean) => void };
   /** The layers this particular map draws, inside the container. */
   children: ReactNode;
 }
@@ -59,7 +55,7 @@ function FitReporter({ bounds, onChange }: { bounds: L.LatLngBounds; onChange: (
  * preview state and the placeholder before a course arrives were the
  * same code in both files.
  */
-export function MapShell({ course, onReady, zoom, ownShip, candidates, children }: Props) {
+export function MapShell({ course, onReady, zoom, children }: Props) {
   const [map, setMap] = useState<L.Map | null>(null);
   // The one zoom button offers the whole route when the map is closer in
   // than the route needs, and the page's selection otherwise -- decided
@@ -124,10 +120,7 @@ export function MapShell({ course, onReady, zoom, ownShip, candidates, children 
       ) : (
         <div className="h-full w-full bg-slate-100 dark:bg-slate-900" />
       )}
-      <MapControls
-        zoom={{ zoomedIn, onToggle: zoomedIn ? fit : zoom.showSelected, disabled: zoom.disabled }}
-        ownShip={ownShip} candidates={candidates}
-      />
+      <MapControls zoom={{ zoomedIn, onToggle: zoomedIn ? fit : zoom.showSelected, disabled: zoom.disabled }} />
     </div>
   );
 }

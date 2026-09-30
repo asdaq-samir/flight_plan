@@ -3,9 +3,10 @@ import { toast } from "sonner";
 import { cn } from "cn";
 import { EXPANDED_BUTTON } from "../../lib/expandedButton";
 import { useSearchParamsNow } from "../../lib/useSearchParamsNow";
-import DevSwitch from "../../components/DevSwitch";
+import { DevGuard } from "../../components/DevSwitch";
 import MapHeader from "../../components/MapHeader";
 import RouteForm from "../../components/RouteForm";
+import SettingsButton from "../../components/SettingsButton";
 import { Sheet, SheetContent, SheetTrigger } from "../../components/ui/sheet";
 // Under other names: `DrawerTrigger` below is the header's button for
 // the sidebar, which this page calls its drawer.
@@ -151,6 +152,9 @@ export default function MapPage({ mode }: { mode: Mode }) {
           {/* An emailed sign-in link lands here (#signin=…) and is
               finished in the app's own dialog. */}
           <LinkSignIn />
+          {/* Dev mode's refusal: someone it is not for, on the dev page,
+              is taken to the map (the switch itself is in the settings). */}
+          <DevGuard />
           <SidebarSync open={sidebarOpen} onOpenChange={setSidebarOpen} />
           {/* For a keyboard: past the header's controls to the map in
               one press. Visible only while it has focus. */}
@@ -160,6 +164,18 @@ export default function MapPage({ mode }: { mode: Mode }) {
           >
             Skip to the map
           </a>
+          {/* On the left, its button leading the header. h-dvh, overriding
+              the stock panel's own `h-svh`: `svh` is the viewport height
+              with the browser's chrome shown, so with Safari's toolbar
+              hidden (or collapsed by a scroll) the panel ended short by
+              the chrome's height and the page showed through below it --
+              the same white, so it read as dead space under the last
+              section. `dvh` is what the rest of the shell is sized by,
+              and it tracks what is actually visible. Before the inset in
+              the row, which is what puts the panel's gap on its left. */}
+          <Sidebar side="left" collapsible="offcanvas" aria-label={sidebar} className="h-dvh">
+            <SidebarContent className="gap-0 overflow-hidden print:overflow-visible">{pieces.sidebar}</SidebarContent>
+          </Sidebar>
           {/* `@container`: the header's three-column grid is chosen by a
               container query on this width, not a media query, because
               a container query's rem follows the root font size and a
@@ -171,7 +187,7 @@ export default function MapPage({ mode }: { mode: Mode }) {
           <SidebarInset id="content" className="@container min-h-0 min-w-0 nav-bottom:pt-[env(safe-area-inset-top)] print:hidden">
             <MapHeader
               dev={mode === "dev"}
-              leading={<DevSwitch />}
+              leading={<DrawerTrigger label={sidebar} />}
               form={(
                 <RouteForm
                   dep={dep} dest={dest} onDepChange={setDep} onDestChange={setDest}
@@ -223,7 +239,7 @@ export default function MapPage({ mode }: { mode: Mode }) {
                       </SheetContent>
                     </Sheet>
                   )}
-                  <DrawerTrigger label={sidebar} />
+                  <SettingsButton>{pieces.settings}</SettingsButton>
                 </>
               )}
             />
@@ -233,17 +249,6 @@ export default function MapPage({ mode }: { mode: Mode }) {
                 under the sidebar and the sheets. */}
             <div className="relative isolate min-h-0 flex-1 overflow-hidden">{pieces.map}</div>
           </SidebarInset>
-          {/* h-dvh, overriding the stock panel's own `h-svh`: `svh` is
-              the viewport height with the browser's chrome shown, so
-              with Safari's toolbar hidden (or collapsed by a scroll)
-              the panel ended short by the chrome's height and the page
-              showed through below it -- the same white, so it read as
-              dead space under the last section. `dvh` is what the rest
-              of the shell is sized by, and it tracks what is actually
-              visible. */}
-          <Sidebar side="right" collapsible="offcanvas" aria-label={sidebar} className="h-dvh">
-            <SidebarContent className="gap-0 overflow-hidden print:overflow-visible">{pieces.sidebar}</SidebarContent>
-          </Sidebar>
         </SidebarProvider>
       )}
     </Workspace>
@@ -265,14 +270,16 @@ function AfterTheSheet({ children }: { children: ReactNode }) {
 }
 
 /** The header's drawer button: the stock trigger, named for what the
- *  drawer holds, drawn filled while the drawer is out. */
+ *  drawer holds, drawn filled while the drawer is out. Its icon at the
+ *  size the header's other buttons draw theirs (size-5), over the
+ *  stock button's size-4. */
 function DrawerTrigger({ label }: { label: string }) {
   const { open, openMobile, isMobile } = useSidebar();
   return (
     <SidebarTrigger
       aria-label={label}
       aria-expanded={isMobile ? openMobile : open}
-      className={cn("size-9", EXPANDED_BUTTON)}
+      className={cn("size-9 [&_svg:not([class*='size-'])]:size-5", EXPANDED_BUTTON)}
       data-testid="sidebar-trigger-button"
     />
   );

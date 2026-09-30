@@ -12,6 +12,9 @@ setup("the developer signs in from the pilot console, and lands in dev mode", as
   await signInByEmail(page, DEVELOPER);
 
   await page.waitForURL("**/app/dev**");
+  // The switch is in the header's settings.
+  await page.getByTestId("settings-button").click();
   await expect(page.getByTestId("dev-switch")).toBeChecked();
+  await page.keyboard.press("Escape");
   await page.context().storageState({ path: DEVELOPER_STATE });
 });

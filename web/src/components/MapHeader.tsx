@@ -1,27 +1,28 @@
 import type { ReactNode } from "react";
 
 interface Props {
-  /** Leads the row, on the route form's left: the Dev-mode switch,
-   *  on both pages. */
+  /** Leads the row, on the route form's left: the sidebar's button,
+   *  on both pages, the sidebar opening on that side. */
   leading: ReactNode;
   /** The route form: this page's real title, the thing a pilot or a
    *  developer opened it to use, so it sits in the middle. */
   form: ReactNode;
   /** The header's icon buttons, in one group at the trailing edge:
-   *  the guide, the zoom toggle, the console and the sidebar toggle --
-   *  the same four, in the same order, on both pages. */
+   *  the console and the settings -- the same two, in the same order,
+   *  on both pages. */
   actions: ReactNode;
-  /** Dev mode: only `data-mode` says so here -- the DEV switch at the
-   *  leading edge is the one visible sign, on purpose (an amber header
-   *  was tried, and was too much). */
+  /** Dev mode: only `data-mode` says so here -- the console's button
+   *  and the switch in the settings are the visible signs, on purpose
+   *  (an amber header was tried, and was too much). */
   dev?: boolean;
 }
 
 /**
- * The one-row header both pages share: the Dev-mode switch leading,
- * the route form centred, the icon buttons trailing. A three-column
- * grid whose flanking columns share the space left over equally (the
- * switch in one, the actions in the other), which is what centres the
+ * The one-row header both pages share: the sidebar's button leading,
+ * the route form centred, the console and the settings trailing. A
+ * three-column grid whose flanking columns share the space left over
+ * equally (the sidebar's button in one, the others in the other; the
+ * Dev-mode switch led it once), which is what centres the
  * form against the header's full width rather than against whatever is
  * left beside the actions -- on a phone too. It used to be a flex row
  * below `sm`, which centred the form between the switch and the
@@ -55,23 +56,23 @@ export default function MapHeader({ leading, form, actions, dev = false }: Props
       // The grid from 22.5rem of the inset's width (360px at the default
       // type size; a container query, see MapPage), the wrapping row
       // below that.
-      // The safe-area insets on the top and the left only (and real
+      // The safe-area insets on the top and the right only (and real
       // only because index.html asks for `viewport-fit=cover`): this
       // row is the top of the screen, so its padding grows to clear a
-      // notch or a Dynamic Island, and its left edge is the screen's.
-      // Its right edge is not: the drawer sits there whenever it is
-      // open, so padding by the right inset spent 59px of a landscape
-      // iPhone's width on nothing and pushed this row's own content
-      // into overlapping itself -- the route form ran over the console
-      // button. A plain padding there instead, a little wider than the
-      // left's, which is enough to clear a rounded corner with the
-      // drawer shut.
+      // notch or a Dynamic Island, and its right edge is the screen's.
+      // Its left edge is not: the drawer sits there whenever it is
+      // open, and padding by that side's inset spent 59px of a
+      // landscape iPhone's width on nothing and pushed this row's own
+      // content into overlapping itself -- the route form ran over the
+      // console button, when the drawer was on the right. A plain
+      // padding there instead, a little wider than the other side's,
+      // which is enough to clear a rounded corner with the drawer shut.
       // At the bottom instead (the `nav-bottom` variant): the border on
       // its top edge, and the padding under it grown to clear the home
       // indicator rather than the notch (the page's column clears that).
-      className="flex shrink-0 flex-wrap items-center gap-1.5 border-b border-border bg-background pt-[max(0.5rem,env(safe-area-inset-top))] pr-3 pb-2 pl-[max(0.5rem,env(safe-area-inset-left))] @min-[22.5rem]:grid @min-[22.5rem]:grid-cols-[1fr_auto_1fr] nav-bottom:order-last nav-bottom:border-t nav-bottom:border-b-0 nav-bottom:pt-2 nav-bottom:pb-[max(0.5rem,env(safe-area-inset-bottom))] sm:gap-2 sm:pr-4 sm:pl-[max(0.75rem,env(safe-area-inset-left))] print:hidden"
+      className="flex shrink-0 flex-wrap items-center gap-1.5 border-b border-border bg-background pt-[max(0.5rem,env(safe-area-inset-top))] pr-[max(0.5rem,env(safe-area-inset-right))] pb-2 pl-3 @min-[22.5rem]:grid @min-[22.5rem]:grid-cols-[1fr_auto_1fr] nav-bottom:order-last nav-bottom:border-t nav-bottom:border-b-0 nav-bottom:pt-2 nav-bottom:pb-[max(0.5rem,env(safe-area-inset-bottom))] sm:gap-2 sm:pr-[max(0.75rem,env(safe-area-inset-right))] sm:pl-4 print:hidden"
     >
-      <div className="flex items-center @min-[22.5rem]:justify-self-start">{leading}</div>
+      <div className="flex items-center [&>*]:size-8 @min-[22.5rem]:justify-self-start sm:[&>*]:size-9">{leading}</div>
       {/* mx-auto for the wrapping row under 360px; the grid above that
           centres it against the whole header by itself. */}
       <div className="mx-auto @min-[22.5rem]:mx-0 @min-[22.5rem]:justify-self-center">{form}</div>

@@ -19,6 +19,7 @@ import BuildNotice from "./components/BuildNotice";
 import FlightBriefingView, { BriefingNotices, PlanningAidNote, SaveFlightButton } from "./components/briefing/FlightBriefingView";
 import NavLogActions from "./components/navlog/NavLogActions";
 import NavLogView from "./components/navlog/NavLogView";
+import PlannerSettings from "./components/PlannerSettings";
 import RouteMap from "./components/RouteMap";
 import { usePlan } from "./hooks/usePlan";
 
@@ -290,13 +291,13 @@ export default function PlanWorkspace({ dep, dest, sidebarOpen, children }: Work
           onSelectCandidate={selectCandidate}
           onSelectPoint={(lat, lon) => selectPoint({ lat, lon })}
           zoom={{ showSelected, disabled: !course }}
-          showAll={{ on: showCandidates, onToggle: setShowCandidates }}
           airportWeather={s.briefing}
         />
       </div>
     ),
     sidebar: navLog,
     console: <PilotPanel course={course} />,
+    settings: <PlannerSettings candidates={{ on: showCandidates, onToggle: setShowCandidates }} />,
     submit,
     loading: s.stage !== null,
     notices: s.sameAirport ? (

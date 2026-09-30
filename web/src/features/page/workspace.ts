@@ -3,8 +3,9 @@ import type { ReactNode } from "react";
 /**
  * What a workspace (the pilot's planner, the developer's training)
  * hands the page to place: the map for the page's map area, the
- * drawer for its sidebar, the console for its top sheet, and the
- * action behind the header's own route form. The page (MapPage) owns
+ * drawer for its sidebar, the console for its sheet, its own part of
+ * the header's settings, and the action behind the header's own route
+ * form. The page (MapPage) owns
  * the shell -- the header, the sidebar, the console -- and the route
  * typed into it; a workspace owns everything about its own data.
  */
@@ -12,6 +13,9 @@ export interface WorkspacePieces {
   map: ReactNode;
   sidebar: ReactNode;
   console: ReactNode;
+  /** What the page adds to the header's settings, under the chart
+   *  layers. */
+  settings?: ReactNode;
   /** Loads the route in the header's form. */
   submit: () => void;
   /** A load in progress: the form's own button is disabled. */

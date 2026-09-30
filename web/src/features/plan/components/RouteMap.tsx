@@ -37,9 +37,6 @@ interface Props {
   onSelectPoint: (lat: number, lon: number) => void;
   /** The page's half of the map's zoom button (see `MapShell`). */
   zoom: ShowSelected;
-  /** The "every landmark the model rated" switch, in the same popover
-   *  the chart layers live in. */
-  showAll: { on: boolean; onToggle: (on: boolean) => void };
   /** The route's briefing (see `usePlan`): the departure and
    *  destination's own current METARs, and where fetching it stands. */
   airportWeather: BriefingState;
@@ -192,12 +189,12 @@ function Checkpoints({ candidates, selected, showCandidates, onSelectCandidate }
  */
 export default function RouteMap({
   course, candidates, selected, showCandidates, focus, onSelectCandidate, onSelectPoint,
-  zoom, showAll, airportWeather,
+  zoom, airportWeather,
 }: Props) {
   const focusZoom = course?.max_zoom ?? 12;
 
   return (
-    <MapShell course={course} zoom={zoom} ownShip candidates={showAll}>
+    <MapShell course={course} zoom={zoom}>
       {course && (
         <>
           <CourseLine

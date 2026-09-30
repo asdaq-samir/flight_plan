@@ -1,14 +1,5 @@
-import { Settings } from "lucide-react";
-import ChartLayers from "./ChartLayers";
 import FullscreenButton from "./FullscreenButton";
-import IconButton from "./IconButton";
-import NavBarSetting from "./NavBarSetting";
-import OwnShipControls from "./OwnShipControls";
 import ZoomToggleButton from "./ZoomToggleButton";
-import { Checkbox } from "./ui/checkbox";
-import { Label } from "./ui/label";
-import { ResponsivePopover, ResponsivePopoverContent, ResponsivePopoverTrigger } from "./ResponsivePopover";
-import { useNavEdge } from "../hooks/use-nav-edge";
 
 export interface ZoomControl {
   zoomedIn: boolean;
@@ -16,79 +7,27 @@ export interface ZoomControl {
   disabled: boolean;
 }
 
-interface Props {
-  /** The fit-route / show-selected toggle, when the page has one. */
-  zoom?: ZoomControl;
-  /** Whether the settings also offer own ship (the planner's map draws
-   *  it; the training map does not). */
-  ownShip?: boolean;
-  /** Every landmark the model rated, not only the ones it chose --
-   *  the planner's own switch, which used to be the `a` key and had
-   *  nowhere to be clicked. */
-  candidates?: { on: boolean; onToggle: (on: boolean) => void };
-}
-
 /**
- * The map's own controls, stacked at its right edge over the chart, on
+ * The map's own buttons, stacked at its right edge over the chart, on
  * the header's edge (useNavEdge) -- at the top under a header at the
  * top, at the bottom over one at the bottom, where a thumb reaches them
- * both: the settings button (the header's edge, the base chart, the
- * pinned terminal sheet, the Class B airports and, on the planner, own
- * ship), the zoom toggle between the whole route and the selected
- * point, and full screen where it works. On the map, not in the header,
- * because they act on the map: the header keeps the route form and the
- * drawers. Outline buttons on a solid background, so they read over any
- * chart colour.
+ * both: the zoom toggle between the whole route and the selected point,
+ * and full screen where it works. On the map, not in the header,
+ * because they act on the map. (The settings, which were a layers
+ * button here, are in the header.) Outline buttons on a solid
+ * background, so they read over any chart colour.
  */
-export default function MapControls({ zoom, ownShip = false, candidates }: Props) {
-  const edge = useNavEdge();
+export default function MapControls({ zoom }: { zoom?: ZoomControl }) {
   return (
     // z-[1000]: over Leaflet's own panes, the level Leaflet gives its
     // controls; still inside the map's own stacking context, under the
     // drawers and every portal.
-    // A plain right gap, not the safe-area inset: these sit at the
-    // map's own right edge, which is the drawer's left edge whenever
-    // it is open, and the inset pushed them a landscape phone's 59px
-    // clear of a screen edge that was not there.
+    // The map's right edge is the screen's (the drawer is on the left),
+    // so clear of a landscape phone's notch there.
     // gap-2: each control's 44-point hit area (index.css) abuts the
     // next one's rather than overlapping it. At the bottom, bottom-6
     // rather than bottom-2: clear of the chart credit in the corner.
-    <div className="absolute top-2 right-2 z-[1000] flex flex-col items-end gap-2 nav-bottom:top-auto nav-bottom:bottom-6">
-      <ResponsivePopover>
-        <ResponsivePopoverTrigger asChild>
-          <IconButton label="Settings" variant="outline" className="bg-background shadow-sm" data-testid="settings-button">
-            <Settings className="size-5" />
-          </IconButton>
-        </ResponsivePopoverTrigger>
-        {/* On a phone a sheet from the header's edge: as a popover it was
-            the screen's height, over the header, its last line cut off.
-            Beside the button from md up, its end at the button's when
-            the button is at the bottom, so it opens upwards. */}
-        <ResponsivePopoverContent title="Settings" side="left" align={edge === "bottom" ? "end" : "start"} className="w-72">
-          <div className="space-y-3 text-sm [&>div:first-child]:border-t-0 [&>div:first-child]:pt-0">
-            <NavBarSetting />
-            <ChartLayers />
-            {candidates && (
-              <div className="space-y-2 border-t border-border pt-2">
-                <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Checkpoints</div>
-                <div className="flex items-center gap-2">
-                  <Checkbox
-                    id="show-candidates"
-                    checked={candidates.on}
-                    onCheckedChange={value => candidates.onToggle(value === true)}
-                    data-testid="candidates-toggle"
-                  />
-                  <Label htmlFor="show-candidates" className="font-normal">Every landmark the model rated</Label>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  The small dim dots beside the numbered ones: what the chosen checkpoints were chosen from.
-                </p>
-              </div>
-            )}
-            {ownShip && <OwnShipControls />}
-          </div>
-        </ResponsivePopoverContent>
-      </ResponsivePopover>
+    <div className="absolute top-2 right-[max(0.5rem,env(safe-area-inset-right))] z-[1000] flex flex-col items-end gap-2 nav-bottom:top-auto nav-bottom:bottom-6">
       {zoom && (
         <ZoomToggleButton
           zoomedIn={zoom.zoomedIn} onClick={zoom.onToggle} disabled={zoom.disabled}

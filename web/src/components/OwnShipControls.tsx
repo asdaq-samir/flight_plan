@@ -7,7 +7,7 @@ function coordinate(value: number, positive: string, negative: string): string {
 }
 
 /**
- * The own-ship switches in the map's info popover: show the phone's
+ * The own-ship switches in the header's settings, on the planner: show the phone's
  * position on the chart, and keep the map centred on it. A line under
  * them says what the GPS has -- position, accuracy, ground speed and
  * heading -- or why there is nothing: no secure connection (the

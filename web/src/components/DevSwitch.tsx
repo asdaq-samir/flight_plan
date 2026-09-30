@@ -19,8 +19,9 @@ function routeSearch(search: string): string {
 }
 
 /**
- * Dev mode, off or on: shadcn's own `Switch` with a DEV label at the
- * leading edge of both headers. One control instead of a Dev link on
+ * Dev mode, off or on: shadcn's own `Switch`, in the map's settings on
+ * both pages (it led the header until the header was slimmed to the
+ * route form and its buttons). One control instead of a Dev link on
  * one page and a Plan link on the other, so switching roles is one
  * switch in one place, and it reads as what it is -- the same page
  * with the developer's drawers in place of the pilot's -- rather than
@@ -54,12 +55,11 @@ function routeSearch(search: string): string {
  * developer console, or a session that ended -- is taken to the map
  * rather than left on a workspace whose every call the server refuses.
  */
-export default function DevSwitch() {
+function useDevMode() {
   const { data: pilot, isSuccess: pilotKnown } = useQuery(pilotQuery);
   const { data: capabilities } = useQuery(capabilitiesQuery);
   const { pathname, search, state } = useLocation();
   const navigate = useNavigate();
-  const id = useId();
   const on = pathname.startsWith("/dev");
   const flip = () => {
     if (on) {
@@ -75,15 +75,33 @@ export default function DevSwitch() {
   // the answer does, rather than flashing in and out.
   const allowed = pilot?.developer === true || capabilities?.access === "OPEN";
   const refused = on && pilotKnown && capabilities !== undefined && !allowed;
+  return { on, flip, allowed, refused, navigate, search };
+}
+
+/** The refusal half, mounted with the page rather than with the
+ *  settings (which are only in the page while they are open). */
+export function DevGuard() {
+  const { refused, navigate, search } = useDevMode();
   useEffect(() => {
     if (refused) void navigate(`/plan${routeSearch(search)}`, { replace: true });
   }, [refused, navigate, search]);
-  if (!allowed) return null;
+  return null;
+}
 
+export default function DevSwitch() {
+  const { on, flip, allowed } = useDevMode();
+  const id = useId();
+  if (!allowed) return null;
   return (
-    <div className="flex items-center gap-1.5">
-      <Switch id={id} checked={on} onCheckedChange={flip} aria-label="Dev mode" data-testid="dev-switch" />
-      <Label htmlFor={id} className="text-xs font-semibold tracking-wide text-muted-foreground">DEV</Label>
+    <div className="space-y-2 border-t border-border pt-2">
+      <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Developer</div>
+      <div className="flex items-center gap-2">
+        <Switch id={id} checked={on} onCheckedChange={flip} aria-label="Dev mode" data-testid="dev-switch" />
+        <Label htmlFor={id} className="font-normal">Dev mode</Label>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        The training workspace and the developer console in place of the planner, on the same route.
+      </p>
     </div>
   );
 }

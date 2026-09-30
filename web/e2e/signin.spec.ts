@@ -12,6 +12,14 @@ test.use({ storageState: { cookies: [], origins: [] } });
 
 const consoleSheet = (page: Page) => page.getByTestId("console-sheet");
 
+/** The Dev-mode switch, in the header's settings: opened first. Present
+ *  or absent, it is looked for with the settings open. */
+async function devSwitchInSettings(page: Page) {
+  await page.getByTestId("settings-button").click();
+  await expect(page.getByText("Chart layers", { exact: true })).toBeVisible();
+  return page.getByTestId("dev-switch");
+}
+
 /** One pilot per test and project, the same on every run: a fresh
  *  address each time added a pilot row to the local database on every
  *  run, 76 of them in a day. Per project, so the phone's and the
@@ -25,7 +33,8 @@ test("signed out, the planner opens on the map, and the sign-in is in the pilot 
   await expect(page.getByTestId("pilot-button")).toBeVisible();
   await page.waitForTimeout(500);   // a moment for a console that was coming down by itself
   await expect(consoleSheet(page)).toHaveCount(0);
-  await expect(page.getByTestId("dev-switch")).toHaveCount(0);
+  await expect(await devSwitchInSettings(page)).toHaveCount(0);
+  await page.keyboard.press("Escape");
 
   await page.getByTestId("pilot-button").click();
   await expect(consoleSheet(page).getByRole("button", { name: "Sign in" })).toBeVisible();
@@ -35,7 +44,8 @@ test("signed out, the dev page sends you to the planner", async ({ page }) => {
   await page.goto("/app/dev");
   await page.waitForURL(/\/app\/plan/);
   await expect(page.getByTestId("pilot-button")).toBeVisible();
-  await expect(page.getByTestId("dev-switch")).toHaveCount(0);
+  await expect(await devSwitchInSettings(page)).toHaveCount(0);
+  await page.keyboard.press("Escape");
 });
 
 test("the emailed link opens the app's own sign-in dialog, over the planner, and a spent link says so", async ({ page }, testInfo) => {
@@ -74,7 +84,8 @@ test("a pilot's link lands on the planner, with no dev switch, and the pilot con
   await expect(page.getByLabel("Departure", { exact: true })).toBeVisible();
   await page.waitForTimeout(500);   // a moment for a console that was coming down by itself
   await expect(consoleSheet(page)).toHaveCount(0);
-  await expect(page.getByTestId("dev-switch")).toHaveCount(0);
+  await expect(await devSwitchInSettings(page)).toHaveCount(0);
+  await page.keyboard.press("Escape");
 
   await page.getByTestId("pilot-button").click();
   await expect(consoleSheet(page)).toContainText(`${address}`);
@@ -97,7 +108,8 @@ test("a developer's link lands in dev mode, and the dev console logs out to the 
   await signInByEmail(page, DEVELOPER);
 
   await page.waitForURL("**/app/dev**");
-  await expect(page.getByTestId("dev-switch")).toBeChecked();
+  await expect(await devSwitchInSettings(page)).toBeChecked();
+  await page.keyboard.press("Escape");
   await page.getByTestId("dev-console-button").click();
   await expect(consoleSheet(page)).toContainText(`${DEVELOPER}`);
   await consoleSheet(page).getByTestId("pilot-menu").click();
@@ -106,5 +118,6 @@ test("a developer's link lands in dev mode, and the dev console logs out to the 
   await page.waitForURL("**/app/plan**");
   await expect(page.getByTestId("pilot-button")).toBeVisible();
   await expect(consoleSheet(page)).toHaveCount(0);
-  await expect(page.getByTestId("dev-switch")).toHaveCount(0);
+  await expect(await devSwitchInSettings(page)).toHaveCount(0);
+  await page.keyboard.press("Escape");
 });

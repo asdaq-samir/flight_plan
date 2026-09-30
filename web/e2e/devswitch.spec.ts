@@ -21,11 +21,19 @@ import { test, expect, type Page } from "@playwright/test";
 
 const devSwitch = (page: Page) => page.getByTestId("dev-switch");
 
-/** The header drawn without the switch: the pilot button is there (the
- *  header has rendered with who is signed in known), and the switch has
- *  not followed within a moment. It used to be a flat three seconds. */
+/** The switch is in the header's settings: opened first. */
+async function openSettings(page: Page) {
+  await page.getByTestId("settings-button").click();
+  await expect(page.getByText("Chart layers", { exact: true })).toBeVisible();
+}
+
+/** The settings drawn without the switch: the pilot button is there
+ *  (the header has rendered with who is signed in known), and the
+ *  switch has not followed within a moment. It used to be a flat three
+ *  seconds. */
 async function noDevSwitch(page: Page) {
   await expect(page.getByTestId("pilot-button")).toBeVisible();
+  await openSettings(page);
   await page.waitForTimeout(500);
   await expect(devSwitch(page)).toHaveCount(0);
 }
@@ -48,6 +56,7 @@ const A_DEVELOPER = { id: 2, email: "dev@example.com", displayName: "A Developer
 test("with no way to sign in and everything opened, the switch is there", async ({ page }) => {
   await withAuth(page, { access: "OPEN", pilot: null });
   await page.goto("/app/plan");
+  await openSettings(page);
   await expect(devSwitch(page)).toBeVisible({ timeout: 15000 });
 });
 
@@ -76,16 +85,18 @@ test("a signed-in pilot does not get it either", async ({ page }) => {
 test("a signed-in developer does", async ({ page }) => {
   await withAuth(page, { access: "SIGN_IN", pilot: A_DEVELOPER });
   await page.goto("/app/plan");
+  await openSettings(page);
   await expect(devSwitch(page)).toBeVisible({ timeout: 15000 });
 });
 
 test("the header holds together without it", async ({ page }) => {
-  // The switch is the leading item in the header. Hidden, the route
-  // form and the two buttons must still be where they belong rather
-  // than sliding into the gap.
+  // The switch led the header once, and now lives in the settings.
+  // For a pilot, the route form and the buttons must still be where
+  // they belong, and the page no wider than the screen.
   await withAuth(page, { access: "SIGN_IN", pilot: A_PILOT });
   await page.goto("/app/plan");
   await noDevSwitch(page);
+  await page.keyboard.press("Escape");
 
   await expect(devSwitch(page)).toHaveCount(0);
   await expect(page.getByLabel("Departure", { exact: true })).toBeVisible();
