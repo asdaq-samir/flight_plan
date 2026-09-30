@@ -48,6 +48,15 @@ def test_legal_altitudes_stop_under_class_a_when_nothing_else_caps_them():
     assert legal_cruising_altitudes(1000.0, None, 90.0)[-1] == 17500.0
 
 
+def test_below_where_the_rule_begins_every_500_ft_is_legal_too():
+    # Westbound over ground at 800 ft: the rule begins at 3,800.
+    assert legal_cruising_altitudes(1700.0, 7000.0, 328.0, rule_from_ft=3800.0) == [
+        2000.0, 2500.0, 3000.0, 3500.0, 4500.0, 6500.0,
+    ]
+    # Under a ceiling that the rule's first altitude is above.
+    assert legal_cruising_altitudes(1700.0, 2111.0, 328.0, rule_from_ft=3800.0) == [2000.0]
+
+
 def test_climb_penalty_charges_climbs_only():
     assert navlog.climb_penalty_min(4500.0, 2500.0, PROFILE) == 0.0
     # 500 to 2,500 ft is 2.8 min, at 70 kt rather than the profile's

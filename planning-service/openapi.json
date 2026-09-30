@@ -453,6 +453,18 @@
             "title": "Hazards",
             "type": "array"
           },
+          "hemispheric_rule_from_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Hemispheric Rule From Ft"
+          },
           "icing_possible": {
             "anyOf": [
               {
@@ -757,6 +769,18 @@
           "from_nm": {
             "title": "From Nm",
             "type": "number"
+          },
+          "hemispheric_rule_from_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Hemispheric Rule From Ft"
           },
           "service_ceiling_ft": {
             "anyOf": [

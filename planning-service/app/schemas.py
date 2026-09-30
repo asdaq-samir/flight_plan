@@ -241,6 +241,8 @@ class AltitudeSegment(BaseModel):
     #: which its legal altitudes are rounded to.
     course_magnetic_deg: float | None = None
     eastbound: bool | None = None
+    #: Where the rule begins over this leg (see AltitudeBreakdown's).
+    hemispheric_rule_from_ft: float | None = None
     candidates_ft: list[float]
 
 
@@ -259,6 +261,10 @@ class AltitudeBreakdown(BaseModel):
     # 180-359 even thousands plus 500.
     course_magnetic_deg: float
     eastbound: bool
+    #: 14 CFR 91.159 applies only more than 3,000 ft above the surface:
+    #: this is 3,000 ft over the lowest ground on the route, and below it
+    #: every 500 ft is legal as well as the rule's altitudes.
+    hemispheric_rule_from_ft: float | None = None
     floor_ft: float
     airspace_ceiling_ft: float | None
     #: The aeroplane's service ceiling where it is in the forecast air,

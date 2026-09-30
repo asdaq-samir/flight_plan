@@ -130,10 +130,10 @@ export default function AltitudeReasoning({ nav, legs }: Props) {
   return (
     <ol className="list-decimal space-y-2 pl-5 text-sm">
       <li>
-        <b>Floor {altFt(s.floor_ft)} ft.</b> The highest ground within 5 nm of the course plus 300 ft, or the
-        tallest charted obstacle plus 100 ft, whichever is higher, rounded up to the next 100 ft: the same rule
-        as a sectional's maximum elevation figure. Worked out leg by leg as well, so a leg over lower ground
-        may fly lower.
+        <b>Floor {altFt(s.floor_ft)} ft.</b> The highest ground along the course plus 1,000 ft (14 CFR 91.119 over
+        a town, which the planner cannot tell from a field), or the tallest charted obstacle within 5 nm of it
+        plus 100 ft, whichever is higher, rounded up to the next 100 ft. Worked out leg by leg as well, so a leg
+        over lower ground may fly lower.
       </li>
       <li>
         <b>Ceiling {s.band_ceiling_ft !== null ? `${altFt(s.band_ceiling_ft)} ft` : "none"} for the whole route.</b>{" "}
@@ -151,7 +151,10 @@ export default function AltitudeReasoning({ nav, legs }: Props) {
         <b>The rule.</b>{" "}
         {`A magnetic course of ${deg(s.course_magnetic_deg)} is `}
         {s.eastbound ? "eastbound (000–179°): odd thousands plus 500 ft" : "westbound (180–359°): even thousands plus 500 ft"}
-        {" "}(14 CFR 91.159).{" "}
+        {" "}(14 CFR 91.159)
+        {s.hemispheric_rule_from_ft != null && s.hemispheric_rule_from_ft >= s.floor_ft
+          ? `, above ${altFt(s.hemispheric_rule_from_ft)} ft, 3,000 ft over the lowest ground. Below that the rule does not apply, and every 500 ft is legal too. `
+          : ". "}
         {s.candidates_ft.length > 0
           ? `Legal for the whole route: ${s.candidates_ft.map(a => altFt(a)).join(", ")} ft`
           : "No one altitude is legal for the whole route"}

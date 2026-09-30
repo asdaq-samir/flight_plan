@@ -1,6 +1,8 @@
 """Recommended VFR cruising altitude for a route: terrain/obstacle floor,
 airspace/service-ceiling/cloud-clearance band, FAR 91.159 hemispheric
-rounding leg by leg, and go/no-go weather flags, icing among them.
+rounding leg by leg -- above 3,000 ft over the ground, where the rule
+applies, with every 500 ft legal below that -- and go/no-go weather
+flags, icing among them.
 
 Notebook 08 walks the same steps one at a time -- floor, ceiling, weather,
 then the combined recommendation, with its explanation and printed output
@@ -18,6 +20,7 @@ altitude the lowest shelf allows -- vfr.navlog.altitude_profiles turns
 those per-leg bands into the lowest, highest, fastest and economical plans.
 """
 import logging
+import math
 import time
 from concurrent.futures import ThreadPoolExecutor
 from itertools import pairwise
@@ -31,6 +34,11 @@ log = logging.getLogger(__name__)
 
 # Class A begins at 18,000 ft: no VFR cruising above 17,500.
 CLASS_A_FLOOR_FT = 18000.0
+
+# 14 CFR 91.159's odd/even-thousands-plus-500 rule is for cruising more
+# than 3,000 ft above the surface. Below that any altitude is legal, and
+# the planner offers every 500 ft there as well as the rule's.
+HEMISPHERIC_RULE_AGL_FT = 3000.0
 
 # 14 CFR 91.155(a), VFR under a cloud layer: 500 ft below it under
 # 10,000 ft MSL, 1,000 ft below it at 10,000 and above -- in Class E by
@@ -168,21 +176,35 @@ def _leg_course_magnetic_deg(a: tuple, b: tuple) -> float:
     return (bearing_deg(*a, *b) - magnetic_variation_deg(*mid)) % 360
 
 
-def legal_cruising_altitudes(floor_ft: float, ceiling_ft: float | None, route_bearing_deg: float) -> list:
+def legal_cruising_altitudes(
+    floor_ft: float, ceiling_ft: float | None, route_bearing_deg: float, rule_from_ft: float | None = None,
+) -> list:
     """Every legal VFR cruising altitude for the course from the floor up
     to the ceiling, ascending -- the hemispheric altitudes 2,000 ft
-    apart, capped under Class A when there is no ceiling. Empty when the
-    first legal altitude above the floor is already above the ceiling.
+    apart, capped under Class A when there is no ceiling, and, up to
+    `rule_from_ft` (3,000 ft above the lowest ground, where 14 CFR 91.159
+    begins to apply), every 500 ft besides. Empty when the first legal
+    altitude above the floor is already above the ceiling.
+
+    The rule used to be applied at every altitude, which on a low-ceiling
+    day left out the altitudes under the clouds: a westbound leg with
+    cloud at 2,600 ft kept nothing, its first even-thousand-plus-500
+    being 2,500 -- too close to the cloud -- where 2,000 was legal.
     """
     top = CLASS_A_FLOOR_FT - 500
     if ceiling_ft is not None:
         top = min(top, ceiling_ft)
-    altitudes = []
+    altitudes = set()
     candidate_ft = lowest_vfr_cruising_altitude(floor_ft, route_bearing_deg)
     while candidate_ft <= top:
-        altitudes.append(candidate_ft)
+        altitudes.add(candidate_ft)
         candidate_ft += 2000
-    return altitudes
+    if rule_from_ft is not None:
+        candidate_ft = math.ceil(floor_ft / 500) * 500
+        while candidate_ft <= min(top, rule_from_ft):
+            altitudes.add(float(candidate_ft))
+            candidate_ft += 500
+    return sorted(altitudes)
 
 
 def _service_ceiling_ft(aircraft_profile: dict, a: tuple, b: tuple, fcst_hr: str, temperatures: bool) -> float:
@@ -319,7 +341,7 @@ def select_cruise_altitude(
         # recommendation with a note about what's missing, not a rewritten
         # icing/ceiling/hazard verdict pretending the missing source
         # means "no concern found."
-        floors_ft = floor_future.result()
+        floors = floor_future.result()
         airspace_ceilings_ft = airspace_future.result()
         transits = transits_future.result()
         # The hemispheric rule is written for magnetic course, and the
@@ -353,6 +375,11 @@ def select_cruise_altitude(
     freezing_level_ft = freezing["ft"] if freezing else None
     freezing_at_or_below = bool(freezing and freezing["at_or_below"])
 
+    floors_ft = [segment.floor_ft for segment in floors]
+    # Where the hemispheric rule begins, over each leg and over the whole
+    # route: 3,000 ft above the lowest ground under it.
+    rules_from_ft = [segment.lowest_ground_ft + HEMISPHERIC_RULE_AGL_FT for segment in floors]
+
     # Each leg's lowest forecast cloud base (MSL), from the TAFs near it:
     # the legs flown, or the direct line as the one leg.
     legs = list(pairwise(fixes)) if fixes else [(route_start, route_end)]
@@ -376,13 +403,13 @@ def select_cruise_altitude(
         ] if c is not None]
         return min(ceilings) if ceilings else None
 
-    def band(floor, airspace_ceiling, service_ceiling, cloud_base, course, areas):
+    def band(floor, airspace_ceiling, service_ceiling, cloud_base, course, areas, rule_from):
         """(ceiling, legal altitudes, cloud clearance kept): the legal
         altitudes from the floor to the lowest ceiling, the clouds'
         included, none through a prohibited area -- or, where the clouds
         leave none, the band without them, and False."""
         def legal(ceiling):
-            return [a for a in legal_cruising_altitudes(floor, ceiling, course) if not sua.blocked(a, areas)]
+            return [a for a in legal_cruising_altitudes(floor, ceiling, course, rule_from) if not sua.blocked(a, areas)]
         ceiling = band_ceiling(airspace_ceiling, service_ceiling, cloud_base)
         altitudes = legal(ceiling)
         if altitudes or cloud_base is None:
@@ -394,10 +421,12 @@ def select_cruise_altitude(
     # shelf, cloud and service ceiling anywhere along it -- the altitude
     # that works everywhere.
     floor_ft = max(floors_ft)
+    rule_from_ft = min(rules_from_ft)
     shelf_floors = [c for c in airspace_ceilings_ft if c is not None]
     airspace_ceiling_ft = min(shelf_floors) if shelf_floors else None
     band_ceiling_ft, candidates_ft, cloud_clearance_kept = band(
-        floor_ft, airspace_ceiling_ft, service_ceiling_ft, cloud_base_ft, course_magnetic_deg, special_use)
+        floor_ft, airspace_ceiling_ft, service_ceiling_ft, cloud_base_ft, course_magnetic_deg, special_use,
+        rule_from_ft)
 
     # The lowest legal VFR cruising altitude at or above the floor, not
     # the highest one under the ceiling.
@@ -431,7 +460,7 @@ def select_cruise_altitude(
             leg_course = _leg_course_magnetic_deg(fixes[i], fixes[i + 1])
             segment_ceiling_ft, segment_candidates_ft, segment_clearance_kept = band(
                 floors_ft[i], airspace_ceilings_ft[i], service_ceilings_ft[i], leg_cloud_base_ft, leg_course,
-                [area for area in special_use if i in area["legs"]])
+                [area for area in special_use if i in area["legs"]], rules_from_ft[i])
             segments.append({
                 "from_nm": round(a, 1),
                 "to_nm": round(b, 1),
@@ -445,6 +474,7 @@ def select_cruise_altitude(
                 "band_ceiling_ft": segment_ceiling_ft,
                 "course_magnetic_deg": round(leg_course, 1),
                 "eastbound": is_eastbound(leg_course),
+                "hemispheric_rule_from_ft": round(rules_from_ft[i]),
                 "candidates_ft": segment_candidates_ft,
             })
 
@@ -476,6 +506,9 @@ def select_cruise_altitude(
         "candidates_ft": candidates_ft,
         "course_magnetic_deg": round(course_magnetic_deg, 1),
         "eastbound": is_eastbound(course_magnetic_deg),
+        # The rule applies above this: 3,000 ft over the lowest ground on
+        # the route. Below it, any altitude.
+        "hemispheric_rule_from_ft": round(rule_from_ft),
         "floor_ft": floor_ft,
         "airspace_ceiling_ft": airspace_ceiling_ft,
         # The aeroplane's service ceiling where it is in the forecast air

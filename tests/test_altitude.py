@@ -1,6 +1,7 @@
 """vfr.altitude.select_cruise_altitude with its data sources stubbed: the
-hemispheric rule leg by leg, and the freezing level as an icing warning
-rather than a ceiling."""
+hemispheric rule leg by leg, and every 500 ft within 3,000 ft of the
+ground where it does not apply; and the freezing level as an icing
+warning rather than a ceiling."""
 from pathlib import Path
 
 import pytest
@@ -14,12 +15,14 @@ DOGLEG = (45.5, -89.85)                            # east of the line
 
 @pytest.fixture
 def sources(monkeypatch):
-    """Flat 2,000 ft floor, no airspace, no variation, and weather the
-    test sets -- a standard day's temperatures unless it sets them."""
+    """Flat 2,000 ft floor over 1,500 ft ground -- so the hemispheric rule
+    begins at 4,500 ft -- no airspace, no variation, and weather the test
+    sets: a standard day's temperatures unless it sets them."""
     state = {"freezing": None, "cv": {"min_ceiling_ft": None, "min_visibility_sm": None, "stations": []},
              "hazards": [], "temperatures": []}
     monkeypatch.setattr(airspace, "ensure_class_airspace_shapefile", lambda cache_dir: Path("/nowhere"))
-    monkeypatch.setattr(terrain, "floor_profile", lambda start, end, breaks, faa_cache_dir=None: [2000.0] * (len(breaks) - 1))
+    monkeypatch.setattr(terrain, "floor_profile", lambda start, end, breaks, faa_cache_dir=None: (
+        [terrain.SegmentFloor(2000.0, 1500.0)] * (len(breaks) - 1)))
     monkeypatch.setattr(airspace, "airspace_ceiling_profile", lambda start, end, fixes, shp: [None] * (len(fixes) - 1))
     monkeypatch.setattr(airspace, "airspace_transits", lambda start, end, shp, fixes=None: [])
     monkeypatch.setattr(altitude, "magnetic_variation_deg", lambda lat, lon: 0.0)
@@ -32,14 +35,43 @@ def sources(monkeypatch):
     return state
 
 
+def _above_the_rule(segment):
+    return [a for a in segment["candidates_ft"] if a > segment["hemispheric_rule_from_ft"]]
+
+
 def test_each_leg_is_rounded_to_its_own_magnetic_course(sources):
     """A north-bound route with a dogleg east of the line: the first leg
-    flies 010-ish (odd thousands plus 500), the second 350-ish (even)."""
+    flies 010-ish (odd thousands plus 500), the second 350-ish (even),
+    above 3,000 ft over the ground."""
     result = altitude.select_cruise_altitude(DEP, DEST, PROFILE, fixes=[DEP, DOGLEG, DEST])
 
     first, second = result["segments"]
-    assert first["eastbound"] is True and first["candidates_ft"][0] == 3500.0
-    assert second["eastbound"] is False and second["candidates_ft"][0] == 2500.0
+    assert first["eastbound"] is True and _above_the_rule(first)[:2] == [5500.0, 7500.0]
+    assert second["eastbound"] is False and _above_the_rule(second)[:2] == [6500.0, 8500.0]
+
+
+def test_within_3000_ft_of_the_ground_every_500_ft_is_legal(sources):
+    """14 CFR 91.159 is for cruising more than 3,000 ft above the surface:
+    under that, any altitude, so every 500 ft from the floor is offered
+    beside the rule's."""
+    result = altitude.select_cruise_altitude(DEP, DEST, PROFILE)
+
+    assert result["hemispheric_rule_from_ft"] == 4500
+    assert result["candidates_ft"][:8] == [2000.0, 2500.0, 3000.0, 3500.0, 4000.0, 4500.0, 5500.0, 7500.0]
+
+
+def test_a_low_cloud_deck_keeps_the_altitudes_under_it_the_rule_left_out(sources):
+    # Cloud at 3,200 ft MSL over the leg: nothing above 2,700. Eastbound,
+    # the rule's first altitude is 3,500 -- too close to the cloud -- and
+    # the leg had none; within 3,000 ft of the ground 2,000 and 2,500 are
+    # legal.
+    sources["cv"] = {"min_ceiling_ft": 2200, "min_visibility_sm": 5.0,
+                     "stations": [_station("KXYZ", 45.5, -90.0, 2200)]}
+
+    result = altitude.select_cruise_altitude(DEP, DEST, PROFILE, fixes=[DEP, DEST])
+
+    (leg,) = result["segments"]
+    assert leg["candidates_ft"] == [2000.0, 2500.0] and leg["cloud_clearance_kept"] is True
 
 
 def test_the_freezing_level_no_longer_caps_the_altitudes(sources):
@@ -93,7 +125,7 @@ def test_no_altitude_enters_a_prohibited_area_the_route_crosses(sources):
     result = altitude.select_cruise_altitude(DEP, DEST, PROFILE, fixes=[DEP, DOGLEG, DEST])
 
     first, second = result["segments"]
-    assert first["candidates_ft"][0] == 3500.0
+    assert first["candidates_ft"][0] == 2000.0
     assert min(second["candidates_ft"]) > 5000.0
     assert min(result["candidates_ft"]) > 5000.0            # the whole route crosses it
     assert result["special_use"][0]["name"] == "P-99"
@@ -107,7 +139,7 @@ def test_a_restricted_area_is_listed_but_not_a_ceiling(sources):
 
     result = altitude.select_cruise_altitude(DEP, DEST, PROFILE)
 
-    assert result["candidates_ft"][0] == 3500.0
+    assert result["candidates_ft"][0] == 2000.0
     assert result["special_use"][0]["type"] == "R"
 
 
@@ -186,10 +218,10 @@ def test_clouds_too_low_over_the_floor_are_said_and_the_leg_keeps_its_band(sourc
     result = altitude.select_cruise_altitude(DEP, DEST, PROFILE, fixes=[DEP, DEST])
 
     (leg,) = result["segments"]
-    # Due north: odd thousands plus 500, the first over the floor 3,500.
-    assert leg["cloud_clearance_kept"] is False and leg["candidates_ft"][0] == 3500.0
+    # The floor itself, 2,000, within 3,000 ft of the ground.
+    assert leg["cloud_clearance_kept"] is False and leg["candidates_ft"][0] == 2000.0
     assert leg["band_ceiling_ft"] == 14000 and leg["cloud_ceiling_ft"] == 1700
-    assert result["cloud_clearance_kept"] is False and result["recommended_ft"] == 3500.0
+    assert result["cloud_clearance_kept"] is False and result["recommended_ft"] == 2000.0
 
 
 def test_a_station_far_from_the_leg_does_not_cap_it(sources):
