@@ -1,8 +1,11 @@
 import { Fragment, useEffect, useRef } from "react";
 import { cn } from "cn";
-import { BrainCircuit, Eraser, ListFilter, Undo2 } from "lucide-react";
+import { BrainCircuit, Ellipsis, Eraser, ListFilter, Undo2 } from "lucide-react";
 import { useRetrain } from "../../dev/useRetrain";
-import IconButton from "../../../components/IconButton";
+import ToolbarButton from "../../../components/ToolbarButton";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
+} from "../../../components/ui/dropdown-menu";
 import { useConfirm } from "../../../components/useConfirm";
 import { NoteRow, SelectableRow } from "../../../components/SelectableRows";
 import { Badge } from "../../../components/ui/badge";
@@ -58,8 +61,11 @@ const COLUMNS = 4;
  * rating buttons underneath, so a corridor can be rated top to bottom
  * from here, on a phone where the map popup sits behind the drawer as
  * much as on a desktop. The filters, one row per axis, live in a
- * popover so the list has the height; Undo and Reset all are icon
- * buttons beside it, the same shape as the nav log's own.
+ * popover so the list has the height. The header's actions are toolbar
+ * buttons, a word under each icon as the nav log's are: Filter and Undo,
+ * used all through a walk, and More, which holds what is done once --
+ * Retrain, and Reset all ratings in red at the bottom, away from Undo,
+ * where it sat beside it as a red eraser.
  */
 export default function WaypointPanel({
   entries, selected, onFocus, onRate, distanceNm, bearingDeg, departureIdent, destinationIdent,
@@ -102,14 +108,10 @@ export default function WaypointPanel({
       <div className="flex flex-col gap-1 border-b border-border p-3 text-sm">
         <div className="flex items-center gap-2">
           <span className="text-base font-semibold" data-testid="drawer-title">Model Training</span>
-          {/* gap-2: the icons' 44-point hit areas abut rather than
-              overlap, so a tap at one's edge is that one's. */}
-          <div className="ml-auto flex items-center gap-2">
+          <div className="ml-auto flex items-center gap-1">
             <Popover>
               <PopoverTrigger asChild>
-                <IconButton label="Filters" data-testid="waypoint-filters-button">
-                  <ListFilter className="size-5" />
-                </IconButton>
+                <ToolbarButton text="Filter" label="Filters" icon={<ListFilter />} data-testid="waypoint-filters-button" />
               </PopoverTrigger>
               {/* w-80: the widest row ("Source detected (343) added
                   (13)") needs the room; a narrower popover clipped its
@@ -118,25 +120,27 @@ export default function WaypointPanel({
                 <FilterBar filters={filters} onChange={onFilterChange} counts={counts} />
               </PopoverContent>
             </Popover>
-            <IconButton label="Undo" onClick={onUndo} disabled={!canUndo} data-testid="undo-button">
-              <Undo2 className="size-5" />
-            </IconButton>
-            <IconButton
-              label="Reset all ratings"
-              className="text-destructive hover:text-destructive"
-              onClick={askReset}
-              disabled={rated === 0}
-            >
-              <Eraser className="size-5" />
-            </IconButton>
-            <IconButton
-              label={retrain.running ? "Retraining…" : retrain.reachable ? "Retrain the model on every rating" : "Retrain (Airflow is not reachable)"}
-              onClick={retrain.start}
-              disabled={!retrain.canStart}
-              data-testid="retrain-button"
-            >
-              <BrainCircuit className={retrain.running ? "size-5 animate-pulse" : "size-5"} />
-            </IconButton>
+            <ToolbarButton text="Undo" icon={<Undo2 />} onClick={onUndo} disabled={!canUndo} data-testid="undo-button" />
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                {/* Pulsing while a retrain runs, as the retrain button did. */}
+                <ToolbarButton
+                  text="More" label="More actions" data-testid="training-more-button"
+                  icon={<Ellipsis className={retrain.running ? "animate-pulse" : undefined} />}
+                />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="min-w-56">
+                <DropdownMenuItem onSelect={retrain.start} disabled={!retrain.canStart} data-testid="retrain-button">
+                  <BrainCircuit />
+                  {retrain.running ? "Retraining…" : retrain.reachable ? "Retrain the model" : "Retrain (Airflow not reachable)"}
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem variant="destructive" onSelect={askReset} disabled={rated === 0} data-testid="reset-ratings-button">
+                  <Eraser />
+                  Reset all ratings
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             {resetDialog}
             {retrain.confirmDialog}
           </div>

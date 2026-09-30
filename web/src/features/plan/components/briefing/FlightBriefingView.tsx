@@ -2,10 +2,11 @@ import { useMemo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { cn } from "cn";
 import { Check, CloudOff, Loader2, Save, TriangleAlert } from "lucide-react";
-import IconButton from "../../../../components/IconButton";
+import ToolbarButton from "../../../../components/ToolbarButton";
 import { Alert, AlertDescription, AlertTitle } from "../../../../components/ui/alert";
 import { Badge } from "../../../../components/ui/badge";
 import AccordionSection from "../../../../components/AccordionSection";
+import { ListGroup, ListRow } from "../../../../components/GroupedList";
 import { api } from "../../../../lib/api/client";
 import { pilotQuery } from "../../../../lib/queryClient";
 import AltitudeReasoning from "../AltitudeReasoning";
@@ -14,9 +15,9 @@ import type {
 } from "../../../../lib/api/types";
 import type { FrameworkNarrative } from "../../hooks/useNarratives";
 import type { BriefingState } from "../../hooks/usePlan";
-import { altFt, clockTime, deg } from "../../format";
+import { altFt, clockTime, deg, describeSteps, describeTime } from "../../format";
 import { navLogRows, savedCheckpoints } from "../navlog/rows";
-import { colourOf } from "../../../../lib/map/flightCategory";
+import { CATEGORY_RANK, categoryOf, colourOf } from "../../../../lib/map/flightCategory";
 
 interface Props {
   nav: NavLogAltitude | null;
@@ -88,24 +89,83 @@ const WEATHER_SOURCE_LABEL: Record<Briefing["weather_unavailable"][number], stri
   metars: "current METARs",
 };
 
-/** The distinct (direction, speed) pairs actually present among the
- *  nav log's own per-leg wind data -- not every leg individually
- *  (many share the same nearest winds-aloft station and so report
- *  identical wind), and not a second aviationweather.gov call: this
- *  is a summary of what the nav log already fetched. */
-function windsAloftSummary(legs: Leg[]): { dir: number; speed: number }[] {
-  const seen = new Set<string>();
-  const distinct: { dir: number; speed: number }[] = [];
+/** Consecutive legs flown in the same wind at the same altitude, as one
+ *  stretch of the route: many legs share their nearest winds-aloft
+ *  station, and so report the same wind. From the nav log's own per-leg
+ *  winds -- a summary of what it already fetched, not a second call. */
+function windStretches(legs: Leg[]): { from: string; to: string; altitudeFt: number; wind: { dir: number; speed: number } | null }[] {
+  const stretches: { from: string; to: string; altitudeFt: number; wind: { dir: number; speed: number } | null }[] = [];
   for (const leg of legs) {
-    if (!leg.wind) continue;
-    const dir = Math.round(leg.wind.wind_dir_true_deg);
-    const speed = Math.round(leg.wind.wind_speed_kt);
-    const key = `${dir},${speed}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    distinct.push({ dir, speed });
+    const wind = leg.wind ? { dir: Math.round(leg.wind.wind_dir_true_deg), speed: Math.round(leg.wind.wind_speed_kt) } : null;
+    const last = stretches[stretches.length - 1];
+    const same = last && last.altitudeFt === leg.altitude_ft
+      && (last.wind === null ? wind === null : wind !== null && last.wind.dir === wind.dir && last.wind.speed === wind.speed);
+    if (same) last.to = leg.to;
+    else stretches.push({ from: leg.from, to: leg.to, altitudeFt: leg.altitude_ft, wind });
   }
-  return distinct;
+  return stretches;
+}
+
+/** Ceiling and visibility the way a briefer says them. */
+function ceilingAndVisibility(ceilingFt: number | null | undefined, visibilitySm: number | null | undefined): string {
+  return `${ceilingFt == null ? "no ceiling" : `${altFt(ceilingFt)} ft`} · ${visibilitySm == null ? "—" : `${visibilitySm} sm`}`;
+}
+
+/** A flight category as a badge in its own colour. */
+function CategoryBadge({ category }: { category: string | null | undefined }) {
+  if (!category) return null;
+  return <Badge style={{ backgroundColor: colourOf(category), color: "white" }}>{category}</Badge>;
+}
+
+/** Frequency types by what a pilot calls them. The FAA's own
+ *  description beside each is often the type again ("TWR (TWR)"), and
+ *  is shown only when it adds something. */
+const FREQUENCY_NAMES: Record<string, string> = {
+  TWR: "Tower", GND: "Ground", ATIS: "ATIS", UNIC: "UNICOM", UNICOM: "UNICOM", CTAF: "CTAF",
+  APP: "Approach", APCH: "Approach", DEP: "Departure", "A/D": "Approach and departure",
+  CLD: "Clearance delivery", CD: "Clearance delivery", AWOS: "AWOS", ASOS: "ASOS", AFIS: "AFIS",
+  FSS: "Flight service", MULT: "MULTICOM", MULTICOM: "MULTICOM", RDO: "Radio",
+};
+
+function frequencyName(type: string | null | undefined, description: string | null | undefined): { name: string; detail: string | null } {
+  const code = (type ?? "").trim().toUpperCase();
+  const name = FREQUENCY_NAMES[code] ?? type ?? description ?? "Frequency";
+  const detail = description?.trim() ?? "";
+  const redundant = !detail || [code, name.toUpperCase()].includes(detail.toUpperCase());
+  return { name, detail: redundant ? null : detail };
+}
+
+/** The frequency a pilot calls first there: the tower, else the CTAF,
+ *  else UNICOM. */
+function primaryFrequency(frequencies: { type?: string | null; frequency_mhz?: number | null }[]): string | null {
+  for (const code of ["TWR", "CTAF", "UNIC"]) {
+    const f = frequencies.find(x => (x.type ?? "").toUpperCase() === code && x.frequency_mhz != null);
+    if (f) return `${FREQUENCY_NAMES[code]} ${f.frequency_mhz}`;
+  }
+  return null;
+}
+
+const SURFACE_NAMES: Record<string, string> = {
+  ASP: "asphalt", ASPH: "asphalt", CON: "concrete", CONC: "concrete", TURF: "turf", GRS: "grass", GRASS: "grass",
+  GRVL: "gravel", GRAVEL: "gravel", DIRT: "dirt", WATER: "water", SNOW: "snow",
+};
+
+function surfaceName(surface: string | null | undefined): string | null {
+  if (!surface) return null;
+  const code = (surface.split(/[-/ ]/)[0] ?? "").toUpperCase();
+  return SURFACE_NAMES[code] ?? surface.toLowerCase();
+}
+
+const PLAN_LABEL: Record<string, string> = { lowest: "Lowest", highest: "Highest", fastest: "Fastest" };
+
+/** The altitudes a plan flies as the nav log's header gives them: one
+ *  figure, or its lowest and highest. */
+function altitudeRange(nav: NavLogAltitude): string {
+  const chosen = nav.options.find(o => o.kind === nav.flown);
+  const alts = chosen ? chosen.steps.map(s => s.altitude_ft) : nav.altitude_ft != null ? [nav.altitude_ft] : [];
+  if (alts.length === 0) return "No altitude";
+  const low = Math.min(...alts), high = Math.max(...alts);
+  return low === high ? `${altFt(low)} ft` : `${altFt(low)}–${altFt(high)} ft`;
 }
 
 /**
@@ -119,9 +179,9 @@ function windsAloftSummary(legs: Leg[]): { dir: number; speed: number }[] {
  * about it from here, and a disabled button with no explanation reads
  * as broken rather than as "sign in first."
  *
- * An icon button in the drawer's header, beside the narrative and
- * Print (PlanWorkspace puts it there), its state its name: Save this
- * flight, Saving…, Saved. It was a line of its own at the head of the
+ * A toolbar button in the drawer's header, beside the narrative and
+ * Print (PlanWorkspace puts it there), its state its word: Save,
+ * Saving…, Saved. It was a line of its own at the head of the
  * sections, with the aeroplane the flight would be filed in spelled
  * out beside it; that aeroplane is the header's own picker, a line
  * above.
@@ -181,16 +241,16 @@ export function SaveFlightButton({
 
   if (!pilot) return null;
 
-  const label = save.isPending ? "Saving…" : saved ? "Saved" : "Save this flight";
+  const text = save.isPending ? "Saving…" : saved ? "Saved" : "Save";
   return (
-    <IconButton
-      label={label}
+    <ToolbarButton
+      text={text}
+      label={save.isPending || saved ? text : "Save this flight"}
+      icon={save.isPending ? <Loader2 className="animate-spin" /> : saved ? <Check /> : <Save />}
       onClick={() => request && save.mutate(request)}
       disabled={!request || save.isPending || saved}
       data-testid="save-flight-button"
-    >
-      {save.isPending ? <Loader2 className="size-5 animate-spin" /> : saved ? <Check className="size-5" /> : <Save className="size-5" />}
-    </IconButton>
+    />
   );
 }
 
@@ -215,7 +275,7 @@ export default function FlightBriefingView({
   briefing: briefingState,
   langgraphNarrative, crewaiNarrative,
 }: Props) {
-  const winds = windsAloftSummary(legs);
+  const stretches = windStretches(legs);
   // "VFR flight not recommended" (AIM 7-1-5) and its reasons are the
   // planner's call (vfr.weather), made against 14 CFR 91.155's minimums
   // in one place; this page states them.
@@ -225,6 +285,43 @@ export default function FlightBriefingView({
     briefingState.state === "waiting" ? "The briefing follows once the route's course is drawn."
       : briefingState.state === "failed" ? `Briefing data is unavailable (${briefingState.detail}).`
         : "Fetching METARs, forecasts, hazards, runways and frequencies…";
+  const unchecked = (source: Briefing["weather_unavailable"][number]) => briefing?.weather_unavailable.includes(source) ?? false;
+
+  // Each section in one line, under its title, so the drawer reads
+  // without opening all of them: what the briefing found there, or
+  // nothing while it is still coming.
+  const destStation = briefing?.forecast.stations.find(st => st.icaoId === dest);
+  const enRoute = (briefing?.forecast.stations ?? [])
+    .filter(st => st.icaoId !== dest)
+    .map(st => ({ ...st, category: categoryOf(st.ceiling_ft, st.visibility_sm) }))
+    .sort((a, b) =>
+      (CATEGORY_RANK[b.category ?? ""] ?? -1) - (CATEGORY_RANK[a.category ?? ""] ?? -1)
+      || (a.ceiling_ft ?? Infinity) - (b.ceiling_ft ?? Infinity)
+      || (a.visibility_sm ?? Infinity) - (b.visibility_sm ?? Infinity));
+  const chosen = nav?.options.find(o => o.kind === nav.flown);
+  const destFrequency = briefing ? primaryFrequency(briefing.airports[dest]?.frequencies ?? []) : null;
+  const summaries = {
+    adverse: !briefing ? undefined
+      : unchecked("hazards") ? "Not checked"
+        : briefing.hazards.length === 0 ? "None along the route"
+          : `${briefing.hazards.length} SIGMET${briefing.hazards.length === 1 ? "" : "s"} or AIRMET${briefing.hazards.length === 1 ? "" : "s"}`,
+    current: !briefing ? undefined
+      : unchecked("metars") ? "Not checked"
+        : [dep, dest].map(ident => `${ident} ${briefing.metars[ident]?.flight_category ?? "no report"}`).join(" · "),
+    destination: !briefing ? undefined
+      : unchecked("forecast") ? "Not checked"
+        : destStation ? `${dest} ${ceilingAndVisibility(destStation.ceiling_ft, destStation.visibility_sm)}` : `No TAF for ${dest}`,
+    enRoute: !briefing ? undefined
+      : unchecked("forecast") ? "Not checked"
+        : `Worst ${ceilingAndVisibility(briefing.forecast.min_ceiling_ft, briefing.forecast.min_visibility_sm)}`,
+    cruise: !nav ? undefined
+      : nav.flown === "custom" ? `${altFt(nav.altitude_ft)} ft, your own`
+        : `${altitudeRange(nav)}${chosen ? ` · ${PLAN_LABEL[chosen.kind]}` : ""}`,
+    winds: chosen?.tailwind_kt != null
+      ? `${Math.abs(Math.round(chosen.tailwind_kt))} kt ${chosen.tailwind_kt >= 0 ? "tailwind" : "headwind"} on average`
+      : stretches.some(st => st.wind) ? `${stretches.filter(st => st.wind).length} stretches of wind` : undefined,
+    airports: !briefing ? undefined : destFrequency ? `${dest} ${destFrequency}` : `${dep} · ${dest}`,
+  };
 
   return (
     // No header, title or scroller of its own: the flight planning
@@ -234,13 +331,6 @@ export default function FlightBriefingView({
     // section and these together (and opens every one for the
     // printer -- see NavLogView).
     <>
-      {/* No summary section: the drawer's own header already carries
-          the route's totals, the altitude and the aeroplane, and a
-          second copy of them behind a fold was the same facts twice.
-          "Save this flight" is what that section had of its own, and
-          it is in that header now too (SaveFlightButton). Every
-          weather section below stays collapsed -- skim the titles,
-          open what applies. */}
       {briefingState.state === "ready" && briefingState.refreshError && (
         // The last briefing stays up after a refresh that failed -- say
         // so, and how old it is, as the map's airport chips do.
@@ -250,28 +340,14 @@ export default function FlightBriefingView({
         </p>
       )}
 
-      {/* Not gated behind `briefing` -- narrative is its own separate,
-          user-triggered fetch, and NOTAMs/Winds Aloft need only
-          `legs`/`nav`, already loaded well before the briefing fetch
-          even starts. Each section below that DOES need `briefing`
-          still renders immediately (a pilot can see and open every
-          section from the moment the page mounts) and shows its own
-          loading line in place of real content until that one fetch
-          resolves -- rather than the whole batch of them staying
-          entirely absent from the page until every field of one
-          response is in, which is what made this page read as slow
-          to populate. */}
+      {/* The narrative, printed only: on screen it is the drawer
+          header's popover, which prints nothing. */}
       <BriefingNarrativePrintBlock langgraph={langgraphNarrative.text} crewai={crewaiNarrative.text} />
 
-      {/* Neither loading nor a failed fetch has a banner here: PlanWorkspace's
-          toasts report both (the failure's toast carries the Try-again
-          action), so the sections below only ever show their own
-          content or a placeholder line. */}
-
-      <AccordionSection title="Adverse Conditions">
+      <AccordionSection title="Adverse Conditions" summary={summaries.adverse}>
         {!briefing ? (
           <p className="text-sm text-muted-foreground">{briefingPendingMessage}</p>
-        ) : briefing.weather_unavailable.includes("hazards") ? (
+        ) : unchecked("hazards") ? (
           <p className="text-sm text-amber-700 dark:text-amber-300">
             SIGMET/AIRMET data could not be checked — aviationweather.gov didn’t respond. Verify separately before flight.
           </p>
@@ -295,6 +371,7 @@ export default function FlightBriefingView({
 
       <AccordionSection
         title="Current Conditions"
+        summary={summaries.current}
         // Seen with the section folded: the reasons are inside it, but
         // that VFR is not recommended is on its title, not behind a tap.
         aside={vnrReasons.length > 0 ? (
@@ -320,7 +397,7 @@ export default function FlightBriefingView({
         )}
         {!briefing ? (
           <p className="text-sm text-muted-foreground">{briefingPendingMessage}</p>
-        ) : briefing.weather_unavailable.includes("metars") ? (
+        ) : unchecked("metars") ? (
           <p className="text-sm text-amber-700 dark:text-amber-300">
             Current conditions could not be checked — aviationweather.gov didn’t respond. Verify separately before flight.
           </p>
@@ -332,11 +409,7 @@ export default function FlightBriefingView({
                 <div key={ident} className="rounded border border-border px-2 py-1.5">
                   <div className="flex items-baseline justify-between gap-2">
                     <span className="font-semibold">{ident}</span>
-                    {metar?.flight_category && (
-                      <Badge style={{ backgroundColor: colourOf(metar.flight_category), color: "white" }}>
-                        {metar.flight_category}
-                      </Badge>
-                    )}
+                    <CategoryBadge category={metar?.flight_category} />
                   </div>
                   <div className="mt-0.5 whitespace-pre-wrap font-mono text-xs text-muted-foreground">
                     {metar?.raw ?? "No current report available."}
@@ -350,133 +423,119 @@ export default function FlightBriefingView({
 
       {/* Split into its own two standard elements (AIM 7-1-5(e)/(f))
           rather than one blended list -- a briefer states the
-          destination's own forecast as its own line, not one entry
-          among however many en route stations happen to have a TAF,
-          since it's the one that actually decides go/no-go on arrival. */}
-      <AccordionSection title="Destination Forecast">
+          destination's own forecast as its own line, since it is the
+          one that decides go/no-go on arrival. */}
+      <AccordionSection title="Destination Forecast" summary={summaries.destination}>
         {!briefing ? (
           <p className="text-sm text-muted-foreground">{briefingPendingMessage}</p>
-        ) : briefing.weather_unavailable.includes("forecast") ? (
+        ) : unchecked("forecast") ? (
           <p className="text-sm text-amber-700 dark:text-amber-300">
             Forecast data could not be checked — aviationweather.gov didn’t respond. Verify separately before flight.
           </p>
-        ) : (() => {
-          const destStation = briefing.forecast.stations.find(st => st.icaoId === dest);
-          return destStation ? (
-            <p className="text-sm text-muted-foreground">
-              {dest}: ceiling {altFt(destStation.ceiling_ft)} ft, visibility {destStation.visibility_sm ?? "—"} sm.
-            </p>
-          ) : (
-            <p className="text-sm text-muted-foreground">No TAF published for {dest}.</p>
-          );
-        })()}
-      </AccordionSection>
-
-      <AccordionSection title="En Route Forecast">
-        {!briefing ? (
-          <p className="text-sm text-muted-foreground">{briefingPendingMessage}</p>
-        ) : briefing.weather_unavailable.includes("forecast") ? (
-          <p className="text-sm text-amber-700 dark:text-amber-300">
-            Forecast data could not be checked — aviationweather.gov didn’t respond. Verify separately before flight.
-          </p>
+        ) : destStation ? (
+          <ListGroup footer="The worst forecast period of its TAF.">
+            <ListRow title="Ceiling" value={destStation.ceiling_ft == null ? "none" : `${altFt(destStation.ceiling_ft)} ft`} />
+            <ListRow title="Visibility" value={destStation.visibility_sm == null ? "—" : `${destStation.visibility_sm} sm`} />
+            <ListRow title="Category"><CategoryBadge category={categoryOf(destStation.ceiling_ft, destStation.visibility_sm)} /></ListRow>
+          </ListGroup>
         ) : (
-          <>
-            <p className="text-sm text-muted-foreground">
-              Along the route: ceiling {altFt(briefing.forecast.min_ceiling_ft)} ft,
-              visibility {briefing.forecast.min_visibility_sm ?? "—"} sm (worst nearby TAF period).
-            </p>
-            {briefing.forecast.stations.filter(st => st.icaoId !== dest).length > 0 && (
-              <ul className="mt-1 space-y-0.5 text-xs text-muted-foreground">
-                {briefing.forecast.stations.filter(st => st.icaoId !== dest).map(st => (
-                  <li key={st.icaoId}>
-                    {st.icaoId}: ceiling {altFt(st.ceiling_ft)} ft, visibility {st.visibility_sm ?? "—"} sm
-                  </li>
-                ))}
-              </ul>
-            )}
-          </>
+          <p className="text-sm text-muted-foreground">No TAF published for {dest}.</p>
         )}
       </AccordionSection>
 
-      {/* Not gated behind `briefing` -- everything here comes from
-          `nav.altitude_selection`, the same "altitude" stream message
-          the drawer header's own altitude line already used, not a
-          second fetch. Grouped here with Winds Aloft/NOTAMs rather
-          than first, for the same reason those two sit down here:
-          none of the three depend on
-          `briefing`, so none of them belong next to the "loading
-          briefing data" status banner above (which IS about the
-          briefing fetch) -- placing this one there read as if that
-          banner were reporting on it too, even though this section's
-          own data had already arrived by the time the banner showed.
-          Used to live behind Settings' own "Altitude Selection
-          Breakdown" demo panel (type any route in, see the reasoning
-          for it) -- moved here instead, since a pilot wants this
-          reasoning for the route they're actually flying, not a
-          one-off lookup independent of it. */}
-      {/* The planner's own reasoning, step by step -- the same steps
+      {/* Every station with a TAF near the route, the worst first: its
+          ceiling and visibility at the end of its row, and the category
+          they make as a badge, which is what is read at a glance. It was
+          a line of prose per station. */}
+      <AccordionSection title="En Route Forecast" summary={summaries.enRoute}>
+        {!briefing ? (
+          <p className="text-sm text-muted-foreground">{briefingPendingMessage}</p>
+        ) : unchecked("forecast") ? (
+          <p className="text-sm text-amber-700 dark:text-amber-300">
+            Forecast data could not be checked — aviationweather.gov didn’t respond. Verify separately before flight.
+          </p>
+        ) : enRoute.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No TAF published near the route.</p>
+        ) : (
+          <ListGroup footer="The worst forecast period of each TAF near the route, worst first." >
+            {enRoute.map(st => (
+              <ListRow key={st.icaoId} title={st.icaoId} value={ceilingAndVisibility(st.ceiling_ft, st.visibility_sm)}>
+                <CategoryBadge category={st.category} />
+              </ListRow>
+            ))}
+          </ListGroup>
+        )}
+      </AccordionSection>
+
+      {/* The plan being flown and the figures it was made within, first;
+          then how the planner got there, step by step -- the same steps
           the nav log header's "why" popover shows, here for the paper
           (a popover prints nothing) and for a pilot reading the
-          briefing top to bottom. A grid of bare figures used to sit
-          here; the steps carry every one of those figures with the
-          rule that used it. */}
-      <AccordionSection title="Cruise Altitude">
+          briefing top to bottom. From `nav.altitude_selection`, which
+          arrives with the nav log, not with the briefing. */}
+      <AccordionSection title="Cruise Altitude" summary={summaries.cruise}>
         {!nav ? (
           <p className="text-sm text-muted-foreground">Waiting on the nav log's altitude…</p>
         ) : (
-          <AltitudeReasoning nav={nav} />
+          <div className="space-y-3">
+            <ListGroup>
+              <ListRow
+                title={nav.flown === "custom" ? "Your own" : chosen ? `${PLAN_LABEL[chosen.kind]} plan` : "No plan"}
+                description={nav.flown === "custom" ? `${altFt(nav.altitude_ft)} ft all the way` : chosen ? describeSteps(chosen) : "The winds aloft could not be read."}
+                value={chosen ? describeTime(chosen) : undefined}
+              />
+              <ListRow title="Floor" description="Terrain and obstacles, with margin" value={`${altFt(nav.altitude_selection.floor_ft)} ft`} />
+              <ListRow
+                title="Ceiling"
+                description={nav.altitude_selection.airspace_ceiling_ft != null && nav.altitude_selection.airspace_ceiling_ft === nav.altitude_selection.band_ceiling_ft ? "The Class B shelf" : "The aeroplane's service ceiling"}
+                value={nav.altitude_selection.band_ceiling_ft == null ? "none" : `${altFt(nav.altitude_selection.band_ceiling_ft)} ft`}
+              />
+            </ListGroup>
+            <div>
+              <h3 className="px-1 pb-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">How it was chosen</h3>
+              <AltitudeReasoning nav={nav} />
+            </div>
+          </div>
         )}
       </AccordionSection>
 
-      <AccordionSection title="Winds Aloft">
-        {winds.length === 0 ? (
+      {/* The route's winds by stretch: consecutive legs that fly in the
+          same wind at the same altitude, one row each. It was a list of
+          directions and speeds with no way to tell where each blew. */}
+      <AccordionSection title="Winds Aloft" summary={summaries.winds}>
+        {!stretches.some(st => st.wind) ? (
           <p className="text-sm text-muted-foreground">No winds-aloft data available for this route.</p>
         ) : (
-          <p className="text-sm text-muted-foreground">
-            {winds.map(w => `${deg(w.dir)}/${w.speed}kt`).join(", ")} at {altFt(nav?.altitude_ft)} ft
-          </p>
+          <ListGroup>
+            {stretches.map((st, i) => (
+              <ListRow
+                key={i}
+                title={<span className="line-clamp-1">{st.from} → {st.to}</span>}
+                description={`${altFt(st.altitudeFt)} ft`}
+                value={st.wind ? `${deg(st.wind.dir)} ${st.wind.speed} kt` : "no wind data"}
+              />
+            ))}
+          </ListGroup>
         )}
       </AccordionSection>
 
-      <AccordionSection title="NOTAMs">
-        <p className="text-sm text-muted-foreground">
-          Not fetched here (the official FAA NOTAM API requires operator credentials) --
-          check current NOTAMs directly before you fly:{" "}
-          <a
-            href="https://www.1800wxbrief.com" target="_blank" rel="noreferrer"
-            className="text-foreground underline underline-offset-4"
-          >
-            1800wxbrief.com
-          </a>{" "}or{" "}
-          <a
-            href="https://notams.aim.faa.gov/notamSearch/" target="_blank" rel="noreferrer"
-            className="text-foreground underline underline-offset-4"
-          >
-            notams.aim.faa.gov
-          </a>.
-        </p>
+      {/* The standard elements this app can name but not fetch -- the
+          official NOTAM API and ATC flow-control data are gated to
+          certain operators -- in one place, each a link to where a pilot
+          gets it. They were two sections that could only ever say "Not
+          fetched here". */}
+      <AccordionSection title="Check before you fly" summary="NOTAMs, TFRs and ATC delays">
+        <ListGroup footer="The FAA's NOTAM and flow-control feeds need operator credentials, so these are not fetched here.">
+          <ListRow title="NOTAMs" description="1800wxbrief.com" href="https://www.1800wxbrief.com" />
+          <ListRow title="NOTAM search" description="notams.aim.faa.gov" href="https://notams.aim.faa.gov/notamSearch/" />
+          <ListRow title="Temporary flight restrictions" description="tfr.faa.gov" href="https://tfr.faa.gov" />
+          <ListRow title="ATC delays" description="fly.faa.gov" href="https://www.fly.faa.gov" />
+        </ListGroup>
       </AccordionSection>
 
-      {/* The last of the AIM 7-1-5 standard elements this page can name
-          but not actually fetch -- ATC flow-control advisories need a
-          live feed this app has no access to, the same reasoning
-          NOTAMs above already explains. Named and pointed somewhere
-          real rather than silently dropped, which is the one thing
-          that made those two elements different from every other one
-          on this page before this section existed. */}
-      <AccordionSection title="ATC Delays">
-        <p className="text-sm text-muted-foreground">
-          Not fetched here -- check current delays and flow-control advisories:{" "}
-          <a
-            href="https://www.fly.faa.gov" target="_blank" rel="noreferrer"
-            className="text-foreground underline underline-offset-4"
-          >
-            fly.faa.gov
-          </a>.
-        </p>
-      </AccordionSection>
-
-      <AccordionSection title="Airport Information">
+      {/* Each airport's frequencies by what a pilot calls them, and its
+          runways, a row each. They were "TWR (TWR): 118.3" lines. */}
+      <AccordionSection title="Airport Information" summary={summaries.airports}>
         {!briefing ? (
           <p className="text-sm text-muted-foreground">{briefingPendingMessage}</p>
         ) : (
@@ -484,32 +543,24 @@ export default function FlightBriefingView({
             {[dep, dest].map(ident => {
               const info = briefing.airports[ident];
               return (
-                <div key={ident} className="rounded border border-border px-2 py-1.5 text-sm">
-                  <div className="mb-1 font-semibold">{ident}</div>
-                  {info?.frequencies.length ? (
-                    <ul className="space-y-0.5">
-                      {info.frequencies.map((f, i) => (
-                        <li key={i} className="text-muted-foreground">
-                          {f.type ?? "—"}{f.description ? ` (${f.description})` : ""}: {f.frequency_mhz ?? "—"}
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="text-muted-foreground">No published frequencies.</p>
-                  )}
-                  {info?.runways.length ? (
-                    <ul className="mt-1 space-y-0.5">
-                      {info.runways.map((r, i) => (
-                        <li key={i} className="text-muted-foreground">
-                          {r.ends ?? "—"}: {r.length_ft ?? "—"}×{r.width_ft ?? "—"} ft, {r.surface ?? "unknown surface"}
-                          {r.lighted ? ", lighted" : ""}{r.closed ? " (closed)" : ""}
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="mt-1 text-muted-foreground">No published runway data.</p>
-                  )}
-                </div>
+                <ListGroup key={ident} title={ident}>
+                  {info?.frequencies.length
+                    ? info.frequencies.map((f, i) => {
+                      const { name, detail } = frequencyName(f.type, f.description);
+                      return <ListRow key={`f${i}`} title={name} description={detail ?? undefined} value={f.frequency_mhz ?? "—"} />;
+                    })
+                    : <ListRow title={<span className="text-muted-foreground">No published frequencies</span>} />}
+                  {info?.runways.length
+                    ? info.runways.map((r, i) => (
+                      <ListRow
+                        key={`r${i}`}
+                        title={`Runway ${r.ends ?? "—"}`}
+                        description={[surfaceName(r.surface), r.lighted && "lighted", r.closed && "closed"].filter(Boolean).join(" · ") || undefined}
+                        value={`${r.length_ft != null ? altFt(r.length_ft) : "—"} × ${r.width_ft ?? "—"} ft`}
+                      />
+                    ))
+                    : <ListRow title={<span className="text-muted-foreground">No published runway data</span>} />}
+                </ListGroup>
               );
             })}
           </div>

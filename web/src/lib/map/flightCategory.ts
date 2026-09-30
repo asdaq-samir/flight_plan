@@ -14,6 +14,24 @@ const CATEGORY_COLOURS: Record<string, string> = {
 };
 const UNKNOWN_COLOUR = "#8fa3b0";
 
+/** Worse is higher: for putting the worst first. */
+export const CATEGORY_RANK: Record<string, number> = { VFR: 0, MVFR: 1, IFR: 2, LIFR: 3 };
+
+/** The category a forecast's ceiling and visibility fall in, by the
+ *  FAA's own bounds (the worse of the two decides): LIFR under 500 ft or
+ *  1 sm, IFR under 1,000 ft or 3 sm, MVFR up to 3,000 ft or 5 sm, VFR
+ *  above both. No ceiling is no limit; neither known is no category. A
+ *  METAR comes with its category, a TAF period's figures do not. */
+export function categoryOf(ceilingFt: number | null | undefined, visibilitySm: number | null | undefined): string | null {
+  if (ceilingFt == null && visibilitySm == null) return null;
+  const ceiling = ceilingFt ?? Infinity;
+  const visibility = visibilitySm ?? Infinity;
+  if (ceiling < 500 || visibility < 1) return "LIFR";
+  if (ceiling < 1000 || visibility < 3) return "IFR";
+  if (ceiling <= 3000 || visibility <= 5) return "MVFR";
+  return "VFR";
+}
+
 export function colourOf(category: string | null | undefined): string {
   return (category && CATEGORY_COLOURS[category]) || UNKNOWN_COLOUR;
 }

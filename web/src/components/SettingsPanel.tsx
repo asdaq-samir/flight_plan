@@ -1,7 +1,7 @@
-import { Children, Fragment, useId, type ReactNode } from "react";
+import { useId, type ReactNode } from "react";
 import { Monitor, Moon, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
-import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemSeparator, ItemTitle } from "./ui/item";
+import { ListGroup, ListRow } from "./GroupedList";
 import { Label } from "./ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { Switch } from "./ui/switch";
@@ -55,23 +55,23 @@ function MapGroup() {
   const tacId = useId();
   const classBId = useId();
   return (
-    <Group title="Map">
-      <Row title="Chart">
+    <ListGroup title="Map">
+      <ListRow title="Chart">
         <Segmented
           label="Chart" value={base} onChange={v => setBase(v as BaseChart)} testId="base-chart-select"
           options={BASE_CHARTS.map(b => ({ value: b.kind, label: b.label }))}
         />
-      </Row>
+      </ListRow>
       {/* The terminal sheet that belongs over the base: the TAC over the
           sectional, the IFR area chart over the IFR charts. A Class B
           marker's card pins the same thing for its field. */}
-      <Row id={tacId} title={base === "sec" ? "Terminal area chart" : "IFR area chart"} description="Over the chart wherever there is one">
+      <ListRow id={tacId} title={base === "sec" ? "Terminal area chart" : "IFR area chart"} description="Over the chart wherever there is one">
         <Switch id={tacId} checked={tac} onCheckedChange={setTac} data-testid="tac-toggle" />
-      </Row>
-      <Row id={classBId} title="Class B airports" description="Their weather now; tap one for its chart">
+      </ListRow>
+      <ListRow id={classBId} title="Class B airports" description="Their weather now; tap one for its chart">
         <Switch id={classBId} checked={classB} onCheckedChange={setClassB} data-testid="class-b-toggle" />
-      </Row>
-    </Group>
+      </ListRow>
+    </ListGroup>
   );
 }
 
@@ -81,11 +81,11 @@ function CheckpointsGroup({ candidates }: { candidates?: PageSettings["candidate
   const zoomId = useId();
   const allId = useId();
   return (
-    <Group title="Checkpoints">
+    <ListGroup title="Checkpoints">
       {/* How far in the map has to be before the markers draw: a long
           route fits the screen zoomed a long way out, where a few
           hundred of them would hide the chart. */}
-      <Row id={zoomId} title="Show from" description="Zoomed out, markers hide the chart">
+      <ListRow id={zoomId} title="Show from" description="Zoomed out, markers hide the chart">
         <Select value={String(markerZoom)} onValueChange={value => setMarkerZoom(Number(value))}>
           <SelectTrigger id={zoomId} size="sm" aria-label="Show checkpoints from" data-testid="marker-zoom-select">
             <SelectValue />
@@ -94,13 +94,13 @@ function CheckpointsGroup({ candidates }: { candidates?: PageSettings["candidate
             {MARKER_ZOOMS.map(m => <SelectItem key={m.from} value={String(m.from)}>{m.label}</SelectItem>)}
           </SelectContent>
         </Select>
-      </Row>
+      </ListRow>
       {candidates && (
-        <Row id={allId} title="Every rated landmark" description="The dim dots the checkpoints were chosen from">
+        <ListRow id={allId} title="Every rated landmark" description="The dim dots the checkpoints were chosen from">
           <Switch id={allId} checked={candidates.on} onCheckedChange={candidates.onToggle} data-testid="candidates-toggle" />
-        </Row>
+        </ListRow>
       )}
-    </Group>
+    </ListGroup>
   );
 }
 
@@ -128,14 +128,14 @@ function PositionGroup() {
           + (fix.speedKt !== null ? ` · ${Math.round(fix.speedKt)} kt` : "")
           + (fix.headingDeg !== null ? ` · ${String(Math.round(fix.headingDeg)).padStart(3, "0")}°` : ""));
   return (
-    <Group title="My position" footer={<span data-testid="own-ship-status">{status}</span>}>
-      <Row id={showId} title="Show my position">
+    <ListGroup title="My position" footer={<span data-testid="own-ship-status">{status}</span>}>
+      <ListRow id={showId} title="Show my position">
         <Switch id={showId} checked={enabled} disabled={!available} onCheckedChange={setEnabled} data-testid="own-ship-toggle" />
-      </Row>
-      <Row id={followId} title="Keep the map on me">
+      </ListRow>
+      <ListRow id={followId} title="Keep the map on me">
         <Switch id={followId} checked={follow} disabled={!available || !enabled} onCheckedChange={setFollow} data-testid="own-ship-follow" />
-      </Row>
-    </Group>
+      </ListRow>
+    </ListGroup>
   );
 }
 
@@ -153,17 +153,17 @@ function AppearanceGroup() {
   const edge = useNavEdge();
   const setNavBar = usePreferences(s => s.setNavBar);
   return (
-    <Group title="Appearance">
-      <Row title="Theme">
+    <ListGroup title="Appearance">
+      <ListRow title="Theme">
         <Segmented label="Theme" value={theme ?? "system"} onChange={setTheme} testId="theme-select" options={THEMES} />
-      </Row>
-      <Row title="Navigation bar" description="Panels come in from the same edge">
+      </ListRow>
+      <ListRow title="Navigation bar" description="Panels come in from the same edge">
         <Segmented
           label="Navigation bar" value={edge} onChange={v => setNavBar(v as NavEdge)} testId="nav-bar-select"
           options={[{ value: "top", label: "Top" }, { value: "bottom", label: "Bottom" }]}
         />
-      </Row>
-    </Group>
+      </ListRow>
+    </ListGroup>
   );
 }
 
@@ -182,45 +182,6 @@ export function DevModeSwitch() {
       <Label htmlFor={id} className="text-sm font-normal text-muted-foreground">Dev</Label>
       <Switch id={id} checked={on} onCheckedChange={flip} aria-label="Dev mode" data-testid="dev-switch" />
     </div>
-  );
-}
-
-/** A heading, the rows in one rounded box with a hairline between each,
- *  and a note under the box. */
-function Group({ title, footer, children }: { title: string; footer?: ReactNode; children: ReactNode }) {
-  const id = useId();
-  const rows = Children.toArray(children).filter(Boolean);
-  return (
-    <section aria-labelledby={id}>
-      <h3 id={id} className="px-1 pb-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">{title}</h3>
-      <ItemGroup role="group" aria-labelledby={id} className="gap-0 rounded-lg border border-border bg-card">
-        {rows.map((row, i) => (
-          <Fragment key={i}>
-            {i > 0 && <ItemSeparator className="my-0" />}
-            {row}
-          </Fragment>
-        ))}
-      </ItemGroup>
-      {footer && <p className="px-1 pt-1.5 text-xs text-muted-foreground">{footer}</p>}
-    </section>
-  );
-}
-
-/** One setting: its name (a label for the control when `id` is given,
- *  so a tap on the words works the control) and a line of help, and the
- *  control at the row's end -- under the words, when the row is too
- *  narrow for both. */
-function Row({ id, title, description, children }: { id?: string; title: string; description?: string; children: ReactNode }) {
-  return (
-    <Item size="sm" className="min-h-11 rounded-none border-0 py-2">
-      <ItemContent className="min-w-0 gap-0.5">
-        <ItemTitle className="font-normal">
-          {id ? <Label htmlFor={id} className="font-normal">{title}</Label> : title}
-        </ItemTitle>
-        {description && <ItemDescription className="text-xs">{description}</ItemDescription>}
-      </ItemContent>
-      <ItemActions className="ml-auto">{children}</ItemActions>
-    </Item>
   );
 }
 

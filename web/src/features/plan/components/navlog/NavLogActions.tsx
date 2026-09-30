@@ -1,6 +1,6 @@
 import { Loader2, Printer, Sparkles } from "lucide-react";
 import { useState } from "react";
-import IconButton from "../../../../components/IconButton";
+import ToolbarButton from "../../../../components/ToolbarButton";
 import { Popover, PopoverContent, PopoverTrigger } from "../../../../components/ui/popover";
 import { ScrollArea } from "../../../../components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../../../components/ui/tabs";
@@ -40,7 +40,8 @@ interface Props {
 /**
  * The briefing's own actions -- generate a narrative, print this --
  * rendered in the nav log drawer's own header while it is open wide
- * as the briefing (NavLogView's `actions` slot).
+ * as the briefing (NavLogView's `actions` slot), each a toolbar button
+ * with its word under its icon: "Brief", "Print".
  *
  * One AI button next to Print, not two named ones -- LangGraph and
  * CrewAI live as two tabs inside the single popover it opens instead
@@ -85,9 +86,10 @@ export default function NavLogActions({ onGenerateNarrative, langgraphNarrative,
         }}
       >
         <PopoverTrigger asChild>
-          <IconButton label="Briefing narrative" data-testid="ai-narrative-button">
-            {activeNarrative.loading ? <Loader2 className="size-5 animate-spin" /> : <Sparkles className="size-5" />}
-          </IconButton>
+          <ToolbarButton
+            text="Brief" label="Briefing narrative" data-testid="ai-narrative-button"
+            icon={activeNarrative.loading ? <Loader2 className="animate-spin" /> : <Sparkles />}
+          />
         </PopoverTrigger>
         <PopoverContent align="end" className="w-80 p-0 text-sm">
           <Tabs
@@ -111,9 +113,7 @@ export default function NavLogActions({ onGenerateNarrative, langgraphNarrative,
           </Tabs>
         </PopoverContent>
       </Popover>
-      <IconButton onClick={() => window.print()} label="Print" data-testid="print-button">
-        <Printer className="size-5" />
-      </IconButton>
+      <ToolbarButton text="Print" icon={<Printer />} onClick={() => window.print()} data-testid="print-button" />
     </div>
   );
 }
