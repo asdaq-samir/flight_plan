@@ -109,6 +109,7 @@ export default function PlanWorkspace({ dep, dest, sidebarOpen, children }: Work
       ...(myAircraft ?? []).map(a => ({
         profile: baseProfile(a.typeDesignator, profiles ?? []), label: `${a.tailNumber} · ${a.typeDesignator}`,
         cruiseTasKt: a.cruiseTasKt, fuelBurnGph: a.fuelBurnGph, usableFuelGal: a.usableFuelGal ?? undefined,
+        cruisePowerPct: a.cruisePowerPct ?? undefined,
         climbTasKt: a.climbTasKt ?? undefined, climbFuelBurnGph: a.climbFuelBurnGph ?? undefined,
         aircraftId: a.id,
       })),

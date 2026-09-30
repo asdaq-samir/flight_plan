@@ -18,7 +18,8 @@ import {
 } from "../../components/ui/table";
 import { api } from "../../lib/api/client";
 import type { Aircraft, AircraftRequest, FlightSummary, Pilot } from "../../lib/api/types";
-import { feet } from "../../lib/units";
+import { CRUISE_REFERENCE_FT } from "../../lib/performance";
+import { altFt, feet } from "../../lib/units";
 
 /** Who is signed in, or why nobody is: null signed out, "loading"
  *  while the check is in flight, "error" when it failed. */
@@ -40,6 +41,12 @@ const optionalPositiveNumber = (label: string) => z.string().trim().refine(
   value => value === "" || (Number.isFinite(Number(value)) && Number(value) > 0),
   `${label} must be a positive number`,
 );
+/** Blank, or a power a cruise table has: 40 to 100 percent, the
+ *  server's limits and the planner's. */
+const optionalPercent = (label: string) => z.string().trim().refine(
+  value => value === "" || (Number.isFinite(Number(value)) && Number(value) >= 40 && Number(value) <= 100),
+  `${label} must be between 40 and 100%`,
+);
 /** A form field as the request carries it: blank is null. */
 const orNull = (value: string) => (value.trim() ? Number(value) : null);
 
@@ -50,6 +57,8 @@ const aircraftSchema = z.object({
   typeDesignator: z.string().trim().min(1, "Type designator is required").max(16, "At most 16 characters"),
   cruiseTasKt: positiveNumber("Cruise speed"),
   fuelBurnGph: positiveNumber("Cruise fuel burn"),
+  // Optional: blank flies the cruise figures at the type's own power.
+  cruisePowerPct: optionalPercent("Cruise power"),
   // Optional: blank climbs at the planner's book figures for the type.
   climbTasKt: optionalPositiveNumber("Climb speed"),
   climbFuelBurnGph: optionalPositiveNumber("Climb fuel burn"),
@@ -59,8 +68,8 @@ const aircraftSchema = z.object({
 });
 type AircraftFormValues = z.infer<typeof aircraftSchema>;
 const EMPTY_AIRCRAFT_FORM: AircraftFormValues = {
-  tailNumber: "", typeDesignator: "", cruiseTasKt: "", fuelBurnGph: "", climbTasKt: "", climbFuelBurnGph: "",
-  usableFuelGal: "",
+  tailNumber: "", typeDesignator: "", cruiseTasKt: "", fuelBurnGph: "", cruisePowerPct: "", climbTasKt: "",
+  climbFuelBurnGph: "", usableFuelGal: "",
 };
 
 /** A signed-in pilot's own aeroplanes -- list, add, edit (the same
@@ -132,6 +141,7 @@ export function AircraftPanel({ pilot }: { pilot: PilotState }) {
     reset({
       tailNumber: a.tailNumber, typeDesignator: a.typeDesignator,
       cruiseTasKt: String(a.cruiseTasKt), fuelBurnGph: String(a.fuelBurnGph),
+      cruisePowerPct: a.cruisePowerPct == null ? "" : String(a.cruisePowerPct),
       climbTasKt: a.climbTasKt == null ? "" : String(a.climbTasKt),
       climbFuelBurnGph: a.climbFuelBurnGph == null ? "" : String(a.climbFuelBurnGph),
       usableFuelGal: a.usableFuelGal == null ? "" : String(a.usableFuelGal),
@@ -141,6 +151,7 @@ export function AircraftPanel({ pilot }: { pilot: PilotState }) {
   const onSubmit = (values: AircraftFormValues) => save.mutate({ id: editingId, request: {
     tailNumber: values.tailNumber.trim(), typeDesignator: values.typeDesignator.trim(),
     cruiseTasKt: Number(values.cruiseTasKt), fuelBurnGph: Number(values.fuelBurnGph),
+    cruisePowerPct: orNull(values.cruisePowerPct),
     climbTasKt: orNull(values.climbTasKt), climbFuelBurnGph: orNull(values.climbFuelBurnGph),
     usableFuelGal: orNull(values.usableFuelGal),
   } });
@@ -182,7 +193,8 @@ export function AircraftPanel({ pilot }: { pilot: PilotState }) {
               <div key={a.id} data-aircraft-row>
                 <ListRow
                   title={<><span className="font-mono font-semibold">{a.tailNumber}</span> <span className="text-muted-foreground">{a.typeDesignator}</span></>}
-                  description={`Cruise ${a.cruiseTasKt} kt, ${a.fuelBurnGph} gph${a.usableFuelGal != null ? ` · ${a.usableFuelGal} gal usable` : ""}`}
+                  description={`Cruise ${a.cruiseTasKt} kt, ${a.fuelBurnGph} gph${a.cruisePowerPct != null ? ` at ${a.cruisePowerPct}%` : ""}${
+                    a.usableFuelGal != null ? ` · ${a.usableFuelGal} gal usable` : ""}`}
                   chevron
                   aria-label={`Edit ${a.tailNumber}`}
                   onClick={() => edit(a)}
@@ -229,10 +241,11 @@ export function AircraftPanel({ pilot }: { pilot: PilotState }) {
             <form id={formElementId} className="space-y-4" onSubmit={handleSubmit(onSubmit)} noValidate>
               {/* What the aeroplane is, then its speeds and fuel burns --
                   climb and cruise, a row each under the group's heading
-                  -- then its tanks. Each field keeps its label and unit
-                  while it is typed in; the placeholders are examples. The
-                  accessible names say the phase and the units in full.
-                  The identifiers are capitals and never autocorrected. */}
+                  -- and the power the cruise is at, then its tanks. Each
+                  field keeps its label and unit while it is typed in; the
+                  placeholders are examples. The accessible names say the
+                  phase and the units in full. The identifiers are
+                  capitals and never autocorrected. */}
               <ListGroup>
                 <ListRow id={`${formId}-tail`} title="Tail number" description={problem(errors.tailNumber?.message)}>
                   <Input
@@ -267,6 +280,18 @@ export function AircraftPanel({ pilot }: { pilot: PilotState }) {
                 <NumberRow
                   id={`${formId}-burn`} title="Cruise" unit="gph" placeholder="8.5" name="Cruise fuel burn in gallons per hour"
                   field={register("fuelBurnGph")} error={errors.fuelBurnGph?.message}
+                />
+              </ListGroup>
+              {/* What the cruise figures mean to the planner, said where
+                  they are typed: they are the aeroplane's at this power at
+                  the reference altitude, and each leg flies them in its own
+                  air (vfr.performance). */}
+              <ListGroup
+                footer={`The cruise speed and burn at this power at ${altFt(CRUISE_REFERENCE_FT)} ft on a standard day, as a handbook's cruise table gives them. Each leg flies them in the forecast air at its altitude. Left blank, the type's.`}
+              >
+                <NumberRow
+                  id={`${formId}-power`} title="Cruise power" unit="%" placeholder="65" name="Cruise power in percent"
+                  field={register("cruisePowerPct")} error={errors.cruisePowerPct?.message}
                 />
               </ListGroup>
               <ListGroup footer="Usable fuel is optional; without it the nav log makes no fuel check.">

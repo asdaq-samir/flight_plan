@@ -231,8 +231,8 @@ export function DescriptionCell({
  */
 /** The leg's figures a phone's table has no columns for, as one line
  *  under the row (the columns themselves from md up, see the column
- *  defs): course, wind, correction, variation, magnetic heading,
- *  groundspeed and fuel, in the nav log's own order. */
+ *  defs): course, wind, correction, variation, magnetic heading, true
+ *  airspeed, groundspeed and fuel, in the nav log's own order. */
 function LegLine({ leg }: { leg: Leg }) {
   return (
     <div className="mb-1 flex flex-wrap gap-x-3 text-xs tabular-nums md:hidden">
@@ -241,10 +241,19 @@ function LegLine({ leg }: { leg: Leg }) {
       <span>WCA {signed(leg.wca_deg)}</span>
       <span>Var {signed(leg.magnetic_variation_deg)}</span>
       <span>MH {deg(leg.magnetic_heading_deg)}</span>
+      <span>TAS {tas(leg)}</span>
       <span>GS {leg.groundspeed_kt === null ? "—" : Math.round(leg.groundspeed_kt)}</span>
       <span>Fuel {one(leg.fuel_gal)} gal</span>
     </div>
   );
+}
+
+/** The leg's true airspeed, in its own air (the planner's
+ *  vfr.performance): it varies with the altitude and the forecast
+ *  temperature, so each leg has its own. A dash from a planner that did
+ *  not say. */
+function tas(leg: Leg): string {
+  return leg.tas_kt == null ? "—" : String(Math.round(leg.tas_kt));
 }
 
 export default function NavLogView({
@@ -319,7 +328,7 @@ export default function NavLogView({
   const data = navLogRows(ends, selected, legs);
   // On a phone the table keeps five columns -- the waypoint, altitude,
   // distance, true heading and ETE (and the ETA with a departure
-  // time) -- and the other seven, which had it fourteen wide and
+  // time) -- and the others, which had it fourteen wide and
   // scrolling sideways under the finger, are the leg line under each
   // row instead (see LegLine); from md up, and on paper, every column.
   const columns: ColumnDef<typeof navLogTableFeatures, NavLogRow>[] = [
@@ -406,6 +415,18 @@ export default function NavLogView({
       header: "MH",
       meta: { className: "hidden md:table-cell print:table-cell" },
       cell: ({ row }) => (legOf(row.original) ? deg(legOf(row.original)!.magnetic_heading_deg) : "—"),
+    },
+    {
+      // Each leg's own: the aeroplane's cruise in the forecast air at the
+      // leg's altitude, which is why it is a column (the altitude's
+      // reasoning says how it is worked out).
+      id: "tas",
+      header: "TAS",
+      meta: { className: "hidden md:table-cell print:table-cell" },
+      cell: ({ row }) => {
+        const leg = legOf(row.original);
+        return leg ? tas(leg) : "—";
+      },
     },
     {
       id: "gs",
@@ -685,7 +706,7 @@ export default function NavLogView({
                     </form>
                   </div>
                   <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">How the altitude was chosen</div>
-                  <AltitudeReasoning nav={nav} />
+                  <AltitudeReasoning nav={nav} legs={legs} />
                 </ResponsivePopoverContent>
               </ResponsivePopover>
               <span className="hidden text-muted-foreground print:inline">

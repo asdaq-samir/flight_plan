@@ -92,7 +92,7 @@ export function usePlan(
   const planKey = [
     dep, dest, altitudeFt, altitudeChoice, depart, load,
     aircraft.profile, aircraft.cruiseTasKt ?? null, aircraft.fuelBurnGph ?? null, aircraft.usableFuelGal ?? null,
-    aircraft.climbTasKt ?? null, aircraft.climbFuelBurnGph ?? null,
+    aircraft.climbTasKt ?? null, aircraft.climbFuelBurnGph ?? null, aircraft.cruisePowerPct ?? null,
   ];
   const navlog = useQuery({
     queryKey: ["navlog", ...planKey],

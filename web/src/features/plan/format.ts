@@ -1,4 +1,4 @@
-import type { AltitudeOption, Totals } from "../../lib/api/types";
+import type { AltitudeOption, Leg, Totals } from "../../lib/api/types";
 import { SCORE_STEPS } from "../../lib/scoreScale";
 import { altFt } from "../../lib/units";
 
@@ -85,6 +85,32 @@ export function describeTime(option: AltitudeOption): string {
  *  economical plan is chosen on. "—" while a leg cannot be flown. */
 export function describeFuel(option: AltitudeOption): string {
   return option.fuel_gal === null ? "—" : `${one(option.fuel_gal)} gal`;
+}
+
+/** A figure over several legs: "112", or its range, "111–113". */
+function range(values: number[], show: (n: number) => string, between = "–"): string {
+  const low = show(Math.min(...values)), high = show(Math.max(...values));
+  return low === high ? low : `${low}${between}${high}`;
+}
+
+/** The legs' cruise in their own air, a line per altitude flown --
+ *  "6,500 ft: 2 to 4 °C, density altitude 6,900–7,200 ft, 111–112 kt,
+ *  8.5 gph" -- with "full throttle, 62%" where the engine could not make
+ *  the cruise power there. A range where legs at one altitude met
+ *  different forecasts; no temperature for legs a standard day was
+ *  assumed for, which had none. */
+export function cruiseByAltitude(legs: Leg[], cruisePowerPct: number | null | undefined): string[] {
+  const byAltitude = new Map<number, Leg[]>();
+  for (const leg of legs) byAltitude.set(leg.altitude_ft, [...(byAltitude.get(leg.altitude_ft) ?? []), leg]);
+  return [...byAltitude.entries()].sort(([a], [b]) => a - b).map(([altitude, at]) => {
+    const temps = at.flatMap(leg => (leg.oat_c == null ? [] : [leg.oat_c]));
+    const power = Math.min(...at.map(leg => leg.power_pct));
+    return `${altFt(altitude)} ft: `
+      + (temps.length ? `${range(temps, t => String(Math.round(t)), " to ")} °C, ` : "")
+      + `density altitude ${range(at.map(leg => leg.density_altitude_ft), d => altFt(Math.round(d / 100) * 100))} ft, `
+      + `${range(at.map(leg => leg.tas_kt), t => String(Math.round(t)))} kt, ${range(at.map(leg => leg.fuel_burn_gph), b => b.toFixed(1))} gph`
+      + (cruisePowerPct != null && power < cruisePowerPct - 0.5 ? ` (full throttle, ${Math.round(power)}%)` : "");
+  });
 }
 
 /** A clock time, "09:05", in the browser's own zone -- an ETA. */

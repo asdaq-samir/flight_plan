@@ -1,10 +1,14 @@
-import type { AltitudeOption, AltitudeSegment, NavLogAltitude } from "../../../lib/api/types";
-import { altFt, deg, describeFuel, describeSteps, describeTime } from "../format";
+import type { AltitudeOption, AltitudeSegment, Leg, NavLogAltitude } from "../../../lib/api/types";
+import { CRUISE_REFERENCE_FT } from "../../../lib/performance";
+import { altFt, cruiseByAltitude, deg, describeFuel, describeSteps, describeTime } from "../format";
 
 interface Props {
   /** The nav log's own altitude and, unless the pilot typed one, the
    *  planner's breakdown of how it chose it and the four plans. */
   nav: NavLogAltitude;
+  /** The legs flown, as they stream in: each one's cruise in its own
+   *  air, which the performance step says. */
+  legs: Leg[];
 }
 
 /** "a, b and c" -- the ceiling is the lowest of up to three things. */
@@ -36,7 +40,8 @@ function ceilingRuns(segments: AltitudeSegment[]): AltitudeSegment[] {
  * obstacles, the ceiling from airspace and the aeroplane -- leg by
  * leg, since a Class B shelf caps only the legs
  * under it -- the hemispheric rule that gives the legal altitudes in
- * between, the four plans made of them and the one being flown, and
+ * between, the four plans made of them and the one being flown, the
+ * aeroplane's performance in the day's air they were flown at, and
  * the weather that was checked but does not move the numbers. Every
  * figure is the planner's own, so the pilot can check each one against
  * the chart -- the nav log header's "why" popover and the briefing's
@@ -49,7 +54,7 @@ function limit(ft: number | null | undefined, ref: string | null | undefined): s
   return `${altFt(ft)} ft${ref === "AGL" ? " AGL" : ""}`;
 }
 
-export default function AltitudeReasoning({ nav }: Props) {
+export default function AltitudeReasoning({ nav, legs }: Props) {
   const s = nav.altitude_selection;
 
   // Every figure below is the planner's own, the rule's hemisphere and
@@ -82,7 +87,14 @@ export default function AltitudeReasoning({ nav }: Props) {
   // Legs whose own magnetic course is in the other half of the rule
   // from the route's, and so round to the other set of altitudes.
   const otherHalf = s.segments.filter(seg => seg.eastbound !== null && seg.eastbound !== undefined && seg.eastbound !== s.eastbound);
-  ceilingParts.push(`the ${nav.aircraft.name.toUpperCase()}'s service ceiling of ${altFt(nav.aircraft.service_ceiling_ft)} ft`);
+  // A service ceiling is a density altitude: the forecast temperatures
+  // bring it down on a warm day and lift it on a cold one.
+  const bookCeiling = nav.aircraft.service_ceiling_ft;
+  const ceilingToday = s.service_ceiling_ft;
+  ceilingParts.push(ceilingToday != null && Math.abs(ceilingToday - bookCeiling) >= 100
+    ? `the ${nav.aircraft.name.toUpperCase()}'s service ceiling, ${altFt(bookCeiling)} ft density altitude, which is ${
+      altFt(ceilingToday)} ft in the forecast temperatures`
+    : `the ${nav.aircraft.name.toUpperCase()}'s service ceiling of ${altFt(bookCeiling)} ft`);
   const runs = ceilingRuns(s.segments);
   const runsText = runs.length > 1
     ? runs.map((r, i) => {
@@ -101,6 +113,15 @@ export default function AltitudeReasoning({ nav }: Props) {
     : s.hazards.length === 0
       ? "no SIGMET or AIRMET along the route"
       : `${s.hazards.length} SIGMET/AIRMET${s.hazards.length === 1 ? "" : "s"} along the route`;
+
+  // The aeroplane's cruise in each leg's own air (vfr.performance): its
+  // figures are its own at the reference altitude on a standard day, and
+  // each leg's are worked out for the forecast temperature at its
+  // altitude. Legs from a planner that did not say have none.
+  const aircraft = nav.aircraft;
+  const flown = legs.filter(leg => leg.tas_kt != null);
+  const cruiseInItsAir = cruiseByAltitude(flown, aircraft.cruise_power_pct);
+  const standardDayLegs = flown.filter(leg => leg.oat_c == null).length;
 
   const highestLegal = Math.max(...s.segments.flatMap(seg => seg.candidates_ft), ...s.candidates_ft);
   const chosen = nav.options.find(o => o.kind === nav.flown);
@@ -167,6 +188,20 @@ export default function AltitudeReasoning({ nav }: Props) {
         // say that of a winds outage.
         <li>
           <b>No plan.</b> The winds aloft could not be read, so no plan could be flown. Try again shortly.
+        </li>
+      )}
+      {cruiseInItsAir.length > 0 && (
+        <li>
+          <b>Performance.</b>{" "}
+          {`The aeroplane's ${aircraft.cruise_tas_kt} kt and ${aircraft.fuel_burn_gph} gph are its cruise${
+            aircraft.cruise_power_pct != null ? ` at ${aircraft.cruise_power_pct}% power` : ""} at ${
+            altFt(CRUISE_REFERENCE_FT)} ft on a standard day, and each leg flies them in the forecast air at its altitude:`}
+          <ul className="my-1 list-disc pl-4">
+            {cruiseInItsAir.map(line => <li key={line}>{line}</li>)}
+          </ul>
+          {standardDayLegs > 0 && `No temperature is forecast near ${standardDayLegs === 1 ? "one leg" : `${standardDayLegs} legs`}, so a standard day is assumed there. `}
+          {`Climbs are at the best rate${aircraft.climb_rate_fpm_sea_level != null ? `, ${aircraft.climb_rate_fpm_sea_level} fpm at sea level` : ""
+          } falling to 100 fpm at the service ceiling, and burn less as full throttle makes less. A model: the handbook governs.`}
         </li>
       )}
       <li>

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import type { Totals } from "../../lib/api/types";
+import type { Leg, Totals } from "../../lib/api/types";
 import { inkOn, SCORE_STEPS } from "../../lib/scoreScale";
-import { deg, elapsed, hhmm, one, scoreColor, signed, totalsParts } from "./format";
+import { cruiseByAltitude, deg, elapsed, hhmm, one, scoreColor, signed, totalsParts } from "./format";
 
 describe("scoreColor", () => {
   it("bands on the boundary, not just inside it", () => {
@@ -81,4 +81,22 @@ describe("totalsParts", () => {
 describe("elapsed", () => {
   it("pads the seconds", () => expect(elapsed(65_000)).toBe("1:05"));
   it("starts at zero", () => expect(elapsed(0)).toBe("0:00"));
+});
+
+describe("cruiseByAltitude", () => {
+  const leg = (altitude_ft: number, tas_kt: number, oat_c: number | null, density_altitude_ft: number, power_pct = 65, fuel_burn_gph = 8.5) =>
+    ({ altitude_ft, tas_kt, oat_c, density_altitude_ft, power_pct, fuel_burn_gph }) as Leg;
+
+  it("says each altitude once, as a range where its legs met different air", () => {
+    expect(cruiseByAltitude([leg(6500, 111.2, 2, 6880), leg(6500, 112.4, 4, 7160), leg(4500, 108.9, 9, 4960)], 65)).toEqual([
+      "4,500 ft: 9 °C, density altitude 5,000 ft, 109 kt, 8.5 gph",
+      "6,500 ft: 2 to 4 °C, density altitude 6,900–7,200 ft, 111–112 kt, 8.5 gph",
+    ]);
+  });
+
+  it("says where full throttle could not make the cruise power, and gives no temperature for a standard day", () => {
+    expect(cruiseByAltitude([leg(12500, 117.1, null, 12500, 64.0, 8.37)], 65)).toEqual([
+      "12,500 ft: density altitude 12,500 ft, 117 kt, 8.4 gph (full throttle, 64%)",
+    ]);
+  });
 });

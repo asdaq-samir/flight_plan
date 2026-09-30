@@ -89,19 +89,31 @@ const WEATHER_SOURCE_LABEL: Record<Briefing["weather_unavailable"][number], stri
   metars: "current METARs",
 };
 
-/** Consecutive legs flown in the same wind at the same altitude, as one
- *  stretch of the route: many legs share their nearest winds-aloft
- *  station, and so report the same wind. From the nav log's own per-leg
- *  winds -- a summary of what it already fetched, not a second call. */
-function windStretches(legs: Leg[]): { from: string; to: string; altitudeFt: number; wind: { dir: number; speed: number } | null }[] {
-  const stretches: { from: string; to: string; altitudeFt: number; wind: { dir: number; speed: number } | null }[] = [];
+interface Stretch {
+  from: string;
+  to: string;
+  altitudeFt: number;
+  wind: { dir: number; speed: number } | null;
+  /** The forecast temperature there, whole degrees; null where none was
+   *  near (a standard day was flown). */
+  oatC: number | null;
+}
+
+/** Consecutive legs flown in the same wind and temperature at the same
+ *  altitude, as one stretch of the route: many legs share their nearest
+ *  winds-aloft station, and so report the same forecast. From the nav
+ *  log's own per-leg winds and temperatures -- a summary of what it
+ *  already fetched, not a second call. */
+function windStretches(legs: Leg[]): Stretch[] {
+  const stretches: Stretch[] = [];
   for (const leg of legs) {
     const wind = leg.wind ? { dir: Math.round(leg.wind.wind_dir_true_deg), speed: Math.round(leg.wind.wind_speed_kt) } : null;
+    const oatC = leg.oat_c == null ? null : Math.round(leg.oat_c);
     const last = stretches[stretches.length - 1];
-    const same = last && last.altitudeFt === leg.altitude_ft
+    const same = last && last.altitudeFt === leg.altitude_ft && last.oatC === oatC
       && (last.wind === null ? wind === null : wind !== null && last.wind.dir === wind.dir && last.wind.speed === wind.speed);
     if (same) last.to = leg.to;
-    else stretches.push({ from: leg.from, to: leg.to, altitudeFt: leg.altitude_ft, wind });
+    else stretches.push({ from: leg.from, to: leg.to, altitudeFt: leg.altitude_ft, wind, oatC });
   }
   return stretches;
 }
@@ -502,15 +514,18 @@ export default function FlightBriefingView({
             </ListGroup>
             <div>
               <h3 className="px-1 pb-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">How it was chosen</h3>
-              <AltitudeReasoning nav={nav} />
+              <AltitudeReasoning nav={nav} legs={legs} />
             </div>
           </div>
         )}
       </AccordionSection>
 
-      {/* The route's winds by stretch: consecutive legs that fly in the
-          same wind at the same altitude, one row each. It was a list of
-          directions and speeds with no way to tell where each blew. */}
+      {/* The route's winds and temperatures by stretch: consecutive legs
+          that fly in the same forecast at the same altitude, one row
+          each. It was a list of directions and speeds with no way to
+          tell where each blew. The temperature is what the legs' true
+          airspeeds are worked out from (the Cruise Altitude section's
+          performance step). */}
       <AccordionSection title="Winds Aloft" summary={summaries.winds}>
         {!stretches.some(st => st.wind) ? (
           <p className="text-sm text-muted-foreground">No winds-aloft data available for this route.</p>
@@ -521,7 +536,7 @@ export default function FlightBriefingView({
                 key={i}
                 title={<span className="line-clamp-1">{st.from} → {st.to}</span>}
                 description={`${altFt(st.altitudeFt)} ft`}
-                value={st.wind ? `${deg(st.wind.dir)} ${st.wind.speed} kt` : "no wind data"}
+                value={`${st.wind ? `${deg(st.wind.dir)} ${st.wind.speed} kt` : "no wind data"}${st.oatC === null ? "" : ` · ${st.oatC} °C`}`}
               />
             ))}
           </ListGroup>

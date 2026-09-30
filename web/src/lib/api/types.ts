@@ -92,6 +92,8 @@ export interface AircraftChoice {
   label: string;
   cruiseTasKt?: number;
   fuelBurnGph?: number;
+  /** The power the cruise figures are at, in percent. */
+  cruisePowerPct?: number;
   climbTasKt?: number;
   climbFuelBurnGph?: number;
   usableFuelGal?: number;

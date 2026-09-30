@@ -3,6 +3,8 @@ import KeepRoute from "../../components/KeepRoute";
 import { Kbd } from "../../components/ui/kbd";
 import { api } from "../../lib/api/client";
 import type { Course } from "../../lib/api/types";
+import { CRUISE_REFERENCE_FT } from "../../lib/performance";
+import { altFt } from "../../lib/units";
 import { scoreColor } from "../plan/format";
 
 const BUCKETS: [string, string][] = [
@@ -43,8 +45,9 @@ function ModelProvenance() {
 
 /**
  * The planner explained to the pilot, the Pilot drawer's Guide tab:
- * what to do, in order; what the colours on the chart mean; what the
- * map's own controls do; keeping the route for the air; and the keys.
+ * what to do, in order; how the nav log flies the aeroplane; what the
+ * colours on the chart mean; what the map's own controls do; keeping
+ * the route for the air; and the keys.
  * This is what the header's info popover used to hold, written for the
  * pilot rather than for whoever built it.
  */
@@ -59,6 +62,18 @@ export default function PilotGuide({ course }: { course: Course | null }) {
           <li>Open Flight Planning from the header and pick your aeroplane and departure time at the top. Each section opens on its title: the nav log has the legs with headings, times and fuel for them and the winds, and the briefing sections follow it: weather, NOTAMs, the airports. Print it from there.</li>
           <li>Tap a checkpoint or its row for how to spot it, and add your own note.</li>
         </ol>
+      </section>
+
+      <section className="space-y-1.5 text-sm">
+        <h3 className="text-sm font-semibold">Your aeroplane in the day's air</h3>
+        <p className="text-muted-foreground">
+          Your aeroplane's cruise speed and fuel burn are taken as its figures at its cruise power
+          at {altFt(CRUISE_REFERENCE_FT)} ft on a standard day, a row of its handbook's cruise table. Each leg flies them
+          in the forecast air at its altitude, as a density altitude: faster in thinner air at the same power, and slower
+          and thriftier where full throttle can no longer make it. Climbs slow as the air thins, and a warm day lowers the
+          service ceiling. The nav log gives each leg's TAS, and the altitude's reasoning the rest. A model, within a few
+          percent of most handbooks: yours governs.
+        </p>
       </section>
 
       <section className="space-y-1.5 text-sm">

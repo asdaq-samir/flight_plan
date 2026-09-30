@@ -205,6 +205,7 @@ export const api = {
           usable_fuel_gal: aircraft?.usableFuelGal,
           climb_tas_kt: aircraft?.climbTasKt,
           climb_fuel_burn_gph: aircraft?.climbFuelBurnGph,
+          cruise_power_pct: aircraft?.cruisePowerPct,
           depart: depart || undefined,
         },
       },
