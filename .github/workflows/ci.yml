@@ -640,13 +640,13 @@ jobs:
       # out. So: the page, then the planner's own word that it is warm.
       - name: Wait for the page and a warm planner
         run: |
-          for i in $(seq 1 120); do
+          for _ in $(seq 1 240); do
             curl -sf -o /dev/null http://localhost:8080/app/plan && break
-            sleep 2
+            sleep 1
           done
-          for i in $(seq 1 450); do
+          for _ in $(seq 1 900); do
             curl -sf http://localhost:8084/ | grep -q '"warm":true' && break
-            sleep 2
+            sleep 1
           done
           curl -sf http://localhost:8084/ | grep -q '"warm":true' || { echo "the planner never reported itself warm"; exit 1; }
       # The cycle the planner is serving: what the charts cache is
