@@ -66,7 +66,9 @@ export async function openLinkFor(page: Page, address: string): Promise<string> 
   await console.getByRole("button", { name: "Sign in" }).click();
   await page.getByLabel("Email address").fill(address);
   await page.getByRole("button", { name: "Send sign-in link" }).click();
-  await expect(page.getByRole("status")).toContainText(`Check ${address}`);
+  // The dialog's own status line: a toast is a status too (sonner's),
+  // and on the plan page the planner's progress toast is often up.
+  await expect(page.getByRole("dialog").getByRole("status")).toContainText(`Check ${address}`);
 
   let id: string | undefined;
   await expect.poll(async () => (id = (await messagesTo(address)).find(m => !before.has(m))),
