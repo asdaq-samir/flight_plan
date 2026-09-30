@@ -638,6 +638,33 @@ def test_tile_png_caches_the_render_and_remembers_empty_tiles(tmp_path, monkeypa
     assert image.getpixel((128, 200)) == (255, 0, 0)
 
 
+def test_a_tile_sends_for_a_missing_sheet_only_where_tiles_may_fetch(tmp_path, monkeypatch):
+    """CHARTS_FETCH_FOR_TILES=0 (CI's): a tile draws on the sheets on
+    disk, downloads none and makes nothing on disk, and says it is not
+    whole so it is not cached as if it were. Where tiles may fetch (the
+    default) the same tile sends for every sheet under it."""
+    monkeypatch.setattr(charts, "CHARTS_DIR", tmp_path / "charts")
+    monkeypatch.setattr(charts, "current_cycle", lambda *a, **k: "09-03-2026")
+    monkeypatch.setattr(charts, "_failed", {})
+    downloads = []
+
+    def download(kind, name, cycle):
+        downloads.append((kind.key, name))
+        raise charts.requests.ConnectionError("the FAA is not asked in a test")
+
+    monkeypatch.setattr(charts, "_download_and_prepare", download)
+    chicago = charts.COVERAGE["sec"]["Chicago"]
+
+    monkeypatch.setattr(charts, "FETCH_FOR_TILES", False)
+    assert charts.rasters_covering(charts.KINDS["sec"], chicago) == ([], False)
+    assert downloads == []
+    assert not (tmp_path / "charts").exists()
+
+    monkeypatch.setattr(charts, "FETCH_FOR_TILES", True)
+    assert charts.rasters_covering(charts.KINDS["sec"], chicago) == ([], False)
+    assert ("sec", "Chicago") in downloads
+
+
 def _masked_sheet(path, box):
     """A sheet of land tint with a masked line down it -- a road across
     the band and lettering in it -- beside two things that are paper
@@ -779,7 +806,7 @@ def test_a_tile_rendered_on_demand_draws_the_same_sheet_as_the_pyramid(tmp_path,
     }
     charts.render_pyramid(charts.SECTIONAL, zooms=(8,), workers=0, charts=list(sheets.values()), cycle=cycle)
     monkeypatch.setitem(charts.COVERAGE, "sec", {"Alpha": a_box, "Bravo": b_box})
-    monkeypatch.setattr(charts, "ensure_chart", lambda kind, name, cycle=None: sheets[name])
+    monkeypatch.setattr(charts, "ensure_chart", lambda kind, name, cycle=None, fetch=True: sheets[name])
 
     x, y = 65, 94   # zoom 8, 88.6W to 87.2W: most of it the overlap
     pyramid = charts._decode_rgba(charts._tile_path(charts.SECTIONAL, cycle, x, y, 8).read_bytes())
@@ -1116,7 +1143,7 @@ def test_a_seam_tile_is_never_served_half_drawn(two_sheet_country, monkeypatch):
     served -- and kept by browsers for weeks -- like that."""
     tmp_path = two_sheet_country
     sheets = [_sheet(tmp_path, "Left", LEFT, 1), _sheet(tmp_path, "Right", RIGHT, 2)]
-    monkeypatch.setattr(charts, "ensure_chart", lambda kind, name, cycle=None: {c.name: c for c in sheets}[name])
+    monkeypatch.setattr(charts, "ensure_chart", lambda kind, name, cycle=None, fetch=True: {c.name: c for c in sheets}[name])
     seam = charts._tile_path(charts.SECTIONAL, "10-29-2026", 65, 94, 8)
     west, _, east, _ = charts.tile_bbox_wgs84(65, 94, 8)
     col = lambda lon: int((lon - west) / (east - west) * 256)  # noqa: E731

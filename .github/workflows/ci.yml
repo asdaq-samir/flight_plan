@@ -469,8 +469,8 @@ jobs:
   # and five image builds are nineteen. What each runner spends before
   # its first test is the rest, so that is done at once rather than in
   # turn: the three images are built (from the registry cache main
-  # writes) and the Playwright, Postgres and Mailpit images pulled in the
-  # background while the caches below are restored.
+  # writes), Postgres and Mailpit pulled and the suite's browser
+  # downloaded in the background while the caches below are restored.
   #
   # The planner fetches its reference data for itself into data/raw:
   # the FAA obstacle file and the airport tables (about 800 MB, from an
@@ -478,12 +478,16 @@ jobs:
   # between runs; its key names what is fetched, and a change to that
   # fetches afresh. The corridor's chart sheets and the tiles the suite
   # has had rendered from them are a second cache, keyed by the FAA
-  # cycle: fetched once a cycle, not once a run. Only the first shard
-  # saves them: the six would race to write the same keys.
+  # cycle: fetched once a cycle, not once a run -- and only the
+  # corridor's ten sheets, since a tile here never sends for one
+  # (docker-compose.ci.yml). Only the first shard saves them: the six
+  # would race to write the same keys.
   #
-  # The tests run in the Playwright image, the same one web/README.md
-  # runs them in locally, on the runner's network so localhost is the
-  # stack's.
+  # The tests run on the runner itself, with Playwright's own headless
+  # Chromium: the same browser build as the Playwright image that
+  # web/README.md runs them in locally, without the other 800 MB of the
+  # image. The app ships its own font (Inter), so the runner's fonts
+  # change nothing it lays out, and the suite compares no screenshots.
   e2e:
     name: e2e (${{ matrix.shard }}/${{ strategy.job-total }})
     runs-on: ubuntu-26.04
@@ -502,18 +506,12 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
       # What a shard fetches, in the background, each with its own log and
       # its exit status in a file (later steps wait on those), while the
-      # caches below are restored. The public images first, before the
-      # registry login: Postgres and Mailpit, started as soon as they are
-      # pulled, and the Playwright image -- the largest thing a shard
-      # fetches (917 MB, nearly all of it one layer of browsers) and wanted
-      # only by the tests, so it is waited for just before them, not
-      # before the stack as it was: the stack's start and warm-up are time
-      # it goes on arriving in.
-      - name: The public images, in the background
+      # caches below are restored. Postgres and Mailpit first -- public,
+      # so before the registry login -- started as soon as they are pulled.
+      - name: Postgres and Mailpit, in the background
         run: |
           mkdir -p /tmp/e2e-out
           nohup bash -c '{ docker compose -f docker-compose.yml -f docker-compose.ci.yml pull -q db mailpit && docker compose -f docker-compose.yml -f docker-compose.ci.yml up -d db mailpit; } > /tmp/e2e-out/pull.log 2>&1; r=$?; echo $SECONDS > /tmp/e2e-out/pull.secs; echo $r > /tmp/e2e-out/pull.exit' > /dev/null 2>&1 < /dev/null &
-          nohup bash -c 'docker pull -q mcr.microsoft.com/playwright:v1.55.1-noble > /tmp/e2e-out/playwright.log 2>&1; r=$?; echo $SECONDS > /tmp/e2e-out/playwright.secs; echo $r > /tmp/e2e-out/playwright.exit' > /dev/null 2>&1 < /dev/null &
       - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f  # v4
         with:
           registry: ghcr.io
@@ -536,6 +534,35 @@ jobs:
         run: |
           nohup bash -c 'docker buildx bake -f .github/ci-images.hcl ci --load > /tmp/e2e-out/bake.log 2>&1; r=$?; echo $SECONDS > /tmp/e2e-out/bake.secs; echo $r > /tmp/e2e-out/bake.exit' > /dev/null 2>&1 < /dev/null &
 
+      # The suite's own Node and packages: .nvmrc's major, and a restore of
+      # web/node_modules rather than an `npm ci` each run.
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7
+        with:
+          node-version-file: .nvmrc
+      - name: Restore the suite's packages
+        id: packages
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: web/node_modules
+          key: e2e-node-modules-pw1.55.1-${{ hashFiles('web/package-lock.json') }}
+      # Then its browser, in the background too: Playwright's headless
+      # Chromium alone (--only-shell, the one headless runs use), and the
+      # packages first if they were not restored. Launched once to prove
+      # it runs here: the runner carries Chrome, and with it the libraries
+      # Chromium needs, but should one be missing, Playwright's installer
+      # adds it (with sudo) and the launch is tried again.
+      - name: The suite's browser, in the background
+        run: |
+          cat > /tmp/e2e-out/browser.sh <<'EOF'
+          set -e
+          cd web
+          [ -d node_modules/@playwright/test ] || npm ci --no-audit --no-fund
+          npx playwright install --only-shell chromium
+          launch() { node -e 'require("@playwright/test").chromium.launch().then((b) => b.close())'; }
+          launch || { npx playwright install-deps chromium && launch; }
+          EOF
+          nohup bash -c 'bash /tmp/e2e-out/browser.sh > /tmp/e2e-out/browser.log 2>&1; r=$?; echo $SECONDS > /tmp/e2e-out/browser.secs; echo $r > /tmp/e2e-out/browser.exit' > /dev/null 2>&1 < /dev/null &
+
       # data/raw's entries, not data/raw itself: a directory the cache is
       # given is archived whole, and a "!" line drops only an entry the
       # patterns above it listed. Given `data/raw`, this cache held the
@@ -552,6 +579,9 @@ jobs:
             !data/raw/chart_tiles.nosync
           key: planner-data-v1-${{ hashFiles('data/processed/candidates_*.csv', 'src/vfr/faa_data.py', 'src/vfr/airports.py', 'src/vfr/elevation.py', 'src/vfr/charts.py') }}
           restore-keys: planner-data-v1-
+      # v2: the charts cache without the 29 sheets past the corridor that
+      # v1 carried (2.1 GB). Its first run fetches and prepares the
+      # corridor's ten afresh, as the first run of every FAA cycle does.
       - name: Restore the corridor's charts
         id: charts
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
@@ -559,16 +589,8 @@ jobs:
           path: |
             data/raw/charts.nosync
             data/raw/chart_tiles.nosync
-          key: planner-charts-v1-pending
-          restore-keys: planner-charts-v1-
-      # The suite's packages, as installed in the Playwright image before:
-      # a restore of web/node_modules rather than an `npm ci` each run.
-      - name: Restore the suite's packages
-        id: packages
-        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
-        with:
-          path: web/node_modules
-          key: e2e-node-modules-pw1.55.1-${{ hashFiles('web/package-lock.json') }}
+          key: planner-charts-v2-pending
+          restore-keys: planner-charts-v2-
 
       - name: Wait for the images
         run: |
@@ -670,42 +692,38 @@ jobs:
           notice("reachable from the runner", json.dumps(reach))
           EOF
 
-      # The Playwright image, pulled since the job's first steps. How long
-      # each piece of the background work took goes on the checks page
-      # (from one shard), beside the steps' own times, which are all the
-      # page shows otherwise.
-      - name: Wait for the Playwright image
+      # The browser, downloaded since the job's first steps. How long each
+      # piece of the background work took goes on the checks page (from
+      # one shard), beside the steps' own times, which are all the page
+      # shows otherwise.
+      - name: Wait for the browser
         env:
           SHARD: ${{ matrix.shard }}
         run: |
           start=$SECONDS
-          while [ ! -f /tmp/e2e-out/playwright.exit ]; do sleep 1; done
-          if [ "$(cat /tmp/e2e-out/playwright.exit)" != 0 ]; then
-            tail -20 /tmp/e2e-out/playwright.log
+          while [ ! -f /tmp/e2e-out/browser.exit ]; do sleep 1; done
+          if [ "$(cat /tmp/e2e-out/browser.exit)" != 0 ]; then
+            tail -40 /tmp/e2e-out/browser.log
+            tail -25 /tmp/e2e-out/browser.log | python3 -c 'import sys; t=sys.stdin.read().replace("%","%25").replace("\n","%0A"); print(f"::error title=the browser failed::{t[:4000]}")'
             exit 1
           fi
-          times="the three images built in $(cat /tmp/e2e-out/bake.secs) s; Postgres and Mailpit pulled in $(cat /tmp/e2e-out/pull.secs) s; the Playwright image pulled in $(cat /tmp/e2e-out/playwright.secs) s, and waited for here $((SECONDS - start)) s"
+          times="the three images built in $(cat /tmp/e2e-out/bake.secs) s; Postgres and Mailpit pulled in $(cat /tmp/e2e-out/pull.secs) s; the browser ready in $(cat /tmp/e2e-out/browser.secs) s, and waited for here $((SECONDS - start)) s"
           echo "$times"
-          if [ "$SHARD" = 1 ]; then echo "::notice title=the images::$times"; fi
+          if [ "$SHARD" = 1 ]; then echo "::notice title=the background work::$times"; fi
 
-      - name: The suite's packages, when they were not restored
-        if: steps.packages.outputs.cache-hit != 'true'
-        run: |
-          docker run --rm --network host -v "$PWD/web:/w" -v /tmp/e2e-out:/out -w /w \
-            mcr.microsoft.com/playwright:v1.55.1-noble \
-            sh -c "timeout 600 npm ci --no-audit --no-fund 2>&1 | tail -20 | tee /out/npm.log"
       - name: Browser tests
         id: tests
+        working-directory: web
         # CI=1 is what playwright.config.ts doubles its waits on. The
         # github reporter puts each failure on the commit's checks, as
         # the webapp's job does for its tests; the list goes to a file
         # for the step below, since the job's log takes admin rights to
         # read. Thirty minutes, and then the step ends and says so.
+        env:
+          CI: "1"
         run: |
-          docker run --rm --network host -e CI=1 \
-            -v "$PWD/web:/w" -v /tmp/e2e-out:/out -w /w \
-            mcr.microsoft.com/playwright:v1.55.1-noble \
-            bash -o pipefail -c "timeout 1800 npx playwright test --shard=${{ matrix.shard }}/${{ strategy.job-total }} --reporter=list,github 2>&1 | tee /out/playwright.log"
+          set -o pipefail
+          timeout 1800 npx playwright test --shard=${{ matrix.shard }}/${{ strategy.job-total }} --reporter=list,github 2>&1 | tee /tmp/e2e-out/playwright.log
       - name: How the tests went, as an annotation
         if: always()
         env:
@@ -723,7 +741,18 @@ jobs:
           else:
               lines = open(path, errors="replace").read().splitlines()
               summary = [l for l in lines if re.match(r"\s*\d+ (passed|failed|flaky|skipped)", l)]
-              say("notice" if summary else "warning", f"shard {shard}", "\n".join(summary + ["--"] + lines[-40:]))
+              # The shard's slowest tests, from the list reporter's
+              # "✓ 12 [mobile] › e2e/x.spec.ts:40:1 › title (2.9s)": what
+              # to look at first when a shard runs long.
+              timed = []
+              for l in lines:
+                  m = re.search(r"\[(\w+)\] › e2e/(\S+?):\d+:\d+ › (.*) \((\d+(?:\.\d+)?)(ms|s|m)\)\s*$", l)
+                  if m:
+                      value = float(m[4]) * {"ms": 0.001, "s": 1, "m": 60}[m[5]]
+                      timed.append((value, f"{value:5.1f}s {m[2]} [{m[1]}] {m[3][:70]}"))
+              slowest = [text for _, text in sorted(timed, reverse=True)[:8]]
+              say("notice" if summary else "warning", f"shard {shard}",
+                  "\n".join(summary + ["slowest:"] + slowest + ["--"] + lines[-25:]))
           EOF
       - name: The stack's logs, when the tests did not pass
         if: always() && steps.tests.outcome != 'success'
@@ -758,16 +787,27 @@ jobs:
             !data/raw/chart_tiles.nosync
           key: ${{ steps.data.outputs.cache-primary-key }}
       # The charts and tiles, once per FAA cycle: saved when what was
-      # restored was another cycle's or nothing, with the tiles this
-      # run rendered in it.
+      # restored was another cycle's or nothing, with the tiles this run
+      # rendered in it -- and only this cycle's. An earlier cycle's
+      # folders come back with the restore, and would otherwise ride
+      # along into every cycle's cache after it. (The planner made some
+      # of what is under them, as a user of its own: hence sudo.)
+      - name: This cycle's charts only
+        if: always() && matrix.shard == 1 && steps.cycle.outputs.cycle != '' && steps.charts.outputs.cache-matched-key != format('planner-charts-v2-{0}', steps.cycle.outputs.cycle)
+        env:
+          CYCLE: ${{ steps.cycle.outputs.cycle }}
+        run: |
+          for root in data/raw/charts.nosync data/raw/chart_tiles.nosync; do
+            if [ -d "$root" ]; then sudo find "$root" -mindepth 1 -maxdepth 1 -type d ! -name "$CYCLE" -print -exec rm -rf {} +; fi
+          done
       - name: Keep the corridor's charts
-        if: always() && matrix.shard == 1 && steps.cycle.outputs.cycle != '' && steps.charts.outputs.cache-matched-key != format('planner-charts-v1-{0}', steps.cycle.outputs.cycle)
+        if: always() && matrix.shard == 1 && steps.cycle.outputs.cycle != '' && steps.charts.outputs.cache-matched-key != format('planner-charts-v2-{0}', steps.cycle.outputs.cycle)
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: |
             data/raw/charts.nosync
             data/raw/chart_tiles.nosync
-          key: planner-charts-v1-${{ steps.cycle.outputs.cycle }}
+          key: planner-charts-v2-${{ steps.cycle.outputs.cycle }}
 
   # Every image whose inputs changed, built beside the tests rather than
   # after them, each on a runner of its own. On main each is pushed under

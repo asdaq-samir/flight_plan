@@ -521,6 +521,17 @@ def _lock_for(key: tuple) -> threading.Lock:
 # prepared all at once. Two by default; CI sets one (docker-compose.ci.yml).
 _PREPARE_SLOTS = threading.BoundedSemaphore(int(os.environ.get("CHARTS_PREPARE_AT_ONCE", "2")))
 
+# Whether a tile may send for a sheet it needs that is not on disk -- a
+# 70 MB download and a minute of preparation, with the tile waiting.
+# CHARTS_FETCH_FOR_TILES=0 is CI's (docker-compose.ci.yml): there the
+# warm-up prepares the corridors' own sheets (prepare_for_bbox, which
+# always fetches) and a tile draws on what is on disk. One past them is
+# drawn from the sheets there are, or left blank, and is not cached as
+# if it were whole. The browser suite's zoomed-out views sent for 29
+# sheets beyond the corridor's 10, and the charts cache then carried
+# all 39 to every run.
+FETCH_FOR_TILES = os.environ.get("CHARTS_FETCH_FOR_TILES", "1") != "0"
+
 
 def _load_ready(directory: Path, kind: ChartKind, name: str, cycle: str) -> Chart | None:
     try:
@@ -571,16 +582,23 @@ def _latest_on_disk(kind: ChartKind, name: str) -> Chart | None:
     return None
 
 
-def ensure_chart(kind: ChartKind, name: str, cycle: str | None = None) -> Chart | None:
+def ensure_chart(kind: ChartKind, name: str, cycle: str | None = None, *, fetch: bool = True) -> Chart | None:
     """The chart, downloaded and prepared if it is not already -- once
     per cycle, whatever the number of tiles asking. None when it cannot
     be had at all (the FAA's server down and no earlier edition on
     disk); a failed download is not retried for ten minutes, so a map
-    full of tiles does not turn one outage into a request storm."""
+    full of tiles does not turn one outage into a request storm. With
+    `fetch` False, only what is on disk: this cycle's edition, else an
+    earlier one, else None."""
     if name not in COVERAGE[kind.key]:
         raise ValueError(f"no such {kind.key} chart: {name}")
     cycle = cycle or current_cycle()
     directory = _chart_dir(cycle, kind, name)
+    if not fetch:
+        # Without the sheet's locks, and without making its folder:
+        # ready.json is written last, and atomically (_write_ready), so
+        # a sheet is either ready here or not, never half of it.
+        return _load_ready(directory, kind, name, cycle) or _latest_on_disk(kind, name)
     with _lock_for((kind.key, name)), _directory_lock(directory):
         chart = _load_ready(directory, kind, name, cycle)
         if chart is not None:
@@ -862,15 +880,16 @@ def _draw_order(names) -> list:
 def rasters_covering(kind: ChartKind, bbox: Box, cycle: str | None = None) -> tuple[list, bool]:
     """Every prepared raster of `kind` whose face touches `bbox`, in
     `_draw_order`, and whether that is all of them -- False when a chart
-    that should be there could not be downloaded, so a tile rendered
-    without it is not cached as if it were complete."""
+    that should be there could not be downloaded (or, where tiles do not
+    fetch, is not on disk), so a tile rendered without it is not cached
+    as if it were complete."""
     cycle = cycle or current_cycle()
     rasters, complete = [], True
     for name in _draw_order(COVERAGE[kind.key]):
         envelope = COVERAGE[kind.key][name]
         if not _covers(envelope, bbox):
             continue
-        chart = ensure_chart(kind, name, cycle)
+        chart = ensure_chart(kind, name, cycle, fetch=FETCH_FOR_TILES)
         if chart is None:
             complete = False
             continue
