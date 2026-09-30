@@ -1,0 +1,30 @@
+# Front-end work without the image: the bundle served from web/dist on
+# the host, and vite keeping web/dist built as the source changes.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.web-dev.yml up -d --no-deps webapp web-build
+#
+# The webapp serves the bundle from a directory (APP_STATIC_LOCATION,
+# see WebMvcConfig), reading it per request, so a build is served the
+# moment vite has written it -- no image, no restart. `web-build` is
+# vite in watch mode: a saved file is rebuilt in a second or two
+# (`docker compose logs -f web-build` shows each build), and a test can
+# run against it at once. The image build (the bundle, then the jar)
+# and the JVM's start were the minute and a half between a change and
+# a test. `npm run types` first when an API schema changed. The image
+# is still what ships; CI builds its own.
+services:
+  webapp:
+    volumes:
+      - ./web/dist:/app/static/app:ro
+  web-build:
+    image: node:24-slim
+    working_dir: /w
+    volumes:
+      - ./web:/w
+    # VITE_KEEP_OUTDIR (read by vite.config.ts): watch mode would
+    # otherwise clear the directory the webapp is serving from at every
+    # rebuild, and a page loading that instant would get nothing.
+    environment:
+      VITE_KEEP_OUTDIR: "1"
+    command: ["npx", "--no-install", "vite", "build", "--watch", "--outDir", "dist"]
+    restart: unless-stopped

@@ -95,7 +95,13 @@ export default defineConfig({
   resolve: { alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) } },
   build: {
     outDir: "../springboot-app/src/main/resources/static/app",
-    emptyOutDir: true,
+    // Emptied before a build -- except under docker-compose.web-dev.yml's
+    // watch, which sets VITE_KEEP_OUTDIR: there the directory is what
+    // the webapp is serving, and watch mode empties it on every rebuild,
+    // so a page loading that instant got nothing. Old chunks then
+    // accumulate, harmlessly; the service worker's manifest lists only
+    // the current ones. (The CLI's --emptyOutDir can only set it true.)
+    emptyOutDir: !process.env.VITE_KEEP_OUTDIR,
     // The libraries in chunks of their own, so that a change to this
     // app's code (most deploys) leaves React, the map and the query
     // client with the same hashed names -- and so still in the

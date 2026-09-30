@@ -93,6 +93,38 @@ suite's own small trained model (`e2e/fixtures/model`) and the planner's
 reference data kept in the Actions cache between runs. Failures show on
 the commit's checks, with traces and screenshots as a run artifact.
 
+### The loop: a change, a test, in seconds
+
+The webapp serves the bundle from a plain directory, read per request
+(`APP_STATIC_LOCATION`, see `WebMvcConfig`), so for front-end work the
+image need not be rebuilt at all. `docker-compose.web-dev.yml` mounts
+`web/dist` over that directory and runs vite in watch mode into it: a
+saved file is rebuilt in a second or two and served at once, with no
+restart.
+
+```bash
+# once: the webapp serving web/dist, and vite keeping it built
+docker compose -f docker-compose.yml -f docker-compose.web-dev.yml up -d --no-deps webapp web-build
+docker compose logs -f web-build     # each rebuild, as it happens
+
+# each change: the spec you touched while iterating (a single test with -g)
+docker run --rm --add-host=host.docker.internal:host-gateway -v "$PWD/web":/w -w /w \
+  -e BASE_URL=http://host.docker.internal:8080 -e MAILPIT_URL=http://host.docker.internal:8025 \
+  mcr.microsoft.com/playwright:v1.55.1-noble npx playwright test e2e/layout.spec.ts -g "nav log"
+
+# the checks, with their caches: seconds after the first run
+docker run --rm -v "$PWD/web":/w -w /w node:24-slim \
+  sh -c "npx tsc --noEmit && npx eslint --cache --cache-location node_modules/.cache/eslint/ . && npx vitest run"
+
+# before a push: the whole suite (about four and a half minutes)
+```
+
+`npm run types` first when an API schema changed. A `docker compose up
+--build` of the webapp (without the override) is still what ships, and
+CI builds its own. The planner does not reload its mounted source: a
+change there is `docker compose restart planning-service` and a wait
+for `"warm":true` on :8084.
+
 `vite build` writes into `springboot-app/src/main/resources/static/app`
 (`vite.config.ts`) for a local `mvn package`; the Docker image builds
 the bundle in its own stage and serves it from a directory beside the
