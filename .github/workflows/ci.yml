@@ -528,6 +528,7 @@ jobs:
           T0=$(date +%s)
           export T0
           echo "T0=$T0" >> "$GITHUB_ENV"
+          nohup vmstat -n 1 180 > /tmp/e2e-out/vmstat.log 2>&1 < /dev/null &
           nohup bash -c '{ docker compose -f docker-compose.yml -f docker-compose.ci.yml pull -q db mailpit && docker compose -f docker-compose.yml -f docker-compose.ci.yml up -d db mailpit; } > /tmp/e2e-out/pull.log 2>&1; r=$?; echo "$(($(date +%s) - T0)) Postgres and Mailpit up" >> /tmp/e2e-out/timeline; echo $r > /tmp/e2e-out/pull.exit' > /dev/null 2>&1 < /dev/null &
           nohup bash -c 'docker pull -q mcr.microsoft.com/playwright:v1.55.1-noble > /tmp/e2e-out/playwright.log 2>&1; r=$?; echo "$(($(date +%s) - T0)) the Playwright image" >> /tmp/e2e-out/timeline; echo $r > /tmp/e2e-out/playwright.exit' > /dev/null 2>&1 < /dev/null &
       - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f  # v4
@@ -554,6 +555,15 @@ jobs:
       # image is here and Postgres is up, the planner once its data has
       # been restored too (a later step says so). Under
       # docker-compose.ci.yml none waits on another to start.
+      #
+      # And once the planner is warm, the corridor is read for the first
+      # time -- its detections, and a nav log -- rather than by whichever
+      # test asks first. Each shard's planner is new, and the first read
+      # of the corridor's chart is a job of its own (app.detection) that
+      # any later request follows or replays: the test that started it
+      # was paying for all of it, once 50 seconds for a test that takes 5
+      # (a waypoint-drawer test on the dev page, 2026-09-30). Nothing
+      # waits for these; when each ended goes in the shard's annotation.
       #
       # A pull request's token cannot push, so its shards still build
       # their own, from the registry cache main writes: with the runner's
@@ -607,6 +617,9 @@ jobs:
             [ "$(cat /tmp/e2e-out/pull.exit)" = 0 ] || return 1
             docker compose -f docker-compose.yml -f docker-compose.ci.yml up -d --no-build "$1" || return 1
             mark "$1 started"
+            if [ "$1" = planning-service ]; then
+              nohup bash /tmp/e2e-out/first-reads.sh > /tmp/e2e-out/first-reads.log 2>&1 < /dev/null &
+            fi
           }
           if [ "$EVENT" = pull_request ]; then
             docker buildx bake -f .github/ci-images.hcl ci --load || exit 1
@@ -619,6 +632,16 @@ jobs:
           failed=0
           for job in $(jobs -p); do wait "$job" || failed=1; done
           exit "$failed"
+          EOF
+          cat > /tmp/e2e-out/first-reads.sh <<'EOF'
+          mark() { echo "$(($(date +%s) - T0)) $*" >> /tmp/e2e-out/timeline; }
+          until curl -sf http://localhost:8084/ | grep -q '"warm":true'; do sleep 1; done
+          first() {
+            curl -sf -o /dev/null --max-time 600 "http://localhost:8084/api/$1?dep=C81&dest=KDLH"
+            mark "$1 read, the first time (curl $?)"
+          }
+          first detect/stream & first navlog &
+          wait
           EOF
           nohup bash -c 'bash /tmp/e2e-out/stack.sh > /tmp/e2e-out/stack.log 2>&1; echo $? > /tmp/e2e-out/stack.exit' > /dev/null 2>&1 < /dev/null &
 
@@ -811,13 +834,28 @@ jobs:
           # When each piece of the setup was done, from the background
           # pieces' and the steps' own notes: where the time before the
           # first test went.
-          setup = "before the first test, seconds from the job's first step: "
+          setup, events = "before the first test, seconds from the job's first step: ", []
           try:
               events = sorted((int(l.split(" ", 1)[0]), l.split(" ", 1)[1])
                               for l in open("/tmp/e2e-out/timeline").read().splitlines() if " " in l)
               setup += ", ".join(f"{t} {what}" for t, what in events)
           except (OSError, ValueError) as err:
               setup += f"unknown ({err})"
+          # And how busy the runner was until then, from vmstat's samples
+          # (one a second from the first step): whether the setup waits on
+          # the processors or on the disk.
+          try:
+              rows = [l.split() for l in open("/tmp/e2e-out/vmstat.log").read().splitlines()]
+              head = next(r for r in rows if "wa" in r and "bo" in r)
+              data = [r for r in rows if len(r) == len(head) and r[0].isdigit()][1:]
+              data = data[:next((t for t, what in events if what == "the tests"), len(data))] or data
+              mean = lambda name: sum(float(r[head.index(name)]) for r in data) / len(data)
+              peak = lambda name: max(float(r[head.index(name)]) for r in data)
+              setup += (f"; meanwhile the processors {100 - mean('id'):.0f}% busy (user {mean('us'):.0f}, system "
+                        f"{mean('sy'):.0f}, waiting on the disk {mean('wa'):.0f}), {mean('bo') / 1024:.0f} MB/s "
+                        f"written ({peak('bo') / 1024:.0f} at most), {mean('bi') / 1024:.0f} read, over {len(data)} s")
+          except (OSError, StopIteration, ValueError, ZeroDivisionError) as err:
+              setup += f"; the runner's load unknown ({err!r})"
           path = "/tmp/e2e-out/playwright.log"
           if not os.path.exists(path):
               say("warning", f"shard {shard}: no output", "the tests never wrote their log\n" + setup)
