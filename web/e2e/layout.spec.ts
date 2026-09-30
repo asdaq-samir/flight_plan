@@ -236,7 +236,7 @@ test.describe("/app/plan", () => {
 });
 
 for (const path of PAGES) {
-  test(`${path}: the layers button and the zoom toggle sit on the map's top-right corner, clear of the header`, async ({ page }) => {
+  test(`${path}: the layers button and the zoom toggle sit on the map's right edge, clear of the header: at its top from md up, at its bottom on a phone`, async ({ page }) => {
     await page.goto(`${path}?dep=C81&dest=KDLH`);
     await settle(page);
     const viewport = page.viewportSize();
@@ -250,11 +250,11 @@ for (const path of PAGES) {
     expect(actionBox).not.toBeNull();
     // On the map, the layers button above the zoom toggle, both flush
     // with the right edge -- the same on both pages: below the header
-    // from md up, and at the top of the screen on a phone, whose header
-    // is the bottom row.
+    // from md up, and just above it on a phone, whose header is the
+    // bottom row, where a thumb reaches both.
     if (viewport.width < 768) {
-      expect(layersBox!.y).toBeLessThan(24);
       expect(actionBox!.y + actionBox!.height).toBeLessThanOrEqual(headerBox!.y);
+      expect(headerBox!.y - (actionBox!.y + actionBox!.height)).toBeLessThan(120);
     } else {
       expect(layersBox!.y).toBeGreaterThanOrEqual(headerBox!.y + headerBox!.height);
     }
@@ -882,8 +882,8 @@ test("plan page: the nav log's altitude opens the planner's own reasoning, and t
   await expect(why).toContainText(/\d ft/);
   await expect(why).not.toContainText("·");
   await why.click();
-  // A popover beside the altitude, or on a phone a dialog in the middle.
-  const popover = page.locator("[data-slot=popover-content], [data-slot=dialog-content]");
+  // A popover beside the altitude, or on a phone a sheet from the bottom.
+  const popover = page.locator("[data-slot=popover-content], [data-slot=drawer-content]");
   await expect(popover).toBeVisible();
   await expect(popover).toContainText("Floor");
   await expect(popover).toContainText("Ceiling");

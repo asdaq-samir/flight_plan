@@ -28,7 +28,8 @@ interface Props {
 
 /**
  * The map's own controls, stacked at its top-right corner over the
- * chart: the layers button (a popover with the base chart, the pinned
+ * chart -- at its bottom-right on a phone, over the header, which is
+ * the bottom row there, where a thumb reaches them both: the layers button (a popover with the base chart, the pinned
  * terminal sheet and, on the planner, own ship), the zoom toggle
  * between the whole route and the selected point, and full screen
  * where it works. On the map, not in the
@@ -46,17 +47,17 @@ export default function MapControls({ zoom, ownShip = false, candidates }: Props
     // it is open, and the inset pushed them a landscape phone's 59px
     // clear of a screen edge that was not there.
     // gap-2: each control's 44-point hit area (index.css) abuts the
-    // next one's rather than overlapping it.
-    <div className="absolute top-2 right-2 z-[1000] flex flex-col items-end gap-2">
+    // next one's rather than overlapping it. On a phone, bottom-6
+    // rather than bottom-2: clear of the chart credit in the corner.
+    <div className="absolute top-2 right-2 z-[1000] flex flex-col items-end gap-2 max-md:top-auto max-md:bottom-6">
       <ResponsivePopover>
         <ResponsivePopoverTrigger asChild>
           <IconButton label="Chart layers" variant="outline" className="bg-background shadow-sm" data-testid="layers-button">
             <Layers className="size-5" />
           </IconButton>
         </ResponsivePopoverTrigger>
-        {/* On a phone a dialog in the middle of the screen: as a
-            popover it was the screen's height, over the header, its
-            last line cut off. */}
+        {/* On a phone a sheet from the bottom: as a popover it was the
+            screen's height, over the header, its last line cut off. */}
         <ResponsivePopoverContent title="Chart layers" titleHidden side="left" align="start" className="w-72">
           <div className="space-y-3 text-sm [&>div:first-child]:border-t-0 [&>div:first-child]:pt-0">
             <ChartLayers />

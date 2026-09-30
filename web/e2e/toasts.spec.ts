@@ -112,10 +112,10 @@ test("the toast spans the screen and is centred on it", async ({ page }) => {
   }
 });
 
-test("a toast sits clear of the header: above it on a phone, where it is the bottom row", async ({ page }) => {
-  // The toasts are anchored to the bottom of the screen, and on a phone
-  // the header became the bottom row: they covered the route form and
-  // the buttons until they were lifted over it.
+test("a toast sits clear of the header and the map's buttons: at the top of a phone's screen, the bottom of a desktop's", async ({ page }) => {
+  // On a phone the header and the map's buttons became the bottom of
+  // the screen, and a toast anchored there covered them: it comes in
+  // from the top there, as an iOS banner does.
   await plannerDown(page);
   await page.goto(PLAN);
   await settle(page);
@@ -125,8 +125,14 @@ test("a toast sits clear of the header: above it on a phone, where it is the bot
   await page.waitForTimeout(500);
   const box = (await first.boundingBox())!;
   const header = (await page.locator("header").boundingBox())!;
-  if (page.viewportSize()!.width < 768) expect(box.y + box.height).toBeLessThanOrEqual(header.y);
-  else expect(box.y).toBeGreaterThanOrEqual(header.y + header.height);
+  const layers = (await page.getByTestId("layers-button").boundingBox())!;
+  if (page.viewportSize()!.width < 768) {
+    expect(box.y).toBeLessThan(60);
+    expect(box.y + box.height).toBeLessThanOrEqual(layers.y);
+  } else {
+    expect(box.y).toBeGreaterThanOrEqual(header.y + header.height);
+    expect(box.y).toBeGreaterThan(layers.y + layers.height);
+  }
 });
 
 test("the chart underneath stays draggable while a toast is showing", async ({ page }) => {
@@ -227,7 +233,7 @@ test("dismissing a toast over the console leaves the console open", async ({ pag
   await expect(console).toBeVisible();
 });
 
-test("a pile-up stays legible: at most three, stacked rather than marching up the screen", async ({ page }) => {
+test("a pile-up stays legible: at most three, stacked rather than marching across the screen", async ({ page }) => {
   await plannerDown(page);
   await page.goto(PLAN);
   await settle(page);

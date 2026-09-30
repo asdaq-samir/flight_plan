@@ -44,7 +44,7 @@ test("an add still saving when Edit is clicked says added, and leaves the aeropl
   const console = await openConsole(page);
   await console.getByRole("tab", { name: "Aircraft" }).click();
   // The form opens from the plus beside the heading -- a popover, or
-  // on a phone a dialog in the middle -- on the page, not inside the
+  // on a phone a sheet from the bottom -- on the page, not inside the
   // console's own element.
   await expect(page.getByLabel("Tail number")).toHaveCount(0);
   await console.getByTestId("new-aircraft-button").click();

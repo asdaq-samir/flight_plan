@@ -1,10 +1,10 @@
-import React, { type CSSProperties } from "react";
+import React from "react";
 import ReactDOM from "react-dom/client";
 import { createBrowserRouter, Navigate, redirect, RouterProvider } from "react-router-dom";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider } from "next-themes";
 import { courseQuery, queryClient } from "./lib/queryClient";
-import { Toaster } from "./components/ui/sonner";
+import AppToaster from "./components/AppToaster";
 import { TooltipProvider } from "./components/ui/tooltip";
 import { registerSW } from "virtual:pwa-register";
 import "./index.css";
@@ -126,59 +126,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
       <TooltipProvider>
         <RouterProvider router={router} />
       </TooltipProvider>
-      {/* One instance for the whole app -- PageStatus's progress line
-          (across every page that has one) renders through it via
-          toast.loading/dismiss, rather than each page mounting its own
-          floating status element.
-          bottom-center everywhere -- nothing floats at the bottom of
-          either page's own content (every corner button lives in a
-          header now), and sonner's own default bottom margin clears
-          Leaflet's attribution control without a page-specific number.
-          closeButton: off by default in sonner, but the error toast
-          below sets `duration: Infinity` (see usePageStatus) -- with
-          no close button, the only way to dismiss it is for the error
-          condition to clear itself in app state, and a pilot has no
-          way to just get it off their screen while that's still true.
-          richColors: every icon here (success/info/warning/error) is
-          drawn with `fill="currentColor"` in sonner's own source, so
-          without this they're all the same neutral text color --
-          error and warning only actually READ as red/amber, distinct
-          from a plain status toast, once this is on. Colors the
-          toast's own background/border along with the icon (sonner's
-          one built-in switch for both, not two separate settings).
-          Nothing else set here -- position/closeButton/richColors are
-          this app's only real requirements (a bottom-anchored spot,
-          a way to dismiss an `Infinity`-duration error, colors that
-          tell success/warning/error apart); everything else is
-          sonner's own plain default, same as its own docs' own basic
-          example. */}
-      <Toaster
-        position="bottom-center"
-        closeButton
-        richColors
-        style={{ "--width": "min(34rem, calc(100vw - 2rem))" } as CSSProperties}
-        expand={false}
-        visibleToasts={3}
-        // Above the header on a phone, where it is the bottom row
-        // (index.css's --toast-offset-bottom): both offsets, since
-        // sonner's mobile one stops at 600px and the header at 768.
-        offset={{ bottom: "var(--toast-offset-bottom)" }}
-        mobileOffset={{ bottom: "var(--toast-offset-bottom)", left: "1rem", right: "1rem" }}
-        // A toast still on screen ("VFR flight not recommended") was
-        // printing over the briefing's table; the paper is the
-        // briefing alone.
-        className="print:hidden"
-        // bottom-center is a viewport position, not a map-area one, so
-        // an open drawer (a full-screen Sheet on a phone) sits under it
-        // rather than beside it. sonner's own swipe-to-dismiss removed
-        // a toast on the same touch that was meant to tap it, and once
-        // removed mid-touch the browser's own click lands on whatever
-        // the drawer had underneath -- an accordion trigger, most often
-        // -- which is how tapping a toast could expand a briefing
-        // section that was never touched. `closeButton` above is
-        // already the deliberate way to dismiss one by hand.
-        swipeDirections={[]}
-      />
+      <AppToaster />
     </QueryClientProvider>
     </ThemeProvider>
   </React.StrictMode>,

@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, type ReactNode } from "react";
+import type { ReactNode } from "react";
 
 interface Props {
   /** Leads the row, on the route form's left: the Dev-mode switch,
@@ -48,24 +48,8 @@ interface Props {
  * `printable`), which carries its own title.
  */
 export default function MapHeader({ leading, form, actions, dev = false }: Props) {
-  // Its height, on the root as --header-height: on a phone the toasts
-  // sit above it (index.css's --toast-offset-bottom), and it is taller
-  // with a home indicator under it or larger text in it.
-  const ref = useRef<HTMLElement>(null);
-  useLayoutEffect(() => {
-    const header = ref.current;
-    if (!header) return;
-    const root = document.documentElement.style;
-    const observer = new ResizeObserver(() => root.setProperty("--header-height", `${header.offsetHeight}px`));
-    observer.observe(header);
-    return () => {
-      observer.disconnect();
-      root.removeProperty("--header-height");
-    };
-  }, []);
   return (
     <header
-      ref={ref}
       data-mode={dev ? "dev" : "pilot"}
       // The grid from 22.5rem of the inset's width (360px at the default
       // type size; a container query, see MapPage), the wrapping row

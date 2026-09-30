@@ -616,8 +616,8 @@ export default function NavLogView({
                     <CircleHelp className="size-4" />
                   </Button>
                 </ResponsivePopoverTrigger>
-                {/* On a phone a dialog in the middle of the screen: as a
-                    popover it was 70% of the screen, scrolling inside. */}
+                {/* On a phone a sheet from the bottom: as a popover it
+                    was 70% of the screen, scrolling inside. */}
                 <ResponsivePopoverContent title="How the altitude was chosen" align="start" className="w-80">
                   {/* The three plans first, each a button: the pilot
                       picks one and the log re-plans on it. Then why. */}

@@ -153,9 +153,8 @@ export function AircraftPanel({ pilot }: { pilot: PilotState }) {
               </IconButton>
             </ResponsivePopoverTrigger>
             {/* On a phone a sheet from the bottom, the screen's width,
-                over the console, which steps back behind it as one iOS
-                sheet does behind another; closing it brings the rows,
-                and their Edit, back. */}
+                over the console's own; closing it brings the rows, and
+                their Edit, back. */}
             <ResponsivePopoverContent
               title={editingId ? "Edit aircraft" : "New aircraft"}
               align="start" className="w-80"
