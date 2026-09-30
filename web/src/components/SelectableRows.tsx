@@ -83,7 +83,14 @@ export function NoteRow({ selected, colSpan, children }: { selected: boolean; co
         className={cn("py-1 pr-2 pl-4 text-left text-xs", !selected && "bg-muted/20 text-muted-foreground")}
         colSpan={colSpan}
       >
-        {children}
+        {/* The row's width, wrapped in it, and none of its own (w-0
+            min-w-full, and wrapping, where the stock cell does not). A
+            cell spanning the table had its content's width for the
+            table to meet: one checkpoint's leg line a wind figure longer
+            than the last widened the columns, a name further up wrapped
+            to a second line, and every row under it -- the one just
+            tapped among them -- moved down 16 px on a phone. */}
+        <div className="w-0 min-w-full whitespace-normal">{children}</div>
       </TableCell>
     </TableRow>
   );

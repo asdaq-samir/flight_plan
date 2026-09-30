@@ -605,11 +605,16 @@ test("plan page: a checkpoint picked on the map is brought to the middle of the 
   // edge on a phone, and a row half out of view is rightly brought in.
   await neighbour.scrollIntoViewIfNeeded();
   await page.waitForTimeout(200);
-  const before = await scroller.evaluate(el => el.scrollTop);
+  // Where the row is on the screen, which is the claim: not the
+  // scroller's offset, which the browser moves itself to keep what is
+  // on screen still (scroll anchoring) while the legs still streaming
+  // in give a row above a second line -- 22 px, on a CI phone.
+  const onScreen = async () => (await neighbour.boundingBox())!.y;
+  const before = await onScreen();
   await neighbour.locator("td").first().click();
   await expect(selectedRow.first().locator("td").first()).toHaveText(await neighbour.locator("td").first().innerText());
   await page.waitForTimeout(400);
-  expect(await scroller.evaluate(el => el.scrollTop)).toBe(before);
+  expect(Math.abs((await onScreen()) - before)).toBeLessThan(2);
 
   // Another section opened, with the drawer scrolled elsewhere: the
   // drawer stays where it is. (Every section's opening used to reveal
@@ -622,10 +627,11 @@ test("plan page: a checkpoint picked on the map is brought to the middle of the 
   await scroller.evaluate(el => el.scrollTo(0, el.scrollHeight));
   await cruise.scrollIntoViewIfNeeded();
   await page.waitForTimeout(300);
-  const elsewhere = await scroller.evaluate(el => el.scrollTop);
+  // The section's title, where it is on the screen (as the row above).
+  const elsewhere = (await cruise.boundingBox())!.y;
   await cruise.click();
   await page.waitForTimeout(600);
-  expect(Math.abs((await scroller.evaluate(el => el.scrollTop)) - elsewhere)).toBeLessThan(2);
+  expect(Math.abs((await cruise.boundingBox())!.y - elsewhere)).toBeLessThan(2);
   await sideDrawer(page).getByRole("button", { name: "Cruise Altitude" }).click();
   await neighbour.scrollIntoViewIfNeeded();
 
