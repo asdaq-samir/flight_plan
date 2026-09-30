@@ -767,11 +767,16 @@ jobs:
             !data/raw/chart_tiles.nosync
           key: planner-data-v1-${{ hashFiles('data/processed/candidates_*.csv', 'src/vfr/faa_data.py', 'src/vfr/airports.py', 'src/vfr/elevation.py', 'src/vfr/charts.py') }}
           restore-keys: planner-data-v1-
-      # v3: the charts cache without the 29 sheets past the corridor that
-      # v1 carried (2.1 GB), now 0.3 GB. v2 was saved by a run whose tests
-      # never started, so it has the corridor's ten sheets and almost none
-      # of the tiles the suite asks for; v3 starts from it and is saved
-      # with them.
+      # v4: the charts cache with the corridor's detections in it as well
+      # -- the planner keeps a finished read of the corridor beside the
+      # tiles it read (planning-service/app/detection.py), and replays it
+      # rather than reading the corridor again: a minute of a busy shard's
+      # processors, which the one test that waits for it (the waypoint
+      # drawer's) spent on the critical path every run. So the cache is
+      # keyed by the reader's code as well as the cycle, and saved again
+      # when either changes. v3 was the charts cache without the 29 sheets
+      # past the corridor that v1 carried (2.1 GB), now 0.3 GB; a v4 run
+      # starts from it.
       - name: Restore the corridor's charts
         id: charts
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
@@ -779,10 +784,10 @@ jobs:
           path: |
             data/raw/charts.nosync
             data/raw/chart_tiles.nosync
-          key: planner-charts-v3-pending
+          key: planner-charts-v4-pending
           restore-keys: |
+            planner-charts-v4-
             planner-charts-v3-
-            planner-charts-v2-
 
       # The planner runs as a user of its own and writes under data/:
       # what it fetches into data/raw, the ratings and notes the training
@@ -868,14 +873,17 @@ jobs:
           done
           curl -sf http://localhost:8084/ | grep -q '"warm":true' || { echo "the planner never reported itself warm"; exit 1; }
           echo "$(($(date +%s) - T0)) the planner warm" >> /tmp/e2e-out/timeline
-      # The cycle the planner is serving: what the charts cache is
-      # keyed by, at the end of the job.
+      # The cycle the planner is serving and the corridor reader's code:
+      # what the charts cache is keyed by, at the end of the job.
       - name: The chart cycle
         id: cycle
         if: matrix.shard == 1
+        env:
+          READER: ${{ hashFiles('src/vfr/chartvision.py', 'planning-service/app/detection.py') }}
         run: |
           cycle=$(curl -sf http://localhost:8084/api/status | python3 -c 'import json, sys; print(json.load(sys.stdin)["charts"]["cycle"])')
           echo "cycle=$cycle" >> "$GITHUB_OUTPUT"
+          echo "key=planner-charts-v4-$cycle-${READER:0:16}" >> "$GITHUB_OUTPUT"
           echo "serving cycle $cycle; restored ${{ steps.charts.outputs.cache-matched-key || 'no chart cache' }}"
       # What the planner has to work with, on the commit's checks: a
       # job's log takes admin rights to read, an annotation does not.
@@ -1036,16 +1044,26 @@ jobs:
             !data/raw/charts.nosync
             !data/raw/chart_tiles.nosync
           key: ${{ steps.data.outputs.cache-primary-key }}
-      # The charts and tiles, once per FAA cycle: saved when what was
-      # restored was another cycle's or nothing, with the tiles this run
-      # rendered in it -- and only this cycle's. An earlier cycle's
-      # folders come back with the restore, and would otherwise ride
-      # along into every cycle's cache after it. (The planner made some
-      # of what is under them, as a user of its own: hence sudo.) Only
-      # once the tests have run, passing or not: the tiles are theirs,
-      # and a run that stopped before them saves a cache without any.
+      # The charts and tiles, once per FAA cycle and reader: saved when
+      # what was restored was another cycle's, another reader's or
+      # nothing, with the tiles this run rendered in it -- and only this
+      # cycle's. An earlier cycle's folders come back with the restore,
+      # and would otherwise ride along into every cycle's cache after it.
+      # (The planner made some of what is under them, as a user of its
+      # own: hence sudo.) Only once the tests have run, passing or not:
+      # the tiles are theirs, and a run that stopped before them saves a
+      # cache without any. And with the corridor's detections read first,
+      # for the tests that wait on them in the runs after this one: this
+      # shard's own tests may never have asked for them (a replay, when
+      # they are on disk already, is a second).
+      - name: The corridor's detections, for the cache
+        if: always() && matrix.shard == 1 && steps.cycle.outputs.cycle != '' && (steps.tests.outcome == 'success' || steps.tests.outcome == 'failure') && steps.charts.outputs.cache-matched-key != steps.cycle.outputs.key
+        run: |
+          start=$SECONDS
+          curl -sf --max-time 600 -o /dev/null "http://localhost:8084/api/detect/stream?dep=C81&dest=KDLH"
+          echo "read in $((SECONDS - start)) s: $(find data/raw/chart_tiles.nosync -path '*/detections/*.json' -printf '%f ')"
       - name: This cycle's charts only
-        if: always() && matrix.shard == 1 && steps.cycle.outputs.cycle != '' && (steps.tests.outcome == 'success' || steps.tests.outcome == 'failure') && steps.charts.outputs.cache-matched-key != format('planner-charts-v3-{0}', steps.cycle.outputs.cycle)
+        if: always() && matrix.shard == 1 && steps.cycle.outputs.cycle != '' && (steps.tests.outcome == 'success' || steps.tests.outcome == 'failure') && steps.charts.outputs.cache-matched-key != steps.cycle.outputs.key
         env:
           CYCLE: ${{ steps.cycle.outputs.cycle }}
         run: |
@@ -1053,13 +1071,13 @@ jobs:
             if [ -d "$root" ]; then sudo find "$root" -mindepth 1 -maxdepth 1 -type d ! -name "$CYCLE" -print -exec rm -rf {} +; fi
           done
       - name: Keep the corridor's charts
-        if: always() && matrix.shard == 1 && steps.cycle.outputs.cycle != '' && (steps.tests.outcome == 'success' || steps.tests.outcome == 'failure') && steps.charts.outputs.cache-matched-key != format('planner-charts-v3-{0}', steps.cycle.outputs.cycle)
+        if: always() && matrix.shard == 1 && steps.cycle.outputs.cycle != '' && (steps.tests.outcome == 'success' || steps.tests.outcome == 'failure') && steps.charts.outputs.cache-matched-key != steps.cycle.outputs.key
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: |
             data/raw/charts.nosync
             data/raw/chart_tiles.nosync
-          key: planner-charts-v3-${{ steps.cycle.outputs.cycle }}
+          key: ${{ steps.cycle.outputs.key }}
 
   # The browser suite's three images (.github/ci-images.hcl) -- the
   # webapp, the planner, and the model service's `slim` stage, without the

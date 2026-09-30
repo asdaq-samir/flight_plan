@@ -1,10 +1,18 @@
 """The corridor read behind /api/detect/stream: one shared job per
 route, plus the charted airports that come first."""
+import dataclasses
+import hashlib
+import json
+import logging
+import os
 import threading
 import time
+from pathlib import Path
 
-from vfr import chartvision, faa_data, geo
-from vfr.config import DATA_DIR
+from vfr import charts, chartvision, faa_data, geo
+from vfr.config import CHART_TILE_CACHE_DIR, DATA_DIR
+
+log = logging.getLogger(__name__)
 
 _APT_CACHE: dict = {}
 
@@ -66,6 +74,57 @@ _DETECT_TTL_S = 3600
 _DETECT_JOBS: dict = {}
 _DETECT_JOBS_GUARD = threading.Lock()
 
+# And a finished read is kept on disk beside the tiles it was read from,
+# so that a planner that has not read the corridor yet -- one just
+# started, a deploy, each of CI's shards -- replays it rather than
+# reading it again: a minute of the processors on a busy four-core
+# runner, which set the length of a CI run. Named for everything the
+# read depends on besides the corridor: the cycle and revision of the
+# tiles, and the reader's own code (this file and vfr.chartvision). A
+# change to any of them reads the corridor afresh.
+_READER = hashlib.sha256(Path(chartvision.__file__).read_bytes() + Path(__file__).read_bytes()).hexdigest()[:12]
+
+
+def _kept_path(key: tuple) -> Path:
+    route, half_width_nm = key
+    cycle = charts.serving_cycle()
+    # "C81->KDLH" as "C81-KDLH": a file name, not an arrow.
+    route = "".join(c for c in route if c.isalnum() or c == "-")
+    name = f"{route}-{half_width_nm:g}nm-r{charts.tiles_revision(cycle)}-{_READER}.json"
+    return CHART_TILE_CACHE_DIR / cycle / "detections" / name
+
+
+def _load_kept(path: Path) -> list | None:
+    """The blocks of a kept read, or None where there is none (or it
+    cannot be read: then the corridor is read again, and kept again)."""
+    try:
+        blocks = json.loads(path.read_text())
+        for block in blocks:
+            block["landmarks"] = [chartvision.Landmark(**landmark) for landmark in block["landmarks"]]
+        return blocks
+    except (OSError, ValueError, TypeError, KeyError):
+        return None
+
+
+def _keep(path: Path, blocks: list) -> None:
+    """A finished read, written whole or not at all. Where the disk will
+    not have it the read is still served from memory; only the next
+    process pays for it again."""
+    def plain(value):
+        # numpy's scalars, which the reader's arithmetic leaves in extras.
+        return value.item() if hasattr(value, "item") else str(value)
+
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        part = path.with_name(f"{path.name}.{os.getpid()}.{threading.get_ident()}.part")
+        part.write_text(json.dumps([
+            {**block, "landmarks": [dataclasses.asdict(landmark) for landmark in block["landmarks"]]}
+            for block in blocks
+        ], default=plain))
+        part.replace(path)
+    except OSError as err:
+        log.warning("the corridor's read was not kept at %s: %s", path, err)
+
 
 def detect_job(key: tuple, start: tuple, end: tuple, half_width_nm: float) -> dict:
     with _DETECT_JOBS_GUARD:
@@ -84,13 +143,18 @@ def detect_job(key: tuple, start: tuple, end: tuple, half_width_nm: float) -> di
             "at": time.time(), "cond": threading.Condition(),
         }
         _DETECT_JOBS[key] = job
+        kept = _kept_path(key)
+        blocks = _load_kept(kept)
+        if blocks is not None:
+            job.update(blocks=blocks, done=True)
+            return job
         threading.Thread(
-            target=_run_detect, args=(job, start, end, half_width_nm), daemon=True,
+            target=_run_detect, args=(job, start, end, half_width_nm, kept), daemon=True,
         ).start()
         return job
 
 
-def _run_detect(job: dict, start: tuple, end: tuple, half_width_nm: float) -> None:
+def _run_detect(job: dict, start: tuple, end: tuple, half_width_nm: float, kept: Path) -> None:
     """The corridor read itself, off on its own thread so it finishes
     (and caches) once regardless of how many clients started, followed
     or abandoned it. Dedupe lives here, not per-request: blocks overlap
@@ -120,6 +184,7 @@ def _run_detect(job: dict, start: tuple, end: tuple, half_width_nm: float) -> No
                     "landmarks": fresh,
                 })
                 job["cond"].notify_all()
+        _keep(kept, job["blocks"])
         with job["cond"]:
             job["done"] = True
             job["at"] = time.time()
