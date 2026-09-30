@@ -4,6 +4,20 @@
 @import "@fontsource-variable/inter";
 
 @custom-variant dark (&:is(.dark *));
+/* The header at the bottom of the screen (useNavEdge): the page's root
+   says data-nav="bottom" once that edge has been picked, or "auto",
+   which is the bottom on a phone -- decided here, from the first frame,
+   rather than after a render has measured the screen. */
+@custom-variant nav-bottom {
+  &:where([data-nav="bottom"] *) {
+    @slot;
+  }
+  @media (width < 48rem) {
+    &:where([data-nav="auto"] *) {
+      @slot;
+    }
+  }
+}
 
 /* This is a controls app, not a page of text -- a long, still touch
    on a button, a marker, or a drag handle should start whatever that

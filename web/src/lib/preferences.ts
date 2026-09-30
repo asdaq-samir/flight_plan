@@ -6,8 +6,8 @@ import type { AircraftChoice } from "./api/types";
 /**
  * Everything remembered per browser, in one zustand store persisted to
  * localStorage by its own middleware: which charts the map draws, the
- * aeroplane the nav log is computed for, the training filters, and
- * which tab each console was last on. Components read a slice with
+ * aeroplane the nav log is computed for, the training filters, which
+ * tab each console was last on, and which edge the header is on. Components read a slice with
  * the hook (`usePreferences(s => s.base)`); code outside React -- the
  * map's chart layers -- reads `getState()` and `subscribe()`.
  *
@@ -40,6 +40,10 @@ export const MARKER_ZOOMS: { from: number; label: string }[] = [
  *  fits a phone at about this zoom. */
 const DEFAULT_MARKER_ZOOM = 6;
 
+/** The screen edge the header is on -- and so where the map's buttons
+ *  sit and what the consoles and panels come in from (useNavEdge). */
+export type NavEdge = "top" | "bottom";
+
 /** The stock C172 until a pilot picks one of their own. */
 export const DEFAULT_AIRCRAFT: AircraftChoice = { profile: "c172", label: "C172 · Cessna 172" };
 
@@ -61,6 +65,9 @@ interface Preferences {
   filters: Filters;
   devTab: string;
   pilotTab: string;
+  /** The header's edge, once one has been picked; until then the
+   *  bottom on a phone and the top from md up. */
+  navBar: NavEdge | null;
   setBase: (base: BaseChart) => void;
   setTac: (tac: boolean) => void;
   setMarkerZoom: (markerZoom: number) => void;
@@ -69,6 +76,7 @@ interface Preferences {
   setFilter: (key: FilterKey, on: boolean) => void;
   setDevTab: (tab: string) => void;
   setPilotTab: (tab: string) => void;
+  setNavBar: (navBar: NavEdge) => void;
 }
 
 export const usePreferences = create<Preferences>()(
@@ -82,6 +90,7 @@ export const usePreferences = create<Preferences>()(
       filters: DEFAULT_FILTERS,
       devTab: "training",
       pilotTab: "guide",
+      navBar: null,
       setBase: base => set({ base }),
       setTac: tac => set({ tac }),
       setMarkerZoom: markerZoom => set({ markerZoom }),
@@ -90,12 +99,13 @@ export const usePreferences = create<Preferences>()(
       setFilter: (key, on) => set(s => ({ filters: { ...s.filters, [key]: on } })),
       setDevTab: devTab => set({ devTab }),
       setPilotTab: pilotTab => set({ pilotTab }),
+      setNavBar: navBar => set({ navBar }),
     }),
     {
       name: "vfr.preferences",
       // The functions are not state; only the values are written.
       partialize: s => ({
-        base: s.base, tac: s.tac, markerZoom: s.markerZoom, classB: s.classB, aircraft: s.aircraft, filters: s.filters, devTab: s.devTab, pilotTab: s.pilotTab,
+        base: s.base, tac: s.tac, markerZoom: s.markerZoom, classB: s.classB, aircraft: s.aircraft, filters: s.filters, devTab: s.devTab, pilotTab: s.pilotTab, navBar: s.navBar,
       }),
     },
   ),

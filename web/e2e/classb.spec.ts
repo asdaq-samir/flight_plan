@@ -11,7 +11,7 @@ import { test, expect, type Page, type Route } from "@playwright/test";
  */
 
 // Nothing is drawn at the map's corner any more; the assertions that
-// used to live there are in layout.spec.ts against the layers popover.
+// used to live there are in layout.spec.ts against the map's settings.
 // The mocks below apply because playwright.config.ts blocks the app's
 // service worker for the whole suite.
 
@@ -57,7 +57,7 @@ async function mockClassB(page: Page) {
 }
 
 async function showClassB(page: Page) {
-  await page.getByTestId("layers-button").click();
+  await page.getByTestId("settings-button").click();
   await page.getByTestId("class-b-toggle").click();
   await page.keyboard.press("Escape");
 }
@@ -213,7 +213,7 @@ test("on an IFR base, a Class B card pins the IFR area chart, and that is what d
   await mockClassB(page);
   await page.goto(PLAN);
   await routeDrawn(page);
-  await page.getByTestId("layers-button").click();
+  await page.getByTestId("settings-button").click();
   await page.getByTestId("base-chart-select").click();
   await page.getByRole("option", { name: "IFR low" }).click();
   await page.getByTestId("class-b-toggle").click();

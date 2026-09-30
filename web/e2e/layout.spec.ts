@@ -236,19 +236,19 @@ test.describe("/app/plan", () => {
 });
 
 for (const path of PAGES) {
-  test(`${path}: the layers button and the zoom toggle sit on the map's right edge, clear of the header: at its top from md up, at its bottom on a phone`, async ({ page }) => {
+  test(`${path}: the settings button and the zoom toggle sit on the map's right edge, clear of the header: at its top from md up, at its bottom on a phone`, async ({ page }) => {
     await page.goto(`${path}?dep=C81&dest=KDLH`);
     await settle(page);
     const viewport = page.viewportSize();
     if (!viewport) throw new Error("no viewport configured");
 
     const headerBox = await page.locator("header").boundingBox();
-    const layersBox = await page.getByTestId("layers-button").boundingBox();
+    const settingsBox = await page.getByTestId("settings-button").boundingBox();
     const actionBox = await page.getByTestId("map-action-button").boundingBox();
     expect(headerBox).not.toBeNull();
-    expect(layersBox).not.toBeNull();
+    expect(settingsBox).not.toBeNull();
     expect(actionBox).not.toBeNull();
-    // On the map, the layers button above the zoom toggle, both flush
+    // On the map, the settings button above the zoom toggle, both flush
     // with the right edge -- the same on both pages: below the header
     // from md up, and just above it on a phone, whose header is the
     // bottom row, where a thumb reaches both.
@@ -256,16 +256,16 @@ for (const path of PAGES) {
       expect(actionBox!.y + actionBox!.height).toBeLessThanOrEqual(headerBox!.y);
       expect(headerBox!.y - (actionBox!.y + actionBox!.height)).toBeLessThan(120);
     } else {
-      expect(layersBox!.y).toBeGreaterThanOrEqual(headerBox!.y + headerBox!.height);
+      expect(settingsBox!.y).toBeGreaterThanOrEqual(headerBox!.y + headerBox!.height);
     }
-    expect(actionBox!.y).toBeGreaterThan(layersBox!.y + layersBox!.height - 1);
-    expect(viewport.width - (layersBox!.x + layersBox!.width)).toBeLessThan(16);
+    expect(actionBox!.y).toBeGreaterThan(settingsBox!.y + settingsBox!.height - 1);
+    expect(viewport.width - (settingsBox!.x + settingsBox!.width)).toBeLessThan(16);
     expect(viewport.width - (actionBox!.x + actionBox!.width)).toBeLessThan(16);
     // Neither is in the header any more.
     expect(await page.locator("header").getByTestId("map-action-button").count()).toBe(0);
 
-    // The layers popover holds the chart controls.
-    await page.getByTestId("layers-button").click();
+    // The settings hold the chart controls.
+    await page.getByTestId("settings-button").click();
     await expect(page.getByTestId("base-chart-select")).toBeVisible();
     await expect(page.getByTestId("tac-toggle")).toBeVisible();
     await page.keyboard.press("Escape");
@@ -646,7 +646,7 @@ test("plan page: every popup the map opens dismisses the same way", async ({ pag
   await zoomToggle.click();
   await expect(zoomToggle).toHaveAttribute("aria-label", "Show Selected", { timeout: slow(10000) });
 
-  await page.getByTestId("layers-button").click();
+  await page.getByTestId("settings-button").click();
   await page.getByTestId("class-b-toggle").click();
   await page.keyboard.press("Escape");
   const chip = page.locator(".leaflet-marker-icon span.rounded-full").filter({ hasText: "KORD" }).first();
@@ -1090,6 +1090,49 @@ test("dev page: the dev console opens on training, and the waypoint drawer opens
   await expectDrawerClosed(page);
 });
 
+test("the header's edge is a setting: the map's buttons and the console follow it, and it is remembered", async ({ page }) => {
+  // By default the bottom on a phone and the top from md up; the other
+  // edge picked in the map's settings moves the header there, the map's
+  // buttons to the same edge, and the console in from it.
+  await page.goto("/app/plan?dep=C81&dest=KDLH");
+  await settle(page);
+  const viewport = page.viewportSize();
+  if (!viewport) throw new Error("no viewport configured");
+  const phone = viewport.width < 768;
+  await page.getByTestId("settings-button").click();
+  await page.getByTestId("nav-bar-select").click();
+  await page.getByRole("option", { name: phone ? "Top" : "Bottom" }).click();
+  await page.keyboard.press("Escape");
+  await expect(page.locator("[data-slot=drawer-content], [data-slot=popover-content]")).toHaveCount(0);
+
+  const header = (await page.locator("header").boundingBox())!;
+  const settings = (await page.getByTestId("settings-button").boundingBox())!;
+  if (phone) {
+    expect(header.y).toBe(0);
+    expect(settings.y).toBeGreaterThanOrEqual(header.y + header.height);
+    expect(settings.y).toBeLessThan(header.y + header.height + 24);
+  } else {
+    expect(Math.round(header.y + header.height)).toBe(viewport.height);
+    expect(settings.y + settings.height).toBeLessThanOrEqual(header.y);
+    expect(header.y - (settings.y + settings.height)).toBeLessThan(200);
+  }
+
+  await page.getByTestId("pilot-button").click();
+  const pilot = consoleSheet(page);
+  await expect(pilot.getByRole("tab", { name: "Guide" })).toBeVisible();
+  await pilot.evaluate(el => Promise.all(el.getAnimations({ subtree: true }).map(a => a.finished)));
+  const box = (await pilot.boundingBox())!;
+  if (phone) expect(box.y).toBe(0);
+  else expect(Math.round(box.y + box.height)).toBe(viewport.height);
+  await page.keyboard.press("Escape");
+  await expect(pilot).toHaveCount(0);
+
+  // Remembered per browser.
+  await page.reload();
+  await settle(page);
+  expect((await page.locator("header").boundingBox())!.y).toBe(header.y);
+});
+
 test("the console holds still as its tabs change: up from the bottom of a phone's screen, down from the top of a desktop's", async ({ page }) => {
   // On a phone the console is a sheet from the bottom edge, where the
   // header is. Sized to the tab showing, its top edge rose and fell as
@@ -1269,7 +1312,7 @@ for (const path of PAGES) {
     // cache is a quarter of a second per tile for a screenful of
     // them; hence the longer budget.
     //
-    // Pinned here from the layers popover, which is the setting itself.
+    // Pinned here from the map's settings, which is the setting itself.
     // A Class B marker's card pins the same thing for its own field;
     // that is classb.spec.ts.
     test.setTimeout(slow(90000));
@@ -1295,7 +1338,7 @@ for (const path of PAGES) {
     expect(await tacTiles.count()).toBe(0);
 
     // Pinned: both chart layers are asked for, the sectional and the TAC.
-    await page.getByTestId("layers-button").click();
+    await page.getByTestId("settings-button").click();
     const pin = page.getByTestId("tac-toggle");
     await expect(pin).toHaveAttribute("aria-checked", "false");
     await pin.click();
@@ -1313,7 +1356,7 @@ for (const path of PAGES) {
     // unpinning it takes the TAC layer away again.
     await page.reload();
     await settle(page);
-    await page.getByTestId("layers-button").click();
+    await page.getByTestId("settings-button").click();
     const toggle = page.getByTestId("tac-toggle");
     await expect(toggle).toHaveAttribute("aria-checked", "true");
     await toggle.click();
@@ -1335,7 +1378,7 @@ for (const path of PAGES) {
     await expect(sectionalTiles.first()).toBeAttached({ timeout: slow(15000) });
     expect(await ifrTiles.count()).toBe(0);
 
-    await page.getByTestId("layers-button").click();
+    await page.getByTestId("settings-button").click();
     await page.getByTestId("base-chart-select").click();
     await page.getByRole("option", { name: "IFR low" }).click();
     await expect(page.getByText("IFR area chart pinned")).toBeVisible();

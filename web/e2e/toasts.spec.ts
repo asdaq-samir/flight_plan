@@ -125,13 +125,13 @@ test("a toast sits clear of the header and the map's buttons: at the top of a ph
   await page.waitForTimeout(500);
   const box = (await first.boundingBox())!;
   const header = (await page.locator("header").boundingBox())!;
-  const layers = (await page.getByTestId("layers-button").boundingBox())!;
+  const settings = (await page.getByTestId("settings-button").boundingBox())!;
   if (page.viewportSize()!.width < 768) {
     expect(box.y).toBeLessThan(60);
-    expect(box.y + box.height).toBeLessThanOrEqual(layers.y);
+    expect(box.y + box.height).toBeLessThanOrEqual(settings.y);
   } else {
     expect(box.y).toBeGreaterThanOrEqual(header.y + header.height);
-    expect(box.y).toBeGreaterThan(layers.y + layers.height);
+    expect(box.y).toBeGreaterThan(settings.y + settings.height);
   }
 });
 

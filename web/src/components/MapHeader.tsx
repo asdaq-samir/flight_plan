@@ -38,11 +38,12 @@ interface Props {
  * overflows by a pixel grows a scrollbar the moment a mouse is
  * attached.
  *
- * On a phone it is the screen's bottom row, where a thumb reaches it,
- * as iOS puts a toolbar and Safari its address bar; from `md` up the
- * top row. Only its place moves (`order-last` in the page's column):
- * it is still first in the page's order, so a keyboard and a screen
- * reader meet it before the map, as they did.
+ * The screen's bottom row or its top one, as picked in the map's
+ * settings (useNavEdge): by default the bottom on a phone, where a
+ * thumb reaches it, as iOS puts a toolbar and Safari its address bar,
+ * and the top from `md` up. Only its place moves (`order-last` in the
+ * page's column): it is still first in the page's order, so a keyboard
+ * and a screen reader meet it before the map, as they did.
  *
  * Hidden in print: on paper the page is the briefing (see `MapDrawer`'s
  * `printable`), which carries its own title.
@@ -65,10 +66,10 @@ export default function MapHeader({ leading, form, actions, dev = false }: Props
       // button. A plain padding there instead, a little wider than the
       // left's, which is enough to clear a rounded corner with the
       // drawer shut.
-      // On a phone the bottom row instead: the border on its top edge,
-      // and the padding under it grown to clear the home indicator
-      // rather than the notch (the page's column clears that).
-      className="flex shrink-0 flex-wrap items-center gap-1.5 border-b border-border bg-background pt-[max(0.5rem,env(safe-area-inset-top))] pr-3 pb-2 pl-[max(0.5rem,env(safe-area-inset-left))] @min-[22.5rem]:grid @min-[22.5rem]:grid-cols-[1fr_auto_1fr] max-md:order-last max-md:border-t max-md:border-b-0 max-md:pt-2 max-md:pb-[max(0.5rem,env(safe-area-inset-bottom))] sm:gap-2 sm:pr-4 sm:pl-[max(0.75rem,env(safe-area-inset-left))] print:hidden"
+      // At the bottom instead (the `nav-bottom` variant): the border on
+      // its top edge, and the padding under it grown to clear the home
+      // indicator rather than the notch (the page's column clears that).
+      className="flex shrink-0 flex-wrap items-center gap-1.5 border-b border-border bg-background pt-[max(0.5rem,env(safe-area-inset-top))] pr-3 pb-2 pl-[max(0.5rem,env(safe-area-inset-left))] @min-[22.5rem]:grid @min-[22.5rem]:grid-cols-[1fr_auto_1fr] nav-bottom:order-last nav-bottom:border-t nav-bottom:border-b-0 nav-bottom:pt-2 nav-bottom:pb-[max(0.5rem,env(safe-area-inset-bottom))] sm:gap-2 sm:pr-4 sm:pl-[max(0.75rem,env(safe-area-inset-left))] print:hidden"
     >
       <div className="flex items-center @min-[22.5rem]:justify-self-start">{leading}</div>
       {/* mx-auto for the wrapping row under 360px; the grid above that

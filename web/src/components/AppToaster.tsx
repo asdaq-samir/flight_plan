@@ -1,16 +1,17 @@
 import type { CSSProperties } from "react";
 import { Toaster } from "./ui/sonner";
-import { useIsMobile } from "../hooks/use-mobile";
+import { useNavEdge } from "../hooks/use-nav-edge";
 
 /**
  * The app's one Toaster -- PageStatus's progress line (across every page
  * that has one) renders through it via toast.loading/dismiss, rather
  * than each page mounting its own floating status element.
  *
- * Bottom-centre from `md` up, and top-centre on a phone, where the
- * header and the map's buttons are the bottom of the screen: a toast
- * there covered them, and at the top it comes in as an iOS banner does,
- * over the map and clear of a sheet (they stop at 85% of the height).
+ * On the edge away from the header (useNavEdge): bottom-centre under a
+ * header at the top, and top-centre over one at the bottom -- where the
+ * map's buttons are too, which a toast there covered. From the top it
+ * comes in as an iOS banner does, over the map and clear of a sheet
+ * from the bottom (they stop at 85% of the height).
  * closeButton: off by default in sonner, but the error toast sets
  * `duration: Infinity` (see usePageStatus) -- with no close button, the
  * only way to dismiss it is for the error condition to clear itself in
@@ -24,17 +25,18 @@ import { useIsMobile } from "../hooks/use-mobile";
  * built-in switch for both, not two separate settings).
  */
 export default function AppToaster() {
-  const onPhone = useIsMobile();
+  const edge = useNavEdge();
   return (
     <Toaster
-      position={onPhone ? "top-center" : "bottom-center"}
+      position={edge === "bottom" ? "top-center" : "bottom-center"}
       closeButton
       richColors
       style={{ "--width": "min(34rem, calc(100vw - 2rem))" } as CSSProperties}
       expand={false}
       visibleToasts={3}
-      // Under the notch or the Dynamic Island, where there is one.
-      mobileOffset={{ top: "max(1rem, calc(env(safe-area-inset-top) + 0.5rem))", left: "1rem", right: "1rem" }}
+      // Under the notch or the Dynamic Island, or over the home
+      // indicator, where there is one.
+      mobileOffset={{ top: "max(1rem, calc(env(safe-area-inset-top) + 0.5rem))", bottom: "max(1rem, env(safe-area-inset-bottom))", left: "1rem", right: "1rem" }}
       // A toast still on screen ("VFR flight not recommended") was
       // printing over the briefing's table; the paper is the
       // briefing alone.

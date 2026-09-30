@@ -13,7 +13,7 @@ import { BASE_CHARTS, MARKER_ZOOMS, usePreferences, type BaseChart } from "../li
  * The same setting a Class B marker's card pins; unpinned, the base
  * chart is the chart at every zoom.
  *
- * Lives in both pages' layers popover. Sectional and no terminal sheet
+ * Lives in both pages' map settings. Sectional and no terminal sheet
  * by default: this is a VFR planner, and a TAC is busier than the
  * sectional.
  */

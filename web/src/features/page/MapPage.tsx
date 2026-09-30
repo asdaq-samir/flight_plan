@@ -11,6 +11,8 @@ import { Sheet, SheetContent, SheetTrigger } from "../../components/ui/sheet";
 // the sidebar, which this page calls its drawer.
 import { Drawer as BottomSheet, DrawerContent as BottomSheetContent, DrawerTrigger as BottomSheetTrigger } from "../../components/ui/drawer";
 import { useIsMobile } from "../../hooks/use-mobile";
+import { useNavEdge } from "../../hooks/use-nav-edge";
+import { usePreferences } from "../../lib/preferences";
 import {
   Sidebar, SidebarContent, SidebarInset, SidebarProvider, SidebarTrigger, useSidebar,
 } from "../../components/ui/sidebar";
@@ -72,6 +74,8 @@ const MODES = {
 export default function MapPage({ mode }: { mode: Mode }) {
   const { title, sidebar, console: consoleLabel, Workspace, ConsoleButton, route } = MODES[mode];
   const onPhone = useIsMobile();
+  const navBar = usePreferences(s => s.navBar);
+  const edge = useNavEdge();
   const [searchParams, setSearchParams] = useSearchParamsNow();
   // The route in the header: the address's, unless the pilot has typed
   // over it -- and a draft belongs to the address it was typed over. The
@@ -136,6 +140,9 @@ export default function MapPage({ mode }: { mode: Mode }) {
           // nothing to scroll; the drawer and the consoles scroll
           // inside themselves. On paper the drawer flows as a document.
           className="fixed inset-0 min-h-0 print:static print:h-auto"
+          // The header's edge, for index.css's `nav-bottom` variant:
+          // "auto" until one is picked, the bottom on a phone.
+          data-nav={navBar ?? "auto"}
         >
           {/* React hoists a rendered <title> into the document head
               itself, so the browser tab says which page this is
@@ -159,10 +166,9 @@ export default function MapPage({ mode }: { mode: Mode }) {
               media query's does not -- so with the text set larger, the
               header falls back to its wrapping row instead of running
               off the edge. */}
-          {/* On a phone the header is the bottom row (MapHeader), so the
-              top of this column clears the notch or the Dynamic Island
-              itself. */}
-          <SidebarInset id="content" className="@container min-h-0 min-w-0 max-md:pt-[env(safe-area-inset-top)] print:hidden">
+          {/* With the header the bottom row (MapHeader), the top of this
+              column clears the notch or the Dynamic Island itself. */}
+          <SidebarInset id="content" className="@container min-h-0 min-w-0 nav-bottom:pt-[env(safe-area-inset-top)] print:hidden">
             <MapHeader
               dev={mode === "dev"}
               leading={<DevSwitch />}
@@ -177,17 +183,18 @@ export default function MapPage({ mode }: { mode: Mode }) {
                   {/* The console: the pilot's account, aeroplanes, flights
                       and guide, or the developer's training, performance
                       and system -- modal, so the page waits while it is
-                      out. From `md` up a stock Sheet from the top, under
-                      its button; on a phone, where the header is the
-                      bottom row, a sheet up from the bottom edge with a
-                      grabber, as iOS presents one (shadcn's Drawer), on
-                      the card surface the Sheet has, so a menu opened in
-                      it stands off it in the dark theme. Its height is
-                      fixed rather than its content's: sized to the tab
-                      showing, its top edge rose and fell as the tabs
-                      changed, and the tab row moved out from under the
-                      finger that had just tapped it. */}
-                  {onPhone ? (
+                      out. From the header's edge (useNavEdge): a stock
+                      Sheet from the top, under its button, or from the
+                      bottom -- on a phone a sheet up from the bottom edge
+                      with a grabber, as iOS presents one (shadcn's
+                      Drawer). On the card surface the Sheet has, so a
+                      menu opened in it stands off it in the dark theme.
+                      From the bottom its height is fixed rather than its
+                      content's: sized to the tab showing, its top edge
+                      rose and fell as the tabs changed, and the tab row
+                      moved out from under the finger that had just tapped
+                      it. */}
+                  {onPhone && edge === "bottom" ? (
                     <BottomSheet>
                       <BottomSheetTrigger asChild><ConsoleButton /></BottomSheetTrigger>
                       <BottomSheetContent
@@ -201,7 +208,13 @@ export default function MapPage({ mode }: { mode: Mode }) {
                   ) : (
                     <Sheet>
                       <SheetTrigger asChild><ConsoleButton /></SheetTrigger>
-                      <SheetContent side="top" className="max-h-[85dvh] gap-0 p-0" showCloseButton={false} data-testid="console-sheet">
+                      <SheetContent
+                        side={edge}
+                        className={edge === "top"
+                          ? "max-h-[85dvh] gap-0 p-0 pt-[env(safe-area-inset-top)]"
+                          : "gap-0 p-0 pb-[env(safe-area-inset-bottom)] data-[side=bottom]:h-[85dvh]"}
+                        showCloseButton={false} data-testid="console-sheet"
+                      >
                         {/* The greeting, the way in or out and the close
                             button on one row; the console's content starts
                             under it. */}
