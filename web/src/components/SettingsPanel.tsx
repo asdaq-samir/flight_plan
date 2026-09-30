@@ -177,7 +177,9 @@ export function DevModeSwitch() {
   if (!allowed) return null;
   return (
     <div className="flex items-center gap-2">
-      <Label htmlFor={id} className="text-sm font-normal text-muted-foreground">Dev mode</Label>
+      {/* "Dev" on screen; "Dev mode" to a screen reader (the switch's
+          own name, which starts with the words shown). */}
+      <Label htmlFor={id} className="text-sm font-normal text-muted-foreground">Dev</Label>
       <Switch id={id} checked={on} onCheckedChange={flip} aria-label="Dev mode" data-testid="dev-switch" />
     </div>
   );
