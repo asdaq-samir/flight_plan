@@ -38,11 +38,11 @@ export type Mode = "pilot" | "dev";
  *  asks the server for a collected one instead). */
 const MODES = {
   pilot: {
-    title: "Plan a route — VFR Route", panel: "Flight Planning", console: "Pilot",
+    title: "Plan a route — Wingtip Maps", panel: "Flight Planning", console: "Pilot",
     Workspace: PlanWorkspace, ConsoleButton: PilotButton, route: ["", ""] as const,
   },
   dev: {
-    title: "Dev — VFR Route", panel: "Model Training", console: "Developer",
+    title: "Dev — Wingtip Maps", panel: "Model Training", console: "Developer",
     Workspace: TrainWorkspace, ConsoleButton: DevButton, route: ["C81", "KDLH"] as const,
   },
 };

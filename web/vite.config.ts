@@ -30,16 +30,20 @@ export default defineConfig({
       // under whoever is on the page at that moment.
       registerType: "autoUpdate",
       manifest: {
-        name: "VFR Route", short_name: "VFR Route", description: "A charted course, checkpoints, nav log and briefing.",
+        // The name on the Home Screen is the short one: iOS cuts a long
+        // name under the icon.
+        name: "Wingtip Maps", short_name: "Wingtip",
+        description: "The map for flying: every airport and airspace on the chart, and the route, checkpoints and nav log when you go.",
         start_url: "/app/plan", scope: "/app/", display: "standalone",
         background_color: "#ffffff", theme_color: "#ffffff",
         icons: [
-          { src: "/favicon.svg", sizes: "any", type: "image/svg+xml", purpose: "any" },
-          // PNGs rendered from the SVG, for the installers that take no
-          // SVG: Android's (192 and 512) and iOS's (180, linked from
-          // index.html as well).
+          // The app icon (docs/brand/appicon.svg) rendered to PNG: rounded
+          // for the installers that show it as it is (Android's 192 and
+          // 512), full bleed for the ones that mask it themselves (the
+          // maskable 512; iOS's 180, linked from index.html).
           { src: "/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
           { src: "/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
+          { src: "/icon-maskable-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
         ],
       },
       workbox: {

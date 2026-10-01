@@ -15,7 +15,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
  */
 @SpringBootApplication
 @OpenAPIDefinition(info = @Info(
-        title = "VFR Route Planning API",
+        title = "Wingtip Maps API",
         version = "0.1.0",
         description = "Scores candidate checkpoints and dead-reckoning nav-log data for a VFR route. "
                 + "See /swagger-ui/index.html for the interactive docs."))

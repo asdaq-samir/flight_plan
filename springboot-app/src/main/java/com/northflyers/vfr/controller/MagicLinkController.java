@@ -204,7 +204,7 @@ public class MagicLinkController {
             SimpleMailMessage message = new SimpleMailMessage();
             message.setFrom(fromAddress);
             message.setTo(to);
-            message.setSubject("Sign in to VFR Route");
+            message.setSubject("Sign in to Wingtip Maps");
             message.setText("Click to sign in (expires in 15 minutes):\n\n" + verifyUrl);
             mailSender.send(message);
         } catch (Exception e) {

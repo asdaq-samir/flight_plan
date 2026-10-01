@@ -1,8 +1,15 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <!-- The app's own core visual, reduced to a mark: a course line
-       between two checkpoints, same slate-800 the rest of the app
-       treats as its primary color. -->
-  <line x1="7" y1="25" x2="25" y2="7" stroke="#1e293b" stroke-width="3" stroke-linecap="round" />
-  <circle cx="7" cy="25" r="4" fill="#1e293b" />
-  <circle cx="25" cy="7" r="4" fill="#1e293b" />
+  <!-- Wingtip Maps' mark at a tab's size: the ownship chevron in the
+       dashed airspace ring, eight dashes and a heavier chevron so it
+       holds at 16 pixels. White on a dark browser. -->
+  <style>
+    .ring { stroke: #A3266F; }
+    .ship { fill: #14284B; stroke: #14284B; }
+    @media (prefers-color-scheme: dark) {
+      .ring { stroke: #E37BB5; }
+      .ship { fill: #FFFFFF; stroke: #FFFFFF; }
+    }
+  </style>
+  <circle class="ring" cx="16" cy="16" r="13" fill="none" stroke-width="2.6" stroke-dasharray="7 3.2" transform="rotate(-112.5 16 16)"/>
+  <path class="ship" d="M16 6.5 L22.5 22.5 L16 18.8 L9.5 22.5 Z" stroke-width="2" stroke-linejoin="round"/>
 </svg>

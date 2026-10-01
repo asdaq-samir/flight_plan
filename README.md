@@ -1,4 +1,8 @@
-# VFR Nav Log Platform
+# Wingtip Maps
+
+<img src="docs/brand/mark.svg" width="72" alt="Wingtip Maps: the ownship chevron inside a sectional's dashed airspace ring">
+
+**The map for flying.** Every airport and airspace on the FAA chart, on one map that works like Maps on an iPhone — and, when you go somewhere, the route, the checkpoints you'll see and the nav log. The mark and the app icon are in [`docs/brand/`](docs/brand/).
 
 [![CI](https://github.com/asdaq-samir/flight_plan/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/asdaq-samir/flight_plan/actions/workflows/ci.yml)
 

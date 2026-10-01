@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Wingtip Maps' mark: the moving map's ownship chevron, north up,
+       inside the dashed ring a sectional draws round an airport's
+       airspace. -->
+  <circle cx="32" cy="32" r="25" fill="none" stroke="#A3266F" stroke-width="4.5" stroke-dasharray="9.09 4" transform="rotate(-100.4 32 32)"/>
+  <path d="M32 12.5 L44.5 42.5 L32 35.5 L19.5 42.5 Z" fill="#14284B" stroke="#14284B" stroke-width="3" stroke-linejoin="round"/>
+</svg>

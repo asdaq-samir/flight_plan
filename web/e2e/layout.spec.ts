@@ -92,8 +92,8 @@ test.describe("/app/dev", () => {
 });
 
 const TITLES: Record<string, string> = {
-  "/app/plan": "Plan a route — VFR Route",
-  "/app/dev": "Dev — VFR Route",
+  "/app/plan": "Plan a route — Wingtip Maps",
+  "/app/dev": "Dev — Wingtip Maps",
 };
 
 for (const path of PAGES) {
