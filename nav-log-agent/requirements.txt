@@ -9,8 +9,8 @@
 # plain rebuild could silently pull a newer langgraph/anthropic/mcp
 # between one build and the next. Pinned to what python:3.13-slim
 # currently resolves.
-langgraph==1.2.11
-anthropic==1.7.0
+langgraph==1.2.12
+anthropic==1.9.0
 mcp==2.2.0
 psycopg[binary]==3.3.6
 pgvector==0.5.0
