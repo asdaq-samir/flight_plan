@@ -9,6 +9,7 @@ import {
 import { useConfirm } from "../../../components/useConfirm";
 import { Badge } from "../../../components/ui/badge";
 import { Button } from "../../../components/ui/button";
+import { Progress } from "../../../components/ui/progress";
 import { ResponsivePopover, ResponsivePopoverContent, ResponsivePopoverTrigger } from "../../../components/ResponsivePopover";
 import { isEndpoint, type Point, type Rating } from "../../../lib/api/types";
 import {
@@ -28,16 +29,12 @@ interface Props {
   onFocus: (entry: WalkEntry) => void;
   /** Rates the selected point -- the selected row's own buttons. */
   onRate: (rating: Rating) => void;
-  distanceNm: number | null;
-  bearingDeg: number;
   departureIdent: string;
   destinationIdent: string;
   /** How far the corridor's labels have come: rated over every
    *  candidate, filters or no filters. */
   rated: number;
   total: number;
-  /** How many rated points the filters hold back. */
-  hidden: number;
   filters: Filters;
   counts: Record<FilterKey, number>;
   onFilterChange: (key: FilterKey, on: boolean) => void;
@@ -53,8 +50,8 @@ const SCALE_KEY = ["0 not a feature", "3 workable", "5 unmistakable"]
   .map(term => term.replaceAll(" ", " ")).join(" · ");
 
 /**
- * The developer's waypoint drawer: a header with the corridor's numbers
- * and the drawer's own actions, then the walk as one list, stepped with
+ * The developer's waypoint drawer: a header with how far the rating has
+ * got and the drawer's own actions, then the walk as one list, stepped with
  * Up/Down or a tap, the map following. It is a worklist, not a record:
  * every candidate the filters admit is a row, the unrated ones
  * included, numbered the way the map popup numbers them, with the
@@ -75,8 +72,8 @@ const SCALE_KEY = ["0 not a feature", "3 workable", "5 unmistakable"]
  * where it sat beside it as a red eraser.
  */
 export default function WaypointPanel({
-  entries, selected, onFocus, onRate, distanceNm, bearingDeg, departureIdent, destinationIdent,
-  rated, total, hidden, filters, counts, onFilterChange, canUndo, onUndo, onResetAll,
+  entries, selected, onFocus, onRate, departureIdent, destinationIdent,
+  rated, total, filters, counts, onFilterChange, canUndo, onUndo, onResetAll,
 }: Props) {
   const selectedRef = useRef<HTMLButtonElement>(null);
   // The filters' sheet, closed from its own Done as well as by a tap
@@ -158,14 +155,17 @@ export default function WaypointPanel({
             {retrain.confirmDialog}
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {distanceNm !== null && (
-            <span><b>{distanceNm} nm</b> · {String(bearingDeg).padStart(3, "0")}°T</span>
-          )}
-          <span className="text-muted-foreground">
-            <b className="text-foreground">{rated}</b> of {total} rated
-            {hidden > 0 && ` · ${hidden} hidden by the filters`}
-          </span>
+        {/* How far the rating has got, as a bar, with its count at the
+            end. It was "323.4 nm · 328°T" and "56 of 269 rated · 6
+            hidden by the filters" in words: the route's distance and
+            heading are the nav log's, not the rating's, and the filters'
+            sheet counts what each one holds back. */}
+        <div className="flex items-center gap-3 py-1">
+          <Progress
+            value={total ? (rated / total) * 100 : 0} className="flex-1"
+            aria-label={`${rated} of ${total} rated`} data-testid="rated-progress"
+          />
+          <span className={cn("shrink-0 text-muted-foreground tabular-nums", TEXT.note)} aria-hidden>{rated} of {total}</span>
         </div>
       </div>
       {/* data-waypoint-list marks the scope TrainWorkspace's keyboard handler

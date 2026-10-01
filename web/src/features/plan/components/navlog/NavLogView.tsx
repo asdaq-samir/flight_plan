@@ -152,9 +152,9 @@ export function DescriptionCell({
 }: {
   description: Description | undefined;
   onSave: (text: string) => Promise<unknown>;
-  /** Inverted the same way its own waypoint row is -- the two read as
-   *  one selected group rather than a highlighted row sitting above
-   *  an unrelated one. */
+  /** Its waypoint's row selected: the box then shows as a field on the
+   *  selection's tint, the two reading as one selected group rather
+   *  than a highlighted row sitting above an unrelated one. */
   selected: boolean;
   /** Selects this row's own waypoint the moment a pilot focuses (or
    *  clicks into) the box -- the reverse half of the sync: selecting
@@ -193,12 +193,11 @@ export function DescriptionCell({
       // any field under that), the rest is one line in the row.
       className={cn(
         "min-h-0 w-full resize-none rounded py-0.5 pr-1 pl-0.5 text-left align-top shadow-none md:text-xs",
-        // The box itself stays light even when its row is selected --
-        // only the surrounding row inverts, so this reads as an
-        // editable field sitting on a highlighted row, not one more
-        // dark surface swallowing the text.
+        // On a selected row, a field: the page's own background and the
+        // stock edge, on the selection's tint, so it reads as somewhere
+        // to type rather than one more line of the row.
         selected
-          ? "border-foreground bg-background text-foreground"
+          ? "border-input bg-background text-foreground"
           : "border-transparent bg-transparent text-muted-foreground hover:border-border focus:border-ring focus:bg-background",
       )}
     />

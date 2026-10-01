@@ -149,15 +149,6 @@ export function forwardIsLeft(bearingDeg: number): boolean {
 }
 
 /**
- * How many picks the filters hold back, as one number. A breakdown by
- * axis split a single question -- how much am I not seeing -- into
- * arithmetic the reader had to finish.
- */
-export function hiddenCount(picks: Point[], filters: Filters): number {
-  return picks.filter(p => !isVisible(p, filters)).length;
-}
-
-/**
  * How many candidates exist in each filter bucket, independent of any
  * checkbox's own on/off state -- a checkbox that counted only among
  * what its own filter already lets through would read 0 the moment it

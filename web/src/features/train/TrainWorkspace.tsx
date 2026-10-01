@@ -14,7 +14,7 @@ import WaypointPanel from "./components/WaypointPanel";
 import PointPopup from "./components/PointPopup";
 import { isEndpoint, type Point, type Rating } from "../../lib/api/types";
 import {
-  filterCounts, forwardIsLeft, hasRating, hiddenCount, orderedPoints,
+  filterCounts, forwardIsLeft, hasRating, orderedPoints,
 } from "./logic";
 import { useTraining } from "./hooks/useTraining";
 
@@ -87,7 +87,6 @@ export default function TrainWorkspace({ dep, dest, children }: WorkspaceProps) 
     () => [...store.detections, ...store.added].filter(hasRating),
     [store.detections, store.added],
   );
-  const hidden = hiddenCount(picks, store.filters);
 
   const positionOf = useCallback(
     (p: Point) => waypoints.findIndex(e => e.point === p),
@@ -244,19 +243,17 @@ export default function TrainWorkspace({ dep, dest, children }: WorkspaceProps) 
         />
       </div>
     ),
-    // One panel, the shape of the pilot's nav log: the route's numbers
-    // and the drawer's actions in a header (the filters in a popover
-    // from it), and the walk as one list under it. Rating from the
+    // One panel, the shape of the pilot's nav log: how far the rating
+    // has got and the drawer's actions in a header (the filters in a
+    // popover from it), and the walk as one list under it. Rating from the
     // selected row moves on to the next one, the way the digit keys do.
     sidebar: (
       <WaypointPanel
         entries={walk} selected={point} onFocus={focus}
         onRate={r => void rate(r).then(() => step(1))}
-        distanceNm={store.course?.distance_nm ?? null}
-        bearingDeg={store.course?.bearing_deg ?? 0}
         departureIdent={store.course?.departure.ident ?? ""}
         destinationIdent={store.course?.destination.ident ?? ""}
-        rated={picks.length} total={store.detections.length + store.added.length} hidden={hidden}
+        rated={picks.length} total={store.detections.length + store.added.length}
         filters={store.filters} counts={counts} onFilterChange={store.setFilter}
         canUndo={store.canUndo} onUndo={() => void store.undo()} onResetAll={() => void store.resetAll()}
       />

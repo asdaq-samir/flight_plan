@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import type { Detection, Endpoint, LoosePick, Point } from "../../lib/api/types";
 import {
-  DEFAULT_FILTERS, filterCounts, forwardIsLeft, forwardIsUp, hasRating, hiddenCount,
+  DEFAULT_FILTERS, filterCounts, forwardIsLeft, forwardIsUp, hasRating,
   isVisible, orderedPoints, ratedOf, roleOf, sourceOf, type Filters,
 } from "./logic";
 
@@ -113,13 +113,6 @@ describe("arrow direction", () => {
   test("bearings outside 0-360 wrap", () => {
     expect(forwardIsUp(688)).toBe(forwardIsUp(328));
     expect(forwardIsLeft(-32)).toBe(forwardIsLeft(328));
-  });
-});
-
-describe("hidden count", () => {
-  test("a pick failing three boxes is hidden once, not three times", () => {
-    const awkward = loose({ cross_track_nm: 3, role: "visual", source: "added", rating: 4 });
-    expect(hiddenCount([awkward], filters({ added: false }))).toBe(1);
   });
 });
 

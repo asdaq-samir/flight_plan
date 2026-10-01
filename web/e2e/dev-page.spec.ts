@@ -70,7 +70,7 @@ test("dev page: the waypoint drawer is a worklist -- every candidate in flight o
     await page.waitForTimeout(1200);
     return (await rows.count()) === before;
   }, { timeout: slow(40000) }).toBe(true);
-  await expect(drawer.getByText(/of \d+ rated/)).toBeVisible();
+  await expect(drawer.getByRole("progressbar", { name: /^\d+ of \d+ rated$/ })).toBeVisible();
   await expect(rows.first()).toContainText("C81");
 
   // A click selects the row, and its own rating buttons open under it.

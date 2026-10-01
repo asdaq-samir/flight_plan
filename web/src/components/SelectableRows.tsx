@@ -3,13 +3,13 @@ import { cn } from "cn";
 import { TableCell, TableRow } from "./ui/table";
 
 /**
- * A clickable/keyboard-selectable row -- the nav log's waypoints on
- * Plan and the waypoint list's on Dev select the same way (click,
- * Enter, or Space), invert the same way when selected, and only differ
- * in whether they're muted while *not* selected (the nav log's
- * destination and checkpoints missing wind data are; Dev's endpoints
- * are). One component, so the two pages' lists stay the same list to
- * a reader who moves between them.
+ * A clickable/keyboard-selectable row of the nav log (click, Enter, or
+ * Space), muted while *not* selected when it is the departure or a leg
+ * missing wind data. Selected, it takes the grey tint the training
+ * drawer's waypoint rows take, as an iOS list's selection does, so the
+ * two pages' lists select alike to a reader who moves between them; it
+ * was inverted, black on a white page, as the training list was before
+ * it.
  */
 export function SelectableRow({
   selected, mutedWhenUnselected = false, expands = false, onSelect, scrollRef, children,
@@ -50,16 +50,16 @@ export function SelectableRow({
         // focus tint: muted on the tint was 4.35:1, under WCAG's 4.5.
         mutedWhenUnselected && "text-muted-foreground hover:text-foreground focus-visible:text-foreground",
         // active: what a finger gets, where there is no hover -- the row
-        // answers the touch before the map and the note do.
-        "hover:bg-accent focus-visible:bg-accent active:bg-accent",
-        // Inverted (bg-foreground/text-background), not just a tint --
-        // the same treatment shadcn's own Tooltip uses for "this one
-        // thing stands apart," which a selected row is exactly. It comes
-        // last because `cn` resolves conflicting Tailwind classes in
+        // answers the touch before the map and the note do. The training
+        // list's own tints.
+        "hover:bg-foreground/5 focus-visible:bg-foreground/5 active:bg-foreground/8",
+        // Last, because `cn` resolves conflicting Tailwind classes in
         // favour of the last one: the muted text and the hover tint
-        // above are simply overridden, where before they had to be
-        // skipped by hand so they would not fight the inversion.
-        selected && "bg-foreground text-background hover:bg-foreground active:bg-foreground",
+        // above are simply overridden. No rule between it and the note
+        // it opens, which is the same tint: one selected group, as the
+        // training list's row and its rating buttons are.
+        selected && "bg-foreground/8 text-foreground hover:bg-foreground/8 focus-visible:bg-foreground/8",
+        selected && expands && "border-b-transparent",
       )}
     >
       {children}
@@ -68,19 +68,22 @@ export function SelectableRow({
 }
 
 /**
- * The plain-text or control row directly under a selectable row -- the
- * airport-name row under departure/destination, the editable note
- * under a checkpoint, the rating buttons under Dev's selected waypoint
- * -- are the same shape (a single cell spanning the table, inverted in
- * step with the row above it), just different content.
+ * The plain-text or control row directly under a selected row -- the
+ * airport's name under departure/destination, the leg's figures and
+ * the editable note under a checkpoint -- the same shape whatever it
+ * holds (a single cell spanning the table, in the selection's tint with
+ * the row above it, as the training list's rating buttons are under
+ * theirs), just different content.
  */
 export function NoteRow({ selected, colSpan, children }: { selected: boolean; colSpan: number; children: ReactNode }) {
   return (
-    <TableRow className={cn(selected && "bg-foreground text-background hover:bg-foreground")}>
+    <TableRow className={cn(selected && "bg-foreground/8 hover:bg-foreground/8")}>
       <TableCell
         // bg-muted/20, not /60: muted text on the darker tint was 4.4:1,
-        // a hair under WCAG's 4.5 for 12px type (and /40 was 4.46).
-        className={cn("py-1 pr-2 pl-4 text-left text-xs", !selected && "bg-muted/20 text-muted-foreground")}
+        // a hair under WCAG's 4.5 for 12px type (and /40 was 4.46). On
+        // the selection's tint, the training list's grey words: muted
+        // on it is 3.9:1.
+        className={cn("py-1 pr-2 pl-4 text-left text-xs", selected ? "text-foreground/70" : "bg-muted/20 text-muted-foreground")}
         colSpan={colSpan}
       >
         {/* The row's width, wrapped in it, and none of its own (w-0
