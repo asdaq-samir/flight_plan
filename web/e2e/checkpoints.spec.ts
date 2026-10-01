@@ -21,10 +21,14 @@ test("plan page: a click or Enter selects a nav log checkpoint, with the briefin
   await expect(selectedRow).toHaveCount(0);
 
   // A click selects that row, and the map follows it.
+  // The one selected is the row clicked, told by its mark rather than
+  // by its words: a leg the clouds leave no altitude on gains its
+  // warning when the altitude streams in, after the rows, and a name
+  // read before that was compared with one read after.
   const rows = table.locator("tbody tr[tabindex='0']");
   await rows.nth(2).click();
   await expect(selectedRow).toHaveCount(1);
-  await expect(selectedRow.first().locator("td").first()).toHaveText(await rows.nth(2).locator("td").first().innerText());
+  await expect(rows.nth(2)).toHaveAttribute("data-selected");
 
   // From the keyboard the same way, and with nothing this page binds
   // on the document: a row is focusable and takes Enter itself
@@ -32,7 +36,8 @@ test("plan page: a click or Enter selects a nav log checkpoint, with the briefin
   // beside it, so this works with the briefing open.
   await rows.nth(1).focus();
   await page.keyboard.press("Enter");
-  await expect(selectedRow.first().locator("td").first()).toHaveText(await rows.nth(1).locator("td").first().innerText());
+  await expect(rows.nth(1)).toHaveAttribute("data-selected");
+  await expect(selectedRow).toHaveCount(1);
 
   // The section titles get the stock accordion's own Up and Down back:
   // the trigger used to swallow them for the walk that is now gone.

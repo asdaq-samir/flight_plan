@@ -11,7 +11,6 @@ import ConsoleTabs from "../../components/ConsoleTabs";
 import { ListGroup, ListRow } from "../../components/GroupedList";
 import StatusBadge, { type Tone } from "../../components/StatusBadge";
 import { Accordion } from "../../components/ui/accordion";
-import IconButton from "../../components/IconButton";
 import { Progress } from "../../components/ui/progress";
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "../../components/ui/chart";
 import { api, errorMessage } from "../../lib/api/client";
@@ -105,14 +104,8 @@ export function DevPanel() {
           content: <PerformanceTab status={status} failed={statusFailed} />,
         },
         {
-          value: "system", label: "System", content: <SystemTab status={status} failed={statusFailed} />,
-          // The one tab with a refresh: the services and the data are
-          // probed on a 30-second tick, and this asks now.
-          buttons: (
-            <IconButton label="Check again" onClick={refreshAll} disabled={isFetching} data-testid="dev-refresh">
-              <RefreshCw className={cn("size-4", isFetching && "animate-spin")} />
-            </IconButton>
-          ),
+          value: "system", label: "System",
+          content: <SystemTab status={status} failed={statusFailed} onRefresh={refreshAll} refreshing={isFetching} />,
         },
       ]}
     />
@@ -595,7 +588,13 @@ function ChartsSection({ charts, onRefresh, refreshing }: {
 const isStale = (status: Status | undefined) =>
   !!status && Date.now() - new Date(status.checked_at).getTime() > 5 * 60_000;
 
-function SystemTab({ status, failed }: { status: Status | undefined; failed: boolean }) {
+function SystemTab({ status, failed, onRefresh, refreshing }: {
+  status: Status | undefined;
+  failed: boolean;
+  /** Everything the console shows, asked for again now (DevPanel). */
+  onRefresh: () => void;
+  refreshing: boolean;
+}) {
   const stale = isStale(status);
   const queryClient = useQueryClient();
   // The one chart action: fetch and render the FAA's current cycle
@@ -666,12 +665,13 @@ function SystemTab({ status, failed }: { status: Status | undefined; failed: boo
     })),
   ];
 
+  // One stock accordion, as the flight planning drawer is: Services
+  // open, since what answers right now is what the tab is opened for,
+  // and the reference data, the charts and the links folded under
+  // their titles -- four tables at once was a screen and a half of
+  // scrolling on a phone to reach the last of them.
   return (
-    // One stock accordion, as the flight planning drawer is: Services
-    // open, since what answers right now is what the tab is opened
-    // for, and the reference data, the charts and the links folded
-    // under their titles -- four tables at once was a screen and a
-    // half of scrolling on a phone to reach the last of them.
+    <>
     <Accordion type="multiple" defaultValue={["Services"]}>
       {/* As the planner found them a moment ago: the gateway and its
           database through Spring's actuator, the model service and the
@@ -727,5 +727,16 @@ function SystemTab({ status, failed }: { status: Status | undefined; failed: boo
         </ListGroup>
       </AccordionSection>
     </Accordion>
+    {/* The services and the data are probed on a 30-second tick, and
+        this asks now: an action row at the tab's foot, as the pilot
+        asked, where it was an icon beside the tabs. */}
+    <ListGroup className="mt-6">
+      <ListRow
+        media={<RefreshCw className={cn("size-4", refreshing && "animate-spin")} />}
+        title="Check again" description="It checks by itself every 30 seconds"
+        onClick={onRefresh} disabled={refreshing} data-testid="dev-refresh"
+      />
+    </ListGroup>
+    </>
   );
 }

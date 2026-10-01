@@ -1,7 +1,7 @@
 import { Fragment, createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { flushSync } from "react-dom";
 import { cn } from "cn";
-import { ChevronsUpDown, Loader2, TriangleAlert, WandSparkles } from "lucide-react";
+import { CircleHelp, Loader2, TriangleAlert, WandSparkles } from "lucide-react";
 import {
   type CellData, type ColumnDef, type RowData, type TableFeatures,
   flexRender, tableFeatures, useTable,
@@ -189,12 +189,12 @@ export function DescriptionCell({
       rows={1}
       placeholder={description?.source === "error" ? "Couldn't auto-generate — type one" : "How to spot it…"}
       // shadcn's own Textarea, sized down to a table cell: one line in
-      // the row, at the rows' own 12 on any screen, where it was a
-      // field's 17 among figures of 12 (iOS Safari zooms in on a field
+      // the row, at the row's own size -- 15 to a finger, where it was a
+      // field's 17 among figures of 15 (iOS Safari zooms in on a field
       // under 16 only where the page lets it, and this one's viewport
       // does not: maximum-scale=1 in index.html).
       className={cn(
-        "min-h-0 w-full resize-none rounded py-0.5 pr-1 pl-0.5 text-left align-top text-xs shadow-none md:text-xs pointer-coarse:text-xs",
+        "min-h-0 w-full resize-none rounded py-0.5 pr-1 pl-0.5 text-left align-top text-xs shadow-none md:text-xs pointer-coarse:text-[0.9375rem]",
         // On a selected row, a field: the page's own background and the
         // stock edge, on the selection's tint, so it reads as somewhere
         // to type rather than one more line of the row.
@@ -255,13 +255,20 @@ function LegLine({ leg }: { leg: Leg }) {
     <dl className="mb-1.5 grid grid-cols-[repeat(auto-fill,minmax(3.75rem,1fr))] gap-x-2 gap-y-1 md:hidden">
       {figures.map(([name, value]) => (
         <div key={name}>
-          <dt className="text-[0.6875rem]">{name}</dt>
-          <dd className="text-foreground tabular-nums">{value}</dd>
+          <dt className={TEXT.note}>{name}</dt>
+          <dd className={cn("text-foreground tabular-nums", TEXT.detail)}>{value}</dd>
         </div>
       ))}
     </dl>
   );
 }
+
+/** The headings' size: a step above the rows' figures (the table's own
+ *  size), 14 over 12, and to a finger 16 over 15 -- iOS's callout over
+ *  its subheadline. A row's 17 was a tad big over them, the pilot said. */
+const HEADING = "text-sm pointer-coarse:text-[1rem]";
+/** A heading's unit, under its name: a note's 13 to a finger. */
+const UNIT = "text-[0.6875rem] font-normal pointer-coarse:text-[0.8125rem]";
 
 /** A column's heading: its short name over its unit, small, so both
  *  fit a phone's narrow columns ("Alt" over "ft", "MH" over "mag"), and
@@ -271,7 +278,7 @@ function Heading({ name, unit, spoken }: { name: string; unit?: string; spoken: 
     <>
       <span aria-hidden className="inline-flex flex-col items-end leading-tight">
         <span>{name}</span>
-        {unit && <span className="text-[0.6875rem] font-normal">{unit}</span>}
+        {unit && <span className={UNIT}>{unit}</span>}
       </span>
       <span className="sr-only">{spoken}</span>
     </>
@@ -287,10 +294,10 @@ const AltPlans = createContext<{ plans: ReactNode; label: string | null }>({ pla
 
 /** The Alt column's heading: the button that opens how the altitude was
  *  chosen -- the four plans, the pilot's own, and why -- in the tint with
- *  a pop-up's chevrons, as iOS draws one, and named with the figure.
- *  Before the log has an altitude, and on paper, the plain heading. It
- *  stands where a row of its own over the table was, "Altitude 3,000 ft
- *  ⓘ"; the column under it says each leg's. */
+ *  the question mark the row over the table had ("Altitude 3,000 ft ⓘ"),
+ *  as the pilot asked, and named with the figure. Before the log has an
+ *  altitude, and on paper, the plain heading; the column under it says
+ *  each leg's. */
 function AltHeading() {
   const { plans, label } = useContext(AltPlans);
   return (
@@ -300,12 +307,12 @@ function AltHeading() {
           <ResponsivePopoverTrigger asChild>
             <Button
               variant="ghost" size="xs"
-              className="-mr-1 h-auto flex-col items-end gap-0 px-1 py-0.5 leading-tight print:hidden"
+              className={cn("-mr-1 h-auto flex-col items-end gap-0 px-1 py-0.5 leading-tight print:hidden", HEADING)}
               aria-label={`Altitude${label ? `, ${label}` : ""}: how it was chosen`}
               data-testid="altitude-why"
             >
-              <span className="inline-flex items-center gap-0.5 text-sm">Alt<ChevronsUpDown className="size-3" /></span>
-              <span className="text-[0.6875rem] font-normal">ft</span>
+              <span className="inline-flex items-center gap-1">Alt<CircleHelp className="size-[1em]" /></span>
+              <span className={UNIT}>ft</span>
             </Button>
           </ResponsivePopoverTrigger>
           {plans}
@@ -353,13 +360,18 @@ export default function NavLogView({
   // as every section's is: the distance, the time and the fuel. Inside,
   // it is not said again; the altitude is the first row there (and the
   // Cruise Altitude section's line).
-  // Each figure whole: a narrow drawer breaks the line between them,
-  // not inside one.
-  const foldedSummary = parts
-    ? [parts.distance, parts.time, parts.fuel].map((figure, i) => (
-      <Fragment key={i}>{i > 0 && " · "}<span className="whitespace-nowrap">{figure}</span></Fragment>
-    ))
-    : undefined;
+  // Each figure named, in the table's own shorthand, as the pilot
+  // asked: "3h 14m" alone did not say it was the time. On one line, as
+  // they asked too: to a finger at a note's 13, since at a summary's 15
+  // the three ran to 293 points in a phone drawer's 277. Each figure
+  // whole: a longer route breaks the line between them, not inside one.
+  const foldedSummary = parts && (
+    <span className="pointer-coarse:text-[0.8125rem]">
+      {([["Dist", parts.distance], ["ETE", parts.time], ["Fuel", parts.fuel]] as const).map(([name, figure], i) => (
+        <Fragment key={name}>{i > 0 && " · "}<span className="whitespace-nowrap">{name} {figure}</span></Fragment>
+      ))}
+    </span>
+  );
   // Which sections are open: none to begin with (a pilot skims the
   // titles and opens what applies), and for the printer every one --
   // the paper is the whole briefing whatever was open on screen.
@@ -511,7 +523,10 @@ export default function NavLogView({
             onClick={onGenerateDescriptions} disabled={descriptionsLoading || selected.length === 0}
             data-testid="generate-descriptions-button"
           >
-            {descriptionsLoading ? <Loader2 className="animate-spin" /> : <WandSparkles />}
+            {/* At the headings' size, where it was 12 beside them. */}
+            {descriptionsLoading
+              ? <Loader2 className="size-4 animate-spin pointer-coarse:size-5" />
+              : <WandSparkles className="size-4 pointer-coarse:size-5" />}
           </IconButton>
           Waypoint
         </span>
@@ -704,12 +719,17 @@ export default function NavLogView({
     <div ref={watchFit}>
     <Table
       containerClassName={cn(fits ? "overflow-x-visible" : "overflow-x-auto", "print:overflow-visible")}
-      // Compact rows, at 12 on any screen: the figures at 15 with rows of
-      // 44 points were tried and the pilot preferred the log dense. On a
-      // phone the cells' padding is halved and the waypoint's name may
-      // wrap (see its column), so the five columns fit the drawer
-      // without a sideways scroll; from md up the stock padding.
-      className="text-right text-xs whitespace-nowrap max-md:[&_td]:px-1 max-md:[&_th]:px-1"
+      className={cn(
+        // On a phone the cells' padding is halved and the waypoint's
+        // name may wrap (see its column), so the five columns fit the
+        // drawer without a sideways scroll; from md up the stock padding.
+        "text-right text-xs whitespace-nowrap max-md:[&_td]:px-1 max-md:[&_th]:px-1",
+        // To a finger, the figures at what is read (15) and the rows 44
+        // points to tap (lib/text.ts), as the pilot had them: 12 on a
+        // phone was too small to read. (What they had asked to have
+        // compact was the leg's figures under a row, LegLine.)
+        "pointer-coarse:text-[0.9375rem] pointer-coarse:[&_td]:py-3",
+      )}
     >
       <TableCaption className="sr-only">
         Navigation log from {dep} to {dest}
@@ -721,9 +741,9 @@ export default function NavLogView({
               // Each heading over its own figures: right-aligned, as they
               // are (the stock heading is left-aligned, and every label
               // sat off its column), the waypoint's left as its names
-              // are; a step above the rows at 14, in black over figures
+              // are; a step above the rows (HEADING), in black over figures
               // in grey (see SelectableRow), as the pilot asked.
-              <TableHead key={header.id} className={cn("text-right text-sm text-foreground", header.column.columnDef.meta?.className)}>
+              <TableHead key={header.id} className={cn("text-right text-foreground", HEADING, header.column.columnDef.meta?.className)}>
                 {flexRender(header.column.columnDef.header, header.getContext())}
               </TableHead>
             ))}
