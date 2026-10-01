@@ -34,7 +34,11 @@ export const SCREENS: Screen[] = [
       await page.goto(`/app/plan?${ROUTE}&view=briefing`);
       await page.getByRole("button", { name: /^Nav Log/ }).click();
       await page.getByTestId("fuel-check").waitFor({ timeout: slow(120000) });
-      await page.locator("tbody tr[tabindex='0']").nth(3).click();
+      // A tap's click, without Playwright's own scroll into view first:
+      // where the table is wider than its drawer (every column, on a
+      // phone on its side or an iPad), that scrolled it to its far end,
+      // which no finger does.
+      await page.locator("tbody tr[tabindex='0']").nth(3).dispatchEvent("click");
       await expect(page.locator("tbody textarea").first()).toBeVisible();
     },
   },

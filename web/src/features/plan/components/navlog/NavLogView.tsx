@@ -527,18 +527,22 @@ export default function NavLogView({
       // where the narrative in the drawer's header writes a text of
       // its own.
       header: () => (
-        <span className="inline-flex items-center gap-1">
+        <span className="inline-flex items-center">
           <IconButton
             // relative z-10: its 44-point hit area (index.css) over the
             // "Waypoint" beside it, which painted over the area's right.
-            size="icon-xs" label="Generate descriptions" className="relative z-10 print:hidden"
+            // -ml-2: the button's own clear padding laid over the cell's,
+            // so its glyph lines up with the names under it and the
+            // column is no wider than it was with a 24-point button --
+            // the phone's five columns still fit their drawer.
+            label="Generate descriptions" className="relative z-10 -ml-2 print:hidden"
             onClick={onGenerateDescriptions} disabled={descriptionsLoading || selected.length === 0}
             data-testid="generate-descriptions-button"
           >
-            {/* At the headings' size, where it was 12 beside them. */}
+            {/* The icon buttons' one size, 20 in 36 (it was 20 in 24, crowded). */}
             {descriptionsLoading
-              ? <Loader2 className="size-4 animate-spin pointer-coarse:size-5" />
-              : <WandSparkles className="size-4 pointer-coarse:size-5" />}
+              ? <Loader2 className="size-5 animate-spin" />
+              : <WandSparkles className="size-5" />}
           </IconButton>
           Waypoint
         </span>
@@ -924,7 +928,7 @@ export default function NavLogView({
           the buttons drop out. */}
       {/* The left padding clears the island of a phone on its side,
           whose edge the drawer's is, as the training drawer's does. */}
-      <div className="flex flex-col gap-2 border-b border-border p-3 pl-[max(0.75rem,env(safe-area-inset-left))] text-sm">
+      <div className="flex flex-col gap-2 border-b border-border px-4 py-3 pl-[max(1rem,env(safe-area-inset-left))] text-sm">
         {/* Wrapping, as the waypoint drawer's header does: with the text
             set larger the title takes the row and the actions go under
             it, where Print ran off the drawer's edge. */}
@@ -978,7 +982,7 @@ export default function NavLogView({
         // 18rem of this width -- a container query, so with the text
         // set larger (the root font size up, the rem with it) the line
         // wraps rather than running off the edge.
-        className="flight-briefing @container min-h-0 flex-1 overflow-auto pr-3 pb-[env(safe-area-inset-bottom)] pl-[max(0.75rem,env(safe-area-inset-left))] print:h-auto print:overflow-visible print:pb-0"
+        className="flight-briefing @container min-h-0 flex-1 overflow-auto pr-4 pb-[env(safe-area-inset-bottom)] pl-[max(1rem,env(safe-area-inset-left))] print:h-auto print:overflow-visible print:pb-0"
         data-testid="navlog-scroller"
       >
         {notice}

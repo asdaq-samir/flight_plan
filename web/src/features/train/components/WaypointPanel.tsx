@@ -112,7 +112,7 @@ export default function WaypointPanel({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-      <div className={cn("flex flex-col gap-1 border-b border-border p-3 pl-[max(0.75rem,env(safe-area-inset-left))]", TEXT.prose)}>
+      <div className={cn("flex flex-col gap-1 border-b border-border px-4 py-3 pl-[max(1rem,env(safe-area-inset-left))]", TEXT.prose)}>
         {/* Wrapping: with the text set larger the title takes the row
             and the actions go under it, where they used to run off the
             drawer's edge. */}
@@ -179,7 +179,7 @@ export default function WaypointPanel({
         data-waypoint-list data-testid="waypoint-scroller"
       >
         <ul aria-label={`Waypoints from ${departureIdent} to ${destinationIdent}`} className="divide-y divide-border">
-          {entries.length === 0 && <li role="status" className={cn("px-3 py-3 text-muted-foreground", TEXT.prose)}>No waypoints yet</li>}
+          {entries.length === 0 && <li role="status" className={cn("px-4 py-3 text-muted-foreground", TEXT.prose)}>No waypoints yet</li>}
           {entries.map(entry => {
             const p = entry.point;
             const isSelected = p === selected;
@@ -222,7 +222,7 @@ export default function WaypointPanel({
                     moves on to the next row (TrainWorkspace's onRate), the
                     way the keys do, so a corridor rates top to bottom. */}
                 {isSelected && (
-                  <div className="bg-foreground/8 pt-1.5 pr-1 pb-2.5 pl-3">
+                  <div className="bg-foreground/8 pt-1.5 pr-1 pb-2.5 pl-4">
                     {/* Six of 36 by 32, eight apart side by side and twelve
                         between rows: each reaches 44 points through its own
                         hit area (index.css), which starts at the row above's
@@ -286,7 +286,8 @@ function WaypointRow({ number, title, detail, end, selected, expands = false, on
       ref={rowRef} type="button" onClick={onSelect}
       data-waypoint-row data-selected={selected || undefined} aria-expanded={expands ? selected : undefined}
       className={cn(
-        "flex w-full items-center gap-3 px-3 py-2 text-left outline-none",
+        // The drawer's margin, 16, as every sheet's: it was 12.
+        "flex w-full items-center gap-3 px-4 py-2 text-left outline-none",
         "focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
         // The selection a grey tint, as an iOS list's is -- the stock
         // accent is a shade off the drawer's own background, too faint

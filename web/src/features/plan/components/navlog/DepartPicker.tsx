@@ -93,8 +93,8 @@ export default function DepartPicker({ value, onChange }: Props) {
             className="h-8 w-[6.5rem] appearance-none bg-background [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-calendar-picker-indicator]:appearance-none"
             data-testid="depart-time"
           />
-          <IconButton label="Depart about now instead" className="size-8" onClick={() => onChange("")} data-testid="depart-clear">
-            <X className="size-4" />
+          <IconButton label="Depart about now instead" onClick={() => onChange("")} data-testid="depart-clear">
+            <X className="size-5" />
           </IconButton>
         </>
       )}

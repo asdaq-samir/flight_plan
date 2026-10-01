@@ -175,7 +175,6 @@ export function ClassBLayer({ course, onPreview }: { course: Course; onPreview: 
                 <div className="flex shrink-0 items-start">
                   <IconButton
                     label={pinned ? "Unpin the terminal area chart" : `Pin the ${sheet.label}`}
-                    size="icon-sm"
                     aria-pressed={pinned}
                     variant={pinned ? "secondary" : "outline"}
                     className="rounded-full"
@@ -190,7 +189,7 @@ export function ClassBLayer({ course, onPreview }: { course: Course; onPreview: 
                       pinTac(!pinned);
                     }}
                   >
-                    {pinned ? <PinOff className="size-4" /> : <Pin className="size-4" />}
+                    {pinned ? <PinOff className="size-5" /> : <Pin className="size-5" />}
                   </IconButton>
                 </div>
               )}

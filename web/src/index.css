@@ -44,6 +44,13 @@ input, select, textarea {
   margin: 12px 14px;
 }
 
+/* A map card's corners at the app's one radius for what floats (10, the
+   theme's own -- sheets, pop-ups, dialogs, list cards, toasts), where
+   Leaflet's were 12, the sheets' 14 and the pop-ups' 8. */
+.leaflet-container .leaflet-popup-content-wrapper {
+  border-radius: 10px;
+}
+
 /* Leaflet draws its popups white with its own dark text; in dark mode
    the app's popover tokens take over so the rating menu and the marker
    popups match every other surface. */

@@ -49,11 +49,12 @@ export default function PointPopup({
   // The close sits at the row's end, where Leaflet's own would be.
   /** The two steps, drawn either side of the title: the card's heading
    *  reads "back, where you are, forward", which is what a rating pass
-   *  is doing. They keep their 40px target -- this is how the pass
-   *  moves on a touchscreen, not corner chrome. */
+   *  is doing. At the icon buttons' one size, 36 with a 20 glyph, their
+   *  44-point hit areas (index.css) for the finger -- this is how the
+   *  pass moves on a touchscreen, not corner chrome. */
   const stepLeft = (
     <IconButton
-      type="button" label="Step left" variant="outline" size="icon-lg"
+      type="button" label="Step left" variant="outline"
       onClick={onLeft} disabled={!onLeft || !canLeft} className="flex-shrink-0 rounded-full"
     >
       <ChevronLeft className="size-5" strokeWidth={3} />
@@ -61,7 +62,7 @@ export default function PointPopup({
   );
   const stepRight = (
     <IconButton
-      type="button" label="Step right" variant="outline" size="icon-lg"
+      type="button" label="Step right" variant="outline"
       onClick={onRight} disabled={!onRight || !canRight} className="flex-shrink-0 rounded-full"
     >
       <ChevronRight className="size-5" strokeWidth={3} />

@@ -11,7 +11,8 @@ import type { Page } from "@playwright/test";
  * iOS leading; P11 no sideways scroll, at 100% and at Safari's 150% page
  * zoom; P12 nothing pinned to the screen under the notch, the island or
  * the home indicator; P16 the app's own typeface everywhere; P17 reading
- * text and headings in the text's own colour.
+ * text and headings in the text's own colour; P18 the same component at
+ * the same size wherever it is.
  */
 
 /** What a finger can tap. */
@@ -208,6 +209,93 @@ export function roleFindings(page: Page, scope = "body"): Promise<RoleFinding[]>
     }
     return found;
   }, scope);
+}
+
+export type ComponentFinding = { rule: string; what: string; measured: string };
+
+/** P18: the same component at the same size wherever it is -- what the
+ *  pilot found differing from one surface to the next, which no check of
+ *  a size against iOS's list on its own could see:
+ *  - a sheet's grabber at iOS's 36 by 5;
+ *  - one radius for what floats, the theme's: sheets, pop-ups, dialogs,
+ *    map cards, list cards and toasts;
+ *  - one icon-only button, 36 with a 20 glyph -- outside the navigation
+ *    bar, whose sizes are a decision still open, and the map's markers;
+ *  - a drawer's or a sheet's words at least 16 in from its side, iOS's
+ *    margin (a point less for a glyph's own side bearing);
+ *  - on a phone, no panel scrolling sideways (the nav log's five columns
+ *    are laid out to fit their drawer) -- not in Slide Over's 320, where
+ *    the drawer is narrower than five columns need and the log scrolls,
+ *    as it does with the text set large. */
+export function componentFindings(page: Page): Promise<ComponentFinding[]> {
+  return page.evaluate(() => {
+    const found: { rule: string; what: string; measured: string }[] = [];
+    const on = (el: Element) => {
+      const r = el.getBoundingClientRect();
+      return r.width > 1 && r.height > 1 && getComputedStyle(el).visibility === "visible";
+    };
+    const name = (el: Element) => (el.getAttribute("aria-label") ?? (el as HTMLElement).dataset?.testid ?? el.getAttribute("data-slot") ?? el.className.toString().split(" ")[0]).slice(0, 40);
+    for (const grab of document.querySelectorAll('[data-slot="drawer-content"] > div:first-child')) {
+      const r = grab.getBoundingClientRect();
+      if (!on(grab) || r.height > 12) continue;
+      if (Math.abs(r.width - 36) > 0.5 || Math.abs(r.height - 5) > 0.5) found.push({ rule: "grabber 36×5", what: "sheet grabber", measured: `${r.width}×${r.height}` });
+    }
+    const theme = document.createElement("div");
+    theme.className = "rounded-lg";
+    document.body.append(theme);
+    const radius = parseFloat(getComputedStyle(theme).borderTopLeftRadius);
+    theme.remove();
+    const floats = ['[data-slot="drawer-content"][data-vaul-drawer-direction="bottom"]', '[data-slot="popover-content"]', '[data-slot="dialog-content"]',
+      '[data-slot="alert-dialog-content"]', ".leaflet-popup-content-wrapper", '[data-slot="item-group"].border', "[data-sonner-toast]"].join(", ");
+    for (const box of document.querySelectorAll(floats)) {
+      if (!on(box)) continue;
+      const r = parseFloat(getComputedStyle(box).borderTopLeftRadius);
+      if (Math.abs(r - radius) > 0.5) found.push({ rule: `one radius, ${radius}`, what: name(box), measured: `${r}` });
+    }
+    for (const button of document.querySelectorAll<HTMLElement>('button, a[data-slot="button"]')) {
+      const svg = button.querySelector("svg");
+      if (!svg || !on(button) || button.closest('header, .leaflet-marker-icon, [data-sonner-toaster], [data-slot="tabs-trigger"]')) continue;
+      const words = [...button.querySelectorAll("*"), button].some(n => [...n.childNodes].some(c => c.nodeType === 3 && c.textContent!.trim() && !(n as Element).closest(".sr-only")));
+      if (words || button.getAttribute("role") === "combobox") continue;
+      const b = button.getBoundingClientRect(), g = svg.getBoundingClientRect();
+      const hit = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2);
+      if (!hit || !(hit === button || button.contains(hit))) continue;
+      if (Math.abs(b.width - 36) > 0.5 || Math.abs(b.height - 36) > 0.5 || Math.abs(g.width - 20) > 0.5) {
+        found.push({ rule: "icon button 36, glyph 20", what: name(button), measured: `${Math.round(b.width)}×${Math.round(b.height)}, glyph ${Math.round(g.width)}` });
+      }
+    }
+    for (const panel of document.querySelectorAll('[data-slot="sidebar"][data-mobile="true"], [data-slot="sidebar-container"], [data-slot="drawer-content"], [data-testid="console-sheet"]')) {
+      if (!on(panel)) continue;
+      const p = panel.getBoundingClientRect();
+      let inset = Infinity, sample = "";
+      const walk = document.createTreeWalker(panel, NodeFilter.SHOW_TEXT);
+      for (let n = walk.nextNode(); n; n = walk.nextNode()) {
+        if (!n.textContent!.trim() || n.parentElement!.closest(".sr-only")) continue;
+        const range = document.createRange();
+        range.selectNodeContents(n);
+        const t = range.getBoundingClientRect();
+        if (t.width < 1 || t.bottom < p.top || t.top > p.bottom) continue;
+        // Words scrolled out of sight, or in something that scrolls
+        // sideways (a wide table, its cells passing the edge as it moves),
+        // are not the panel's margin.
+        const at = document.elementFromPoint(t.left + Math.min(t.width / 2, 4), t.top + t.height / 2);
+        if (!at || !(at === n.parentElement || n.parentElement!.contains(at) || at.contains(n.parentElement))) continue;
+        let scrolls = false;
+        for (let a = n.parentElement; a && a !== panel; a = a.parentElement) if (a.scrollWidth > a.clientWidth + 1 && /auto|scroll/.test(getComputedStyle(a).overflowX)) scrolls = true;
+        if (scrolls) continue;
+        if (t.left - p.left < inset) { inset = t.left - p.left; sample = n.textContent!.trim().slice(0, 30); }
+      }
+      if (inset < 14.5) found.push({ rule: "margin 16", what: name(panel), measured: `${Math.round(inset)} at "${sample}"` });
+    }
+    if (innerWidth >= 375 && innerWidth < 768) {
+      for (const el of document.querySelectorAll<HTMLElement>("*")) {
+        const s = getComputedStyle(el);
+        if (!/auto|scroll/.test(s.overflowX) || !on(el)) continue;
+        if (el.scrollWidth - el.clientWidth > 1) found.push({ rule: "no sideways scroll in a panel", what: name(el), measured: `${el.scrollWidth} in ${el.clientWidth}` });
+      }
+    }
+    return found;
+  });
 }
 
 /** P11: how far the page scrolls sideways; 0 or less passes. */

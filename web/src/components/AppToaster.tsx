@@ -31,7 +31,8 @@ export default function AppToaster() {
       position={edge === "bottom" ? "top-center" : "bottom-center"}
       closeButton
       richColors
-      style={{ "--width": "min(34rem, calc(100vw - 2rem))" } as CSSProperties}
+      // The app's one radius for what floats (index.css), over sonner's 8.
+      style={{ "--width": "min(34rem, calc(100vw - 2rem))", "--border-radius": "var(--radius)" } as CSSProperties}
       expand={false}
       visibleToasts={3}
       // Under the notch or the Dynamic Island, or over the home

@@ -60,7 +60,7 @@ export default function ConsoleHeader({ console }: { console: string }) {
       {isError && <Button variant="outline" size="sm" onClick={() => void refetch()}>Retry sign-in check</Button>}
       {!isLoading && !isError && !pilot && <SignInModal />}
       <SheetClose asChild>
-        <IconButton label="Close" size="icon-sm"><XIcon /></IconButton>
+        <IconButton label="Close"><XIcon className="size-5" /></IconButton>
       </SheetClose>
     </SheetHeader>
   );
