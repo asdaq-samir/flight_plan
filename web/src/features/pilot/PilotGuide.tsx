@@ -1,9 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
+import { cn } from "cn";
+import { ListGroup, ListRow } from "../../components/GroupedList";
 import KeepRoute from "../../components/KeepRoute";
 import { Kbd } from "../../components/ui/kbd";
 import { api } from "../../lib/api/client";
 import type { Course } from "../../lib/api/types";
 import { CRUISE_REFERENCE_FT } from "../../lib/performance";
+import { TEXT } from "../../lib/text";
 import { altFt } from "../../lib/units";
 import { scoreColor } from "../plan/format";
 
@@ -35,7 +38,7 @@ function ModelProvenance() {
   const promoted = data?.models.find(m => m.promoted);
   if (!data || !promoted) return null;
   return (
-    <p className="text-xs text-muted-foreground">
+    <p className={cn("text-muted-foreground", TEXT.note)}>
       Rated by {promoted.name}
       {promoted.score !== null && `, off by ${promoted.score.toFixed(2)} on average`}
       {data.n_labeled != null && ` against ${data.n_labeled} checkpoints pilots rated by hand`}.
@@ -54,8 +57,8 @@ function ModelProvenance() {
 export default function PilotGuide({ course }: { course: Course | null }) {
   return (
     <div className="space-y-5">
-      <section className="space-y-1.5 text-sm">
-        <h3 className="text-sm font-semibold">Planning a flight here</h3>
+      <section className={cn("space-y-1.5", TEXT.prose)}>
+        <h3 className={cn("font-semibold", TEXT.row)}>Planning a flight here</h3>
         <ol className="list-decimal space-y-1 pl-5 text-muted-foreground">
           <li>Pick your departure and destination in the header and press the arrow. The course draws at once.</li>
           <li>The numbered dots along the course are your visual checkpoints: landmarks a pilot could pick out from the air, chosen and rated for that.</li>
@@ -64,8 +67,8 @@ export default function PilotGuide({ course }: { course: Course | null }) {
         </ol>
       </section>
 
-      <section className="space-y-1.5 text-sm">
-        <h3 className="text-sm font-semibold">Your aeroplane in the day's air</h3>
+      <section className={cn("space-y-1.5", TEXT.prose)}>
+        <h3 className={cn("font-semibold", TEXT.row)}>Your aeroplane in the day's air</h3>
         <p className="text-muted-foreground">
           Your aeroplane's cruise speed and fuel burn are taken as its figures at its cruise power
           at {altFt(CRUISE_REFERENCE_FT)} ft on a standard day, a row of its handbook's cruise table. Each leg flies them
@@ -76,22 +79,24 @@ export default function PilotGuide({ course }: { course: Course | null }) {
         </p>
       </section>
 
-      <section className="space-y-1.5 text-sm">
-        <h3 className="text-sm font-semibold">What the colours mean</h3>
+      <section className={cn("space-y-1.5", TEXT.prose)}>
+        <h3 className={cn("font-semibold", TEXT.row)}>What the colours mean</h3>
         <p className="text-muted-foreground">Each checkpoint is rated for how findable it is from the cockpit, 0 to 5.</p>
-        <div className="space-y-1">
+        {/* A row a colour, its dot before the words, as the app's lists
+            are (the developer's rating scale is the same). */}
+        <ListGroup>
           {BUCKETS.map(([color, label]) => (
-            <div key={label} className="flex items-center gap-2">
-              <span className="size-3 shrink-0 rounded-full border border-black/10" style={{ backgroundColor: color }} />
-              <span>{label}</span>
-            </div>
+            <ListRow
+              key={label} title={label}
+              media={<span className="size-3 shrink-0 rounded-full border border-black/10" style={{ backgroundColor: color }} />}
+            />
           ))}
-        </div>
+        </ListGroup>
         <ModelProvenance />
       </section>
 
-      <section className="space-y-1.5 text-sm">
-        <h3 className="text-sm font-semibold">The map</h3>
+      <section className={cn("space-y-1.5", TEXT.prose)}>
+        <h3 className={cn("font-semibold", TEXT.row)}>The map</h3>
         <p className="text-muted-foreground">
           The chart is the FAA sectional, the whole country, at every zoom. The layers button at the map's top right
           picks the base chart (sectional, IFR low, IFR high), pins the terminal area chart over it, and turns on your own
@@ -101,8 +106,8 @@ export default function PilotGuide({ course }: { course: Course | null }) {
         </p>
       </section>
 
-      <section className="space-y-1.5 text-sm">
-        <h3 className="text-sm font-semibold">On your phone</h3>
+      <section className={cn("space-y-1.5", TEXT.prose)}>
+        <h3 className={cn("font-semibold", TEXT.row)}>On your phone</h3>
         <p className="text-muted-foreground">
           Add this to your Home Screen and it opens as its own app: the whole screen, with no browser bar over the
           chart, and the charts you keep below stay kept. In Safari tap Share, then Add to Home Screen. In a browser
@@ -112,8 +117,8 @@ export default function PilotGuide({ course }: { course: Course | null }) {
 
       <KeepRoute course={course} />
 
-      <section className="space-y-1.5 text-sm">
-        <h3 className="text-sm font-semibold">Keys</h3>
+      <section className={cn("space-y-1.5", TEXT.prose)}>
+        <h3 className={cn("font-semibold", TEXT.row)}>Keys</h3>
         <div className="space-y-1 text-muted-foreground">
           {KEYS.map(([key, text]) => (
             <div key={key} className="flex items-center gap-2">

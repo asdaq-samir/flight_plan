@@ -21,6 +21,7 @@ import {
 } from "../../../../components/ui/table";
 import type { AltitudeChoice, Candidate, Leg, NavLogAltitude, Totals } from "../../../../lib/api/types";
 import { revealRow } from "../../../../lib/revealRow";
+import { TEXT } from "../../../../lib/text";
 import { type Description, descriptionKey } from "../../hooks/useCheckpointNotes";
 import { altFt, clockTime, deg, describeFuel, describeSteps, describeTime, etaAt, one, signed, totalsParts } from "../../format";
 import AccordionSection from "../../../../components/AccordionSection";
@@ -614,7 +615,7 @@ export default function NavLogView({
   // with a departure time, the arrival and the winds forecast period
   // flown on; and legs flown without wind, in red. Above the table.
   const summary = (
-    <div className="mb-3 text-sm" data-testid="navlog-summary">
+    <div className="mb-3" data-testid="navlog-summary">
       <ListGroup>
         {parts?.warning && <ListRow title={<span className="text-destructive">{parts.warning}</span>} />}
         {/* The clouds forecast near a leg leave it no legal altitude (14
@@ -653,7 +654,7 @@ export default function NavLogView({
                       and fuel: the pilot picks one and the log re-plans
                       on it. Then why. */}
                   <div className="mb-3 space-y-1.5" role="group" aria-label="Cruise altitude plans">
-                    <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Four plans, or your own</div>
+                    <div className={cn("font-semibold uppercase tracking-wide text-muted-foreground", TEXT.note)}>Four plans, or your own</div>
                     {nav.options.map(o => (
                       <Button
                         key={o.kind} type="button" size="sm"
@@ -705,7 +706,7 @@ export default function NavLogView({
                       </Button>
                     </form>
                   </div>
-                  <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">How the altitude was chosen</div>
+                  <div className={cn("mb-2 font-semibold uppercase tracking-wide text-muted-foreground", TEXT.note)}>How the altitude was chosen</div>
                   <AltitudeReasoning nav={nav} legs={legs} />
                 </ResponsivePopoverContent>
               </ResponsivePopover>
@@ -740,7 +741,7 @@ export default function NavLogView({
   // two or three lines.
   const fuelShort = totals?.fuel_margin_gal != null && totals.fuel_margin_gal < 0 ? -totals.fuel_margin_gal : null;
   const fuelNote = totals && totals.fuel_required_gal != null && (
-    <div className="mt-3 text-sm" data-testid="fuel-check">
+    <div className="mt-3" data-testid="fuel-check">
       <ListGroup>
         <ListRow
           title="Fuel required"
@@ -771,11 +772,15 @@ export default function NavLogView({
           named here instead, the inputs become a line of text, and
           the buttons drop out. */}
       <div className="flex flex-col gap-2 border-b border-border p-3 text-sm">
-        <div className="flex items-center gap-2">
-          {/* 16/600 in the foreground colour: the drawer's title, a step
-              above the sections' 14/600 (it was 14 and muted, and read
-              as weaker than the sections under it). */}
-          <span className="text-base font-semibold" data-testid="drawer-title">Flight Planning</span>
+        {/* Wrapping, as the waypoint drawer's header does: with the text
+            set larger the title takes the row and the actions go under
+            it, where Print ran off the drawer's edge. */}
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Semibold in the foreground colour, at a drawer's title's
+              size (TEXT): 16 over the sections' 14, and 17 to a finger,
+              as an iOS navigation bar's title is. It was 14 and muted,
+              and read as weaker than the sections under it. */}
+          <span className={cn("font-semibold", TEXT.title)} data-testid="drawer-title">Flight Planning</span>
           <span className="hidden text-muted-foreground print:inline">{dep} → {dest}</span>
           <div className="ml-auto flex items-center gap-2 print:hidden">{actions}</div>
         </div>

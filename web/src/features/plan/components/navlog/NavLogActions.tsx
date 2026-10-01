@@ -1,9 +1,11 @@
 import { Loader2, Printer, Sparkles } from "lucide-react";
 import { useState } from "react";
+import { cn } from "cn";
 import { ResponsivePopover, ResponsivePopoverContent, ResponsivePopoverTrigger } from "../../../../components/ResponsivePopover";
 import ToolbarButton from "../../../../components/ToolbarButton";
 import { ScrollArea } from "../../../../components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../../../components/ui/tabs";
+import { TEXT } from "../../../../lib/text";
 import type { FrameworkNarrative } from "../../hooks/useNarratives";
 
 type Framework = "langgraph" | "crewai";
@@ -20,7 +22,7 @@ const FRAMEWORK_LABEL: Record<Framework, string> = {
 function NarrativeTabBody({ framework, narrative }: { framework: Framework; narrative: FrameworkNarrative }) {
   return (
     <ScrollArea className="max-h-[60vh]">
-      <div className="p-3 pt-2">
+      <div className={cn("p-3 pt-2", TEXT.prose)}>
         {narrative.loading && !narrative.text && (
           <p className="text-muted-foreground">Generating {FRAMEWORK_LABEL[framework]} narrative…</p>
         )}

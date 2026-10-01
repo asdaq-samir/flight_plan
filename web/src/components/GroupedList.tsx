@@ -1,7 +1,9 @@
 import { Children, Fragment, useId, type ComponentProps, type ReactNode } from "react";
 import { ChevronRight, ExternalLink } from "lucide-react";
+import { cn } from "cn";
 import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemSeparator, ItemTitle } from "./ui/item";
 import { Label } from "./ui/label";
+import { TEXT } from "../lib/text";
 
 /**
  * The app's grouped lists, the way iOS lays out Settings and a
@@ -9,7 +11,9 @@ import { Label } from "./ui/label";
  * a hairline between each, and a note under the box. Built on shadcn's
  * Item. The settings are these, and so are the flight planning drawer's
  * sections' contents: one look for anything that is a list of things
- * with a value or a control at the end.
+ * with a value or a control at the end. At the app's sizes for a list
+ * (TEXT): to a finger, 17 points for a row and 15 under it, the
+ * heading and the note 13.
  */
 export function ListGroup({ title, footer, children, className }: {
   title?: string;
@@ -21,7 +25,7 @@ export function ListGroup({ title, footer, children, className }: {
   const rows = Children.toArray(children).filter(Boolean);
   return (
     <section aria-labelledby={title ? id : undefined} className={className}>
-      {title && <h3 id={id} className="px-1 pb-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">{title}</h3>}
+      {title && <h3 id={id} className={cn("px-1 pb-1.5 font-semibold tracking-wide text-muted-foreground uppercase", TEXT.note)}>{title}</h3>}
       <ItemGroup role="group" aria-labelledby={title ? id : undefined} className="gap-0 rounded-lg border border-border bg-card">
         {rows.map((row, i) => (
           <Fragment key={i}>
@@ -30,7 +34,7 @@ export function ListGroup({ title, footer, children, className }: {
           </Fragment>
         ))}
       </ItemGroup>
-      {footer && <p className="px-1 pt-1.5 text-xs text-muted-foreground">{footer}</p>}
+      {footer && <p className={cn("px-1 pt-1.5 text-muted-foreground", TEXT.note)}>{footer}</p>}
     </section>
   );
 }
@@ -64,14 +68,14 @@ export function ListRow({ id, media, title, description, value, href, chevron, c
     <>
       {media && <ItemMedia>{media}</ItemMedia>}
       <ItemContent className="min-w-0 gap-0.5">
-        <ItemTitle className="line-clamp-none font-normal">
-          {id ? <Label htmlFor={id} className="font-normal">{title}</Label> : title}
+        <ItemTitle className={cn("line-clamp-none font-normal", TEXT.row)}>
+          {id ? <Label htmlFor={id} className={cn("font-normal", TEXT.row)}>{title}</Label> : title}
         </ItemTitle>
-        {description && <ItemDescription className="line-clamp-none text-xs">{description}</ItemDescription>}
+        {description && <ItemDescription className={cn("line-clamp-none", TEXT.detail)}>{description}</ItemDescription>}
       </ItemContent>
       {(value !== undefined || children || href || chevron) && (
         <ItemActions className="ml-auto">
-          {value !== undefined && <span className="text-sm text-muted-foreground tabular-nums">{value}</span>}
+          {value !== undefined && <span className={cn("text-muted-foreground tabular-nums", TEXT.row)}>{value}</span>}
           {children}
           {href && <ExternalLink className="size-4 text-muted-foreground" aria-hidden />}
           {chevron && <ChevronRight className="size-4 text-muted-foreground" aria-hidden />}

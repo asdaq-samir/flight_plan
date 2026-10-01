@@ -7,6 +7,7 @@ import { Alert, AlertDescription, AlertTitle } from "../../../../components/ui/a
 import AccordionSection from "../../../../components/AccordionSection";
 import { ListGroup, ListRow } from "../../../../components/GroupedList";
 import StatusBadge from "../../../../components/StatusBadge";
+import { TEXT } from "../../../../lib/text";
 import { api } from "../../../../lib/api/client";
 import { pilotQuery } from "../../../../lib/queryClient";
 import AltitudeReasoning from "../AltitudeReasoning";
@@ -357,7 +358,7 @@ export default function FlightBriefingView({
       {briefingState.state === "ready" && briefingState.refreshError && (
         // The last briefing stays up after a refresh that failed -- say
         // so, and how old it is, as the map's airport chips do.
-        <p className="border-b py-2 text-sm text-amber-700 dark:text-amber-400 print:hidden">
+        <p className={cn("border-b py-2 text-amber-700 dark:text-amber-400 print:hidden", TEXT.prose)}>
           Could not refresh the briefing ({briefingState.refreshError}); showing the one fetched at{" "}
           {clockTime(new Date(briefingState.fetchedAt))}.
         </p>
@@ -369,13 +370,13 @@ export default function FlightBriefingView({
 
       <AccordionSection title="Adverse Conditions" summary={summaries.adverse}>
         {!briefing ? (
-          <p className="text-sm text-muted-foreground">{briefingPendingMessage}</p>
+          <p className="text-muted-foreground">{briefingPendingMessage}</p>
         ) : unchecked("hazards") ? (
-          <p className="text-sm text-amber-700 dark:text-amber-300">
+          <p className="text-amber-700 dark:text-amber-300">
             SIGMET/AIRMET data could not be checked — aviationweather.gov didn’t respond. Verify separately before flight.
           </p>
         ) : briefing.hazards.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No SIGMETs or AIRMETs reported along this route.</p>
+          <p className="text-muted-foreground">No SIGMETs or AIRMETs reported along this route.</p>
         ) : (
           // A row a SIGMET or AIRMET, as the rest of the briefing's lists
           // are, marked with the warning triangle: it was an amber card
@@ -400,7 +401,7 @@ export default function FlightBriefingView({
         // Seen with the section folded: the reasons are inside it, but
         // that VFR is not recommended is on its title, not behind a tap.
         aside={vnrReasons.length > 0 ? (
-          <span className="inline-flex items-center gap-1 text-xs font-semibold text-red-700 dark:text-red-400" data-testid="vnr-flag">
+          <span className={cn("inline-flex items-center gap-1 font-semibold text-red-700 dark:text-red-400", TEXT.note)} data-testid="vnr-flag">
             <TriangleAlert className="size-3.5" aria-hidden />
             VFR not recommended
           </span>
@@ -412,18 +413,18 @@ export default function FlightBriefingView({
             states it before the detail that justifies it. Red on pale
             red at 7:1, in both themes. */}
         {vnrReasons.length > 0 && (
-          <Alert className="mb-2 border-red-200 bg-red-50 text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200">
+          <Alert className={cn("mb-2 border-red-200 bg-red-50 text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200", TEXT.prose)}>
             <TriangleAlert />
             <AlertTitle>VFR flight not recommended</AlertTitle>
-            <ul className="col-start-2 list-disc space-y-0.5 pl-4 text-sm">
+            <ul className="col-start-2 list-disc space-y-0.5 pl-4">
               {vnrReasons.map(reason => <li key={reason}>{reason}</li>)}
             </ul>
           </Alert>
         )}
         {!briefing ? (
-          <p className="text-sm text-muted-foreground">{briefingPendingMessage}</p>
+          <p className="text-muted-foreground">{briefingPendingMessage}</p>
         ) : unchecked("metars") ? (
-          <p className="text-sm text-amber-700 dark:text-amber-300">
+          <p className="text-amber-700 dark:text-amber-300">
             Current conditions could not be checked — aviationweather.gov didn’t respond. Verify separately before flight.
           </p>
         ) : (
@@ -451,9 +452,9 @@ export default function FlightBriefingView({
           one that decides go/no-go on arrival. */}
       <AccordionSection title="Destination Forecast" summary={summaries.destination}>
         {!briefing ? (
-          <p className="text-sm text-muted-foreground">{briefingPendingMessage}</p>
+          <p className="text-muted-foreground">{briefingPendingMessage}</p>
         ) : unchecked("forecast") ? (
-          <p className="text-sm text-amber-700 dark:text-amber-300">
+          <p className="text-amber-700 dark:text-amber-300">
             Forecast data could not be checked — aviationweather.gov didn’t respond. Verify separately before flight.
           </p>
         ) : destStation ? (
@@ -463,7 +464,7 @@ export default function FlightBriefingView({
             <ListRow title="Category"><CategoryBadge category={categoryOf(destStation.ceiling_ft, destStation.visibility_sm)} /></ListRow>
           </ListGroup>
         ) : (
-          <p className="text-sm text-muted-foreground">No TAF published for {dest}.</p>
+          <p className="text-muted-foreground">No TAF published for {dest}.</p>
         )}
       </AccordionSection>
 
@@ -473,13 +474,13 @@ export default function FlightBriefingView({
           a line of prose per station. */}
       <AccordionSection title="En Route Forecast" summary={summaries.enRoute}>
         {!briefing ? (
-          <p className="text-sm text-muted-foreground">{briefingPendingMessage}</p>
+          <p className="text-muted-foreground">{briefingPendingMessage}</p>
         ) : unchecked("forecast") ? (
-          <p className="text-sm text-amber-700 dark:text-amber-300">
+          <p className="text-amber-700 dark:text-amber-300">
             Forecast data could not be checked — aviationweather.gov didn’t respond. Verify separately before flight.
           </p>
         ) : enRoute.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No TAF published near the route.</p>
+          <p className="text-muted-foreground">No TAF published near the route.</p>
         ) : (
           <ListGroup footer="The worst forecast period of each TAF near the route, worst first." >
             {enRoute.map(st => (
@@ -499,7 +500,7 @@ export default function FlightBriefingView({
           arrives with the nav log, not with the briefing. */}
       <AccordionSection title="Cruise Altitude" summary={summaries.cruise}>
         {!nav ? (
-          <p className="text-sm text-muted-foreground">Waiting on the nav log's altitude…</p>
+          <p className="text-muted-foreground">Waiting on the nav log's altitude…</p>
         ) : (
           <div className="space-y-3">
             <ListGroup>
@@ -516,7 +517,7 @@ export default function FlightBriefingView({
               />
             </ListGroup>
             <div>
-              <h3 className="px-1 pb-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">How it was chosen</h3>
+              <h3 className={cn("px-1 pb-1.5 font-semibold tracking-wide text-muted-foreground uppercase", TEXT.note)}>How it was chosen</h3>
               <AltitudeReasoning nav={nav} legs={legs} />
             </div>
           </div>
@@ -531,7 +532,7 @@ export default function FlightBriefingView({
           performance step). */}
       <AccordionSection title="Winds Aloft" summary={summaries.winds}>
         {!stretches.some(st => st.wind) ? (
-          <p className="text-sm text-muted-foreground">No winds-aloft data available for this route.</p>
+          <p className="text-muted-foreground">No winds-aloft data available for this route.</p>
         ) : (
           <ListGroup>
             {stretches.map((st, i) => (
@@ -564,7 +565,7 @@ export default function FlightBriefingView({
           runways, a row each. They were "TWR (TWR): 118.3" lines. */}
       <AccordionSection title="Airport Information" summary={summaries.airports}>
         {!briefing ? (
-          <p className="text-sm text-muted-foreground">{briefingPendingMessage}</p>
+          <p className="text-muted-foreground">{briefingPendingMessage}</p>
         ) : (
           <div className="grid gap-3 sm:grid-cols-2">
             {[dep, dest].map(ident => {
@@ -611,10 +612,10 @@ export function BriefingNotices({ briefing: state }: { briefing: BriefingState }
   if (gaps.length === 0) return null;
   return (
     <div className="pt-3" data-testid="briefing-notices">
-      <Alert className="border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+      <Alert className={cn("border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200", TEXT.prose)}>
         <CloudOff />
         <AlertTitle>Could not check {gaps.join(", ")}</AlertTitle>
-        <AlertDescription className="text-amber-900 dark:text-amber-200">
+        <AlertDescription className={cn("text-amber-900 dark:text-amber-200", TEXT.prose)}>
           aviationweather.gov didn’t respond. Verify separately before flight.
         </AlertDescription>
       </Alert>
@@ -630,7 +631,7 @@ export function BriefingNotices({ briefing: state }: { briefing: BriefingState }
  */
 export function PlanningAidNote() {
   return (
-    <p className="py-3 text-xs text-muted-foreground" data-testid="planning-aid-note">
+    <p className={cn("py-3 text-muted-foreground", TEXT.note)} data-testid="planning-aid-note">
       <span className="font-semibold">Planning aid only.</span> Before flight, obtain an official briefing and verify current weather, NOTAMs, TFRs, airport status, aircraft performance, and applicable regulations.
     </p>
   );

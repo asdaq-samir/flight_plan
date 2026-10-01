@@ -16,6 +16,7 @@ import {
 } from "../logic";
 import { revealRow } from "../../../lib/revealRow";
 import { inkOn } from "../../../lib/scoreScale";
+import { TEXT } from "../../../lib/text";
 import FilterBar from "./FilterBar";
 
 interface Props {
@@ -64,8 +65,8 @@ const SCALE_KEY = ["0 not a feature", "3 workable", "5 unmistakable"]
  * the map popup sits behind the drawer as much as on a desktop.
  *
  * A list as iOS draws one, where it was a table of 12-point columns: a
- * row each, its kind at 17 points and where it is under that at 15 (the
- * desktop's own 14 and 12 from md up), 44 points and more to tap, the
+ * row each, its kind at 17 points and where it is under that at 15 (14
+ * and 12 with a mouse: the app's sizes, TEXT), 44 points and more to tap, the
  * selection a tint rather than a black bar. The filters live in a sheet
  * so the list has the height. The header's actions are toolbar buttons,
  * a word under each icon as the nav log's are: Filter and Undo, used
@@ -114,12 +115,12 @@ export default function WaypointPanel({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-      <div className="flex flex-col gap-1 border-b border-border p-3 pl-[max(0.75rem,env(safe-area-inset-left))] text-sm">
+      <div className={cn("flex flex-col gap-1 border-b border-border p-3 pl-[max(0.75rem,env(safe-area-inset-left))]", TEXT.prose)}>
         {/* Wrapping: with the text set larger the title takes the row
             and the actions go under it, where they used to run off the
             drawer's edge. */}
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-base font-semibold" data-testid="drawer-title">Model Training</span>
+          <span className={cn("font-semibold", TEXT.title)} data-testid="drawer-title">Model Training</span>
           <div className="ml-auto flex items-center gap-1">
             <ResponsivePopover open={filtersOpen} onOpenChange={setFiltersOpen}>
               <ResponsivePopoverTrigger asChild>
@@ -178,7 +179,7 @@ export default function WaypointPanel({
         data-waypoint-list data-testid="waypoint-scroller"
       >
         <ul aria-label={`Waypoints from ${departureIdent} to ${destinationIdent}`} className="divide-y divide-border">
-          {entries.length === 0 && <li className="px-3 py-3 text-sm text-muted-foreground">No waypoints yet</li>}
+          {entries.length === 0 && <li className={cn("px-3 py-3 text-muted-foreground", TEXT.prose)}>No waypoints yet</li>}
           {entries.map(entry => {
             const p = entry.point;
             const isSelected = p === selected;
@@ -246,7 +247,7 @@ export default function WaypointPanel({
                     {/* Two pixels clear of the buttons' hit areas, which reach
                         six below them; the tint's own grey words, as the
                         row's. */}
-                    <p className="mt-2 pr-2 pl-10 text-[0.8125rem] text-foreground/70 md:text-xs">{SCALE_KEY}</p>
+                    <p className={cn("mt-2 pr-2 pl-10 text-foreground/70", TEXT.note)}>{SCALE_KEY}</p>
                   </div>
                 )}
               </li>
@@ -294,15 +295,15 @@ function WaypointRow({ number, title, detail, end, selected, expands = false, on
         selected && "bg-foreground/8 hover:bg-foreground/8",
       )}
     >
-      {/* The sizes in rem, so they grow with the text size as the
-          header's do. The grey words darker on the selection's tint:
-          muted on it was 3.9:1, under WCAG's 4.5. */}
-      <span className={cn("w-7 shrink-0 text-right text-[0.9375rem] tabular-nums md:text-xs", selected ? "text-foreground/70" : "text-muted-foreground")}>
+      {/* A list row's sizes (TEXT), as every list's are. The grey words
+          darker on the selection's tint: muted on it was 3.9:1, under
+          WCAG's 4.5. */}
+      <span className={cn("w-7 shrink-0 text-right tabular-nums", TEXT.detail, selected ? "text-foreground/70" : "text-muted-foreground")}>
         {number}
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block text-[1.0625rem] leading-snug md:text-sm">{title}</span>
-        <span className={cn("block text-[0.9375rem] leading-snug md:text-xs", selected ? "text-foreground/70" : "text-muted-foreground")}>{detail}</span>
+        <span className={cn("block leading-snug", TEXT.row)}>{title}</span>
+        <span className={cn("block leading-snug", TEXT.detail, selected ? "text-foreground/70" : "text-muted-foreground")}>{detail}</span>
       </span>
       {end && <span className="shrink-0 tabular-nums">{end}</span>}
     </button>

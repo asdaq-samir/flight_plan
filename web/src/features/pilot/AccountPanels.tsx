@@ -6,6 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
 import { Plus } from "lucide-react";
+import { cn } from "cn";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { InputGroup, InputGroupAddon, InputGroupInput, InputGroupText } from "../../components/ui/input-group";
@@ -13,12 +14,10 @@ import { Spinner } from "../../components/ui/spinner";
 import { ListGroup, ListRow } from "../../components/GroupedList";
 import { ResponsivePopover, ResponsivePopoverContent, ResponsivePopoverTrigger } from "../../components/ResponsivePopover";
 import { useConfirm } from "../../components/useConfirm";
-import {
-  Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow,
-} from "../../components/ui/table";
 import { api } from "../../lib/api/client";
 import type { Aircraft, AircraftRequest, FlightSummary, Pilot } from "../../lib/api/types";
 import { CRUISE_REFERENCE_FT } from "../../lib/performance";
+import { TEXT } from "../../lib/text";
 import { altFt, feet } from "../../lib/units";
 
 /** Who is signed in, or why nobody is: null signed out, "loading"
@@ -171,13 +170,13 @@ export function AircraftPanel({ pilot }: { pilot: PilotState }) {
 
   return (
     <section>
-      <h3 className="text-sm font-semibold">Aircraft</h3>
+      <h3 className={cn("font-semibold", TEXT.row)}>Aircraft</h3>
       {pilot === null || pilot === "error" ? (
-        <p className="mt-1 text-sm text-muted-foreground">
+        <p className={cn("mt-1 text-muted-foreground", TEXT.prose)}>
           {pilot === "error" ? "Your sign-in status could not be checked." : "Sign in to keep your own aeroplanes; the nav log then flies them."}
         </p>
       ) : pilot === "loading" || isLoading ? (
-        <p className="mt-1 text-sm text-muted-foreground">Fetching your aircraft…</p>
+        <p className={cn("mt-1 text-muted-foreground", TEXT.prose)}>Fetching your aircraft…</p>
       ) : (
         // A grouped list at every width, as iOS lists things: a row per
         // aeroplane, tapped to edit it, and New aircraft as the last
@@ -345,7 +344,11 @@ function NumberRow({ id, title, unit, placeholder, name, field, error }: {
 
 /** A signed-in pilot's own filed flights. Filing one happens from the
  *  Flight Briefing page's own "Save this flight"; here a flight opens
- *  back on the planner (same route and altitude) or is deleted. */
+ *  back on the planner (same route and altitude) or is deleted. A
+ *  grouped list at every width, as the aircraft are: a row a flight
+ *  with Open and Delete at its end, and Delete asked first in the app's
+ *  own sheet. It was a card a flight on a phone and a six-column table
+ *  from md up, and a red box under them that asked. */
 export function FlightsPanel({ pilot }: { pilot: PilotState }) {
   const signedIn = pilot !== null && pilot !== "loading" && pilot !== "error";
   const queryClient = useQueryClient();
@@ -364,7 +367,13 @@ export function FlightsPanel({ pilot }: { pilot: PilotState }) {
       void queryClient.invalidateQueries({ queryKey: ["flights"] });
     },
   });
-
+  const [askDelete, deleteDialog] = useConfirm({
+    title: flightToDelete ? `Delete ${flightToDelete.departureIdent} → ${flightToDelete.destinationIdent}?` : "Delete this flight?",
+    description: "The filed flight goes from your flights. This can't be undone.",
+    confirmLabel: "Delete flight",
+    destructive: true,
+    onConfirm: () => { if (flightToDelete) remove.mutate(flightToDelete.id); },
+  });
 
   /** Back to the planner on this flight's route, at its altitude. */
   const planHref = (f: FlightSummary) => `/plan?${new URLSearchParams({
@@ -374,81 +383,42 @@ export function FlightsPanel({ pilot }: { pilot: PilotState }) {
 
   return (
     <section>
-      <h3 className="text-sm font-semibold">My Flights</h3>
+      <h3 className={cn("font-semibold", TEXT.row)}>My Flights</h3>
       {pilot === null || pilot === "error" ? (
-        <p className="mt-1 text-sm text-muted-foreground">
+        <p className={cn("mt-1 text-muted-foreground", TEXT.prose)}>
           {pilot === "error" ? "Your sign-in status could not be checked." : "Sign in to see flights you've filed."}
         </p>
       ) : pilot === "loading" || isLoading ? (
-        <p className="mt-1 text-sm text-muted-foreground">Fetching your flights…</p>
+        <p className={cn("mt-1 text-muted-foreground", TEXT.prose)}>Fetching your flights…</p>
       ) : error ? null : list?.length === 0 ? (
-        <p className="mt-1 text-sm text-muted-foreground">
+        <p className={cn("mt-1 text-muted-foreground", TEXT.prose)}>
           No flights filed yet. Plan a route, open Flight Planning, and save it there.
         </p>
       ) : (
-        <>
-        <ul className="mt-2 divide-y rounded-md border md:hidden" aria-label="Your filed flights">
-          {list?.map(f => (
-            <li key={f.id} className="flex items-start justify-between gap-3 p-3 text-sm" data-flight-row>
-              <div className="min-w-0">
-                <div className="font-mono font-semibold">
-                  {f.departureIdent} → {f.destinationIdent}
-                  {f.aircraftTailNumber && <span className="ml-2 font-normal text-muted-foreground">{f.aircraftTailNumber}</span>}
-                </div>
-                <div className="text-xs text-muted-foreground tabular-nums">
-                  {feet(f.cruiseAltitudeFt)}{f.totalDistanceNm != null && ` · ${f.totalDistanceNm.toFixed(1)} nm`} · filed {new Date(f.createdAt).toLocaleDateString()}
-                </div>
-              </div>
-              <div className="flex shrink-0 items-center">
-                <Button asChild variant="link" size="sm"><Link to={planHref(f)}>Open</Link></Button>
-                <Button type="button" variant="link" size="sm" className="text-destructive" onClick={() => setFlightToDelete(f)}>Delete</Button>
-              </div>
-            </li>
+        <ListGroup className="mt-2">
+          {(list ?? []).map(f => (
+            <ListRow
+              key={f.id}
+              title={<>
+                <span className="font-mono font-semibold">{f.departureIdent} → {f.destinationIdent}</span>
+                {f.aircraftTailNumber && <span className="text-muted-foreground"> {f.aircraftTailNumber}</span>}
+              </>}
+              description={<span className="tabular-nums">
+                {feet(f.cruiseAltitudeFt)}{f.totalDistanceNm != null && ` · ${f.totalDistanceNm.toFixed(1)} nm`} · filed {new Date(f.createdAt).toLocaleDateString()}
+              </span>}
+            >
+              <Button asChild variant="link" size="sm"><Link to={planHref(f)}>Open</Link></Button>
+              <Button
+                type="button" variant="link" size="sm" className="text-destructive-ink"
+                onClick={() => { setFlightToDelete(f); askDelete(); }} disabled={remove.isPending}
+              >
+                Delete
+              </Button>
+            </ListRow>
           ))}
-        </ul>
-        <Table containerClassName="mt-2 hidden rounded-md border md:block" className="min-w-[36rem]">
-          <TableCaption className="sr-only">Your filed flights</TableCaption>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Route</TableHead>
-              <TableHead>Aircraft</TableHead>
-              <TableHead className="text-right">Altitude</TableHead>
-              <TableHead className="text-right">Distance</TableHead>
-              <TableHead className="text-right">Filed</TableHead>
-              <TableHead className="text-right"><span className="sr-only">Actions</span></TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {list?.map(f => (
-              <TableRow key={f.id}>
-                <TableCell className="font-mono">{f.departureIdent} → {f.destinationIdent}</TableCell>
-                <TableCell className="font-mono">{f.aircraftTailNumber ?? "—"}</TableCell>
-                <TableCell className="text-right tabular-nums">{feet(f.cruiseAltitudeFt)}</TableCell>
-                <TableCell className="text-right tabular-nums">{f.totalDistanceNm == null ? "—" : `${f.totalDistanceNm.toFixed(1)} nm`}</TableCell>
-                <TableCell className="text-right tabular-nums">{new Date(f.createdAt).toLocaleDateString()}</TableCell>
-                <TableCell className="text-right">
-                  <Button asChild variant="link" size="sm"><Link to={planHref(f)}>Open</Link></Button>
-                  <Button type="button" variant="link" size="sm" className="text-destructive" onClick={() => setFlightToDelete(f)}>
-                    Delete
-                  </Button>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-        </>
+        </ListGroup>
       )}
-      {flightToDelete && (
-        <div className="mt-3 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm" role="alert">
-          <p>Delete the filed flight {flightToDelete.departureIdent} → {flightToDelete.destinationIdent}? This cannot be undone.</p>
-          <div className="mt-2 flex gap-2">
-            <Button type="button" variant="destructive" size="sm" onClick={() => remove.mutate(flightToDelete.id)} disabled={remove.isPending}>
-              {remove.isPending ? "Deleting…" : "Delete flight"}
-            </Button>
-            <Button type="button" variant="outline" size="sm" onClick={() => setFlightToDelete(null)} disabled={remove.isPending}>Cancel</Button>
-          </div>
-        </div>
-      )}
+      {deleteDialog}
     </section>
   );
 }

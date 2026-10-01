@@ -1,8 +1,10 @@
+import { cn } from "cn";
 import { Button } from "./ui/button";
 import type { Course } from "../lib/api/types";
 import { CORRIDOR_NM, keep, keepKey, keepingAvailable, useKeepJob } from "../lib/map/keepRoute";
 import { chartPair } from "../lib/map/tiles";
 import { usePreferences } from "../lib/preferences";
+import { TEXT } from "../lib/text";
 
 interface Props {
   course: Course | null;
@@ -55,7 +57,7 @@ export default function KeepRoute({ course }: Props) {
 
   return (
     <div className="space-y-2 border-t border-border pt-2">
-      <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">In the air</div>
+      <div className={cn("font-semibold uppercase tracking-wide text-muted-foreground", TEXT.note)}>In the air</div>
       <Button
         type="button" size="sm" variant="outline" className="w-full"
         disabled={!available || !course || !layer || running}
@@ -64,7 +66,7 @@ export default function KeepRoute({ course }: Props) {
       >
         {running ? "Fetching tiles…" : "Keep this route's charts on this device"}
       </Button>
-      <p className="text-xs text-muted-foreground" data-testid="keep-route-status">{status}</p>
+      <p className={cn("text-muted-foreground", TEXT.note)} data-testid="keep-route-status">{status}</p>
     </div>
   );
 }

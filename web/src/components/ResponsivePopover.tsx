@@ -5,6 +5,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 import { useIsMobile } from "../hooks/use-mobile";
 import { useNavEdge } from "../hooks/use-nav-edge";
 import type { NavEdge } from "../lib/preferences";
+import { TEXT } from "../lib/text";
 
 /**
  * A popover from `md` up and, on a phone, a sheet from the header's
@@ -67,7 +68,7 @@ export function ResponsivePopoverContent({ title, description, titleHidden, acti
         {action !== undefined && (
           <div className="flex min-h-8 items-center justify-between gap-2">
             {leading}
-            <div className={cn("text-sm font-semibold", leading && "flex-1 text-center")}>{title}</div>
+            <div className={cn("font-semibold", TEXT.row, leading && "flex-1 text-center")}>{title}</div>
             {action}
           </div>
         )}
@@ -93,7 +94,9 @@ export function ResponsivePopoverContent({ title, description, titleHidden, acti
         )}
       >
         {leading}
-        <DrawerTitle className={cn(action !== undefined && "text-base font-semibold", leading && "flex-1 text-center")}>{title}</DrawerTitle>
+        {/* A sheet's title at the app's size for one (TEXT), with a
+            control beside it or not: without one it was the stock 14. */}
+        <DrawerTitle className={cn("font-semibold", TEXT.title, leading && "flex-1 text-center")}>{title}</DrawerTitle>
         {action}
         {description ? <DrawerDescription className={action !== undefined ? "basis-full" : undefined}>{description}</DrawerDescription> : null}
       </DrawerHeader>

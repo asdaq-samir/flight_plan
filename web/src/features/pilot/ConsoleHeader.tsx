@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { ChevronDown, XIcon } from "lucide-react";
+import { cn } from "cn";
 import IconButton from "../../components/IconButton";
 import { Button } from "../../components/ui/button";
 import {
@@ -7,6 +8,7 @@ import {
 } from "../../components/ui/dropdown-menu";
 import { SheetClose, SheetDescription, SheetHeader, SheetTitle } from "../../components/ui/sheet";
 import { pilotQuery } from "../../lib/queryClient";
+import { TEXT } from "../../lib/text";
 import SignInModal from "./SignInModal";
 import { useLogout } from "./useLogout";
 
@@ -27,14 +29,15 @@ export default function ConsoleHeader({ console }: { console: string }) {
   return (
     <SheetHeader className="flex-row items-center gap-2 border-b py-3">
       {/* A button inside the heading: the dialog's name is the pilot's,
-          and the name is what opens the menu. 16/600: the sheet's own
-          title, one step above its sections' 14/600; the name in it the
-          same, not the button's default. */}
-      <SheetTitle className="flex min-w-0 flex-1 items-center text-base font-semibold">
+          and the name is what opens the menu. Semibold at a sheet's
+          title's size (TEXT) -- 16 over its sections' 14, and 17 to a
+          finger, as an iOS navigation bar's title is; the name in it
+          the same, not the button's default. */}
+      <SheetTitle className={cn("flex min-w-0 flex-1 items-center font-semibold", TEXT.title)}>
         {pilot ? (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm" className="-ml-2 min-w-0 px-2 font-heading text-base font-semibold" data-testid="pilot-menu">
+              <Button variant="ghost" size="sm" className={cn("-ml-2 min-w-0 px-2 font-heading font-semibold", TEXT.title)} data-testid="pilot-menu">
                 <span className="truncate">{pilot.displayName}</span>
                 <ChevronDown className="text-muted-foreground" />
               </Button>
@@ -48,7 +51,7 @@ export default function ConsoleHeader({ console }: { console: string }) {
         )}
       </SheetTitle>
       <SheetDescription className="sr-only">The {console} console</SheetDescription>
-      {isLoading && <span className="text-sm text-muted-foreground">Checking sign-in…</span>}
+      {isLoading && <span className={cn("text-muted-foreground", TEXT.prose)}>Checking sign-in…</span>}
       {isError && <Button variant="outline" size="sm" onClick={() => void refetch()}>Retry sign-in check</Button>}
       {!isLoading && !isError && !pilot && <SignInModal />}
       <SheetClose asChild>

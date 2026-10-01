@@ -1,8 +1,10 @@
+import { cn } from "cn";
 import { ListGroup, ListRow } from "../../../components/GroupedList";
 import { Badge } from "../../../components/ui/badge";
 import { Kbd } from "../../../components/ui/kbd";
 import type { Rating } from "../../../lib/api/types";
 import { inkOn } from "../../../lib/scoreScale";
+import { TEXT } from "../../../lib/text";
 import { COLORS } from "../logic";
 
 /** Two keys, and everything else is a button -- the zoom on the map,
@@ -33,7 +35,7 @@ const SCALE: [Rating, string, string][] = [
  */
 export default function RatingGuide() {
   return (
-    <div className="space-y-3 text-sm">
+    <div className={cn("space-y-3", TEXT.prose)}>
       <p className="italic text-muted-foreground">
         Flying this leg, would I look up and know <i>that&rsquo;s the one</i> — not one like it?
       </p>

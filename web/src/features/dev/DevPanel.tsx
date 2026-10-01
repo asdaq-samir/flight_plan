@@ -19,6 +19,7 @@ import { statusQuery } from "../../lib/queryClient";
 import type { ModelComparisonEntry, Status } from "../../lib/api/types";
 import RatingGuide from "../train/components/RatingGuide";
 import { elapsed } from "../plan/format";
+import { TEXT } from "../../lib/text";
 import { useRetrain } from "./useRetrain";
 
 const mae = (n: number) => n.toFixed(4);
@@ -89,7 +90,7 @@ export function DevPanel() {
       // When the snapshot every tab draws on was taken, as the console's
       // last line rather than in its tab row.
       footer={status && (
-        <p className="mt-6 text-xs text-muted-foreground">
+        <p className={cn("mt-6 text-muted-foreground", TEXT.note)}>
           Checked {ago(status.checked_at)}{isStale(status) && " — the planner has not answered since"}
         </p>
       )}
@@ -140,11 +141,11 @@ function ModelComparisonChart() {
 
   return (
     <>
-      <p className="mb-3 text-xs text-muted-foreground">
+      <p className={cn("mb-3 text-muted-foreground", TEXT.note)}>
         Error on the {data?.n_labeled ?? "—"} ratings, lower is better; green is the model serving.
       </p>
-      {!error && !rows && <p className="text-sm text-muted-foreground">Reading each model's metrics…</p>}
-      {rows?.length === 0 && <p className="text-sm text-muted-foreground">No trained models are available.</p>}
+      {!error && !rows && <p className="text-muted-foreground">Reading each model's metrics…</p>}
+      {rows?.length === 0 && <p className="text-muted-foreground">No trained models are available.</p>}
       {rows && rows.length > 0 && (
         <ChartContainer
           config={modelComparisonChartConfig}
@@ -290,7 +291,7 @@ function ModelSection({ status, failed }: { status: Status | undefined; failed: 
           <ListRow title="Versions promoted" value={model?.versions.length ?? 0} />
         </ListGroup>
       ) : (
-        <p className="mt-2 text-sm text-muted-foreground">{status ? "No model has been promoted yet." : waiting(failed)}</p>
+        <p className="mt-2 text-muted-foreground">{status ? "No model has been promoted yet." : waiting(failed)}</p>
       )}
       <ListGroup
         className="mt-4" title="Training"
@@ -493,8 +494,8 @@ function TrainingTab() {
 function SectionHeading({ title, description }: { title: string; description?: string }) {
   return (
     <div>
-      <h3 className="text-sm font-semibold">{title}</h3>
-      {description && <p className="mt-0.5 text-xs text-muted-foreground">{description}</p>}
+      <h3 className={cn("font-semibold", TEXT.row)}>{title}</h3>
+      {description && <p className={cn("mt-0.5 text-muted-foreground", TEXT.note)}>{description}</p>}
     </div>
   );
 }
@@ -682,7 +683,7 @@ function SystemTab({ status, failed }: { status: Status | undefined; failed: boo
           // answer; its own clock gives it away. Said here, and the
           // table dimmed, rather than "up" in green for services that
           // may be anything by now.
-          <p className="mt-2 text-sm text-amber-700 dark:text-amber-400" data-testid="stale-snapshot">
+          <p className="mt-2 text-amber-700 dark:text-amber-400" data-testid="stale-snapshot">
             The planner has not answered since this snapshot, {ago(status.checked_at)}: what follows is what was true then.
           </p>
         )}

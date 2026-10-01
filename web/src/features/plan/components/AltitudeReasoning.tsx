@@ -1,5 +1,7 @@
+import { cn } from "cn";
 import type { AltitudeOption, AltitudeSegment, Leg, NavLogAltitude } from "../../../lib/api/types";
 import { CRUISE_REFERENCE_FT } from "../../../lib/performance";
+import { TEXT } from "../../../lib/text";
 import { altFt, cruiseByAltitude, deg, describeFuel, describeSteps, describeTime } from "../format";
 
 interface Props {
@@ -128,7 +130,7 @@ export default function AltitudeReasoning({ nav, legs }: Props) {
   const needOxygen = nav.options.filter(o => o.needs_oxygen).map(o => KIND_LABEL[o.kind].toLowerCase());
 
   return (
-    <ol className="list-decimal space-y-2 pl-5 text-sm">
+    <ol className={cn("list-decimal space-y-2 pl-5", TEXT.prose)}>
       <li>
         <b>Floor {altFt(s.floor_ft)} ft.</b> The highest ground along the course plus 1,000 ft (14 CFR 91.119 over
         a town, which the planner cannot tell from a field), or the tallest charted obstacle within 5 nm of it
