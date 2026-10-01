@@ -30,13 +30,16 @@ const ci = !!process.env.CI;
 // match (pointer: coarse) and (hover: none) as Safari on an iPhone does
 // -- which the "mobile" project below, a viewport alone, never has, so
 // none of the touch sizes or hit areas were under test. Sizes in CSS px,
-// which are points; heights are whole screens. Opt-in with IOS_AUDIT=1
-// while its specs are red; every other project leaves the folder alone.
+// which are points; heights are whole screens. Every run, CI's included,
+// takes three of them: a phone in portrait, a phone on its side and the
+// large iPad -- about half a minute a shard. IOS_AUDIT=1 takes all eight
+// (with --project=webkit-iphone on two workers, --workers=2: WebKit ran
+// slow alongside six others). The other projects leave the folder alone.
 const iosDevice = (name: string, width: number, height: number, deviceScaleFactor: number) => ({
   name, testDir: "./e2e/ios", dependencies: ["setup"],
   use: { viewport: { width, height }, deviceScaleFactor, isMobile: true, hasTouch: true, storageState: DEVELOPER_STATE },
 });
-const iosAudit = process.env.IOS_AUDIT ? [
+const iosDevices = [
   iosDevice("iphone-se", 375, 667, 2),
   iosDevice("iphone-16-pro", 402, 874, 3),
   iosDevice("iphone-16-pro-max", 440, 956, 3),
@@ -47,7 +50,9 @@ const iosAudit = process.env.IOS_AUDIT ? [
   // The same specs in WebKit, for Safari's engine (not its chrome).
   { name: "webkit-iphone", testDir: "./e2e/ios", dependencies: ["setup"],
     use: { ...devices["iPhone 15 Pro"], storageState: DEVELOPER_STATE } },
-] : [];
+];
+const iosEveryRun = ["iphone-16-pro", "iphone-landscape", "ipad-pro-13"];
+const iosAudit = process.env.IOS_AUDIT ? iosDevices : iosDevices.filter(d => iosEveryRun.includes(d.name));
 
 export default defineConfig({
   testDir: "./e2e",

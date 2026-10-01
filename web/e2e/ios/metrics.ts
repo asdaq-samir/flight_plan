@@ -52,8 +52,8 @@ export async function still(page: Page) {
 
 /** The planner's progress toasts gone ("Scoring checkpoints…"): over
  *  the top of a phone's screen they cover the controls under them for a
- *  moment, which is not the screen's layout. Up to twenty seconds; a toast
- *  that stays is measured as it is. */
+ *  moment, which is not the screen's layout. Up to twenty seconds; past
+ *  that, P1 looks round a toast that stays rather than at it. */
 export async function quiet(page: Page) {
   await page.locator("[data-sonner-toast]").first().waitFor({ state: "detached", timeout: 20000 }).catch(() => undefined);
 }
@@ -65,9 +65,10 @@ export type HitMiss = { control: string; box: string; lost: number };
  *  hit area as its element (index.css's ::after), and sees whatever
  *  covers or clips the square: a neighbour's area, an overflow:hidden
  *  ancestor, a sticky bar. Not judged: a control covered at its own
- *  centre (behind a drawer, under an overlay -- not on show), and one
- *  whose square crosses a scroll container's edge (scrolled into view it
- *  would be judged). */
+ *  centre (behind a drawer, under an overlay -- not on show), one whose
+ *  square crosses a scroll container's edge (scrolled into view it would
+ *  be judged), and a probe that lands on a toast, which is gone in a
+ *  moment and is not the layout. */
 export function hitAreaMisses(page: Page, scope = "body", size = 44): Promise<HitMiss[]> {
   return page.evaluate(({ scope, size, tappable, exempt }) => {
     const half = size / 2 - 1;
@@ -81,6 +82,7 @@ export function hitAreaMisses(page: Page, scope = "body", size = 44): Promise<Hi
       if (r.width < 2 || r.height < 2 || getComputedStyle(el).visibility !== "visible") continue;
       const own = (hit: Element | null) =>
         !!hit && (hit === el || el.contains(hit) || (hit.closest("label") as HTMLLabelElement | null)?.control === el);
+      const toast = (hit: Element | null) => !!hit?.closest("[data-sonner-toaster]");
       const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
       if (!own(document.elementFromPoint(cx, cy))) continue;
       let port = { l: 0, t: 0, r: innerWidth, b: innerHeight };
@@ -92,7 +94,10 @@ export function hitAreaMisses(page: Page, scope = "body", size = 44): Promise<Hi
       }
       if (cx - half < port.l || cx + half > port.r || cy - half < port.t || cy + half > port.b) continue;
       const probes = [[-1, 0], [1, 0], [0, -1], [0, 1], [-1, -1], [1, -1], [-1, 1], [1, 1]];
-      const lost = probes.filter(([dx, dy]) => !own(document.elementFromPoint(cx + dx * half, cy + dy * half))).length;
+      const lost = probes.filter(([dx, dy]) => {
+        const hit = document.elementFromPoint(cx + dx * half, cy + dy * half);
+        return !own(hit) && !toast(hit);
+      }).length;
       if (!lost) continue;
       const name = (el.getAttribute("aria-label") ?? el.getAttribute("title") ?? el.textContent ?? "").trim().replace(/\s+/g, " ").slice(0, 40);
       const id = el.dataset.testid ?? el.dataset.slot ?? [...el.classList].find(c => c.startsWith("leaflet-")) ?? "";
