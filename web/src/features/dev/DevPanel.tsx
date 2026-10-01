@@ -440,7 +440,7 @@ function StackLink({ link }: { link: { label: string; href: string; service?: st
         });
       }}
     >
-      <ExternalLink className="size-4 text-muted-foreground" aria-hidden />
+      <ExternalLink className="size-4 text-tint" aria-hidden />
     </ListRow>
   );
 }

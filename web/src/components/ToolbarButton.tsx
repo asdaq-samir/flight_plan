@@ -25,7 +25,9 @@ export default function ToolbarButton({ icon, text, label, className, ...props }
       className={cn(
         // The word at 11 points, in rem so it grows with the text size
         // as everything round it does: in pixels it stayed 11 at any.
-        "h-auto min-w-11 flex-col gap-0.5 px-1.5 py-1 text-[0.6875rem] leading-none font-medium [&_svg:not([class*='size-'])]:size-5",
+        // To a finger too, as an iOS tab bar's words are (10), where a
+        // button's own words are 17 there.
+        "h-auto min-w-11 flex-col gap-0.5 px-1.5 py-1 text-[0.6875rem] pointer-coarse:text-[0.6875rem] leading-none font-medium [&_svg:not([class*='size-'])]:size-5",
         EXPANDED_BUTTON,
         className,
       )}

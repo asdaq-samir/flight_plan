@@ -1,4 +1,6 @@
 import type { ReactNode } from "react";
+import { cn } from "cn";
+import { TEXT } from "../text";
 
 /**
  * What every card on either map is made of: what the thing is, where it
@@ -11,7 +13,9 @@ import type { ReactNode } from "react";
  * and 40). Each was reasonable where it was written and none of them
  * agreed.
  *
- * One size, too: see the width below.
+ * One size, too: see the width below. Its words at a list's sizes
+ * (TEXT): to a finger the title 17 points and the rest 15, where they
+ * were 14 and 12.
  *
  * There is no close button at all now: a tap on the chart puts a card
  * away, which is what every map does and what Leaflet's `closeOnClick`
@@ -53,7 +57,7 @@ export function MapCard({ title, subtitle, leading, children }: {
     // 147px on the other. Filling the box puts that right. In a tooltip
     // the parent shrink-wraps, so this resolves to nothing and `w-max`
     // still governs.
-    <div className="w-max min-w-full max-w-[min(22rem,74vw)] space-y-1.5 text-xs whitespace-normal">
+    <div className={cn("w-max min-w-full max-w-[min(22rem,74vw)] space-y-1.5 whitespace-normal", TEXT.detail)}>
       <div className="flex items-start gap-2">
         {leading}
         {/* Centred, and `flex justify-center` rather than `text-center`
@@ -63,7 +67,7 @@ export function MapCard({ title, subtitle, leading, children }: {
             those are part of the head, and a title that ignored them
             would sit under the close on a narrow card. */}
         <div className="min-w-0 flex-1 space-y-0.5 text-center">
-          <div className="flex items-center justify-center gap-2 text-sm font-semibold">{title}</div>
+          <div className={cn("flex items-center justify-center gap-2 font-semibold", TEXT.row)}>{title}</div>
           {subtitle !== undefined && <div className="text-muted-foreground">{subtitle}</div>}
         </div>
       </div>

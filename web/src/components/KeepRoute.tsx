@@ -59,7 +59,9 @@ export default function KeepRoute({ course }: Props) {
     <div className="space-y-2 border-t border-border pt-2">
       <div className={cn("font-semibold uppercase tracking-wide text-muted-foreground", TEXT.note)}>In the air</div>
       <Button
-        type="button" size="sm" variant="outline" className="w-full"
+        // Wrapping: its words at a small button's 15 to a finger ran past
+        // the console's edge with the text set 150% larger.
+        type="button" size="sm" variant="outline" className="h-auto min-h-8 w-full whitespace-normal py-1.5"
         disabled={!available || !course || !layer || running}
         onClick={() => { if (course && layer) void keep(course, layer); }}
         data-testid="keep-route"

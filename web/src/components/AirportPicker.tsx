@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { ChevronsUpDown } from "lucide-react";
 import { cn } from "cn";
+import { TEXT } from "../lib/text";
 import { Button } from "./ui/button";
 import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from "./ui/command";
 import { ResponsivePopover, ResponsivePopoverContent, ResponsivePopoverTrigger } from "./ResponsivePopover";
@@ -79,7 +80,9 @@ export default function AirportPicker({ value, onChange, placeholder, ariaLabel,
           aria-expanded={open}
           aria-label={ariaLabel}
           aria-invalid={invalid}
-          className={cn("font-mono uppercase", !value && "text-muted-foreground", className)}
+          // A field, as a search box is: its ident in the text's colour
+          // (not a button's tint) at a row's size (TEXT).
+          className={cn("font-mono uppercase text-foreground", TEXT.row, !value && "text-muted-foreground", className)}
         >
           {value || placeholder}
           <ChevronsUpDown className="text-muted-foreground" />

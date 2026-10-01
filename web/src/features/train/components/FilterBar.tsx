@@ -35,7 +35,7 @@ export default function FilterBar({ filters, onChange, counts }: Props) {
               role="checkbox" aria-checked={filters[key]} data-testid={`filter-${key}`}
               onClick={() => onChange(key, !filters[key])}
             >
-              <Check aria-hidden className={filters[key] ? "size-4 text-primary" : "size-4 invisible"} />
+              <Check aria-hidden className={filters[key] ? "size-4 text-tint" : "size-4 invisible"} />
             </ListRow>
           ))}
         </ListGroup>

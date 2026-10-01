@@ -639,7 +639,7 @@ export default function NavLogView({
               <ResponsivePopover>
                 <ResponsivePopoverTrigger asChild>
                   <Button
-                    variant="ghost" size="sm" className="shrink-0 px-1 font-normal text-muted-foreground print:hidden"
+                    variant="ghost" size="sm" className={cn("shrink-0 px-1 font-normal print:hidden", TEXT.row)}
                     aria-label="How the altitude was chosen" data-testid="altitude-why"
                   >
                     {label}
@@ -659,17 +659,22 @@ export default function NavLogView({
                         key={o.kind} type="button" size="sm"
                         variant={o.kind === nav.flown ? "default" : "outline"}
                         aria-pressed={o.kind === nav.flown}
-                        className="h-auto w-full justify-between gap-3 whitespace-normal py-1.5 text-left"
+                        // A choice in a list, as iOS draws one: its words
+                        // in the text's colour, the one flown filled in
+                        // the tint -- not four outlined buttons in blue --
+                        // and its words whole on the fill (white at 80%
+                        // on the blue was 4.1:1).
+                        className={cn("h-auto w-full justify-between gap-3 whitespace-normal py-1.5 text-left", o.kind !== nav.flown && "text-foreground")}
                         onClick={() => onAltitudeChoiceChange(o.kind)}
                         data-testid={`altitude-plan-${o.kind}`}
                       >
                         <span>
-                          <span className="font-semibold capitalize">{o.kind}</span>
-                          <span className="block text-xs font-normal opacity-80">{describeSteps(o)}</span>
+                          <span className={cn("font-semibold capitalize", TEXT.row)}>{o.kind}</span>
+                          <span className={cn("block font-normal", TEXT.detail, o.kind !== nav.flown && "opacity-80")}>{describeSteps(o)}</span>
                         </span>
-                        <span className="shrink-0 text-right text-xs tabular-nums">
+                        <span className={cn("shrink-0 text-right tabular-nums", TEXT.detail)}>
                           {describeTime(o)}
-                          <span className="block opacity-80">{describeFuel(o)}</span>
+                          <span className={cn("block", o.kind !== nav.flown && "opacity-80")}>{describeFuel(o)}</span>
                         </span>
                       </Button>
                     ))}
@@ -686,7 +691,7 @@ export default function NavLogView({
                       onSubmit={e => { e.preventDefault(); onSubmit(); }}
                       aria-label="Custom altitude"
                     >
-                      <span className="text-sm font-semibold">Custom</span>
+                      <span className={cn("font-semibold", TEXT.row)}>Custom</span>
                       <Input
                         value={alt}
                         onChange={e => onAltChange(e.target.value)}

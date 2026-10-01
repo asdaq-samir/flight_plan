@@ -10,6 +10,8 @@ import { Button } from "../../../../components/ui/button";
 const Calendar = lazy(() => import("../../../../components/ui/calendar").then(m => ({ default: m.Calendar })));
 import { Input } from "../../../../components/ui/input";
 import { ResponsivePopover, ResponsivePopoverContent, ResponsivePopoverTrigger } from "../../../../components/ResponsivePopover";
+import { cn } from "cn";
+import { TEXT } from "../../../../lib/text";
 
 interface Props {
   /** The departure as an ISO instant, or "" for about now. */
@@ -49,7 +51,9 @@ export default function DepartPicker({ value, onChange }: Props) {
       <ResponsivePopover open={open} onOpenChange={setOpen}>
         <ResponsivePopoverTrigger asChild>
           <Button
-            variant="outline" size="sm" className="font-normal"
+            // A field, as iOS's compact date picker is: the day in the
+            // text's colour at a row's size (TEXT), not a button's tint.
+            variant="outline" size="sm" className={cn("font-normal text-foreground", TEXT.row)}
             aria-label="Departure date" data-testid="depart-date"
           >
             <CalendarIcon className="text-muted-foreground" />

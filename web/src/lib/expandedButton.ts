@@ -14,4 +14,4 @@
  * the drawer is opened from (see MapPage).
  */
 export const EXPANDED_BUTTON =
-  "aria-expanded:bg-accent aria-expanded:text-accent-foreground aria-expanded:ring-2 aria-expanded:ring-foreground/25 aria-expanded:hover:bg-accent";
+  "aria-expanded:bg-accent aria-expanded:ring-2 aria-expanded:ring-foreground/25 aria-expanded:hover:bg-accent";

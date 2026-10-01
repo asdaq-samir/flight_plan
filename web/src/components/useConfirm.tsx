@@ -1,4 +1,5 @@
 import { useRef, useState, type ReactNode } from "react";
+import { cn } from "cn";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -7,6 +8,7 @@ import { Button } from "./ui/button";
 import { Drawer, DrawerClose, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle } from "./ui/drawer";
 import { useIsMobile } from "../hooks/use-mobile";
 import { useNavEdge } from "../hooks/use-nav-edge";
+import { TEXT } from "../lib/text";
 
 interface ConfirmOptions {
   title: string;
@@ -47,9 +49,11 @@ export function useConfirm({ title, description, confirmLabel, destructive, onCo
         role="alertdialog" onOpenAutoFocus={e => { e.preventDefault(); cancel.current?.focus(); }}
         className={edge === "top" ? "pt-[env(safe-area-inset-top)]" : undefined}
       >
+        {/* As iOS asks: the question 17 points and semibold, what it
+            does 13 under it, the buttons at a button's 17 (TEXT). */}
         <DrawerHeader>
-          <DrawerTitle>{title}</DrawerTitle>
-          <DrawerDescription>{description}</DrawerDescription>
+          <DrawerTitle className={cn("font-semibold", TEXT.title)}>{title}</DrawerTitle>
+          <DrawerDescription className={TEXT.note}>{description}</DrawerDescription>
         </DrawerHeader>
         <DrawerFooter className={edge === "top" ? undefined : "pb-[max(1rem,env(safe-area-inset-bottom))]"}>
           <Button variant={destructive ? "destructive" : "default"} onClick={confirm}>{confirmLabel}</Button>

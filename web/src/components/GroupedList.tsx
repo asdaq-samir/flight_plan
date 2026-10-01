@@ -49,7 +49,10 @@ export function ListGroup({ title, footer, children, className }: {
  * With `onClick` (or as a trigger's `asChild` child, which hands it
  * one), the whole row is a button, and `chevron` marks it as opening
  * something, as an iOS row does; the rest of the props (a name, a test
- * id, a trigger's own, `disabled`) go on that button.
+ * id, a trigger's own, `disabled`) go on that button. A row that does
+ * something when tapped -- a link, an action, not one that opens
+ * something (the chevron's) or a choice (a checkmark's) -- has its name
+ * in the tint, as an iOS row does; it read as one more line of text.
  */
 export function ListRow({ id, media, title, description, value, href, chevron, children, ...buttonProps }: {
   id?: string;
@@ -61,14 +64,15 @@ export function ListRow({ id, media, title, description, value, href, chevron, c
   chevron?: boolean;
   children?: ReactNode;
 } & Omit<ComponentProps<"button">, "title" | "value" | "children">) {
+  const action = href !== undefined || (!!buttonProps.onClick && !chevron && buttonProps.role !== "checkbox");
   // The words wrap, where the stock Item cuts its title at one line and
   // its description at two: as an iOS row's do with the text set larger,
   // and a row's words are all of what it says.
   const body = (
     <>
-      {media && <ItemMedia>{media}</ItemMedia>}
+      {media && <ItemMedia className={cn(action && "text-tint")}>{media}</ItemMedia>}
       <ItemContent className="min-w-0 gap-0.5">
-        <ItemTitle className={cn("line-clamp-none font-normal", TEXT.row)}>
+        <ItemTitle className={cn("line-clamp-none font-normal", TEXT.row, action && "text-tint")}>
           {id ? <Label htmlFor={id} className={cn("font-normal", TEXT.row)}>{title}</Label> : title}
         </ItemTitle>
         {description && <ItemDescription className={cn("line-clamp-none", TEXT.detail)}>{description}</ItemDescription>}
@@ -77,7 +81,7 @@ export function ListRow({ id, media, title, description, value, href, chevron, c
         <ItemActions className="ml-auto">
           {value !== undefined && <span className={cn("text-muted-foreground tabular-nums", TEXT.row)}>{value}</span>}
           {children}
-          {href && <ExternalLink className="size-4 text-muted-foreground" aria-hidden />}
+          {href && <ExternalLink className="size-4 text-tint" aria-hidden />}
           {chevron && <ChevronRight className="size-4 text-muted-foreground" aria-hidden />}
         </ItemActions>
       )}

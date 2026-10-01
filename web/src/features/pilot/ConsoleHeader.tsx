@@ -37,7 +37,7 @@ export default function ConsoleHeader({ console }: { console: string }) {
         {pilot ? (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm" className={cn("-ml-2 min-w-0 px-2 font-heading font-semibold", TEXT.title)} data-testid="pilot-menu">
+              <Button variant="ghost" size="sm" className={cn("-ml-2 min-w-0 px-2 font-heading font-semibold text-foreground", TEXT.title)} data-testid="pilot-menu">
                 <span className="truncate">{pilot.displayName}</span>
                 <ChevronDown className="text-muted-foreground" />
               </Button>
