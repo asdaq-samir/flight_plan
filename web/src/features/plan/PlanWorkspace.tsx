@@ -3,11 +3,12 @@ import { useQuery } from "@tanstack/react-query";
 import { cn } from "cn";
 import { api } from "../../lib/api/client";
 import { pilotQuery, queryClient } from "../../lib/queryClient";
-import type { AircraftChoice, AircraftProfileSummary, AirportPlace, AltitudeChoice, Candidate } from "../../lib/api/types";
+import type { AircraftChoice, AirportPlace, AltitudeChoice, Candidate } from "../../lib/api/types";
+import { aircraftKey, choiceOf } from "../../lib/aircraftChoice";
 import { distanceNm } from "../../lib/geo";
 import { useOwnShip } from "../../lib/map/ownShip";
 import { identOf, routeOf } from "../../lib/identSchema";
-import { DEFAULT_AIRCRAFT, usePreferences } from "../../lib/preferences";
+import { usePreferences } from "../../lib/preferences";
 // Without this Leaflet's tiles, markers and controls have no
 // positioning at all -- this is the library's own stylesheet, not
 // app styling.
@@ -31,20 +32,6 @@ import { usePlan } from "./hooks/usePlan";
  *  winds in hand picks; it was the lowest, as the predictable one. */
 function altitudeChoiceOf(value: string | null): AltitudeChoice {
   return value === "lowest" || value === "highest" || value === "economical" ? value : "fastest";
-}
-
-/** One value per choice for the Select: a pilot's own by id, a stock
- *  profile by name. */
-function aircraftKey(a: AircraftChoice): string {
-  return a.aircraftId != null ? `mine:${a.aircraftId}` : `profile:${a.profile}`;
-}
-
-/** A pilot's own aeroplane rides on the stock profile whose name
- *  matches its type designator (a C172 on c172) for the service ceiling
- *  the altitude selection needs; anything else rides on the default. */
-function baseProfile(typeDesignator: string, profiles: AircraftProfileSummary[]): string {
-  const wanted = typeDesignator.toLowerCase().replace(/[^a-z0-9]/g, "");
-  return profiles.find(p => p.name === wanted)?.name ?? DEFAULT_AIRCRAFT.profile;
 }
 
 /**
@@ -113,13 +100,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   const aircraftOptions = useMemo<AircraftChoice[]>(() => {
     const options: AircraftChoice[] = [
       ...(profiles ?? []).map(p => ({ profile: p.name, label: `${p.name.toUpperCase()} · ${p.type}` })),
-      ...(myAircraft ?? []).map(a => ({
-        profile: baseProfile(a.typeDesignator, profiles ?? []), label: `${a.tailNumber} · ${a.typeDesignator}`,
-        cruiseTasKt: a.cruiseTasKt, fuelBurnGph: a.fuelBurnGph, usableFuelGal: a.usableFuelGal ?? undefined,
-        cruisePowerPct: a.cruisePowerPct ?? undefined,
-        climbTasKt: a.climbTasKt ?? undefined, climbFuelBurnGph: a.climbFuelBurnGph ?? undefined,
-        aircraftId: a.id,
-      })),
+      ...(myAircraft ?? []).map(a => choiceOf(a, profiles ?? [])),
     ];
     // The remembered choice stays selectable while the lists load, and
     // an aeroplane deleted since is still what this plan was flown in.
@@ -384,13 +365,14 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           aircraftId={aircraft.aircraftId ?? null} depart={depart}
         />
         <NavLogActions
+          course={course}
           onGenerateNarrative={s.generateNarrative}
           langgraphNarrative={s.langgraphNarrative}
           crewaiNarrative={s.crewaiNarrative}
         />
       </>
     ),
-    console: <PilotPanel course={course} />,
+    console: <PilotPanel />,
     settings: { candidates: { on: showCandidates, onToggle: setShowCandidates }, ownShip: true },
     submit,
     loading: s.stage !== null,

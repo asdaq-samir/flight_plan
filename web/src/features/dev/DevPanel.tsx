@@ -85,13 +85,6 @@ export function DevPanel() {
     <ConsoleTabs
       saved={savedTab}
       onChange={changeTab}
-      // When the snapshot every tab draws on was taken, as the console's
-      // last line rather than in its tab row.
-      footer={status && (
-        <p className={cn("mt-6 text-muted-foreground", TEXT.note)}>
-          Checked {ago(status.checked_at)}{isStale(status) && " — the planner has not answered since"}
-        </p>
-      )}
       tabs={[
         // "Guide", as the pilot console's first tab is: it walks the
         // three steps. (The value stays "training", which is what a
@@ -711,7 +704,13 @@ function SystemTab({ status, failed, onRefresh, refreshing }: {
             agents through their own probes, the planner by answering. A
             row a service, its role under its name and the status at its
             end. */}
-        <ListGroup title="Services" footer="What answers now, as the planner found it a moment ago." className={cn(stale && "opacity-60")}>
+        {/* When the snapshot was taken under them: it was the console's
+            last line on every tab, the Guide's too, where it meant
+            nothing. */}
+        <ListGroup
+          title="Services" className={cn(stale && "opacity-60")}
+          footer={status && <>Checked {ago(status.checked_at)}{stale && " — the planner has not answered since"}.</>}
+        >
           {rows.map(r => (
             <ListRow key={r.name} title={r.name} description={r.detail}>
               <StatusBadge tone={HEALTH[r.health].tone}>{HEALTH[r.health].label}</StatusBadge>

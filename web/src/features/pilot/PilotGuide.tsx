@@ -4,9 +4,7 @@ import { Layers, Maximize, UserRound, ZoomIn } from "lucide-react";
 import { cn } from "cn";
 import { ConsolePages, PageRow, StepRow } from "../../components/ConsolePages";
 import { ListGroup, ListRow } from "../../components/GroupedList";
-import KeepRoute from "../../components/KeepRoute";
 import { api } from "../../lib/api/client";
-import type { Course } from "../../lib/api/types";
 import { CRUISE_REFERENCE_FT } from "../../lib/performance";
 import { TEXT } from "../../lib/text";
 import { altFt } from "../../lib/units";
@@ -40,16 +38,17 @@ function Reading({ children }: { children: ReactNode }) {
 
 /**
  * The planner explained to the pilot, the pilot console's Guide tab, as
- * iOS lays out a page of Settings: what to do, in four numbered steps;
- * what the checkpoints' colours mean; the longer reading -- how the nav
- * log flies the aeroplane, the map's buttons, the app on a phone -- a
- * row each that opens a page of its own (ConsolePages); and keeping the
- * route's charts for the air. It was a column of headings over
+ * iOS lays out a page of Settings: what to do, in five numbered steps
+ * (the last points to More beside the route, where Print and keeping
+ * the charts for the air are: NavLogActions); what the checkpoints'
+ * colours mean; the longer reading -- how the nav log flies the
+ * aeroplane, the map's buttons, the app on a phone -- a row each that
+ * opens a page of its own (ConsolePages). It was a column of headings over
  * paragraphs, a screen and a half of reading on a phone before the
  * colours, and still told the pilot about the header and its drawer
  * after both had gone.
  */
-export default function PilotGuide({ course }: { course: Course | null }) {
+export default function PilotGuide() {
   const provenance = useModelProvenance();
   return (
     <ConsolePages
@@ -83,7 +82,7 @@ export default function PilotGuide({ course }: { course: Course | null }) {
                 <p>The chart is the FAA sectional, the whole country, at every zoom, and the route panel sits over it.</p>
               </Reading>
               <ListGroup title="The map's buttons">
-                <ListRow media={<UserRound className="size-5 text-tint" />} title="Console" description="This: the guide, your aircraft and flights, and the settings" />
+                <ListRow media={<UserRound className="size-5 text-tint" />} title="Pilot" description="This: the guide, your aircraft and flights, and the settings" />
                 <ListRow media={<ZoomIn className="size-5 text-tint" />} title="Zoom" description="Between the whole route and the checkpoint you picked" />
                 <ListRow media={<Maximize className="size-5 text-tint" />} title="Full screen" description="Where your browser allows it" />
               </ListGroup>
@@ -111,8 +110,9 @@ export default function PilotGuide({ course }: { course: Course | null }) {
         <ListGroup title="Plan a flight">
           <StepRow n={1} title="Choose your route" description="Departure and destination at the top of the panel, then the arrow. The course draws at once." />
           <StepRow n={2} title="Find your checkpoints" description="The numbered dots are landmarks you can pick out from the air. Tap one for how to spot it, and add your own note." />
-          <StepRow n={3} title="Read the nav log" description="Pull the panel up: each leg's heading, time and fuel, then the weather, NOTAMs and airports. Your aircraft and departure time are under the route, Print beside it." />
+          <StepRow n={3} title="Read the nav log" description="Pull the panel up: each leg's heading, time and fuel, then the weather, NOTAMs and airports. Your aircraft and departure time are under the route." />
           <StepRow n={4} title="Look at an airport" description="Close in and tap one on the chart for its weather, radio and runways. Fly Here makes it your destination." />
+          <StepRow n={5} title="Take it with you" description="More, beside the route: print the nav log, and keep the route's charts on this device for the air." />
         </ListGroup>
 
         <ListGroup title="Checkpoint colours" footer={provenance ?? "Each checkpoint is rated for how findable it is from the cockpit, 0 to 5."}>
@@ -131,8 +131,6 @@ export default function PilotGuide({ course }: { course: Course | null }) {
           <PageRow page="map" title="The map and its buttons" />
           <PageRow page="phone" title="On your phone" />
         </ListGroup>
-
-        <KeepRoute course={course} />
       </div>
     </ConsolePages>
   );

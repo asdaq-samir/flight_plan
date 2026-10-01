@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { expandConsole } from "./helpers";
 
 /**
  * The Dev console's System tab, for the answers that are not "up": a
@@ -14,6 +15,7 @@ async function openSystemTab(page: Page) {
   await page.goto("/app/dev");
   await page.getByTestId("dev-console-button").click();
   await consoleSheet(page).getByRole("tab", { name: "System" }).click();
+  await expandConsole(page);
 }
 
 test("an agent this deployment does not run reads not configured", async ({ page }) => {

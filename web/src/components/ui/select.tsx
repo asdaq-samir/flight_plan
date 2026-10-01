@@ -3,7 +3,7 @@
 import * as React from "react"
 import { cn } from "cn"
 import { Select as SelectPrimitive } from "radix-ui"
-import { ChevronDownIcon, CheckIcon, ChevronUpIcon } from "lucide-react"
+import { ChevronDownIcon, CheckIcon, ChevronUpIcon, ChevronsUpDownIcon } from "lucide-react"
 
 function Select({
   ...props
@@ -30,27 +30,36 @@ function SelectValue({
   return <SelectPrimitive.Value data-slot="select-value" {...props} />
 }
 
+// variant "menu": iOS's pop-up button, for a list row's choice -- the
+// value and the up-and-down chevrons in the tint, with no field round
+// them, as Settings draws a menu at a row's end.
 function SelectTrigger({
   className,
   size = "default",
+  variant = "outline",
   children,
   ...props
 }: React.ComponentProps<typeof SelectPrimitive.Trigger> & {
   size?: "sm" | "default"
+  variant?: "outline" | "menu"
 }) {
   return (
     <SelectPrimitive.Trigger
       data-slot="select-trigger"
       data-size={size}
+      data-variant={variant}
       className={cn(
         "flex w-fit items-center justify-between gap-1.5 rounded-md border border-input bg-transparent py-2 pr-2 pl-2.5 text-sm pointer-coarse:text-[1.0625rem] text-tint whitespace-nowrap shadow-xs transition-[color,box-shadow] outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 data-placeholder:text-muted-foreground data-[size=default]:h-9 data-[size=sm]:h-8 *:data-[slot=select-value]:line-clamp-1 *:data-[slot=select-value]:flex *:data-[slot=select-value]:items-center *:data-[slot=select-value]:gap-1.5 dark:bg-input/30 dark:hover:bg-input/50 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+        variant === "menu" && "gap-1 border-transparent bg-transparent pr-0 pl-1 shadow-none hover:opacity-70 dark:bg-transparent dark:hover:bg-transparent",
         className
       )}
       {...props}
     >
       {children}
       <SelectPrimitive.Icon asChild>
-        <ChevronDownIcon className="pointer-events-none size-4 text-tint" />
+        {variant === "menu"
+          ? <ChevronsUpDownIcon className="pointer-events-none size-3.5 text-tint" />
+          : <ChevronDownIcon className="pointer-events-none size-4 text-tint" />}
       </SelectPrimitive.Icon>
     </SelectPrimitive.Trigger>
   )

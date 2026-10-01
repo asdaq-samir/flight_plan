@@ -7,7 +7,12 @@ import { courseQuery, queryClient } from "./lib/queryClient";
 import AppToaster from "./components/AppToaster";
 import { TooltipProvider } from "./components/ui/tooltip";
 import { registerSW } from "virtual:pwa-register";
+import { followDynamicType } from "./lib/dynamicType";
 import "./index.css";
+
+// The reader's text size from the iPhone's Settings, before the first
+// render, so the page is never drawn at the wrong size first.
+followDynamicType();
 
 // The service worker (vite.config.ts): the app shell, the chart tiles
 // the map has drawn or kept ahead, and the planner's answers, held for

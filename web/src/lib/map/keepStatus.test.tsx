@@ -1,15 +1,18 @@
 // @vitest-environment jsdom
 /**
- * The keep-route download: held by keepRoute's store, not by the button,
- * so closing the console no longer cancels it; one keep at a time, the
+ * The keep-route download: held by keepRoute's store, not by the menu
+ * item, so closing the menu does not cancel it; one keep at a time, the
  * latest the one that writes; and a download that got nothing is not
  * reported as kept. The network and the service worker are stubbed.
  */
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import type { ChartLayer, Course } from "../lib/api/types";
-import { WORKER_WAIT_MS, keep, keepKey, useKeepJob } from "../lib/map/keepRoute";
-import KeepRoute from "./KeepRoute";
+import type { ChartLayer, Course } from "../api/types";
+import { WORKER_WAIT_MS, keep, keepKey, useKeepJob } from "./keepRoute";
+import { toast } from "sonner";
+import { keepStatus, useKeepRouteToast } from "./keepStatus";
+
+vi.mock("sonner", () => ({ toast: { loading: vi.fn(), success: vi.fn(), error: vi.fn() } }));
 
 const layer = (kind: string): ChartLayer =>
   ({ kind, label: kind === "sec" ? "Sectional" : "IFR low", min_zoom: 3, max_zoom: 9, base: true, over: [], sheets: [] }) as ChartLayer;
@@ -83,39 +86,54 @@ describe("keeping a route's charts", () => {
   });
 });
 
-describe("the keep button", () => {
-  test("closing it mid-download does not cancel the download, and it shows where it got to when opened again", async () => {
+describe("what More's item says", () => {
+  test("a keep that finished while the menu was closed reads as kept when it opens", async () => {
     const slow = network(ok, true);
-    const { unmount } = render(<KeepRoute course={COURSE} />);
-    fireEvent.click(screen.getByTestId("keep-route"));
-    await flush();
-    unmount();
-
+    const done = keep(COURSE, SEC);
     // Each answer lets its worker ask for the next tile: answer until done.
     for (let i = 0; i < 50 && useKeepJob.getState().status === "keeping"; i++) {
       slow.release();
       await flush();
     }
+    await done;
 
-    render(<KeepRoute course={COURSE} />);
-    expect(screen.getByTestId("keep-route-status").textContent).toMatch(/kept\. The route draws without a connection now\./);
+    expect(keepStatus(COURSE, SEC, useKeepJob.getState(), true).detail).toMatch(/kept\. The route draws without a connection now\./);
   });
 
   test("a keep where every tile failed is not reported as kept", async () => {
     network(() => new Response("", { status: 503 }));
-    render(<KeepRoute course={COURSE} />);
-    fireEvent.click(screen.getByTestId("keep-route"));
-    await flush();
-    await flush();
+    await keep(COURSE, SEC);
 
-    expect(screen.getByTestId("keep-route-status").textContent).toMatch(/None of the tiles could be fetched/);
+    expect(keepStatus(COURSE, SEC, useKeepJob.getState(), true).detail).toMatch(/None of the tiles could be fetched/);
   });
 
   test("another chart's keep is not this one's to report", async () => {
     network(ok);
     await keep(COURSE, IFR_LOW);
-    render(<KeepRoute course={COURSE} />);   // the base preference is the sectional
 
-    expect(screen.getByTestId("keep-route-status").textContent).toMatch(/^Every Sectional tile/);
+    expect(keepStatus(COURSE, SEC, useKeepJob.getState(), true).detail).toMatch(/^Every Sectional tile/);
+  });
+
+  test("over plain http it says why it cannot", () => {
+    expect(keepStatus(COURSE, SEC, { status: "idle" }, false).detail).toMatch(/secure connection/);
+  });
+});
+
+describe("the keep's toast", () => {
+  test("counts while it keeps, then says kept -- and an old keep is not news", async () => {
+    vi.mocked(toast.loading).mockClear();
+    vi.mocked(toast.success).mockClear();
+    network(ok);
+    await keep(COURSE, SEC);
+    const quiet = renderHook(() => useKeepRouteToast());
+    expect(toast.success).not.toHaveBeenCalled();
+    quiet.unmount();
+
+    renderHook(() => useKeepRouteToast());
+    const done = keep(COURSE, SEC);
+    await flush();
+    expect(toast.loading).toHaveBeenCalled();
+    await act(async () => { await done; });
+    expect(toast.success).toHaveBeenCalledWith("Charts kept offline", expect.objectContaining({ id: "keep-route" }));
   });
 });

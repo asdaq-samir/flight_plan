@@ -5,7 +5,6 @@ import { UserRound } from "lucide-react";
 import ConsoleTabs from "../../components/ConsoleTabs";
 import IconButton from "../../components/IconButton";
 import { pilotQuery } from "../../lib/queryClient";
-import type { Course } from "../../lib/api/types";
 import { AircraftPanel, FlightsPanel, type PilotState } from "./AccountPanels";
 import PilotGuide from "./PilotGuide";
 
@@ -29,7 +28,7 @@ export function PilotButton(props: Omit<ComponentProps<typeof IconButton>, "labe
  * drawer. Not the nav log or the briefing: those are the Flight
  * Planning drawer at the side.
  */
-export function PilotPanel({ course }: { course: Course | null }) {
+export function PilotPanel() {
   const { data: pilot, isLoading, isError } = useQuery(pilotQuery);
   const pilotState: PilotState = isLoading ? "loading" : (pilot ?? (isError ? "error" : null));
   const savedTab = usePreferences(s => s.pilotTab);
@@ -40,7 +39,7 @@ export function PilotPanel({ course }: { course: Course | null }) {
       saved={savedTab}
       onChange={changeTab}
       tabs={[
-        { value: "guide", label: "Guide", content: <PilotGuide course={course} /> },
+        { value: "guide", label: "Guide", content: <PilotGuide /> },
         { value: "aircraft", label: "Aircraft", content: <AircraftPanel pilot={pilotState} /> },
         { value: "flights", label: "Flights", content: <FlightsPanel pilot={pilotState} /> },
       ]}

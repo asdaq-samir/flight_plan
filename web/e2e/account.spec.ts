@@ -125,3 +125,33 @@ test.describe("the email sign-in link", () => {
     await expect(page.locator("[data-sonner-toast]", { hasText: "Too many sign-in links" })).toBeVisible();
   });
 });
+
+test("the aeroplane the nav log flies is ticked, and a tap on another flies that one", async ({ page }) => {
+  await page.route("**/api/me", route =>
+    route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(A_PILOT) }));
+  await page.route("**/api/aircraft", route => route.fulfill({
+    status: 200, contentType: "application/json", body: JSON.stringify([aircraft(1, "N1"), aircraft(2, "N2")]),
+  }));
+  const console = await openConsole(page);
+  await console.getByRole("tab", { name: "Aircraft" }).click();
+  // The row's own button, which says whether it is the one flown.
+  const pick = (tail: string) => console.locator("[data-aircraft-row]", { hasText: tail }).locator("button[aria-pressed]");
+  // A stock profile to start with: neither of these is ticked.
+  await expect(console.locator('button[aria-pressed="true"]')).toHaveCount(0);
+  await expect(console).toContainText("flies the stock C172");
+
+  await pick("N2").click();
+  await expect(pick("N2")).toHaveAttribute("aria-pressed", "true");
+  await expect(pick("N1")).toHaveAttribute("aria-pressed", "false");
+  // The ⓘ still opens its figures, and the tick stays where it is.
+  await console.getByRole("button", { name: "Edit N1" }).click();
+  await expect(page.getByLabel("Tail number")).toHaveValue("N1");
+  await page.getByRole("button", { name: "Cancel" }).click();
+  await expect(page.getByLabel("Tail number")).toHaveCount(0);
+  await expect(pick("N2")).toHaveAttribute("aria-pressed", "true");
+
+  // The picker under the route flies it too.
+  await console.getByRole("button", { name: "Close" }).click();
+  await expect(consoleSheet(page)).toHaveCount(0);
+  await expect(page.getByTestId("aircraft-select")).toContainText("N2");
+});

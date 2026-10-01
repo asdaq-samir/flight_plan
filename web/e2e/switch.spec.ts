@@ -41,7 +41,7 @@ test("the Dev-mode switch is in the settings, flips to the dev page with the rou
   if (wide) {
     await page.waitForURL(/\/app\/plan\?dep=C81&dest=KDLH&view=briefing$/);
     await expectDrawerOpen(page);
-    await expect(sideDrawer(page).getByTestId("print-button")).toBeVisible();
+    await expect(sideDrawer(page).getByTestId("plan-more-button")).toBeVisible();
   } else {
     await page.waitForURL(/\/app\/plan\?dep=C81&dest=KDLH$/);
   }

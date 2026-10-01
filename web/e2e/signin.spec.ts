@@ -68,7 +68,8 @@ test("the emailed link opens the app's own sign-in dialog, over the planner, and
   await page.getByRole("dialog").getByRole("button", { name: "Sign in" }).click();
   await page.waitForURL(url => url.pathname === "/app/plan" && url.hash === "");
   await page.getByTestId("pilot-button").click();
-  await expect(consoleSheet(page)).toContainText(`${address}`);
+  await consoleSheet(page).getByRole("tab", { name: "Settings" }).click();
+  await expect(consoleSheet(page).getByTestId("account-address")).toHaveText(address);
 
   await page.goto(link);
   await page.getByRole("dialog").getByRole("button", { name: "Sign in" }).click();
@@ -86,13 +87,15 @@ test("a pilot's link lands on the planner, with no dev switch, and the pilot con
   await expect(consoleSheet(page)).toHaveCount(0);
   await expect(await devSwitchInSettings(page)).toHaveCount(0);
   await page.keyboard.press("Escape");
+  await expect(consoleSheet(page)).toHaveCount(0);
 
   await page.getByTestId("pilot-button").click();
-  await expect(consoleSheet(page)).toContainText(`${address}`);
-  // Log out is in the menu the pilot's own name opens.
-  await consoleSheet(page).getByTestId("pilot-menu").click();
-  await page.getByRole("menuitem", { name: "Log out" }).click();
+  // Who is signed in, and Log out, are the settings' first group.
+  await consoleSheet(page).getByRole("tab", { name: "Settings" }).click();
+  await expect(consoleSheet(page).getByTestId("account-address")).toHaveText(address);
+  await consoleSheet(page).getByTestId("log-out").click();
   await expect(consoleSheet(page).getByRole("button", { name: "Sign in" })).toBeVisible();
+  await expect(consoleSheet(page).getByTestId("account-address")).toHaveCount(0);
   await page.reload();
   await expect(consoleSheet(page)).toHaveCount(0);
   await page.getByTestId("pilot-button").click();
@@ -111,9 +114,9 @@ test("a developer's link lands in dev mode, and the dev console logs out to the 
   await expect(await devSwitchInSettings(page)).toBeChecked();
   await page.keyboard.press("Escape");
   await page.getByTestId("dev-console-button").click();
-  await expect(consoleSheet(page)).toContainText(`${DEVELOPER}`);
-  await consoleSheet(page).getByTestId("pilot-menu").click();
-  await page.getByRole("menuitem", { name: "Log out" }).click();
+  await consoleSheet(page).getByRole("tab", { name: "Settings" }).click();
+  await expect(consoleSheet(page).getByTestId("account-address")).toHaveText(DEVELOPER);
+  await consoleSheet(page).getByTestId("log-out").click();
 
   await page.waitForURL("**/app/plan**");
   await expect(page.getByTestId("pilot-button")).toBeVisible();

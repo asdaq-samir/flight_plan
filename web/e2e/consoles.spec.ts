@@ -8,15 +8,16 @@ import { settle, consoleSheet, expectDrawerClosed, expectDrawerOpen, closeSideba
  */
 
 test("signed in, each console fits the screen's width: nothing but a table's own scroller runs past its edge", async ({ page }) => {
-  // The address, its menu and the close button share the sheet's top
-  // line (once "Signed in as <address>" and Log out shared the tab row
-  // with the developer's buttons, and on a phone ran off the right
-  // edge). Wide tables scroll inside their own container, which is the
-  // one thing allowed past the edge.
+  // The address is the settings' first row, and wraps there (once
+  // "Signed in as <address>" and Log out shared the tab row with the
+  // developer's buttons, and on a phone ran off the right edge). Wide
+  // tables scroll inside their own container, which is the one thing
+  // allowed past the edge.
   for (const [path, button] of [["/app/plan", "pilot-button"], ["/app/dev", "dev-console-button"]] as const) {
     await page.goto(path);
     await page.getByTestId(button).click();
-    await expect(consoleSheet(page)).toContainText("developer@example.com");
+    await consoleSheet(page).getByRole("tab", { name: "Settings" }).click();
+    await expect(consoleSheet(page).getByTestId("account-address")).toHaveText("developer@example.com");
     const past = await consoleSheet(page).evaluate(sheet => {
       const edge = document.documentElement.clientWidth + 1;
       return [...sheet.querySelectorAll("*")]
@@ -38,13 +39,13 @@ test("plan page: the pilot console holds the account, aeroplanes and flights, an
   const pilot = consoleSheet(page);
   await expect(pilot).toBeVisible();
   await expect(page.getByTestId("pilot-button")).toHaveAttribute("aria-expanded", "true");
-  // The title is the pilot's name, which opens the menu with Log out
-  // in it.
-  await expect(pilot).toContainText("developer@example.com");
-  await pilot.getByTestId("pilot-menu").click();
-  await expect(page.getByRole("menuitem", { name: "Log out" })).toBeVisible();
-  await page.keyboard.press("Escape");
-  await expect(page.getByRole("menuitem", { name: "Log out" })).toHaveCount(0);
+  // The title is the console's; who is signed in, and Log out, are the
+  // first group of the settings, as iOS has the account.
+  await expect(pilot.getByRole("heading", { name: "Pilot", exact: true })).toBeVisible();
+  await expect(pilot.getByText("developer@example.com")).toHaveCount(0);
+  await pilot.getByRole("tab", { name: "Settings" }).click();
+  await expect(pilot.getByTestId("account-address")).toHaveText("developer@example.com");
+  await expect(pilot.getByTestId("log-out")).toBeVisible();
   // The guide first, where someone new to the planner starts.
   await expect(pilot.getByRole("tab").first()).toHaveText("Guide");
   await pilot.getByRole("tab", { name: "Aircraft" }).click();
@@ -72,7 +73,9 @@ test("the navigation bar's edge is a setting: the panel moves to it, the map's b
   if (!viewport) throw new Error("no viewport configured");
   const phone = viewport.width < 768;
   await openSettings(page);
-  await page.getByTestId("nav-bar-select").getByRole("radio", { name: phone ? "Top" : "Bottom" }).click();
+  // iOS's pop-up menu at the row's end.
+  await page.getByTestId("nav-bar-select").click();
+  await page.getByRole("option", { name: phone ? "Top" : "Bottom" }).click();
   await page.keyboard.press("Escape");
   await expect(page.locator("[data-slot=drawer-content], [data-slot=popover-content], [data-testid=console-sheet]")).toHaveCount(0);
 
@@ -106,9 +109,9 @@ test("the console holds still as its tabs change: up from the bottom of a phone'
   // On a phone the console is a sheet from the bottom edge, where the
   // header is. Sized to the tab showing, its top edge rose and fell as
   // the tabs changed, and the tab row moved out from under the finger
-  // that had just tapped it; its height is now fixed. From `md` up it
-  // is the Sheet from the top, whose tab row stays put however tall it
-  // is.
+  // that had just tapped it; its height is now fixed, half the screen
+  // showing until it is dragged up. From `md` up it is the Sheet from
+  // the top, whose tab row stays put however tall it is.
   await page.goto("/app/plan");
   await settle(page);
   await page.getByTestId("pilot-button").click();
@@ -121,7 +124,8 @@ test("the console holds still as its tabs change: up from the bottom of a phone'
   if (viewport.width < 768) {
     expect(Math.round(box.x)).toBe(0);
     expect(Math.round(box.width)).toBe(viewport.width);
-    expect(Math.round(box.y + box.height)).toBe(viewport.height);
+    // iOS's medium detent: half the screen, the rest of it below.
+    expect(Math.abs(box.y - viewport.height / 2)).toBeLessThan(2);
   } else {
     expect(box.y).toBe(0);
   }

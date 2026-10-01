@@ -18,9 +18,6 @@ interface Props {
    *  renamed or dropped tab can't leave the console blank. */
   saved: string;
   onChange: (value: string) => void;
-  /** A last line under whichever tab is open -- when the developer's
-   *  snapshot was checked. */
-  footer?: ReactNode;
 }
 
 /**
@@ -32,7 +29,7 @@ interface Props {
  * settings are the last tab of either, from the page (MapPage), so they
  * are one tap from wherever the console is.
  */
-export default function ConsoleTabs({ tabs: own, saved, onChange, footer }: Props) {
+export default function ConsoleTabs({ tabs: own, saved, onChange }: Props) {
   const settings = useContext(ConsoleSettingsContext);
   const tabs: ConsoleTab[] = settings ? [...own, { value: "settings", label: "Settings", content: settings }] : own;
   const tab = tabs.some(t => t.value === saved) ? saved : own[0].value;
@@ -53,7 +50,6 @@ export default function ConsoleTabs({ tabs: own, saved, onChange, footer }: Prop
             <TabsContent key={t.value} value={t.value} className="mt-3">{t.content}</TabsContent>
           ))}
         </Tabs>
-        {footer}
       </div>
     </div>
   );

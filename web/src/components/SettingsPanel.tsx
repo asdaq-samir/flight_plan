@@ -22,20 +22,26 @@ export interface PageSettings {
  * iOS lays out Settings: a few groups under short headings, each a
  * rounded box of rows with a hairline between them, one label per row
  * with its control at the row's end, and at most a line of help. A
- * switch for anything on or off, a segmented control for two or three
- * choices, all on show and one tap each, and a menu only for the
- * four-way one. Dev mode first, for whoever it is for; then the map,
- * what is changed most while planning; the checkpoints, appearance,
- * and the pilot's own position. Everything here is remembered per
- * browser.
+ * switch for anything on or off; a segmented control where the choices
+ * are worth seeing side by side and change often (the chart, the
+ * theme); iOS's pop-up menu for a value set once in a while (the zoom
+ * level, the navigation bar's edge) -- the two menus had been an
+ * outlined field and a segmented control, and the segments squeezed
+ * the navigation bar's help to four lines. A row that only means
+ * something once another is on is not shown until it is. The account
+ * first (`account`, the page's), then Dev mode for whoever it is for;
+ * then the map, what is changed most while planning; the checkpoints,
+ * appearance, and the pilot's own position. Everything but the account
+ * is remembered per browser.
  *
  * It replaced a column of headings, checkboxes, dropdowns and a
  * paragraph under nearly every control, twice the height, where a
  * two-way choice took two taps in a menu.
  */
-export default function SettingsPanel({ page }: { page?: PageSettings }) {
+export default function SettingsPanel({ page, account }: { page?: PageSettings; account?: ReactNode }) {
   return (
     <div className="space-y-5 pb-1" data-testid="settings-panel">
+      {account}
       <DeveloperGroup />
       <MapGroup />
       <CheckpointsGroup candidates={page?.candidates} />
@@ -89,7 +95,7 @@ function CheckpointsGroup({ candidates }: { candidates?: PageSettings["candidate
           tried here, and the menu of four stops kept. */}
       <ListRow id={zoomId} title="Zoom level" description="Zoomed out, markers hide the chart">
         <Select value={String(markerZoom)} onValueChange={value => setMarkerZoom(Number(value))}>
-          <SelectTrigger id={zoomId} size="sm" aria-label="Zoom level checkpoints show from" data-testid="marker-zoom-select">
+          <SelectTrigger id={zoomId} size="sm" variant="menu" aria-label="Zoom level checkpoints show from" data-testid="marker-zoom-select">
             <SelectValue />
           </SelectTrigger>
           <SelectContent align="end">
@@ -134,9 +140,14 @@ function PositionGroup() {
       <ListRow id={showId} title="Show my position">
         <Switch id={showId} checked={enabled} disabled={!available} onCheckedChange={setEnabled} data-testid="own-ship-toggle" />
       </ListRow>
-      <ListRow id={followId} title="Keep the map on me">
-        <Switch id={followId} checked={follow} disabled={!available || !enabled} onCheckedChange={setFollow} data-testid="own-ship-follow" />
-      </ListRow>
+      {/* Only with the position shown, as iOS shows a setting that
+          depends on another: it was there all along, a faded switch that
+          read as on while nothing was being followed. */}
+      {available && enabled && (
+        <ListRow id={followId} title="Keep the map on me">
+          <Switch id={followId} checked={follow} onCheckedChange={setFollow} data-testid="own-ship-follow" />
+        </ListRow>
+      )}
     </ListGroup>
   );
 }
@@ -154,16 +165,22 @@ function AppearanceGroup() {
   const { theme, setTheme } = useTheme();
   const edge = useNavEdge();
   const setNavBar = usePreferences(s => s.setNavBar);
+  const navId = useId();
   return (
     <ListGroup title="Appearance">
       <ListRow title="Theme">
         <Segmented label="Theme" value={theme ?? "system"} onChange={setTheme} testId="theme-select" options={THEMES} />
       </ListRow>
-      <ListRow title="Navigation bar" description="The route panel and every sheet come from this edge; the map's buttons take the other">
-        <Segmented
-          label="Navigation bar" value={edge} onChange={v => setNavBar(v as NavEdge)} testId="nav-bar-select"
-          options={[{ value: "top", label: "Top" }, { value: "bottom", label: "Bottom" }]}
-        />
+      <ListRow id={navId} title="Navigation bar" description="The route panel and every sheet come from this edge; the map's buttons take the other">
+        <Select value={edge} onValueChange={v => setNavBar(v as NavEdge)}>
+          <SelectTrigger id={navId} size="sm" variant="menu" aria-label="Navigation bar" data-testid="nav-bar-select">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent align="end">
+            <SelectItem value="top">Top</SelectItem>
+            <SelectItem value="bottom">Bottom</SelectItem>
+          </SelectContent>
+        </Select>
       </ListRow>
     </ListGroup>
   );

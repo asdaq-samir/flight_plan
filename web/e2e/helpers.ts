@@ -31,11 +31,33 @@ export async function settle(page: Page) {
 export const sideDrawer = (page: Page) => page.locator('[data-slot="map-panel"]');
 
 /** The settings: the console's last tab, the console opened from its
- *  button among the map's. Escape closes the console again. */
+ *  button among the map's, and all the way up. Escape closes the
+ *  console again. */
 export async function openSettings(page: Page) {
   await page.getByTestId(/^(pilot|dev-console)-button$/).click();
   await page.getByTestId("console-sheet").getByRole("tab", { name: "Settings" }).click();
   await expect(page.getByTestId("settings-panel")).toBeVisible();
+  await expandConsole(page);
+}
+
+/** The console all the way up. On a phone it opens half way, at iOS's
+ *  medium detent (MapPage), with the rest of its tab below the screen
+ *  and out of a click's reach; a drag up on its head brings it up, as a
+ *  finger's does. Elsewhere it has one height, and this does nothing. */
+export async function expandConsole(page: Page) {
+  const sheet = page.getByTestId("console-sheet");
+  if ((await sheet.getAttribute("data-detent")) !== "medium") return;
+  // vaul takes no drag for half a second after it opens.
+  await page.waitForTimeout(600);
+  const box = (await sheet.boundingBox())!;
+  const x = box.x + box.width / 2, y = box.y + 20;
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await page.mouse.move(x, y - 100, { steps: 5 });
+  await page.mouse.move(x, y - 400, { steps: 10 });
+  await page.mouse.up();
+  await expect(sheet).toHaveAttribute("data-detent", "large");
+  await sheet.evaluate(el => Promise.all(el.getAnimations().map(a => a.finished)));
 }
 
 /** The Dev-mode switch, in the settings: opened first. */

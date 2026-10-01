@@ -15,6 +15,7 @@ import { useIsTablet } from "../../hooks/use-tablet";
 import { useNavEdge } from "../../hooks/use-nav-edge";
 import { usePreferences } from "../../lib/preferences";
 import { DevButton } from "../dev/DevButton";
+import AccountGroup from "../pilot/AccountGroup";
 import ConsoleHeader from "../pilot/ConsoleHeader";
 import LinkSignIn from "../pilot/LinkSignIn";
 import { PilotButton } from "../pilot/PilotPanel";
@@ -32,6 +33,12 @@ import type { WorkspacePieces } from "./workspace";
 const TrainWorkspace = lazy(() => import("../train/TrainWorkspace"));
 
 export type Mode = "pilot" | "dev";
+
+/** The phone's console sheet at half height: vaul's snap point for a
+ *  sheet 85% of the screen tall, half the screen showing (vaul offsets
+ *  it by the screen less the point's share of it). */
+const HALF_HEIGHT = 0.65;
+const CONSOLE_SNAPS = [HALF_HEIGHT, 1];
 
 /** What differs between the two pages: the words, the workspace, and
  *  the route to start on when the address names none (the planner
@@ -145,15 +152,20 @@ export default function MapPage({ mode }: { mode: Mode }) {
   // the dark theme. From the bottom its height is fixed rather than its
   // content's: sized to the tab showing, its top edge rose and fell as
   // the tabs changed, and the tab row moved out from under the finger
-  // that had just tapped it. On an iPad, iOS's form sheet instead: a
-  // card 540 by 620, centred, as a sheet there is.
+  // that had just tapped it. It opens half way, at iOS's medium detent,
+  // and comes all the way up when it is dragged -- a swipe up on its
+  // content does it, as on iOS, before the content scrolls -- and stays
+  // at whichever as the tabs change: it opened all the way every time,
+  // a screen of nothing under one aeroplane. On an iPad, iOS's form
+  // sheet instead: a card 540 by 620, centred, as a sheet there is.
+  const [consoleSnap, setConsoleSnap] = useState<number | string | null>(HALF_HEIGHT);
   const consoleOf = (pieces: WorkspacePieces) => {
     // The greeting, the way in or out and the close button on one row;
     // the console's content starts under it.
     const content = (
       <>
-        <ConsoleHeader console={consoleLabel.toLowerCase()} />
-        <ConsoleSettingsContext.Provider value={<SettingsPanel page={pieces.settings} />}>
+        <ConsoleHeader console={consoleLabel} />
+        <ConsoleSettingsContext.Provider value={<SettingsPanel page={pieces.settings} account={<AccountGroup />} />}>
           <AfterTheSheet>{pieces.console}</AfterTheSheet>
         </ConsoleSettingsContext.Provider>
       </>
@@ -174,11 +186,16 @@ export default function MapPage({ mode }: { mode: Mode }) {
     }
     if (onPhone && edge === "bottom") {
       return (
-        <BottomSheet>
+        <BottomSheet
+          snapPoints={CONSOLE_SNAPS} activeSnapPoint={consoleSnap} setActiveSnapPoint={setConsoleSnap}
+          // The map dimmed at either height: the sheet is modal at both.
+          fadeFromIndex={0}
+          onOpenChange={open => { if (open) setConsoleSnap(HALF_HEIGHT); }}
+        >
           <BottomSheetTrigger asChild><ConsoleButton /></BottomSheetTrigger>
           <BottomSheetContent
             className="h-[85dvh] gap-0 bg-card text-card-foreground data-[vaul-drawer-direction=bottom]:max-h-none"
-            data-testid="console-sheet"
+            data-testid="console-sheet" data-detent={consoleSnap === 1 ? "large" : "medium"}
           >
             {content}
           </BottomSheetContent>

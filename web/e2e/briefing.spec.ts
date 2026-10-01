@@ -70,15 +70,16 @@ test("plan page: the flight planning drawer opens the way the Model Training dra
 
   // The briefing's actions are beside the route, in the panel's top
   // row: the AI button (LangGraph/CrewAI are tabs inside the popover it
-  // opens), then Print, left to right on one row.
+  // opens), then More (Print, Keep charts offline), left to right on one
+  // row.
   const aiBox = await drawer.getByTestId("ai-narrative-button").boundingBox();
-  const printBox = await drawer.getByTestId("print-button").boundingBox();
+  const moreBox = await drawer.getByTestId("plan-more-button").boundingBox();
   expect(aiBox).not.toBeNull();
-  expect(printBox).not.toBeNull();
-  expect(aiBox!.x).toBeLessThan(printBox!.x);
-  expect(Math.abs(aiBox!.y - printBox!.y)).toBeLessThan(10);
+  expect(moreBox).not.toBeNull();
+  expect(aiBox!.x).toBeLessThan(moreBox!.x);
+  expect(Math.abs(aiBox!.y - moreBox!.y)).toBeLessThan(10);
   // In the route's row, after the route.
-  expect(await page.locator("header").getByTestId("print-button").count()).toBe(1);
+  expect(await page.locator("header").getByTestId("plan-more-button").count()).toBe(1);
   const departure = (await page.locator("header").getByLabel("Departure", { exact: true }).boundingBox())!;
   expect(aiBox!.x).toBeGreaterThan(departure.x);
 });
@@ -177,7 +178,7 @@ test("plan page: a pasted briefing link opens the panel, and its grabber closes 
   await settle(page);
   const drawer = sideDrawer(page);
   await expect(drawer).toBeVisible();
-  await expect(drawer.getByTestId("print-button")).toBeVisible();
+  await expect(drawer.getByTestId("plan-more-button")).toBeVisible();
 
   // No letter shortcuts on this page any more: the arrows walk the
   // checkpoints and everything else has a button. `n` used to toggle
@@ -195,7 +196,7 @@ test("plan page: a pasted briefing link opens the panel, and its grabber closes 
   await page.getByTestId("sidebar-trigger-button").click();
   await page.waitForTimeout(300);
   await expect(page).toHaveURL(/[?&]view=briefing/);
-  await expect(drawer.getByTestId("print-button")).toBeVisible();
+  await expect(drawer.getByTestId("plan-more-button")).toBeVisible();
 });
 
 test("plan page: the panel's grabber raises and lowers it, a tap on the map beside it leaves it out, and Escape lowers it", async ({ page }) => {

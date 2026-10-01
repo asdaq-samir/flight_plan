@@ -1,23 +1,26 @@
 import { useId, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link } from "react-router-dom";
 import { useForm, type UseFormRegisterReturn } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
-import { Plane, Plus, Route } from "lucide-react";
+import { Check, CircleMinus, Info, Plane, Plus, Route } from "lucide-react";
 import EmptyState from "../../components/EmptyState";
+import IconButton from "../../components/IconButton";
 import { cn } from "cn";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { InputGroup, InputGroupAddon, InputGroupInput, InputGroupText } from "../../components/ui/input-group";
+import { SheetClose } from "../../components/ui/sheet";
 import { Spinner } from "../../components/ui/spinner";
 import { ListGroup, ListRow } from "../../components/GroupedList";
 import { ResponsivePopover, ResponsivePopoverContent, ResponsivePopoverTrigger } from "../../components/ResponsivePopover";
 import { useConfirm } from "../../components/useConfirm";
+import { aircraftKey, choiceOf } from "../../lib/aircraftChoice";
 import { api } from "../../lib/api/client";
 import type { Aircraft, AircraftRequest, FlightSummary, Pilot } from "../../lib/api/types";
 import { CRUISE_REFERENCE_FT } from "../../lib/performance";
+import { usePreferences } from "../../lib/preferences";
 import { TEXT } from "../../lib/text";
 import { altFt, feet } from "../../lib/units";
 
@@ -72,12 +75,13 @@ const EMPTY_AIRCRAFT_FORM: AircraftFormValues = {
   climbFuelBurnGph: "", usableFuelGal: "",
 };
 
-/** A signed-in pilot's own aeroplanes -- list, add, edit (the same
- *  form, switched into "editing" mode by clicking a row), delete. The
- *  nav log's own aircraft picker offers these; this is where the list
- *  is kept. Nothing here means anything while signed out, so the panel
- *  says that plainly rather than showing an empty list that looks
- *  broken. */
+/** A signed-in pilot's own aeroplanes -- the one the nav log flies
+ *  ticked, and a tap on another flies that one, as iOS lists Wi-Fi
+ *  networks; the ⓘ at a row's end opens its figures to edit (the same
+ *  form as a new one's), and delete. The picker under the route offers
+ *  the same choice. Nothing here means anything while signed out, so
+ *  the panel says that plainly rather than showing an empty list that
+ *  looks broken. */
 export function AircraftPanel({ pilot }: { pilot: PilotState }) {
   const signedIn = pilot !== null && pilot !== "loading" && pilot !== "error";
   const queryClient = useQueryClient();
@@ -86,10 +90,15 @@ export function AircraftPanel({ pilot }: { pilot: PilotState }) {
     queryFn: api.aircraft.list,
     enabled: signedIn,
   });
+  // Which the nav log flies, remembered per browser, and the stock
+  // profiles a pilot's own rides on (PlanWorkspace asks the same).
+  const flying = usePreferences(s => s.aircraft);
+  const fly = usePreferences(s => s.setAircraft);
+  const { data: profiles } = useQuery({ queryKey: ["aircraftProfiles"], queryFn: api.aircraftProfiles, staleTime: Infinity });
   const [editingId, setEditingId] = useState<number | null>(null);
   // The form is behind the list's New aircraft row: open for a new
-  // aeroplane from there, or for one of the rows when it is tapped.
-  // Closed again when the save lands, on Cancel, or from the same row.
+  // aeroplane from there, or for one of the rows from its ⓘ. Closed
+  // again when the save lands, on Cancel, or from the same row.
   const [adding, setAdding] = useState(false);
   const formOpen = adding || editingId !== null;
   const formId = useId();
@@ -181,32 +190,46 @@ export function AircraftPanel({ pilot }: { pilot: PilotState }) {
         <p role="status" className={cn("px-1 text-muted-foreground", TEXT.note)}>Fetching your aircraft…</p>
       ) : (
         // A grouped list at every width, as iOS lists things: a row per
-        // aeroplane, tapped to edit it, and New aircraft as the last
-        // row. It was a card per aeroplane with an Edit and a Delete on
-        // each on a phone, a table from md up, and a small plus beside
-        // the heading as the only way to add one.
+        // aeroplane, and New aircraft as the last row. It was a card per
+        // aeroplane with an Edit and a Delete on each on a phone, a table
+        // from md up, and a small plus beside the heading as the only way
+        // to add one; then a row that opened the form, and which one the
+        // nav log flew was said only under the route.
         <ResponsivePopover open={formOpen} onOpenChange={open => (open ? setAdding(true) : cancelEdit())}>
           <ListGroup
             title="Your aircraft"
             footer={list?.length === 0
               ? "Add your aeroplane, and the nav log flies its speed and fuel burn."
-              : "Pick one under the route, and the nav log flies its speed and fuel burn."}
+              : flying.aircraftId != null
+                ? "The nav log flies the one ticked. Tap another to fly it, or ⓘ for its figures."
+                : `The nav log flies the stock ${flying.label} now. Tap one of yours to fly it.`}
           >
-            {(list ?? []).map(a => (
-              <div key={a.id} data-aircraft-row>
-                <ListRow
-                  title={<><span className="font-mono font-semibold">{a.tailNumber}</span> <span className="text-muted-foreground">{a.typeDesignator}</span></>}
-                  description={`Cruise ${a.cruiseTasKt} kt, ${a.fuelBurnGph} gph${a.cruisePowerPct != null ? ` at ${a.cruisePowerPct}%` : ""}${
-                    a.usableFuelGal != null ? ` · ${a.usableFuelGal} gal usable` : ""}`}
-                  chevron
-                  aria-label={`Edit ${a.tailNumber}`}
-                  onClick={() => edit(a)}
-                  // Not "outside" the open form: tapped with it open, the
-                  // form switches to this aeroplane (see onInteractOutside).
-                  data-aircraft-edit
-                />
-              </div>
-            ))}
+            {(list ?? []).map(a => {
+              const chosen = aircraftKey(flying) === `mine:${a.id}`;
+              return (
+                <div key={a.id} className="flex items-center" data-aircraft-row>
+                  {/* The tick before the name, its place kept when it is
+                      elsewhere so the names line up, as Wi-Fi's are. */}
+                  <ListRow
+                    className="min-w-0 flex-1"
+                    media={<Check className={cn("size-5 text-tint", !chosen && "invisible")} aria-hidden />}
+                    title={<><span className="font-mono font-semibold">{a.tailNumber}</span> <span className="text-muted-foreground">{a.typeDesignator}</span></>}
+                    description={`Cruise ${a.cruiseTasKt} kt, ${a.fuelBurnGph} gph${a.cruisePowerPct != null ? ` at ${a.cruisePowerPct}%` : ""}${
+                      a.usableFuelGal != null ? ` · ${a.usableFuelGal} gal usable` : ""}`}
+                    aria-pressed={chosen}
+                    onClick={() => { if (!chosen) fly(choiceOf(a, profiles ?? [])); }}
+                  />
+                  <IconButton
+                    label={`Edit ${a.tailNumber}`} onClick={() => edit(a)} className="mr-1.5 shrink-0 text-tint"
+                    // Not "outside" the open form: tapped with it open, the
+                    // form switches to this aeroplane (see onInteractOutside).
+                    data-aircraft-edit
+                  >
+                    <Info className="size-5" />
+                  </IconButton>
+                </div>
+              );
+            })}
             <ResponsivePopoverTrigger asChild>
               <ListRow
                 title={<span className="flex items-center gap-2 font-medium"><Plus className="size-4" />New aircraft</span>}
@@ -349,14 +372,17 @@ function NumberRow({ id, title, unit, placeholder, name, field, error }: {
 /** A signed-in pilot's own filed flights. Filing one happens from the
  *  planning panel's own Save, beside the route; here a flight opens
  *  back on the planner (same route and altitude) or is deleted. A
- *  grouped list at every width, as the aircraft are: a row a flight
- *  with Open and Delete at its end, and Delete asked first in the app's
- *  own sheet. It was a card a flight on a phone and a six-column table
- *  from md up, and a red box under them that asked. */
+ *  grouped list at every width, as iOS lists things: a tap on a row
+ *  opens the flight and puts the console away, and Edit over the list
+ *  puts a red minus before each row, which deletes it once asked in
+ *  the app's own sheet. It was an Open and a Delete at every row's
+ *  end, and before that a card a flight on a phone and a six-column
+ *  table from md up. */
 export function FlightsPanel({ pilot }: { pilot: PilotState }) {
   const signedIn = pilot !== null && pilot !== "loading" && pilot !== "error";
   const queryClient = useQueryClient();
   const [flightToDelete, setFlightToDelete] = useState<FlightSummary | null>(null);
+  const [editing, setEditing] = useState(false);
   const { data: list, isLoading, error } = useQuery({
     queryKey: ["flights"],
     queryFn: api.flights.list,
@@ -398,27 +424,50 @@ export function FlightsPanel({ pilot }: { pilot: PilotState }) {
           Plan a route, then Save beside it, and the flight is kept here.
         </EmptyState>
       ) : (
-        <ListGroup title="Saved flights" footer="Open brings a flight back onto the map, at its altitude.">
-          {(list ?? []).map(f => (
-            <ListRow
-              key={f.id}
-              title={<>
-                <span className="font-mono font-semibold">{f.departureIdent} → {f.destinationIdent}</span>
-                {f.aircraftTailNumber && <span className="text-muted-foreground"> {f.aircraftTailNumber}</span>}
-              </>}
-              description={<span className="tabular-nums">
-                {feet(f.cruiseAltitudeFt)}{f.totalDistanceNm != null && ` · ${f.totalDistanceNm.toFixed(1)} nm`} · filed {new Date(f.createdAt).toLocaleDateString()}
-              </span>}
+        <ListGroup
+          title="Saved flights"
+          action={(
+            <Button
+              type="button" variant="ghost" size="sm"
+              className={cn("-mr-1 h-auto px-1 py-0.5 font-normal text-tint", TEXT.row, editing && "font-semibold")}
+              onClick={() => setEditing(e => !e)} data-testid="flights-edit"
             >
-              <Button asChild variant="link" size="sm"><Link to={planHref(f)}>Open</Link></Button>
-              <Button
-                type="button" variant="link" size="sm" className="text-destructive-ink"
-                onClick={() => { setFlightToDelete(f); askDelete(); }} disabled={remove.isPending}
-              >
-                Delete
-              </Button>
-            </ListRow>
-          ))}
+              {editing ? "Done" : "Edit"}
+            </Button>
+          )}
+          footer={editing ? "Delete a flight with the minus before it." : "A flight opens on the map at its altitude."}
+        >
+          {(list ?? []).map(f => {
+            const name = `${f.departureIdent} → ${f.destinationIdent}`;
+            const row = {
+              title: <>
+                <span className="font-mono font-semibold">{name}</span>
+                {f.aircraftTailNumber && <span className="text-muted-foreground"> {f.aircraftTailNumber}</span>}
+              </>,
+              description: <span className="tabular-nums">
+                {feet(f.cruiseAltitudeFt)}{f.totalDistanceNm != null && ` · ${f.totalDistanceNm.toFixed(1)} nm`} · filed {new Date(f.createdAt).toLocaleDateString()}
+              </span>,
+            };
+            return editing ? (
+              <ListRow
+                key={f.id} {...row}
+                media={(
+                  <IconButton
+                    label={`Delete ${name}`} className="-ml-1.5 text-destructive"
+                    onClick={() => { setFlightToDelete(f); askDelete(); }} disabled={remove.isPending}
+                  >
+                    <CircleMinus className="size-5 fill-destructive text-white dark:text-background" />
+                  </IconButton>
+                )}
+              />
+            ) : (
+              // Opening it puts the console away, as a tap on a saved
+              // place in Maps closes the sheet onto the map.
+              <SheetClose key={f.id} asChild>
+                <ListRow {...row} to={planHref(f)} />
+              </SheetClose>
+            );
+          })}
         </ListGroup>
       )}
       {deleteDialog}
