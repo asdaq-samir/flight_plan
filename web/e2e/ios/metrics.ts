@@ -10,7 +10,7 @@ import type { Page } from "@playwright/test";
  * everything tappable; P2 text on iOS's type scale; P3 each size at its
  * iOS leading; P11 no sideways scroll, at 100% and at Safari's 150% page
  * zoom; P12 nothing pinned to the screen under the notch, the island or
- * the home indicator.
+ * the home indicator; P16 the app's own typeface everywhere.
  */
 
 /** What a finger can tap. */
@@ -109,6 +109,7 @@ export function hitAreaMisses(page: Page, scope = "body", size = 44): Promise<Hi
 
 export type TypeFinding = {
   size: number; leading: number | null; want: number | null; where: string; text: string; count: number;
+  face?: string;
 };
 
 /** P2 and P3: visible text off iOS's scale, and text at an iOS size off
@@ -118,9 +119,14 @@ export type TypeFinding = {
  *  text clipped to a pixel (a screen reader's alone), and text above or
  *  left of the page, where no scroll reaches, and text kept for a screen
  *  reader (sr-only, whose padding can leave it a box of its own). */
-export function typeFindings(page: Page, scope = "body"): Promise<{ offScale: TypeFinding[]; offLeading: TypeFinding[] }> {
+export function typeFindings(page: Page, scope = "body"): Promise<{ offScale: TypeFinding[]; offLeading: TypeFinding[]; offFace: TypeFinding[] }> {
   return page.evaluate(({ scope, type, glyphs }) => {
-    const offScale = new Map<string, TypeFinding>(), offLeading = new Map<string, TypeFinding>();
+    const offScale = new Map<string, TypeFinding>(), offLeading = new Map<string, TypeFinding>(), offFace = new Map<string, TypeFinding>();
+    // P16: the app's own face -- the body's -- or its monospace where a
+    // font-mono class asks for one. The map's words were Leaflet's
+    // Helvetica Neue, and every size check passed them.
+    const first = (family: string) => family.split(",")[0].replace(/["']/g, "").trim();
+    const appFace = first(getComputedStyle(document.body).fontFamily);
     const root = document.querySelector(scope);
     if (root) {
       const walk = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
@@ -146,11 +152,17 @@ export function typeFindings(page: Page, scope = "body"): Promise<{ offScale: Ty
           if (found) found.count++;
           else map.set(key, { size, leading, want, where, text: text.slice(0, 40), count: 1 });
         };
+        const face = first(cs.fontFamily);
+        if (face !== appFace && !el.closest(".font-mono")) {
+          const key = `${face}|${where}`, found = offFace.get(key);
+          if (found) found.count++;
+          else offFace.set(key, { size, leading, want, where, text: text.slice(0, 40), count: 1, face });
+        }
         if (want === null) add(offScale, `${size}|${where}`);
         else if (leading !== null && Math.abs(leading - want) > 1 && !el.closest(glyphs)) add(offLeading, `${size}/${leading}|${where}`);
       }
     }
-    return { offScale: [...offScale.values()], offLeading: [...offLeading.values()] };
+    return { offScale: [...offScale.values()], offLeading: [...offLeading.values()], offFace: [...offFace.values()] };
   }, { scope, type: IOS_TYPE, glyphs: LEADING_EXEMPT });
 }
 

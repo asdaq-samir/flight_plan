@@ -57,6 +57,14 @@ input, select, textarea {
   color: #cbd5e1;
 }
 
+/* The map's words in the app's own typeface. Leaflet's stylesheet sets
+   its container to Helvetica Neue, so every popup, chip and marker number
+   read in another face from the drawer beside it -- on an iPhone, which
+   has Helvetica Neue, plainly so. Its body selector outranks Leaflet's. */
+body .leaflet-container {
+  font-family: inherit;
+}
+
 /* Smaller, not gone -- the chart credit is a requirement of the
    charts' use, not decoration, so it can't just be removed. At Apple's
    floor for text meant to be read, 11 on 13, where it was 9: as little
