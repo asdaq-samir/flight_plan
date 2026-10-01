@@ -243,9 +243,10 @@ export function DescriptionCell({
  * is the exception: it opens the log with nothing to its right, since
  * no leg has been flown yet.
  */
-/** The leg's figures a phone's table has no columns for, under the
- *  selected row (the columns themselves from md up, see the column
- *  defs): the heading worked out from the course -- true course, wind,
+/** The leg's figures the drawer's table has no columns for, under the
+ *  selected row -- on a desktop as on a phone, the pilot's preference for
+ *  the compact log (every column is the printed page's alone, see the
+ *  column defs): the heading worked out from the course -- true course, wind,
  *  correction, true heading, variation (the magnetic heading it ends in
  *  is the row's own) -- then the speeds and the fuel, in the nav log's
  *  own order. A grid of figures four across, each its shorthand over
@@ -264,7 +265,7 @@ function LegLine({ leg }: { leg: Leg }) {
     ["Fuel", `${one(leg.fuel_gal)} gal`],
   ];
   return (
-    <dl className="mb-1.5 grid grid-cols-[repeat(auto-fill,minmax(3.75rem,1fr))] gap-x-2 gap-y-1 md:hidden">
+    <dl className="mb-1.5 grid grid-cols-[repeat(auto-fill,minmax(3.75rem,1fr))] gap-x-2 gap-y-1 print:hidden">
       {figures.map(([name, value]) => (
         <div key={name}>
           <dt className={TEXT.note}>{name}</dt>
@@ -510,13 +511,15 @@ export default function NavLogView({
     </ResponsivePopoverContent>
   );
 
-  // On a phone the table keeps five columns -- the waypoint, altitude,
+  // On screen the table keeps five columns -- the waypoint, altitude,
   // distance, magnetic heading and ETE (and the ETA with a departure
-  // time) -- and the others, which had it fourteen wide and
-  // scrolling sideways under the finger, are the leg's figures under
-  // the selected row instead (see LegLine); from md up, and on paper,
-  // every column. The heading kept is the one a pilot steers: it was
-  // the true heading, with the magnetic one only under the row.
+  // time) -- and the others, which had it fourteen wide and scrolling
+  // sideways, are the leg's figures under the selected row instead (see
+  // LegLine). A desktop's drawer too, by the pilot's preference for the
+  // phone's compact log: from md up it had every column, three of them in
+  // view and the rest off its edge. On paper, every column. The heading
+  // kept is the one a pilot steers: it was the true heading, with the
+  // magnetic one only under the row.
   const columns: ColumnDef<typeof navLogTableFeatures, NavLogRow>[] = [
     {
       id: "waypoint",
@@ -563,7 +566,7 @@ export default function NavLogView({
       // departure time's ETA as a sixth column, "Subdivision" alone was
       // wider than the room left. At a syllable, not anywhere: broken
       // anywhere, a name went "Clyma / n / Subdiv / ision".
-      meta: { className: "text-left max-md:whitespace-normal max-md:hyphens-auto" },
+      meta: { className: "text-left whitespace-normal hyphens-auto" },
     },
     {
       id: "alt",
@@ -588,13 +591,13 @@ export default function NavLogView({
     {
       id: "tc",
       header: () => <Heading name="TC" unit="true" spoken="True course" />,
-      meta: { className: "hidden md:table-cell print:table-cell" },
+      meta: { className: "hidden print:table-cell" },
       cell: ({ row }) => (legOf(row.original) ? deg(legOf(row.original)!.true_course_deg) : "—"),
     },
     {
       id: "wind",
       header: () => <Heading name="Wind" unit="°/kt" spoken="Wind, direction and speed" />,
-      meta: { className: "hidden md:table-cell print:table-cell" },
+      meta: { className: "hidden print:table-cell" },
       cell: ({ row }) => {
         const leg = legOf(row.original);
         return leg ? (leg.wind ? `${deg(leg.wind.wind_dir_true_deg)}/${Math.round(leg.wind.wind_speed_kt)}` : "no data") : "—";
@@ -603,19 +606,19 @@ export default function NavLogView({
     {
       id: "wca",
       header: () => <Heading name="WCA" unit="°" spoken="Wind correction angle" />,
-      meta: { className: "hidden md:table-cell print:table-cell" },
+      meta: { className: "hidden print:table-cell" },
       cell: ({ row }) => (legOf(row.original) ? signed(legOf(row.original)!.wca_deg) : "—"),
     },
     {
       id: "th",
       header: () => <Heading name="TH" unit="true" spoken="True heading" />,
-      meta: { className: "hidden md:table-cell print:table-cell" },
+      meta: { className: "hidden print:table-cell" },
       cell: ({ row }) => (legOf(row.original) ? deg(legOf(row.original)!.true_heading_deg) : "—"),
     },
     {
       id: "var",
       header: () => <Heading name="Var" unit="°" spoken="Magnetic variation" />,
-      meta: { className: "hidden md:table-cell print:table-cell" },
+      meta: { className: "hidden print:table-cell" },
       cell: ({ row }) => (legOf(row.original) ? signed(legOf(row.original)!.magnetic_variation_deg) : "—"),
     },
     {
@@ -629,7 +632,7 @@ export default function NavLogView({
       // reasoning says how it is worked out).
       id: "tas",
       header: () => <Heading name="TAS" unit="kt" spoken="True airspeed, knots" />,
-      meta: { className: "hidden md:table-cell print:table-cell" },
+      meta: { className: "hidden print:table-cell" },
       cell: ({ row }) => {
         const leg = legOf(row.original);
         return leg ? tas(leg) : "—";
@@ -638,7 +641,7 @@ export default function NavLogView({
     {
       id: "gs",
       header: () => <Heading name="GS" unit="kt" spoken="Groundspeed, knots" />,
-      meta: { className: "hidden md:table-cell print:table-cell" },
+      meta: { className: "hidden print:table-cell" },
       cell: ({ row }) => {
         const leg = legOf(row.original);
         return leg ? (leg.groundspeed_kt === null ? "—" : Math.round(leg.groundspeed_kt)) : "—";
@@ -655,7 +658,7 @@ export default function NavLogView({
     {
       id: "fuel",
       header: () => <Heading name="Fuel" unit="gal" spoken="Fuel, gallons" />,
-      meta: { className: "hidden md:table-cell print:table-cell" },
+      meta: { className: "hidden print:table-cell" },
       cell: ({ row }) => (legOf(row.original) ? one(legOf(row.original)!.fuel_gal) : "—"),
     },
   ];
@@ -723,8 +726,8 @@ export default function NavLogView({
 
   // The table itself. With the briefing's sections under it, the table
   // scrolls sideways inside its own container so the sections below
-  // stay put -- when it is wider than the drawer: every column of it on
-  // a desktop, or the phone's five with the text set large. While it
+  // stay put -- when it is wider than the drawer: the five columns with
+  // the text set large, or in a window as narrow as Slide Over's. While it
   // fits, the container lets its overflow go, so that its headings can
   // stay at the top of the drawer as the log scrolls under them (a
   // sideways scroller holds a sticky heading to itself). Printed,
@@ -736,10 +739,12 @@ export default function NavLogView({
     <Table
       containerClassName={cn(fits ? "overflow-x-visible" : "overflow-x-auto", "print:overflow-visible")}
       className={cn(
-        // On a phone the cells' padding is halved and the waypoint's
-        // name may wrap (see its column), so the five columns fit the
-        // drawer without a sideways scroll; from md up the stock padding.
-        "text-right text-xs whitespace-nowrap max-md:[&_td]:px-1 max-md:[&_th]:px-1",
+        // The cells' padding halved and the waypoint's name free to wrap
+        // (see its column), so the five columns fit the drawer without a
+        // sideways scroll -- beside a desktop's map as on a phone, where
+        // every column of it scrolled sideways under the waypoint's. On
+        // paper, every column at the stock padding.
+        "text-right text-xs whitespace-nowrap [&_td]:px-1 [&_th]:px-1 print:[&_td]:px-2 print:[&_th]:px-2",
         // To a finger, the figures at what is read (15) and the rows 44
         // points to tap (lib/text.ts), as the pilot had them: 12 on a
         // phone was too small to read. (What they had asked to have
