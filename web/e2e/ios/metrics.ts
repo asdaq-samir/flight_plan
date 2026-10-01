@@ -20,6 +20,17 @@ export const TAPPABLE = [
   "[role=menuitem]", "[role=option]", "[role=slider]", "[tabindex='0']",
 ].join(", ");
 
+/** P1's declared exceptions, the pilot's call (2026-09-30): the map's
+ *  markers keep their own tap boxes (36 points for a numbered checkpoint,
+ *  an airport's chip its own size, icons.ts), since 44-point areas would
+ *  overlap along a route and take each other's taps; and a segmented
+ *  control's segments keep iOS's own 32-point track. */
+export const HIT_EXEMPT = [".leaflet-marker-icon", "[data-slot=tabs-trigger]"].join(", ");
+
+/** P3's: a marker's number or ident, centred in its dot or chip as a
+ *  glyph is (icons.ts), not a line of text. */
+export const LEADING_EXEMPT = ".leaflet-marker-icon";
+
 /** iOS's text styles at the default text size: size → leading. */
 export const IOS_TYPE: Record<number, number> = {
   11: 13, 12: 16, 13: 18, 15: 20, 16: 21, 17: 22, 20: 25, 22: 28, 28: 34, 34: 41,
@@ -58,14 +69,14 @@ export type HitMiss = { control: string; box: string; lost: number };
  *  whose square crosses a scroll container's edge (scrolled into view it
  *  would be judged). */
 export function hitAreaMisses(page: Page, scope = "body", size = 44): Promise<HitMiss[]> {
-  return page.evaluate(({ scope, size, tappable }) => {
+  return page.evaluate(({ scope, size, tappable, exempt }) => {
     const half = size / 2 - 1;
     const misses: { control: string; box: string; lost: number }[] = [];
     const root = document.querySelector(scope);
     if (!root) return misses;
     for (const el of root.querySelectorAll<HTMLElement>(tappable)) {
       // A tab list is focusable for its arrow keys; its tabs are what is tapped.
-      if (el.getAttribute("role") === "tablist") continue;
+      if (el.getAttribute("role") === "tablist" || el.matches(exempt)) continue;
       const r = el.getBoundingClientRect();
       if (r.width < 2 || r.height < 2 || getComputedStyle(el).visibility !== "visible") continue;
       const own = (hit: Element | null) =>
@@ -88,7 +99,7 @@ export function hitAreaMisses(page: Page, scope = "body", size = 44): Promise<Hi
       misses.push({ control: `${el.tagName.toLowerCase()}${id ? `[${id}]` : ""} "${name}"`, box: `${Math.round(r.width)}×${Math.round(r.height)}`, lost });
     }
     return misses;
-  }, { scope, size, tappable: TAPPABLE });
+  }, { scope, size, tappable: TAPPABLE, exempt: HIT_EXEMPT });
 }
 
 export type TypeFinding = {
@@ -103,7 +114,7 @@ export type TypeFinding = {
  *  left of the page, where no scroll reaches, and text kept for a screen
  *  reader (sr-only, whose padding can leave it a box of its own). */
 export function typeFindings(page: Page, scope = "body"): Promise<{ offScale: TypeFinding[]; offLeading: TypeFinding[] }> {
-  return page.evaluate(({ scope, type }) => {
+  return page.evaluate(({ scope, type, glyphs }) => {
     const offScale = new Map<string, TypeFinding>(), offLeading = new Map<string, TypeFinding>();
     const root = document.querySelector(scope);
     if (root) {
@@ -131,11 +142,11 @@ export function typeFindings(page: Page, scope = "body"): Promise<{ offScale: Ty
           else map.set(key, { size, leading, want, where, text: text.slice(0, 40), count: 1 });
         };
         if (want === null) add(offScale, `${size}|${where}`);
-        else if (leading !== null && Math.abs(leading - want) > 1) add(offLeading, `${size}/${leading}|${where}`);
+        else if (leading !== null && Math.abs(leading - want) > 1 && !el.closest(glyphs)) add(offLeading, `${size}/${leading}|${where}`);
       }
     }
     return { offScale: [...offScale.values()], offLeading: [...offLeading.values()] };
-  }, { scope, type: IOS_TYPE });
+  }, { scope, type: IOS_TYPE, glyphs: LEADING_EXEMPT });
 }
 
 /** P11: how far the page scrolls sideways; 0 or less passes. */

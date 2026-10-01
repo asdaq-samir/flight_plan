@@ -55,32 +55,36 @@ export default function MapHeader({ leading, form, actions, dev = false }: Props
       data-mode={dev ? "dev" : "pilot"}
       // The grid from 22.5rem of the inset's width (360px at the default
       // type size; a container query, see MapPage), the wrapping row
-      // below that.
+      // below that. The wrapped rows twelve apart (gap-y-3), so their
+      // buttons' hit areas, which reach six past each, meet rather than
+      // overlap.
       // The safe-area insets on the top and the right only (and real
       // only because index.html asks for `viewport-fit=cover`): this
       // row is the top of the screen, so its padding grows to clear a
       // notch or a Dynamic Island, and its right edge is the screen's.
-      // Its left edge is not: the drawer sits there whenever it is
-      // open, and padding by that side's inset spent 59px of a
-      // landscape iPhone's width on nothing and pushed this row's own
-      // content into overlapping itself -- the route form ran over the
-      // console button, when the drawer was on the right. A plain
-      // padding there instead, a little wider than the other side's,
-      // which is enough to clear a rounded corner with the drawer shut.
+      // Its left edge is the screen's only while the drawer is shut:
+      // then it clears the island too (the drawer's button sat under it
+      // on a phone on its side). With the drawer open beside it, that
+      // edge is the drawer's, and a plain padding a little wider than
+      // the other side's -- padding by the inset there spent 59px of a
+      // landscape iPhone's width on nothing.
       // At the bottom instead (the `nav-bottom` variant): the border on
       // its top edge, and the padding under it grown to clear the home
       // indicator rather than the notch (the page's column clears that).
-      className="flex shrink-0 flex-wrap items-center gap-1.5 border-b border-border bg-background pt-[max(0.5rem,env(safe-area-inset-top))] pr-[max(0.5rem,env(safe-area-inset-right))] pb-2 pl-3 @min-[22.5rem]:grid @min-[22.5rem]:grid-cols-[1fr_auto_1fr] nav-bottom:order-last nav-bottom:border-t nav-bottom:border-b-0 nav-bottom:pt-2 nav-bottom:pb-[max(0.5rem,env(safe-area-inset-bottom))] sm:gap-2 sm:pr-[max(0.75rem,env(safe-area-inset-right))] sm:pl-4 print:hidden"
+      className="flex shrink-0 flex-wrap items-center gap-x-1.5 gap-y-3 border-b border-border bg-background pt-[max(0.5rem,env(safe-area-inset-top))] pr-[max(0.5rem,env(safe-area-inset-right))] pb-2 pl-[max(0.75rem,env(safe-area-inset-left))] group-has-[[data-slot=sidebar][data-state=expanded]]/sidebar-wrapper:pl-3 @min-[22.5rem]:grid @min-[22.5rem]:grid-cols-[1fr_auto_1fr] nav-bottom:order-last nav-bottom:border-t nav-bottom:border-b-0 nav-bottom:pt-2 nav-bottom:pb-[max(0.5rem,env(safe-area-inset-bottom))] sm:gap-2 sm:pr-[max(0.75rem,env(safe-area-inset-right))] sm:pl-[max(1rem,env(safe-area-inset-left))] sm:group-has-[[data-slot=sidebar][data-state=expanded]]/sidebar-wrapper:pl-4 print:hidden"
     >
       <div className="flex items-center [&>*]:size-8 @min-[22.5rem]:justify-self-start sm:[&>*]:size-9">{leading}</div>
       {/* mx-auto for the wrapping row under 360px; the grid above that
           centres it against the whole header by itself. */}
       <div className="mx-auto @min-[22.5rem]:mx-0 @min-[22.5rem]:justify-self-center">{form}</div>
-      {/* gap-2 either side of `sm`, not gap-3 above it: the ring on an
-          open button (see `EXPANDED_BUTTON`) is what separates these
-          two now, and the extra 4px only cost width in the one place
-          the row is tight -- a landscape phone with the drawer open. */}
-      <div className="ml-auto flex items-center gap-2 [&>*]:size-8 @min-[22.5rem]:ml-0 @min-[22.5rem]:justify-self-end sm:[&>*]:size-9">
+      {/* 44 points apart, so each button's 44-point hit area (index.css)
+          meets its neighbour's rather than taking its taps: the 32s on a
+          phone twelve apart, the 36s from `sm` eight. Not wider above
+          that: the ring on an open button (see `EXPANDED_BUTTON`) is
+          what separates these two, and more only cost width in the one
+          place the row is tight -- a landscape phone with the drawer
+          open. */}
+      <div className="ml-auto flex items-center gap-3 sm:gap-2 [&>*]:size-8 @min-[22.5rem]:ml-0 @min-[22.5rem]:justify-self-end sm:[&>*]:size-9">
         {actions}
       </div>
     </header>

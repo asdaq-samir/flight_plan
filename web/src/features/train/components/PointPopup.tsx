@@ -118,14 +118,19 @@ export default function PointPopup({
           narrower, wrapped width it happens to collapse to instead of
           its real one-line width -- pinning this row flat gives it (and
           so the popup) a stable, correctly-measured width instead. */}
-      <div className="flex gap-1">
+      {/* The drawer's own six (WaypointPanel): 36 by 32, eight apart, so
+          each one's 44-point hit area (index.css) meets the next one's
+          rather than taking its taps -- four apart they overlapped. The
+          row's padding keeps the select's area clear of theirs. */}
+      <div className="flex gap-2 py-1.5">
         {RATINGS.map(r => (
           <Button
             key={r}
             type="button"
             variant="ghost"
+            size="sm"
             onClick={() => onRate(r)}
-            className={`h-9 px-2.5 font-bold ${
+            className={`w-9 px-0 font-bold ${
               rating === r ? "ring-2 ring-offset-1 ring-foreground" : "opacity-70 hover:opacity-100"
             }`}
             style={{ backgroundColor: COLORS[r], color: inkOn(COLORS[r]) }}
@@ -139,7 +144,9 @@ export default function PointPopup({
           dropdown reads as a control without being told, and the card
           is opened a few hundred times in a rating pass -- every word
           in it is a word of chart it covers. */}
-      <div className="flex items-center gap-2">
+      {/* Twelve clear of the button under it (pb-1.5 and the card's six),
+          so their hit areas meet rather than overlap. */}
+      <div className="flex items-center gap-2 pb-1.5">
         <Select value={category} onValueChange={onCategoryChange}>
           <SelectTrigger size="sm" className="w-full">
             <SelectValue />

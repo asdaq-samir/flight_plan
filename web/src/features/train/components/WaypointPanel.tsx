@@ -305,7 +305,7 @@ function WaypointRow({ number, title, detail, end, selected, expands = false, on
         <span className={cn("block leading-snug", TEXT.row)}>{title}</span>
         <span className={cn("block leading-snug", TEXT.detail, selected ? "text-foreground/70" : "text-muted-foreground")}>{detail}</span>
       </span>
-      {end && <span className="shrink-0 tabular-nums">{end}</span>}
+      {end && <span className={cn("shrink-0 tabular-nums", TEXT.detail)}>{end}</span>}
     </button>
   );
 }

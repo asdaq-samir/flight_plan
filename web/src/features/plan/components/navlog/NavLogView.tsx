@@ -1,4 +1,4 @@
-import { Fragment, createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import { Fragment, createContext, useCallback, useContext, useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { flushSync } from "react-dom";
 import { cn } from "cn";
 import { CircleHelp, Loader2, TriangleAlert, WandSparkles } from "lucide-react";
@@ -171,8 +171,19 @@ export function DescriptionCell({
   // changed, so a line arriving mid-typing replaced the typing, and the
   // blur that followed saw nothing new to save.
   const [draft, setDraft] = useState<string | null>(null);
+  const id = useId();
   return (
+    // A label round the box, nine points proud of it above and below and
+    // taking no room: a tap there focuses the box, so a finger has 44
+    // points to find it in while the box itself stays the row's own 26.
+    // A text field cannot carry the ::after the buttons reach 44 with
+    // (index.css). Positioned, so the band lies over the leg's figures it
+    // reaches into rather than under them. The box keeps a name of its
+    // own: through the label it would be named with its own text.
+    <label htmlFor={id} className="relative -my-[9px] block py-[9px]">
     <Textarea
+      id={id}
+      aria-label="How to spot it"
       value={draft ?? description?.text ?? ""}
       onChange={e => setDraft(e.target.value)}
       onFocus={onFocus}
@@ -203,6 +214,7 @@ export function DescriptionCell({
           : "border-transparent bg-transparent text-muted-foreground hover:border-border focus:border-ring focus:bg-background",
       )}
     />
+    </label>
   );
 }
 
@@ -268,7 +280,7 @@ function LegLine({ leg }: { leg: Leg }) {
  *  its subheadline. A row's 17 was a tad big over them, the pilot said. */
 const HEADING = "text-sm pointer-coarse:text-[1rem]";
 /** A heading's unit, under its name: a note's 13 to a finger. */
-const UNIT = "text-[0.6875rem] font-normal pointer-coarse:text-[0.8125rem]";
+const UNIT = "text-[0.6875rem] font-normal pointer-coarse:text-[0.8125rem] pointer-coarse:leading-[1.125rem]";
 
 /** A column's heading: its short name over its unit, small, so both
  *  fit a phone's narrow columns ("Alt" over "ft", "MH" over "mag"), and
@@ -366,7 +378,7 @@ export default function NavLogView({
   // the three ran to 293 points in a phone drawer's 277. Each figure
   // whole: a longer route breaks the line between them, not inside one.
   const foldedSummary = parts && (
-    <span className="pointer-coarse:text-[0.8125rem]">
+    <span className="pointer-coarse:text-[0.8125rem] pointer-coarse:leading-[1.125rem]">
       {([["Dist", parts.distance], ["ETE", parts.time], ["Fuel", parts.fuel]] as const).map(([name, figure], i) => (
         <Fragment key={name}>{i > 0 && " · "}<span className="whitespace-nowrap">{name} {figure}</span></Fragment>
       ))}
@@ -910,7 +922,9 @@ export default function NavLogView({
           header (the route form) is print:hidden, so the route is
           named here instead, the inputs become a line of text, and
           the buttons drop out. */}
-      <div className="flex flex-col gap-2 border-b border-border p-3 text-sm">
+      {/* The left padding clears the island of a phone on its side,
+          whose edge the drawer's is, as the training drawer's does. */}
+      <div className="flex flex-col gap-2 border-b border-border p-3 pl-[max(0.75rem,env(safe-area-inset-left))] text-sm">
         {/* Wrapping, as the waypoint drawer's header does: with the text
             set larger the title takes the row and the actions go under
             it, where Print ran off the drawer's edge. */}
@@ -930,7 +944,9 @@ export default function NavLogView({
             row an ETA, is what a saved flight is planned for, and
             picks the winds forecast period; shadcn's date picker with
             a time box (DepartPicker), empty for about now. */}
-        <div className="flex flex-wrap items-center gap-2 print:hidden">
+        {/* Wrapped onto two lines (a 320-point Slide Over), the two
+            twelve apart, so their hit areas (index.css) meet. */}
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-3 print:hidden">
           <Select value={aircraftValue} onValueChange={onAircraftChange}>
             <SelectTrigger size="sm" aria-label="Aircraft" data-testid="aircraft-select">
               <SelectValue />
@@ -962,7 +978,7 @@ export default function NavLogView({
         // 18rem of this width -- a container query, so with the text
         // set larger (the root font size up, the rem with it) the line
         // wraps rather than running off the edge.
-        className="flight-briefing @container min-h-0 flex-1 overflow-auto px-3 pb-[env(safe-area-inset-bottom)] print:h-auto print:overflow-visible print:pb-0"
+        className="flight-briefing @container min-h-0 flex-1 overflow-auto pr-3 pb-[env(safe-area-inset-bottom)] pl-[max(0.75rem,env(safe-area-inset-left))] print:h-auto print:overflow-visible print:pb-0"
         data-testid="navlog-scroller"
       >
         {notice}

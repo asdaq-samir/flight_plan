@@ -27,7 +27,9 @@ export default function ConsoleHeader({ console }: { console: string }) {
   const { data: pilot, isLoading, isError, refetch } = useQuery(pilotQuery);
   const logout = useLogout();
   return (
-    <SheetHeader className="flex-row items-center gap-2 border-b py-3">
+    // Its sides clear the island of a phone on its side: from the top, the
+    // sheet spans the screen.
+    <SheetHeader className="flex-row items-center gap-2 border-b py-3 pr-[max(1rem,env(safe-area-inset-right))] pl-[max(1rem,env(safe-area-inset-left))]">
       {/* A button inside the heading: the dialog's name is the pilot's,
           and the name is what opens the menu. Semibold at a sheet's
           title's size (TEXT) -- 16 over its sections' 14, and 17 to a
@@ -37,7 +39,10 @@ export default function ConsoleHeader({ console }: { console: string }) {
         {pilot ? (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm" className={cn("-ml-2 min-w-0 px-2 font-heading font-semibold text-foreground", TEXT.title)} data-testid="pilot-menu">
+              {/* Pulled left by its own padding, so the name lines up with
+                  the row's edge -- but not into the island's inset on a
+                  phone on its side, where the row's padding is the inset. */}
+              <Button variant="ghost" size="sm" className={cn("ml-[min(0px,calc(env(safe-area-inset-left)-0.5rem))] min-w-0 px-2 font-heading font-semibold text-foreground", TEXT.title)} data-testid="pilot-menu">
                 <span className="truncate">{pilot.displayName}</span>
                 <ChevronDown className="text-muted-foreground" />
               </Button>

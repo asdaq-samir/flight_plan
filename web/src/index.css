@@ -57,14 +57,31 @@ input, select, textarea {
   color: #cbd5e1;
 }
 
-/* Smaller, not gone -- the OpenStreetMap credit here is a real
-   requirement of their tile usage policy, not decoration, so it can't
-   just be removed. This is as little space as it can take while still
-   being legible, reclaiming the rest for the map on a phone screen. */
-.leaflet-control-attribution {
+/* Smaller, not gone -- the chart credit is a requirement of the
+   charts' use, not decoration, so it can't just be removed. At Apple's
+   floor for text meant to be read, 11 on 13, where it was 9: as little
+   room as it can take and still be read on a phone. */
+.leaflet-container .leaflet-control.leaflet-control-attribution {
   padding: 0 4px;
-  font-size: 9px;
-  line-height: 1.3;
+  font-size: 11px;
+  line-height: 13px;
+}
+
+/* iOS's leading on a touch screen: each text style's line is its size
+   and five points -- 13/18, 15/20, 16/21, 17/22, 20/25, within a point
+   of Apple's own table from 12 to 28 -- where Tailwind's ratios gave a
+   17-point row 24.3 and a 15-point line 21.4. Every text-* class reads
+   its line height from these, so a touch size set beside one (lib/text.ts,
+   the stock controls) takes its leading with it. An explicit leading-*
+   still wins. */
+@media (pointer: coarse) {
+  :root {
+    --text-xs--line-height: calc(1em + 5px);
+    --text-sm--line-height: calc(1em + 5px);
+    --text-base--line-height: calc(1em + 5px);
+    --text-lg--line-height: calc(1em + 5px);
+    --text-xl--line-height: calc(1em + 5px);
+  }
 }
 
 /* The flight planning drawer's sections are collapsed by default on
@@ -358,12 +375,17 @@ html:not(.dark) [data-sonner-toaster] [data-rich-colors="true"][data-sonner-toas
   --error-text: hsl(359 100% 37%);
 }
 
-/* A toast's words to a finger at 15, as iOS's banners set theirs and
-   the app sets what is read (lib/text.ts), over sonner's 13. The
-   toaster's attribute as well, to outrank sonner's own rule. */
+/* A toast's words to a finger at 15 on iOS's 20, as iOS's banners set
+   theirs and the app sets what is read (lib/text.ts), over sonner's 13
+   on 19.5. The toaster's attribute and the styled one as well: sonner's
+   own rules, injected after this sheet, outranked the toaster's alone,
+   and the toasts stayed 13. */
 @media (pointer: coarse) {
-  [data-sonner-toaster] [data-sonner-toast] {
+  [data-sonner-toaster] [data-sonner-toast][data-styled="true"] {
     font-size: 0.9375rem;
+  }
+  [data-sonner-toaster] [data-sonner-toast][data-styled="true"] :is([data-title], [data-description]) {
+    line-height: 1.25rem;
   }
 }
 

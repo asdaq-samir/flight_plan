@@ -1,6 +1,8 @@
 import type { ReactNode } from "react";
+import { cn } from "cn";
 import AirportPicker from "./AirportPicker";
 import { InputGroup, InputGroupAddon } from "./ui/input-group";
+import { TEXT } from "../lib/text";
 
 interface Props {
   dep: string;
@@ -39,7 +41,9 @@ export default function RouteInputGroup({
         invalid={invalid}
         className="min-w-16 px-1.5 sm:min-w-24 sm:px-2.5"
       />
-      <span className="px-0.5 text-muted-foreground sm:px-1" aria-hidden="true">→</span>
+      {/* At the idents' own size (TEXT), where it was the page's 16 on a
+          line of 24. */}
+      <span className={cn("px-0.5 text-muted-foreground sm:px-1", TEXT.row)} aria-hidden="true">→</span>
       <AirportPicker
         value={dest}
         onChange={onDestChange}

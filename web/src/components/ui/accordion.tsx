@@ -63,8 +63,11 @@ function AccordionContent({
       // Clipped for the open/close animation, as shadcn's overflow-hidden
       // clipped it, but without becoming a scroll container: a sticky
       // heading inside (the nav log's) can then hold to the drawer's
-      // own scroll, where overflow-hidden held it to this box.
-      className="overflow-clip text-sm data-open:animate-accordion-down data-closed:animate-accordion-up"
+      // own scroll, where overflow-hidden held it to this box. Up and
+      // down only, which is all the animation needs: clipped sideways
+      // too, a control at the section's edge lost the side of its
+      // 44-point hit area (the nav log's wand).
+      className="overflow-y-clip text-sm data-open:animate-accordion-down data-closed:animate-accordion-up"
       {...props}
     >
       {/* No fixed height on the inner div: Radix measures the content
