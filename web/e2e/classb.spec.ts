@@ -176,10 +176,12 @@ test("tapping one opens a card, and the card pins its terminal chart", async ({ 
   // The card: the same weather the tooltip shows, plus the pin.
   const card = page.locator(".leaflet-popup-content");
   await expect(card).toContainText("KORD");
-  // The live report, unmocked here: a routine METAR, or a SPECI when the
+  // The live report, unmocked here: a routine METAR, a SPECI when the
   // weather has changed enough between hours for a special one (it
-  // failed a run at 1246Z, O'Hare in rain).
-  await expect(card).toContainText(/(METAR|SPECI) KORD/);
+  // failed a run at 1246Z, O'Hare in rain), or none when the feed has
+  // nothing for the field, which the card says as the tooltip above
+  // does (a run at 0305Z had O'Hare's TAF and no METAR).
+  await expect(card).toContainText(/(METAR|SPECI) KORD|no report/);
   // An icon, named by its accessible name rather than by words on the
   // card: the card is mostly raw METAR and TAF, and labelled buttons
   // under it pushed the weather off a phone screen.
