@@ -383,6 +383,13 @@ html:not(.dark) [data-sonner-toaster] [data-rich-colors="true"][data-sonner-toas
   --error-text: hsl(359 100% 37%);
 }
 
+/* The toasts in the app's typeface: sonner sets its own system stack,
+   so on an iPhone they read in San Francisco beside an app in Inter.
+   The html selector outranks sonner's, which is injected after this. */
+html [data-sonner-toaster] {
+  font-family: inherit;
+}
+
 /* A toast's words to a finger at 15 on iOS's 20, as iOS's banners set
    theirs and the app sets what is read (lib/text.ts), over sonner's 13
    on 19.5. The toaster's attribute and the styled one as well: sonner's

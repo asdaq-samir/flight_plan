@@ -52,14 +52,17 @@ function ModelProvenance() {
  * colours on the chart mean; what the map's own controls do; keeping
  * the route for the air; and the keys.
  * This is what the header's info popover used to hold, written for the
- * pilot rather than for whoever built it.
+ * pilot rather than for whoever built it. Its words in the text's own
+ * colour, as the sidebar's briefing is: grey is for a row's detail, a
+ * summary and a note, and the guide's paragraphs in it read as a
+ * different app's beside the drawer.
  */
 export default function PilotGuide({ course }: { course: Course | null }) {
   return (
     <div className="space-y-5">
       <section className={cn("space-y-1.5", TEXT.prose)}>
         <h3 className={cn("font-semibold", TEXT.row)}>Planning a flight here</h3>
-        <ol className="list-decimal space-y-1 pl-5 text-muted-foreground">
+        <ol className="list-decimal space-y-1 pl-5">
           <li>Pick your departure and destination in the header and press the arrow. The course draws at once.</li>
           <li>The numbered dots along the course are your visual checkpoints: landmarks a pilot could pick out from the air, chosen and rated for that.</li>
           <li>Open Flight Planning from the header and pick your aeroplane and departure time at the top. Each section opens on its title: the nav log has the legs with headings, times and fuel for them and the winds, and the briefing sections follow it: weather, NOTAMs, the airports. Print it from there.</li>
@@ -69,7 +72,7 @@ export default function PilotGuide({ course }: { course: Course | null }) {
 
       <section className={cn("space-y-1.5", TEXT.prose)}>
         <h3 className={cn("font-semibold", TEXT.row)}>Your aeroplane in the day's air</h3>
-        <p className="text-muted-foreground">
+        <p>
           Your aeroplane's cruise speed and fuel burn are taken as its figures at its cruise power
           at {altFt(CRUISE_REFERENCE_FT)} ft on a standard day, a row of its handbook's cruise table. Each leg flies them
           in the forecast air at its altitude, as a density altitude: faster in thinner air at the same power, and slower
@@ -81,7 +84,7 @@ export default function PilotGuide({ course }: { course: Course | null }) {
 
       <section className={cn("space-y-1.5", TEXT.prose)}>
         <h3 className={cn("font-semibold", TEXT.row)}>What the colours mean</h3>
-        <p className="text-muted-foreground">Each checkpoint is rated for how findable it is from the cockpit, 0 to 5.</p>
+        <p>Each checkpoint is rated for how findable it is from the cockpit, 0 to 5.</p>
         {/* A row a colour, its dot before the words, as the app's lists
             are (the developer's rating scale is the same). */}
         <ListGroup>
@@ -97,7 +100,7 @@ export default function PilotGuide({ course }: { course: Course | null }) {
 
       <section className={cn("space-y-1.5", TEXT.prose)}>
         <h3 className={cn("font-semibold", TEXT.row)}>The map</h3>
-        <p className="text-muted-foreground">
+        <p>
           The chart is the FAA sectional, the whole country, at every zoom. The layers button at the map's top right
           picks the base chart (sectional, IFR low, IFR high), pins the terminal area chart over it, and turns on your own
           position. Close in over a terminal area a pin appears on the map to pin that sheet. The zoom button under it
@@ -108,7 +111,7 @@ export default function PilotGuide({ course }: { course: Course | null }) {
 
       <section className={cn("space-y-1.5", TEXT.prose)}>
         <h3 className={cn("font-semibold", TEXT.row)}>On your phone</h3>
-        <p className="text-muted-foreground">
+        <p>
           Add this to your Home Screen and it opens as its own app: the whole screen, with no browser bar over the
           chart, and the charts you keep below stay kept. In Safari tap Share, then Add to Home Screen. In a browser
           tab the address bar stays put, because the page holds still under your finger rather than scrolling.
@@ -119,7 +122,7 @@ export default function PilotGuide({ course }: { course: Course | null }) {
 
       <section className={cn("space-y-1.5", TEXT.prose)}>
         <h3 className={cn("font-semibold", TEXT.row)}>Keys</h3>
-        <div className="space-y-1 text-muted-foreground">
+        <div className="space-y-1">
           {KEYS.map(([key, text]) => (
             <div key={key} className="flex items-center gap-2">
               <Kbd>{key}</Kbd>

@@ -137,8 +137,10 @@ function ModelComparisonChart() {
       <p className={cn("mb-3 text-muted-foreground", TEXT.note)}>
         Error on the {data?.n_labeled ?? "—"} ratings, lower is better; green is the model serving.
       </p>
-      {!error && !rows && <p className="text-muted-foreground">Reading each model's metrics…</p>}
-      {rows?.length === 0 && <p className="text-muted-foreground">No trained models are available.</p>}
+      {/* Status, not reading text: grey, as a placeholder is, and said to a
+          screen reader when it changes. */}
+      {!error && !rows && <p role="status" className="text-muted-foreground">Reading each model's metrics…</p>}
+      {rows?.length === 0 && <p role="status" className="text-muted-foreground">No trained models are available.</p>}
       {rows && rows.length > 0 && (
         <ChartContainer
           config={modelComparisonChartConfig}
@@ -284,7 +286,7 @@ function ModelSection({ status, failed }: { status: Status | undefined; failed: 
           <ListRow title="Versions promoted" value={model?.versions.length ?? 0} />
         </ListGroup>
       ) : (
-        <p className="mt-2 text-muted-foreground">{status ? "No model has been promoted yet." : waiting(failed)}</p>
+        <p role="status" className="mt-2 text-muted-foreground">{status ? "No model has been promoted yet." : waiting(failed)}</p>
       )}
       <ListGroup
         className="mt-4" title="Training"

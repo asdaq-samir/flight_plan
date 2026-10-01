@@ -36,7 +36,7 @@ const SCALE: [Rating, string, string][] = [
 export default function RatingGuide() {
   return (
     <div className={cn("space-y-3", TEXT.prose)}>
-      <p className="italic text-muted-foreground">
+      <p className="italic">
         Flying this leg, would I look up and know <i>that&rsquo;s the one</i> — not one like it?
       </p>
       <ListGroup>
@@ -48,12 +48,12 @@ export default function RatingGuide() {
           />
         ))}
       </ListGroup>
-      <p className="text-muted-foreground">
+      <p>
         <b>0 vs 1 matters most</b> — 0 means the detector should never have surfaced it,
         1 means it&rsquo;s real but poor. <b>Ignore spacing</b>; selection already enforces
         separation. <b>Judge at this zoom</b>.
       </p>
-      <div className="flex flex-wrap gap-x-4 gap-y-1.5 text-muted-foreground">
+      <div className="flex flex-wrap gap-x-4 gap-y-1.5">
         {SHORTCUTS.map(([key, text]) => (
           <div key={text} className="flex items-center gap-2">
             {key && <Kbd className="whitespace-nowrap">{key}</Kbd>}

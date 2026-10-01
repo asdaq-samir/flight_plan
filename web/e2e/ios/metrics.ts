@@ -10,7 +10,8 @@ import type { Page } from "@playwright/test";
  * everything tappable; P2 text on iOS's type scale; P3 each size at its
  * iOS leading; P11 no sideways scroll, at 100% and at Safari's 150% page
  * zoom; P12 nothing pinned to the screen under the notch, the island or
- * the home indicator; P16 the app's own typeface everywhere.
+ * the home indicator; P16 the app's own typeface everywhere; P17 reading
+ * text and headings in the text's own colour.
  */
 
 /** What a finger can tap. */
@@ -164,6 +165,49 @@ export function typeFindings(page: Page, scope = "body"): Promise<{ offScale: Ty
     }
     return { offScale: [...offScale.values()], offLeading: [...offLeading.values()], offFace: [...offFace.values()] };
   }, { scope, type: IOS_TYPE, glyphs: LEADING_EXEMPT });
+}
+
+export type RoleFinding = { role: string; text: string; where: string };
+
+/** P17: reading text -- a paragraph or a list item at the prose size, 15
+ *  to a finger -- and headings in the text's own colour, never in the
+ *  grey that is for a row's detail, a section's summary, a note and a
+ *  status. The consoles' guides were grey where the sidebar's briefing
+ *  is black, and every size check passed them. Not judged: rows and
+ *  summaries (their grey is their role), a group's small-capital header,
+ *  a status (role="status"), and red or amber words, which say something
+ *  of their own. */
+export function roleFindings(page: Page, scope = "body"): Promise<RoleFinding[]> {
+  return page.evaluate(scope => {
+    const root = document.querySelector(scope);
+    if (!root) return [];
+    const probe = document.createElement("span");
+    probe.className = "text-muted-foreground";
+    document.body.append(probe);
+    const muted = getComputedStyle(probe).color;
+    probe.remove();
+    const found: { role: string; text: string; where: string }[] = [];
+    for (const el of root.querySelectorAll<HTMLElement>("p, li, h1, h2, h3, h4")) {
+      const r = el.getBoundingClientRect();
+      if (r.width < 2 || r.height < 2 || el.closest(".sr-only")) continue;
+      if (el.closest('[role="status"], [data-slot^="item"], [data-slot="section-summary"], [data-slot="accordion-trigger"], [data-sonner-toaster], .leaflet-pane')) continue;
+      const cs = getComputedStyle(el);
+      // A group's header is grey by design: iOS's small capitals over a
+      // grouped list (13, semibold, uppercase), as the settings' are.
+      const groupHeader = cs.textTransform === "uppercase" && parseFloat(cs.fontSize) <= 13.25;
+      const heading = /^H\d$/.test(el.tagName) && !groupHeader;
+      const reading = !heading && Math.abs(parseFloat(cs.fontSize) - 15) <= 0.25;
+      if ((heading || reading) && cs.color === muted) {
+        let where = el.tagName.toLowerCase();
+        for (let a: HTMLElement | null = el; a; a = a.parentElement) {
+          const id = a.dataset.testid ? `#${a.dataset.testid}` : a.dataset.slot;
+          if (id) { where = id; break; }
+        }
+        found.push({ role: heading ? "heading" : "reading", text: (el.textContent ?? "").trim().replace(/\s+/g, " ").slice(0, 40), where });
+      }
+    }
+    return found;
+  }, scope);
 }
 
 /** P11: how far the page scrolls sideways; 0 or less passes. */

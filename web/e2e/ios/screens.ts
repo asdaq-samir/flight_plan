@@ -9,8 +9,8 @@ const ROUTE = "dep=C81&dest=KDLH";
 /**
  * The screens the iOS audit measures: the planner's map, its drawer and
  * the nav log with a leg open, the training drawer with a waypoint open,
- * the developer console and the settings. Nothing is written: a row is
- * selected, never rated, and no note is typed.
+ * both consoles and the settings. Nothing is written: a row is selected,
+ * never rated, and no note is typed.
  */
 export const SCREENS: Screen[] = [
   {
@@ -57,6 +57,24 @@ export const SCREENS: Screen[] = [
       await page.getByTestId("dev-console-button").click();
       await page.getByRole("tab", { name: "System" }).click();
       await expect(page.getByTestId("dev-refresh")).toBeVisible();
+    },
+  },
+  {
+    name: "pilot console, Guide tab",
+    ready: async page => {
+      await page.goto("/app/plan");
+      await page.getByTestId("pilot-button").click();
+      await page.getByRole("tab", { name: "Guide" }).click();
+      await expect(page.getByRole("heading", { name: "Planning a flight here" })).toBeVisible();
+    },
+  },
+  {
+    name: "developer console, Guide tab",
+    ready: async page => {
+      await page.goto("/app/dev");
+      await page.getByTestId("dev-console-button").click();
+      await page.getByRole("tab", { name: "Guide" }).click();
+      await expect(page.getByRole("heading", { name: "Collect a route" })).toBeVisible();
     },
   },
   {

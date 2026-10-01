@@ -179,7 +179,7 @@ export default function WaypointPanel({
         data-waypoint-list data-testid="waypoint-scroller"
       >
         <ul aria-label={`Waypoints from ${departureIdent} to ${destinationIdent}`} className="divide-y divide-border">
-          {entries.length === 0 && <li className={cn("px-3 py-3 text-muted-foreground", TEXT.prose)}>No waypoints yet</li>}
+          {entries.length === 0 && <li role="status" className={cn("px-3 py-3 text-muted-foreground", TEXT.prose)}>No waypoints yet</li>}
           {entries.map(entry => {
             const p = entry.point;
             const isSelected = p === selected;
