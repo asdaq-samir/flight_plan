@@ -27,8 +27,8 @@ test("a winds outage never reads as an altitude the pilot typed", async ({ page 
   await page.locator('[data-slot="sidebar"][data-side="left"]').getByText("Nav Log", { exact: true }).click();
 
   const why = page.getByTestId("altitude-why");
-  await expect(why).toContainText("No altitude", { timeout: 60000 });
-  await expect(why).not.toContainText("yours");
+  await expect(why).toHaveAccessibleName(/No altitude/, { timeout: 60000 });
+  await expect(why).not.toHaveAccessibleName(/yours/);
   await why.click();
   // A popover beside the altitude, or on a phone a sheet from the bottom.
   const popover = page.locator("[data-slot=popover-content], [data-slot=drawer-content]");

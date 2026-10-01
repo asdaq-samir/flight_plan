@@ -4,18 +4,20 @@ import { TableCell, TableRow } from "./ui/table";
 
 /**
  * A clickable/keyboard-selectable row of the nav log (click, Enter, or
- * Space), muted while *not* selected when it is the departure or a leg
- * missing wind data. Selected, it takes the grey tint the training
+ * Space), its figures grey under black headings and black once it is
+ * selected, in italics for a leg missing wind data. Selected, it takes
+ * the grey tint the training
  * drawer's waypoint rows take, as an iOS list's selection does, so the
  * two pages' lists select alike to a reader who moves between them; it
  * was inverted, black on a white page, as the training list was before
  * it.
  */
 export function SelectableRow({
-  selected, mutedWhenUnselected = false, expands = false, onSelect, scrollRef, children,
+  selected, estimated = false, expands = false, onSelect, scrollRef, children,
 }: {
   selected: boolean;
-  mutedWhenUnselected?: boolean;
+  /** A leg worked out without its wind (or not in yet): in italics. */
+  estimated?: boolean;
   /** Whether selecting the row opens a note row under it (the nav
    *  log's), said to a reader as aria-expanded. */
   expands?: boolean;
@@ -46,9 +48,11 @@ export function SelectableRow({
         // A ring for the keyboard, inside the row so the table's own
         // border is not painted over; the tint alone was easy to miss.
         "cursor-pointer focus:outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring",
-        // Muted rows take the foreground colour under the hover and
-        // focus tint: muted on the tint was 4.35:1, under WCAG's 4.5.
-        mutedWhenUnselected && "text-muted-foreground hover:text-foreground focus-visible:text-foreground",
+        // The figures in grey under the headings' black, as the pilot
+        // asked, and black under the hover and focus tint (grey on the
+        // tint was 4.35:1, under WCAG's 4.5) and selected.
+        "text-muted-foreground hover:text-foreground focus-visible:text-foreground",
+        estimated && "italic",
         // active: what a finger gets, where there is no hover -- the row
         // answers the touch before the map and the note do. The training
         // list's own tints.

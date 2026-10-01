@@ -28,12 +28,11 @@ interface Props {
 /**
  * Both consoles that drop down over the map: the developer's and the
  * pilot's. One thing per tab rather than everything in one long
- * scroll, the tab row sharing its line with whatever buttons the open
- * tab brings with it (the theme is in the header's settings), and the
- * whole thing
- * centred on a readable column. Only the tabs differ between the two,
- * so only those are props; who is signed in is the sheet's own header
- * (ConsoleHeader), above both.
+ * scroll, the tabs across the column with whatever buttons the open
+ * tab brings with it under them (the theme is in the header's
+ * settings), and the whole thing centred on a readable column. Only
+ * the tabs differ between the two, so only those are props; who is
+ * signed in is the sheet's own header (ConsoleHeader), above both.
  */
 export default function ConsoleTabs({ tabs, saved, onChange, footer }: Props) {
   const tab = tabs.some(t => t.value === saved) ? saved : tabs[0].value;
@@ -42,16 +41,17 @@ export default function ConsoleTabs({ tabs, saved, onChange, footer }: Props) {
     <div className="min-h-0 flex-1 overflow-y-auto">
       <div className="mx-auto max-w-3xl p-4">
         <Tabs value={tab} onValueChange={onChange}>
-          {/* The tabs, and the buttons at the row's right-hand end; on a
-              width that has no room for both, the buttons drop to a
-              line of their own, still at the right. */}
+          {/* The tabs as iOS's segmented control: the column's width,
+              its segments equal (each trigger is flex-1), 32 points tall,
+              the chosen one raised 2 in from the track, the words 13
+              (ui/tabs). It was as wide as its words, and each tab as
+              wide as its own. A tab's own buttons (the System tab's
+              refresh) on a line under it, at the right. */}
           <div className="flex flex-wrap items-center gap-2">
-            <TabsList>
+            <TabsList className="w-full p-0.5 group-data-[orientation=horizontal]/tabs:h-8">
               {tabs.map(t => <TabsTrigger key={t.value} value={t.value}>{t.label}</TabsTrigger>)}
             </TabsList>
-            <div className="ml-auto flex items-center gap-1">
-              {open.buttons}
-            </div>
+            {open.buttons && <div className="ml-auto flex items-center gap-1">{open.buttons}</div>}
           </div>
           {tabs.map(t => (
             <TabsContent key={t.value} value={t.value} className="mt-3">{t.content}</TabsContent>

@@ -1,7 +1,7 @@
-import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
+import { Fragment, createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { flushSync } from "react-dom";
 import { cn } from "cn";
-import { CircleHelp, Loader2, WandSparkles } from "lucide-react";
+import { ChevronsUpDown, Loader2, TriangleAlert, WandSparkles } from "lucide-react";
 import {
   type CellData, type ColumnDef, type RowData, type TableFeatures,
   flexRender, tableFeatures, useTable,
@@ -19,7 +19,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import {
   Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow,
 } from "../../../../components/ui/table";
-import type { AltitudeChoice, Candidate, Leg, NavLogAltitude, Totals } from "../../../../lib/api/types";
+import type { AltitudeChoice, AltitudeSegment, Candidate, Leg, NavLogAltitude, Totals } from "../../../../lib/api/types";
 import { revealRow } from "../../../../lib/revealRow";
 import { TEXT } from "../../../../lib/text";
 import { type Description, descriptionKey } from "../../hooks/useCheckpointNotes";
@@ -188,11 +188,13 @@ export function DescriptionCell({
       }}
       rows={1}
       placeholder={description?.source === "error" ? "Couldn't auto-generate — type one" : "How to spot it…"}
-      // shadcn's own Textarea, sized down to a table cell: its 16px on
-      // a phone stays (iOS Safari zooms the whole page in on focusing
-      // any field under that), the rest is one line in the row.
+      // shadcn's own Textarea, sized down to a table cell: one line in
+      // the row, at the rows' own 12 on any screen, where it was a
+      // field's 17 among figures of 12 (iOS Safari zooms in on a field
+      // under 16 only where the page lets it, and this one's viewport
+      // does not: maximum-scale=1 in index.html).
       className={cn(
-        "min-h-0 w-full resize-none rounded py-0.5 pr-1 pl-0.5 text-left align-top shadow-none md:text-xs",
+        "min-h-0 w-full resize-none rounded py-0.5 pr-1 pl-0.5 text-left align-top text-xs shadow-none md:text-xs pointer-coarse:text-xs",
         // On a selected row, a field: the page's own background and the
         // stock edge, on the selection's tint, so it reads as somewhere
         // to type rather than one more line of the row.
@@ -229,22 +231,90 @@ export function DescriptionCell({
  * is the exception: it opens the log with nothing to its right, since
  * no leg has been flown yet.
  */
-/** The leg's figures a phone's table has no columns for, as one line
- *  under the row (the columns themselves from md up, see the column
- *  defs): course, wind, correction, variation, magnetic heading, true
- *  airspeed, groundspeed and fuel, in the nav log's own order. */
+/** The leg's figures a phone's table has no columns for, under the
+ *  selected row (the columns themselves from md up, see the column
+ *  defs): the heading worked out from the course -- true course, wind,
+ *  correction, true heading, variation (the magnetic heading it ends in
+ *  is the row's own) -- then the speeds and the fuel, in the nav log's
+ *  own order. A grid of figures four across, each its shorthand over
+ *  its value at the rows' own size; it was a run of "TC 327° Wind
+ *  220°/28 WCA ..." breaking wherever the line ran out. (Their whole
+ *  names were tried, two across, and the pilot kept the shorthand.) */
 function LegLine({ leg }: { leg: Leg }) {
+  const figures: [string, string][] = [
+    ["TC", deg(leg.true_course_deg)],
+    ["Wind", leg.wind ? `${deg(leg.wind.wind_dir_true_deg)}/${Math.round(leg.wind.wind_speed_kt)}` : "no data"],
+    ["WCA", signed(leg.wca_deg)],
+    ["TH", deg(leg.true_heading_deg)],
+    ["Var", signed(leg.magnetic_variation_deg)],
+    ["TAS", tas(leg)],
+    ["GS", leg.groundspeed_kt === null ? "—" : String(Math.round(leg.groundspeed_kt))],
+    ["Fuel", `${one(leg.fuel_gal)} gal`],
+  ];
   return (
-    <div className="mb-1 flex flex-wrap gap-x-3 text-xs tabular-nums md:hidden">
-      <span>TC {deg(leg.true_course_deg)}</span>
-      <span>Wind {leg.wind ? `${deg(leg.wind.wind_dir_true_deg)}/${Math.round(leg.wind.wind_speed_kt)}` : "no data"}</span>
-      <span>WCA {signed(leg.wca_deg)}</span>
-      <span>Var {signed(leg.magnetic_variation_deg)}</span>
-      <span>MH {deg(leg.magnetic_heading_deg)}</span>
-      <span>TAS {tas(leg)}</span>
-      <span>GS {leg.groundspeed_kt === null ? "—" : Math.round(leg.groundspeed_kt)}</span>
-      <span>Fuel {one(leg.fuel_gal)} gal</span>
-    </div>
+    <dl className="mb-1.5 grid grid-cols-[repeat(auto-fill,minmax(3.75rem,1fr))] gap-x-2 gap-y-1 md:hidden">
+      {figures.map(([name, value]) => (
+        <div key={name}>
+          <dt className="text-[0.6875rem]">{name}</dt>
+          <dd className="text-foreground tabular-nums">{value}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+/** A column's heading: its short name over its unit, small, so both
+ *  fit a phone's narrow columns ("Alt" over "ft", "MH" over "mag"), and
+ *  its whole name for a screen reader, which read "MH" as "M H". */
+function Heading({ name, unit, spoken }: { name: string; unit?: string; spoken: string }) {
+  return (
+    <>
+      <span aria-hidden className="inline-flex flex-col items-end leading-tight">
+        <span>{name}</span>
+        {unit && <span className="text-[0.6875rem] font-normal">{unit}</span>}
+      </span>
+      <span className="sr-only">{spoken}</span>
+    </>
+  );
+}
+
+/** What the Alt column's heading opens (NavLogView's altitudePlans) and
+ *  the altitude it is named with, handed down to a heading of a fixed
+ *  identity: a heading made in each render is a new component to React
+ *  each time, so the sheet it held closed whenever the log re-rendered
+ *  -- a leg streaming in, a note saved. */
+const AltPlans = createContext<{ plans: ReactNode; label: string | null }>({ plans: null, label: null });
+
+/** The Alt column's heading: the button that opens how the altitude was
+ *  chosen -- the four plans, the pilot's own, and why -- in the tint with
+ *  a pop-up's chevrons, as iOS draws one, and named with the figure.
+ *  Before the log has an altitude, and on paper, the plain heading. It
+ *  stands where a row of its own over the table was, "Altitude 3,000 ft
+ *  ⓘ"; the column under it says each leg's. */
+function AltHeading() {
+  const { plans, label } = useContext(AltPlans);
+  return (
+    <>
+      {plans && (
+        <ResponsivePopover>
+          <ResponsivePopoverTrigger asChild>
+            <Button
+              variant="ghost" size="xs"
+              className="-mr-1 h-auto flex-col items-end gap-0 px-1 py-0.5 leading-tight print:hidden"
+              aria-label={`Altitude${label ? `, ${label}` : ""}: how it was chosen`}
+              data-testid="altitude-why"
+            >
+              <span className="inline-flex items-center gap-0.5 text-sm">Alt<ChevronsUpDown className="size-3" /></span>
+              <span className="text-[0.6875rem] font-normal">ft</span>
+            </Button>
+          </ResponsivePopoverTrigger>
+          {plans}
+        </ResponsivePopover>
+      )}
+      <span className={plans ? "hidden print:inline" : undefined}>
+        <Heading name="Alt" unit="ft" spoken="Altitude, feet" />
+      </span>
+    </>
   );
 }
 
@@ -326,11 +396,103 @@ export default function NavLogView({
   // at module scope, since they close over this render's `nav` and
   // `depart`.
   const data = navLogRows(ends, selected, legs);
+  // The legs the clouds leave no legal altitude on (14 CFR 91.155),
+  // marked on their own rows -- a red triangle by the name, the clouds
+  // it means in its hover and its spoken name, the whole of it in the
+  // altitude's sheet -- rather than said once over the whole table,
+  // where a pilot had to work out which legs it meant. The altitude breakdown's segments
+  // run fix to fix, as the rows do, so the leg into row i is segment
+  // i - 1; a breakdown that does not line up with the rows says it once
+  // over the table instead, as it always did.
+  const segments = nav?.altitude_selection.segments ?? [];
+  const perLeg = segments.length > 0 && segments.length === data.length - 1;
+  const cloudsOver = (rowIndex: number): AltitudeSegment | undefined => {
+    const segment = perLeg && rowIndex > 0 ? segments[rowIndex - 1] : undefined;
+    return segment && !segment.cloud_clearance_kept ? segment : undefined;
+  };
+  // How the altitude was chosen -- the four plans, the pilot's own, and
+  // why: a pilot should never have to take a cruise altitude on trust,
+  // so the Alt column's own heading opens the planner's reasoning (floor,
+  // ceiling, the rule, the weather checked) rather than a bare "(auto)".
+  // The briefing's Cruise Altitude section carries the same steps onto
+  // the paper.
+  const altitudePlans = nav && (
+    // On a phone a sheet from the header's edge: as a popover it was
+    // 70% of the screen, scrolling inside.
+    <ResponsivePopoverContent title="How the altitude was chosen" align="start" className="w-80">
+      {/* The four plans first, each a button with its time
+          and fuel: the pilot picks one and the log re-plans
+          on it. Then why. */}
+      <div className="mb-3 space-y-1.5" role="group" aria-label="Cruise altitude plans">
+        <div className={cn("font-semibold uppercase tracking-wide text-muted-foreground", TEXT.note)}>Four plans, or your own</div>
+        {nav.options.map(o => (
+          <Button
+            key={o.kind} type="button" size="sm"
+            variant={o.kind === nav.flown ? "default" : "outline"}
+            aria-pressed={o.kind === nav.flown}
+            // A choice in a list, as iOS draws one: its words
+            // in the text's colour, the one flown filled in
+            // the tint -- not four outlined buttons in blue --
+            // and its words whole on the fill (white at 80%
+            // on the blue was 4.1:1).
+            className={cn("h-auto w-full justify-between gap-3 whitespace-normal py-1.5 text-left", o.kind !== nav.flown && "text-foreground")}
+            onClick={() => onAltitudeChoiceChange(o.kind)}
+            data-testid={`altitude-plan-${o.kind}`}
+          >
+            <span>
+              <span className={cn("font-semibold capitalize", TEXT.row)}>{o.kind}</span>
+              <span className={cn("block font-normal", TEXT.detail, o.kind !== nav.flown && "opacity-80")}>{describeSteps(o)}</span>
+            </span>
+            <span className={cn("shrink-0 text-right tabular-nums", TEXT.detail)}>
+              {describeTime(o)}
+              <span className={cn("block", o.kind !== nav.flown && "opacity-80")}>{describeFuel(o)}</span>
+            </span>
+          </Button>
+        ))}
+        {/* The pilot's own altitude, one number for the
+            whole route: a row under the four plans,
+            pressed while it is what the log flies.
+            Enter or Fly re-plans at it; the stock Input's
+            16px below md keeps a phone from zooming. */}
+        <form
+          className={cn(
+            "flex items-center gap-2 rounded-md border px-2 py-1.5",
+            nav.flown === "custom" ? "border-primary bg-primary text-primary-foreground" : "border-input",
+          )}
+          onSubmit={e => { e.preventDefault(); onSubmit(); }}
+          aria-label="Custom altitude"
+        >
+          <span className={cn("font-semibold", TEXT.row)}>Custom</span>
+          <Input
+            value={alt}
+            onChange={e => onAltChange(e.target.value)}
+            placeholder="ft"
+            inputMode="numeric"
+            spellCheck={false}
+            aria-label="Cruise altitude, feet"
+            className="ml-auto h-8 w-24 bg-background text-right text-foreground"
+            data-testid="custom-altitude"
+          />
+          <Button
+            type="submit" size="sm" variant={nav.flown === "custom" ? "secondary" : "outline"}
+            disabled={!alt.trim()} data-testid="custom-altitude-fly"
+          >
+            Fly
+          </Button>
+        </form>
+      </div>
+      <div className={cn("mb-2 font-semibold uppercase tracking-wide text-muted-foreground", TEXT.note)}>How the altitude was chosen</div>
+      <AltitudeReasoning nav={nav} legs={legs} />
+    </ResponsivePopoverContent>
+  );
+
   // On a phone the table keeps five columns -- the waypoint, altitude,
-  // distance, true heading and ETE (and the ETA with a departure
+  // distance, magnetic heading and ETE (and the ETA with a departure
   // time) -- and the others, which had it fourteen wide and
-  // scrolling sideways under the finger, are the leg line under each
-  // row instead (see LegLine); from md up, and on paper, every column.
+  // scrolling sideways under the finger, are the leg's figures under
+  // the selected row instead (see LegLine); from md up, and on paper,
+  // every column. The heading kept is the one a pilot steers: it was
+  // the true heading, with the magnetic one only under the row.
   const columns: ColumnDef<typeof navLogTableFeatures, NavLogRow>[] = [
     {
       id: "waypoint",
@@ -354,15 +516,29 @@ export default function NavLogView({
           Waypoint
         </span>
       ),
-      cell: ({ row }) => rowPoint(row.original).name,
-      meta: { className: "text-left max-md:whitespace-normal" },
+      cell: ({ row }) => (
+        <>
+          {cloudsOver(row.index) && (
+            <span title={`Too low for VFR under the clouds near ${cloudsOver(row.index)?.cloud_station ?? "the leg"}`}>
+              <TriangleAlert aria-hidden className="mr-1 inline size-[1em] align-[-0.125em] text-destructive" />
+              <span className="sr-only">Too low for VFR: </span>
+            </span>
+          )}
+          {rowPoint(row.original).name}
+        </>
+      ),
+      // On a phone a name wraps, and a long word is hyphenated rather
+      // than pushing the figures off the drawer's edge: with a
+      // departure time's ETA as a sixth column, "Subdivision" alone was
+      // wider than the room left. At a syllable, not anywhere: broken
+      // anywhere, a name went "Clyma / n / Subdiv / ision".
+      meta: { className: "text-left max-md:whitespace-normal max-md:hyphens-auto" },
     },
     {
       id: "alt",
-      // A plain heading: a pilot's own altitude is typed in the
-      // altitude popover's Custom row (see the header below), under
-      // the four plans, not in this column's head.
-      header: "Alt",
+      // How its altitudes were chosen opens from the column's own head
+      // (AltHeading).
+      header: AltHeading,
       // The last row lands at the destination -- shows its field
       // elevation, known immediately, rather than a cruise altitude.
       // A checkpoint's row shows the altitude of the leg that arrives
@@ -375,18 +551,18 @@ export default function NavLogView({
     },
     {
       id: "dist",
-      header: "Dist",
+      header: () => <Heading name="Dist" unit="nm" spoken="Distance, nautical miles" />,
       cell: ({ row }) => (legOf(row.original) ? legOf(row.original)!.distance_nm.toFixed(1) : "—"),
     },
     {
       id: "tc",
-      header: "TC",
+      header: () => <Heading name="TC" unit="true" spoken="True course" />,
       meta: { className: "hidden md:table-cell print:table-cell" },
       cell: ({ row }) => (legOf(row.original) ? deg(legOf(row.original)!.true_course_deg) : "—"),
     },
     {
       id: "wind",
-      header: "Wind",
+      header: () => <Heading name="Wind" unit="°/kt" spoken="Wind, direction and speed" />,
       meta: { className: "hidden md:table-cell print:table-cell" },
       cell: ({ row }) => {
         const leg = legOf(row.original);
@@ -395,25 +571,25 @@ export default function NavLogView({
     },
     {
       id: "wca",
-      header: "WCA",
+      header: () => <Heading name="WCA" unit="°" spoken="Wind correction angle" />,
       meta: { className: "hidden md:table-cell print:table-cell" },
       cell: ({ row }) => (legOf(row.original) ? signed(legOf(row.original)!.wca_deg) : "—"),
     },
     {
       id: "th",
-      header: "TH",
+      header: () => <Heading name="TH" unit="true" spoken="True heading" />,
+      meta: { className: "hidden md:table-cell print:table-cell" },
       cell: ({ row }) => (legOf(row.original) ? deg(legOf(row.original)!.true_heading_deg) : "—"),
     },
     {
       id: "var",
-      header: "Var",
+      header: () => <Heading name="Var" unit="°" spoken="Magnetic variation" />,
       meta: { className: "hidden md:table-cell print:table-cell" },
       cell: ({ row }) => (legOf(row.original) ? signed(legOf(row.original)!.magnetic_variation_deg) : "—"),
     },
     {
       id: "mh",
-      header: "MH",
-      meta: { className: "hidden md:table-cell print:table-cell" },
+      header: () => <Heading name="MH" unit="mag" spoken="Magnetic heading" />,
       cell: ({ row }) => (legOf(row.original) ? deg(legOf(row.original)!.magnetic_heading_deg) : "—"),
     },
     {
@@ -421,7 +597,7 @@ export default function NavLogView({
       // leg's altitude, which is why it is a column (the altitude's
       // reasoning says how it is worked out).
       id: "tas",
-      header: "TAS",
+      header: () => <Heading name="TAS" unit="kt" spoken="True airspeed, knots" />,
       meta: { className: "hidden md:table-cell print:table-cell" },
       cell: ({ row }) => {
         const leg = legOf(row.original);
@@ -430,7 +606,7 @@ export default function NavLogView({
     },
     {
       id: "gs",
-      header: "GS",
+      header: () => <Heading name="GS" unit="kt" spoken="Groundspeed, knots" />,
       meta: { className: "hidden md:table-cell print:table-cell" },
       cell: ({ row }) => {
         const leg = legOf(row.original);
@@ -439,7 +615,7 @@ export default function NavLogView({
     },
     {
       id: "ete",
-      header: "ETE",
+      header: () => <Heading name="ETE" unit="min" spoken="Time en route, minutes" />,
       cell: ({ row }) => {
         const leg = legOf(row.original);
         return leg ? (leg.ete_min === null ? "unflyable" : one(leg.ete_min)) : "—";
@@ -447,7 +623,7 @@ export default function NavLogView({
     },
     {
       id: "fuel",
-      header: "Fuel",
+      header: () => <Heading name="Fuel" unit="gal" spoken="Fuel, gallons" />,
       meta: { className: "hidden md:table-cell print:table-cell" },
       cell: ({ row }) => (legOf(row.original) ? one(legOf(row.original)!.fuel_gal) : "—"),
     },
@@ -457,16 +633,18 @@ export default function NavLogView({
   // not in yet or cannot be flown (see navLogRows).
   const etaColumn: ColumnDef<typeof navLogTableFeatures, NavLogRow> = {
     id: "eta",
-    header: "ETA",
+    header: () => <Heading name="ETA" unit="local" spoken="Arrival time, local" />,
     cell: ({ row }) => etaAt(depart, row.original.minutesFlown),
   };
   if (depart) columns.push(etaColumn);
   // On paper only: the two columns a pilot fills in by hand in flight,
   // the actual time over each fix and the fuel left -- what makes the
   // printed page a nav log to fly with rather than a table to read.
-  for (const [id, header] of [["ata", "ATA"], ["fuel_rem", "Fuel rem."]] as const) {
+  for (const [id, name, unit, spoken] of [
+    ["ata", "ATA", "local", "Actual arrival time"], ["fuel_rem", "Fuel rem.", "gal", "Fuel remaining, gallons"],
+  ] as const) {
     columns.push({
-      id, header,
+      id, header: () => <Heading name={name} unit={unit} spoken={spoken} />,
       cell: () => "",
       meta: { className: "hidden w-14 border-l border-border print:table-cell" },
     });
@@ -479,6 +657,19 @@ export default function NavLogView({
   const table = useTable({ features: navLogTableFeatures, data, columns, getRowId: row => row.key });
 
   const selectedRef = useRef<HTMLTableRowElement>(null);
+  // Whether the table fits the drawer's width (see navLogTable): watched,
+  // since a departure time adds a column and the text size moves every
+  // one of them. From a ref, not an effect: the table is there only
+  // while the nav log's section is open, mounted afresh each time.
+  const [fits, setFits] = useState(true);
+  const watchFit = useCallback((box: HTMLDivElement | null) => {
+    const table = box?.querySelector("table");
+    if (!box || !table || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(() => setFits(table.offsetWidth <= box.clientWidth + 1));
+    observer.observe(box);
+    observer.observe(table);
+    return () => observer.disconnect();
+  }, []);
   // Selecting a point on the map should be as visible here as
   // clicking the row itself would have been -- otherwise the
   // highlighted row can be scrolled out of view in this (now often
@@ -501,24 +692,38 @@ export default function NavLogView({
 
   // The table itself. With the briefing's sections under it, the table
   // scrolls sideways inside its own container so the sections below
-  // stay put. Printed, nothing scrolls: every column is laid out for
-  // the browser to paginate.
+  // stay put -- when it is wider than the drawer: every column of it on
+  // a desktop, or the phone's five with the text set large. While it
+  // fits, the container lets its overflow go, so that its headings can
+  // stay at the top of the drawer as the log scrolls under them (a
+  // sideways scroller holds a sticky heading to itself). Printed,
+  // nothing scrolls: every column is laid out for the browser to
+  // paginate.
   const navLogTable = (
+    <AltPlans.Provider value={{ plans: altitudePlans, label: altitudeLabel }}>
+    <div ref={watchFit}>
     <Table
-      containerClassName="overflow-x-auto print:overflow-visible"
-      // On a phone the cells' padding is halved and the waypoint's name
-      // may wrap (see its column), so the five columns fit the drawer
+      containerClassName={cn(fits ? "overflow-x-visible" : "overflow-x-auto", "print:overflow-visible")}
+      // Compact rows, at 12 on any screen: the figures at 15 with rows of
+      // 44 points were tried and the pilot preferred the log dense. On a
+      // phone the cells' padding is halved and the waypoint's name may
+      // wrap (see its column), so the five columns fit the drawer
       // without a sideways scroll; from md up the stock padding.
       className="text-right text-xs whitespace-nowrap max-md:[&_td]:px-1 max-md:[&_th]:px-1"
     >
       <TableCaption className="sr-only">
         Navigation log from {dep} to {dest}
       </TableCaption>
-      <TableHeader>
+      <TableHeader className="sticky top-0 z-10 bg-sidebar print:static print:bg-transparent">
         {table.getHeaderGroups().map(headerGroup => (
           <TableRow key={headerGroup.id}>
             {headerGroup.headers.map(header => (
-              <TableHead key={header.id} className={header.column.columnDef.meta?.className}>
+              // Each heading over its own figures: right-aligned, as they
+              // are (the stock heading is left-aligned, and every label
+              // sat off its column), the waypoint's left as its names
+              // are; a step above the rows at 14, in black over figures
+              // in grey (see SelectableRow), as the pilot asked.
+              <TableHead key={header.id} className={cn("text-right text-sm text-foreground", header.column.columnDef.meta?.className)}>
                 {flexRender(header.column.columnDef.header, header.getContext())}
               </TableHead>
             ))}
@@ -543,16 +748,15 @@ export default function NavLogView({
           return (
             <Fragment key={row.id}>
               {/* A leg with no nearby winds-aloft station is a
-                  no-wind estimate, not a calm one. Shading keeps
-                  that visible rather than letting it read as a
-                  confident zero -- the same shade a leg that simply
-                  hasn't arrived yet gets, for the same reason: both
-                  are "no data (yet)," not a confident answer. The
-                  departure is always muted this way instead --
-                  it never has wind data of its own to judge. */}
+                  no-wind estimate, not a calm one. Italics keep that
+                  visible rather than letting it read as a confident
+                  zero -- as for a leg that simply hasn't arrived yet,
+                  for the same reason: both are "no data (yet)," not a
+                  confident answer. They were the grey rows, before
+                  every row's figures were grey. */}
               <SelectableRow
                 selected={rowSelected}
-                mutedWhenUnselected={r.kind === "departure" || !leg?.wind}
+                estimated={r.kind !== "departure" && !leg?.wind}
                 expands
                 // The selected row tapped again is deselected, on the
                 // map too, which closes its note.
@@ -607,119 +811,30 @@ export default function NavLogView({
         })}
       </TableBody>
     </Table>
+    </div>
+    </AltPlans.Provider>
   );
 
   // What goes with the totals under the section's title, as rows like
-  // every section's: the altitude, which opens how it was chosen, and,
-  // with a departure time, the arrival and the winds forecast period
-  // flown on; and legs flown without wind, in red. Above the table.
-  const summary = (
+  // every section's: with a departure time, the arrival and the winds
+  // forecast period flown on; and legs flown without wind, in red.
+  // Above the table, and not at all when there is none of it. (The
+  // altitude, which opens how it was chosen, is the Alt column's head.)
+  const cloudsUnplaced = !!nav && !nav.altitude_selection.cloud_clearance_kept && !perLeg;
+  const summary = (!!parts?.warning || cloudsUnplaced || !!depart) && (
     <div className="mb-3" data-testid="navlog-summary">
       <ListGroup>
         {parts?.warning && <ListRow title={<span className="text-destructive">{parts.warning}</span>} />}
         {/* The clouds forecast near a leg leave it no legal altitude (14
             CFR 91.155): the plan still stands, over the band without
-            them, and says so here as well as in the reasoning. */}
-        {nav && !nav.altitude_selection.cloud_clearance_kept && (
+            them, and says so on the legs it means (see cloudsOver) and in
+            the reasoning -- here only when the legs cannot be told. */}
+        {nav && cloudsUnplaced && (
           <ListRow
             title={<span className="text-destructive">Too low for VFR under the clouds near {nav.altitude_selection.cloud_station}</span>}
             description="No altitude keeps 500 ft below the forecast clouds there"
           />
         )}
-        {/* The altitude, and why: a pilot should never have to take a
-            cruise altitude on trust, so the figure itself opens the
-            planner's own reasoning -- floor, ceiling, the rule, the
-            weather checked -- rather than a bare "(auto)". Printed,
-            the plain figure; the briefing's Cruise Altitude section
-            carries the same steps onto the paper. */}
-        {nav && (() => {
-          const label = altitudeLabel;
-          return (
-            <ListRow title="Altitude">
-              <ResponsivePopover>
-                <ResponsivePopoverTrigger asChild>
-                  <Button
-                    variant="ghost" size="sm" className={cn("shrink-0 px-1 font-normal print:hidden", TEXT.row)}
-                    aria-label="How the altitude was chosen" data-testid="altitude-why"
-                  >
-                    {label}
-                    <CircleHelp className="size-4" />
-                  </Button>
-                </ResponsivePopoverTrigger>
-                {/* On a phone a sheet from the header's edge: as a
-                    popover it was 70% of the screen, scrolling inside. */}
-                <ResponsivePopoverContent title="How the altitude was chosen" align="start" className="w-80">
-                  {/* The four plans first, each a button with its time
-                      and fuel: the pilot picks one and the log re-plans
-                      on it. Then why. */}
-                  <div className="mb-3 space-y-1.5" role="group" aria-label="Cruise altitude plans">
-                    <div className={cn("font-semibold uppercase tracking-wide text-muted-foreground", TEXT.note)}>Four plans, or your own</div>
-                    {nav.options.map(o => (
-                      <Button
-                        key={o.kind} type="button" size="sm"
-                        variant={o.kind === nav.flown ? "default" : "outline"}
-                        aria-pressed={o.kind === nav.flown}
-                        // A choice in a list, as iOS draws one: its words
-                        // in the text's colour, the one flown filled in
-                        // the tint -- not four outlined buttons in blue --
-                        // and its words whole on the fill (white at 80%
-                        // on the blue was 4.1:1).
-                        className={cn("h-auto w-full justify-between gap-3 whitespace-normal py-1.5 text-left", o.kind !== nav.flown && "text-foreground")}
-                        onClick={() => onAltitudeChoiceChange(o.kind)}
-                        data-testid={`altitude-plan-${o.kind}`}
-                      >
-                        <span>
-                          <span className={cn("font-semibold capitalize", TEXT.row)}>{o.kind}</span>
-                          <span className={cn("block font-normal", TEXT.detail, o.kind !== nav.flown && "opacity-80")}>{describeSteps(o)}</span>
-                        </span>
-                        <span className={cn("shrink-0 text-right tabular-nums", TEXT.detail)}>
-                          {describeTime(o)}
-                          <span className={cn("block", o.kind !== nav.flown && "opacity-80")}>{describeFuel(o)}</span>
-                        </span>
-                      </Button>
-                    ))}
-                    {/* The pilot's own altitude, one number for the
-                        whole route: a row under the four plans,
-                        pressed while it is what the log flies.
-                        Enter or Fly re-plans at it; the stock Input's
-                        16px below md keeps a phone from zooming. */}
-                    <form
-                      className={cn(
-                        "flex items-center gap-2 rounded-md border px-2 py-1.5",
-                        nav.flown === "custom" ? "border-primary bg-primary text-primary-foreground" : "border-input",
-                      )}
-                      onSubmit={e => { e.preventDefault(); onSubmit(); }}
-                      aria-label="Custom altitude"
-                    >
-                      <span className={cn("font-semibold", TEXT.row)}>Custom</span>
-                      <Input
-                        value={alt}
-                        onChange={e => onAltChange(e.target.value)}
-                        placeholder="ft"
-                        inputMode="numeric"
-                        spellCheck={false}
-                        aria-label="Cruise altitude, feet"
-                        className="ml-auto h-8 w-24 bg-background text-right text-foreground"
-                        data-testid="custom-altitude"
-                      />
-                      <Button
-                        type="submit" size="sm" variant={nav.flown === "custom" ? "secondary" : "outline"}
-                        disabled={!alt.trim()} data-testid="custom-altitude-fly"
-                      >
-                        Fly
-                      </Button>
-                    </form>
-                  </div>
-                  <div className={cn("mb-2 font-semibold uppercase tracking-wide text-muted-foreground", TEXT.note)}>How the altitude was chosen</div>
-                  <AltitudeReasoning nav={nav} legs={legs} />
-                </ResponsivePopoverContent>
-              </ResponsivePopover>
-              <span className="hidden text-muted-foreground print:inline">
-                {label}
-              </span>
-            </ListRow>
-          );
-        })()}
         {depart && totals && totals.ete_min !== null && <ListRow title="ETA" value={etaAt(depart, totals.ete_min)} />}
         {/* Which winds forecast period the legs are flown on -- named
             so a pilot knows the winds are the 12-hour forecast, say,

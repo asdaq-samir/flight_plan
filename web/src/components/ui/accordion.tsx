@@ -60,7 +60,11 @@ function AccordionContent({
   return (
     <AccordionPrimitive.Content
       data-slot="accordion-content"
-      className="overflow-hidden text-sm data-open:animate-accordion-down data-closed:animate-accordion-up"
+      // Clipped for the open/close animation, as shadcn's overflow-hidden
+      // clipped it, but without becoming a scroll container: a sticky
+      // heading inside (the nav log's) can then hold to the drawer's
+      // own scroll, where overflow-hidden held it to this box.
+      className="overflow-clip text-sm data-open:animate-accordion-down data-closed:animate-accordion-up"
       {...props}
     >
       {/* No fixed height on the inner div: Radix measures the content

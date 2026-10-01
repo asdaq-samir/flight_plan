@@ -56,9 +56,9 @@ test("plan page: the flight planning drawer opens the way the Model Training dra
   await drawer.getByText("Nav Log", { exact: true }).click();
   await expect(drawer.getByRole("table", { name: /Navigation log from/i })).toBeVisible();
   await expect(drawer.locator('[data-slot="accordion-content"] [data-testid="generate-descriptions-button"]')).toBeVisible();
-  // The summary has its totals once the log has streamed in; empty until
-  // then, and Playwright counts an empty box as not visible.
-  await expect(drawer.locator('[data-slot="accordion-content"] [data-testid="navlog-summary"]')).toBeVisible();
+  // The altitude, the Alt column's own heading, once the log has
+  // streamed in.
+  await expect(drawer.locator('[data-slot="accordion-content"] [data-testid="altitude-why"]')).toBeVisible({ timeout: slow(60000) });
   await expect(drawer.locator('[data-slot="section-summary"]').first()).toContainText(/\d nm/, { timeout: slow(60000) });
   expect(await drawer.locator('[data-slot="accordion-content"][data-state="open"]').count()).toBe(1);
 

@@ -17,13 +17,14 @@ test("plan page: the nav log's altitude opens the planner's own reasoning, and t
   await page.getByTestId("sidebar-trigger-button").click();
   // The sections start closed: the altitude is in the nav log's own.
   await sideDrawer(page).getByText("Nav Log", { exact: true }).click();
-  // The altitude arrives with the nav log stream, after the checkpoints.
+  // The altitude arrives with the nav log stream, after the checkpoints:
+  // the Alt column's own heading, named with the figure. The figure
+  // alone: which plan it is shows as the pressed row in the popover, not
+  // as a word after every altitude.
   const why = page.getByTestId("altitude-why");
   await expect(why).toBeVisible({ timeout: slow(60000) });
-  // The figure alone: which plan it is shows as the pressed row in the
-  // popover, not as a word after every altitude.
-  await expect(why).toContainText(/\d ft/);
-  await expect(why).not.toContainText("·");
+  await expect(why).toHaveAccessibleName(/\d ft/);
+  await expect(why).not.toHaveAccessibleName(/·/);
   await why.click();
   // A popover beside the altitude, or on a phone a sheet from the bottom.
   const popover = page.locator("[data-slot=popover-content], [data-slot=drawer-content]");
@@ -60,12 +61,12 @@ test("plan page: the nav log's altitude opens the planner's own reasoning, and t
   await flies("economical");
 
   // A custom altitude: the fourth row under the plans. Typed and flown,
-  // the whole log is at it, the header shows it, and the plans stay
-  // offered beside it with none pressed.
+  // the whole log is at it, the Alt heading is named with it, and the
+  // plans stay offered beside it with none pressed.
   await popover.getByTestId("custom-altitude").fill("3500");
   await popover.getByTestId("custom-altitude-fly").click();
   await expect(page).toHaveURL(/[?&]altitude_ft=3500/);
-  await expect(page.getByTestId("altitude-why")).toHaveText(/^3,500 ft$/, { timeout: slow(30000) });
+  await expect(page.getByTestId("altitude-why")).toHaveAccessibleName(/3,500 ft/, { timeout: slow(30000) });
   await expect(sideDrawer(page).locator('table tbody tr[tabindex="0"]').nth(1).locator("td").nth(1)).toHaveText("3,500", { timeout: slow(30000) });
   await page.getByTestId("altitude-why").click();
   await expect(popover).toBeVisible();
@@ -76,7 +77,7 @@ test("plan page: the nav log's altitude opens the planner's own reasoning, and t
   await expect(page).not.toHaveURL(/[?&]altitude_ft=/);
   await expect(page).not.toHaveURL(/[?&]altitude_choice=/);
   await flies("fastest");
-  // No altitude box in the table's head any more: Alt is a plain heading.
+  // No altitude box in the table's head: Alt is a heading that opens the plans.
   await expect(sideDrawer(page).locator('table thead')).not.toContainText("Cruise altitude");
   expect(await sideDrawer(page).locator('table thead input').count()).toBe(0);
 
@@ -131,7 +132,7 @@ test("plan page: a departure time gives every checkpoint an ETA and picks the wi
   await expect(table.locator("thead")).toContainText("ETA");
   // The ETA column by its heading: the print-only ATA and fuel columns
   // sit after it, empty on screen.
-  const etaIndex = (await table.locator("thead th").allTextContents()).indexOf("ETA");
+  const etaIndex = (await table.locator("thead th").allTextContents()).findIndex(text => text.startsWith("ETA"));
   expect(etaIndex).toBeGreaterThan(0);
   // The departure row's own ETA is the departure time itself.
   await expect(table.locator("tbody tr[tabindex='0']").first().locator("td").nth(etaIndex)).toHaveText("15:00");
