@@ -1,4 +1,5 @@
 import { test, expect, type Page, type Route } from "@playwright/test";
+import { openSettings, tapTheChart } from "./helpers";
 
 /**
  * The Class B airports on the map.
@@ -57,7 +58,7 @@ async function mockClassB(page: Page) {
 }
 
 async function showClassB(page: Page) {
-  await page.getByTestId("settings-button").click();
+  await openSettings(page);
   await page.getByTestId("class-b-toggle").click();
   await page.keyboard.press("Escape");
 }
@@ -205,8 +206,7 @@ test("tapping one opens a card, and the card pins its terminal chart", async ({ 
   // Leaflet's own `closeOnClick` and what a tap on a map does
   // everywhere else too. The way back out to the whole route is the
   // map's own zoom toggle, which is tested in map.spec.ts.
-  const map = (await page.locator(".leaflet-container").boundingBox())!;
-  await page.mouse.click(map.x + 60, map.y + map.height - 60);
+  await tapTheChart(page);
   await expect(page.locator(".leaflet-popup")).toHaveCount(0);
 });
 
@@ -218,7 +218,7 @@ test("on an IFR base, a Class B card pins the IFR area chart, and that is what d
   await mockClassB(page);
   await page.goto(PLAN);
   await routeDrawn(page);
-  await page.getByTestId("settings-button").click();
+  await openSettings(page);
   await page.getByTestId("base-chart-select").getByRole("radio", { name: "IFR low" }).click();
   await page.getByTestId("class-b-toggle").click();
   await page.keyboard.press("Escape");

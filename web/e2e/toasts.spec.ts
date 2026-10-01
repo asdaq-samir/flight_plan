@@ -112,10 +112,11 @@ test("the toast spans the screen and is centred on it", async ({ page }) => {
   }
 });
 
-test("a toast sits clear of the header and the map's buttons: at the top of a phone's screen, the bottom of a desktop's", async ({ page }) => {
-  // On a phone the header and the map's buttons became the bottom of
-  // the screen, and a toast anchored there covered them: it comes in
-  // from the top there, as an iOS banner does.
+test("a toast sits clear of the panel: at the top of a phone's screen, the bottom of a desktop's", async ({ page }) => {
+  // On a phone the panel is a sheet up from the bottom of the screen,
+  // and a toast anchored there covered it: it comes in from the top
+  // there, as an iOS banner does. From md up the panel is at the top,
+  // and the toast comes in from the bottom.
   await plannerDown(page);
   await page.goto(PLAN);
   await settle(page);
@@ -124,14 +125,12 @@ test("a toast sits clear of the header and the map's buttons: at the top of a ph
   await expect(first).toBeVisible({ timeout: 15000 });
   await page.waitForTimeout(500);
   const box = (await first.boundingBox())!;
-  const header = (await page.locator("header").boundingBox())!;
-  const zoomToggle = (await page.getByTestId("map-action-button").boundingBox())!;
+  const panel = (await page.locator('[data-slot="map-panel"]').boundingBox())!;
   if (page.viewportSize()!.width < 768) {
     expect(box.y).toBeLessThan(60);
-    expect(box.y + box.height).toBeLessThanOrEqual(zoomToggle.y);
+    expect(box.y + box.height).toBeLessThanOrEqual(panel.y);
   } else {
-    expect(box.y).toBeGreaterThanOrEqual(header.y + header.height);
-    expect(box.y).toBeGreaterThan(zoomToggle.y + zoomToggle.height);
+    expect(box.y).toBeGreaterThanOrEqual(panel.y + panel.height);
   }
 });
 

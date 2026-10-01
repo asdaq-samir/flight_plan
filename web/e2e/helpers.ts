@@ -25,58 +25,52 @@ export async function settle(page: Page) {
   await page.locator("img.leaflet-tile").first().waitFor({ state: "attached", timeout: 1500 }).catch(() => {});
 }
 
-/** The side drawer is shadcn's own Sidebar, on the left: a fixed panel
- *  beside the map from `md` up, a Sheet over it on a phone. Both carry
- *  `data-slot="sidebar"` and the side. */
-export const sideDrawer = (page: Page) => page.locator('[data-slot="sidebar"][data-side="left"]');
+/** The panel over the map (MapPanel): a sheet up from the bottom of a
+ *  phone, a card over the chart otherwise. Out or not is its
+ *  `data-panel`: peek at rest, half or full when it is out. */
+export const sideDrawer = (page: Page) => page.locator('[data-slot="map-panel"]');
 
-/** The Dev-mode switch, in the header's settings: opened first. */
+/** The settings: the console's last tab, the console opened from its
+ *  button among the map's. Escape closes the console again. */
+export async function openSettings(page: Page) {
+  await page.getByTestId(/^(pilot|dev-console)-button$/).click();
+  await page.getByTestId("console-sheet").getByRole("tab", { name: "Settings" }).click();
+  await expect(page.getByTestId("settings-panel")).toBeVisible();
+}
+
+/** The Dev-mode switch, in the settings: opened first. */
 export async function devSwitchInSettings(page: Page) {
-  await page.getByTestId("settings-button").click();
+  await openSettings(page);
   return page.getByRole("switch", { name: "Dev mode" });
 }
 /** The console: a stock Sheet from the top from `md` up, a sheet up from
  *  the bottom edge on a phone (shadcn's Drawer). */
 export const consoleSheet = (page: Page) => page.getByTestId("console-sheet");
 
-/** Closed: on a phone the Sheet is not in the page at all; on a
- *  desktop the panel stays mounted, collapsed off screen. */
+/** At rest: only its head in sight. */
 export async function expectDrawerClosed(page: Page) {
-  const viewport = page.viewportSize();
-  if (!viewport) throw new Error("no viewport configured");
-  if (viewport.width < 768) await expect(page.locator('[data-slot="sidebar"][data-mobile="true"]')).toHaveCount(0);
-  else await expect(sideDrawer(page)).toHaveAttribute("data-state", "collapsed");
+  await expect(sideDrawer(page)).toHaveAttribute("data-panel", "peek");
 }
 
+/** Out: half the screen or the whole of it. */
 export async function expectDrawerOpen(page: Page) {
-  const viewport = page.viewportSize();
-  if (!viewport) throw new Error("no viewport configured");
-  if (viewport.width < 768) await expect(page.locator('[data-slot="sidebar"][data-mobile="true"]')).toBeVisible();
-  else await expect(sideDrawer(page)).toHaveAttribute("data-state", "expanded");
+  await expect(sideDrawer(page)).toHaveAttribute("data-panel", /^(half|full)$/);
 }
 
-/** Opening and closing the drawer is one shape on both pages: the
- *  stock trigger in the header opens it and says so, and the stock
- *  components' own key closes it -- Escape on a phone, where the drawer
- *  is a Radix Sheet, and Cmd/Ctrl+B on a desktop, where it is shadcn's
- *  panel. This app binds no key of its own to it. */
+/** Lowering the panel is one shape everywhere: Escape, pressed in it.
+ *  The sheet on a phone is vaul's, a Radix dialog, whose own Escape the
+ *  page turns into lowering it; the card elsewhere lowers on an Escape
+ *  pressed inside it. The pointer off the panel first, as a finger is:
+ *  left on the toggle, a tooltip could take the Escape. And the panel at
+ *  rest first: an Escape pressed while it was still moving left it out,
+ *  now and then, on a loaded machine. */
 export async function closeSidebarWithTheStockKey(page: Page) {
   const viewport = page.viewportSize();
   if (!viewport) throw new Error("no viewport configured");
-  if (viewport.width < 768) {
-    // The pointer off the drawer first, as a finger is: left where the
-    // trigger was clicked, it is over the drawer's own header icons once
-    // the drawer has slid in, one of their tooltips opens, and Escape
-    // closes the tooltip -- the drawer stayed open about one run in ten.
-    // The drawer is on the left: the overlay beside it on the right.
-    // And the sheet at rest first: an Escape pressed while it was still
-    // sliding in left it open, now and then, on a loaded machine.
-    await page.mouse.move(viewport.width - 4, viewport.height / 2);
-    await settled(page.locator('[data-slot="sidebar"][data-mobile="true"]'));
-    await page.keyboard.press("Escape");
-  } else {
-    await page.keyboard.press("ControlOrMeta+b");
-  }
+  await page.mouse.move(viewport.width - 4, viewport.height / 2);
+  await settled(sideDrawer(page));
+  await page.getByTestId("sidebar-trigger-button").focus();
+  await page.keyboard.press("Escape");
 }
 
 /** Every finite animation on and under an element run out -- a
@@ -92,8 +86,9 @@ export async function settled(locator: Locator) {
     .map(a => a.finished.catch(() => undefined))));
 }
 
-/** The drawer's box once it is open and done opening: measured 300 ms
- *  after the tap, it was 29 px short of its width on a loaded runner. */
+/** The panel's box once it is out and done moving: measured 300 ms
+ *  after the tap, a drawer was 29 px short of its width on a loaded
+ *  runner. */
 export async function openedDrawerBox(page: Page) {
   await expectDrawerOpen(page);
   await settled(sideDrawer(page));
@@ -112,10 +107,29 @@ export async function openSidebar(page: Page) {
   await expect(sidebarTrigger).toHaveAttribute("aria-expanded", "false");
 }
 
-/** The briefing is the flight planning drawer: open it from its header
+/** The briefing is the flight planning panel: open it from its
  *  toggle, and the URL says so. */
 export async function openBriefing(page: Page) {
   await page.getByTestId("sidebar-trigger-button").click();
   await expect(page).toHaveURL(/[?&]view=briefing/);
   await expectDrawerOpen(page);
+}
+
+/** A tap on the chart itself, somewhere nothing else is: not a marker,
+ *  a popup, the panel over the map or its buttons -- found by asking the
+ *  browser what is under each candidate point. */
+export async function tapTheChart(page: Page) {
+  const at = await page.locator(".leaflet-container").evaluate(map => {
+    const r = map.getBoundingClientRect();
+    for (let fy = 0.85; fy > 0.1; fy -= 0.1) {
+      for (let fx = 0.15; fx < 0.9; fx += 0.1) {
+        const x = r.left + r.width * fx, y = r.top + r.height * fy;
+        const hit = document.elementFromPoint(x, y);
+        if (hit && map.contains(hit) && (hit.matches("img.leaflet-tile") || hit.matches(".leaflet-container, .leaflet-pane, .leaflet-layer, .leaflet-tile-container"))) return { x, y };
+      }
+    }
+    return null;
+  });
+  expect(at, "somewhere on the chart with nothing on it").not.toBeNull();
+  await page.mouse.click(at!.x, at!.y);
 }

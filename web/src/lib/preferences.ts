@@ -40,8 +40,9 @@ export const MARKER_ZOOMS: { from: number; label: string }[] = [
  *  fits a phone at about this zoom. */
 const DEFAULT_MARKER_ZOOM = 6;
 
-/** The screen edge the header is on -- and so where the map's buttons
- *  sit and what the consoles and panels come in from (useNavEdge). */
+/** The screen edge the map panel is on -- and so what the consoles and
+ *  panels come in from, and which edge the map's buttons keep clear
+ *  of (useNavEdge). */
 export type NavEdge = "top" | "bottom";
 
 /** The stock C172 until a pilot picks one of their own. */
@@ -65,8 +66,8 @@ interface Preferences {
   filters: Filters;
   devTab: string;
   pilotTab: string;
-  /** The header's edge, once one has been picked; until then the
-   *  bottom on a phone and the top from md up. */
+  /** The navigation bar's edge, once one has been picked; until then
+   *  the bottom on a phone and the top from md up. */
   navBar: NavEdge | null;
   setBase: (base: BaseChart) => void;
   setTac: (tac: boolean) => void;

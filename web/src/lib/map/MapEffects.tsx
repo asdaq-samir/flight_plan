@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { useMap } from "react-leaflet";
+import { centreClear } from "./clear";
 
 /**
  * Small pieces every map on this app is built from, each a react-leaflet
@@ -23,11 +24,14 @@ export function ResizeAware() {
 }
 
 /** Brings the map to `point` whenever it changes, zooming in to
- *  `zoom` at least -- the selection ring's own follow. */
+ *  `zoom` at least -- the selection ring's own follow -- clear of the
+ *  panel over the map. */
 export function FocusOn({ point, zoom }: { point: { lat: number; lon: number } | null; zoom: number }) {
   const map = useMap();
   useEffect(() => {
-    if (point) map.setView([point.lat, point.lon], Math.max(map.getZoom(), zoom));
+    if (!point) return;
+    const to = Math.max(map.getZoom(), zoom);
+    map.setView(centreClear(map, [point.lat, point.lon], to), to);
   }, [map, point, zoom]);
   return null;
 }

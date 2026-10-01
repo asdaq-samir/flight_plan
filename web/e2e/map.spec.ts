@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { slow, settle } from "./helpers";
+import { slow, settle, openSettings, tapTheChart } from "./helpers";
 
 /**
  * The map: its popups, its zoom toggle and the dev page's zoom button,
@@ -36,21 +36,6 @@ test("plan page: every popup the map opens dismisses the same way", async ({ pag
   const popups = page.locator(".leaflet-popup");
   // A tap on the chart itself, where nothing is drawn: a fixed corner
   // had a Class B chip under it once the pin had flown the map to KORD.
-  const tapTheChart = async () => {
-    const at = await page.locator(".leaflet-container").evaluate(map => {
-      const r = map.getBoundingClientRect();
-      for (let fy = 0.85; fy > 0.1; fy -= 0.1) {
-        for (let fx = 0.15; fx < 0.9; fx += 0.1) {
-          const x = r.left + r.width * fx, y = r.top + r.height * fy;
-          const hit = document.elementFromPoint(x, y);
-          if (hit && map.contains(hit) && (hit.matches("img.leaflet-tile") || hit.matches(".leaflet-container, .leaflet-pane, .leaflet-layer, .leaflet-tile-container"))) return { x, y };
-        }
-      }
-      return null;
-    });
-    expect(at, "somewhere on the chart with nothing on it").not.toBeNull();
-    await page.mouse.click(at!.x, at!.y);
-  };
 
   // The departure marker: a tap opens its card, a tap on the chart puts
   // it away. There is no close button on a card -- closing one is
@@ -59,14 +44,14 @@ test("plan page: every popup the map opens dismisses the same way", async ({ pag
   // the next step needs before it can find KORD.
   await page.locator(".leaflet-marker-icon", { hasText: "C81" }).first().click();
   await expect(popups).toHaveCount(1);
-  await tapTheChart();
+  await tapTheChart(page);
   await expect(popups).toHaveCount(0);
   const zoomToggle = page.getByTestId("map-action-button");
   await expect(zoomToggle).toHaveAttribute("aria-label", "Fit Route", { timeout: slow(10000) });
   await zoomToggle.click();
   await expect(zoomToggle).toHaveAttribute("aria-label", "Show Selected", { timeout: slow(10000) });
 
-  await page.getByTestId("settings-button").click();
+  await openSettings(page);
   await page.getByTestId("class-b-toggle").click();
   await page.keyboard.press("Escape");
   const chip = page.locator(".leaflet-marker-icon span.rounded-full").filter({ hasText: "KORD" }).first();
@@ -81,7 +66,7 @@ test("plan page: every popup the map opens dismisses the same way", async ({ pag
   await expect(popups).toHaveCount(1);
 
   // A tap on the chart does, exactly as it does for every other popup.
-  await tapTheChart();
+  await tapTheChart(page);
   await expect(popups).toHaveCount(0);
 });
 

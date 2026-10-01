@@ -17,6 +17,7 @@ import { PilotPanel } from "../pilot/PilotPanel";
 import { Alert, AlertDescription, AlertTitle } from "../../components/ui/alert";
 import BuildNotice from "./components/BuildNotice";
 import FlightBriefingView, { BriefingNotices, PlanningAidNote, SaveFlightButton } from "./components/briefing/FlightBriefingView";
+import FlightInputs from "./components/navlog/FlightInputs";
 import NavLogActions from "./components/navlog/NavLogActions";
 import NavLogView from "./components/navlog/NavLogView";
 import RouteMap from "./components/RouteMap";
@@ -56,7 +57,10 @@ function baseProfile(typeDesignator: string, profiles: AircraftProfileSummary[])
  * a key; and the screen is derived from the queries on each render,
  * nothing kept in step by hand.
  */
-export default function PlanWorkspace({ dep, dest, sidebarOpen, children }: WorkspaceProps) {
+export default function PlanWorkspace({ dep, dest, panel, children }: WorkspaceProps) {
+  // The panel out at all: the nav log is in sight, and a checkpoint
+  // picked on the map opens its section.
+  const panelOpen = panel !== "peek";
   const [searchParams, setSearchParams] = useSearchParamsNow();
   const planned = { dep: identOf(searchParams.get("dep")), dest: identOf(searchParams.get("dest")) };
   const altitudeFt = searchParams.get("altitude_ft") ?? "";
@@ -146,10 +150,10 @@ export default function PlanWorkspace({ dep, dest, sidebarOpen, children }: Work
     if (alt.trim()) next.altitude_ft = alt.trim();
     if (altitudeChoice !== "fastest") next.altitude_choice = altitudeChoice;
     if (depart) next.depart = depart;
-    if (sidebarOpen) next.view = "briefing";
+    if (panel === "full") next.view = "briefing";
     setSearchParams(next, { replace: true });
     setLoad(n => n + 1);
-  }, [dep, dest, alt, altitudeChoice, depart, sidebarOpen, setSearchParams]);
+  }, [dep, dest, alt, altitudeChoice, depart, panel, setSearchParams]);
 
   // A different aeroplane means different legs: remembered, and the
   // nav log's own key changes with it.
@@ -241,7 +245,7 @@ export default function PlanWorkspace({ dep, dest, sidebarOpen, children }: Work
     <NavLogView
       totals={s.totals} nav={s.nav} legs={s.legs}
       onAltitudeChoiceChange={changeAltitudeChoice}
-      depart={depart} onDepartChange={changeDepart}
+      depart={depart}
       dep={planned.dep} dest={planned.dest}
       ends={course}
       selected={selected}
@@ -249,26 +253,11 @@ export default function PlanWorkspace({ dep, dest, sidebarOpen, children }: Work
       onSaveDescription={s.saveDescription}
       onGenerateDescriptions={s.generateDescriptions}
       descriptionsLoading={s.descriptionProgress !== null}
-      actions={(
-        <>
-          <SaveFlightButton
-            course={course} totals={s.totals} nav={s.nav} legs={s.legs} selected={selected}
-            aircraftId={aircraft.aircraftId ?? null} depart={depart}
-          />
-          <NavLogActions
-            onGenerateNarrative={s.generateNarrative}
-            langgraphNarrative={s.langgraphNarrative}
-            crewaiNarrative={s.crewaiNarrative}
-          />
-        </>
-      )}
       selectedPoint={selectedPoint} onSelectPoint={(lat, lon) => selectPoint({ lat, lon })}
       onDeselectPoint={() => selectPoint(null)}
-      drawerOpen={sidebarOpen}
+      drawerOpen={panelOpen}
       alt={alt} onAltChange={setAlt} onSubmit={submit}
-      aircraftValue={aircraftKey(aircraft)}
-      aircraftOptions={aircraftOptions.map(o => ({ value: aircraftKey(o), label: o.label }))}
-      onAircraftChange={changeAircraft}
+      aircraftLabel={aircraft.label}
       notice={<BriefingNotices briefing={s.briefing} />}
       footer={<PlanningAidNote />}
     >
@@ -285,7 +274,7 @@ export default function PlanWorkspace({ dep, dest, sidebarOpen, children }: Work
     // The map stays mounted beside the briefing (the arrow walk still
     // pans it) but stays off the paper: the drawer is the printed page.
     map: (
-      <div className={cn("h-full w-full", sidebarOpen && "print:hidden")}>
+      <div className={cn("h-full w-full", panelOpen && "print:hidden")}>
         <RouteMap
           course={course}
           candidates={s.candidates}
@@ -300,6 +289,29 @@ export default function PlanWorkspace({ dep, dest, sidebarOpen, children }: Work
       </div>
     ),
     sidebar: navLog,
+    // The aeroplane and the departure time, in sight with the panel down.
+    controls: (
+      <FlightInputs
+        aircraftValue={aircraftKey(aircraft)}
+        aircraftOptions={aircraftOptions.map(o => ({ value: aircraftKey(o), label: o.label }))}
+        onAircraftChange={changeAircraft}
+        depart={depart} onDepartChange={changeDepart}
+      />
+    ),
+    // Saving the flight, the narrative and Print, beside the route.
+    actions: (
+      <>
+        <SaveFlightButton
+          course={course} totals={s.totals} nav={s.nav} legs={s.legs} selected={selected}
+          aircraftId={aircraft.aircraftId ?? null} depart={depart}
+        />
+        <NavLogActions
+          onGenerateNarrative={s.generateNarrative}
+          langgraphNarrative={s.langgraphNarrative}
+          crewaiNarrative={s.crewaiNarrative}
+        />
+      </>
+    ),
     console: <PilotPanel course={course} />,
     settings: { candidates: { on: showCandidates, onToggle: setShowCandidates }, ownShip: true },
     submit,

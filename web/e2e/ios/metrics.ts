@@ -28,7 +28,9 @@ export const TAPPABLE = [
  *  an airport's chip its own size, icons.ts), since 44-point areas would
  *  overlap along a route and take each other's taps; and a segmented
  *  control's segments keep iOS's own 32-point track. */
-export const HIT_EXEMPT = [".leaflet-marker-icon", "[data-slot=tabs-trigger]"].join(", ");
+// The map panel's grabber is the mark of where to drag, as iOS's is: the
+// whole head drags, and tapping it is a keyboard's and VoiceOver's way.
+export const HIT_EXEMPT = [".leaflet-marker-icon", "[data-slot=tabs-trigger]", "[data-testid=sidebar-trigger-button]"].join(", ");
 
 /** P3's: a marker's number or ident, centred in its dot or chip as a
  *  glyph is (icons.ts), not a line of text. */
@@ -61,7 +63,7 @@ export async function quiet(page: Page) {
   await page.locator("[data-sonner-toast]").first().waitFor({ state: "detached", timeout: 20000 }).catch(() => undefined);
 }
 
-export type HitMiss = { control: string; box: string; lost: number };
+export type HitMiss = { control: string; box: string; lost: number; by: string };
 
 /** P1: every control whose 44 × 44 square, centred on it, is not wholly
  *  its own, by nine elementFromPoint probes. That sees a pseudo-element
@@ -76,7 +78,7 @@ export type HitMiss = { control: string; box: string; lost: number };
 export function hitAreaMisses(page: Page, scope = "body", size = 44): Promise<HitMiss[]> {
   return page.evaluate(({ scope, size, tappable, exempt }) => {
     const half = size / 2 - 1;
-    const misses: { control: string; box: string; lost: number }[] = [];
+    const misses: { control: string; box: string; lost: number; by: string }[] = [];
     const root = document.querySelector(scope);
     if (!root) return misses;
     for (const el of root.querySelectorAll<HTMLElement>(tappable)) {
@@ -104,14 +106,17 @@ export function hitAreaMisses(page: Page, scope = "body", size = 44): Promise<Hi
       }
       if (cx - half < port.l || cx + half > port.r || cy - half < port.t || cy + half > port.b) continue;
       const probes = [[-1, 0], [1, 0], [0, -1], [0, 1], [-1, -1], [1, -1], [-1, 1], [1, 1]];
+      const takers: string[] = [];
       const lost = probes.filter(([dx, dy]) => {
         const hit = document.elementFromPoint(cx + dx * half, cy + dy * half);
-        return !own(hit) && !toast(hit) && !pinned(hit);
+        const taken = !own(hit) && !toast(hit) && !pinned(hit);
+        if (taken && hit) takers.push(`${hit.tagName.toLowerCase()}${(hit as HTMLElement).dataset.testid ? `[${(hit as HTMLElement).dataset.testid}]` : ""} "${(hit.getAttribute("aria-label") ?? hit.textContent ?? "").trim().slice(0, 20)}"`);
+        return taken;
       }).length;
       if (!lost) continue;
       const name = (el.getAttribute("aria-label") ?? el.getAttribute("title") ?? el.textContent ?? "").trim().replace(/\s+/g, " ").slice(0, 40);
       const id = el.dataset.testid ?? el.dataset.slot ?? [...el.classList].find(c => c.startsWith("leaflet-")) ?? "";
-      misses.push({ control: `${el.tagName.toLowerCase()}${id ? `[${id}]` : ""} "${name}"`, box: `${Math.round(r.width)}×${Math.round(r.height)}`, lost });
+      misses.push({ control: `${el.tagName.toLowerCase()}${id ? `[${id}]` : ""} "${name}"`, box: `${Math.round(r.width)}×${Math.round(r.height)}`, lost, by: [...new Set(takers)].join(", ") });
     }
     return misses;
   }, { scope, size, tappable: TAPPABLE, exempt: HIT_EXEMPT });
@@ -257,11 +262,12 @@ export function componentFindings(page: Page): Promise<ComponentFinding[]> {
     document.body.append(theme);
     const radius = parseFloat(getComputedStyle(theme).borderTopLeftRadius);
     theme.remove();
-    const floats = ['[data-slot="drawer-content"][data-vaul-drawer-direction="bottom"]', '[data-slot="popover-content"]', '[data-slot="dialog-content"]',
+    const floats = ['[data-slot="drawer-content"][data-vaul-drawer-direction="bottom"]', '[data-slot="map-panel"]', '[data-slot="popover-content"]', '[data-slot="dialog-content"]',
       '[data-slot="alert-dialog-content"]', ".leaflet-popup-content-wrapper", '[data-slot="item-group"].border', "[data-sonner-toast]"].join(", ");
     for (const box of document.querySelectorAll(floats)) {
       if (!on(box)) continue;
-      const r = parseFloat(getComputedStyle(box).borderTopLeftRadius);
+      // A sheet from the top of the screen is rounded at its bottom only.
+      const r = Math.max(parseFloat(getComputedStyle(box).borderTopLeftRadius), parseFloat(getComputedStyle(box).borderBottomLeftRadius));
       if (Math.abs(r - radius) > 0.5) found.push({ rule: `one radius, ${radius}`, what: name(box), measured: `${r}` });
     }
     for (const button of document.querySelectorAll<HTMLElement>('button, a[data-slot="button"]')) {
@@ -276,7 +282,7 @@ export function componentFindings(page: Page): Promise<ComponentFinding[]> {
         found.push({ rule: "icon button 36, glyph 20", what: name(button), measured: `${Math.round(b.width)}×${Math.round(b.height)}, glyph ${Math.round(g.width)}` });
       }
     }
-    for (const panel of document.querySelectorAll('[data-slot="sidebar"][data-mobile="true"], [data-slot="sidebar-container"], [data-slot="drawer-content"], [data-testid="console-sheet"]')) {
+    for (const panel of document.querySelectorAll('[data-slot="map-panel"], [data-slot="drawer-content"], [data-testid="console-sheet"]')) {
       if (!on(panel)) continue;
       const p = panel.getBoundingClientRect();
       let inset = Infinity, sample = "";
@@ -441,6 +447,10 @@ export async function emulateSafeArea(page: Page, insets: Insets) {
       try { walk(sheet.cssRules); } catch { /* another origin's sheet: not ours */ }
     }
     for (const el of document.querySelectorAll<HTMLElement>("[style*='safe-area-inset']")) patch(el.style);
+    // What reads the insets in script (the map panel's sheet, whose
+    // detents are pixels) reads them again on a resize, which on a phone
+    // is what turning it fires.
+    window.dispatchEvent(new Event("resize"));
   }, insets);
 }
 

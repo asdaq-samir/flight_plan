@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { PAGES, slow, settle } from "./helpers";
+import { PAGES, slow, settle, openSettings } from "./helpers";
 
 /**
  * The chart layers the map asks for: the terminal area chart over the
@@ -43,7 +43,7 @@ for (const path of PAGES) {
     expect(await tacTiles.count()).toBe(0);
 
     // Pinned: both chart layers are asked for, the sectional and the TAC.
-    await page.getByTestId("settings-button").click();
+    await openSettings(page);
     const pin = page.getByTestId("tac-toggle");
     await expect(pin).toHaveAttribute("aria-checked", "false");
     await pin.click();
@@ -61,7 +61,7 @@ for (const path of PAGES) {
     // unpinning it takes the TAC layer away again.
     await page.reload();
     await settle(page);
-    await page.getByTestId("settings-button").click();
+    await openSettings(page);
     const toggle = page.getByTestId("tac-toggle");
     await expect(toggle).toHaveAttribute("aria-checked", "true");
     await toggle.click();
@@ -83,7 +83,7 @@ for (const path of PAGES) {
     await expect(sectionalTiles.first()).toBeAttached({ timeout: slow(15000) });
     expect(await ifrTiles.count()).toBe(0);
 
-    await page.getByTestId("settings-button").click();
+    await openSettings(page);
     await page.getByTestId("base-chart-select").getByRole("radio", { name: "IFR low" }).click();
     await expect(page.getByText("IFR area chart", { exact: true })).toBeVisible();
     await expect(ifrTiles.first()).toBeAttached({ timeout: slow(10000) });

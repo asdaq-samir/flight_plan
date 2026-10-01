@@ -13,6 +13,8 @@ import { MapPopup } from "./MapPopup";
 import { MapTooltip } from "./MapTooltip";
 import { chartPair, sheetAt } from "./tiles";
 import { useCardedMarker } from "./useCardedMarker";
+import { centreClear } from "./clear";
+import type L from "leaflet";
 
 /** The card, hovered or tapped: what the field is doing now, what it is
  *  forecast to do, and the raw text of both for a pilot who wants to
@@ -140,7 +142,7 @@ export function ClassBLayer({ course, onPreview }: { course: Course; onPreview: 
             // at the zoom its terminal chart starts at.
             click: () => {
               onPreview(false);
-              map.flyTo([airport.lat, airport.lon], Math.max(map.getZoom(), overlayFromZoom));
+              flyClear(map, [airport.lat, airport.lon], Math.max(map.getZoom(), overlayFromZoom));
             },
             ...cardEvents(airport.ident),
           }}
@@ -185,7 +187,7 @@ export function ClassBLayer({ course, onPreview }: { course: Course; onPreview: 
                     // so a pin that has nothing to show goes there
                     // first. Unpinning leaves the map where it is.
                     onClick={() => {
-                      if (!pinned) map.flyTo([airport.lat, airport.lon], Math.max(map.getZoom(), overlayFromZoom));
+                      if (!pinned) flyClear(map, [airport.lat, airport.lon], Math.max(map.getZoom(), overlayFromZoom));
                       pinTac(!pinned);
                     }}
                   >
@@ -200,4 +202,9 @@ export function ClassBLayer({ course, onPreview }: { course: Course; onPreview: 
       })}
     </>
   );
+}
+
+/** The map flown to a field, clear of the panel over it. */
+function flyClear(map: L.Map, point: [number, number], zoom: number) {
+  map.flyTo(centreClear(map, point, zoom), zoom);
 }

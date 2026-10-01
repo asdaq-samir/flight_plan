@@ -10,13 +10,14 @@ import "leaflet/dist/leaflet.css";
 import { useProgressToast } from "../../lib/useProgressToast";
 import type { WorkspaceProps } from "../page/workspace";
 import ChartMap from "./components/ChartMap";
-import WaypointPanel from "./components/WaypointPanel";
+import WaypointPanel, { RatingProgress, WaypointActions } from "./components/WaypointPanel";
 import PointPopup from "./components/PointPopup";
 import { isEndpoint, type Point, type Rating } from "../../lib/api/types";
 import {
   filterCounts, forwardIsLeft, hasRating, orderedPoints,
 } from "./logic";
 import { useTraining } from "./hooks/useTraining";
+import { centreClear } from "../../lib/map/clear";
 
 const FOCUS_ZOOM = 12;
 
@@ -101,7 +102,10 @@ export default function TrainWorkspace({ dep, dest, children }: WorkspaceProps) 
   }, [point, positionOf, waypoints.length]);
 
   const focus = useCallback((entry: (typeof walk)[number]) => {
-    map?.setView([entry.point.lat, entry.point.lon], Math.max(map.getZoom(), FOCUS_ZOOM));
+    if (map) {
+      const to = Math.max(map.getZoom(), FOCUS_ZOOM);
+      map.setView(centreClear(map, [entry.point.lat, entry.point.lon], to), to);
+    }
     select(entry.point);
   }, [map, select]);
 
@@ -216,7 +220,10 @@ export default function TrainWorkspace({ dep, dest, children }: WorkspaceProps) 
 
   const onSelect = useCallback((picked: Point) => {
     select(picked);
-    map?.setView([picked.lat, picked.lon], Math.max(map.getZoom(), FOCUS_ZOOM));
+    if (map) {
+      const to = Math.max(map.getZoom(), FOCUS_ZOOM);
+      map.setView(centreClear(map, [picked.lat, picked.lon], to), to);
+    }
   }, [select, map]);
   const onAddAt = useCallback((lat: number, lon: number) => { void addPick(lat, lon); }, [addPick]);
 
@@ -253,11 +260,18 @@ export default function TrainWorkspace({ dep, dest, children }: WorkspaceProps) 
         onRate={r => void rate(r).then(() => step(1))}
         departureIdent={store.course?.departure.ident ?? ""}
         destinationIdent={store.course?.destination.ident ?? ""}
-        rated={picks.length} total={store.detections.length + store.added.length}
+      />
+    ),
+    // Filter, Undo and More, beside the route.
+    actions: (
+      <WaypointActions
+        rated={picks.length}
         filters={store.filters} counts={counts} onFilterChange={store.setFilter}
         canUndo={store.canUndo} onUndo={() => void store.undo()} onResetAll={() => void store.resetAll()}
       />
     ),
+    // How far the rating has got, in sight with the panel down.
+    controls: <RatingProgress rated={picks.length} total={store.detections.length + store.added.length} />,
     console: devPanel ? <devPanel.DevPanel /> : <div className="h-40" />,
     submit,
     loading: store.loading,

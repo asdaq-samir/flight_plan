@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { PAGES, settle, sideDrawer, devSwitchInSettings, expectDrawerOpen, openBriefing } from "./helpers";
+import { PAGES, settle, sideDrawer, devSwitchInSettings, expectDrawerOpen, openBriefing, openSettings } from "./helpers";
 
 /**
  * The two pages and the switch between them: the Dev-mode switch, the
@@ -31,7 +31,7 @@ test("the Dev-mode switch is in the settings, flips to the dev page with the rou
   // click that toggled them shut when they were already.
   const onDev = page.getByRole("switch", { name: "Dev mode" });
   await expect(async () => {
-    if (!(await onDev.isVisible())) await page.getByTestId("settings-button").click();
+    if (!(await onDev.isVisible())) await openSettings(page);
     await expect(onDev).toHaveAttribute("aria-checked", "true", { timeout: 2000 });
   }).toPass({ timeout: 15000 });
 
@@ -47,33 +47,32 @@ test("the Dev-mode switch is in the settings, flips to the dev page with the rou
   }
 });
 
-test("the header itself looks the same on both pages: the settings' Dev-mode switch says which one this is", async ({ page }) => {
+test("the panel's head looks the same on both pages: the settings' Dev-mode switch says which one this is", async ({ page }) => {
   await page.goto("/app/plan");
   await settle(page);
   const pilotBg = await page.locator("header").evaluate(el => getComputedStyle(el).backgroundColor);
-  await expect(page.locator("header")).toHaveAttribute("data-mode", "pilot");
+  await expect(page.locator("[data-mode]")).toHaveAttribute("data-mode", "pilot");
   await expect(await devSwitchInSettings(page)).toHaveAttribute("aria-checked", "false");
   await page.goto("/app/dev");
   await settle(page);
   const devBg = await page.locator("header").evaluate(el => getComputedStyle(el).backgroundColor);
-  await expect(page.locator("header")).toHaveAttribute("data-mode", "dev");
+  await expect(page.locator("[data-mode]")).toHaveAttribute("data-mode", "dev");
   await expect(await devSwitchInSettings(page)).toHaveAttribute("aria-checked", "true");
   expect(devBg).toBe(pilotBg);
 });
 
-test("the route form sits in the middle of the header on both pages, signed in or out", async ({ page, browser }) => {
-  // On a phone the header was a flex row that centred the form between
-  // the switch and the buttons: the planner of anyone signed out, who
-  // has no switch, put it 55px left of where the dev page did.
-  const offCentre = (p: Page) => p.locator("header").evaluate(header => {
-    const form = header.children[1].getBoundingClientRect();
-    const box = header.getBoundingClientRect();
-    return Math.round((form.left + form.right) / 2 - (box.left + box.right) / 2);
+test("the route form leads the panel's head on both pages, signed in or out", async ({ page, browser }) => {
+  // Where the form starts in its row: the same on the planner and the dev
+  // page, and for someone signed out, whose actions differ.
+  const lead = (p: Page) => p.locator("header").evaluate(header => {
+    const form = header.querySelector("form")!.getBoundingClientRect();
+    return Math.round(form.left - header.getBoundingClientRect().left);
   });
+  const leads: number[] = [];
   for (const path of PAGES) {
     await page.goto(path);
     await settle(page);
-    expect(Math.abs(await offCentre(page)), path).toBeLessThanOrEqual(4);
+    leads.push(await lead(page));
   }
   const signedOut = await browser.newContext({
     baseURL: new URL(page.url()).origin, viewport: page.viewportSize(), storageState: { cookies: [], origins: [] },
@@ -81,8 +80,10 @@ test("the route form sits in the middle of the header on both pages, signed in o
   const planner = await signedOut.newPage();
   await planner.goto("/app/plan");
   await settle(planner);
-  expect(Math.abs(await offCentre(planner)), "the signed-out planner").toBeLessThanOrEqual(4);
+  leads.push(await lead(planner));
   await signedOut.close();
+  expect(Math.max(...leads) - Math.min(...leads)).toBeLessThanOrEqual(1);
+  expect(Math.max(...leads)).toBeLessThanOrEqual(16);
 });
 
 test("dev page opened on its own: the switch falls back to the planner with the dev page's own route", async ({ page }) => {

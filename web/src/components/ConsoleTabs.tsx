@@ -1,4 +1,5 @@
-import type { ReactNode } from "react";
+import { useContext, type ReactNode } from "react";
+import { ConsoleSettingsContext } from "./mapChrome";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 
 export interface ConsoleTab {
@@ -23,15 +24,18 @@ interface Props {
 }
 
 /**
- * Both consoles that drop down over the map: the developer's and the
- * pilot's. One thing per tab rather than everything in one long
- * scroll, the tabs across the column (the theme is in the header's
- * settings), and the whole thing centred on a readable column. Only
- * the tabs differ between the two, so only those are props; who is
- * signed in is the sheet's own header (ConsoleHeader), above both.
+ * Both consoles: the developer's and the pilot's. One thing per tab
+ * rather than everything in one long scroll, the tabs across the
+ * column, and the whole thing centred on a readable column. Only the
+ * tabs differ between the two, so only those are props; who is signed
+ * in is the sheet's own header (ConsoleHeader), above both. The
+ * settings are the last tab of either, from the page (MapPage), so they
+ * are one tap from wherever the console is.
  */
-export default function ConsoleTabs({ tabs, saved, onChange, footer }: Props) {
-  const tab = tabs.some(t => t.value === saved) ? saved : tabs[0].value;
+export default function ConsoleTabs({ tabs: own, saved, onChange, footer }: Props) {
+  const settings = useContext(ConsoleSettingsContext);
+  const tabs: ConsoleTab[] = settings ? [...own, { value: "settings", label: "Settings", content: settings }] : own;
+  const tab = tabs.some(t => t.value === saved) ? saved : own[0].value;
   return (
     <div className="min-h-0 flex-1 overflow-y-auto">
       <div className="mx-auto max-w-3xl p-4">

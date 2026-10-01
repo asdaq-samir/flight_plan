@@ -1,7 +1,7 @@
 import { Fragment, createContext, useCallback, useContext, useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { flushSync } from "react-dom";
 import { cn } from "cn";
-import { CircleHelp, Loader2, TriangleAlert, WandSparkles } from "lucide-react";
+import { CircleHelp, Loader2, WandSparkles } from "lucide-react";
 import {
   type CellData, type ColumnDef, type RowData, type TableFeatures,
   flexRender, tableFeatures, useTable,
@@ -15,18 +15,16 @@ import { Input } from "../../../../components/ui/input";
 import { ResponsivePopover, ResponsivePopoverContent, ResponsivePopoverTrigger } from "../../../../components/ResponsivePopover";
 import { Textarea } from "../../../../components/ui/textarea";
 import AltitudeReasoning from "../AltitudeReasoning";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../../../components/ui/select";
 import {
   Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow,
 } from "../../../../components/ui/table";
-import type { AltitudeChoice, AltitudeSegment, Candidate, Leg, NavLogAltitude, Totals } from "../../../../lib/api/types";
+import type { AltitudeChoice, Candidate, Leg, NavLogAltitude, Totals } from "../../../../lib/api/types";
 import { revealRow } from "../../../../lib/revealRow";
 import { TEXT } from "../../../../lib/text";
 import { type Description, descriptionKey } from "../../hooks/useCheckpointNotes";
 import { altFt, clockTime, deg, describeFuel, describeSteps, describeTime, etaAt, one, signed, totalsParts } from "../../format";
 import AccordionSection from "../../../../components/AccordionSection";
 import { BRIEFING_SECTIONS } from "../briefing/sections";
-import DepartPicker from "./DepartPicker";
 import { legOf, navLogRows, rowPoint, type NavLogRow, type RouteEnds } from "./rows";
 
 /** Every section of the drawer, the nav log's own first: what the
@@ -63,7 +61,6 @@ interface Props {
    *  set here, where its ETAs show; changing it re-plans, since the
    *  winds forecast period follows it. */
   depart: string;
-  onDepartChange: (iso: string) => void;
   /** The pilot's own cruise-altitude override -- lives here, not the
    *  map header's route form, since this is where the *result*
    *  (`nav.altitude_ft`/`nav.altitude_selection`) already shows: typing
@@ -73,13 +70,9 @@ interface Props {
   alt: string;
   onAltChange: (v: string) => void;
   onSubmit: () => void;
-  /** The aeroplane the log is computed for -- a stock profile or one of
-   *  the pilot's own -- chosen here, where its numbers (TAS, fuel burn)
-   *  show up. Value/label pairs, the current value, and a change handler
-   *  that re-plans. */
-  aircraftValue: string;
-  aircraftOptions: { value: string; label: string }[];
-  onAircraftChange: (value: string) => void;
+  /** The aeroplane the log is computed for, by name -- chosen in the
+   *  panel's controls (FlightInputs), named here on paper. */
+  aircraftLabel: string;
   /** Streamed in one at a time, in the same order as `selected` --
    *  `legs[i]` is the leg that arrives at `selected[i]`, one short of
    *  `selected.length + 1` until the final leg (to the destination)
@@ -110,9 +103,6 @@ interface Props {
    *  been clicked. */
   onGenerateDescriptions: () => void;
   descriptionsLoading: boolean;
-  /** The briefing's own header actions (Save this flight, the narrative
-   *  popover, Print). */
-  actions?: ReactNode;
   /** The briefing's sections, rendered under the nav log's own
    *  section in the same scroller. */
   children?: ReactNode;
@@ -228,11 +218,12 @@ export function DescriptionCell({
  * a point on the map (or another row) scrolls this one into view --
  * the same two-way link the old checkpoint list had.
  *
- * This drawer is the briefing: PlanWorkspace passes the briefing's sections
- * as `children` and its own actions as `actions`, and the nav log is
- * the first section of it, with the totals, the altitude and the fuel
- * check above the table. The header holds only the two inputs the log
- * is computed from, the aeroplane and the departure time. The briefing
+ * This panel is the briefing: PlanWorkspace passes the briefing's sections
+ * as `children` (its actions are beside the route, MapPage), and the nav
+ * log is the first section of it, with the totals, the altitude and the fuel
+ * check above the table. The two inputs the log is computed from, the
+ * aeroplane and the departure time, are the panel's controls
+ * (FlightInputs). The briefing
  * used to draw its own read-only copy of the table, and the two
  * drifted; then the drawer had two widths, the table alone and the
  * whole briefing, which held the same things in two arrangements.
@@ -347,12 +338,12 @@ function tas(leg: Leg): string {
 }
 
 export default function NavLogView({
-  totals, nav, onAltitudeChoiceChange, depart, onDepartChange,
+  totals, nav, onAltitudeChoiceChange, depart,
   legs, dep, dest, ends,
   selected, descriptions, onSaveDescription,
-  onGenerateDescriptions, descriptionsLoading, actions, children, notice, footer,
+  onGenerateDescriptions, descriptionsLoading, children, notice, footer,
   selectedPoint, onSelectPoint, onDeselectPoint, drawerOpen, alt, onAltChange, onSubmit,
-  aircraftValue, aircraftOptions, onAircraftChange,
+  aircraftLabel,
 }: Props) {
   const parts = totals ? totalsParts(totals) : null;
   // The altitude the log flies: "2,500 ft", or "2,500–6,500 ft" for a
@@ -370,7 +361,7 @@ export default function NavLogView({
       : `${altFt(flownAltitudes[0])} ft`;
   const altitudeLabel = nav?.flown === null ? "No altitude: no winds" : altitudeRange;
   // The nav log's section in one line under its title, folded or open,
-  // as every section's is: the distance, the time and the fuel. Inside,
+  // as every section's is: the distance, the arrival and the fuel. Inside,
   // it is not said again; the altitude is the first row there (and the
   // Cruise Altitude section's line).
   // Each figure named, in the table's own shorthand, as the pilot
@@ -378,10 +369,18 @@ export default function NavLogView({
   // they asked too: to a finger at a note's 13, since at a summary's 15
   // the three ran to 293 points in a phone drawer's 277. Each figure
   // whole: a longer route breaks the line between them, not inside one.
+  // The time as the arrival, the time en route after it: "ETA 18:24
+  // (3h 22m)", as the pilot asked -- from the departure time picked, or
+  // from now while it is "Now", which is what the plan is flown for then.
+  const arrival = totals?.ete_min != null ? etaAt(depart || new Date().toISOString(), totals.ete_min) : null;
   const foldedSummary = parts && (
     <span className="pointer-coarse:text-[0.8125rem] pointer-coarse:leading-[1.125rem]">
-      {([["Dist", parts.distance], ["ETE", parts.time], ["Fuel", parts.fuel]] as const).map(([name, figure], i) => (
-        <Fragment key={name}>{i > 0 && " · "}<span className="whitespace-nowrap">{name} {figure}</span></Fragment>
+      {([
+        ["Dist", parts.distance],
+        ["ETA", arrival ? `${arrival} (${parts.time})` : parts.time],
+        ["Fuel", parts.fuel],
+      ] as const).map(([name, figure], i) => (
+        <Fragment key={name}>{i > 0 && " · "}<span className="whitespace-nowrap" data-testid={name === "ETA" ? "navlog-eta" : undefined}>{name} {figure}</span></Fragment>
       ))}
     </span>
   );
@@ -421,20 +420,12 @@ export default function NavLogView({
   // at module scope, since they close over this render's `nav` and
   // `depart`.
   const data = navLogRows(ends, selected, legs);
-  // The legs the clouds leave no legal altitude on (14 CFR 91.155),
-  // marked on their own rows -- a red triangle by the name, the clouds
-  // it means in its hover and its spoken name, the whole of it in the
-  // altitude's sheet -- rather than said once over the whole table,
-  // where a pilot had to work out which legs it meant. The altitude breakdown's segments
-  // run fix to fix, as the rows do, so the leg into row i is segment
-  // i - 1; a breakdown that does not line up with the rows says it once
-  // over the table instead, as it always did.
+  // Whether the clouds the altitude breakdown found (14 CFR 91.155) can be
+  // put on legs at all: its segments run fix to fix, as the rows do, so
+  // they line up when there is one segment fewer than rows. When they do
+  // not, the nav log's summary says so once.
   const segments = nav?.altitude_selection.segments ?? [];
   const perLeg = segments.length > 0 && segments.length === data.length - 1;
-  const cloudsOver = (rowIndex: number): AltitudeSegment | undefined => {
-    const segment = perLeg && rowIndex > 0 ? segments[rowIndex - 1] : undefined;
-    return segment && !segment.cloud_clearance_kept ? segment : undefined;
-  };
   // How the altitude was chosen -- the four plans, the pilot's own, and
   // why: a pilot should never have to take a cruise altitude on trust,
   // so the Alt column's own heading opens the planner's reasoning (floor,
@@ -550,17 +541,11 @@ export default function NavLogView({
           Waypoint
         </span>
       ),
-      cell: ({ row }) => (
-        <>
-          {cloudsOver(row.index) && (
-            <span title={`Too low for VFR under the clouds near ${cloudsOver(row.index)?.cloud_station ?? "the leg"}`}>
-              <TriangleAlert aria-hidden className="mr-1 inline size-[1em] align-[-0.125em] text-destructive" />
-              <span className="sr-only">Too low for VFR: </span>
-            </span>
-          )}
-          {rowPoint(row.original).name}
-        </>
-      ),
+      // The name alone: a leg the clouds leave no legal altitude on is
+      // the briefing's to say (Current Conditions, the Cruise Altitude
+      // reasoning), not a red mark by the waypoint, which the pilot found
+      // one warning too many.
+      cell: ({ row }) => rowPoint(row.original).name,
       // On a phone a name wraps, and a long word is hyphenated rather
       // than pushing the figures off the drawer's edge: with a
       // departure time's ETA as a sixth column, "Subdivision" alone was
@@ -755,7 +740,7 @@ export default function NavLogView({
       <TableCaption className="sr-only">
         Navigation log from {dep} to {dest}
       </TableCaption>
-      <TableHeader className="sticky top-0 z-10 bg-sidebar print:static print:bg-transparent">
+      <TableHeader className="sticky top-0 z-10 bg-background print:static print:bg-transparent dark:bg-popover">
         {table.getHeaderGroups().map(headerGroup => (
           <TableRow key={headerGroup.id}>
             {headerGroup.headers.map(header => (
@@ -856,35 +841,24 @@ export default function NavLogView({
     </AltPlans.Provider>
   );
 
-  // What goes with the totals under the section's title, as rows like
-  // every section's: with a departure time, the arrival and the winds
-  // forecast period flown on; and legs flown without wind, in red.
-  // Above the table, and not at all when there is none of it. (The
-  // altitude, which opens how it was chosen, is the Alt column's head.)
+  // What has to be said over the table, as rows: legs flown without wind,
+  // and clouds the legs cannot be told for, in red. Nothing at all when
+  // there is none of it: the arrival is the section's own line, and the
+  // table is the rest, as the pilot asked. (The altitude, which opens how
+  // it was chosen, is the Alt column's head.)
   const cloudsUnplaced = !!nav && !nav.altitude_selection.cloud_clearance_kept && !perLeg;
-  const summary = (!!parts?.warning || cloudsUnplaced || !!depart) && (
+  const summary = (!!parts?.warning || cloudsUnplaced) && (
     <div className="mb-3" data-testid="navlog-summary">
       <ListGroup>
         {parts?.warning && <ListRow title={<span className="text-destructive">{parts.warning}</span>} />}
         {/* The clouds forecast near a leg leave it no legal altitude (14
             CFR 91.155): the plan still stands, over the band without
-            them, and says so on the legs it means (see cloudsOver) and in
-            the reasoning -- here only when the legs cannot be told. */}
+            them, and the briefing says so (Current Conditions, the
+            reasoning) -- here as well only when the legs cannot be told. */}
         {nav && cloudsUnplaced && (
           <ListRow
             title={<span className="text-destructive">Too low for VFR under the clouds near {nav.altitude_selection.cloud_station}</span>}
             description="No altitude keeps 500 ft below the forecast clouds there"
-          />
-        )}
-        {depart && totals && totals.ete_min !== null && <ListRow title="ETA" value={etaAt(depart, totals.ete_min)} />}
-        {/* Which winds forecast period the legs are flown on -- named
-            so a pilot knows the winds are the 12-hour forecast, say,
-            not now's. Only with a departure time: without one the
-            legs are flown on the nearest period to now. */}
-        {depart && (
-          <ListRow
-            title="Winds"
-            value={<span data-testid="winds-forecast">{nav ? `${Number(nav.winds_forecast_hr)}-hour forecast` : "waiting on the nav log"}</span>}
           />
         )}
       </ListGroup>
@@ -927,47 +901,19 @@ export default function NavLogView({
     // would otherwise print only whatever page's worth happened to be
     // visible.
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden print:h-auto print:overflow-visible">
-      {/* Printed, this header is the briefing's title: the page's own
-          header (the route form) is print:hidden, so the route is
-          named here instead, the inputs become a line of text, and
-          the buttons drop out. */}
-      {/* The left padding clears the island of a phone on its side,
-          whose edge the drawer's is, as the training drawer's does. */}
-      <div className="flex flex-col gap-2 border-b border-border px-4 py-3 pl-[max(1rem,env(safe-area-inset-left))] text-sm">
-        {/* Wrapping, as the waypoint drawer's header does: with the text
-            set larger the title takes the row and the actions go under
-            it, where Print ran off the drawer's edge. */}
+      {/* Printed, this header is the briefing's title: the panel's own
+          head (the route form, the aeroplane and the departure time) is
+          print:hidden, so they are named here instead, as a line of
+          text. On screen the name is the panel's tab's, said once there;
+          here it is for a screen reader. */}
+      <span className="sr-only" data-testid="drawer-title">Flight Planning</span>
+      <div className="hidden flex-col gap-1 border-b border-border px-4 py-3 text-sm print:flex">
         <div className="flex flex-wrap items-center gap-2">
-          {/* Semibold in the foreground colour, at a drawer's title's
-              size (TEXT): 16 over the sections' 14, and 17 to a finger,
-              as an iOS navigation bar's title is. It was 14 and muted,
-              and read as weaker than the sections under it. */}
-          <span className={cn("font-semibold", TEXT.title)} data-testid="drawer-title">Flight Planning</span>
-          <span className="hidden text-muted-foreground print:inline">{dep} → {dest}</span>
-          <div className="ml-auto flex items-center gap-2 print:hidden">{actions}</div>
+          <span className={cn("font-semibold", TEXT.title)}>Flight Planning</span>
+          <span className="text-muted-foreground">{dep} → {dest}</span>
         </div>
-        {/* The two inputs the log is computed from, and nothing else
-            of it: the aeroplane (a stock profile or one of the pilot's
-            own; its TAS and burn are what the legs' times and fuel
-            come from) and when the flight leaves, which gives every
-            row an ETA, is what a saved flight is planned for, and
-            picks the winds forecast period; shadcn's date picker with
-            a time box (DepartPicker), empty for about now. */}
-        {/* Wrapped onto two lines (a 320-point Slide Over), the two
-            twelve apart, so their hit areas (index.css) meet. */}
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-3 print:hidden">
-          <Select value={aircraftValue} onValueChange={onAircraftChange}>
-            <SelectTrigger size="sm" aria-label="Aircraft" data-testid="aircraft-select">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {aircraftOptions.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
-            </SelectContent>
-          </Select>
-          <DepartPicker value={depart} onChange={onDepartChange} />
-        </div>
-        <div className="hidden text-muted-foreground print:block">
-          {aircraftOptions.find(o => o.value === aircraftValue)?.label}
+        <div className="text-muted-foreground">
+          {aircraftLabel}
           {depart && ` · departing ${new Date(depart).toLocaleDateString([], { weekday: "short", day: "numeric", month: "short" })} ${clockTime(new Date(depart))}`}
         </div>
       </div>

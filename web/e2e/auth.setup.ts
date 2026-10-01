@@ -1,5 +1,6 @@
 import { test as setup, expect } from "@playwright/test";
 import { DEVELOPER, DEVELOPER_STATE, signInByEmail } from "./emailSignIn";
+import { openSettings } from "./helpers";
 
 /**
  * The session the rest of the suite runs as (playwright.config.ts's
@@ -12,9 +13,12 @@ setup("the developer signs in from the pilot console, and lands in dev mode", as
   await signInByEmail(page, DEVELOPER);
 
   await page.waitForURL("**/app/dev**");
-  // The switch is in the header's settings.
-  await page.getByTestId("settings-button").click();
+  // The switch is in the settings, the console's last tab. The console
+  // is put back on its first tab after, which it remembers: every spec
+  // starts from this session and expects the console's guide.
+  await openSettings(page);
   await expect(page.getByTestId("dev-switch")).toBeChecked();
+  await page.getByTestId("console-sheet").getByRole("tab", { name: "Guide" }).click();
   await page.keyboard.press("Escape");
   await page.context().storageState({ path: DEVELOPER_STATE });
 });

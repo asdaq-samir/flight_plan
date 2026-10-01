@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { Maximize, Minimize } from "lucide-react";
 import IconButton from "./IconButton";
-import { MAP_BUTTON } from "../lib/mapButton";
 
 /** Whether this browser will actually take an element full screen.
  *  `fullscreenEnabled` is the standard's own "is this allowed here"
@@ -17,7 +16,7 @@ function fullscreenWorks(): boolean {
 /**
  * Full screen for the whole app, on the map's own control stack: a
  * chart is the one thing here that wants every pixel, and in a browser
- * tab the header and the address bar are the two that take them.
+ * tab the address bar and the tabs take them.
  *
  * It draws itself only where it would work, which is a desktop browser
  * and an iPad. On an iPhone Safari refuses the Fullscreen API outright
@@ -49,8 +48,6 @@ export default function FullscreenButton() {
   return (
     <IconButton
       label={on ? "Leave full screen" : "Full screen"}
-      variant="outline"
-      className={MAP_BUTTON}
       onClick={() => {
         if (on) { void document.exitFullscreen().catch(() => { /* already out */ }); return; }
         // A refusal means this browser said yes to `fullscreenEnabled`

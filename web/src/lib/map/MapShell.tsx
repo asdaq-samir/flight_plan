@@ -1,7 +1,8 @@
 import L from "leaflet";
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { AttributionControl, MapContainer, useMap } from "react-leaflet";
 import MapControls from "../../components/MapControls";
+import { MapInsetsContext } from "../../components/mapChrome";
 import type { Course } from "../api/types";
 import { ChartTiles } from "./ChartTiles";
 import { ClassBLayer } from "./ClassBLayer";
@@ -68,10 +69,17 @@ export function MapShell({ course, onReady, zoom, children }: Props) {
 
   // invalidateSize before fitBounds: on a fresh reload the map can fit
   // against a stale cached container size before it's ever been measured.
+  // Clear of what the map panel covers at rest, as well as the margin:
+  // the map runs under the panel, and a route fitted to the whole map
+  // had its far end behind the sheet.
+  const insets = useContext(MapInsetsContext);
+  const insetsRef = useRef(insets);
+  useEffect(() => { insetsRef.current = insets; }, [insets]);
   const fit = useCallback(() => {
     if (!map || !bounds) return;
     map.invalidateSize();
-    map.fitBounds(bounds, { padding: [30, 30] });
+    const { top, bottom, left } = insetsRef.current;
+    map.fitBounds(bounds, { paddingTopLeft: [30 + left, 30 + top], paddingBottomRight: [30, 30 + bottom] });
   }, [map, bounds]);
 
   // Fit to the route when it changes.

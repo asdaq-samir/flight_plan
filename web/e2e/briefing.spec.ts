@@ -2,9 +2,9 @@ import { test, expect } from "@playwright/test";
 import { slow, settle, sideDrawer, expectDrawerClosed, expectDrawerOpen, closeSidebarWithTheStockKey, openedDrawerBox, openBriefing } from "./helpers";
 
 /**
- * The flight planning drawer: how it opens -- from the header's toggle,
- * a pasted link, a route arriving as it opens -- and closes, what its
- * header holds, and how the briefing in it ends.
+ * The flight planning panel: how it opens -- from its grabber, a pasted
+ * link, a route arriving as it opens -- and closes, what its head
+ * holds, and how the briefing in it ends.
  */
 
 test("plan page: the flight planning drawer opens the way the Model Training drawer does, the same panel beside the map, with the two inputs and the narrative and Print in its header and the totals and the descriptions button in the nav log's own section", async ({ page }) => {
@@ -20,9 +20,9 @@ test("plan page: the flight planning drawer opens the way the Model Training dra
   const devBox = await openedDrawerBox(page);
   expect(devBox).not.toBeNull();
 
-  // The flight planning drawer: the URL says briefing, and it is the
-  // same panel in the same place -- a strip of map beside it, on a
-  // phone too, never the whole map area.
+  // The flight planning panel: the URL says briefing, and it is the
+  // same panel in the same place -- a strip of map beside it from md
+  // up; on a phone the sheet, the screen's width.
   await page.goto("/app/plan");
   await settle(page);
   await page.getByTestId("sidebar-trigger-button").click();
@@ -31,11 +31,12 @@ test("plan page: the flight planning drawer opens the way the Model Training dra
   expect(box).not.toBeNull();
   expect(Math.abs(box!.width - devBox!.width)).toBeLessThan(2);
   expect(Math.abs(box!.x - devBox!.x)).toBeLessThan(2);
-  expect(box!.width).toBeLessThan(viewport.width);
+  if (viewport.width >= 768) expect(box!.width).toBeLessThan(viewport.width);
+  else expect(Math.round(box!.width)).toBe(viewport.width);
 
-  // The drawer's header holds the two inputs the log is computed
-  // from -- the aeroplane and the departure time -- and nothing else
-  // of the log's: neither is inside a section.
+  // The panel's controls are the two inputs the log is computed from
+  // -- the aeroplane and the departure time -- and nothing else of the
+  // log's: neither is inside a section.
   await expect(drawer.getByTestId("aircraft-select")).toBeVisible();
   await expect(drawer.getByTestId("depart-picker")).toBeVisible();
   // And, signed in, Save this flight beside the narrative and Print.
@@ -62,23 +63,24 @@ test("plan page: the flight planning drawer opens the way the Model Training dra
   await expect(drawer.locator('[data-slot="section-summary"]').first()).toContainText(/\d nm/, { timeout: slow(60000) });
   expect(await drawer.locator('[data-slot="accordion-content"][data-state="open"]').count()).toBe(1);
 
-  // The page's own header is still there: the route form, and the
-  // settings (by test id, not role: on a phone the modal sheet hides the
-  // rest of the page from assistive tech).
+  // The panel's head is still in sight: the route form, and the
+  // console's button among the map's.
   expect(await page.locator("header").getByLabel("Departure", { exact: true }).count()).toBe(1);
-  expect(await page.locator("header").getByTestId("settings-button").count()).toBe(1);
+  expect(await page.locator("[data-map-controls]").getByTestId("pilot-button").count()).toBe(1);
 
-  // The briefing's actions live in the drawer's own header: the AI
-  // button (LangGraph/CrewAI are tabs inside the popover it opens),
-  // then Print, left to right on one row.
+  // The briefing's actions are beside the route, in the panel's top
+  // row: the AI button (LangGraph/CrewAI are tabs inside the popover it
+  // opens), then Print, left to right on one row.
   const aiBox = await drawer.getByTestId("ai-narrative-button").boundingBox();
   const printBox = await drawer.getByTestId("print-button").boundingBox();
   expect(aiBox).not.toBeNull();
   expect(printBox).not.toBeNull();
   expect(aiBox!.x).toBeLessThan(printBox!.x);
   expect(Math.abs(aiBox!.y - printBox!.y)).toBeLessThan(10);
-  // Inside the drawer, not the page header.
-  expect(await page.locator("header").getByTestId("print-button").count()).toBe(0);
+  // In the route's row, after the route.
+  expect(await page.locator("header").getByTestId("print-button").count()).toBe(1);
+  const departure = (await page.locator("header").getByLabel("Departure", { exact: true }).boundingBox())!;
+  expect(aiBox!.x).toBeGreaterThan(departure.x);
 });
 
 test("plan page: the briefing ends on its 'planning aid only' reminder, with the nav log and the summary on screen", async ({ page }) => {
@@ -170,7 +172,7 @@ test("plan page: the briefing opened just as the default route arrives stays ope
   await expect(page).toHaveURL(/[?&]view=briefing/);
 });
 
-test("plan page: a pasted briefing link opens the drawer, and the header's toggle closes and reopens it", async ({ page }) => {
+test("plan page: a pasted briefing link opens the panel, and its grabber closes and reopens it", async ({ page }) => {
   await page.goto("/app/plan?view=briefing");
   await settle(page);
   const drawer = sideDrawer(page);
@@ -184,13 +186,8 @@ test("plan page: a pasted briefing link opens the drawer, and the header's toggl
   await page.waitForTimeout(300);
   await expect(page).toHaveURL(/[?&]view=briefing/);
 
-  // Closing it: the header's own toggle on a desktop, Escape on a
-  // phone, where the drawer is a modal sheet whose overlay covers the
-  // header. Either way the address drops the parameter.
-  const viewport = page.viewportSize();
-  if (!viewport) throw new Error("no viewport configured");
-  if (viewport.width < 768) await page.keyboard.press("Escape");
-  else await page.getByTestId("sidebar-trigger-button").click();
+  // Closing it: a tap on its grabber. The address drops the parameter.
+  await page.getByTestId("sidebar-trigger-button").click();
   await page.waitForTimeout(300);
   await expect(page).not.toHaveURL(/[?&]view=briefing/);
   await expectDrawerClosed(page);
@@ -201,33 +198,25 @@ test("plan page: a pasted briefing link opens the drawer, and the header's toggl
   await expect(drawer.getByTestId("print-button")).toBeVisible();
 });
 
-test("plan page: the header's toggle closes and reopens the drawer; a tap beside it closes the phone's sheet, and leaves a desktop's panel", async ({ page }) => {
+test("plan page: the panel's grabber raises and lowers it, a tap on the map beside it leaves it out, and Escape lowers it", async ({ page }) => {
   await page.goto("/app/plan");
   await settle(page);
   const viewport = page.viewportSize();
   if (!viewport) throw new Error("no viewport configured");
-  await page.getByTestId("sidebar-trigger-button").click();
+  const grabber = page.getByTestId("sidebar-trigger-button");
+  await grabber.click();
   await expectDrawerOpen(page);
-  const headerBox = await page.locator("header").boundingBox();
-  if (viewport.width < 768) {
-    // The stock sidebar on a phone is a modal sheet: the header is
-    // under its overlay, and a tap on the map beside it (the overlay,
-    // on the right) is what closes it; the trigger opens it again.
-    await page.mouse.click(viewport.width - 12, viewport.height / 2);
-    await expectDrawerClosed(page);
-    await page.getByTestId("sidebar-trigger-button").click();
-    await expectDrawerOpen(page);
-    await page.keyboard.press("Escape");
-    await expectDrawerClosed(page);
-    return;
-  }
-  // On a desktop it is a panel beside the map: the header's toggle
-  // closes and reopens it, and the map stays live -- a click there is
-  // a click on the map, and the drawer stays.
-  await page.getByTestId("sidebar-trigger-button").click();
+  await grabber.click();
   await expectDrawerClosed(page);
-  await page.getByTestId("sidebar-trigger-button").click();
+  await grabber.click();
   await expectDrawerOpen(page);
-  await page.mouse.click(12, headerBox!.y + headerBox!.height + 40);
-  await expectDrawerOpen(page);
+  // Not modal: the map beside the card stays live, and a click there is
+  // the map's. (On a phone the sheet all the way up leaves no map
+  // beside it.)
+  if (viewport.width >= 768) {
+    await page.mouse.click(viewport.width - 200, viewport.height / 2);
+    await expectDrawerOpen(page);
+  }
+  await closeSidebarWithTheStockKey(page);
+  await expectDrawerClosed(page);
 });

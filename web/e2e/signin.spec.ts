@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { DEVELOPER, openLinkFor, signInByEmail } from "./emailSignIn";
+import { openSettings } from "./helpers";
 
 /**
  * Signing in and out on the running stack, from a browser with no
@@ -12,11 +13,10 @@ test.use({ storageState: { cookies: [], origins: [] } });
 
 const consoleSheet = (page: Page) => page.getByTestId("console-sheet");
 
-/** The Dev-mode switch, in the header's settings: opened first. Present
+/** The Dev-mode switch, in the console's settings: opened first. Present
  *  or absent, it is looked for with the settings open. */
 async function devSwitchInSettings(page: Page) {
-  await page.getByTestId("settings-button").click();
-  await expect(page.getByTestId("settings-panel")).toBeVisible();
+  await openSettings(page);
   return page.getByTestId("dev-switch");
 }
 

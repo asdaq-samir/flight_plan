@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { PAGES, settle, expectDrawerClosed, expectDrawerOpen, openSidebar } from "./helpers";
+import { PAGES, settle, expectDrawerClosed, expectDrawerOpen, openSidebar, sideDrawer, openSettings } from "./helpers";
 
 /**
  * The regressions this file exists to catch (see playwright.config.ts
@@ -129,68 +129,56 @@ for (const path of PAGES) {
 }
 
 test.describe("/app/plan", () => {
-  // One header row, the same shape as Dev's: no tabs (the briefing is
-  // the flight planning drawer, not a second view), and the drawer's
-  // toggle in the header's own trailing group, not floating over the
-  // map.
-  test("the header is one row with no tabs, the screen's bottom row on a phone and its top row from md up, and the sidebar trigger toggles the nav log from it", async ({ page }) => {
+  // One bar, the panel's head, the same shape as Dev's: no tabs in it
+  // (the briefing is the flight planning panel, not a second view), the
+  // route leading it, and the panel's grabber on its far edge.
+  test("the panel's head is the page's one bar, with no tabs: at the bottom of a phone and the top from md up, the route leading it, and the panel's grabber opens the nav log", async ({ page }) => {
     await page.goto("/app/plan");
     await settle(page);
     const viewport = page.viewportSize();
     if (!viewport) throw new Error("no viewport configured");
+    const phone = viewport.width < 768;
 
-    await expect(page.locator("header").getByRole("tablist")).toHaveCount(0);
-    // On a phone the bottom row, where a thumb reaches it; from md up
-    // the top one.
-    const headerBox = (await page.locator("header").boundingBox())!;
-    if (viewport.width < 768) expect(Math.round(headerBox.y + headerBox.height)).toBe(viewport.height);
-    else expect(headerBox.y).toBe(0);
-    const departureBox = await page.getByLabel("Departure", { exact: true }).boundingBox();
-    const triggerBox = await page.getByTestId("sidebar-trigger-button").boundingBox();
-    expect(departureBox).not.toBeNull();
-    expect(triggerBox).not.toBeNull();
-    expect(triggerBox!.y).toBeGreaterThanOrEqual(headerBox.y);
-    expect(triggerBox!.y + triggerBox!.height).toBeLessThanOrEqual(headerBox.y + headerBox.height);
-    // Leading the form, on the drawer's own side: to its left.
-    expect(triggerBox!.x + triggerBox!.width).toBeLessThan(departureBox!.x);
+    const header = page.locator("header");
+    await expect(header.getByRole("tablist")).toHaveCount(0);
+    const headerBox = (await header.boundingBox())!;
+    if (phone) expect(headerBox.y).toBeGreaterThan(viewport.height / 2);
+    else expect(headerBox.y).toBeLessThan(40);
+    const departureBox = (await header.getByLabel("Departure", { exact: true }).boundingBox())!;
+    expect(departureBox.x - headerBox.x).toBeLessThan(40);
 
+    // The grabber on the panel's far edge: the top of a phone's sheet,
+    // the bottom of a card at the top of the screen.
+    const panelBox = (await sideDrawer(page).boundingBox())!;
+    const grabber = (await page.getByTestId("sidebar-trigger-button").boundingBox())!;
+    if (phone) expect(Math.abs(grabber.y - panelBox.y)).toBeLessThan(2);
+    else expect(Math.abs(grabber.y + grabber.height - (panelBox.y + panelBox.height))).toBeLessThan(2);
     await page.getByTestId("sidebar-trigger-button").click();
     await expectDrawerOpen(page);
   });
 });
 
 for (const path of PAGES) {
-  test(`${path}: the zoom toggle sits on the map's right edge, clear of the header, and the settings are the header's, right of the console`, async ({ page }) => {
+  test(`${path}: the map's buttons sit at the map's right edge, away from the panel, the console's first, and the settings are the console's`, async ({ page }) => {
     await page.goto(`${path}?dep=C81&dest=KDLH`);
     await settle(page);
     const viewport = page.viewportSize();
     if (!viewport) throw new Error("no viewport configured");
 
-    const headerBox = await page.locator("header").boundingBox();
-    const actionBox = await page.getByTestId("map-action-button").boundingBox();
-    expect(headerBox).not.toBeNull();
-    expect(actionBox).not.toBeNull();
-    // On the map, flush with its right edge -- the same on both pages:
-    // below the header from md up, and just above it on a phone, whose
-    // header is the bottom row, where a thumb reaches it.
-    if (viewport.width < 768) {
-      expect(actionBox!.y + actionBox!.height).toBeLessThanOrEqual(headerBox!.y);
-      expect(headerBox!.y - (actionBox!.y + actionBox!.height)).toBeLessThan(120);
-    } else {
-      expect(actionBox!.y).toBeGreaterThanOrEqual(headerBox!.y + headerBox!.height);
-    }
-    expect(viewport.width - (actionBox!.x + actionBox!.width)).toBeLessThan(16);
-    expect(await page.locator("header").getByTestId("map-action-button").count()).toBe(0);
+    const actionBox = (await page.getByTestId("map-action-button").boundingBox())!;
+    const consoleBox = (await page.getByTestId(/^(pilot|dev-console)-button$/).boundingBox())!;
+    // On the map, flush with its right edge -- the same on both pages: at
+    // the top over a phone's sheet, at the bottom under a desktop's card.
+    expect(viewport.width - (actionBox.x + actionBox.width)).toBeLessThan(20);
+    if (viewport.width < 768) expect(actionBox.y).toBeLessThan(viewport.height / 2);
+    else expect(actionBox.y).toBeGreaterThan(viewport.height / 2);
+    expect(await sideDrawer(page).getByTestId("map-action-button").count()).toBe(0);
+    // The console's button first in the same group, over the zoom toggle.
+    expect(consoleBox.y).toBeLessThan(actionBox.y);
+    expect(Math.abs(consoleBox.x - actionBox.x)).toBeLessThan(2);
 
-    // The settings in the header, the last of its buttons: right of the
-    // console's.
-    const header = page.locator("header");
-    const settingsBox = (await header.getByTestId("settings-button").boundingBox())!;
-    const consoleBox = (await header.getByTestId(/^(pilot|dev-console)-button$/).boundingBox())!;
-    expect(settingsBox.x).toBeGreaterThan(consoleBox.x + consoleBox.width - 1);
-
-    // The settings hold the chart controls.
-    await page.getByTestId("settings-button").click();
+    // The settings, the console's last tab, hold the chart controls.
+    await openSettings(page);
     await expect(page.getByTestId("base-chart-select")).toBeVisible();
     await expect(page.getByTestId("tac-toggle")).toBeVisible();
     await page.keyboard.press("Escape");

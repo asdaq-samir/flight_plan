@@ -1,5 +1,5 @@
 import { expect, type Page } from "@playwright/test";
-import { settle, sideDrawer, slow } from "../helpers";
+import { openSettings, settle, sideDrawer, slow } from "../helpers";
 
 /** One state of the app as a pilot sees it, reached from a fresh page. */
 export type Screen = { name: string; ready: (page: Page) => Promise<void> };
@@ -85,7 +85,7 @@ export const SCREENS: Screen[] = [
     name: "settings",
     ready: async page => {
       await page.goto("/app/plan");
-      await page.getByTestId("settings-button").click();
+      await openSettings(page);
       await expect(page.getByRole("switch", { name: "Dev mode" })).toBeVisible();
     },
   },

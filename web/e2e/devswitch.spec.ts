@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { openSettings } from "./helpers";
 
 /**
  * Who is offered the developer's workspace.
@@ -20,12 +21,6 @@ import { test, expect, type Page } from "@playwright/test";
  */
 
 const devSwitch = (page: Page) => page.getByTestId("dev-switch");
-
-/** The switch is in the header's settings: opened first. */
-async function openSettings(page: Page) {
-  await page.getByTestId("settings-button").click();
-  await expect(page.getByTestId("settings-panel")).toBeVisible();
-}
 
 /** The settings drawn without the switch: the pilot button is there
  *  (the header has rendered with who is signed in known), and the

@@ -72,6 +72,26 @@ body .leaflet-container {
   font-family: inherit;
 }
 
+/* Clear of the map panel (MapPanel): its edge's corner controls -- the
+   chart credit, in the bottom right -- sit past what the panel covers
+   at rest (MapPage sets the insets), and past the home indicator. */
+.leaflet-container .leaflet-bottom {
+  bottom: max(var(--map-inset-bottom, 0px), env(safe-area-inset-bottom));
+}
+.leaflet-container .leaflet-top {
+  top: max(var(--map-inset-top, 0px), env(safe-area-inset-top));
+}
+
+/* With the phone's sheet all the way up, the map's buttons give way,
+   as Maps' do: only a sliver of them showed past its edge. */
+[data-map-controls] {
+  transition: opacity 0.2s;
+}
+body:has([data-slot="map-panel"][data-sheet][data-panel="full"]) [data-map-controls] {
+  opacity: 0;
+  pointer-events: none;
+}
+
 /* Smaller, not gone -- the chart credit is a requirement of the
    charts' use, not decoration, so it can't just be removed. At Apple's
    floor for text meant to be read, 11 on 13, where it was 9: as little
@@ -115,31 +135,34 @@ body .leaflet-container {
     height: auto !important;
     overflow: visible !important;
   }
-  /* The page is shadcn's Sidebar layout: on paper the sidebar (the
-     flight planning drawer) is the document and the rest of the page
-     (the header and the map, the "inset") is hidden. The sidebar
-     sheds its fixed placement and clipped height for ordinary flow the
-     browser can paginate. */
-  [data-slot="sidebar-wrapper"] {
-    display: block !important;
-    height: auto !important;
-    min-height: 0 !important;
-  }
-  [data-slot="sidebar-inset"],
-  [data-slot="sidebar-gap"] {
-    display: none !important;
-  }
-  [data-slot="sidebar"],
-  [data-slot="sidebar-container"],
-  [data-slot="sidebar-inner"],
-  [data-slot="sidebar-content"] {
+  /* On paper the map panel is the document and the map is hidden: the
+     panel sheds its fixed placement, its blur and its clipped height
+     for ordinary flow the browser can paginate, and its body shows
+     whether or not it was open on screen. */
+  [data-slot="map-panel"] {
     position: static !important;
+    transform: none !important;
     display: block !important;
     height: auto !important;
+    max-height: none !important;
     width: auto !important;
     overflow: visible !important;
     border: 0 !important;
     background: transparent !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+  }
+  [data-slot="map-panel"] > div {
+    display: block !important;
+    height: auto !important;
+    overflow: visible !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+  }
+  [data-slot="map-panel"] [data-panel-body] {
+    display: flex !important;
+    border: 0 !important;
   }
   /* The nav log is a wide table -- twelve columns, plus the blank ATA
      and fuel-remaining columns a pilot fills in by hand in flight --
@@ -154,14 +177,6 @@ body .leaflet-container {
 @theme inline {
   --font-heading: var(--font-sans);
   --font-sans: 'Inter Variable', sans-serif;
-  --color-sidebar-ring: var(--sidebar-ring);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar: var(--sidebar);
   --color-chart-5: var(--chart-5);
   --color-chart-4: var(--chart-4);
   --color-chart-3: var(--chart-3);
@@ -237,14 +252,6 @@ body .leaflet-container {
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
   --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
 }
 
 .dark {
@@ -281,14 +288,6 @@ body .leaflet-container {
   --chart-3: oklch(0.439 0 0);
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.708 0 0);
 }
 
 @layer base {
@@ -337,7 +336,7 @@ body .leaflet-container {
    the drawer has there: an accordion trigger, which opened a briefing
    section nobody touched. While one is open the cards take their own
    taps back; the chart loses the wheel under a toast for that long. */
-body:has([data-slot="sidebar"][data-state="expanded"], [role="dialog"][data-state="open"]) [data-sonner-toast] {
+body:has([data-slot="map-panel"]:not([data-panel="peek"]), [role="dialog"][data-state="open"]:not([data-slot="map-panel"])) [data-sonner-toast] {
   pointer-events: auto;
 }
 
@@ -349,13 +348,12 @@ body:has([data-slot="sidebar"][data-state="expanded"], [role="dialog"][data-stat
    grows. Every button reaches 44 through a pseudo-element hit area
    around it instead, the way a toolbar glyph does on iOS: `min(0, …)`
    so a control already that size is not shrunk. Not for a tab, whose
-   own ::after is the line variant's underline, the sidebar's rail
-   (likewise), or a calendar cell, where areas reaching twelve pixels
+   own ::after is the line variant's underline, or a calendar cell, where areas reaching twelve pixels
    into the neighbouring day would hand a tap to the wrong one. A
    desktop keeps the tighter targets. Leaflet's markers are placed by
    their own size and are left alone. */
 @media (pointer: coarse) {
-  button:not([data-slot="tabs-trigger"]):not([data-slot="sidebar-rail"]):not([data-slot="calendar"] button)::after,
+  button:not([data-slot="tabs-trigger"]):not([data-slot="calendar"] button)::after,
   a[data-slot="button"]::after,
   .leaflet-popup-close-button::after {
     content: "";

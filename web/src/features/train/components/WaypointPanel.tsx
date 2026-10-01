@@ -31,10 +31,11 @@ interface Props {
   onRate: (rating: Rating) => void;
   departureIdent: string;
   destinationIdent: string;
-  /** How far the corridor's labels have come: rated over every
-   *  candidate, filters or no filters. */
+}
+
+interface ActionProps {
+  /** How many points are rated: Reset all has nothing to do at none. */
   rated: number;
-  total: number;
   filters: Filters;
   counts: Record<FilterKey, number>;
   onFilterChange: (key: FilterKey, on: boolean) => void;
@@ -50,8 +51,7 @@ const SCALE_KEY = ["0 not a feature", "3 workable", "5 unmistakable"]
   .map(term => term.replaceAll(" ", " ")).join(" · ");
 
 /**
- * The developer's waypoint drawer: a header with how far the rating has
- * got and the drawer's own actions, then the walk as one list, stepped with
+ * The developer's waypoint panel: the walk as one list, stepped with
  * Up/Down or a tap, the map following. It is a worklist, not a record:
  * every candidate the filters admit is a row, the unrated ones
  * included, numbered the way the map popup numbers them, with the
@@ -64,36 +64,14 @@ const SCALE_KEY = ["0 not a feature", "3 workable", "5 unmistakable"]
  * A list as iOS draws one, where it was a table of 12-point columns: a
  * row each, its kind at 17 points and where it is under that at 15 (14
  * and 12 with a mouse: the app's sizes, TEXT), 44 points and more to tap, the
- * selection a tint rather than a black bar. The filters live in a sheet
- * so the list has the height. The header's actions are toolbar buttons,
- * a word under each icon as the nav log's are: Filter and Undo, used
- * all through a walk, and More, which holds what is done once --
- * Retrain, and Reset all ratings in red at the bottom, away from Undo,
- * where it sat beside it as a red eraser.
+ * selection a tint rather than a black bar. Its actions are beside the
+ * route (WaypointActions), and how far the rating has got is the panel's
+ * second row (RatingProgress).
  */
 export default function WaypointPanel({
   entries, selected, onFocus, onRate, departureIdent, destinationIdent,
-  rated, total, filters, counts, onFilterChange, canUndo, onUndo, onResetAll,
 }: Props) {
   const selectedRef = useRef<HTMLButtonElement>(null);
-  // The filters' sheet, closed from its own Done as well as by a tap
-  // outside it.
-  const [filtersOpen, setFiltersOpen] = useState(false);
-  // Retrain from here, in More with Reset: the ratings this drawer
-  // makes are what a retrain learns from, so the button that starts
-  // one belongs with them. The dev console's Training Model tab
-  // reports the run.
-  const retrain = useRetrain();
-  // Bulk and only reversible one point at a time (this isn't itself an
-  // undo step), so a stray tap can't wipe a leg's worth of ratings with
-  // nothing to walk it back: asked first, in red.
-  const [askReset, resetDialog] = useConfirm({
-    title: "Reset every rating on this route?",
-    description: "Every rating on this route is cleared. This can't be undone.",
-    confirmLabel: "Reset all ratings",
-    destructive: true,
-    onConfirm: onResetAll,
-  });
   // Selecting a point on the map (or by stepping) should be as visible
   // here as clicking the row itself would have been -- otherwise the
   // highlighted row can be scrolled out of view and looks like nothing
@@ -112,62 +90,8 @@ export default function WaypointPanel({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-      <div className={cn("flex flex-col gap-1 border-b border-border px-4 py-3 pl-[max(1rem,env(safe-area-inset-left))]", TEXT.prose)}>
-        {/* Wrapping: with the text set larger the title takes the row
-            and the actions go under it, where they used to run off the
-            drawer's edge. */}
-        <div className="flex flex-wrap items-center gap-2">
-          <span className={cn("font-semibold", TEXT.title)} data-testid="drawer-title">Model Training</span>
-          <div className="ml-auto flex items-center gap-1">
-            <ResponsivePopover open={filtersOpen} onOpenChange={setFiltersOpen}>
-              <ResponsivePopoverTrigger asChild>
-                <ToolbarButton text="Filter" label="Filters" icon={<ListFilter />} data-testid="waypoint-filters-button" />
-              </ResponsivePopoverTrigger>
-              <ResponsivePopoverContent
-                title="Filters" align="end" className="w-80"
-                action={<Button type="button" size="sm" className="-mr-1" onClick={() => setFiltersOpen(false)}>Done</Button>}
-              >
-                <FilterBar filters={filters} onChange={onFilterChange} counts={counts} />
-              </ResponsivePopoverContent>
-            </ResponsivePopover>
-            <ToolbarButton text="Undo" icon={<Undo2 />} onClick={onUndo} disabled={!canUndo} data-testid="undo-button" />
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                {/* Pulsing while a retrain runs, as the retrain button did. */}
-                <ToolbarButton
-                  text="More" label="More actions" data-testid="training-more-button"
-                  icon={<Ellipsis className={retrain.running ? "animate-pulse" : undefined} />}
-                />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="min-w-56">
-                <DropdownMenuItem onSelect={retrain.start} disabled={!retrain.canStart} data-testid="retrain-button">
-                  <BrainCircuit />
-                  {retrain.running ? "Retraining…" : retrain.reachable ? "Retrain the model" : "Retrain (Airflow not reachable)"}
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem variant="destructive" onSelect={askReset} disabled={rated === 0} data-testid="reset-ratings-button">
-                  <Eraser />
-                  Reset all ratings
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-            {resetDialog}
-            {retrain.confirmDialog}
-          </div>
-        </div>
-        {/* How far the rating has got, as a bar, with its count at the
-            end. It was "323.4 nm · 328°T" and "56 of 269 rated · 6
-            hidden by the filters" in words: the route's distance and
-            heading are the nav log's, not the rating's, and the filters'
-            sheet counts what each one holds back. */}
-        <div className="flex items-center gap-3 py-1">
-          <Progress
-            value={total ? (rated / total) * 100 : 0} className="flex-1"
-            aria-label={`${rated} of ${total} rated`} data-testid="rated-progress"
-          />
-          <span className={cn("shrink-0 text-muted-foreground tabular-nums", TEXT.note)} aria-hidden>{rated} of {total}</span>
-        </div>
-      </div>
+      {/* Said on the panel's tab; here for a screen reader. */}
+      <span className="sr-only" data-testid="drawer-title">Model Training</span>
       {/* data-waypoint-list marks the scope TrainWorkspace's keyboard handler
           checks to tell "arrows should walk this list" apart from
           "arrows should walk the map" -- set once focus lands inside
@@ -308,5 +232,92 @@ function WaypointRow({ number, title, detail, end, selected, expands = false, on
       </span>
       {end && <span className={cn("shrink-0 tabular-nums", TEXT.detail, selected ? "text-foreground/70" : "text-muted-foreground")}>{end}</span>}
     </button>
+  );
+}
+
+/**
+ * The training panel's actions, beside the route (MapPage): toolbar
+ * buttons, a word under each icon as the planner's are -- Filter and
+ * Undo, used all through a walk, and More, which holds what is done
+ * once: Retrain, and Reset all ratings in red at the bottom, away from
+ * Undo, where it sat beside it as a red eraser. The filters live in a
+ * sheet so the list has the height.
+ */
+export function WaypointActions({ rated, filters, counts, onFilterChange, canUndo, onUndo, onResetAll }: ActionProps) {
+  // The filters' sheet, closed from its own Done as well as by a tap
+  // outside it.
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  // Retrain from here, in More with Reset: the ratings this panel
+  // makes are what a retrain learns from, so the button that starts
+  // one belongs with them. The dev console's Training Model tab
+  // reports the run.
+  const retrain = useRetrain();
+  // Bulk and only reversible one point at a time (this isn't itself an
+  // undo step), so a stray tap can't wipe a leg's worth of ratings with
+  // nothing to walk it back: asked first, in red.
+  const [askReset, resetDialog] = useConfirm({
+    title: "Reset every rating on this route?",
+    description: "Every rating on this route is cleared. This can't be undone.",
+    confirmLabel: "Reset all ratings",
+    destructive: true,
+    onConfirm: onResetAll,
+  });
+  return (
+    <>
+      <ResponsivePopover open={filtersOpen} onOpenChange={setFiltersOpen}>
+        <ResponsivePopoverTrigger asChild>
+          <ToolbarButton text="Filter" label="Filters" icon={<ListFilter />} data-testid="waypoint-filters-button" />
+        </ResponsivePopoverTrigger>
+        <ResponsivePopoverContent
+          title="Filters" align="end" className="w-80"
+          action={<Button type="button" size="sm" className="-mr-1" onClick={() => setFiltersOpen(false)}>Done</Button>}
+        >
+          <FilterBar filters={filters} onChange={onFilterChange} counts={counts} />
+        </ResponsivePopoverContent>
+      </ResponsivePopover>
+      <ToolbarButton text="Undo" icon={<Undo2 />} onClick={onUndo} disabled={!canUndo} data-testid="undo-button" />
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          {/* Pulsing while a retrain runs, as the retrain button did. */}
+          <ToolbarButton
+            text="More" label="More actions" data-testid="training-more-button"
+            icon={<Ellipsis className={retrain.running ? "animate-pulse" : undefined} />}
+          />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="min-w-56">
+          <DropdownMenuItem onSelect={retrain.start} disabled={!retrain.canStart} data-testid="retrain-button">
+            <BrainCircuit />
+            {retrain.running ? "Retraining…" : retrain.reachable ? "Retrain the model" : "Retrain (Airflow not reachable)"}
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem variant="destructive" onSelect={askReset} disabled={rated === 0} data-testid="reset-ratings-button">
+            <Eraser />
+            Reset all ratings
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      {resetDialog}
+      {retrain.confirmDialog}
+    </>
+  );
+}
+
+/**
+ * How far the corridor's rating has got, as a bar with its count at the
+ * end -- the training panel's second row, in sight with the panel down.
+ * It was "323.4 nm · 328°T" and "56 of 269 rated · 6 hidden by the
+ * filters" in words: the route's distance and heading are the nav log's,
+ * not the rating's, and the filters' sheet counts what each one holds
+ * back. Rated over every candidate, filters or no filters.
+ */
+export function RatingProgress({ rated, total }: { rated: number; total: number }) {
+  return (
+    <div className="flex min-w-0 flex-1 items-center gap-3 py-1">
+      <Progress
+        value={total ? (rated / total) * 100 : 0} className="flex-1"
+        aria-label={`${rated} of ${total} rated`} data-testid="rated-progress"
+      />
+      <span className={cn("shrink-0 text-muted-foreground tabular-nums", TEXT.note)} aria-hidden>{rated} of {total}</span>
+    </div>
   );
 }

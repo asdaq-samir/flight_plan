@@ -2,7 +2,6 @@ import { useId, type ReactNode } from "react";
 import { Monitor, Moon, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
 import { ListGroup, ListRow } from "./GroupedList";
-import { Label } from "./ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { Switch } from "./ui/switch";
 import { ToggleGroup, ToggleGroupItem } from "./ui/toggle-group";
@@ -19,24 +18,25 @@ export interface PageSettings {
 }
 
 /**
- * The header's settings, laid out the way iOS lays out Settings: a few
- * groups under short headings, each a rounded box of rows with a hairline
- * between them, one label per row with its control at the row's end, and
- * at most a line of help. A switch for anything on or off, a segmented
- * control for two or three choices, all on show and one tap each, and a
- * menu only for the four-way one. The map first, what is changed most
- * while planning; then the checkpoints, appearance, and the pilot's own
- * position. Dev mode is not a group but the title row's switch
- * (DevModeSwitch). Everything else here is remembered per browser.
+ * The settings, the consoles' last tab (ConsoleTabs), laid out the way
+ * iOS lays out Settings: a few groups under short headings, each a
+ * rounded box of rows with a hairline between them, one label per row
+ * with its control at the row's end, and at most a line of help. A
+ * switch for anything on or off, a segmented control for two or three
+ * choices, all on show and one tap each, and a menu only for the
+ * four-way one. Dev mode first, for whoever it is for; then the map,
+ * what is changed most while planning; the checkpoints, appearance,
+ * and the pilot's own position. Everything here is remembered per
+ * browser.
  *
  * It replaced a column of headings, checkboxes, dropdowns and a
  * paragraph under nearly every control, twice the height, where a
- * two-way choice took two taps in a menu; the theme, which was an icon
- * cycling through three states in the console's tab row, is here too.
+ * two-way choice took two taps in a menu.
  */
 export default function SettingsPanel({ page }: { page?: PageSettings }) {
   return (
     <div className="space-y-5 pb-1" data-testid="settings-panel">
+      <DeveloperGroup />
       <MapGroup />
       <CheckpointsGroup candidates={page?.candidates} />
       <AppearanceGroup />
@@ -149,7 +149,7 @@ const THEMES = [
 
 /** The theme (next-themes keeps it, and follows the OS on System: a
  *  pilot planning at night wants the page as dim as the panel lights),
- *  and the edge the header is on (useNavEdge). */
+ *  and the edge the route panel is on (useNavEdge). */
 function AppearanceGroup() {
   const { theme, setTheme } = useTheme();
   const edge = useNavEdge();
@@ -159,7 +159,7 @@ function AppearanceGroup() {
       <ListRow title="Theme">
         <Segmented label="Theme" value={theme ?? "system"} onChange={setTheme} testId="theme-select" options={THEMES} />
       </ListRow>
-      <ListRow title="Navigation bar" description="Panels come in from the same edge">
+      <ListRow title="Navigation bar" description="The route panel and every sheet come from this edge; the map's buttons take the other">
         <Segmented
           label="Navigation bar" value={edge} onChange={v => setNavBar(v as NavEdge)} testId="nav-bar-select"
           options={[{ value: "top", label: "Top" }, { value: "bottom", label: "Bottom" }]}
@@ -169,21 +169,18 @@ function AppearanceGroup() {
   );
 }
 
-/** Dev mode, at the end of the settings' title row, for whoever it is
- *  for (useDevMode): the switch between the two pages, which a developer
- *  flips all day and a pilot never sees. It was a group of its own at
- *  the top of the panel, with a Done where it is now. */
-export function DevModeSwitch() {
+/** Dev mode, for whoever it is for (useDevMode): the switch between the
+ *  two pages, which a developer flips all day and a pilot never sees. */
+function DeveloperGroup() {
   const { on, flip, allowed } = useDevMode();
   const id = useId();
   if (!allowed) return null;
   return (
-    <div className="flex items-center gap-2">
-      {/* "Dev" on screen; "Dev mode" to a screen reader (the switch's
-          own name, which starts with the words shown). */}
-      <Label htmlFor={id} className="text-sm font-normal text-muted-foreground">Dev</Label>
-      <Switch id={id} checked={on} onCheckedChange={flip} aria-label="Dev mode" data-testid="dev-switch" />
-    </div>
+    <ListGroup title="Developer">
+      <ListRow id={id} title="Dev mode" description="The model training page, its console and its map">
+        <Switch id={id} checked={on} onCheckedChange={flip} aria-label="Dev mode" data-testid="dev-switch" />
+      </ListRow>
+    </ListGroup>
   );
 }
 

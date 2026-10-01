@@ -1,5 +1,6 @@
-import type { ComponentProps } from "react";
+import { useContext, type ComponentProps } from "react";
 import { Popup } from "react-leaflet";
+import { MapInsetsContext } from "../../components/mapChrome";
 
 /**
  * Every popup a marker opens, on either map.
@@ -27,6 +28,9 @@ import { Popup } from "react-leaflet";
  * with dismissal left at Leaflet's default.
  */
 export function MapPopup(props: ComponentProps<typeof Popup>) {
+  // Opened, it pans the map to be in sight past the panel over the map
+  // (MapPanel), not just inside the map, which runs under the panel.
+  const insets = useContext(MapInsetsContext);
   // Props last: these are defaults, and a caller that means something
   // different says so.
   return (
@@ -37,6 +41,7 @@ export function MapPopup(props: ComponentProps<typeof Popup>) {
       // and low enough that a short one is not padded out to the width
       // of a card carrying a raw METAR.
       offset={[0, -12]} minWidth={160} maxWidth={360} autoPan
+      autoPanPaddingTopLeft={[insets.left + 8, insets.top + 8]} autoPanPaddingBottomRight={[8, insets.bottom + 8]}
       // Leaflet's own close is off: it is a 24x24 glyph jammed into the
       // very corner of the wrapper, and the app's cards already carry a
       // close of their own at the size every other icon button uses.

@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { settle, consoleSheet, expectDrawerClosed, expectDrawerOpen, closeSidebarWithTheStockKey } from "./helpers";
+import { settle, consoleSheet, expectDrawerClosed, expectDrawerOpen, closeSidebarWithTheStockKey, openSettings } from "./helpers";
 
 /**
  * The consoles and the settings: fitting the screen, the pilot
@@ -62,30 +62,28 @@ test("plan page: the pilot console holds the account, aeroplanes and flights, an
   await expectDrawerClosed(page);
 });
 
-test("the header's edge is a setting: the map's buttons and the console follow it, and it is remembered", async ({ page }) => {
+test("the navigation bar's edge is a setting: the panel moves to it, the map's buttons take the other, the console comes from it, and it is remembered", async ({ page }) => {
   // By default the bottom on a phone and the top from md up; the other
-  // edge picked in the map's settings moves the header there, the map's
-  // buttons to the same edge, and the console in from it.
+  // edge picked in the settings moves the panel there, the map's
+  // buttons to the edge away from it, and the console in from it.
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
   const viewport = page.viewportSize();
   if (!viewport) throw new Error("no viewport configured");
   const phone = viewport.width < 768;
-  await page.getByTestId("settings-button").click();
+  await openSettings(page);
   await page.getByTestId("nav-bar-select").getByRole("radio", { name: phone ? "Top" : "Bottom" }).click();
   await page.keyboard.press("Escape");
-  await expect(page.locator("[data-slot=drawer-content], [data-slot=popover-content]")).toHaveCount(0);
+  await expect(page.locator("[data-slot=drawer-content], [data-slot=popover-content], [data-testid=console-sheet]")).toHaveCount(0);
 
   const header = (await page.locator("header").boundingBox())!;
   const zoomToggle = (await page.getByTestId("map-action-button").boundingBox())!;
   if (phone) {
-    expect(header.y).toBe(0);
-    expect(zoomToggle.y).toBeGreaterThanOrEqual(header.y + header.height);
-    expect(zoomToggle.y).toBeLessThan(header.y + header.height + 24);
+    expect(header.y).toBeLessThan(40);
+    expect(zoomToggle.y).toBeGreaterThan(viewport.height / 2);
   } else {
-    expect(Math.round(header.y + header.height)).toBe(viewport.height);
-    expect(zoomToggle.y + zoomToggle.height).toBeLessThanOrEqual(header.y);
-    expect(header.y - (zoomToggle.y + zoomToggle.height)).toBeLessThan(200);
+    expect(header.y).toBeGreaterThan(viewport.height / 2);
+    expect(zoomToggle.y).toBeLessThan(viewport.height / 2);
   }
 
   await page.getByTestId("pilot-button").click();
@@ -139,7 +137,7 @@ test("the console holds still as its tabs change: up from the bottom of a phone'
 test("the settings' theme is system, light or dark, all three on show, and the choice survives a reload", async ({ page }) => {
   await page.goto("/app/plan");
   await settle(page);
-  await page.getByTestId("settings-button").click();
+  await openSettings(page);
   const html = page.locator("html");
   const theme = page.getByTestId("theme-select");
   await expect(theme.getByRole("radio", { name: "System" })).toHaveAttribute("aria-checked", "true");
@@ -153,7 +151,7 @@ test("the settings' theme is system, light or dark, all three on show, and the c
   await page.reload();
   await page.waitForTimeout(300);
   await expect(html).toHaveClass(/dark/);
-  await page.getByTestId("settings-button").click();
+  await openSettings(page);
   await page.getByTestId("theme-select").getByRole("radio", { name: "Light" }).click();
   await expect(html).not.toHaveClass(/dark/);
 });
