@@ -13,9 +13,9 @@
 # python:3.13-slim (this service's own base image) currently resolves.
 -r ../src/requirements-charts.txt   # vfr's own list, charts included: this service draws them
 fastapi==0.141.1
-uvicorn[standard]==0.53.0
-boto3==1.43.98      # vfr.model_client's SageMaker Runtime path and vfr.charts' S3 publish, used only on AWS
-anthropic==1.6.0   # /api/checkpoint-notes: one Claude call per checkpoint
+uvicorn[standard]==0.54.0
+boto3==1.43.104      # vfr.model_client's SageMaker Runtime path and vfr.charts' S3 publish, used only on AWS
+anthropic==1.9.0   # /api/checkpoint-notes: one Claude call per checkpoint
 
 # Deliberately NOT scikit-learn/joblib. Scoring belongs to model-service,
 # which owns the model artifact and its pinned sklearn; this service

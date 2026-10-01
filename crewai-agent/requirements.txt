@@ -9,4 +9,4 @@
 crewai[anthropic]==1.15.22
 requests==2.34.2   # vfr.planner_client -- the tools ask planning-service, the way nav-log-agent does
 fastapi==0.141.1  # app.server: `docker compose up`'s default now, see main.py's own comment
-uvicorn[standard]==0.53.0
+uvicorn[standard]==0.54.0

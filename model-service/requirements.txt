@@ -9,5 +9,5 @@
 # CPU-only wheel, same reason as the `ml` image's own install line --
 # no GPU to use here either.
 --extra-index-url https://download.pytorch.org/whl/cpu
-torch==2.14.0
+torch==2.14.1+cpu
 tensorflow==2.21.0
