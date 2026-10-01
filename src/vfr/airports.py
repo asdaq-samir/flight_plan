@@ -168,6 +168,65 @@ def search_airports(query: str, limit: int = 8, cache_path: Path = DEFAULT_CACHE
     ]
 
 
+# The airports a map draws a place for: fields a pilot can land at. No
+# heliports, balloonports or seaplane bases, and nothing closed.
+_FIELD_KINDS = {"large_airport": "large", "medium_airport": "medium", "small_airport": "small"}
+
+
+def _place_of(row) -> dict:
+    """A US airport as the map names it: the ident pilots use (see
+    `_us_airports_of`), OurAirports' own (what its runways, frequencies
+    and the weather are keyed by), where it is, and what size of field."""
+    elevation = row.get("elevation_ft")
+    return {
+        "ident": row["_display_ident"],
+        "source_ident": row["ident"],
+        "name": row["name"],
+        "municipality": row["municipality"] if pd.notna(row.get("municipality")) else None,
+        "region": row["iso_region"] if pd.notna(row.get("iso_region")) else None,
+        "lat": float(row["latitude_deg"]),
+        "lon": float(row["longitude_deg"]),
+        "elevation_ft": float(elevation) if pd.notna(elevation) else None,
+        "kind": _FIELD_KINDS.get(row["type"], "other"),
+    }
+
+
+def find_place(ident: str, cache_path: Path = DEFAULT_CACHE_PATH) -> dict | None:
+    """One US airport by any ident it goes by -- the one pilots use
+    (C81, KDLH), its local code, or OurAirports' own (KC81) -- or None.
+    The display ident wins a tie, so KC81 never shadows a real KC81."""
+    ident = ident.strip().upper()
+    if not ident:
+        return None
+    df = _us_airports(cache_path)
+    for column in ("_display_ident", "_ident_upper", "_local_upper"):
+        match = df[df[column].astype(str).str.upper() == ident]
+        if not match.empty:
+            return _place_of(match.iloc[0])
+    return None
+
+
+def places_in(south: float, west: float, north: float, east: float, limit: int = 300,
+              cache_path: Path = DEFAULT_CACHE_PATH) -> list[dict]:
+    """The landing fields inside a box, the biggest first, at most
+    `limit` of them -- what the map lays its tap targets over, so a tap
+    on an airport printed on the chart opens its card. Zoomed out the
+    box holds thousands, and the small ones are what the limit drops."""
+    df = _us_airports(cache_path)
+    inside = df[
+        df["type"].isin(list(_FIELD_KINDS))
+        & df["latitude_deg"].between(south, north)
+        & df["longitude_deg"].between(west, east)
+    ]
+    rank = inside["type"].map({kind: i for i, kind in enumerate(_FIELD_KINDS)})
+    # One per ident: OurAirports lists a few fields twice under the same
+    # local code (an old record and its successor), and the map keys its
+    # targets on it.
+    ordered = inside.assign(_rank=rank).sort_values(["_rank", "_display_ident"])
+    chosen = ordered.drop_duplicates("_display_ident").head(limit)
+    return [_place_of(row) for _, row in chosen.iterrows()]
+
+
 def get_runways(ident: str, cache_path: Path = RUNWAYS_CACHE_PATH) -> list[dict]:
     """This airport's runways, for the briefing's own airport-
     information section. Keyed by `airport_ident` directly --

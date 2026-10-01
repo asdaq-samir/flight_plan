@@ -6,7 +6,7 @@ tmp_path and _load_table keys its cache on that exact path.
 import pandas as pd
 import pytest
 
-from vfr.airports import get_airport, get_frequencies, get_runways
+from vfr.airports import find_place, get_airport, get_frequencies, get_runways, places_in
 
 
 @pytest.fixture
@@ -133,3 +133,47 @@ def test_two_stages_asking_for_a_table_at_once_download_it_once_and_both_read_it
     assert downloads == ["https://example.test/runways.csv"]
     assert sizes == [len(body)] * 4
     assert not list(tmp_path.glob("*.part"))
+
+
+@pytest.fixture
+def us_airports_csv(tmp_path):
+    """The columns the US-only slice reads: a real ICAO ident (KDLH), a
+    field OurAirports gave a made-up one (KC81, local code C81), a small
+    field, a heliport, a closed field and one abroad."""
+    path = tmp_path / "us_airports.csv"
+    row = {"municipality": "", "iso_region": "US-MN", "iso_country": "US", "elevation_ft": 1000}
+    pd.DataFrame([
+        {**row, "ident": "KDLH", "icao_code": "KDLH", "local_code": "DLH", "name": "Duluth Intl", "type": "medium_airport",
+         "latitude_deg": 46.8421, "longitude_deg": -92.1936},
+        {**row, "ident": "KC81", "icao_code": None, "local_code": "C81", "name": "Campbell Airport", "type": "small_airport",
+         "latitude_deg": 42.3246, "longitude_deg": -88.0741},
+        {**row, "ident": "KMSP", "icao_code": "KMSP", "local_code": "MSP", "name": "Minneapolis-St Paul", "type": "large_airport",
+         "latitude_deg": 44.8848, "longitude_deg": -93.2223},
+        {**row, "ident": "MN01", "icao_code": None, "local_code": "MN01", "name": "A Helipad", "type": "heliport",
+         "latitude_deg": 46.8, "longitude_deg": -92.2},
+        {**row, "ident": "MN02", "icao_code": None, "local_code": "MN02", "name": "Gone Field", "type": "closed",
+         "latitude_deg": 46.7, "longitude_deg": -92.3},
+        {**row, "ident": "CYQT", "icao_code": "CYQT", "local_code": None, "name": "Thunder Bay", "type": "medium_airport",
+         "latitude_deg": 48.3719, "longitude_deg": -89.3239, "iso_country": "CA"},
+        {**row, "ident": "US-0043", "icao_code": None, "local_code": "C81", "name": "Campbell (old record)", "type": "small_airport",
+         "latitude_deg": 42.3245, "longitude_deg": -88.0742},
+    ]).to_csv(path, index=False)
+    return path
+
+
+def test_a_place_is_found_by_any_ident_it_goes_by(us_airports_csv):
+    assert find_place("C81", cache_path=us_airports_csv)["ident"] == "C81"
+    assert find_place("kc81", cache_path=us_airports_csv)["ident"] == "C81"
+    duluth = find_place("KDLH", cache_path=us_airports_csv)
+    assert duluth["ident"] == "KDLH"
+    assert duluth["source_ident"] == "KDLH"
+    assert duluth["kind"] == "medium"
+    assert find_place("CYQT", cache_path=us_airports_csv) is None
+    assert find_place("", cache_path=us_airports_csv) is None
+
+
+def test_the_places_in_a_box_are_landing_fields_biggest_first(us_airports_csv):
+    everywhere = places_in(40, -95, 47, -87, cache_path=us_airports_csv)
+    assert [p["ident"] for p in everywhere] == ["KMSP", "KDLH", "C81"]
+    assert [p["ident"] for p in places_in(46, -93, 47, -92, cache_path=us_airports_csv)] == ["KDLH"]
+    assert [p["ident"] for p in places_in(40, -95, 47, -87, limit=1, cache_path=us_airports_csv)] == ["KMSP"]

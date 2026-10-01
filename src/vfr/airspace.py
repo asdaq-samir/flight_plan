@@ -289,6 +289,20 @@ def load_controlled_airspace(shp_path, bbox: tuple) -> list:
     ]
 
 
+def surface_class_at(lat: float, lon: float, shp_path) -> str | None:
+    """The class of the controlled airspace reaching the surface at a
+    point -- "B", "C" or "D", the most restrictive where they overlap --
+    or None where none does (Class E or G, which the shapefile here does
+    not carry). An airport's own class, asked at the airport."""
+    point = Point(lon, lat)
+    margin = 0.01
+    classes = [
+        p["class"] for p in load_controlled_airspace(shp_path, (lat - margin, lon - margin, lat + margin, lon + margin))
+        if p["floor_ft_msl"] <= 0 and p["geometry"].contains(point)
+    ]
+    return min(classes) if classes else None
+
+
 def is_own_surface_area(polygon: dict, start_point, end_point) -> bool:
     """Whether this airspace polygon is the departure or destination
     airport's own surface area, rather than something the route has to

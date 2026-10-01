@@ -1,0 +1,92 @@
+"""Airports as places: the fields in a box, and one field's card. The
+tables, the airspace and the weather are stubbed -- these test what the
+router makes of them, not OurAirports or aviationweather.gov."""
+from fastapi.testclient import TestClient
+from vfr import airports, airspace, weather
+
+from app.main import app
+
+client = TestClient(app)
+
+DULUTH = {
+    "ident": "KDLH", "source_ident": "KDLH", "name": "Duluth International Airport", "municipality": "Duluth",
+    "region": "US-MN", "lat": 46.8421, "lon": -92.1936, "elevation_ft": 1428.0, "kind": "medium",
+}
+
+
+def stub_place(monkeypatch, place=DULUTH, frequencies=(), runways=(), metar=None, surface_class="C"):
+    monkeypatch.setattr(airports, "find_place", lambda ident: place if ident.upper() in ("KDLH", "DLH") else None)
+    monkeypatch.setattr(airports, "get_frequencies", lambda ident: list(frequencies))
+    monkeypatch.setattr(airports, "get_runways", lambda ident: list(runways))
+    monkeypatch.setattr(airspace, "ensure_class_airspace_shapefile", lambda cache_dir: "airspace.shp")
+    monkeypatch.setattr(airspace, "surface_class_at", lambda lat, lon, shp: surface_class)
+    if isinstance(metar, Exception):
+        def fail(idents):
+            raise metar
+        monkeypatch.setattr(weather, "metar_for_idents", fail)
+    else:
+        monkeypatch.setattr(weather, "metar_for_idents", lambda idents: {i: metar for i in idents})
+
+
+def test_an_airports_card_names_its_class_tower_runways_radio_and_weather(monkeypatch):
+    stub_place(
+        monkeypatch,
+        frequencies=[{"type": "TWR", "description": "Tower", "frequency_mhz": 118.3}],
+        runways=[
+            {"ends": "09/27", "length_ft": 10162, "width_ft": 150, "surface": "CON", "lighted": True, "closed": False},
+            {"ends": "03/21", "length_ft": 5718, "width_ft": 150, "surface": "ASP", "lighted": True, "closed": True},
+        ],
+        metar={"raw": "KDLH 011853Z 28012KT 10SM CLR", "flight_category": "VFR"},
+    )
+    body = client.get("/api/airport/kdlh").json()
+    assert body["ident"] == "KDLH"
+    assert "source_ident" not in body
+    assert body["airspace_class"] == "C"
+    assert body["towered"] is True
+    # A closed runway is not one a pilot can use.
+    assert [r["ends"] for r in body["runways"]] == ["09/27"]
+    assert body["metar"]["flight_category"] == "VFR"
+    assert body["weather_unavailable"] is False
+
+
+def test_a_field_with_no_tower_or_station_says_so_rather_than_failing(monkeypatch):
+    stub_place(monkeypatch, frequencies=[{"type": "CTAF", "description": None, "frequency_mhz": 122.8}], surface_class=None)
+    body = client.get("/api/airport/KDLH").json()
+    assert body["towered"] is False
+    assert body["airspace_class"] is None
+    assert body["metar"] is None
+    assert body["weather_unavailable"] is False
+
+
+def test_a_weather_outage_is_not_a_field_without_weather(monkeypatch):
+    stub_place(monkeypatch, metar=weather.WeatherServiceError("aviationweather.gov is down"))
+    body = client.get("/api/airport/KDLH").json()
+    assert body["metar"] is None
+    assert body["weather_unavailable"] is True
+
+
+def test_an_ident_nobody_uses_is_a_404(monkeypatch):
+    stub_place(monkeypatch)
+    response = client.get("/api/airport/ZZZZ")
+    assert response.status_code == 404
+    assert "ZZZZ" in response.json()["detail"]
+
+
+def test_the_fields_in_view_come_from_the_box_and_the_limit(monkeypatch):
+    asked = {}
+
+    def places_in(south, west, north, east, limit):
+        asked.update(south=south, west=west, north=north, east=east, limit=limit)
+        return [{**DULUTH}]
+
+    monkeypatch.setattr(airports, "places_in", places_in)
+    body = client.get("/api/airports/in-view", params={"south": 46, "west": -93, "north": 47, "east": -92, "limit": 50}).json()
+    assert asked == {"south": 46, "west": -93, "north": 47, "east": -92, "limit": 50}
+    assert body["airports"][0]["ident"] == "KDLH"
+    assert "source_ident" not in body["airports"][0]
+
+
+def test_a_box_turned_inside_out_is_refused(monkeypatch):
+    monkeypatch.setattr(airports, "places_in", lambda *args: [])
+    response = client.get("/api/airports/in-view", params={"south": 47, "west": -93, "north": 46, "east": -92})
+    assert response.status_code == 422

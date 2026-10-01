@@ -2,7 +2,7 @@ import createClient, { type Middleware } from "openapi-fetch";
 import type { paths } from "./schema";
 import type { paths as WebappPaths } from "./webapp-schema";
 import type {
-  Aircraft, AircraftChoice, AircraftProfiles, AircraftRequest, AirportSearch, AltitudeChoice, Briefing, BuildJob,
+  Aircraft, AircraftChoice, AircraftProfiles, AircraftRequest, AirportPlace, AirportSearch, AirportsInView, AltitudeChoice, Briefing, BuildJob,
   BuiltRoutes, ChartRefreshStarted, CheckpointDescriptionMessage, CheckpointNoteSaved, Checkpoints, Classification, Course,
   Flight, FlightSummary, ModelComparison, NarrativeMessage, NarrativeRequest, NavLogMessage, PickDeleted, PickSaved,
   ClassBResponse, DevServices, DevServiceStarted, PicksResponse, Pilot, Rating, RetrainStarted, Role, SaveFlightRequest,
@@ -327,6 +327,16 @@ export const api = {
    *  this is safe to call on every keystroke including the first. */
   airportSearch: (q: string) =>
     planner.GET("/api/airports/search", { params: { query: { q } } }).then(data<AirportSearch>).then(r => r.airports),
+
+  /** One airport's card: where it is, the airspace over it, its runways
+   *  and radio, and the weather there now. */
+  airport: (ident: string) =>
+    planner.GET("/api/airport/{ident}", { params: { path: { ident } } }).then(data<AirportPlace>),
+
+  /** The landing fields inside a box, the biggest first: what the map
+   *  lays its tap targets over, so the chart's own airports open cards. */
+  airportsInView: (box: { south: number; west: number; north: number; east: number; limit?: number }) =>
+    planner.GET("/api/airports/in-view", { params: { query: box } }).then(data<AirportsInView>).then(r => r.airports),
 
   /**
    * The signed-in pilot, or null when signed out -- a Spring Boot

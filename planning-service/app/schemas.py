@@ -727,6 +727,45 @@ class AirportSearch(BaseModel):
     airports: list[AirportSuggestion]
 
 
+class AirportPin(BaseModel):
+    """A landing field the map can open a card for: the ident pilots use,
+    where it is, and its size -- the bigger ones are kept when a wide
+    view holds more than the map asks for."""
+
+    ident: str
+    name: str
+    lat: float
+    lon: float
+    kind: Literal["large", "medium", "small", "other"]
+
+
+class AirportsInView(BaseModel):
+    airports: list[AirportPin]
+
+
+class AirportPlace(BaseModel):
+    """One airport the way the map's card shows it: its name and place,
+    the class of the airspace over it, whether it has a tower, its
+    runways and radio, and the weather there now. `metar` is None for a
+    field with no reporting station, and `weather_unavailable` says the
+    weather service could not be asked at all -- not the same thing."""
+
+    ident: str
+    name: str
+    municipality: str | None = None
+    region: str | None = None
+    lat: float
+    lon: float
+    elevation_ft: float | None = None
+    kind: Literal["large", "medium", "small", "other"]
+    airspace_class: Literal["B", "C", "D"] | None = None
+    towered: bool
+    runways: list[Runway]
+    frequencies: list[Frequency]
+    metar: Metar | None = None
+    weather_unavailable: bool = False
+
+
 class ModelComparisonEntry(BaseModel):
     """`metric` names which number `score` is: cv_mae for the sklearn
     family and Spark, held_out_mae for PyTorch/TensorFlow. Lower is

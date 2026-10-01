@@ -7,8 +7,8 @@ export type Screen = { name: string; ready: (page: Page) => Promise<void> };
 const ROUTE = "dep=C81&dest=KDLH";
 
 /**
- * The screens the iOS audit measures: the planner's map, its drawer and
- * the nav log with a leg open, the training drawer with a waypoint open,
+ * The screens the iOS audit measures: the planner's map, its panel and
+ * the nav log with a leg open, an airport's card, the training drawer with a waypoint open,
  * both consoles and the settings. Nothing is written: a row is selected,
  * never rated, and no note is typed.
  */
@@ -40,6 +40,13 @@ export const SCREENS: Screen[] = [
       // which no finger does.
       await page.locator("tbody tr[tabindex='0']").nth(3).dispatchEvent("click");
       await expect(page.locator("tbody textarea").first()).toBeVisible();
+    },
+  },
+  {
+    name: "airport card",
+    ready: async page => {
+      await page.goto(`/app/plan?${ROUTE}&place=KDLH`);
+      await expect(page.getByTestId("place-name")).toHaveText("Duluth International Airport", { timeout: slow(30000) });
     },
   },
   {

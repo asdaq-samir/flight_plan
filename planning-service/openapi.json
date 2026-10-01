@@ -240,6 +240,171 @@
         "title": "AirportFacilities",
         "type": "object"
       },
+      "AirportPin": {
+        "description": "A landing field the map can open a card for: the ident pilots use,\nwhere it is, and its size -- the bigger ones are kept when a wide\nview holds more than the map asks for.",
+        "properties": {
+          "ident": {
+            "title": "Ident",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "large",
+              "medium",
+              "small",
+              "other"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "lat": {
+            "title": "Lat",
+            "type": "number"
+          },
+          "lon": {
+            "title": "Lon",
+            "type": "number"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "ident",
+          "name",
+          "lat",
+          "lon",
+          "kind"
+        ],
+        "title": "AirportPin",
+        "type": "object"
+      },
+      "AirportPlace": {
+        "description": "One airport the way the map's card shows it: its name and place,\nthe class of the airspace over it, whether it has a tower, its\nrunways and radio, and the weather there now. `metar` is None for a\nfield with no reporting station, and `weather_unavailable` says the\nweather service could not be asked at all -- not the same thing.",
+        "properties": {
+          "airspace_class": {
+            "anyOf": [
+              {
+                "enum": [
+                  "B",
+                  "C",
+                  "D"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Airspace Class"
+          },
+          "elevation_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Elevation Ft"
+          },
+          "frequencies": {
+            "items": {
+              "$ref": "#/components/schemas/Frequency"
+            },
+            "title": "Frequencies",
+            "type": "array"
+          },
+          "ident": {
+            "title": "Ident",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "large",
+              "medium",
+              "small",
+              "other"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "lat": {
+            "title": "Lat",
+            "type": "number"
+          },
+          "lon": {
+            "title": "Lon",
+            "type": "number"
+          },
+          "metar": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Metar"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "municipality": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Municipality"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "region": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Region"
+          },
+          "runways": {
+            "items": {
+              "$ref": "#/components/schemas/Runway"
+            },
+            "title": "Runways",
+            "type": "array"
+          },
+          "towered": {
+            "title": "Towered",
+            "type": "boolean"
+          },
+          "weather_unavailable": {
+            "default": false,
+            "title": "Weather Unavailable",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ident",
+          "name",
+          "lat",
+          "lon",
+          "kind",
+          "towered",
+          "runways",
+          "frequencies"
+        ],
+        "title": "AirportPlace",
+        "type": "object"
+      },
       "AirportSearch": {
         "properties": {
           "airports": {
@@ -294,6 +459,22 @@
           "name"
         ],
         "title": "AirportSuggestion",
+        "type": "object"
+      },
+      "AirportsInView": {
+        "properties": {
+          "airports": {
+            "items": {
+              "$ref": "#/components/schemas/AirportPin"
+            },
+            "title": "Airports",
+            "type": "array"
+          }
+        },
+        "required": [
+          "airports"
+        ],
+        "title": "AirportsInView",
         "type": "object"
       },
       "AirspaceTransit": {
@@ -4629,6 +4810,133 @@
           }
         },
         "summary": "Aircraft Profiles"
+      }
+    },
+    "/api/airport/{ident}": {
+      "get": {
+        "description": "One US airport's card, by any ident it goes by (C81, KC81, KDLH).\n\n`airspace_class` is the class of the controlled airspace reaching\nthe surface at the field (B, C or D), None where none does.\n`towered` is whether it lists a tower frequency. A field with no\nreporting station has no `metar`; `weather_unavailable` is set only\nwhen the weather service could not be asked.",
+        "operationId": "airport_place_api_airport__ident__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ident",
+            "required": true,
+            "schema": {
+              "title": "Ident",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AirportPlace"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Airport Place"
+      }
+    },
+    "/api/airports/in-view": {
+      "get": {
+        "description": "The landing fields inside the map's view, the biggest first --\nat most `limit` of them, since a whole state holds thousands and the\nmap only lays a tap target over each.",
+        "operationId": "airports_in_view_api_airports_in_view_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "south",
+            "required": true,
+            "schema": {
+              "maximum": 90,
+              "minimum": -90,
+              "title": "South",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "west",
+            "required": true,
+            "schema": {
+              "maximum": 180,
+              "minimum": -180,
+              "title": "West",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "north",
+            "required": true,
+            "schema": {
+              "maximum": 90,
+              "minimum": -90,
+              "title": "North",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "east",
+            "required": true,
+            "schema": {
+              "maximum": 180,
+              "minimum": -180,
+              "title": "East",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 300,
+              "maximum": 1000,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AirportsInView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Airports In View"
       }
     },
     "/api/airports/search": {

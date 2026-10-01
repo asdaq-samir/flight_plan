@@ -6,6 +6,7 @@ import { classBQuery } from "../../../lib/queryClient";
 import type { Candidate, ClassBAirport, Course } from "../../../lib/api/types";
 import type { BriefingState } from "../hooks/usePlan";
 import { AirportCard, type AirportWeather } from "../../../lib/map/AirportCard";
+import { AirportsLayer } from "../../../lib/map/AirportsLayer";
 import { chipColourOf } from "../../../lib/map/flightCategory";
 import { CourseLine } from "../../../lib/map/CourseLine";
 import { Halo } from "../../../lib/map/Halo";
@@ -40,6 +41,10 @@ interface Props {
   /** The route's briefing (see `usePlan`): the departure and
    *  destination's own current METARs, and where fetching it stands. */
   airportWeather: BriefingState;
+  /** The airport whose card is open, and the way to open one from the
+   *  chart (AirportsLayer) -- or, with null, to put it away. */
+  place: { ident: string; lat: number; lon: number } | null;
+  onSelectPlace: (ident: string | null) => void;
 }
 
 /** What a checkpoint's popup says: the same small card whether the
@@ -182,14 +187,15 @@ function Checkpoints({ candidates, selected, showCandidates, onSelectCandidate }
 }
 
 /**
- * The planned route on the chart: the course line, the two airports,
- * the checkpoints, the selection ring, own ship. Everything under them
+ * The planned route on the chart: the course line, the chart's own
+ * airports made tappable, the route's two, the checkpoints, the
+ * selection ring, own ship. Everything under them
  * -- the container, the chart tiles, the fit, the corner controls --
  * is `MapShell`, which the training map shares.
  */
 export default function RouteMap({
   course, candidates, selected, showCandidates, focus, onSelectCandidate, onSelectPoint,
-  zoom, airportWeather,
+  zoom, airportWeather, place, onSelectPlace,
 }: Props) {
   const focusZoom = course?.max_zoom ?? 12;
 
@@ -201,6 +207,7 @@ export default function RouteMap({
             line={course.course_line as [number, number][]}
             tooltip={`${course.departure.ident} → ${course.destination.ident} · ${course.distance_nm} nm`}
           />
+          <AirportsLayer selected={place} onSelect={onSelectPlace} />
           <Endpoints course={course} weather={airportWeather} onSelectPoint={onSelectPoint} />
           <Checkpoints candidates={candidates} selected={selected} showCandidates={showCandidates} onSelectCandidate={onSelectCandidate} />
           <OwnShipLayer />

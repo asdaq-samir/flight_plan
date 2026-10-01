@@ -1,9 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { cn } from "cn";
 import { api } from "../../lib/api/client";
-import { pilotQuery } from "../../lib/queryClient";
-import type { AircraftChoice, AircraftProfileSummary, AltitudeChoice, Candidate } from "../../lib/api/types";
+import { pilotQuery, queryClient } from "../../lib/queryClient";
+import type { AircraftChoice, AircraftProfileSummary, AirportPlace, AltitudeChoice, Candidate } from "../../lib/api/types";
+import { distanceNm } from "../../lib/geo";
+import { useOwnShip } from "../../lib/map/ownShip";
 import { identOf, routeOf } from "../../lib/identSchema";
 import { DEFAULT_AIRCRAFT, usePreferences } from "../../lib/preferences";
 // Without this Leaflet's tiles, markers and controls have no
@@ -18,6 +20,7 @@ import { Alert, AlertDescription, AlertTitle } from "../../components/ui/alert";
 import BuildNotice from "./components/BuildNotice";
 import FlightBriefingView, { BriefingNotices, PlanningAidNote, SaveFlightButton } from "./components/briefing/FlightBriefingView";
 import FlightInputs from "./components/navlog/FlightInputs";
+import PlaceCard from "./components/PlaceCard";
 import NavLogActions from "./components/navlog/NavLogActions";
 import NavLogView from "./components/navlog/NavLogView";
 import RouteMap from "./components/RouteMap";
@@ -57,7 +60,7 @@ function baseProfile(typeDesignator: string, profiles: AircraftProfileSummary[])
  * a key; and the screen is derived from the queries on each render,
  * nothing kept in step by hand.
  */
-export default function PlanWorkspace({ dep, dest, panel, children }: WorkspaceProps) {
+export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: WorkspaceProps) {
   // The panel out at all: the nav log is in sight, and a checkpoint
   // picked on the map opens its section.
   const panelOpen = panel !== "peek";
@@ -142,6 +145,67 @@ export default function PlanWorkspace({ dep, dest, panel, children }: WorkspaceP
     [routeKey],
   );
   const [showCandidates, setShowCandidates] = useState(true);
+
+  // The airport whose card is open in the panel (PlaceCard), as Maps
+  // opens a place's: from a tap on the chart, held in the address so a
+  // link lands on it. Opening one brings the panel up half way; putting
+  // it away lowers the panel again.
+  const place = identOf(searchParams.get("place")) || null;
+  const selectPlace = useCallback((ident: string | null) => {
+    if ((ident ?? null) === place) return;
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      if (ident) next.set("place", ident);
+      else next.delete("place");
+      next.delete("view");
+      return next;
+    }, { replace: true });
+    setPanel(ident ? "half" : "peek");
+  }, [place, setSearchParams, setPanel]);
+  // Landed on with a card in the address, the panel comes up to show it
+  // -- once, on landing, and never again when the panel moves later.
+  const landed = useRef(false);
+  useEffect(() => {
+    if (landed.current) return;
+    landed.current = true;
+    if (place) setPanel("half");
+  }, [place, setPanel]);
+  const { data: placeData } = useQuery({
+    queryKey: ["airport", place], queryFn: () => api.airport(place!), enabled: !!place, staleTime: 5 * 60_000,
+  });
+  // How far it is: from own ship's position when there is one, from the
+  // route's departure otherwise.
+  const fix = useOwnShip(o => (o.enabled ? o.fix : null));
+  const measuredFrom = fix
+    ? { point: { lat: fix.lat, lon: fix.lon }, name: null }
+    : course ? { point: course.departure, name: course.departure.ident } : null;
+  // Fly Here: the card's airport as the destination, from the airport
+  // own ship is nearest when its position is known, else from the
+  // route's departure (or, when that is this airport, its destination) --
+  // the last place the pilot planned from. The plan loads at once, with
+  // the card put away and the panel half up on it.
+  const flyHere = useCallback(async (to: AirportPlace) => {
+    let from: string | null = null;
+    const here = useOwnShip.getState();
+    if (here.enabled && here.fix) {
+      const { lat, lon } = here.fix;
+      const near = await queryClient.fetchQuery({
+        queryKey: ["airportsNear", lat.toFixed(2), lon.toFixed(2)],
+        queryFn: () => api.airportsInView({ south: lat - 0.5, west: lon - 0.5, north: lat + 0.5, east: lon + 0.5, limit: 1000 }),
+        staleTime: 10 * 60_000,
+      }).catch(() => []);
+      from = near.filter(a => a.ident !== to.ident && a.kind !== "other")
+        .sort((a, b) => distanceNm(here.fix!, a) - distanceNm(here.fix!, b))[0]?.ident ?? null;
+    }
+    from ??= planned.dep && planned.dep !== to.ident ? planned.dep
+      : planned.dest && planned.dest !== to.ident ? planned.dest : null;
+    const next: Record<string, string> = { dest: to.ident };
+    if (from) next.dep = from;
+    if (depart) next.depart = depart;
+    setSearchParams(next, { replace: true });
+    setLoad(n => n + 1);
+    setPanel("half");
+  }, [planned.dep, planned.dest, depart, setSearchParams, setPanel]);
 
   const submit = useCallback(() => {
     const route = routeOf(dep, dest);
@@ -285,10 +349,24 @@ export default function PlanWorkspace({ dep, dest, panel, children }: WorkspaceP
           onSelectPoint={(lat, lon) => selectPoint({ lat, lon })}
           zoom={{ showSelected, disabled: !course }}
           airportWeather={s.briefing}
+          place={placeData ? { ident: placeData.ident, lat: placeData.lat, lon: placeData.lon } : null}
+          onSelectPlace={selectPlace}
         />
       </div>
     ),
-    sidebar: navLog,
+    // The open airport's card over the nav log, which stays mounted
+    // underneath with whatever was open in it; on paper the nav log.
+    sidebar: (
+      <>
+        {place && (
+          <PlaceCard
+            key={place} ident={place} from={measuredFrom}
+            onClose={() => selectPlace(null)} onFlyHere={to => void flyHere(to)} onExpand={() => setPanel("full")}
+          />
+        )}
+        <div className={cn("flex min-h-0 flex-1 flex-col print:flex", place && "hidden")}>{navLog}</div>
+      </>
+    ),
     // The aeroplane and the departure time, in sight with the panel down.
     controls: (
       <FlightInputs

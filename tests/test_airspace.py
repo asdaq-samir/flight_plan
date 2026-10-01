@@ -204,3 +204,17 @@ def test_transits_follow_the_legs_flown_not_the_straight_line(tmp_path, monkeypa
     assert airspace.airspace_transits(start, end, shp) == []
     through = airspace.airspace_transits(start, end, shp, fixes=[start, (41.6, -93.6), end])
     assert [t["name"] for t in through] == ["DES MOINES"]
+
+
+def test_an_airports_own_class_is_the_most_restrictive_reaching_the_surface_there(monkeypatch):
+    """surface_class_at: B over C over D where surface areas overlap, a
+    shelf above the field does not count, and nowhere controlled is None."""
+    field = Point(-93.65, 41.53)
+    polygons = [
+        {**_airspace(0.0, field), "class": "D"},
+        {**_airspace(0.0, field), "class": "C"},
+        {**_airspace(3000.0, field), "class": "B"},
+    ]
+    monkeypatch.setattr(airspace, "load_controlled_airspace", lambda shp_path, bbox: polygons)
+    assert airspace.surface_class_at(field.y, field.x, "airspace.shp") == "C"
+    assert airspace.surface_class_at(field.y + 1, field.x, "airspace.shp") is None
