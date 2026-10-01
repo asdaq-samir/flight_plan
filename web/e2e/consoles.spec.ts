@@ -48,9 +48,9 @@ test("plan page: the pilot console holds the account, aeroplanes and flights, an
   // The guide first, where someone new to the planner starts.
   await expect(pilot.getByRole("tab").first()).toHaveText("Guide");
   await pilot.getByRole("tab", { name: "Aircraft" }).click();
-  await expect(pilot.getByRole("heading", { name: "Aircraft" })).toBeVisible();
+  await expect(pilot.getByRole("region", { name: "Aircraft", exact: true })).toBeVisible();
   await pilot.getByRole("tab", { name: "Flights" }).click();
-  await expect(pilot.getByRole("heading", { name: "My Flights" })).toBeVisible();
+  await expect(pilot.getByRole("region", { name: "Flights", exact: true })).toBeVisible();
 
   // The console is modal: Escape puts it away, and then the drawer
   // opens from the header, and Escape closes that too.

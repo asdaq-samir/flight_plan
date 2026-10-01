@@ -1,10 +1,8 @@
-import { cn } from "cn";
 import { ListGroup, ListRow } from "../../../components/GroupedList";
 import { Badge } from "../../../components/ui/badge";
 import { Kbd } from "../../../components/ui/kbd";
 import type { Rating } from "../../../lib/api/types";
 import { inkOn } from "../../../lib/scoreScale";
-import { TEXT } from "../../../lib/text";
 import { COLORS } from "../logic";
 
 /** Two keys, and everything else is a button -- the zoom on the map,
@@ -26,41 +24,38 @@ const SCALE: [Rating, string, string][] = [
 
 /**
  * The rating scale and the keyboard shortcuts for rating: what a
- * developer reads before walking a route. It lives in the Developer
- * drawer's own "rate its checkpoints" step (see DevPanel),
- * beside the instructions for it, rather than behind an info button
- * in the header the way the planner's own score key does. The scale is
- * a grouped list, a row a rating with its badge, as the app's lists
- * are; it was a box of its own.
+ * developer reads before walking a route, under the Training tab's
+ * steps (see DevPanel). Two grouped lists, as the rest of the console
+ * is: the scale, a row a rating with its badge, the question it
+ * answers above it and what matters most below; and the keys, a row
+ * each with the key at its end, as iOS lists a shortcut. They were a
+ * paragraph either side of the scale and a wrap of keys.
  */
 export default function RatingGuide() {
   return (
-    <div className={cn("space-y-3", TEXT.prose)}>
-      <p className="italic">
-        Flying this leg, would I look up and know <i>that&rsquo;s the one</i> — not one like it?
-      </p>
-      <ListGroup>
+    <div className="space-y-6">
+      <ListGroup
+        title="Rating scale"
+        footer={<>0 vs 1 matters most: 0 means the detector should never have surfaced it, 1 that it&rsquo;s real but poor. Ignore spacing, since selection already keeps them apart, and judge at this zoom.</>}
+      >
+        <ListRow
+          title={<span className="italic">Flying this leg, would I look up and know <i className="not-italic font-semibold">that&rsquo;s the one</i>, not one like it?</span>}
+        />
         {SCALE.map(([n, lead, text]) => (
           <ListRow
             key={n}
-            media={<Badge style={{ backgroundColor: COLORS[n], color: inkOn(COLORS[n]) }}>{n}</Badge>}
+            media={<Badge className="w-6 justify-center px-0" style={{ backgroundColor: COLORS[n], color: inkOn(COLORS[n]) }}>{n}</Badge>}
             title={<span>{lead && <b>{lead}</b>} {text}</span>}
           />
         ))}
       </ListGroup>
-      <p>
-        <b>0 vs 1 matters most</b> — 0 means the detector should never have surfaced it,
-        1 means it&rsquo;s real but poor. <b>Ignore spacing</b>; selection already enforces
-        separation. <b>Judge at this zoom</b>.
-      </p>
-      <div className="flex flex-wrap gap-x-4 gap-y-1.5">
+      <ListGroup title="Keys">
         {SHORTCUTS.map(([key, text]) => (
-          <div key={text} className="flex items-center gap-2">
+          <ListRow key={text} title={text.charAt(0).toUpperCase() + text.slice(1)}>
             {key && <Kbd className="whitespace-nowrap">{key}</Kbd>}
-            <span>{text}</span>
-          </div>
+          </ListRow>
         ))}
-      </div>
+      </ListGroup>
     </div>
   );
 }

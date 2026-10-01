@@ -104,7 +104,10 @@ export function hitAreaMisses(page: Page, scope = "body", size = 44): Promise<Hi
         const b = a.getBoundingClientRect();
         port = { l: Math.max(port.l, b.left), t: Math.max(port.t, b.top), r: Math.min(port.r, b.right), b: Math.min(port.b, b.bottom) };
       }
-      if (cx - half < port.l || cx + half > port.r || cy - half < port.t || cy + half > port.b) continue;
+      // A port's right and bottom edges are past it: a probe on one
+      // finds what is beyond (a row cut off at 992 by its list, probed
+      // at 992, found the panel's foot under it).
+      if (cx - half < port.l || cx + half >= port.r || cy - half < port.t || cy + half >= port.b) continue;
       const probes = [[-1, 0], [1, 0], [0, -1], [0, 1], [-1, -1], [1, -1], [-1, 1], [1, 1]];
       const takers: string[] = [];
       const lost = probes.filter(([dx, dy]) => {

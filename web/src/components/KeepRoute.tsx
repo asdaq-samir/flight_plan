@@ -1,10 +1,9 @@
-import { cn } from "cn";
-import { Button } from "./ui/button";
+import { Download } from "lucide-react";
+import { ListGroup, ListRow } from "./GroupedList";
 import type { Course } from "../lib/api/types";
 import { CORRIDOR_NM, keep, keepKey, keepingAvailable, useKeepJob } from "../lib/map/keepRoute";
 import { chartPair } from "../lib/map/tiles";
 import { usePreferences } from "../lib/preferences";
-import { TEXT } from "../lib/text";
 
 interface Props {
   course: Course | null;
@@ -55,20 +54,18 @@ export default function KeepRoute({ course }: Props) {
     status = `Every ${layer?.label ?? "chart"} tile within ${CORRIDOR_NM} nm of the course, whole-route view to full detail, kept in this browser.`;
   }
 
+  // A group of its own at the guide's foot, as iOS sets an action under
+  // its heading with what it did in the note under it: the row is the
+  // button, in the tint.
   return (
-    <div className="space-y-2 border-t border-border pt-2">
-      <div className={cn("font-semibold uppercase tracking-wide text-muted-foreground", TEXT.note)}>In the air</div>
-      <Button
-        // Wrapping: its words at a small button's 15 to a finger ran past
-        // the console's edge with the text set 150% larger.
-        type="button" size="sm" variant="outline" className="h-auto min-h-8 w-full whitespace-normal py-1.5"
+    <ListGroup title="In the air" footer={<span data-testid="keep-route-status">{status}</span>}>
+      <ListRow
+        media={<Download className="size-5" />}
+        title={running ? "Fetching tiles…" : "Keep this route's charts on this device"}
         disabled={!available || !course || !layer || running}
         onClick={() => { if (course && layer) void keep(course, layer); }}
         data-testid="keep-route"
-      >
-        {running ? "Fetching tiles…" : "Keep this route's charts on this device"}
-      </Button>
-      <p className={cn("text-muted-foreground", TEXT.note)} data-testid="keep-route-status">{status}</p>
-    </div>
+      />
+    </ListGroup>
   );
 }

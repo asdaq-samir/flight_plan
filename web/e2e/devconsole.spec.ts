@@ -38,9 +38,10 @@ test("a snapshot that failed reads no answer, and nothing waits for it for ever"
   await expect(row(page, /crewai-agent/)).toContainText("no answer");
   await expect(row(page, /webapp/)).toContainText("no answer");
   await expect(row(page, /planning-service/)).toContainText("no answer");
-  // The reference data's table says so too, once its section is opened:
-  // the tab opens on Services alone, the rest folded under their titles.
-  await consoleSheet(page).getByRole("button", { name: "Reference data" }).click();
+  // The reference data's page says so too, once its row is tapped: the
+  // tab opens on Services, the rest a row each that opens its own page.
+  await consoleSheet(page).getByRole("button", { name: /^Reference data/ }).click();
+  await expect(consoleSheet(page).getByRole("heading", { name: "Reference data" })).toBeVisible();
   await expect(consoleSheet(page).getByText("The planner did not answer.")).toBeVisible();
   await expect(consoleSheet(page).getByText("Asking the planner for its status…")).toHaveCount(0);
 });
@@ -59,4 +60,18 @@ test("a snapshot from long ago -- the service worker's, with the planner out of 
 
   await expect(consoleSheet(page).getByTestId("stale-snapshot")).toContainText("has not answered since this snapshot, 40 min ago");
   await expect(consoleSheet(page).getByText(/Checked 40 min ago — the planner has not answered since/)).toBeVisible();
+});
+
+test("the System tab's rows open a page each, as Settings does, and back returns to the row", async ({ page }) => {
+  await openSystemTab(page);
+  const sheet = consoleSheet(page);
+  await sheet.getByRole("button", { name: /^Elsewhere in the stack/ }).click();
+  // The page in the tab's place, read from its title on.
+  await expect(sheet.getByRole("heading", { name: "Elsewhere in the stack" })).toBeFocused();
+  await expect(sheet.getByRole("region", { name: "Services" })).toHaveCount(0);
+  await expect(sheet.getByRole("link", { name: /API docs/ }).first()).toBeVisible();
+
+  await sheet.getByRole("button", { name: "System", exact: true }).click();
+  await expect(sheet.getByRole("region", { name: "Services" })).toBeVisible();
+  await expect(sheet.getByRole("button", { name: /^Elsewhere in the stack/ })).toBeFocused();
 });

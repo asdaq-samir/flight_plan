@@ -1,4 +1,3 @@
-import type { ReactNode } from "react";
 import { usePreferences } from "../../lib/preferences";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useLocation } from "react-router-dom";
@@ -6,11 +5,10 @@ import { BrainCircuit, ExternalLink, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { Bar, BarChart, Cell, LabelList, XAxis, YAxis } from "recharts";
 import { cn } from "cn";
-import AccordionSection from "../../components/AccordionSection";
+import { ConsolePages, PageRow, StepRow } from "../../components/ConsolePages";
 import ConsoleTabs from "../../components/ConsoleTabs";
 import { ListGroup, ListRow } from "../../components/GroupedList";
 import StatusBadge, { type Tone } from "../../components/StatusBadge";
-import { Accordion } from "../../components/ui/accordion";
 import { Progress } from "../../components/ui/progress";
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "../../components/ui/chart";
 import { api, errorMessage } from "../../lib/api/client";
@@ -49,16 +47,17 @@ const CHART_KIND_LABELS: Record<string, string> = {
 /**
  * The developer's own console, in a `MapDrawer` dropping down over the
  * training map (see MapPage): what the repo does that a pilot never
- * sees, one tab each. Guide, first -- the three steps that
- * change the model (collect a route, rate it, retrain), the routes
- * collected and how far their ratings have come, the rating guide and
- * the last training run; no inputs of its own, since the header's
- * route form loads and collects routes and Retrain sits in the Model
- * Training drawer's More menu, beside the ratings it learns from.
- * Performance -- every algorithm trained, the promoted one and the
- * registry behind it. System -- which
- * services answer, how fresh the FAA and weather data is, the charts,
- * and the doors into the rest of the stack. All of it from one
+ * sees, one tab each, each a page of grouped lists as iOS's Settings
+ * is. Guide, first -- the three steps that change the model (collect a
+ * route, rate it, retrain), then the rating scale and the keys; no
+ * inputs of its own, since the header's route form loads and collects
+ * routes and Retrain sits in the Model Training drawer's More menu,
+ * beside the ratings it learns from. Performance -- the ratings and the
+ * routes collected, the model serving and (a page of its own) the
+ * versions before it, the last training run and every algorithm
+ * trained. System -- which services answer, then a page each for how
+ * fresh the FAA and weather data is, the charts, and the doors into
+ * the rest of the stack. All of it from one
  * `/api/status` snapshot, refreshed while open. The pilot's page has
  * the same drawer in the same place, holding the pilot's things
  * instead (see PilotPanel).
@@ -127,21 +126,21 @@ const modelComparisonChartConfig = {
 // such at a glance, not just on hover.
 const PROMOTED_BAR_COLOR = "#10b981";
 
-function ModelComparisonChart() {
+function ModelComparison() {
   const { data, error } = useQuery({ queryKey: ["modelComparison"], queryFn: api.modelComparison });
   // A candidate whose metrics file has no score sorts last, not first.
   const rows = data ? [...data.models].sort((a, b) => (a.score ?? Infinity) - (b.score ?? Infinity)) : null;
 
+  // A group of its own, the chart its one row and what it shows in the
+  // note under it, as the tab's other groups are.
   return (
-    <>
-      <p className={cn("mb-3 text-muted-foreground", TEXT.note)}>
-        Error on the {data?.n_labeled ?? "—"} ratings, lower is better; green is the model serving.
-      </p>
+    <ListGroup title="Model comparison" footer={`Error on the ${data?.n_labeled ?? "—"} ratings, lower is better; green is the model serving.`}>
       {/* Status, not reading text: grey, as a placeholder is, and said to a
           screen reader when it changes. */}
-      {!error && !rows && <p role="status" className="text-muted-foreground">Reading each model's metrics…</p>}
-      {rows?.length === 0 && <p role="status" className="text-muted-foreground">No trained models are available.</p>}
+      {!error && !rows && <ListRow title={<span role="status" className="text-muted-foreground">Reading each model's metrics…</span>} />}
+      {rows?.length === 0 && <ListRow title={<span role="status" className="text-muted-foreground">No trained models are available.</span>} />}
       {rows && rows.length > 0 && (
+        <div className="px-1 py-3">
         <ChartContainer
           config={modelComparisonChartConfig}
           className="aspect-auto w-full"
@@ -185,8 +184,9 @@ function ModelComparisonChart() {
             </Bar>
           </BarChart>
         </ChartContainer>
+        </div>
       )}
-    </>
+    </ListGroup>
   );
 }
 
@@ -219,14 +219,14 @@ function DataSection({ status, failed }: { status: Status | undefined; failed: b
   const current = status?.model?.current;
   const unseen = Math.max(0, total - (current?.n_labeled ?? 0));
   return (
-    <AccordionSection title="Data" description="Every collected route and how far its rating has got.">
+    <>
       {status && (
-        <ListGroup className="mt-2">
+        <ListGroup title="Data" footer="Every rating on every collected route is what the next retrain reads.">
           <ListRow title="Ratings" value={total} />
           {current && <ListRow title="Rated since the model trained" value={unseen} />}
         </ListGroup>
       )}
-      <ListGroup className="mt-4" title="Routes">
+      <ListGroup title="Routes" footer="A route's name brings it onto the map to rate.">
         {corridors.length === 0 && (
           <ListRow title={<span className="text-muted-foreground">{status ? "No route has been collected yet." : waiting(failed)}</span>} />
         )}
@@ -254,7 +254,7 @@ function DataSection({ status, failed }: { status: Status | undefined; failed: b
           );
         })}
       </ListGroup>
-    </AccordionSection>
+    </>
   );
 }
 
@@ -274,22 +274,26 @@ function ModelSection({ status, failed }: { status: Status | undefined; failed: 
   const took = !running && lastRun?.end_date && lastRun.start_date
     ? `, took ${elapsed(new Date(lastRun.end_date).getTime() - new Date(lastRun.start_date).getTime())}` : "";
   return (
-    <AccordionSection title="Model" description="The model serving, its last training run, and the versions before it.">
+    <>
       {current ? (
-        <ListGroup className="mt-2">
+        <ListGroup title="Model">
           <ListRow title={current.model_type ?? "Unknown model"} description={`Trained ${ago(current.trained_at)} · ${current.n_features} features`}>
             <StatusBadge tone="up">Serving</StatusBadge>
           </ListRow>
           <ListRow title="CV MAE" value={current.cv_mae == null ? "—" : mae(current.cv_mae)} />
           <ListRow title="Held-out MAE" value={current.held_out_mae == null ? "—" : mae(current.held_out_mae)} />
           <ListRow title="Ratings it trained on" value={current.n_labeled ?? "—"} />
-          <ListRow title="Versions promoted" value={model?.versions.length ?? 0} />
+          {model && model.versions.length > 0
+            ? <PageRow page="versions" title="Versions promoted" value={model.versions.length} />
+            : <ListRow title="Versions promoted" value={0} />}
         </ListGroup>
       ) : (
-        <p role="status" className="mt-2 text-muted-foreground">{status ? "No model has been promoted yet." : waiting(failed)}</p>
+        <ListGroup title="Model">
+          <ListRow title={<span role="status" className="text-muted-foreground">{status ? "No model has been promoted yet." : waiting(failed)}</span>} />
+        </ListGroup>
       )}
       <ListGroup
-        className="mt-4" title="Training"
+        title="Training"
         footer={pipeline && !pipeline.airflow_reachable && (
           <>Retrain by hand with <code className="rounded bg-muted px-1 py-0.5 font-mono">docker compose run --rm pipeline-training retrain</code>.</>
         )}
@@ -302,7 +306,7 @@ function ModelSection({ status, failed }: { status: Status | undefined; failed: 
           {pipeline?.airflow_reachable && lastRun && <RunBadge state={lastRun.state} running={running} />}
         </ListRow>
         <ListRow
-          media={<BrainCircuit className="size-4" />}
+          media={<BrainCircuit className="size-5" />}
           title={running ? "Retraining…" : "Retrain the model"}
           description="From every rating; it serves only if it does better"
           onClick={retrain.start} disabled={!retrain.canStart}
@@ -310,69 +314,65 @@ function ModelSection({ status, failed }: { status: Status | undefined; failed: 
         {pipeline?.dag_id && <ListRow title="Open in Airflow" href={`http://${window.location.hostname}:8081/dags/${pipeline.dag_id}`} />}
       </ListGroup>
       {retrain.confirmDialog}
-      {model && model.versions.length > 0 && (
-        <ListGroup
-          className="mt-4" title="Promoted, newest first"
-          footer={model.candidates.length > 0 && `Also trained, not promoted: ${model.candidates.map(c => `${c.name} (${ago(c.trained_at)})`).join(", ")}.`}
-        >
-          {model.versions.slice(0, 5).map((v, i, all) => {
-            const older = all[i + 1];
-            const delta = v.cv_mae != null && older?.cv_mae != null ? v.cv_mae - older.cv_mae : null;
-            return (
-              // When it was trained, to the minute, rather than the
-              // registry's id (20260915T213500Z), which says the same
-              // thing less readably; and under it how this version
-              // moved the error against the one before it, in words.
-              <ListRow
-                key={v.name}
-                title={<span className="tabular-nums">{v.trained_at ? WHEN.format(new Date(v.trained_at)) : v.name}</span>}
-                description={<>
-                  {v.model_type ?? "—"}
-                  {delta !== null && (
-                    <> · <span className={cn(delta < -0.00005 ? "text-emerald-700 dark:text-emerald-400" : delta > 0.00005 && "text-destructive-ink")}>
-                      {Math.abs(delta) <= 0.00005 ? "no change" : `${mae(Math.abs(delta))} ${delta < 0 ? "lower" : "higher"}`}
-                    </span></>
-                  )}
-                </>}
-                value={<span className="font-mono">{v.cv_mae == null ? "—" : mae(v.cv_mae)}</span>}
-              />
-            );
-          })}
-        </ListGroup>
-      )}
-    </AccordionSection>
+    </>
+  );
+}
+
+
+/** The versions promoted before the model serving, newest first, with
+ *  how each moved the error: a page of its own (ConsolePages), opened
+ *  from the Model group's count. */
+function Versions({ model }: { model: NonNullable<Status["model"]> }) {
+  return (
+    <ListGroup
+      title="Newest first"
+      footer={model.candidates.length > 0 && `Also trained, not promoted: ${model.candidates.map(c => `${c.name} (${ago(c.trained_at)})`).join(", ")}.`}
+    >
+      {model.versions.map((v, i, all) => {
+        const older = all[i + 1];
+        const delta = v.cv_mae != null && older?.cv_mae != null ? v.cv_mae - older.cv_mae : null;
+        return (
+          // When it was trained, to the minute, rather than the
+          // registry's id (20260915T213500Z), which says the same
+          // thing less readably; and under it how this version
+          // moved the error against the one before it, in words.
+          <ListRow
+            key={v.name}
+            title={<span className="tabular-nums">{v.trained_at ? WHEN.format(new Date(v.trained_at)) : v.name}</span>}
+            description={<>
+              {v.model_type ?? "—"}
+              {delta !== null && (
+                <> · <span className={cn(delta < -0.00005 ? "text-emerald-700 dark:text-emerald-400" : delta > 0.00005 && "text-destructive-ink")}>
+                  {Math.abs(delta) <= 0.00005 ? "no change" : `${mae(Math.abs(delta))} ${delta < 0 ? "lower" : "higher"}`}
+                </span></>
+              )}
+            </>}
+            value={v.cv_mae == null ? "—" : mae(v.cv_mae)}
+          />
+        );
+      })}
+    </ListGroup>
   );
 }
 
 /** The Performance tab, for the developer training the model: the
  *  data it learns from, the model serving and the run that would
- *  replace it, and every algorithm compared -- three sections, each
- *  open, none wider than a phone. */
+ *  replace it, and every algorithm compared -- grouped lists, as iOS's
+ *  Settings are, with the versions before the model serving a page of
+ *  their own. They were three sections folded under their titles. */
 function PerformanceTab({ status, failed }: { status: Status | undefined; failed: boolean }) {
+  const model = status?.model;
   return (
-    <Accordion type="multiple" defaultValue={["Data", "Model", "Model comparison"]}>
-      <DataSection status={status} failed={failed} />
-      <ModelSection status={status} failed={failed} />
-      <AccordionSection title="Model comparison">
-        <ModelComparisonChart />
-      </AccordionSection>
-    </Accordion>
-  );
-}
-
-/** One numbered step of the training flow: a number in a circle, the
- *  step's title and what to do, then its own content. */
-function Step({ n, title, description, children }: { n: number; title: string; description: string; children?: ReactNode }) {
-  return (
-    <section className="flex gap-3">
-      <div className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
-        {n}
+    <ConsolePages
+      back="Performance"
+      pages={{ versions: { title: "Versions promoted", content: model ? <Versions model={model} /> : null } }}
+    >
+      <div className="space-y-6">
+        <DataSection status={status} failed={failed} />
+        <ModelSection status={status} failed={failed} />
+        <ModelComparison />
       </div>
-      <div className="min-w-0 flex-1">
-        <SectionHeading title={title} description={description} />
-        {children && <div className="mt-2">{children}</div>}
-      </div>
-    </section>
+    </ConsolePages>
   );
 }
 
@@ -450,47 +450,25 @@ function useOnMap(corridors: Status["corridors"]) {
 }
 
 /** The one action that changes the model, laid out as the three steps
- *  it takes: collect a route so its candidate landmarks exist, rate
- *  its checkpoints in the side drawer (what the model learns
- *  from), then retrain -- from that drawer's More menu, or the
- *  Performance tab. No inputs here: the header's route form is what
- *  loads a route and offers to collect it. This planner cannot train
- *  in-process (no scikit-learn of its own, on purpose), so the retrain
- *  goes through Airflow, the same DAG the AWS trigger Lambda starts;
- *  without Airflow reachable the Performance tab says how to run the
- *  pipeline by hand instead. */
+ *  it takes, as numbered rows: collect a route so its candidate
+ *  landmarks exist, rate its checkpoints in the Model Training panel
+ *  (what the model learns from), then retrain -- from More beside the
+ *  route, or the Performance tab. Then the rating scale and the keys
+ *  (RatingGuide). No inputs here: the route at the top of the panel is
+ *  what loads a route and offers to collect it. This planner cannot
+ *  train in-process (no scikit-learn of its own, on purpose), so the
+ *  retrain goes through Airflow, the same DAG the AWS trigger Lambda
+ *  starts; without Airflow reachable the Performance tab says how to run
+ *  the pipeline by hand instead. */
 function TrainingTab() {
   return (
     <div className="space-y-6">
-      <Step
-        n={1}
-        title="Collect a route"
-        description="Load it in the header, which offers to collect a new one."
-      />
-
-      <Step
-        n={2}
-        title="Rate its checkpoints"
-        description="In the Model Training drawer at the side, every candidate in flight order."
-      >
-        <RatingGuide />
-      </Step>
-
-      <Step
-        n={3}
-        title="Retrain"
-        description="From the drawer's More menu or Performance; the new model serves only if it does better."
-      />
-    </div>
-  );
-}
-
-/** A section's title and the one line that says what it shows. */
-function SectionHeading({ title, description }: { title: string; description?: string }) {
-  return (
-    <div>
-      <h3 className={cn("font-semibold", TEXT.row)}>{title}</h3>
-      {description && <p className={cn("mt-0.5 text-muted-foreground", TEXT.note)}>{description}</p>}
+      <ListGroup title="Train the model">
+        <StepRow n={1} title="Collect a route" description="Load it at the top of the panel, which offers to collect a new one." />
+        <StepRow n={2} title="Rate its checkpoints" description="In the Model Training panel, every candidate in flight order." />
+        <StepRow n={3} title="Retrain" description="From More beside the route, or Performance; the new model serves only if it does better." />
+      </ListGroup>
+      <RatingGuide />
     </div>
   );
 }
@@ -536,7 +514,8 @@ const DATASET_NAMES: Record<string, string> = {
   "winds-24": "Winds aloft, 24 h",
 };
 
-/** The FAA charts on disk and the tile pyramid rendered from them:
+/** The FAA charts on disk and the tile pyramid rendered from them, the
+ *  System tab's Charts page:
  *  the cycles and the render as rows, then a row per chart kind with
  *  its sheets, its tiles and how far its pyramid has got -- and, while
  *  the FAA has moved on to a newer cycle, how far that one has, being
@@ -557,8 +536,8 @@ function ChartsSection({ charts, onRefresh, refreshing }: {
       : `missing ${p.missing.length} sheet${p.missing.length === 1 ? "" : "s"}: ${p.missing.slice(0, 3).join(", ")}${p.missing.length > 3 ? "…" : ""}`;
   const workers = `${charts.refresh_workers} worker${charts.refresh_workers === 1 ? "" : "s"}`;
   return (
-    <AccordionSection title="Charts" description="The FAA charts on disk and the map tiles rendered from them." data-testid="charts-status">
-      <ListGroup className="mt-2">
+    <div className="space-y-6" data-testid="charts-status">
+      <ListGroup footer="The FAA charts on disk and the map tiles rendered from them.">
         <ListRow title="Serving cycle" value={charts.cycle} />
         <ListRow title="FAA cycle" value={newer ? `${charts.current_cycle} · ${charts.refresh_running ? "rendering" : "not yet"}` : "the same"} />
         <ListRow title="Tiles" value={charts.tiles_cached.toLocaleString()} />
@@ -569,7 +548,7 @@ function ChartsSection({ charts, onRefresh, refreshing }: {
           onClick={onRefresh} disabled={refreshing || charts.refresh_running}
         />
       </ListGroup>
-      <ListGroup className="mt-4" title="Chart kinds">
+      <ListGroup title="Chart kinds">
         {kinds.map(k => (
           <ListRow
             key={k} title={CHART_KIND_LABELS[k]}
@@ -579,7 +558,7 @@ function ChartsSection({ charts, onRefresh, refreshing }: {
         ))}
         {kinds.length === 0 && <ListRow title={<span className="text-muted-foreground">No chart prepared yet.</span>} />}
       </ListGroup>
-    </AccordionSection>
+    </div>
   );
 }
 
@@ -667,78 +646,96 @@ function SystemTab({ status, failed, onRefresh, refreshing }: {
     })),
   ];
 
-  // One stock accordion, as the flight planning drawer is: Services
-  // open, since what answers right now is what the tab is opened for,
-  // and the reference data, the charts and the links folded under
-  // their titles -- four tables at once was a screen and a half of
-  // scrolling on a phone to reach the last of them.
+  // Services on the tab's own page, since what answers right now is what
+  // the tab is opened for; the reference data, the charts and the links
+  // a row each that opens a page of its own (ConsolePages), as iOS's
+  // Settings goes deeper. They were sections folded under their titles,
+  // and four tables at once had been a screen and a half of scrolling.
   return (
-    <>
-    <Accordion type="multiple" defaultValue={["Services"]}>
-      {/* As the planner found them a moment ago: the gateway and its
-          database through Spring's actuator, the model service and the
-          agents through their own probes, the planner by answering. */}
-      <AccordionSection title="Services" description="What answers now, as the planner found it a moment ago.">
+    <ConsolePages
+      back="System"
+      pages={{
+        data: {
+          title: "Reference data",
+          content: (
+            // When it was fetched -- the one thing looked for -- at the
+            // row's end, and the file and its source under its name.
+            <ListGroup footer="The files the planner reads and how old each copy is.">
+              {datasets.map(d => (
+                <ListRow
+                  key={d.file} title={d.name}
+                  description={<><span className="font-mono">{d.file}</span> · {d.source}</>}
+                  value={d.updated ? ago(d.updated) : "not fetched yet"}
+                />
+              ))}
+              {datasets.length === 0 && (
+                <ListRow title={<span className="text-muted-foreground">{status ? "Nothing on disk yet." : waiting(failed)}</span>} />
+              )}
+            </ListGroup>
+          ),
+        },
+        charts: {
+          title: "Charts",
+          content: status?.charts
+            ? <ChartsSection charts={status.charts} onRefresh={() => refreshCharts.mutate()} refreshing={refreshCharts.isPending} />
+            : <ListGroup><ListRow title={<span className="text-muted-foreground">{waiting(failed)}</span>} /></ListGroup>,
+        },
+        elsewhere: {
+          title: "Elsewhere in the stack",
+          content: (
+            // docker-compose publishes the last five on 127.0.0.1; its lan
+            // overlay publishes them to the network, Jupyter with no
+            // password, which is why the file is to be read first.
+            <ListGroup
+              footer={<>Each in a new tab. The last five open only where the stack runs; <span className="font-mono">docker-compose.lan.yml</span> publishes them (read it first).</>}
+            >
+              {shown.map(l => <StackLink key={l.href} link={l} />)}
+            </ListGroup>
+          ),
+        },
+      }}
+    >
+      <div className="space-y-6">
         {stale && status && (
           // The service worker serves the last snapshot it has when the
           // planner is out of reach, and it arrives looking like an
           // answer; its own clock gives it away. Said here, and the
-          // table dimmed, rather than "up" in green for services that
+          // rows dimmed, rather than "up" in green for services that
           // may be anything by now.
-          <p className="mt-2 text-amber-700 dark:text-amber-400" data-testid="stale-snapshot">
+          <p className={cn("px-1 text-amber-700 dark:text-amber-400", TEXT.note)} data-testid="stale-snapshot">
             The planner has not answered since this snapshot, {ago(status.checked_at)}: what follows is what was true then.
           </p>
         )}
-        {/* A row a service, its role under its name and the status at
-            its end, on a phone and a desktop alike: it was a card a
-            service on one and a three-column table on the other. */}
-        <ListGroup className={cn("mt-2", stale && "opacity-60")}>
+        {/* As the planner found them a moment ago: the gateway and its
+            database through Spring's actuator, the model service and the
+            agents through their own probes, the planner by answering. A
+            row a service, its role under its name and the status at its
+            end. */}
+        <ListGroup title="Services" footer="What answers now, as the planner found it a moment ago." className={cn(stale && "opacity-60")}>
           {rows.map(r => (
             <ListRow key={r.name} title={r.name} description={r.detail}>
               <StatusBadge tone={HEALTH[r.health].tone}>{HEALTH[r.health].label}</StatusBadge>
             </ListRow>
           ))}
         </ListGroup>
-      </AccordionSection>
-      <AccordionSection title="Reference data" description="The files the planner reads and how old each copy is.">
-        {/* When it was fetched -- the one thing looked for -- at the
-            row's end, and the file and its source under its name. */}
-        <ListGroup className="mt-2">
-          {datasets.map(d => (
-            <ListRow
-              key={d.file} title={d.name}
-              description={<><span className="font-mono">{d.file}</span> · {d.source}</>}
-              value={d.updated ? ago(d.updated) : "not fetched yet"}
-            />
-          ))}
-          {datasets.length === 0 && (
-            <ListRow title={<span className="text-muted-foreground">{status ? "Nothing on disk yet." : waiting(failed)}</span>} />
-          )}
+        <ListGroup>
+          {/* The count alone at the row's end: with the oldest's date as
+              well the name wrapped on a phone. The page has the dates. */}
+          <PageRow page="data" title="Reference data" value={status ? `${datasets.length} files` : undefined} />
+          <PageRow page="charts" title="Charts" value={status?.charts ? `cycle ${status.charts.cycle}` : undefined} />
+          <PageRow page="elsewhere" title="Elsewhere in the stack" value={shown.length} />
         </ListGroup>
-      </AccordionSection>
-      {status?.charts && <ChartsSection charts={status.charts} onRefresh={() => refreshCharts.mutate()} refreshing={refreshCharts.isPending} />}
-      <AccordionSection title="Elsewhere in the stack" description="The other doors into the running stack, each in a new tab.">
-        {/* docker-compose publishes the last five on 127.0.0.1; its lan
-            overlay publishes them to the network, Jupyter with no
-            password, which is why the file is to be read first. */}
-        <ListGroup
-          className="mt-2"
-          footer={<>The last five open only where the stack runs; <span className="font-mono">docker-compose.lan.yml</span> publishes them (read it first).</>}
-        >
-          {shown.map(l => <StackLink key={l.href} link={l} />)}
+        {/* The services and the data are probed on a 30-second tick, and
+            this asks now: an action row at the tab's foot, as the pilot
+            asked, where it was an icon beside the tabs. */}
+        <ListGroup>
+          <ListRow
+            media={<RefreshCw className={cn("size-5", refreshing && "animate-spin")} />}
+            title="Check again" description="It checks by itself every 30 seconds"
+            onClick={onRefresh} disabled={refreshing} data-testid="dev-refresh"
+          />
         </ListGroup>
-      </AccordionSection>
-    </Accordion>
-    {/* The services and the data are probed on a 30-second tick, and
-        this asks now: an action row at the tab's foot, as the pilot
-        asked, where it was an icon beside the tabs. */}
-    <ListGroup className="mt-6">
-      <ListRow
-        media={<RefreshCw className={cn("size-4", refreshing && "animate-spin")} />}
-        title="Check again" description="It checks by itself every 30 seconds"
-        onClick={onRefresh} disabled={refreshing} data-testid="dev-refresh"
-      />
-    </ListGroup>
-    </>
+      </div>
+    </ConsolePages>
   );
 }

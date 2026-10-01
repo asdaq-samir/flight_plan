@@ -19,6 +19,9 @@ export const SCREENS: Screen[] = [
       await page.goto(`/app/plan?${ROUTE}`);
       await settle(page);
       await expect(page.locator(".leaflet-marker-icon").first()).toBeVisible({ timeout: slow(30000) });
+      // And the nav log in: until then Save is disabled, and WebKit was
+      // measured fading it in, its word at half strength.
+      await expect(page.getByTestId("save-flight-button")).toBeEnabled({ timeout: slow(30000) });
     },
   },
   {
@@ -26,6 +29,8 @@ export const SCREENS: Screen[] = [
     ready: async page => {
       await page.goto(`/app/plan?${ROUTE}&view=briefing`);
       await expect(page.getByRole("button", { name: /^Nav Log/ })).toBeVisible({ timeout: slow(30000) });
+      // Save enabled, as on the map: not judged fading in.
+      await expect(page.getByTestId("save-flight-button")).toBeEnabled({ timeout: slow(30000) });
     },
   },
   {
@@ -76,7 +81,7 @@ export const SCREENS: Screen[] = [
       await page.goto("/app/plan");
       await page.getByTestId("pilot-button").click();
       await page.getByRole("tab", { name: "Guide" }).click();
-      await expect(page.getByRole("heading", { name: "Planning a flight here" })).toBeVisible();
+      await expect(page.getByRole("heading", { name: "Plan a flight" })).toBeVisible();
     },
   },
   {
@@ -85,7 +90,7 @@ export const SCREENS: Screen[] = [
       await page.goto("/app/dev");
       await page.getByTestId("dev-console-button").click();
       await page.getByRole("tab", { name: "Guide" }).click();
-      await expect(page.getByRole("heading", { name: "Collect a route" })).toBeVisible();
+      await expect(page.getByRole("heading", { name: "Train the model" })).toBeVisible();
     },
   },
   {

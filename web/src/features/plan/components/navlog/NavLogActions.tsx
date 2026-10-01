@@ -78,8 +78,11 @@ export default function NavLogActions({ onGenerateNarrative, langgraphNarrative,
 
   return (
     // One flex item, so the pair sits together between the drawer
-    // header's other buttons.
-    <div className="flex items-center gap-2">
+    // header's other buttons -- abutting, as Save beside them and the
+    // training panel's three do: each is its own 44-point hit area. A
+    // gap here alone had the plan's three spaced unevenly, and was the
+    // eight points the route lacked in Slide Over.
+    <div className="flex items-center">
       {/* A popover from md up; on a phone a sheet from the navigation
           bar's edge, the narrative the screen's width. */}
       <ResponsivePopover

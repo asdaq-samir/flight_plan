@@ -1,8 +1,10 @@
+import type { ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { Layers, Maximize, UserRound, ZoomIn } from "lucide-react";
 import { cn } from "cn";
+import { ConsolePages, PageRow, StepRow } from "../../components/ConsolePages";
 import { ListGroup, ListRow } from "../../components/GroupedList";
 import KeepRoute from "../../components/KeepRoute";
-import { Kbd } from "../../components/ui/kbd";
 import { api } from "../../lib/api/client";
 import type { Course } from "../../lib/api/types";
 import { CRUISE_REFERENCE_FT } from "../../lib/performance";
@@ -18,76 +20,104 @@ const BUCKETS: [string, string][] = [
   [scoreColor(0), "below 3: not one to plan on"],
 ];
 
-/** One key, and everything else is a button. The letters this list
- *  used to hold fired while a pilot was typing a checkpoint note, and
- *  the arrows that walked the checkpoints were this page's own
- *  keyboard handling rather than anything the components brought --
- *  a row in the nav log takes Tab and Enter by itself. What is left is
- *  the stock sidebar's own shortcut, which this app did not write. */
-const KEYS: [string, string][] = [
-  ["Ctrl/\u2318 B", "open and close the flight planning drawer"],
-];
-
 /** Which model rated the checkpoints, in one line a pilot might
  *  reasonably want -- nothing at all while it loads or when no model
  *  has been promoted yet. */
-function ModelProvenance() {
+function useModelProvenance(): string | null {
   const { data } = useQuery({
     queryKey: ["modelComparison"], queryFn: api.modelComparison, retry: false, staleTime: Infinity,
   });
   const promoted = data?.models.find(m => m.promoted);
   if (!data || !promoted) return null;
-  return (
-    <p className={cn("text-muted-foreground", TEXT.note)}>
-      Rated by {promoted.name}
-      {promoted.score !== null && `, off by ${promoted.score.toFixed(2)} on average`}
-      {data.n_labeled != null && ` against ${data.n_labeled} checkpoints pilots rated by hand`}.
-    </p>
-  );
+  return `Rated by ${promoted.name}${promoted.score !== null ? `, off by ${promoted.score.toFixed(2)} on average` : ""}${
+    data.n_labeled != null ? ` against ${data.n_labeled} checkpoints pilots rated by hand` : ""}.`;
+}
+
+/** A page's reading: the text's own colour at a paragraph's size. */
+function Reading({ children }: { children: ReactNode }) {
+  return <div className={cn("space-y-3", TEXT.prose)}>{children}</div>;
 }
 
 /**
- * The planner explained to the pilot, the Pilot drawer's Guide tab:
- * what to do, in order; how the nav log flies the aeroplane; what the
- * colours on the chart mean; what the map's own controls do; keeping
- * the route for the air; and the keys.
- * This is what the header's info popover used to hold, written for the
- * pilot rather than for whoever built it. Its words in the text's own
- * colour, as the sidebar's briefing is: grey is for a row's detail, a
- * summary and a note, and the guide's paragraphs in it read as a
- * different app's beside the drawer.
+ * The planner explained to the pilot, the pilot console's Guide tab, as
+ * iOS lays out a page of Settings: what to do, in four numbered steps;
+ * what the checkpoints' colours mean; the longer reading -- how the nav
+ * log flies the aeroplane, the map's buttons, the app on a phone -- a
+ * row each that opens a page of its own (ConsolePages); and keeping the
+ * route's charts for the air. It was a column of headings over
+ * paragraphs, a screen and a half of reading on a phone before the
+ * colours, and still told the pilot about the header and its drawer
+ * after both had gone.
  */
 export default function PilotGuide({ course }: { course: Course | null }) {
+  const provenance = useModelProvenance();
   return (
-    <div className="space-y-5">
-      <section className={cn("space-y-1.5", TEXT.prose)}>
-        <h3 className={cn("font-semibold", TEXT.row)}>Planning a flight here</h3>
-        <ol className="list-decimal space-y-1 pl-5">
-          <li>Pick your departure and destination in the header and press the arrow. The course draws at once.</li>
-          <li>The numbered dots along the course are your visual checkpoints: landmarks a pilot could pick out from the air, chosen and rated for that.</li>
-          <li>Open Flight Planning from the header and pick your aeroplane and departure time at the top. Each section opens on its title: the nav log has the legs with headings, times and fuel for them and the winds, and the briefing sections follow it: weather, NOTAMs, the airports. Print it from there.</li>
-          <li>Tap a checkpoint or its row for how to spot it, and add your own note.</li>
-        </ol>
-      </section>
+    <ConsolePages
+      back="Guide"
+      pages={{
+        aeroplane: {
+          title: "Your aeroplane in the day's air",
+          content: (
+            <Reading>
+              <p>
+                Your aeroplane's cruise speed and fuel burn are taken as its figures at its cruise power
+                at {altFt(CRUISE_REFERENCE_FT)} ft on a standard day, a row of its handbook's cruise table.
+              </p>
+              <p>
+                Each leg flies them in the forecast air at its altitude, as a density altitude: faster in thinner
+                air at the same power, and slower and thriftier where full throttle can no longer make it. Climbs
+                slow as the air thins, and a warm day lowers the service ceiling.
+              </p>
+              <p>
+                The nav log gives each leg's TAS, and the altitude's reasoning the rest. A model, within a few
+                percent of most handbooks: yours governs.
+              </p>
+            </Reading>
+          ),
+        },
+        map: {
+          title: "The map and its buttons",
+          content: (
+            <>
+              <Reading>
+                <p>The chart is the FAA sectional, the whole country, at every zoom, and the route panel sits over it.</p>
+              </Reading>
+              <ListGroup title="The map's buttons">
+                <ListRow media={<UserRound className="size-5 text-tint" />} title="Console" description="This: the guide, your aircraft and flights, and the settings" />
+                <ListRow media={<ZoomIn className="size-5 text-tint" />} title="Zoom" description="Between the whole route and the checkpoint you picked" />
+                <ListRow media={<Maximize className="size-5 text-tint" />} title="Full screen" description="Where your browser allows it" />
+              </ListGroup>
+              <ListGroup title="In the settings" footer="Close in over a terminal area and a pin on the map pins that sheet.">
+                <ListRow media={<Layers className="size-5 text-tint" />} title="Charts" description="Sectional, IFR low or IFR high, the terminal area chart over it, and the Class B airports" />
+              </ListGroup>
+            </>
+          ),
+        },
+        phone: {
+          title: "On your phone",
+          content: (
+            <Reading>
+              <p>
+                Add this to your Home Screen and it opens as its own app: the whole screen, with no browser bar over
+                the chart, and the charts you keep stay kept. In Safari tap Share, then Add to Home Screen.
+              </p>
+              <p>In a browser tab the address bar stays put, because the page holds still under your finger rather than scrolling.</p>
+            </Reading>
+          ),
+        },
+      }}
+    >
+      <div className="space-y-6">
+        <ListGroup title="Plan a flight">
+          <StepRow n={1} title="Choose your route" description="Departure and destination at the top of the panel, then the arrow. The course draws at once." />
+          <StepRow n={2} title="Find your checkpoints" description="The numbered dots are landmarks you can pick out from the air. Tap one for how to spot it, and add your own note." />
+          <StepRow n={3} title="Read the nav log" description="Pull the panel up: each leg's heading, time and fuel, then the weather, NOTAMs and airports. Your aircraft and departure time are under the route, Print beside it." />
+          <StepRow n={4} title="Look at an airport" description="Close in and tap one on the chart for its weather, radio and runways. Fly Here makes it your destination." />
+        </ListGroup>
 
-      <section className={cn("space-y-1.5", TEXT.prose)}>
-        <h3 className={cn("font-semibold", TEXT.row)}>Your aeroplane in the day's air</h3>
-        <p>
-          Your aeroplane's cruise speed and fuel burn are taken as its figures at its cruise power
-          at {altFt(CRUISE_REFERENCE_FT)} ft on a standard day, a row of its handbook's cruise table. Each leg flies them
-          in the forecast air at its altitude, as a density altitude: faster in thinner air at the same power, and slower
-          and thriftier where full throttle can no longer make it. Climbs slow as the air thins, and a warm day lowers the
-          service ceiling. The nav log gives each leg's TAS, and the altitude's reasoning the rest. A model, within a few
-          percent of most handbooks: yours governs.
-        </p>
-      </section>
-
-      <section className={cn("space-y-1.5", TEXT.prose)}>
-        <h3 className={cn("font-semibold", TEXT.row)}>What the colours mean</h3>
-        <p>Each checkpoint is rated for how findable it is from the cockpit, 0 to 5.</p>
-        {/* A row a colour, its dot before the words, as the app's lists
-            are (the developer's rating scale is the same). */}
-        <ListGroup>
+        <ListGroup title="Checkpoint colours" footer={provenance ?? "Each checkpoint is rated for how findable it is from the cockpit, 0 to 5."}>
+          {/* A row a colour, its dot before the words, as the app's lists
+              are (the developer's rating scale is the same). */}
           {BUCKETS.map(([color, label]) => (
             <ListRow
               key={label} title={label}
@@ -95,42 +125,15 @@ export default function PilotGuide({ course }: { course: Course | null }) {
             />
           ))}
         </ListGroup>
-        <ModelProvenance />
-      </section>
 
-      <section className={cn("space-y-1.5", TEXT.prose)}>
-        <h3 className={cn("font-semibold", TEXT.row)}>The map</h3>
-        <p>
-          The chart is the FAA sectional, the whole country, at every zoom. The layers button at the map's top right
-          picks the base chart (sectional, IFR low, IFR high), pins the terminal area chart over it, and turns on your own
-          position. Close in over a terminal area a pin appears on the map to pin that sheet. The zoom button under it
-          swaps between the whole route and the selected checkpoint, and under that, where your browser allows it, a
-          button for the whole screen.
-        </p>
-      </section>
+        <ListGroup title="More">
+          <PageRow page="aeroplane" title="Your aeroplane in the day's air" />
+          <PageRow page="map" title="The map and its buttons" />
+          <PageRow page="phone" title="On your phone" />
+        </ListGroup>
 
-      <section className={cn("space-y-1.5", TEXT.prose)}>
-        <h3 className={cn("font-semibold", TEXT.row)}>On your phone</h3>
-        <p>
-          Add this to your Home Screen and it opens as its own app: the whole screen, with no browser bar over the
-          chart, and the charts you keep below stay kept. In Safari tap Share, then Add to Home Screen. In a browser
-          tab the address bar stays put, because the page holds still under your finger rather than scrolling.
-        </p>
-      </section>
-
-      <KeepRoute course={course} />
-
-      <section className={cn("space-y-1.5", TEXT.prose)}>
-        <h3 className={cn("font-semibold", TEXT.row)}>Keys</h3>
-        <div className="space-y-1">
-          {KEYS.map(([key, text]) => (
-            <div key={key} className="flex items-center gap-2">
-              <Kbd>{key}</Kbd>
-              <span>{text}</span>
-            </div>
-          ))}
-        </div>
-      </section>
-    </div>
+        <KeepRoute course={course} />
+      </div>
+    </ConsolePages>
   );
 }

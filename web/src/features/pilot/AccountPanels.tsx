@@ -5,7 +5,8 @@ import { useForm, type UseFormRegisterReturn } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
-import { Plus } from "lucide-react";
+import { Plane, Plus, Route } from "lucide-react";
+import EmptyState from "../../components/EmptyState";
 import { cn } from "cn";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
@@ -86,9 +87,9 @@ export function AircraftPanel({ pilot }: { pilot: PilotState }) {
     enabled: signedIn,
   });
   const [editingId, setEditingId] = useState<number | null>(null);
-  // The form is behind a button beside the heading: open for a new
-  // aeroplane from there, or for one of the rows from its Edit. Closed
-  // again when the save lands, on Cancel, or from the same button.
+  // The form is behind the list's New aircraft row: open for a new
+  // aeroplane from there, or for one of the rows when it is tapped.
+  // Closed again when the save lands, on Cancel, or from the same row.
   const [adding, setAdding] = useState(false);
   const formOpen = adding || editingId !== null;
   const formId = useId();
@@ -168,15 +169,16 @@ export function AircraftPanel({ pilot }: { pilot: PilotState }) {
   const formElementId = `${formId}-form`;
   const problem = (message?: string) => (message ? <span className="text-destructive">{message}</span> : undefined);
 
+  // The tab says what this is: no heading over the list, only the
+  // group's own, as an iOS page under a segmented control has.
   return (
-    <section>
-      <h3 className={cn("font-semibold", TEXT.row)}>Aircraft</h3>
+    <section aria-label="Aircraft">
       {pilot === null || pilot === "error" ? (
-        <p className={cn("mt-1 text-muted-foreground", TEXT.prose)}>
+        <EmptyState icon={<Plane />} title={pilot === "error" ? "Sign-in Unknown" : "No Aircraft"}>
           {pilot === "error" ? "Your sign-in status could not be checked." : "Sign in to keep your own aeroplanes; the nav log then flies them."}
-        </p>
+        </EmptyState>
       ) : pilot === "loading" || isLoading ? (
-        <p className={cn("mt-1 text-muted-foreground", TEXT.prose)}>Fetching your aircraft…</p>
+        <p role="status" className={cn("px-1 text-muted-foreground", TEXT.note)}>Fetching your aircraft…</p>
       ) : (
         // A grouped list at every width, as iOS lists things: a row per
         // aeroplane, tapped to edit it, and New aircraft as the last
@@ -185,8 +187,10 @@ export function AircraftPanel({ pilot }: { pilot: PilotState }) {
         // the heading as the only way to add one.
         <ResponsivePopover open={formOpen} onOpenChange={open => (open ? setAdding(true) : cancelEdit())}>
           <ListGroup
-            className="mt-2"
-            footer={list?.length === 0 ? "Add your aeroplane, and the nav log flies its speed and fuel burn." : undefined}
+            title="Your aircraft"
+            footer={list?.length === 0
+              ? "Add your aeroplane, and the nav log flies its speed and fuel burn."
+              : "Pick one under the route, and the nav log flies its speed and fuel burn."}
           >
             {(list ?? []).map(a => (
               <div key={a.id} data-aircraft-row>
@@ -210,7 +214,7 @@ export function AircraftPanel({ pilot }: { pilot: PilotState }) {
               />
             </ResponsivePopoverTrigger>
           </ListGroup>
-          {/* On a phone a sheet from the header's edge, over the
+          {/* On a phone a sheet from the navigation bar's edge, over the
               console's own; from md up a popover by the rows. Cancel and
               Add (or Save) in its title row, as an iOS form sheet has
               them; each field a row, its label at the start and the
@@ -343,7 +347,7 @@ function NumberRow({ id, title, unit, placeholder, name, field, error }: {
 }
 
 /** A signed-in pilot's own filed flights. Filing one happens from the
- *  Flight Briefing page's own "Save this flight"; here a flight opens
+ *  planning panel's own Save, beside the route; here a flight opens
  *  back on the planner (same route and altitude) or is deleted. A
  *  grouped list at every width, as the aircraft are: a row a flight
  *  with Open and Delete at its end, and Delete asked first in the app's
@@ -382,20 +386,19 @@ export function FlightsPanel({ pilot }: { pilot: PilotState }) {
   })}`;
 
   return (
-    <section>
-      <h3 className={cn("font-semibold", TEXT.row)}>My Flights</h3>
+    <section aria-label="Flights">
       {pilot === null || pilot === "error" ? (
-        <p className={cn("mt-1 text-muted-foreground", TEXT.prose)}>
-          {pilot === "error" ? "Your sign-in status could not be checked." : "Sign in to see flights you've filed."}
-        </p>
+        <EmptyState icon={<Route />} title={pilot === "error" ? "Sign-in Unknown" : "No Flights"}>
+          {pilot === "error" ? "Your sign-in status could not be checked." : "Sign in to keep the flights you plan."}
+        </EmptyState>
       ) : pilot === "loading" || isLoading ? (
-        <p className={cn("mt-1 text-muted-foreground", TEXT.prose)}>Fetching your flights…</p>
+        <p role="status" className={cn("px-1 text-muted-foreground", TEXT.note)}>Fetching your flights…</p>
       ) : error ? null : list?.length === 0 ? (
-        <p className={cn("mt-1 text-muted-foreground", TEXT.prose)}>
-          No flights filed yet. Plan a route, open Flight Planning, and save it there.
-        </p>
+        <EmptyState icon={<Route />} title="No Flights">
+          Plan a route, then Save beside it, and the flight is kept here.
+        </EmptyState>
       ) : (
-        <ListGroup className="mt-2">
+        <ListGroup title="Saved flights" footer="Open brings a flight back onto the map, at its altitude.">
           {(list ?? []).map(f => (
             <ListRow
               key={f.id}
