@@ -11,7 +11,9 @@ import { Sheet, SheetContent, SheetTrigger } from "../../components/ui/sheet";
 // Under other names: `DrawerTrigger` below is the header's button for
 // the sidebar, which this page calls its drawer.
 import { Drawer as BottomSheet, DrawerContent as BottomSheetContent, DrawerTrigger as BottomSheetTrigger } from "../../components/ui/drawer";
+import { Dialog, DialogContent, DialogTrigger } from "../../components/ui/dialog";
 import { useIsMobile } from "../../hooks/use-mobile";
+import { useIsTablet } from "../../hooks/use-tablet";
 import { useNavEdge } from "../../hooks/use-nav-edge";
 import { usePreferences } from "../../lib/preferences";
 import {
@@ -75,6 +77,7 @@ const MODES = {
 export default function MapPage({ mode }: { mode: Mode }) {
   const { title, sidebar, console: consoleLabel, Workspace, ConsoleButton, route } = MODES[mode];
   const onPhone = useIsMobile();
+  const onTablet = useIsTablet();
   const navBar = usePreferences(s => s.navBar);
   const edge = useNavEdge();
   const [searchParams, setSearchParams] = useSearchParamsNow();
@@ -214,8 +217,22 @@ export default function MapPage({ mode }: { mode: Mode }) {
                       content's: sized to the tab showing, its top edge
                       rose and fell as the tabs changed, and the tab row
                       moved out from under the finger that had just tapped
-                      it. */}
-                  {onPhone && edge === "bottom" ? (
+                      it. On an iPad, iOS's form sheet instead: a card 540
+                      by 620, centred, as a sheet there is -- it was the
+                      phone's, stretched the iPad's width. */}
+                  {onTablet ? (
+                    <Dialog>
+                      <DialogTrigger asChild><ConsoleButton /></DialogTrigger>
+                      <DialogContent
+                        showCloseButton={false}
+                        className="flex h-[min(620px,85dvh)] w-[min(540px,calc(100%-40px))] max-w-none flex-col gap-0 overflow-hidden bg-card p-0 text-card-foreground"
+                        data-testid="console-sheet"
+                      >
+                        <ConsoleHeader console={consoleLabel.toLowerCase()} />
+                        <AfterTheSheet>{pieces.console}</AfterTheSheet>
+                      </DialogContent>
+                    </Dialog>
+                  ) : onPhone && edge === "bottom" ? (
                     <BottomSheet>
                       <BottomSheetTrigger asChild><ConsoleButton /></BottomSheetTrigger>
                       <BottomSheetContent

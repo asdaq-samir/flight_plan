@@ -213,7 +213,7 @@ export default function WaypointPanel({
                   title={capitalised(prettyCategory((p as { category: string }).category))}
                   detail={detail}
                   end={rating === null
-                    ? <span className="text-muted-foreground" aria-label="Not rated">—</span>
+                    ? <span aria-label="Not rated">—</span>
                     : <Badge style={{ backgroundColor: COLORS[rating], color: inkOn(COLORS[rating]) }}>{rating}</Badge>}
                 />
                 {/* The selected waypoint's own rating buttons, under it
@@ -306,7 +306,7 @@ function WaypointRow({ number, title, detail, end, selected, expands = false, on
         <span className={cn("block leading-snug", TEXT.row)}>{title}</span>
         <span className={cn("block leading-snug", TEXT.detail, selected ? "text-foreground/70" : "text-muted-foreground")}>{detail}</span>
       </span>
-      {end && <span className={cn("shrink-0 tabular-nums", TEXT.detail)}>{end}</span>}
+      {end && <span className={cn("shrink-0 tabular-nums", TEXT.detail, selected ? "text-foreground/70" : "text-muted-foreground")}>{end}</span>}
     </button>
   );
 }

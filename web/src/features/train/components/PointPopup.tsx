@@ -131,9 +131,9 @@ export default function PointPopup({
             variant="ghost"
             size="sm"
             onClick={() => onRate(r)}
-            className={`w-9 px-0 font-bold ${
-              rating === r ? "ring-2 ring-offset-1 ring-foreground" : "opacity-70 hover:opacity-100"
-            }`}
+            // The chosen one ringed, the rest at full strength: faded to
+            // 70% their digits fell to 3.3:1 on their own colours.
+            className={`w-9 px-0 font-bold ${rating === r ? "ring-2 ring-offset-1 ring-foreground" : ""}`}
             style={{ backgroundColor: COLORS[r], color: inkOn(COLORS[r]) }}
           >
             {r}

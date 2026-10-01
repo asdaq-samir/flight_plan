@@ -12,7 +12,8 @@ import type { Page } from "@playwright/test";
  * zoom; P12 nothing pinned to the screen under the notch, the island or
  * the home indicator; P16 the app's own typeface everywhere; P17 reading
  * text and headings in the text's own colour; P18 the same component at
- * the same size wherever it is.
+ * the same size wherever it is; P14 an iPad's sheets as iOS's form sheet;
+ * P15 every word at WCAG's contrast, light and dark.
  */
 
 /** What a finger can tap. */
@@ -70,7 +71,8 @@ export type HitMiss = { control: string; box: string; lost: number };
  *  centre (behind a drawer, under an overlay -- not on show), one whose
  *  square crosses a scroll container's edge (scrolled into view it would
  *  be judged), and a probe that lands on a toast, which is gone in a
- *  moment and is not the layout. */
+ *  moment and is not the layout, or on a sticky heading a row has
+ *  scrolled under. */
 export function hitAreaMisses(page: Page, scope = "body", size = 44): Promise<HitMiss[]> {
   return page.evaluate(({ scope, size, tappable, exempt }) => {
     const half = size / 2 - 1;
@@ -85,6 +87,12 @@ export function hitAreaMisses(page: Page, scope = "body", size = 44): Promise<Hi
       const own = (hit: Element | null) =>
         !!hit && (hit === el || el.contains(hit) || (hit.closest("label") as HTMLLabelElement | null)?.control === el);
       const toast = (hit: Element | null) => !!hit?.closest("[data-sonner-toaster]");
+      // A sticky heading over a row scrolled half under it: the row is
+      // half out of view, as at a scroll container's edge, not covered.
+      const pinned = (hit: Element | null) => {
+        for (let a = hit; a && a !== document.body; a = a.parentElement) if (getComputedStyle(a).position === "sticky") return !a.contains(el);
+        return false;
+      };
       const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
       if (!own(document.elementFromPoint(cx, cy))) continue;
       let port = { l: 0, t: 0, r: innerWidth, b: innerHeight };
@@ -98,7 +106,7 @@ export function hitAreaMisses(page: Page, scope = "body", size = 44): Promise<Hi
       const probes = [[-1, 0], [1, 0], [0, -1], [0, 1], [-1, -1], [1, -1], [-1, 1], [1, 1]];
       const lost = probes.filter(([dx, dy]) => {
         const hit = document.elementFromPoint(cx + dx * half, cy + dy * half);
-        return !own(hit) && !toast(hit);
+        return !own(hit) && !toast(hit) && !pinned(hit);
       }).length;
       if (!lost) continue;
       const name = (el.getAttribute("aria-label") ?? el.getAttribute("title") ?? el.textContent ?? "").trim().replace(/\s+/g, " ").slice(0, 40);
@@ -223,6 +231,10 @@ export type ComponentFinding = { rule: string; what: string; measured: string };
  *    bar, whose sizes are a decision still open, and the map's markers;
  *  - a drawer's or a sheet's words at least 16 in from its side, iOS's
  *    margin (a point less for a glyph's own side bearing);
+ *  - a switch at iOS's own 51 by 31 to a finger, the pilot's one
+ *    exception to keeping stock controls their stock size;
+ *  - P14, on an iPad, the consoles as iOS's form sheet: 540 by 620 (or
+ *    less, on a smaller window), centred;
  *  - on a phone, no panel scrolling sideways (the nav log's five columns
  *    are laid out to fit their drawer) -- not in Slide Over's 320, where
  *    the drawer is narrower than five columns need and the log scrolls,
@@ -287,6 +299,24 @@ export function componentFindings(page: Page): Promise<ComponentFinding[]> {
       }
       if (inset < 14.5) found.push({ rule: "margin 16", what: name(panel), measured: `${Math.round(inset)} at "${sample}"` });
     }
+    if (matchMedia("(pointer: coarse)").matches) {
+      for (const sw of document.querySelectorAll('[data-slot="switch"]')) {
+        if (!on(sw)) continue;
+        const b = sw.getBoundingClientRect();
+        if (Math.abs(b.width - 51) > 0.5 || Math.abs(b.height - 31) > 0.5) found.push({ rule: "switch 51×31", what: name(sw), measured: `${b.width}×${b.height}` });
+      }
+    }
+    if (matchMedia("(pointer: coarse) and (min-width: 744px) and (min-height: 600px)").matches) {
+      for (const sheet of document.querySelectorAll('[data-testid="console-sheet"]')) {
+        if (!on(sheet)) continue;
+        const b = sheet.getBoundingClientRect();
+        const w = Math.min(540, innerWidth - 40), h = Math.min(620, innerHeight * 0.85);
+        const centred = Math.abs(b.left - (innerWidth - b.right)) <= 1 && Math.abs(b.top - (innerHeight - b.bottom)) <= 1;
+        if (Math.abs(b.width - w) > 1 || Math.abs(b.height - h) > 1 || !centred) {
+          found.push({ rule: "P14 form sheet", what: "console", measured: `${Math.round(b.width)}×${Math.round(b.height)} at ${Math.round(b.left)},${Math.round(b.top)}` });
+        }
+      }
+    }
     if (innerWidth >= 375 && innerWidth < 768) {
       for (const el of document.querySelectorAll<HTMLElement>("*")) {
         const s = getComputedStyle(el);
@@ -296,6 +326,91 @@ export function componentFindings(page: Page): Promise<ComponentFinding[]> {
     }
     return found;
   });
+}
+
+export type ContrastFinding = { text: string; ratio: number; need: number; where: string };
+
+/** P15: every visible word at WCAG's contrast against what is actually
+ *  behind it -- 4.5:1, or 3:1 for large type (24, or 18.66 bold) -- in
+ *  whichever scheme the page is in. The backgrounds behind a word are
+ *  composited up to the first opaque one, its colour taken at its
+ *  opacity and its ancestors'; a canvas reads any CSS colour (oklch,
+ *  oklab, color-mix) as sRGB. Not judged: a disabled control's words
+ *  (WCAG's own exception), text over the map's tiles or an image, whose
+ *  background is not a colour, and a screen reader's own. */
+export function contrastFindings(page: Page, scope = "body"): Promise<ContrastFinding[]> {
+  return page.evaluate(scope => {
+    const canvas = document.createElement("canvas");
+    canvas.width = canvas.height = 1;
+    const ctx = canvas.getContext("2d", { willReadFrequently: true })!;
+    const rgba = (color: string): number[] => {
+      ctx.clearRect(0, 0, 1, 1);
+      ctx.fillStyle = "rgba(0,0,0,0)";
+      ctx.fillStyle = color;
+      ctx.fillRect(0, 0, 1, 1);
+      const d = ctx.getImageData(0, 0, 1, 1).data;
+      return [d[0], d[1], d[2], d[3] / 255];
+    };
+    const over = (top: number[], under: number[]) => {
+      const a = top[3];
+      return [0, 1, 2].map(i => top[i] * a + under[i] * (1 - a)).concat(1);
+    };
+    const lum = (c: number[]) => {
+      const [r, g, b] = c.slice(0, 3).map(v => {
+        const s = v / 255;
+        return s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+      });
+      return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    };
+    const root = document.querySelector(scope);
+    const found = new Map<string, { text: string; ratio: number; need: number; where: string }>();
+    if (!root) return [];
+    const walk = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    for (let n = walk.nextNode(); n; n = walk.nextNode()) {
+      const text = (n.textContent ?? "").trim();
+      const el = n.parentElement;
+      if (!text || !el || el.closest(".sr-only, [disabled], [aria-disabled='true'], [data-disabled], .leaflet-tile-pane")) continue;
+      const box = el.getBoundingClientRect();
+      if (box.width < 2 || box.height < 2) continue;
+      const cs = getComputedStyle(el);
+      if (cs.visibility !== "visible") continue;
+      // Up to the first opaque background, every layer on the way, and
+      // the opacity the word is drawn at.
+      const layers: number[][] = [];
+      let opacity = 1, base: number[] | null = null, unknown = false;
+      for (let a: Element | null = el; a; a = a.parentElement) {
+        const s = getComputedStyle(a);
+        opacity *= parseFloat(s.opacity);
+        if (s.backgroundImage !== "none" || a.classList.contains("leaflet-container")) { unknown = true; break; }
+        const bg = rgba(s.backgroundColor);
+        if (bg[3] >= 0.999) { base = bg; break; }
+        if (bg[3] > 0) layers.push(bg);
+      }
+      // A toast fading in or out is between two states, neither of them its
+      // own; at rest it is measured.
+      if (unknown || (opacity < 0.99 && el.closest("[data-sonner-toaster]"))) continue;
+      let bg = base ?? [255, 255, 255, 1];
+      for (const layer of layers.reverse()) bg = over(layer, bg);
+      const fill = el instanceof SVGElement && cs.fill.startsWith("rgb") ? cs.fill : cs.color;
+      const fg = rgba(fill);
+      fg[3] *= opacity;
+      const shown = over(fg, bg);
+      const [hi, lo] = [lum(shown), lum(bg)].sort((x, y) => y - x);
+      const ratio = Math.round(((hi + 0.05) / (lo + 0.05)) * 100) / 100;
+      const size = parseFloat(cs.fontSize), weight = parseFloat(cs.fontWeight);
+      const need = size >= 24 || (size >= 18.66 && weight >= 700) ? 3 : 4.5;
+      if (ratio + 0.005 < need) {
+        let where = el.tagName.toLowerCase();
+        for (let a: HTMLElement | null = el; a; a = a.parentElement) {
+          const id = a.dataset.testid ? `#${a.dataset.testid}` : a.dataset.slot;
+          if (id) { where = id; break; }
+        }
+        const key = `${where}|${ratio}`;
+        if (!found.has(key)) found.set(key, { text: text.slice(0, 32), ratio, need, where });
+      }
+    }
+    return [...found.values()];
+  }, scope);
 }
 
 /** P11: how far the page scrolls sideways; 0 or less passes. */

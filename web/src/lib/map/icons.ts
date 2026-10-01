@@ -101,9 +101,12 @@ export function airportIcon(colour: string, ident: string, { classB = false, unc
   // read as clutter; the colour, with the card a tap opens, is
   // enough); the route's own airports are squarer.
   const shape = classB ? "rounded-full" : "rounded-md";
+  // The ident in whichever ink the fill reads at 4.5:1 with (inkOn), as
+  // the checkpoint dots' numbers are: white on the grey of a field with no
+  // report was 2.6:1.
   const fill = unchecked
     ? "background-color:#ffffff;color:#1c1a17"
-    : `background-color:${text(colour)};color:#ffffff`;
+    : `background-color:${text(colour)};color:${text(inkOn(colour))}`;
   return L.divIcon({
     className: "",
     iconSize: [width, 24], iconAnchor: [width / 2, 12],

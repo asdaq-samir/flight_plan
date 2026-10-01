@@ -1,19 +1,19 @@
 import { test, expect } from "@playwright/test";
 import { SCREENS } from "./screens";
 import {
-  componentFindings, emulateSafeArea, hitAreaMisses, horizontalOverflow, outsideSafeArea, quiet, roleFindings, still, typeFindings,
-  type Insets,
+  componentFindings, contrastFindings, emulateSafeArea, hitAreaMisses, horizontalOverflow, outsideSafeArea, quiet, roleFindings, still,
+  typeFindings, type Insets,
 } from "./metrics";
 
 /**
  * The iOS audit, one test per screen on each iOS project
  * (playwright.config.ts): P1 hit regions, P2 and P3 type, P16 typeface,
- * P17 the text's colour by role, P18 one size for one component, P11 fit
- * and, on the island iPhones, P12
- * the safe area -- every broken
- * rule reported in one run (soft), and what broke it attached as data
- * for the report. One page load a screen measures them all: CI runs
- * three of the projects on every push.
+ * P17 the text's colour by role, P18 one size for one component (P14 an
+ * iPad's form sheet among them), P15 contrast light and dark, P11 fit
+ * and, on the island iPhones, P12 the safe area -- every broken rule
+ * reported in one run (soft), and what broke it attached as data for the
+ * report. One page load a screen measures them all: CI runs three of the
+ * projects on every push.
  *
  * P12's insets: in portrait none at the top -- Safari's own bar is there,
  * and a home-screen app starts below the status bar (index.html's
@@ -44,6 +44,14 @@ for (const screen of SCREENS) {
     const { offScale, offLeading, offFace } = await typeFindings(page);
     const greyed = await roleFindings(page);
     const components = await componentFindings(page);
+    // P15 in both schemes: the app follows the system's (Settings,
+    // Appearance), and dark is a palette of its own to pass or fail.
+    const contrast = await contrastFindings(page);
+    await page.emulateMedia({ colorScheme: "dark" });
+    await still(page);
+    const contrastDark = await contrastFindings(page);
+    await page.emulateMedia({ colorScheme: "light" });
+    await still(page);
     const overflow = await horizontalOverflow(page);
     // The safe area last on the screen as laid out, since it rewrites the
     // page's own CSS to a device's insets.
@@ -62,7 +70,7 @@ for (const screen of SCREENS) {
 
     await info.attach("findings", {
       contentType: "application/json",
-      body: JSON.stringify({ misses, offScale, offLeading, offFace, greyed, components, overflow, zoomed, insets: insets ?? null, outside }),
+      body: JSON.stringify({ misses, offScale, offLeading, offFace, greyed, components, contrast, contrastDark, overflow, zoomed, insets: insets ?? null, outside }),
     });
     expect.soft(misses, "P1: every control owns a 44 × 44 pt hit region").toEqual([]);
     expect.soft(offScale, "P2: all text on the iOS type scale").toEqual([]);
@@ -70,6 +78,8 @@ for (const screen of SCREENS) {
     expect.soft(offFace, "P16: the app's own typeface").toEqual([]);
     expect.soft(greyed, "P17: reading text and headings in the text's own colour").toEqual([]);
     expect.soft(components, "P18: the same component at the same size wherever it is").toEqual([]);
+    expect.soft(contrast, "P15: WCAG contrast, light").toEqual([]);
+    expect.soft(contrastDark, "P15: WCAG contrast, dark").toEqual([]);
     expect.soft(overflow, "P11: no sideways scroll").toBeLessThanOrEqual(0);
     expect.soft(zoomed, "P11: no sideways scroll at 150% page zoom").toBeLessThanOrEqual(0);
     expect.soft(outside, "P12: pinned controls inside the safe area").toEqual([]);
