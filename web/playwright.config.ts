@@ -1,4 +1,4 @@
-import { defineConfig } from "@playwright/test";
+import { defineConfig, devices } from "@playwright/test";
 import { DEVELOPER_STATE } from "./e2e/emailSignIn";
 
 /**
@@ -24,6 +24,30 @@ import { DEVELOPER_STATE } from "./e2e/emailSignIn";
 // waits below are doubled there, a test gets two more goes, and two
 // workers rather than a share of the cores.
 const ci = !!process.env.CI;
+
+// The iOS audit (e2e/ios): each of its rules a measurement, on iOS's
+// own geometries with a touch pointer. isMobile + hasTouch make Chromium
+// match (pointer: coarse) and (hover: none) as Safari on an iPhone does
+// -- which the "mobile" project below, a viewport alone, never has, so
+// none of the touch sizes or hit areas were under test. Sizes in CSS px,
+// which are points; heights are whole screens. Opt-in with IOS_AUDIT=1
+// while its specs are red; every other project leaves the folder alone.
+const iosDevice = (name: string, width: number, height: number, deviceScaleFactor: number) => ({
+  name, testDir: "./e2e/ios", dependencies: ["setup"],
+  use: { viewport: { width, height }, deviceScaleFactor, isMobile: true, hasTouch: true, storageState: DEVELOPER_STATE },
+});
+const iosAudit = process.env.IOS_AUDIT ? [
+  iosDevice("iphone-se", 375, 667, 2),
+  iosDevice("iphone-16-pro", 402, 874, 3),
+  iosDevice("iphone-16-pro-max", 440, 956, 3),
+  iosDevice("iphone-landscape", 874, 402, 3),
+  iosDevice("ipad-slide-over", 320, 1000, 2),
+  iosDevice("ipad-mini", 744, 1133, 2),
+  iosDevice("ipad-pro-13", 1032, 1376, 2),
+  // The same specs in WebKit, for Safari's engine (not its chrome).
+  { name: "webkit-iphone", testDir: "./e2e/ios", dependencies: ["setup"],
+    use: { ...devices["iPhone 15 Pro"], storageState: DEVELOPER_STATE } },
+] : [];
 
 export default defineConfig({
   testDir: "./e2e",
@@ -89,12 +113,13 @@ export default defineConfig({
   projects: [
     { name: "setup", testMatch: /auth\.setup\.ts/ },
     {
-      name: "mobile", dependencies: ["setup"],
+      name: "mobile", dependencies: ["setup"], testIgnore: "**/ios/**",
       use: { viewport: { width: 390, height: 844 }, storageState: DEVELOPER_STATE },
     },
     {
-      name: "desktop", dependencies: ["setup"],
+      name: "desktop", dependencies: ["setup"], testIgnore: "**/ios/**",
       use: { viewport: { width: 1280, height: 800 }, storageState: DEVELOPER_STATE },
     },
+    ...iosAudit,
   ],
 });
