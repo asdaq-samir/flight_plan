@@ -15,7 +15,6 @@ import { api, errorMessage } from "../../lib/api/client";
 import { statusQuery } from "../../lib/queryClient";
 import type { ModelComparisonEntry, Status } from "../../lib/api/types";
 import RatingGuide from "../train/components/RatingGuide";
-import { elapsed } from "../plan/format";
 import { TEXT } from "../../lib/text";
 import { useRetrain } from "./useRetrain";
 
@@ -270,50 +269,38 @@ function ModelGroup({ status, failed }: { status: Status | undefined; failed: bo
 }
 
 /**
- * The pipeline that would replace the model: whether the ratings are
- * enough to learn from, the last run and why it failed, the way to
- * start one and the way into Airflow. First on the tab, as a confirmed
- * retrain opens it to follow the run. Retrain is here once, where it
- * was on every route's card though it learns from all of them.
+ * The pipeline that would replace the model: how its last run went, as
+ * a badge beside the heading, and Retrain, saying why it is off and
+ * what turns it on -- rate more landmarks the model knows -- or what it
+ * does. First on the tab, as a confirmed retrain opens it to follow the
+ * run. (Airflow is a link in System's Elsewhere in the stack.)
  */
 function TrainingGroup() {
   const retrain = useRetrain();
-  const { pipeline, lastRun, running } = retrain;
-  const took = !running && lastRun?.end_date && lastRun.start_date
-    ? `, took ${elapsed(new Date(lastRun.end_date).getTime() - new Date(lastRun.start_date).getTime())}` : "";
+  const { pipeline, lastRun, running, training } = retrain;
+  // Why Retrain is off and what turns it on, in the group's note, where
+  // it reads at full strength under the dimmed button, as iOS explains a
+  // control it has turned off; or, on the row, what it does.
+  const blocked = training && !training.ready
+    ? `Rate ${training.needed - training.usable} more landmarks the model knows: ${training.usable} of the ${training.needed} ratings it needs count so far. A 0, or a point with no landmark within 0.2 nm, does not count.`
+    : null;
   return (
     <>
       <ListGroup
         title="Training"
-        footer={pipeline && !pipeline.airflow_reachable && (
-          <>Retrain by hand with <code className="rounded bg-muted px-1 py-0.5 font-mono">docker compose run --rm pipeline-training retrain</code>.</>
-        )}
+        // How the last run went, beside the heading: the rows that said
+        // it and the ratings' count went, the note saying what matters.
+        badge={pipeline?.airflow_reachable && lastRun && <RunBadge state={lastRun.state} running={running} />}
+        footer={!pipeline?.airflow_reachable
+          ? <>{pipeline?.detail ?? "Airflow is not reachable from here"}. Retrain by hand with <code className="rounded bg-muted px-1 py-0.5 font-mono">docker compose run --rm pipeline-training retrain</code>.</>
+          : running ? undefined : blocked}
       >
-        {/* What the trainer would get from the ratings, before a run
-            is asked for, and what became of the rest: it used to be
-            found out from a run failing in Airflow. */}
-        {retrain.training && (
-          <ListRow
-            title="Ratings it can learn from"
-            description={retrain.training.ready ? undefined : retrain.training.message}
-            value={`${retrain.training.usable} of ${retrain.training.needed}`}
-            data-testid="training-readiness"
-          />
-        )}
-        <ListRow
-          title="Last run"
-          description={!pipeline?.airflow_reachable ? (pipeline?.detail ?? "Airflow is not reachable from here")
-            : lastRun ? `${running ? "Started" : "Ran"} ${ago(lastRun.start_date)}${took}${lastRun.error ? ` · ${lastRun.error}` : ""}` : "None yet"}
-        >
-          {pipeline?.airflow_reachable && lastRun && <RunBadge state={lastRun.state} running={running} />}
-        </ListRow>
         <ListRow
           media={<BrainCircuit className="size-5" />}
           title={running ? "Retraining…" : "Retrain the model"}
-          description={retrain.blocked ? "Not until there are enough ratings to learn from" : "From every rating; it serves only if it does better"}
-          onClick={retrain.start} disabled={!retrain.canStart}
+          description={running ? "The new model serves only if it does better" : blocked ? undefined : "From every rating; it serves only if it does better"}
+          onClick={retrain.start} disabled={!retrain.canStart} data-testid="retrain-row"
         />
-        {pipeline?.dag_id && <ListRow title="Open in Airflow" href={`http://${window.location.hostname}:8081/dags/${pipeline.dag_id}`} />}
       </ListGroup>
       {retrain.confirmDialog}
     </>

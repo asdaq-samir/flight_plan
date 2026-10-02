@@ -115,7 +115,7 @@ test("a retrain confirmed from the panel's More opens the console on Performance
 
   await expect(consoleSheet(page).getByRole("tab", { name: "Performance" })).toHaveAttribute("aria-selected", "true");
   await expect(consoleSheet(page).getByRole("tab", { name: "Performance" })).toHaveText("Performance");
-  await expect(consoleSheet(page).getByTestId("training-readiness")).toContainText("40 of 30");
+  await expect(consoleSheet(page).getByTestId("retrain-row")).toContainText("Retrain");
   // The snapshot is polled: a fetch of one still in flight as the page
   // closes is not this test's failure.
   await page.unrouteAll({ behavior: "ignoreErrors" });

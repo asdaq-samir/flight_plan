@@ -15,10 +15,12 @@ import { TEXT } from "../lib/text";
  * with a value or a control at the end. At the app's sizes for a list
  * (TEXT): to a finger, 17 points for a row and 15 under it, the
  * heading and the note 13. `action` sits at the heading's end: an Edit
- * for the list, as iOS puts one in the bar over it.
+ * for the list, as iOS puts one in the bar over it; `badge` beside the
+ * heading, what the whole group's state is.
  */
-export function ListGroup({ title, action, footer, children, className }: {
+export function ListGroup({ title, badge, action, footer, children, className }: {
   title?: string;
+  badge?: ReactNode;
   action?: ReactNode;
   footer?: ReactNode;
   children: ReactNode;
@@ -30,7 +32,10 @@ export function ListGroup({ title, action, footer, children, className }: {
     <section aria-labelledby={title ? id : undefined} className={className}>
       {title && (
         <div className="flex items-end justify-between gap-2">
-          <h3 id={id} className={cn("px-1 pb-1.5 font-semibold tracking-wide text-muted-foreground uppercase", TEXT.note)}>{title}</h3>
+          <div className="flex items-center gap-2 px-1 pb-1.5">
+            <h3 id={id} className={cn("font-semibold tracking-wide text-muted-foreground uppercase", TEXT.note)}>{title}</h3>
+            {badge}
+          </div>
           {action}
         </div>
       )}
