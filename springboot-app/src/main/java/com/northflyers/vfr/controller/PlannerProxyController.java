@@ -79,6 +79,7 @@ public class PlannerProxyController {
      * from this class, and the planner is never asked.
      */
     private static final List<Route> ROUTES = List.of(
+            route("GET", "/api/chart"),
             route("GET", "/api/course"),
             route("GET", "/api/checkpoints"),
             route("GET", "/api/navlog"),
@@ -86,7 +87,6 @@ public class PlannerProxyController {
             route("GET", "/api/altitude-breakdown"),
             route("GET", "/api/briefing"),
             route("GET", "/api/class-b"),
-            route("GET", "/api/routes"),
             route("GET", "/api/airports/search"),
             route("GET", "/api/airports/in-view"),
             route("GET", "/api/airport/{ident}"),
@@ -94,8 +94,6 @@ public class PlannerProxyController {
             route("GET", "/api/chart-tile/{kind}/{z}/{x}/{y}.png"),
             route("POST", "/api/checkpoint-notes"),
             route("POST", "/api/checkpoint-notes/generate"),
-            route("POST", "/api/build"),
-            route("GET", "/api/build/{jobId}"),
             // The developer's.
             route("GET", "/api/detect/stream"),
             route("GET", "/api/classify"),

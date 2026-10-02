@@ -55,12 +55,11 @@ class ChartLayer(BaseModel):
     sheets: list[ChartSheet] = []
 
 
-class Course(BaseModel):
-    departure: AirportEnd
-    destination: AirportEnd
-    distance_nm: float
-    bearing_deg: float
-    course_line: list[tuple[float, float]]
+class ChartInfo(BaseModel):
+    """Which chart the map draws and where its tiles are: the map with no
+    route on it yet asks for this alone (/api/chart), and a Course
+    carries it as well."""
+
     chart_layers: list[ChartLayer]
     # The zooms the sectional layer draws at. Each overlay's own are in
     # chart_layers.
@@ -82,6 +81,14 @@ class Course(BaseModel):
     # /<cycle>/<kind>/{z}/{x}/{y}.png to. None when this planner
     # serves its own tiles.
     chart_tiles_base: str | None = None
+
+
+class Course(ChartInfo):
+    departure: AirportEnd
+    destination: AirportEnd
+    distance_nm: float
+    bearing_deg: float
+    course_line: list[tuple[float, float]]
 
 
 class Candidate(BaseModel):
@@ -702,18 +709,6 @@ CheckpointNoteMessage = Annotated[
 # --- everything else ----------------------------------------------------
 
 
-class BuiltRoute(BaseModel):
-    model_config = ConfigDict(extra="allow")
-
-    departure_ident: str
-    destination_ident: str
-
-
-class BuiltRoutes(BaseModel):
-    routes: list[BuiltRoute]
-    features_dir: str | None = None
-
-
 class AirportSuggestion(BaseModel):
     ident: str
     name: str
@@ -760,8 +755,18 @@ class AirportPlace(BaseModel):
     lon: float
     elevation_ft: float | None = None
     kind: Literal["large", "medium", "small", "other"]
-    airspace_class: Literal["B", "C", "D"] | None = None
+    airspace_class: Literal["B", "C", "D", "E", "G"] | None = None
     towered: bool
+    # Its remarks a pilot acts on from the cockpit, in plain English
+    # (vfr.remarks): the lighting schedule -- lights turned on by keying
+    # the mic, `pilot_controlled_lighting` -- and the other remarks that
+    # count mic clicks, such as the weather read out on the CTAF.
+    # `standard_keying` where the lights are the pilot's and the remarks
+    # do not say how many clicks: AIM 4-1-9's 7, 5 and 3 apply.
+    lighting: list[str] = []
+    radio_notes: list[str] = []
+    pilot_controlled_lighting: bool = False
+    standard_keying: bool = False
     runways: list[Runway]
     frequencies: list[Frequency]
     metar: Metar | None = None

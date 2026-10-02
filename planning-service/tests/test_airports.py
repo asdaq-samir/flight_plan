@@ -2,7 +2,7 @@
 tables, the airspace and the weather are stubbed -- these test what the
 router makes of them, not OurAirports or aviationweather.gov."""
 from fastapi.testclient import TestClient
-from vfr import airports, airspace, weather
+from vfr import airports, airspace, remarks, weather
 
 from app.main import app
 
@@ -20,6 +20,10 @@ def stub_place(monkeypatch, place=DULUTH, frequencies=(), runways=(), metar=None
     monkeypatch.setattr(airports, "get_runways", lambda ident: list(runways))
     monkeypatch.setattr(airspace, "ensure_class_airspace_shapefile", lambda cache_dir: "airspace.shp")
     monkeypatch.setattr(airspace, "surface_class_at", lambda lat, lon, shp: surface_class)
+    monkeypatch.setattr(remarks, "airport_notes", lambda faa_id: {
+        "lighting": ["Activate MIRL runway 09/27 - CTAF."] if faa_id == "DLH" else [],
+        "radio": [], "pilot_controlled": faa_id == "DLH", "explicit_clicks": False,
+    })
     if isinstance(metar, Exception):
         def fail(idents):
             raise metar
@@ -47,6 +51,10 @@ def test_an_airports_card_names_its_class_tower_runways_radio_and_weather(monkey
     assert [r["ends"] for r in body["runways"]] == ["09/27"]
     assert body["metar"]["flight_category"] == "VFR"
     assert body["weather_unavailable"] is False
+    # Its lights, by the FAA's own identifier (DLH): turned on from the
+    # cockpit, with no count of clicks of their own.
+    assert body["lighting"] == ["Activate MIRL runway 09/27 - CTAF."]
+    assert body["pilot_controlled_lighting"] is True and body["standard_keying"] is True
 
 
 def test_a_field_with_no_tower_or_station_says_so_rather_than_failing(monkeypatch):

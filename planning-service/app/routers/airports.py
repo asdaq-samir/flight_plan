@@ -10,7 +10,7 @@ national cache vfr.weather keeps for minutes at a time. A card costs a
 few table lookups and a point-in-polygon test.
 """
 from fastapi import APIRouter, HTTPException, Query
-from vfr import airports, airspace, altitude, weather
+from vfr import airports, airspace, altitude, remarks, weather
 
 from ..schemas import AirportPlace, AirportsInView
 
@@ -52,12 +52,32 @@ def airports_in_view(
     ]}
 
 
+def _notes(ident: str) -> dict:
+    """The lighting and mic-click remarks (vfr.remarks), by the FAA's own
+    identifier: KRFD's are RFD's, as are Alaska's and Hawaii's P-idents'.
+    None where the remarks file cannot be had: a card without them."""
+    candidates = [ident[1:], ident] if len(ident) == 4 and ident[0] in "KP" else [ident]
+    try:
+        for faa_id in candidates:
+            notes = remarks.airport_notes(faa_id)
+            if notes["lighting"] or notes["radio"]:
+                break
+    except (OSError, RuntimeError):
+        return {}
+    return {
+        "lighting": notes["lighting"], "radio_notes": notes["radio"],
+        "pilot_controlled_lighting": notes["pilot_controlled"],
+        "standard_keying": notes["pilot_controlled"] and not notes["explicit_clicks"],
+    }
+
+
 @router.get("/api/airport/{ident}", response_model=AirportPlace)
 def airport_place(ident: str) -> AirportPlace:
     """One US airport's card, by any ident it goes by (C81, KC81, KDLH).
 
-    `airspace_class` is the class of the controlled airspace reaching
-    the surface at the field (B, C or D), None where none does.
+    `airspace_class` is the class of the airspace at the surface at the
+    field: B, C or D, E in a Class E surface area, G where the ground is
+    uncontrolled (vfr.airspace.surface_class_at).
     `towered` is whether it lists a tower frequency. A field with no
     reporting station has no `metar`; `weather_unavailable` is set only
     when the weather service could not be asked."""
@@ -76,6 +96,7 @@ def airport_place(ident: str) -> AirportPlace:
         **{key: value for key, value in place.items() if key != "source_ident"},
         "airspace_class": airspace.surface_class_at(place["lat"], place["lon"], shp_path),
         "towered": any(f["type"] == "TWR" for f in frequencies),
+        **_notes(place["ident"]),
         "runways": [r for r in airports.get_runways(source) if not r["closed"]],
         "frequencies": frequencies,
         "metar": metar,

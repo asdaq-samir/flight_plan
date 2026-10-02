@@ -98,26 +98,6 @@ def get_checkpoints(departure_ident: str, destination_ident: str) -> list[dict]:
     return invoke(departure_ident, destination_ident)["checkpoints"]
 
 
-def list_routes() -> dict:
-    """The corridors model-service has a feature store for. HTTP only: the
-    SageMaker endpoint has no /routes, and on AWS collection is a
-    pipeline job rather than something a running service offers.
-
-    An error answer is relayed like /invocations' (it used to be parsed
-    as the list, and a body that was not JSON escaped as a ValueError --
-    a 500 from the planner instead of model-service's own words)."""
-    try:
-        resp = _session.get(f"{MODEL_SERVICE_URL}/routes", timeout=10)
-    except requests.RequestException as err:
-        raise ModelServiceError(f"Could not reach model-service: {err}") from err
-    if resp.status_code != 200:
-        raise ModelServiceError(upstream_detail(resp, "model-service"), resp.status_code)
-    try:
-        return resp.json()
-    except ValueError as err:
-        raise ModelServiceError(f"model-service answered /routes with something that is not JSON: {err}") from err
-
-
 def score_detections(rows: list[dict]) -> list | None:
     """The chart model's score for each of the chart reader's detections,
     from their feature rows (vfr.chartfeatures), in order; None where

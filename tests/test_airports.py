@@ -6,7 +6,7 @@ tmp_path and _load_table keys its cache on that exact path.
 import pandas as pd
 import pytest
 
-from vfr.airports import find_place, get_airport, get_frequencies, get_runways, places_in
+from vfr.airports import find_place, get_airport, get_frequencies, get_runways, places_in, search_airports
 
 
 @pytest.fixture
@@ -191,3 +191,26 @@ def test_the_places_in_a_box_are_landing_fields_biggest_first(us_airports_csv):
     assert [p["ident"] for p in places_in(40, -95, 47, -87, limit=1, cache_path=us_airports_csv)] == ["KMSP"]
     # Only the ones asked for, before the limit: KMSP would come first.
     assert [p["ident"] for p in places_in(40, -95, 47, -87, limit=1, cache_path=us_airports_csv, only={"KDLH"})] == ["KDLH"]
+
+
+def test_a_search_finds_a_word_of_the_name_not_only_its_start(us_airports_csv):
+    # "Executive", the second word of Chicago Executive's name; "Paul",
+    # the last of Minneapolis-St Paul's.
+    assert [a["ident"] for a in search_airports("exec", cache_path=us_airports_csv)] == ["KPWK"]
+    assert [a["ident"] for a in search_airports("paul", cache_path=us_airports_csv)] == ["KMSP"]
+    # An ident typed whole first, before the idents it starts.
+    assert search_airports("kdlh", cache_path=us_airports_csv)[0]["ident"] == "KDLH"
+
+
+def test_a_search_puts_the_bigger_field_first(tmp_path):
+    path = tmp_path / "airports.csv"
+    row = {"iso_region": "US-WI", "iso_country": "US", "elevation_ft": 800, "latitude_deg": 44.0, "longitude_deg": -88.5,
+           "local_code": None, "icao_code": None}
+    pd.DataFrame([
+        {**row, "ident": "2WN8", "name": "Oshkosh Sky Ranch Airport", "municipality": "Omro", "type": "small_airport"},
+        {**row, "ident": "KOSH", "icao_code": "KOSH", "local_code": "OSH", "name": "Wittman Regional Airport",
+         "municipality": "Oshkosh", "type": "medium_airport"},
+    ]).to_csv(path, index=False)
+
+    # Wittman is Oshkosh's by its town, and the bigger field.
+    assert [a["ident"] for a in search_airports("oshkosh", cache_path=path)] == ["KOSH", "2WN8"]

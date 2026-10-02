@@ -40,6 +40,12 @@ CONTROLLED_CLASSES = ("B", "C", "D")
 # clearance -- so they are reported, never used as a ceiling.
 TWO_WAY_COMMS_CLASSES = ("C", "D")
 
+# Class E surface areas (E2) and their extensions (E3, E4): controlled
+# from the ground, the dashed magenta line the chart draws round a field.
+# Read only for an airport's own class (surface_class_at); a route never
+# needs them, as nothing about E asks a VFR pilot for a clearance.
+SURFACE_E_TYPES = ("CLASS_E2", "CLASS_E3", "CLASS_E4")
+
 # Class B takes an explicit clearance, which can be refused and which a
 # light aircraft is usually better off not asking for. This is the only
 # class that pushes a route beneath a shelf.
@@ -268,7 +274,34 @@ def preload(faa_cache_dir) -> None:
     """Parses (or reads back) the controlled-airspace polygons now, so a
     service can pay the cold cost at startup rather than on a pilot's
     first request."""
-    _load_all_controlled_airspace(ensure_class_airspace_shapefile(faa_cache_dir))
+    shp_path = ensure_class_airspace_shapefile(faa_cache_dir)
+    _load_all_controlled_airspace(shp_path)
+    _load_surface_e(shp_path)
+
+
+_SURFACE_E_CACHE: dict = {}
+
+
+def _load_surface_e(shp_path) -> list:
+    """Every Class E surface area and extension (SURFACE_E_TYPES) as
+    (geometry, bbox) pairs, per shapefile: a second or so, the records
+    read whole and only those shapes built, kept for the process."""
+    shp_path = Path(shp_path)
+    stat = shp_path.stat()
+    key = (str(shp_path), stat.st_size, stat.st_mtime)
+    with _ALL_AIRSPACE_LOCK:
+        if key not in _SURFACE_E_CACHE:
+            sf = shapefile.Reader(str(shp_path))
+            fields = [f[0] for f in sf.fields[1:]]
+            local_type = fields.index("LOCAL_TYPE")
+            areas = []
+            for index, record in enumerate(sf.iterRecords()):
+                if record[local_type] in SURFACE_E_TYPES:
+                    shape = sf.shape(index)
+                    areas.append((shapely_shape(shape.__geo_interface__), tuple(shape.bbox)))
+            _SURFACE_E_CACHE.clear()
+            _SURFACE_E_CACHE[key] = areas
+        return _SURFACE_E_CACHE[key]
 
 
 def load_controlled_airspace(shp_path, bbox: tuple) -> list:
@@ -289,18 +322,26 @@ def load_controlled_airspace(shp_path, bbox: tuple) -> list:
     ]
 
 
-def surface_class_at(lat: float, lon: float, shp_path) -> str | None:
-    """The class of the controlled airspace reaching the surface at a
-    point -- "B", "C" or "D", the most restrictive where they overlap --
-    or None where none does (Class E or G, which the shapefile here does
-    not carry). An airport's own class, asked at the airport."""
+def surface_class_at(lat: float, lon: float, shp_path) -> str:
+    """The class of the airspace at the surface at a point, an airport's
+    own asked at the airport: "B", "C" or "D", the most restrictive where
+    they overlap; "E" in a Class E surface area or its extension; "G"
+    anywhere else, uncontrolled at the ground -- the classes the chart
+    draws solid blue, solid magenta, dashed blue, dashed magenta and, for
+    G, none at all, the field under the shaded edge of the E above it."""
     point = Point(lon, lat)
     margin = 0.01
     classes = [
         p["class"] for p in load_controlled_airspace(shp_path, (lat - margin, lon - margin, lat + margin, lon + margin))
         if p["floor_ft_msl"] <= 0 and p["geometry"].contains(point)
     ]
-    return min(classes) if classes else None
+    if classes:
+        return min(classes)
+    in_e = any(
+        geometry.contains(point) for geometry, (min_lon, min_lat, max_lon, max_lat) in _load_surface_e(shp_path)
+        if min_lat <= lat <= max_lat and min_lon <= lon <= max_lon
+    )
+    return "E" if in_e else "G"
 
 
 def is_own_surface_area(polygon: dict, start_point, end_point) -> bool:

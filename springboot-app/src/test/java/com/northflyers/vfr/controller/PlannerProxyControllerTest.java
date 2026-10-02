@@ -174,7 +174,10 @@ class PlannerProxyControllerTest {
     void theRouteTableCoversWhatTheBrowserCalls() {
         assertThat(PlannerProxyController.isForwarded("GET", "/api/chart-tile/sectional/10/262/380.png")).isTrue();
         assertThat(PlannerProxyController.isForwarded("POST", "/api/dev/services/ml/start")).isTrue();
-        assertThat(PlannerProxyController.isForwarded("GET", "/api/build/abc123")).isTrue();
+        assertThat(PlannerProxyController.isForwarded("GET", "/api/chart")).isTrue();
+        // Gone with collecting a route: the checkpoints come off the chart.
+        assertThat(PlannerProxyController.isForwarded("POST", "/api/build")).isFalse();
+        assertThat(PlannerProxyController.isForwarded("GET", "/api/routes")).isFalse();
         assertThat(PlannerProxyController.isForwarded("POST", "/api/checkpoint-notes/generate")).isTrue();
         assertThat(PlannerProxyController.isForwarded("GET", "/api/airport/KDLH")).isTrue();
         assertThat(PlannerProxyController.isForwarded("GET", "/api/airports/in-view")).isTrue();

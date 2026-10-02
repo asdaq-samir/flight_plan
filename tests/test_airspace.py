@@ -208,7 +208,8 @@ def test_transits_follow_the_legs_flown_not_the_straight_line(tmp_path, monkeypa
 
 def test_an_airports_own_class_is_the_most_restrictive_reaching_the_surface_there(monkeypatch):
     """surface_class_at: B over C over D where surface areas overlap, a
-    shelf above the field does not count, and nowhere controlled is None."""
+    shelf above the field does not count, then a Class E surface area,
+    and anywhere else G."""
     field = Point(-93.65, 41.53)
     polygons = [
         {**_airspace(0.0, field), "class": "D"},
@@ -216,5 +217,9 @@ def test_an_airports_own_class_is_the_most_restrictive_reaching_the_surface_ther
         {**_airspace(3000.0, field), "class": "B"},
     ]
     monkeypatch.setattr(airspace, "load_controlled_airspace", lambda shp_path, bbox: polygons)
+    e_field = Point(field.x + 1, field.y)
+    surface_e = _airspace(0.0, e_field)["geometry"]
+    monkeypatch.setattr(airspace, "_load_surface_e", lambda shp_path: [(surface_e, surface_e.bounds)])
     assert airspace.surface_class_at(field.y, field.x, "airspace.shp") == "C"
-    assert airspace.surface_class_at(field.y + 1, field.x, "airspace.shp") is None
+    assert airspace.surface_class_at(e_field.y, e_field.x, "airspace.shp") == "E"
+    assert airspace.surface_class_at(field.y + 1, field.x, "airspace.shp") == "G"

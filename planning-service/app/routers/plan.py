@@ -30,6 +30,7 @@ from ..schemas import (
     ChartLayer,
     ChartSheet,
     Checkpoints,
+    ChartInfo,
     Course,
     NavLogAltitude,
     NavLogDone,
@@ -178,6 +179,22 @@ def _running_stages(r, fix_list: list, aircraft: str, fcst_hr: str, window: tupl
     return [running] if running else []
 
 
+def _chart_info() -> dict:
+    cycle = charts.serving_cycle()
+    return {
+        "max_zoom": VFR_SECTIONAL_MAX_ZOOM, "min_zoom": VFR_SECTIONAL_MIN_ZOOM, "chart_cycle": cycle,
+        "chart_revision": charts.tiles_revision(cycle), "chart_tiles_base": charts.tiles_base_url(),
+        "chart_layers": chart_layers(),
+    }
+
+
+@router.get("/api/chart")
+def chart_info() -> ChartInfo:
+    """The chart the map draws, for a map with no route on it yet: the
+    planner's page opens on a search bar over the chart, as Maps does."""
+    return ChartInfo(**_chart_info())
+
+
 @router.get("/api/course")
 def course(dep: str, dest: str) -> Course:
     """Just the course line and its endpoints.
@@ -194,12 +211,7 @@ def course(dep: str, dest: str) -> Course:
         distance_nm=round(geo.distance_nm(*r.start, *r.end), 1),
         bearing_deg=round(geo.bearing_deg(*r.start, *r.end)),
         course_line=course_line(r.start, r.end),
-        max_zoom=VFR_SECTIONAL_MAX_ZOOM,
-        min_zoom=VFR_SECTIONAL_MIN_ZOOM,
-        chart_cycle=charts.serving_cycle(),
-        chart_revision=charts.tiles_revision(charts.serving_cycle()),
-        chart_tiles_base=charts.tiles_base_url(),
-        chart_layers=chart_layers(),
+        **_chart_info(),
     )
 
 

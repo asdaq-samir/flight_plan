@@ -124,6 +124,11 @@ def _us_airports_of(path: str, _mtime: float) -> pd.DataFrame:
     us["_ident_upper"] = us["ident"].astype(str).str.upper()
     us["_local_upper"] = us["local_code"].astype(str).str.upper()
     us["_name_upper"] = us["name"].astype(str).str.upper()
+    # Every word of the name and the town, each after a space, so a
+    # search finds a word's start anywhere: "oshkosh" is Wittman
+    # Regional's town, not the start of its name.
+    us["_words_upper"] = " " + us["_name_upper"] + " " + us["municipality"].fillna("").astype(str).str.upper()
+    us["_size_rank"] = us["type"].map({"large_airport": 0, "medium_airport": 1, "small_airport": 2}).fillna(3)
     # OurAirports' own `ident` column is a synthesized ICAO-style
     # code (usually "K" + `local_code`) it assigns even to airports
     # that were never actually issued one -- C81 (a real, local-use
@@ -146,23 +151,27 @@ def _us_airports_of(path: str, _mtime: float) -> pd.DataFrame:
 
 
 def search_airports(query: str, limit: int = 8, cache_path: Path = DEFAULT_CACHE_PATH) -> list[dict]:
-    """Airports whose ident, local code, or name starts with `query` --
-    the DEP/DEST inputs' own autocomplete, so a pilot who doesn't have
-    an ident memorized can find it by typing the airport's name instead.
+    """Airports whose ident or local code starts with `query`, or a word of
+    whose name or town does -- the route form's pickers and the panel's
+    search bar, so a pilot who doesn't have an ident memorized can find
+    it by the airport's name, or its town's.
 
-    Ident/local-code matches sort first and name matches second, each
-    group alphabetical by ident within itself -- typing "KDL" is almost
-    always hunting for an ident, not a name that happens to start the
-    same way, so those should never be buried under name matches.
+    An ident typed whole comes first, then idents that start with it,
+    then the names and towns -- typing "KDL" is almost always hunting
+    for an ident, not a name that happens to start the same way. Within
+    each, the bigger fields first, then by ident: "oshkosh" is Wittman
+    Regional (KOSH) before a private strip named for the town, which
+    was the only answer while names had to start with what was typed.
     """
     query = query.strip().upper()
     if not query:
         return []
     df = _us_airports(cache_path)
-    ident_hit = df["_ident_upper"].str.startswith(query) | df["_local_upper"].str.startswith(query)
-    name_hit = ~ident_hit & df["_name_upper"].str.startswith(query)
-    matches = pd.concat([df[ident_hit].assign(_rank=0), df[name_hit].assign(_rank=1)])
-    matches = matches.sort_values(["_rank", "_display_ident"]).head(limit)
+    exact = (df["_ident_upper"] == query) | (df["_local_upper"] == query) | (df["_display_ident"] == query)
+    ident_hit = ~exact & (df["_ident_upper"].str.startswith(query) | df["_local_upper"].str.startswith(query))
+    word_hit = ~exact & ~ident_hit & df["_words_upper"].str.contains(" " + query, regex=False)
+    matches = pd.concat([df[exact].assign(_rank=0), df[ident_hit].assign(_rank=1), df[word_hit].assign(_rank=2)])
+    matches = matches.sort_values(["_rank", "_size_rank", "_display_ident"]).head(limit)
     return [
         {
             "ident": row["_display_ident"],

@@ -1,14 +1,14 @@
 """Lookups the pages need around the planner itself: the route form's
-airport search, the corridors already collected, and every trained
+airport search, and every trained
 algorithm side by side (Settings' Dev ML panel, and the one line in
 Plan's own info popover naming the model that scored the checkpoints).
 Nothing the planner's own scoring path depends on."""
 import json
 
-from fastapi import APIRouter, HTTPException
-from vfr import aircraft, airports, model_client, model_registry
+from fastapi import APIRouter
+from vfr import aircraft, airports, model_registry
 
-from ..schemas import AircraftProfiles, AirportSearch, BuiltRoutes, ModelComparison
+from ..schemas import AircraftProfiles, AirportSearch, ModelComparison
 
 router = APIRouter()
 
@@ -33,15 +33,6 @@ def airport_search(q: str = "") -> AirportSearch:
     uses, not a second data source that could drift from it.
     """
     return {"airports": airports.search_airports(q)}
-
-
-@router.get("/api/routes")
-def built_routes() -> BuiltRoutes:
-    """Corridors model-service already has a feature store for."""
-    try:
-        return model_client.list_routes()
-    except model_client.ModelServiceError as err:
-        raise HTTPException(err.status, str(err)) from err
 
 
 @router.get("/api/model-comparison")

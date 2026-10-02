@@ -126,6 +126,9 @@ def _is_icloud_evicted(path: Path) -> bool:
 _NASR_FILES = {
     "NAV_BASE.csv": lambda: find_download_link(find_current_cycle_page(NASR_INDEX_URL), r'href="([^"]*NAV_CSV\.zip)"'),
     "APT_BASE.csv": lambda: find_download_link(find_current_cycle_page(NASR_INDEX_URL), r'href="([^"]*APT_CSV\.zip)"'),
+    # In the same zip as APT_BASE: every airport's remarks, the Chart
+    # Supplement's own text (vfr.remarks).
+    "APT_RMK.csv": lambda: find_download_link(find_current_cycle_page(NASR_INDEX_URL), r'href="([^"]*APT_CSV\.zip)"'),
     "DOF.DAT": lambda: find_download_link(DOF_INDEX_URL, r'href="(https://aeronav\.faa\.gov/Obst_Data/DOF_\d+\.zip)"'),
 }
 

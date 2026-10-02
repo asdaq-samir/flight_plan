@@ -300,7 +300,9 @@
                 "enum": [
                   "B",
                   "C",
-                  "D"
+                  "D",
+                  "E",
+                  "G"
                 ],
                 "type": "string"
               },
@@ -346,6 +348,14 @@
             "title": "Lat",
             "type": "number"
           },
+          "lighting": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Lighting",
+            "type": "array"
+          },
           "lon": {
             "title": "Lon",
             "type": "number"
@@ -375,6 +385,19 @@
             "title": "Name",
             "type": "string"
           },
+          "pilot_controlled_lighting": {
+            "default": false,
+            "title": "Pilot Controlled Lighting",
+            "type": "boolean"
+          },
+          "radio_notes": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Radio Notes",
+            "type": "array"
+          },
           "region": {
             "anyOf": [
               {
@@ -392,6 +415,11 @@
             },
             "title": "Runways",
             "type": "array"
+          },
+          "standard_keying": {
+            "default": false,
+            "title": "Standard Keying",
+            "type": "boolean"
           },
           "towered": {
             "title": "Towered",
@@ -1096,52 +1124,6 @@
         "title": "Briefing",
         "type": "object"
       },
-      "BuiltRoute": {
-        "additionalProperties": true,
-        "properties": {
-          "departure_ident": {
-            "title": "Departure Ident",
-            "type": "string"
-          },
-          "destination_ident": {
-            "title": "Destination Ident",
-            "type": "string"
-          }
-        },
-        "required": [
-          "departure_ident",
-          "destination_ident"
-        ],
-        "title": "BuiltRoute",
-        "type": "object"
-      },
-      "BuiltRoutes": {
-        "properties": {
-          "features_dir": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Features Dir"
-          },
-          "routes": {
-            "items": {
-              "$ref": "#/components/schemas/BuiltRoute"
-            },
-            "title": "Routes",
-            "type": "array"
-          }
-        },
-        "required": [
-          "routes"
-        ],
-        "title": "BuiltRoutes",
-        "type": "object"
-      },
       "Candidate": {
         "description": "A scored detection off the chart (app.scoring): `id` its kind and\nplace, `name` the FAA's for an airport and the kind of thing for\nthe rest. `selected` is set by the server's greedy pass.",
         "properties": {
@@ -1256,6 +1238,54 @@
           "score"
         ],
         "title": "CandidateModel",
+        "type": "object"
+      },
+      "ChartInfo": {
+        "description": "Which chart the map draws and where its tiles are: the map with no\nroute on it yet asks for this alone (/api/chart), and a Course\ncarries it as well.",
+        "properties": {
+          "chart_cycle": {
+            "title": "Chart Cycle",
+            "type": "string"
+          },
+          "chart_layers": {
+            "items": {
+              "$ref": "#/components/schemas/ChartLayer"
+            },
+            "title": "Chart Layers",
+            "type": "array"
+          },
+          "chart_revision": {
+            "default": 0,
+            "title": "Chart Revision",
+            "type": "integer"
+          },
+          "chart_tiles_base": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chart Tiles Base"
+          },
+          "max_zoom": {
+            "title": "Max Zoom",
+            "type": "integer"
+          },
+          "min_zoom": {
+            "title": "Min Zoom",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "chart_layers",
+          "max_zoom",
+          "min_zoom",
+          "chart_cycle"
+        ],
+        "title": "ChartInfo",
         "type": "object"
       },
       "ChartLayer": {
@@ -1987,15 +2017,15 @@
           }
         },
         "required": [
+          "chart_layers",
+          "max_zoom",
+          "min_zoom",
+          "chart_cycle",
           "departure",
           "destination",
           "distance_nm",
           "bearing_deg",
-          "course_line",
-          "chart_layers",
-          "max_zoom",
-          "min_zoom",
-          "chart_cycle"
+          "course_line"
         ],
         "title": "Course",
         "type": "object"
@@ -4933,7 +4963,7 @@
     },
     "/api/airport/{ident}": {
       "get": {
-        "description": "One US airport's card, by any ident it goes by (C81, KC81, KDLH).\n\n`airspace_class` is the class of the controlled airspace reaching\nthe surface at the field (B, C or D), None where none does.\n`towered` is whether it lists a tower frequency. A field with no\nreporting station has no `metar`; `weather_unavailable` is set only\nwhen the weather service could not be asked.",
+        "description": "One US airport's card, by any ident it goes by (C81, KC81, KDLH).\n\n`airspace_class` is the class of the airspace at the surface at the\nfield: B, C or D, E in a Class E surface area, G where the ground is\nuncontrolled (vfr.airspace.surface_class_at).\n`towered` is whether it lists a tower frequency. A field with no\nreporting station has no `metar`; `weather_unavailable` is set only\nwhen the weather service could not be asked.",
         "operationId": "airport_place_api_airport__ident__get",
         "parameters": [
           {
@@ -5248,6 +5278,25 @@
           }
         },
         "summary": "Briefing"
+      }
+    },
+    "/api/chart": {
+      "get": {
+        "description": "The chart the map draws, for a map with no route on it yet: the\nplanner's page opens on a search bar over the chart, as Maps does.",
+        "operationId": "chart_info_api_chart_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChartInfo"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Chart Info"
       }
     },
     "/api/chart-tile/{kind}/{z}/{x}/{y}.png": {
@@ -6330,25 +6379,6 @@
           }
         },
         "summary": "Retrain"
-      }
-    },
-    "/api/routes": {
-      "get": {
-        "description": "Corridors model-service already has a feature store for.",
-        "operationId": "built_routes_api_routes_get",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BuiltRoutes"
-                }
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "summary": "Built Routes"
       }
     },
     "/api/status": {
