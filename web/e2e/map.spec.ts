@@ -82,7 +82,10 @@ test("plan page: a checkpoint picked on the map brings the map in to it, so ther
   const before = await zoomOfTiles();
   const marker = page.locator(".leaflet-marker-icon", { hasText: /^9$/ }).first();
   await expect(marker).toBeVisible({ timeout: slow(60000) });
-  await marker.click();
+  // Its own click, not one at its place: the route fitted to a phone
+  // stacks neighbouring checkpoints, and a click there lands on the one
+  // drawn over it.
+  await marker.dispatchEvent("click");
   await expect.poll(zoomOfTiles, { timeout: slow(10000) }).toBeGreaterThan(before);
   await expect(page.locator(".leaflet-overlay-pane path")).not.toHaveCount(0);
 });

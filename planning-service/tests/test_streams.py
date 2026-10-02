@@ -19,7 +19,7 @@ client = TestClient(app)
 
 
 def test_a_weather_failure_mid_navlog_is_the_streams_last_line(monkeypatch, altitude, messages):
-    monkeypatch.setattr(scoring, "invoke_model", lambda dep, dest, model=None: {"checkpoints": []})
+    monkeypatch.setattr(scoring, "score", lambda dep, dest: [])
     monkeypatch.setattr(altitude_module, "select_cruise_altitude", select_cruise_altitude_stub(altitude))
 
     def no_winds(*args, **kwargs):
@@ -36,16 +36,16 @@ def test_a_weather_failure_mid_navlog_is_the_streams_last_line(monkeypatch, alti
     assert lines[-1] == {"type": "error", "detail": "aviationweather.gov request failed: timed out"}
 
 
-def test_an_uncollected_corridor_is_reported_inside_the_navlog_stream(monkeypatch, messages):
-    def not_collected(dep, dest, model=None):
-        raise HTTPException(404, f"{dep}->{dest} has not been collected yet")
+def test_a_chart_that_would_not_read_is_reported_inside_the_navlog_stream(monkeypatch, messages):
+    def unread(dep, dest):
+        raise HTTPException(502, f"the chart along {dep}->{dest} could not be read: tile fetch failed")
 
-    monkeypatch.setattr(scoring, "invoke_model", not_collected)
+    monkeypatch.setattr(scoring, "score", unread)
 
     resp = client.get("/api/navlog", params={"dep": "C81", "dest": "KDLH"})
 
     assert resp.status_code == 200
-    assert messages(resp)[-1] == {"type": "error", "detail": "C81->KDLH has not been collected yet"}
+    assert messages(resp)[-1] == {"type": "error", "detail": "the chart along C81->KDLH could not be read: tile fetch failed"}
 
 
 def test_a_failed_corridor_read_ends_the_detect_stream_with_an_error(monkeypatch, messages):
@@ -72,7 +72,7 @@ def test_a_stuck_altitude_selection_ends_the_navlog_stream_saying_what_it_waits_
     ends at the limit with an error line saying so."""
     from app.routers import plan as plan_router
 
-    monkeypatch.setattr(scoring, "invoke_model", lambda dep, dest, model=None: {"checkpoints": []})
+    monkeypatch.setattr(scoring, "score", lambda dep, dest: [])
     release = threading.Event()
 
     def stuck(start, end, profile, faa_cache_dir=None, fixes=None, fcst_hr="06", pending=None, window=None):

@@ -10,7 +10,7 @@ from app.routers import notes
 
 client = TestClient(app)
 
-CHECKPOINT = {"lat": 45.0, "lon": -90.0, "osm_id": "node/1", "name": "Lake Mary", "category": "lake",
+CHECKPOINT = {"lat": 45.0, "lon": -90.0, "id": "water@45.00000,-90.00000", "name": "Lake Mary", "category": "water",
               "along_track_nm": 12.0}
 
 

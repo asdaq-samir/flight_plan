@@ -45,10 +45,10 @@ const CHART_KIND_LABELS: Record<string, string> = {
  * The developer's own console, in a `MapDrawer` dropping down over the
  * training map (see MapPage): what the repo does that a pilot never
  * sees, one tab each, each a page of grouped lists as iOS's Settings
- * is. Guide, first -- the three steps that change the model (collect a
- * route, rate it, retrain), then the rating scale and the keys; no
- * inputs of its own, since the header's route form loads and collects
- * routes and Retrain sits in the Model Training drawer's More menu,
+ * is. Guide, first -- the three steps that change the model (load a
+ * route, rate its points, retrain), then the rating scale and the keys;
+ * no inputs of its own, since the header's route form loads routes and
+ * Retrain sits in the Model Training drawer's More menu,
  * beside the ratings it learns from. Performance -- training first
  * (whether the ratings are enough to learn from, the last run and why
  * it failed, Retrain), then every algorithm compared, the model serving
@@ -466,12 +466,13 @@ function useOnMap(corridors: Status["corridors"]) {
 }
 
 /** The one action that changes the model, laid out as the three steps
- *  it takes, as numbered rows: collect a route so its candidate
- *  landmarks exist, rate its checkpoints in the Model Training panel
- *  (what the model learns from), then retrain -- from More beside the
+ *  it takes, as numbered rows: load a route, whose chart the reader
+ *  reads for its points, rate them in the Model Training panel (what
+ *  the chart model learns from), then retrain -- from More beside the
  *  route, or the Performance tab. Then the rating scale and the keys
  *  (RatingGuide). No inputs here: the route at the top of the panel is
- *  what loads a route and offers to collect it. This planner cannot
+ *  what loads a route. It offered to collect one first, from
+ *  OpenStreetMap, before the chart was read instead. This planner cannot
  *  train in-process (no scikit-learn of its own, on purpose), so the
  *  retrain goes through Airflow, the same DAG the AWS trigger Lambda
  *  starts; without Airflow reachable the Performance tab says how to run
@@ -480,8 +481,8 @@ function TrainingTab() {
   return (
     <div className="space-y-6">
       <ListGroup title="Train the model">
-        <StepRow n={1} title="Collect a route" description="Load it at the top of the panel, which offers to collect a new one." />
-        <StepRow n={2} title="Rate its checkpoints" description="In the Model Training panel, every candidate in flight order." />
+        <StepRow n={1} title="Load a route" description="At the top of the panel; the chart reader finds its points along it." />
+        <StepRow n={2} title="Rate its points" description="In the Model Training panel, every one in flight order; a 0 for one that is no feature at all." />
         <StepRow n={3} title="Retrain" description="From More beside the route, or Performance; the new model serves only if it does better." />
       </ListGroup>
       <RatingGuide />

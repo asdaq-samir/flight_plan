@@ -55,7 +55,6 @@ export type Metar = Schemas["Metar"];
 export type Runway = Schemas["Runway"];
 export type Frequency = Schemas["Frequency"];
 export type Briefing = Schemas["Briefing"];
-export type BuildJob = Schemas["BuildJob"];
 export type BuiltRoute = Schemas["BuiltRoute"];
 export type BuiltRoutes = Schemas["BuiltRoutes"];
 export type AirportSuggestion = Schemas["AirportSuggestion"];

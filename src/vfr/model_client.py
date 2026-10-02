@@ -1,4 +1,8 @@
-"""The one way to ask model-service for a route's scored checkpoints.
+"""The one way to ask model-service for scores: the chart model's for the
+chart reader's detections (score_detections), which the planner's
+checkpoints and the training page's points are ranked by, and the
+landmark model's for a collected corridor (invoke), which nothing in the
+planner asks for since its checkpoints came off the chart.
 
 Locally that is an HTTP POST to the model-service container's
 /invocations. On AWS the same image runs as a SageMaker Endpoint's serving
@@ -6,9 +10,8 @@ container, with no HTTP service to call, so the identical request goes
 through SageMaker Runtime's invoke_endpoint instead. Which path runs is
 decided by SAGEMAKER_ENDPOINT_NAME alone -- set only on AWS, by the task
 definition in infra/cloudformation/template.yaml -- so planning-service
-never needs to know which it is talking to. It is the only caller: the
-agents get their nav log, scores included, from planning-service itself
-(vfr.planner_client).
+never needs to know which it is talking to. The agents get their nav
+log, scores included, from planning-service itself (vfr.planner_client).
 """
 import json
 import logging

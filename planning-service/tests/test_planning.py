@@ -281,49 +281,39 @@ def test_stages_are_named_in_a_pilots_words():
     assert planning.describe_stages([]) == ""
 
 
-def test_a_corridor_collected_the_other_way_round_serves_this_one(monkeypatch, tmp_path):
-    """KDLH->C81 with only C81->KDLH built: the same candidates, measured
-    from the other end, instead of a 404 and a minutes-long build."""
-    import pytest
-    from vfr import model_client
+def test_the_checkpoints_are_the_charts_own_within_a_mile_of_the_course_scored_by_the_chart_model(monkeypatch):
+    """No route to collect first: whatever the chart reader finds within a
+    mile of the course, named for what it is, scored by the chart model,
+    in flight order."""
+    from vfr import chartvision
 
-    from app import scoring
+    from app import chart_model, scoring
 
-    built = tmp_path / "features_c81_kdlh.parquet"
-    built.write_text("x")
-    monkeypatch.setattr(scoring, "paths", lambda dep, dest: (
-        tmp_path / f"candidates_{dep.lower()}_{dest.lower()}.csv", tmp_path / f"features_{dep.lower()}_{dest.lower()}.parquet"))
+    def landmark(category, along, cross, score, name=None):
+        return chartvision.Landmark(category, 43.0 + along / 60, -89.0, 0.0, score, 40, name=name,
+                                    extras={"along_track_nm": along, "cross_track_nm": cross})
 
-    def invoke(dep, dest, model=None):
-        if (dep, dest) != ("C81", "KDLH"):
-            raise model_client.RouteNotCollected(dep, dest)
-        return {"departure_ident": dep, "destination_ident": dest, "checkpoints": [
-            {"osm_id": "1", "name": "near C81", "along_track_nm": 10.0},
-            {"osm_id": "2", "name": "near KDLH", "along_track_nm": 280.0},
-        ]}
+    landmarks = [
+        landmark("river", 40.0, 0.2, 4.3),
+        landmark("airport", 12.0, -0.6, 4.6, name="Wonder Lake"),
+        landmark("water", 25.0, 3.0, 4.2),  # four miles abeam: the training page's, not the planner's
+    ]
+    monkeypatch.setattr(chart_model, "corridor", lambda route, wait: landmarks)
+    monkeypatch.setattr(chart_model, "predicted_scores", lambda ls: [0.4, 3.9, 5.0])
 
-    monkeypatch.setattr(model_client, "invoke", invoke)
+    checkpoints = scoring.score("C81", "KDLH")
 
-    answer = scoring.invoke_model("KDLH", "C81")
-
-    assert [c["name"] for c in answer["checkpoints"]] == ["near KDLH", "near C81"]
-    from vfr import geo
-    total = geo.distance_nm(42.3172, -88.0905, 46.8421, -92.1936)   # conftest's C81 and KDLH
-    assert answer["checkpoints"][0]["along_track_nm"] == pytest.approx(total - 280.0, abs=0.01)
-    assert answer["departure_ident"] == "KDLH"
+    assert [(c["name"], c["category"], c["predicted_score"]) for c in checkpoints] == [
+        ("Wonder Lake", "airport", 3.9), ("River", "river", 0.4)]
 
 
-def test_a_corridor_built_neither_way_is_still_a_404(monkeypatch, tmp_path):
-    import pytest
-    from fastapi import HTTPException
-    from vfr import model_client
+def test_with_no_chart_model_the_palettes_constants_score_them(monkeypatch):
+    from vfr import chartvision
 
-    from app import scoring
+    from app import chart_model, scoring
 
-    monkeypatch.setattr(scoring, "paths", lambda dep, dest: (tmp_path / "c.csv", tmp_path / "f.parquet"))
-    monkeypatch.setattr(model_client, "invoke", lambda dep, dest, model=None: (_ for _ in ()).throw(
-        model_client.RouteNotCollected(dep, dest)))
+    river = chartvision.Landmark("river", 43.5, -89.0, 0.0, 4.3, 40, extras={"along_track_nm": 40.0, "cross_track_nm": 0.1})
+    monkeypatch.setattr(chart_model, "corridor", lambda route, wait: [river])
+    monkeypatch.setattr(chart_model, "predicted_scores", lambda ls: [None])
 
-    with pytest.raises(HTTPException) as err:
-        scoring.invoke_model("KDLH", "C81")
-    assert err.value.status_code == 404
+    assert [c["predicted_score"] for c in scoring.score("C81", "KDLH")] == [4.3]

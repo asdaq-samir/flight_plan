@@ -13,7 +13,7 @@ import json
 from fastapi.testclient import TestClient
 from vfr import airports
 from vfr import altitude as altitude_module
-from vfr import model_client, model_registry, weather
+from vfr import model_registry, weather
 from vfr.weather import WeatherServiceError
 
 from app.main import app
@@ -65,29 +65,21 @@ def test_model_comparison_lists_the_promoted_model_and_any_trained_candidates(tm
     assert names["pytorch_mlp"]["metric"] == "held_out_mae"
 
 
-# --- /api/checkpoints: model-service's failures as HTTP statuses ---
+# --- /api/checkpoints: the chart's read failing as an HTTP status ---
 
 
-def test_checkpoints_translates_an_uncollected_route_to_404(monkeypatch):
-    def not_collected(dep, dest):
-        raise model_client.RouteNotCollected(dep, dest)
+def test_checkpoints_translates_a_chart_that_would_not_read_to_502(monkeypatch):
+    from app import chart_model
 
-    monkeypatch.setattr(model_client, "invoke", not_collected)
+    def unread(route, wait):
+        raise RuntimeError(f"the chart along {route} could not be read: tile fetch failed")
 
-    resp = client.get("/api/checkpoints", params={"dep": "C81", "dest": "KDLH"})
-
-    assert resp.status_code == 404
-
-
-def test_checkpoints_translates_a_down_model_service_to_502(monkeypatch):
-    def unreachable(dep, dest):
-        raise model_client.ModelServiceError("Could not reach model-service: no route to host")
-
-    monkeypatch.setattr(model_client, "invoke", unreachable)
+    monkeypatch.setattr(chart_model, "corridor", unread)
 
     resp = client.get("/api/checkpoints", params={"dep": "C81", "dest": "KDLH"})
 
     assert resp.status_code == 502
+    assert "could not be read" in resp.json()["detail"]
 
 
 # --- /api/status, /api/retrain, /api/aircraft-profiles ---

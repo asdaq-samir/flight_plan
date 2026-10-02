@@ -205,8 +205,8 @@ def course(dep: str, dest: str) -> Course:
 
 @router.get("/api/checkpoints")
 def checkpoints(dep: str, dest: str) -> Checkpoints:
-    """Scored candidates and the subset worth flying. Fast: the model is
-    already loaded and the features are already built."""
+    """Scored candidates and the subset worth flying: fast once the
+    route's chart has been read, a few seconds for its first time."""
     r = load_route(dep, dest)
     scored, selected = scored_and_selected(r.dep_ident, r.dest_ident)
     return Checkpoints(departure=r.departure, destination=r.destination, candidates=scored, selected=selected)
@@ -288,7 +288,7 @@ def plan(
     try:
         scored, selected, outcome = _result(_waited(
             pool.submit(work), COMPUTE_LIMIT_S,
-            lambda: _running_stages(r, fixes[0], aircraft, fcst_hr, window) if fixes else ["model-service"],
+            lambda: _running_stages(r, fixes[0], aircraft, fcst_hr, window) if fixes else ["chart"],
         ))
     finally:
         pool.shutdown(wait=False)
@@ -362,7 +362,7 @@ def navlog_stream(
     r = load_route(dep, dest)
 
     def lines():
-        yield line(NavLogStage(detail="Scoring and choosing the checkpoints…"))
+        yield line(NavLogStage(detail="Reading the chart and choosing the checkpoints…"))
         _, selected = scored_and_selected(r.dep_ident, r.dest_ident)
 
         profile = aircraft_profile(

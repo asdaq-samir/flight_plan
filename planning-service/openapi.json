@@ -1096,82 +1096,6 @@
         "title": "Briefing",
         "type": "object"
       },
-      "BuildJob": {
-        "properties": {
-          "detail": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Detail"
-          },
-          "job_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Job Id"
-          },
-          "route": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Route"
-          },
-          "state": {
-            "enum": [
-              "queued",
-              "running",
-              "done",
-              "failed"
-            ],
-            "title": "State",
-            "type": "string"
-          },
-          "step": {
-            "title": "Step",
-            "type": "string"
-          }
-        },
-        "required": [
-          "job_id",
-          "state",
-          "step"
-        ],
-        "title": "BuildJob",
-        "type": "object"
-      },
-      "BuildRequest": {
-        "properties": {
-          "departure_ident": {
-            "title": "Departure Ident",
-            "type": "string"
-          },
-          "destination_ident": {
-            "title": "Destination Ident",
-            "type": "string"
-          }
-        },
-        "required": [
-          "departure_ident",
-          "destination_ident"
-        ],
-        "title": "BuildRequest",
-        "type": "object"
-      },
       "BuiltRoute": {
         "additionalProperties": true,
         "properties": {
@@ -1219,7 +1143,7 @@
         "type": "object"
       },
       "Candidate": {
-        "description": "A scored OSM candidate. `selected` is set by the server's greedy pass.",
+        "description": "A scored detection off the chart (app.scoring): `id` its kind and\nplace, `name` the FAA's for an airport and the kind of thing for\nthe rest. `selected` is set by the server's greedy pass.",
         "properties": {
           "along_track_nm": {
             "title": "Along Track Nm",
@@ -1227,6 +1151,10 @@
           },
           "category": {
             "title": "Category",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
             "type": "string"
           },
           "lat": {
@@ -1248,10 +1176,6 @@
             ],
             "title": "Name"
           },
-          "osm_id": {
-            "title": "Osm Id",
-            "type": "string"
-          },
           "predicted_score": {
             "title": "Predicted Score",
             "type": "number"
@@ -1262,7 +1186,7 @@
           }
         },
         "required": [
-          "osm_id",
+          "id",
           "category",
           "lat",
           "lon",
@@ -3523,6 +3447,10 @@
             "default": null,
             "title": "Detail"
           },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
           "lat": {
             "title": "Lat",
             "type": "number"
@@ -3530,10 +3458,6 @@
           "lon": {
             "title": "Lon",
             "type": "number"
-          },
-          "osm_id": {
-            "title": "Osm Id",
-            "type": "string"
           },
           "source": {
             "enum": [
@@ -3554,7 +3478,7 @@
         "required": [
           "lat",
           "lon",
-          "osm_id",
+          "id",
           "description",
           "source"
         ],
@@ -5326,84 +5250,6 @@
         "summary": "Briefing"
       }
     },
-    "/api/build": {
-      "post": {
-        "description": "Queue collecting a corridor. Returns a job id to poll.\n\nAsynchronous because this is minutes of network I/O -- Overpass, the\nFAA subscription, and an elevation lookup per candidate -- not\nsomething to hold an HTTP request open for. A route already queued\nor building answers with that job; a full queue is a 429.",
-        "operationId": "build_api_build_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/BuildRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BuildJob"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Build"
-      }
-    },
-    "/api/build/{job_id}": {
-      "get": {
-        "operationId": "build_status_api_build__job_id__get",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "job_id",
-            "required": true,
-            "schema": {
-              "title": "Job Id",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BuildJob"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Build Status"
-      }
-    },
     "/api/chart-tile/{kind}/{z}/{x}/{y}.png": {
       "get": {
         "description": "Any kind of chart by its key (`chart_layers` on the course lists\nthem): `sec`, `tac`, `ifr_low`, `ifr_high`, `ifr_area`. What the\nmap's layers draw from.\n\nThe FAA's own GeoTIFF of each sheet, rendered into a {z}/{x}/{y} tile\npyramid (vfr.charts -- downloaded once per 56-day chart cycle) and\ncached on disk; the same tiles the detector reads. A tile pyramid is\nwhat makes each chart a plain Leaflet tile layer: edge-only fetches\non a pan, the previous zoom's tiles scaled under the zoom animation,\na prefetch ring. 404 where no sheet covers the tile, which the layer\nleaves blank. The sectional and the TAC had routes of their own\nunder older names, which nothing called any more.",
@@ -5602,7 +5448,7 @@
     },
     "/api/checkpoints": {
       "get": {
-        "description": "Scored candidates and the subset worth flying. Fast: the model is\nalready loaded and the features are already built.",
+        "description": "Scored candidates and the subset worth flying: fast once the\nroute's chart has been read, a few seconds for its first time.",
         "operationId": "checkpoints_api_checkpoints_get",
         "parameters": [
           {

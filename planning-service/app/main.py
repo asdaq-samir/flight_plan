@@ -3,8 +3,9 @@ its checkpoints out, plus the dead-reckoning nav log for the legs between
 them.
 
 This is the human-facing surface of everything else in the project. The
-model scores candidate landmarks (model-service), vfr.checkpoints narrows
-them to the handful worth flying, and vfr.navlog turns those into legs
+chart reader finds what the sectional draws along the course, the chart
+model scores it (vfr.chartmodel, served by model-service),
+vfr.checkpoints narrows them to the handful worth flying, and vfr.navlog turns those into legs
 with real wind and magnetic variation -- but none of that is inspectable
 from a JSON response. Seeing the checkpoints on the sectional is the only
 way to judge whether they are findable in the air, which is the question
@@ -15,8 +16,8 @@ Split of responsibility, and why it falls this way:
 - model-service owns the model artifact and its pinned scikit-learn, and
   stays /ping + /invocations + /routes, mirroring a SageMaker inference
   container. This service never loads a model.
-- This service owns everything route-shaped: collecting a corridor,
-  building its features, computing the nav log, and drawing it.
+- This service owns everything route-shaped: reading the chart along
+  it, computing the nav log, and drawing it.
 
 The endpoints live in app.routers, one module per concern; the work they
 share -- resolving a route, scoring it, the nav-log arithmetic, the
@@ -39,7 +40,7 @@ from vfr import airspace, altitude, charts, faa_data, weather
 from . import chart_refresh
 from .common import PROCESSED_DIR
 from .planning import StillComputing
-from .routers import airports, briefing, build, chart, classb, devml, devservices, notes, plan, system
+from .routers import airports, briefing, chart, classb, devml, devservices, notes, plan, system
 from .schemas import STREAM_MESSAGES, Index
 
 # Nothing else in the process configured logging, so every log.info() in
@@ -170,7 +171,7 @@ def index() -> Index:
     return Index(service="planner", ui="served by the gateway at /app", warm=WARM.is_set())
 
 
-for module in (plan, chart, build, briefing, notes, devml, system, classb, devservices, airports):
+for module in (plan, chart, briefing, notes, devml, system, classb, devservices, airports):
     app.include_router(module.router)
 
 

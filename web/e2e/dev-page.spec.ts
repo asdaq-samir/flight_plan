@@ -20,18 +20,18 @@ test("dev page: the dev console opens on training, and the waypoint drawer opens
   await expect(devMl).toBeVisible();
   // The developer's drawer opens on training -- the three steps that
   // change the model -- then how good the models are, then the stack.
-  await expect(devMl.getByText("Collect a route")).toBeVisible();
+  await expect(devMl.getByText("Load a route")).toBeVisible();
   for (const name of ["Guide", "Performance", "System"]) {
     await expect(devMl.getByRole("tab", { name })).toBeVisible();
   }
   await devMl.getByRole("tab", { name: "Performance" }).click();
   await expect(devMl.getByText("Model comparison")).toBeVisible();
   await devMl.getByRole("tab", { name: "Guide" }).click();
-  await expect(devMl.getByText("Collect a route")).toBeVisible();
-  await expect(devMl.getByText("Rate its checkpoints")).toBeVisible();
+  await expect(devMl.getByText("Load a route")).toBeVisible();
+  await expect(devMl.getByText("Rate its points")).toBeVisible();
   await expect(devMl.getByText("Retrain", { exact: true })).toBeVisible();
   // No inputs of its own: the header's route form is the one that
-  // loads (and offers to collect) a route, and Retrain lives in the
+  // loads a route, and Retrain lives in the
   // Model Training drawer at the side, in its More menu with Reset.
   expect(await devMl.locator("input, textarea, [role=combobox]").count()).toBe(0);
   expect(await devMl.getByRole("button", { name: /Retrain/ }).count()).toBe(0);

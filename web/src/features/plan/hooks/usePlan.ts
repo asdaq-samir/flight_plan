@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { experimental_streamedQuery as streamedQuery, keepPreviousData, useQuery } from "@tanstack/react-query";
-import { ApiError, api, describeError } from "../../../lib/api/client";
+import { api, describeError } from "../../../lib/api/client";
 import { courseQuery } from "../../../lib/queryClient";
 import { routeOf } from "../../../lib/identSchema";
 import { ended } from "../../../lib/api/streams";
@@ -8,7 +8,6 @@ import type {
   AircraftChoice, AltitudeChoice, Briefing, Leg, NavLogAltitude, NavLogMessage, Totals,
 } from "../../../lib/api/types";
 import { useCheckpointNotes } from "./useCheckpointNotes";
-import { useCorridorBuild } from "./useCorridorBuild";
 import { useNarratives } from "./useNarratives";
 
 /**
@@ -21,11 +20,12 @@ import { useNarratives } from "./useNarratives";
  * on the aeroplane, the altitude and the departure time as well. The
  * briefing, the checkpoint descriptions and the two narratives are
  * asked for when a pilot opens or clicks for them. Every failure is
- * the query client's to report (queryClient.ts), except the one the
- * page can do something about: a route nobody has collected yet.
+ * the query client's to report (queryClient.ts). A route had first to
+ * be collected, which the page offered; its checkpoints come off the
+ * chart now, for any route it covers.
  *
- * Checkpoint notes, the two narratives and collecting a route are hooks
- * of their own (useCheckpointNotes, useNarratives, useCorridorBuild),
+ * Checkpoint notes and the two narratives are hooks of their own
+ * (useCheckpointNotes, useNarratives),
  * which this one composes into the page's one plan: each changes for
  * its own reasons, and this file used to change for all of them.
  */
@@ -42,13 +42,6 @@ export interface PlanParams {
   /** Load pressed again for the same route: a fresh nav log, fresh winds. */
   load: number;
 }
-
-/** Whether a checkpoints failure is the one the page can fix itself:
- *  the corridor exists, nobody has collected it yet. Only the
- *  checkpoints can say so -- they are what the model scores; the course
- *  only resolves the two airports, and charts any route at all. */
-const notCollected = (error: unknown) =>
-  error instanceof ApiError && error.status === 404 && error.message.includes("not been collected");
 
 /** Where the route's briefing stands -- one value, read by the map's
  *  airport chips and the drawer alike. It used to be three (the data,
@@ -83,9 +76,8 @@ export function usePlan(
     queryKey: ["checkpoints", dep, dest], queryFn: () => api.checkpoints(dep, dest),
     // routeKnown as well as the course: a disabled course query still
     // hands back the previous route's course as placeholder data.
-    enabled: routeKnown && !!course.data, staleTime: Infinity, meta: { silent: notCollected },
+    enabled: routeKnown && !!course.data, staleTime: Infinity,
   });
-  const needsBuild = notCollected(checkpoints.error);
 
   // Everything the nav log is computed from -- the narratives below are
   // keyed on the same, so a narrative is always about the log on screen.
@@ -150,7 +142,6 @@ export function usePlan(
 
   const notes = useCheckpointNotes(dep, dest);
   const narratives = useNarratives({ dep, dest, planKey, nav, legs, whole: !!totals });
-  const { build, collect } = useCorridorBuild(dep, dest, needsBuild);
 
   return {
     course: course.data ?? null,
@@ -158,8 +149,6 @@ export function usePlan(
     selected: checkpoints.data?.selected ?? [],
     legs, nav, totals, navStage, stage,
     sameAirport,
-    build,
-    collect,
     briefing: ((): BriefingState => {
       if (!course.data) return { state: "waiting" };
       if (briefing.data) {

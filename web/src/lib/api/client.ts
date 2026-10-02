@@ -2,7 +2,7 @@ import createClient, { type Middleware } from "openapi-fetch";
 import type { paths } from "./schema";
 import type { paths as WebappPaths } from "./webapp-schema";
 import type {
-  Aircraft, AircraftChoice, AircraftProfiles, AircraftRequest, AirportPlace, AirportSearch, AirportsInView, AltitudeChoice, Briefing, BuildJob,
+  Aircraft, AircraftChoice, AircraftProfiles, AircraftRequest, AirportPlace, AirportSearch, AirportsInView, AltitudeChoice, Briefing,
   BuiltRoutes, ChartRefreshStarted, CheckpointDescriptionMessage, CheckpointNoteSaved, Checkpoints, Classification, Course,
   Flight, FlightSummary, ModelComparison, NarrativeMessage, NarrativeRequest, NavLogMessage, PickDeleted, PickSaved,
   ClassBResponse, DevServices, DevServiceStarted, PicksResponse, Pilot, Rating, RetrainStarted, Role, SaveFlightRequest,
@@ -254,14 +254,6 @@ export const api = {
 
   /** Corridors the feature store already covers. */
   routes: () => planner.GET("/api/routes").then(data<BuiltRoutes>),
-
-  /** Start collecting a corridor: minutes of Overpass, FAA and elevation
-   *  calls, so it returns a job id rather than holding the request open. */
-  startBuild: (dep: string, dest: string) =>
-    planner.POST("/api/build", { body: { departure_ident: dep, destination_ident: dest } }).then(data<BuildJob>),
-
-  buildStatus: (jobId: string) =>
-    planner.GET("/api/build/{job_id}", { params: { path: { job_id: jobId } } }).then(data<BuildJob>),
 
   /** What the chart draws at a point, so an added pick is categorised from
    *  the pixels rather than from whatever a dropdown was left on. */

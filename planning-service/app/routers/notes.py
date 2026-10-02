@@ -126,7 +126,7 @@ def describe_checkpoints(
 
     def checkpoint_line(cp: dict, description: str | None, source: str, detail: str | None = None) -> str:
         return line(NoteCheckpoint(
-            lat=cp["lat"], lon=cp["lon"], osm_id=cp["osm_id"],
+            lat=cp["lat"], lon=cp["lon"], id=cp["id"],
             description=description, source=source, detail=detail,
         ))
 

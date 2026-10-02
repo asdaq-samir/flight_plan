@@ -27,7 +27,7 @@ _STAGE_NAMES = {
     "weather": "aviationweather.gov",
     "magnetic_variation_deg": "the magnetic variation",
     "sua": "the FAA's special-use airspace",
-    "model-service": "model-service's checkpoint scores",
+    "chart": "the chart reader",
 }
 
 

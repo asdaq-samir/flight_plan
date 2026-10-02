@@ -18,7 +18,6 @@ import { useSearchParamsNow } from "../../lib/useSearchParamsNow";
 import type { WorkspaceProps } from "../page/workspace";
 import { PilotPanel } from "../pilot/PilotPanel";
 import { Alert, AlertDescription, AlertTitle } from "../../components/ui/alert";
-import BuildNotice from "./components/BuildNotice";
 import FlightBriefingView, { BriefingNotices, PlanningAidNote, SaveFlightButton } from "./components/briefing/FlightBriefingView";
 import FlightInputs from "./components/navlog/FlightInputs";
 import PlaceCard from "./components/PlaceCard";
@@ -366,8 +365,6 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           {planned.dep} is both the departure and the destination. Change one of them and press Load.
         </AlertDescription>
       </Alert>
-    ) : s.build.phase !== "idle" ? (
-      <BuildNotice dep={planned.dep} dest={planned.dest} build={s.build} onBuild={s.collect} />
     ) : null,
   });
 }

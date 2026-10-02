@@ -85,9 +85,11 @@ class Course(BaseModel):
 
 
 class Candidate(BaseModel):
-    """A scored OSM candidate. `selected` is set by the server's greedy pass."""
+    """A scored detection off the chart (app.scoring): `id` its kind and
+    place, `name` the FAA's for an airport and the kind of thing for
+    the rest. `selected` is set by the server's greedy pass."""
 
-    osm_id: str
+    id: str
     name: str | None = None
     category: str
     lat: float
@@ -674,7 +676,7 @@ class NoteCheckpoint(BaseModel):
     type: Literal["checkpoint"] = "checkpoint"
     lat: float
     lon: float
-    osm_id: str
+    id: str
     description: str | None
     source: Literal["generated", "saved", "error"]
     detail: str | None = None
@@ -698,14 +700,6 @@ CheckpointNoteMessage = Annotated[
 
 
 # --- everything else ----------------------------------------------------
-
-
-class BuildJob(BaseModel):
-    job_id: str | None
-    state: Literal["queued", "running", "done", "failed"]
-    step: str
-    route: str | None = None
-    detail: str | None = None
 
 
 class BuiltRoute(BaseModel):

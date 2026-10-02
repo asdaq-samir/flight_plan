@@ -1,5 +1,5 @@
 """The plan endpoints through their response models, with every live
-dependency stubbed: model-service, the airports table, the altitude
+dependency stubbed: the chart read and its scores, the airports table, the altitude
 selection and the per-leg wind lookup. What this proves is the contract
 -- that a real leg dict validates as a Leg (including the `from` alias),
 that /api/plan and /api/checkpoints serialise, and that the nav-log
@@ -17,9 +17,9 @@ from .conftest import select_cruise_altitude_stub
 client = TestClient(app)
 
 CANDIDATES = [
-    {"osm_id": "411077224", "category": "lake_or_pond", "name": "Long Lake", "lat": 42.35, "lon": -88.09,
+    {"id": "water@42.35000,-88.09000", "category": "water", "name": "Lake", "lat": 42.35, "lon": -88.09,
      "predicted_score": 4.4, "along_track_nm": 3.9},
-    {"osm_id": "153546173", "category": "town", "name": "Round Lake", "lat": 42.6, "lon": -88.4,
+    {"id": "town@42.60000,-88.40000", "category": "town", "name": "Town", "lat": 42.6, "lon": -88.4,
      "predicted_score": 3.9, "along_track_nm": 22.0},
 ]
 
@@ -37,7 +37,7 @@ def _leg(start, end, altitude_ft, profile, fcst_hr="06") -> dict:
 
 @pytest.fixture(autouse=True)
 def _stubbed_world(monkeypatch, altitude):
-    monkeypatch.setattr(scoring, "invoke_model", lambda dep, dest, model=None: {"checkpoints": [dict(c) for c in CANDIDATES]})
+    monkeypatch.setattr(scoring, "score", lambda dep, dest: [dict(c) for c in CANDIDATES])
     monkeypatch.setattr(altitude_module, "select_cruise_altitude", select_cruise_altitude_stub(altitude))
     monkeypatch.setattr(navlog, "assemble_leg", _leg)
 
@@ -48,7 +48,7 @@ def test_checkpoints_marks_the_selected_candidates():
     assert resp.status_code == 200
     body = resp.json()
     assert body["departure"]["ident"] == "C81"
-    assert {c["osm_id"] for c in body["selected"]} <= {c["osm_id"] for c in body["candidates"]}
+    assert {c["id"] for c in body["selected"]} <= {c["id"] for c in body["candidates"]}
     assert all("selected" in c for c in body["candidates"])
 
 
@@ -287,19 +287,20 @@ def test_each_outcome_of_the_altitude_resolver(monkeypatch, altitude):
 
 
 def test_a_plan_whose_scoring_hangs_answers_within_the_bound(monkeypatch):
-    """Scoring ran before the bounded wait, so a slow model-service put the
-    plan past the agents' client timeout."""
+    """Scoring ran before the bounded wait, so a slow scorer put the plan
+    past the agents' client timeout -- model-service then, the chart's
+    first read now."""
     import threading
 
     from app.routers import plan as plan_router
 
     release = threading.Event()
 
-    def slow_model(dep, dest, model=None):
+    def slow_read(dep, dest):
         release.wait(timeout=5)
-        return {"checkpoints": []}
+        return []
 
-    monkeypatch.setattr(scoring, "invoke_model", slow_model)
+    monkeypatch.setattr(scoring, "score", slow_read)
     monkeypatch.setattr(plan_router, "COMPUTE_LIMIT_S", 0.3)
     try:
         resp = client.get("/api/plan", params={"dep": "C81", "dest": "KDLH"})
@@ -307,7 +308,7 @@ def test_a_plan_whose_scoring_hangs_answers_within_the_bound(monkeypatch):
         release.set()
 
     assert resp.status_code == 504
-    assert "model-service's checkpoint scores" in resp.json()["detail"]
+    assert "the chart reader" in resp.json()["detail"]
 
 
 @pytest.mark.parametrize("path", ["/api/plan", "/api/navlog"])
