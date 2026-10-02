@@ -102,7 +102,7 @@ The system runs today as ten Docker services:
 | `db` | PostgreSQL + pgvector — application data and agent long-term memory |
 | `airflow` | Orchestrates the ML training pipeline |
 | `pipeline-processing` / `pipeline-training` | Data collection, feature engineering, and model training, run as isolated jobs |
-| `ml` | Jupyter environment for model development and experimentation |
+| `ml` | Jupyter environment for model development and experimentation -- on demand, behind the `notebooks` profile: `docker compose up ml` |
 | `planning-service` | FastAPI server for the React app in `web/`: course, checkpoints, nav log, and rating spottability against FAA sectional charts |
 
 ![Current local architecture](architecture-current.svg)

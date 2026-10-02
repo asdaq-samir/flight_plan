@@ -30,8 +30,13 @@ x-anthropic-api-key: &anthropic-api-key ${ANTHROPIC_API_KEY:-}
 # pipeline jobs are one-shot and have none.
 
 services:
+  # Jupyter, for the notebooks: on demand, behind its own profile, so a
+  # plain `docker compose up` leaves its 7 GB image and its memory alone.
+  # `docker compose up ml` (a service named on the command line starts
+  # whatever its profile), or the developer console's System tab, which
+  # starts its container once it has one (dev-services).
   ml:
-    restart: unless-stopped
+    profiles: ["notebooks"]
     build:
       context: .
       dockerfile: docker/Dockerfile.ml

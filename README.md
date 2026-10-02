@@ -46,7 +46,7 @@ Demo route: **Campbell Airport (C81)** → **Duluth International (KDLH)**.
 | `db` | PostgreSQL + pgvector — application data and agent long-term memory |
 | `airflow` | Orchestrates the training pipeline |
 | `pipeline-processing` / `pipeline-training` | Data collection, feature engineering, and training, as isolated jobs |
-| `ml` | Jupyter environment for model development |
+| `ml` | Jupyter environment for model development -- on demand: `docker compose up ml` |
 
 Ten services, one `docker compose up`. Full write-up, including the AWS target architecture, is in [`docs/README.md`](docs/README.md).
 
