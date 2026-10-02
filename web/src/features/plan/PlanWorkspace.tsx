@@ -371,7 +371,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       </>
     ),
     console: <PilotPanel />,
-    settings: { checkpoints: true, ownShip: true },
+    settings: { checkpoints: true },
     submit,
     loading: s.stage !== null,
     notices: s.sameAirport ? (

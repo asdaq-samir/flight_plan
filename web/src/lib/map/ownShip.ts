@@ -5,15 +5,15 @@ import { persist } from "zustand/middleware";
  * Own ship: the phone's position on the chart, from the browser's
  * geolocation, watched while `enabled` and kept centred while
  * `follow`. A zustand store: Leaflet draws it (`createOwnShip`) from
- * `getState()`/`subscribe()`, the layers popover switches it through
- * the hook, and the two switches are remembered per browser (the
- * position itself is not), so a pilot who turned it on at the desk
- * has it on in the air.
+ * `getState()`/`subscribe()`, the map's location arrow switches it
+ * (MyPositionButton), and both are remembered per browser (the position
+ * itself is not), so a pilot who turned it on at the desk has it on in
+ * the air.
  *
  * The browser grants geolocation only to a secure origin (https, or
  * localhost): over plain http on the Wi-Fi it is simply unavailable,
- * and the popover says so rather than offering a switch that does
- * nothing (see HttpsConnectorConfig for the port that fixes that).
+ * and the arrow says so when tapped rather than doing nothing (see
+ * HttpsConnectorConfig for the port that fixes that).
  */
 export interface Fix {
   lat: number;

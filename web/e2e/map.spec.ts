@@ -172,3 +172,21 @@ test("plan page: Show checkpoints draws the route's checkpoints at every zoom, a
   await page.keyboard.press("Escape");
   await expect(numbered).toHaveCount(0);
 });
+
+test("plan page: my position is the location arrow among the map's buttons, and over plain http it says why there is none", async ({ page }) => {
+  await page.goto("/app/plan?dep=C81&dest=KDLH");
+  await settle(page);
+  const arrow = page.locator("[data-map-controls]").getByTestId("my-position-button");
+  await expect(arrow).toHaveAccessibleName("Show my position");
+  await expect(arrow).toHaveAttribute("aria-pressed", "false");
+  if (!(await page.evaluate(() => window.isSecureContext))) {
+    await arrow.click();
+    await expect(page.locator("[data-sonner-toast]", { hasText: "No position over this connection" })).toBeVisible();
+    await expect(arrow).toHaveAttribute("aria-pressed", "false");
+  }
+  // Not the training page's: its map draws no own ship.
+  await page.goto("/app/dev?dep=C81&dest=KDLH");
+  await settle(page);
+  await expect(page.locator("[data-map-controls]")).toBeVisible();
+  await expect(page.getByTestId("my-position-button")).toHaveCount(0);
+});

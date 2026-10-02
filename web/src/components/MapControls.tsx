@@ -1,6 +1,7 @@
 import { useContext } from "react";
 import { cn } from "cn";
 import FullscreenButton from "./FullscreenButton";
+import MyPositionButton from "./MyPositionButton";
 import { MapButtonsContext, MATERIAL } from "./mapChrome";
 import ZoomToggleButton from "./ZoomToggleButton";
 
@@ -13,8 +14,9 @@ export interface ZoomControl {
 /**
  * The map's buttons, in one group floating over the chart, as Maps
  * stacks its own: the settings (the charts, the layers, appearance),
- * the zoom toggle between the whole route and the selected point, and
- * full screen where it works. On the edge away from the panel
+ * the planner's own position (`position`: the location arrow), the
+ * zoom toggle between the whole route and the selected point, and full
+ * screen where it works. On the edge away from the panel
  * (useNavEdge): at the top right over a panel at the bottom, at the
  * bottom right under one at the top -- clear of it, and of the chart
  * credit in the corner.
@@ -24,7 +26,7 @@ export interface ZoomControl {
  * than overlapping it; a hairline in each gap, as Maps draws between
  * its buttons.
  */
-export default function MapControls({ zoom }: { zoom?: ZoomControl }) {
+export default function MapControls({ zoom, position }: { zoom?: ZoomControl; position?: boolean }) {
   const page = useContext(MapButtonsContext);
   return (
     // z-[1000]: over Leaflet's own panes, the level Leaflet gives its
@@ -40,6 +42,7 @@ export default function MapControls({ zoom }: { zoom?: ZoomControl }) {
         )}
       >
         {page}
+        {position && <MyPositionButton />}
         {zoom && (
           <ZoomToggleButton
             zoomedIn={zoom.zoomedIn} onClick={zoom.onToggle} disabled={zoom.disabled}

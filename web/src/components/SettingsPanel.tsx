@@ -5,15 +5,12 @@ import { ListGroup, ListRow } from "./GroupedList";
 import Segmented, { SegmentedMany } from "./Segmented";
 import { Switch } from "./ui/switch";
 import { useNavEdge } from "../hooks/use-nav-edge";
-import { ownShipAvailable, useOwnShip } from "../lib/map/ownShip";
 import { BASE_CHARTS, usePreferences, type BaseChart, type NavEdge } from "../lib/preferences";
 
-/** What a page adds to the settings: the planner's Show checkpoints
- *  and own ship. The training page, whose map is its detections, adds
- *  nothing. */
+/** What a page adds to the settings: the planner's Show checkpoints.
+ *  The training page, whose map is its detections, adds nothing. */
 export interface PageSettings {
   checkpoints?: boolean;
-  ownShip?: boolean;
 }
 
 /**
@@ -22,14 +19,15 @@ export interface PageSettings {
  * rounded box of rows with a hairline between them, one label per row
  * with its control at the row's end, and at most a line of help. A
  * switch for anything on or off, and a segmented control for two or
- * three choices, all on show and one tap each. A row that only means
- * something once another is on is not shown until it is. Appearance
- * first -- the theme and the layout, the two that change how all of it
- * looks -- then the map, with the planner's Show checkpoints in it, and
- * the pilot's own position. Everything here is remembered per browser.
+ * three choices, all on show and one tap each. Appearance first -- the
+ * theme and the layout, the two that change how all of it looks --
+ * then the map, with the planner's Show checkpoints in it. Everything
+ * here is remembered per browser.
  *
- * Who is signed in, the role (dev mode) and Sign out are the
- * console's title row (ConsoleHeader). The checkpoints were a group
+ * Who is signed in, the role (dev mode) and Sign out are the console's
+ * title row (ConsoleHeader); the pilot's own position is the map's
+ * location arrow (MyPositionButton), where it was a group of two
+ * switches here. The checkpoints were a group
  * of their own, a menu of four zoom levels and a switch for the
  * landmarks they were chosen from, and are one switch now. It replaced
  * a column of headings, checkboxes, dropdowns and a paragraph under
@@ -40,7 +38,6 @@ export default function SettingsPanel({ page }: { page?: PageSettings }) {
     <div className="space-y-5 pb-1" data-testid="settings-panel">
       <AppearanceGroup />
       <MapGroup checkpoints={page?.checkpoints} />
-      {page?.ownShip && <PositionGroup />}
     </div>
   );
 }
@@ -88,46 +85,6 @@ function MapGroup({ checkpoints }: { checkpoints?: boolean }) {
       {checkpoints && (
         <ListRow id={checkpointsId} title="Show checkpoints" description="The route's landmarks, at every zoom">
           <Switch id={checkpointsId} checked={showCheckpoints} onCheckedChange={setCheckpoints} data-testid="checkpoints-toggle" />
-        </ListRow>
-      )}
-    </ListGroup>
-  );
-}
-
-function coordinate(value: number, positive: string, negative: string): string {
-  return `${Math.abs(value).toFixed(3)}° ${value >= 0 ? positive : negative}`;
-}
-
-/** Own ship: the phone's position on the chart, and the map kept on it.
- *  The note says what the GPS has, or why there is nothing: no secure
- *  connection (the browser grants geolocation only to https or
- *  localhost), or access refused. Following ends when the pilot pans
- *  the map themselves (RouteMap turns it off on a drag). */
-function PositionGroup() {
-  const { enabled, follow, fix, error, setEnabled, setFollow } = useOwnShip();
-  const available = ownShipAvailable();
-  const showId = useId();
-  const followId = useId();
-  const status = !available
-    ? "Needs a secure connection: open the app over https."
-    : error ?? (!enabled
-      ? "From the phone's GPS, drawn as a blue arrow."
-      : !fix
-        ? "Waiting for a position…"
-        : `${coordinate(fix.lat, "N", "S")} ${coordinate(fix.lon, "E", "W")} · ±${Math.round(fix.accuracyM)} m`
-          + (fix.speedKt !== null ? ` · ${Math.round(fix.speedKt)} kt` : "")
-          + (fix.headingDeg !== null ? ` · ${String(Math.round(fix.headingDeg)).padStart(3, "0")}°` : ""));
-  return (
-    <ListGroup title="My position" footer={<span data-testid="own-ship-status">{status}</span>}>
-      <ListRow id={showId} title="Show my position">
-        <Switch id={showId} checked={enabled} disabled={!available} onCheckedChange={setEnabled} data-testid="own-ship-toggle" />
-      </ListRow>
-      {/* Only with the position shown, as iOS shows a setting that
-          depends on another: it was there all along, a faded switch that
-          read as on while nothing was being followed. */}
-      {available && enabled && (
-        <ListRow id={followId} title="Keep the map on me">
-          <Switch id={followId} checked={follow} onCheckedChange={setFollow} data-testid="own-ship-follow" />
         </ListRow>
       )}
     </ListGroup>

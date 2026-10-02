@@ -200,7 +200,7 @@ export default function RouteMap({
   const focusZoom = course?.max_zoom ?? 12;
 
   return (
-    <MapShell course={course} zoom={zoom}>
+    <MapShell course={course} zoom={zoom} position>
       {course && (
         <>
           <CourseLine

@@ -19,6 +19,9 @@ interface Props {
   zoom: ShowSelected;
   /** The layers this particular map draws, inside the container. */
   children: ReactNode;
+  /** The location arrow among the map's buttons: the planner's, whose
+   *  map draws own ship. */
+  position?: boolean;
 }
 
 export interface ShowSelected {
@@ -56,7 +59,7 @@ function FitReporter({ bounds, onChange }: { bounds: L.LatLngBounds; onChange: (
  * preview state and the placeholder before a course arrives were the
  * same code in both files.
  */
-export function MapShell({ course, onReady, zoom, children }: Props) {
+export function MapShell({ course, onReady, zoom, children, position }: Props) {
   const [map, setMap] = useState<L.Map | null>(null);
   // The one zoom button offers the whole route when the map is closer in
   // than the route needs, and the page's selection otherwise -- decided
@@ -128,7 +131,7 @@ export function MapShell({ course, onReady, zoom, children }: Props) {
       ) : (
         <div className="h-full w-full bg-slate-100 dark:bg-slate-900" />
       )}
-      <MapControls zoom={{ zoomedIn, onToggle: zoomedIn ? fit : zoom.showSelected, disabled: zoom.disabled }} />
+      <MapControls zoom={{ zoomedIn, onToggle: zoomedIn ? fit : zoom.showSelected, disabled: zoom.disabled }} position={position} />
     </div>
   );
 }

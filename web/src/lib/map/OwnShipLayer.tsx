@@ -1,5 +1,6 @@
 import { useEffect, useMemo } from "react";
 import { Circle, Marker, useMap, useMapEvents } from "react-leaflet";
+import { centreClear } from "./clear";
 import { ownShipIcon } from "./icons";
 import { useOwnShip } from "./ownShip";
 
@@ -7,8 +8,8 @@ import { useOwnShip } from "./ownShip";
  * Own ship on the chart, from the position store: the arrow turned to
  * the GPS heading, the GPS's own accuracy as a faint circle under it,
  * and while `follow` the map kept centred on it -- until a pan by the
- * pilot's own finger, which ends following until the layers popover's
- * checkbox again. Nothing about it is interactive: a pilot's finger
+ * pilot's own finger, which ends following until the map's location
+ * arrow is tapped again (MyPositionButton). Nothing about it is interactive: a pilot's finger
  * over their own position is panning the map, not asking for a popup.
  */
 export function OwnShipLayer() {
@@ -32,8 +33,10 @@ export function OwnShipLayer() {
     }),
     [setFollow],
   ));
+  // Kept in the middle of what the panel leaves of the map, not of the
+  // whole container under it (centreClear).
   useEffect(() => {
-    if (enabled && fix && follow) map.panTo([fix.lat, fix.lon], { animate: true, duration: 0.5 });
+    if (enabled && fix && follow) map.panTo(centreClear(map, [fix.lat, fix.lon], map.getZoom()), { animate: true, duration: 0.5 });
   }, [map, enabled, fix, follow]);
   if (!enabled || !fix) return null;
   return (

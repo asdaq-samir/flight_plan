@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Layers, Maximize, Settings, ZoomIn } from "lucide-react";
+import { Layers, Maximize, Navigation, Settings, ZoomIn } from "lucide-react";
 import { cn } from "cn";
 import { ConsolePages, PageRow, StepRow } from "../../components/ConsolePages";
 import { ListGroup, ListRow } from "../../components/GroupedList";
@@ -83,6 +83,7 @@ export default function PilotGuide() {
               </Reading>
               <ListGroup title="The map's buttons">
                 <ListRow media={<Settings className="size-5 text-tint" />} title="Settings" description="This: the guide, your aircraft and flights, and the settings" />
+                <ListRow media={<Navigation className="size-5 text-tint" />} title="My position" description="Where you are, from the phone's GPS, with the map kept on you; again to hide it" />
                 <ListRow media={<ZoomIn className="size-5 text-tint" />} title="Zoom" description="Between the whole route and the checkpoint you picked" />
                 <ListRow media={<Maximize className="size-5 text-tint" />} title="Full screen" description="Where your browser allows it" />
               </ListGroup>
