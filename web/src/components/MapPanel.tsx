@@ -3,7 +3,7 @@ import { cn } from "cn";
 import { useIsMobile } from "../hooks/use-mobile";
 import { useNavEdge } from "../hooks/use-nav-edge";
 import { useKeyboardInset, useSafeArea, useWindowHeight } from "../hooks/use-viewport";
-import { MATERIAL, PANEL_STATES, type MapInsets, type PanelState } from "./mapChrome";
+import { MATERIAL, PANEL_STATES, PanelHalfContext, type MapInsets, type PanelState } from "./mapChrome";
 
 interface Props {
   /** The panel's name -- "Flight Planning", "Model Training" -- for its
@@ -98,10 +98,16 @@ export default function MapPanel({ label, top, controls, notices, children, stat
   // content sits clear of it -- or on to the keyboard, with it up.
   const edgeInset = onPhone && fromBottom && !keyboard ? Math.max(Math.round(safe.bottom), MARGIN) : 0;
   const peek = Math.round(headHeight + (fromBottom ? edgeInset : GRABBER));
-  const detents = useMemo<Record<PanelState, number>>(
-    () => ({ peek, half: Math.max(peek, Math.round(room / 2)), full: Math.max(peek, room) }),
-    [peek, room],
-  );
+  // Half the room, or more where the body says what it must show whole
+  // at half (PanelHalfContext): an airport's card had its actions cut
+  // off by the screen's edge, its name on two lines, in Safari with its
+  // toolbar taking a share of the screen.
+  const [bodyNeeds, setBodyNeeds] = useState<number | null>(null);
+  const detents = useMemo<Record<PanelState, number>>(() => {
+    const full = Math.max(peek, room);
+    const half = Math.max(peek, Math.round(room / 2), bodyNeeds === null ? 0 : peek + bodyNeeds);
+    return { peek, half: Math.min(half, full), full };
+  }, [peek, room, bodyNeeds]);
 
   // A drag on the grabber or the head follows the finger, and lets go to
   // the detent it was heading for -- where it was thrown, not only where
@@ -251,7 +257,9 @@ export default function MapPanel({ label, top, controls, notices, children, stat
         )}
       </div>
       {/* Over a grabber at the bottom, clear of its hit area. */}
-      <div className={cn("flex min-h-0 flex-1 flex-col border-border/60", expanded && "border-t", !fromBottom && expanded && "pb-4")} data-panel-body="">{children}</div>
+      <div className={cn("flex min-h-0 flex-1 flex-col border-border/60", expanded && "border-t", !fromBottom && expanded && "pb-4")} data-panel-body="">
+        <PanelHalfContext.Provider value={setBodyNeeds}>{children}</PanelHalfContext.Provider>
+      </div>
       {/* The grabber last on a sheet from the top. */}
       {!fromBottom && grabber}
       {/* The rest of the way to the screen's edge, under the home

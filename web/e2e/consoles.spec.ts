@@ -103,8 +103,9 @@ test("the navigation bar's edge is a setting: the panel moves to it, the map's b
   // Remembered per browser.
   await page.reload();
   await settle(page);
-  // To the pixel: the panel settles to a fraction of one after a load.
-  expect(Math.abs((await page.locator("header").boundingBox())!.y - header.y)).toBeLessThan(1);
+  // To the pixel, once the panel has settled: it measures its head and
+  // eases to its height after a load.
+  await expect.poll(async () => Math.abs((await page.locator("header").boundingBox())!.y - header.y)).toBeLessThan(1);
 });
 
 test("the console holds still as its tabs change: up from the bottom of a phone's screen, down from the top of a desktop's", async ({ page }) => {

@@ -31,6 +31,12 @@ export const MapButtonsContext = createContext<ReactNode>(null);
  *  own (MapPage), the same in either console. */
 export const ConsoleSettingsContext = createContext<ReactNode>(null);
 
+/** What the map panel's body must show whole at the half height, in
+ *  pixels from the body's top -- a place card's name and its actions,
+ *  as Maps' medium detent always shows them -- or null: the half detent
+ *  grows to fit it, as far as the whole height (MapPanel). */
+export const PanelHalfContext = createContext<((px: number | null) => void) | null>(null);
+
 /** Whether the console is out, the app's rather than a page's: the two
  *  pages are drawn anew as a developer's Pilot and Developer in its
  *  title (ConsoleHeader) change one for the other, and the console stays

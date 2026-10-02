@@ -1,8 +1,9 @@
-import { useRef, type ReactNode } from "react";
+import { useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { CloudSun, Navigation, Radio, X } from "lucide-react";
 import { cn } from "cn";
 import IconButton from "../../../components/IconButton";
+import { PanelHalfContext } from "../../../components/mapChrome";
 import { ListGroup, ListRow } from "../../../components/GroupedList";
 import { Button } from "../../../components/ui/button";
 import { api } from "../../../lib/api/client";
@@ -68,6 +69,18 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onExpand }:
   const { data: place, isLoading, isError } = useQuery({
     queryKey: ["airport", ident], queryFn: () => api.airport(ident), staleTime: 5 * 60_000,
   });
+  // The name and the actions whole at the panel's half height, however
+  // many lines the name and the line under it take (PanelHalfContext):
+  // measured from the card's top, its own padding with it, and a
+  // little under the actions so they do not sit on the panel's edge.
+  const needs = useContext(PanelHalfContext);
+  const [summary, setSummary] = useState<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!summary || !needs) return;
+    const observer = new ResizeObserver(() => needs(summary.offsetTop + summary.offsetHeight + 16));
+    observer.observe(summary);
+    return () => { observer.disconnect(); needs(null); };
+  }, [summary, needs]);
   const weatherRef = useRef<HTMLDivElement>(null);
   const radioRef = useRef<HTMLDivElement>(null);
   const show = (section: HTMLElement | null) => {
@@ -82,40 +95,43 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onExpand }:
     category: metar?.flight_category ?? null,
   };
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto px-4 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))] print:hidden" data-testid="place-card">
-      <div className="flex items-start gap-2">
-        <div className="min-w-0 flex-1">
-          <h2 className="text-[1.375rem] leading-7 font-bold tracking-tight text-foreground" data-testid="place-name">
-            {place?.name ?? ident}
-          </h2>
-          {/* A note's 13 in grey under the name, as the line under a
-              place's name is in Maps: what it is, not text to read. */}
-          <p className={cn("text-muted-foreground", TEXT.note)}>
-            {place ? subtitleOf(place, from) : isError ? `${ident} · not found` : `${ident} · …`}
-          </p>
+    <div className="relative min-h-0 flex-1 overflow-y-auto px-4 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))] print:hidden" data-testid="place-card">
+      <div ref={setSummary}>
+        <div className="flex items-start gap-2">
+          <div className="min-w-0 flex-1">
+            <h2 className="text-[1.375rem] leading-7 font-bold tracking-tight text-foreground" data-testid="place-name">
+              {place?.name ?? ident}
+            </h2>
+            {/* A note's 13 in grey under the name, as the line under a
+                place's name is in Maps: what it is, not text to read. */}
+            <p className={cn("text-muted-foreground", TEXT.note)}>
+              {place ? subtitleOf(place, from) : isError ? `${ident} · not found` : `${ident} · …`}
+            </p>
+          </div>
+          {weather && (
+            <span
+              className="mt-1 shrink-0 rounded-md px-2 py-0.5 text-xs font-bold tracking-wide text-white"
+              style={{ backgroundColor: chipColourOf(weather) }}
+              data-testid="place-category"
+            >
+              {metar?.flight_category ?? (place?.weather_unavailable ? "Unavailable" : "No report")}
+            </span>
+          )}
+          <IconButton label="Close" onClick={onClose} className="-mt-1 -mr-2" data-testid="place-close">
+            <X className="size-5" />
+          </IconButton>
         </div>
-        {weather && (
-          <span
-            className="mt-1 shrink-0 rounded-md px-2 py-0.5 text-xs font-bold tracking-wide text-white"
-            style={{ backgroundColor: chipColourOf(weather) }}
-            data-testid="place-category"
-          >
-            {metar?.flight_category ?? (place?.weather_unavailable ? "Unavailable" : "No report")}
-          </span>
-        )}
-        <IconButton label="Close" onClick={onClose} className="-mt-1 -mr-2" data-testid="place-close">
-          <X className="size-5" />
-        </IconButton>
-      </div>
-
-      {place && (
-        <>
+        {place && (
           <div className="mt-3 grid grid-cols-3 gap-2">
             <Action icon={<Navigation />} label="Fly Here" filled onClick={() => onFlyHere(place)} testId="fly-here" />
             <Action icon={<CloudSun />} label="Weather" onClick={() => show(weatherRef.current)} testId="place-weather" />
             <Action icon={<Radio />} label="Frequencies" onClick={() => show(radioRef.current)} testId="place-frequencies" />
           </div>
+        )}
+      </div>
 
+      {place && (
+        <>
           <div ref={weatherRef} className="scroll-mt-3 pt-5">
             <ListGroup title="Weather">
               {metar ? (
