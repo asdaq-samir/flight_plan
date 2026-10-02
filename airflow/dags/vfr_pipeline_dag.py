@@ -13,6 +13,12 @@ these are just Model Registry API calls, not a job at all.
 Hand-labeling (notebook 03's interactive cell) stays a human, notebook-only
 step -- Retrain trains against whatever's already in data/labels/ at run
 time, it doesn't generate labels.
+
+Two models, side by side. The landmark model's branch starts with
+whether its ratings are enough (landmarks_ready) and skips, rather than
+fails, when they are not. The chart reader's scorer (vfr.chartmodel)
+trains from the table the planner writes when it starts the run, and
+goes through the same gate into data/models/chart/current.
 """
 from __future__ import annotations
 
@@ -48,6 +54,12 @@ PROJECT_MOUNT = Mount(source=PROJECT_HOST_PATH, target="/workspace", type="bind"
 IMAGE_PREFIX = os.environ["PIPELINE_IMAGE_PREFIX"]
 
 
+# vfr.pipeline.SKIPPED_EXIT_CODE, written again rather than imported: the
+# DAG file is parsed in Airflow's own image, which has no pandas for
+# vfr.pipeline to import.
+SKIPPED_EXIT_CODE = 99
+
+
 def _docker_task(task_id: str, image: str, command: list[str]) -> DockerOperator:
     return DockerOperator(
         task_id=task_id,
@@ -57,12 +69,15 @@ def _docker_task(task_id: str, image: str, command: list[str]) -> DockerOperator
         mounts=[PROJECT_MOUNT],
         auto_remove="success",
         mount_tmp_dir=False,
+        # A stage with too few ratings to train on ends with this, and
+        # is skipped with the tasks after it rather than failing the run.
+        skip_on_exit_code=SKIPPED_EXIT_CODE,
     )
 
 
 @dag(
     dag_id="vfr_pipeline",
-    description="Collect -> Feature-Engineer -> Retrain -> Evaluate -> Promote",
+    description="Collect -> Feature-Engineer -> Retrain -> Evaluate -> Promote, and the chart model's Retrain -> Evaluate -> Promote",
     schedule=None,  # manual trigger for now -- not on a cron yet
     start_date=datetime(2026, 9, 7, tz="UTC"),
     catchup=False,
@@ -74,6 +89,7 @@ def _docker_task(task_id: str, image: str, command: list[str]) -> DockerOperator
     tags=["vfr", "ml"],
 )
 def vfr_pipeline():
+    landmarks_ready = _docker_task("landmarks_ready", f"{IMAGE_PREFIX}-pipeline-processing", ["readiness"])
     collect = _docker_task("collect", f"{IMAGE_PREFIX}-pipeline-processing", ["collect"])
     feature_engineer = _docker_task("feature_engineer", f"{IMAGE_PREFIX}-pipeline-processing", ["engineer-features"])
     retrain = _docker_task("retrain", f"{IMAGE_PREFIX}-pipeline-training", ["retrain"])
@@ -91,7 +107,24 @@ def vfr_pipeline():
 
         return str(model_registry.promote())
 
-    collect >> feature_engineer >> retrain >> evaluate >> promote()
+    landmarks_ready >> collect >> feature_engineer >> retrain >> evaluate >> promote()
+
+    chart_retrain = _docker_task("chart_retrain", f"{IMAGE_PREFIX}-pipeline-training", ["chart-retrain"])
+
+    def _chart_metrics_pass() -> bool:
+        from vfr import model_registry
+
+        return model_registry.evaluate(model_registry.CHART_CANDIDATE_DIR, model_registry.CHART_CURRENT_DIR)
+
+    chart_evaluate = ShortCircuitOperator(task_id="chart_evaluate", python_callable=_chart_metrics_pass)
+
+    @task
+    def chart_promote() -> str:
+        from vfr import model_registry
+
+        return str(model_registry.promote(model_registry.CHART_CANDIDATE_DIR, model_registry.CHART_CURRENT_DIR))
+
+    chart_retrain >> chart_evaluate >> chart_promote()
 
 
 vfr_pipeline()

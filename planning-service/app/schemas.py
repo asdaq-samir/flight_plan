@@ -542,13 +542,17 @@ class Classification(BaseModel):
 class Detection(BaseModel):
     """A point the chart-vision detector found. `rating`/`role` are None
     until a pick claims it; `rated` is derived from the rating, as a
-    Pick's is, rather than set beside it."""
+    Pick's is, rather than set beside it. `score` is the palette's
+    constant for its kind; `predicted_score` the chart model's rating
+    for it (vfr.chartmodel), None while none is promoted or the corridor
+    is still being read for the first time."""
 
     lat: float
     lon: float
     category: str
     area_m2: float
     score: float
+    predicted_score: float | None = None
     along_track_nm: float
     cross_track_nm: float
     rating: Rating | None
@@ -864,10 +868,27 @@ class CandidateModel(BaseModel):
     score: float | None
 
 
+class ChartModelSnapshot(BaseModel):
+    """The promoted chart model (vfr.chartmodel), against what it has to
+    beat on the ratings it held out: the palette's constants
+    (`palette_held_out_mae`) and the training ratings' mean. The
+    planner's checkpoints move onto the chart once it beats the
+    palette."""
+
+    model_type: str | None
+    trained_at: str | None
+    held_out_mae: float | None
+    palette_held_out_mae: float | None
+    dummy_held_out_mae: float | None
+    n_labeled: int | None
+    n_test: int | None
+
+
 class ModelRegistry(BaseModel):
     current: ModelSnapshot | None
     versions: list[ModelVersion]
     candidates: list[CandidateModel]
+    chart: ChartModelSnapshot | None = None
 
 
 class PipelineRun(BaseModel):
@@ -882,21 +903,19 @@ class PipelineRun(BaseModel):
 
 
 class TrainingReadiness(BaseModel):
-    """Whether a retrain has enough to learn from, asked before one is
-    started (vfr.pipeline.training_readiness): the ratings the trainer
-    would get (`usable`) against what it needs, and what became of the
-    rest -- rated 0, with no landmark the model knows within 0.2 nm, or
-    on a landmark rated already. `message` says it in a sentence."""
+    """Whether a retrain has enough to train the chart model on, asked
+    before one is started (app.chart_model.readiness): the ratings on a
+    detection the trainer would get (`usable`) against what it needs, how
+    many of the `rated` are on a point the chart reader no longer finds
+    (`off_detection`), and the routes whose chart is still being read,
+    which cannot be counted yet. `message` says it in a sentence."""
 
-    route: str | None
     usable: int
     needed: int
     ready: bool
     rated: int
-    zeros: int
-    off_landmark: int
-    same_landmark: int
-    older: int
+    off_detection: int
+    reading: list[str]
     message: str
 
 

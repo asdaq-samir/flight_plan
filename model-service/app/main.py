@@ -44,11 +44,21 @@ import joblib
 import pandas as pd
 from fastapi import FastAPI, HTTPException
 
-from .schemas import Checkpoint, RouteRequest, RouteResponse
+from .schemas import (
+    Checkpoint,
+    DetectionRows,
+    DetectionScores,
+    RouteRequest,
+    RouteResponse,
+)
 
 MODEL_DIR = Path(os.environ.get("MODEL_DIR", "/opt/ml/model"))
 FEATURES_DIR = Path(os.environ.get("FEATURES_DIR", "/opt/ml/features"))
 CANDIDATES_DIR = Path(os.environ.get("CANDIDATES_DIR", "/opt/ml/candidates"))
+# The chart reader's scorer (vfr.chartmodel), promoted into a registry of
+# its own: it scores detections, not a corridor's OSM feature store, so
+# it is not one of _MODELS, which /invocations picks from.
+CHART_MODEL_DIR = Path(os.environ.get("CHART_MODEL_DIR", "/opt/ml/chart-model"))
 
 # One model, many corridors. This used to serve a single route fixed by
 # env var, which meant a second route needed a second container on
@@ -197,6 +207,14 @@ def _load(name: str = "current") -> dict | None:
     return _fresh(("model", name), files(), load)
 
 
+def _chart_model() -> dict | None:
+    """The promoted chart model, or None while there is none."""
+    files = [CHART_MODEL_DIR / "model.joblib", CHART_MODEL_DIR / "metrics.json"]
+    return _fresh(("model", "chart"), files, lambda: {
+        "model": joblib.load(files[0]), "metrics": json.loads(files[1].read_text()),
+    })
+
+
 def _features(dep: str, dest: str) -> pd.DataFrame | None:
     """One corridor's feature store, or None if it has not been built."""
     path = _features_path(dep, dest)
@@ -220,6 +238,7 @@ def ping() -> dict:
         "trained_at": current["metrics"].get("trained_at") if current else None,
         "routes": available_routes(),
         "models": {name: _signature(files()) is not None for name, (files, _) in _MODELS.items()},
+        "chart_model": _signature([CHART_MODEL_DIR / "model.joblib", CHART_MODEL_DIR / "metrics.json"]) is not None,
     }
 
 
@@ -264,6 +283,29 @@ def _score(state: dict, df: pd.DataFrame) -> pd.Series:
         preds = state["model"].predict(X_scaled, verbose=0).squeeze(-1)
         return pd.Series(preds, index=df.index)
     raise HTTPException(500, f"unknown model kind {kind!r}")
+
+
+@app.post("/score-detections", response_model=DetectionScores)
+def score_detections(request: DetectionRows) -> DetectionScores:
+    """The chart model's score for each of the chart reader's detections
+    the planner sends, 503 while none is promoted. The rows are reindexed
+    to the columns the model was fitted on, as _score does; a feature
+    the planner did not send, for any row, is 0. Each score is held to
+    the scale the model was trained on (metrics.json's rating_range): a
+    linear model extrapolates past it."""
+    state = _chart_model()
+    if state is None:
+        raise HTTPException(503, "No chart model promoted yet: retrain from the developer console's Performance tab.")
+    metrics = state["metrics"]
+    scores = []
+    if request.rows:
+        X = pd.DataFrame(request.rows).reindex(columns=metrics["feature_cols"]).fillna(0.0)
+        low, high = metrics.get("rating_range", (float("-inf"), float("inf")))
+        scores = [round(min(max(float(s), low), high), 4) for s in state["model"].predict(X)]
+    return DetectionScores(
+        scores=scores, model_type=metrics.get("model_type"), trained_at=metrics.get("trained_at"),
+        held_out_mae=metrics.get("held_out_mae"), palette_held_out_mae=metrics.get("palette_held_out_mae"),
+    )
 
 
 @app.post("/invocations", response_model=RouteResponse)

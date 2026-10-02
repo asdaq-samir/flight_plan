@@ -19,6 +19,12 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 MODELS_DIR = PROJECT_ROOT / "data" / "models"
 CANDIDATE_MODEL_DIR = MODELS_DIR / "candidate"
 CURRENT_MODEL_DIR = MODELS_DIR / "current"
+# The chart reader's scorer (vfr.chartmodel), through the same gate into
+# a registry of its own: its versions beside it, not among the landmark
+# model's.
+CHART_MODELS_DIR = MODELS_DIR / "chart"
+CHART_CANDIDATE_DIR = CHART_MODELS_DIR / "candidate"
+CHART_CURRENT_DIR = CHART_MODELS_DIR / "current"
 
 
 def _reject_remote_uri(path) -> None:

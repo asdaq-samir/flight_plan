@@ -24,3 +24,18 @@ def test_each_pipeline_runs_one_at_a_time(path):
     # from one fixed place: an overlapping run's retrain between the two
     # promoted a model that never passed the gate.
     assert _dag_keywords(path).get("max_active_runs") == 1
+
+
+def test_the_pipelines_skip_code_is_the_one_its_stages_exit_with():
+    # The DAG file cannot import vfr.pipeline (no pandas in Airflow's
+    # image), so it writes the number again; a stage exiting with another
+    # would fail the run it was meant to skip.
+    from vfr.pipeline import SKIPPED_EXIT_CODE
+
+    for path in DAGS:
+        assignments = {
+            node.targets[0].id: ast.literal_eval(node.value)
+            for node in ast.parse(path.read_text()).body
+            if isinstance(node, ast.Assign) and isinstance(node.targets[0], ast.Name) and node.targets[0].id == "SKIPPED_EXIT_CODE"
+        }
+        assert assignments.get("SKIPPED_EXIT_CODE", SKIPPED_EXIT_CODE) == SKIPPED_EXIT_CODE

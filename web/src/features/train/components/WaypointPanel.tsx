@@ -13,7 +13,7 @@ import { Progress } from "../../../components/ui/progress";
 import { ResponsivePopover, ResponsivePopoverContent, ResponsivePopoverTrigger } from "../../../components/ResponsivePopover";
 import { isEndpoint, type Point, type Rating } from "../../../lib/api/types";
 import {
-  COLORS, RATINGS, pointKey, prettyCategory, roleOf, sourceOf, type FilterKey, type Filters, type WalkEntry,
+  COLORS, RATINGS, modelNote, pointKey, prettyCategory, roleOf, sourceOf, type FilterKey, type Filters, type WalkEntry,
 } from "../logic";
 import { revealRow } from "../../../lib/revealRow";
 import { inkOn } from "../../../lib/scoreScale";
@@ -128,6 +128,10 @@ export default function WaypointPanel({
               `${p.along_track_nm.toFixed(1)} nm out`,
               roleOf(p) === "visual" && `visual, ${Math.abs(cross).toFixed(1)} nm off course`,
               sourceOf(p) === "added" && "added by hand",
+              // What the chart model makes of it, beside where it is: in
+              // the line under, not the rating's place at the end, as it
+              // is not a rating.
+              modelNote(p),
             ].filter(Boolean).join(" · ");
             return (
               <li key={key}>

@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { api } from "../../lib/api/client";
 import { statusQuery } from "../../lib/queryClient";
+import type { Status } from "../../lib/api/types";
 import { useConfirm } from "../../components/useConfirm";
 import { useConsoleOpen } from "../../components/mapChrome";
 import { usePreferences } from "../../lib/preferences";
@@ -16,9 +17,17 @@ import { usePreferences } from "../../lib/preferences";
  * offers it there too. The status snapshot is the same query both
  * poll, so a run started from either shows in both.
  */
+/** Whether a snapshot's last run is still going. */
+function underWay(status: Status | undefined): boolean {
+  const state = status?.pipeline?.last_run?.state;
+  return state === "running" || state === "queued";
+}
+
 export function useRetrain() {
   const queryClient = useQueryClient();
-  const { data: status } = useQuery(statusQuery);
+  // Every five seconds while a run is going, so its badge turns from
+  // Training to how it ended when it does, not up to half a minute on.
+  const { data: status } = useQuery({ ...statusQuery, refetchInterval: query => (underWay(query.state.data) ? 5_000 : 30_000) });
   const start = useMutation({
     mutationFn: api.retrain,
     onSuccess: run => {
@@ -32,7 +41,10 @@ export function useRetrain() {
   });
   const pipeline = status?.pipeline;
   const lastRun = pipeline?.last_run ?? null;
-  const running = lastRun?.state === "running" || lastRun?.state === "queued";
+  // From the moment it is confirmed: the planner writes the chart
+  // model's table and asks Airflow before it answers, and the run shows
+  // in the snapshot only after that -- the badge waited on both.
+  const running = start.isPending || underWay(status);
   // Whether the ratings are enough to learn from, worked out by the
   // planner before any run (vfr.pipeline.training_readiness): too few,
   // and the button says why instead of starting a run that fails in

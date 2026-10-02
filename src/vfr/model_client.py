@@ -115,6 +115,19 @@ def list_routes() -> dict:
         raise ModelServiceError(f"model-service answered /routes with something that is not JSON: {err}") from err
 
 
+def score_detections(rows: list[dict]) -> list | None:
+    """The chart model's score for each of the chart reader's detections,
+    from their feature rows (vfr.chartfeatures), in order; None where
+    model-service has no chart model promoted, or does not answer. Never
+    an error: the training page shows the palette's constants alone
+    then, as it did before there was a model. HTTP only, like /routes."""
+    try:
+        resp = _session.post(f"{MODEL_SERVICE_URL}/score-detections", json={"rows": rows}, timeout=10)
+        return resp.json()["scores"] if resp.status_code == 200 else None
+    except (requests.RequestException, ValueError, KeyError):
+        return None
+
+
 def _invoke_http(payload: dict) -> dict:
     try:
         resp = _session.post(f"{MODEL_SERVICE_URL}/invocations", json=payload, timeout=TIMEOUT_S)

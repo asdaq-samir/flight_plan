@@ -2,13 +2,13 @@ import { describe, expect, test } from "vitest";
 import type { Detection, Endpoint, LoosePick, Point } from "../../lib/api/types";
 import {
   DEFAULT_FILTERS, filterCounts, forwardIsLeft, forwardIsUp, hasRating,
-  isVisible, orderedPoints, ratedOf, roleOf, sourceOf, type Filters,
+  isVisible, modelNote, orderedPoints, ratedOf, roleOf, sourceOf, type Filters,
 } from "./logic";
 
 const filters = (over: Partial<Filters> = {}): Filters => ({ ...DEFAULT_FILTERS, ...over });
 
 const det = (over: Partial<Detection> = {}): Detection => ({
-  lat: 44, lon: -89, category: "water", area_m2: 1000, score: 4,
+  lat: 44, lon: -89, category: "water", area_m2: 1000, score: 4, predicted_score: null,
   along_track_nm: 10, cross_track_nm: 0, rating: null, role: null, rated: false, ...over,
 });
 
@@ -126,5 +126,13 @@ describe("filter counts", () => {
     expect(filterCounts(candidates)).toEqual({
       dr: 2, visual: 1, detected: 2, added: 1, rated: 2, unrated: 1,
     });
+  });
+});
+
+describe("modelNote", () => {
+  test("says what the chart model makes of a detection, and nothing where it has no score", () => {
+    expect(modelNote(det({ predicted_score: 0.36 }))).toBe("model 0.4");
+    expect(modelNote(det())).toBeNull();
+    expect(modelNote({ endpoint: true, ident: "C81", name: "Campbell", lat: 42, lon: -88, along_track_nm: 0, category: "departure" })).toBeNull();
   });
 });

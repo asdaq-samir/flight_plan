@@ -14,11 +14,12 @@ from fastapi import APIRouter, HTTPException
 from vfr import chartlabels, charts, checkpoint_notes, model_registry, weather
 from vfr.terrain import DEFAULT_FAA_CACHE_DIR
 
-from .. import chart_refresh
+from .. import chart_model, chart_refresh
 from ..common import PROCESSED_DIR, paths
 from ..settings import CHARTS_REFRESH_WINDOW, CHARTS_REFRESH_WORKERS
 from ..schemas import (
     CandidateModel,
+    ChartModelSnapshot,
     ChartRefreshStarted,
     CorridorStatus,
     DataFile,
@@ -129,6 +130,13 @@ def _current_model() -> ModelSnapshot | None:
         cv_mae=metrics.get("cv_mae"), held_out_mae=metrics.get("held_out_mae"),
         n_labeled=metrics.get("n_labeled"), n_features=len(metrics.get("feature_cols", [])),
     )
+
+
+def _chart_model() -> ChartModelSnapshot | None:
+    metrics = _read_metrics(model_registry.CHART_CURRENT_DIR)
+    if metrics is None:
+        return None
+    return ChartModelSnapshot(**{k: metrics.get(k) for k in ChartModelSnapshot.model_fields})
 
 
 def _versions() -> list[ModelVersion]:
@@ -263,14 +271,19 @@ def _run_error(run_id: str, headers: dict) -> str | None:
 
 
 def _training() -> TrainingReadiness | None:
-    """Whether the ratings are enough to retrain on (vfr.pipeline), or
-    None where that cannot be worked out -- a file missing or half
-    written is the trainer's to report when it runs."""
-    from vfr import pipeline
+    """Whether the ratings are enough to train the chart model on
+    (app.chart_model), or None where that cannot be worked out -- a
+    file missing or half written, a corridor that would not read -- which
+    is the trainer's to report when it runs.
 
+    The chart model's, not the landmark model's: the ratings are made on
+    the chart reader's points, and the landmark model could use only
+    those within 0.2 nm of an OpenStreetMap landmark and above 0 -- 7 of
+    32. A run still retrains the landmark model when it has enough
+    (the DAG's landmarks_ready), and skips it when not."""
     try:
-        return TrainingReadiness(**pipeline.training_readiness())
-    except (OSError, ValueError, KeyError):
+        return TrainingReadiness(**chart_model.readiness())
+    except (OSError, ValueError, KeyError, RuntimeError):
         return None
 
 
@@ -331,7 +344,8 @@ def status() -> Status:
             faa_files=_faa_files(),
             weather=_weather_datasets(),
             charts={**charts.status(), "refresh_window": CHARTS_REFRESH_WINDOW, "refresh_workers": CHARTS_REFRESH_WORKERS},
-            model={"current": _current_model(), "versions": _versions(), "candidates": _candidates()},
+            model={"current": _current_model(), "versions": _versions(), "candidates": _candidates(),
+                   "chart": _chart_model()},
             pipeline=pipeline.result().model_copy(update={"training": _training()}),
             corridors=_corridors(),
         )
@@ -347,22 +361,29 @@ def refresh_charts() -> ChartRefreshStarted:
 
 @router.post("/api/retrain")
 def retrain() -> RetrainStarted:
-    """Starts one run of the training DAG (collect, engineer features,
-    retrain, evaluate, promote) through Airflow's own API -- the same
-    thing the AWS retrain-trigger Lambda does. This service has no
-    scikit-learn of its own on purpose (see requirements.txt), so it
-    cannot train in-process; without Airflow reachable the answer says
-    how to run the pipeline by hand.
+    """Starts one run of the training DAG through Airflow's own API -- the
+    same thing the AWS retrain-trigger Lambda does: the chart model
+    (retrain, evaluate, promote) and the landmark model where it has the
+    ratings (collect, engineer features, retrain, evaluate, promote).
+    This service has no scikit-learn of its own on purpose (see
+    requirements.txt), so it cannot train in-process; without Airflow
+    reachable the answer says how to run the pipeline by hand.
 
-    Checked first (training_readiness): with too few ratings to learn
-    from, it says so and what to do, a 409, rather than starting a run
-    that fails in Airflow minutes later with the same news in its log."""
+    Checked first (app.chart_model.readiness): with too few ratings to
+    learn from, it says so and what to do, a 409, rather than starting a
+    run that ends in Airflow minutes later with the same news in its
+    log. Then the chart model's table is written from the ratings as
+    they are now, which the run trains on."""
     training = _training()
     if training is not None and not training.ready:
         raise HTTPException(409, training.message)
+    try:
+        chart_model.write_training_table()
+    except (OSError, ValueError, RuntimeError) as err:
+        raise HTTPException(500, f"The chart model's training table could not be written: {err}") from err
     if not AIRFLOW_URL:
         raise HTTPException(501, "Retraining runs through Airflow and this planner has no AIRFLOW_URL. "
-                                 "By hand: docker compose run --rm pipeline-training retrain")
+                                 "By hand: docker compose run --rm pipeline-training chart-retrain")
     creds = _airflow_credentials()
     if creds is None:
         raise HTTPException(501, "No Airflow credentials: set AIRFLOW_USERNAME and AIRFLOW_PASSWORD, or mount "

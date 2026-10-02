@@ -88,6 +88,15 @@ export function hasRating(point: Point): boolean {
   return rating !== null && rating !== undefined;
 }
 
+/** The chart model's rating for a detection (vfr.chartmodel) as words,
+ *  "model 3.4"; null where there is none -- no model promoted yet, a
+ *  point added by hand, or a corridor read for the first time, whose
+ *  points are scored once it has been read whole. */
+export function modelNote(point: Point): string | null {
+  const score = (point as { predicted_score?: number | null }).predicted_score;
+  return score === null || score === undefined ? null : `model ${score.toFixed(1)}`;
+}
+
 export function ratedOf(point: Point): "rated" | "unrated" {
   return hasRating(point) ? "rated" : "unrated";
 }

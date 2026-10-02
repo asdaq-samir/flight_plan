@@ -543,26 +543,19 @@ def _score_current_model(X_test, y_test, feature_cols: list) -> float | None:
         return None
 
 
-def retrain(
-    features_path: Path = FEATURES_PATH,
-    labels_path: Path = LABELS_PATH,
-    out_dir: Path = CANDIDATE_MODEL_DIR,
-    min_labeled_rows: int = MIN_LABELED_ROWS,
-) -> dict:
-    """Notebook 03's model-selection logic, minus labeling and plots: compare
-    Ridge/RandomForest/GradientBoosting (grid-searched) against a dummy
-    baseline, refit the best on a train split, score on the held-out split,
-    and save the fitted model + its held-out metrics as the "candidate".
-    """
-    import joblib
+def select_model(X_train, y_train) -> tuple[str, object, dict, float]:
+    """Notebook 03's model selection: Ridge, RandomForest and
+    GradientBoosting, each grid-searched on five folds of the training
+    rows, and the one with the lowest cross-validated MAE refitted on all
+    of them. Returns its name, the fitted model, every model's
+    cross-validated MAE, and a predict-the-mean baseline's on the same
+    folds. Shared by the landmark model (retrain) and the chart reader's
+    (vfr.chartmodel)."""
     from sklearn.dummy import DummyRegressor
     from sklearn.ensemble import GradientBoostingRegressor, RandomForestRegressor
     from sklearn.linear_model import Ridge
     from sklearn.model_selection import GridSearchCV, KFold, cross_val_score
 
-    split = labeled_split(features_path, labels_path, min_labeled_rows)
-    feature_cols = split.feature_cols
-    X_train, X_test, y_train, y_test = split.X_train, split.X_test, split.y_train, split.y_test
     cv = KFold(n_splits=5, shuffle=True, random_state=RANDOM_STATE)
 
     param_grids = {
@@ -590,6 +583,26 @@ def retrain(
     best_name = min(cv_mae, key=cv_mae.get)
     best_model = best_estimators[best_name]
     best_model.fit(X_train, y_train)
+    return best_name, best_model, cv_mae, dummy_mae
+
+
+def retrain(
+    features_path: Path = FEATURES_PATH,
+    labels_path: Path = LABELS_PATH,
+    out_dir: Path = CANDIDATE_MODEL_DIR,
+    min_labeled_rows: int = MIN_LABELED_ROWS,
+) -> dict:
+    """Notebook 03's model-selection logic, minus labeling and plots: compare
+    Ridge/RandomForest/GradientBoosting (grid-searched) against a dummy
+    baseline, refit the best on a train split, score on the held-out split,
+    and save the fitted model + its held-out metrics as the "candidate".
+    """
+    import joblib
+
+    split = labeled_split(features_path, labels_path, min_labeled_rows)
+    feature_cols = split.feature_cols
+    X_train, X_test, y_train, y_test = split.X_train, split.X_test, split.y_train, split.y_test
+    best_name, best_model, cv_mae, dummy_mae = select_model(X_train, y_train)
     y_pred = best_model.predict(X_test)
 
     # cv_mae_by_model is the full comparison, not just the winner --
@@ -649,6 +662,14 @@ def _retrain_defaults() -> dict:
     return {"features_path": features_path, "labels_path": labels_path, "out_dir": out_dir}
 
 
+# The exit code of a stage that has nothing to do -- too few ratings to
+# train on. The DAG's DockerOperator marks a task that ends with it
+# skipped rather than failed (skip_on_exit_code), and the tasks after it
+# skip with it: a run whose landmark model has too few ratings still
+# trains the chart's, and ends a success.
+SKIPPED_EXIT_CODE = 99
+
+
 def _cli() -> None:
     """Run one stage standalone, e.g. `docker compose run --rm pipeline-training retrain`
     or `docker compose run --rm pipeline-processing collect`.
@@ -687,6 +708,15 @@ def _cli() -> None:
     p.add_argument("--out-dir", type=Path, default=retrain_defaults["out_dir"])
     p.add_argument("--min-labeled-rows", type=int, default=MIN_LABELED_ROWS)
 
+    # Whether retrain has enough ratings, before collect and the
+    # elevation lookups are spent on a run that cannot train:
+    # SKIPPED_EXIT_CODE when not.
+    sub.add_parser("readiness")
+
+    # The chart reader's scorer (vfr.chartmodel), from the table the
+    # planner writes; SKIPPED_EXIT_CODE with too few ratings in it.
+    sub.add_parser("chart-retrain")
+
     args = parser.parse_args()
     kwargs = {k: v for k, v in vars(args).items() if k != "stage"}
 
@@ -697,6 +727,23 @@ def _cli() -> None:
         result = engineer_features(in_path=args.in_path or candidates, out_path=args.out_path or features)
     elif args.stage == "retrain":
         result = retrain(**kwargs)
+    elif args.stage == "readiness":
+        readiness = training_readiness()
+        if not readiness["ready"]:
+            print(readiness["message"])
+            raise SystemExit(SKIPPED_EXIT_CODE)
+        result = readiness["message"]
+    elif args.stage == "chart-retrain":
+        # InsufficientLabelsError as vfr.chartmodel raises it: run with
+        # `-m`, this file is __main__, a second copy of the module whose
+        # class of that name is another one.
+        from vfr import chartmodel, pipeline
+
+        try:
+            result = chartmodel.retrain()
+        except pipeline.InsufficientLabelsError as err:
+            print(err)
+            raise SystemExit(SKIPPED_EXIT_CODE) from err
 
     print(result)
 

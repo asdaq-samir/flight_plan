@@ -46,7 +46,7 @@ function courseFixture(): Course {
 
 function detectionFixture(over: Partial<Detection> = {}): Detection {
   return {
-    lat: 43, lon: -89, category: "river", area_m2: 500, score: 4,
+    lat: 43, lon: -89, category: "river", area_m2: 500, score: 4, predicted_score: null,
     along_track_nm: 25, cross_track_nm: 0, rating: null, role: null, rated: false, ...over,
   };
 }

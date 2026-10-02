@@ -188,7 +188,7 @@ const waiting = (failed: boolean) => (failed ? "The planner did not answer." : "
 /** How a training run went, in the one status badge. */
 function RunBadge({ state, running }: { state: string | null | undefined; running: boolean }) {
   const [tone, text]: [Tone, string] =
-    running ? ["running", "Running…"]
+    running ? ["running", "Training…"]
     : state === "success" ? ["up", "Succeeded"]
     : state === "failed" ? ["down", "Failed"]
     : ["checking", state ?? "Unknown"];
@@ -240,7 +240,10 @@ function RoutesGroup({ status, failed }: { status: Status | undefined; failed: b
 /**
  * The model serving predictions: what it is, how it scored, and the
  * versions promoted before it (a page of their own), with how each
- * moved the error.
+ * moved the error. Then the chart model (vfr.chartmodel), which scores
+ * the chart reader's points on the training page, against the palette's
+ * constants it is to replace on the ratings it held out: the
+ * checkpoints move onto the chart once it beats them.
  */
 function ModelGroup({ status, failed }: { status: Status | undefined; failed: boolean }) {
   const model = status?.model;
@@ -264,16 +267,41 @@ function ModelGroup({ status, failed }: { status: Status | undefined; failed: bo
           <ListRow title={<span role="status" className="text-muted-foreground">{status ? "No model has been promoted yet." : waiting(failed)}</span>} />
         </ListGroup>
       )}
+      {status && <ChartModelGroup chart={model?.chart ?? null} />}
     </>
   );
 }
 
+function ChartModelGroup({ chart }: { chart: NonNullable<Status["model"]>["chart"] }) {
+  if (!chart) {
+    return (
+      <ListGroup title="Chart model" footer="It scores the chart reader's points from your ratings, a 0 for one that is no feature at all.">
+        <ListRow title={<span role="status" className="text-muted-foreground">None yet: Retrain trains one.</span>} />
+      </ListGroup>
+    );
+  }
+  const beats = chart.held_out_mae != null && chart.palette_held_out_mae != null && chart.held_out_mae < chart.palette_held_out_mae;
+  return (
+    <ListGroup
+      title="Chart model"
+      badge={<StatusBadge tone={beats ? "up" : "checking"}>{beats ? "Beats the palette" : "Palette still better"}</StatusBadge>}
+      footer={`Error on the ${chart.n_test ?? "—"} ratings it held out, lower is better. It scores the training page's points; the checkpoints move onto the chart once it beats the palette's constants.`}
+    >
+      <ListRow title={chart.model_type ?? "Unknown model"} description={`Trained ${ago(chart.trained_at)} · ${chart.n_labeled ?? "—"} ratings`} />
+      <ListRow title="Held-out MAE" value={chart.held_out_mae == null ? "—" : mae(chart.held_out_mae)} />
+      <ListRow title="Palette constants" value={chart.palette_held_out_mae == null ? "—" : mae(chart.palette_held_out_mae)} />
+      <ListRow title="Predicting the mean" value={chart.dummy_held_out_mae == null ? "—" : mae(chart.dummy_held_out_mae)} />
+    </ListGroup>
+  );
+}
+
 /**
- * The pipeline that would replace the model: how its last run went, as
+ * The pipeline that would replace the models: how its last run went, as
  * a badge beside the heading, and Retrain, saying why it is off and
- * what turns it on -- rate more landmarks the model knows -- or what it
- * does. First on the tab, as a confirmed retrain opens it to follow the
- * run. (Airflow is a link in System's Elsewhere in the stack.)
+ * what turns it on -- the planner's own sentence, how many more to rate
+ * -- or what it does. First on the tab, as a confirmed retrain opens it
+ * to follow the run. (Airflow is a link in System's Elsewhere in the
+ * stack.)
  */
 function TrainingGroup() {
   const retrain = useRetrain();
@@ -281,18 +309,16 @@ function TrainingGroup() {
   // Why Retrain is off and what turns it on, in the group's note, where
   // it reads at full strength under the dimmed button, as iOS explains a
   // control it has turned off; or, on the row, what it does.
-  const blocked = training && !training.ready
-    ? `Rate ${training.needed - training.usable} more landmarks the model knows: ${training.usable} of the ${training.needed} ratings it needs count so far. A 0, or a point with no landmark within 0.2 nm, does not count.`
-    : null;
+  const blocked = training && !training.ready ? training.message : null;
   return (
     <>
       <ListGroup
         title="Training"
         // How the last run went, beside the heading: the rows that said
         // it and the ratings' count went, the note saying what matters.
-        badge={pipeline?.airflow_reachable && lastRun && <RunBadge state={lastRun.state} running={running} />}
+        badge={pipeline?.airflow_reachable && (lastRun || running) && <RunBadge state={lastRun?.state} running={running} />}
         footer={!pipeline?.airflow_reachable
-          ? <>{pipeline?.detail ?? "Airflow is not reachable from here"}. Retrain by hand with <code className="rounded bg-muted px-1 py-0.5 font-mono">docker compose run --rm pipeline-training retrain</code>.</>
+          ? <>{pipeline?.detail ?? "Airflow is not reachable from here"}. Retrain by hand with <code className="rounded bg-muted px-1 py-0.5 font-mono">docker compose run --rm pipeline-training chart-retrain</code>.</>
           : running ? undefined : blocked}
       >
         <ListRow

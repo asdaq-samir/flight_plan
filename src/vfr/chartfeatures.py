@@ -6,7 +6,7 @@ prominence sampled per candidate. None of that exists for a blob read off
 a raster, so this is the chart's own equivalent -- what the detector knows
 about a thing, which is what a scorer for it has to work from.
 
-Deliberately small. Five numbers and a category, because there are only
+Deliberately small. Four numbers and a category, because there are only
 63 bootstrap labels to learn from (see label_chart_detections) and a wide
 feature table on a narrow label set learns the labels rather than the
 problem -- which this project has already seen once, when route position
@@ -31,12 +31,12 @@ in the target for a model to find.
 
 The top feature was abs_cross_track_nm at 0.355, which is not a property
 of the landmark but of where the cursor went -- the same leakage in a
-new coat.
+new coat, and it is no longer one of them.
 
-So this module is plumbing waiting on a label set, not a shipped
-ranker. Re-run it after a labeling pass that deliberately rates poor
-landmarks as poor; until the target has spread, the palette constants
-are the better scorer and the honest one.
+So this module was plumbing waiting on a label set. The training page's
+ratings are that set: a 0 for a detection that is no feature at all (a
+power line read as a road), 1-5 for how findable a real one is, and
+vfr.chartmodel learns from them.
 """
 from __future__ import annotations
 
@@ -53,7 +53,6 @@ CHART_CATEGORIES = ("water", "town", "river", "road_or_rail", "airport")
 FEATURE_COLS = [
     "log_area",
     "linework_px",
-    "abs_cross_track_nm",
     "nn_dist_nm",
     "same_kind_within_2nm",
 ] + [f"is_{c}" for c in CHART_CATEGORIES]
@@ -108,7 +107,6 @@ def build(detections: list) -> pd.DataFrame:
     # used raw.
     df["log_area"] = np.log10(df["area_m2"].clip(lower=1.0))
     df["linework_px"] = df["pixels"]
-    df["abs_cross_track_nm"] = df["cross_track_nm"].abs()
     df["nn_dist_nm"] = _nearest_neighbour_nm(lats, lons)
 
     # Clutter of the same kind specifically. A river crossing two miles
@@ -126,8 +124,9 @@ def build(detections: list) -> pd.DataFrame:
     for category in CHART_CATEGORIES:
         df[f"is_{category}"] = (df["category"] == category).astype(int)
 
-    # along_track_nm is deliberately absent. Where a landmark sits along
-    # one route says nothing about spotting it and everything about which
-    # route it is: measured on the tabular model, position alone recovered
-    # 78% of the gain over a predict-the-mean baseline.
+    # along_track_nm and cross_track_nm are deliberately absent. Where a
+    # landmark sits along one route says nothing about spotting it and
+    # everything about which route it is: measured on the tabular model,
+    # position alone recovered 78% of the gain over a predict-the-mean
+    # baseline. How far off the course it is says where the cursor went.
     return df[["lat", "lon", "category", *FEATURE_COLS]]

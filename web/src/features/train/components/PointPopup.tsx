@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { MapCard } from "../../../lib/map/MapCard";
 import { isEndpoint, type Point, type Rating } from "../../../lib/api/types";
 import { inkOn } from "../../../lib/scoreScale";
-import { CATEGORIES, COLORS, RATINGS, compassPoint, roleOf, sourceOf } from "../logic";
+import { CATEGORIES, COLORS, RATINGS, compassPoint, modelNote, roleOf, sourceOf } from "../logic";
 
 interface Props {
   point: Point;
@@ -110,6 +110,7 @@ export default function PointPopup({
               them DR) -- the distance only means something for a visual
               point, which is picked precisely because it sits off it. */}
           {roleOf(point) === "visual" && <> · {Math.abs(cross).toFixed(2)} nm off course</>}
+          {modelNote(point) && <> · {modelNote(point)}</>}
         </>
       }
     >

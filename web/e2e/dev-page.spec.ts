@@ -99,7 +99,7 @@ test("a retrain confirmed from the panel's More opens the console on Performance
     const json = await response.json();
     json.pipeline = {
       ...json.pipeline, airflow_configured: true, airflow_reachable: true, last_run: null,
-      training: { route: "C81->KDLH", usable: 40, needed: 30, ready: true, rated: 45, zeros: 3, off_landmark: 2, same_landmark: 0, older: 0, message: "40 of the 30 ratings training needs." },
+      training: { usable: 40, needed: 30, ready: true, rated: 45, off_detection: 5, reading: [], message: "40 of the 30 ratings training needs." },
     };
     await route.fulfill({ response, json });
   });
@@ -118,5 +118,60 @@ test("a retrain confirmed from the panel's More opens the console on Performance
   await expect(consoleSheet(page).getByTestId("retrain-row")).toContainText("Retrain");
   // The snapshot is polled: a fetch of one still in flight as the page
   // closes is not this test's failure.
+  await page.unrouteAll({ behavior: "ignoreErrors" });
+});
+
+test("Performance: Retrain says why it is off in the planner's words, and the chart model is weighed against the palette", async ({ page }) => {
+  await page.route("**/api/planner/status", async route => {
+    const response = await route.fetch();
+    const json = await response.json();
+    json.pipeline = {
+      ...json.pipeline, airflow_configured: true, airflow_reachable: true, last_run: null,
+      training: {
+        usable: 28, needed: 30, ready: false, rated: 32, off_detection: 4, reading: [],
+        message: "28 of the 30 ratings training needs. 4 of your 32 are on points the chart reader no longer finds. Rate 2 more.",
+      },
+    };
+    json.model = {
+      ...json.model,
+      chart: { model_type: "Ridge", trained_at: new Date().toISOString(), held_out_mae: 1.2, palette_held_out_mae: 2.2,
+               dummy_held_out_mae: 1.8, n_labeled: 40, n_test: 8 },
+    };
+    await route.fulfill({ response, json });
+  });
+  await page.goto("/app/dev?dep=C81&dest=KDLH");
+  await settle(page);
+  await page.getByTestId("settings-button").click();
+  const sheet = consoleSheet(page);
+  await sheet.getByRole("tab", { name: "Performance" }).click();
+
+  await expect(sheet.getByTestId("retrain-row")).toBeDisabled();
+  await expect(sheet.getByText("Rate 2 more.", { exact: false })).toBeVisible();
+  await expect(sheet.getByText("Chart model", { exact: true })).toBeVisible();
+  await expect(sheet.getByText("Beats the palette", { exact: true })).toBeVisible();
+  await expect(sheet.getByText("Palette constants", { exact: true })).toBeVisible();
+  await page.unrouteAll({ behavior: "ignoreErrors" });
+});
+
+test("dev page: a detection the chart model has scored says so in its row, beside where it is", async ({ page }) => {
+  // Every detection given the model's score on its way in, as the
+  // planner sends it once a chart model is promoted.
+  await page.route("**/api/planner/detect/stream?*", async route => {
+    const response = await route.fetch();
+    const body = (await response.text()).split("\n").map(line => {
+      if (!line.trim()) return line;
+      const message = JSON.parse(line);
+      if (message.type === "block") message.detections = message.detections.map((d: object) => ({ ...d, predicted_score: 0.36 }));
+      return JSON.stringify(message);
+    }).join("\n");
+    await route.fulfill({ response, body });
+  });
+  await page.goto("/app/dev?dep=C81&dest=KDLH");
+  await settle(page);
+  await page.getByTestId("sidebar-trigger-button").click();
+  const rows = sideDrawer(page).getByRole("list", { name: /Waypoints from/i }).locator("[data-waypoint-row]");
+  await expect(rows.filter({ hasText: "model 0.4" }).first()).toBeVisible({ timeout: slow(30000) });
+  // Not the endpoints, which the model does not score.
+  await expect(rows.first()).not.toContainText("model");
   await page.unrouteAll({ behavior: "ignoreErrors" });
 });

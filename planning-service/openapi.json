@@ -1384,6 +1384,99 @@
         "title": "ChartLayer",
         "type": "object"
       },
+      "ChartModelSnapshot": {
+        "description": "The promoted chart model (vfr.chartmodel), against what it has to\nbeat on the ratings it held out: the palette's constants\n(`palette_held_out_mae`) and the training ratings' mean. The\nplanner's checkpoints move onto the chart once it beats the\npalette.",
+        "properties": {
+          "dummy_held_out_mae": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dummy Held Out Mae"
+          },
+          "held_out_mae": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Held Out Mae"
+          },
+          "model_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Type"
+          },
+          "n_labeled": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "N Labeled"
+          },
+          "n_test": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "N Test"
+          },
+          "palette_held_out_mae": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Palette Held Out Mae"
+          },
+          "trained_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trained At"
+          }
+        },
+        "required": [
+          "model_type",
+          "trained_at",
+          "held_out_mae",
+          "palette_held_out_mae",
+          "dummy_held_out_mae",
+          "n_labeled",
+          "n_test"
+        ],
+        "title": "ChartModelSnapshot",
+        "type": "object"
+      },
       "ChartRefreshStarted": {
         "properties": {
           "current_cycle": {
@@ -2146,7 +2239,7 @@
         "type": "object"
       },
       "Detection": {
-        "description": "A point the chart-vision detector found. `rating`/`role` are None\nuntil a pick claims it; `rated` is derived from the rating, as a\nPick's is, rather than set beside it.",
+        "description": "A point the chart-vision detector found. `rating`/`role` are None\nuntil a pick claims it; `rated` is derived from the rating, as a\nPick's is, rather than set beside it. `score` is the palette's\nconstant for its kind; `predicted_score` the chart model's rating\nfor it (vfr.chartmodel), None while none is promoted or the corridor\nis still being read for the first time.",
         "properties": {
           "along_track_nm": {
             "title": "Along Track Nm",
@@ -2171,6 +2264,18 @@
           "lon": {
             "title": "Lon",
             "type": "number"
+          },
+          "predicted_score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Predicted Score"
           },
           "rated": {
             "readOnly": true,
@@ -2892,6 +2997,16 @@
             },
             "title": "Candidates",
             "type": "array"
+          },
+          "chart": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ChartModelSnapshot"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "current": {
             "anyOf": [
@@ -4705,7 +4820,7 @@
         "type": "object"
       },
       "TrainingReadiness": {
-        "description": "Whether a retrain has enough to learn from, asked before one is\nstarted (vfr.pipeline.training_readiness): the ratings the trainer\nwould get (`usable`) against what it needs, and what became of the\nrest -- rated 0, with no landmark the model knows within 0.2 nm, or\non a landmark rated already. `message` says it in a sentence.",
+        "description": "Whether a retrain has enough to train the chart model on, asked\nbefore one is started (app.chart_model.readiness): the ratings on a\ndetection the trainer would get (`usable`) against what it needs, how\nmany of the `rated` are on a point the chart reader no longer finds\n(`off_detection`), and the routes whose chart is still being read,\nwhich cannot be counted yet. `message` says it in a sentence.",
         "properties": {
           "message": {
             "title": "Message",
@@ -4715,56 +4830,37 @@
             "title": "Needed",
             "type": "integer"
           },
-          "off_landmark": {
-            "title": "Off Landmark",
-            "type": "integer"
-          },
-          "older": {
-            "title": "Older",
+          "off_detection": {
+            "title": "Off Detection",
             "type": "integer"
           },
           "rated": {
             "title": "Rated",
             "type": "integer"
           },
+          "reading": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Reading",
+            "type": "array"
+          },
           "ready": {
             "title": "Ready",
             "type": "boolean"
           },
-          "route": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Route"
-          },
-          "same_landmark": {
-            "title": "Same Landmark",
-            "type": "integer"
-          },
           "usable": {
             "title": "Usable",
-            "type": "integer"
-          },
-          "zeros": {
-            "title": "Zeros",
             "type": "integer"
           }
         },
         "required": [
-          "route",
           "usable",
           "needed",
           "ready",
           "rated",
-          "zeros",
-          "off_landmark",
-          "same_landmark",
-          "older",
+          "off_detection",
+          "reading",
           "message"
         ],
         "title": "TrainingReadiness",
@@ -5672,7 +5768,7 @@
     },
     "/api/detect/stream": {
       "get": {
-        "description": "Detections as newline-delimited JSON, one line per block; each\nline is one app.schemas.DetectMessage.\n\nBlocks advance along the course, so the map fills from the departure\nend and a pilot can start judging the first thirty miles while the\nrest of the corridor is still being read. Airports come first, in\ntheir own line, because they are a local file lookup and cost\nnothing to produce.\n\nThe landmarks come from the shared per-route job (app.detection);\nonly the pick-matching is per-request, because picks change between\nrequests and the chart does not.",
+        "description": "Detections as newline-delimited JSON, one line per block; each\nline is one app.schemas.DetectMessage.\n\nBlocks advance along the course, so the map fills from the departure\nend and a pilot can start judging the first thirty miles while the\nrest of the corridor is still being read. Airports come first, in\ntheir own line, because they are a local file lookup and cost\nnothing to produce.\n\nThe landmarks come from the shared per-route job (app.detection);\nonly the pick-matching is per-request, because picks change between\nrequests and the chart does not.\n\nEach carries the chart model's score (app.chart_model) where the\ncorridor has been read whole already, which is every time but a\nroute's first: a detection's features count its neighbours, and a\nblock still being read does not have them all yet.",
         "operationId": "detect_stream_api_detect_stream_get",
         "parameters": [
           {
@@ -6373,7 +6469,7 @@
     },
     "/api/retrain": {
       "post": {
-        "description": "Starts one run of the training DAG (collect, engineer features,\nretrain, evaluate, promote) through Airflow's own API -- the same\nthing the AWS retrain-trigger Lambda does. This service has no\nscikit-learn of its own on purpose (see requirements.txt), so it\ncannot train in-process; without Airflow reachable the answer says\nhow to run the pipeline by hand.\n\nChecked first (training_readiness): with too few ratings to learn\nfrom, it says so and what to do, a 409, rather than starting a run\nthat fails in Airflow minutes later with the same news in its log.",
+        "description": "Starts one run of the training DAG through Airflow's own API -- the\nsame thing the AWS retrain-trigger Lambda does: the chart model\n(retrain, evaluate, promote) and the landmark model where it has the\nratings (collect, engineer features, retrain, evaluate, promote).\nThis service has no scikit-learn of its own on purpose (see\nrequirements.txt), so it cannot train in-process; without Airflow\nreachable the answer says how to run the pipeline by hand.\n\nChecked first (app.chart_model.readiness): with too few ratings to\nlearn from, it says so and what to do, a 409, rather than starting a\nrun that ends in Airflow minutes later with the same news in its\nlog. Then the chart model's table is written from the ratings as\nthey are now, which the run trains on.",
         "operationId": "retrain_api_retrain_post",
         "responses": {
           "200": {

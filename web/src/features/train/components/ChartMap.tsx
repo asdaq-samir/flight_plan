@@ -13,7 +13,7 @@ import { MapPopup } from "../../../lib/map/MapPopup";
 import { MapShell } from "../../../lib/map/MapShell";
 import { MapTooltip } from "../../../lib/map/MapTooltip";
 import { usePreferences } from "../../../lib/preferences";
-import { COLORS, hasRating, isVisible, pointKey, prettyCategory, type Filters } from "../logic";
+import { COLORS, hasRating, isVisible, modelNote, pointKey, prettyCategory, type Filters } from "../logic";
 
 interface Props {
   course: Course | null;
@@ -55,7 +55,7 @@ function PointPreview({ point }: { point: Point }) {
       subtitle={
         hasRating(point)
           ? <Badge style={{ backgroundColor: COLORS[rating as Rating], color: "white" }}>{rating}</Badge>
-          : "Unrated"
+          : ["Unrated", modelNote(point)].filter(Boolean).join(" · ")
       }
     />
   );

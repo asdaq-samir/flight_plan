@@ -252,3 +252,43 @@ def test_invocations_scores_checkpoints_and_sorts_by_along_track_distance(tmp_pa
     # DummyRegressor(strategy="constant", constant=3.0) -- every row
     # gets the same score back, rounded to 4dp same as the real path.
     assert body["checkpoints"][0]["predicted_score"] == 3.0
+
+
+# --- /score-detections ---
+
+
+def test_score_detections_503s_while_no_chart_model_is_promoted(tmp_path, monkeypatch):
+    monkeypatch.setattr(main, "CHART_MODEL_DIR", tmp_path / "chart")
+
+    resp = client.post("/score-detections", json={"rows": [{"log_area": 4.0}]})
+
+    assert resp.status_code == 503
+    assert client.get("/ping").json()["chart_model"] is False
+
+
+def test_score_detections_scores_each_row_in_order_on_the_columns_the_model_was_fitted_on(tmp_path, monkeypatch):
+    from sklearn.linear_model import LinearRegression
+
+    chart = tmp_path / "chart"
+    chart.mkdir()
+    # rating = log_area - is_river: a row without is_river reads it as 0.
+    model = LinearRegression().fit([[1.0, 0.0], [2.0, 1.0], [3.0, 0.0]], [1.0, 1.0, 3.0])
+    joblib.dump(model, chart / "model.joblib")
+    (chart / "metrics.json").write_text(json.dumps({
+        "model_type": "LinearRegression", "feature_cols": ["log_area", "is_river"], "trained_at": "2026-10-02T00:00:00Z",
+        "held_out_mae": 0.6, "palette_held_out_mae": 1.4, "rating_range": [0, 5],
+    }))
+    monkeypatch.setattr(main, "CHART_MODEL_DIR", chart)
+
+    resp = client.post("/score-detections", json={"rows": [
+        {"is_river": 1.0, "log_area": 4.0, "nn_dist_nm": 9.0},
+        {"log_area": 2.0},
+        # 9 by the line, held to the scale it was trained on.
+        {"log_area": 9.0},
+    ]})
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["scores"] == pytest.approx([3.0, 2.0, 5.0])
+    assert (body["held_out_mae"], body["palette_held_out_mae"]) == (0.6, 1.4)
+    assert client.get("/ping").json()["chart_model"] is True

@@ -1,15 +1,13 @@
 """The chart-vision feature table.
 
-Nothing imports vfr.chartfeatures: it is the reproducible basis for a
+What vfr.chartmodel learns from: the reproducible basis, too, for a
 measurement the docs record -- on the 77 bootstrap labels available, no
-model beat predicting the mean -- and for the re-run its own docstring
-asks for once a labelling pass has spread the target. That is a reason
-to keep it, not a reason to leave it untested, and it had no tests at
-all while its two clutter measures were rewritten from nested Python
-loops onto vfr.geo's KD-tree.
+model beat predicting the mean. It had no tests at all while its two
+clutter measures were rewritten from nested Python loops onto vfr.geo's
+KD-tree.
 
-These pin what those two measure, so the re-run when it comes is
-measuring the landmarks rather than a regression.
+These pin what those two measure, so the model is learning the
+landmarks rather than a regression.
 """
 import math
 
@@ -118,10 +116,11 @@ def test_the_category_is_one_hot_over_a_fixed_set():
     assert sum(df[f"is_{c}"].iloc[0] for c in CHART_CATEGORIES) == 1
 
 
-def test_along_track_is_deliberately_absent_from_the_features():
+def test_where_a_detection_sits_on_the_route_is_deliberately_absent_from_the_features():
     # Where a landmark sits along one route says nothing about spotting
     # it and everything about which route it is -- measured at 78% of a
-    # model's apparent gain.
+    # model's apparent gain -- and how far off course it is was the top
+    # feature of the first chart model, which learnt where the cursor went.
     df = build([_detection(44.0, -89.0)])
     assert "along_track_nm" not in df.columns
-    assert "abs_cross_track_nm" in df.columns
+    assert "abs_cross_track_nm" not in df.columns

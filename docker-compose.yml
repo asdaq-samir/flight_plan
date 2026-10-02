@@ -224,6 +224,9 @@ services:
       # trained one-off inside the `ml` image, see that module's
       # docstring) -- read-only for the same reason as the two above.
       - ./data/models/candidates:/opt/ml/candidates:ro
+      # The chart reader's scorer (vfr.chartmodel), promoted by the same
+      # gate into a registry of its own.
+      - ./data/models/chart/current:/opt/ml/chart-model:ro
     # No curl/wget in the python:3.13-slim base -- a stdlib urllib call
     # needs neither, and /ping is the same real "did the model actually
     # load" check SageMaker itself would use.

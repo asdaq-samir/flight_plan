@@ -6,6 +6,8 @@ from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel
 from vfr import chartlabels, charts, chartvision, geo
 
+from .. import chart_model
+from ..chart_model import TRAINING_HALF_WIDTH_NM
 from ..common import line, load_route, ndjson, route_key
 from ..detection import detect_job, faa_airports
 from ..schemas import (
@@ -130,7 +132,7 @@ def list_picks(dep: str, dest: str) -> PicksResponse:
 
 
 @router.get("/api/detect/stream")
-def detect_stream(dep: str, dest: str, half_width_nm: float = 4.0) -> StreamingResponse:
+def detect_stream(dep: str, dest: str, half_width_nm: float = TRAINING_HALF_WIDTH_NM) -> StreamingResponse:
     """Detections as newline-delimited JSON, one line per block; each
     line is one app.schemas.DetectMessage.
 
@@ -143,6 +145,11 @@ def detect_stream(dep: str, dest: str, half_width_nm: float = 4.0) -> StreamingR
     The landmarks come from the shared per-route job (app.detection);
     only the pick-matching is per-request, because picks change between
     requests and the chart does not.
+
+    Each carries the chart model's score (app.chart_model) where the
+    corridor has been read whole already, which is every time but a
+    route's first: a detection's features count its neighbours, and a
+    block still being read does not have them all yet.
     """
     r = load_route(dep, dest)
     route = chartlabels.route_key(r.dep_ident, r.dest_ident)
@@ -166,6 +173,7 @@ def detect_stream(dep: str, dest: str, half_width_nm: float = 4.0) -> StreamingR
             category=landmark.category,
             area_m2=round(landmark.area_m2, 1),
             score=landmark.score,
+            predicted_score=predicted.get(id(landmark)),
             along_track_nm=round(landmark.extras["along_track_nm"], 2),
             cross_track_nm=round(landmark.extras["cross_track_nm"], 3),
             rating=pick["rating"] if pick else None,
@@ -173,6 +181,7 @@ def detect_stream(dep: str, dest: str, half_width_nm: float = 4.0) -> StreamingR
         )
 
     job = detect_job((route, half_width_nm), r.start, r.end, half_width_nm)
+    predicted: dict = {}
 
     def lines():
         # The picks cannot be sorted into matched and unmatched until
@@ -181,6 +190,12 @@ def detect_stream(dep: str, dest: str, half_width_nm: float = 4.0) -> StreamingR
         yield line(DetectStart(route=route))
 
         airports_found = faa_airports(r.start, r.end, half_width_nm, r.dep_ident, r.dest_ident)
+        with job["cond"]:
+            read = job["done"] and job["error"] is None
+            blocks = list(job["blocks"])
+        if read:
+            everything = airports_found + [landmark for block in blocks for landmark in block["landmarks"]]
+            predicted.update(zip(map(id, everything), chart_model.predicted_scores(everything)))
         yield line(DetectBlock(block=-1, blocks=0, detections=[as_detection(a) for a in airports_found]))
 
         # Follow the shared job's blocks as they land -- instant when the

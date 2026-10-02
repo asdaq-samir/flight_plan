@@ -102,6 +102,9 @@ def test_status_reports_every_service_and_the_data_on_disk(monkeypatch):
         system.ServiceStatus(up=True, detail="HTTP 200"), system.ServiceStatus(up=False, detail="HTTP 503")))
     monkeypatch.setattr(system, "_model_service_status",
                         lambda: system.ModelServiceStatus(up=False, detail="connection refused"))
+    # Not the chart model's real count: that reads the real ratings'
+    # corridors, a chart read of its own.
+    monkeypatch.setattr(system, "_training", lambda: None)
 
     resp = client.get("/api/status")
 
@@ -119,14 +122,18 @@ def test_status_reports_every_service_and_the_data_on_disk(monkeypatch):
         assert corridor["departure_ident"].isupper() and "by_rating" in corridor["labels"]
 
 
-def test_retrain_says_how_when_airflow_is_not_configured(monkeypatch):
+def test_retrain_writes_the_chart_models_table_and_says_how_when_airflow_is_not_configured(monkeypatch):
+    written = []
     monkeypatch.setattr(system, "AIRFLOW_URL", None)
     monkeypatch.setattr(system, "_training", lambda: None)
+    monkeypatch.setattr(system.chart_model, "write_training_table", lambda: written.append(True))
 
     resp = client.post("/api/retrain")
 
     assert resp.status_code == 501
-    assert "pipeline-training retrain" in resp.json()["detail"]
+    assert "pipeline-training chart-retrain" in resp.json()["detail"]
+    # Written first, so the command it gives trains on the ratings as they are.
+    assert written == [True]
 
 
 def test_retrain_with_too_few_ratings_says_why_instead_of_starting_a_run(monkeypatch):
@@ -136,13 +143,13 @@ def test_retrain_with_too_few_ratings_says_why_instead_of_starting_a_run(monkeyp
     monkeypatch.setattr(system, "AIRFLOW_URL", "http://airflow:8080")
     monkeypatch.setattr(system, "_airflow_credentials", lambda: started.append("asked") or ("a", "b"))
     monkeypatch.setattr(system, "_training", lambda: system.TrainingReadiness(
-        route="C81->KDLH", usable=7, needed=30, ready=False, rated=32, zeros=11, off_landmark=14,
-        same_landmark=0, older=0, message="7 of the 30 ratings training needs."))
+        usable=28, needed=30, ready=False, rated=32, off_detection=4, reading=[],
+        message="28 of the 30 ratings training needs."))
 
     resp = client.post("/api/retrain")
 
     assert resp.status_code == 409
-    assert resp.json()["detail"] == "7 of the 30 ratings training needs."
+    assert resp.json()["detail"] == "28 of the 30 ratings training needs."
     assert started == []
 
 

@@ -3,7 +3,7 @@ flyable altitude selection and an NDJSON reader."""
 import json
 
 import pytest
-from vfr import airports
+from vfr import airports, model_client
 
 from app import detection, planning, scoring
 
@@ -22,6 +22,13 @@ def airport(ident: str) -> dict:
     coords = {"C81": (42.3172, -88.0905), "KDLH": (46.8421, -92.1936)}[ident]
     return {"ident": ident, "name": ident, "lat": coords[0], "lon": coords[1], "elevation_ft": 900.0,
             "municipality": "", "region": ""}
+
+
+@pytest.fixture(autouse=True)
+def no_chart_model(monkeypatch):
+    """No chart model promoted: model-service is not running here, and a
+    test about the chart model's scores stubs this again itself."""
+    monkeypatch.setattr(model_client, "score_detections", lambda rows: None)
 
 
 @pytest.fixture(autouse=True)
