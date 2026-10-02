@@ -103,6 +103,21 @@ def test_the_fields_in_view_carry_their_metars_flight_category(monkeypatch):
     assert [a["flight_category"] for a in body["airports"]] == [None, None]
 
 
+def test_reporting_asks_for_the_fields_with_a_metar_alone(monkeypatch):
+    asked = {}
+
+    def places_in(south, west, north, east, limit, only=None):
+        asked["only"] = only
+        return [{**DULUTH}]
+
+    monkeypatch.setattr(airports, "places_in", places_in)
+    monkeypatch.setattr(weather, "reporting_idents", lambda: {"KDLH", "KMSP"})
+    monkeypatch.setattr(weather, "metar_for_idents", lambda idents: {"KDLH": {"flight_category": "VFR"}})
+    body = client.get("/api/airports/in-view", params={"south": 44, "west": -94, "north": 47, "east": -92, "reporting": True}).json()
+    assert asked["only"] == {"KDLH", "KMSP"}
+    assert body["airports"][0]["flight_category"] == "VFR"
+
+
 def test_a_box_turned_inside_out_is_refused(monkeypatch):
     monkeypatch.setattr(airports, "places_in", lambda *args: [])
     response = client.get("/api/airports/in-view", params={"south": 47, "west": -93, "north": 46, "east": -92})

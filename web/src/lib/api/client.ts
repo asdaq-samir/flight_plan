@@ -333,10 +333,15 @@ export const api = {
   airport: (ident: string) =>
     planner.GET("/api/airport/{ident}", { params: { path: { ident } } }).then(data<AirportPlace>),
 
-  /** The landing fields inside a box, the biggest first: what the map
-   *  lays its tap targets over, so the chart's own airports open cards. */
-  airportsInView: (box: { south: number; west: number; north: number; east: number; limit?: number }) =>
-    planner.GET("/api/airports/in-view", { params: { query: box } }).then(data<AirportsInView>).then(r => r.airports),
+  /** The landing fields inside a box, the biggest first, each with its
+   *  METAR's flight category: what the map lays its chips and tap
+   *  targets over, so the chart's own airports open cards. `reporting`,
+   *  the ones with a METAR alone. Asked for ahead of the chart's tiles
+   *  (`priority`): over plain http a browser opens six connections to
+   *  a host, and on a zoom sixty tiles queued in front of it. */
+  airportsInView: (box: { south: number; west: number; north: number; east: number; limit?: number; reporting?: boolean }) =>
+    planner.GET("/api/airports/in-view", { params: { query: box }, priority: "high" })
+      .then(data<AirportsInView>).then(r => r.airports),
 
   /**
    * The signed-in pilot, or null when signed out -- a Spring Boot

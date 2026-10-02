@@ -207,17 +207,21 @@ def find_place(ident: str, cache_path: Path = DEFAULT_CACHE_PATH) -> dict | None
 
 
 def places_in(south: float, west: float, north: float, east: float, limit: int = 300,
-              cache_path: Path = DEFAULT_CACHE_PATH) -> list[dict]:
+              cache_path: Path = DEFAULT_CACHE_PATH, only: set | None = None) -> list[dict]:
     """The landing fields inside a box, the biggest first, at most
     `limit` of them -- what the map lays its tap targets over, so a tap
     on an airport printed on the chart opens its card. Zoomed out the
-    box holds thousands, and the small ones are what the limit drops."""
+    box holds thousands, and the small ones are what the limit drops.
+    `only`, OurAirports idents, keeps those alone before the limit: the
+    fields that report their weather, along a whole route."""
     df = _us_airports(cache_path)
     inside = df[
         df["type"].isin(list(_FIELD_KINDS))
         & df["latitude_deg"].between(south, north)
         & df["longitude_deg"].between(west, east)
     ]
+    if only is not None:
+        inside = inside[inside["ident"].isin(only)]
     rank = inside["type"].map({kind: i for i, kind in enumerate(_FIELD_KINDS)})
     # One per ident: OurAirports lists a few fields twice under the same
     # local code (an old record and its successor), and the map keys its

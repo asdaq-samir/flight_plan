@@ -22,6 +22,7 @@ def airports_in_view(
     south: float = Query(ge=-90, le=90), west: float = Query(ge=-180, le=180),
     north: float = Query(ge=-90, le=90), east: float = Query(ge=-180, le=180),
     limit: int = Query(default=300, ge=1, le=1000),
+    reporting: bool = False,
 ) -> AirportsInView:
     """The landing fields inside the map's view, the biggest first --
     at most `limit` of them, since a whole state holds thousands and the
@@ -29,10 +30,19 @@ def airports_in_view(
     category from its METAR, for a weather chip on the ones that report.
     The METARs are the national cache already in memory; with the
     weather service out the fields come back without, as fields with no
-    station do."""
+    station do. With `reporting`, only the fields that report, before
+    the limit: what the map asks once for a whole route's box, so its
+    chips are there before the pilot zooms in on any of it."""
     if south > north or west > east:
         raise HTTPException(422, "The box's south is above its north, or its west east of its east.")
-    places = airports.places_in(south, west, north, east, limit)
+    try:
+        stations = weather.reporting_idents() if reporting else None
+    except weather.WeatherServiceError:
+        stations = set()
+    if reporting:
+        places = airports.places_in(south, west, north, east, limit, only=stations)
+    else:
+        places = airports.places_in(south, west, north, east, limit)
     try:
         metars = weather.metar_for_idents([p["source_ident"] for p in places])
     except weather.WeatherServiceError:

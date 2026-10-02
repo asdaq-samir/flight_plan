@@ -44,31 +44,60 @@ function boxOf(map: L.Map) {
  *
  * A tap anywhere else on the chart puts the card away, as it does in Maps.
  */
-export function AirportsLayer({ selected, onSelect, exclude }: {
+export function AirportsLayer({ selected, onSelect, exclude, route }: {
   selected: { ident: string; lat: number; lon: number } | null;
   onSelect: (ident: string | null) => void;
   exclude: Set<string>;
+  /** The route's box: its reporting fields asked for once, ahead. */
+  route: { south: number; west: number; north: number; east: number } | null;
 }) {
   const map = useMap();
   const [view, setView] = useState(() => boxOf(map));
+  // The zoom a zoom is going to, as it starts: the route's chips draw
+  // while the map is still easing in, not after it settles. The view's
+  // own question waits for it to settle, where its box is known.
+  const [easingTo, setEasingTo] = useState<number | null>(null);
   // Memoized, not an object literal: see useZoomLevel.
   const handlers = useMemo(() => ({
-    moveend: () => setView(boxOf(map)),
+    zoomanim: (e: L.ZoomAnimEvent) => setEasingTo(e.zoom),
+    moveend: () => { setView(boxOf(map)); setEasingTo(null); },
     click: () => onSelect(null),
   }), [map, onSelect]);
   useMapEvents(handlers);
-  const near = view.zoom >= FROM_ZOOM;
-  const { data } = useQuery({
+  const near = (easingTo ?? view.zoom) >= FROM_ZOOM;
+  // The fields along the route that report, asked for once the route is
+  // drawn: zoomed in anywhere on it, their chips are already here, where
+  // they used to wait for the zoom to settle and then behind its tiles.
+  // The view's own answer, every field with the targets too, follows.
+  // Ten minutes, as a METAR's colour can change by the hour.
+  const routeKey = route ? `${route.south},${route.west},${route.north},${route.east}` : null;
+  const { data: alongRoute } = useQuery({
+    queryKey: ["airportsReporting", routeKey],
+    queryFn: () => api.airportsInView({ ...route!, limit: 1000, reporting: true }),
+    enabled: !!route,
+    staleTime: 10 * 60_000,
+    meta: { silent: true },
+  });
+  const { data: inView } = useQuery({
     queryKey: ["airportsInView", view.key],
     queryFn: () => api.airportsInView(view.box),
-    enabled: near,
-    staleTime: Infinity,
+    enabled: view.zoom >= FROM_ZOOM,
+    staleTime: 10 * 60_000,
     placeholderData: keepPreviousData,
     meta: { silent: true },
   });
+  const data = useMemo(() => {
+    const { south, west, north, east } = view.box;
+    const byIdent = new Map<string, AirportPin>();
+    for (const a of alongRoute ?? []) {
+      if (a.lat >= south && a.lat <= north && a.lon >= west && a.lon <= east) byIdent.set(a.ident, a);
+    }
+    for (const a of inView ?? []) byIdent.set(a.ident, a);
+    return [...byIdent.values()];
+  }, [alongRoute, inView, view.box]);
   return (
     <Pane name="airports" style={{ zIndex: 450 }}>
-      {near && data?.filter(a => !exclude.has(a.ident)).map((a: AirportPin) => (a.flight_category ? (
+      {near && data.filter(a => !exclude.has(a.ident)).map((a: AirportPin) => (a.flight_category ? (
         <Marker
           key={a.ident} position={[a.lat, a.lon]} icon={airportIcon(colourOf(a.flight_category), a.ident)}
           eventHandlers={{ click: e => { L.DomEvent.stopPropagation(e); onSelect(a.ident); } }}

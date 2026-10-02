@@ -206,6 +206,19 @@ export default function RouteMap({
     ...(showClassB ? (classBAirports ?? []).map(a => a.ident) : []),
   ]), [course, showClassB, classBAirports]);
 
+  // The route's box, half a degree round it, on the half-degree grid the
+  // layer asks in: one question for its reporting fields however the
+  // course is answered again.
+  const routeBox = useMemo(() => {
+    if (!course) return null;
+    const lats = course.course_line.map(p => p[0]), lons = course.course_line.map(p => p[1]);
+    const out = (v: number, up: boolean) => (up ? Math.ceil(v * 2) : Math.floor(v * 2)) / 2;
+    return {
+      south: out(Math.min(...lats) - 0.5, false), north: out(Math.max(...lats) + 0.5, true),
+      west: out(Math.min(...lons) - 0.5, false), east: out(Math.max(...lons) + 0.5, true),
+    };
+  }, [course]);
+
   return (
     <MapShell course={course} position onSelectPlace={onSelectPlace}>
       {course && (
@@ -214,7 +227,7 @@ export default function RouteMap({
             line={course.course_line as [number, number][]}
             tooltip={`${course.departure.ident} → ${course.destination.ident} · ${course.distance_nm} nm`}
           />
-          <AirportsLayer selected={place} onSelect={onSelectPlace} exclude={chipped} />
+          <AirportsLayer selected={place} onSelect={onSelectPlace} exclude={chipped} route={routeBox} />
           <Endpoints course={course} weather={airportWeather} onSelectPoint={onSelectPoint} />
           <Checkpoints candidates={candidates} selected={selected} onSelectCandidate={onSelectCandidate} />
           <OwnShipLayer />

@@ -177,3 +177,5 @@ def test_the_places_in_a_box_are_landing_fields_biggest_first(us_airports_csv):
     assert [p["ident"] for p in everywhere] == ["KMSP", "KDLH", "C81"]
     assert [p["ident"] for p in places_in(46, -93, 47, -92, cache_path=us_airports_csv)] == ["KDLH"]
     assert [p["ident"] for p in places_in(40, -95, 47, -87, limit=1, cache_path=us_airports_csv)] == ["KMSP"]
+    # Only the ones asked for, before the limit: KMSP would come first.
+    assert [p["ident"] for p in places_in(40, -95, 47, -87, limit=1, cache_path=us_airports_csv, only={"KDLH"})] == ["KDLH"]

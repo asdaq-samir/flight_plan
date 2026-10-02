@@ -560,6 +560,12 @@ def _parse_metars(xml_bytes: bytes) -> dict:
     return {ident: report for ident, (_, report) in latest.items()}
 
 
+def reporting_idents() -> set:
+    """Every station with a current METAR -- the fields a map can colour
+    by their weather."""
+    return set(_dataset("metars"))
+
+
 def metar_for_idents(idents: list) -> dict:
     """{ident: {...}} for the latest METAR at each ident, or {ident: None}
     for one with nothing current (a small field with no reporting
