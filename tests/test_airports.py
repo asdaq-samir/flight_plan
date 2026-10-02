@@ -157,6 +157,10 @@ def us_airports_csv(tmp_path):
          "latitude_deg": 48.3719, "longitude_deg": -89.3239, "iso_country": "CA"},
         {**row, "ident": "US-0043", "icao_code": None, "local_code": "C81", "name": "Campbell (old record)", "type": "small_airport",
          "latitude_deg": 42.3245, "longitude_deg": -88.0742},
+        # A real ICAO code OurAirports left out of icao_code: Chicago
+        # Executive, KPWK in its METAR and on every chart.
+        {**row, "ident": "KPWK", "icao_code": None, "local_code": "PWK", "name": "Chicago Executive", "type": "medium_airport",
+         "iso_region": "US-IL", "latitude_deg": 42.1142, "longitude_deg": -87.9015},
     ]).to_csv(path, index=False)
     return path
 
@@ -172,9 +176,17 @@ def test_a_place_is_found_by_any_ident_it_goes_by(us_airports_csv):
     assert find_place("", cache_path=us_airports_csv) is None
 
 
+def test_a_three_letter_field_goes_by_its_k_code_where_one_with_a_digit_goes_by_its_own(us_airports_csv):
+    # KPWK, not PWK, beside KMDW: OurAirports leaves its icao_code empty.
+    assert find_place("PWK", cache_path=us_airports_csv)["ident"] == "KPWK"
+    assert find_place("KPWK", cache_path=us_airports_csv)["ident"] == "KPWK"
+    # C81 has no ICAO code; OurAirports' KC81 is its own invention.
+    assert find_place("KC81", cache_path=us_airports_csv)["ident"] == "C81"
+
+
 def test_the_places_in_a_box_are_landing_fields_biggest_first(us_airports_csv):
     everywhere = places_in(40, -95, 47, -87, cache_path=us_airports_csv)
-    assert [p["ident"] for p in everywhere] == ["KMSP", "KDLH", "C81"]
+    assert [p["ident"] for p in everywhere] == ["KMSP", "KDLH", "KPWK", "C81"]
     assert [p["ident"] for p in places_in(46, -93, 47, -92, cache_path=us_airports_csv)] == ["KDLH"]
     assert [p["ident"] for p in places_in(40, -95, 47, -87, limit=1, cache_path=us_airports_csv)] == ["KMSP"]
     # Only the ones asked for, before the limit: KMSP would come first.

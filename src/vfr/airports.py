@@ -132,10 +132,16 @@ def _us_airports_of(path: str, _mtime: float) -> pd.DataFrame:
     # `ident` is a real, assigned code (KDLH, a towered airport
     # pilots do call that), empty when `ident` is its own guess --
     # `local_code` (the one pilots, and the rest of this app, use
-    # for those) wins only in that second case.
+    # for those) wins only in that second case. Except that it leaves
+    # `icao_code` empty for some real ones too -- KPWK, KBUU, KDKB, each
+    # with a METAR under that name, came out PWK, BUU, DKB beside KMDW
+    # and KMWC on the map -- so a three-letter FAA identifier, which a
+    # US field's ICAO code is K and, counts as one when `ident` is that
+    # K form. One with a digit in it (C81, 57C, 1D2) never has one.
     has_icao = us["icao_code"].notna() & (us["icao_code"] != "")
     has_local = us["local_code"].notna() & (us["local_code"] != "")
-    us["_display_ident"] = us["ident"].where(has_icao, us["local_code"].where(has_local, us["ident"]))
+    k_form = us["local_code"].astype(str).str.fullmatch(r"[A-Z]{3}") & (us["ident"] == "K" + us["local_code"].astype(str))
+    us["_display_ident"] = us["ident"].where(has_icao | k_form, us["local_code"].where(has_local, us["ident"]))
     return us
 
 

@@ -13,6 +13,12 @@ import { MapTooltip } from "./MapTooltip";
  *  circles over half a state. */
 const FROM_ZOOM = 8;
 
+/** From this zoom the fields with no report wear a chip too, in the
+ *  grey of no report: the sectional's own scale, where they are a
+ *  handful on the screen rather than every strip in half a state.
+ *  Further out they keep an invisible target. */
+const NO_REPORT_FROM_ZOOM = 10;
+
 /** A finger's width round each airport symbol, 44 points across. */
 const TARGET_RADIUS = 22;
 
@@ -33,8 +39,9 @@ function boxOf(map: L.Map) {
  * The chart's own airports, made tappable, from zoom 8 in: each one that
  * reports its weather wears a chip, its ident in its METAR's flight
  * category's colour, as the route's own airports and the Class B ones
- * do; over every other landing field an invisible target, since the
- * chart already draws it. Either opens the field's card (PlaceCard),
+ * do; from zoom 10 every other landing field one in the grey of no
+ * report, and further out an invisible target, since the chart already
+ * draws it. Either opens the field's card (PlaceCard),
  * with Fly Here -- the chart is a picture, and the map cannot otherwise
  * know an airport was tapped on it. A pointer turns to a hand over one
  * and names it. Under the route's own markers, which keep their taps,
@@ -64,7 +71,8 @@ export function AirportsLayer({ selected, onSelect, exclude, route }: {
     click: () => onSelect(null),
   }), [map, onSelect]);
   useMapEvents(handlers);
-  const near = (easingTo ?? view.zoom) >= FROM_ZOOM;
+  const zoom = easingTo ?? view.zoom;
+  const near = zoom >= FROM_ZOOM;
   // The fields along the route that report, asked for once the route is
   // drawn: zoomed in anywhere on it, their chips are already here, where
   // they used to wait for the zoom to settle and then behind its tiles.
@@ -97,12 +105,12 @@ export function AirportsLayer({ selected, onSelect, exclude, route }: {
   }, [alongRoute, inView, view.box]);
   return (
     <Pane name="airports" style={{ zIndex: 450 }}>
-      {near && data.filter(a => !exclude.has(a.ident)).map((a: AirportPin) => (a.flight_category ? (
+      {near && data.filter(a => !exclude.has(a.ident)).map((a: AirportPin) => (a.flight_category || zoom >= NO_REPORT_FROM_ZOOM ? (
         <Marker
           key={a.ident} position={[a.lat, a.lon]} icon={airportIcon(colourOf(a.flight_category), a.ident)}
           eventHandlers={{ click: e => { L.DomEvent.stopPropagation(e); onSelect(a.ident); } }}
         >
-          {hovers && <MapTooltip>{a.ident} · {a.name} · {a.flight_category}</MapTooltip>}
+          {hovers && <MapTooltip>{a.ident} · {a.name} · {a.flight_category ?? "no report"}</MapTooltip>}
         </Marker>
       ) : (
         <CircleMarker

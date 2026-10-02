@@ -329,9 +329,10 @@ export const api = {
     planner.GET("/api/airports/search", { params: { query: { q } } }).then(data<AirportSearch>).then(r => r.airports),
 
   /** One airport's card: where it is, the airspace over it, its runways
-   *  and radio, and the weather there now. */
+   *  and radio, and the weather there now. Ahead of the chart's tiles,
+   *  as the fields in view are (`priority`). */
   airport: (ident: string) =>
-    planner.GET("/api/airport/{ident}", { params: { path: { ident } } }).then(data<AirportPlace>),
+    planner.GET("/api/airport/{ident}", { params: { path: { ident } }, priority: "high" }).then(data<AirportPlace>),
 
   /** The landing fields inside a box, the biggest first, each with its
    *  METAR's flight category: what the map lays its chips and tap

@@ -47,18 +47,22 @@ test("a tap on an airport on the chart opens its card, a tap elsewhere puts it a
     await page.mouse.wheel(0, -60);
     await page.waitForTimeout(400);
   }
-  const targets = page.locator(".leaflet-airports-pane path.leaflet-airport-target");
+  // Its chip, or this close in, its grey one for no report; further out
+  // an invisible target where it reports nothing.
+  const AIRPORTS = ".leaflet-airports-pane .leaflet-marker-icon, .leaflet-airports-pane path.leaflet-airport-target";
+  const targets = page.locator(AIRPORTS);
   await expect.poll(() => targets.count(), { timeout: slow(20000) }).toBeGreaterThan(1);
   // One whose middle nothing else covers -- not the route's own marker,
   // not the panel.
-  const at = await page.evaluate(() => {
-    for (const path of document.querySelectorAll(".leaflet-airports-pane path.leaflet-airport-target")) {
-      const r = path.getBoundingClientRect();
+  const at = await page.evaluate(selector => {
+    for (const el of document.querySelectorAll(selector)) {
+      const r = el.getBoundingClientRect();
       const x = r.left + r.width / 2, y = r.top + r.height / 2;
-      if (document.elementFromPoint(x, y) === path) return { x, y };
+      const hit = document.elementFromPoint(x, y);
+      if (hit && (hit === el || el.contains(hit))) return { x, y };
     }
     return null;
-  });
+  }, AIRPORTS);
   expect(at, "an airport on the chart with nothing over it").not.toBeNull();
   await page.mouse.click(at!.x, at!.y);
   await expect(page).toHaveURL(/[?&]place=[A-Z0-9]+/);

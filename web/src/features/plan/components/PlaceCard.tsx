@@ -1,5 +1,5 @@
 import { useContext, useEffect, useRef, useState, type ReactNode } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { CloudSun, Navigation, Radio, X } from "lucide-react";
 import { cn } from "cn";
 import IconButton from "../../../components/IconButton";
@@ -7,7 +7,7 @@ import { PanelHalfContext } from "../../../components/mapChrome";
 import { ListGroup, ListRow } from "../../../components/GroupedList";
 import { Button } from "../../../components/ui/button";
 import { api } from "../../../lib/api/client";
-import type { AirportPlace } from "../../../lib/api/types";
+import type { AirportPin, AirportPlace, ClassBAirport } from "../../../lib/api/types";
 import { compassPoint } from "../../../lib/compass";
 import { bearingDeg, distanceNm, type LatLon } from "../../../lib/geo";
 import { chipColourOf } from "../../../lib/map/flightCategory";
@@ -30,6 +30,18 @@ function subtitleOf(place: AirportPlace, from: { point: LatLon; name: string | n
     place.towered ? "Towered" : ctaf?.frequency_mhz ? `CTAF ${ctaf.frequency_mhz.toFixed(3).replace(/0+$/, "").replace(/\.$/, "")}` : "Non-towered",
     from ? (from.name ? `${away(from.point, place)} of ${from.name}` : away(from.point, place)) : null,
   ].filter(Boolean).join(" · ");
+}
+
+/** An airport's name and weather from whatever the map has already
+ *  asked for it in: the fields in view, the route's, the Class B ones. */
+function knownOf(queryClient: QueryClient, ident: string): { name: string; category: string | null } | null {
+  for (const key of ["airportsInView", "airportsReporting", "classB"]) {
+    for (const [, pins] of queryClient.getQueriesData<(AirportPin | ClassBAirport)[]>({ queryKey: [key] })) {
+      const hit = pins?.find(p => p.ident === ident);
+      if (hit) return { name: hit.name, category: hit.flight_category ?? null };
+    }
+  }
+  return null;
 }
 
 /** A tile of the card's action row: its glyph over its word, as Maps
@@ -69,6 +81,12 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onExpand }:
   const { data: place, isLoading, isError } = useQuery({
     queryKey: ["airport", ident], queryFn: () => api.airport(ident), staleTime: 5 * 60_000,
   });
+  // What the map knows of it already -- its name and its weather's
+  // colour, from the chip that was tapped (AirportsLayer, ClassBLayer) --
+  // at once: the card read "Looking the airport up…" until its own
+  // answer came, a second or more on a phone while the chart's tiles
+  // loaded.
+  const known = knownOf(useQueryClient(), ident);
   // The name and the actions whole at the panel's half height, however
   // many lines the name and the line under it take (PanelHalfContext):
   // measured from the card's top, its own padding with it, and a
@@ -90,17 +108,16 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onExpand }:
     window.setTimeout(() => section?.scrollIntoView({ block: "start", behavior: "smooth" }), 50);
   };
   const metar = place?.metar ?? null;
-  const weather = place && {
-    status: place.weather_unavailable ? "unavailable" : metar ? "reported" : "no-report",
-    category: metar?.flight_category ?? null,
-  };
+  const weather = place
+    ? { status: place.weather_unavailable ? "unavailable" : metar ? "reported" : "no-report", category: metar?.flight_category ?? null }
+    : known && { status: known.category ? "reported" : "no-report", category: known.category };
   return (
     <div className="relative min-h-0 flex-1 overflow-y-auto px-4 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))] print:hidden" data-testid="place-card">
       <div ref={setSummary}>
         <div className="flex items-start gap-2">
           <div className="min-w-0 flex-1">
             <h2 className="text-[1.375rem] leading-7 font-bold tracking-tight text-foreground" data-testid="place-name">
-              {place?.name ?? ident}
+              {place?.name ?? known?.name ?? ident}
             </h2>
             {/* A note's 13 in grey under the name, as the line under a
                 place's name is in Maps: what it is, not text to read. */}
@@ -114,7 +131,7 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onExpand }:
               style={{ backgroundColor: chipColourOf(weather) }}
               data-testid="place-category"
             >
-              {metar?.flight_category ?? (place?.weather_unavailable ? "Unavailable" : "No report")}
+              {weather.category ?? (place?.weather_unavailable ? "Unavailable" : "No report")}
             </span>
           )}
           <IconButton label="Close" onClick={onClose} className="-mt-1 -mr-2" data-testid="place-close">
@@ -179,7 +196,7 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onExpand }:
           </div>
         </>
       )}
-      {isLoading && <p className={cn("pt-4 text-muted-foreground", TEXT.prose)}>Looking the airport up…</p>}
+      {isLoading && !known && <p className={cn("pt-4 text-muted-foreground", TEXT.prose)}>Looking the airport up…</p>}
     </div>
   );
 }
