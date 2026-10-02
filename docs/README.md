@@ -384,42 +384,28 @@ working end to end. The AWS side is fully written and validated
 — see [`README-AWS.md`](README-AWS.md). Three things remain, and none is
 an engineering gap:
 
-- **Ratings for the chart-vision detector.** The tabular pipeline is
-  finished: all 206 OSM-derived candidates on C81→KDLH are labeled, and a
-  RandomForest is trained, promoted and served. The chart-vision detector
-  that replaced it has no scorer yet, and this has now been measured
-  rather than assumed. `vfr.chartfeatures` and `vfr.chartlabels_join`
-  build the feature table and bootstrap a training set by carrying the
-  older OSM ratings onto chart detections by position; 77 of them land.
-  On those 77, **no model beats predicting the mean** (MAE 0.804), and
-  the palette's hand-set constants are already level with it (0.810),
-  while Ridge, RandomForest and GradientBoosting all come out worse.
-  The other direction does work, and the tabular model now uses it:
-  each rated chart pick labels the OSM candidate it lands on
-  (`vfr.pipeline._load_labeled`), and retrain and promotion score the
-  new model and the promoted one on the same fixed holdout.
+- **More ratings for the chart model.** The planner's checkpoints come
+  off the chart now, for any route, with no collection step: whatever
+  the chart reader finds within a mile of the course, ranked by the
+  chart model (`vfr.chartmodel`) the training page's ratings train --
+  0 to 5, a 0 for a detection that is no feature at all (a power line
+  read as a road). The first one, on 32 ratings, beats the palette's
+  constants on the ratings it held out (MAE 1.89 against 2.00) but not
+  yet a guess of the mean (1.78); every rating more, the 0s on the
+  reader's mistakes most, is what moves it. Performance shows the three
+  side by side.
 
-  The cause is the target, not the features. 79% of the labels are 4 or 5
-  and 3% are 0 or 1, because they were made by clicking points worth
-  using; every category's ratings span nearly the full scale (river 4.40,
-  water 4.27, town 4.00, road_or_rail 3.67), so there is no separation to
-  find. The models' strongest feature was distance from the course line —
-  where the cursor went, not what the landmark is, which is the same
-  leakage that removed route position from the tabular model.
+  The first attempt, before these ratings, is the reason they are rated
+  this way: carrying the older OSM ratings onto detections by position
+  gave 77 labels, 79% of them 4 or 5, and no model beat the mean on them
+  (MAE 0.804). The target had no spread to learn from, and the models'
+  strongest feature was distance from the course line -- where the
+  cursor went, not what the landmark is -- which is out of the features
+  now.
 
-  So rating a detection `0` is the judgment the detector most needs and
-  the one the data has none of, and a labeling pass over C81→KDLH at
-  `docker compose up webapp` and
-  [`/app/dev`](http://localhost:8080/app/dev) is the next step — this time deliberately rating poor landmarks as poor. Until the
-  target has spread, the palette constants are the better scorer and the
-  honest one.
-
-  Three things unblock together once it exists. The detector's recall is
-  measurable (it currently supplies under 40% of the waypoints a pilot
-  actually wants on that route). The planner can drop its collection step
-  and plan any corridor, instead of 404ing on one it has not built.
-  And `vfr.osm` — still load-bearing today, since `pipeline.collect()`
-  feeds the planner, the DAG and the feature stores — can come out.
+  The OSM landmark model, its collection and its feature stores still
+  train in the DAG and are compared on Performance; nothing in the
+  planner asks them any more.
 
 - **A second route.** Every label so far comes from one corridor, so
   nothing yet proves the model transfers. Route position was dropped from

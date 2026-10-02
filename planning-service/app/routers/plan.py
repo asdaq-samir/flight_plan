@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from vfr import charts, geo, navlog
 from vfr.config import VFR_SECTIONAL_MAX_ZOOM, VFR_SECTIONAL_MIN_ZOOM
@@ -49,6 +49,34 @@ CruiseTas = Annotated[float | None, Query(gt=0, le=1000)]
 # The power a pilot's own cruise figures are at, in percent: from the
 # lowest a handbook's cruise table goes, about 40, to full power.
 CruisePower = Annotated[float | None, Query(ge=40, le=100)]
+
+
+@dataclass
+class PlanQuery:
+    """What /api/plan and /api/navlog are asked, read from the query by
+    FastAPI (`Depends()`): the route, a pilot's own altitude or the plan
+    chosen, the aeroplane -- a stock profile, a pilot's own figures laid
+    over it -- and the departure time. One list where the two routes each
+    spelled out all twelve, and one `profile()` built from it."""
+
+    dep: str
+    dest: str
+    altitude_ft: float | None = None
+    altitude_choice: AltitudeChoice = "fastest"
+    aircraft: str = DEFAULT_AIRCRAFT
+    cruise_tas_kt: CruiseTas = None
+    fuel_burn_gph: float | None = None
+    usable_fuel_gal: float | None = None
+    climb_tas_kt: CruiseTas = None
+    climb_fuel_burn_gph: float | None = None
+    cruise_power_pct: CruisePower = None
+    depart: datetime | None = None
+
+    def profile(self) -> dict:
+        return aircraft_profile(
+            self.aircraft, self.cruise_tas_kt, self.fuel_burn_gph, self.usable_fuel_gal,
+            self.climb_tas_kt, self.climb_fuel_burn_gph, self.cruise_power_pct,
+        )
 
 # How often the nav log stream says it is still working while the
 # altitude plans are being made.
@@ -236,20 +264,7 @@ def altitude_breakdown(dep: str, dest: str, aircraft: str = DEFAULT_AIRCRAFT) ->
 
 
 @router.get("/api/plan")
-def plan(
-    dep: str,
-    dest: str,
-    altitude_ft: float | None = None,
-    altitude_choice: AltitudeChoice = "fastest",
-    aircraft: str = DEFAULT_AIRCRAFT,
-    cruise_tas_kt: CruiseTas = None,
-    fuel_burn_gph: float | None = None,
-    usable_fuel_gal: float | None = None,
-    climb_tas_kt: CruiseTas = None,
-    climb_fuel_burn_gph: float | None = None,
-    cruise_power_pct: CruisePower = None,
-    depart: datetime | None = None,
-) -> Plan:
+def plan(q: Annotated[PlanQuery, Depends()]) -> Plan:
     """The whole plan: course line, every scored candidate, the selected
     checkpoints, and a nav log leg between each consecutive pair.
 
@@ -278,12 +293,10 @@ def plan(
     without it, the 6-hour product, i.e. about now -- and whether the
     fuel reserve is the day or the night one.
     """
-    r = load_route(dep, dest)
-    profile = aircraft_profile(
-        aircraft, cruise_tas_kt, fuel_burn_gph, usable_fuel_gal, climb_tas_kt, climb_fuel_burn_gph, cruise_power_pct,
-    )
-    fcst_hr = forecast_hour_for(depart)
-    window = flight_window(depart, geo.distance_nm(*r.start, *r.end), profile["cruise_tas_kt"])
+    r = load_route(q.dep, q.dest)
+    profile = q.profile()
+    fcst_hr = forecast_hour_for(q.depart)
+    window = flight_window(q.depart, geo.distance_nm(*r.start, *r.end), profile["cruise_tas_kt"])
 
     # Everything slow inside the one bound, scoring included: the agents'
     # client waits exactly that long (vfr.planner_client).
@@ -293,14 +306,14 @@ def plan(
         scored, selected = scored_and_selected(r.dep_ident, r.dest_ident)
         fixes.append(navlog.fixes(r.dep_ident, r.dest_ident, r.start, r.end, selected))
         return scored, selected, resolve_altitude(
-            r, fixes[0], profile, aircraft, altitude_ft, altitude_choice, fcst_hr, window,
+            r, fixes[0], profile, q.aircraft, q.altitude_ft, q.altitude_choice, fcst_hr, window,
         )
 
     pool = ThreadPoolExecutor(max_workers=1)
     try:
         scored, selected, outcome = _result(_waited(
             pool.submit(work), COMPUTE_LIMIT_S,
-            lambda: _running_stages(r, fixes[0], aircraft, fcst_hr, window) if fixes else ["chart"],
+            lambda: _running_stages(r, fixes[0], q.aircraft, fcst_hr, window) if fixes else ["chart"],
         ))
     finally:
         pool.shutdown(wait=False)
@@ -318,37 +331,19 @@ def plan(
         candidates=scored,
         selected=selected,
         legs=leg_list,
-        totals=flight_totals(leg_list, profile, r, depart),
+        totals=flight_totals(leg_list, profile, r, q.depart),
         altitude_ft=outcome.altitude_ft,
         altitude_selection=outcome.selection,
         altitude_options=outcome.options,
         altitude_choice=outcome.choice,
         winds_forecast_hr=fcst_hr,
-        aircraft={"name": aircraft, **profile},
-        max_zoom=VFR_SECTIONAL_MAX_ZOOM,
-        min_zoom=VFR_SECTIONAL_MIN_ZOOM,
-        chart_cycle=charts.serving_cycle(),
-        chart_revision=charts.tiles_revision(charts.serving_cycle()),
-        chart_tiles_base=charts.tiles_base_url(),
-        chart_layers=chart_layers(),
+        aircraft={"name": q.aircraft, **profile},
+        **_chart_info(),
     )
 
 
 @router.get("/api/navlog")
-def navlog_stream(
-    dep: str,
-    dest: str,
-    altitude_ft: float | None = None,
-    altitude_choice: AltitudeChoice = "fastest",
-    aircraft: str = DEFAULT_AIRCRAFT,
-    cruise_tas_kt: CruiseTas = None,
-    fuel_burn_gph: float | None = None,
-    usable_fuel_gal: float | None = None,
-    climb_tas_kt: CruiseTas = None,
-    climb_fuel_burn_gph: float | None = None,
-    cruise_power_pct: CruisePower = None,
-    depart: datetime | None = None,
-) -> StreamingResponse:
+def navlog_stream(q: Annotated[PlanQuery, Depends()]) -> StreamingResponse:
     """Altitude and the dead-reckoning legs, as newline-delimited JSON --
     the slow half, because it reads terrain, the obstacle file, the
     airspace shapefile and live winds; asked for separately so none of
@@ -371,18 +366,16 @@ def navlog_stream(
     time that's known, a 200 and a stream of NDJSON have already gone
     out, and an HTTP status can't change after that.
     """
-    r = load_route(dep, dest)
+    r = load_route(q.dep, q.dest)
 
     def lines():
         yield line(NavLogStage(detail="Reading the chart and choosing the checkpoints…"))
         _, selected = scored_and_selected(r.dep_ident, r.dest_ident)
 
-        profile = aircraft_profile(
-            aircraft, cruise_tas_kt, fuel_burn_gph, usable_fuel_gal, climb_tas_kt, climb_fuel_burn_gph, cruise_power_pct,
-        )
+        profile = q.profile()
         fix_list = navlog.fixes(r.dep_ident, r.dest_ident, r.start, r.end, selected)
-        fcst_hr = forecast_hour_for(depart)
-        window = flight_window(depart, geo.distance_nm(*r.start, *r.end), profile["cruise_tas_kt"])
+        fcst_hr = forecast_hour_for(q.depart)
+        window = flight_window(q.depart, geo.distance_nm(*r.start, *r.end), profile["cruise_tas_kt"])
 
         yield line(NavLogStage(detail="Planning cruise altitudes (airspace, obstacles, aircraft performance and winds)…"))
         # On a side thread with a heartbeat, not inline: an uncached
@@ -404,9 +397,9 @@ def navlog_stream(
         try:
             waiting = _waited(
                 altitude_pool.submit(
-                    resolve_altitude, r, fix_list, profile, aircraft, altitude_ft, altitude_choice, fcst_hr, window,
+                    resolve_altitude, r, fix_list, profile, q.aircraft, q.altitude_ft, q.altitude_choice, fcst_hr, window,
                 ),
-                HEARTBEAT_S, lambda: _running_stages(r, fix_list, aircraft, fcst_hr, window),
+                HEARTBEAT_S, lambda: _running_stages(r, fix_list, q.aircraft, fcst_hr, window),
             )
             while True:
                 try:
@@ -414,7 +407,7 @@ def navlog_stream(
                 except StopIteration as done:
                     outcome = done.value
                     break
-                named = altitude_waiting_on(r.start, r.end, aircraft, _fixes(fix_list), fcst_hr, window)
+                named = altitude_waiting_on(r.start, r.end, q.aircraft, _fixes(fix_list), fcst_hr, window)
                 yield line(NavLogStage(detail=(
                     f"Planning cruise altitudes ({elapsed:.0f} s, waiting on {named})…" if named
                     else f"Planning cruise altitudes ({elapsed:.0f} s, working out the winds for each plan)…"
@@ -422,7 +415,7 @@ def navlog_stream(
         finally:
             altitude_pool.shutdown(wait=False)
 
-        aircraft_line = {"name": aircraft, **profile}
+        aircraft_line = {"name": q.aircraft, **profile}
         if isinstance(outcome, Unflyable):
             yield line(NavLogError(detail=no_altitude_detail(outcome.selection)))
             return
@@ -455,6 +448,6 @@ def navlog_stream(
         for leg in outcome.legs:
             yield line(NavLogLeg.model_validate(leg))
 
-        yield line(NavLogDone(totals=flight_totals(outcome.legs, profile, r, depart)))
+        yield line(NavLogDone(totals=flight_totals(outcome.legs, profile, r, q.depart)))
 
     return ndjson(lines(), NavLogError)

@@ -35,7 +35,7 @@ from fastapi import FastAPI, Request
 from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse
 from pydantic import TypeAdapter
-from vfr import airspace, altitude, charts, faa_data, weather
+from vfr import airspace, altitude, charts, faa_data, remarks, weather
 
 from . import chart_refresh
 from .common import PROCESSED_DIR
@@ -103,6 +103,7 @@ def _warm_reference_data() -> None:
         ("airspace", lambda: airspace.preload(altitude.DEFAULT_FAA_CACHE_DIR)),
         ("obstacles", lambda: faa_data.preload_obstacles(altitude.DEFAULT_FAA_CACHE_DIR)),
         ("weather", weather.preload),
+        ("remarks", remarks.preload),
         ("charts", _prepare_corridor_charts),
     ):
         try:

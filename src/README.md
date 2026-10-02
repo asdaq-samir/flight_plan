@@ -157,6 +157,7 @@ Grouped by what they are for, not alphabetically.
 | `altitude.py` | The VFR cruising altitude to file, and the reasoning behind it -- terrain floor, airspace ceiling, the hemispheric rule leg by leg, the freezing level as an icing warning, the forecast ceiling/visibility over the flight, hazards, timed per stage (see planning-service/README.md). |
 | `checkpoints.py` | Which scored candidates actually become checkpoints. |
 | `checkpoint_notes.py`, `routecsv.py` | A pilot's own "how to spot it" note per checkpoint, and the shared "one judgment at one place on one route" CSV mechanics (read-and-coerce, rewrite-whole-file, "same place" by proximity) it and `chartlabels.py` both need -- one module, so the two files' own same-distance threshold is one constant instead of two copies that could drift apart. |
+| `remarks.py` | An airport's Chart Supplement remarks in plain English: lights turned on from the cockpit, weather read out on mic clicks. |
 | `classb.py` | Every Class B airport, matched from the FAA Class Airspace shapefile's ~370 polygons down to the ~30 airports they actually belong to -- envelope containment plus ident-prefix matching, not a bare ident lookup (a bare "HNL" once matched a Mexican airspace record). |
 
 **The ML pipeline**
@@ -167,8 +168,9 @@ Grouped by what they are for, not alphabetically.
 | `model_registry.py` | Evaluate a retrained model, promote it if better. |
 | `model_candidates.py`, `torch_model.py` | The same regression in PyTorch, TensorFlow and Spark MLlib, each a re-runnable entry point that persists an artifact. |
 | `chartlabels.py` | Checkpoints marked by hand on the chart. |
-| `chartfeatures.py` | Features for a chart-vision scorer. |
-| `chartlabels_join.py` | Bootstraps a training set by position. |
+| `chartfeatures.py` | Features for the chart reader's detections. |
+| `chartmodel.py` | The chart model: the training page's 0-5 ratings on detections, trained in the training image, scored by model-service, ranking the planner's checkpoints. |
+| `chartlabels_join.py` | Ratings carried onto detections by position. |
 | `features.py` | Feature engineering for the tabular model. |
 | `config.py` | Paths and thresholds, free of heavy imports. |
 
@@ -187,11 +189,12 @@ off true course at the midpoint of a 300 nm leg. An early chart-vision
 crossing detector interpolated in pixel space and found 1 of 34 known
 crossings; walking the real great circle found 24.
 
-**`chartfeatures.py` is plumbing, not a shipped model.** Its docstring
-records the measurement: on the 77 bootstrap labels available, no model
-beat predicting the mean, and the hand-set palette constants were already
-level with it. The blocker is label spread — 79% of labels are 4 or 5 —
-not the features.
+**The chart model learns from ratings with spread.** `chartfeatures.py`
+records the first measurement: on 77 bootstrap labels, 79% of them 4 or
+5, no model beat predicting the mean. The training page's ratings rate
+the reader's mistakes too -- a 0 for a power line read as a road -- and
+`chartmodel.py` trains on those; its held-out error against the
+palette's constants and the mean is on the Performance tab.
 
 **Route position was removed from the feature set on purpose.** Measured
 over 25-fold repeated CV, a model given *only* where a point sat along

@@ -98,7 +98,11 @@ export default defineConfig({
   // independently of TypeScript's own (type-check-only) path mapping.
   resolve: { alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) } },
   build: {
-    outDir: "../springboot-app/src/main/resources/static/app",
+    // web/dist, where the webapp's image copies it from and the web-dev
+    // overlay serves it. It was springboot-app's resources, which nothing
+    // has served since the image built its own: a build in a container
+    // that mounted the whole repo left a stale copy there for every grep.
+    outDir: "dist",
     // Emptied before a build -- except under docker-compose.web-dev.yml's
     // watch, which sets VITE_KEEP_OUTDIR: there the directory is what
     // the webapp is serving, and watch mode empties it on every rebuild,

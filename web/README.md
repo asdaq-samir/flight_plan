@@ -129,12 +129,13 @@ CI builds its own. The planner does not reload its mounted source: a
 change there is `docker compose restart planning-service` and a wait
 for `"warm":true` on :8084.
 
-`vite build` writes into `springboot-app/src/main/resources/static/app`
-(`vite.config.ts`) for a local `mvn package`; the Docker image builds
-the bundle in its own stage and serves it from a directory beside the
-jar (`APP_STATIC_LOCATION`, see `WebMvcConfig`), so the page and its API
+`vite build` writes into `web/dist` (`vite.config.ts`). The Docker image
+builds the bundle in its own stage and serves it from a directory beside
+the jar (`APP_STATIC_LOCATION`, see `WebMvcConfig`), and the web-dev
+overlay mounts `web/dist` in the same place, so the page and its API
 still come from one origin and a front-end change rebuilds only that
-stage. There is no separate front-end container; `docker compose up
+stage. A webapp run outside Docker serves it with
+`APP_STATIC_LOCATION=file:../web/dist/`. There is no separate front-end container; `docker compose up
 --build webapp` rebuilds the bundle.
 
 The Playwright image tag must match `@playwright/test`'s version in

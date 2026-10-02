@@ -106,3 +106,9 @@ def airport_notes(faa_id: str, cache_dir=FAA_CACHE_DIR) -> dict:
         "pilot_controlled": any(_ACTIVATED.search(t.upper()) for t in lighting),
         "explicit_clicks": any(_EXPLICIT_CLICKS.search(t.upper()) for t in lighting),
     }
+
+
+def preload(cache_dir=FAA_CACHE_DIR) -> None:
+    """Reads the remarks now -- 90,000 rows, half a second -- so the first
+    airport card after a start does not wait on them."""
+    _all_remarks(cache_dir)

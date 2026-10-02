@@ -14,6 +14,9 @@ this is not: the shapefile changes every 28 days, a METAR every hour.
 """
 from __future__ import annotations
 
+from functools import lru_cache
+from pathlib import Path
+
 from . import airports as airports_module
 from . import airspace
 
@@ -23,7 +26,27 @@ def _lowest(values: list) -> float | None:
     return min(real) if real else None
 
 
+def _mtime(path) -> float | None:
+    try:
+        return Path(path).stat().st_mtime
+    except OSError:
+        return None
+
+
 def class_b_airports(shp_path, cache_path=airports_module.DEFAULT_CACHE_PATH) -> list[dict]:
+    """One entry per Class B airport, in identifier order (copies: a
+    caller's changes stay its own).
+
+    Worked out once per airspace file and airport table, not per
+    request: the thirty were assembled again on every map that showed
+    them, 0.35-0.4 s of the planner's time each, for an answer that
+    changes with the FAA's cycle."""
+    found = _class_b_airports_of(str(shp_path), _mtime(shp_path), str(cache_path), _mtime(cache_path))
+    return [dict(airport) for airport in found]
+
+
+@lru_cache(maxsize=2)
+def _class_b_airports_of(shp_path: str, _shp_mtime, cache_path: str, _table_mtime) -> tuple:
     """One entry per Class B airport, in identifier order.
 
     Each carries the identifier the shelves are tagged with, the
@@ -52,7 +75,7 @@ def class_b_airports(shp_path, cache_path=airports_module.DEFAULT_CACHE_PATH) ->
 
     found = []
     for ident, group in sorted(shelves.items()):
-        airport = _airport_for(ident, group, cache_path)
+        airport = _airport_for(ident, group, Path(cache_path))
         if airport is None:
             continue
         found.append(
@@ -66,7 +89,7 @@ def class_b_airports(shp_path, cache_path=airports_module.DEFAULT_CACHE_PATH) ->
                 "floor_ft_msl": _lowest([p.get("floor_ft_msl") for p in group]),
             }
         )
-    return found
+    return tuple(found)
 
 
 def _envelope(group: list) -> tuple:
