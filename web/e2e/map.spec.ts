@@ -107,10 +107,10 @@ test("plan page: panning the map with own ship off leaves 'Keep the map on me' a
   expect(await follow()).toBe(true);
 });
 
-test("plan page: Waypoints draws the route's checkpoints at every zoom, and off leaves the course line alone", async ({ page }) => {
+test("plan page: Waypoints draws the route's checkpoints and the landmarks they were chosen from at every zoom, and off leaves the course line alone", async ({ page }) => {
   // They used to start at a zoom picked from a menu (close in, by
   // default), so a route zoomed out to its region showed a line and two
-  // airports.
+  // airports; the landmarks, from zoom 7.
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
   const numbered = page.locator(".leaflet-marker-icon", { hasText: /^\d+$/ });
@@ -127,13 +127,17 @@ test("plan page: Waypoints draws the route's checkpoints at every zoom, and off 
   }
   await expect.poll(zoomOfTiles, { timeout: slow(10000) }).toBeLessThanOrEqual(5);
   await expect(numbered.first()).toBeVisible();
+  // The landmarks' dim dots, in their slate outline.
+  const landmarks = page.locator('path.leaflet-interactive[stroke="#5b6b76"]');
+  await expect(landmarks.first()).toBeAttached();
 
   await openSettings(page);
   const toggle = page.getByTestId("waypoints-toggle");
-  await expect(toggle.getByRole("radio", { name: "Show" })).toHaveAttribute("aria-checked", "true");
-  await toggle.getByRole("radio", { name: "Hide" }).click();
+  await expect(toggle).toHaveAttribute("aria-pressed", "true");
+  await toggle.click();
   await page.keyboard.press("Escape");
   await expect(numbered).toHaveCount(0);
+  await expect(landmarks).toHaveCount(0);
 });
 
 test("plan page: my position is the location arrow among the map's buttons, and over plain http it says why there is none", async ({ page }) => {

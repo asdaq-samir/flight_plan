@@ -38,9 +38,9 @@ interface Preferences {
    *  over the sectional, the IFR area chart over an IFR chart) is
    *  pinned: drawn at every zoom it exists at. */
   tac: boolean;
-  /** Whether the maps draw the waypoints: the planner's checkpoints at
-   *  every zoom and the landmarks they were chosen from closer in, the
-   *  training map's detections from CROWD_ZOOM. It was a zoom level the
+  /** Whether the maps draw the waypoints, at every zoom: the planner's
+   *  checkpoints and the landmarks they were chosen from, the training
+   *  map's detections and added points. It was a zoom level the
    *  checkpoints started at, from a menu of four, and a switch for the
    *  landmarks of their own, on the planner only. */
   waypoints: boolean;

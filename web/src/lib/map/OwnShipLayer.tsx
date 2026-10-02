@@ -18,7 +18,7 @@ export function OwnShipLayer() {
   const fix = useOwnShip(s => s.fix);
   const follow = useOwnShip(s => s.follow);
   const setFollow = useOwnShip(s => s.setFollow);
-  // Memoized handlers: see `useZoomLevel` -- a literal re-registers on
+  // Memoized handlers: see `AirportsLayer` -- a literal re-registers on
   // every commit and can miss an event fired during one. Only a pan
   // while own ship is on ends following: `follow` is remembered per
   // browser, and a pan at the desk with own ship off would otherwise

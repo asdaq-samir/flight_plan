@@ -1,7 +1,8 @@
 import { CloudSun, Eye, EyeOff, Map as MapIcon, Monitor, Moon, PanelBottom, PanelTop, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
 import { ListGroup, ListRow } from "./GroupedList";
-import Segmented, { SegmentedMany } from "./Segmented";
+import Segmented from "./Segmented";
+import TogglePill from "./TogglePill";
 import { useNavEdge } from "../hooks/use-nav-edge";
 import { BASE_CHARTS, usePreferences, type BaseChart, type NavEdge } from "../lib/preferences";
 
@@ -9,9 +10,11 @@ import { BASE_CHARTS, usePreferences, type BaseChart, type NavEdge } from "../li
  * The settings, the consoles' last tab (ConsoleTabs), laid out the way
  * iOS lays out Settings: a few groups under short headings, each a
  * rounded box of rows with a hairline between them, one label per row
- * with its control at the row's end. Every control a segmented one, all
- * the choices on show and one tap each: Theme, Layout, Chart and
- * Waypoints pick one; Class B's Weather and TAC are each on or off.
+ * with its control at the row's end, one tap each: a segmented control
+ * where one of several is picked (Theme, Layout, Chart), a pill of its
+ * own, filled while on, for anything on or off (Class B's Weather and
+ * TAC, Waypoints) -- so neither is taken for the other, or for the
+ * console's tabs.
  * Appearance first -- the theme and the layout, the two that change
  * how all of it looks -- then the map. The same on both pages, and
  * remembered per browser.
@@ -57,27 +60,19 @@ function MapGroup() {
           were two rows of switches. A chip's card pins its field's
           sheet either way. */}
       <ListRow title="Class B">
-        <SegmentedMany
-          label="Class B"
-          values={[...(classB ? ["weather"] : []), ...(tac ? ["chart"] : [])]}
-          onChange={values => { setClassB(values.includes("weather")); setTac(values.includes("chart")); }}
-          options={[
-            { value: "weather", label: "Weather", icon: <CloudSun />, testId: "class-b-toggle" },
-            // TAC, as pilots call the sectional's terminal area chart; its
-            // IFR counterpart is the area chart.
-            { value: "chart", label: base === "sec" ? "TAC" : "Area", icon: <MapIcon />, testId: "tac-toggle" },
-          ]}
-        />
+        <div className="flex gap-2" role="group" aria-label="Class B">
+          <TogglePill pressed={classB} onPressedChange={setClassB} icon={<CloudSun />} label="Weather" testId="class-b-toggle" />
+          {/* TAC, as pilots call the sectional's terminal area chart; its
+              IFR counterpart is the area chart. */}
+          <TogglePill pressed={tac} onPressedChange={setTac} icon={<MapIcon />} label={base === "sec" ? "TAC" : "Area"} testId="tac-toggle" />
+        </div>
       </ListRow>
       {/* The route's waypoints, on either map: the planner's numbered
           checkpoints at every zoom and the dim landmarks they were chosen
           from closer in, the training map's detections; off, the course
           line and its two airports alone. */}
       <ListRow title="Waypoints">
-        <Segmented
-          label="Waypoints" value={waypoints ? "show" : "hide"} onChange={v => setWaypoints(v === "show")} testId="waypoints-toggle"
-          options={[{ value: "show", label: "Show", icon: <Eye /> }, { value: "hide", label: "Hide", icon: <EyeOff /> }]}
-        />
+        <TogglePill pressed={waypoints} onPressedChange={setWaypoints} icon={waypoints ? <Eye /> : <EyeOff />} label="Show" testId="waypoints-toggle" />
       </ListRow>
     </ListGroup>
   );

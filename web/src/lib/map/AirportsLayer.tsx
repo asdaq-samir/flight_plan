@@ -64,7 +64,11 @@ export function AirportsLayer({ selected, onSelect, exclude, route }: {
   // while the map is still easing in, not after it settles. The view's
   // own question waits for it to settle, where its box is known.
   const [easingTo, setEasingTo] = useState<number | null>(null);
-  // Memoized, not an object literal: see useZoomLevel.
+  // Memoized, not an object literal. react-leaflet lists the handlers
+  // object in its effect's own dependencies, so a fresh one on every
+  // render detaches the listener and re-attaches it on every commit --
+  // and an event fired inside that same commit, by an earlier sibling's
+  // effect (a `FocusOn` zoom), lands in the gap with nothing listening.
   const handlers = useMemo(() => ({
     zoomanim: (e: L.ZoomAnimEvent) => setEasingTo(e.zoom),
     moveend: () => { setView(boxOf(map)); setEasingTo(null); },

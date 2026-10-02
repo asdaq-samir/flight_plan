@@ -19,7 +19,6 @@ import { MapShell } from "../../../lib/map/MapShell";
 import { MapTooltip } from "../../../lib/map/MapTooltip";
 import { OwnShipLayer } from "../../../lib/map/OwnShipLayer";
 import { useCardedMarker } from "../../../lib/map/useCardedMarker";
-import { CROWD_ZOOM, useZoomLevel } from "../../../lib/map/useZoomLevel";
 import { usePreferences } from "../../../lib/preferences";
 import { inkOn } from "../../../lib/scoreScale";
 import { scoreColor } from "../format";
@@ -142,13 +141,13 @@ function Endpoints({ course, weather, onSelectPoint }: { course: Course; weather
   );
 }
 
-/** The chosen checkpoints at every zoom, and the candidates they were
- *  chosen from closer in (CROWD_ZOOM), or neither: the settings'
- *  Waypoints. Hovering previews the same card a tap opens, the way
+/** The chosen checkpoints and the candidates they were chosen from, at
+ *  every zoom, or neither: the settings' Waypoints. The candidates
+ *  started at zoom 7, and a route zoomed out to its region showed its
+ *  checkpoints alone. Hovering previews the same card a tap opens, the way
  *  Class B airports do -- `useCardedMarker` takes the preview away once
  *  that marker's own popup is open, so the two never draw at once. */
 function Checkpoints({ candidates, selected, onSelectCandidate }: Pick<Props, "candidates" | "selected" | "onSelectCandidate">) {
-  const zoom = useZoomLevel();
   const show = usePreferences(s => s.waypoints);
   const { carded, cardEvents } = useCardedMarker<string>();
   if (!show) return null;
@@ -156,7 +155,7 @@ function Checkpoints({ candidates, selected, onSelectCandidate }: Pick<Props, "c
     <>
       {/* Every point the model scored, small and dim: the selection is
           only judgable next to what it was selecting from. */}
-      {zoom >= CROWD_ZOOM && candidates.filter(c => !c.selected).map(c => {
+      {candidates.filter(c => !c.selected).map(c => {
         const key = `${c.lat},${c.lon}`;
         return (
           <CircleMarker

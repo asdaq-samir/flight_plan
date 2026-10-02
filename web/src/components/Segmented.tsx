@@ -2,11 +2,12 @@ import type { ReactNode } from "react";
 import { ToggleGroup, ToggleGroupItem } from "./ui/toggle-group";
 
 /** A segment: 28 tall in the track's 32, the words 13 to a finger, the
- *  chosen one raised. */
-const SEGMENT = "h-7 rounded-md px-2.5 text-xs pointer-coarse:text-[0.8125rem] text-foreground data-[state=on]:bg-background data-[state=on]:shadow-sm dark:data-[state=on]:bg-input/30 [&_svg:not([class*='size-'])]:size-3.5";
+ *  chosen one raised -- in the dark, iOS's own lighter grey for it, where
+ *  a faint tint of the track left the choice hard to see. */
+const SEGMENT = "h-7 rounded-md px-2.5 text-xs pointer-coarse:text-[0.8125rem] text-foreground data-[state=on]:bg-background data-[state=on]:shadow-sm dark:data-[state=on]:bg-[#636366] [&_svg:not([class*='size-'])]:size-3.5";
 
-/** Two to three choices, all on show: shadcn's ToggleGroup as a
- *  segmented control -- the choice raised out of a muted track, as iOS
+/** Two to three choices, one of which is picked: shadcn's ToggleGroup as
+ *  a segmented control -- the choice raised out of a muted track, as iOS
  *  draws one, every label in the text's colour at 13 points to a
  *  finger (the unchosen ones were grey, 4.35:1 on the track). Always
  *  one of them: a tap on the one already chosen keeps it rather than
@@ -25,31 +26,6 @@ export default function Segmented({ label, value, onChange, options, testId }: {
     >
       {options.map(o => (
         <ToggleGroupItem key={o.value} value={o.value} className={SEGMENT}>
-          {o.icon}
-          {o.label}
-        </ToggleGroupItem>
-      ))}
-    </ToggleGroup>
-  );
-}
-
-/** The same track with each segment on or off by itself: for a row
- *  whose two settings belong to one thing (a Class B airport's weather
- *  and its chart), one line rather than two switches. A segment says
- *  whether it is on (`aria-pressed`), where Segmented's are radios. */
-export function SegmentedMany({ label, values, onChange, options }: {
-  label: string;
-  values: string[];
-  onChange: (values: string[]) => void;
-  options: { value: string; label: string; icon?: ReactNode; testId?: string }[];
-}) {
-  return (
-    <ToggleGroup
-      type="multiple" value={values} onValueChange={onChange}
-      aria-label={label} size="sm" spacing={0.5} className="rounded-lg bg-muted p-0.5"
-    >
-      {options.map(o => (
-        <ToggleGroupItem key={o.value} value={o.value} className={SEGMENT} data-testid={o.testId}>
           {o.icon}
           {o.label}
         </ToggleGroupItem>

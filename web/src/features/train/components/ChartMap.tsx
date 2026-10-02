@@ -12,7 +12,6 @@ import { MapCard } from "../../../lib/map/MapCard";
 import { MapPopup } from "../../../lib/map/MapPopup";
 import { MapShell } from "../../../lib/map/MapShell";
 import { MapTooltip } from "../../../lib/map/MapTooltip";
-import { CROWD_ZOOM, useZoomLevel } from "../../../lib/map/useZoomLevel";
 import { usePreferences } from "../../../lib/preferences";
 import { COLORS, hasRating, isVisible, pointKey, prettyCategory, type Filters } from "../logic";
 
@@ -62,9 +61,9 @@ function PointPreview({ point }: { point: Point }) {
   );
 }
 
-/** The detections and the points added by hand, from the crowd zoom
- *  in (a few hundred over a whole corridor hide the chart), unless the
- *  settings' Waypoints is off. Unrated is
+/** The detections and the points added by hand, at every zoom, unless
+ *  the settings' Waypoints is off: they started at zoom 7, and a
+ *  corridor zoomed out to its region showed none of them. Unrated is
  *  slate rather than white: a white dot with a white casing vanishes
  *  over pale chart. Hovering previews the point the same way Class B
  *  airports do; the selected one skips its own preview, since its
@@ -72,9 +71,8 @@ function PointPreview({ point }: { point: Point }) {
  *  drawn separately in `ChartMap` below -- there is no per-marker
  *  popup here to hide it behind, the way the other two maps do). */
 function Candidates({ detections, added, filters, selected, onSelect }: Pick<Props, "detections" | "added" | "filters" | "selected" | "onSelect">) {
-  const zoom = useZoomLevel();
   const show = usePreferences(s => s.waypoints);
-  if (!show || zoom < CROWD_ZOOM) return null;
+  if (!show) return null;
   const draw = (points: Point[], kind: "detected" | "added") =>
     points.filter(p => isVisible(p, filters)).map(p => (
       <Marker

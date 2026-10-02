@@ -64,7 +64,7 @@ export function ChartTiles({ course, previewing }: Props) {
   }, [map, baseLayer]);
 
   const prefetchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // Memoized for the reason `useZoomLevel` spells out: a handlers
+  // Memoized for the reason `AirportsLayer` spells out: a handlers
   // object literal re-registers the listener on every commit, and an
   // event fired in that same commit is lost.
   useMapEvents(useMemo(() => ({
