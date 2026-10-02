@@ -30,6 +30,18 @@ export async function settle(page: Page) {
  *  `data-panel`: peek at rest, half or full when it is out. */
 export const sideDrawer = (page: Page) => page.locator('[data-slot="map-panel"]');
 
+/** The panel out half way, where its head is the route form, the
+ *  workspace's actions and the controls: at rest a route is a capsule
+ *  (MapPanel's compact), whose chip opens it. Nothing when it is out
+ *  already or rests on its form. */
+export async function openPanel(page: Page) {
+  const panel = sideDrawer(page);
+  await panel.waitFor();
+  if (await panel.getAttribute("data-capsule") === null) return;
+  await page.getByTestId("capsule-detail").click();
+  await expect(panel).toHaveAttribute("data-panel", "half");
+}
+
 /** The settings: the console's last tab, the console opened from its
  *  button among the map's, and all the way up. Escape closes the
  *  console again. */

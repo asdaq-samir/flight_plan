@@ -3,7 +3,7 @@ import type { paths } from "./schema";
 import type { paths as WebappPaths } from "./webapp-schema";
 import type {
   Aircraft, AircraftChoice, AircraftProfiles, AircraftRequest, AirportPlace, AirportSearch, AirportsInView, AltitudeChoice, Briefing,
-  BuiltRoutes, ChartRefreshStarted, CheckpointDescriptionMessage, CheckpointNoteSaved, Checkpoints, Classification, Course,
+  ChartInfo, ChartRefreshStarted, CheckpointDescriptionMessage, CheckpointNoteSaved, Checkpoints, Classification, Course,
   Flight, FlightSummary, ModelComparison, NarrativeMessage, NarrativeRequest, NavLogMessage, PickDeleted, PickSaved,
   ClassBResponse, DevServices, DevServiceStarted, PicksResponse, Pilot, Rating, RetrainStarted, Role, SaveFlightRequest,
   SignInCapabilities,
@@ -252,8 +252,8 @@ export const api = {
   briefing: (dep: string, dest: string, depart?: string, eteMin?: number) =>
     planner.GET("/api/briefing", { params: { query: { dep, dest, depart, ete_min: eteMin } } }).then(data<Briefing>),
 
-  /** Corridors the feature store already covers. */
-  routes: () => planner.GET("/api/routes").then(data<BuiltRoutes>),
+  /** The chart the map draws, for a map with no route on it yet. */
+  chart: () => planner.GET("/api/chart").then(data<ChartInfo>),
 
   /** What the chart draws at a point, so an added pick is categorised from
    *  the pixels rather than from whatever a dropdown was left on. */

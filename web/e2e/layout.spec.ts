@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { PAGES, settle, expectDrawerClosed, expectDrawerOpen, openSidebar, sideDrawer, openSettings } from "./helpers";
+import { PAGES, settle, expectDrawerClosed, expectDrawerOpen, openSidebar, sideDrawer, openSettings, openPanel } from "./helpers";
 
 /**
  * The regressions this file exists to catch (see playwright.config.ts
@@ -32,13 +32,17 @@ import { PAGES, settle, expectDrawerClosed, expectDrawerOpen, openSidebar, sideD
  */
 
 test.describe("/app/plan", () => {
-  // No collapsible toolbar anywhere in this app anymore -- the route
-  // form is the whole reason a pilot opened either map page, not a
-  // settings drawer worth a tap to reveal (see PlanWorkspace's/TrainWorkspace's
-  // own comments on their headers).
-  test("the route form is visible immediately, not behind a trigger", async ({ page }) => {
+  // At rest the panel is Maps' capsule: with no route a search bar, with
+  // one the route, its chip opening the panel on the route form.
+  test("the panel rests on a search bar with no route, and on the route in a capsule whose chip opens its form", async ({ page }) => {
     await page.goto("/app/plan");
     await settle(page);
+    await expect(sideDrawer(page)).toHaveAttribute("data-capsule", "true");
+    await expect(page.getByTestId("search-airports")).toBeVisible();
+    await page.goto("/app/plan?dep=C81&dest=KDLH");
+    await settle(page);
+    await expect(page.getByTestId("capsule-title")).toHaveText("C81 → KDLH");
+    await openPanel(page);
     await expect(page.getByLabel("Departure", { exact: true })).toBeVisible();
     expect(await page.getByTestId("toolbar-trigger").count()).toBe(0);
   });
@@ -66,9 +70,11 @@ test.describe("/app/plan", () => {
 // so there's nothing toolbar-specific left to test here that Plan's
 // own suite doesn't already cover for both.
 test.describe("/app/dev", () => {
-  test("the route form is visible immediately, not behind a trigger", async ({ page }) => {
+  test("the panel rests on the route in a capsule, its chip opening the route form", async ({ page }) => {
     await page.goto("/app/dev");
     await settle(page);
+    await expect(page.getByTestId("capsule-title")).toHaveText("C81 → KDLH");
+    await openPanel(page);
     await expect(page.getByLabel("Departure", { exact: true })).toBeVisible();
     expect(await page.getByTestId("toolbar-trigger").count()).toBe(0);
   });
@@ -133,8 +139,10 @@ test.describe("/app/plan", () => {
   // (the briefing is the flight planning panel, not a second view), the
   // route leading it, and the panel's grabber on its far edge.
   test("the panel's head is the page's one bar, with no tabs: at the bottom of a phone and the top from md up, the route leading it, and the panel's grabber opens the nav log", async ({ page }) => {
-    await page.goto("/app/plan");
+    await page.goto("/app/plan?dep=C81&dest=KDLH");
     await settle(page);
+    // Out half way, where the head is the route form (at rest, the capsule).
+    await openPanel(page);
     const viewport = page.viewportSize();
     if (!viewport) throw new Error("no viewport configured");
     const phone = viewport.width < 768;
@@ -153,6 +161,9 @@ test.describe("/app/plan", () => {
     const grabber = (await page.getByTestId("sidebar-trigger-button").boundingBox())!;
     if (phone) expect(Math.abs(grabber.y - panelBox.y)).toBeLessThan(2);
     else expect(Math.abs(grabber.y + grabber.height - (panelBox.y + panelBox.height))).toBeLessThan(2);
+    // A tap lowers it from half way, and the next opens it all the way.
+    await page.getByTestId("sidebar-trigger-button").click();
+    await expectDrawerClosed(page);
     await page.getByTestId("sidebar-trigger-button").click();
     await expectDrawerOpen(page);
   });

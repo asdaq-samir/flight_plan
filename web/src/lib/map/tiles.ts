@@ -1,4 +1,4 @@
-import type { ChartLayer, ChartSheet, Course } from "../api/types";
+import type { ChartInfo, ChartLayer, ChartSheet } from "../api/types";
 
 /**
  * The chart the map draws as its base -- the kind asked for, or the
@@ -35,14 +35,14 @@ export function sheetAt(overlay: ChartLayer | null, lat: number, lon: number): C
  * asks the network -- one phone showed a white sliver the planner had
  * long since stopped drawing.
  */
-export function tileTemplate(course: Course, kind: string): string {
+export function tileTemplate(chart: ChartInfo, kind: string): string {
   // A course cached offline from before the planner reported one has none.
-  const revision = course.chart_revision ?? 0;
-  return course.chart_tiles_base
-    ? `${course.chart_tiles_base}/${course.chart_cycle}/${kind}/{z}/{x}/{y}.png?r=${revision}`
-    : `/api/planner/chart-tile/${kind}/{z}/{x}/{y}.png?c=${course.chart_cycle}&r=${revision}`;
+  const revision = chart.chart_revision ?? 0;
+  return chart.chart_tiles_base
+    ? `${chart.chart_tiles_base}/${chart.chart_cycle}/${kind}/{z}/{x}/{y}.png?r=${revision}`
+    : `/api/planner/chart-tile/${kind}/{z}/{x}/{y}.png?c=${chart.chart_cycle}&r=${revision}`;
 }
 
-export function tileUrl(course: Course, kind: string, z: number, x: number, y: number): string {
-  return tileTemplate(course, kind).replace("{z}", String(z)).replace("{x}", String(x)).replace("{y}", String(y));
+export function tileUrl(chart: ChartInfo, kind: string, z: number, x: number, y: number): string {
+  return tileTemplate(chart, kind).replace("{z}", String(z)).replace("{x}", String(x)).replace("{y}", String(y));
 }

@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { PAGES, consoleSheet, settle, sideDrawer, roleMenu, expectDrawerOpen, openBriefing } from "./helpers";
+import { PAGES, consoleSheet, settle, sideDrawer, roleMenu, expectDrawerOpen, openBriefing, openPanel } from "./helpers";
 
 /**
  * The two pages and the switch between them: the Dev-mode switch, the
@@ -66,16 +66,18 @@ test("the route form leads the panel's head on both pages, signed in or out", as
   });
   const leads: number[] = [];
   for (const path of PAGES) {
-    await page.goto(path);
+    await page.goto(`${path}?dep=C81&dest=KDLH`);
     await settle(page);
+    await openPanel(page);
     leads.push(await lead(page));
   }
   const signedOut = await browser.newContext({
     baseURL: new URL(page.url()).origin, viewport: page.viewportSize(), storageState: { cookies: [], origins: [] },
   });
   const planner = await signedOut.newPage();
-  await planner.goto("/app/plan");
+  await planner.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(planner);
+  await openPanel(planner);
   leads.push(await lead(planner));
   await signedOut.close();
   expect(Math.max(...leads) - Math.min(...leads)).toBeLessThanOrEqual(1);

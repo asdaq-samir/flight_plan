@@ -76,8 +76,8 @@ test("two different failures are two toasts, not one merged or three duplicated"
   // still each get said. Only the identical ones collapse.
   await page.route("**/api/planner/course**", (route: Route) =>
     route.fulfill({ status: 502, contentType: "application/json", body: JSON.stringify({ detail: "planner service unreachable" }) }));
-  await page.route("**/api/planner/routes**", (route: Route) =>
-    route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ detail: "the corridor store is offline" }) }));
+  await page.route("**/api/planner/aircraft-profiles**", (route: Route) =>
+    route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ detail: "the aircraft store is offline" }) }));
 
   await page.goto(PLAN);
   await settle(page);
@@ -85,7 +85,7 @@ test("two different failures are two toasts, not one merged or three duplicated"
   await expect
     .poll(async () => {
       const shown = await titles(page).allTextContents();
-      return [shown.some(t => t.includes("unreachable")), shown.some(t => t.includes("corridor store"))];
+      return [shown.some(t => t.includes("unreachable")), shown.some(t => t.includes("aircraft store"))];
     }, { timeout: 15000 })
     .toEqual([true, true]);
 });
@@ -104,11 +104,19 @@ test("the toast spans the screen and is centred on it", async ({ page }) => {
 
   const leftGap = box.x;
   const rightGap = viewport.width - (box.x + box.width);
-  expect(Math.abs(leftGap - rightGap)).toBeLessThanOrEqual(2);   // centred
   expect(leftGap).toBeGreaterThanOrEqual(8);                     // a gutter, not edge to edge
   if (viewport.width < 768) {
-    // A phone: as wide as the screen allows.
-    expect(box.width).toBeGreaterThan(viewport.width * 0.85);
+    // A phone: as wide as the screen allows short of the map's buttons
+    // at the top right, which a toast across them hid -- Settings went
+    // untappable for as long as a route took to plan.
+    const settings = (await page.getByTestId("settings-button").boundingBox())!;
+    expect(box.x + box.width).toBeLessThanOrEqual(settings.x);
+    // And level with them, its top on their card's.
+    const controls = (await page.locator("[data-map-controls] > *").first().boundingBox())!;
+    expect(Math.abs(box.y - controls.y)).toBeLessThanOrEqual(1);
+    expect(box.width).toBeGreaterThan(viewport.width * 0.7);
+  } else {
+    expect(Math.abs(leftGap - rightGap)).toBeLessThanOrEqual(2); // centred
   }
 });
 

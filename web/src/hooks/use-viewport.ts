@@ -64,3 +64,9 @@ export function useKeyboardInset(): number {
     return visual ? Math.max(0, Math.round(window.innerHeight - visual.height - visual.offsetTop)) : 0;
   }, () => 0);
 }
+
+/** How tall the part of the page in sight is: the window's height, less
+ *  the on-screen keyboard while it is up. */
+export function useVisualHeight(): number {
+  return useSyncExternalStore(subscribeVisual, () => Math.round(window.visualViewport?.height ?? window.innerHeight), () => 800);
+}

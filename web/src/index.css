@@ -412,6 +412,26 @@ html [data-sonner-toaster] {
 /* A toast's close button at 24px, WCAG's floor for a target, over
    sonner's own 20. The toaster's attribute as well: sonner's own rule,
    injected after this sheet with the same weight, was winning. */
+/* The progress line on the material the panel is drawn on, the chart
+   showing through it: it says what is happening, not something to read
+   and dismiss, and it was a black slab over the chart for as long as a
+   long route took to plan. Errors and warnings keep their own colours. */
+/* A phone's toasts as wide as the offsets leave them (AppToaster's
+   mobileOffset), the right one included: sonner's own sizes a toast
+   from the left offset twice, and ran it across the map's buttons the
+   right offset was there to keep clear. */
+@media (max-width: 600px) {
+  html [data-sonner-toaster] [data-sonner-toast] {
+    width: calc(100vw - var(--mobile-offset-left) - var(--mobile-offset-right));
+  }
+}
+
+[data-sonner-toaster] [data-sonner-toast][data-type="loading"] {
+  background-color: color-mix(in oklab, var(--popover) 72%, transparent);
+  -webkit-backdrop-filter: blur(20px) saturate(1.5);
+  backdrop-filter: blur(20px) saturate(1.5);
+}
+
 [data-sonner-toaster] [data-sonner-toast] [data-close-button] {
   width: 24px;
   height: 24px;

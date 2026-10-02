@@ -58,9 +58,12 @@ type ContentProps = ComponentProps<typeof PopoverContent> & {
   /** A control at the start of the title's row -- a form's Cancel, as an
    *  iOS sheet puts it -- and then the title sits between the two. */
   leading?: ReactNode;
+  /** The phone's sheet's own classes: a fixed height, say, where it is
+   *  sized to its content otherwise. */
+  sheetClassName?: string;
 };
 
-export function ResponsivePopoverContent({ title, description, titleHidden, action, leading, className, children, align, side, sideOffset, alignOffset, ...props }: ContentProps) {
+export function ResponsivePopoverContent({ title, description, titleHidden, action, leading, className, sheetClassName, children, align, side, sideOffset, alignOffset, ...props }: ContentProps) {
   const edge = useContext(OnPhone);
   if (!edge) {
     return (
@@ -82,9 +85,9 @@ export function ResponsivePopoverContent({ title, description, titleHidden, acti
     // the top and the home indicator from the bottom. The popover's
     // width classes are left behind.
     <DrawerContent
-      className={edge === "top"
+      className={cn(edge === "top"
         ? "pt-[env(safe-area-inset-top)] data-[vaul-drawer-direction=top]:max-h-[85dvh]"
-        : "data-[vaul-drawer-direction=bottom]:max-h-[85dvh]"}
+        : "data-[vaul-drawer-direction=bottom]:max-h-[85dvh]", sheetClassName)}
       {...props}
     >
       <DrawerHeader

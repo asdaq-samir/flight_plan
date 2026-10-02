@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Marker, useMap } from "react-leaflet";
 import { classBQuery } from "../queryClient";
-import type { Course } from "../api/types";
+import type { ChartInfo } from "../api/types";
 import { usePreferences } from "../preferences";
 import { colourOf } from "./flightCategory";
 import { airportIcon } from "./icons";
@@ -31,8 +31,10 @@ const hovers = typeof window !== "undefined" && window.matchMedia("(hover: hover
  * (the settings' Class B, Weather): useful on a cross-country that
  * passes near one, clutter on a route that does not.
  */
-export function ClassBLayer({ course, onPreview, onSelectPlace }: {
-  course: Course;
+export function ClassBLayer({ chart, endpoints, onPreview, onSelectPlace }: {
+  chart: ChartInfo;
+  /** The route's two airports, which draw their own chips. */
+  endpoints: string[];
   onPreview: (on: boolean) => void;
   onSelectPlace?: (ident: string) => void;
 }) {
@@ -41,7 +43,7 @@ export function ClassBLayer({ course, onPreview, onSelectPlace }: {
   const base = usePreferences(s => s.base);
   // The overlay over the chart being drawn, and the zoom its sheets start
   // at, from the planner's own layer list -- the same pair the map draws.
-  const { overlay } = chartPair(course.chart_layers, base);
+  const { overlay } = chartPair(chart.chart_layers, base);
   const overlayFromZoom = overlay?.min_zoom ?? 10;
   const { data } = useQuery({ ...classBQuery, enabled: show });
 
@@ -49,10 +51,9 @@ export function ClassBLayer({ course, onPreview, onSelectPlace }: {
   // The route's own departure and destination draw themselves (RouteMap),
   // with this airport's forecast when it is one of these; drawing it here
   // too stacked two chips on one field, each answering a tap differently.
-  const endpoints = new Set([course.departure.ident, course.destination.ident]);
   return (
     <>
-      {data.filter(airport => !endpoints.has(airport.ident)).map(airport => {
+      {data.filter(airport => !endpoints.includes(airport.ident)).map(airport => {
         const sheet = sheetAt(overlay, airport.lat, airport.lon);
         return (
           <Marker

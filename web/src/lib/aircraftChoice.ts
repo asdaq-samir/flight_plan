@@ -28,3 +28,9 @@ export function choiceOf(a: Aircraft, profiles: AircraftProfileSummary[]): Aircr
     aircraftId: a.id,
   };
 }
+
+/** An aeroplane's short name: what comes before the " · " in its label
+ *  ("C172 · Cessna 172", "N12345 · C172"). */
+export function shortName(label: string): string {
+  return label.split(" · ")[0] ?? label;
+}

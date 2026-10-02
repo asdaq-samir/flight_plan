@@ -74,7 +74,17 @@ test("a tap on an airport on the chart opens its card, a tap elsewhere puts it a
   await tapTheChart(page);
   await expect(page).not.toHaveURL(/[?&]place=/);
   await expect(card(page)).toHaveCount(0);
-  await page.mouse.click(at!.x, at!.y);
+  // Where it is now: its card brought it to the middle of the chart.
+  const again = await page.evaluate(selector => {
+    for (const el of document.querySelectorAll(selector)) {
+      const r = el.getBoundingClientRect();
+      const x = r.left + r.width / 2, y = r.top + r.height / 2;
+      const hit = document.elementFromPoint(x, y);
+      if (hit && (hit === el || el.contains(hit))) return { x, y };
+    }
+    return null;
+  }, AIRPORTS);
+  await page.mouse.click(again!.x, again!.y);
   await expect(card(page).getByTestId("place-name")).not.toBeEmpty();
 
   // Fly Here: the field becomes the destination, from the route's
@@ -119,4 +129,76 @@ test("closer in, the airports that report wear their weather's colour, and a tap
   await page.mouse.click(at!.x, at!.y);
   await expect(page).toHaveURL(new RegExp(`[?&]place=${at!.ident}`));
   await expect(card(page).getByTestId("fly-here")).toBeVisible({ timeout: slow(15000) });
+});
+
+test("with no route the panel is a search bar: Home is set from Favorites, an airport found is starred onto Favorites, and Fly Here flies from Home", async ({ page }) => {
+  await page.goto("/app/plan");
+  await settle(page);
+  // A browser's own Favorites, from nothing.
+  await page.evaluate(() => localStorage.removeItem("vfr.preferences"));
+  await page.reload();
+  await settle(page);
+  const search = page.getByTestId("search-airports");
+  await expect(sideDrawer(page)).toHaveAttribute("data-capsule", "true");
+
+  // Focused, the sheet comes all the way up on Favorites, Home not set yet;
+  // its Add asks the search bar for the field.
+  await search.click();
+  await expect(sideDrawer(page)).toHaveAttribute("data-panel", "full");
+  await expect(page.getByTestId("favorite-home")).toContainText("Add");
+  await page.getByTestId("favorite-home").click();
+  await expect(search).toHaveAttribute("placeholder", "Search for your home airport");
+  await search.fill("C81");
+  await page.getByTestId("search-result").filter({ hasText: "C81" }).first().click();
+  await expect(page.getByTestId("favorite-home")).not.toContainText("Add");
+
+  // A word of the town finds the field, the bigger one first; the star
+  // on its card makes it a favorite.
+  await search.click();
+  await search.fill("duluth");
+  const first = page.getByTestId("search-result").first();
+  await expect(first).toContainText("KDLH", { timeout: slow(10000) });
+  await first.click();
+  await expect(card(page).getByTestId("place-name")).toHaveText("Duluth International Airport");
+  await card(page).getByTestId("place-favorite").click();
+  await expect(card(page).getByTestId("place-favorite")).toHaveAttribute("aria-pressed", "true");
+  await card(page).getByTestId("place-close").click();
+  await search.click();
+  const kept = page.getByTestId("favorites").getByRole("button", { name: /^KDLH, Class [BCDEG]$/ });
+  await expect(kept).toBeVisible();
+
+  // Its tile opens its card, whose Fly Here goes from Home.
+  await kept.click();
+  await card(page).getByTestId("fly-here").click();
+  await expect(page).toHaveURL(/dep=C81/);
+  await expect(page).toHaveURL(/dest=KDLH/);
+  await expect(page.getByLabel("Departure", { exact: true })).toContainText("C81");
+
+  // Lowered, the route is a capsule, and its close rests the panel on
+  // the search bar again.
+  await page.getByTestId("sidebar-trigger-button").click();
+  await expect(page.getByTestId("capsule-title")).toHaveText("C81 → KDLH");
+  await page.getByTestId("clear-route").click();
+  await expect(search).toBeVisible();
+  await expect(page).not.toHaveURL(/dep=/);
+
+  // Favorites in full: Edit lets KDLH go.
+  await search.click();
+  await page.getByTestId("favorites-all").click();
+  const list = page.getByTestId("favorites-list");
+  await expect(list).toContainText("KDLH");
+  await list.getByTestId("favorites-edit").click();
+  await list.getByRole("button", { name: "Remove KDLH from Favorites" }).click();
+  await expect(list).toContainText("A star on an airport's card adds it here.");
+});
+
+test("an airport's card says which lights a pilot turns on with the mic, and the weather it reads out on so many clicks", async ({ page }) => {
+  // 3CK, Lake in the Hills: its Chart Supplement remarks, from the FAA's
+  // own airport data, in plain English.
+  await page.goto("/app/plan?place=3CK");
+  await expect(card(page).getByTestId("place-name")).not.toBeEmpty({ timeout: slow(15000) });
+  const lights = card(page).getByTestId("place-lighting");
+  await expect(lights.first()).toContainText("Activate REIL runway 08 & 26");
+  await expect(card(page)).toContainText("Key the mic on the frequency 7 times within 5 seconds for high intensity, 5 for medium, 3 for low.");
+  await expect(card(page)).toContainText("Weather advisory - CTAF 5 clicks");
 });

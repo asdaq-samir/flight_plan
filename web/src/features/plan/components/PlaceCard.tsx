@@ -1,7 +1,8 @@
 import { useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
-import { CloudSun, Navigation, Radio, X } from "lucide-react";
+import { CloudSun, Lightbulb, Navigation, Radio, Star, X } from "lucide-react";
 import { cn } from "cn";
+import { usePreferences } from "../../../lib/preferences";
 import IconButton from "../../../components/IconButton";
 import { PanelHalfContext } from "../../../components/mapChrome";
 import { ListGroup, ListRow } from "../../../components/GroupedList";
@@ -134,6 +135,7 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onExpand }:
               {weather.category ?? (place?.weather_unavailable ? "Unavailable" : "No report")}
             </span>
           )}
+          {place && <FavoriteButton place={place} />}
           <IconButton label="Close" onClick={onClose} className="-mt-1 -mr-2" data-testid="place-close">
             <X className="size-5" />
           </IconButton>
@@ -178,8 +180,31 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onExpand }:
                   value={f.frequency_mhz != null ? f.frequency_mhz.toFixed(3) : "—"}
                 />
               )) : <ListRow title="None listed" />}
+              {/* What some fields read out on so many clicks of the mic on
+                  the CTAF: the weather, a radio check (vfr.remarks). */}
+              {place.radio_notes.map(note => (
+                <ListRow key={note} media={<Radio className="size-5 text-muted-foreground" />} title={note} />
+              ))}
             </ListGroup>
           </div>
+
+          {place.lighting.length > 0 && (
+            // The field's lights, from its Chart Supplement remarks: the
+            // ones a pilot turns on from the cockpit by keying the mic,
+            // and with no count of clicks of their own, the standard one.
+            <div className="pt-5">
+              <ListGroup
+                title="Lights"
+                footer={place.standard_keying
+                  ? "Key the mic on the frequency 7 times within 5 seconds for high intensity, 5 for medium, 3 for low."
+                  : undefined}
+              >
+                {place.lighting.map(note => (
+                  <ListRow key={note} media={<Lightbulb className="size-5 text-muted-foreground" />} title={note} data-testid="place-lighting" />
+                ))}
+              </ListGroup>
+            </div>
+          )}
 
           <div className="pt-5">
             <ListGroup title="Field">
@@ -198,5 +223,21 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onExpand }:
       )}
       {isLoading && !known && <p className={cn("pt-4 text-muted-foreground", TEXT.prose)}>Looking the airport up…</p>}
     </div>
+  );
+}
+
+/** The star that adds an airport to Favorites (components/Favorites),
+ *  filled while it is one, as Maps' are. */
+function FavoriteButton({ place }: { place: AirportPlace }) {
+  const kept = usePreferences(s => s.favoriteAirports.some(a => a.ident === place.ident));
+  const toggle = usePreferences(s => s.toggleFavoriteAirport);
+  return (
+    <IconButton
+      label={kept ? "Remove from Favorites" : "Add to Favorites"} aria-pressed={kept} className="-mt-1"
+      onClick={() => toggle({ ident: place.ident, name: place.name, municipality: place.municipality, lat: place.lat, lon: place.lon })}
+      data-testid="place-favorite"
+    >
+      <Star className={cn("size-5", kept && "fill-current")} />
+    </IconButton>
   );
 }

@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { consoleSheet } from "./helpers";
+import { consoleSheet, openPanel } from "./helpers";
 
 /**
  * "Save this flight", at the head of the briefing drawer's sections, for
@@ -52,9 +52,11 @@ test("a flight is filed once, whole, and a new plan is offered for saving again"
   // On a phone the drawer is a modal sheet over the header's Load, so it
   // is closed for the press and opened again after.
   const phone = (page.viewportSize()?.width ?? 0) < 768;
-  if (phone) await page.keyboard.press("Escape");
+  if (phone) {
+    await page.keyboard.press("Escape");
+    await openPanel(page);
+  }
   await page.getByRole("button", { name: "Load" }).click();
-  if (phone) await page.getByTestId("sidebar-trigger-button").click();
   await expect(save).toHaveAccessibleName("Save this flight", { timeout: 90_000 });
   await expect(save).toBeEnabled({ timeout: 90_000 });
 });
@@ -78,6 +80,7 @@ test("opening a saved flight puts its route in the header, and Load plans that r
     createdAt: "2026-09-20T12:00:00Z", plannedFor: null, totalDistanceNm: 120, totalEteMin: 55, totalFuelGal: 8,
   }]);
   await page.goto("/app/plan?dep=C81&dest=KDLH");
+  await openPanel(page);
   await expect(page.getByLabel("Departure", { exact: true })).toContainText("C81", { timeout: 15_000 });
 
   await page.getByTestId("settings-button").click();
@@ -87,6 +90,7 @@ test("opening a saved flight puts its route in the header, and Load plans that r
   await expect(page).toHaveURL(/dep=KMSP/);
   await expect(consoleSheet(page)).toHaveCount(0);
 
+  await openPanel(page);
   await expect(page.getByLabel("Departure", { exact: true })).toContainText("KMSP");
   await page.getByRole("button", { name: "Load" }).click();
   await expect(page).toHaveURL(/dep=KMSP/);
@@ -120,6 +124,7 @@ test("Edit over the saved flights puts a minus before each, and the minus delete
 
 test("More, beside the route, has Print and Keep charts offline, which says why it cannot over plain http", async ({ page }) => {
   await page.goto("/app/plan?dep=C81&dest=KDLH");
+  await openPanel(page);
   await page.getByTestId("plan-more-button").click();
   await expect(page.getByRole("menuitem", { name: /Print the nav log/ })).toBeVisible();
   const keep = page.getByRole("menuitem", { name: /Keep charts offline/ });

@@ -56,6 +56,13 @@ interface Preferences {
   /** The navigation bar's edge, once one has been picked; until then
    *  the bottom on a phone and the top from md up. */
   navBar: NavEdge | null;
+  /** The airports last picked from the search bar, newest first: what
+   *  it offers before anything is typed, as Maps' Recents. */
+  recentAirports: RecentAirport[];
+  /** Maps' Favorites: the pilot's home field and the others they star,
+   *  first under the search bar. */
+  homeAirport: RecentAirport | null;
+  favoriteAirports: RecentAirport[];
   setBase: (base: BaseChart) => void;
   setTac: (tac: boolean) => void;
   setWaypoints: (waypoints: boolean) => void;
@@ -65,7 +72,26 @@ interface Preferences {
   setDevTab: (tab: string) => void;
   setPilotTab: (tab: string) => void;
   setNavBar: (navBar: NavEdge) => void;
+  addRecentAirport: (airport: RecentAirport) => void;
+  setHomeAirport: (airport: RecentAirport | null) => void;
+  /** Kept if it was not, let go if it was. */
+  toggleFavoriteAirport: (airport: RecentAirport) => void;
+  /** A kept one moved from one place in the list to another. */
+  moveFavoriteAirport: (from: number, to: number) => void;
 }
+
+/** An airport as the search bar and Favorites remember it: where it is too
+ *  once it is known, for how far it is from own ship. */
+export interface RecentAirport {
+  ident: string;
+  name: string;
+  municipality?: string | null;
+  lat?: number;
+  lon?: number;
+}
+
+/** How many the search bar remembers. */
+const RECENTS = 8;
 
 export const usePreferences = create<Preferences>()(
   persist(
@@ -79,6 +105,9 @@ export const usePreferences = create<Preferences>()(
       devTab: "training",
       pilotTab: "guide",
       navBar: null,
+      recentAirports: [],
+      homeAirport: null,
+      favoriteAirports: [],
       setBase: base => set({ base }),
       setTac: tac => set({ tac }),
       setWaypoints: waypoints => set({ waypoints }),
@@ -88,12 +117,28 @@ export const usePreferences = create<Preferences>()(
       setDevTab: devTab => set({ devTab }),
       setPilotTab: pilotTab => set({ pilotTab }),
       setNavBar: navBar => set({ navBar }),
+      addRecentAirport: airport => set(s => ({
+        recentAirports: [airport, ...s.recentAirports.filter(a => a.ident !== airport.ident)].slice(0, RECENTS),
+      })),
+      setHomeAirport: homeAirport => set({ homeAirport }),
+      moveFavoriteAirport: (from, to) => set(s => {
+        const favoriteAirports = [...s.favoriteAirports];
+        const [moved] = favoriteAirports.splice(from, 1);
+        if (moved) favoriteAirports.splice(to, 0, moved);
+        return { favoriteAirports };
+      }),
+      toggleFavoriteAirport: airport => set(s => ({
+        favoriteAirports: s.favoriteAirports.some(a => a.ident === airport.ident)
+          ? s.favoriteAirports.filter(a => a.ident !== airport.ident)
+          : [...s.favoriteAirports, airport],
+      })),
     }),
     {
       name: "vfr.preferences",
       // The functions are not state; only the values are written.
       partialize: s => ({
         base: s.base, tac: s.tac, waypoints: s.waypoints, classB: s.classB, aircraft: s.aircraft, filters: s.filters, devTab: s.devTab, pilotTab: s.pilotTab, navBar: s.navBar,
+        recentAirports: s.recentAirports, homeAirport: s.homeAirport, favoriteAirports: s.favoriteAirports,
       }),
     },
   ),

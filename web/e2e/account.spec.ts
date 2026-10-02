@@ -1,4 +1,5 @@
 import { test, expect, type Page, type Route } from "@playwright/test";
+import { openPanel } from "./helpers";
 
 /**
  * The pilot console's two saves, each answered only when the test lets
@@ -22,7 +23,7 @@ function held() {
 const consoleSheet = (page: Page) => page.getByTestId("console-sheet");
 
 async function openConsole(page: Page) {
-  await page.goto("/app/plan");
+  await page.goto("/app/plan?dep=C81&dest=KDLH");
   await page.getByTestId("settings-button").click();
   return consoleSheet(page);
 }
@@ -150,8 +151,9 @@ test("the aeroplane the nav log flies is ticked, and a tap on another flies that
   await expect(page.getByLabel("Tail number")).toHaveCount(0);
   await expect(pick("N2")).toHaveAttribute("aria-pressed", "true");
 
-  // The picker under the route flies it too.
+  // The picker under the route flies it too, with the panel out.
   await console.getByRole("button", { name: "Close" }).click();
   await expect(consoleSheet(page)).toHaveCount(0);
+  await openPanel(page);
   await expect(page.getByTestId("aircraft-select")).toContainText("N2");
 });

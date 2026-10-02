@@ -132,7 +132,7 @@ test("plan page: a checkpoint picked on the map is brought to the middle of the 
 });
 
 test("plan page: the briefing's nav log scrolls inside the drawer, not the page", async ({ page }) => {
-  await page.goto("/app/plan");
+  await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
 
   await openBriefing(page);

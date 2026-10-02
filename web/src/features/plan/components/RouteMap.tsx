@@ -191,6 +191,10 @@ function Checkpoints({ candidates, selected, onSelectCandidate }: Pick<Props, "c
  * -- the container, the chart tiles, the fit, the corner controls --
  * is `MapShell`, which the training map shares.
  */
+/** How close in an airport's card brings the map: its field and its
+ *  neighbours on the sectional. */
+const PLACE_ZOOM = 9;
+
 export default function RouteMap({
   course, candidates, selected, focus, onSelectCandidate, onSelectPoint,
   airportWeather, place, onSelectPlace,
@@ -220,16 +224,23 @@ export default function RouteMap({
 
   return (
     <MapShell course={course} position onSelectPlace={onSelectPlace}>
+      {/* The chart's own airports and own ship with no route as well: a
+          tap on a field opens its card, and Fly Here makes the route. */}
+      <AirportsLayer selected={place} onSelect={onSelectPlace} exclude={chipped} route={routeBox} />
+      <OwnShipLayer />
+      {/* The airport whose card opens comes to the middle of the chart
+          clear of the panel, in close enough to find it, as a place
+          picked in Maps does: from the search bar it was wherever the
+          map happened to be, a ring over half the country. */}
+      <FocusOn point={place} zoom={PLACE_ZOOM} />
       {course && (
         <>
           <CourseLine
             line={course.course_line as [number, number][]}
             tooltip={`${course.departure.ident} → ${course.destination.ident} · ${course.distance_nm} nm`}
           />
-          <AirportsLayer selected={place} onSelect={onSelectPlace} exclude={chipped} route={routeBox} />
           <Endpoints course={course} weather={airportWeather} onSelectPoint={onSelectPoint} />
           <Checkpoints candidates={candidates} selected={selected} onSelectCandidate={onSelectCandidate} />
-          <OwnShipLayer />
           {focus && <Halo at={focus} />}
           <FocusOn point={focus} zoom={focusZoom} />
         </>

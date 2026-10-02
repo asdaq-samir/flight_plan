@@ -9,6 +9,7 @@ import { statusQuery } from "../../lib/queryClient";
 import "leaflet/dist/leaflet.css";
 import { useProgressToast } from "../../lib/useProgressToast";
 import type { WorkspaceProps } from "../page/workspace";
+import { RouteCapsule } from "../../components/PanelCapsule";
 import ChartMap from "./components/ChartMap";
 import WaypointPanel, { RatingProgress, WaypointActions } from "./components/WaypointPanel";
 import PointPopup from "./components/PointPopup";
@@ -28,7 +29,7 @@ const FOCUS_ZOOM = 12;
  * console for the training run. The page owns the shell and the route
  * typed into its form; this owns everything about the labels.
  */
-export default function TrainWorkspace({ dep, dest, children }: WorkspaceProps) {
+export default function TrainWorkspace({ dep, dest, setPanel, children }: WorkspaceProps) {
   const [searchParams, setSearchParams] = useSearchParams();
   // The address is the route the labels are for -- what the queries
   // read, and what a load writes; the header's form is a draft until
@@ -259,7 +260,16 @@ export default function TrainWorkspace({ dep, dest, children }: WorkspaceProps) 
         canUndo={store.canUndo} onUndo={() => void store.undo()} onResetAll={() => void store.resetAll()}
       />
     ),
-    // How far the rating has got, in sight with the panel down.
+    // At rest, the capsule the planner's is: the route, and under it how
+    // far its rating has got, which opens the panel to the list.
+    compact: dep && dest ? (
+      <RouteCapsule
+        title={`${dep} → ${dest}`}
+        detail={`${picks.length} of ${store.detections.length + store.added.length} rated`}
+        onDetail={() => setPanel("half")}
+      />
+    ) : undefined,
+    // How far the rating has got, under the route with the panel out.
     controls: <RatingProgress rated={picks.length} total={store.detections.length + store.added.length} />,
     console: devPanel ? <devPanel.DevPanel /> : <div className="h-40" />,
     submit,

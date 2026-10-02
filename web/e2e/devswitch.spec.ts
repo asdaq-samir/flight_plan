@@ -95,7 +95,7 @@ test("the header holds together without it", async ({ page }) => {
   await closeConsole(page);
 
   await expect(devSwitch(page)).toHaveCount(0);
-  await expect(page.getByLabel("Departure", { exact: true })).toBeVisible();
+  await expect(page.getByTestId("search-airports")).toBeVisible();
   await expect(page.getByTestId("sidebar-trigger-button")).toBeVisible();
 
   const overflowing = await page.evaluate(

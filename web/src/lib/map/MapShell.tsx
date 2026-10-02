@@ -1,9 +1,11 @@
 import L from "leaflet";
+import { useQuery } from "@tanstack/react-query";
 import { useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { AttributionControl, MapContainer } from "react-leaflet";
 import MapControls from "../../components/MapControls";
 import { MapInsetsContext } from "../../components/mapChrome";
 import type { Course } from "../api/types";
+import { chartQuery } from "../queryClient";
 import { ChartTiles } from "./ChartTiles";
 import { ClassBLayer } from "./ClassBLayer";
 import { ResizeAware } from "./MapEffects";
@@ -31,8 +33,17 @@ interface Props {
  * preview state and the placeholder before a course arrives were the
  * same code in both files.
  */
+/** Where a map with no route on it opens: the lower 48, whole on a
+ *  phone, as Maps opens on the country before it knows where you are. */
+const COUNTRY: [number, number] = [39.5, -98.35];
+const COUNTRY_ZOOM = 4;
+
 export function MapShell({ course, onReady, children, position, onSelectPlace }: Props) {
   const [map, setMap] = useState<L.Map | null>(null);
+  // The chart alone while there is no route: the planner opens on a
+  // search bar over the chart, where it waited on a route to draw any.
+  const { data: chartOnly } = useQuery({ ...chartQuery, enabled: !course });
+  const chart = course ?? chartOnly ?? null;
   const [previewing, setPreviewing] = useState(false);
   const bounds = useMemo(() => (course ? L.latLngBounds(course.course_line as [number, number][]) : null), [course]);
 
@@ -75,9 +86,10 @@ export function MapShell({ course, onReady, children, position, onSelectPlace }:
   // rectangle.
   return (
     <div className="relative h-full w-full">
-      {course && bounds ? (
+      {chart ? (
         <MapContainer
-          ref={setMap} bounds={bounds} boundsOptions={{ padding: [30, 30] }}
+          ref={setMap}
+          {...(bounds ? { bounds, boundsOptions: { padding: [30, 30] } } : { center: COUNTRY, zoom: COUNTRY_ZOOM })}
           // zoomControl off drops the +/- buttons, not zooming itself;
           // minZoom 3 is where the whole country fits a phone screen,
           // and as far out as the chart layer has tiles.
@@ -86,11 +98,14 @@ export function MapShell({ course, onReady, children, position, onSelectPlace }:
         >
           <AttributionControl prefix={false} />
           <ResizeAware />
-          <ChartTiles course={course} previewing={previewing} />
+          <ChartTiles chart={chart} previewing={previewing} />
           {/* Both maps get it: a Class B is worth seeing whether
               planning a route past it or rating chart detections
               near it. Draws nothing unless switched on. */}
-          <ClassBLayer course={course} onPreview={setPreviewing} onSelectPlace={onSelectPlace} />
+          <ClassBLayer
+            chart={chart} endpoints={course ? [course.departure.ident, course.destination.ident] : []}
+            onPreview={setPreviewing} onSelectPlace={onSelectPlace}
+          />
           {children}
         </MapContainer>
       ) : (

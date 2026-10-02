@@ -136,7 +136,10 @@ export function usePlan(
   const briefing = useQuery({
     queryKey: ["briefing", dep, dest, depart, eteMin ?? null, load],
     queryFn: () => api.briefing(dep, dest, depart || undefined, eteMin),
-    enabled: !!course.data, staleTime: 5 * 60_000, refetchInterval: 5 * 60_000,
+    // Not on the previous route's placeholder course once the route is
+    // closed: asked for two empty idents, it toasted "Airport identifier
+    // '' not found".
+    enabled: routeKnown && !!course.data, staleTime: 5 * 60_000, refetchInterval: 5 * 60_000,
     placeholderData: keepPreviousData,
   });
 
@@ -144,13 +147,15 @@ export function usePlan(
   const narratives = useNarratives({ dep, dest, planKey, nav, legs, whole: !!totals });
 
   return {
-    course: course.data ?? null,
+    // Not the previous route's, kept as a placeholder, once the route is
+    // closed (the capsule's X): the map is the chart alone then.
+    course: routeKnown ? course.data ?? null : null,
     candidates: checkpoints.data?.candidates ?? [],
     selected: checkpoints.data?.selected ?? [],
     legs, nav, totals, navStage, stage,
     sameAirport,
     briefing: ((): BriefingState => {
-      if (!course.data) return { state: "waiting" };
+      if (!routeKnown || !course.data) return { state: "waiting" };
       if (briefing.data) {
         return {
           state: "ready", data: briefing.data, fetchedAt: briefing.dataUpdatedAt,

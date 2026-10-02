@@ -25,9 +25,15 @@ export interface WorkspacePieces {
   submit: () => void;
   /** A load in progress: the form's own button is disabled. */
   loading?: boolean;
-  /** Anything that belongs over the panel's body, in sight at rest (a
-   *  notice that the route has not been collected). */
+  /** Anything that belongs over the panel's body, in sight with it out
+   *  (a route from an airport to itself). */
   notices?: ReactNode;
+  /** The panel at rest: a capsule with the route in it, or a search bar
+   *  while there is none (PanelCapsule). */
+  compact?: ReactNode;
+  /** The panel's top row with it out, in place of the route form and the
+   *  actions: the search bar, while there is no route. */
+  head?: ReactNode;
 }
 
 export interface WorkspaceProps {

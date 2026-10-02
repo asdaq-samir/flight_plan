@@ -1,12 +1,13 @@
 import L from "leaflet";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { TileLayer, useMap, useMapEvents } from "react-leaflet";
-import type { Course } from "../api/types";
+import type { ChartInfo } from "../api/types";
 import { usePreferences } from "../preferences";
 import { chartPair, tileTemplate } from "./tiles";
 
 interface Props {
-  course: Course;
+  /** The chart: a route's course, or the chart alone with no route. */
+  chart: ChartInfo;
   /** A Class B marker's hover: draws the overlay while on, pinned or
    *  not, so a sheet can be looked at without pinning it. */
   previewing: boolean;
@@ -33,11 +34,11 @@ interface Props {
  * worker's). Each kind is its own layer instance (`key`): Leaflet reads
  * a layer's zooms once.
  */
-export function ChartTiles({ course, previewing }: Props) {
+export function ChartTiles({ chart, previewing }: Props) {
   const map = useMap();
   const base = usePreferences(s => s.base);
   const pinned = usePreferences(s => s.tac);
-  const { base: baseLayer, overlay } = useMemo(() => chartPair(course.chart_layers, base), [course.chart_layers, base]);
+  const { base: baseLayer, overlay } = useMemo(() => chartPair(chart.chart_layers, base), [chart.chart_layers, base]);
   const baseRef = useRef<L.TileLayer>(null);
 
   const prefetchRing = useCallback(() => {
@@ -81,14 +82,14 @@ export function ChartTiles({ course, previewing }: Props) {
     <>
       <TileLayer
         key={baseLayer.kind} ref={baseRef}
-        url={tileTemplate(course, baseLayer.kind)} attribution={attribution(baseLayer.kind)}
+        url={tileTemplate(chart, baseLayer.kind)} attribution={attribution(baseLayer.kind)}
         minZoom={baseLayer.min_zoom} maxNativeZoom={baseLayer.max_zoom} maxZoom={baseLayer.max_zoom + 3}
         keepBuffer={4} updateWhenIdle={false}
       />
       {overlay && (pinned || previewing) && (
         <TileLayer
           key={overlay.kind}
-          url={tileTemplate(course, overlay.kind)} attribution={attribution(overlay.kind)}
+          url={tileTemplate(chart, overlay.kind)} attribution={attribution(overlay.kind)}
           minZoom={overlay.min_zoom} maxNativeZoom={overlay.max_zoom} maxZoom={overlay.max_zoom + 3}
           keepBuffer={2} zIndex={5} updateWhenIdle={false}
         />

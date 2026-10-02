@@ -283,8 +283,8 @@ export default function MapPage({ mode }: { mode: Mode }) {
           <MapPanel
             label={panelLabel} controls={pieces.controls}
             state={panel} onStateChange={setPanel} onInsetsChange={changeInsets}
-            notices={pieces.notices}
-            top={(
+            notices={pieces.notices} compact={pieces.compact}
+            top={pieces.head ?? (
               <>
                 <div className="min-w-0 flex-1">
                   <RouteForm

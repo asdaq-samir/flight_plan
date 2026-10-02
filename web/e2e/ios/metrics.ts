@@ -234,7 +234,8 @@ export type ComponentFinding = { rule: string; what: string; measured: string };
  *  a size against iOS's list on its own could see:
  *  - a sheet's grabber at iOS's 36 by 5;
  *  - one radius for what floats, the theme's: sheets, pop-ups, dialogs,
- *    map cards, list cards and toasts;
+ *    map cards, list cards and toasts -- but the map's panel on a phone,
+ *    in Maps' own shapes: its capsule at rest 28, its medium sheet 36;
  *  - one icon-only button, 36 with a 20 glyph -- outside the navigation
  *    bar, whose sizes are a decision still open, and the map's markers;
  *  - a drawer's or a sheet's words at least 16 in from its side, iOS's
@@ -271,7 +272,8 @@ export function componentFindings(page: Page): Promise<ComponentFinding[]> {
       if (!on(box)) continue;
       // A sheet from the top of the screen is rounded at its bottom only.
       const r = Math.max(parseFloat(getComputedStyle(box).borderTopLeftRadius), parseFloat(getComputedStyle(box).borderBottomLeftRadius));
-      if (Math.abs(r - radius) > 0.5) found.push({ rule: `one radius, ${radius}`, what: name(box), measured: `${r}` });
+      const shape = box.matches("[data-capsule]") ? 28 : box.matches('[data-shape="inset"]') ? 36 : radius;
+      if (Math.abs(r - shape) > 0.5) found.push({ rule: `one radius, ${shape}`, what: name(box), measured: `${r}` });
     }
     for (const button of document.querySelectorAll<HTMLElement>('button, a[data-slot="button"]')) {
       const svg = button.querySelector("svg");

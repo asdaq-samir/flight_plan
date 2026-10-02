@@ -111,6 +111,11 @@ export const courseQuery = (dep: string, dest: string) => queryOptions({
  *  the planner holds the weather for minutes, so refetching per pan
  *  would ask the same cache the same question; and quiet, because the
  *  layer and the chips show what they have in place. */
+/** The chart alone, for a map with no route on it yet. */
+export const chartQuery = queryOptions({
+  queryKey: ["chart"], queryFn: () => api.chart(), staleTime: 60 * 60_000,
+});
+
 export const classBQuery = queryOptions({
   queryKey: ["classB"], queryFn: () => api.classB(), staleTime: 5 * 60_000, meta: { silent: true },
 });

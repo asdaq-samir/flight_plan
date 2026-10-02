@@ -17,7 +17,7 @@ test("plan page: a route from an airport to itself says so, rather than showing 
 
   // And it is a state the pilot can leave: change one and the route loads.
   await page.getByLabel("Destination", { exact: true }).click();
-  await page.getByPlaceholder("Ident or airport name").fill("KDLH");
+  await page.getByPlaceholder("Search for a destination").fill("KDLH");
   await page.getByRole("option", { name: /KDLH/ }).first().click();
   await page.getByRole("button", { name: "Load" }).click();
   await expect(page.getByText("A route needs two different airports.")).toBeHidden({ timeout: slow(25000) });

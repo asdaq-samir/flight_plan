@@ -23,7 +23,7 @@ test("plan page: the flight planning drawer opens the way the Model Training dra
   // The flight planning panel: the URL says briefing, and it is the
   // same panel in the same place -- a strip of map beside it from md
   // up; on a phone the sheet, the screen's width.
-  await page.goto("/app/plan");
+  await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
   await page.getByTestId("sidebar-trigger-button").click();
   await expect(page).toHaveURL(/[?&]view=briefing/);
@@ -85,7 +85,7 @@ test("plan page: the flight planning drawer opens the way the Model Training dra
 });
 
 test("plan page: the briefing ends on its 'planning aid only' reminder, with the nav log and the summary on screen", async ({ page }) => {
-  await page.goto("/app/plan");
+  await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
 
   await openBriefing(page);
@@ -115,7 +115,7 @@ test("plan page: the briefing ends on its 'planning aid only' reminder, with the
 });
 
 test("plan page: the briefing offers one AI button, not a named button per framework", async ({ page }) => {
-  await page.goto("/app/plan");
+  await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
 
   await openBriefing(page);
@@ -138,7 +138,7 @@ test("plan page: the drawer closes the way the stock components close, and nothi
   // Radix Sheet and closes on Escape by itself, a desktop's is
   // shadcn's panel and toggles on Cmd/Ctrl+B. Whatever those do is
   // what this does.
-  await page.goto("/app/plan");
+  await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
 
   await openBriefing(page);
@@ -152,29 +152,8 @@ test("plan page: the drawer closes the way the stock components close, and nothi
   await expect(page).not.toHaveURL(/[?&]view=briefing/);
 });
 
-// An address that names no route gets the first collected one written
-// in when the list of routes arrives. A tap on the toggle just before
-// that was undone by it -- the route was worked out from the address as
-// it stood before the tap -- and the drawer shut again with no
-// view=briefing. On a processor slowed sixfold, with the list arriving
-// just after the tap, it was every time.
-test("plan page: the briefing opened just as the default route arrives stays open", async ({ page, context }) => {
-  const cdp = await context.newCDPSession(page);
-  // Six times slower here, where that is what made the old race show;
-  // twice in CI, whose runner is slow enough already.
-  await cdp.send("Emulation.setCPUThrottlingRate", { rate: process.env.CI ? 2 : 6 });
-  let release = () => {};
-  const listed = new Promise<void>(resolve => { release = resolve; });
-  await page.route("**/api/planner/routes", async route => { await listed; await route.continue(); });
-  await page.goto("/app/plan");
-  await page.getByTestId("sidebar-trigger-button").click();
-  release();
-  await expect(page).toHaveURL(/[?&]dest=/);
-  await expect(page).toHaveURL(/[?&]view=briefing/);
-});
-
 test("plan page: a pasted briefing link opens the panel, and its grabber closes and reopens it", async ({ page }) => {
-  await page.goto("/app/plan?view=briefing");
+  await page.goto("/app/plan?dep=C81&dest=KDLH&view=briefing");
   await settle(page);
   const drawer = sideDrawer(page);
   await expect(drawer).toBeVisible();
@@ -200,7 +179,7 @@ test("plan page: a pasted briefing link opens the panel, and its grabber closes 
 });
 
 test("plan page: the panel's grabber raises and lowers it, a tap on the map beside it leaves it out, and Escape lowers it", async ({ page }) => {
-  await page.goto("/app/plan");
+  await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
   const viewport = page.viewportSize();
   if (!viewport) throw new Error("no viewport configured");

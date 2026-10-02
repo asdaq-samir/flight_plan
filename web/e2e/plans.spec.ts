@@ -152,7 +152,7 @@ test("plan page: a departure time gives every checkpoint an ETA, and the nav log
 });
 
 test("plan page: the nav log is computed for an aeroplane the pilot picks in its own header", async ({ page }) => {
-  await page.goto("/app/plan");
+  await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
   await page.getByTestId("sidebar-trigger-button").click();
   const picker = page.getByTestId("aircraft-select");

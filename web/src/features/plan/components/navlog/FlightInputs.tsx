@@ -1,11 +1,6 @@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../../../components/ui/select";
+import { shortName } from "../../../../lib/aircraftChoice";
 import DepartPicker from "./DepartPicker";
-
-/** An aeroplane's short name: what comes before the " · " in its label
- *  ("C172 · Cessna 172", "N12345 · C172"). */
-function shortName(label: string): string {
-  return label.split(" · ")[0] ?? label;
-}
 
 /**
  * The two inputs the nav log is computed from, in the planning panel's

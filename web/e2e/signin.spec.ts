@@ -80,7 +80,7 @@ test("a pilot's link lands on the planner, with no dev switch, and the pilot con
   await signInByEmail(page, address);
 
   await page.waitForURL("**/app/plan**");
-  await expect(page.getByLabel("Departure", { exact: true })).toBeVisible();
+  await expect(page.getByTestId("search-airports")).toBeVisible();
   await page.waitForTimeout(500);   // a moment for a console that was coming down by itself
   await expect(consoleSheet(page)).toHaveCount(0);
   await expect(await devSwitchInSettings(page)).toHaveCount(0);

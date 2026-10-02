@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { slow, settle, sideDrawer, consoleSheet, expectDrawerClosed, expectDrawerOpen, closeSidebarWithTheStockKey } from "./helpers";
+import { slow, settle, sideDrawer, consoleSheet, expectDrawerClosed, expectDrawerOpen, closeSidebarWithTheStockKey, openPanel } from "./helpers";
 
 /**
  * The dev page's training: the dev console, and the waypoint drawer's
@@ -10,8 +10,8 @@ test("dev page: the dev console opens on training, and the waypoint drawer opens
   await page.goto("/app/dev");
   await settle(page);
   // The training workspace is the page -- the console stays off screen
-  // until its own trigger is opened.
-  await expect(page.getByLabel("Departure", { exact: true })).toBeVisible();
+  // until its own trigger is opened. At rest, the route in its capsule.
+  await expect(page.getByTestId("capsule-title")).toHaveText("C81 → KDLH");
   await expectDrawerClosed(page);
   expect(await consoleSheet(page).count()).toBe(0);
 
@@ -109,6 +109,7 @@ test("a retrain confirmed from the panel's More opens the console on Performance
   await settle(page);
   await expect(consoleSheet(page)).toHaveCount(0);
 
+  await openPanel(page);
   await page.getByTestId("training-more-button").click();
   await page.getByTestId("retrain-button").click();
   await page.getByRole("button", { name: "Retrain", exact: true }).click();

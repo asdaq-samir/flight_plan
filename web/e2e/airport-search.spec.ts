@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { openPanel } from "./helpers";
 
 /**
  * The route picker's search: Enter takes a row only when the rows answer
@@ -22,9 +23,10 @@ async function slowSearch(page: Page, heldFor: string) {
 test("Enter before the lookup has answered keeps what was typed, not the first row of an older answer", async ({ page }) => {
   await slowSearch(page, "KDLH");
   await page.goto("/app/plan?dep=C81&dest=KMSP");
+  await openPanel(page);
   const destination = page.getByLabel("Destination", { exact: true });
   await destination.click();
-  const box = page.getByPlaceholder("Ident or airport name");
+  const box = page.getByPlaceholder("Search for a destination");
   await box.fill("KD");
   await expect(page.getByRole("option", { name: /KDAA/ })).toBeVisible();
 
@@ -36,9 +38,10 @@ test("Enter before the lookup has answered keeps what was typed, not the first r
 test("once the rows answer the box, Enter takes the highlighted row", async ({ page }) => {
   await slowSearch(page, "");
   await page.goto("/app/plan?dep=C81&dest=KMSP");
+  await openPanel(page);
   const destination = page.getByLabel("Destination", { exact: true });
   await destination.click();
-  const box = page.getByPlaceholder("Ident or airport name");
+  const box = page.getByPlaceholder("Search for a destination");
   await box.fill("KD");
   await expect(page.getByRole("option", { name: /KDAA/ })).toBeVisible();
   await expect(page.getByRole("listbox")).not.toHaveAttribute("aria-busy", "true");

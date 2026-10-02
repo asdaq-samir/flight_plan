@@ -1,14 +1,18 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { format } from "date-fns";
+import { Share, X } from "lucide-react";
+import { toast } from "sonner";
 import { cn } from "cn";
 import { api } from "../../lib/api/client";
 import { pilotQuery, queryClient } from "../../lib/queryClient";
 import type { AircraftChoice, AirportPlace, AltitudeChoice, Candidate } from "../../lib/api/types";
-import { aircraftKey, choiceOf } from "../../lib/aircraftChoice";
+import { aircraftKey, choiceOf, shortName } from "../../lib/aircraftChoice";
 import { distanceNm } from "../../lib/geo";
 import { useOwnShip } from "../../lib/map/ownShip";
 import { identOf, routeOf } from "../../lib/identSchema";
-import { usePreferences } from "../../lib/preferences";
+import { usePreferences, type RecentAirport } from "../../lib/preferences";
+import { useAirportSearch } from "../../lib/useAirportSearch";
 // Without this Leaflet's tiles, markers and controls have no
 // positioning at all -- this is the library's own stylesheet, not
 // app styling.
@@ -18,6 +22,9 @@ import { useSearchParamsNow } from "../../lib/useSearchParamsNow";
 import type { WorkspaceProps } from "../page/workspace";
 import { PilotPanel } from "../pilot/PilotPanel";
 import { Alert, AlertDescription, AlertTitle } from "../../components/ui/alert";
+import IconButton from "../../components/IconButton";
+import { RouteCapsule, SearchField, SearchResults } from "../../components/PanelCapsule";
+import { Favorites, FavoritesList } from "../../components/Favorites";
 import FlightBriefingView, { BriefingNotices, PlanningAidNote, SaveFlightButton } from "./components/briefing/FlightBriefingView";
 import FlightInputs from "./components/navlog/FlightInputs";
 import PlaceCard from "./components/PlaceCard";
@@ -72,23 +79,6 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // while; a stock profile until they pick one of their own.
   const remembered = usePreferences(p => p.aircraft);
   const setAircraft = usePreferences(p => p.setAircraft);
-
-  // Open on whatever corridor exists, so the page is never an empty
-  // form with no hint of what it accepts: the first collected route
-  // when the address names none, written into the address like a load.
-  const routes = useQuery({ queryKey: ["routes"], queryFn: api.routes, staleTime: Infinity });
-  useEffect(() => {
-    if ((planned.dep && planned.dest) || !routes.data) return;
-    const first = routes.data.routes[0] ?? { departure_ident: "C81", destination_ident: "KDLH" };
-    const d = planned.dep || first.departure_ident;
-    const a = planned.dest || first.destination_ident;
-    setSearchParams(prev => {
-      const next = new URLSearchParams(prev);
-      next.set("dep", d);
-      next.set("dest", a);
-      return next;
-    }, { replace: true });
-  }, [planned.dep, planned.dest, routes.data, setSearchParams]);
 
   // The stock profiles, plus a signed-in pilot's own aeroplanes on top
   // of them -- the same ["pilot"]/["aircraft"] queries the pilot
@@ -152,21 +142,30 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   const { data: placeData } = useQuery({
     queryKey: ["airport", place], queryFn: () => api.airport(place!), enabled: !!place, staleTime: 5 * 60_000,
   });
+  // One object while the answer is the same one, as the map brings
+  // itself to it each time it changes.
+  const placePin = useMemo(
+    () => (placeData ? { ident: placeData.ident, lat: placeData.lat, lon: placeData.lon } : null), [placeData],
+  );
   // How far it is: from own ship's position when there is one, from the
   // route's departure otherwise.
   const fix = useOwnShip(o => (o.enabled ? o.fix : null));
   const measuredFrom = fix
     ? { point: { lat: fix.lat, lon: fix.lon }, name: null }
     : course ? { point: course.departure, name: course.departure.ident } : null;
-  // Fly Here: the card's airport as the destination, from the airport
-  // own ship is nearest when its position is known, else from the
-  // route's departure (or, when that is this airport, its destination) --
-  // the last place the pilot planned from. The plan loads at once, with
+  // Fly Here: the card's airport as the destination, from Home when one
+  // is set (Favorites), else from the airport own ship is nearest when its
+  // position is known, else from the route's departure (or, when that is
+  // this airport, its destination) -- the last place the pilot planned
+  // from. The plan loads at once, with
   // the card put away and the panel half up on it.
   const flyHere = useCallback(async (to: AirportPlace) => {
-    let from: string | null = null;
+    // From Home by default, the field a pilot flies from most (Favorites);
+    // then the one own ship is nearest; then the route's last.
+    const homeIdent = usePreferences.getState().homeAirport?.ident;
+    let from: string | null = homeIdent && homeIdent !== to.ident ? homeIdent : null;
     const here = useOwnShip.getState();
-    if (here.enabled && here.fix) {
+    if (!from && here.enabled && here.fix) {
       const { lat, lon } = here.fix;
       const near = await queryClient.fetchQuery({
         queryKey: ["airportsNear", lat.toFixed(2), lon.toFixed(2)],
@@ -197,6 +196,115 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     setSearchParams(next, { replace: true });
     setLoad(n => n + 1);
   }, [dep, dest, alt, altitudeChoice, depart, panel, setSearchParams]);
+
+  // With no route, the panel is Maps' search: the bar in the capsule and
+  // at the top of the sheet, Favorites and what was picked before under it,
+  // and the airports that answer what is typed; one picked opens its
+  // card, with Fly Here, and goes to the top of the recents -- or, asked
+  // for from Favorites, becomes Home or a favorite. Half a route (Fly
+  // Here with no position to fly from) is a route: its form asks for the
+  // other end.
+  const routed = routeOf(planned.dep, planned.dest) !== null;
+  const started = routed || !!planned.dep || !!planned.dest;
+  const [query, setQuery] = useState("");
+  const [picking, setPicking] = useState<"place" | "home" | "favorite">("place");
+  // Favorites in full (FavoritesList), in place of the recents.
+  const [favoritesOpen, setFavoritesOpen] = useState(false);
+  const searchInput = useRef<HTMLInputElement>(null);
+  const search = useAirportSearch(query, !started);
+  const { addRecentAirport: addRecent, setHomeAirport, toggleFavoriteAirport, moveFavoriteAirport } = usePreferences.getState();
+  const home = usePreferences(p => p.homeAirport);
+  const favorites = usePreferences(p => p.favoriteAirports);
+  const pickPlace = useCallback(async (airport: RecentAirport) => {
+    setQuery("");
+    (document.activeElement as HTMLElement | null)?.blur();
+    if (picking === "place") {
+      addRecent(airport);
+      selectPlace(airport.ident);
+      return;
+    }
+    // Where it is, for how far it is from own ship.
+    const full = await queryClient.fetchQuery({
+      queryKey: ["airport", airport.ident], queryFn: () => api.airport(airport.ident), staleTime: 5 * 60_000,
+    }).catch(() => null);
+    const kept = full ? { ident: full.ident, name: full.name, municipality: full.municipality, lat: full.lat, lon: full.lon } : airport;
+    if (picking === "home") setHomeAirport(kept);
+    else if (!favorites.some(a => a.ident === kept.ident)) toggleFavoriteAirport(kept);
+    setPicking("place");
+  }, [picking, addRecent, selectPlace, setHomeAirport, toggleFavoriteAirport, favorites]);
+  // Favorites' Add, Home's or another's: the search bar asks for the
+  // field, focused within the tap so the keyboard comes up.
+  const askFor = (what: "home" | "favorite") => {
+    setPicking(what);
+    setFavoritesOpen(false);
+    searchInput.current?.focus();
+    setPanel("full");
+  };
+  const searchField = (
+    <SearchField
+      value={query} onChange={setQuery} open={panel !== "peek"} inputRef={searchInput}
+      placeholder={picking === "home" ? "Search for your home airport" : picking === "favorite" ? "Search for an airport to keep" : "Search airports"}
+      onFocus={() => { if (place) selectPlace(null); setFavoritesOpen(false); setPanel("full"); }}
+      onCancel={() => { setQuery(""); setPicking("place"); setFavoritesOpen(false); if (place) selectPlace(null); setPanel("peek"); }}
+      onSubmit={() => {
+        const first = search.answered ? search.rows[0] : undefined;
+        if (first) void pickPlace({ ident: first.ident, name: first.name, municipality: first.municipality });
+        else if (search.typed) void pickPlace({ ident: search.typed.toUpperCase(), name: search.typed.toUpperCase() });
+      }}
+    />
+  );
+
+  // A link that brings favorites with it -- ?favorites=KORD,KMKE&home=C81
+  // -- adds them to this browser's, so a set made on one device (or sent
+  // to try) arrives on another; the address drops them once read.
+  const seeded = useRef(false);
+  useEffect(() => {
+    const listed = searchParams.get("favorites");
+    const homeListed = searchParams.get("home");
+    if (seeded.current || (!listed && !homeListed)) return;
+    seeded.current = true;
+    const look = (ident: string) => queryClient.fetchQuery({
+      queryKey: ["airport", ident], queryFn: () => api.airport(ident), staleTime: 5 * 60_000,
+    }).then(a => ({ ident: a.ident, name: a.name, municipality: a.municipality, lat: a.lat, lon: a.lon })).catch(() => null);
+    void (async () => {
+      for (const ident of (listed ?? "").split(",").map(identOf).filter(Boolean)) {
+        if (usePreferences.getState().favoriteAirports.some(a => a.ident === ident)) continue;
+        const airport = await look(ident);
+        if (airport) usePreferences.getState().toggleFavoriteAirport(airport);
+      }
+      const home = homeListed && await look(identOf(homeListed));
+      if (home) usePreferences.getState().setHomeAirport(home);
+      setSearchParams(prev => {
+        const next = new URLSearchParams(prev);
+        next.delete("favorites");
+        next.delete("home");
+        return next;
+      }, { replace: true });
+    })();
+  }, [searchParams, setSearchParams]);
+
+  // The route put away, as Maps' close does: the address keeps nothing of
+  // it, and the panel rests on the search bar.
+  const clearRoute = useCallback(() => {
+    setSearchParams({}, { replace: true });
+    setPanel("peek");
+  }, [setSearchParams, setPanel]);
+
+  // The plan's own address, to another device or person: the share
+  // sheet where the browser has one (Safari on an iPhone), otherwise
+  // copied.
+  const share = useCallback(async () => {
+    const url = window.location.href;
+    try {
+      if (navigator.share) await navigator.share({ title: `${planned.dep} → ${planned.dest}`, url });
+      else {
+        await navigator.clipboard.writeText(url);
+        toast.success("Link copied");
+      }
+    } catch (err) {
+      if ((err as Error).name !== "AbortError") toast.error("Could not share the route", { description: (err as Error).message });
+    }
+  }, [planned.dep, planned.dest]);
 
   // A different aeroplane means different legs: remembered, and the
   // nav log's own key changes with it.
@@ -313,14 +421,45 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           onSelectCandidate={selectCandidate}
           onSelectPoint={(lat, lon) => selectPoint({ lat, lon })}
           airportWeather={s.briefing}
-          place={placeData ? { ident: placeData.ident, lat: placeData.lat, lon: placeData.lon } : null}
+          place={placePin}
           onSelectPlace={selectPlace}
         />
       </div>
     ),
     // The open airport's card over the nav log, which stays mounted
     // underneath with whatever was open in it; on paper the nav log.
-    sidebar: (
+    // With no route, the search's recents and answers, or the card.
+    sidebar: !started ? (
+      place ? (
+        <PlaceCard
+          key={place} ident={place} from={measuredFrom}
+          onClose={() => selectPlace(null)} onFlyHere={to => void flyHere(to)} onExpand={() => setPanel("full")}
+        />
+      ) : favoritesOpen ? (
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 pt-2 pb-4">
+          <FavoritesList
+            home={home} favorites={favorites}
+            onBack={() => setFavoritesOpen(false)} onOpen={airport => selectPlace(airport.ident)}
+            onChangeHome={() => askFor("home")} onRemoveHome={() => setHomeAirport(null)}
+            onRemove={toggleFavoriteAirport} onMove={moveFavoriteAirport} onAdd={() => askFor("favorite")}
+          />
+        </div>
+      ) : (
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 pt-2 pb-4">
+          <SearchResults
+            query={query} onPick={airport => void pickPlace(airport)}
+            places={picking === "place" && (
+              <Favorites
+                home={home} favorites={favorites} from={fix ? { lat: fix.lat, lon: fix.lon } : null}
+                onOpen={airport => selectPlace(airport.ident)}
+                onAddHome={() => askFor("home")} onAddFavorite={() => askFor("favorite")}
+                onShowAll={() => { setFavoritesOpen(true); setPanel("full"); }}
+              />
+            )}
+          />
+        </div>
+      )
+    ) : (
       <>
         {place && (
           <PlaceCard
@@ -331,8 +470,24 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
         <div className={cn("flex min-h-0 flex-1 flex-col print:flex", place && "hidden")}>{navLog}</div>
       </>
     ),
-    // The aeroplane and the departure time, in sight with the panel down.
-    controls: (
+    head: started ? undefined : searchField,
+    // At rest, Maps' capsule: the route with share and close either side
+    // and the aeroplane and time under it, which opens the panel to them;
+    // with no route, the search bar.
+    // Half a route, or one from an airport to itself, rests on its form
+    // and the notice saying so: something is asked of the pilot there.
+    compact: routed ? (
+      <RouteCapsule
+        title={`${planned.dep} → ${planned.dest}`}
+        detail={`${shortName(aircraft.label)} · ${depart ? format(new Date(depart), "EEE d MMM, HH:mm") : "Now"}`}
+        onDetail={() => setPanel("half")}
+        leading={<IconButton label="Share this route" variant="secondary" className="rounded-full" onClick={() => void share()}><Share /></IconButton>}
+        trailing={<IconButton label="Close the route" variant="secondary" className="rounded-full" onClick={clearRoute} data-testid="clear-route"><X /></IconButton>}
+      />
+    ) : started ? undefined : searchField,
+    // The aeroplane and the departure time, under the route with the
+    // panel out.
+    controls: routed && (
       <FlightInputs
         aircraftValue={aircraftKey(aircraft)}
         aircraftOptions={aircraftOptions.map(o => ({ value: aircraftKey(o), label: o.label }))}

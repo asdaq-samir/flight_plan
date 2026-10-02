@@ -8,10 +8,12 @@ import { useNavEdge } from "../hooks/use-nav-edge";
  * than each page mounting its own floating status element.
  *
  * On the edge away from the header (useNavEdge): bottom-centre under a
- * header at the top, and top-centre over one at the bottom -- where the
- * map's buttons are too, which a toast there covered. From the top it
- * comes in as an iOS banner does, over the map and clear of a sheet
- * from the bottom (they stop at 85% of the height).
+ * header at the top, and top-centre over one at the bottom. From the top
+ * it comes in as an iOS banner does, over the map and clear of a sheet
+ * from the bottom (they stop at 85% of the height) -- and, on a phone,
+ * clear of the map's buttons at the top right too: across them, the
+ * planner's progress line hid Settings for as long as a route took to
+ * plan, and a tap meant for it went nowhere the pilot could see.
  * closeButton: off by default in sonner, but the error toast sets
  * `duration: Infinity` (see usePageStatus) -- with no close button, the
  * only way to dismiss it is for the error condition to clear itself in
@@ -37,7 +39,12 @@ export default function AppToaster() {
       visibleToasts={3}
       // Under the notch or the Dynamic Island, or over the home
       // indicator, where there is one.
-      mobileOffset={{ top: "max(1rem, calc(env(safe-area-inset-top) + 0.5rem))", bottom: "max(1rem, env(safe-area-inset-bottom))", left: "1rem", right: "1rem" }}
+      mobileOffset={{
+        // Level with the map's buttons beside it (MapControls), at the
+        // same distance under the status bar.
+        top: "max(0.5rem, env(safe-area-inset-top))", bottom: "max(1rem, env(safe-area-inset-bottom))",
+        left: "1rem", right: edge === "bottom" ? "4.5rem" : "1rem",
+      }}
       // A toast still on screen ("VFR flight not recommended") was
       // printing over the briefing's table; the paper is the
       // briefing alone.
