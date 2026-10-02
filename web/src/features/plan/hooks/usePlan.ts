@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { experimental_streamedQuery as streamedQuery, keepPreviousData, useQuery } from "@tanstack/react-query";
-import { api, describeError } from "../../../lib/api/client";
+import { ApiError, api, describeError } from "../../../lib/api/client";
 import { courseQuery } from "../../../lib/queryClient";
 import { routeOf } from "../../../lib/identSchema";
 import { ended } from "../../../lib/api/streams";
@@ -29,6 +29,14 @@ import { useNarratives } from "./useNarratives";
  * which this one composes into the page's one plan: each changes for
  * its own reasons, and this file used to change for all of them.
  */
+
+/** No plan has a legal altitude: the planner's headline (where along the
+ *  route), its reasons, and what to do (app.planning.no_altitude). */
+export interface Unflyable {
+  title: string;
+  reasons: string[];
+  advice: string | null;
+}
 
 export interface PlanParams {
   dep: string;
@@ -108,6 +116,11 @@ export function usePlan(
     const done = messages.find(m => m.type === "done");
     return done && done.type === "done" ? done.totals : null;
   }, [messages]);
+  const unflyable = useMemo<Unflyable | null>(() => {
+    const error = navlog.error;
+    return error instanceof ApiError && error.advice !== null
+      ? { title: error.message, reasons: error.reasons, advice: error.advice } : null;
+  }, [navlog.error]);
   const stages = messages.filter(m => m.type === "stage");
   const navStage = navlog.isFetching ? (stages.at(-1) as { detail?: string } | undefined)?.detail ?? null : null;
 
@@ -152,7 +165,7 @@ export function usePlan(
     course: routeKnown ? course.data ?? null : null,
     candidates: checkpoints.data?.candidates ?? [],
     selected: checkpoints.data?.selected ?? [],
-    legs, nav, totals, navStage, stage,
+    legs, nav, totals, navStage, stage, unflyable,
     sameAirport,
     briefing: ((): BriefingState => {
       if (!routeKnown || !course.data) return { state: "waiting" };

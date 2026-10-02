@@ -12,11 +12,12 @@ export async function* ended<T extends { type: string }>(stream: AsyncIterable<T
   let finished = false;
   for await (const msg of stream) {
     if (msg.type === "error") {
-      const detail = (msg as { detail?: string }).detail ?? `${what} failed`;
+      const { detail = `${what} failed`, retry, reasons = [], advice = null } =
+        msg as { detail?: string; retry?: boolean; reasons?: string[]; advice?: string | null };
       // A failure asking again cannot change (a route with no legal
       // altitude) as the client error it is: no Try again (queryClient).
-      const retry = (msg as { retry?: boolean }).retry !== false;
-      throw new ApiError(detail.split("\n")[0] ?? detail, retry ? 200 : 422);
+      // Its reasons and advice come with it, for the nav log to list.
+      throw new ApiError(detail.split("\n")[0] ?? detail, retry !== false ? 200 : 422, reasons, advice);
     }
     if (msg.type === "done") finished = true;
     yield msg;

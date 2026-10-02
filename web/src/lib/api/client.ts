@@ -24,7 +24,9 @@ import type {
  */
 
 export class ApiError extends Error {
-  constructor(message: string, readonly status: number) {
+  /** `reasons` and `advice`: why, and what to do, where the server says
+   *  (a nav log with no legal altitude), apart from the message. */
+  constructor(message: string, readonly status: number, readonly reasons: string[] = [], readonly advice: string | null = null) {
     super(message);
     this.name = "ApiError";
   }

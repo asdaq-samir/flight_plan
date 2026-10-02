@@ -22,6 +22,7 @@ import type { AltitudeChoice, Candidate, Leg, NavLogAltitude, Totals } from "../
 import { revealRow } from "../../../../lib/revealRow";
 import { TEXT } from "../../../../lib/text";
 import { type Description, descriptionKey } from "../../hooks/useCheckpointNotes";
+import type { Unflyable } from "../../hooks/usePlan";
 import { altFt, clockTime, deg, describeFuel, describeSteps, describeTime, etaAt, one, signed, totalsParts } from "../../format";
 import AccordionSection from "../../../../components/AccordionSection";
 import { BRIEFING_SECTIONS } from "../briefing/sections";
@@ -125,6 +126,10 @@ interface Props {
   /** Whether the drawer holding this is open. The view stays mounted
    *  beside a desktop map whether or not it is. */
   drawerOpen: boolean;
+  /** No plan has a legal altitude (usePlan): where along the route, why,
+   *  and what to do, listed at the head of the nav log, which opens on
+   *  it. Null otherwise. */
+  unflyable: Unflyable | null;
 }
 
 /**
@@ -289,6 +294,47 @@ function Heading({ name, unit, spoken }: { name: string; unit?: string; spoken: 
   );
 }
 
+/** The pilot's own altitude, one number for the whole route: a row under
+ *  the four plans, pressed while it is what the log flies, and under the
+ *  reasons when no plan has an altitude, where it is the way to plan the
+ *  route anyway. Enter or Fly re-plans at it; the stock Input's 16px
+ *  below md keeps a phone from zooming. */
+function CustomAltitude({ alt, onAltChange, onSubmit, pressed }: {
+  alt: string;
+  onAltChange: (v: string) => void;
+  onSubmit: () => void;
+  pressed: boolean;
+}) {
+  return (
+    <form
+      className={cn(
+        "flex items-center gap-2 rounded-md border px-2 py-1.5",
+        pressed ? "border-primary bg-primary text-primary-foreground" : "border-input",
+      )}
+      onSubmit={e => { e.preventDefault(); onSubmit(); }}
+      aria-label="Custom altitude"
+    >
+      <span className={cn("font-semibold", TEXT.row)}>Custom</span>
+      <Input
+        value={alt}
+        onChange={e => onAltChange(e.target.value)}
+        placeholder="ft"
+        inputMode="numeric"
+        spellCheck={false}
+        aria-label="Cruise altitude, feet"
+        className="ml-auto h-8 w-24 bg-background text-right text-foreground"
+        data-testid="custom-altitude"
+      />
+      <Button
+        type="submit" size="sm" variant={pressed ? "secondary" : "outline"}
+        disabled={!alt.trim()} data-testid="custom-altitude-fly"
+      >
+        Fly
+      </Button>
+    </form>
+  );
+}
+
 /** What the Alt column's heading opens (NavLogView's altitudePlans) and
  *  the altitude it is named with, handed down to a heading of a fixed
  *  identity: a heading made in each render is a new component to React
@@ -342,7 +388,7 @@ export default function NavLogView({
   legs, dep, dest, ends,
   selected, descriptions, onSaveDescription,
   onGenerateDescriptions, descriptionsLoading, children, notice, footer,
-  selectedPoint, onSelectPoint, onDeselectPoint, drawerOpen, alt, onAltChange, onSubmit,
+  selectedPoint, onSelectPoint, onDeselectPoint, drawerOpen, alt, onAltChange, onSubmit, unflyable,
   aircraftLabel,
 }: Props) {
   const parts = totals ? totalsParts(totals) : null;
@@ -373,7 +419,9 @@ export default function NavLogView({
   // (3h 22m)", as the pilot asked -- from the departure time picked, or
   // from now while it is "Now", which is what the plan is flown for then.
   const arrival = totals?.ete_min != null ? etaAt(depart || new Date().toISOString(), totals.ete_min) : null;
-  const foldedSummary = parts && (
+  const foldedSummary = !parts && unflyable ? (
+    <span className="text-destructive" data-testid="navlog-unflyable-summary">No legal VFR altitude</span>
+  ) : parts && (
     <span className="pointer-coarse:text-[0.8125rem] pointer-coarse:leading-[1.125rem]">
       {([
         ["Dist", parts.distance],
@@ -402,6 +450,14 @@ export default function NavLogView({
   if (pick !== openedFor) {
     setOpenedFor(pick);
     if (pick && !open.includes("Nav Log")) setOpen([...open, "Nav Log"]);
+  }
+  // And when no plan has an altitude: its reasons are at the head of the
+  // section, and the section's title the only other place it is said.
+  const why = unflyable?.title ?? null;
+  const [openedForWhy, setOpenedForWhy] = useState<string | null>(null);
+  if (why !== openedForWhy) {
+    setOpenedForWhy(why);
+    if (why && !open.includes("Nav Log")) setOpen([...open, "Nav Log"]);
   }
   const [printing, setPrinting] = useState(false);
   useEffect(() => {
@@ -465,37 +521,7 @@ export default function NavLogView({
             </span>
           </Button>
         ))}
-        {/* The pilot's own altitude, one number for the
-            whole route: a row under the four plans,
-            pressed while it is what the log flies.
-            Enter or Fly re-plans at it; the stock Input's
-            16px below md keeps a phone from zooming. */}
-        <form
-          className={cn(
-            "flex items-center gap-2 rounded-md border px-2 py-1.5",
-            nav.flown === "custom" ? "border-primary bg-primary text-primary-foreground" : "border-input",
-          )}
-          onSubmit={e => { e.preventDefault(); onSubmit(); }}
-          aria-label="Custom altitude"
-        >
-          <span className={cn("font-semibold", TEXT.row)}>Custom</span>
-          <Input
-            value={alt}
-            onChange={e => onAltChange(e.target.value)}
-            placeholder="ft"
-            inputMode="numeric"
-            spellCheck={false}
-            aria-label="Cruise altitude, feet"
-            className="ml-auto h-8 w-24 bg-background text-right text-foreground"
-            data-testid="custom-altitude"
-          />
-          <Button
-            type="submit" size="sm" variant={nav.flown === "custom" ? "secondary" : "outline"}
-            disabled={!alt.trim()} data-testid="custom-altitude-fly"
-          >
-            Fly
-          </Button>
-        </form>
+        <CustomAltitude alt={alt} onAltChange={onAltChange} onSubmit={onSubmit} pressed={nav.flown === "custom"} />
       </div>
       <div className={cn("mb-2 font-semibold uppercase tracking-wide text-muted-foreground", TEXT.note)}>How the altitude was chosen</div>
       <AltitudeReasoning nav={nav} legs={legs} />
@@ -847,6 +873,24 @@ export default function NavLogView({
   // table is the rest, as the pilot asked. (The altitude, which opens how
   // it was chosen, is the Alt column's head.)
   const cloudsUnplaced = !!nav && !nav.altitude_selection.cloud_clearance_kept && !perLeg;
+  // No plan has a legal altitude: where, why as a list, and what to do --
+  // with the pilot's own altitude to plan it anyway, as the advice says,
+  // since with no plan there is no Alt heading to open for it.
+  const unflyableNote = unflyable && (
+    <div className="mb-3 space-y-3" data-testid="navlog-unflyable">
+      <ListGroup footer={unflyable.advice ?? undefined}>
+        <ListRow
+          title={<span className="font-semibold text-destructive">{unflyable.title}</span>}
+          description={unflyable.reasons.length > 0 && (
+            <ul className="mt-1 list-disc space-y-1 pl-5">
+              {unflyable.reasons.map(reason => <li key={reason}>{reason}</li>)}
+            </ul>
+          )}
+        />
+      </ListGroup>
+      <CustomAltitude alt={alt} onAltChange={onAltChange} onSubmit={onSubmit} pressed={false} />
+    </div>
+  );
   const summary = (!!parts?.warning || cloudsUnplaced) && (
     <div className="mb-3" data-testid="navlog-summary">
       <ListGroup>
@@ -939,6 +983,7 @@ export default function NavLogView({
         {notice}
         <Accordion type="multiple" value={printing ? ALL_SECTIONS : open} onValueChange={setOpen}>
           <AccordionSection title="Nav Log" summary={foldedSummary}>
+            {unflyableNote}
             {summary}
             {navLogTable}
             {fuelNote}

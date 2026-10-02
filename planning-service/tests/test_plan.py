@@ -212,6 +212,8 @@ def test_navlog_reports_an_unflyable_route_as_an_error_line(monkeypatch, altitud
     last = messages(resp)[-1]
     assert last["type"] == "error"
     assert "No legal VFR cruising altitude" in last["detail"]
+    # Why, and what to do, apart from the headline: the page lists them.
+    assert last["advice"]
     # Asking again gets the same answer: no Try again on the page.
     assert last["retry"] is False
 
@@ -342,8 +344,15 @@ def test_no_altitude_says_where_and_why_in_a_pilots_words():
          "band_ceiling_ft": 14000.0, "course_magnetic_deg": 255.0, "eastbound": False, "candidates_ft": []},
     ]}
 
-    detail = planning.no_altitude_detail(selection)
+    why = planning.no_altitude(selection)
 
-    assert detail.startswith("No legal VFR cruising altitude 980-1040 nm along the route")
-    assert "need 13,700 ft" in detail and "14,500 ft" in detail and "service ceiling stops at 14,000 ft" in detail
+    assert why["title"] == "No legal VFR cruising altitude 980-1040 nm along the route"
+    assert why["reasons"] == [
+        "The terrain and obstacles there need 13,700 ft.",
+        "The first westbound VFR altitude above that is 14,500 ft.",
+        "The aircraft's service ceiling stops at 14,000 ft.",
+    ]
+    # One message for /api/plan's 422, which the agents read.
+    detail = planning.no_altitude_detail(selection)
+    assert detail.startswith("No legal VFR cruising altitude 980-1040 nm along the route. The terrain")
     assert "altitude_ft" not in detail

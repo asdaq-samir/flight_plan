@@ -31,7 +31,11 @@ export const queryClient = new QueryClient({
     onError: (error, query) => {
       const silent = query.meta?.silent;
       if (silent === true || (typeof silent === "function" && silent(error))) return;
-      failed(describeError(error), retryable(error));
+      // A failure the page lists the reasons for (a nav log with no legal
+      // altitude): its headline, and where the rest is. It was the whole
+      // of it, a paragraph gone in ten seconds.
+      const listed = error instanceof ApiError && error.advice !== null;
+      failed(describeError(error), retryable(error), listed ? "The Nav Log says why, and what to do." : undefined);
     },
   }),
   mutationCache: new MutationCache({
@@ -55,9 +59,10 @@ export const queryClient = new QueryClient({
  * query that happened to toast last. When a single call fails on its
  * own, that is still exactly one retry.
  */
-function failed(message: string, retry: boolean) {
+function failed(message: string, retry: boolean, description?: string) {
   toast.error(message, {
     id: `failed:${message}`,
+    description,
     duration: 10000,
     action: retry ? {
       label: "Try again",

@@ -21,7 +21,7 @@ from vfr.weather import WeatherServiceError
 from ..common import DEFAULT_AIRCRAFT, line, load_route, ndjson
 from ..planning import (
     COMPUTE_LIMIT_S, StillComputing, aircraft_profile, altitude_plans, altitude_waiting_on, course_line,
-    cruise_altitude, flight_totals, flight_window, forecast_hour_for, no_altitude_detail,
+    cruise_altitude, flight_totals, flight_window, forecast_hour_for, no_altitude, no_altitude_detail,
 )
 from ..schemas import (
     AltitudeBreakdown,
@@ -417,7 +417,8 @@ def navlog_stream(q: Annotated[PlanQuery, Depends()]) -> StreamingResponse:
 
         aircraft_line = {"name": q.aircraft, **profile}
         if isinstance(outcome, Unflyable):
-            yield line(NavLogError(detail=no_altitude_detail(outcome.selection), retry=False))
+            why = no_altitude(outcome.selection)
+            yield line(NavLogError(detail=why["title"], reasons=why["reasons"], advice=why["advice"], retry=False))
             return
         if isinstance(outcome, NoWinds):
             # The selection stands -- terrain, airspace, the legal

@@ -396,7 +396,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       descriptionsLoading={s.descriptionProgress !== null}
       selectedPoint={selectedPoint} onSelectPoint={(lat, lon) => selectPoint({ lat, lon })}
       onDeselectPoint={() => selectPoint(null)}
-      drawerOpen={panelOpen}
+      drawerOpen={panelOpen} unflyable={s.unflyable}
       alt={alt} onAltChange={setAlt} onSubmit={submit}
       aircraftLabel={aircraft.label}
       notice={<BriefingNotices briefing={s.briefing} />}

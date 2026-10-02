@@ -359,36 +359,54 @@ def forecast_hour_for(depart: datetime | None) -> str:
     return weather.forecast_hour((depart - datetime.now(timezone.utc)).total_seconds() / 3600)
 
 
-def no_altitude_detail(selection: dict) -> str:
-    """Why no plan has an altitude, in a pilot's words: where along the
-    route it fails and what meets there -- the terrain's floor, the first
-    VFR altitude above it on that course, and what stops the climb. It
-    gave the whole route's highest floor beside its lowest ceiling ("floor
-    13700 ft, ceiling 3000.0 ft" for Chicago to Las Vegas: the Rockies'
-    floor beside the Chicago Class B shelf, a thousand miles apart) and
-    asked for a query parameter."""
+def no_altitude(selection: dict) -> dict:
+    """Why no plan has an altitude, in a pilot's words, in three parts: a
+    headline saying where along the route it fails, the reasons there as
+    short sentences -- the terrain's floor, the first VFR altitude above
+    it on that course, what stops the climb -- and what to do about it.
+    The page lists the reasons under the headline in the nav log, where
+    they stay; it was one long sentence in a toast that went before it
+    could be read. It gave the whole route's highest floor beside its
+    lowest ceiling ("floor 13700 ft, ceiling 3000.0 ft" for Chicago to
+    Las Vegas: the Rockies' floor beside the Chicago Class B shelf, a
+    thousand miles apart) and asked for a query parameter."""
     prohibited = [a["name"] for a in selection.get("special_use", []) if a.get("type") == "P"]
     if prohibited:
-        return (
-            f"The route crosses prohibited airspace ({', '.join(prohibited)}), which no VFR "
-            "altitude may enter. Plan around it."
-        )
+        return {
+            "title": "The route crosses prohibited airspace",
+            "reasons": [f"{name} is closed to every VFR altitude." for name in prohibited],
+            "advice": "Plan around it.",
+        }
     stuck = next((s for s in selection.get("segments", []) if not s.get("candidates_ft")), None)
     course = (stuck or {}).get("course_magnetic_deg", selection.get("course_magnetic_deg"))
     floor, top = (stuck or {}).get("floor_ft"), (stuck or {}).get("band_ceiling_ft")
     if stuck is None or None in (course, floor, top):
-        return ("No legal VFR cruising altitude fits this route in this aircraft. "
-                "Set a cruise altitude of your own to plan it anyway.")
+        return {
+            "title": "No legal VFR cruising altitude fits this route in this aircraft",
+            "reasons": [],
+            "advice": "Set a cruise altitude of your own to plan it anyway.",
+        }
     lowest = altitude_module.lowest_vfr_cruising_altitude(floor, course)
-    stops = ("the aircraft's service ceiling" if top == stuck.get("service_ceiling_ft")
-             else "the airspace over it" if top == stuck.get("airspace_ceiling_ft") else "the cloud base")
+    stops = ("The aircraft's service ceiling" if top == stuck.get("service_ceiling_ft")
+             else "The airspace over it" if top == stuck.get("airspace_ceiling_ft") else "The cloud base")
     heading = "eastbound" if stuck.get("eastbound") else "westbound"
-    return (
-        f"No legal VFR cruising altitude {stuck['from_nm']:.0f}-{stuck['to_nm']:.0f} nm along the route: "
-        f"the terrain and obstacles there need {floor:,.0f} ft, the first {heading} VFR altitude above that "
-        f"is {lowest:,.0f} ft, and {stops} stops at {top:,.0f} ft. Route around the high ground, "
-        "or set a cruise altitude of your own to plan it anyway."
-    )
+    return {
+        "title": f"No legal VFR cruising altitude {stuck['from_nm']:.0f}-{stuck['to_nm']:.0f} nm along the route",
+        "reasons": [
+            f"The terrain and obstacles there need {floor:,.0f} ft.",
+            f"The first {heading} VFR altitude above that is {lowest:,.0f} ft.",
+            f"{stops} stops at {top:,.0f} ft.",
+        ],
+        "advice": "Route around the high ground, or set a cruise altitude of your own to plan it anyway.",
+    }
+
+
+def no_altitude_detail(selection: dict) -> str:
+    """no_altitude as one message, for /api/plan's 422 and the agents
+    that read it."""
+    parts = no_altitude(selection)
+    reasons = " ".join(parts["reasons"])
+    return f"{parts['title']}. {reasons + ' ' if reasons else ''}{parts['advice']}"
 
 
 def course_line(start: tuple, end: tuple, step_nm: float = 5.0) -> list:

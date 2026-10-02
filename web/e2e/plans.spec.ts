@@ -168,3 +168,47 @@ test("plan page: the nav log is computed for an aeroplane the pilot picks in its
   await expectDrawerOpen(page);
   await expect(page.getByTestId("aircraft-select")).toContainText("PA28");
 });
+
+test("plan page: no legal altitude is a short toast, and the nav log opens on why, as a list, with the pilot's own altitude to plan it anyway", async ({ page }) => {
+  // The planner's answer for Chicago to Las Vegas in a 172, without the
+  // minutes of terrain and winds it takes to reach it.
+  await page.route("**/api/planner/navlog**", route => route.fulfill({
+    status: 200, contentType: "application/x-ndjson",
+    body: [
+      { type: "stage", detail: "Planning cruise altitudes…" },
+      {
+        type: "error", retry: false, detail: "No legal VFR cruising altitude 830-858 nm along the route",
+        reasons: [
+          "The terrain and obstacles there need 10,600 ft.",
+          "The first westbound VFR altitude above that is 12,500 ft.",
+          "The aircraft's service ceiling stops at 11,700 ft.",
+        ],
+        advice: "Route around the high ground, or set a cruise altitude of your own to plan it anyway.",
+      },
+    ].map(m => JSON.stringify(m)).join("\n") + "\n",
+  }));
+  await page.goto("/app/plan?dep=C81&dest=KDLH");
+
+  // The toast: the headline, and where the rest is -- with no Try again.
+  const toast = page.locator("[data-sonner-toast]", { hasText: "No legal VFR cruising altitude" });
+  await expect(toast).toBeVisible({ timeout: slow(30000) });
+  await expect(toast).toContainText("The Nav Log says why");
+  await expect(toast).not.toContainText("terrain");
+  await expect(toast.getByRole("button", { name: "Try again" })).toHaveCount(0);
+
+  // The nav log, open on it: the reasons a list, the advice under them.
+  await page.getByTestId("sidebar-trigger-button").click();
+  const why = sideDrawer(page).getByTestId("navlog-unflyable");
+  await expect(why).toBeVisible();
+  await expect(why.getByRole("listitem")).toHaveText([
+    "The terrain and obstacles there need 10,600 ft.",
+    "The first westbound VFR altitude above that is 12,500 ft.",
+    "The aircraft's service ceiling stops at 11,700 ft.",
+  ]);
+  await expect(why).toContainText("Route around the high ground");
+
+  // Planned anyway, at the pilot's own altitude.
+  await why.getByTestId("custom-altitude").fill("12500");
+  await why.getByTestId("custom-altitude-fly").click();
+  await expect(page).toHaveURL(/[?&]altitude_ft=12500/);
+});

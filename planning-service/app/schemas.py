@@ -616,11 +616,15 @@ class NavLogStage(BaseModel):
 class NavLogError(BaseModel):
     """The stream's failure. `retry` False where asking again gets the
     same answer -- a route with no legal altitude -- so the page offers
-    no Try again for it."""
+    no Try again for it. For that one `detail` is the headline, and
+    `reasons` and `advice` say why and what to do: the page lists them in
+    the nav log (app.planning.no_altitude)."""
 
     type: Literal["error"] = "error"
     detail: str
     retry: bool = True
+    reasons: list[str] = []
+    advice: str | None = None
 
 
 class NavLogAltitude(BaseModel):

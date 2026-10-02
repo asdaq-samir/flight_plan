@@ -3242,11 +3242,31 @@
         "type": "object"
       },
       "NavLogError": {
-        "description": "The stream's failure. `retry` False where asking again gets the\nsame answer -- a route with no legal altitude -- so the page offers\nno Try again for it.",
+        "description": "The stream's failure. `retry` False where asking again gets the\nsame answer -- a route with no legal altitude -- so the page offers\nno Try again for it. For that one `detail` is the headline, and\n`reasons` and `advice` say why and what to do: the page lists them in\nthe nav log (app.planning.no_altitude).",
         "properties": {
+          "advice": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Advice"
+          },
           "detail": {
             "title": "Detail",
             "type": "string"
+          },
+          "reasons": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Reasons",
+            "type": "array"
           },
           "retry": {
             "default": true,
