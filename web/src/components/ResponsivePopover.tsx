@@ -23,13 +23,18 @@ import { TEXT } from "../lib/text";
 /** The edge the sheet comes from on a phone; from `md` up, none. */
 const OnPhone = createContext<NavEdge | null>(null);
 
-export function ResponsivePopover({ children, open, onOpenChange }: {
+export function ResponsivePopover({ children, open, onOpenChange, phoneEdge }: {
   children: ReactNode;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
+  /** The edge a phone's sheet comes from, where it is not the navigation
+   *  bar's: a search typed into comes from the top, clear of the
+   *  keyboard, as Maps' search sheet stands. */
+  phoneEdge?: NavEdge;
 }) {
   const isMobile = useIsMobile();
-  const edge = useNavEdge();
+  const navEdge = useNavEdge();
+  const edge = phoneEdge ?? navEdge;
   return (
     <OnPhone.Provider value={isMobile ? edge : null}>
       {isMobile
