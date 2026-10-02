@@ -15,7 +15,6 @@ import { useIsMobile } from "../../hooks/use-mobile";
 import { useIsTablet } from "../../hooks/use-tablet";
 import { useNavEdge } from "../../hooks/use-nav-edge";
 import { usePreferences } from "../../lib/preferences";
-import AccountGroup from "../pilot/AccountGroup";
 import ConsoleHeader from "../pilot/ConsoleHeader";
 import LinkSignIn from "../pilot/LinkSignIn";
 import PlanWorkspace from "../plan/PlanWorkspace";
@@ -170,7 +169,7 @@ export default function MapPage({ mode }: { mode: Mode }) {
     const content = (
       <>
         <ConsoleHeader console={consoleLabel} />
-        <ConsoleSettingsContext.Provider value={<SettingsPanel page={pieces.settings} account={<AccountGroup />} />}>
+        <ConsoleSettingsContext.Provider value={<SettingsPanel page={pieces.settings} />}>
           <AfterTheSheet>{pieces.console}</AfterTheSheet>
         </ConsoleSettingsContext.Provider>
       </>

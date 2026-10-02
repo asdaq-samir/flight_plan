@@ -18,7 +18,7 @@ import { MapShell, type ShowSelected } from "../../../lib/map/MapShell";
 import { MapTooltip } from "../../../lib/map/MapTooltip";
 import { OwnShipLayer } from "../../../lib/map/OwnShipLayer";
 import { useCardedMarker } from "../../../lib/map/useCardedMarker";
-import { useMarkerZooms, useZoomLevel } from "../../../lib/map/useZoomLevel";
+import { CROWD_ZOOM, useZoomLevel } from "../../../lib/map/useZoomLevel";
 import { usePreferences } from "../../../lib/preferences";
 import { inkOn } from "../../../lib/scoreScale";
 import { scoreColor } from "../format";
@@ -27,7 +27,6 @@ interface Props {
   course: Course | null;
   candidates: Candidate[];
   selected: Candidate[];
-  showCandidates: boolean;
   focus: { lat: number; lon: number } | null;
   /** A selected checkpoint marker's own half of row selection -- the
    *  sidebar list already focuses the map when a row is clicked; this
@@ -144,20 +143,21 @@ function Endpoints({ course, weather, onSelectPoint }: { course: Course; weather
   );
 }
 
-/** The candidates and the chosen checkpoints, each from its own zoom
- *  in (see `useZoomLevel`). Hovering previews the same card a tap
- *  opens, the way Class B airports do -- `useCardedMarker` takes the
- *  preview away once that marker's own popup is open, so the two
- *  never draw at once. */
-function Checkpoints({ candidates, selected, showCandidates, onSelectCandidate }: Pick<Props, "candidates" | "selected" | "showCandidates" | "onSelectCandidate">) {
+/** The chosen checkpoints at every zoom, and the candidates they were
+ *  chosen from closer in (CROWD_ZOOM), or neither: the settings' Show
+ *  checkpoints. Hovering previews the same card a tap opens, the way
+ *  Class B airports do -- `useCardedMarker` takes the preview away once
+ *  that marker's own popup is open, so the two never draw at once. */
+function Checkpoints({ candidates, selected, onSelectCandidate }: Pick<Props, "candidates" | "selected" | "onSelectCandidate">) {
   const zoom = useZoomLevel();
-  const { markers, crowd } = useMarkerZooms();
+  const show = usePreferences(s => s.checkpoints);
   const { carded, cardEvents } = useCardedMarker<string>();
+  if (!show) return null;
   return (
     <>
       {/* Every point the model scored, small and dim: the selection is
           only judgable next to what it was selecting from. */}
-      {showCandidates && zoom >= crowd && candidates.filter(c => !c.selected).map(c => {
+      {zoom >= CROWD_ZOOM && candidates.filter(c => !c.selected).map(c => {
         const key = `${c.lat},${c.lon}`;
         return (
           <CircleMarker
@@ -170,7 +170,7 @@ function Checkpoints({ candidates, selected, showCandidates, onSelectCandidate }
           </CircleMarker>
         );
       })}
-      {zoom >= markers && selected.map((c, i) => {
+      {selected.map((c, i) => {
         const key = `${c.lat},${c.lon}`;
         return (
           <Marker
@@ -194,7 +194,7 @@ function Checkpoints({ candidates, selected, showCandidates, onSelectCandidate }
  * is `MapShell`, which the training map shares.
  */
 export default function RouteMap({
-  course, candidates, selected, showCandidates, focus, onSelectCandidate, onSelectPoint,
+  course, candidates, selected, focus, onSelectCandidate, onSelectPoint,
   zoom, airportWeather, place, onSelectPlace,
 }: Props) {
   const focusZoom = course?.max_zoom ?? 12;
@@ -209,7 +209,7 @@ export default function RouteMap({
           />
           <AirportsLayer selected={place} onSelect={onSelectPlace} />
           <Endpoints course={course} weather={airportWeather} onSelectPoint={onSelectPoint} />
-          <Checkpoints candidates={candidates} selected={selected} showCandidates={showCandidates} onSelectCandidate={onSelectCandidate} />
+          <Checkpoints candidates={candidates} selected={selected} onSelectCandidate={onSelectCandidate} />
           <OwnShipLayer />
           {focus && <Halo at={focus} />}
           <FocusOn point={focus} zoom={focusZoom} />

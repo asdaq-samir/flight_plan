@@ -23,23 +23,6 @@ export const BASE_CHARTS: { kind: BaseChart; label: string }[] = [
   { kind: "ifr_high", label: "IFR high" },
 ];
 
-/** How far in the map has to be before the markers draw, as a Leaflet
- *  zoom level. Zoomed out to a whole region a route's checkpoints pile
- *  into one blob and a corridor's few hundred detections hide the
- *  chart, which is why there is a floor at all -- but how far out is
- *  too far depends on the route and on what you are doing, so it is a
- *  setting rather than a constant. `0` is every zoom. */
-export const MARKER_ZOOMS: { from: number; label: string }[] = [
-  { from: 0, label: "Every zoom" },
-  { from: 4, label: "Whole route" },
-  { from: 6, label: "Close in" },
-  { from: 9, label: "Very close in" },
-];
-
-/** What the map has always done, kept as the default: a 300 nm route
- *  fits a phone at about this zoom. */
-const DEFAULT_MARKER_ZOOM = 6;
-
 /** The screen edge the map panel is on -- and so what the consoles and
  *  panels come in from, and which edge the map's buttons keep clear
  *  of (useNavEdge). */
@@ -55,8 +38,11 @@ interface Preferences {
    *  over the sectional, the IFR area chart over an IFR chart) is
    *  pinned: drawn at every zoom it exists at. */
   tac: boolean;
-  /** The zoom the markers start drawing at -- see MARKER_ZOOMS. */
-  markerZoom: number;
+  /** Whether the planner draws the route's checkpoints, at every zoom
+   *  (and the landmarks they were chosen from, closer in: CROWD_ZOOM).
+   *  It was a zoom level they started at, from a menu of four, and a
+   *  switch for the landmarks of their own. */
+  checkpoints: boolean;
   /** Whether the Class B airports are drawn, with their current flight
    *  category and a terminal chart on hover. Off by default: useful on
    *  a route that passes near one, clutter on a route that does not. */
@@ -71,7 +57,7 @@ interface Preferences {
   navBar: NavEdge | null;
   setBase: (base: BaseChart) => void;
   setTac: (tac: boolean) => void;
-  setMarkerZoom: (markerZoom: number) => void;
+  setCheckpoints: (checkpoints: boolean) => void;
   setClassB: (classB: boolean) => void;
   setAircraft: (aircraft: AircraftChoice) => void;
   setFilter: (key: FilterKey, on: boolean) => void;
@@ -85,7 +71,7 @@ export const usePreferences = create<Preferences>()(
     set => ({
       base: "sec",
       tac: false,
-      markerZoom: DEFAULT_MARKER_ZOOM,
+      checkpoints: true,
       classB: false,
       aircraft: DEFAULT_AIRCRAFT,
       filters: DEFAULT_FILTERS,
@@ -94,7 +80,7 @@ export const usePreferences = create<Preferences>()(
       navBar: null,
       setBase: base => set({ base }),
       setTac: tac => set({ tac }),
-      setMarkerZoom: markerZoom => set({ markerZoom }),
+      setCheckpoints: checkpoints => set({ checkpoints }),
       setClassB: classB => set({ classB }),
       setAircraft: aircraft => set({ aircraft }),
       setFilter: (key, on) => set(s => ({ filters: { ...s.filters, [key]: on } })),
@@ -106,7 +92,7 @@ export const usePreferences = create<Preferences>()(
       name: "vfr.preferences",
       // The functions are not state; only the values are written.
       partialize: s => ({
-        base: s.base, tac: s.tac, markerZoom: s.markerZoom, classB: s.classB, aircraft: s.aircraft, filters: s.filters, devTab: s.devTab, pilotTab: s.pilotTab, navBar: s.navBar,
+        base: s.base, tac: s.tac, checkpoints: s.checkpoints, classB: s.classB, aircraft: s.aircraft, filters: s.filters, devTab: s.devTab, pilotTab: s.pilotTab, navBar: s.navBar,
       }),
     },
   ),

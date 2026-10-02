@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { modeToggle, openSettings } from "./helpers";
+import { closeConsole, roleMenu } from "./helpers";
 
 /**
  * Who is offered the developer's workspace.
@@ -20,16 +20,16 @@ import { modeToggle, openSettings } from "./helpers";
  * signin.spec.ts for it unmocked).
  */
 
-/** Dev mode: Pilot and Developer in the console's title. */
-const devSwitch = (page: Page) => page.getByTestId("mode-toggle");
+/** Dev mode: Developer in the console's role menu. */
+const devSwitch = (page: Page) => page.getByRole("menuitemradio", { name: "Developer" });
 
 /** The console drawn without it: the Settings button is there (the
- *  header has rendered with who is signed in known), and the control
- *  has not followed within a moment. It used to be a flat three
- *  seconds. */
+ *  header has rendered with who is signed in known), the role menu
+ *  opened if there is one, and Developer has not followed within a
+ *  moment. It used to be a flat three seconds. */
 async function noDevSwitch(page: Page) {
   await expect(page.getByTestId("settings-button")).toBeVisible();
-  await modeToggle(page);
+  await roleMenu(page);
   await page.waitForTimeout(500);
   await expect(devSwitch(page)).toHaveCount(0);
 }
@@ -52,7 +52,7 @@ const A_DEVELOPER = { id: 2, email: "dev@example.com", displayName: "A Developer
 test("with no way to sign in and everything opened, the switch is there", async ({ page }) => {
   await withAuth(page, { access: "OPEN", pilot: null });
   await page.goto("/app/plan");
-  await openSettings(page);
+  await roleMenu(page);
   await expect(devSwitch(page)).toBeVisible({ timeout: 15000 });
 });
 
@@ -81,7 +81,7 @@ test("a signed-in pilot does not get it either", async ({ page }) => {
 test("a signed-in developer does", async ({ page }) => {
   await withAuth(page, { access: "SIGN_IN", pilot: A_DEVELOPER });
   await page.goto("/app/plan");
-  await openSettings(page);
+  await roleMenu(page);
   await expect(devSwitch(page)).toBeVisible({ timeout: 15000 });
 });
 
@@ -92,7 +92,7 @@ test("the header holds together without it", async ({ page }) => {
   await withAuth(page, { access: "SIGN_IN", pilot: A_PILOT });
   await page.goto("/app/plan");
   await noDevSwitch(page);
-  await page.keyboard.press("Escape");
+  await closeConsole(page);
 
   await expect(devSwitch(page)).toHaveCount(0);
   await expect(page.getByLabel("Departure", { exact: true })).toBeVisible();

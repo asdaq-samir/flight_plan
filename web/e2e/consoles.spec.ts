@@ -16,8 +16,7 @@ test("signed in, each console fits the screen's width: nothing but a table's own
   for (const [path, button] of [["/app/plan", "settings-button"], ["/app/dev", "settings-button"]] as const) {
     await page.goto(path);
     await page.getByTestId(button).click();
-    await consoleSheet(page).getByRole("tab", { name: "Settings" }).click();
-    await expect(consoleSheet(page).getByTestId("account-address")).toHaveText("developer@example.com");
+    await expect(consoleSheet(page).getByTestId("pilot-address")).toHaveText("developer@example.com");
     const past = await consoleSheet(page).evaluate(sheet => {
       const edge = document.documentElement.clientWidth + 1;
       return [...sheet.querySelectorAll("*")]
@@ -39,16 +38,17 @@ test("plan page: the pilot console holds the account, aeroplanes and flights, an
   const pilot = consoleSheet(page);
   await expect(pilot).toBeVisible();
   await expect(page.getByTestId("settings-button")).toHaveAttribute("aria-expanded", "true");
-  // For a developer the title is Pilot and Developer, Pilot chosen
-  // here (the console is still named for a screen reader); who is
-  // signed in, and Log out, are the first group of the settings, as iOS
-  // has the account.
-  await expect(pilot.getByTestId("mode-toggle").getByRole("radio", { name: "Pilot" })).toHaveAttribute("aria-checked", "true");
+  // The title is the role, a menu: Pilot (chosen here), Developer for a
+  // developer, and Sign out last; who is signed in beside it.
   await expect(page.getByRole("dialog", { name: "Pilot" })).toBeVisible();
-  await expect(pilot.getByText("developer@example.com")).toHaveCount(0);
-  await pilot.getByRole("tab", { name: "Settings" }).click();
-  await expect(pilot.getByTestId("account-address")).toHaveText("developer@example.com");
-  await expect(pilot.getByTestId("log-out")).toBeVisible();
+  await expect(pilot.getByTestId("role-menu")).toHaveText("Pilot");
+  await expect(pilot.getByTestId("pilot-address")).toHaveText("developer@example.com");
+  await pilot.getByTestId("role-menu").click();
+  await expect(page.getByRole("menuitemradio", { name: "Pilot" })).toHaveAttribute("aria-checked", "true");
+  await expect(page.getByRole("menuitemradio", { name: "Developer" })).toHaveAttribute("aria-checked", "false");
+  await expect(page.getByRole("menuitem", { name: "Sign out" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("menuitem", { name: "Sign out" })).toHaveCount(0);
   // The guide first, where someone new to the planner starts.
   await expect(pilot.getByRole("tab").first()).toHaveText("Guide");
   await pilot.getByRole("tab", { name: "Aircraft" }).click();
@@ -76,9 +76,7 @@ test("the navigation bar's edge is a setting: the panel moves to it, the map's b
   if (!viewport) throw new Error("no viewport configured");
   const phone = viewport.width < 768;
   await openSettings(page);
-  // iOS's pop-up menu at the row's end.
-  await page.getByTestId("nav-bar-select").click();
-  await page.getByRole("option", { name: phone ? "Top" : "Bottom" }).click();
+  await page.getByTestId("nav-bar-select").getByRole("radio", { name: phone ? "Top" : "Bottom" }).click();
   await page.keyboard.press("Escape");
   await expect(page.locator("[data-slot=drawer-content], [data-slot=popover-content], [data-testid=console-sheet]")).toHaveCount(0);
 
@@ -105,7 +103,8 @@ test("the navigation bar's edge is a setting: the panel moves to it, the map's b
   // Remembered per browser.
   await page.reload();
   await settle(page);
-  expect((await page.locator("header").boundingBox())!.y).toBe(header.y);
+  // To the pixel: the panel settles to a fraction of one after a load.
+  expect(Math.abs((await page.locator("header").boundingBox())!.y - header.y)).toBeLessThan(1);
 });
 
 test("the console holds still as its tabs change: up from the bottom of a phone's screen, down from the top of a desktop's", async ({ page }) => {

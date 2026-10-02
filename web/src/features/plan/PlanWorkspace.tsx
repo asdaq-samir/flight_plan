@@ -125,7 +125,6 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     (point: { lat: number; lon: number } | null) => setSelection(point && { route: routeKey, point }),
     [routeKey],
   );
-  const [showCandidates, setShowCandidates] = useState(true);
 
   // The airport whose card is open in the panel (PlaceCard), as Maps
   // opens a place's: from a tap on the chart, held in the address so a
@@ -324,7 +323,6 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           course={course}
           candidates={s.candidates}
           selected={selected}
-          showCandidates={showCandidates}
           focus={selectedPoint}
           onSelectCandidate={selectCandidate}
           onSelectPoint={(lat, lon) => selectPoint({ lat, lon })}
@@ -373,7 +371,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       </>
     ),
     console: <PilotPanel />,
-    settings: { candidates: { on: showCandidates, onToggle: setShowCandidates }, ownShip: true },
+    settings: { checkpoints: true, ownShip: true },
     submit,
     loading: s.stage !== null,
     notices: s.sameAirport ? (

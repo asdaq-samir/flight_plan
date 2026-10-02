@@ -60,15 +60,35 @@ export async function expandConsole(page: Page) {
   await sheet.evaluate(el => Promise.all(el.getAnimations().map(a => a.finished)));
 }
 
-/** A developer's Pilot and Developer, in the console's title (the
- *  segmented control dev mode is now): the console opened first, unless
- *  it is out already. Present or absent, it is looked for with the
- *  console out. */
-export async function modeToggle(page: Page) {
+/** The console's title, a menu of roles -- Pilot, Developer for whoever
+ *  may use dev mode, then Sign out for whoever is signed in -- opened,
+ *  with the console out first. Nobody signed in and no dev mode, there
+ *  is no menu (the title is plain), and neither item is there. Escape
+ *  closes the menu; closeConsole puts the console away after it. */
+export async function roleMenu(page: Page) {
   const sheet = page.getByTestId("console-sheet");
   if (!(await sheet.isVisible())) await page.getByTestId("settings-button").click();
   await expect(sheet).toBeVisible();
-  return sheet.getByTestId("mode-toggle");
+  const trigger = sheet.getByTestId("role-menu");
+  // The menu comes with who is signed in, or dev mode, once known.
+  await trigger.waitFor({ timeout: 3000 }).catch(() => {});
+  if (await trigger.count()) {
+    await trigger.click();
+    await expect(page.getByRole("menu")).toBeVisible();
+  }
+  return {
+    pilot: page.getByRole("menuitemradio", { name: "Pilot" }),
+    developer: page.getByRole("menuitemradio", { name: "Developer" }),
+  };
+}
+
+/** Escape until the console is away: a menu open in it takes the first. */
+export async function closeConsole(page: Page) {
+  const sheet = page.getByTestId("console-sheet");
+  await expect(async () => {
+    if (await sheet.count()) await page.keyboard.press("Escape");
+    await expect(sheet).toHaveCount(0, { timeout: 1000 });
+  }).toPass({ timeout: 10000 });
 }
 /** The console: a stock Sheet from the top from `md` up, a sheet up from
  *  the bottom edge on a phone (shadcn's Drawer). */

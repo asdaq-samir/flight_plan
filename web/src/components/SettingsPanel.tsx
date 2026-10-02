@@ -1,18 +1,18 @@
-import { useId, type ReactNode } from "react";
-import { Monitor, Moon, Sun } from "lucide-react";
+import { useId } from "react";
+import { CloudSun, Map as MapIcon, Monitor, Moon, PanelBottom, PanelTop, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
 import { ListGroup, ListRow } from "./GroupedList";
-import Segmented from "./Segmented";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
+import Segmented, { SegmentedMany } from "./Segmented";
 import { Switch } from "./ui/switch";
 import { useNavEdge } from "../hooks/use-nav-edge";
 import { ownShipAvailable, useOwnShip } from "../lib/map/ownShip";
-import { BASE_CHARTS, MARKER_ZOOMS, usePreferences, type BaseChart, type NavEdge } from "../lib/preferences";
+import { BASE_CHARTS, usePreferences, type BaseChart, type NavEdge } from "../lib/preferences";
 
-/** What a page adds to the settings: the planner's every-landmark switch
- *  and own ship. The training page adds nothing. */
+/** What a page adds to the settings: the planner's Show checkpoints
+ *  and own ship. The training page, whose map is its detections, adds
+ *  nothing. */
 export interface PageSettings {
-  candidates?: { on: boolean; onToggle: (on: boolean) => void };
+  checkpoints?: boolean;
   ownShip?: boolean;
 }
 
@@ -21,44 +21,40 @@ export interface PageSettings {
  * iOS lays out Settings: a few groups under short headings, each a
  * rounded box of rows with a hairline between them, one label per row
  * with its control at the row's end, and at most a line of help. A
- * switch for anything on or off; a segmented control where the choices
- * are worth seeing side by side and change often (the chart, the
- * theme); iOS's pop-up menu for a value set once in a while (the zoom
- * level, the navigation bar's edge) -- the two menus had been an
- * outlined field and a segmented control, and the segments squeezed
- * the navigation bar's help to four lines. A row that only means
- * something once another is on is not shown until it is. The account
- * first (`account`, the page's); then the map, what is changed most
- * while planning; the checkpoints, appearance, and the pilot's own
- * position. Everything but the account is remembered per browser. Dev
- * mode was a switch here; it is the Pilot and Developer control in the
- * console's title now (ConsoleHeader).
+ * switch for anything on or off, and a segmented control for two or
+ * three choices, all on show and one tap each. A row that only means
+ * something once another is on is not shown until it is. Appearance
+ * first -- the theme and the layout, the two that change how all of it
+ * looks -- then the map, with the planner's Show checkpoints in it, and
+ * the pilot's own position. Everything here is remembered per browser.
  *
- * It replaced a column of headings, checkboxes, dropdowns and a
- * paragraph under nearly every control, twice the height, where a
- * two-way choice took two taps in a menu.
+ * Who is signed in, the role (dev mode) and Sign out are the
+ * console's title row (ConsoleHeader). The checkpoints were a group
+ * of their own, a menu of four zoom levels and a switch for the
+ * landmarks they were chosen from, and are one switch now. It replaced
+ * a column of headings, checkboxes, dropdowns and a paragraph under
+ * nearly every control, twice the height.
  */
-export default function SettingsPanel({ page, account }: { page?: PageSettings; account?: ReactNode }) {
+export default function SettingsPanel({ page }: { page?: PageSettings }) {
   return (
     <div className="space-y-5 pb-1" data-testid="settings-panel">
-      {account}
-      <MapGroup />
-      <CheckpointsGroup candidates={page?.candidates} />
       <AppearanceGroup />
+      <MapGroup checkpoints={page?.checkpoints} />
       {page?.ownShip && <PositionGroup />}
     </div>
   );
 }
 
-function MapGroup() {
+function MapGroup({ checkpoints }: { checkpoints?: boolean }) {
   const base = usePreferences(s => s.base);
   const tac = usePreferences(s => s.tac);
   const classB = usePreferences(s => s.classB);
   const setBase = usePreferences(s => s.setBase);
   const setTac = usePreferences(s => s.setTac);
   const setClassB = usePreferences(s => s.setClassB);
-  const tacId = useId();
-  const classBId = useId();
+  const showCheckpoints = usePreferences(s => s.checkpoints);
+  const setCheckpoints = usePreferences(s => s.setCheckpoints);
+  const checkpointsId = useId();
   return (
     <ListGroup title="Map">
       <ListRow title="Chart">
@@ -67,44 +63,31 @@ function MapGroup() {
           options={BASE_CHARTS.map(b => ({ value: b.kind, label: b.label }))}
         />
       </ListRow>
-      {/* The terminal sheet that belongs over the base: the TAC over the
-          sectional, the IFR area chart over the IFR charts. A Class B
-          marker's card pins the same thing for its field. */}
-      <ListRow id={tacId} title={base === "sec" ? "Terminal area chart" : "IFR area chart"} description="Over the chart wherever there is one">
-        <Switch id={tacId} checked={tac} onCheckedChange={setTac} data-testid="tac-toggle" />
+      {/* The Class B airports' two things, on one line: their weather
+          now, as chips on the map, and the terminal sheet over the base
+          wherever there is one -- the TAC over the sectional, the IFR
+          area chart over the IFR charts. Each on or off by itself; they
+          were two rows of switches. A chip's card pins its field's
+          sheet either way. */}
+      <ListRow title="Class B">
+        <SegmentedMany
+          label="Class B"
+          values={[...(classB ? ["weather"] : []), ...(tac ? ["chart"] : [])]}
+          onChange={values => { setClassB(values.includes("weather")); setTac(values.includes("chart")); }}
+          options={[
+            { value: "weather", label: "Weather", icon: <CloudSun />, testId: "class-b-toggle" },
+            // TAC, as pilots call the sectional's terminal area chart; its
+            // IFR counterpart is the area chart.
+            { value: "chart", label: base === "sec" ? "TAC" : "Area", icon: <MapIcon />, testId: "tac-toggle" },
+          ]}
+        />
       </ListRow>
-      <ListRow id={classBId} title="Class B airports" description="Their weather now; tap one for its chart">
-        <Switch id={classBId} checked={classB} onCheckedChange={setClassB} data-testid="class-b-toggle" />
-      </ListRow>
-    </ListGroup>
-  );
-}
-
-function CheckpointsGroup({ candidates }: { candidates?: PageSettings["candidates"] }) {
-  const markerZoom = usePreferences(s => s.markerZoom);
-  const setMarkerZoom = usePreferences(s => s.setMarkerZoom);
-  const zoomId = useId();
-  const allId = useId();
-  return (
-    <ListGroup title="Checkpoints">
-      {/* How far in the map has to be before the markers draw: a long
-          route fits the screen zoomed a long way out, where a few
-          hundred of them would hide the chart. Named for what it
-          sets, the map's zoom level; it was "Show from". A slider was
-          tried here, and the menu of four stops kept. */}
-      <ListRow id={zoomId} title="Zoom level" description="Zoomed out, markers hide the chart">
-        <Select value={String(markerZoom)} onValueChange={value => setMarkerZoom(Number(value))}>
-          <SelectTrigger id={zoomId} size="sm" variant="menu" aria-label="Zoom level checkpoints show from" data-testid="marker-zoom-select">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent align="end">
-            {MARKER_ZOOMS.map(m => <SelectItem key={m.from} value={String(m.from)}>{m.label}</SelectItem>)}
-          </SelectContent>
-        </Select>
-      </ListRow>
-      {candidates && (
-        <ListRow id={allId} title="Every rated landmark" description="The dim dots the checkpoints were chosen from">
-          <Switch id={allId} checked={candidates.on} onCheckedChange={candidates.onToggle} data-testid="candidates-toggle" />
+      {/* The route's numbered checkpoints at every zoom, and closer in the
+          dim landmarks they were chosen from; off, the course line and
+          its two airports alone. */}
+      {checkpoints && (
+        <ListRow id={checkpointsId} title="Show checkpoints" description="The route's landmarks, at every zoom">
+          <Switch id={checkpointsId} checked={showCheckpoints} onCheckedChange={setCheckpoints} data-testid="checkpoints-toggle" />
         </ListRow>
       )}
     </ListGroup>
@@ -157,29 +140,28 @@ const THEMES = [
   { value: "dark", label: "Dark", icon: <Moon /> },
 ];
 
+const LAYOUTS = [
+  { value: "top", label: "Top", icon: <PanelTop /> },
+  { value: "bottom", label: "Bottom", icon: <PanelBottom /> },
+];
+
 /** The theme (next-themes keeps it, and follows the OS on System: a
  *  pilot planning at night wants the page as dim as the panel lights),
- *  and the edge the route panel is on (useNavEdge). */
+ *  and the layout -- the edge the route panel is on, which the sheets
+ *  come from too and the map's buttons keep clear of (useNavEdge) --
+ *  drawn alike, each choice with its picture. It was "Navigation bar",
+ *  in a menu. */
 function AppearanceGroup() {
   const { theme, setTheme } = useTheme();
   const edge = useNavEdge();
   const setNavBar = usePreferences(s => s.setNavBar);
-  const navId = useId();
   return (
     <ListGroup title="Appearance">
       <ListRow title="Theme">
         <Segmented label="Theme" value={theme ?? "system"} onChange={setTheme} testId="theme-select" options={THEMES} />
       </ListRow>
-      <ListRow id={navId} title="Navigation bar" description="The route panel and every sheet come from this edge; the map's buttons take the other">
-        <Select value={edge} onValueChange={v => setNavBar(v as NavEdge)}>
-          <SelectTrigger id={navId} size="sm" variant="menu" aria-label="Navigation bar" data-testid="nav-bar-select">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent align="end">
-            <SelectItem value="top">Top</SelectItem>
-            <SelectItem value="bottom">Bottom</SelectItem>
-          </SelectContent>
-        </Select>
+      <ListRow title="Layout">
+        <Segmented label="Layout" value={edge} onChange={v => setNavBar(v as NavEdge)} testId="nav-bar-select" options={LAYOUTS} />
       </ListRow>
     </ListGroup>
   );

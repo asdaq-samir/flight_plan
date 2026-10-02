@@ -1,6 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { DEVELOPER, openLinkFor, signInByEmail } from "./emailSignIn";
-import { modeToggle } from "./helpers";
+import { closeConsole, roleMenu } from "./helpers";
 
 /**
  * Signing in and out on the running stack, from a browser with no
@@ -13,10 +13,10 @@ test.use({ storageState: { cookies: [], origins: [] } });
 
 const consoleSheet = (page: Page) => page.getByTestId("console-sheet");
 
-/** Dev mode, the Developer in the console's title: the console opened
- *  first. Present or absent, it is looked for with the console out. */
+/** Dev mode, Developer in the console's role menu: the console and the
+ *  menu opened first. Present or absent, it is looked for there. */
 async function devSwitchInSettings(page: Page) {
-  return (await modeToggle(page)).getByRole("radio", { name: "Developer" });
+  return (await roleMenu(page)).developer;
 }
 
 /** One pilot per test and project, the same on every run: a fresh
@@ -33,7 +33,7 @@ test("signed out, the planner opens on the map, and the sign-in is in the pilot 
   await page.waitForTimeout(500);   // a moment for a console that was coming down by itself
   await expect(consoleSheet(page)).toHaveCount(0);
   await expect(await devSwitchInSettings(page)).toHaveCount(0);
-  await page.keyboard.press("Escape");
+  await closeConsole(page);
 
   await page.getByTestId("settings-button").click();
   await expect(consoleSheet(page).getByRole("button", { name: "Sign in" })).toBeVisible();
@@ -44,7 +44,7 @@ test("signed out, the dev page sends you to the planner", async ({ page }) => {
   await page.waitForURL(/\/app\/plan/);
   await expect(page.getByTestId("settings-button")).toBeVisible();
   await expect(await devSwitchInSettings(page)).toHaveCount(0);
-  await page.keyboard.press("Escape");
+  await closeConsole(page);
 });
 
 test("the emailed link opens the app's own sign-in dialog, over the planner, and a spent link says so", async ({ page }, testInfo) => {
@@ -67,8 +67,7 @@ test("the emailed link opens the app's own sign-in dialog, over the planner, and
   await page.getByRole("dialog").getByRole("button", { name: "Sign in" }).click();
   await page.waitForURL(url => url.pathname === "/app/plan" && url.hash === "");
   await page.getByTestId("settings-button").click();
-  await consoleSheet(page).getByRole("tab", { name: "Settings" }).click();
-  await expect(consoleSheet(page).getByTestId("account-address")).toHaveText(address);
+  await expect(consoleSheet(page).getByTestId("pilot-address")).toHaveText(address);
 
   await page.goto(link);
   await page.getByRole("dialog").getByRole("button", { name: "Sign in" }).click();
@@ -85,16 +84,15 @@ test("a pilot's link lands on the planner, with no dev switch, and the pilot con
   await page.waitForTimeout(500);   // a moment for a console that was coming down by itself
   await expect(consoleSheet(page)).toHaveCount(0);
   await expect(await devSwitchInSettings(page)).toHaveCount(0);
-  await page.keyboard.press("Escape");
-  await expect(consoleSheet(page)).toHaveCount(0);
+  await closeConsole(page);
 
   await page.getByTestId("settings-button").click();
-  // Who is signed in, and Log out, are the settings' first group.
-  await consoleSheet(page).getByRole("tab", { name: "Settings" }).click();
-  await expect(consoleSheet(page).getByTestId("account-address")).toHaveText(address);
-  await consoleSheet(page).getByTestId("log-out").click();
+  // Who is signed in beside the role, whose menu ends in Sign out.
+  await expect(consoleSheet(page).getByTestId("pilot-address")).toHaveText(address);
+  await consoleSheet(page).getByTestId("role-menu").click();
+  await page.getByRole("menuitem", { name: "Sign out" }).click();
   await expect(consoleSheet(page).getByRole("button", { name: "Sign in" })).toBeVisible();
-  await expect(consoleSheet(page).getByTestId("account-address")).toHaveCount(0);
+  await expect(consoleSheet(page).getByTestId("role-menu")).toHaveCount(0);
   await page.reload();
   await expect(consoleSheet(page)).toHaveCount(0);
   await page.getByTestId("settings-button").click();
@@ -110,16 +108,15 @@ test("a developer's link lands in dev mode, and the dev console logs out to the 
   await signInByEmail(page, DEVELOPER);
 
   await page.waitForURL("**/app/dev**");
-  await expect(await devSwitchInSettings(page)).toBeChecked();
+  await expect(await devSwitchInSettings(page)).toHaveAttribute("aria-checked", "true");
   await page.keyboard.press("Escape");
-  await page.getByTestId("settings-button").click();
-  await consoleSheet(page).getByRole("tab", { name: "Settings" }).click();
-  await expect(consoleSheet(page).getByTestId("account-address")).toHaveText(DEVELOPER);
-  await consoleSheet(page).getByTestId("log-out").click();
+  await expect(consoleSheet(page).getByTestId("pilot-address")).toHaveText(DEVELOPER);
+  await consoleSheet(page).getByTestId("role-menu").click();
+  await page.getByRole("menuitem", { name: "Sign out" }).click();
 
   await page.waitForURL("**/app/plan**");
   await expect(page.getByTestId("settings-button")).toBeVisible();
   await expect(consoleSheet(page)).toHaveCount(0);
   await expect(await devSwitchInSettings(page)).toHaveCount(0);
-  await page.keyboard.press("Escape");
+  await closeConsole(page);
 });

@@ -143,3 +143,32 @@ test("plan page: panning the map with own ship off leaves 'Keep the map on me' a
 
   expect(await follow()).toBe(true);
 });
+
+test("plan page: Show checkpoints draws the route's checkpoints at every zoom, and off leaves the course line alone", async ({ page }) => {
+  // They used to start at a zoom picked from a menu (close in, by
+  // default), so a route zoomed out to its region showed a line and two
+  // airports.
+  await page.goto("/app/plan?dep=C81&dest=KDLH");
+  await settle(page);
+  const numbered = page.locator(".leaflet-marker-icon", { hasText: /^\d+$/ });
+  await expect(numbered.first()).toBeVisible({ timeout: slow(60000) });
+
+  // Out to the zoom a whole region fits at: the tiles say which.
+  const zoomOfTiles = () => page.evaluate(() => Math.min(...[...document.querySelectorAll<HTMLImageElement>("img.leaflet-tile")]
+    .map(img => Number(new URL(img.src).pathname.split("/").at(-3))).filter(Number.isFinite)));
+  const map = (await page.locator(".leaflet-container").boundingBox())!;
+  await page.mouse.move(map.x + map.width / 2, map.y + map.height / 2);
+  for (let i = 0; i < 3; i++) {
+    await page.mouse.wheel(0, 300);
+    await page.waitForTimeout(400);
+  }
+  await expect.poll(zoomOfTiles, { timeout: slow(10000) }).toBeLessThanOrEqual(5);
+  await expect(numbered.first()).toBeVisible();
+
+  await openSettings(page);
+  const toggle = page.getByTestId("checkpoints-toggle");
+  await expect(toggle).toBeChecked();
+  await toggle.click();
+  await page.keyboard.press("Escape");
+  await expect(numbered).toHaveCount(0);
+});

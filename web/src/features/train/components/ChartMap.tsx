@@ -12,7 +12,7 @@ import { MapCard } from "../../../lib/map/MapCard";
 import { MapPopup } from "../../../lib/map/MapPopup";
 import { MapShell, type ShowSelected } from "../../../lib/map/MapShell";
 import { MapTooltip } from "../../../lib/map/MapTooltip";
-import { useMarkerZooms, useZoomLevel } from "../../../lib/map/useZoomLevel";
+import { CROWD_ZOOM, useZoomLevel } from "../../../lib/map/useZoomLevel";
 import { COLORS, hasRating, isVisible, pointKey, prettyCategory, type Filters } from "../logic";
 
 interface Props {
@@ -73,8 +73,7 @@ function PointPreview({ point }: { point: Point }) {
  *  popup here to hide it behind, the way the other two maps do). */
 function Candidates({ detections, added, filters, selected, onSelect }: Pick<Props, "detections" | "added" | "filters" | "selected" | "onSelect">) {
   const zoom = useZoomLevel();
-  const { crowd } = useMarkerZooms();
-  if (zoom < crowd) return null;
+  if (zoom < CROWD_ZOOM) return null;
   const draw = (points: Point[], kind: "detected" | "added") =>
     points.filter(p => isVisible(p, filters)).map(p => (
       <Marker

@@ -98,7 +98,7 @@ export const SCREENS: Screen[] = [
     ready: async page => {
       await page.goto("/app/plan");
       await openSettings(page);
-      await expect(page.getByTestId("mode-toggle")).toBeVisible();
+      await expect(page.getByTestId("role-menu")).toBeVisible();
     },
   },
 ];
