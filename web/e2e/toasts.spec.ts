@@ -107,12 +107,11 @@ test("the toast spans the screen and is centred on it", async ({ page }) => {
   expect(leftGap).toBeGreaterThanOrEqual(8);                     // a gutter, not edge to edge
   if (viewport.width < 768) {
     // A phone: as wide as the screen allows short of the map's buttons
-    // at the top right, which a toast across them hid -- Settings went
-    // untappable for as long as a route took to plan.
-    const settings = (await page.getByTestId("settings-button").boundingBox())!;
-    expect(box.x + box.width).toBeLessThanOrEqual(settings.x);
-    // And level with them, its top on their card's.
+    // at the top right, which a toast across them hid -- Settings, then
+    // among them, went untappable for as long as a route took to plan.
     const controls = (await page.locator("[data-map-controls] > *").first().boundingBox())!;
+    expect(box.x + box.width).toBeLessThanOrEqual(controls.x);
+    // And level with them, its top on their card's.
     expect(Math.abs(box.y - controls.y)).toBeLessThanOrEqual(1);
     expect(box.width).toBeGreaterThan(viewport.width * 0.7);
   } else {
@@ -230,7 +229,9 @@ test("dismissing a toast over the console leaves the console open", async ({ pag
   // its own onInteractOutside used to replace the guard silently, and
   // nothing covered the console to notice.
   await plannerDown(page);
-  await page.goto(PLAN);
+  // The search bar's console, over the map with no route: the chart's
+  // own answer fails, and says so.
+  await page.goto("/app/plan");
   await page.getByTestId("settings-button").click();
   const console = page.getByTestId("console-sheet");
   await expect(console).toBeVisible();

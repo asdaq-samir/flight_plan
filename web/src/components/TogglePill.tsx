@@ -10,16 +10,17 @@ import { Toggle } from "./ui/toggle";
  * and TAC were two segments of a track, and Waypoints Show and Hide,
  * and read as a choice between them.
  */
-export default function TogglePill({ pressed, onPressedChange, icon, label, testId }: {
+export default function TogglePill({ pressed, onPressedChange, icon, label, testId, disabled }: {
   pressed: boolean;
   onPressedChange: (pressed: boolean) => void;
   icon?: ReactNode;
   label: string;
   testId?: string;
+  disabled?: boolean;
 }) {
   return (
     <Toggle
-      pressed={pressed} onPressedChange={onPressedChange} size="sm" data-testid={testId}
+      pressed={pressed} onPressedChange={onPressedChange} size="sm" data-testid={testId} disabled={disabled}
       className="h-7 gap-1.5 rounded-full border border-border px-3 text-xs pointer-coarse:text-[0.8125rem] text-foreground aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground hover:aria-pressed:bg-primary/90 [&_svg:not([class*='size-'])]:size-3.5"
     >
       {icon}

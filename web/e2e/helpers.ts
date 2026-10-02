@@ -43,8 +43,8 @@ export async function openPanel(page: Page) {
 }
 
 /** The settings: the console's last tab, the console opened from its
- *  button among the map's, and all the way up. Escape closes the
- *  console again. */
+ *  button -- on the planner's search bar, on the training page among the
+ *  map's -- and all the way out. Escape closes the console again. */
 export async function openSettings(page: Page) {
   await page.getByTestId("settings-button").click();
   await page.getByTestId("console-sheet").getByRole("tab", { name: "Settings" }).click();
@@ -52,21 +52,34 @@ export async function openSettings(page: Page) {
   await expandConsole(page);
 }
 
-/** The console all the way up. On a phone it opens half way, at iOS's
- *  medium detent (MapPage), with the rest of its tab below the screen
- *  and out of a click's reach; a drag up on its head brings it up, as a
- *  finger's does. Elsewhere it has one height, and this does nothing. */
+/** A setting changed on the planner before a route is loaded: its
+ *  console's button is on the search bar alone (MapPage), which a route
+ *  takes the place of, so a setting a route's map should show is set
+ *  first -- remembered per browser -- and the route loaded after. */
+export async function beforeTheRoute(page: Page, change: () => Promise<void>) {
+  await page.goto("/app/plan");
+  await openSettings(page);
+  await change();
+  await closeConsole(page);
+}
+
+/** The console all the way out. On a phone it opens half way, at iOS's
+ *  medium detent (ConsoleSheet), with the rest of its tab past the
+ *  screen's middle and out of a click's reach; a drag on its head away
+ *  from its edge brings it all the way, as a finger's does. Elsewhere it
+ *  has one height, and this does nothing. */
 export async function expandConsole(page: Page) {
   const sheet = page.getByTestId("console-sheet");
   if ((await sheet.getAttribute("data-detent")) !== "medium") return;
-  // vaul takes no drag for half a second after it opens.
-  await page.waitForTimeout(600);
+  // Once it has slid in.
+  await sheet.evaluate(el => Promise.all(el.getAnimations().map(a => a.finished)));
   const box = (await sheet.boundingBox())!;
+  const away = (await sheet.getAttribute("data-edge")) === "top" ? 1 : -1;
   const x = box.x + box.width / 2, y = box.y + 20;
   await page.mouse.move(x, y);
   await page.mouse.down();
-  await page.mouse.move(x, y - 100, { steps: 5 });
-  await page.mouse.move(x, y - 400, { steps: 10 });
+  await page.mouse.move(x, y + away * 100, { steps: 5 });
+  await page.mouse.move(x, y + away * 400, { steps: 10 });
   await page.mouse.up();
   await expect(sheet).toHaveAttribute("data-detent", "large");
   await sheet.evaluate(el => Promise.all(el.getAnimations().map(a => a.finished)));

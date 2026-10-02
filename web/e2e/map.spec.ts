@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { slow, settle, openSettings, tapTheChart } from "./helpers";
+import { slow, settle, tapTheChart, beforeTheRoute } from "./helpers";
 
 /**
  * The map: its popups, its zoom toggle and the dev page's zoom button,
@@ -30,6 +30,8 @@ test("plan page: every popup the map opens dismisses the same way", async ({ pag
   // one and left the other sitting there, over the markers underneath
   // it, swallowing their clicks. `MapPopup` gives all of them one
   // dismissal, and this is the test that says so.
+  // Class B on from the start, from the search bar's settings.
+  await beforeTheRoute(page, () => page.getByTestId("class-b-toggle").click());
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
   await expect(page.locator("img.leaflet-tile").first()).toBeAttached();
@@ -53,9 +55,6 @@ test("plan page: every popup the map opens dismisses the same way", async ({ pag
     await page.waitForTimeout(400);
   }
 
-  await openSettings(page);
-  await page.getByTestId("class-b-toggle").click();
-  await page.keyboard.press("Escape");
   const chip = page.locator(".leaflet-marker-icon span.rounded-full").filter({ hasText: "KORD" }).first();
   await expect(chip).toBeVisible({ timeout: slow(25000) });
   // A Class B chip opens the field's card in the panel, as every
@@ -134,16 +133,20 @@ test("plan page: Waypoints draws the route's checkpoints and the landmarks they 
   const landmarks = page.locator('path.leaflet-interactive[stroke="#5b6b76"]');
   await expect(landmarks.first()).toBeAttached();
 
-  await openSettings(page);
-  const toggle = page.getByTestId("waypoints-toggle");
-  await expect(toggle).toHaveAttribute("aria-pressed", "true");
-  await toggle.click();
-  await page.keyboard.press("Escape");
+  // Off, from the search bar's settings, and the route again.
+  await beforeTheRoute(page, async () => {
+    const toggle = page.getByTestId("waypoints-toggle");
+    await expect(toggle).toHaveAttribute("aria-pressed", "true");
+    await toggle.click();
+  });
+  await page.goto("/app/plan?dep=C81&dest=KDLH");
+  await settle(page);
+  await expect(page.locator(".leaflet-marker-icon", { hasText: "KDLH" }).first()).toBeVisible({ timeout: slow(30000) });
   await expect(numbered).toHaveCount(0);
   await expect(landmarks).toHaveCount(0);
 });
 
-test("plan page: my position is the location arrow among the map's buttons, and over plain http it says why there is none", async ({ page }) => {
+test("my position is the location arrow among the map's buttons, on both pages, and over plain http it says why there is none", async ({ page }) => {
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
   const arrow = page.locator("[data-map-controls]").getByTestId("my-position-button");
@@ -154,9 +157,8 @@ test("plan page: my position is the location arrow among the map's buttons, and 
     await expect(page.locator("[data-sonner-toast]", { hasText: "No position over this connection" })).toBeVisible();
     await expect(arrow).toHaveAttribute("aria-pressed", "false");
   }
-  // Not the training page's: its map draws no own ship.
+  // The training page's as well: its map is the same (MapShell).
   await page.goto("/app/dev?dep=C81&dest=KDLH");
   await settle(page);
-  await expect(page.locator("[data-map-controls]")).toBeVisible();
-  await expect(page.getByTestId("my-position-button")).toHaveCount(0);
+  await expect(page.locator("[data-map-controls]").getByTestId("my-position-button")).toBeVisible();
 });

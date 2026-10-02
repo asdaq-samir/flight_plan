@@ -170,25 +170,33 @@ test.describe("/app/plan", () => {
 });
 
 for (const path of PAGES) {
-  test(`${path}: the map's buttons sit at the map's right edge, away from the panel, the console's first, and the settings are the console's`, async ({ page }) => {
+  test(`${path}: the map's buttons sit at the map's right edge, away from the panel, and the console's button is on the panel's capsule: the planner's search bar, the training page's route`, async ({ page }) => {
     await page.goto(`${path}?dep=C81&dest=KDLH`);
     await settle(page);
     const viewport = page.viewportSize();
     if (!viewport) throw new Error("no viewport configured");
 
-    const consoleBox = (await page.getByTestId("settings-button").boundingBox())!;
+    const first = page.locator("[data-map-controls] button").first();
+    const firstBox = (await first.boundingBox())!;
     // On the map, flush with its right edge -- the same on both pages: at
     // the top over a phone's sheet, at the bottom under a desktop's card.
-    expect(viewport.width - (consoleBox.x + consoleBox.width)).toBeLessThan(20);
-    if (viewport.width < 768) expect(consoleBox.y).toBeLessThan(viewport.height / 2);
-    else expect(consoleBox.y).toBeGreaterThan(viewport.height / 2);
-    expect(await sideDrawer(page).getByTestId("settings-button").count()).toBe(0);
-    // The console's button first in the group, over the rest of it.
-    const rest = page.locator("[data-map-controls] button").nth(1);
-    if (await rest.count()) {
-      const restBox = (await rest.boundingBox())!;
-      expect(consoleBox.y).toBeLessThan(restBox.y);
-      expect(Math.abs(consoleBox.x - restBox.x)).toBeLessThan(2);
+    expect(viewport.width - (firstBox.x + firstBox.width)).toBeLessThan(20);
+    if (viewport.width < 768) expect(firstBox.y).toBeLessThan(viewport.height / 2);
+    else expect(firstBox.y).toBeGreaterThan(viewport.height / 2);
+    // Never among the map's buttons, on either page.
+    expect(await page.locator("[data-map-controls]").getByTestId("settings-button").count()).toBe(0);
+    if (path === "/app/dev") {
+      // At the end of the training page's route capsule, which has no
+      // search bar.
+      await expect(sideDrawer(page).getByTestId("settings-button")).toBeVisible();
+    } else {
+      // None with a route on screen; on the search bar once it is closed,
+      // as Maps' account is.
+      expect(await page.getByTestId("settings-button").count()).toBe(0);
+      await page.goto(path);
+      await settle(page);
+      await expect(sideDrawer(page).getByTestId("settings-button")).toBeVisible();
+      expect(await page.locator("[data-map-controls]").getByTestId("settings-button").count()).toBe(0);
     }
 
     // The settings, the console's last tab, hold the chart controls.

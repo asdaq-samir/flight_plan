@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Layers, Maximize, Navigation, Settings } from "lucide-react";
+import { Download, Layers, Maximize, Navigation, Settings } from "lucide-react";
 import { cn } from "cn";
 import { ConsolePages, PageRow, StepRow } from "../../components/ConsolePages";
 import { ListGroup, ListRow } from "../../components/GroupedList";
@@ -39,8 +39,8 @@ function Reading({ children }: { children: ReactNode }) {
 /**
  * The planner explained to the pilot, the pilot console's Guide tab, as
  * iOS lays out a page of Settings: what to do, in five numbered steps
- * (the last points to More beside the route, where Print and keeping
- * the charts for the air are: NavLogActions); what the checkpoints'
+ * (the last points to Print beside the route, NavLogActions, and to
+ * keeping the charts for the air, a setting); what the checkpoints'
  * colours mean; the longer reading -- how the nav log flies the
  * aeroplane, the map's buttons, the app on a phone -- a row each that
  * opens a page of its own (ConsolePages). It was a column of headings over
@@ -82,12 +82,13 @@ export default function PilotGuide() {
                 <p>The chart is the FAA sectional, the whole country, at every zoom, and the route panel sits over it.</p>
               </Reading>
               <ListGroup title="The map's buttons">
-                <ListRow media={<Settings className="size-5 text-tint" />} title="Settings" description="This: the guide, your aircraft and flights, and the settings" />
-                <ListRow media={<Navigation className="size-5 text-tint" />} title="My position" description="Where you are, from the phone's GPS, with the map kept on you; again to hide it" />
+                <ListRow media={<Settings className="size-5 text-tint" />} title="Settings" description="This, beside the search bar: the guide, your aircraft and flights, and the settings. Close a route to reach it" />
+                <ListRow media={<Navigation className="size-5 text-tint" />} title="My position" description="Where you are, from the phone's GPS, the map brought in close and kept on you; again to hide it" />
                 <ListRow media={<Maximize className="size-5 text-tint" />} title="Full screen" description="Where your browser allows it" />
               </ListGroup>
               <ListGroup title="In the settings" footer="Close in over a terminal area and a pin on the map pins that sheet.">
                 <ListRow media={<Layers className="size-5 text-tint" />} title="Charts" description="Sectional, IFR low or IFR high, the terminal area chart over it, and the Class B airports" />
+                <ListRow media={<Download className="size-5 text-tint" />} title="Offline" description="Keep each route's charts on this device for the air" />
               </ListGroup>
             </>
           ),
@@ -112,7 +113,7 @@ export default function PilotGuide() {
           <StepRow n={2} title="Find your checkpoints" description="The numbered dots are landmarks you can pick out from the air. Tap one for how to spot it, and add your own note." />
           <StepRow n={3} title="Read the nav log" description="Pull the panel up: each leg's heading, time and fuel, then the weather, NOTAMs and airports. Your aircraft and departure time are under the route." />
           <StepRow n={4} title="Look at an airport" description="Close in and tap one on the chart for its weather, radio and runways. Fly Here makes it your destination." />
-          <StepRow n={5} title="Take it with you" description="More, beside the route: print the nav log, and keep the route's charts on this device for the air." />
+          <StepRow n={5} title="Take it with you" description="Print, beside the route, for the nav log on paper; and Offline in the settings keeps each route's charts on this device for the air." />
         </ListGroup>
 
         <ListGroup title="Checkpoint colours" footer={provenance ?? "Each checkpoint is rated for how findable it is from the cockpit, 0 to 5."}>

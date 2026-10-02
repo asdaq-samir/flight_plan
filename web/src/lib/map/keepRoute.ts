@@ -1,5 +1,6 @@
 import L from "leaflet";
 import { create } from "zustand";
+import { persist } from "zustand/middleware";
 import type { ChartLayer, Course } from "../api/types";
 import { tileUrl } from "./tiles";
 
@@ -133,13 +134,11 @@ async function keepRouteCharts(
 
 /**
  * The one keep in progress, or the last one's outcome, held by the page
- * rather than by the button that started it: that lived in the pilot
- * console's Guide tab, and closing the console or changing tabs
- * unmounted it and cancelled the download, silently, and reopening it
- * had lost where it had got to. Which download it is (`key`) is the
- * route, the chart, the edition and the revision -- the tile URLs it
- * fetches -- so the button shows it only for the chart it would keep
- * now.
+ * rather than by what started it: that lived in the pilot console's
+ * Guide tab, and closing the console or changing tabs unmounted it and
+ * cancelled the download, silently, and reopening it had lost where it
+ * had got to. Which download it is (`key`) is the route, the chart, the
+ * edition and the revision -- the tile URLs it fetches.
  */
 export type KeepJob =
   | { status: "idle" }
@@ -148,6 +147,30 @@ export type KeepJob =
   | { status: "failed"; key: string; detail: string };
 
 export const useKeepJob = create<KeepJob>(() => ({ status: "idle" }));
+
+/** How long a keep counts as kept: well inside the sixty days the
+ *  worker holds a tile (vite.config.ts, chart-tiles). */
+const KEPT_FOR_MS = 30 * 24 * 3600 * 1000;
+
+/**
+ * The keeps that finished, by key and when, remembered per browser: with
+ * Keep Charts Offline on, a route opened again -- a reload, a saved
+ * flight -- is not downloaded again while its tiles are still held.
+ */
+export const useKeptCharts = create<{ kept: Record<string, number> }>()(
+  persist(() => ({ kept: {} }), { name: "vfr.kept-charts" }),
+);
+
+export function keptAlready(key: string, now = Date.now()): boolean {
+  const at = useKeptCharts.getState().kept[key];
+  return at !== undefined && now - at < KEPT_FOR_MS;
+}
+
+function remember(key: string, now = Date.now()) {
+  useKeptCharts.setState(s => ({
+    kept: Object.fromEntries([...Object.entries(s.kept).filter(([, at]) => now - at < KEPT_FOR_MS), [key, now]]),
+  }));
+}
 
 export function keepKey(course: Course, kind: string): string {
   return `${course.departure.ident}->${course.destination.ident}/${kind}/${course.chart_cycle}/${course.chart_revision ?? 0}`;
@@ -174,10 +197,21 @@ export async function keep(course: Course, layer: ChartLayer): Promise<void> {
     const progress = await keepRouteCharts(
       course, layer.kind, keptZooms(layer), p => write({ status: "keeping", key, progress: p }), mine.signal,
     );
+    if (mine.signal.aborted) return;
+    if (progress.failed < progress.total) remember(key);
     write({ status: "kept", key, progress });
   } catch (err) {
     write({ status: "failed", key, detail: err instanceof Error ? err.message : String(err) });
   } finally {
     if (current === mine) current = null;
   }
+}
+
+/** The keep in progress stopped, and nothing said of it: the setting
+ *  turned off. */
+export function stopKeeping(): void {
+  if (!current) return;
+  current.abort();
+  current = null;
+  useKeepJob.setState({ status: "idle" }, true);
 }

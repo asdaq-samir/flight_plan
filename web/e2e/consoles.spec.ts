@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { settle, consoleSheet, expectDrawerClosed, expectDrawerOpen, closeSidebarWithTheStockKey, openSettings } from "./helpers";
+import { settle, consoleSheet, expectDrawerClosed, expectDrawerOpen, closeSidebarWithTheStockKey, openSettings, beforeTheRoute } from "./helpers";
 
 /**
  * The consoles and the settings: fitting the screen, the pilot
@@ -70,34 +70,40 @@ test("the navigation bar's edge is a setting: the panel moves to it, the map's b
   // By default the bottom on a phone and the top from md up; the other
   // edge picked in the settings moves the panel there, the map's
   // buttons to the edge away from it, and the console in from it.
-  await page.goto("/app/plan?dep=C81&dest=KDLH");
+  await page.goto("/app/plan");
   await settle(page);
   const viewport = page.viewportSize();
   if (!viewport) throw new Error("no viewport configured");
   const phone = viewport.width < 768;
-  await openSettings(page);
-  await page.getByTestId("nav-bar-select").getByRole("radio", { name: phone ? "Top" : "Bottom" }).click();
-  await page.keyboard.press("Escape");
+  await beforeTheRoute(page, () => page.getByTestId("nav-bar-select").getByRole("radio", { name: phone ? "Top" : "Bottom" }).click());
   await expect(page.locator("[data-slot=drawer-content], [data-slot=popover-content], [data-testid=console-sheet]")).toHaveCount(0);
+  await page.goto("/app/plan?dep=C81&dest=KDLH");
+  await settle(page);
 
   const header = (await page.locator("header").boundingBox())!;
-  const zoomToggle = (await page.getByTestId("settings-button").boundingBox())!;
+  const buttons = (await page.locator("[data-map-controls] > *").first().boundingBox())!;
   if (phone) {
     expect(header.y).toBeLessThan(40);
-    expect(zoomToggle.y).toBeGreaterThan(viewport.height / 2);
+    expect(buttons.y).toBeGreaterThan(viewport.height / 2);
   } else {
     expect(header.y).toBeGreaterThan(viewport.height / 2);
-    expect(zoomToggle.y).toBeLessThan(viewport.height / 2);
+    expect(buttons.y).toBeLessThan(viewport.height / 2);
   }
 
+  // The console, from the search bar, comes in from the same edge: on a
+  // phone half way down from the top, in from the screen's edges.
+  await page.goto("/app/plan");
+  await settle(page);
   await page.getByTestId("settings-button").click();
   const pilot = consoleSheet(page);
   await expect(pilot.getByRole("tab", { name: "Guide" })).toBeVisible();
   await pilot.evaluate(el => Promise.all(el.getAnimations({ subtree: true }).map(a => a.finished)));
   const box = (await pilot.boundingBox())!;
-  if (phone) expect(box.y).toBe(0);
+  if (phone) expect(Math.round(box.y)).toBe(8);
   else expect(Math.round(box.y + box.height)).toBe(viewport.height);
   await page.keyboard.press("Escape");
+  await page.goto("/app/plan?dep=C81&dest=KDLH");
+  await settle(page);
   await expect(pilot).toHaveCount(0);
 
   // Remembered per browser.
@@ -125,10 +131,12 @@ test("the console holds still as its tabs change: up from the bottom of a phone'
   if (!viewport) throw new Error("no viewport configured");
   const box = (await pilot.boundingBox())!;
   if (viewport.width < 768) {
-    expect(Math.round(box.x)).toBe(0);
-    expect(Math.round(box.width)).toBe(viewport.width);
-    // iOS's medium detent: half the screen, the rest of it below.
-    expect(Math.abs(box.y - viewport.height / 2)).toBeLessThan(2);
+    // iOS's medium detent, as the map's panel is at half: in from the
+    // screen's sides and its foot by eight, half of what it has to rise in.
+    expect(Math.round(box.x)).toBe(8);
+    expect(Math.round(box.width)).toBe(viewport.width - 16);
+    expect(Math.abs(box.y + box.height - (viewport.height - 8))).toBeLessThan(1);
+    expect(Math.abs(box.height - (viewport.height - 8) / 2)).toBeLessThan(1);
   } else {
     expect(box.y).toBe(0);
   }

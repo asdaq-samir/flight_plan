@@ -13,7 +13,7 @@ import IconButton from "./IconButton";
 export default function SettingsButton(props: Omit<ComponentProps<typeof IconButton>, "label" | "children">) {
   return (
     <IconButton label="Settings" data-testid="settings-button" {...props}>
-      <Settings className="size-5" />
+      <Settings className="size-5" strokeWidth={1.75} />
     </IconButton>
   );
 }

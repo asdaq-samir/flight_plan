@@ -1,9 +1,10 @@
-import { CloudSun, Eye, EyeOff, Map as MapIcon, Monitor, Moon, PanelBottom, PanelTop, Sun } from "lucide-react";
+import { CloudSun, Download, Eye, EyeOff, Map as MapIcon, Monitor, Moon, PanelBottom, PanelTop, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
 import { ListGroup, ListRow } from "./GroupedList";
 import Segmented from "./Segmented";
 import TogglePill from "./TogglePill";
 import { useNavEdge } from "../hooks/use-nav-edge";
+import { keepingAvailable } from "../lib/map/keepRoute";
 import { BASE_CHARTS, usePreferences, type BaseChart, type NavEdge } from "../lib/preferences";
 
 /**
@@ -13,8 +14,8 @@ import { BASE_CHARTS, usePreferences, type BaseChart, type NavEdge } from "../li
  * with its control at the row's end, one tap each: a segmented control
  * where one of several is picked (Theme, Layout, Chart), a pill of its
  * own, filled while on, for anything on or off (Class B's Weather and
- * TAC, Waypoints) -- so neither is taken for the other, or for the
- * console's tabs.
+ * TAC, Waypoints, Keep Charts Offline) -- so neither is taken for the
+ * other, or for the console's tabs.
  * Appearance first -- the theme and the layout, the two that change
  * how all of it looks -- then the map. The same on both pages, and
  * remembered per browser.
@@ -29,7 +30,7 @@ import { BASE_CHARTS, usePreferences, type BaseChart, type NavEdge } from "../li
  */
 export default function SettingsPanel() {
   return (
-    <div className="space-y-5 pb-1" data-testid="settings-panel">
+    <div className="@container/settings space-y-5 pb-1" data-testid="settings-panel">
       <AppearanceGroup />
       <MapGroup />
     </div>
@@ -45,6 +46,9 @@ function MapGroup() {
   const setClassB = usePreferences(s => s.setClassB);
   const waypoints = usePreferences(s => s.waypoints);
   const setWaypoints = usePreferences(s => s.setWaypoints);
+  const keepOffline = usePreferences(s => s.keepOffline);
+  const setKeepOffline = usePreferences(s => s.setKeepOffline);
+  const available = keepingAvailable();
   return (
     <ListGroup title="Map">
       <ListRow title="Chart">
@@ -73,6 +77,15 @@ function MapGroup() {
           line and its two airports alone. */}
       <ListRow title="Waypoints">
         <TogglePill pressed={waypoints} onPressedChange={setWaypoints} icon={waypoints ? <Eye /> : <EyeOff />} label="Show" testId="waypoints-toggle" />
+      </ListRow>
+      {/* The base chart along each route loaded, held for the air
+          (useKeepOffline); how a keep goes is its toast. Over plain http
+          there is no service worker to hold it, and it cannot be on. */}
+      <ListRow title="Offline">
+        <TogglePill
+          pressed={keepOffline && available} onPressedChange={setKeepOffline} disabled={!available}
+          icon={<Download />} label="Keep charts" testId="keep-offline-toggle"
+        />
       </ListRow>
     </ListGroup>
   );

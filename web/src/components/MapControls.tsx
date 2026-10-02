@@ -1,26 +1,22 @@
-import { useContext } from "react";
 import { cn } from "cn";
 import FullscreenButton from "./FullscreenButton";
 import MyPositionButton from "./MyPositionButton";
-import { MapButtonsContext, MATERIAL } from "./mapChrome";
+import { GLASS } from "./mapChrome";
 
 /**
  * The map's buttons, in one group floating over the chart, as Maps
- * stacks its own: the settings (the charts, the layers, appearance),
- * the planner's own position (`position`: the location arrow), and full
+ * stacks its own: the pilot's own position (`position`: the location arrow), and full
  * screen where it works. A zoom toggle, between the whole route and the
  * selected point, went: picking a waypoint brings the map to it. On the edge away from the panel
  * (useNavEdge): at the top right over a panel at the bottom, at the
  * bottom right under one at the top -- clear of it, and of the chart
  * credit in the corner.
  *
- * Ghost buttons on the group's material, eight apart inside it, so
+ * Ghost buttons on the group's glass, eight apart inside it, so
  * each one's 44-point hit area (index.css) meets the next one's rather
- * than overlapping it; a hairline in each gap, as Maps draws between
- * its buttons.
+ * than overlapping it.
  */
-export default function MapControls({ position }: { position?: boolean }) {
-  const page = useContext(MapButtonsContext);
+export default function MapControls() {
   return (
     // z-[1000]: over Leaflet's own panes, the level Leaflet gives its
     // controls; still inside the map's own stacking context, under the
@@ -29,13 +25,16 @@ export default function MapControls({ position }: { position?: boolean }) {
     <div data-map-controls="" className="absolute right-[max(0.5rem,env(safe-area-inset-right))] bottom-[calc(env(safe-area-inset-bottom)+1.5rem)] z-[1000] nav-bottom:top-[max(0.5rem,env(safe-area-inset-top))] nav-bottom:bottom-auto">
       <div
         className={cn(
-          "flex flex-col gap-2 rounded-[10px] p-1 shadow-[0_2px_10px_rgba(0,0,0,0.12)] ring-1 ring-black/5 dark:shadow-[0_2px_10px_rgba(0,0,0,0.45)] dark:ring-white/10",
-          "[&>*+*]:relative [&>*+*]:before:pointer-events-none [&>*+*]:before:absolute [&>*+*]:before:inset-x-1.5 [&>*+*]:before:-top-[4.5px] [&>*+*]:before:h-px [&>*+*]:before:bg-border [&>*+*]:before:content-['']",
-          MATERIAL,
+          // A capsule of Liquid Glass, as Maps' buttons are on iOS 26 and
+          // the panel's capsule is at rest: a circle round one button, a
+          // pill round more, and no hairlines between them.
+          // Round buttons on it, so one pressed or open is a circle in the
+          // circle, not a square.
+          "flex flex-col gap-2 rounded-full p-1 [&_button]:rounded-full",
+          GLASS,
         )}
       >
-        {page}
-        {position && <MyPositionButton />}
+        <MyPositionButton />
         {/* Draws itself only where full screen actually works: a desktop
             browser and an iPad, never an iPhone. */}
         <FullscreenButton />

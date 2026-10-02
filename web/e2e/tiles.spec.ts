@@ -1,13 +1,16 @@
 import { test, expect } from "@playwright/test";
-import { PAGES, slow, settle, openSettings } from "./helpers";
+import { slow, settle, openSettings } from "./helpers";
 
 /**
  * The chart layers the map asks for: the terminal area chart over the
  * sectional once it is pinned, and the IFR low enroute chart as the
- * base.
+ * base. Switched with a route on screen, on the training page: the
+ * planner's map is the same (MapShell), and its settings are on the
+ * search bar, which a route takes the place of (classb.spec.ts sets
+ * them there before one is loaded).
  */
 
-for (const path of PAGES) {
+for (const path of ["/app/dev"] as const) {
   test(`${path}: the TAC is drawn over the sectional only once it is pinned`, async ({ page }) => {
     // Nothing but the sectional by default, at every zoom: zoomed in
     // over C81 (inside the Chicago TAC) past the sectional's own

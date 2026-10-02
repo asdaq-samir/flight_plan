@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { consoleSheet, openPanel } from "./helpers";
+import { consoleSheet, openPanel, openSettings } from "./helpers";
 
 /**
  * "Save this flight", at the head of the briefing drawer's sections, for
@@ -64,10 +64,9 @@ test("a flight is filed once, whole, and a new plan is offered for saving again"
 test("signed out, there is nothing to save", async ({ page }) => {
   await page.route("**/api/me", route => route.fulfill({ status: 401, body: "" }));
   await page.goto("/app/plan?dep=C81&dest=KDLH&view=briefing");
-  // More showing means the page is not hidden behind a console: while
+  // Print showing means the page is not hidden behind a console: while
   // one is up, the page under it is out of reach of the queries below.
-  await expect(page.getByTestId("plan-more-button")).toBeVisible({ timeout: 30_000 });
-  await expect(page.getByRole("button", { name: "More actions" })).toBeVisible();
+  await expect(page.getByTestId("print-button")).toBeVisible({ timeout: 30_000 });
   await expect(page.getByRole("button", { name: /Save this flight/ })).toHaveCount(0);
 });
 
@@ -83,6 +82,9 @@ test("opening a saved flight puts its route in the header, and Load plans that r
   await openPanel(page);
   await expect(page.getByLabel("Departure", { exact: true })).toContainText("C81", { timeout: 15_000 });
 
+  // The console is on the search bar: the route lowered and closed first.
+  await page.getByTestId("sidebar-trigger-button").click();
+  await page.getByTestId("clear-route").click();
   await page.getByTestId("settings-button").click();
   await page.getByRole("tab", { name: "Flights" }).click();
   // The row is the way in, and it puts the console away.
@@ -107,7 +109,7 @@ test("Edit over the saved flights puts a minus before each, and the minus delete
     removed.push(route.request().method());
     await route.fulfill({ status: 204, body: "" });
   });
-  await page.goto("/app/plan?dep=C81&dest=KDLH");
+  await page.goto("/app/plan");
   await page.getByTestId("settings-button").click();
   await page.getByRole("tab", { name: "Flights" }).click();
   // Out of Edit, the row opens the flight and there is nothing to delete.
@@ -122,19 +124,18 @@ test("Edit over the saved flights puts a minus before each, and the minus delete
   expect(removed).toEqual(["DELETE"]);
 });
 
-test("More, beside the route, has Print and Keep charts offline, which says why it cannot over plain http", async ({ page }) => {
+test("Print is a button beside the route; Keep Charts Offline is a setting under Map, which cannot be on over plain http", async ({ page }) => {
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await openPanel(page);
-  await page.getByTestId("plan-more-button").click();
-  await expect(page.getByRole("menuitem", { name: /Print the nav log/ })).toBeVisible();
-  const keep = page.getByRole("menuitem", { name: /Keep charts offline/ });
+  await expect(page.getByRole("button", { name: "Print the nav log" })).toBeVisible();
+  await expect(page.getByTestId("plan-more-button")).toHaveCount(0);
+
+  // From the search bar, the route closed.
+  await page.goto("/app/plan");
+  await openSettings(page);
+  const keep = page.getByTestId("keep-offline-toggle");
   await expect(keep).toBeVisible();
   // The suite's stack is plain http, where the service worker that keeps
-  // the tiles is not allowed: the item says so rather than fetching.
-  if (!(await page.evaluate(() => window.isSecureContext))) {
-    await expect(keep).toHaveAttribute("aria-disabled", "true");
-    await expect(page.getByTestId("keep-route-status")).toContainText("secure connection");
-  }
-  await page.keyboard.press("Escape");
-  await expect(keep).toHaveCount(0);
+  // the tiles is not allowed: it cannot be turned on.
+  if (!(await page.evaluate(() => window.isSecureContext))) await expect(keep).toBeDisabled();
 });

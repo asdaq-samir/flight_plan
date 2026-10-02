@@ -34,6 +34,10 @@ export interface WorkspacePieces {
   /** The panel's top row with it out, in place of the route form and the
    *  actions: the search bar, while there is no route. */
   head?: ReactNode;
+  /** The panel is the search bar (`compact` and `head`): the console's
+   *  button goes on it, as Maps' account does, and the planner's is
+   *  nowhere else (MapPage). */
+  searching?: boolean;
 }
 
 export interface WorkspaceProps {

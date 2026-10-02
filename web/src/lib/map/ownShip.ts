@@ -30,8 +30,13 @@ interface OwnShip {
   follow: boolean;
   fix: Fix | null;
   error: string | null;
+  /** Bumped by a tap on the location arrow that starts following: the
+   *  map flies to the position, closing in on it (OwnShipLayer). */
+  recentred: number;
   setEnabled: (enabled: boolean) => void;
   setFollow: (follow: boolean) => void;
+  /** Follow, and bring the map to the position at a local zoom. */
+  recentre: () => void;
 }
 
 export function ownShipAvailable(): boolean {
@@ -80,6 +85,7 @@ export const useOwnShip = create<OwnShip>()(
       follow: true,
       fix: null,
       error: null,
+      recentred: 0,
       setEnabled: enabled => {
         if (enabled && !ownShipAvailable()) return;
         if (enabled) {
@@ -91,6 +97,7 @@ export const useOwnShip = create<OwnShip>()(
         }
       },
       setFollow: follow => set({ follow }),
+      recentre: () => set(s => ({ follow: true, recentred: s.recentred + 1 })),
     }),
     {
       name: "vfr.ownship",

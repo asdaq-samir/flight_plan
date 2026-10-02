@@ -9,6 +9,7 @@ import { chartQuery } from "../queryClient";
 import { ChartTiles } from "./ChartTiles";
 import { ClassBLayer } from "./ClassBLayer";
 import { ResizeAware } from "./MapEffects";
+import { OwnShipLayer } from "./OwnShipLayer";
 
 interface Props {
   course: Course | null;
@@ -17,9 +18,6 @@ interface Props {
   onReady?: (map: L.Map) => void;
   /** The layers this particular map draws, inside the container. */
   children: ReactNode;
-  /** The location arrow among the map's buttons: the planner's, whose
-   *  map draws own ship. */
-  position?: boolean;
   /** A Class B airport's chip tapped: the planner opens its card. */
   onSelectPlace?: (ident: string) => void;
 }
@@ -38,7 +36,7 @@ interface Props {
 const COUNTRY: [number, number] = [39.5, -98.35];
 const COUNTRY_ZOOM = 4;
 
-export function MapShell({ course, onReady, children, position, onSelectPlace }: Props) {
+export function MapShell({ course, onReady, children, onSelectPlace }: Props) {
   const [map, setMap] = useState<L.Map | null>(null);
   // The chart alone while there is no route: the planner opens on a
   // search bar over the chart, where it waited on a route to draw any.
@@ -107,11 +105,14 @@ export function MapShell({ course, onReady, children, position, onSelectPlace }:
             onPreview={setPreviewing} onSelectPlace={onSelectPlace}
           />
           {children}
+          {/* Own ship on both maps, with the location arrow among the
+              map's buttons: the training page's as well as the planner's. */}
+          <OwnShipLayer />
         </MapContainer>
       ) : (
         <div className="h-full w-full bg-slate-100 dark:bg-slate-900" />
       )}
-      <MapControls position={position} />
+      <MapControls />
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { test, expect, type Page, type Route } from "@playwright/test";
-import { openSettings } from "./helpers";
+import { openSettings, beforeTheRoute } from "./helpers";
 
 /**
  * The Class B airports on the map.
@@ -63,6 +63,11 @@ async function showClassB(page: Page) {
   await page.keyboard.press("Escape");
 }
 
+/** On, from the planner's search bar, before the route is loaded. */
+async function showClassBFirst(page: Page) {
+  await beforeTheRoute(page, () => page.getByTestId("class-b-toggle").click());
+}
+
 test("off until asked for: a route does not come covered in them", async ({ page }) => {
   // Thirty extra markers are useful on a cross-country that passes one
   // and clutter on a route that does not.
@@ -73,9 +78,9 @@ test("off until asked for: a route does not come covered in them", async ({ page
 });
 
 test("switched on, every Class B is on the map by name", { tag: "@smoke" }, async ({ page }) => {
+  await showClassBFirst(page);
   await page.goto(PLAN);
   await routeDrawn(page);
-  await showClassB(page);
   // The real planner: thirty is what the FAA's own shapefile yields.
   await expect.poll(() => chips(page).count(), { timeout: 20000 }).toBe(30);
   await expect(chips(page).filter({ hasText: "KORD" })).toHaveCount(1);
@@ -83,9 +88,9 @@ test("switched on, every Class B is on the map by name", { tag: "@smoke" }, asyn
 
 test("the marker's colour is the field's own flight category", async ({ page }) => {
   await mockClassB(page);
+  await showClassBFirst(page);
   await page.goto(PLAN);
   await routeDrawn(page);
-  await showClassB(page);
 
   const ord = chips(page).filter({ hasText: "KORD" }).first();
   const msp = chips(page).filter({ hasText: "KMSP" }).first();
@@ -105,9 +110,9 @@ test("tapping one opens its card in the panel, with Fly Here, as any airport on 
   // pin for its terminal chart; the field's card in the panel has the
   // weather, the radio and the runways, and the settings' TAC the chart.
   await mockClassB(page);
+  await showClassBFirst(page);
   await page.goto(PLAN);
   await routeDrawn(page);
-  await showClassB(page);
 
   const ord = chips(page).filter({ hasText: "KORD" }).first();
   await expect(ord).toBeVisible({ timeout: 15000 });

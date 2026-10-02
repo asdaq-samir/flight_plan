@@ -1,14 +1,10 @@
-import { Ellipsis, Loader2, Printer, Sparkles } from "lucide-react";
+import { Loader2, Printer, Sparkles } from "lucide-react";
 import { useState } from "react";
 import { cn } from "cn";
-import KeepRouteItem from "../../../../components/KeepRoute";
 import { ResponsivePopover, ResponsivePopoverContent, ResponsivePopoverTrigger } from "../../../../components/ResponsivePopover";
 import ToolbarButton from "../../../../components/ToolbarButton";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../../../../components/ui/dropdown-menu";
 import { ScrollArea } from "../../../../components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../../../components/ui/tabs";
-import type { Course } from "../../../../lib/api/types";
-import { useKeepRouteToast } from "../../../../lib/map/keepStatus";
 import { TEXT } from "../../../../lib/text";
 import type { FrameworkNarrative } from "../../hooks/useNarratives";
 
@@ -38,21 +34,17 @@ function NarrativeTabBody({ framework, narrative }: { framework: Framework; narr
 }
 
 interface Props {
-  /** The route that Keep charts offline keeps. */
-  course: Course | null;
   onGenerateNarrative: (framework: Framework) => void;
   langgraphNarrative: FrameworkNarrative;
   crewaiNarrative: FrameworkNarrative;
 }
 
 /**
- * The plan's own actions beside the route, after Save -- the narrative,
- * and More, with what is done to a route before taking it into the air:
- * print the nav log, keep the charts offline -- each a toolbar button
- * with its word under its icon: "Brief", "More". Print was a button of
- * its own, and Keep charts offline a row at the foot of the pilot's
- * guide; together in a menu, as iOS keeps Print and Download with the
- * thing they act on, the three buttons still fit a Slide Over's row.
+ * The plan's own actions beside the route, after Save -- the narrative
+ * and Print -- each a toolbar button with its word under its icon:
+ * "Brief", "Print". Print was in a More menu with Keep charts offline;
+ * that is a setting under Map now (SettingsPanel), on for every route,
+ * and a menu of one item is a button.
  *
  * One AI button next to Print, not two named ones -- LangGraph and
  * CrewAI live as two tabs inside the single popover it opens instead
@@ -71,8 +63,7 @@ interface Props {
  * generated, for a printed copy, which needs the text sitting in the
  * page rather than behind a click a piece of paper can't make.
  */
-export default function NavLogActions({ course, onGenerateNarrative, langgraphNarrative, crewaiNarrative }: Props) {
-  useKeepRouteToast();
+export default function NavLogActions({ onGenerateNarrative, langgraphNarrative, crewaiNarrative }: Props) {
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<Framework>("langgraph");
   const narratives: Record<Framework, FrameworkNarrative> = {
@@ -130,19 +121,10 @@ export default function NavLogActions({ course, onGenerateNarrative, langgraphNa
           </Tabs>
         </ResponsivePopoverContent>
       </ResponsivePopover>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <ToolbarButton text="More" label="More actions" icon={<Ellipsis />} data-testid="plan-more-button" />
-        </DropdownMenuTrigger>
-        {/* Off the paper: the print starts with the menu still open. */}
-        <DropdownMenuContent align="end" className="w-72 print:hidden">
-          <DropdownMenuItem onSelect={() => window.print()} data-testid="print-button">
-            <Printer />
-            Print the nav log
-          </DropdownMenuItem>
-          <KeepRouteItem course={course} />
-        </DropdownMenuContent>
-      </DropdownMenu>
+      <ToolbarButton
+        text="Print" label="Print the nav log" icon={<Printer />} onClick={() => window.print()}
+        className="print:hidden" data-testid="print-button"
+      />
     </div>
   );
 }

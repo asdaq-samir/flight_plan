@@ -7,11 +7,12 @@ import { ownShipAvailable, useOwnShip } from "../lib/map/ownShip";
 
 /**
  * My position, among the map's buttons, as Maps and every map app has
- * it: the location arrow. A tap shows where the phone is and keeps the
- * map on it; once the map is panned away (OwnShipLayer stops following)
- * a tap brings it back; a tap while it is following puts the position
- * away. The arrow is filled while the map follows, hollow otherwise,
- * and pulses while the GPS has nothing yet. It was two switches at the
+ * it: the location arrow. A tap shows where the phone is, flies the map
+ * there closing in on it, and keeps the map on it; once the map is
+ * panned away (OwnShipLayer stops following) a tap brings it back the
+ * same way; a tap while it is following puts the position away. The
+ * arrow is iOS's, drawn fine: filled while the map follows, an outline
+ * otherwise, and pulsing while the GPS has nothing yet. It was two switches at the
  * foot of the settings, Show my position and Keep the map on me, with
  * the coordinates under them.
  *
@@ -25,7 +26,7 @@ export default function MyPositionButton() {
   const fix = useOwnShip(s => s.fix);
   const error = useOwnShip(s => s.error);
   const setEnabled = useOwnShip(s => s.setEnabled);
-  const setFollow = useOwnShip(s => s.setFollow);
+  const recentre = useOwnShip(s => s.recentre);
   useEffect(() => {
     if (error) toast.error("No position", { id: "own-ship", description: error });
   }, [error]);
@@ -36,10 +37,10 @@ export default function MyPositionButton() {
         id: "own-ship", description: "The browser gives a page the phone's position only over https.",
       });
     } else if (!enabled) {
-      setFollow(true);
       setEnabled(true);
+      recentre();
     } else if (!follow) {
-      setFollow(true);
+      recentre();
     } else {
       setEnabled(false);
     }
@@ -50,7 +51,12 @@ export default function MyPositionButton() {
       onClick={tap} aria-pressed={enabled} data-testid="my-position-button"
       className="text-tint"
     >
-      <Navigation className={cn("size-5", following && "fill-current", enabled && !fix && "animate-pulse")} />
+      {/* Fine and sharp-cornered, as iOS's own arrow is: lucide's is
+          drawn with round joins at 2, a heavier mark than any around it. */}
+      <Navigation
+        strokeWidth={1.5} strokeLinejoin="miter"
+        className={cn("size-5", following && "fill-current", enabled && !fix && "animate-pulse")}
+      />
     </IconButton>
   );
 }

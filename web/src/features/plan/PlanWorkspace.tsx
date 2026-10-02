@@ -9,6 +9,7 @@ import { pilotQuery, queryClient } from "../../lib/queryClient";
 import type { AircraftChoice, AirportPlace, AltitudeChoice, Candidate } from "../../lib/api/types";
 import { aircraftKey, choiceOf, shortName } from "../../lib/aircraftChoice";
 import { distanceNm } from "../../lib/geo";
+import { useKeepOffline } from "../../lib/map/keepStatus";
 import { useOwnShip } from "../../lib/map/ownShip";
 import { identOf, routeOf } from "../../lib/identSchema";
 import { usePreferences, type RecentAirport } from "../../lib/preferences";
@@ -102,6 +103,8 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   const aircraft = aircraftOptions.find(o => aircraftKey(o) === aircraftKey(remembered)) ?? remembered;
   const s = usePlan({ dep: planned.dep, dest: planned.dest, altitudeFt, altitudeChoice, depart, aircraft, load });
   const { course, selected } = s;
+  // Keep Charts Offline, the setting: each route loaded keeps its charts.
+  useKeepOffline(course);
 
   // Whichever waypoint is focused -- by its own coordinates, not a row
   // index, since the map's markers and the nav log's rows are two
@@ -471,6 +474,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       </>
     ),
     head: started ? undefined : searchField,
+    searching: !started,
     // At rest, Maps' capsule: the route with share and close either side
     // and the aeroplane and time under it, which opens the panel to them;
     // with no route, the search bar.
@@ -503,7 +507,6 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           aircraftId={aircraft.aircraftId ?? null} depart={depart}
         />
         <NavLogActions
-          course={course}
           onGenerateNarrative={s.generateNarrative}
           langgraphNarrative={s.langgraphNarrative}
           crewaiNarrative={s.crewaiNarrative}

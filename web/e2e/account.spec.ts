@@ -23,7 +23,7 @@ function held() {
 const consoleSheet = (page: Page) => page.getByTestId("console-sheet");
 
 async function openConsole(page: Page) {
-  await page.goto("/app/plan?dep=C81&dest=KDLH");
+  await page.goto("/app/plan");
   await page.getByTestId("settings-button").click();
   return consoleSheet(page);
 }
@@ -154,6 +154,7 @@ test("the aeroplane the nav log flies is ticked, and a tap on another flies that
   // The picker under the route flies it too, with the panel out.
   await console.getByRole("button", { name: "Close" }).click();
   await expect(consoleSheet(page)).toHaveCount(0);
+  await page.goto("/app/plan?dep=C81&dest=KDLH");
   await openPanel(page);
   await expect(page.getByTestId("aircraft-select")).toContainText("N2");
 });

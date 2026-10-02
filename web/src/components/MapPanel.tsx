@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useRef, useState, type MouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { cn } from "cn";
+import { useDetentDrag } from "../hooks/use-detent-drag";
 import { useIsMobile } from "../hooks/use-mobile";
 import { useNavEdge } from "../hooks/use-nav-edge";
 import { useKeyboardInset, useSafeArea, useVisualHeight, useWindowHeight } from "../hooks/use-viewport";
-import { MATERIAL, PANEL_STATES, PanelHalfContext, type MapInsets, type PanelState } from "./mapChrome";
+import { GLASS, GLASS_SHEET, MATERIAL, PanelHalfContext, SHEET_INSET, SHEET_INSET_RADIUS, SHEET_MARGIN, SHEET_RESHAPE, SHEET_SETTLE, type MapInsets, type PanelState } from "./mapChrome";
 
 interface Props {
   /** The panel's name -- "Flight Planning", "Model Training" -- for its
@@ -30,30 +31,16 @@ interface Props {
   onInsetsChange: (insets: MapInsets) => void;
 }
 
-/** iOS's sheet curve, the one vaul uses too: the height, and the
- *  capsule's way in from the screen's edges as it opens into a sheet. */
-const CURVE = "0.5s cubic-bezier(0.32, 0.72, 0, 1)";
-const RESHAPE = ["left", "right", "top", "bottom", "border-radius"].map(p => `${p} ${CURVE}`).join(", ");
-const SETTLE = `height ${CURVE}, ${RESHAPE}`;
-
-/** The capsule's way in from the screen's sides, and its corners. */
-const CAPSULE_INSET = 16;
-const CAPSULE_RADIUS = 28;
-/** Maps' medium sheet: in from the sides and the bottom, every corner
- *  round, as the screen's own are. */
-const INSET = 8;
-const INSET_RADIUS = 36;
-
-/** How far a finger moves before a press on the head is a drag rather
- *  than a tap on what it pressed. */
-const DRAG_SLOP = 6;
-
+/** The capsule's way in from the screen's sides, as Maps' sits on iOS
+ *  26 (measured from its screenshot: 28 in, 28 up from the bottom, a
+ *  pill 69 tall round a 41-point field with 14 of glass about it). It
+ *  was 16 in, 76 tall with a row of its own for the grabber, and opaque:
+ *  thick beside Maps'. Its corners are half its height, a full pill. */
+const CAPSULE_INSET = 28;
+/** What the capsule's content keeps from its edges. */
+const CAPSULE_PAD = 14;
 /** The grabber's button: 16 tall, its pill five in from the panel's edge. */
 const GRABBER = 16;
-
-/** The margin a card keeps from the screen's edges, and a phone's sheet
- *  from the far one. */
-const MARGIN = 8;
 
 /** A card's width from `md` up: 24rem. */
 const CARD = 384;
@@ -112,14 +99,14 @@ export default function MapPanel({ label, top, controls, notices, compact, child
   // distance under what is in sight) left the sheet as tall as before,
   // its top -- the search bar typed into -- scrolled up off the screen.
   const room = keyboard || visualHeight < windowHeight - 1
-    ? visualHeight - Math.round(safe.top) - MARGIN
+    ? visualHeight - Math.round(safe.top) - SHEET_MARGIN
     : onPhone
-      ? windowHeight - Math.round(fromBottom ? safe.top : safe.bottom) - MARGIN
-      : windowHeight - Math.max(MARGIN, Math.round(safe.top)) - Math.max(MARGIN, Math.round(safe.bottom));
+      ? windowHeight - Math.round(fromBottom ? safe.top : safe.bottom) - SHEET_MARGIN
+      : windowHeight - Math.max(SHEET_MARGIN, Math.round(safe.top)) - Math.max(SHEET_MARGIN, Math.round(safe.bottom));
   // A phone's sheet from the bottom runs on to the screen's edge, under
   // the home indicator (or eight points where there is none), so its
   // content sits clear of it -- or on to the keyboard, with it up.
-  const edgeInset = onPhone && fromBottom && !keyboard ? Math.max(Math.round(safe.bottom), MARGIN) : 0;
+  const edgeInset = onPhone && fromBottom && !keyboard ? Math.max(Math.round(safe.bottom), SHEET_MARGIN) : 0;
   // A drag (below) that is under way; the capsule opens into the sheet
   // as soon as one starts.
   const [dragged, setDragged] = useState<number | null>(null);
@@ -127,8 +114,8 @@ export default function MapPanel({ label, top, controls, notices, compact, child
   // edges as Maps' does: in from the sides, above the home indicator
   // (into its inset a little, as Maps sits) or under the status bar.
   const capsule = !!compact && state === "peek" && dragged === null;
-  const capsuleGap = fromBottom ? Math.max(12, Math.round(safe.bottom) - 12) : Math.round(safe.top) + MARGIN;
-  // The capsule is its head alone, the grabber in it.
+  const capsuleGap = fromBottom ? Math.max(12, Math.round(safe.bottom) - 6) : Math.round(safe.top) + SHEET_MARGIN;
+  // The capsule is its head alone, the grabber over its padding.
   const peek = capsule ? headHeight : Math.round(headHeight + (fromBottom ? edgeInset : GRABBER));
   // Half the room, or more where the body says what it must show whole
   // at half (PanelHalfContext): an airport's card had its actions cut
@@ -142,12 +129,7 @@ export default function MapPanel({ label, top, controls, notices, compact, child
   }, [peek, room, bodyNeeds]);
 
   // A drag on the grabber or the head follows the finger, and lets go to
-  // the detent it was heading for -- where it was thrown, not only where
-  // it stopped. A press that does not move is the tap it was. Followed on
-  // the window, not by capturing the pointer: a mouse leaves the head as
-  // soon as it drags it, and a captured pointer would take the click from
-  // a button in the head that was only tapped.
-  const swallowClick = useRef(false);
+  // the detent it was heading for (useDetentDrag).
   const shown = dragged ?? detents[state];
   // A phone's panel takes Maps' three shapes: the capsule at rest; in
   // from the edges, every corner round, up to half way and while dragged
@@ -156,62 +138,18 @@ export default function MapPanel({ label, top, controls, notices, compact, child
   const shape: "capsule" | "inset" | "edge" = capsule ? "capsule"
     : shown >= (detents.half + detents.full) / 2 ? "edge" : "inset";
   const geometry = {
-    capsule: { side: CAPSULE_INSET, gap: capsuleGap, radius: `${CAPSULE_RADIUS}px` },
-    inset: { side: INSET, gap: INSET, radius: `${INSET_RADIUS}px` },
+    capsule: { side: CAPSULE_INSET, gap: capsuleGap, radius: `${headHeight / 2}px` },
+    inset: { side: SHEET_INSET, gap: SHEET_INSET, radius: `${SHEET_INSET_RADIUS}px` },
     edge: { side: 0, gap: 0, radius: fromBottom ? "10px 10px 0 0" : "0 0 10px 10px" },
   }[shape];
-  const latest = useRef({ detents, shown, onStateChange, fromBottom });
-  useEffect(() => { latest.current = { detents, shown, onStateChange, fromBottom }; });
-  const startDrag = (start: ReactPointerEvent) => {
-    if (start.button !== 0) return;
-    const from = latest.current.shown;
-    // Up opens a sheet from the bottom; down opens one from the top.
-    const sign = latest.current.fromBottom ? -1 : 1;
-    let moved = false, last = start.clientY, at = start.timeStamp, speed = 0, to = from;
-    const move = (event: PointerEvent) => {
-      if (!moved && Math.abs(event.clientY - start.clientY) < DRAG_SLOP) return;
-      moved = true;
-      speed = sign * (event.clientY - last) / Math.max(event.timeStamp - at, 1);
-      last = event.clientY;
-      at = event.timeStamp;
-      const { peek: lowest, full } = latest.current.detents;
-      to = Math.min(full, Math.max(lowest, from + sign * (event.clientY - start.clientY)));
-      setDragged(to);
-    };
-    const end = (event: PointerEvent) => {
-      window.removeEventListener("pointermove", move);
-      window.removeEventListener("pointerup", end);
-      window.removeEventListener("pointercancel", end);
-      if (!moved) return;
-      // A click from this release, if one comes, comes before any timer.
-      swallowClick.current = event.type === "pointerup";
-      window.setTimeout(() => { swallowClick.current = false; }, 0);
-      // Where it would come to rest a fifth of a second on at the speed
-      // it was let go, to the nearest detent.
-      const { detents: d, onStateChange: change } = latest.current;
-      const aim = to + speed * 200;
-      const nearest = PANEL_STATES.reduce((best, s) => (Math.abs(d[s] - aim) < Math.abs(d[best] - aim) ? s : best));
-      setDragged(null);
-      change(nearest);
-    };
-    window.addEventListener("pointermove", move);
-    window.addEventListener("pointerup", end);
-    window.addEventListener("pointercancel", end);
-  };
-  // The release of a drag is not a tap on whatever it started on.
-  const swallow = (event: MouseEvent) => {
-    if (!swallowClick.current) return;
-    swallowClick.current = false;
-    event.preventDefault();
-    event.stopPropagation();
-  };
+  const { startDrag, swallow } = useDetentDrag({ detents, shown, fromBottom, onRelease: onStateChange, setDragged });
 
   // What it covers of the map at rest, for the map to fit a route clear
   // of it: the strip at its edge on a phone; from `md` up the column at
   // the left while it is out, or the corner it rests in while it is not.
   const expanded = state !== "peek";
   useEffect(() => {
-    const strip = peek + (capsule && onPhone ? capsuleGap : onPhone ? 0 : MARGIN);
+    const strip = peek + (capsule && onPhone ? capsuleGap : onPhone ? 0 : SHEET_MARGIN);
     if (!onPhone && expanded) onInsetsChange({ top: 0, bottom: 0, left: 16 + CARD });
     else onInsetsChange(fromBottom ? { top: 0, bottom: strip, left: 0 } : { top: strip, bottom: 0, left: 0 });
   }, [peek, onPhone, expanded, fromBottom, capsule, capsuleGap, onInsetsChange]);
@@ -236,6 +174,9 @@ export default function MapPanel({ label, top, controls, notices, compact, child
   // that keeps it off the route's, the controls' and the body's own. Its
   // old test id, from when it was the sidebar's trigger, is kept for the
   // suite.
+  // On the capsule it lies over the capsule's own padding, as Maps' does,
+  // its box that padding and no hit area past it: reaching fourteen
+  // further, it took a tap on the top of the search field.
   const grabber = (
     <button
       type="button"
@@ -245,10 +186,11 @@ export default function MapPanel({ label, top, controls, notices, compact, child
       onClick={() => onStateChange(expanded ? "peek" : "full")}
       // Inside the head (from the bottom) the head follows the drag already.
       onPointerDown={event => { event.stopPropagation(); startDrag(event); }}
-      style={{ height: GRABBER }}
+      style={{ height: capsule ? CAPSULE_PAD : GRABBER }}
       className={cn(
         "mx-auto flex w-24 shrink-0 touch-none justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset print:hidden",
         fromBottom ? "items-start pt-[5px]" : "items-end pb-[5px]",
+        capsule && cn("absolute inset-x-0 z-10 after:hidden!", fromBottom ? "top-0" : "bottom-0"),
       )}
     >
       <span className="h-[5px] w-9 rounded-full bg-muted-foreground/40" aria-hidden="true" />
@@ -266,26 +208,29 @@ export default function MapPanel({ label, top, controls, notices, compact, child
       style={{
         // The height follows a finger without lag; the shape eases in
         // and out as a drag crosses into another.
-        height: shown, transition: dragged === null ? SETTLE : RESHAPE,
+        height: shown, transition: dragged === null ? SHEET_SETTLE : SHEET_RESHAPE,
         ...(onPhone ? {
           left: geometry.side, right: geometry.side,
           ...(fromBottom ? { bottom: keyboard && !capsule ? keyboard + geometry.gap : geometry.gap } : { top: geometry.gap }),
           borderRadius: geometry.radius,
-        } : capsule ? { borderRadius: CAPSULE_RADIUS } : {}),
+        } : capsule ? { borderRadius: headHeight / 2 } : {}),
       }}
       className={cn(
         // Clipped rather than hidden: a hidden overflow can still be
         // scrolled by a script, and a row brought into view in the body
         // scrolled the whole panel, its head up out of sight.
         "fixed z-40 flex flex-col overflow-clip text-foreground",
-        MATERIAL,
+        // Liquid Glass at rest and at half, as Maps' is: the chart through
+        // it, its rim lit, its own shadow -- the half sheet a frostier pane
+        // of it, for a nav log read on it. All the way out, opaque.
+        capsule ? GLASS : onPhone && shape === "inset" ? GLASS_SHEET : MATERIAL,
         onPhone
-          ? cn(fromBottom
+          ? shape === "edge" && (fromBottom
             ? "shadow-[0_-2px_20px_rgba(0,0,0,0.1)] dark:shadow-[0_-2px_20px_rgba(0,0,0,0.4)]"
-            : "shadow-[0_2px_20px_rgba(0,0,0,0.1)] dark:shadow-[0_2px_20px_rgba(0,0,0,0.4)]",
-            shape !== "edge" && "ring-1 ring-black/5 dark:ring-white/10")
+            : "shadow-[0_2px_20px_rgba(0,0,0,0.1)] dark:shadow-[0_2px_20px_rgba(0,0,0,0.4)]")
           : cn(
-            "left-[max(1rem,env(safe-area-inset-left))] w-[24rem] rounded-[10px] shadow-[0_2px_10px_rgba(0,0,0,0.12)] ring-1 ring-black/5 dark:shadow-[0_2px_10px_rgba(0,0,0,0.45)] dark:ring-white/10",
+            "left-[max(1rem,env(safe-area-inset-left))] w-[24rem]",
+            !capsule && "rounded-[10px] shadow-[0_2px_10px_rgba(0,0,0,0.12)] ring-1 ring-black/5 dark:shadow-[0_2px_10px_rgba(0,0,0,0.45)] dark:ring-white/10",
             fromBottom ? "bottom-[max(0.5rem,env(safe-area-inset-bottom))]" : "top-[max(0.5rem,env(safe-area-inset-top))]",
           ),
       )}
@@ -293,7 +238,7 @@ export default function MapPanel({ label, top, controls, notices, compact, child
       {/* The head, dragged as the grabber is: the grabber first on a sheet
           from the bottom, the top row, any notice, the controls -- or, at
           rest, the capsule, its grabber on its far edge from the top. */}
-      <div ref={setHead} className="flex shrink-0 touch-none flex-col" onPointerDown={startDrag}>
+      <div ref={setHead} className="relative flex shrink-0 touch-none flex-col" onPointerDown={startDrag}>
         {fromBottom && grabber}
         {/* One header in both shapes, so what the capsule and the sheet
             both show -- the search bar -- stays the same element as the
@@ -302,11 +247,12 @@ export default function MapPanel({ label, top, controls, notices, compact, child
             status bar or the island. */}
         <header
           className={cn(
-            "@container flex items-center gap-2 px-3 print:hidden",
-            // From the top, the chip's hit area clear of the grabber's
-            // (index.css), which reaches fourteen up from under it.
-            capsule ? (fromBottom ? "pt-1 pb-3" : "pt-3 pb-6")
-              : cn("pb-1", fromBottom ? "pt-5" : onPhone ? "pt-[max(0.5rem,env(safe-area-inset-top))]" : "pt-2"),
+            "@container flex items-center gap-2 print:hidden",
+            // The same glass all round from either edge. From the top, a
+            // route's chip keeps its hit area (index.css), eleven under it,
+            // clear of the grabber in the padding under it.
+            capsule ? cn("p-[14px]", !fromBottom && "has-[[data-testid=capsule-detail]]:pb-6")
+              : cn("px-3 pb-1", fromBottom ? "pt-5" : onPhone ? "pt-[max(0.5rem,env(safe-area-inset-top))]" : "pt-2"),
           )}
         >
           {capsule ? compact : top}

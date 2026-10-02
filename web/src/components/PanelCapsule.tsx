@@ -1,11 +1,12 @@
 import { History, Search, X } from "lucide-react";
-import { useRef, type ReactNode, type RefObject } from "react";
+import { useContext, useRef, type ReactNode, type RefObject } from "react";
 import { cn } from "cn";
 import { TEXT } from "../lib/text";
 import { useAirportSearch } from "../lib/useAirportSearch";
 import { usePreferences, type RecentAirport } from "../lib/preferences";
 import { ListGroup, ListRow } from "./GroupedList";
 import IconButton from "./IconButton";
+import { ConsoleButtonContext } from "./mapChrome";
 
 /**
  * The panel at rest, as Maps' is on an iPhone: a capsule floating over
@@ -14,6 +15,8 @@ import IconButton from "./IconButton";
  * and under the route a chip that opens the panel to what it stands
  * for (the aeroplane and the time, the rating's progress), as Maps'
  * Options does. Drag it or its grabber and it opens into the sheet.
+ * With no `trailing` of its own, the page's console button is there
+ * (ConsoleButtonContext): the training page's.
  */
 export function RouteCapsule({ title, detail, onDetail, leading, trailing }: {
   title: string;
@@ -23,6 +26,7 @@ export function RouteCapsule({ title, detail, onDetail, leading, trailing }: {
   leading?: ReactNode;
   trailing?: ReactNode;
 }) {
+  const consoleButton = useContext(ConsoleButtonContext);
   return (
     // The two sides' buttons, or room as wide, so the route is centred.
     <div className="flex w-full items-center gap-3">
@@ -43,7 +47,7 @@ export function RouteCapsule({ title, detail, onDetail, leading, trailing }: {
           </button>
         )}
       </div>
-      <div className="flex w-9 shrink-0 justify-end">{trailing}</div>
+      <div className="flex w-9 shrink-0 justify-end">{trailing ?? consoleButton}</div>
     </div>
   );
 }
@@ -55,7 +59,9 @@ export function RouteCapsule({ title, detail, onDetail, leading, trailing }: {
  * the sheet leaves the keyboard up and the field taking what is typed.
  * Focused, the sheet comes all the way up (`onFocus`); the close beside
  * it, while the sheet is out or something is typed, empties it and puts
- * the sheet away. Enter picks the first airport that answers, or the
+ * the sheet away; otherwise the console's button is there
+ * (ConsoleButtonContext), as Maps keeps the account beside
+ * its search bar. Enter picks the first airport that answers, or the
  * ident typed.
  */
 export function SearchField({ value, onChange, onFocus, onCancel, onSubmit, open, placeholder = "Search airports", inputRef }: {
@@ -74,13 +80,21 @@ export function SearchField({ value, onChange, onFocus, onCancel, onSubmit, open
 }) {
   const own = useRef<HTMLInputElement>(null);
   const input = inputRef ?? own;
+  const accessory = useContext(ConsoleButtonContext);
   return (
     <form
       role="search" className="flex w-full items-center gap-2"
       onSubmit={e => { e.preventDefault(); onSubmit(); }}
     >
-      <label className={cn("flex h-11 min-w-0 flex-1 items-center gap-2 rounded-full bg-foreground/8 px-4 text-muted-foreground", TEXT.row)}>
-        <Search className="size-5 shrink-0" aria-hidden="true" />
+      {/* 41 tall, as Maps' field is: on the sheet the grey of iOS's
+          search field, on the glass capsule a lighter pane of the glass,
+          no line round it. The magnifier drawn fine, as SF Symbols'. */}
+      <label className={cn(
+        "flex h-[2.5625rem] min-w-0 flex-1 items-center gap-2 rounded-full bg-foreground/8 px-3.5 text-muted-foreground",
+        "in-data-capsule:bg-white/50 dark:in-data-capsule:bg-white/10",
+        TEXT.row,
+      )}>
+        <Search className="size-5 shrink-0 text-foreground" strokeWidth={1.75} aria-hidden="true" />
         <input
           ref={input} type="search" enterKeyHint="search" autoComplete="off" autoCorrect="off" spellCheck={false}
           value={value} onChange={e => onChange(e.target.value)} onFocus={onFocus}
@@ -88,14 +102,14 @@ export function SearchField({ value, onChange, onFocus, onCancel, onSubmit, open
           className="min-w-0 flex-1 bg-transparent text-foreground outline-none placeholder:text-muted-foreground [&::-webkit-search-cancel-button]:hidden"
         />
       </label>
-      {(open || value) && (
+      {open || value ? (
         <IconButton
           label="Close the search" variant="secondary" className="rounded-full"
           onClick={() => { input.current?.blur(); onCancel(); }} data-testid="search-close"
         >
           <X />
         </IconButton>
-      )}
+      ) : accessory}
     </form>
   );
 }

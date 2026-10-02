@@ -1,16 +1,16 @@
 // @vitest-environment jsdom
 /**
- * The keep-route download: held by keepRoute's store, not by the menu
- * item, so closing the menu does not cancel it; one keep at a time, the
+ * The keep-route download: held by keepRoute's store, not by the
+ * setting, so closing the settings does not cancel it; one keep at a time, the
  * latest the one that writes; and a download that got nothing is not
  * reported as kept. The network and the service worker are stubbed.
  */
 import { act, cleanup, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import type { ChartLayer, Course } from "../api/types";
-import { WORKER_WAIT_MS, keep, keepKey, useKeepJob } from "./keepRoute";
+import { WORKER_WAIT_MS, keep, keepKey, keptAlready, stopKeeping, useKeepJob, useKeptCharts } from "./keepRoute";
 import { toast } from "sonner";
-import { keepStatus, useKeepRouteToast } from "./keepStatus";
+import { useKeepRouteToast } from "./keepStatus";
 
 vi.mock("sonner", () => ({ toast: { loading: vi.fn(), success: vi.fn(), error: vi.fn() } }));
 
@@ -86,36 +86,30 @@ describe("keeping a route's charts", () => {
   });
 });
 
-describe("what More's item says", () => {
-  test("a keep that finished while the menu was closed reads as kept when it opens", async () => {
-    const slow = network(ok, true);
-    const done = keep(COURSE, SEC);
-    // Each answer lets its worker ask for the next tile: answer until done.
-    for (let i = 0; i < 50 && useKeepJob.getState().status === "keeping"; i++) {
-      slow.release();
-      await flush();
-    }
-    await done;
-
-    expect(keepStatus(COURSE, SEC, useKeepJob.getState(), true).detail).toMatch(/kept\. The route draws without a connection now\./);
+describe("what a keep remembers, and stopping one", () => {
+  test("a keep that got its tiles is remembered, so the route opened again is not fetched again", async () => {
+    network(ok);
+    await keep(COURSE, SEC);
+    expect(keptAlready(keepKey(COURSE, "sec"))).toBe(true);
   });
 
-  test("a keep where every tile failed is not reported as kept", async () => {
+  test("a keep where every tile failed is not remembered as kept", async () => {
+    useKeptCharts.setState({ kept: {} });
     network(() => new Response("", { status: 503 }));
     await keep(COURSE, SEC);
-
-    expect(keepStatus(COURSE, SEC, useKeepJob.getState(), true).detail).toMatch(/None of the tiles could be fetched/);
+    expect(useKeepJob.getState()).toMatchObject({ status: "kept" });
+    expect(keptAlready(keepKey(COURSE, "sec"))).toBe(false);
   });
 
-  test("another chart's keep is not this one's to report", async () => {
-    network(ok);
-    await keep(COURSE, IFR_LOW);
-
-    expect(keepStatus(COURSE, SEC, useKeepJob.getState(), true).detail).toMatch(/^Every Sectional tile/);
-  });
-
-  test("over plain http it says why it cannot", () => {
-    expect(keepStatus(COURSE, SEC, { status: "idle" }, false).detail).toMatch(/secure connection/);
+  test("turned off, a keep under way stops and the job is idle", async () => {
+    const slow = network(ok, true);
+    const done = keep(COURSE, SEC);
+    await flush();
+    stopKeeping();
+    // The fetches under way answer as aborted.
+    slow.release();
+    await done;
+    expect(useKeepJob.getState()).toEqual({ status: "idle" });
   });
 });
 

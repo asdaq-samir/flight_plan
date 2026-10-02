@@ -23,9 +23,12 @@ export interface MapInsets { top: number; bottom: number; left: number }
 export const NO_INSETS: MapInsets = { top: 0, bottom: 0, left: 0 };
 export const MapInsetsContext = createContext<MapInsets>(NO_INSETS);
 
-/** What the page puts in the map's buttons beside the map's own: the
- *  console's (MapPage), which the map itself knows nothing about. */
-export const MapButtonsContext = createContext<ReactNode>(null);
+/** The console's button (MapPage), for the panel's capsule to put at its
+ *  end, as Maps puts the account's beside its search bar: the planner's
+ *  search bar (SearchField) and the training page's route capsule
+ *  (RouteCapsule) read it. Null where the page wants none -- the
+ *  planner's route. */
+export const ConsoleButtonContext = createContext<ReactNode>(null);
 
 /** The settings, as the console's last tab (ConsoleTabs): the page's
  *  own (MapPage), the same in either console. */
@@ -53,3 +56,34 @@ export const useConsoleOpen = create<{ open: boolean; setOpen: (open: boolean) =
  * the popover's grey in the dark theme, so it stands off a dark chart.
  */
 export const MATERIAL = "bg-background/85 backdrop-blur-xl backdrop-saturate-150 dark:bg-popover/90";
+
+/**
+ * iOS 26's Liquid Glass, for what floats over the chart at rest: the
+ * panel's capsule and the map's buttons. Clearer than MATERIAL -- the
+ * chart is there under it, blurred and brightened -- with a lit rim and
+ * a soft shadow of its own (index.css, `liquid-glass`). It cannot bend
+ * the chart at its edge as iOS's does: Safari will not run an SVG
+ * filter behind an element.
+ */
+export const GLASS = "liquid-glass";
+
+/** The same glass for a sheet at half height, frostier -- more of the
+ *  material, less of the chart -- as what is on it is read: the map's
+ *  panel and the console. All the way up a sheet is opaque. */
+export const GLASS_SHEET = "liquid-glass [--glass-fill:62%]";
+
+/** iOS's sheet curve, the one vaul uses too: a sheet's height, and its
+ *  way in from the screen's edges as it changes shape. */
+const SHEET_CURVE = "0.5s cubic-bezier(0.32, 0.72, 0, 1)";
+export const SHEET_RESHAPE = ["left", "right", "top", "bottom", "border-radius"].map(p => `${p} ${SHEET_CURVE}`).join(", ");
+export const SHEET_SETTLE = `height ${SHEET_CURVE}, ${SHEET_RESHAPE}`;
+
+/** Maps' medium sheet: in from the sides and its edge, every corner
+ *  round, as the screen's own are -- the map's panel at half, and the
+ *  console's sheet at half. */
+export const SHEET_INSET = 8;
+export const SHEET_INSET_RADIUS = 36;
+
+/** The margin a card keeps from the screen's edges, and a phone's sheet
+ *  from the far one. */
+export const SHEET_MARGIN = 8;

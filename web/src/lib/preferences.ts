@@ -48,6 +48,10 @@ interface Preferences {
    *  category and a terminal chart on hover. Off by default: useful on
    *  a route that passes near one, clutter on a route that does not. */
   classB: boolean;
+  /** Whether each route loaded keeps its charts for use without a
+   *  connection (keepRoute): the base chart's tiles along the course,
+   *  held by the service worker. Off by default, as it downloads. */
+  keepOffline: boolean;
   aircraft: AircraftChoice;
   /** The training map's filters: which points are drawn and walked. */
   filters: Filters;
@@ -67,6 +71,7 @@ interface Preferences {
   setTac: (tac: boolean) => void;
   setWaypoints: (waypoints: boolean) => void;
   setClassB: (classB: boolean) => void;
+  setKeepOffline: (keepOffline: boolean) => void;
   setAircraft: (aircraft: AircraftChoice) => void;
   setFilter: (key: FilterKey, on: boolean) => void;
   setDevTab: (tab: string) => void;
@@ -100,6 +105,7 @@ export const usePreferences = create<Preferences>()(
       tac: false,
       waypoints: true,
       classB: false,
+      keepOffline: false,
       aircraft: DEFAULT_AIRCRAFT,
       filters: DEFAULT_FILTERS,
       devTab: "training",
@@ -112,6 +118,7 @@ export const usePreferences = create<Preferences>()(
       setTac: tac => set({ tac }),
       setWaypoints: waypoints => set({ waypoints }),
       setClassB: classB => set({ classB }),
+      setKeepOffline: keepOffline => set({ keepOffline }),
       setAircraft: aircraft => set({ aircraft }),
       setFilter: (key, on) => set(s => ({ filters: { ...s.filters, [key]: on } })),
       setDevTab: devTab => set({ devTab }),
@@ -137,7 +144,7 @@ export const usePreferences = create<Preferences>()(
       name: "vfr.preferences",
       // The functions are not state; only the values are written.
       partialize: s => ({
-        base: s.base, tac: s.tac, waypoints: s.waypoints, classB: s.classB, aircraft: s.aircraft, filters: s.filters, devTab: s.devTab, pilotTab: s.pilotTab, navBar: s.navBar,
+        base: s.base, tac: s.tac, waypoints: s.waypoints, classB: s.classB, keepOffline: s.keepOffline, aircraft: s.aircraft, filters: s.filters, devTab: s.devTab, pilotTab: s.pilotTab, navBar: s.navBar,
         recentAirports: s.recentAirports, homeAirport: s.homeAirport, favoriteAirports: s.favoriteAirports,
       }),
     },

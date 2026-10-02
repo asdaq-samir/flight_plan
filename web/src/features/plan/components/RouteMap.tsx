@@ -17,7 +17,6 @@ import { MapCard } from "../../../lib/map/MapCard";
 import { MapPopup } from "../../../lib/map/MapPopup";
 import { MapShell } from "../../../lib/map/MapShell";
 import { MapTooltip } from "../../../lib/map/MapTooltip";
-import { OwnShipLayer } from "../../../lib/map/OwnShipLayer";
 import { useCardedMarker } from "../../../lib/map/useCardedMarker";
 import { usePreferences } from "../../../lib/preferences";
 import { inkOn } from "../../../lib/scoreScale";
@@ -223,11 +222,10 @@ export default function RouteMap({
   }, [course]);
 
   return (
-    <MapShell course={course} position onSelectPlace={onSelectPlace}>
-      {/* The chart's own airports and own ship with no route as well: a
-          tap on a field opens its card, and Fly Here makes the route. */}
+    <MapShell course={course} onSelectPlace={onSelectPlace}>
+      {/* The chart's own airports with no route as well: a tap on a field
+          opens its card, and Fly Here makes the route. */}
       <AirportsLayer selected={place} onSelect={onSelectPlace} exclude={chipped} route={routeBox} />
-      <OwnShipLayer />
       {/* The airport whose card opens comes to the middle of the chart
           clear of the panel, in close enough to find it, as a place
           picked in Maps does: from the search bar it was wherever the

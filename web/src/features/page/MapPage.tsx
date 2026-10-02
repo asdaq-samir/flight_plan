@@ -1,16 +1,15 @@
-import { Suspense, lazy, useCallback, useDeferredValue, useEffect, useState, type CSSProperties, type ReactNode } from "react";
+import { Suspense, lazy, useCallback, useDeferredValue, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { toast } from "sonner";
 import { useSearchParamsNow } from "../../lib/useSearchParamsNow";
 import DevGuard from "../../components/DevGuard";
+import ConsoleSheet, { type ConsoleDetent } from "../../components/ConsoleSheet";
 import MapPanel from "../../components/MapPanel";
-import { ConsoleSettingsContext, MapButtonsContext, useConsoleOpen, MapInsetsContext, NO_INSETS, type MapInsets, type PanelState } from "../../components/mapChrome";
+import { ConsoleButtonContext, ConsoleSettingsContext, useConsoleOpen, MapInsetsContext, NO_INSETS, type MapInsets, type PanelState } from "../../components/mapChrome";
 import RouteForm from "../../components/RouteForm";
 import SettingsButton from "../../components/SettingsButton";
 import SettingsPanel from "../../components/SettingsPanel";
-import { Sheet, SheetContent, SheetTrigger } from "../../components/ui/sheet";
-// Under other names: the console's sheet up from the bottom of a phone.
-import { Drawer as BottomSheet, DrawerContent as BottomSheetContent, DrawerTrigger as BottomSheetTrigger } from "../../components/ui/drawer";
-import { Dialog, DialogContent, DialogTrigger } from "../../components/ui/dialog";
+import { Sheet, SheetContent } from "../../components/ui/sheet";
+import { Dialog, DialogContent } from "../../components/ui/dialog";
 import { useIsMobile } from "../../hooks/use-mobile";
 import { useIsTablet } from "../../hooks/use-tablet";
 import { useNavEdge } from "../../hooks/use-nav-edge";
@@ -31,12 +30,6 @@ import type { WorkspacePieces } from "./workspace";
 const TrainWorkspace = lazy(() => import("../train/TrainWorkspace"));
 
 export type Mode = "pilot" | "dev";
-
-/** The phone's console sheet at half height: vaul's snap point for a
- *  sheet 85% of the screen tall, half the screen showing (vaul offsets
- *  it by the screen less the point's share of it). */
-const HALF_HEIGHT = 0.65;
-const CONSOLE_SNAPS = [HALF_HEIGHT, 1];
 
 /** What differs between the two pages: the words, the workspace, and
  *  the route to start on when the address names none (the planner
@@ -139,30 +132,51 @@ export default function MapPage({ mode }: { mode: Mode }) {
     setInsets(prev => (prev.top === next.top && prev.bottom === next.bottom && prev.left === next.left ? prev : next));
   }, []);
 
-  // The console, first of the map's buttons: its button there (Settings,
-  // a gear, on both pages), and the sheet it opens, with the settings as
-  // its last tab (ConsoleTabs) --
+  // The console: its button (Settings, a gear, on both pages) and the
+  // sheet it opens, with the settings as its last tab (ConsoleTabs) --
   // the pilot's account, aeroplanes, flights and guide, or the
-  // developer's training, performance and system. Modal, so the page
-  // waits while it is out. From the navigation bar's edge (useNavEdge):
-  // on a phone a sheet up from the bottom edge with a grabber, as iOS
-  // presents one (shadcn's Drawer), or a stock Sheet from the top. On the
-  // card surface the Sheet has, so a menu opened in it stands off it in
-  // the dark theme. From the bottom its height is fixed rather than its
-  // content's: sized to the tab showing, its top edge rose and fell as
-  // the tabs changed, and the tab row moved out from under the finger
-  // that had just tapped it. It opens half way, at iOS's medium detent,
-  // and comes all the way up when it is dragged -- a swipe up on its
-  // content does it, as on iOS, before the content scrolls -- and stays
-  // at whichever as the tabs change: it opened all the way every time,
-  // a screen of nothing under one aeroplane. On an iPad, iOS's form
-  // sheet instead: a card 540 by 620, centred, as a sheet there is.
-  const [consoleSnap, setConsoleSnap] = useState<number | string | null>(HALF_HEIGHT);
+  // developer's training, performance and system. Its button is on the
+  // panel's capsule and nowhere else, as Maps' account is beside its
+  // search: on the planner's search bar -- with a route on screen,
+  // closing it brings the bar back -- and at the end of the training
+  // page's route capsule. Modal, so the page waits while it is out. From
+  // the navigation bar's edge (useNavEdge): on a phone the map's panel's
+  // own shapes, half way in from the edges on glass and all the way on
+  // them (ConsoleSheet), from either edge; otherwise a stock Sheet. Its
+  // height is fixed rather than its content's: sized to the tab showing,
+  // its edge rose and fell as the tabs changed, and the tab row moved out
+  // from under the finger that had just tapped it. It opens half way, at
+  // iOS's medium detent, and stays at whichever as the tabs change: it
+  // opened all the way every time, a screen of nothing under one
+  // aeroplane. On an iPad, iOS's form sheet instead: a card 540 by 620,
+  // centred, as a sheet there is.
+  const [consoleDetent, setConsoleDetent] = useState<ConsoleDetent>("medium");
   // Out or not, the app's (useConsoleOpen): a developer's Pilot and
   // Developer in the console's title change the page under it, and the
   // console stays out, the other page's.
   const consoleOpen = useConsoleOpen(s => s.open);
   const setConsoleOpen = useConsoleOpen(s => s.setOpen);
+  // The sheet is drawn once, with no trigger of its own: its button moves
+  // between the search bar and the map's buttons, and is the one opened
+  // from and given the focus back on closing.
+  const consoleButton = useRef<HTMLButtonElement>(null);
+  const openConsole = useCallback(() => {
+    setConsoleDetent("medium");
+    setConsoleOpen(true);
+  }, [setConsoleOpen]);
+  const backToButton = useCallback((event: Event) => {
+    event.preventDefault();
+    consoleButton.current?.focus();
+  }, []);
+  // Round on a pane like the search field's, where Maps has the
+  // account's picture.
+  const settingsButton = (
+    <SettingsButton
+      ref={consoleButton} onClick={openConsole} aria-haspopup="dialog" aria-expanded={consoleOpen}
+      variant="secondary"
+      className="rounded-full bg-white/50 hover:bg-white/70 dark:bg-white/10 dark:hover:bg-white/15"
+    />
+  );
   const consoleOf = (pieces: WorkspacePieces) => {
     // The greeting, the way in or out and the close button on one row;
     // the console's content starts under it.
@@ -177,9 +191,8 @@ export default function MapPage({ mode }: { mode: Mode }) {
     if (onTablet) {
       return (
         <Dialog open={consoleOpen} onOpenChange={setConsoleOpen}>
-          <DialogTrigger asChild><SettingsButton /></DialogTrigger>
           <DialogContent
-            showCloseButton={false}
+            showCloseButton={false} onCloseAutoFocus={backToButton}
             className="flex h-[min(620px,85dvh)] w-[min(540px,calc(100%-40px))] max-w-none flex-col gap-0 overflow-hidden bg-card p-0 text-card-foreground"
             data-testid="console-sheet"
           >
@@ -188,30 +201,23 @@ export default function MapPage({ mode }: { mode: Mode }) {
         </Dialog>
       );
     }
-    if (onPhone && edge === "bottom") {
+    if (onPhone) {
       return (
-        <BottomSheet
-          snapPoints={CONSOLE_SNAPS} activeSnapPoint={consoleSnap} setActiveSnapPoint={setConsoleSnap}
-          // The map dimmed at either height: the sheet is modal at both.
-          fadeFromIndex={0}
-          open={consoleOpen}
-          onOpenChange={open => { setConsoleOpen(open); if (open) setConsoleSnap(HALF_HEIGHT); }}
+        <ConsoleSheet
+          open={consoleOpen} onOpenChange={setConsoleOpen} detent={consoleDetent} onDetentChange={setConsoleDetent}
+          edge={edge} onCloseAutoFocus={backToButton}
+          header={<ConsoleHeader console={consoleLabel} />}
         >
-          <BottomSheetTrigger asChild><SettingsButton /></BottomSheetTrigger>
-          <BottomSheetContent
-            className="h-[85dvh] gap-0 bg-card text-card-foreground data-[vaul-drawer-direction=bottom]:max-h-none"
-            data-testid="console-sheet" data-detent={consoleSnap === 1 ? "large" : "medium"}
-          >
-            {content}
-          </BottomSheetContent>
-        </BottomSheet>
+          <ConsoleSettingsContext.Provider value={<SettingsPanel />}>
+            <AfterTheSheet>{pieces.console}</AfterTheSheet>
+          </ConsoleSettingsContext.Provider>
+        </ConsoleSheet>
       );
     }
     return (
       <Sheet open={consoleOpen} onOpenChange={setConsoleOpen}>
-        <SheetTrigger asChild><SettingsButton /></SheetTrigger>
         <SheetContent
-          side={edge}
+          side={edge} onCloseAutoFocus={backToButton}
           className={edge === "top"
             ? "max-h-[85dvh] gap-0 p-0 pt-[env(safe-area-inset-top)]"
             : "gap-0 p-0 pb-[env(safe-area-inset-bottom)] data-[side=bottom]:h-[85dvh]"}
@@ -275,11 +281,13 @@ export default function MapPage({ mode }: { mode: Mode }) {
             } as CSSProperties}
           >
             <MapInsetsContext.Provider value={insets}>
-              <MapButtonsContext.Provider value={consoleOf(pieces)}>
-                {pieces.map}
-              </MapButtonsContext.Provider>
+              {pieces.map}
             </MapInsetsContext.Provider>
           </main>
+          {consoleOf(pieces)}
+          {/* On the planner's search bar, and on the training page's route
+              capsule, which has no search: never with the planner's route. */}
+          <ConsoleButtonContext.Provider value={mode === "dev" || pieces.searching ? settingsButton : null}>
           <MapPanel
             label={panelLabel} controls={pieces.controls}
             state={panel} onStateChange={setPanel} onInsetsChange={changeInsets}
@@ -298,6 +306,7 @@ export default function MapPage({ mode }: { mode: Mode }) {
           >
             {pieces.sidebar}
           </MapPanel>
+          </ConsoleButtonContext.Provider>
         </div>
       )}
     </Workspace>
