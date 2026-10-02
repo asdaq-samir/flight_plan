@@ -169,7 +169,7 @@ export default function MapPage({ mode }: { mode: Mode }) {
     const content = (
       <>
         <ConsoleHeader console={consoleLabel} />
-        <ConsoleSettingsContext.Provider value={<SettingsPanel page={pieces.settings} />}>
+        <ConsoleSettingsContext.Provider value={<SettingsPanel />}>
           <AfterTheSheet>{pieces.console}</AfterTheSheet>
         </ConsoleSettingsContext.Provider>
       </>

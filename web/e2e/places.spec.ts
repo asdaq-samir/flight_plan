@@ -36,12 +36,17 @@ test("an airport's card names the field, its airspace and tower, how far it is, 
 test("a tap on an airport on the chart opens its card, a tap elsewhere puts it away, and Fly Here makes it the destination", async ({ page }) => {
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
-  // Close in on the departure, where the chart's airports are drawn
-  // big enough to tap: the zoom toggle shows the selection, or the
-  // departure when nothing is selected.
-  const zoom = page.getByTestId("map-action-button");
-  await expect(zoom).toHaveAttribute("aria-label", "Show Selected", { timeout: slow(30000) });
-  await zoom.click();
+  // Close in on the departure, where the chart's airports are drawn big
+  // enough to tap: the wheel over its marker, a level at a time
+  // (Leaflet zooms about the cursor, so C81 stays under it).
+  const departure = page.locator(".leaflet-marker-icon", { hasText: "C81" }).first();
+  await expect(departure).toBeVisible({ timeout: slow(30000) });
+  const box = (await departure.boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  for (let i = 0; i < 4; i++) {
+    await page.mouse.wheel(0, -60);
+    await page.waitForTimeout(400);
+  }
   const targets = page.locator(".leaflet-airports-pane path.leaflet-airport-target");
   await expect.poll(() => targets.count(), { timeout: slow(20000) }).toBeGreaterThan(1);
   // One whose middle nothing else covers -- not the route's own marker,

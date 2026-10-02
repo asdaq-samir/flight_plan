@@ -39,17 +39,19 @@ test("plan page: every popup the map opens dismisses the same way", async ({ pag
 
   // The departure marker: a tap opens its card, a tap on the chart puts
   // it away. There is no close button on a card -- closing one is
-  // Leaflet's own `closeOnClick`. The tap goes to the marker, so the
-  // map's zoom toggle comes back out to the whole route, which is what
-  // the next step needs before it can find KORD.
+  // Leaflet's own `closeOnClick`. The tap goes to the marker and brings
+  // the map in to it, so the wheel takes it back out before KORD can be
+  // found.
   await page.locator(".leaflet-marker-icon", { hasText: "C81" }).first().click();
   await expect(popups).toHaveCount(1);
   await tapTheChart(page);
   await expect(popups).toHaveCount(0);
-  const zoomToggle = page.getByTestId("map-action-button");
-  await expect(zoomToggle).toHaveAttribute("aria-label", "Fit Route", { timeout: slow(10000) });
-  await zoomToggle.click();
-  await expect(zoomToggle).toHaveAttribute("aria-label", "Show Selected", { timeout: slow(10000) });
+  const map = (await page.locator(".leaflet-container").boundingBox())!;
+  await page.mouse.move(map.x + map.width / 2, map.y + map.height / 3);
+  for (let i = 0; i < 4; i++) {
+    await page.mouse.wheel(0, 300);
+    await page.waitForTimeout(400);
+  }
 
   await openSettings(page);
   await page.getByTestId("class-b-toggle").click();
@@ -70,58 +72,22 @@ test("plan page: every popup the map opens dismisses the same way", async ({ pag
   await expect(popups).toHaveCount(0);
 });
 
-test("plan page: the map's zoom toggle goes to the selection and back, however many times", async ({ page }) => {
-  // It is one button with two jobs, and which job it is offering has to
-  // follow the map's real zoom -- including a zoom the button itself
-  // caused. Two faults lived here, both invisible to a placement test:
-  // the zoom the button caused was never reported (react-leaflet
-  // re-registers an event handler passed as an object literal on every
-  // commit, and the zoom fired inside that commit from FocusOn's own
-  // effect), so the button offered "Show Selected" for ever; and
-  // pressing it with that same point already selected moved nothing,
-  // because the map only re-centres when the point it is given changes.
+test("plan page: a checkpoint picked on the map brings the map in to it, so there is no zoom button", async ({ page }) => {
+  // The map's buttons had a zoom toggle between the whole route and the
+  // selected point; picking a point already does the one, and the wheel
+  // or a pinch the other.
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
-  const button = page.getByTestId("map-action-button");
-  await expect.poll(() => button.isDisabled(), { timeout: slow(20000) }).toBe(false);
-  await expect(button).toHaveAttribute("aria-label", "Show Selected");
-
-  // In: the map is now closer than the whole route needs, so the button
-  // offers the way back, and the selection ring is drawn.
-  await button.click();
-  await expect(button).toHaveAttribute("aria-label", "Fit Route", { timeout: slow(10000) });
+  await expect(page.locator("[data-map-controls]")).toBeVisible();
+  await expect(page.locator("[data-map-controls]").getByRole("button", { name: /zoom|fit route|show selected/i })).toHaveCount(0);
+  const zoomOfTiles = () => page.evaluate(() => Math.max(...[...document.querySelectorAll<HTMLImageElement>("img.leaflet-tile")]
+    .map(img => Number(new URL(img.src).pathname.split("/").at(-3))).filter(Number.isFinite)));
+  const before = await zoomOfTiles();
+  const marker = page.locator(".leaflet-marker-icon", { hasText: /^9$/ }).first();
+  await expect(marker).toBeVisible({ timeout: slow(60000) });
+  await marker.click();
+  await expect.poll(zoomOfTiles, { timeout: slow(10000) }).toBeGreaterThan(before);
   await expect(page.locator(".leaflet-overlay-pane path")).not.toHaveCount(0);
-
-  // Out, and in again -- the second press is the one that used to do
-  // nothing at all, the point being already selected.
-  await button.click();
-  await expect(button).toHaveAttribute("aria-label", "Show Selected", { timeout: slow(10000) });
-  await button.click();
-  await expect(button).toHaveAttribute("aria-label", "Fit Route", { timeout: slow(10000) });
-  await button.click();
-  await expect(button).toHaveAttribute("aria-label", "Show Selected", { timeout: slow(10000) });
-});
-
-test("dev page: the map's zoom button follows the map's real zoom, as the planner's does", async ({ page }) => {
-  // It used to decide from a fixed zoom 12 of its own, so a scroll-wheel
-  // step in from the whole route still offered to show the selection.
-  await page.goto("/app/dev?dep=C81&dest=KDLH");
-  await settle(page);
-  const button = page.getByTestId("map-action-button");
-  await expect.poll(() => button.isDisabled(), { timeout: slow(60000) }).toBe(false);
-  await expect(button).toHaveAttribute("aria-label", "Show Selected");
-
-  await button.click();
-  await expect(button).toHaveAttribute("aria-label", "Fit Route", { timeout: slow(10000) });
-  await button.click();
-  await expect(button).toHaveAttribute("aria-label", "Show Selected", { timeout: slow(10000) });
-
-  // One wheel step in from the whole route: closer than the route needs.
-  const map = await page.locator(".leaflet-container").boundingBox();
-  if (!map) throw new Error("no map");
-  await page.mouse.move(map.x + map.width / 2, map.y + map.height / 2);
-  await page.mouse.wheel(0, -300);
-  await expect(button).toHaveAttribute("aria-label", "Fit Route", { timeout: slow(10000) });
 });
 
 test("plan page: panning the map with own ship off leaves 'Keep the map on me' as it was", async ({ page }) => {
@@ -144,7 +110,7 @@ test("plan page: panning the map with own ship off leaves 'Keep the map on me' a
   expect(await follow()).toBe(true);
 });
 
-test("plan page: Show checkpoints draws the route's checkpoints at every zoom, and off leaves the course line alone", async ({ page }) => {
+test("plan page: Waypoints draws the route's checkpoints at every zoom, and off leaves the course line alone", async ({ page }) => {
   // They used to start at a zoom picked from a menu (close in, by
   // default), so a route zoomed out to its region showed a line and two
   // airports.
@@ -166,9 +132,9 @@ test("plan page: Show checkpoints draws the route's checkpoints at every zoom, a
   await expect(numbered.first()).toBeVisible();
 
   await openSettings(page);
-  const toggle = page.getByTestId("checkpoints-toggle");
-  await expect(toggle).toBeChecked();
-  await toggle.click();
+  const toggle = page.getByTestId("waypoints-toggle");
+  await expect(toggle.getByRole("radio", { name: "Show" })).toHaveAttribute("aria-checked", "true");
+  await toggle.getByRole("radio", { name: "Hide" }).click();
   await page.keyboard.press("Escape");
   await expect(numbered).toHaveCount(0);
 });

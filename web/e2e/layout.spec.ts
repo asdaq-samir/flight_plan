@@ -165,17 +165,20 @@ for (const path of PAGES) {
     const viewport = page.viewportSize();
     if (!viewport) throw new Error("no viewport configured");
 
-    const actionBox = (await page.getByTestId("map-action-button").boundingBox())!;
     const consoleBox = (await page.getByTestId("settings-button").boundingBox())!;
     // On the map, flush with its right edge -- the same on both pages: at
     // the top over a phone's sheet, at the bottom under a desktop's card.
-    expect(viewport.width - (actionBox.x + actionBox.width)).toBeLessThan(20);
-    if (viewport.width < 768) expect(actionBox.y).toBeLessThan(viewport.height / 2);
-    else expect(actionBox.y).toBeGreaterThan(viewport.height / 2);
-    expect(await sideDrawer(page).getByTestId("map-action-button").count()).toBe(0);
-    // The console's button first in the same group, over the zoom toggle.
-    expect(consoleBox.y).toBeLessThan(actionBox.y);
-    expect(Math.abs(consoleBox.x - actionBox.x)).toBeLessThan(2);
+    expect(viewport.width - (consoleBox.x + consoleBox.width)).toBeLessThan(20);
+    if (viewport.width < 768) expect(consoleBox.y).toBeLessThan(viewport.height / 2);
+    else expect(consoleBox.y).toBeGreaterThan(viewport.height / 2);
+    expect(await sideDrawer(page).getByTestId("settings-button").count()).toBe(0);
+    // The console's button first in the group, over the rest of it.
+    const rest = page.locator("[data-map-controls] button").nth(1);
+    if (await rest.count()) {
+      const restBox = (await rest.boundingBox())!;
+      expect(consoleBox.y).toBeLessThan(restBox.y);
+      expect(Math.abs(consoleBox.x - restBox.x)).toBeLessThan(2);
+    }
 
     // The settings, the console's last tab, hold the chart controls.
     await openSettings(page);

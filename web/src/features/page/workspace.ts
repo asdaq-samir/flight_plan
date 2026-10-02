@@ -1,5 +1,4 @@
 import type { ReactNode } from "react";
-import type { PageSettings } from "../../components/SettingsPanel";
 import type { PanelState } from "../../components/mapChrome";
 
 /**
@@ -22,8 +21,6 @@ export interface WorkspacePieces {
    *  actions (save, the narrative and print; filter, undo and more). */
   actions?: ReactNode;
   console: ReactNode;
-  /** What the page adds to the map's settings (SettingsPanel). */
-  settings?: PageSettings;
   /** Loads the route in the panel's form. */
   submit: () => void;
   /** A load in progress: the form's own button is disabled. */

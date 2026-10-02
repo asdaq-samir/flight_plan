@@ -1,53 +1,23 @@
 import L from "leaflet";
 import { useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { AttributionControl, MapContainer, useMap } from "react-leaflet";
+import { AttributionControl, MapContainer } from "react-leaflet";
 import MapControls from "../../components/MapControls";
 import { MapInsetsContext } from "../../components/mapChrome";
 import type { Course } from "../api/types";
 import { ChartTiles } from "./ChartTiles";
 import { ClassBLayer } from "./ClassBLayer";
 import { ResizeAware } from "./MapEffects";
-import { useZoomLevel } from "./useZoomLevel";
 
 interface Props {
   course: Course | null;
   /** The map, once there is a course on it -- the training page keeps
    *  it to bring the map to a point. */
   onReady?: (map: L.Map) => void;
-  /** The page's half of the map's one zoom button: how to show what it
-   *  has selected, and whether there is anything to show yet. */
-  zoom: ShowSelected;
   /** The layers this particular map draws, inside the container. */
   children: ReactNode;
   /** The location arrow among the map's buttons: the planner's, whose
    *  map draws own ship. */
   position?: boolean;
-}
-
-export interface ShowSelected {
-  showSelected: () => void;
-  disabled: boolean;
-}
-
-/**
- * Whether the map is closer in than fitting the whole route needs.
- *
- * `getBoundsZoom` is Leaflet's own answer to "what zoom would fit
- * this", with the same padding the fit uses, so this is exactly "the
- * pilot is looking at less than the route" however long the route is.
- * It used to be `zoom >= course.max_zoom`, a fixed 12, which is wrong
- * at both ends: a ten-mile route *fits* at 12, so the button offered
- * to fit a route it was already showing and could never offer the
- * selection; and a 2,000 nm route needed nine zoom levels of scrolling
- * before the button admitted it was zoomed in.
- */
-function FitReporter({ bounds, onChange }: { bounds: L.LatLngBounds; onChange: (zoomedIn: boolean) => void }) {
-  const map = useMap();
-  const zoom = useZoomLevel();
-  useEffect(() => {
-    onChange(zoom > map.getBoundsZoom(bounds, false, L.point(30, 30)));
-  }, [zoom, bounds, map, onChange]);
-  return null;
 }
 
 /**
@@ -59,14 +29,8 @@ function FitReporter({ bounds, onChange }: { bounds: L.LatLngBounds; onChange: (
  * preview state and the placeholder before a course arrives were the
  * same code in both files.
  */
-export function MapShell({ course, onReady, zoom, children, position }: Props) {
+export function MapShell({ course, onReady, children, position }: Props) {
   const [map, setMap] = useState<L.Map | null>(null);
-  // The one zoom button offers the whole route when the map is closer in
-  // than the route needs, and the page's selection otherwise -- decided
-  // here, from the map's real zoom, for both pages. The planner used to
-  // be handed this and hand it back; the training page worked it out
-  // again from a fixed zoom 12, the rule the comment above calls wrong.
-  const [zoomedIn, setZoomedIn] = useState(false);
   const [previewing, setPreviewing] = useState(false);
   const bounds = useMemo(() => (course ? L.latLngBounds(course.course_line as [number, number][]) : null), [course]);
 
@@ -125,13 +89,12 @@ export function MapShell({ course, onReady, zoom, children, position }: Props) {
               planning a route past it or rating chart detections
               near it. Draws nothing unless switched on. */}
           <ClassBLayer course={course} onPreview={setPreviewing} />
-          <FitReporter bounds={bounds} onChange={setZoomedIn} />
           {children}
         </MapContainer>
       ) : (
         <div className="h-full w-full bg-slate-100 dark:bg-slate-900" />
       )}
-      <MapControls zoom={{ zoomedIn, onToggle: zoomedIn ? fit : zoom.showSelected, disabled: zoom.disabled }} position={position} />
+      <MapControls position={position} />
     </div>
   );
 }

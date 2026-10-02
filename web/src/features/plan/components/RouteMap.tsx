@@ -14,7 +14,7 @@ import { airportIcon, dotIcon } from "../../../lib/map/icons";
 import { FocusOn } from "../../../lib/map/MapEffects";
 import { MapCard } from "../../../lib/map/MapCard";
 import { MapPopup } from "../../../lib/map/MapPopup";
-import { MapShell, type ShowSelected } from "../../../lib/map/MapShell";
+import { MapShell } from "../../../lib/map/MapShell";
 import { MapTooltip } from "../../../lib/map/MapTooltip";
 import { OwnShipLayer } from "../../../lib/map/OwnShipLayer";
 import { useCardedMarker } from "../../../lib/map/useCardedMarker";
@@ -35,8 +35,6 @@ interface Props {
   /** The same for the two airports, which are not candidates but are
    *  waypoints the nav log lists and the map can be brought to. */
   onSelectPoint: (lat: number, lon: number) => void;
-  /** The page's half of the map's zoom button (see `MapShell`). */
-  zoom: ShowSelected;
   /** The route's briefing (see `usePlan`): the departure and
    *  destination's own current METARs, and where fetching it stands. */
   airportWeather: BriefingState;
@@ -144,13 +142,13 @@ function Endpoints({ course, weather, onSelectPoint }: { course: Course; weather
 }
 
 /** The chosen checkpoints at every zoom, and the candidates they were
- *  chosen from closer in (CROWD_ZOOM), or neither: the settings' Show
- *  checkpoints. Hovering previews the same card a tap opens, the way
+ *  chosen from closer in (CROWD_ZOOM), or neither: the settings'
+ *  Waypoints. Hovering previews the same card a tap opens, the way
  *  Class B airports do -- `useCardedMarker` takes the preview away once
  *  that marker's own popup is open, so the two never draw at once. */
 function Checkpoints({ candidates, selected, onSelectCandidate }: Pick<Props, "candidates" | "selected" | "onSelectCandidate">) {
   const zoom = useZoomLevel();
-  const show = usePreferences(s => s.checkpoints);
+  const show = usePreferences(s => s.waypoints);
   const { carded, cardEvents } = useCardedMarker<string>();
   if (!show) return null;
   return (
@@ -195,12 +193,12 @@ function Checkpoints({ candidates, selected, onSelectCandidate }: Pick<Props, "c
  */
 export default function RouteMap({
   course, candidates, selected, focus, onSelectCandidate, onSelectPoint,
-  zoom, airportWeather, place, onSelectPlace,
+  airportWeather, place, onSelectPlace,
 }: Props) {
   const focusZoom = course?.max_zoom ?? 12;
 
   return (
-    <MapShell course={course} zoom={zoom} position>
+    <MapShell course={course} position>
       {course && (
         <>
           <CourseLine

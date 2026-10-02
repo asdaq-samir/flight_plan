@@ -1,57 +1,47 @@
-import { useId } from "react";
-import { CloudSun, Map as MapIcon, Monitor, Moon, PanelBottom, PanelTop, Sun } from "lucide-react";
+import { CloudSun, Eye, EyeOff, Map as MapIcon, Monitor, Moon, PanelBottom, PanelTop, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
 import { ListGroup, ListRow } from "./GroupedList";
 import Segmented, { SegmentedMany } from "./Segmented";
-import { Switch } from "./ui/switch";
 import { useNavEdge } from "../hooks/use-nav-edge";
 import { BASE_CHARTS, usePreferences, type BaseChart, type NavEdge } from "../lib/preferences";
-
-/** What a page adds to the settings: the planner's Show checkpoints.
- *  The training page, whose map is its detections, adds nothing. */
-export interface PageSettings {
-  checkpoints?: boolean;
-}
 
 /**
  * The settings, the consoles' last tab (ConsoleTabs), laid out the way
  * iOS lays out Settings: a few groups under short headings, each a
  * rounded box of rows with a hairline between them, one label per row
- * with its control at the row's end, and at most a line of help. A
- * switch for anything on or off, and a segmented control for two or
- * three choices, all on show and one tap each. Appearance first -- the
- * theme and the layout, the two that change how all of it looks --
- * then the map, with the planner's Show checkpoints in it. Everything
- * here is remembered per browser.
+ * with its control at the row's end. Every control a segmented one, all
+ * the choices on show and one tap each: Theme, Layout, Chart and
+ * Waypoints pick one; Class B's Weather and TAC are each on or off.
+ * Appearance first -- the theme and the layout, the two that change
+ * how all of it looks -- then the map. The same on both pages, and
+ * remembered per browser.
  *
  * Who is signed in, the role (dev mode) and Sign out are the console's
  * title row (ConsoleHeader); the pilot's own position is the map's
- * location arrow (MyPositionButton), where it was a group of two
- * switches here. The checkpoints were a group
- * of their own, a menu of four zoom levels and a switch for the
- * landmarks they were chosen from, and are one switch now. It replaced
- * a column of headings, checkboxes, dropdowns and a paragraph under
- * nearly every control, twice the height.
+ * location arrow (MyPositionButton), where it was two switches here.
+ * The waypoints were the planner's group of their own, a menu of four
+ * zoom levels and a switch for the landmarks they were chosen from. It
+ * all replaced a column of headings, checkboxes, dropdowns and a
+ * paragraph under nearly every control, twice the height.
  */
-export default function SettingsPanel({ page }: { page?: PageSettings }) {
+export default function SettingsPanel() {
   return (
     <div className="space-y-5 pb-1" data-testid="settings-panel">
       <AppearanceGroup />
-      <MapGroup checkpoints={page?.checkpoints} />
+      <MapGroup />
     </div>
   );
 }
 
-function MapGroup({ checkpoints }: { checkpoints?: boolean }) {
+function MapGroup() {
   const base = usePreferences(s => s.base);
   const tac = usePreferences(s => s.tac);
   const classB = usePreferences(s => s.classB);
   const setBase = usePreferences(s => s.setBase);
   const setTac = usePreferences(s => s.setTac);
   const setClassB = usePreferences(s => s.setClassB);
-  const showCheckpoints = usePreferences(s => s.checkpoints);
-  const setCheckpoints = usePreferences(s => s.setCheckpoints);
-  const checkpointsId = useId();
+  const waypoints = usePreferences(s => s.waypoints);
+  const setWaypoints = usePreferences(s => s.setWaypoints);
   return (
     <ListGroup title="Map">
       <ListRow title="Chart">
@@ -79,14 +69,16 @@ function MapGroup({ checkpoints }: { checkpoints?: boolean }) {
           ]}
         />
       </ListRow>
-      {/* The route's numbered checkpoints at every zoom, and closer in the
-          dim landmarks they were chosen from; off, the course line and
-          its two airports alone. */}
-      {checkpoints && (
-        <ListRow id={checkpointsId} title="Show checkpoints" description="The route's landmarks, at every zoom">
-          <Switch id={checkpointsId} checked={showCheckpoints} onCheckedChange={setCheckpoints} data-testid="checkpoints-toggle" />
-        </ListRow>
-      )}
+      {/* The route's waypoints, on either map: the planner's numbered
+          checkpoints at every zoom and the dim landmarks they were chosen
+          from closer in, the training map's detections; off, the course
+          line and its two airports alone. */}
+      <ListRow title="Waypoints">
+        <Segmented
+          label="Waypoints" value={waypoints ? "show" : "hide"} onChange={v => setWaypoints(v === "show")} testId="waypoints-toggle"
+          options={[{ value: "show", label: "Show", icon: <Eye /> }, { value: "hide", label: "Hide", icon: <EyeOff /> }]}
+        />
+      </ListRow>
     </ListGroup>
   );
 }

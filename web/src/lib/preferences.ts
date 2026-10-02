@@ -38,11 +38,12 @@ interface Preferences {
    *  over the sectional, the IFR area chart over an IFR chart) is
    *  pinned: drawn at every zoom it exists at. */
   tac: boolean;
-  /** Whether the planner draws the route's checkpoints, at every zoom
-   *  (and the landmarks they were chosen from, closer in: CROWD_ZOOM).
-   *  It was a zoom level they started at, from a menu of four, and a
-   *  switch for the landmarks of their own. */
-  checkpoints: boolean;
+  /** Whether the maps draw the waypoints: the planner's checkpoints at
+   *  every zoom and the landmarks they were chosen from closer in, the
+   *  training map's detections from CROWD_ZOOM. It was a zoom level the
+   *  checkpoints started at, from a menu of four, and a switch for the
+   *  landmarks of their own, on the planner only. */
+  waypoints: boolean;
   /** Whether the Class B airports are drawn, with their current flight
    *  category and a terminal chart on hover. Off by default: useful on
    *  a route that passes near one, clutter on a route that does not. */
@@ -57,7 +58,7 @@ interface Preferences {
   navBar: NavEdge | null;
   setBase: (base: BaseChart) => void;
   setTac: (tac: boolean) => void;
-  setCheckpoints: (checkpoints: boolean) => void;
+  setWaypoints: (waypoints: boolean) => void;
   setClassB: (classB: boolean) => void;
   setAircraft: (aircraft: AircraftChoice) => void;
   setFilter: (key: FilterKey, on: boolean) => void;
@@ -71,7 +72,7 @@ export const usePreferences = create<Preferences>()(
     set => ({
       base: "sec",
       tac: false,
-      checkpoints: true,
+      waypoints: true,
       classB: false,
       aircraft: DEFAULT_AIRCRAFT,
       filters: DEFAULT_FILTERS,
@@ -80,7 +81,7 @@ export const usePreferences = create<Preferences>()(
       navBar: null,
       setBase: base => set({ base }),
       setTac: tac => set({ tac }),
-      setCheckpoints: checkpoints => set({ checkpoints }),
+      setWaypoints: waypoints => set({ waypoints }),
       setClassB: classB => set({ classB }),
       setAircraft: aircraft => set({ aircraft }),
       setFilter: (key, on) => set(s => ({ filters: { ...s.filters, [key]: on } })),
@@ -92,7 +93,7 @@ export const usePreferences = create<Preferences>()(
       name: "vfr.preferences",
       // The functions are not state; only the values are written.
       partialize: s => ({
-        base: s.base, tac: s.tac, checkpoints: s.checkpoints, classB: s.classB, aircraft: s.aircraft, filters: s.filters, devTab: s.devTab, pilotTab: s.pilotTab, navBar: s.navBar,
+        base: s.base, tac: s.tac, waypoints: s.waypoints, classB: s.classB, aircraft: s.aircraft, filters: s.filters, devTab: s.devTab, pilotTab: s.pilotTab, navBar: s.navBar,
       }),
     },
   ),

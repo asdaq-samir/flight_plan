@@ -81,7 +81,7 @@ test("the navigation bar's edge is a setting: the panel moves to it, the map's b
   await expect(page.locator("[data-slot=drawer-content], [data-slot=popover-content], [data-testid=console-sheet]")).toHaveCount(0);
 
   const header = (await page.locator("header").boundingBox())!;
-  const zoomToggle = (await page.getByTestId("map-action-button").boundingBox())!;
+  const zoomToggle = (await page.getByTestId("settings-button").boundingBox())!;
   if (phone) {
     expect(header.y).toBeLessThan(40);
     expect(zoomToggle.y).toBeGreaterThan(viewport.height / 2);

@@ -10,9 +10,10 @@ import { Halo } from "../../../lib/map/Halo";
 import { airportIcon, dotIcon } from "../../../lib/map/icons";
 import { MapCard } from "../../../lib/map/MapCard";
 import { MapPopup } from "../../../lib/map/MapPopup";
-import { MapShell, type ShowSelected } from "../../../lib/map/MapShell";
+import { MapShell } from "../../../lib/map/MapShell";
 import { MapTooltip } from "../../../lib/map/MapTooltip";
 import { CROWD_ZOOM, useZoomLevel } from "../../../lib/map/useZoomLevel";
+import { usePreferences } from "../../../lib/preferences";
 import { COLORS, hasRating, isVisible, pointKey, prettyCategory, type Filters } from "../logic";
 
 interface Props {
@@ -32,8 +33,6 @@ interface Props {
   onDeselect: () => void;
   onAddAt: (lat: number, lon: number) => void;
   onMapReady?: (map: L.Map) => void;
-  /** The page's half of the map's zoom button (see `MapShell`). */
-  zoom: ShowSelected;
 }
 
 /** The read-only preview a hover shows before a tap opens the full
@@ -64,7 +63,8 @@ function PointPreview({ point }: { point: Point }) {
 }
 
 /** The detections and the points added by hand, from the crowd zoom
- *  in: a few hundred over a whole corridor hide the chart. Unrated is
+ *  in (a few hundred over a whole corridor hide the chart), unless the
+ *  settings' Waypoints is off. Unrated is
  *  slate rather than white: a white dot with a white casing vanishes
  *  over pale chart. Hovering previews the point the same way Class B
  *  airports do; the selected one skips its own preview, since its
@@ -73,7 +73,8 @@ function PointPreview({ point }: { point: Point }) {
  *  popup here to hide it behind, the way the other two maps do). */
 function Candidates({ detections, added, filters, selected, onSelect }: Pick<Props, "detections" | "added" | "filters" | "selected" | "onSelect">) {
   const zoom = useZoomLevel();
-  if (zoom < CROWD_ZOOM) return null;
+  const show = usePreferences(s => s.waypoints);
+  if (!show || zoom < CROWD_ZOOM) return null;
   const draw = (points: Point[], kind: "detected" | "added") =>
     points.filter(p => isVisible(p, filters)).map(p => (
       <Marker
@@ -102,10 +103,10 @@ function Candidates({ detections, added, filters, selected, onSelect }: Pick<Pro
  */
 export default function ChartMap({
   course, endpoints, detections, added, filters, selected, selectedContent,
-  onSelect, onDeselect, onAddAt, onMapReady, zoom,
+  onSelect, onDeselect, onAddAt, onMapReady,
 }: Props) {
   return (
-    <MapShell course={course} onReady={onMapReady} zoom={zoom}>
+    <MapShell course={course} onReady={onMapReady}>
       {course && (
         <>
           {/* Left-click the course to add: dragging still pans, and an

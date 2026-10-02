@@ -159,16 +159,6 @@ export default function TrainWorkspace({ dep, dest, children }: WorkspaceProps) 
     rate, setCategory, removeSelected, step, walkIndex, walk.length,
   ]);
 
-  /** Zooms out to see the whole leg -- Escape, and its own toolbar
-   *  button for touch, which has no Escape key. */
-  /** Zooms into the point you're on, or the first one if you haven't
-   *  started yet -- "Start" and "Resume" are the same action, the
-   *  button just reads differently depending on whether `point` is set. */
-  const startOrResume = useCallback(() => {
-    const target = point ? walk.find(e => e.point === point) : walk[0];
-    if (target) focus(target);
-  }, [point, walk, focus]);
-
 
   // Two keys, and only two: Up and Down walk the points in flight
   // order, and a digit rates the one you are on and moves to the next.
@@ -235,7 +225,6 @@ export default function TrainWorkspace({ dep, dest, children }: WorkspaceProps) 
     map: (
       <div className="h-full w-full">
         <ChartMap
-          zoom={{ showSelected: startOrResume, disabled: !walk.length }}
           course={store.course}
           endpoints={store.endpoints}
           detections={store.detections}

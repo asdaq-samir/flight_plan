@@ -238,19 +238,6 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     [selectPoint],
   );
 
-  // The map's zoom button, this page's half of it: showing whatever is
-  // selected (or the departure, the first point, if nothing is yet).
-  // Whether a press does that or fits the whole route is the map's own
-  // call, from its real zoom (MapShell).
-  const showSelected = useCallback(() => {
-    if (!course) return;
-    // A fresh object, deliberately: the map re-centres when the point
-    // it is given changes, and "show me the selection" has to be a
-    // change even when the selection itself has not moved -- otherwise
-    // the button did nothing at all once a point was already picked.
-    selectPoint({ ...(selectedPoint ?? { lat: course.departure.lat, lon: course.departure.lon }) });
-  }, [course, selectedPoint, selectPoint]);
-
   // This page binds no keys of its own. Walking the nav log used to be
   // Up and Down on the document, which meant deciding by hand, on every
   // press, whether some other widget wanted them: a guard for inputs
@@ -326,7 +313,6 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           focus={selectedPoint}
           onSelectCandidate={selectCandidate}
           onSelectPoint={(lat, lon) => selectPoint({ lat, lon })}
-          zoom={{ showSelected, disabled: !course }}
           airportWeather={s.briefing}
           place={placeData ? { ident: placeData.ident, lat: placeData.lat, lon: placeData.lon } : null}
           onSelectPlace={selectPlace}
@@ -371,7 +357,6 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       </>
     ),
     console: <PilotPanel />,
-    settings: { checkpoints: true },
     submit,
     loading: s.stage !== null,
     notices: s.sameAirport ? (
