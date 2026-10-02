@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { toast } from "sonner";
+import { create } from "zustand";
 import ProblemToast from "../components/ProblemToast";
 
 /** Something gone wrong, or worth a warning, as a toast that stays. */
@@ -20,6 +21,41 @@ export interface Problem {
 export const MINIMIZE_MS = 8000;
 
 const timers = new Map<string | number, ReturnType<typeof setTimeout>>();
+
+/** The problems folded to their line just now: while one is, a phone's
+ *  sheet all the way out stops short of it (MapPanel, ConsoleSheet), so
+ *  its grabber is not under the line. */
+export const useFoldedProblems = create<{ ids: (string | number)[] }>(() => ({ ids: [] }));
+
+/** What folded lines take of the screen's edge, with a gap under them:
+ *  the room a sheet all the way out leaves them -- a line, and sonner's
+ *  stack showing 14 of each one behind it, of the three it shows. */
+export function foldedProblemsPx(count: number): number {
+  return count ? 46 + Math.min(count - 1, 2) * 14 : 0;
+}
+
+function folded(id: string | number, is: boolean) {
+  useFoldedProblems.setState(s => ({ ids: is ? [...s.ids.filter(x => x !== id), id] : s.ids.filter(x => x !== id) }));
+}
+
+/** Each problem on screen, by id: how to show it, and whether it is open. */
+const shown = new Map<string | number, { show: (minimized: boolean) => void; open: boolean }>();
+
+/** Which of a phone's sheets is out, reaching the toasts' edge of the
+ *  screen (MapPanel at half or all the way, ConsoleSheet). */
+const covering = { panel: false, console: false };
+
+/**
+ * A sheet out, or no longer: while one is, a problem is not left open
+ * over it -- each open one folds to its line at once, and one raised
+ * meanwhile comes folded. A tap on a line still opens it to be read; it
+ * folds again as one does.
+ */
+export function sheetCovers(sheet: keyof typeof covering, covers: boolean) {
+  covering[sheet] = covers;
+  if (!covers) return;
+  for (const { show, open } of [...shown.values()]) if (open) show(true);
+}
 
 function stop(id: string | number) {
   clearTimeout(timers.get(id));
@@ -52,15 +88,19 @@ export function notifyProblem(problem: Problem, id: string | number = `problem:$
         onOpen={() => show(false)} onMinimize={() => show(true)} onHold={() => stop(id)} onLetGo={schedule}
         onAction={() => dismissProblem(id)}
       />
-    ), { id, duration: Infinity, onDismiss: () => stop(id) });
+    ), { id, duration: Infinity, onDismiss: () => { stop(id); folded(id, false); shown.delete(id); } });
+    folded(id, minimized);
+    shown.set(id, { show, open: !minimized });
     if (!minimized) schedule();
   };
-  show(false);
+  show(covering.panel || covering.console);
   return id;
 }
 
 /** Put away, from where it was raised: the problem has gone. */
 export function dismissProblem(id: string | number) {
   stop(id);
+  folded(id, false);
+  shown.delete(id);
   toast.dismiss(id);
 }

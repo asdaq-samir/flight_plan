@@ -79,6 +79,9 @@ test("the navigation bar's edge is a setting: the panel moves to it, the map's b
   await expect(page.locator("[data-slot=drawer-content], [data-slot=popover-content], [data-testid=console-sheet]")).toHaveCount(0);
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
+  // Once the panel has come to rest: it measures its head and eases to
+  // its height after a load, and the reload below is compared with this.
+  await page.locator('[data-slot="map-panel"]').evaluate(el => Promise.all(el.getAnimations({ subtree: true }).map(a => a.finished)));
 
   const header = (await page.locator("header").boundingBox())!;
   const buttons = (await page.locator("[data-map-controls] > *").first().boundingBox())!;

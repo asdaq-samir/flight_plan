@@ -430,6 +430,22 @@ html [data-sonner-toaster] {
   }
 }
 
+/* A problem's toast (lib/notify) takes a tap on its own card or line
+   alone, never on sonner's frame round it: that frame runs the toast row's
+   width, with a band past its edge for the hover, and with a panel out it
+   took the taps of the panel's grabber just under a folded line. Over the
+   stock rule above, which gives every toast the pointer while a panel is
+   out. */
+html body [data-sonner-toaster] [data-sonner-toast][data-styled="false"] {
+  pointer-events: none;
+}
+/* Its card takes its own taps back while a panel or a dialog is out, as
+   the stock toasts do (above), so a tap on its words is not a tap on the
+   panel's section under it. */
+body:has([data-slot="map-panel"]:not([data-panel="peek"]), [role="dialog"][data-state="open"]:not([data-slot="map-panel"])) [data-sonner-toast] [data-problem] {
+  pointer-events: auto;
+}
+
 /* A toast the app draws itself (a problem, lib/notify) as wide as
    sonner's own: sonner sizes only the toasts it styles, and one of these
    shrank to its words, off the centre the others keep. */

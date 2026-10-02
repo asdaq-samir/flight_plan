@@ -190,11 +190,16 @@ test("minimizing a problem folds the problem, not the drawer under it", async ({
   const phoneDrawer = page.locator('[data-mobile="true"][data-sidebar="sidebar"]');
   const onPhone = (await phoneDrawer.count()) > 0;
 
-  // A problem open, its minimize; folded, it is still there, a line.
+  // A problem open -- under a phone's sheet all the way out it comes
+  // folded, and a tap on its line opens it -- its minimize; folded, it is
+  // still there, a line.
   const open = page.locator('[data-problem="open"]');
-  await expect(open.first()).toBeVisible({ timeout: 20000 });
+  const folded = page.locator('[data-problem="minimized"]');
+  await expect(open.or(folded).first()).toBeVisible({ timeout: 20000 });
+  if (!(await open.count())) await folded.first().getByTestId("problem-open").click();
+  await expect(open.first()).toBeVisible();
   await open.first().locator(MINIMIZE).click({ force: true });
-  await expect(page.locator('[data-problem="minimized"]').first()).toBeVisible({ timeout: 10000 });
+  await expect(folded.first()).toBeVisible({ timeout: 10000 });
   // No close: an error goes when its cause does.
   await expect(page.getByRole("button", { name: "Dismiss" })).toHaveCount(0);
   if (onPhone) {
@@ -238,9 +243,15 @@ test("minimizing a problem over the console leaves the console open", async ({ p
   const console = page.getByTestId("console-sheet");
   await expect(console).toBeVisible();
 
-  // The front card's minimize, once the card has come to rest: the first
-  // card in the page could still be sliding in from off screen (from the
-  // top, on a phone), where a forced click missed it.
+  // With the console out a problem comes folded: a tap on its line opens
+  // it over the console, and its minimize folds it again -- the console
+  // staying out either way. Once the card has come to rest: the first
+  // in the page could still be sliding in from off screen (from the top,
+  // on a phone), where a forced click missed it.
+  const line = page.locator('[data-problem="minimized"]').first();
+  await expect(line).toBeVisible({ timeout: 20000 });
+  await line.getByTestId("problem-open").click();
+  await expect(console).toBeVisible();
   const front = page.locator(`[data-sonner-toast][data-front="true"]:has(${MINIMIZE})`);
   await expect(front).toBeVisible({ timeout: 20000 });
   await front.locator(MINIMIZE).click();
@@ -268,4 +279,108 @@ test("a pile-up stays legible: at most three, stacked rather than marching acros
   const bottom = Math.max(...boxes.map(b => b.bottom));
   const viewport = page.viewportSize()!;
   expect(bottom - top).toBeLessThan(viewport.height * 0.45);
+});
+
+test("a problem folded to its line leaves the map's buttons in sight beside it", async ({ page }) => {
+  // Open, a problem runs across the map's buttons; folded, it is a line
+  // that may last a while, and the location arrow under it was out of
+  // reach for as long as it did.
+  await plannerDown(page);
+  await page.goto(PLAN);
+  // The front card's: one stacked behind it may sit off the screen.
+  const open = page.locator('[data-sonner-toast][data-front="true"] [data-problem="open"]');
+  await expect(open).toBeVisible({ timeout: 20000 });
+  // Once it has come to rest: it slides in from the screen's edge.
+  await open.evaluate(el => Promise.all(el.closest("[data-sonner-toast]")!.getAnimations({ subtree: true }).map(a => a.finished)));
+  await open.locator(MINIMIZE).click({ force: true });
+  const folded = page.locator('[data-sonner-toast][data-front="true"] [data-problem="minimized"]');
+  await expect(folded).toBeVisible({ timeout: 10000 });
+  await folded.evaluate(el => Promise.all(el.closest("[data-sonner-toast]")!.getAnimations({ subtree: true }).map(a => a.finished)));
+
+  const pill = (await folded.boundingBox())!;
+  const arrow = (await page.getByTestId("my-position-button").boundingBox())!;
+  const overlaps = pill.x < arrow.x + arrow.width && arrow.x < pill.x + pill.width
+    && pill.y < arrow.y + arrow.height && arrow.y < pill.y + pill.height;
+  expect(overlaps).toBe(false);
+  // And the arrow takes its tap: nothing of the line over it.
+  const hit = await page.evaluate(([x, y]) => document.elementFromPoint(x, y)?.closest("[data-testid=my-position-button]") !== null,
+    [arrow.x + arrow.width / 2, arrow.y + arrow.height / 2]);
+  expect(hit).toBe(true);
+});
+
+test("with a problem folded to its line, the panel all the way out stops short of it, and its grabber still lowers it", async ({ page }) => {
+  // From the bottom of a phone the sheet all the way out has its grabber
+  // at the top of the screen, where a toast came in and a folded line
+  // stayed: the sheet could not be lowered while the problem lasted. It
+  // stops short of the line now, the line in its place.
+  test.skip(page.viewportSize()!.width >= 768, "a phone's sheet");
+  await page.route("**/api/planner/navlog**", route => route.fulfill({
+    status: 200, contentType: "application/x-ndjson",
+    body: JSON.stringify({ type: "error", retry: false, detail: "No legal VFR cruising altitude 830-858 nm along the route",
+      reasons: ["The terrain and obstacles there need 10,600 ft."], advice: "Route around the high ground." }) + "\n",
+  }));
+  await page.goto(`${PLAN}&view=briefing`);
+  // Raised with the sheet all the way out: it comes folded.
+  const folded = page.locator('[data-problem="minimized"]').first();
+  await expect(folded).toBeVisible({ timeout: 20000 });
+  await folded.evaluate(el => Promise.all(el.closest("[data-sonner-toast]")!.getAnimations({ subtree: true }).map(a => a.finished)));
+
+  const line = (await folded.boundingBox())!;
+  const sheet = page.locator('[data-slot="map-panel"]');
+  await sheet.evaluate(el => Promise.all(el.getAnimations().map(a => a.finished)));
+  expect((await sheet.boundingBox())!.y).toBeGreaterThanOrEqual(line.y + line.height);
+  const grabber = page.getByTestId("sidebar-trigger-button");
+  // Once the stack and the sheet have come to rest -- another line folded
+  // in eases the sheet a little shorter -- nothing is over the grabber.
+  await expect.poll(async () => {
+    const box = (await grabber.boundingBox())!;
+    return page.evaluate(([x, y]) => document.elementFromPoint(x, y)?.closest("[data-testid=sidebar-trigger-button]") !== null,
+      [box.x + box.width / 2, box.y + box.height / 2]);
+  }, { timeout: 5000 }).toBe(true);
+  await grabber.click();
+  await expect(page.locator('[data-slot="map-panel"]')).toHaveAttribute("data-panel", "peek");
+});
+
+test("a problem open as the panel comes all the way out folds to its line, and one raised then comes folded", async ({ page }) => {
+  test.skip(page.viewportSize()!.width >= 768, "a phone's sheet");
+  await page.route("**/api/planner/navlog**", route => route.fulfill({
+    status: 200, contentType: "application/x-ndjson",
+    body: JSON.stringify({ type: "error", retry: false, detail: "No legal VFR cruising altitude 830-858 nm along the route",
+      reasons: ["The terrain and obstacles there need 10,600 ft."], advice: "Route around the high ground." }) + "\n",
+  }));
+  await page.goto(PLAN);
+  await expect(page.locator('[data-problem="open"]')).toBeVisible({ timeout: 20000 });
+  // All the way out -- the grabber from rest -- folded at once, not
+  // after its eight seconds.
+  await page.getByTestId("sidebar-trigger-button").click();
+  await expect(page.locator('[data-slot="map-panel"]')).toHaveAttribute("data-panel", "full");
+  await expect(page.locator('[data-problem="minimized"]')).toBeVisible({ timeout: 2000 });
+  await expect(page.locator('[data-problem="open"]')).toHaveCount(0);
+
+  // Raised again with the panel out (Load: a fresh nav log): folded.
+  await page.reload();
+  await expect(page.locator('[data-slot="map-panel"]')).toHaveAttribute("data-panel", "full");
+  await expect(page.locator('[data-problem="minimized"]')).toBeVisible({ timeout: 20000 });
+  await expect(page.locator('[data-problem="open"]')).toHaveCount(0);
+  // A tap still opens it to be read.
+  await page.getByTestId("problem-open").click();
+  await expect(page.locator('[data-problem="open"]')).toBeVisible();
+});
+
+test("a problem open as the panel comes half way out folds to its line too", async ({ page }) => {
+  test.skip(page.viewportSize()!.width >= 768, "a phone's sheet");
+  await page.route("**/api/planner/navlog**", route => route.fulfill({
+    status: 200, contentType: "application/x-ndjson",
+    body: JSON.stringify({ type: "error", retry: false, detail: "No legal VFR cruising altitude 830-858 nm along the route",
+      reasons: ["The terrain and obstacles there need 10,600 ft.", "The first westbound VFR altitude above that is 12,500 ft."],
+      advice: "Route around the high ground." }) + "\n",
+  }));
+  await page.goto(PLAN);
+  await expect(page.locator('[data-problem="open"]')).toBeVisible({ timeout: 20000 });
+  await page.getByTestId("capsule-detail").click();
+  await expect(page.locator('[data-slot="map-panel"]')).toHaveAttribute("data-panel", "half");
+  await expect(page.locator('[data-problem="open"]')).toHaveCount(0, { timeout: 2000 });
+  const line = (await page.locator('[data-problem="minimized"]').boundingBox())!;
+  const sheet = (await page.locator('[data-slot="map-panel"]').boundingBox())!;
+  expect(line.y + line.height).toBeLessThanOrEqual(sheet.y);
 });

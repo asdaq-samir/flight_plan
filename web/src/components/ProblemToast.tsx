@@ -34,7 +34,12 @@ export default function ProblemToast({ problem, minimized, onOpen, onMinimize, o
   if (minimized) {
     return (
       <div
-        className={cn("flex w-full items-center gap-1 rounded-full border py-1 pr-3 pl-3 shadow-md", TONE[kind])}
+        // As wide as its words and centred, 44 short of the row's either
+        // end: the map's buttons stay in sight beside it -- the location
+        // arrow under the top right of a phone, which a folded line the
+        // row's width covered for as long as the problem lasted. Open, it
+        // runs across them (AppToaster).
+        className={cn("mx-auto flex w-fit max-w-[calc(100%-5.5rem)] items-center gap-1 rounded-full border py-1 pr-3 pl-3 shadow-md", TONE[kind])}
         data-problem="minimized" data-kind={kind}
       >
         <button
