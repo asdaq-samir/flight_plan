@@ -90,3 +90,33 @@ test("dev page: the waypoint drawer is a worklist -- every candidate in flight o
     await expect(page.getByText(axis, { exact: true })).toBeVisible();
   }
 });
+
+test("a retrain confirmed from the panel's More opens the console on Performance, to follow it", async ({ page }) => {
+  // The run's progress is on the Performance tab, with no badge on the
+  // tab's name any more: the tab is where a retrain takes you.
+  await page.route("**/api/planner/status", async route => {
+    const response = await route.fetch();
+    const json = await response.json();
+    json.pipeline = {
+      ...json.pipeline, airflow_configured: true, airflow_reachable: true, last_run: null,
+      training: { route: "C81->KDLH", usable: 40, needed: 30, ready: true, rated: 45, zeros: 3, off_landmark: 2, same_landmark: 0, older: 0, message: "40 of the 30 ratings training needs." },
+    };
+    await route.fulfill({ response, json });
+  });
+  await page.route("**/api/planner/retrain", route =>
+    route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ dag_run_id: "manual__test", state: "queued" }) }));
+  await page.goto("/app/dev?dep=C81&dest=KDLH");
+  await settle(page);
+  await expect(consoleSheet(page)).toHaveCount(0);
+
+  await page.getByTestId("training-more-button").click();
+  await page.getByTestId("retrain-button").click();
+  await page.getByRole("button", { name: "Retrain", exact: true }).click();
+
+  await expect(consoleSheet(page).getByRole("tab", { name: "Performance" })).toHaveAttribute("aria-selected", "true");
+  await expect(consoleSheet(page).getByRole("tab", { name: "Performance" })).toHaveText("Performance");
+  await expect(consoleSheet(page).getByTestId("training-readiness")).toContainText("40 of 30");
+  // The snapshot is polled: a fetch of one still in flight as the page
+  // closes is not this test's failure.
+  await page.unrouteAll({ behavior: "ignoreErrors" });
+});

@@ -219,5 +219,37 @@ def test_too_few_labels_is_refused_before_any_trainer_runs(tmp_path):
     from vfr import pipeline
 
     features, labels = _labelled(tmp_path, 10)
-    with pytest.raises(pipeline.InsufficientLabelsError, match="Only 10 labeled"):
+    with pytest.raises(pipeline.InsufficientLabelsError, match="10 of the 30 ratings training needs"):
         pipeline.labeled_split(features, labels, min_labeled_rows=30)
+
+
+def test_the_readiness_says_what_became_of_each_rating(tmp_path):
+    """Asked before a run is started: the developer is told how many of
+    their ratings the trainer can use and why the rest cannot."""
+    import pandas as pd
+
+    from vfr import pipeline
+
+    features = tmp_path / "features_c81_kdlh.parquet"
+    pd.DataFrame([
+        {"osm_id": "1", "osm_type": "node", "lat": 45.0, "lon": -90.0, **{c: 1.0 for c in pipeline.FEATURE_COLS_BASE}},
+        {"osm_id": "2", "osm_type": "node", "lat": 45.1, "lon": -90.0, **{c: 1.0 for c in pipeline.FEATURE_COLS_BASE}},
+    ]).to_parquet(features)
+    labels = tmp_path / "ratings.csv"
+    labels.write_text("osm_id,osm_type,name,category,rating\n")
+    picks = tmp_path / "picks.csv"
+    head = "route,source,role,category,lat,lon,along_track_nm,cross_track_nm,rating,area_m2,note,created_at\n"
+    row = "C81->KDLH,detected,dr,water,{lat},{lon},1,0,{rating},100,,2026-10-01T00:00:00+00:00\n"
+    picks.write_text(head + "".join(row.format(**p) for p in [
+        {"lat": 45.0, "lon": -90.0, "rating": 4},      # on landmark 1
+        {"lat": 45.0005, "lon": -90.0, "rating": 3},   # on landmark 1 again
+        {"lat": 45.1, "lon": -90.0, "rating": 0},      # a 0
+        {"lat": 46.0, "lon": -91.0, "rating": 5},      # nowhere near one
+    ]))
+
+    ready = pipeline.training_readiness(features, labels, picks, min_labeled_rows=30)
+
+    assert ready["usable"] == 1 and ready["needed"] == 30 and ready["ready"] is False
+    assert (ready["rated"], ready["zeros"], ready["off_landmark"], ready["same_landmark"]) == (4, 1, 1, 1)
+    assert ready["message"].startswith("1 of the 30 ratings training needs. Of your 4: 1 rated 0")
+    assert "Rate 29 more" in ready["message"]

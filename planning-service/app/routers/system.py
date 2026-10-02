@@ -30,6 +30,7 @@ from ..schemas import (
     RetrainStarted,
     ServiceStatus,
     Status,
+    TrainingReadiness,
     WeatherDataset,
 )
 
@@ -229,6 +230,50 @@ def _pipeline_unreachable(detail: str, configured: bool) -> PipelineStatus:
     )
 
 
+# A failed run's error, by run id: it never changes, and the status is
+# polled every thirty seconds.
+_RUN_ERRORS: dict[str, str | None] = {}
+
+
+def _run_error(run_id: str, headers: dict) -> str | None:
+    """The exception a failed run's failed task ended on -- "Insufficient-
+    LabelsError: ...", say -- from that task's log through Airflow's API,
+    so the console can say why rather than only that it failed. None
+    where the log says nothing that reads as one, or cannot be had."""
+    if run_id in _RUN_ERRORS:
+        return _RUN_ERRORS[run_id]
+    base = f"{AIRFLOW_URL}/api/v2/dags/{AIRFLOW_DAG_ID}/dagRuns/{run_id}/taskInstances"
+    error = None
+    try:
+        tasks = requests.get(base, headers=headers, timeout=PROBE_TIMEOUT_S).json().get("task_instances", [])
+        failed = next((t for t in tasks if t.get("state") == "failed"), None)
+        if failed:
+            log = requests.get(
+                f"{base}/{failed['task_id']}/logs/{failed.get('try_number') or 1}",
+                headers={**headers, "Accept": "application/json"}, timeout=PROBE_TIMEOUT_S,
+            ).json()
+            events = [e.get("event") if isinstance(e, dict) else str(e) for e in log.get("content", [])]
+            # The traceback's last line: "SomethingError: what happened".
+            lines = [e.strip() for e in events if isinstance(e, str) and "Error: " in e and not e.strip().startswith("raise")]
+            error = lines[-1][:400] if lines else f"{failed['task_id']} failed"
+    except (requests.RequestException, ValueError, KeyError):
+        return None
+    _RUN_ERRORS[run_id] = error
+    return error
+
+
+def _training() -> TrainingReadiness | None:
+    """Whether the ratings are enough to retrain on (vfr.pipeline), or
+    None where that cannot be worked out -- a file missing or half
+    written is the trainer's to report when it runs."""
+    from vfr import pipeline
+
+    try:
+        return TrainingReadiness(**pipeline.training_readiness())
+    except (OSError, ValueError, KeyError):
+        return None
+
+
 def _pipeline_status() -> PipelineStatus:
     if not AIRFLOW_URL:
         return _pipeline_unreachable("AIRFLOW_URL is not set", configured=False)
@@ -240,7 +285,10 @@ def _pipeline_status() -> PipelineStatus:
         token = _airflow_token(*creds)
         resp = requests.get(
             f"{AIRFLOW_URL}/api/v2/dags/{AIRFLOW_DAG_ID}/dagRuns",
-            params={"order_by": "-logical_date", "limit": 1},
+            # By when it was asked for: a run started from here has no
+            # logical date, and ordered by that one the latest sorted last
+            # -- the console showed a run from three days before.
+            params={"order_by": "-run_after", "limit": 1},
             headers={"Authorization": f"Bearer {token}"}, timeout=PROBE_TIMEOUT_S,
         )
         resp.raise_for_status()
@@ -250,11 +298,12 @@ def _pipeline_status() -> PipelineStatus:
     except (requests.RequestException, ValueError, KeyError) as err:
         return _pipeline_unreachable(f"Airflow did not answer: {str(err).split(chr(10))[0][:160]}", configured=True)
     last = runs[0] if runs else None
+    error = _run_error(last["dag_run_id"], {"Authorization": f"Bearer {token}"}) if last and last.get("state") == "failed" else None
     return PipelineStatus(
         airflow_configured=True, airflow_reachable=True, airflow_url=AIRFLOW_URL, dag_id=AIRFLOW_DAG_ID, detail=None,
         last_run=PipelineRun(
             dag_run_id=last.get("dag_run_id"), state=last.get("state"),
-            start_date=last.get("start_date"), end_date=last.get("end_date"),
+            start_date=last.get("start_date"), end_date=last.get("end_date"), error=error,
         ) if last else None,
     )
 
@@ -283,7 +332,7 @@ def status() -> Status:
             weather=_weather_datasets(),
             charts={**charts.status(), "refresh_window": CHARTS_REFRESH_WINDOW, "refresh_workers": CHARTS_REFRESH_WORKERS},
             model={"current": _current_model(), "versions": _versions(), "candidates": _candidates()},
-            pipeline=pipeline.result(),
+            pipeline=pipeline.result().model_copy(update={"training": _training()}),
             corridors=_corridors(),
         )
 
@@ -303,7 +352,14 @@ def retrain() -> RetrainStarted:
     thing the AWS retrain-trigger Lambda does. This service has no
     scikit-learn of its own on purpose (see requirements.txt), so it
     cannot train in-process; without Airflow reachable the answer says
-    how to run the pipeline by hand."""
+    how to run the pipeline by hand.
+
+    Checked first (training_readiness): with too few ratings to learn
+    from, it says so and what to do, a 409, rather than starting a run
+    that fails in Airflow minutes later with the same news in its log."""
+    training = _training()
+    if training is not None and not training.ready:
+        raise HTTPException(409, training.message)
     if not AIRFLOW_URL:
         raise HTTPException(501, "Retraining runs through Airflow and this planner has no AIRFLOW_URL. "
                                  "By hand: docker compose run --rm pipeline-training retrain")

@@ -20,8 +20,6 @@ import { TEXT } from "../../lib/text";
 import { useRetrain } from "./useRetrain";
 
 const mae = (n: number) => n.toFixed(4);
-/** Every rating on every collected route: what the next retrain reads. */
-const ratings = (status: Status) => status.corridors.reduce((n, c) => n + c.labels.total, 0);
 
 /** One formatter for every date the console shows: `toLocaleDateString`
  *  builds a new one per call, and was the console's costliest function. */
@@ -52,10 +50,11 @@ const CHART_KIND_LABELS: Record<string, string> = {
  * route, rate it, retrain), then the rating scale and the keys; no
  * inputs of its own, since the header's route form loads and collects
  * routes and Retrain sits in the Model Training drawer's More menu,
- * beside the ratings it learns from. Performance -- the ratings and the
- * routes collected, the model serving and (a page of its own) the
- * versions before it, the last training run and every algorithm
- * trained. System -- which services answer, then a page each for how
+ * beside the ratings it learns from. Performance -- training first
+ * (whether the ratings are enough to learn from, the last run and why
+ * it failed, Retrain), then every algorithm compared, the model serving
+ * and (a page of its own) the versions before it, and the routes
+ * collected. System -- which services answer, then a page each for how
  * fresh the FAA and weather data is, the charts, and the doors into
  * the rest of the stack. All of it from one
  * `/api/status` snapshot, refreshed while open. The pilot's page has
@@ -70,9 +69,6 @@ export function DevPanel() {
   // console to the same tab, not to the Guide every time.
   const savedTab = usePreferences(s => s.devTab);
   const changeTab = usePreferences(s => s.setDevTab);
-  // A retrain in progress is said on the Performance tab's own name,
-  // so it shows from any tab.
-  const { running } = useRetrain();
   // Everything the console shows, asked for again now rather than at
   // the next 30-second tick: the snapshot, the model comparison, the
   // two health probes the System tab runs itself and which services the
@@ -92,7 +88,9 @@ export function DevPanel() {
         { value: "training", label: "Guide", content: <TrainingTab /> },
         {
           value: "performance",
-          label: <>Performance{running && <StatusBadge tone="running" className="ml-1.5">Training…</StatusBadge>}</>,
+          // No badge on the name while a run goes: a confirmed retrain
+          // opens this tab (useRetrain), where the run is followed.
+          label: "Performance",
           content: <PerformanceTab status={status} failed={statusFailed} />,
         },
         {
@@ -199,27 +197,17 @@ function RunBadge({ state, running }: { state: string | null | undefined; runnin
 }
 
 /**
- * What the model learns from: how many ratings there are, and how
- * many the serving model has not seen -- the one number that says
- * whether a retrain is worth starting -- then every collected route,
- * with how far its rating has got. Rows, as Settings' are, where it was
- * a line of grey, dark and outlined chips over a card a route.
+ * Every collected route, with how far its rating has got. Rows, as
+ * Settings' are, where it was a line of grey, dark and outlined chips
+ * over a card a route. What the ratings come to for training is the
+ * Training group's (TrainingGroup); a Data group of counts went, the
+ * readiness saying what they meant.
  */
-function DataSection({ status, failed }: { status: Status | undefined; failed: boolean }) {
+function RoutesGroup({ status, failed }: { status: Status | undefined; failed: boolean }) {
   const corridors = status?.corridors ?? [];
   const onMap = useOnMap(corridors);
-  const total = status ? ratings(status) : 0;
-  const current = status?.model?.current;
-  const unseen = Math.max(0, total - (current?.n_labeled ?? 0));
   return (
-    <>
-      {status && (
-        <ListGroup title="Data" footer="Every rating on every collected route is what the next retrain reads.">
-          <ListRow title="Ratings" value={total} />
-          {current && <ListRow title="Rated since the model trained" value={unseen} />}
-        </ListGroup>
-      )}
-      <ListGroup title="Routes" footer="A route's name brings it onto the map to rate.">
+    <ListGroup title="Routes" footer="A route's name brings it onto the map to rate.">
         {corridors.length === 0 && (
           <ListRow title={<span className="text-muted-foreground">{status ? "No route has been collected yet." : waiting(failed)}</span>} />
         )}
@@ -246,26 +234,18 @@ function DataSection({ status, failed }: { status: Status | undefined; failed: b
             </ListRow>
           );
         })}
-      </ListGroup>
-    </>
+    </ListGroup>
   );
 }
 
 /**
- * The model serving predictions and the pipeline that would replace
- * it, in one place: what it is and how it scored; the last training
- * run, the way to start one and the way into Airflow; and the versions
- * promoted before it, with how each moved the error. What a developer
- * looks at after a retrain. Retrain is here once, where it was on every
- * route's card though it learns from all of them.
+ * The model serving predictions: what it is, how it scored, and the
+ * versions promoted before it (a page of their own), with how each
+ * moved the error.
  */
-function ModelSection({ status, failed }: { status: Status | undefined; failed: boolean }) {
-  const retrain = useRetrain();
-  const { pipeline, lastRun, running } = retrain;
+function ModelGroup({ status, failed }: { status: Status | undefined; failed: boolean }) {
   const model = status?.model;
   const current = model?.current;
-  const took = !running && lastRun?.end_date && lastRun.start_date
-    ? `, took ${elapsed(new Date(lastRun.end_date).getTime() - new Date(lastRun.start_date).getTime())}` : "";
   return (
     <>
       {current ? (
@@ -285,23 +265,52 @@ function ModelSection({ status, failed }: { status: Status | undefined; failed: 
           <ListRow title={<span role="status" className="text-muted-foreground">{status ? "No model has been promoted yet." : waiting(failed)}</span>} />
         </ListGroup>
       )}
+    </>
+  );
+}
+
+/**
+ * The pipeline that would replace the model: whether the ratings are
+ * enough to learn from, the last run and why it failed, the way to
+ * start one and the way into Airflow. First on the tab, as a confirmed
+ * retrain opens it to follow the run. Retrain is here once, where it
+ * was on every route's card though it learns from all of them.
+ */
+function TrainingGroup() {
+  const retrain = useRetrain();
+  const { pipeline, lastRun, running } = retrain;
+  const took = !running && lastRun?.end_date && lastRun.start_date
+    ? `, took ${elapsed(new Date(lastRun.end_date).getTime() - new Date(lastRun.start_date).getTime())}` : "";
+  return (
+    <>
       <ListGroup
         title="Training"
         footer={pipeline && !pipeline.airflow_reachable && (
           <>Retrain by hand with <code className="rounded bg-muted px-1 py-0.5 font-mono">docker compose run --rm pipeline-training retrain</code>.</>
         )}
       >
+        {/* What the trainer would get from the ratings, before a run
+            is asked for, and what became of the rest: it used to be
+            found out from a run failing in Airflow. */}
+        {retrain.training && (
+          <ListRow
+            title="Ratings it can learn from"
+            description={retrain.training.ready ? undefined : retrain.training.message}
+            value={`${retrain.training.usable} of ${retrain.training.needed}`}
+            data-testid="training-readiness"
+          />
+        )}
         <ListRow
           title="Last run"
           description={!pipeline?.airflow_reachable ? (pipeline?.detail ?? "Airflow is not reachable from here")
-            : lastRun ? `${running ? "Started" : "Ran"} ${ago(lastRun.start_date)}${took}` : "None yet"}
+            : lastRun ? `${running ? "Started" : "Ran"} ${ago(lastRun.start_date)}${took}${lastRun.error ? ` · ${lastRun.error}` : ""}` : "None yet"}
         >
           {pipeline?.airflow_reachable && lastRun && <RunBadge state={lastRun.state} running={running} />}
         </ListRow>
         <ListRow
           media={<BrainCircuit className="size-5" />}
           title={running ? "Retraining…" : "Retrain the model"}
-          description="From every rating; it serves only if it does better"
+          description={retrain.blocked ? "Not until there are enough ratings to learn from" : "From every rating; it serves only if it does better"}
           onClick={retrain.start} disabled={!retrain.canStart}
         />
         {pipeline?.dag_id && <ListRow title="Open in Airflow" href={`http://${window.location.hostname}:8081/dags/${pipeline.dag_id}`} />}
@@ -361,9 +370,10 @@ function PerformanceTab({ status, failed }: { status: Status | undefined; failed
       pages={{ versions: { title: "Versions promoted", content: model ? <Versions model={model} /> : null } }}
     >
       <div className="space-y-6">
-        <DataSection status={status} failed={failed} />
-        <ModelSection status={status} failed={failed} />
+        <TrainingGroup />
         <ModelComparison />
+        <ModelGroup status={status} failed={failed} />
+        <RoutesGroup status={status} failed={failed} />
       </div>
     </ConsolePages>
   );

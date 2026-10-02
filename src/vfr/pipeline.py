@@ -349,34 +349,51 @@ def _route_of(features_path: Path) -> str | None:
     return f"{dep.upper()}->{dest.upper()}"
 
 
-def _picks_as_labels(candidates_df: pd.DataFrame, route: str | None, picks_path: Path) -> pd.DataFrame:
-    """The training workspace's chart picks as OSM-candidate labels: each
-    rated pick (1-5; a 0 rejects a detection, which says nothing about
-    the landmark) claims the nearest candidate within SAME_PLACE_NM.
-
-    Without this the labeling workspace fed nothing: training read only
-    the older ratings file, so Retrain after a labeling session retrained
-    on what it already had.
-    """
+def _match_picks(candidates_df: pd.DataFrame, route: str | None, picks_path: Path) -> tuple[list[dict], dict]:
+    """The route's chart picks against the corridor's OSM candidates: each
+    rated pick (1-5) claims the nearest candidate within SAME_PLACE_NM.
+    Returns the labels that make, and why the rest do not: how many picks
+    were rated at all, how many 0 (a 0 rejects a detection, which says
+    nothing about a landmark), how many 1-5 had no candidate that close,
+    and how many landed on a candidate a later pick also rated."""
     from vfr import chartlabels, routecsv
 
-    columns = ["osm_id", "osm_type", "rating"]
+    counts = {"rated": 0, "zeros": 0, "off_landmark": 0, "same_landmark": 0}
+    rows: list[dict] = []
     if route is None:
-        return pd.DataFrame(columns=columns)
-    rows = []
+        return rows, counts
     for pick in chartlabels.load_picks(route, path=picks_path):
-        if not pick.get("rating"):
+        if pick.get("rating") is None:
+            continue
+        counts["rated"] += 1
+        if not pick["rating"]:
+            counts["zeros"] += 1
             continue
         gaps = pd.Series(
             geo.distance_nm(candidates_df["lat"].to_numpy(), candidates_df["lon"].to_numpy(), pick["lat"], pick["lon"]),
             index=candidates_df.index,
         )
         if gaps.empty or gaps.min() >= routecsv.SAME_PLACE_NM:
+            counts["off_landmark"] += 1
             continue
         nearest = candidates_df.loc[gaps.idxmin()]
         rows.append({"osm_id": str(nearest["osm_id"]), "osm_type": nearest["osm_type"], "rating": int(pick["rating"])})
+    distinct = {(r["osm_id"], r["osm_type"]) for r in rows}
+    counts["same_landmark"] = len(rows) - len(distinct)
+    return rows, counts
+
+
+def _picks_as_labels(candidates_df: pd.DataFrame, route: str | None, picks_path: Path) -> pd.DataFrame:
+    """The training workspace's chart picks as OSM-candidate labels (see
+    _match_picks).
+
+    Without this the labeling workspace fed nothing: training read only
+    the older ratings file, so Retrain after a labeling session retrained
+    on what it already had.
+    """
+    rows, _ = _match_picks(candidates_df, route, picks_path)
     # One label per candidate: the latest pick, as the file orders them.
-    return pd.DataFrame(rows, columns=columns).drop_duplicates(["osm_id", "osm_type"], keep="last")
+    return pd.DataFrame(rows, columns=["osm_id", "osm_type", "rating"]).drop_duplicates(["osm_id", "osm_type"], keep="last")
 
 
 def _load_labeled(features_path: Path, labels_path: Path,
@@ -454,15 +471,56 @@ class LabeledSplit:
         return self.test["rating"].astype(float)
 
 
+def training_readiness(features_path: Path = FEATURES_PATH, labels_path: Path = LABELS_PATH,
+                       picks_path: Path | None = None, min_labeled_rows: int = MIN_LABELED_ROWS) -> dict:
+    """Whether a retrain would have enough to learn from, and why not:
+    what the trainer would get (`usable`), what it needs, and what became
+    of the ratings that do not count. Asked before a run is started, so
+    the developer is told in the console rather than by a run failing in
+    Airflow minutes later; and by labeled_split, whose refusal says the
+    same. Reads the corridor's candidates as last engineered: the run
+    collects them again first, so this is the count as it stands now."""
+    from vfr.chartlabels import CHART_PICKS_PATH
+
+    route = _route_of(features_path)
+    if not Path(features_path).exists():
+        return {
+            "route": route, "usable": 0, "needed": min_labeled_rows, "ready": False,
+            "rated": 0, "zeros": 0, "off_landmark": 0, "same_landmark": 0, "older": 0,
+            "message": f"No landmarks collected for {route or 'the route'} yet: collect the route first.",
+        }
+    labeled_df, _ = _load_labeled(features_path, labels_path, picks_path)
+    candidates_df = pd.read_parquet(features_path)
+    candidates_df["osm_id"] = candidates_df["osm_id"].astype(str)
+    _, counts = _match_picks(candidates_df, route, picks_path or CHART_PICKS_PATH)
+    labels_df = pd.read_csv(labels_path)
+    usable = len(labeled_df)
+    ready = usable >= min_labeled_rows
+    lost = []
+    if counts["zeros"]:
+        lost.append(f"{counts['zeros']} rated 0, which says the detection is no feature, not how findable a landmark is")
+    if counts["off_landmark"]:
+        lost.append(f"{counts['off_landmark']} with no landmark the model knows within 0.2 nm")
+    if counts["same_landmark"]:
+        lost.append(f"{counts['same_landmark']} on a landmark already rated")
+    message = (
+        f"{usable} of the {min_labeled_rows} ratings training needs."
+        + (f" Of your {counts['rated']}: " + "; ".join(lost) + "." if lost else "")
+        + ("" if ready else f" Rate {min_labeled_rows - usable} more on landmarks the model knows.")
+    )
+    return {
+        "route": route, "usable": usable, "needed": min_labeled_rows, "ready": ready,
+        **counts, "older": int(len(labels_df)), "message": message,
+    }
+
+
 def labeled_split(features_path: Path, labels_path: Path, min_labeled_rows: int = MIN_LABELED_ROWS) -> LabeledSplit:
     """Every trainer's labelled data, checked and split one way. Raises
-    InsufficientLabelsError below `min_labeled_rows`."""
+    InsufficientLabelsError below `min_labeled_rows`, saying why the
+    ratings fall short (training_readiness)."""
     labeled_df, feature_cols = _load_labeled(features_path, labels_path)
     if len(labeled_df) < min_labeled_rows:
-        raise InsufficientLabelsError(
-            f"Only {len(labeled_df)} labeled candidates (need >= {min_labeled_rows}) -- "
-            "rate more checkpoints in the training workspace before training."
-        )
+        raise InsufficientLabelsError(training_readiness(features_path, labels_path, min_labeled_rows=min_labeled_rows)["message"])
     labeled = labeled_df.fillna({"name_uniqueness": 0.0})
     return LabeledSplit(labeled, holdout_split(labeled), feature_cols)
 

@@ -339,3 +339,30 @@ def test_a_boxed_label_is_not_water_but_a_lake_is():
     (lake,) = water
     x, y = latlon_to_global_px(lake.lat, lake.lon)
     assert abs(x - 200) <= 2 and abs(y - 120) <= 2
+
+
+# --- the chart's latitude and longitude lines are not roads ---
+
+def test_a_meridian_and_its_minute_ticks_are_not_a_road_but_a_road_beside_it_is():
+    """The sectional draws its latitude and longitude lines every half
+    degree, in the same black as roads and railroads and as long, with a
+    tick every minute: each read as a road or railroad crossing wherever
+    the course cut it, and a pilot rated them 0. In web mercator a
+    meridian is a column, so it is taken out by where it is."""
+    from vfr.chartvision import Mosaic
+
+    x_meridian, y = latlon_to_global_px(42.8, -88.5)
+    pixels = _chart()
+    origin = (round(x_meridian) - 150, round(y) - 100)
+    black = (2, 2, 3)
+    pixels[:, 149:152] = black                     # the meridian at -88.5
+    for row in range(10, 200, 33):                 # its minute ticks
+        pixels[row:row + 2, 130:170] = black
+    pixels[:, 59:62] = black                       # a road, nowhere near one
+    mosaic = Mosaic(pixels=pixels, origin_px=origin, zoom=DEFAULT_ZOOM)
+    course = np.column_stack([np.arange(origin[0], origin[0] + 300, dtype=float), np.full(300, float(origin[1] + 100))])
+
+    found = [lm for lm in linear_crossings(mosaic, None, None, course_px=course) if lm.category == "road_or_rail"]
+
+    xs = [round(latlon_to_global_px(lm.lat, lm.lon)[0]) - origin[0] for lm in found]
+    assert len(xs) == 1 and 59 <= xs[0] <= 61

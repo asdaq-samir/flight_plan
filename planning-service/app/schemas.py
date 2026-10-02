@@ -871,15 +871,39 @@ class ModelRegistry(BaseModel):
 
 
 class PipelineRun(BaseModel):
+    """A run of the training DAG. `error`, for one that failed: the
+    exception its failed task ended on, from that task's own log."""
+
     dag_run_id: str | None
     state: str | None
     start_date: str | None
     end_date: str | None
+    error: str | None = None
+
+
+class TrainingReadiness(BaseModel):
+    """Whether a retrain has enough to learn from, asked before one is
+    started (vfr.pipeline.training_readiness): the ratings the trainer
+    would get (`usable`) against what it needs, and what became of the
+    rest -- rated 0, with no landmark the model knows within 0.2 nm, or
+    on a landmark rated already. `message` says it in a sentence."""
+
+    route: str | None
+    usable: int
+    needed: int
+    ready: bool
+    rated: int
+    zeros: int
+    off_landmark: int
+    same_landmark: int
+    older: int
+    message: str
 
 
 class PipelineStatus(BaseModel):
     """configured: this planner knows where Airflow is and how to sign
-    in; reachable: it answered just now."""
+    in; reachable: it answered just now. `training`: whether the ratings
+    are enough to retrain on, None where it could not be worked out."""
 
     airflow_configured: bool
     airflow_reachable: bool
@@ -888,6 +912,7 @@ class PipelineStatus(BaseModel):
     dag_id: str | None = None
     last_run: PipelineRun | None
     detail: str | None
+    training: TrainingReadiness | None = None
 
 
 class CorridorStatus(BaseModel):

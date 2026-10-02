@@ -79,6 +79,9 @@ class PaletteClass:
     # Water and towns are unambiguous on a chart; anything softer would
     # need the learned scorer rather than a constant.
     base_score: float = 3.0
+    # Drawn in the ink of the chart's latitude and longitude lines, which
+    # are therefore taken out first (Mosaic.graticule).
+    graticule_ink: bool = False
 
 
 def _water(r, g, b):
@@ -229,6 +232,13 @@ SHORT_LINE_PX = 60
 MAX_SHORT_LINE_FILL = 5.5
 
 
+# The sectional's latitude and longitude lines, every half degree, and
+# how far either side of one its stroke is taken out: the line is two
+# pixels at zoom 12, and the warp from the FAA's projection places it to
+# within one (Mosaic.graticule).
+GRATICULE_STEP_DEG = 0.5
+GRATICULE_HALF_WIDTH_PX = 3
+
 LINEAR_PALETTE = (
     PaletteClass(
         "river", _river_line, min_area_px=12,
@@ -236,7 +246,7 @@ LINEAR_PALETTE = (
     ),
     PaletteClass(
         "road_or_rail", _dark_line, min_area_px=12,
-        min_extent_px=MIN_LINE_EXTENT_PX, base_score=3.6,
+        min_extent_px=MIN_LINE_EXTENT_PX, base_score=3.6, graticule_ink=True,
     ),
 )
 
@@ -338,6 +348,31 @@ class Mosaic:
 
     def to_latlon(self, cx: float, cy: float) -> tuple:
         return global_px_to_latlon(self.origin_px[0] + cx, self.origin_px[1] + cy, self.zoom)
+
+    def graticule(self) -> np.ndarray:
+        """Where the chart draws its latitude and longitude lines: every
+        GRATICULE_STEP_DEG, in the same near-black as roads and railroads
+        and as long, so each one read as a road or railroad wherever the
+        course crossed it -- and its minute ticks, attached to it, the
+        same a few hundred metres either side. A pilot rated them 0. In
+        web mercator a parallel is a row and a meridian a column, so the
+        line is known exactly from the pixel's place and needs no reading:
+        a band GRATICULE_HALF_WIDTH_PX either side of each. With the line
+        out, its ticks are each too short to be a line (MIN_LINE_EXTENT_PX).
+        A road that runs along one exactly is lost with it, which is rare;
+        one that crosses it loses a few pixels and stays one line."""
+        height, width = self.pixels.shape[:2]
+        out = np.zeros((height, width), dtype=bool)
+        north, west = self.to_latlon(0, 0)
+        south, east = self.to_latlon(width, height)
+        step, half = GRATICULE_STEP_DEG, GRATICULE_HALF_WIDTH_PX
+        for k in range(math.ceil(south / step), math.floor(north / step) + 1):
+            row = round(latlon_to_global_px(k * step, west, self.zoom)[1] - self.origin_px[1])
+            out[max(0, row - half):row + half + 1, :] = True
+        for k in range(math.ceil(west / step), math.floor(east / step) + 1):
+            col = round(latlon_to_global_px(north, k * step, self.zoom)[0] - self.origin_px[0])
+            out[:, max(0, col - half):col + half + 1] = True
+        return out
 
     def on_chart(self, mask: np.ndarray) -> np.ndarray:
         """`mask` with everything off the published chart removed. Every
@@ -665,8 +700,12 @@ def linear_crossings(
     m_per_px = metres_per_pixel(centre_lat, mosaic.zoom)
 
     found = []
+    graticule = None
     for spec in palette:
         mask = mosaic.on_chart(spec.test(r, g, b))
+        if spec.graticule_ink:
+            graticule = mosaic.graticule() if graticule is None else graticule
+            mask = mask & ~graticule
         # Whether the thing under a crossing is a line at all: how far it
         # runs, how thick it is, whether it is a number -- see
         # MIN_LINE_EXTENT_PX, MAX_LINE_HALF_WIDTH_PX and

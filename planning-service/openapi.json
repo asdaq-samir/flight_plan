@@ -3829,6 +3829,7 @@
         "type": "object"
       },
       "PipelineRun": {
+        "description": "A run of the training DAG. `error`, for one that failed: the\nexception its failed task ended on, from that task's own log.",
         "properties": {
           "dag_run_id": {
             "anyOf": [
@@ -3851,6 +3852,17 @@
               }
             ],
             "title": "End Date"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
           },
           "start_date": {
             "anyOf": [
@@ -3885,7 +3897,7 @@
         "type": "object"
       },
       "PipelineStatus": {
-        "description": "configured: this planner knows where Airflow is and how to sign\nin; reachable: it answered just now.",
+        "description": "configured: this planner knows where Airflow is and how to sign\nin; reachable: it answered just now. `training`: whether the ratings\nare enough to retrain on, None where it could not be worked out.",
         "properties": {
           "airflow_configured": {
             "title": "Airflow Configured",
@@ -3932,6 +3944,16 @@
             "anyOf": [
               {
                 "$ref": "#/components/schemas/PipelineRun"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "training": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TrainingReadiness"
               },
               {
                 "type": "null"
@@ -4680,6 +4702,72 @@
           "legs_without_wind"
         ],
         "title": "Totals",
+        "type": "object"
+      },
+      "TrainingReadiness": {
+        "description": "Whether a retrain has enough to learn from, asked before one is\nstarted (vfr.pipeline.training_readiness): the ratings the trainer\nwould get (`usable`) against what it needs, and what became of the\nrest -- rated 0, with no landmark the model knows within 0.2 nm, or\non a landmark rated already. `message` says it in a sentence.",
+        "properties": {
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "needed": {
+            "title": "Needed",
+            "type": "integer"
+          },
+          "off_landmark": {
+            "title": "Off Landmark",
+            "type": "integer"
+          },
+          "older": {
+            "title": "Older",
+            "type": "integer"
+          },
+          "rated": {
+            "title": "Rated",
+            "type": "integer"
+          },
+          "ready": {
+            "title": "Ready",
+            "type": "boolean"
+          },
+          "route": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Route"
+          },
+          "same_landmark": {
+            "title": "Same Landmark",
+            "type": "integer"
+          },
+          "usable": {
+            "title": "Usable",
+            "type": "integer"
+          },
+          "zeros": {
+            "title": "Zeros",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "route",
+          "usable",
+          "needed",
+          "ready",
+          "rated",
+          "zeros",
+          "off_landmark",
+          "same_landmark",
+          "older",
+          "message"
+        ],
+        "title": "TrainingReadiness",
         "type": "object"
       },
       "ValidationError": {
@@ -6285,7 +6373,7 @@
     },
     "/api/retrain": {
       "post": {
-        "description": "Starts one run of the training DAG (collect, engineer features,\nretrain, evaluate, promote) through Airflow's own API -- the same\nthing the AWS retrain-trigger Lambda does. This service has no\nscikit-learn of its own on purpose (see requirements.txt), so it\ncannot train in-process; without Airflow reachable the answer says\nhow to run the pipeline by hand.",
+        "description": "Starts one run of the training DAG (collect, engineer features,\nretrain, evaluate, promote) through Airflow's own API -- the same\nthing the AWS retrain-trigger Lambda does. This service has no\nscikit-learn of its own on purpose (see requirements.txt), so it\ncannot train in-process; without Airflow reachable the answer says\nhow to run the pipeline by hand.\n\nChecked first (training_readiness): with too few ratings to learn\nfrom, it says so and what to do, a 409, rather than starting a run\nthat fails in Airflow minutes later with the same news in its log.",
         "operationId": "retrain_api_retrain_post",
         "responses": {
           "200": {
