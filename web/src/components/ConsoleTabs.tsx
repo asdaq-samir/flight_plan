@@ -37,14 +37,30 @@ export default function ConsoleTabs({ tabs: own, saved, onChange }: Props) {
     <div className="min-h-0 flex-1 overflow-y-auto">
       <div className="mx-auto max-w-3xl p-4">
         <Tabs value={tab} onValueChange={onChange}>
-          {/* The tabs as iOS's segmented control: the column's width,
-              its segments equal (each trigger is flex-1), 32 points tall,
-              the chosen one raised 2 in from the track, the words 13
-              (ui/tabs). It was as wide as its words, and each tab as
-              wide as its own. (The System tab's refresh, which sat on a
-              line under them, is the tab's last row now.) */}
-          <TabsList className="w-full p-0.5 group-data-[orientation=horizontal]/tabs:h-8">
-            {tabs.map(t => <TabsTrigger key={t.value} value={t.value}>{t.label}</TabsTrigger>)}
+          {/* The tabs as words over a hairline, the chosen one in the
+              tint and underlined in it: the stock line variant (ui/tabs).
+              They were a segmented control, a grey track with the chosen
+              one raised, and read as one more of Settings' pick-one
+              controls (Theme, Layout, Chart) -- which choose a value,
+              where these change the page. The column's width, the tabs
+              equal (each trigger is flex-1); 44 tall to a finger, which
+              no box shows, the words 15 to it -- 13, and closer, in
+              Slide Over's 320, where the developer's four at 15 ran
+              past the column's margins. (The System tab's
+              refresh, which sat on a line under them, is the tab's last
+              row now.) */}
+          <TabsList
+            variant="line"
+            className="w-full gap-0 border-b border-border p-0 group-data-[orientation=horizontal]/tabs:h-9 pointer-coarse:group-data-[orientation=horizontal]/tabs:h-11"
+          >
+            {tabs.map(t => (
+              <TabsTrigger
+                key={t.value} value={t.value}
+                className="h-full rounded-none text-muted-foreground pointer-coarse:text-[0.9375rem] max-[374px]:px-1 pointer-coarse:max-[374px]:text-[0.8125rem] hover:text-foreground data-[state=active]:text-tint dark:data-[state=active]:text-tint after:bg-tint group-data-[orientation=horizontal]/tabs:after:bottom-[-1px]"
+              >
+                {t.label}
+              </TabsTrigger>
+            ))}
           </TabsList>
           {tabs.map(t => (
             <TabsContent key={t.value} value={t.value} className="mt-3">{t.content}</TabsContent>
