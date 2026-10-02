@@ -13,7 +13,10 @@ export async function* ended<T extends { type: string }>(stream: AsyncIterable<T
   for await (const msg of stream) {
     if (msg.type === "error") {
       const detail = (msg as { detail?: string }).detail ?? `${what} failed`;
-      throw new ApiError(detail.split("\n")[0] ?? detail, 200);
+      // A failure asking again cannot change (a route with no legal
+      // altitude) as the client error it is: no Try again (queryClient).
+      const retry = (msg as { retry?: boolean }).retry !== false;
+      throw new ApiError(detail.split("\n")[0] ?? detail, retry ? 200 : 422);
     }
     if (msg.type === "done") finished = true;
     yield msg;

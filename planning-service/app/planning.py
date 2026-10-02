@@ -360,17 +360,34 @@ def forecast_hour_for(depart: datetime | None) -> str:
 
 
 def no_altitude_detail(selection: dict) -> str:
+    """Why no plan has an altitude, in a pilot's words: where along the
+    route it fails and what meets there -- the terrain's floor, the first
+    VFR altitude above it on that course, and what stops the climb. It
+    gave the whole route's highest floor beside its lowest ceiling ("floor
+    13700 ft, ceiling 3000.0 ft" for Chicago to Las Vegas: the Rockies'
+    floor beside the Chicago Class B shelf, a thousand miles apart) and
+    asked for a query parameter."""
     prohibited = [a["name"] for a in selection.get("special_use", []) if a.get("type") == "P"]
     if prohibited:
         return (
             f"The route crosses prohibited airspace ({', '.join(prohibited)}), which no VFR "
             "altitude may enter. Plan around it."
         )
+    stuck = next((s for s in selection.get("segments", []) if not s.get("candidates_ft")), None)
+    course = (stuck or {}).get("course_magnetic_deg", selection.get("course_magnetic_deg"))
+    floor, top = (stuck or {}).get("floor_ft"), (stuck or {}).get("band_ceiling_ft")
+    if stuck is None or None in (course, floor, top):
+        return ("No legal VFR cruising altitude fits this route in this aircraft. "
+                "Set a cruise altitude of your own to plan it anyway.")
+    lowest = altitude_module.lowest_vfr_cruising_altitude(floor, course)
+    stops = ("the aircraft's service ceiling" if top == stuck.get("service_ceiling_ft")
+             else "the airspace over it" if top == stuck.get("airspace_ceiling_ft") else "the cloud base")
+    heading = "eastbound" if stuck.get("eastbound") else "westbound"
     return (
-        "No legal VFR cruising altitude exists for this route and aircraft "
-        f"(floor {selection.get('floor_ft')} ft, ceiling "
-        f"{selection.get('band_ceiling_ft')} ft). Supply altitude_ft "
-        "explicitly to plan anyway."
+        f"No legal VFR cruising altitude {stuck['from_nm']:.0f}-{stuck['to_nm']:.0f} nm along the route: "
+        f"the terrain and obstacles there need {floor:,.0f} ft, the first {heading} VFR altitude above that "
+        f"is {lowest:,.0f} ft, and {stops} stops at {top:,.0f} ft. Route around the high ground, "
+        "or set a cruise altitude of your own to plan it anyway."
     )
 
 

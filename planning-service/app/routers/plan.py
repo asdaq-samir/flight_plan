@@ -417,7 +417,7 @@ def navlog_stream(q: Annotated[PlanQuery, Depends()]) -> StreamingResponse:
 
         aircraft_line = {"name": q.aircraft, **profile}
         if isinstance(outcome, Unflyable):
-            yield line(NavLogError(detail=no_altitude_detail(outcome.selection)))
+            yield line(NavLogError(detail=no_altitude_detail(outcome.selection), retry=False))
             return
         if isinstance(outcome, NoWinds):
             # The selection stands -- terrain, airspace, the legal

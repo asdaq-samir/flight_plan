@@ -3242,10 +3242,16 @@
         "type": "object"
       },
       "NavLogError": {
+        "description": "The stream's failure. `retry` False where asking again gets the\nsame answer -- a route with no legal altitude -- so the page offers\nno Try again for it.",
         "properties": {
           "detail": {
             "title": "Detail",
             "type": "string"
+          },
+          "retry": {
+            "default": true,
+            "title": "Retry",
+            "type": "boolean"
           },
           "type": {
             "const": "error",

@@ -1,6 +1,6 @@
 import { MutationCache, QueryCache, QueryClient, queryOptions } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { api, describeError } from "./api/client";
+import { ApiError, api, describeError } from "./api/client";
 
 declare module "@tanstack/react-query" {
   interface Register {
@@ -31,13 +31,13 @@ export const queryClient = new QueryClient({
     onError: (error, query) => {
       const silent = query.meta?.silent;
       if (silent === true || (typeof silent === "function" && silent(error))) return;
-      failed(describeError(error));
+      failed(describeError(error), retryable(error));
     },
   }),
   mutationCache: new MutationCache({
     onError: (error, _variables, _context, mutation) => {
       if (mutation.meta?.silent) return;
-      failed(describeError(error));
+      failed(describeError(error), retryable(error));
     },
   }),
 });
@@ -55,17 +55,26 @@ export const queryClient = new QueryClient({
  * query that happened to toast last. When a single call fails on its
  * own, that is still exactly one retry.
  */
-function failed(message: string) {
+function failed(message: string, retry: boolean) {
   toast.error(message, {
     id: `failed:${message}`,
     duration: 10000,
-    action: {
+    action: retry ? {
       label: "Try again",
       onClick: () => void queryClient.refetchQueries({
         predicate: query => query.state.status === "error",
       }),
-    },
+    } : undefined,
   });
+}
+
+/** Whether asking again could answer differently: not for what the
+ *  request itself got wrong -- a 4xx, a route with no legal altitude
+ *  (lib/api/streams) -- where Try again only showed the same toast
+ *  again; a timeout or a rate limit can pass. */
+function retryable(error: unknown): boolean {
+  if (!(error instanceof ApiError)) return true;
+  return error.status < 400 || error.status >= 500 || error.status === 408 || error.status === 429;
 }
 
 /*

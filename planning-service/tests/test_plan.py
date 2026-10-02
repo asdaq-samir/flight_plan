@@ -212,6 +212,8 @@ def test_navlog_reports_an_unflyable_route_as_an_error_line(monkeypatch, altitud
     last = messages(resp)[-1]
     assert last["type"] == "error"
     assert "No legal VFR cruising altitude" in last["detail"]
+    # Asking again gets the same answer: no Try again on the page.
+    assert last["retry"] is False
 
 
 # --- the altitude outcome, decided once ---
@@ -325,3 +327,23 @@ def test_the_chart_alone_is_there_for_a_map_with_no_route():
     body = resp.json()
     assert body["chart_cycle"] and body["max_zoom"] >= body["min_zoom"]
     assert any(layer["kind"] == "sec" for layer in body["chart_layers"])
+
+
+def test_no_altitude_says_where_and_why_in_a_pilots_words():
+    """Chicago to Las Vegas in a 172: the Rockies' floor over the climb
+    the aeroplane has, not the whole route's highest floor beside its
+    lowest ceiling and a query parameter to supply."""
+    from app import planning
+
+    selection = {"segments": [
+        {"from_nm": 0.0, "to_nm": 150.0, "floor_ft": 2500.0, "service_ceiling_ft": 14000.0, "airspace_ceiling_ft": 3000.0,
+         "band_ceiling_ft": 3000.0, "course_magnetic_deg": 255.0, "eastbound": False, "candidates_ft": [2500.0]},
+        {"from_nm": 980.0, "to_nm": 1040.0, "floor_ft": 13700.0, "service_ceiling_ft": 14000.0, "airspace_ceiling_ft": None,
+         "band_ceiling_ft": 14000.0, "course_magnetic_deg": 255.0, "eastbound": False, "candidates_ft": []},
+    ]}
+
+    detail = planning.no_altitude_detail(selection)
+
+    assert detail.startswith("No legal VFR cruising altitude 980-1040 nm along the route")
+    assert "need 13,700 ft" in detail and "14,500 ft" in detail and "service ceiling stops at 14,000 ft" in detail
+    assert "altitude_ft" not in detail
