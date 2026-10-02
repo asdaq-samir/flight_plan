@@ -70,7 +70,7 @@ export const SCREENS: Screen[] = [
     name: "developer console, System tab",
     ready: async page => {
       await page.goto("/app/dev");
-      await page.getByTestId("dev-console-button").click();
+      await page.getByTestId("settings-button").click();
       await page.getByRole("tab", { name: "System" }).click();
       await expect(page.getByTestId("dev-refresh")).toBeVisible();
     },
@@ -79,7 +79,7 @@ export const SCREENS: Screen[] = [
     name: "pilot console, Guide tab",
     ready: async page => {
       await page.goto("/app/plan");
-      await page.getByTestId("pilot-button").click();
+      await page.getByTestId("settings-button").click();
       await page.getByRole("tab", { name: "Guide" }).click();
       await expect(page.getByRole("heading", { name: "Plan a flight" })).toBeVisible();
     },
@@ -88,7 +88,7 @@ export const SCREENS: Screen[] = [
     name: "developer console, Guide tab",
     ready: async page => {
       await page.goto("/app/dev");
-      await page.getByTestId("dev-console-button").click();
+      await page.getByTestId("settings-button").click();
       await page.getByRole("tab", { name: "Guide" }).click();
       await expect(page.getByRole("heading", { name: "Train the model" })).toBeVisible();
     },
@@ -98,7 +98,7 @@ export const SCREENS: Screen[] = [
     ready: async page => {
       await page.goto("/app/plan");
       await openSettings(page);
-      await expect(page.getByRole("switch", { name: "Dev mode" })).toBeVisible();
+      await expect(page.getByTestId("mode-toggle")).toBeVisible();
     },
   },
 ];

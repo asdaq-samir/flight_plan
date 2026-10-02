@@ -80,7 +80,7 @@ test("opening a saved flight puts its route in the header, and Load plans that r
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await expect(page.getByLabel("Departure", { exact: true })).toContainText("C81", { timeout: 15_000 });
 
-  await page.getByTestId("pilot-button").click();
+  await page.getByTestId("settings-button").click();
   await page.getByRole("tab", { name: "Flights" }).click();
   // The row is the way in, and it puts the console away.
   await page.getByRole("link", { name: /KMSP → KDLH/ }).click();
@@ -104,7 +104,7 @@ test("Edit over the saved flights puts a minus before each, and the minus delete
     await route.fulfill({ status: 204, body: "" });
   });
   await page.goto("/app/plan?dep=C81&dest=KDLH");
-  await page.getByTestId("pilot-button").click();
+  await page.getByTestId("settings-button").click();
   await page.getByRole("tab", { name: "Flights" }).click();
   // Out of Edit, the row opens the flight and there is nothing to delete.
   await expect(page.getByRole("button", { name: /^Delete/ })).toHaveCount(0);

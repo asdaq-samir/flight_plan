@@ -13,7 +13,7 @@ test("signed in, each console fits the screen's width: nothing but a table's own
   // developer's buttons, and on a phone ran off the right edge). Wide
   // tables scroll inside their own container, which is the one thing
   // allowed past the edge.
-  for (const [path, button] of [["/app/plan", "pilot-button"], ["/app/dev", "dev-console-button"]] as const) {
+  for (const [path, button] of [["/app/plan", "settings-button"], ["/app/dev", "settings-button"]] as const) {
     await page.goto(path);
     await page.getByTestId(button).click();
     await consoleSheet(page).getByRole("tab", { name: "Settings" }).click();
@@ -35,13 +35,16 @@ test("plan page: the pilot console holds the account, aeroplanes and flights, an
   await expectDrawerClosed(page);
   expect(await consoleSheet(page).count()).toBe(0);
 
-  await page.getByTestId("pilot-button").click();
+  await page.getByTestId("settings-button").click();
   const pilot = consoleSheet(page);
   await expect(pilot).toBeVisible();
-  await expect(page.getByTestId("pilot-button")).toHaveAttribute("aria-expanded", "true");
-  // The title is the console's; who is signed in, and Log out, are the
-  // first group of the settings, as iOS has the account.
-  await expect(pilot.getByRole("heading", { name: "Pilot", exact: true })).toBeVisible();
+  await expect(page.getByTestId("settings-button")).toHaveAttribute("aria-expanded", "true");
+  // For a developer the title is Pilot and Developer, Pilot chosen
+  // here (the console is still named for a screen reader); who is
+  // signed in, and Log out, are the first group of the settings, as iOS
+  // has the account.
+  await expect(pilot.getByTestId("mode-toggle").getByRole("radio", { name: "Pilot" })).toHaveAttribute("aria-checked", "true");
+  await expect(page.getByRole("dialog", { name: "Pilot" })).toBeVisible();
   await expect(pilot.getByText("developer@example.com")).toHaveCount(0);
   await pilot.getByRole("tab", { name: "Settings" }).click();
   await expect(pilot.getByTestId("account-address")).toHaveText("developer@example.com");
@@ -89,7 +92,7 @@ test("the navigation bar's edge is a setting: the panel moves to it, the map's b
     expect(zoomToggle.y).toBeLessThan(viewport.height / 2);
   }
 
-  await page.getByTestId("pilot-button").click();
+  await page.getByTestId("settings-button").click();
   const pilot = consoleSheet(page);
   await expect(pilot.getByRole("tab", { name: "Guide" })).toBeVisible();
   await pilot.evaluate(el => Promise.all(el.getAnimations({ subtree: true }).map(a => a.finished)));
@@ -114,7 +117,7 @@ test("the console holds still as its tabs change: up from the bottom of a phone'
   // the top, whose tab row stays put however tall it is.
   await page.goto("/app/plan");
   await settle(page);
-  await page.getByTestId("pilot-button").click();
+  await page.getByTestId("settings-button").click();
   const pilot = consoleSheet(page);
   await expect(pilot.getByRole("tab", { name: "Guide" })).toBeVisible();
   await pilot.evaluate(el => Promise.all(el.getAnimations({ subtree: true }).map(a => a.finished)));

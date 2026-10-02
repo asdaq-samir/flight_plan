@@ -23,7 +23,7 @@ const consoleSheet = (page: Page) => page.getByTestId("console-sheet");
 
 async function openConsole(page: Page) {
   await page.goto("/app/plan");
-  await page.getByTestId("pilot-button").click();
+  await page.getByTestId("settings-button").click();
   return consoleSheet(page);
 }
 

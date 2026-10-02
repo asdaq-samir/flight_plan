@@ -1,12 +1,12 @@
 import { test, expect, type Page } from "@playwright/test";
-import { PAGES, settle, sideDrawer, devSwitchInSettings, expectDrawerOpen, openBriefing, openSettings } from "./helpers";
+import { PAGES, consoleSheet, settle, sideDrawer, modeToggle, expectDrawerOpen, openBriefing } from "./helpers";
 
 /**
  * The two pages and the switch between them: the Dev-mode switch, the
  * header they share, and the old addresses that land on one or other.
  */
 
-test("the Dev-mode switch is in the settings, flips to the dev page with the route, and back to where it was flipped from", async ({ page }) => {
+test("Pilot and Developer in the console's title flip to the dev page with the route, the console staying out, and back to where it was flipped from", async ({ page }) => {
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
   // With the briefing open on a desktop, where the header stays in
@@ -17,27 +17,22 @@ test("the Dev-mode switch is in the settings, flips to the dev page with the rou
   const wide = viewport.width >= 768;
   if (wide) await openBriefing(page);
 
-  // Off on Plan, in the header's settings -- the one control that
+  // Pilot on Plan, in the console's title -- the one control that
   // switches roles, in the same place on both pages.
-  const devSwitch = await devSwitchInSettings(page);
-  await expect(devSwitch).toHaveAttribute("aria-checked", "false");
+  const toggle = await modeToggle(page);
+  await expect(toggle.getByRole("radio", { name: "Pilot" })).toHaveAttribute("aria-checked", "true");
 
-  // On: the dev page, with the route on screen carried along and
-  // Plan's own briefing parameter left behind.
-  await devSwitch.click();
+  // Developer: the dev page, with the route on screen carried along and
+  // Plan's own briefing parameter left behind, and the console still
+  // out -- the developer's now.
+  await toggle.getByRole("radio", { name: "Developer" }).click();
   await page.waitForURL(/\/app\/dev\?dep=C81&dest=KDLH$/);
-  // The settings can come through the change of page open or closed:
-  // opened again until the switch is there, rather than an Escape and a
-  // click that toggled them shut when they were already.
-  const onDev = page.getByRole("switch", { name: "Dev mode" });
-  await expect(async () => {
-    if (!(await onDev.isVisible())) await openSettings(page);
-    await expect(onDev).toHaveAttribute("aria-checked", "true", { timeout: 2000 });
-  }).toPass({ timeout: 15000 });
+  await expect(consoleSheet(page).getByRole("tab", { name: "Performance" })).toBeVisible({ timeout: 15000 });
+  await expect(toggle.getByRole("radio", { name: "Developer" })).toHaveAttribute("aria-checked", "true");
 
-  // Off again: back to exactly where it was flipped from (`state.from`,
-  // DevSwitch's own), the open briefing included, not a flat /app/plan.
-  await page.getByRole("switch", { name: "Dev mode" }).click();
+  // Pilot again: back to exactly where it was flipped from (`state.from`,
+  // useDevMode's own), the open briefing included, not a flat /app/plan.
+  await toggle.getByRole("radio", { name: "Pilot" }).click();
   if (wide) {
     await page.waitForURL(/\/app\/plan\?dep=C81&dest=KDLH&view=briefing$/);
     await expectDrawerOpen(page);
@@ -47,17 +42,17 @@ test("the Dev-mode switch is in the settings, flips to the dev page with the rou
   }
 });
 
-test("the panel's head looks the same on both pages: the settings' Dev-mode switch says which one this is", async ({ page }) => {
+test("the panel's head looks the same on both pages: the console's Pilot and Developer say which one this is", async ({ page }) => {
   await page.goto("/app/plan");
   await settle(page);
   const pilotBg = await page.locator("header").evaluate(el => getComputedStyle(el).backgroundColor);
   await expect(page.locator("[data-mode]")).toHaveAttribute("data-mode", "pilot");
-  await expect(await devSwitchInSettings(page)).toHaveAttribute("aria-checked", "false");
+  await expect((await modeToggle(page)).getByRole("radio", { name: "Developer" })).toHaveAttribute("aria-checked", "false");
   await page.goto("/app/dev");
   await settle(page);
   const devBg = await page.locator("header").evaluate(el => getComputedStyle(el).backgroundColor);
   await expect(page.locator("[data-mode]")).toHaveAttribute("data-mode", "dev");
-  await expect(await devSwitchInSettings(page)).toHaveAttribute("aria-checked", "true");
+  await expect((await modeToggle(page)).getByRole("radio", { name: "Developer" })).toHaveAttribute("aria-checked", "true");
   expect(devBg).toBe(pilotBg);
 });
 
@@ -86,10 +81,10 @@ test("the route form leads the panel's head on both pages, signed in or out", as
   expect(Math.max(...leads)).toBeLessThanOrEqual(16);
 });
 
-test("dev page opened on its own: the switch falls back to the planner with the dev page's own route", async ({ page }) => {
+test("dev page opened on its own: Pilot falls back to the planner with the dev page's own route", async ({ page }) => {
   await page.goto("/app/dev?dep=C81&dest=KDLH");
   await settle(page);
-  await (await devSwitchInSettings(page)).click();
+  await (await modeToggle(page)).getByRole("radio", { name: "Pilot" }).click();
   await page.waitForURL(/\/app\/plan\?dep=C81&dest=KDLH$/);
 });
 

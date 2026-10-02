@@ -66,7 +66,7 @@ test("plan page: the flight planning drawer opens the way the Model Training dra
   // The panel's head is still in sight: the route form, and the
   // console's button among the map's.
   expect(await page.locator("header").getByLabel("Departure", { exact: true }).count()).toBe(1);
-  expect(await page.locator("[data-map-controls]").getByTestId("pilot-button").count()).toBe(1);
+  expect(await page.locator("[data-map-controls]").getByTestId("settings-button").count()).toBe(1);
 
   // The briefing's actions are beside the route, in the panel's top
   // row: the AI button (LangGraph/CrewAI are tabs inside the popover it

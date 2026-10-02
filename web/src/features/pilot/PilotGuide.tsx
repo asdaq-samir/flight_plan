@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Layers, Maximize, UserRound, ZoomIn } from "lucide-react";
+import { Layers, Maximize, Settings, ZoomIn } from "lucide-react";
 import { cn } from "cn";
 import { ConsolePages, PageRow, StepRow } from "../../components/ConsolePages";
 import { ListGroup, ListRow } from "../../components/GroupedList";
@@ -82,7 +82,7 @@ export default function PilotGuide() {
                 <p>The chart is the FAA sectional, the whole country, at every zoom, and the route panel sits over it.</p>
               </Reading>
               <ListGroup title="The map's buttons">
-                <ListRow media={<UserRound className="size-5 text-tint" />} title="Pilot" description="This: the guide, your aircraft and flights, and the settings" />
+                <ListRow media={<Settings className="size-5 text-tint" />} title="Settings" description="This: the guide, your aircraft and flights, and the settings" />
                 <ListRow media={<ZoomIn className="size-5 text-tint" />} title="Zoom" description="Between the whole route and the checkpoint you picked" />
                 <ListRow media={<Maximize className="size-5 text-tint" />} title="Full screen" description="Where your browser allows it" />
               </ListGroup>

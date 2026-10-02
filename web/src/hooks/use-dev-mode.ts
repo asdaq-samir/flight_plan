@@ -17,9 +17,10 @@ export function routeSearch(search: string): string {
 
 /**
  * Dev mode, off or on: the same page with the developer's drawers in
- * place of the pilot's. One switch in the settings (SettingsPanel)
- * instead of a Dev link on one page and a Plan link on the other.
- * Flipping it navigates. The route on screen comes along both ways,
+ * place of the pilot's. One control, Pilot and Developer in the
+ * console's title (ConsoleHeader), instead of a Dev link on one page
+ * and a Plan link on the other, and then a switch in the settings.
+ * Flipping it navigates; the console stays out across it (useConsoleOpen). The route on screen comes along both ways,
  * and where Plan was (the open briefing, say) is remembered on the way
  * to Dev and restored on the way back -- plain location state, not
  * lifted into every caller's own props.

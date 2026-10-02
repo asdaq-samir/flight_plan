@@ -13,7 +13,7 @@ const row = (page: Page, service: RegExp) => consoleSheet(page).locator('[data-s
 
 async function openSystemTab(page: Page) {
   await page.goto("/app/dev");
-  await page.getByTestId("dev-console-button").click();
+  await page.getByTestId("settings-button").click();
   await consoleSheet(page).getByRole("tab", { name: "System" }).click();
   await expandConsole(page);
 }

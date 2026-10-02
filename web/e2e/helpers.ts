@@ -34,7 +34,7 @@ export const sideDrawer = (page: Page) => page.locator('[data-slot="map-panel"]'
  *  button among the map's, and all the way up. Escape closes the
  *  console again. */
 export async function openSettings(page: Page) {
-  await page.getByTestId(/^(pilot|dev-console)-button$/).click();
+  await page.getByTestId("settings-button").click();
   await page.getByTestId("console-sheet").getByRole("tab", { name: "Settings" }).click();
   await expect(page.getByTestId("settings-panel")).toBeVisible();
   await expandConsole(page);
@@ -60,10 +60,15 @@ export async function expandConsole(page: Page) {
   await sheet.evaluate(el => Promise.all(el.getAnimations().map(a => a.finished)));
 }
 
-/** The Dev-mode switch, in the settings: opened first. */
-export async function devSwitchInSettings(page: Page) {
-  await openSettings(page);
-  return page.getByRole("switch", { name: "Dev mode" });
+/** A developer's Pilot and Developer, in the console's title (the
+ *  segmented control dev mode is now): the console opened first, unless
+ *  it is out already. Present or absent, it is looked for with the
+ *  console out. */
+export async function modeToggle(page: Page) {
+  const sheet = page.getByTestId("console-sheet");
+  if (!(await sheet.isVisible())) await page.getByTestId("settings-button").click();
+  await expect(sheet).toBeVisible();
+  return sheet.getByTestId("mode-toggle");
 }
 /** The console: a stock Sheet from the top from `md` up, a sheet up from
  *  the bottom edge on a phone (shadcn's Drawer). */

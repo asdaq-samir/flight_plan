@@ -166,7 +166,7 @@ for (const path of PAGES) {
     if (!viewport) throw new Error("no viewport configured");
 
     const actionBox = (await page.getByTestId("map-action-button").boundingBox())!;
-    const consoleBox = (await page.getByTestId(/^(pilot|dev-console)-button$/).boundingBox())!;
+    const consoleBox = (await page.getByTestId("settings-button").boundingBox())!;
     // On the map, flush with its right edge -- the same on both pages: at
     // the top over a phone's sheet, at the bottom under a desktop's card.
     expect(viewport.width - (actionBox.x + actionBox.width)).toBeLessThan(20);

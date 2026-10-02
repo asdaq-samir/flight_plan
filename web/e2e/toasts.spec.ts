@@ -223,7 +223,7 @@ test("dismissing a toast over the console leaves the console open", async ({ pag
   // nothing covered the console to notice.
   await plannerDown(page);
   await page.goto(PLAN);
-  await page.getByTestId("pilot-button").click();
+  await page.getByTestId("settings-button").click();
   const console = page.getByTestId("console-sheet");
   await expect(console).toBeVisible();
 

@@ -1,4 +1,5 @@
 import { createContext, type ReactNode } from "react";
+import { create } from "zustand";
 
 /**
  * What the map's chrome shares -- the panel over it (MapPanel), its
@@ -29,6 +30,16 @@ export const MapButtonsContext = createContext<ReactNode>(null);
 /** The settings, as the console's last tab (ConsoleTabs): the page's
  *  own (MapPage), the same in either console. */
 export const ConsoleSettingsContext = createContext<ReactNode>(null);
+
+/** Whether the console is out, the app's rather than a page's: the two
+ *  pages are drawn anew as a developer's Pilot and Developer in its
+ *  title (ConsoleHeader) change one for the other, and the console stays
+ *  out across the change, the other page's in its place. Not kept past
+ *  a reload. */
+export const useConsoleOpen = create<{ open: boolean; setOpen: (open: boolean) => void }>(set => ({
+  open: false,
+  setOpen: open => set({ open }),
+}));
 
 /**
  * What floats over the chart: translucent, the map showing through it

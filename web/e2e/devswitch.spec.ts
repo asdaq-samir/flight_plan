@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { openSettings } from "./helpers";
+import { modeToggle, openSettings } from "./helpers";
 
 /**
  * Who is offered the developer's workspace.
@@ -20,15 +20,16 @@ import { openSettings } from "./helpers";
  * signin.spec.ts for it unmocked).
  */
 
-const devSwitch = (page: Page) => page.getByTestId("dev-switch");
+/** Dev mode: Pilot and Developer in the console's title. */
+const devSwitch = (page: Page) => page.getByTestId("mode-toggle");
 
-/** The settings drawn without the switch: the pilot button is there
- *  (the header has rendered with who is signed in known), and the
- *  switch has not followed within a moment. It used to be a flat three
+/** The console drawn without it: the Settings button is there (the
+ *  header has rendered with who is signed in known), and the control
+ *  has not followed within a moment. It used to be a flat three
  *  seconds. */
 async function noDevSwitch(page: Page) {
-  await expect(page.getByTestId("pilot-button")).toBeVisible();
-  await openSettings(page);
+  await expect(page.getByTestId("settings-button")).toBeVisible();
+  await modeToggle(page);
   await page.waitForTimeout(500);
   await expect(devSwitch(page)).toHaveCount(0);
 }

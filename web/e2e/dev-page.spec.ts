@@ -15,7 +15,7 @@ test("dev page: the dev console opens on training, and the waypoint drawer opens
   await expectDrawerClosed(page);
   expect(await consoleSheet(page).count()).toBe(0);
 
-  await page.getByTestId("dev-console-button").click();
+  await page.getByTestId("settings-button").click();
   const devMl = consoleSheet(page);
   await expect(devMl).toBeVisible();
   // The developer's drawer opens on training -- the three steps that
