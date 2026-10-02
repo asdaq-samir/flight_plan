@@ -32,9 +32,12 @@ export default function ProblemBanner() {
       className="pointer-events-none absolute right-[calc(max(0.5rem,env(safe-area-inset-right))+3.25rem)] bottom-[calc(env(safe-area-inset-bottom)+1.5rem)] left-[max(1rem,env(safe-area-inset-left))] z-[1000] flex nav-bottom:top-[max(0.5rem,env(safe-area-inset-top))] nav-bottom:bottom-auto"
       data-problem-banner=""
     >
+      {/* The glass round the Alert, which is clear: its own card colour
+          outranked the glass on the same element, and it read white. */}
+      <div className={cn(GLASS, "pointer-events-auto w-fit max-w-full rounded-[22px]")}>
       <Alert
         variant="destructive" role="status"
-        className={cn(GLASS, "pointer-events-auto flex min-h-11 w-fit max-w-full items-center gap-2 rounded-[22px] border-transparent py-1 pr-1 pl-3 *:[svg]:translate-y-0")}
+        className="flex min-h-11 items-center gap-2 rounded-[22px] border-transparent bg-transparent py-1 pr-1 pl-3 *:[svg]:translate-y-0"
       >
         <CircleAlert className="shrink-0" />
         <button
@@ -42,7 +45,7 @@ export default function ProblemBanner() {
           className={cn("min-w-0 flex-1 py-1 text-left font-medium outline-none focus-visible:underline", TEXT.detail, !open && "truncate")}
         >
           {open && problems.length > 1
-            ? problems.map(p => <span key={p.id} className="block" data-problem-item="">{p.title}</span>)
+            ? problems.map(p => <span key={p.id} className="ml-4 list-item list-disc" data-problem-item="">{p.title}</span>)
             : title}
         </button>
         {retries.length > 0 && (
@@ -54,6 +57,7 @@ export default function ProblemBanner() {
           </Button>
         )}
       </Alert>
+      </div>
     </div>
   );
 }
