@@ -730,13 +730,17 @@ class AirportSearch(BaseModel):
 class AirportPin(BaseModel):
     """A landing field the map can open a card for: the ident pilots use,
     where it is, and its size -- the bigger ones are kept when a wide
-    view holds more than the map asks for."""
+    view holds more than the map asks for. `flight_category` is the
+    field's METAR's (VFR, MVFR, IFR, LIFR), for the map's weather chip:
+    None where it has no reporting station, or the weather could not be
+    asked."""
 
     ident: str
     name: str
     lat: float
     lon: float
     kind: Literal["large", "medium", "small", "other"]
+    flight_category: str | None = None
 
 
 class AirportsInView(BaseModel):

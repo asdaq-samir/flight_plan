@@ -58,18 +58,15 @@ test("plan page: every popup the map opens dismisses the same way", async ({ pag
   await page.keyboard.press("Escape");
   const chip = page.locator(".leaflet-marker-icon span.rounded-full").filter({ hasText: "KORD" }).first();
   await expect(chip).toBeVisible({ timeout: slow(25000) });
+  // A Class B chip opens the field's card in the panel, as every
+  // airport on the chart does, not a popup of its own on the map.
   await chip.click();
-  await expect(popups).toHaveCount(1);
-
-  // Its own pin does not dismiss it: a click inside a popup never
-  // reaches the map, so Leaflet's closeOnClick cannot fire from there.
-  await page.getByTestId("class-b-pin").click();
-  await page.waitForTimeout(1500);   // the pin flies the map to the field
-  await expect(popups).toHaveCount(1);
-
-  // A tap on the chart does, exactly as it does for every other popup.
-  await tapTheChart(page);
+  await expect(page.getByTestId("place-card")).toBeVisible({ timeout: slow(15000) });
   await expect(popups).toHaveCount(0);
+
+  // A tap on the chart puts it away, as it does every card.
+  await tapTheChart(page);
+  await expect(page.getByTestId("place-card")).toHaveCount(0);
 });
 
 test("plan page: a checkpoint picked on the map brings the map in to it, so there is no zoom button", async ({ page }) => {

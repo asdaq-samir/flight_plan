@@ -25,10 +25,21 @@ def airports_in_view(
 ) -> AirportsInView:
     """The landing fields inside the map's view, the biggest first --
     at most `limit` of them, since a whole state holds thousands and the
-    map only lays a tap target over each."""
+    map only lays a tap target over each -- with each one's flight
+    category from its METAR, for a weather chip on the ones that report.
+    The METARs are the national cache already in memory; with the
+    weather service out the fields come back without, as fields with no
+    station do."""
     if south > north or west > east:
         raise HTTPException(422, "The box's south is above its north, or its west east of its east.")
-    return {"airports": airports.places_in(south, west, north, east, limit)}
+    places = airports.places_in(south, west, north, east, limit)
+    try:
+        metars = weather.metar_for_idents([p["source_ident"] for p in places])
+    except weather.WeatherServiceError:
+        metars = {}
+    return {"airports": [
+        {**p, "flight_category": (metars.get(p["source_ident"]) or {}).get("flight_category")} for p in places
+    ]}
 
 
 @router.get("/api/airport/{ident}", response_model=AirportPlace)

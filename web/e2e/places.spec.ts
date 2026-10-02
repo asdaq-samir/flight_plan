@@ -82,3 +82,37 @@ test("a tap on an airport on the chart opens its card, a tap elsewhere puts it a
   await expect(page).not.toHaveURL(/[?&]place=/);
   await expect(card(page)).toHaveCount(0);
 });
+
+test("closer in, the airports that report wear their weather's colour, and a tap on one opens its card", async ({ page }) => {
+  await page.goto("/app/plan?dep=C81&dest=KDLH");
+  await settle(page);
+  const chips = page.locator(".leaflet-airports-pane .leaflet-marker-icon");
+  // Not at the whole route's zoom: a state's worth would bury the chart.
+  await expect(page.locator(".leaflet-marker-icon", { hasText: "KDLH" }).first()).toBeVisible({ timeout: slow(30000) });
+  expect(await chips.count()).toBe(0);
+
+  const departure = page.locator(".leaflet-marker-icon", { hasText: "C81" }).first();
+  const box = (await departure.boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  for (let i = 0; i < 3; i++) {
+    await page.mouse.wheel(0, -60);
+    await page.waitForTimeout(400);
+  }
+  await expect.poll(() => chips.count(), { timeout: slow(20000) }).toBeGreaterThan(0);
+  // The route's own airports keep their own chips: none drawn twice.
+  expect(await chips.filter({ hasText: /^C81$/ }).count()).toBe(0);
+
+  // One whose middle nothing else covers.
+  const at = await chips.evaluateAll(els => {
+    for (const el of els) {
+      const r = el.getBoundingClientRect();
+      const x = r.left + r.width / 2, y = r.top + r.height / 2;
+      if (el.contains(document.elementFromPoint(x, y))) return { x, y, ident: el.textContent?.trim() ?? "" };
+    }
+    return null;
+  });
+  expect(at, "a chip with nothing over it").not.toBeNull();
+  await page.mouse.click(at!.x, at!.y);
+  await expect(page).toHaveURL(new RegExp(`[?&]place=${at!.ident}`));
+  await expect(card(page).getByTestId("fly-here")).toBeVisible({ timeout: slow(15000) });
+});

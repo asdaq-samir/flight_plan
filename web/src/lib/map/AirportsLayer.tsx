@@ -1,9 +1,11 @@
 import L from "leaflet";
 import { useMemo, useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { CircleMarker, Pane, useMap, useMapEvents } from "react-leaflet";
+import { CircleMarker, Marker, Pane, useMap, useMapEvents } from "react-leaflet";
 import { api } from "../api/client";
 import type { AirportPin } from "../api/types";
+import { colourOf } from "./flightCategory";
+import { airportIcon } from "./icons";
 import { MapTooltip } from "./MapTooltip";
 
 /** From this zoom in a sectional draws its airports big enough to aim a
@@ -28,19 +30,24 @@ function boxOf(map: L.Map) {
 }
 
 /**
- * The chart's own airports, made tappable: an invisible target over each
- * landing field in view, from zoom 8 in, that opens its card (PlaceCard)
- * -- the chart is a picture, and the map cannot otherwise know an
- * airport was tapped on it. Invisible, since the chart already draws the
- * airport; a pointer turns to a hand over one and names it. Under the
- * route's own markers, which keep their taps. The selected one wears the
- * taxiway-yellow halo the brand gives a chosen place.
+ * The chart's own airports, made tappable, from zoom 8 in: each one that
+ * reports its weather wears a chip, its ident in its METAR's flight
+ * category's colour, as the route's own airports and the Class B ones
+ * do; over every other landing field an invisible target, since the
+ * chart already draws it. Either opens the field's card (PlaceCard),
+ * with Fly Here -- the chart is a picture, and the map cannot otherwise
+ * know an airport was tapped on it. A pointer turns to a hand over one
+ * and names it. Under the route's own markers, which keep their taps,
+ * and not for a field something else draws a chip for already
+ * (`exclude`: the route's two, the Class B ones). The selected one
+ * wears the taxiway-yellow halo the brand gives a chosen place.
  *
  * A tap anywhere else on the chart puts the card away, as it does in Maps.
  */
-export function AirportsLayer({ selected, onSelect }: {
+export function AirportsLayer({ selected, onSelect, exclude }: {
   selected: { ident: string; lat: number; lon: number } | null;
   onSelect: (ident: string | null) => void;
+  exclude: Set<string>;
 }) {
   const map = useMap();
   const [view, setView] = useState(() => boxOf(map));
@@ -61,7 +68,14 @@ export function AirportsLayer({ selected, onSelect }: {
   });
   return (
     <Pane name="airports" style={{ zIndex: 450 }}>
-      {near && data?.map((a: AirportPin) => (
+      {near && data?.filter(a => !exclude.has(a.ident)).map((a: AirportPin) => (a.flight_category ? (
+        <Marker
+          key={a.ident} position={[a.lat, a.lon]} icon={airportIcon(colourOf(a.flight_category), a.ident)}
+          eventHandlers={{ click: e => { L.DomEvent.stopPropagation(e); onSelect(a.ident); } }}
+        >
+          {hovers && <MapTooltip>{a.ident} · {a.name} · {a.flight_category}</MapTooltip>}
+        </Marker>
+      ) : (
         <CircleMarker
           key={a.ident} center={[a.lat, a.lon]} radius={TARGET_RADIUS}
           // The class at creation (Leaflet takes it only then), the rest as style.
@@ -71,7 +85,7 @@ export function AirportsLayer({ selected, onSelect }: {
         >
           {hovers && <MapTooltip>{a.ident} · {a.name}</MapTooltip>}
         </CircleMarker>
-      ))}
+      )))}
       {selected && (
         <CircleMarker
           center={[selected.lat, selected.lon]} radius={16} interactive={false}

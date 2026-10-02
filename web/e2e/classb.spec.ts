@@ -1,5 +1,5 @@
 import { test, expect, type Page, type Route } from "@playwright/test";
-import { openSettings, tapTheChart } from "./helpers";
+import { openSettings } from "./helpers";
 
 /**
  * The Class B airports on the map.
@@ -100,7 +100,10 @@ test("the marker's colour is the field's own flight category", async ({ page }) 
   await expect(msp).toHaveCSS("background-color", "rgb(143, 163, 176)");
 });
 
-test("hovering one shows what it is doing and what it is forecast to do", async ({ page }) => {
+test("tapping one opens its card in the panel, with Fly Here, as any airport on the chart does", async ({ page }) => {
+  // It had a card of its own on the map, the METAR and the TAF raw and a
+  // pin for its terminal chart; the field's card in the panel has the
+  // weather, the radio and the runways, and the settings' TAC the chart.
   await mockClassB(page);
   await page.goto(PLAN);
   await routeDrawn(page);
@@ -108,62 +111,24 @@ test("hovering one shows what it is doing and what it is forecast to do", async 
 
   const ord = chips(page).filter({ hasText: "KORD" }).first();
   await expect(ord).toBeVisible({ timeout: 15000 });
-  await ord.hover();
-
-  // The chip's own tooltip: the pointer's way to the chip can cross a
-  // checkpoint marker, whose tooltip then stands beside it (seen on
-  // CI's runner: "7. Wind Farm (61 turbines)" next to KORD's).
-  const tip = page.locator(".leaflet-tooltip").filter({ hasText: "KORD" });
-  await expect(tip).toContainText("IFR");
-  await expect(tip).toContainText("Chicago TAC");
-  await expect(tip).toContainText("METAR KORD");
-  await expect(tip).toContainText("TAF KORD");
-  // Both columns, so "now" and "later" are distinguishable at a glance.
-  await expect(tip).toContainText("400 ft");
-  await expect(tip).toContainText("800 ft");
-
-  // The raw text has to stay inside the card. Leaflet's own stylesheet
-  // sets white-space: nowrap on tooltips, which ran a METAR straight
-  // off the right edge.
-  const overflow = await tip.evaluate(el => el.scrollWidth - el.clientWidth);
-  expect(overflow).toBeLessThanOrEqual(1);
+  await ord.click();
+  await expect(page).toHaveURL(/[?&]place=KORD/);
+  // The live card, unmocked: the class-b fixture is only the chips.
+  await expect(page.getByTestId("place-name")).toContainText("O'Hare", { timeout: 15000 });
+  await expect(page.getByTestId("fly-here")).toBeVisible();
+  await expect(page.locator(".leaflet-popup")).toHaveCount(0);
 });
 
-test("a field with no report says so rather than showing a blank", async ({ page }) => {
-  await mockClassB(page);
-  await page.goto(PLAN);
-  await routeDrawn(page);
-  await showClassB(page);
-
-  const msp = chips(page).filter({ hasText: "KMSP" }).first();
-  await expect(msp).toBeVisible({ timeout: 15000 });
-  await msp.hover();
-  // The chip's own tooltip, as above.
-  await expect(page.locator(".leaflet-tooltip").filter({ hasText: "KMSP" })).toContainText("no report");
-});
-
-test("tapping one opens a card, and the card pins its terminal chart", async ({ page }) => {
-  // The pin used to float at the map's top-right corner with nothing
-  // around it to say which airport it meant. It belongs with the
-  // field's own weather, which is what a tap opens.
-  //
+test("on the training map, which has no card, a tap goes to the field at its terminal chart's zoom", async ({ page }) => {
   // Pinning from a route view would draw nothing -- the FAA publishes
   // terminal charts from zoom 10 and a whole route fits at about 6 --
-  // so the pin goes there first.
-  const tacTiles: string[] = [];
-  page.on("request", r => { if (r.url().includes("/chart-tile/tac/")) tacTiles.push(r.url()); });
-
-  await page.goto(PLAN);
-  await routeDrawn(page);
+  // so the tap goes to where the sheet is.
+  await mockClassB(page);
+  await page.goto("/app/dev?dep=C81&dest=KDLH");
   await showClassB(page);
   const ord = chips(page).filter({ hasText: "KORD" }).first();
   await expect(ord).toBeVisible({ timeout: 20000 });
 
-  expect(tacTiles).toHaveLength(0);
-
-  // A tap goes to the field, the way a tap on any marker on either map
-  // does. The chart's own tile z is the map's zoom, up to the zoom the
-  // FAA publishes sectionals at.
   const tileZoom = () => page.evaluate(() => {
     const tile = document.querySelector('img.leaflet-tile[src*="/chart-tile/sec/"]') as HTMLImageElement | null;
     const m = tile?.src.match(/\/sec\/(\d+)\//);
@@ -173,62 +138,25 @@ test("tapping one opens a card, and the card pins its terminal chart", async ({ 
   await ord.click();
   await expect.poll(tileZoom, { timeout: 20000 }).toBeGreaterThanOrEqual(10);
   expect(before).toBeLessThan(10);
-
-  // The card: the same weather the tooltip shows, plus the pin.
-  const card = page.locator(".leaflet-popup-content");
-  await expect(card).toContainText("KORD");
-  // The live report, unmocked here: a routine METAR, a SPECI when the
-  // weather has changed enough between hours for a special one (it
-  // failed a run at 1246Z, O'Hare in rain), or none when the feed has
-  // nothing for the field, which the card says as the tooltip above
-  // does (a run at 0305Z had O'Hare's TAF and no METAR).
-  await expect(card).toContainText(/(METAR|SPECI) KORD|no report/);
-  // An icon, named by its accessible name rather than by words on the
-  // card: the card is mostly raw METAR and TAF, and labelled buttons
-  // under it pushed the weather off a phone screen.
-  const pin = card.getByTestId("class-b-pin");
-  await expect(pin).toHaveAttribute("aria-pressed", "false");
-  await expect(pin).toHaveAttribute("aria-label", "Pin the Chicago TAC");
-  expect(tacTiles).toHaveLength(0);   // the card alone draws no chart
-  await pin.click();
-  await expect(pin).toHaveAttribute("aria-pressed", "true");
-  await expect(pin).toHaveAttribute("aria-label", /Unpin/);
-
-  await expect.poll(() => tacTiles.length, { timeout: 30000 }).toBeGreaterThan(0);
-  await expect
-    .poll(() => page.evaluate(() =>
-      [...document.querySelectorAll<HTMLImageElement>('img.leaflet-tile[src*="/chart-tile/tac/"]')]
-        .some(img => img.complete && img.naturalWidth > 0)), { timeout: 45000 })
-    .toBe(true);
-
-  // Only now: a tap on the chart puts the card away. There is no close
-  // button on a card -- a tap on the map is what closes one, which is
-  // Leaflet's own `closeOnClick` and what a tap on a map does
-  // everywhere else too. The way back out to the whole route is the
-  // map's own zoom toggle, which is tested in map.spec.ts.
-  await tapTheChart(page);
   await expect(page.locator(".leaflet-popup")).toHaveCount(0);
 });
 
-test("on an IFR base, a Class B card pins the IFR area chart, and that is what draws", async ({ page }) => {
-  // The pin resolved the TAC whatever the base: over the IFR low chart
-  // it said "Pin the Chicago TAC" while pinning drew the IFR area chart.
+test("on an IFR base, the settings' TAC draws the IFR area chart at a Class B field", async ({ page }) => {
+  // The terminal sheet over an IFR chart is the IFR area chart: the
+  // Class B row's chart segment says Area there, and that is what draws.
   const areaTiles: string[] = [];
   page.on("request", r => { if (r.url().includes("/chart-tile/ifr_area/")) areaTiles.push(r.url()); });
   await mockClassB(page);
-  await page.goto(PLAN);
-  await routeDrawn(page);
+  await page.goto("/app/dev?dep=C81&dest=KDLH");
   await openSettings(page);
   await page.getByTestId("base-chart-select").getByRole("radio", { name: "IFR low" }).click();
   await page.getByTestId("class-b-toggle").click();
+  await expect(page.getByTestId("tac-toggle")).toHaveText("Area");
+  await page.getByTestId("tac-toggle").click();
   await page.keyboard.press("Escape");
 
   const ord = chips(page).filter({ hasText: "KORD" }).first();
   await expect(ord).toBeVisible({ timeout: 20000 });
   await ord.click();
-  const pin = page.locator(".leaflet-popup-content").getByTestId("class-b-pin");
-  await expect(pin).toHaveAttribute("aria-label", "Pin the IFR area chart");
-  await pin.click();
-  await expect(pin).toHaveAttribute("aria-pressed", "true");
   await expect.poll(() => areaTiles.length, { timeout: 20000 }).toBeGreaterThan(0);
 });

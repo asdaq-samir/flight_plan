@@ -80,10 +80,27 @@ def test_the_fields_in_view_come_from_the_box_and_the_limit(monkeypatch):
         return [{**DULUTH}]
 
     monkeypatch.setattr(airports, "places_in", places_in)
+    monkeypatch.setattr(weather, "metar_for_idents", lambda idents: {i: None for i in idents})
     body = client.get("/api/airports/in-view", params={"south": 46, "west": -93, "north": 47, "east": -92, "limit": 50}).json()
     assert asked == {"south": 46, "west": -93, "north": 47, "east": -92, "limit": 50}
     assert body["airports"][0]["ident"] == "KDLH"
     assert "source_ident" not in body["airports"][0]
+
+
+def test_the_fields_in_view_carry_their_metars_flight_category(monkeypatch):
+    # A chip on the map for each field that reports, in its category's
+    # colour; nothing for one with no station, or with the weather out.
+    no_station = {**DULUTH, "ident": "1D2", "source_ident": "1D2", "name": "A Small Field", "kind": "small"}
+    monkeypatch.setattr(airports, "places_in", lambda *args: [{**DULUTH}, no_station])
+    monkeypatch.setattr(weather, "metar_for_idents", lambda idents: {"KDLH": {"flight_category": "MVFR"}, "1D2": None})
+    body = client.get("/api/airports/in-view", params={"south": 46, "west": -93, "north": 47, "east": -92}).json()
+    assert [(a["ident"], a["flight_category"]) for a in body["airports"]] == [("KDLH", "MVFR"), ("1D2", None)]
+
+    def down(idents):
+        raise weather.WeatherServiceError("aviationweather.gov is down")
+    monkeypatch.setattr(weather, "metar_for_idents", down)
+    body = client.get("/api/airports/in-view", params={"south": 46, "west": -93, "north": 47, "east": -92}).json()
+    assert [a["flight_category"] for a in body["airports"]] == [None, None]
 
 
 def test_a_box_turned_inside_out_is_refused(monkeypatch):

@@ -18,6 +18,8 @@ interface Props {
   /** The location arrow among the map's buttons: the planner's, whose
    *  map draws own ship. */
   position?: boolean;
+  /** A Class B airport's chip tapped: the planner opens its card. */
+  onSelectPlace?: (ident: string) => void;
 }
 
 /**
@@ -29,7 +31,7 @@ interface Props {
  * preview state and the placeholder before a course arrives were the
  * same code in both files.
  */
-export function MapShell({ course, onReady, children, position }: Props) {
+export function MapShell({ course, onReady, children, position, onSelectPlace }: Props) {
   const [map, setMap] = useState<L.Map | null>(null);
   const [previewing, setPreviewing] = useState(false);
   const bounds = useMemo(() => (course ? L.latLngBounds(course.course_line as [number, number][]) : null), [course]);
@@ -88,7 +90,7 @@ export function MapShell({ course, onReady, children, position }: Props) {
           {/* Both maps get it: a Class B is worth seeing whether
               planning a route past it or rating chart detections
               near it. Draws nothing unless switched on. */}
-          <ClassBLayer course={course} onPreview={setPreviewing} />
+          <ClassBLayer course={course} onPreview={setPreviewing} onSelectPlace={onSelectPlace} />
           {children}
         </MapContainer>
       ) : (

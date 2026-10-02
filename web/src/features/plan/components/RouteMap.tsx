@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import L from "leaflet";
 import { CircleMarker, Marker } from "react-leaflet";
 import { Badge } from "../../../components/ui/badge";
@@ -196,16 +197,24 @@ export default function RouteMap({
   airportWeather, place, onSelectPlace,
 }: Props) {
   const focusZoom = course?.max_zoom ?? 12;
+  // The fields that wear a chip of their own already: the route's two,
+  // and the Class B ones while they are on (ClassBLayer).
+  const showClassB = usePreferences(s => s.classB);
+  const { data: classBAirports } = useQuery({ ...classBQuery, enabled: false });
+  const chipped = useMemo(() => new Set([
+    ...(course ? [course.departure.ident, course.destination.ident] : []),
+    ...(showClassB ? (classBAirports ?? []).map(a => a.ident) : []),
+  ]), [course, showClassB, classBAirports]);
 
   return (
-    <MapShell course={course} position>
+    <MapShell course={course} position onSelectPlace={onSelectPlace}>
       {course && (
         <>
           <CourseLine
             line={course.course_line as [number, number][]}
             tooltip={`${course.departure.ident} → ${course.destination.ident} · ${course.distance_nm} nm`}
           />
-          <AirportsLayer selected={place} onSelect={onSelectPlace} />
+          <AirportsLayer selected={place} onSelect={onSelectPlace} exclude={chipped} />
           <Endpoints course={course} weather={airportWeather} onSelectPoint={onSelectPoint} />
           <Checkpoints candidates={candidates} selected={selected} onSelectCandidate={onSelectCandidate} />
           <OwnShipLayer />
