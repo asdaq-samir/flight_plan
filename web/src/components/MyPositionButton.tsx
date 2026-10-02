@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { Navigation } from "lucide-react";
-import { dismissProblem, notifyProblem } from "../lib/notify";
+import { showError } from "../lib/problems";
 import { cn } from "cn";
 import IconButton from "./IconButton";
 import { ownShipAvailable, useOwnShip } from "../lib/map/ownShip";
@@ -28,16 +28,13 @@ export default function MyPositionButton() {
   const setEnabled = useOwnShip(s => s.setEnabled);
   const recentre = useOwnShip(s => s.recentre);
   useEffect(() => {
-    // Put away when the position comes, or is turned off.
-    if (error) notifyProblem({ title: "No position", description: error }, "own-ship");
-    else dismissProblem("own-ship");
+    // Said once, as it happens: a refusal of the browser's prompt.
+    if (error) showError("No position", error);
   }, [error]);
   const following = enabled && follow;
   const tap = () => {
     if (!ownShipAvailable()) {
-      notifyProblem({
-        title: "No position over this connection", description: "The browser gives a page the phone's position only over https.",
-      }, "own-ship");
+      showError("No position over this connection", "The browser gives a page the phone's position only over https.");
     } else if (!enabled) {
       setEnabled(true);
       recentre();

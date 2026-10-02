@@ -12,7 +12,7 @@ import { WORKER_WAIT_MS, keep, keepKey, keptAlready, stopKeeping, useKeepJob, us
 import { toast } from "sonner";
 import { useKeepRouteToast } from "./keepStatus";
 
-vi.mock("sonner", () => ({ toast: { loading: vi.fn(), success: vi.fn(), error: vi.fn() } }));
+vi.mock("sonner", () => ({ toast: { loading: vi.fn(), success: vi.fn(), error: vi.fn(), dismiss: vi.fn() } }));
 
 const layer = (kind: string): ChartLayer =>
   ({ kind, label: kind === "sec" ? "Sectional" : "IFR low", min_zoom: 3, max_zoom: 9, base: true, over: [], sheets: [] }) as ChartLayer;

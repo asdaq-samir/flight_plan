@@ -18,10 +18,12 @@ import { ConsoleButtonContext } from "./mapChrome";
  * With no `trailing` of its own, the page's console button is there
  * (ConsoleButtonContext): the training page's.
  */
-export function RouteCapsule({ title, detail, onDetail, leading, trailing }: {
+export function RouteCapsule({ title, detail, tone = "default", onDetail, leading, trailing }: {
   title: string;
   /** The chip's words, and what a tap on it does. */
   detail?: string;
+  /** Destructive: the chip says what is wrong with the route, in red. */
+  tone?: "default" | "destructive";
   onDetail?: () => void;
   leading?: ReactNode;
   trailing?: ReactNode;
@@ -38,8 +40,11 @@ export function RouteCapsule({ title, detail, onDetail, leading, trailing }: {
         {detail && (
           // The tint's own words on a wash of it, as Maps' Options chip.
           <button
-            type="button" onClick={onDetail} data-testid="capsule-detail"
-            className={cn("max-w-full rounded-full bg-tint/12 px-3 py-0.5 font-medium text-tint outline-none focus-visible:ring-2 focus-visible:ring-ring", TEXT.detail)}
+            type="button" onClick={onDetail} data-testid="capsule-detail" data-tone={tone}
+            className={cn(
+              "max-w-full rounded-full px-3 py-0.5 font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring", TEXT.detail,
+              tone === "destructive" ? "bg-destructive/12 text-destructive" : "bg-tint/12 text-tint",
+            )}
           >
             {/* Cut short inside, not on the button: its overflow hidden
                 would clip its 44-point hit area (index.css) to its box. */}

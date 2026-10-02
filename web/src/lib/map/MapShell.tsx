@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { AttributionControl, MapContainer } from "react-leaflet";
 import MapControls from "../../components/MapControls";
+import ProblemBanner from "../../components/ProblemBanner";
 import { MapInsetsContext } from "../../components/mapChrome";
 import type { Course } from "../api/types";
 import { chartQuery } from "../queryClient";
@@ -112,6 +113,7 @@ export function MapShell({ course, onReady, children, onSelectPlace }: Props) {
       ) : (
         <div className="h-full w-full bg-slate-100 dark:bg-slate-900" />
       )}
+      <ProblemBanner />
       <MapControls />
     </div>
   );

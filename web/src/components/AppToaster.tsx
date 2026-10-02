@@ -14,24 +14,17 @@ import { useNavEdge } from "../hooks/use-nav-edge";
  * across the map's buttons from either edge, the location arrow under it
  * still taking a tap (a toast takes none but its controls', index.css).
  * It stopped short of them at the top while Settings was among them.
- * closeButton: off by default in sonner, but the error toast sets
- * `duration: Infinity` (see usePageStatus) -- with no close button, the
- * only way to dismiss it is for the error condition to clear itself in
- * app state, and a pilot has no way to just get it off their screen
- * while that's still true. richColors: every icon here
- * (success/info/warning/error) is drawn with `fill="currentColor"` in
- * sonner's own source, so without this they're all the same neutral
- * text color -- error and warning only actually READ as red/amber,
- * distinct from a plain status toast, once this is on. Colors the
- * toast's own background/border along with the icon (sonner's one
- * built-in switch for both, not two separate settings).
+ *
+ * Only news that goes by itself -- progress, "Link copied", "Aircraft
+ * added" -- so no close button, as iOS's banners have none: what went
+ * wrong is said where it belongs (lib/problems), not in a toast that
+ * stayed until closed. richColors: a success's tick reads green.
  */
 export default function AppToaster() {
   const edge = useNavEdge();
   return (
     <Toaster
       position={edge === "bottom" ? "top-center" : "bottom-center"}
-      closeButton
       richColors
       // The app's one radius for what floats (index.css), over sonner's 8.
       style={{ "--width": "min(34rem, calc(100vw - 2rem))", "--border-radius": "var(--radius)" } as CSSProperties}
@@ -59,8 +52,7 @@ export default function AppToaster() {
       // browser's own click lands on whatever the drawer had underneath
       // -- an accordion trigger, most often -- which is how tapping a
       // toast could expand a briefing section that was never touched.
-      // `closeButton` above is already the deliberate way to dismiss one
-      // by hand.
+      // Each goes by itself in a few seconds.
       swipeDirections={[]}
     />
   );

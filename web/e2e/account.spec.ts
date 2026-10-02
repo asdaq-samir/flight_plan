@@ -123,7 +123,8 @@ test.describe("the email sign-in link", () => {
     await page.getByLabel("Email address").fill("a@example.com");
     await page.getByRole("button", { name: "Send sign-in link" }).click();
 
-    await expect(page.locator("[data-sonner-toast]", { hasText: "Too many sign-in links" })).toBeVisible();
+    // Under the field it is about, not over the map.
+    await expect(page.getByTestId("sign-in-error")).toContainText("Too many sign-in links");
   });
 });
 

@@ -1,0 +1,59 @@
+import { useState } from "react";
+import { CircleAlert } from "lucide-react";
+import { cn } from "cn";
+import { Alert } from "./ui/alert";
+import { Button } from "./ui/button";
+import { GLASS } from "./mapChrome";
+import { TEXT } from "../lib/text";
+import { useSystemProblems } from "../lib/problems";
+
+/**
+ * What the app could not do that is not the pilot's doing -- the planner
+ * or a service out, a download that failed (lib/problems) -- as one line
+ * on the map, beside its buttons and level with them, in the stock
+ * Alert on the map buttons' glass: the problem, or how many there are,
+ * and Try again where asking
+ * again could help. A tap on the words shows all of it. It goes when
+ * what caused it has, and sits in the map's own layer, under the panel:
+ * nothing of the panel or its grabber is ever under it. It was a toast
+ * per problem, a stack of them folded to lines the panel had to stop
+ * short of.
+ */
+export default function ProblemBanner() {
+  const problems = useSystemProblems(s => s.problems);
+  const [open, setOpen] = useState(false);
+  if (problems.length === 0) return null;
+  const retries = problems.filter(p => p.retry);
+  const title = problems.length === 1 ? problems[0]!.title : `${problems.length} problems`;
+  return (
+    // Beside the map's buttons (MapControls), on their edge: the top
+    // right under a panel at the bottom, the bottom right otherwise.
+    <div
+      className="pointer-events-none absolute right-[calc(max(0.5rem,env(safe-area-inset-right))+3.25rem)] bottom-[calc(env(safe-area-inset-bottom)+1.5rem)] left-[max(1rem,env(safe-area-inset-left))] z-[1000] flex nav-bottom:top-[max(0.5rem,env(safe-area-inset-top))] nav-bottom:bottom-auto"
+      data-problem-banner=""
+    >
+      <Alert
+        variant="destructive" role="status"
+        className={cn(GLASS, "pointer-events-auto flex min-h-11 w-fit max-w-full items-center gap-2 rounded-[22px] border-transparent py-1 pr-1 pl-3 *:[svg]:translate-y-0")}
+      >
+        <CircleAlert className="shrink-0" />
+        <button
+          type="button" onClick={() => setOpen(o => !o)} aria-expanded={open} data-testid="problem-banner-title"
+          className={cn("min-w-0 flex-1 py-1 text-left font-medium outline-none focus-visible:underline", TEXT.detail, !open && "truncate")}
+        >
+          {open && problems.length > 1
+            ? problems.map(p => <span key={p.id} className="block" data-problem-item="">{p.title}</span>)
+            : title}
+        </button>
+        {retries.length > 0 && (
+          <Button
+            type="button" size="sm" variant="ghost" className="shrink-0 rounded-full text-tint"
+            onClick={() => retries.forEach(p => p.retry!())}
+          >
+            Try again
+          </Button>
+        )}
+      </Alert>
+    </div>
+  );
+}

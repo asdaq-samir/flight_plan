@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useLocation } from "react-router-dom";
 import { BrainCircuit, ExternalLink, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
-import { notifyProblem } from "../../lib/notify";
+import { showError } from "../../lib/problems";
 import { Bar, BarChart, Cell, LabelList, XAxis, YAxis } from "recharts";
 import { cn } from "cn";
 import { ConsolePages, PageRow, StepRow } from "../../components/ConsolePages";
@@ -448,7 +448,7 @@ function StackLink({ link }: { link: { label: string; href: string; service?: st
             // connection refused.
             window.setTimeout(() => { if (tab) tab.location.href = link.href; }, 2500);
           },
-          onError: err => { tab?.close(); notifyProblem({ title: `Could not start ${link.service}`, description: errorMessage(err, "the sidecar gave no reason") }); },
+          onError: err => { tab?.close(); showError(`Could not start ${link.service}`, errorMessage(err, "the sidecar gave no reason")); },
         });
       }}
     >

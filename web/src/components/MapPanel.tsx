@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { cn } from "cn";
 import { useDetentDrag } from "../hooks/use-detent-drag";
-import { foldedProblemsPx, sheetCovers, useFoldedProblems } from "../lib/notify";
 import { useIsMobile } from "../hooks/use-mobile";
 import { useNavEdge } from "../hooks/use-nav-edge";
 import { useKeyboardInset, useSafeArea, useVisualHeight, useWindowHeight } from "../hooks/use-viewport";
@@ -99,16 +98,11 @@ export default function MapPanel({ label, top, controls, notices, compact, child
   // page to the field it focused, so the keyboard's inset alone (the
   // distance under what is in sight) left the sheet as tall as before,
   // its top -- the search bar typed into -- scrolled up off the screen.
-  // On a phone, short of a problem folded to its line at the far edge,
-  // where the toasts are (lib/notify): all the way out, the sheet's
-  // grabber was under the line, and the sheet could not be lowered.
-  const foldedProblems = useFoldedProblems(s => s.ids.length);
-  const problemLine = onPhone ? foldedProblemsPx(foldedProblems) : 0;
-  const room = (keyboard || visualHeight < windowHeight - 1
+  const room = keyboard || visualHeight < windowHeight - 1
     ? visualHeight - Math.round(safe.top) - SHEET_MARGIN
     : onPhone
       ? windowHeight - Math.round(fromBottom ? safe.top : safe.bottom) - SHEET_MARGIN
-      : windowHeight - Math.max(SHEET_MARGIN, Math.round(safe.top)) - Math.max(SHEET_MARGIN, Math.round(safe.bottom))) - problemLine;
+      : windowHeight - Math.max(SHEET_MARGIN, Math.round(safe.top)) - Math.max(SHEET_MARGIN, Math.round(safe.bottom));
   // A phone's sheet from the bottom runs on to the screen's edge, under
   // the home indicator (or eight points where there is none), so its
   // content sits clear of it -- or on to the keyboard, with it up.
@@ -154,14 +148,6 @@ export default function MapPanel({ label, top, controls, notices, compact, child
   // of it: the strip at its edge on a phone; from `md` up the column at
   // the left while it is out, or the corner it rests in while it is not.
   const expanded = state !== "peek";
-  // Out at all on a phone, it reaches the toasts: a problem's open card,
-  // its reasons and its actions, came down over the sheet even at half.
-  // It folds to its line instead (lib/notify), which stays clear of it.
-  const covers = onPhone && state !== "peek";
-  useEffect(() => {
-    sheetCovers("panel", covers);
-    return () => sheetCovers("panel", false);
-  }, [covers]);
   useEffect(() => {
     const strip = peek + (capsule && onPhone ? capsuleGap : onPhone ? 0 : SHEET_MARGIN);
     if (!onPhone && expanded) onInsetsChange({ top: 0, bottom: 0, left: 16 + CARD });

@@ -1,5 +1,5 @@
 import { Suspense, lazy, useCallback, useDeferredValue, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { notifyProblem } from "../../lib/notify";
+import { showError } from "../../lib/problems";
 import { useSearchParamsNow } from "../../lib/useSearchParamsNow";
 import DevGuard from "../../components/DevGuard";
 import ConsoleSheet, { type ConsoleDetent } from "../../components/ConsoleSheet";
@@ -90,10 +90,10 @@ export default function MapPage({ mode }: { mode: Mode }) {
   const refused = searchParams.get("signin") === "refused";
   useEffect(() => {
     if (!refused) return;
-    notifyProblem({
-      title: "That sign-in was refused",
-      description: "The provider has not verified that account's email address. Verify it there, or sign in with an emailed link.",
-    });
+    showError(
+      "That sign-in was refused",
+      "The provider has not verified that account's email address. Verify it there, or sign in with an emailed link.",
+    );
     setSearchParams(prev => {
       const next = new URLSearchParams(prev);
       next.delete("signin");

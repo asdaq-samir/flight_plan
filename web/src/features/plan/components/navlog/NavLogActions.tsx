@@ -17,8 +17,8 @@ const FRAMEWORK_LABEL: Record<Framework, string> = {
 
 /** One framework's own tab body -- the narrative as it streams in (the
  *  "generating" line only until the first words arrive), the finished
- *  text, or a note that the error toast has the details. Scrolls
- *  internally rather than pushing the popover past the viewport. */
+ *  text, or why there is none. Scrolls internally rather than pushing
+ *  the popover past the viewport. */
 function NarrativeTabBody({ framework, narrative }: { framework: Framework; narrative: FrameworkNarrative }) {
   return (
     <ScrollArea className="max-h-[60vh]">
@@ -26,7 +26,7 @@ function NarrativeTabBody({ framework, narrative }: { framework: Framework; narr
         {narrative.loading && !narrative.text && (
           <p className="text-muted-foreground">Generating {FRAMEWORK_LABEL[framework]} narrative…</p>
         )}
-        {narrative.error && <p className="text-muted-foreground">Narrative unavailable — see the error toast.</p>}
+        {narrative.error && <p className="text-destructive" role="alert">Narrative unavailable: {narrative.error}</p>}
         {narrative.text && <p className="whitespace-pre-wrap text-popover-foreground">{narrative.text}</p>}
       </div>
     </ScrollArea>

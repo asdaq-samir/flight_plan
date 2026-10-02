@@ -1,16 +1,17 @@
 // @vitest-environment jsdom
 /**
  * The network never runs here -- `api` is replaced with a mock, and the
- * page's own query client (with its one rule for which failures toast)
- * is used as it is. What each test proves is which query the page reads
- * a state from and whether a failure reaches the pilot as a toast, not
- * that the real planner agrees.
+ * page's own query client (with its one rule for which failures are
+ * said) is used as it is. What each test proves is which query the page
+ * reads a state from and whether a failure reaches the pilot as a system
+ * problem (lib/problems), not that the real planner agrees.
  */
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { createElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import type { CheckpointDescriptionMessage, Course } from "../../../lib/api/types";
+import { useSystemProblems } from "../../../lib/problems";
 import { queryClient } from "../../../lib/queryClient";
 import { usePlan, type PlanParams } from "./usePlan";
 
@@ -31,7 +32,6 @@ vi.mock("../../../lib/api/client", async importOriginal => ({
 }));
 
 const { api, ApiError } = await import("../../../lib/api/client");
-const { toast } = await import("sonner");
 
 function courseFixture(): Course {
   return {
@@ -163,8 +163,8 @@ describe("the briefing", () => {
     vi.mocked(api.course).mockRejectedValue(new ApiError("unknown airport K", 404));
     const { result } = renderHook(() => usePlan(params), { wrapper });
 
-    // Said as a problem that stays (lib/notify).
-    await waitFor(() => expect(toast.custom).toHaveBeenCalled());
+    // Said as a system problem, the line by the map's buttons.
+    await waitFor(() => expect(useSystemProblems.getState().problems).toContainEqual(expect.objectContaining({ title: "unknown airport K" })));
     expect(result.current.briefing).toEqual({ state: "waiting" });
     expect(api.briefing).not.toHaveBeenCalled();
   });

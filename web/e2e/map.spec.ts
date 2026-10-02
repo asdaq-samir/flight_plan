@@ -154,7 +154,11 @@ test("my position is the location arrow among the map's buttons, on both pages, 
   await expect(arrow).toHaveAttribute("aria-pressed", "false");
   if (!(await page.evaluate(() => window.isSecureContext))) {
     await arrow.click();
-    await expect(page.locator("[data-sonner-toast]", { hasText: "No position over this connection" })).toBeVisible();
+    // An alert, with OK: something the pilot just did.
+    const alert = page.getByTestId("error-alert");
+    await expect(alert).toContainText("No position over this connection");
+    await alert.getByRole("button", { name: "OK" }).click();
+    await expect(alert).toHaveCount(0);
     await expect(arrow).toHaveAttribute("aria-pressed", "false");
   }
   // The training page's as well: its map is the same (MapShell).

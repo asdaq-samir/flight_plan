@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { Share, X } from "lucide-react";
 import { toast } from "sonner";
-import { dismissProblem, notifyProblem } from "../../lib/notify";
+import { showError } from "../../lib/problems";
 import { cn } from "cn";
 import { api } from "../../lib/api/client";
 import { pilotQuery, queryClient } from "../../lib/queryClient";
@@ -24,10 +24,9 @@ import { useSearchParamsNow } from "../../lib/useSearchParamsNow";
 import type { WorkspaceProps } from "../page/workspace";
 import { PilotPanel } from "../pilot/PilotPanel";
 import { Alert, AlertDescription, AlertTitle } from "../../components/ui/alert";
-import { Button } from "../../components/ui/button";
-import { Input } from "../../components/ui/input";
 import IconButton from "../../components/IconButton";
 import { RouteCapsule, SearchField, SearchResults } from "../../components/PanelCapsule";
+import RouteProblem from "./components/RouteProblem";
 import { Favorites, FavoritesList } from "../../components/Favorites";
 import FlightBriefingView, { BriefingNotices, PlanningAidNote, SaveFlightButton } from "./components/briefing/FlightBriefingView";
 import FlightInputs from "./components/navlog/FlightInputs";
@@ -43,28 +42,6 @@ import { usePlan } from "./hooks/usePlan";
  *  winds in hand picks; it was the lowest, as the predictable one. */
 function altitudeChoiceOf(value: string | null): AltitudeChoice {
   return value === "lowest" || value === "highest" || value === "economical" ? value : "fastest";
-}
-
-/** The one no-legal-altitude problem on screen (notifyProblem). */
-const UNFLYABLE = "unflyable";
-
-/** A cruise altitude of the pilot's own, typed into no legal altitude's
- *  problem to plan the route anyway: Fly re-plans at it. */
-function CustomAltitude({ onFly }: { onFly: (feet: string) => void }) {
-  const [feet, setFeet] = useState("");
-  return (
-    <form
-      className="flex items-center gap-2 pt-1" aria-label="Custom altitude"
-      onSubmit={e => { e.preventDefault(); if (feet) onFly(feet); }}
-    >
-      <Input
-        value={feet} onChange={e => setFeet(e.target.value.replace(/[^0-9]/g, ""))}
-        inputMode="numeric" placeholder="Altitude, ft" aria-label="Cruise altitude, feet"
-        className="h-8 min-w-0 flex-1 bg-background text-foreground" data-testid="unflyable-altitude"
-      />
-      <Button type="submit" size="sm" disabled={!feet} data-testid="unflyable-fly">Fly</Button>
-    </form>
-  );
 }
 
 /**
@@ -244,12 +221,11 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // Add Stop open: from its own button, or from no legal altitude's.
   const [addingStop, setAddingStop] = useState(false);
 
-  // No legal altitude for the route (usePlan), said where the pilot is
-  // looking, as a problem that stays (lib/notify): where along the route,
-  // why as a list, and the two ways on -- a stop to route round the high
-  // ground, or an altitude of the pilot's own to plan it anyway. It was a
-  // paragraph in a toast that went in ten seconds, then the same at the
-  // head of the nav log, where it took the room the log needs.
+  // No legal altitude for the route (usePlan) is the route's own problem:
+  // its capsule's chip says so at rest, and the panel says where, why and
+  // the two ways on under the route (RouteProblem). It was a toast over
+  // the map, then the same at the head of the nav log, where it took the
+  // room the log needs.
   const flyAt = useCallback((feet: string) => {
     setSearchParams(prev => {
       const next = new URLSearchParams(prev);
@@ -259,21 +235,6 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     }, { replace: true });
     setLoad(n => n + 1);
   }, [setSearchParams]);
-  const unflyable = s.unflyable;
-  useEffect(() => {
-    if (!unflyable) {
-      dismissProblem(UNFLYABLE);
-      return;
-    }
-    notifyProblem({
-      title: unflyable.title, points: unflyable.reasons,
-      actions: [{
-        label: "Add a stop", testId: "unflyable-add-stop",
-        onClick: () => { setPanel("half"); setAddingStop(true); },
-      }],
-      extra: <CustomAltitude onFly={flyAt} />,
-    }, UNFLYABLE);
-  }, [unflyable, flyAt, setPanel]);
 
   // With no route, the panel is Maps' search: the bar in the capsule and
   // at the top of the sheet, Favorites and what was picked before under it,
@@ -380,7 +341,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
         toast.success("Link copied");
       }
     } catch (err) {
-      if ((err as Error).name !== "AbortError") notifyProblem({ title: "Could not share the route", description: (err as Error).message });
+      if ((err as Error).name !== "AbortError") showError("Could not share the route", (err as Error).message);
     }
   }, [planned.dep, planned.dest, planned.stops]);
 
@@ -560,7 +521,8 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     compact: routed ? (
       <RouteCapsule
         title={routeName(planned.dep, planned.dest, planned.stops)}
-        detail={`${shortName(aircraft.label)} · ${depart ? format(new Date(depart), "EEE d MMM, HH:mm") : "Now"}`}
+        detail={s.unflyable ? "No legal altitude" : `${shortName(aircraft.label)} · ${depart ? format(new Date(depart), "EEE d MMM, HH:mm") : "Now"}`}
+        tone={s.unflyable ? "destructive" : "default"}
         onDetail={() => setPanel("half")}
         leading={<IconButton label="Share this route" variant="secondary" className="rounded-full" onClick={() => void share()}><Share /></IconButton>}
         trailing={<IconButton label="Close the route" variant="secondary" className="rounded-full" onClick={clearRoute} data-testid="clear-route"><X /></IconButton>}
@@ -596,7 +558,9 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     console: <PilotPanel />,
     submit,
     loading: s.stage !== null,
-    notices: s.sameAirport ? (
+    notices: s.unflyable ? (
+      <RouteProblem problem={s.unflyable} onAddStop={() => setAddingStop(true)} onFly={flyAt} />
+    ) : s.sameAirport ? (
       <Alert className="rounded-none border-x-0 border-t-0 border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/40">
         <AlertTitle>A route needs two different airports.</AlertTitle>
         <AlertDescription>

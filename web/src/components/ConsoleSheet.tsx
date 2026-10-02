@@ -1,8 +1,7 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { Dialog as DialogPrimitive } from "radix-ui";
 import { cn } from "cn";
 import { useDetentDrag } from "../hooks/use-detent-drag";
-import { foldedProblemsPx, sheetCovers, useFoldedProblems } from "../lib/notify";
 import { useKeyboardInset, useSafeArea, useVisualHeight, useWindowHeight } from "../hooks/use-viewport";
 import { DialogOverlay, DialogPortal } from "./ui/dialog";
 import { GLASS_SHEET, SHEET_INSET, SHEET_INSET_RADIUS, SHEET_MARGIN, SHEET_RESHAPE, SHEET_SETTLE } from "./mapChrome";
@@ -47,12 +46,9 @@ export default function ConsoleSheet({
   const visualHeight = useVisualHeight();
   // As the panel's: eight short of the far edge's inset, or of what is in
   // sight above the keyboard.
-  // Short of a problem folded to its line at the far edge, as the map's
-  // panel is (MapPanel).
-  const problemLine = foldedProblemsPx(useFoldedProblems(s => s.ids.length));
-  const room = (keyboard || visualHeight < windowHeight - 1
+  const room = keyboard || visualHeight < windowHeight - 1
     ? visualHeight - Math.round(safe.top) - SHEET_MARGIN
-    : windowHeight - Math.round(fromBottom ? safe.top : safe.bottom) - SHEET_MARGIN) - problemLine;
+    : windowHeight - Math.round(fromBottom ? safe.top : safe.bottom) - SHEET_MARGIN;
   const detents = { closed: 0, medium: Math.round(room / 2), large: room };
   const [dragged, setDragged] = useState<number | null>(null);
   const shown = dragged ?? detents[detent];
@@ -61,13 +57,6 @@ export default function ConsoleSheet({
     onRelease: next => (next === "closed" ? onOpenChange(false) : onDetentChange(next)),
   });
   const shape = shown >= (detents.medium + detents.large) / 2 ? "edge" : "inset";
-  // Out, it reaches the toasts, as the map's panel does: a problem open
-  // there folds to its line (lib/notify).
-  const covers = open;
-  useEffect(() => {
-    sheetCovers("console", covers);
-    return () => sheetCovers("console", false);
-  }, [covers]);
   const gap = shape === "inset" ? SHEET_INSET : 0;
   // Under half it slides toward its edge, as a sheet being put away does,
   // rather than shrinking.

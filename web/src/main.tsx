@@ -6,6 +6,7 @@ import { ThemeProvider } from "next-themes";
 import { courseQuery, queryClient } from "./lib/queryClient";
 import { routeOf, stopsOf } from "./lib/identSchema";
 import AppToaster from "./components/AppToaster";
+import ErrorAlert from "./components/ErrorAlert";
 import { TooltipProvider } from "./components/ui/tooltip";
 import { registerSW } from "virtual:pwa-register";
 import { followDynamicType } from "./lib/dynamicType";
@@ -134,6 +135,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
         <RouterProvider router={router} />
       </TooltipProvider>
       <AppToaster />
+      <ErrorAlert />
     </QueryClientProvider>
     </ThemeProvider>
   </React.StrictMode>,

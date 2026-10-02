@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { notifyProblem } from "../../lib/notify";
 import { Mail } from "lucide-react";
 import AppleLogo from "../../components/icons/AppleLogo";
 import GoogleLogo from "../../components/icons/GoogleLogo";
@@ -36,16 +35,17 @@ export default function SignInModal() {
   // and survived a close and reopen mid-request.
   const magicLink = useMutation({
     mutationFn: (address: string) => api.requestMagicLink(address),
-    // Whose fault it was: an address the server refused is the pilot's
-    // to fix; a server or network failure is not, and "check the
-    // address" sent them looking for a typo that was not there.
-    onError: error => notifyProblem({
-      title: error instanceof ApiError && error.status === 429 ? "Too many sign-in links asked for. Wait a few minutes and try again."
-        : error instanceof ApiError && error.status >= 400 && error.status < 500 ? "Couldn't send that link. Check the address and try again."
-          : "Couldn't reach the sign-in service. Try again in a minute.",
-    }),
     meta: { silent: true },
   });
+  // Said under the field it is about (it was a toast over the map), and
+  // whose fault it was: an address the server refused is the pilot's to
+  // fix; a server or network failure is not, and "check the address"
+  // sent them looking for a typo that was not there.
+  const linkError = magicLink.error;
+  const linkFailure = !linkError ? null
+    : linkError instanceof ApiError && linkError.status === 429 ? "Too many sign-in links asked for. Wait a few minutes and try again."
+      : linkError instanceof ApiError && linkError.status >= 400 && linkError.status < 500 ? "Couldn't send that link. Check the address and try again."
+        : "Couldn't reach the sign-in service. Try again in a minute.";
   const sent = magicLink.isSuccess ? magicLink.variables : null;
 
   return (
@@ -113,6 +113,7 @@ export default function SignInModal() {
                 {magicLink.isPending ? <Spinner className="size-5" role="presentation" aria-label={undefined} aria-hidden /> : <Mail className="size-5" />}
               </IconButton>
             </div>
+            {linkFailure && <p className="text-sm text-destructive" role="alert" data-testid="sign-in-error">{linkFailure}</p>}
           </form>
         )}
       </DialogContent>
