@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { Share, X } from "lucide-react";
 import { toast } from "sonner";
+import { dismissProblem, notifyProblem } from "../../lib/notify";
 import { cn } from "cn";
 import { api } from "../../lib/api/client";
 import { pilotQuery, queryClient } from "../../lib/queryClient";
@@ -11,7 +12,7 @@ import { aircraftKey, choiceOf, shortName } from "../../lib/aircraftChoice";
 import { distanceNm } from "../../lib/geo";
 import { useKeepOffline } from "../../lib/map/keepStatus";
 import { useOwnShip } from "../../lib/map/ownShip";
-import { identOf, routeOf } from "../../lib/identSchema";
+import { identOf, routeName, routeOf, stopsOf } from "../../lib/identSchema";
 import { usePreferences, type RecentAirport } from "../../lib/preferences";
 import { useAirportSearch } from "../../lib/useAirportSearch";
 // Without this Leaflet's tiles, markers and controls have no
@@ -23,12 +24,15 @@ import { useSearchParamsNow } from "../../lib/useSearchParamsNow";
 import type { WorkspaceProps } from "../page/workspace";
 import { PilotPanel } from "../pilot/PilotPanel";
 import { Alert, AlertDescription, AlertTitle } from "../../components/ui/alert";
+import { Button } from "../../components/ui/button";
+import { Input } from "../../components/ui/input";
 import IconButton from "../../components/IconButton";
 import { RouteCapsule, SearchField, SearchResults } from "../../components/PanelCapsule";
 import { Favorites, FavoritesList } from "../../components/Favorites";
 import FlightBriefingView, { BriefingNotices, PlanningAidNote, SaveFlightButton } from "./components/briefing/FlightBriefingView";
 import FlightInputs from "./components/navlog/FlightInputs";
 import PlaceCard from "./components/PlaceCard";
+import StopsBar from "./components/StopsBar";
 import NavLogActions from "./components/navlog/NavLogActions";
 import NavLogView from "./components/navlog/NavLogView";
 import RouteMap from "./components/RouteMap";
@@ -39,6 +43,28 @@ import { usePlan } from "./hooks/usePlan";
  *  winds in hand picks; it was the lowest, as the predictable one. */
 function altitudeChoiceOf(value: string | null): AltitudeChoice {
   return value === "lowest" || value === "highest" || value === "economical" ? value : "fastest";
+}
+
+/** The one no-legal-altitude problem on screen (notifyProblem). */
+const UNFLYABLE = "unflyable";
+
+/** A cruise altitude of the pilot's own, typed into no legal altitude's
+ *  problem to plan the route anyway: Fly re-plans at it. */
+function CustomAltitude({ onFly }: { onFly: (feet: string) => void }) {
+  const [feet, setFeet] = useState("");
+  return (
+    <form
+      className="flex items-center gap-2 pt-1" aria-label="Custom altitude"
+      onSubmit={e => { e.preventDefault(); if (feet) onFly(feet); }}
+    >
+      <Input
+        value={feet} onChange={e => setFeet(e.target.value.replace(/[^0-9]/g, ""))}
+        inputMode="numeric" placeholder="Altitude, ft" aria-label="Cruise altitude, feet"
+        className="h-8 min-w-0 flex-1 bg-background text-foreground" data-testid="unflyable-altitude"
+      />
+      <Button type="submit" size="sm" disabled={!feet} data-testid="unflyable-fly">Fly</Button>
+    </form>
+  );
 }
 
 /**
@@ -59,7 +85,11 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // picked on the map opens its section.
   const panelOpen = panel !== "peek";
   const [searchParams, setSearchParams] = useSearchParamsNow();
-  const planned = { dep: identOf(searchParams.get("dep")), dest: identOf(searchParams.get("dest")) };
+  // The route: its two ends, and the airports it lands at on the way.
+  const planned = {
+    dep: identOf(searchParams.get("dep")), dest: identOf(searchParams.get("dest")), stops: stopsOf(searchParams.get("stops")),
+  };
+  const via = planned.stops.join(",");
   const altitudeFt = searchParams.get("altitude_ft") ?? "";
   const altitudeChoice = altitudeChoiceOf(searchParams.get("altitude_choice"));
   // The departure time as an ISO instant, or "" for about now. It picks
@@ -69,7 +99,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // The Custom altitude box's own draft, sent with the next load -- and,
   // like the header's route, belonging to the plan it was typed over: a
   // different route or altitude in the address shows that one.
-  const altKey = `${planned.dep}-${planned.dest}-${altitudeFt}`;
+  const altKey = `${planned.dep}-${planned.dest}-${via}-${altitudeFt}`;
   const [altDraft, setAltDraft] = useState<{ of: string; value: string } | null>(null);
   const alt = altDraft?.of === altKey ? altDraft.value : altitudeFt;
   const setAlt = useCallback((value: string) => setAltDraft({ of: altKey, value }), [altKey]);
@@ -101,7 +131,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // in the pilot console (a climb burn added, say) re-plans. It used to
   // fly the copy remembered at the pick until it was picked again.
   const aircraft = aircraftOptions.find(o => aircraftKey(o) === aircraftKey(remembered)) ?? remembered;
-  const s = usePlan({ dep: planned.dep, dest: planned.dest, altitudeFt, altitudeChoice, depart, aircraft, load });
+  const s = usePlan({ dep: planned.dep, dest: planned.dest, stops: planned.stops, altitudeFt, altitudeChoice, depart, aircraft, load });
   const { course, selected } = s;
   // Keep Charts Offline, the setting: each route loaded keeps its charts.
   useKeepOffline(course);
@@ -110,7 +140,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // index, since the map's markers and the nav log's rows are two
   // orderings of the same points -- and only for the route it was
   // picked on: a new route starts with nothing selected.
-  const routeKey = `${planned.dep}-${planned.dest}`;
+  const routeKey = `${planned.dep}-${planned.dest}-${via}`;
   const [selection, setSelection] = useState<{ route: string; point: { lat: number; lon: number } } | null>(null);
   const selectedPoint = selection?.route === routeKey ? selection.point : null;
   const selectPoint = useCallback(
@@ -189,16 +219,61 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   }, [planned.dep, planned.dest, depart, setSearchParams, setPanel]);
 
   const submit = useCallback(() => {
-    const route = routeOf(dep, dest);
+    const route = routeOf(dep, dest, planned.stops);
     if (!route) return;
     const next: Record<string, string> = { ...route };
+    if (via) next.stops = via;
     if (alt.trim()) next.altitude_ft = alt.trim();
     if (altitudeChoice !== "fastest") next.altitude_choice = altitudeChoice;
     if (depart) next.depart = depart;
     if (panel === "full") next.view = "briefing";
     setSearchParams(next, { replace: true });
     setLoad(n => n + 1);
-  }, [dep, dest, alt, altitudeChoice, depart, panel, setSearchParams]);
+  }, [dep, dest, planned.stops, via, alt, altitudeChoice, depart, panel, setSearchParams]);
+
+  // The stops, changed in the panel's second row (StopsBar): in the
+  // address at once, which re-plans, as the aeroplane and the time do.
+  const setStops = useCallback((stops: string[]) => {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      if (stops.length) next.set("stops", stops.join(","));
+      else next.delete("stops");
+      return next;
+    }, { replace: true });
+  }, [setSearchParams]);
+  // Add Stop open: from its own button, or from no legal altitude's.
+  const [addingStop, setAddingStop] = useState(false);
+
+  // No legal altitude for the route (usePlan), said where the pilot is
+  // looking, as a problem that stays (lib/notify): where along the route,
+  // why as a list, and the two ways on -- a stop to route round the high
+  // ground, or an altitude of the pilot's own to plan it anyway. It was a
+  // paragraph in a toast that went in ten seconds, then the same at the
+  // head of the nav log, where it took the room the log needs.
+  const flyAt = useCallback((feet: string) => {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      next.set("altitude_ft", feet);
+      next.delete("altitude_choice");
+      return next;
+    }, { replace: true });
+    setLoad(n => n + 1);
+  }, [setSearchParams]);
+  const unflyable = s.unflyable;
+  useEffect(() => {
+    if (!unflyable) {
+      dismissProblem(UNFLYABLE);
+      return;
+    }
+    notifyProblem({
+      title: unflyable.title, points: unflyable.reasons,
+      actions: [{
+        label: "Add a stop", testId: "unflyable-add-stop",
+        onClick: () => { setPanel("half"); setAddingStop(true); },
+      }],
+      extra: <CustomAltitude onFly={flyAt} />,
+    }, UNFLYABLE);
+  }, [unflyable, flyAt, setPanel]);
 
   // With no route, the panel is Maps' search: the bar in the capsule and
   // at the top of the sheet, Favorites and what was picked before under it,
@@ -207,7 +282,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // for from Favorites, becomes Home or a favorite. Half a route (Fly
   // Here with no position to fly from) is a route: its form asks for the
   // other end.
-  const routed = routeOf(planned.dep, planned.dest) !== null;
+  const routed = routeOf(planned.dep, planned.dest, planned.stops) !== null;
   const started = routed || !!planned.dep || !!planned.dest;
   const [query, setQuery] = useState("");
   const [picking, setPicking] = useState<"place" | "home" | "favorite">("place");
@@ -299,15 +374,15 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   const share = useCallback(async () => {
     const url = window.location.href;
     try {
-      if (navigator.share) await navigator.share({ title: `${planned.dep} → ${planned.dest}`, url });
+      if (navigator.share) await navigator.share({ title: routeName(planned.dep, planned.dest, planned.stops), url });
       else {
         await navigator.clipboard.writeText(url);
         toast.success("Link copied");
       }
     } catch (err) {
-      if ((err as Error).name !== "AbortError") toast.error("Could not share the route", { description: (err as Error).message });
+      if ((err as Error).name !== "AbortError") notifyProblem({ title: "Could not share the route", description: (err as Error).message });
     }
-  }, [planned.dep, planned.dest]);
+  }, [planned.dep, planned.dest, planned.stops]);
 
   // A different aeroplane means different legs: remembered, and the
   // nav log's own key changes with it.
@@ -396,7 +471,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       descriptionsLoading={s.descriptionProgress !== null}
       selectedPoint={selectedPoint} onSelectPoint={(lat, lon) => selectPoint({ lat, lon })}
       onDeselectPoint={() => selectPoint(null)}
-      drawerOpen={panelOpen} unflyable={s.unflyable}
+      drawerOpen={panelOpen}
       alt={alt} onAltChange={setAlt} onSubmit={submit}
       aircraftLabel={aircraft.label}
       notice={<BriefingNotices briefing={s.briefing} />}
@@ -405,6 +480,8 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       <FlightBriefingView
         nav={s.nav} legs={s.legs}
         dep={planned.dep} dest={planned.dest}
+        // The airports landed at: a waypoint has no weather of its own.
+        stops={(course?.stops ?? []).filter(stop => stop.kind !== "fix").map(stop => stop.ident)}
         briefing={s.briefing}
         langgraphNarrative={s.langgraphNarrative} crewaiNarrative={s.crewaiNarrative}
       />
@@ -482,22 +559,25 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     // and the notice saying so: something is asked of the pilot there.
     compact: routed ? (
       <RouteCapsule
-        title={`${planned.dep} → ${planned.dest}`}
+        title={routeName(planned.dep, planned.dest, planned.stops)}
         detail={`${shortName(aircraft.label)} · ${depart ? format(new Date(depart), "EEE d MMM, HH:mm") : "Now"}`}
         onDetail={() => setPanel("half")}
         leading={<IconButton label="Share this route" variant="secondary" className="rounded-full" onClick={() => void share()}><Share /></IconButton>}
         trailing={<IconButton label="Close the route" variant="secondary" className="rounded-full" onClick={clearRoute} data-testid="clear-route"><X /></IconButton>}
       />
     ) : started ? undefined : searchField,
-    // The aeroplane and the departure time, under the route with the
-    // panel out.
+    // The stops, the aeroplane and the departure time, under the route
+    // with the panel out.
     controls: routed && (
+      <>
+      <StopsBar stops={planned.stops} onChange={setStops} adding={addingStop} onAddingChange={setAddingStop} />
       <FlightInputs
         aircraftValue={aircraftKey(aircraft)}
         aircraftOptions={aircraftOptions.map(o => ({ value: aircraftKey(o), label: o.label }))}
         onAircraftChange={changeAircraft}
         depart={depart} onDepartChange={changeDepart}
       />
+      </>
     ),
     // Saving the flight, the narrative and Print, beside the route.
     actions: (

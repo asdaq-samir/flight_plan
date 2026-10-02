@@ -75,7 +75,7 @@ test("opening a saved flight puts its route in the header, and Load plans that r
   // address in the page, so the header still showed the old route, and
   // Load quietly re-planned that one instead of the flight.
   await signedIn(page, [], [{
-    id: 9, departureIdent: "KMSP", destinationIdent: "KDLH", cruiseAltitudeFt: 5500, aircraftTailNumber: null,
+    id: 9, departureIdent: "KMSP", destinationIdent: "KDLH", stops: [], cruiseAltitudeFt: 5500, aircraftTailNumber: null,
     createdAt: "2026-09-20T12:00:00Z", plannedFor: null, totalDistanceNm: 120, totalEteMin: 55, totalFuelGal: 8,
   }]);
   await page.goto("/app/plan?dep=C81&dest=KDLH");
@@ -102,7 +102,7 @@ test("opening a saved flight puts its route in the header, and Load plans that r
 test("Edit over the saved flights puts a minus before each, and the minus deletes one once asked", async ({ page }) => {
   const removed: string[] = [];
   await signedIn(page, [], [{
-    id: 9, departureIdent: "KMSP", destinationIdent: "KDLH", cruiseAltitudeFt: 5500, aircraftTailNumber: null,
+    id: 9, departureIdent: "KMSP", destinationIdent: "KDLH", stops: [], cruiseAltitudeFt: 5500, aircraftTailNumber: null,
     createdAt: "2026-09-20T12:00:00Z", plannedFor: null, totalDistanceNm: 120, totalEteMin: 55, totalFuelGal: 8,
   }]);
   await page.route("**/api/flights/*", async route => {

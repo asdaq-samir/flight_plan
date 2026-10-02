@@ -41,6 +41,9 @@ export interface Unflyable {
 export interface PlanParams {
   dep: string;
   dest: string;
+  /** The airports landed at on the way, in order: [] for a route flown
+   *  straight. */
+  stops: string[];
   /** The pilot's own cruise altitude, or "" for the planner's plan. */
   altitudeFt: string;
   altitudeChoice: AltitudeChoice;
@@ -67,21 +70,23 @@ export type BriefingState =
   | { state: "failed"; detail: string };
 
 export function usePlan(
-  { dep, dest, altitudeFt, altitudeChoice, depart, aircraft, load }: PlanParams,
+  { dep, dest, stops, altitudeFt, altitudeChoice, depart, aircraft, load }: PlanParams,
 ) {
-  const routeKnown = routeOf(dep, dest) !== null;
+  const routeKnown = routeOf(dep, dest, stops) !== null;
   // The form will not submit a route from an airport to itself, but the
   // address can hold one -- a pasted link, an edited URL, a back button
   // to a half-typed state. Nothing is fetched for it, so without this
-  // the page sat blank: no chart, no message, nothing to press.
-  const sameAirport = !!dep && dep === dest;
+  // the page sat blank: no chart, no message, nothing to press. With a
+  // stop between, it is a round trip.
+  const sameAirport = !!dep && dep === dest && stops.length === 0;
+  const via = stops.join(",");
 
   // The previous route's course stays on the map until the new one is
   // charted, so the map is never taken down between routes.
-  const course = useQuery({ ...courseQuery(dep, dest), enabled: routeKnown, placeholderData: keepPreviousData });
+  const course = useQuery({ ...courseQuery(dep, dest, stops), enabled: routeKnown, placeholderData: keepPreviousData });
 
   const checkpoints = useQuery({
-    queryKey: ["checkpoints", dep, dest], queryFn: () => api.checkpoints(dep, dest),
+    queryKey: ["checkpoints", dep, dest, via], queryFn: () => api.checkpoints(dep, dest, stops),
     // routeKnown as well as the course: a disabled course query still
     // hands back the previous route's course as placeholder data.
     enabled: routeKnown && !!course.data, staleTime: Infinity,
@@ -90,7 +95,7 @@ export function usePlan(
   // Everything the nav log is computed from -- the narratives below are
   // keyed on the same, so a narrative is always about the log on screen.
   const planKey = [
-    dep, dest, altitudeFt, altitudeChoice, depart, load,
+    dep, dest, via, altitudeFt, altitudeChoice, depart, load,
     aircraft.profile, aircraft.cruiseTasKt ?? null, aircraft.fuelBurnGph ?? null, aircraft.usableFuelGal ?? null,
     aircraft.climbTasKt ?? null, aircraft.climbFuelBurnGph ?? null, aircraft.cruisePowerPct ?? null,
   ];
@@ -98,10 +103,13 @@ export function usePlan(
     queryKey: ["navlog", ...planKey],
     queryFn: streamedQuery({
       streamFn: ({ signal }) => ended(
-        api.navlog(dep, dest, altitudeFt || undefined, aircraft, altitudeChoice, depart || undefined, signal), "nav log",
+        api.navlog(dep, dest, altitudeFt || undefined, aircraft, altitudeChoice, depart || undefined, signal, stops), "nav log",
       ),
     }),
     enabled: !!checkpoints.data, staleTime: Infinity,
+    // No legal altitude is the page's to say, with what can be done about
+    // it (PlanWorkspace): not the query client's plain toast.
+    meta: { silent: error => error instanceof ApiError && error.advice !== null },
   });
   const messages = useMemo(() => navlog.data ?? [], [navlog.data]);
   // Each message narrowed by its own `type`, not cast: the "altitude"
@@ -147,8 +155,8 @@ export function usePlan(
   // not flash back to "checking".
   const eteMin = totals?.ete_min ?? undefined;
   const briefing = useQuery({
-    queryKey: ["briefing", dep, dest, depart, eteMin ?? null, load],
-    queryFn: () => api.briefing(dep, dest, depart || undefined, eteMin),
+    queryKey: ["briefing", dep, dest, via, depart, eteMin ?? null, load],
+    queryFn: () => api.briefing(dep, dest, depart || undefined, eteMin, stops),
     // Not on the previous route's placeholder course once the route is
     // closed: asked for two empty idents, it toasted "Airport identifier
     // '' not found".
@@ -156,7 +164,7 @@ export function usePlan(
     placeholderData: keepPreviousData,
   });
 
-  const notes = useCheckpointNotes(dep, dest);
+  const notes = useCheckpointNotes(dep, dest, stops);
   const narratives = useNarratives({ dep, dest, planKey, nav, legs, whole: !!totals });
 
   return {

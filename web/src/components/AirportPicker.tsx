@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { Command as CommandPrimitive } from "cmdk";
-import { ChevronsUpDown, History, Search, X } from "lucide-react";
+import { ChevronsUpDown, Flag, History, Plus, Search, X } from "lucide-react";
 import { cn } from "cn";
 import { TEXT } from "../lib/text";
 import { Button } from "./ui/button";
@@ -21,6 +21,16 @@ interface Props {
   ariaLabel: string;
   invalid?: boolean;
   className?: string;
+  /** "add": a plus and the placeholder in the tint, no chevrons -- a stop
+   *  to add (StopsBar), not a field to change. */
+  look?: "field" | "add";
+  /** Open from elsewhere: a problem's Add a stop (PlanWorkspace). */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  testId?: string;
+  /** A stop's: the VFR and GPS waypoints as well as the airports
+   *  (useAirportSearch), a route flying through one. */
+  fixes?: boolean;
 }
 
 /**
@@ -37,8 +47,13 @@ interface Props {
  * -- in a sheet from the navigation bar's edge there, as every panel
  * is, where it was a popover the keyboard covered half of.
  */
-export default function AirportPicker({ value, onChange, placeholder, ariaLabel, invalid, className }: Props) {
-  const [open, setOpen] = useState(false);
+export default function AirportPicker({
+  value, onChange, placeholder, ariaLabel, invalid, className, look = "field", open: openFrom, onOpenChange, testId,
+  fixes = false,
+}: Props) {
+  const [ownOpen, setOwnOpen] = useState(false);
+  const open = openFrom ?? ownOpen;
+  const setOpen = (next: boolean) => { setOwnOpen(next); onOpenChange?.(next); };
   const [query, setQuery] = useState("");
   const input = useRef<HTMLInputElement>(null);
   const onPhone = useIsMobile();
@@ -47,7 +62,9 @@ export default function AirportPicker({ value, onChange, placeholder, ariaLabel,
   // the box: it used to take it whenever there were rows, so "KD", a
   // pause, then "LH" and a quick Enter set the field to the first "KD..."
   // airport rather than KDLH.
-  const { typed, rows, answered } = useAirportSearch(query, open);
+  const { typed, rows, answered } = useAirportSearch(query, open, fixes);
+  const fields = rows.filter(r => r.kind !== "fix");
+  const waypoints = rows.filter(r => r.kind === "fix");
 
   const pick = (ident: string) => {
     onChange(ident.toUpperCase());
@@ -79,12 +96,17 @@ export default function AirportPicker({ value, onChange, placeholder, ariaLabel,
           aria-expanded={open}
           aria-label={ariaLabel}
           aria-invalid={invalid}
+          data-testid={testId}
           // A field, as a search box is: its ident in the text's colour
-          // (not a button's tint) at a row's size (TEXT).
-          className={cn("font-mono uppercase text-foreground", TEXT.row, !value && "text-muted-foreground", className)}
+          // (not a button's tint) at a row's size (TEXT); a stop to add,
+          // the tint's.
+          className={look === "add"
+            ? cn("text-tint", TEXT.row, className)
+            : cn("font-mono uppercase text-foreground", TEXT.row, !value && "text-muted-foreground", className)}
         >
+          {look === "add" && <Plus />}
           {value || placeholder}
-          <ChevronsUpDown className="text-muted-foreground" />
+          {look === "field" && <ChevronsUpDown className="text-muted-foreground" />}
         </Button>
       </ResponsivePopoverTrigger>
       {/* The panel's own search, as the search bar is with no route: on a
@@ -108,7 +130,8 @@ export default function AirportPicker({ value, onChange, placeholder, ariaLabel,
               <Search className="size-5 shrink-0" aria-hidden="true" />
               <CommandPrimitive.Input
                 ref={input}
-                placeholder={`Search for a ${ariaLabel.toLowerCase()}`} aria-label={`Search for a ${ariaLabel.toLowerCase()}`}
+                placeholder={fixes ? "Search airports and waypoints" : `Search for a ${ariaLabel.toLowerCase()}`}
+                aria-label={fixes ? "Search airports and waypoints" : `Search for a ${ariaLabel.toLowerCase()}`}
                 value={query}
                 onValueChange={setQuery}
                 className="min-w-0 flex-1 bg-transparent text-foreground outline-none placeholder:text-muted-foreground"
@@ -132,7 +155,7 @@ export default function AirportPicker({ value, onChange, placeholder, ariaLabel,
           )}
           {/* Dimmed while they answer something older than the box. */}
           <CommandList className={cn("max-h-none overflow-visible", typed && !answered && "opacity-60")} aria-busy={!answered}>
-            {typed && <CommandEmpty>No airport matches; Enter keeps what you typed.</CommandEmpty>}
+            {typed && <CommandEmpty>No {fixes ? "airport or waypoint" : "airport"} matches; Enter keeps what you typed.</CommandEmpty>}
             {!typed && recents.length > 0 && (
               <CommandGroup heading="Recents" className={GROUP}>
                 {recents.map(a => <AirportRow key={a.ident} airport={a} recent onSelect={() => choose(a)} />)}
@@ -141,12 +164,24 @@ export default function AirportPicker({ value, onChange, placeholder, ariaLabel,
             {!typed && recents.length === 0 && !home && favorites.length === 0 && (
               <p className={cn("px-1 text-muted-foreground", TEXT.note)}>Search by an airport's ident, its name or its town.</p>
             )}
-            {rows.length > 0 && (
+            {fields.length > 0 && (
               <CommandGroup heading="Airports" className={GROUP}>
-                {rows.map(r => (
+                {fields.map(r => (
                   <AirportRow
                     key={r.ident} airport={{ ident: r.ident, name: r.name, municipality: r.municipality }}
                     onSelect={() => choose({ ident: r.ident, name: r.name, municipality: r.municipality })}
+                  />
+                ))}
+              </CommandGroup>
+            )}
+            {/* A stop's waypoints, after the airports: flown through, not
+                kept among the recent airports. */}
+            {waypoints.length > 0 && (
+              <CommandGroup heading="Waypoints" className={GROUP}>
+                {waypoints.map(r => (
+                  <AirportRow
+                    key={r.ident} waypoint airport={{ ident: r.ident, name: r.name, municipality: r.region }}
+                    onSelect={() => pick(r.ident)}
                   />
                 ))}
               </CommandGroup>
@@ -163,11 +198,15 @@ export default function AirportPicker({ value, onChange, placeholder, ariaLabel,
 const GROUP = "p-0 **:[[cmdk-group-heading]]:px-1 **:[[cmdk-group-heading]]:pb-1.5 **:[[cmdk-group-heading]]:font-semibold **:[[cmdk-group-heading]]:uppercase **:[[cmdk-group-heading]]:tracking-wide **:[[cmdk-group-heading]]:text-xs pointer-coarse:**:[[cmdk-group-heading]]:text-[0.8125rem]";
 
 /** One airport in the picker's list, as a row of the search bar's: its
- *  ident and name, its town under them. */
-function AirportRow({ airport, recent = false, onSelect }: { airport: RecentAirport; recent?: boolean; onSelect: () => void }) {
+ *  ident and name, its town under them -- or a waypoint, with the
+ *  sectional's magenta flag, its kind and its state. */
+function AirportRow({ airport, recent = false, waypoint = false, onSelect }: {
+  airport: RecentAirport; recent?: boolean; waypoint?: boolean; onSelect: () => void;
+}) {
   return (
     <CommandItem value={airport.ident} onSelect={onSelect} className="min-h-11 gap-3 rounded-lg px-2 py-2">
-      {recent ? <History className="size-5 text-muted-foreground" /> : <Search className="size-5 text-muted-foreground" />}
+      {waypoint ? <Flag className="size-5 text-[#b02e7c] dark:text-[#e070b0]" />
+        : recent ? <History className="size-5 text-muted-foreground" /> : <Search className="size-5 text-muted-foreground" />}
       <span className="min-w-0 flex-1">
         <span className={cn("block truncate", TEXT.row)}><span className="font-mono font-semibold">{airport.ident}</span> · {airport.name}</span>
         {airport.municipality && <span className={cn("block truncate text-muted-foreground", TEXT.detail)}>{airport.municipality}</span>}

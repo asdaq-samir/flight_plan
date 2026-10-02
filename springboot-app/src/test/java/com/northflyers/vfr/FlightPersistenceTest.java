@@ -77,6 +77,17 @@ class FlightPersistenceTest {
         assertThat(found.getTotalFuelGal()).isEqualTo(24.2);
     }
 
+    @Test
+    void theStopsAFlightLandsAtRoundTripInOrder() {
+        Pilot pilot = newPilot();
+        Flight saved = flights.save(new Flight(pilot, null, "C81", "KDLH").withStops(List.of("KMSN", "KEAU")));
+
+        Flight found = flights.findById(saved.getId()).orElseThrow();
+
+        assertThat(found.getStops()).containsExactly("KMSN", "KEAU");
+        assertThat(flights.save(new Flight(pilot, null, "C81", "KDLH")).getStops()).isEmpty();
+    }
+
     /**
      * The destination row has no leg after it, and that has to survive the
      * round trip as null rather than as zero -- a zero there reads as a

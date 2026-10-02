@@ -1,12 +1,13 @@
-"""What every router starts from: the two idents, the airports behind
-them, and the on-disk paths a corridor's data lives at."""
+"""What every router starts from: the route's idents, the airports
+behind them, and the on-disk paths a corridor's data lives at."""
 import logging
 from dataclasses import dataclass
+from itertools import pairwise
 
 from fastapi import HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from vfr import airports, weather
+from vfr import airports, fixes, geo, weather
 from vfr.config import PROCESSED_DIR  # noqa: F401  (re-exported for the routers)
 from vfr.config import corridor_paths as paths  # noqa: F401  (the routers' name for it)
 
@@ -16,33 +17,74 @@ log = logging.getLogger(__name__)
 
 DEFAULT_AIRCRAFT = "c172"
 
+#: How many stops a route may make between its ends: each is a flight of
+#: its own to read the chart along and plan.
+MAX_STOPS = 8
+
 
 def route_key(dep: str, dest: str) -> tuple:
     return dep.strip().upper(), dest.strip().upper()
 
 
-def resolve(dep: str, dest: str) -> tuple:
-    """Both airports, or a 404 naming the one that failed.
+def stops_of(stops: str | list | None) -> list[str]:
+    """The stops as the address has them, "KDSM,KLNK", or a list: their
+    idents in order, normalised."""
+    items = stops.split(",") if isinstance(stops, str) else (stops or [])
+    return [s.strip().upper() for s in items if s and s.strip()]
+
+
+def resolve(*idents: str) -> tuple:
+    """Every airport, or a 404 naming the one that failed.
 
     Done before anything else so a typo'd ident says so, rather than
     surfacing later as "this corridor has not been collected" -- advice
     whose next step would fail for a different reason.
     """
     try:
-        return airports.get_airport(dep), airports.get_airport(dest)
+        return tuple(airports.get_airport(ident) for ident in idents)
     except ValueError as err:
         raise HTTPException(404, str(err)) from err
 
 
+def resolve_stop(ident: str) -> dict:
+    """A stop: an airport, landed at, or a named fix -- a VFR waypoint
+    (VPBNG), a GPS waypoint -- flown through (vfr.fixes); a 404 where
+    it is neither. A fix is in the shape an airport is, with no
+    elevation, and `fix` set."""
+    try:
+        return airports.get_airport(ident)
+    except ValueError as err:
+        fix = fixes.find_fix(ident)
+        if fix is None:
+            raise HTTPException(404, f"No airport or waypoint goes by {ident!r}.") from err
+        return {"name": fix["kind"], "lat": fix["lat"], "lon": fix["lon"], "elevation_ft": None, "fix": True}
+
+
 @dataclass(frozen=True)
 class Route:
-    """A resolved dep/dest pair: normalised idents, both airport records,
-    and the (lat, lon) ends every geometry call takes."""
+    """A resolved route: its idents in order -- the departure, any stops,
+    the destination -- and their airport records. A route with stops is
+    flown as `hops`, each a route of its own between two landings: its
+    own chart read, altitude plan, climb and fuel check."""
 
-    dep_ident: str
-    dest_ident: str
-    dep_airport: dict
-    dest_airport: dict
+    idents: tuple[str, ...]
+    airports: tuple[dict, ...]
+
+    @property
+    def dep_ident(self) -> str:
+        return self.idents[0]
+
+    @property
+    def dest_ident(self) -> str:
+        return self.idents[-1]
+
+    @property
+    def dep_airport(self) -> dict:
+        return self.airports[0]
+
+    @property
+    def dest_airport(self) -> dict:
+        return self.airports[-1]
 
     @property
     def start(self) -> tuple:
@@ -60,18 +102,77 @@ class Route:
     def destination(self) -> dict:
         return _endpoint(self.dest_ident, self.dest_airport)
 
+    @property
+    def stops(self) -> list[dict]:
+        return [_endpoint(i, a) for i, a in zip(self.idents[1:-1], self.airports[1:-1])]
+
+    @property
+    def takes_off(self) -> bool:
+        """Whether this route (a hop) starts on the ground: at an airport,
+        not a waypoint flown through."""
+        return not self.dep_airport.get("fix")
+
+    @property
+    def lands(self) -> bool:
+        """Whether this route (a hop) ends on the ground."""
+        return not self.dest_airport.get("fix")
+
+    @property
+    def flights(self) -> list["Route"]:
+        """The flights it is made of, each from one landing to the next,
+        through any waypoints: what each fuel check is over."""
+        out, start = [], 0
+        for i, hop in enumerate(self.hops):
+            if hop.lands or i == len(self.hops) - 1:
+                out.append(Route(self.idents[start:i + 2], self.airports[start:i + 2]))
+                start = i + 1
+        return out
+
+    @property
+    def hops(self) -> list["Route"]:
+        return [Route(self.idents[i:i + 2], self.airports[i:i + 2]) for i in range(len(self.idents) - 1)]
+
+    @property
+    def length_nm(self) -> float:
+        """This route's own great circle, end to end: one hop's length."""
+        return geo.distance_nm(*self.start, *self.end)
+
+    @property
+    def distance_nm(self) -> float:
+        """The whole way, stop by stop."""
+        return sum(hop.length_nm for hop in self.hops)
+
 
 def _endpoint(ident: str, airport: dict) -> dict:
     return {
         "ident": ident, "name": airport["name"], "lat": airport["lat"], "lon": airport["lon"],
-        "elevation_ft": airport.get("elevation_ft"),
+        "elevation_ft": airport.get("elevation_ft"), "kind": "fix" if airport.get("fix") else "airport",
     }
 
 
-def load_route(dep: str, dest: str) -> Route:
-    dep_ident, dest_ident = route_key(dep, dest)
-    dep_airport, dest_airport = resolve(dep_ident, dest_ident)
-    return Route(dep_ident, dest_ident, dep_airport, dest_airport)
+def load_hop(dep: str, dest: str) -> Route:
+    """One hop of a route with stops, by its two ends -- either of which
+    may be a waypoint flown through (resolve_stop): its chart is read as
+    any route's is."""
+    dep, dest = route_key(dep, dest)
+    return Route((dep, dest), (resolve_stop(dep), resolve_stop(dest)))
+
+
+def load_route(dep: str, dest: str, stops: str | list | None = None) -> Route:
+    """The route, its stops (stops_of) between its ends: airports landed
+    at, or waypoints flown through (resolve_stop). A stop that is the
+    point before it is a 422, and so are more than MAX_STOPS; the
+    destination may be the departure once there is a stop between them,
+    which is a round trip."""
+    idents = [*route_key(dep, dest)]
+    idents[1:1] = stops_of(stops)
+    if len(idents) - 2 > MAX_STOPS:
+        raise HTTPException(422, f"A route makes at most {MAX_STOPS} stops.")
+    for a, b in pairwise(idents):
+        if a == b and len(idents) > 2:
+            raise HTTPException(422, f"{a} follows itself: a stop is a different airport from the one before it.")
+    dep_airport, dest_airport = resolve(idents[0], idents[-1])
+    return Route(tuple(idents), (dep_airport, *(resolve_stop(s) for s in idents[1:-1]), dest_airport))
 
 
 def line(message: BaseModel) -> str:

@@ -178,6 +178,7 @@
         "type": "object"
       },
       "AirportEnd": {
+        "description": "A point of the route: an airport, or -- a stop only -- a named fix\nflown through (`kind` \"fix\": a VFR or GPS waypoint, its `name` the\nkind of fix it is, no elevation).",
         "properties": {
           "elevation_ft": {
             "anyOf": [
@@ -192,6 +193,15 @@
           },
           "ident": {
             "title": "Ident",
+            "type": "string"
+          },
+          "kind": {
+            "default": "airport",
+            "enum": [
+              "airport",
+              "fix"
+            ],
+            "title": "Kind",
             "type": "string"
           },
           "lat": {
@@ -461,9 +471,19 @@
         "type": "object"
       },
       "AirportSuggestion": {
+        "description": "An airport the search answers -- or, asked with `fixes`, a named\nfix (`kind` \"fix\": a VFR waypoint, a GPS waypoint), its `name` the\nkind of fix and its `region` the state it is in.",
         "properties": {
           "ident": {
             "title": "Ident",
+            "type": "string"
+          },
+          "kind": {
+            "default": "airport",
+            "enum": [
+              "airport",
+              "fix"
+            ],
+            "title": "Kind",
             "type": "string"
           },
           "municipality": {
@@ -1135,6 +1155,11 @@
             "title": "Category",
             "type": "string"
           },
+          "hop": {
+            "default": 0,
+            "title": "Hop",
+            "type": "integer"
+          },
           "id": {
             "title": "Id",
             "type": "string"
@@ -1630,6 +1655,14 @@
           "lon": {
             "title": "Lon",
             "type": "number"
+          },
+          "stops": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Stops",
+            "type": "array"
           }
         },
         "required": [
@@ -1660,6 +1693,7 @@
         "type": "object"
       },
       "Checkpoints": {
+        "description": "Every hop's candidates and selected checkpoints in order along the\nwhole route (app.scoring.route_checkpoints), its along-track\ndistances running on through each stop.",
         "properties": {
           "candidates": {
             "items": {
@@ -1679,6 +1713,14 @@
               "$ref": "#/components/schemas/Candidate"
             },
             "title": "Selected",
+            "type": "array"
+          },
+          "stops": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/AirportEnd"
+            },
+            "title": "Stops",
             "type": "array"
           }
         },
@@ -1948,6 +1990,7 @@
         "type": "object"
       },
       "Course": {
+        "description": "The course: the departure, the stops it lands at on the way (in\norder; none for a route flown straight), the destination, the whole\ndistance stop by stop, the bearing out of the departure, and the line\nthrough every stop.",
         "properties": {
           "bearing_deg": {
             "title": "Bearing Deg",
@@ -2014,6 +2057,14 @@
           "min_zoom": {
             "title": "Min Zoom",
             "type": "integer"
+          },
+          "stops": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/AirportEnd"
+            },
+            "title": "Stops",
+            "type": "array"
           }
         },
         "required": [
@@ -2509,6 +2560,14 @@
           "destination_ident": {
             "title": "Destination Ident",
             "type": "string"
+          },
+          "stops": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Stops",
+            "type": "array"
           }
         },
         "required": [
@@ -2596,6 +2655,29 @@
           }
         },
         "title": "Hazard",
+        "type": "object"
+      },
+      "HopTotals": {
+        "description": "One flight between two landings of a route with stops.",
+        "properties": {
+          "departure": {
+            "title": "Departure",
+            "type": "string"
+          },
+          "destination": {
+            "title": "Destination",
+            "type": "string"
+          },
+          "totals": {
+            "$ref": "#/components/schemas/Totals"
+          }
+        },
+        "required": [
+          "departure",
+          "destination",
+          "totals"
+        ],
+        "title": "HopTotals",
         "type": "object"
       },
       "Index": {
@@ -4193,6 +4275,14 @@
             "title": "Selected",
             "type": "array"
           },
+          "stops": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/AirportEnd"
+            },
+            "title": "Stops",
+            "type": "array"
+          },
           "totals": {
             "$ref": "#/components/schemas/Totals"
           },
@@ -4720,6 +4810,14 @@
             "default": null,
             "title": "Fuel Required Gal"
           },
+          "hops": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/HopTotals"
+            },
+            "title": "Hops",
+            "type": "array"
+          },
           "legs_without_wind": {
             "title": "Legs Without Wind",
             "type": "integer"
@@ -5126,7 +5224,7 @@
     },
     "/api/airports/search": {
       "get": {
-        "description": "DEP/DEST's own autocomplete -- every airport whose ident or name\nstarts with `q`, for the route inputs to suggest as a pilot types.\nRuns against the same in-memory OurAirports table the real lookup\nuses, not a second data source that could drift from it.",
+        "description": "DEP/DEST's own autocomplete -- every airport whose ident or name\nstarts with `q`, for the route inputs to suggest as a pilot types.\nRuns against the same in-memory OurAirports table the real lookup\nuses, not a second data source that could drift from it. With\n`fixes`, a stop's: the named fixes whose ident starts with it too,\nafter the airports -- VFR waypoints first (vfr.fixes).",
         "operationId": "airport_search_api_airports_search_get",
         "parameters": [
           {
@@ -5137,6 +5235,16 @@
               "default": "",
               "title": "Q",
               "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "fixes",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Fixes",
+              "type": "boolean"
             }
           }
         ],
@@ -5226,7 +5334,7 @@
     },
     "/api/briefing": {
       "get": {
-        "description": "Everything the nav log's own leg math doesn't cover: adverse\nconditions (SIGMET/AIRMET), current conditions (METAR) and\nforecast (TAF-derived ceiling/visibility) along the route, and\neach airport's runways and radio frequencies.\n\nThe forecast is for the flight: from `depart` (now when not given;\nUTC when naive) to an hour past arrival, `ete_min` after it (two\nhours when not given). It used to be read at the moment of asking,\nwhatever time the pilot was planning to go.",
+        "description": "Everything the nav log's own leg math doesn't cover: adverse\nconditions (SIGMET/AIRMET), current conditions (METAR) and\nforecast (TAF-derived ceiling/visibility) along the route, and\neach airport's runways and radio frequencies.\n\nThe forecast is for the flight: from `depart` (now when not given;\nUTC when naive) to an hour past arrival, `ete_min` after it (two\nhours when not given). It used to be read at the moment of asking,\nwhatever time the pilot was planning to go. With stops (`stops`,\n\"KDSM,KLNK\"), along every hop and for every airport landed at.",
         "operationId": "briefing_api_briefing_get",
         "parameters": [
           {
@@ -5244,6 +5352,16 @@
             "required": true,
             "schema": {
               "title": "Dest",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "stops",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Stops",
               "type": "string"
             }
           },
@@ -5523,7 +5641,7 @@
     },
     "/api/checkpoints": {
       "get": {
-        "description": "Scored candidates and the subset worth flying: fast once the\nroute's chart has been read, a few seconds for its first time.",
+        "description": "Scored candidates and the subset worth flying, hop by hop along\nthe whole route: fast once each hop's chart has been read, a few\nseconds for its first time.",
         "operationId": "checkpoints_api_checkpoints_get",
         "parameters": [
           {
@@ -5541,6 +5659,16 @@
             "required": true,
             "schema": {
               "title": "Dest",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "stops",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Stops",
               "type": "string"
             }
           }
@@ -5640,7 +5768,7 @@
     },
     "/api/course": {
       "get": {
-        "description": "Just the course line and its endpoints.\n\nSeparate from detection so the chart can draw a line the instant two\nidents are entered. Reading tiles takes seconds even on the fast\npath, and there is no reason a pilot should watch an empty map for\nthem.",
+        "description": "Just the course line and its endpoints, through any stops.\n\nSeparate from detection so the chart can draw a line the instant two\nidents are entered. Reading tiles takes seconds even on the fast\npath, and there is no reason a pilot should watch an empty map for\nthem.",
         "operationId": "course_api_course_get",
         "parameters": [
           {
@@ -5658,6 +5786,16 @@
             "required": true,
             "schema": {
               "title": "Dest",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "stops",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Stops",
               "type": "string"
             }
           }
@@ -5842,6 +5980,16 @@
             "required": true,
             "schema": {
               "title": "Dest",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "stops",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Stops",
               "type": "string"
             }
           },
@@ -6198,6 +6346,16 @@
             "required": true,
             "schema": {
               "title": "Dest",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "stops",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Stops",
               "type": "string"
             }
           },

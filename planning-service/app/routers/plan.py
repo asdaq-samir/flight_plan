@@ -4,12 +4,17 @@ a tenth of a second later, and the nav log -- which needs terrain,
 obstacles, airspace and weather -- arrives when it can without holding
 up the map. /api/plan returns all of it at once, and is what both
 agents (nav-log-agent, crewai-agent) fetch their nav log from, so the
-nav log an agent briefs is the one a pilot sees."""
+nav log an agent briefs is the one a pilot sees.
+
+A route may land at stops on the way (`stops`, "KDSM,KLNK"): each flight
+between two landings -- a hop -- is planned as a route of its own, with
+its own chart read, altitude plan, climb from the field and fuel check,
+the hops planned at once, and the nav log runs on through each stop."""
 import time
 from concurrent.futures import Future, ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FuturesTimeoutError
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -18,10 +23,11 @@ from vfr import charts, geo, navlog
 from vfr.config import VFR_SECTIONAL_MAX_ZOOM, VFR_SECTIONAL_MIN_ZOOM
 from vfr.weather import WeatherServiceError
 
-from ..common import DEFAULT_AIRCRAFT, line, load_route, ndjson
+from ..common import DEFAULT_AIRCRAFT, Route, line, load_route, ndjson
 from ..planning import (
-    COMPUTE_LIMIT_S, StillComputing, aircraft_profile, altitude_plans, altitude_waiting_on, course_line,
-    cruise_altitude, flight_totals, flight_window, forecast_hour_for, no_altitude, no_altitude_detail,
+    COMPUTE_LIMIT_S, StillComputing, aircraft_profile, altitude_plans, altitude_waiting_on, cruise_altitude,
+    flight_totals, flight_window, forecast_hour_for, join_selections, no_altitude, no_altitude_detail, route_line,
+    route_totals,
 )
 from ..schemas import (
     AltitudeBreakdown,
@@ -39,7 +45,7 @@ from ..schemas import (
     NavLogStage,
     Plan,
 )
-from ..scoring import scored_and_selected
+from ..scoring import route_checkpoints
 
 router = APIRouter()
 
@@ -61,6 +67,8 @@ class PlanQuery:
 
     dep: str
     dest: str
+    #: The stops landed at on the way, in order: "KDSM,KLNK".
+    stops: str = ""
     altitude_ft: float | None = None
     altitude_choice: AltitudeChoice = "fastest"
     aircraft: str = DEFAULT_AIRCRAFT
@@ -101,8 +109,9 @@ def chart_layers() -> list[ChartLayer]:
 
 def departure_elevation(r) -> float | None:
     """The field the climb starts from, when the airports table knows
-    it; None starts the log level at the first leg's altitude."""
-    return r.departure.get("elevation_ft")
+    it; None starts the log level at the first leg's altitude -- as a
+    hop out of a waypoint does, flown through at cruise."""
+    return r.departure.get("elevation_ft") if r.takes_off else None
 
 
 @dataclass(frozen=True)
@@ -110,18 +119,26 @@ class Flown:
     """Legs to fly: the chosen plan's (`choice`), or at a pilot's own
     altitude (`choice` None), with the selection and the four plans
     beside them either way. `legs` of a plan is the planner's cached
-    list: read it, never change it."""
+    list: read it, never change it. `by_hop`, a route with stops' legs
+    hop by hop (one list for a route without), for each hop's totals."""
     selection: dict
     options: list[AltitudeOption]
     choice: AltitudeChoice | None
     altitude_ft: float
     legs: list
+    by_hop: tuple = ()
+
+    @property
+    def hop_legs(self) -> list:
+        return list(self.by_hop) or [self.legs]
 
 
 @dataclass(frozen=True)
 class Unflyable:
-    """Some leg has no legal cruising altitude; the selection says why."""
+    """Some leg has no legal cruising altitude; the selection says why.
+    `between`, the hop of a route with stops it is on."""
     selection: dict
+    between: tuple[str, str] | None = None
 
 
 @dataclass(frozen=True)
@@ -175,6 +192,117 @@ def _fixes(fix_list: list) -> list:
     return [(f["lat"], f["lon"]) for f in fix_list]
 
 
+@dataclass(frozen=True)
+class HopRun:
+    """One hop's planning, as a route without stops is planned: its fixes,
+    the winds forecast period and go/no-go window it is flown in, and the
+    departure time its fuel reserve is judged by (None, as the route's,
+    when none was given)."""
+    hop: Route
+    fixes: list
+    fcst_hr: str
+    window: tuple
+    depart: datetime | None
+
+
+def hop_runs(r: Route, by_hop: list, depart: datetime | None, profile: dict) -> list[HopRun]:
+    """Each hop of `r` ready to plan, `by_hop` its selected checkpoints.
+    A hop after the first is flown when the ones before it are done, at
+    cruise speed with no time on the ground -- an estimate, to the hour
+    its winds and forecast are read for. The first is the route's own:
+    a route without stops is planned exactly as it always was."""
+    runs, elapsed_h = [], 0.0
+    tas = max(profile["cruise_tas_kt"], 1.0)
+    for i, (hop, selected) in enumerate(zip(r.hops, by_hop)):
+        if i == 0:
+            when = depart
+        else:
+            start = datetime.now(timezone.utc) if depart is None else (
+                depart if depart.tzinfo else depart.replace(tzinfo=timezone.utc))
+            when = start + timedelta(hours=elapsed_h)
+        runs.append(HopRun(
+            hop, navlog.fixes(hop.dep_ident, hop.dest_ident, hop.start, hop.end, selected),
+            forecast_hour_for(when), flight_window(when, hop.length_nm, tas),
+            when if depart is not None else None,
+        ))
+        elapsed_h += hop.length_nm / tas
+    return runs
+
+
+def resolve_run(run: HopRun, profile: dict, q: "PlanQuery") -> "Flown | Unflyable | NoWinds":
+    return resolve_altitude(
+        run.hop, run.fixes, profile, q.aircraft, q.altitude_ft, q.altitude_choice, run.fcst_hr, run.window,
+    )
+
+
+def join_options(options_by_hop: list[list[AltitudeOption]], lengths: list[float]) -> list[AltitudeOption]:
+    """The four plans of a route with stops: each the same plan flown on
+    every hop, its steps in turn and its costs summed -- the tailwind
+    weighted by each hop's length. None where a hop's plans could not be
+    made."""
+    if len(options_by_hop) == 1:
+        return options_by_hop[0]
+    if any(not options for options in options_by_hop):
+        return []
+    joined = []
+    for kind in navlog.PLAN_KINDS:
+        mine = [next(o for o in options if o.kind == kind) for options in options_by_hop]
+
+        def total(attr, mine=mine):
+            values = [getattr(o, attr) for o in mine]
+            return None if any(v is None for v in values) else round(sum(values), 1)
+
+        winds = [(o.tailwind_kt, n) for o, n in zip(mine, lengths) if o.tailwind_kt is not None]
+        weight = sum(n for _, n in winds)
+        joined.append(AltitudeOption(
+            kind=kind, steps=[step for o in mine for step in o.steps],
+            ete_min=total("ete_min"), fuel_gal=total("fuel_gal"),
+            climb_penalty_min=round(sum(o.climb_penalty_min for o in mine), 1),
+            tailwind_kt=round(sum(t * n for t, n in winds) / weight, 1) if weight else None,
+            unflyable_legs=sum(o.unflyable_legs for o in mine),
+            legs_without_wind=sum(o.legs_without_wind for o in mine),
+            needs_oxygen=any(o.needs_oxygen for o in mine),
+        ))
+    return joined
+
+
+def join_outcomes(runs: list[HopRun], outcomes: list) -> "Flown | Unflyable | NoWinds":
+    """What a route with stops flies, from each hop's own outcome: the
+    first hop with no legal altitude makes the route unflyable, and says
+    which hop; a winds outage on any hop stops the legs, the selection
+    standing; otherwise the legs run on through each stop."""
+    if len(outcomes) == 1:
+        return outcomes[0]
+    for run, outcome in zip(runs, outcomes):
+        if isinstance(outcome, Unflyable):
+            return Unflyable(outcome.selection, between=(run.hop.dep_ident, run.hop.dest_ident))
+    lengths = [run.hop.length_nm for run in runs]
+    offsets = [sum(lengths[:i]) for i in range(len(lengths))]
+    selection = join_selections([o.selection for o in outcomes], offsets)
+    options = join_options([o.options for o in outcomes], lengths)
+    for outcome in outcomes:
+        if isinstance(outcome, NoWinds):
+            return NoWinds(selection, options, outcome.error)
+    first = outcomes[0]
+    return Flown(
+        selection, options, first.choice, first.altitude_ft,
+        [leg for o in outcomes for leg in o.legs], tuple(o.legs for o in outcomes),
+    )
+
+
+def totals_of(r: Route, runs: list[HopRun], outcome: "Flown", profile: dict) -> dict:
+    """The trip's totals: each flight's own, from one landing to the next
+    through any waypoints (Route.flights), with its fuel check, joined
+    (app.planning.route_totals)."""
+    per_flight, at = [], 0
+    for flight in r.flights:
+        hops = len(flight.idents) - 1
+        legs = [leg for legs in outcome.hop_legs[at:at + hops] for leg in legs]
+        per_flight.append(flight_totals(legs, profile, flight, runs[at].depart))
+        at += hops
+    return route_totals(per_flight, r.flights)
+
+
 def _waited(future: Future, tick_s: float, stages):
     """Waits on `future` for at most COMPUTE_LIMIT_S, yielding the seconds
     waited every `tick_s`; returns its result, or raises StillComputing
@@ -202,9 +330,13 @@ def _result(waiting):
             return done.value
 
 
-def _running_stages(r, fix_list: list, aircraft: str, fcst_hr: str, window: tuple | None = None) -> list:
-    running = altitude_waiting_on(r.start, r.end, aircraft, _fixes(fix_list), fcst_hr, window)
+def _running_stages(run: HopRun, aircraft: str) -> list:
+    running = _waiting_on(run, aircraft)
     return [running] if running else []
+
+
+def _waiting_on(run: HopRun, aircraft: str) -> str:
+    return altitude_waiting_on(run.hop.start, run.hop.end, aircraft, _fixes(run.fixes), run.fcst_hr, run.window)
 
 
 def _chart_info() -> dict:
@@ -224,32 +356,37 @@ def chart_info() -> ChartInfo:
 
 
 @router.get("/api/course")
-def course(dep: str, dest: str) -> Course:
-    """Just the course line and its endpoints.
+def course(dep: str, dest: str, stops: str = "") -> Course:
+    """Just the course line and its endpoints, through any stops.
 
     Separate from detection so the chart can draw a line the instant two
     idents are entered. Reading tiles takes seconds even on the fast
     path, and there is no reason a pilot should watch an empty map for
     them.
     """
-    r = load_route(dep, dest)
+    r = load_route(dep, dest, stops)
+    first = r.hops[0]
     return Course(
         departure=r.departure,
         destination=r.destination,
-        distance_nm=round(geo.distance_nm(*r.start, *r.end), 1),
-        bearing_deg=round(geo.bearing_deg(*r.start, *r.end)),
-        course_line=course_line(r.start, r.end),
+        stops=r.stops,
+        distance_nm=round(r.distance_nm, 1),
+        bearing_deg=round(geo.bearing_deg(*first.start, *first.end)),
+        course_line=route_line(r),
         **_chart_info(),
     )
 
 
 @router.get("/api/checkpoints")
-def checkpoints(dep: str, dest: str) -> Checkpoints:
-    """Scored candidates and the subset worth flying: fast once the
-    route's chart has been read, a few seconds for its first time."""
-    r = load_route(dep, dest)
-    scored, selected = scored_and_selected(r.dep_ident, r.dest_ident)
-    return Checkpoints(departure=r.departure, destination=r.destination, candidates=scored, selected=selected)
+def checkpoints(dep: str, dest: str, stops: str = "") -> Checkpoints:
+    """Scored candidates and the subset worth flying, hop by hop along
+    the whole route: fast once each hop's chart has been read, a few
+    seconds for its first time."""
+    r = load_route(dep, dest, stops)
+    scored, selected, _ = route_checkpoints(r)
+    return Checkpoints(
+        departure=r.departure, destination=r.destination, stops=r.stops, candidates=scored, selected=selected,
+    )
 
 
 @router.get("/api/altitude-breakdown")
@@ -293,50 +430,47 @@ def plan(q: Annotated[PlanQuery, Depends()]) -> Plan:
     without it, the 6-hour product, i.e. about now -- and whether the
     fuel reserve is the day or the night one.
     """
-    r = load_route(q.dep, q.dest)
+    r = load_route(q.dep, q.dest, q.stops)
     profile = q.profile()
-    fcst_hr = forecast_hour_for(q.depart)
-    window = flight_window(q.depart, geo.distance_nm(*r.start, *r.end), profile["cruise_tas_kt"])
 
     # Everything slow inside the one bound, scoring included: the agents'
     # client waits exactly that long (vfr.planner_client).
-    fixes: list = []
+    runs: list[HopRun] = []
 
     def work():
-        scored, selected = scored_and_selected(r.dep_ident, r.dest_ident)
-        fixes.append(navlog.fixes(r.dep_ident, r.dest_ident, r.start, r.end, selected))
-        return scored, selected, resolve_altitude(
-            r, fixes[0], profile, q.aircraft, q.altitude_ft, q.altitude_choice, fcst_hr, window,
-        )
+        scored, selected, by_hop = route_checkpoints(r)
+        runs.extend(hop_runs(r, by_hop, q.depart, profile))
+        return scored, selected, join_outcomes(runs, [resolve_run(run, profile, q) for run in runs])
 
     pool = ThreadPoolExecutor(max_workers=1)
     try:
         scored, selected, outcome = _result(_waited(
             pool.submit(work), COMPUTE_LIMIT_S,
-            lambda: _running_stages(r, fixes[0], q.aircraft, fcst_hr, window) if fixes else ["chart"],
+            lambda: [stage for run in runs for stage in _running_stages(run, q.aircraft)] if runs else ["chart"],
         ))
     finally:
         pool.shutdown(wait=False)
     if isinstance(outcome, NoWinds):
         raise outcome.error
     if isinstance(outcome, Unflyable):
-        raise HTTPException(422, no_altitude_detail(outcome.selection))
+        raise HTTPException(422, no_altitude_detail(outcome.selection, outcome.between))
     leg_list = outcome.legs
 
     return Plan(
         departure=r.departure,
         destination=r.destination,
-        distance_nm=round(geo.distance_nm(*r.start, *r.end), 1),
-        course_line=course_line(r.start, r.end),
+        stops=r.stops,
+        distance_nm=round(r.distance_nm, 1),
+        course_line=route_line(r),
         candidates=scored,
         selected=selected,
         legs=leg_list,
-        totals=flight_totals(leg_list, profile, r, q.depart),
+        totals=totals_of(r, runs, outcome, profile),
         altitude_ft=outcome.altitude_ft,
         altitude_selection=outcome.selection,
         altitude_options=outcome.options,
         altitude_choice=outcome.choice,
-        winds_forecast_hr=fcst_hr,
+        winds_forecast_hr=runs[0].fcst_hr,
         aircraft={"name": q.aircraft, **profile},
         **_chart_info(),
     )
@@ -366,19 +500,17 @@ def navlog_stream(q: Annotated[PlanQuery, Depends()]) -> StreamingResponse:
     time that's known, a 200 and a stream of NDJSON have already gone
     out, and an HTTP status can't change after that.
     """
-    r = load_route(q.dep, q.dest)
+    r = load_route(q.dep, q.dest, q.stops)
 
     def lines():
         yield line(NavLogStage(detail="Reading the chart and choosing the checkpoints…"))
-        _, selected = scored_and_selected(r.dep_ident, r.dest_ident)
+        _, _, by_hop = route_checkpoints(r)
 
         profile = q.profile()
-        fix_list = navlog.fixes(r.dep_ident, r.dest_ident, r.start, r.end, selected)
-        fcst_hr = forecast_hour_for(q.depart)
-        window = flight_window(q.depart, geo.distance_nm(*r.start, *r.end), profile["cruise_tas_kt"])
+        runs = hop_runs(r, by_hop, q.depart, profile)
 
         yield line(NavLogStage(detail="Planning cruise altitudes (airspace, obstacles, aircraft performance and winds)…"))
-        # On a side thread with a heartbeat, not inline: an uncached
+        # On side threads with a heartbeat, not inline: an uncached
         # selection on a bad aviationweather.gov day was observed
         # taking over two minutes, all of it silent -- and the webapp
         # proxy cuts a stream that has been silent that long, so the
@@ -392,32 +524,36 @@ def navlog_stream(q: Annotated[PlanQuery, Depends()]) -> StreamingResponse:
         # it used to say "aviationweather.gov" whatever the cause -- and
         # the wait ends at COMPUTE_LIMIT_S with an error line saying so,
         # rather than a stream that never ends. Not a `with` block: that
-        # would wait on a stuck thread on the way out.
-        altitude_pool = ThreadPoolExecutor(max_workers=1)
+        # would wait on a stuck thread on the way out. Every hop of a
+        # route with stops at once, each waited on in turn.
+        altitude_pool = ThreadPoolExecutor(max_workers=len(runs))
+        outcomes = []
         try:
-            waiting = _waited(
-                altitude_pool.submit(
-                    resolve_altitude, r, fix_list, profile, q.aircraft, q.altitude_ft, q.altitude_choice, fcst_hr, window,
-                ),
-                HEARTBEAT_S, lambda: _running_stages(r, fix_list, q.aircraft, fcst_hr, window),
-            )
-            while True:
-                try:
-                    elapsed = next(waiting)
-                except StopIteration as done:
-                    outcome = done.value
-                    break
-                named = altitude_waiting_on(r.start, r.end, q.aircraft, _fixes(fix_list), fcst_hr, window)
-                yield line(NavLogStage(detail=(
-                    f"Planning cruise altitudes ({elapsed:.0f} s, waiting on {named})…" if named
-                    else f"Planning cruise altitudes ({elapsed:.0f} s, working out the winds for each plan)…"
-                )))
+            futures = [altitude_pool.submit(resolve_run, run, profile, q) for run in runs]
+            for run, future in zip(runs, futures):
+                where = f" {run.hop.dep_ident} → {run.hop.dest_ident}," if len(runs) > 1 else ""
+                waiting = _waited(future, HEARTBEAT_S, lambda run=run: _running_stages(run, q.aircraft))
+                while True:
+                    try:
+                        elapsed = next(waiting)
+                    except StopIteration as done:
+                        outcomes.append(done.value)
+                        break
+                    named = _waiting_on(run, q.aircraft)
+                    yield line(NavLogStage(detail=(
+                        f"Planning cruise altitudes ({where} {elapsed:.0f} s, waiting on {named})…".replace("( ", "(")
+                        if named
+                        else f"Planning cruise altitudes ({where} {elapsed:.0f} s, working out the winds for each plan)…"
+                        .replace("( ", "(")
+                    )))
         finally:
             altitude_pool.shutdown(wait=False)
+        outcome = join_outcomes(runs, outcomes)
+        fcst_hr = runs[0].fcst_hr
 
         aircraft_line = {"name": q.aircraft, **profile}
         if isinstance(outcome, Unflyable):
-            why = no_altitude(outcome.selection)
+            why = no_altitude(outcome.selection, outcome.between)
             yield line(NavLogError(detail=why["title"], reasons=why["reasons"], advice=why["advice"], retry=False))
             return
         if isinstance(outcome, NoWinds):
@@ -449,6 +585,6 @@ def navlog_stream(q: Annotated[PlanQuery, Depends()]) -> StreamingResponse:
         for leg in outcome.legs:
             yield line(NavLogLeg.model_validate(leg))
 
-        yield line(NavLogDone(totals=flight_totals(outcome.legs, profile, r, q.depart)))
+        yield line(NavLogDone(totals=totals_of(r, runs, outcome, profile)))
 
     return ndjson(lines(), NavLogError)

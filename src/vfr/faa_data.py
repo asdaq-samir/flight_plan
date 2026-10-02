@@ -130,6 +130,10 @@ _NASR_FILES = {
     # Supplement's own text (vfr.remarks).
     "APT_RMK.csv": lambda: find_download_link(find_current_cycle_page(NASR_INDEX_URL), r'href="([^"]*APT_CSV\.zip)"'),
     "DOF.DAT": lambda: find_download_link(DOF_INDEX_URL, r'href="(https://aeronav\.faa\.gov/Obst_Data/DOF_\d+\.zip)"'),
+    # Every named fix: the RNAV (GPS) waypoints, the reporting points and
+    # the VFR waypoints charted on the sectionals (VPBNG) -- what a route
+    # may fly through on the way (vfr.fixes).
+    "FIX_BASE.csv": lambda: find_download_link(find_current_cycle_page(NASR_INDEX_URL), r'href="([^"]*FIX_CSV\.zip)"'),
 }
 
 

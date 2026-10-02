@@ -7,6 +7,7 @@ import json
 
 from fastapi import APIRouter
 from vfr import aircraft, airports, model_registry
+from vfr import fixes as fixes_module
 
 from ..schemas import AircraftProfiles, AirportSearch, ModelComparison
 
@@ -26,13 +27,22 @@ def aircraft_profiles() -> AircraftProfiles:
 
 
 @router.get("/api/airports/search")
-def airport_search(q: str = "") -> AirportSearch:
+def airport_search(q: str = "", fixes: bool = False) -> AirportSearch:
     """DEP/DEST's own autocomplete -- every airport whose ident or name
     starts with `q`, for the route inputs to suggest as a pilot types.
     Runs against the same in-memory OurAirports table the real lookup
-    uses, not a second data source that could drift from it.
+    uses, not a second data source that could drift from it. With
+    `fixes`, a stop's: the named fixes whose ident starts with it too,
+    after the airports -- VFR waypoints first (vfr.fixes).
     """
-    return {"airports": airports.search_airports(q)}
+    found = airports.search_airports(q)
+    if fixes:
+        known = {a["ident"] for a in found}
+        found += [
+            {"ident": f["ident"], "name": f["kind"], "region": f["state"], "kind": "fix"}
+            for f in fixes_module.search_fixes(q) if f["ident"] not in known
+        ]
+    return {"airports": found}
 
 
 @router.get("/api/model-comparison")

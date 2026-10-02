@@ -173,7 +173,8 @@ function remember(key: string, now = Date.now()) {
 }
 
 export function keepKey(course: Course, kind: string): string {
-  return `${course.departure.ident}->${course.destination.ident}/${kind}/${course.chart_cycle}/${course.chart_revision ?? 0}`;
+  const route = [course.departure, ...(course.stops ?? []), course.destination].map(a => a.ident).join("->");
+  return `${route}/${kind}/${course.chart_cycle}/${course.chart_revision ?? 0}`;
 }
 
 /** The zooms kept: from a whole-route view (8) down to the chart's own detail. */

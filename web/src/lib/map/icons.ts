@@ -94,6 +94,20 @@ export function ownShipIcon(headingDeg: number | null) {
  * 56 px box left-aligned a short ident off the airport's position and
  * cut a seven-character one (US-1234) off its own tap target.
  */
+/** A waypoint the route flies through (a VFR or GPS waypoint): a chip in
+ *  the sectional's own magenta for one, white with magenta words and a
+ *  flag, where an airport's chip wears its weather. */
+export function waypointIcon(ident: string) {
+  const width = Math.max(40, Math.ceil(ident.length * 7.5) + 30);
+  return L.divIcon({
+    className: "",
+    iconSize: [width, 24], iconAnchor: [width / 2, 12],
+    html:
+      `<span class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded-full border-2 border-[#b02e7c] bg-white px-1.5 py-0.5 text-[11px] font-bold text-[#8a1f5f] shadow-sm"` +
+      `>&#9873;&#8202;${text(ident)}</span>`,
+  });
+}
+
 export function airportIcon(colour: string, ident: string, { classB = false, unchecked = false } = {}) {
   const width = Math.max(40, Math.ceil(ident.length * 7.5) + 22);
   // A Class B field's pill is round-ended and coloured by its flight

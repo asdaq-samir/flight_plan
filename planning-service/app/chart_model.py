@@ -9,7 +9,7 @@ import pandas as pd
 from vfr import chartfeatures, chartlabels, chartmodel, model_client
 from vfr.pipeline import _publish
 
-from .common import load_route
+from .common import load_hop
 from .detection import detect_job, faa_airports
 
 # How far either side of the course the training page reads the chart:
@@ -26,7 +26,7 @@ def corridor(route: str, wait: bool) -> list | None:
     read is still going and `wait` is False; the job it asks for is the
     page's own, shared, so this starts no second read."""
     dep, dest = route.split("->")
-    r = load_route(dep, dest)
+    r = load_hop(dep, dest)
     job = detect_job((route, TRAINING_HALF_WIDTH_NM), r.start, r.end, TRAINING_HALF_WIDTH_NM)
     with job["cond"]:
         if wait:

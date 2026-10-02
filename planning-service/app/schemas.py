@@ -20,11 +20,16 @@ Source = Literal["detected", "added"]
 
 
 class AirportEnd(BaseModel):
+    """A point of the route: an airport, or -- a stop only -- a named fix
+    flown through (`kind` "fix": a VFR or GPS waypoint, its `name` the
+    kind of fix it is, no elevation)."""
+
     ident: str
     name: str
     lat: float
     lon: float
     elevation_ft: float | None = None
+    kind: Literal["airport", "fix"] = "airport"
 
 
 class ChartSheet(BaseModel):
@@ -84,8 +89,14 @@ class ChartInfo(BaseModel):
 
 
 class Course(ChartInfo):
+    """The course: the departure, the stops it lands at on the way (in
+    order; none for a route flown straight), the destination, the whole
+    distance stop by stop, the bearing out of the departure, and the line
+    through every stop."""
+
     departure: AirportEnd
     destination: AirportEnd
+    stops: list[AirportEnd] = []
     distance_nm: float
     bearing_deg: float
     course_line: list[tuple[float, float]]
@@ -104,11 +115,18 @@ class Candidate(BaseModel):
     predicted_score: float
     along_track_nm: float
     selected: bool
+    #: Which hop of a route with stops it is on, from 0 (app.common.Route).
+    hop: int = 0
 
 
 class Checkpoints(BaseModel):
+    """Every hop's candidates and selected checkpoints in order along the
+    whole route (app.scoring.route_checkpoints), its along-track
+    distances running on through each stop."""
+
     departure: AirportEnd
     destination: AirportEnd
+    stops: list[AirportEnd] = []
     candidates: list[Candidate]
     selected: list[Candidate]
 
@@ -178,6 +196,21 @@ class Totals(BaseModel):
     usable_fuel_gal: float | None = None
     fuel_margin_gal: float | None = None
     night: bool | None = None
+    #: A route with stops: each flight between two landings with its own
+    #: fuel check, the tanks filled at each stop -- the route's own fuel
+    #: figures are None then (app.planning.route_totals). Empty without.
+    hops: list["HopTotals"] = []
+
+
+class HopTotals(BaseModel):
+    """One flight between two landings of a route with stops."""
+
+    departure: str
+    destination: str
+    totals: Totals
+
+
+Totals.model_rebuild()
 
 
 class Hazard(BaseModel):
@@ -381,6 +414,7 @@ class AircraftProfile(BaseModel):
 class Plan(BaseModel):
     departure: AirportEnd
     destination: AirportEnd
+    stops: list[AirportEnd] = []
     distance_nm: float
     course_line: list[tuple[float, float]]
     candidates: list[Candidate]
@@ -719,10 +753,15 @@ CheckpointNoteMessage = Annotated[
 
 
 class AirportSuggestion(BaseModel):
+    """An airport the search answers -- or, asked with `fixes`, a named
+    fix (`kind` "fix": a VFR waypoint, a GPS waypoint), its `name` the
+    kind of fix and its `region` the state it is in."""
+
     ident: str
     name: str
     municipality: str | None = None
     region: str | None = None
+    kind: Literal["airport", "fix"] = "airport"
 
 
 class AirportSearch(BaseModel):

@@ -317,7 +317,7 @@ body:has([data-slot="map-panel"][data-sheet][data-panel="full"]) [data-map-contr
    a zoom step going missing.
 
    So the stack is transparent to the pointer and only its controls --
-   Try again, the close button -- take events back. The cost is sonner's
+   Try again, a field, the close button -- take events back. The cost is sonner's
    swipe-to-dismiss, which needs the card itself; the close button is
    the replacement, and it is already on (closeButton in main.tsx).
    The chart underneath stays fully draggable and zoomable, toast or
@@ -326,7 +326,10 @@ body:has([data-slot="map-panel"][data-sheet][data-panel="full"]) [data-map-contr
 [data-sonner-toast] {
   pointer-events: none;
 }
-[data-sonner-toast] button {
+/* Its controls take taps back: buttons, and a field typed in -- a
+   problem's own altitude (lib/notify), which a finger could not reach
+   while only buttons did. */
+[data-sonner-toast] :is(button, input, a) {
   pointer-events: auto;
 }
 /* Except while a drawer or a dialog is open. The toasts are anchored to
@@ -423,6 +426,18 @@ html [data-sonner-toaster] {
    right offset was there to keep clear. */
 @media (max-width: 600px) {
   html [data-sonner-toaster] [data-sonner-toast] {
+    width: calc(100vw - var(--mobile-offset-left) - var(--mobile-offset-right));
+  }
+}
+
+/* A toast the app draws itself (a problem, lib/notify) as wide as
+   sonner's own: sonner sizes only the toasts it styles, and one of these
+   shrank to its words, off the centre the others keep. */
+html [data-sonner-toaster] [data-sonner-toast][data-styled="false"] {
+  width: var(--width);
+}
+@media (max-width: 600px) {
+  html [data-sonner-toaster] [data-sonner-toast][data-styled="false"] {
     width: calc(100vw - var(--mobile-offset-left) - var(--mobile-offset-right));
   }
 }

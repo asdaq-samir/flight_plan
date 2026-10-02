@@ -17,7 +17,7 @@ CHECKPOINT = {"lat": 45.0, "lon": -90.0, "id": "water@45.00000,-90.00000", "name
 def _setup(monkeypatch, tmp_path):
     path = tmp_path / "notes.csv"
     monkeypatch.setattr(checkpoint_notes, "NOTES_PATH", path)
-    monkeypatch.setattr(notes, "scored_and_selected", lambda dep, dest: ([CHECKPOINT], [CHECKPOINT]))
+    monkeypatch.setattr(notes, "route_checkpoints", lambda r: ([CHECKPOINT], [CHECKPOINT], [[CHECKPOINT]]))
     calls = []
 
     def describe(cp, dep, prev_name, next_name):

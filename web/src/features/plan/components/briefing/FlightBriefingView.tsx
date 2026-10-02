@@ -25,6 +25,8 @@ interface Props {
   legs: Leg[];
   dep: string;
   dest: string;
+  /** The airports landed at on the way, in order. */
+  stops?: string[];
   /** Where the briefing stands (see `usePlan`'s BriefingState). The
    *  page keeps its standard sections visible and says which state
    *  applies, rather than making a failed briefing indistinguishable
@@ -242,6 +244,7 @@ export function SaveFlightButton({
       aircraftId,
       departureIdent: course.departure.ident,
       destinationIdent: course.destination.ident,
+      stops: (course.stops ?? []).map(stop => stop.ident),
       cruiseAltitudeFt: nav.altitude_ft,
       totalDistanceNm: totals.distance_nm,
       totalEteMin: totals.ete_min,
@@ -295,10 +298,13 @@ export function SaveFlightButton({
  * silently disappearing the way an unnamed gap would.
  */
 export default function FlightBriefingView({
-  nav, legs, dep, dest,
+  nav, legs, dep, dest, stops = [],
   briefing: briefingState,
   langgraphNarrative, crewaiNarrative,
 }: Props) {
+  // Every airport the flight lands at, each once: a round trip's
+  // departure is its destination.
+  const landings = [...new Set([dep, ...stops, dest])];
   const stretches = windStretches(legs);
   // "VFR flight not recommended" (AIM 7-1-5) and its reasons are the
   // planner's call (vfr.weather), made against 14 CFR 91.155's minimums
@@ -331,7 +337,7 @@ export default function FlightBriefingView({
           : `${briefing.hazards.length} SIGMET${briefing.hazards.length === 1 ? "" : "s"} or AIRMET${briefing.hazards.length === 1 ? "" : "s"}`,
     current: !briefing ? undefined
       : unchecked("metars") ? "Not checked"
-        : [dep, dest].map(ident => `${ident} ${briefing.metars[ident]?.flight_category ?? "no report"}`).join(" · "),
+        : landings.map(ident => `${ident} ${briefing.metars[ident]?.flight_category ?? "no report"}`).join(" · "),
     destination: !briefing ? undefined
       : unchecked("forecast") ? "Not checked"
         : destStation ? `${dest} ${ceilingAndVisibility(destStation.ceiling_ft, destStation.visibility_sm)}` : `No TAF for ${dest}`,
@@ -431,7 +437,7 @@ export default function FlightBriefingView({
           // The departure's and the destination's METARs, a row each
           // with the category at its end: they were two bordered boxes.
           <ListGroup>
-            {[dep, dest].map(ident => {
+            {landings.map(ident => {
               const metar = briefing.metars[ident];
               return (
                 <ListRow
@@ -568,7 +574,7 @@ export default function FlightBriefingView({
           <p className="text-muted-foreground">{briefingPendingMessage}</p>
         ) : (
           <div className="grid gap-3 sm:grid-cols-2">
-            {[dep, dest].map(ident => {
+            {landings.map(ident => {
               const info = briefing.airports[ident];
               return (
                 <ListGroup key={ident} title={ident}>

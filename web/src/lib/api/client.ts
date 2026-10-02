@@ -172,15 +172,19 @@ export function describeError(err: unknown, fallback = "request failed"): string
  *  nothing has failed -- and so is this. */
 export const errorMessage = (err: unknown, fallback: string) => (err ? describeError(err, fallback) : null);
 
-export const api = {
-  /** The leg itself: sub-second, and enough to draw before any tile is read. */
-  course: (dep: string, dest: string) =>
-    planner.GET("/api/course", { params: { query: { dep, dest } } }).then(data<Course>),
+/** A route's stops as the planner takes them, "KDSM,KLNK"; none, none. */
+const stopsParam = (stops?: string[]) => (stops?.length ? stops.join(",") : undefined);
 
-  /** Scored candidates and the subset worth flying. Fast -- the model is
-   *  loaded and the features are already built. */
-  checkpoints: (dep: string, dest: string) =>
-    planner.GET("/api/checkpoints", { params: { query: { dep, dest } } }).then(data<Checkpoints>),
+export const api = {
+  /** The leg itself, through any stops: sub-second, and enough to draw
+   *  before any tile is read. */
+  course: (dep: string, dest: string, stops?: string[]) =>
+    planner.GET("/api/course", { params: { query: { dep, dest, stops: stopsParam(stops) } } }).then(data<Course>),
+
+  /** Scored candidates and the subset worth flying, hop by hop. Fast --
+   *  the model is loaded and the features are already built. */
+  checkpoints: (dep: string, dest: string, stops?: string[]) =>
+    planner.GET("/api/checkpoints", { params: { query: { dep, dest, stops: stopsParam(stops) } } }).then(data<Checkpoints>),
 
   /**
    * The slow half: terrain, the obstacle file, the airspace shapefile
@@ -193,12 +197,12 @@ export const api = {
    */
   async *navlog(
     dep: string, dest: string, altitudeFt?: string, aircraft?: AircraftChoice, altitudeChoice?: AltitudeChoice,
-    depart?: string, signal?: AbortSignal,
+    depart?: string, signal?: AbortSignal, stops?: string[],
   ): AsyncGenerator<NavLogMessage> {
     const result = await planner.GET("/api/navlog", {
       params: {
         query: {
-          dep, dest,
+          dep, dest, stops: stopsParam(stops),
           altitude_ft: altitudeFt ? Number(altitudeFt) : undefined,
           altitude_choice: altitudeChoice && altitudeChoice !== "fastest" ? altitudeChoice : undefined,
           aircraft: aircraft?.profile,
@@ -251,8 +255,10 @@ export const api = {
    *  is a single quick call, not navlog's slow per-leg loop. */
   /** The briefing for the flight: its forecast is read from `depart`
    *  (now when empty) to an hour past arrival, `eteMin` later. */
-  briefing: (dep: string, dest: string, depart?: string, eteMin?: number) =>
-    planner.GET("/api/briefing", { params: { query: { dep, dest, depart, ete_min: eteMin } } }).then(data<Briefing>),
+  briefing: (dep: string, dest: string, depart?: string, eteMin?: number, stops?: string[]) =>
+    planner.GET("/api/briefing", {
+      params: { query: { dep, dest, stops: stopsParam(stops), depart, ete_min: eteMin } },
+    }).then(data<Briefing>),
 
   /** The chart the map draws, for a map with no route on it yet. */
   chart: () => planner.GET("/api/chart").then(data<ChartInfo>),
@@ -296,20 +302,20 @@ export const api = {
    * checkpoint doesn't hold up the ones that already arrived.
    */
   async *describeCheckpoints(
-    dep: string, dest: string, signal?: AbortSignal,
+    dep: string, dest: string, signal?: AbortSignal, stops: string[] = [],
   ): AsyncGenerator<CheckpointDescriptionMessage> {
     // A POST: each checkpoint without a note is a billed Claude call.
     const result = await planner.POST("/api/checkpoint-notes/generate", {
-      body: { departure_ident: dep, destination_ident: dest },
+      body: { departure_ident: dep, destination_ident: dest, stops },
       parseAs: "stream", signal,
     });
     yield* ndjson<CheckpointDescriptionMessage>(result.data as ReadableStream | undefined);
   },
 
   /** A pilot's own edit to one checkpoint's identification note. */
-  saveCheckpointNote: (dep: string, dest: string, lat: number, lon: number, description: string) =>
+  saveCheckpointNote: (dep: string, dest: string, lat: number, lon: number, description: string, stops: string[] = []) =>
     planner.POST("/api/checkpoint-notes", {
-      body: { departure_ident: dep, destination_ident: dest, lat, lon, description },
+      body: { departure_ident: dep, destination_ident: dest, stops, lat, lon, description },
     }).then(data<CheckpointNoteSaved>),
 
   /** How the currently promoted model was actually chosen -- every
@@ -319,8 +325,9 @@ export const api = {
   /** DEP/DEST's own autocomplete -- airports whose ident or name
    *  starts with `q`. Empty `q` short-circuits server-side to `[]`, so
    *  this is safe to call on every keystroke including the first. */
-  airportSearch: (q: string) =>
-    planner.GET("/api/airports/search", { params: { query: { q } } }).then(data<AirportSearch>).then(r => r.airports),
+  airportSearch: (q: string, fixes = false) =>
+    planner.GET("/api/airports/search", { params: { query: { q, fixes: fixes || undefined } } })
+      .then(data<AirportSearch>).then(r => r.airports),
 
   /** One airport's card: where it is, the airspace over it, its runways
    *  and radio, and the weather there now. Ahead of the chart's tiles,

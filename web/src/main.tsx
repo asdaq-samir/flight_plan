@@ -4,6 +4,7 @@ import { createBrowserRouter, Navigate, redirect, RouterProvider } from "react-r
 import { QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider } from "next-themes";
 import { courseQuery, queryClient } from "./lib/queryClient";
+import { routeOf, stopsOf } from "./lib/identSchema";
 import AppToaster from "./components/AppToaster";
 import { TooltipProvider } from "./components/ui/tooltip";
 import { registerSW } from "virtual:pwa-register";
@@ -109,10 +110,11 @@ const router = createBrowserRouter(
 const opening = new URLSearchParams(window.location.search);
 const openingDep = opening.get("dep")?.trim().toUpperCase();
 const openingDest = opening.get("dest")?.trim().toUpperCase();
-if (openingDep && openingDest && openingDep !== openingDest) {
+const openingStops = stopsOf(opening.get("stops"));
+if (routeOf(openingDep, openingDest, openingStops)) {
   // Quiet: if the planner is down, the page's own course query says so
   // once it mounts and asks again -- under the page's rule, not this one.
-  void queryClient.prefetchQuery({ ...courseQuery(openingDep, openingDest), meta: { silent: true } });
+  void queryClient.prefetchQuery({ ...courseQuery(openingDep!, openingDest!, openingStops), meta: { silent: true } });
 }
 
 ReactDOM.createRoot(document.getElementById("root")!).render(

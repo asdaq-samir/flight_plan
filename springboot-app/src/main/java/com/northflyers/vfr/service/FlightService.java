@@ -48,7 +48,8 @@ public class FlightService {
                 : aircraft.findByIdAndPilotId(request.aircraftId(), pilot.getId())
                         .orElseThrow(() -> new NoSuchAircraftException(request.aircraftId()));
 
-        Flight flight = new Flight(pilot, flownIn, request.departureIdent(), request.destinationIdent());
+        Flight flight = new Flight(pilot, flownIn, request.departureIdent(), request.destinationIdent())
+                .withStops(request.stops() == null ? null : request.stops().stream().map(String::toUpperCase).toList());
         List<SaveFlightCheckpointRequest> requestedCheckpoints =
                 request.checkpoints() == null ? List.of() : request.checkpoints();
         List<FlightCheckpoint> navLog = requestedCheckpoints.stream()

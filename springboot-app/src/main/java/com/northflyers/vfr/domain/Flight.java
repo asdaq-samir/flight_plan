@@ -54,6 +54,11 @@ public class Flight {
     @Column(nullable = false, length = 8)
     private String destinationIdent;
 
+    /** The airports landed at on the way, in order, joined by commas;
+     *  null for a flight flown straight. See {@link #getStops()}. */
+    @Column(length = 80)
+    private String stopIdents;
+
     private Integer cruiseAltitudeFt;
     private Double totalDistanceNm;
     private Double totalEteMin;
@@ -98,5 +103,15 @@ public class Flight {
     public Flight plannedFor(Instant when) {
         this.plannedFor = when;
         return this;
+    }
+
+    /** The airports it lands at on the way, in order. */
+    public Flight withStops(List<String> stops) {
+        this.stopIdents = stops == null || stops.isEmpty() ? null : String.join(",", stops);
+        return this;
+    }
+
+    public List<String> getStops() {
+        return stopIdents == null || stopIdents.isBlank() ? List.of() : List.of(stopIdents.split(","));
     }
 }

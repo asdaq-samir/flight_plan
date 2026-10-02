@@ -66,7 +66,19 @@ class FlightControllerTest {
 
         mockMvc.perform(get("/api/flights").with(oidcLogin()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].departureIdent").value("C81"));
+                .andExpect(jsonPath("$[0].departureIdent").value("C81"))
+                .andExpect(jsonPath("$[0].stops").isEmpty());
+    }
+
+    @Test
+    void list_carriesTheStopsAFlightLandsAt() throws Exception {
+        given(pilotService.current(any())).willReturn(Optional.of(samplePilot()));
+        given(flightService.list(any())).willReturn(List.of(sampleFlight().withStops(List.of("KMSN", "KEAU"))));
+
+        mockMvc.perform(get("/api/flights").with(oidcLogin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].stops[0]").value("KMSN"))
+                .andExpect(jsonPath("$[0].stops[1]").value("KEAU"));
     }
 
     @Test
@@ -95,6 +107,16 @@ class FlightControllerTest {
         mockMvc.perform(post("/api/flights").with(oidcLogin()).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"departureIdent\":\"toolongident\",\"destinationIdent\":\"KDLH\"}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void save_returns400_whenAStopIsTheWrongShape() throws Exception {
+        given(pilotService.current(any())).willReturn(Optional.of(samplePilot()));
+
+        mockMvc.perform(post("/api/flights").with(oidcLogin()).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"departureIdent\":\"C81\",\"destinationIdent\":\"KDLH\",\"stops\":[\"not an ident\"]}"))
                 .andExpect(status().isBadRequest());
     }
 

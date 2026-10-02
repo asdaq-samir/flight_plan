@@ -96,3 +96,54 @@ def scored_and_selected(dep: str, dest: str) -> tuple:
     for c in scored:
         c["selected"] = c["id"] in keys
     return scored, selected
+
+
+#: How near a stop a hop's checkpoint is no use: the field itself is the
+#: fix there, landed at or just taken off from.
+NEAR_A_STOP_NM = 3.0
+
+
+def route_checkpoints(r) -> tuple[list, list, list]:
+    """The scored candidates and the selected checkpoints of a route with
+    any number of stops (app.common.Route), along the whole of it, and
+    the selected ones hop by hop -- each hop's own, for its nav log's
+    fixes. A hop is a route of its own here: its own chart read, kept and
+    shared with anyone flying it alone, and its own selection, cut to the
+    hop itself so a checkpoint past a stop is not counted on both sides
+    of it. Along-track distances run on through each stop."""
+    hops = r.hops
+    if len(hops) == 1:
+        scored, selected = scored_and_selected(r.dep_ident, r.dest_ident)
+        return scored, selected, [selected]
+    # Every hop's chart asked for at once: each read is a job of its own
+    # (app.detection), and one after another they would add up.
+    for hop in hops:
+        chart_model.corridor(chartlabels.route_key(hop.dep_ident, hop.dest_ident), wait=False)
+    scored_all: list = []
+    selected_all: list = []
+    by_hop: list = []
+    offset = 0.0
+    # A point beside a stop can project onto both hops: it is the first's.
+    seen: set = set()
+    for index, hop in enumerate(hops):
+        length = hop.length_nm
+        scored, selected = scored_and_selected(hop.dep_ident, hop.dest_ident)
+        earlier = set(seen)
+
+        def on_hop(c, length=length, earlier=earlier):
+            return 0.0 <= c["along_track_nm"] <= length and c["id"] not in earlier
+
+        mine = [c for c in selected if on_hop(c) and NEAR_A_STOP_NM <= c["along_track_nm"] <= length - NEAR_A_STOP_NM]
+        chosen = {c["id"] for c in mine}
+
+        def along(c, offset=offset, index=index, chosen=chosen):
+            return {**c, "along_track_nm": round(c["along_track_nm"] + offset, 3), "hop": index,
+                    "selected": c["id"] in chosen}
+
+        kept = [c for c in scored if on_hop(c)]
+        seen |= {c["id"] for c in kept}
+        scored_all += [along(c) for c in kept]
+        selected_all += [along(c) for c in mine]
+        by_hop.append(mine)
+        offset += length
+    return scored_all, selected_all, by_hop

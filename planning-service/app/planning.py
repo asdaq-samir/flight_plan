@@ -359,7 +359,7 @@ def forecast_hour_for(depart: datetime | None) -> str:
     return weather.forecast_hour((depart - datetime.now(timezone.utc)).total_seconds() / 3600)
 
 
-def no_altitude(selection: dict) -> dict:
+def no_altitude(selection: dict, between: tuple[str, str] | None = None) -> dict:
     """Why no plan has an altitude, in a pilot's words, in three parts: a
     headline saying where along the route it fails, the reasons there as
     short sentences -- the terrain's floor, the first VFR altitude above
@@ -369,7 +369,9 @@ def no_altitude(selection: dict) -> dict:
     could be read. It gave the whole route's highest floor beside its
     lowest ceiling ("floor 13700 ft, ceiling 3000.0 ft" for Chicago to
     Las Vegas: the Rockies' floor beside the Chicago Class B shelf, a
-    thousand miles apart) and asked for a query parameter."""
+    thousand miles apart) and asked for a query parameter. `between`, the
+    hop of a route with stops it fails on: the distances are from its
+    start, and the headline names it."""
     prohibited = [a["name"] for a in selection.get("special_use", []) if a.get("type") == "P"]
     if prohibited:
         return {
@@ -382,7 +384,8 @@ def no_altitude(selection: dict) -> dict:
     floor, top = (stuck or {}).get("floor_ft"), (stuck or {}).get("band_ceiling_ft")
     if stuck is None or None in (course, floor, top):
         return {
-            "title": "No legal VFR cruising altitude fits this route in this aircraft",
+            "title": (f"No legal VFR cruising altitude fits {between[0]} to {between[1]} in this aircraft" if between
+                      else "No legal VFR cruising altitude fits this route in this aircraft"),
             "reasons": [],
             "advice": "Set a cruise altitude of your own to plan it anyway.",
         }
@@ -391,7 +394,8 @@ def no_altitude(selection: dict) -> dict:
              else "The airspace over it" if top == stuck.get("airspace_ceiling_ft") else "The cloud base")
     heading = "eastbound" if stuck.get("eastbound") else "westbound"
     return {
-        "title": f"No legal VFR cruising altitude {stuck['from_nm']:.0f}-{stuck['to_nm']:.0f} nm along the route",
+        "title": f"No legal VFR cruising altitude {stuck['from_nm']:.0f}-{stuck['to_nm']:.0f} nm " + (
+            f"out of {between[0]} toward {between[1]}" if between else "along the route"),
         "reasons": [
             f"The terrain and obstacles there need {floor:,.0f} ft.",
             f"The first {heading} VFR altitude above that is {lowest:,.0f} ft.",
@@ -401,10 +405,10 @@ def no_altitude(selection: dict) -> dict:
     }
 
 
-def no_altitude_detail(selection: dict) -> str:
+def no_altitude_detail(selection: dict, between: tuple[str, str] | None = None) -> str:
     """no_altitude as one message, for /api/plan's 422 and the agents
     that read it."""
-    parts = no_altitude(selection)
+    parts = no_altitude(selection, between)
     reasons = " ".join(parts["reasons"])
     return f"{parts['title']}. {reasons + ' ' if reasons else ''}{parts['advice']}"
 
@@ -429,3 +433,111 @@ def course_line(start: tuple, end: tuple, step_nm: float = 5.0) -> list:
         points.append(list(current))
     points.append(list(end))
     return points
+
+
+def route_line(r) -> list:
+    """The course line of a route with any number of stops: each hop's
+    great circle (course_line) in turn, a stop once where two meet."""
+    points: list = []
+    for hop in r.hops:
+        hop_line = course_line(hop.start, hop.end)
+        points += hop_line if not points else hop_line[1:]
+    return points
+
+
+def _least(values):
+    known = [v for v in values if v is not None]
+    return min(known) if known else None
+
+
+def _either(values) -> bool | None:
+    """True where any is, unknown where any is unknown, False otherwise:
+    a hop's "could not be checked" must not read as the route's "fine"."""
+    values = list(values)
+    return True if any(v is True for v in values) else None if any(v is None for v in values) else False
+
+
+def join_selections(selections: list[dict], offsets: list[float]) -> dict:
+    """One altitude breakdown for a route with stops, from each hop's
+    (vfr.altitude.select_cruise_altitude): the hops' segments in turn,
+    along the whole route, with what they cross; and the route-wide
+    figures the most limiting of the hops', as a hop's are the most
+    limiting of its legs' -- the highest floor, the lowest ceilings and
+    cloud. Legal for the whole route is what is legal on every hop. The
+    magnetic course is the first hop's, the one flown out on."""
+    if len(selections) == 1:
+        return selections[0]
+
+    def shifted(items, keys, offset):
+        return [{**item, **{k: round(item[k] + offset, 1) for k in keys if item.get(k) is not None}} for item in items]
+
+    special_use, legs_before = [], 0
+    for sel, offset in zip(selections, offsets):
+        for area in sel.get("special_use", []):
+            special_use.append({
+                **area, "along_track_nm": round(area["along_track_nm"] + offset, 1),
+                "legs": [i + legs_before for i in area.get("legs", [])],
+            })
+        legs_before += len(sel.get("segments", []))
+    clouds = [(sel["cloud_base_ft"], sel.get("cloud_station")) for sel in selections if sel.get("cloud_base_ft") is not None]
+    cloud_base_ft, cloud_station = min(clouds) if clouds else (None, None)
+    candidates = sorted(set.intersection(*(set(sel.get("candidates_ft", [])) for sel in selections)))
+
+    def least(key):
+        return _least(sel.get(key) for sel in selections)
+
+    def either(key):
+        return _either(sel.get(key) for sel in selections)
+
+    return {
+        **selections[0],
+        "recommended_ft": candidates[0] if candidates else None,
+        "candidates_ft": candidates,
+        "hemispheric_rule_from_ft": least("hemispheric_rule_from_ft"),
+        "floor_ft": max(sel["floor_ft"] for sel in selections),
+        "airspace_ceiling_ft": least("airspace_ceiling_ft"),
+        "service_ceiling_ft": least("service_ceiling_ft"),
+        "cloud_base_ft": cloud_base_ft,
+        "cloud_station": cloud_station,
+        "cloud_ceiling_ft": least("cloud_ceiling_ft"),
+        "cloud_clearance_kept": all(sel.get("cloud_clearance_kept", True) for sel in selections),
+        "airspace_transits": [t for sel, offset in zip(selections, offsets)
+                              for t in shifted(sel.get("airspace_transits", []), ("along_track_nm",), offset)],
+        "special_use": special_use,
+        "freezing_level_ft": least("freezing_level_ft"),
+        "freezing_level_at_or_below": any(sel.get("freezing_level_at_or_below") for sel in selections),
+        "icing_possible": either("icing_possible"),
+        "band_ceiling_ft": least("band_ceiling_ft"),
+        "min_ceiling_ft": least("min_ceiling_ft"),
+        "min_visibility_sm": least("min_visibility_sm"),
+        "hazards": list({h.get("raw") or repr(h): h for sel in selections for h in sel.get("hazards", [])}.values()),
+        "low_ceiling_or_visibility": either("low_ceiling_or_visibility"),
+        "weather_unavailable": sorted({w for sel in selections for w in sel.get("weather_unavailable", [])}),
+        "segments": [seg for sel, offset in zip(selections, offsets)
+                     for seg in shifted(sel.get("segments", []), ("from_nm", "to_nm"), offset)],
+    }
+
+
+def route_totals(per_hop: list[dict], hops: list) -> dict:
+    """The trip's sums for a route that lands on the way, from each
+    flight's own (flight_totals) -- each from one landing to the next --
+    and each with its own fuel check: the tanks are filled at every
+    stop, so one check over the whole trip would mean nothing -- the
+    route's own fuel figures are left out, and `hops` holds each one's.
+    A route with no landings on the way is its one flight's."""
+    if len(per_hop) == 1:
+        return per_hop[0]
+
+    def total(key):
+        values = [t[key] for t in per_hop]
+        return None if any(v is None for v in values) else round(sum(values), 1)
+
+    return {
+        "distance_nm": round(sum(t["distance_nm"] for t in per_hop), 1),
+        "ete_min": total("ete_min"),
+        "fuel_gal": total("fuel_gal"),
+        "unflyable_legs": sum(t["unflyable_legs"] for t in per_hop),
+        "legs_without_wind": sum(t["legs_without_wind"] for t in per_hop),
+        "night": _either(t.get("night") for t in per_hop),
+        "hops": [{"departure": hop.dep_ident, "destination": hop.dest_ident, "totals": t} for hop, t in zip(hops, per_hop)],
+    }

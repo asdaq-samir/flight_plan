@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { toast } from "sonner";
+import { notifyProblem } from "../notify";
 import type { Course } from "../api/types";
 import { usePreferences } from "../preferences";
 import { keep, keepKey, keepingAvailable, keptAlready, stopKeeping, useKeepJob } from "./keepRoute";
@@ -48,7 +49,7 @@ export function useKeepRouteToast() {
     } else if (before === "keeping" && job.status === "kept") {
       const { total, failed } = job.progress;
       if (failed >= total) {
-        toast.error("Nothing kept", { id: TOAST_ID, description: "None of the tiles could be fetched. Try again with a connection." });
+        notifyProblem({ title: "Nothing kept", description: "None of the tiles could be fetched. Try again with a connection." }, TOAST_ID);
       } else {
         toast.success("Charts kept offline", {
           id: TOAST_ID,
@@ -56,7 +57,7 @@ export function useKeepRouteToast() {
         });
       }
     } else if (before === "keeping" && job.status === "failed") {
-      toast.error("Charts not kept", { id: TOAST_ID, description: job.detail });
+      notifyProblem({ title: "Charts not kept", description: job.detail }, TOAST_ID);
     } else if (before === "keeping" && job.status === "idle") {
       // Stopped: the setting turned off.
       toast.dismiss(TOAST_ID);

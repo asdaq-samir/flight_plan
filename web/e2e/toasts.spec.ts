@@ -22,6 +22,9 @@ import { test, expect, type Page, type Route } from "@playwright/test";
 const PLAN = "/app/plan?dep=C81&dest=KDLH";
 
 const toasts = (page: Page) => page.locator("[data-sonner-toast]");
+/** A problem's minimize (lib/notify): an error or a warning has no
+ *  close, and folds to a line instead. */
+const MINIMIZE = "[data-testid=problem-minimize]";
 const titles = (page: Page) => page.locator("[data-sonner-toast] [data-title]");
 
 /** Fail every planner call with one message, the way a planner that is
@@ -106,12 +109,11 @@ test("the toast spans the screen and is centred on it", async ({ page }) => {
   const rightGap = viewport.width - (box.x + box.width);
   expect(leftGap).toBeGreaterThanOrEqual(8);                     // a gutter, not edge to edge
   if (viewport.width < 768) {
-    // A phone: as wide as the screen allows short of the map's buttons
-    // at the top right, which a toast across them hid -- Settings, then
-    // among them, went untappable for as long as a route took to plan.
+    // A phone: the screen's width less a gutter either side, across the
+    // map's buttons as at the bottom -- level with them, its top on their
+    // card's.
     const controls = (await page.locator("[data-map-controls] > *").first().boundingBox())!;
-    expect(box.x + box.width).toBeLessThanOrEqual(controls.x);
-    // And level with them, its top on their card's.
+    expect(Math.abs(leftGap - rightGap)).toBeLessThanOrEqual(2);
     expect(Math.abs(box.y - controls.y)).toBeLessThanOrEqual(1);
     expect(box.width).toBeGreaterThan(viewport.width * 0.7);
   } else {
@@ -172,7 +174,7 @@ test("the chart underneath stays draggable while a toast is showing", async ({ p
   }
 });
 
-test("dismissing a toast dismisses the toast, not the drawer under it", async ({ page }) => {
+test("minimizing a problem folds the problem, not the drawer under it", async ({ page }) => {
   // The phone bug: sonner renders in its own portal at the end of the
   // body, so the drawer's outside-interaction listener counted a tap on
   // a toast as a tap outside itself and closed the whole briefing.
@@ -188,13 +190,13 @@ test("dismissing a toast dismisses the toast, not the drawer under it", async ({
   const phoneDrawer = page.locator('[data-mobile="true"][data-sidebar="sidebar"]');
   const onPhone = (await phoneDrawer.count()) > 0;
 
-  const closeable = page.locator("[data-sonner-toast]:has(button[data-close-button])");
-  await expect(closeable.first()).toBeVisible({ timeout: 20000 });
-  const before = await closeable.count();
-
-  await closeable.first().locator("button[data-close-button]").click({ force: true });
-
-  await expect.poll(() => closeable.count(), { timeout: 10000 }).toBe(before - 1);
+  // A problem open, its minimize; folded, it is still there, a line.
+  const open = page.locator('[data-problem="open"]');
+  await expect(open.first()).toBeVisible({ timeout: 20000 });
+  await open.first().locator(MINIMIZE).click({ force: true });
+  await expect(page.locator('[data-problem="minimized"]').first()).toBeVisible({ timeout: 10000 });
+  // No close: an error goes when its cause does.
+  await expect(page.getByRole("button", { name: "Dismiss" })).toHaveCount(0);
   if (onPhone) {
     // The desktop panel is not a sheet and has no such listener, so
     // only the phone's drawer is the case that can regress.
@@ -224,7 +226,7 @@ test("a tap on a toast over the open drawer is the toast's, not the drawer's", a
   expect(hit).toBe("the toast");
 });
 
-test("dismissing a toast over the console leaves the console open", async ({ page }) => {
+test("minimizing a problem over the console leaves the console open", async ({ page }) => {
   // The same guard, on the stock sheet the console is. A caller passing
   // its own onInteractOutside used to replace the guard silently, and
   // nothing covered the console to notice.
@@ -236,16 +238,14 @@ test("dismissing a toast over the console leaves the console open", async ({ pag
   const console = page.getByTestId("console-sheet");
   await expect(console).toBeVisible();
 
-  // The front card's close button, once the card has come to rest: the
-  // first card in the page could still be sliding in from off screen
-  // (from the top, on a phone), where a forced click missed it.
-  const closeable = page.locator("[data-sonner-toast]:has(button[data-close-button])");
-  const front = page.locator('[data-sonner-toast][data-front="true"]:has(button[data-close-button])');
+  // The front card's minimize, once the card has come to rest: the first
+  // card in the page could still be sliding in from off screen (from the
+  // top, on a phone), where a forced click missed it.
+  const front = page.locator(`[data-sonner-toast][data-front="true"]:has(${MINIMIZE})`);
   await expect(front).toBeVisible({ timeout: 20000 });
-  const before = await closeable.count();
-  await front.locator("button[data-close-button]").click();
+  await front.locator(MINIMIZE).click();
 
-  await expect.poll(() => closeable.count(), { timeout: 10000 }).toBe(before - 1);
+  await expect(page.locator('[data-problem="minimized"]').first()).toBeVisible({ timeout: 10000 });
   await expect(console).toBeVisible();
 });
 

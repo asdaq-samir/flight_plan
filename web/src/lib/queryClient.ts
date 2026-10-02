@@ -1,6 +1,6 @@
 import { MutationCache, QueryCache, QueryClient, queryOptions } from "@tanstack/react-query";
-import { toast } from "sonner";
 import { ApiError, api, describeError } from "./api/client";
+import { dismissProblem, notifyProblem } from "./notify";
 
 declare module "@tanstack/react-query" {
   interface Register {
@@ -31,11 +31,13 @@ export const queryClient = new QueryClient({
     onError: (error, query) => {
       const silent = query.meta?.silent;
       if (silent === true || (typeof silent === "function" && silent(error))) return;
-      // A failure the page lists the reasons for (a nav log with no legal
-      // altitude): its headline, and where the rest is. It was the whole
-      // of it, a paragraph gone in ten seconds.
-      const listed = error instanceof ApiError && error.advice !== null;
-      failed(describeError(error), retryable(error), listed ? "The Nav Log says why, and what to do." : undefined);
+      failingWith.set(query.queryHash, failed(describeError(error), retryable(error)));
+    },
+    // A failure's problem goes once every query it was about answers.
+    onSuccess: (_data, query) => {
+      const id = failingWith.get(query.queryHash);
+      failingWith.delete(query.queryHash);
+      if (id !== undefined && ![...failingWith.values()].includes(id)) dismissProblem(id);
     },
   }),
   mutationCache: new MutationCache({
@@ -59,18 +61,21 @@ export const queryClient = new QueryClient({
  * query that happened to toast last. When a single call fails on its
  * own, that is still exactly one retry.
  */
-function failed(message: string, retry: boolean, description?: string) {
-  toast.error(message, {
-    id: `failed:${message}`,
-    description,
-    duration: 10000,
-    action: retry ? {
+/** Which problem each failing query raised: a query's hash to its id. */
+const failingWith = new Map<string, string | number>();
+
+function failed(message: string, retry: boolean): string | number {
+  // A problem that stays, folded to a line, where it went after ten
+  // seconds (lib/notify).
+  return notifyProblem({
+    title: message,
+    actions: retry ? [{
       label: "Try again",
       onClick: () => void queryClient.refetchQueries({
         predicate: query => query.state.status === "error",
       }),
-    } : undefined,
-  });
+    }] : [],
+  }, `failed:${message}`);
 }
 
 /** Whether asking again could answer differently: not for what the
@@ -114,11 +119,12 @@ export const capabilitiesQuery = queryOptions({
   staleTime: Infinity, meta: { silent: true },
 });
 
-/** A route's course: the two airports and the line between them, the
- *  same answer for as long as the page is open. No `meta` -- a course
- *  that fails is the page's first news that the planner is down. */
-export const courseQuery = (dep: string, dest: string) => queryOptions({
-  queryKey: ["course", dep, dest], queryFn: () => api.course(dep, dest), staleTime: Infinity,
+/** A route's course: its airports, any stops among them, and the line
+ *  through them, the same answer for as long as the page is open. No
+ *  `meta` -- a course that fails is the page's first news that the
+ *  planner is down. */
+export const courseQuery = (dep: string, dest: string, stops: string[] = []) => queryOptions({
+  queryKey: ["course", dep, dest, stops.join(",")], queryFn: () => api.course(dep, dest, stops), staleTime: Infinity,
 });
 
 /** The Class B airports and their weather. The airspace never moves and

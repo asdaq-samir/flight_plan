@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { Navigation } from "lucide-react";
-import { toast } from "sonner";
+import { dismissProblem, notifyProblem } from "../lib/notify";
 import { cn } from "cn";
 import IconButton from "./IconButton";
 import { ownShipAvailable, useOwnShip } from "../lib/map/ownShip";
@@ -28,14 +28,16 @@ export default function MyPositionButton() {
   const setEnabled = useOwnShip(s => s.setEnabled);
   const recentre = useOwnShip(s => s.recentre);
   useEffect(() => {
-    if (error) toast.error("No position", { id: "own-ship", description: error });
+    // Put away when the position comes, or is turned off.
+    if (error) notifyProblem({ title: "No position", description: error }, "own-ship");
+    else dismissProblem("own-ship");
   }, [error]);
   const following = enabled && follow;
   const tap = () => {
     if (!ownShipAvailable()) {
-      toast.error("No position over this connection", {
-        id: "own-ship", description: "The browser gives a page the phone's position only over https.",
-      });
+      notifyProblem({
+        title: "No position over this connection", description: "The browser gives a page the phone's position only over https.",
+      }, "own-ship");
     } else if (!enabled) {
       setEnabled(true);
       recentre();

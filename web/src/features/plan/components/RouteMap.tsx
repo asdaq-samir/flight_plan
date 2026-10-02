@@ -11,7 +11,7 @@ import { AirportsLayer } from "../../../lib/map/AirportsLayer";
 import { chipColourOf } from "../../../lib/map/flightCategory";
 import { CourseLine } from "../../../lib/map/CourseLine";
 import { Halo } from "../../../lib/map/Halo";
-import { airportIcon, dotIcon } from "../../../lib/map/icons";
+import { airportIcon, dotIcon, waypointIcon } from "../../../lib/map/icons";
 import { FocusOn } from "../../../lib/map/MapEffects";
 import { MapCard } from "../../../lib/map/MapCard";
 import { MapPopup } from "../../../lib/map/MapPopup";
@@ -99,8 +99,16 @@ function weatherOf(ident: string, briefing: BriefingState, classB: ClassBAirport
   };
 }
 
+/** The route's airports in the order they are flown -- the departure,
+ *  each stop, the destination -- or, `each` false, each once: a round
+ *  trip's departure is its destination, one chip on the map. */
+function routeAirports(course: Course, each = false) {
+  const all = [course.departure, ...(course.stops ?? []), course.destination];
+  return each ? all : all.filter((a, i) => all.findIndex(b => b.ident === a.ident) === i);
+}
+
 /**
- * The route's departure and destination. Selectable like every other
+ * The route's departure, stops and destination. Selectable like every other
  * marker: a tap brings the map to it and selects it, which is also what
  * the nav log's first and last rows do. They are the two markers drawn
  * at every zoom, so on a route whose checkpoints are still too far out
@@ -117,7 +125,18 @@ function Endpoints({ course, weather, onSelectPoint }: { course: Course; weather
   const { data: classB } = useQuery({ ...classBQuery, enabled: false });
   return (
     <>
-      {[course.departure, course.destination].map(a => {
+      {routeAirports(course).map(a => {
+        // A waypoint flown through: the sectional's magenta, no weather.
+        if (a.kind === "fix") {
+          return (
+            <Marker
+              key={a.ident} position={[a.lat, a.lon]} icon={waypointIcon(a.ident)}
+              eventHandlers={{ click: e => { L.DomEvent.stopPropagation(e); onSelectPoint(a.lat, a.lon); } }}
+            >
+              <MapTooltip><span className="font-semibold">{a.ident}</span> · {a.name}</MapTooltip>
+            </Marker>
+          );
+        }
         const field = classBShown ? classB?.find(b => b.ident === a.ident) : undefined;
         const w = weatherOf(a.ident, weather, field);
         return (
@@ -204,7 +223,7 @@ export default function RouteMap({
   const showClassB = usePreferences(s => s.classB);
   const { data: classBAirports } = useQuery({ ...classBQuery, enabled: false });
   const chipped = useMemo(() => new Set([
-    ...(course ? [course.departure.ident, course.destination.ident] : []),
+    ...(course ? routeAirports(course).map(a => a.ident) : []),
     ...(showClassB ? (classBAirports ?? []).map(a => a.ident) : []),
   ]), [course, showClassB, classBAirports]);
 
@@ -235,7 +254,7 @@ export default function RouteMap({
         <>
           <CourseLine
             line={course.course_line as [number, number][]}
-            tooltip={`${course.departure.ident} → ${course.destination.ident} · ${course.distance_nm} nm`}
+            tooltip={`${routeAirports(course, true).map(a => a.ident).join(" → ")} · ${course.distance_nm} nm`}
           />
           <Endpoints course={course} weather={airportWeather} onSelectPoint={onSelectPoint} />
           <Checkpoints candidates={candidates} selected={selected} onSelectCandidate={onSelectCandidate} />

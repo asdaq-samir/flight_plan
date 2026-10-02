@@ -34,13 +34,14 @@ export function descriptionKey(lat: number, lon: number): string {
  * their own reasons -- how they are generated, saved and kept -- and
  * none of them is the nav log's.
  */
-export function useCheckpointNotes(dep: string, dest: string) {
+export function useCheckpointNotes(dep: string, dest: string, stops: string[] = []) {
   const { data: pilot } = useQuery(pilotQuery);
   const pilotId = pilot?.id ?? null;
+  const via = stops.join(",");
   const descriptions = useQuery({
-    queryKey: ["descriptions", dep, dest, pilotId],
+    queryKey: ["descriptions", dep, dest, via, pilotId],
     queryFn: streamedQuery({
-      streamFn: ({ signal }) => api.describeCheckpoints(dep, dest, signal),
+      streamFn: ({ signal }) => api.describeCheckpoints(dep, dest, signal, stops),
     }),
     enabled: false, staleTime: Infinity,
   });
@@ -54,7 +55,7 @@ export function useCheckpointNotes(dep: string, dest: string) {
   // a failed save takes its own text back out -- but only if the box
   // still holds that text, so a later edit of the same checkpoint that
   // did save is never undone by an earlier one's failure.
-  const scope = `${dep}\u0000${dest}\u0000${pilotId ?? ""}`;
+  const scope = `${dep}\u0000${dest}\u0000${via}\u0000${pilotId ?? ""}`;
   const [edits, setEdits] = useState<{ scope: string; notes: Record<string, string> }>({ scope, notes: {} });
   const descriptionMap = useMemo(() => {
     const map: Record<string, Description> = {};
@@ -76,7 +77,7 @@ export function useCheckpointNotes(dep: string, dest: string) {
 
   const saveNote = useMutation({
     mutationFn: ({ lat, lon, text }: { lat: number; lon: number; text: string }) =>
-      api.saveCheckpointNote(dep, dest, lat, lon, text),
+      api.saveCheckpointNote(dep, dest, lat, lon, text, stops),
     onMutate: ({ lat, lon, text }) => {
       const key = descriptionKey(lat, lon);
       setEdits(current => ({

@@ -1,6 +1,6 @@
 import { useCallback } from "react";
 import { experimental_streamedQuery as streamedQuery, type UseQueryResult, useQuery } from "@tanstack/react-query";
-import { toast } from "sonner";
+import { notifyProblem } from "../../../lib/notify";
 import { api, describeError } from "../../../lib/api/client";
 import { ended } from "../../../lib/api/streams";
 import type { Leg, NarrativeMessage, NarrativeRequest, NavLogAltitude } from "../../../lib/api/types";
@@ -59,7 +59,7 @@ export function useNarratives({ dep, dest, planKey, nav, legs, whole }: Narrativ
   const generateNarrative = useCallback((framework: Framework) => {
     // Only a whole log: the request carries its legs, and a narrative of
     // half of them would be kept for this key as if it were the whole.
-    if (!whole) { toast.error("The nav log isn't fully loaded yet."); return; }
+    if (!whole) { notifyProblem({ title: "The nav log isn't fully loaded yet." }); return; }
     void (framework === "langgraph" ? langgraph : crewai).refetch();
   }, [whole, langgraph, crewai]);
 

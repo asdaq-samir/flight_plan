@@ -12,6 +12,8 @@ public record FlightDto(
         Long id,
         String departureIdent,
         String destinationIdent,
+        /** The airports it lands at on the way, in order. */
+        List<String> stops,
         @Nullable String aircraftTailNumber,
         @Nullable Integer cruiseAltitudeFt,
         @Nullable Double totalDistanceNm,

@@ -3,6 +3,7 @@ package com.northflyers.vfr.dto;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 import java.time.Instant;
 import java.util.List;
 import org.springframework.lang.Nullable;
@@ -29,5 +30,10 @@ public record SaveFlightRequest(
         @Nullable Double totalFuelGal,
         @Nullable Instant plannedFor,
         @Valid
-        List<SaveFlightCheckpointRequest> checkpoints) {
+        List<SaveFlightCheckpointRequest> checkpoints,
+        /** The airports landed at on the way, in order; null or empty
+         *  for a flight flown straight. */
+        @Nullable
+        @Size(max = 8, message = "a flight makes at most 8 stops")
+        List<@Pattern(regexp = "[A-Za-z0-9]{2,5}", message = "a stop must be a 2-5 character airport or waypoint ident") String> stops) {
 }

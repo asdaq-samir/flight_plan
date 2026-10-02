@@ -17,17 +17,18 @@ function useDebounced<T>(value: T, delayMs: number): T {
 /**
  * The airports whose ident or name starts with what is typed -- the
  * route form's pickers (AirportPicker) and the panel's search bar
- * (PanelCapsule) alike. The rows answer the typed text a debounce and a
+ * (PanelCapsule) alike -- and, with `fixes`, a stop's: the VFR and GPS
+ * waypoints too. The rows answer the typed text a debounce and a
  * request behind it, the last answer staying up while the next loads:
  * `answered` says whether they are the answer to what is in the box now,
  * which is when Enter may take the first of them.
  */
-export function useAirportSearch(text: string, enabled = true) {
+export function useAirportSearch(text: string, enabled = true, fixes = false) {
   const typed = text.trim();
   const q = useDebounced(typed, 200);
   const { data, isPlaceholderData } = useQuery({
-    queryKey: ["airportSearch", q],
-    queryFn: () => api.airportSearch(q),
+    queryKey: ["airportSearch", q, fixes],
+    queryFn: () => api.airportSearch(q, fixes),
     enabled: enabled && q.length > 0,
     placeholderData: keepPreviousData,
   });

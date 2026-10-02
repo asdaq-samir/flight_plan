@@ -169,7 +169,7 @@ test("plan page: the nav log is computed for an aeroplane the pilot picks in its
   await expect(page.getByTestId("aircraft-select")).toContainText("PA28");
 });
 
-test("plan page: no legal altitude is a short toast, and the nav log opens on why, as a list, with the pilot's own altitude to plan it anyway", async ({ page }) => {
+test("plan page: no legal altitude is a problem that stays: why as a list, a stop or an altitude of the pilot's own to go on, folded to a line after a while", async ({ page }) => {
   // The planner's answer for Chicago to Las Vegas in a 172, without the
   // minutes of terrain and winds it takes to reach it.
   await page.route("**/api/planner/navlog**", route => route.fulfill({
@@ -189,26 +189,54 @@ test("plan page: no legal altitude is a short toast, and the nav log opens on wh
   }));
   await page.goto("/app/plan?dep=C81&dest=KDLH");
 
-  // The toast: the headline, and where the rest is -- with no Try again.
-  const toast = page.locator("[data-sonner-toast]", { hasText: "No legal VFR cruising altitude" });
-  await expect(toast).toBeVisible({ timeout: slow(30000) });
-  await expect(toast).toContainText("The Nav Log says why");
-  await expect(toast).not.toContainText("terrain");
-  await expect(toast.getByRole("button", { name: "Try again" })).toHaveCount(0);
-
-  // The nav log, open on it: the reasons a list, the advice under them.
-  await page.getByTestId("sidebar-trigger-button").click();
-  const why = sideDrawer(page).getByTestId("navlog-unflyable");
-  await expect(why).toBeVisible();
-  await expect(why.getByRole("listitem")).toHaveText([
+  // Where along the route, why as a list -- with no Try again, which
+  // would only say the same.
+  const problem = page.locator('[data-problem="open"]', { hasText: "No legal VFR cruising altitude" });
+  await expect(problem).toBeVisible({ timeout: slow(30000) });
+  await expect(problem.getByRole("listitem")).toHaveText([
     "The terrain and obstacles there need 10,600 ft.",
     "The first westbound VFR altitude above that is 12,500 ft.",
     "The aircraft's service ceiling stops at 11,700 ft.",
   ]);
-  await expect(why).toContainText("Route around the high ground");
+  await expect(problem.getByRole("button", { name: "Try again" })).toHaveCount(0);
+  // Not in the nav log: it took the room the log needs.
+  await expect(page.getByTestId("navlog-unflyable")).toHaveCount(0);
 
-  // Planned anyway, at the pilot's own altitude.
-  await why.getByTestId("custom-altitude").fill("12500");
-  await why.getByTestId("custom-altitude-fly").click();
+  // Folded to its line after a while, not gone; a tap opens it again.
+  const folded = page.locator('[data-problem="minimized"]', { hasText: "No legal VFR cruising altitude" });
+  await expect(folded).toBeVisible({ timeout: 15000 });
+  await folded.getByTestId("problem-open").click();
+  await expect(problem).toBeVisible();
+
+  // Add a stop: the panel, its Add Stop open.
+  await problem.getByTestId("unflyable-add-stop").click();
+  await expect(page.getByPlaceholder(/Search/)).toBeVisible();
+  await page.keyboard.press("Escape");
+
+  // Or an altitude of the pilot's own: planned anyway, at it.
+  await page.reload();
+  await expect(problem).toBeVisible({ timeout: slow(30000) });
+  await problem.getByTestId("unflyable-altitude").fill("12500");
+  await problem.getByTestId("unflyable-fly").click();
   await expect(page).toHaveURL(/[?&]altitude_ft=12500/);
+});
+
+test("plan page: no legal altitude's own altitude field takes a finger's tap over the chart", async ({ page }) => {
+  // The toasts let the chart have the pointer, and only buttons took it
+  // back: a field in one was out of a finger's reach, its keyboard never
+  // coming up.
+  await page.route("**/api/planner/navlog**", route => route.fulfill({
+    status: 200, contentType: "application/x-ndjson",
+    body: JSON.stringify({ type: "error", retry: false, detail: "No legal VFR cruising altitude 830-858 nm along the route",
+      reasons: ["The terrain and obstacles there need 10,600 ft."], advice: "Route around the high ground." }) + "\n",
+  }));
+  await page.goto("/app/plan?dep=C81&dest=KDLH");
+  const field = page.getByTestId("unflyable-altitude");
+  await expect(field).toBeVisible({ timeout: slow(30000) });
+  // Once the toast has come to rest: it slides in from the screen's edge.
+  await expect.poll(async () => {
+    const box = (await field.boundingBox())!;
+    return page.evaluate(([x, y]) => (document.elementFromPoint(x, y) as HTMLElement | null)?.dataset.testid ?? null,
+      [box.x + box.width / 2, box.y + box.height / 2]);
+  }, { timeout: 5000 }).toBe("unflyable-altitude");
 });

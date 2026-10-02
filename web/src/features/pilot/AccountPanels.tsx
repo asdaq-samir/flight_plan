@@ -8,6 +8,7 @@ import { Check, CircleMinus, Info, Plane, Plus, Route } from "lucide-react";
 import EmptyState from "../../components/EmptyState";
 import IconButton from "../../components/IconButton";
 import { cn } from "cn";
+import { routeName } from "../../lib/identSchema";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { InputGroup, InputGroupAddon, InputGroupInput, InputGroupText } from "../../components/ui/input-group";
@@ -398,16 +399,18 @@ export function FlightsPanel({ pilot }: { pilot: PilotState }) {
     },
   });
   const [askDelete, deleteDialog] = useConfirm({
-    title: flightToDelete ? `Delete ${flightToDelete.departureIdent} → ${flightToDelete.destinationIdent}?` : "Delete this flight?",
+    title: flightToDelete ? `Delete ${routeName(flightToDelete.departureIdent, flightToDelete.destinationIdent, flightToDelete.stops)}?` : "Delete this flight?",
     description: "The filed flight goes from your flights. This can't be undone.",
     confirmLabel: "Delete flight",
     destructive: true,
     onConfirm: () => { if (flightToDelete) remove.mutate(flightToDelete.id); },
   });
 
-  /** Back to the planner on this flight's route, at its altitude. */
+  /** Back to the planner on this flight's route, through its stops, at
+   *  its altitude. */
   const planHref = (f: FlightSummary) => `/plan?${new URLSearchParams({
     dep: f.departureIdent, dest: f.destinationIdent,
+    ...(f.stops.length ? { stops: f.stops.join(",") } : {}),
     ...(f.cruiseAltitudeFt != null ? { altitude_ft: String(f.cruiseAltitudeFt) } : {}),
   })}`;
 
@@ -438,7 +441,7 @@ export function FlightsPanel({ pilot }: { pilot: PilotState }) {
           footer={editing ? "Delete a flight with the minus before it." : "A flight opens on the map at its altitude."}
         >
           {(list ?? []).map(f => {
-            const name = `${f.departureIdent} → ${f.destinationIdent}`;
+            const name = routeName(f.departureIdent, f.destinationIdent, f.stops);
             const row = {
               title: <>
                 <span className="font-mono font-semibold">{name}</span>

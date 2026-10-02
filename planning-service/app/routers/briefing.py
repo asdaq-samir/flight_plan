@@ -32,8 +32,30 @@ DEFAULT_ETE_MIN = 120
 router = APIRouter()
 
 
+def _along_hops(r, read) -> list:
+    """`read(start, end)` along each hop of the route, in turn: a route
+    with stops is not the straight line from its departure to its
+    destination."""
+    return [read(hop.start, hop.end) for hop in r.hops]
+
+
+def _least(values):
+    known = [v for v in values if v is not None]
+    return min(known) if known else None
+
+
+def _joined_forecast(forecasts: list[dict]) -> dict:
+    """The hops' forecasts as one: every station once, and the lowest
+    ceiling and visibility any of them forecasts."""
+    return {
+        "min_ceiling_ft": _least(f["min_ceiling_ft"] for f in forecasts),
+        "min_visibility_sm": _least(f["min_visibility_sm"] for f in forecasts),
+        "stations": list({s["icaoId"]: s for f in forecasts for s in f["stations"]}.values()),
+    }
+
+
 @router.get("/api/briefing")
-def briefing(dep: str, dest: str, depart: datetime | None = None, ete_min: float | None = None) -> Briefing:
+def briefing(dep: str, dest: str, stops: str = "", depart: datetime | None = None, ete_min: float | None = None) -> Briefing:
     """Everything the nav log's own leg math doesn't cover: adverse
     conditions (SIGMET/AIRMET), current conditions (METAR) and
     forecast (TAF-derived ceiling/visibility) along the route, and
@@ -42,10 +64,13 @@ def briefing(dep: str, dest: str, depart: datetime | None = None, ete_min: float
     The forecast is for the flight: from `depart` (now when not given;
     UTC when naive) to an hour past arrival, `ete_min` after it (two
     hours when not given). It used to be read at the moment of asking,
-    whatever time the pilot was planning to go.
+    whatever time the pilot was planning to go. With stops (`stops`,
+    "KDSM,KLNK"), along every hop and for every airport landed at.
     """
-    r = load_route(dep, dest)
-    idents = (r.dep_ident, r.dest_ident)
+    r = load_route(dep, dest, stops)
+    # Every airport landed at, once each -- a round trip lands where it
+    # left -- not a waypoint flown through, which has no weather of its own.
+    idents = tuple(dict.fromkeys(i for i, a in zip(r.idents, r.airports) if not a.get("fix")))
     start = time.time() if depart is None else (depart if depart.tzinfo else depart.replace(tzinfo=timezone.utc)).timestamp()
     window = (start, start + (ete_min if ete_min is not None else DEFAULT_ETE_MIN) * 60 + MARGIN_S)
 
@@ -56,8 +81,9 @@ def briefing(dep: str, dest: str, depart: datetime | None = None, ete_min: float
     # weather round trip, and were previously paying that cost after
     # the weather pool had already finished instead of alongside it.
     with ThreadPoolExecutor(max_workers=7) as pool:
-        hazards_future = pool.submit(weather.hazards_along_route, r.start, r.end)
-        forecast_future = pool.submit(weather.ceiling_visibility_along_route, r.start, r.end, window=window)
+        hazards_future = pool.submit(_along_hops, r, lambda a, b: weather.hazards_along_route(a, b))
+        forecast_future = pool.submit(
+            _along_hops, r, lambda a, b: weather.ceiling_visibility_along_route(a, b, window=window))
         metars_future = pool.submit(weather.metar_for_idents, list(idents))
         runways = {ident: pool.submit(airports.get_runways, ident) for ident in idents}
         frequencies = {ident: pool.submit(airports.get_frequencies, ident) for ident in idents}
@@ -72,12 +98,12 @@ def briefing(dep: str, dest: str, depart: datetime | None = None, ete_min: float
         # instead of failing to load at all.
         weather_unavailable = []
         try:
-            hazards = hazards_future.result()
+            hazards = list({h.get("raw") or repr(h): h for each in hazards_future.result() for h in each}.values())
         except weather.WeatherServiceError:
             hazards = []
             weather_unavailable.append("hazards")
         try:
-            forecast = forecast_future.result()
+            forecast = _joined_forecast(forecast_future.result())
         except weather.WeatherServiceError:
             forecast = {"min_ceiling_ft": None, "min_visibility_sm": None, "stations": []}
             weather_unavailable.append("forecast")

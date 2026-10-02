@@ -38,6 +38,28 @@ describe("navLogRows", () => {
   });
 });
 
+describe("a route with stops", () => {
+  const withStop = { ...ends, stops: [airport("KMSN", 43.1, -89.3)] };
+  const onHop = (c: Candidate, hop: number) => ({ ...c, hop }) as Candidate;
+
+  test("each hop's checkpoints, then the stop it lands at, the legs running on through it", () => {
+    const rows = navLogRows(withStop, [onHop(cp(42.6, -88.6, 20), 0), onHop(cp(44, -90, 150), 1)], [leg(10), leg(20), leg(30), leg(40)]);
+    expect(rows.map(r => r.kind)).toEqual(["departure", "checkpoint", "stop", "checkpoint", "destination"]);
+    expect(rows[2]).toMatchObject({ kind: "stop", airport: { ident: "KMSN" }, minutesFlown: 30 });
+    expect(rows.at(-1)?.minutesFlown).toBe(100);
+  });
+
+  test("a hop with no checkpoints is the stop alone", () => {
+    const rows = navLogRows(withStop, [], [leg(10), leg(20)]);
+    expect(rows.map(r => r.kind)).toEqual(["departure", "stop", "destination"]);
+  });
+
+  test("a stop is filed as one, as far along as its legs", () => {
+    const saved = savedCheckpoints(navLogRows(withStop, [], [leg(10, 55), leg(20, 270)]), 325);
+    expect(saved[1]).toMatchObject({ name: "KMSN", category: "stop", alongTrackNm: 55 });
+  });
+});
+
 describe("savedCheckpoints", () => {
   test("the filed shape: departure first at 0, destination last at the whole distance", () => {
     const selected = [cp(43, -89, 50), cp(44, -90, 120)];

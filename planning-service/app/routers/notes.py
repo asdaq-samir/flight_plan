@@ -11,9 +11,11 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from vfr import checkpoint_notes
 
-from ..common import line, ndjson, route_key
+from vfr import geo
+
+from ..common import line, load_route, ndjson
 from ..schemas import CheckpointNoteSaved, NoteCheckpoint, NoteDone, NoteError, NoteStart
-from ..scoring import scored_and_selected
+from ..scoring import route_checkpoints
 
 router = APIRouter()
 
@@ -36,6 +38,8 @@ GLOBAL_ANTHROPIC_ERRORS = (
 class CheckpointNoteRequest(BaseModel):
     departure_ident: str
     destination_ident: str
+    #: The stops landed at on the way, in order (app.common.load_route).
+    stops: list[str] = []
     lat: float
     lon: float
     description: str
@@ -44,6 +48,19 @@ class CheckpointNoteRequest(BaseModel):
 class GenerateNotesRequest(BaseModel):
     departure_ident: str
     destination_ident: str
+    stops: list[str] = []
+
+
+def _hop_key(hop) -> str:
+    """Where a hop's notes are kept: as the route between its two
+    landings, so a hop flown on its own, or in another route, reads the
+    notes made on it."""
+    return checkpoint_notes.route_key(hop.dep_ident, hop.dest_ident)
+
+
+def _hop_of(r, lat: float, lon: float):
+    """The hop of `r` a point is on: the one it lies nearest beside."""
+    return min(r.hops, key=lambda hop: abs(geo.cross_track_distance_nm(lat, lon, hop.start, hop.end)))
 
 
 #: Set by webapp's proxy from the signed-in pilot, and stripped from
@@ -116,13 +133,15 @@ def describe_checkpoints(
     every deployment. The caller's own edit is what they see where they
     made one; generation only ever fills the shared note.
     """
-    dep_ident, dest_ident = route_key(request.departure_ident, request.destination_ident)
-    _, selected = scored_and_selected(dep_ident, dest_ident)  # already along-track order
-    route = checkpoint_notes.route_key(dep_ident, dest_ident)
+    r = load_route(request.departure_ident, request.destination_ident, request.stops)
+    dep_ident = r.dep_ident
+    _, selected, _ = route_checkpoints(r)  # already along-track order
     # Notes are matched by place, so the same corridor flown the other
-    # way reads the same ones.
-    existing = checkpoint_notes.load_notes(route) + checkpoint_notes.load_notes(
-        checkpoint_notes.route_key(dest_ident, dep_ident))
+    # way reads the same ones; a route with stops keeps each hop's as
+    # that hop's.
+    existing = [note for hop in r.hops for note in (
+        checkpoint_notes.load_notes(_hop_key(hop))
+        + checkpoint_notes.load_notes(checkpoint_notes.route_key(hop.dest_ident, hop.dep_ident)))]
 
     def checkpoint_line(cp: dict, description: str | None, source: str, detail: str | None = None) -> str:
         return line(NoteCheckpoint(
@@ -147,7 +166,8 @@ def describe_checkpoints(
                 next_cp = selected[i + 1] if i + 1 < len(selected) else None
                 next_name = (next_cp["name"] or next_cp["category"]) if next_cp else None
                 description = _describe_checkpoint(cp, dep_ident, prev_name, next_name)
-                held, written = checkpoint_notes.seed_note(route, cp["lat"], cp["lon"], description)
+                held, written = checkpoint_notes.seed_note(
+                    _hop_key(r.hops[cp.get("hop", 0)]), cp["lat"], cp["lon"], description)
             except GLOBAL_ANTHROPIC_ERRORS as err:
                 global_error = str(err)
                 yield line(NoteError(detail=global_error))
@@ -176,7 +196,7 @@ def save_checkpoint_note(
     note; where nobody can sign in, this becomes the shared note."""
     if not note.description.strip():
         raise HTTPException(422, "description must not be empty")
-    dep_ident, dest_ident = route_key(note.departure_ident, note.destination_ident)
-    route = checkpoint_notes.route_key(dep_ident, dest_ident)
+    r = load_route(note.departure_ident, note.destination_ident, note.stops)
+    route = _hop_key(_hop_of(r, note.lat, note.lon))
     saved = checkpoint_notes.save_note(route, note.lat, note.lon, note.description.strip(), x_pilot_id)
     return CheckpointNoteSaved(ok=True, note=saved)

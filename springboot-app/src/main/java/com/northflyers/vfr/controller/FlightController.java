@@ -61,7 +61,7 @@ public class FlightController {
     }
 
     private static FlightSummaryDto toSummaryDto(Flight f) {
-        return new FlightSummaryDto(f.getId(), f.getDepartureIdent(), f.getDestinationIdent(),
+        return new FlightSummaryDto(f.getId(), f.getDepartureIdent(), f.getDestinationIdent(), f.getStops(),
                 f.getAircraft() == null ? null : f.getAircraft().getTailNumber(),
                 f.getCruiseAltitudeFt(), f.getTotalDistanceNm(), f.getTotalEteMin(), f.getTotalFuelGal(),
                 f.getPlannedFor(), f.getCreatedAt());
@@ -71,7 +71,7 @@ public class FlightController {
         List<FlightCheckpointDto> checkpoints = f.getCheckpoints().stream()
                 .map(FlightController::toCheckpointDto)
                 .toList();
-        return new FlightDto(f.getId(), f.getDepartureIdent(), f.getDestinationIdent(),
+        return new FlightDto(f.getId(), f.getDepartureIdent(), f.getDestinationIdent(), f.getStops(),
                 f.getAircraft() == null ? null : f.getAircraft().getTailNumber(),
                 f.getCruiseAltitudeFt(), f.getTotalDistanceNm(), f.getTotalEteMin(), f.getTotalFuelGal(),
                 f.getPlannedFor(), f.getCreatedAt(), checkpoints);

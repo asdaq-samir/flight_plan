@@ -19,7 +19,7 @@ def _fresh_caches():
 
 
 def airport(ident: str) -> dict:
-    coords = {"C81": (42.3172, -88.0905), "KDLH": (46.8421, -92.1936)}[ident]
+    coords = {"C81": (42.3172, -88.0905), "KDLH": (46.8421, -92.1936), "KMSN": (43.1399, -89.3375)}[ident]
     return {"ident": ident, "name": ident, "lat": coords[0], "lon": coords[1], "elevation_ft": 900.0,
             "municipality": "", "region": ""}
 
@@ -33,7 +33,7 @@ def no_chart_model(monkeypatch):
 
 @pytest.fixture(autouse=True)
 def known_airports(monkeypatch):
-    """C81 and KDLH, without the airports table. A test about an unknown
+    """C81, KDLH and KMSN, without the airports table. A test about an unknown
     ident stubs get_airport again itself."""
     monkeypatch.setattr(airports, "get_airport", lambda ident, **kw: airport(ident.upper()))
 

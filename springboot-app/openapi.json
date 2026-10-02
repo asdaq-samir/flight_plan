@@ -193,6 +193,12 @@
             "format" : "date-time",
             "type" : [ "string", "null" ]
           },
+          "stops" : {
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
+          },
           "totalDistanceNm" : {
             "format" : "double",
             "type" : [ "number", "null" ]
@@ -206,7 +212,7 @@
             "type" : [ "number", "null" ]
           }
         },
-        "required" : [ "aircraftTailNumber", "checkpoints", "createdAt", "cruiseAltitudeFt", "departureIdent", "destinationIdent", "id", "plannedFor", "totalDistanceNm", "totalEteMin", "totalFuelGal" ],
+        "required" : [ "aircraftTailNumber", "checkpoints", "createdAt", "cruiseAltitudeFt", "departureIdent", "destinationIdent", "id", "plannedFor", "stops", "totalDistanceNm", "totalEteMin", "totalFuelGal" ],
         "type" : "object"
       },
       "FlightSummaryDto" : {
@@ -236,6 +242,12 @@
             "format" : "date-time",
             "type" : [ "string", "null" ]
           },
+          "stops" : {
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
+          },
           "totalDistanceNm" : {
             "format" : "double",
             "type" : [ "number", "null" ]
@@ -249,7 +261,7 @@
             "type" : [ "number", "null" ]
           }
         },
-        "required" : [ "aircraftTailNumber", "createdAt", "cruiseAltitudeFt", "departureIdent", "destinationIdent", "id", "plannedFor", "totalDistanceNm", "totalEteMin", "totalFuelGal" ],
+        "required" : [ "aircraftTailNumber", "createdAt", "cruiseAltitudeFt", "departureIdent", "destinationIdent", "id", "plannedFor", "stops", "totalDistanceNm", "totalEteMin", "totalFuelGal" ],
         "type" : "object"
       },
       "MagicLinkRequest" : {
@@ -381,6 +393,15 @@
             "format" : "date-time",
             "type" : [ "string", "null" ]
           },
+          "stops" : {
+            "items" : {
+              "pattern" : "[A-Za-z0-9]{2,5}",
+              "type" : [ "string", "null" ]
+            },
+            "maxItems" : 8,
+            "minItems" : 0,
+            "type" : [ "array", "null" ]
+          },
           "totalDistanceNm" : {
             "format" : "double",
             "type" : [ "number", "null" ]
@@ -394,7 +415,7 @@
             "type" : [ "number", "null" ]
           }
         },
-        "required" : [ "aircraftId", "checkpoints", "cruiseAltitudeFt", "departureIdent", "destinationIdent", "plannedFor", "totalDistanceNm", "totalEteMin", "totalFuelGal" ],
+        "required" : [ "aircraftId", "checkpoints", "cruiseAltitudeFt", "departureIdent", "destinationIdent", "plannedFor", "stops", "totalDistanceNm", "totalEteMin", "totalFuelGal" ],
         "type" : "object"
       },
       "StreamingResponseBody" : {

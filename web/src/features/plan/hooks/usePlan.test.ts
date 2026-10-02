@@ -14,7 +14,7 @@ import type { CheckpointDescriptionMessage, Course } from "../../../lib/api/type
 import { queryClient } from "../../../lib/queryClient";
 import { usePlan, type PlanParams } from "./usePlan";
 
-vi.mock("sonner", () => ({ toast: Object.assign(vi.fn(), { error: vi.fn(), success: vi.fn(), warning: vi.fn() }) }));
+vi.mock("sonner", () => ({ toast: Object.assign(vi.fn(), { error: vi.fn(), success: vi.fn(), warning: vi.fn(), custom: vi.fn(), dismiss: vi.fn() }) }));
 
 vi.mock("../../../lib/api/client", async importOriginal => ({
   ...(await importOriginal<typeof import("../../../lib/api/client")>()),
@@ -35,8 +35,9 @@ const { toast } = await import("sonner");
 
 function courseFixture(): Course {
   return {
-    departure: { ident: "C81", name: "Campbell", lat: 42.1, lon: -88.1, elevation_ft: 890 },
-    destination: { ident: "KDLH", name: "Duluth", lat: 46.8, lon: -92.2, elevation_ft: 1428 },
+    departure: { ident: "C81", name: "Campbell", lat: 42.1, lon: -88.1, elevation_ft: 890, kind: "airport" },
+    destination: { ident: "KDLH", name: "Duluth", lat: 46.8, lon: -92.2, elevation_ft: 1428, kind: "airport" },
+    stops: [],
     distance_nm: 323.4, bearing_deg: 328,
     course_line: [[42.1, -88.1], [46.8, -92.2]],
     max_zoom: 12, min_zoom: 4, chart_cycle: "09-03-2026", chart_revision: 0, chart_tiles_base: null,
@@ -45,7 +46,7 @@ function courseFixture(): Course {
 }
 
 const params: PlanParams = {
-  dep: "C81", dest: "KDLH", altitudeFt: "", altitudeChoice: "lowest", depart: "",
+  dep: "C81", dest: "KDLH", stops: [], altitudeFt: "", altitudeChoice: "lowest", depart: "",
   aircraft: { profile: "c172", label: "Cessna 172" }, load: 0,
 };
 
@@ -162,7 +163,8 @@ describe("the briefing", () => {
     vi.mocked(api.course).mockRejectedValue(new ApiError("unknown airport K", 404));
     const { result } = renderHook(() => usePlan(params), { wrapper });
 
-    await waitFor(() => expect(toast.error).toHaveBeenCalled());
+    // Said as a problem that stays (lib/notify).
+    await waitFor(() => expect(toast.custom).toHaveBeenCalled());
     expect(result.current.briefing).toEqual({ state: "waiting" });
     expect(api.briefing).not.toHaveBeenCalled();
   });

@@ -1,5 +1,5 @@
 import { Suspense, lazy, useCallback, useDeferredValue, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { toast } from "sonner";
+import { notifyProblem } from "../../lib/notify";
 import { useSearchParamsNow } from "../../lib/useSearchParamsNow";
 import DevGuard from "../../components/DevGuard";
 import ConsoleSheet, { type ConsoleDetent } from "../../components/ConsoleSheet";
@@ -90,7 +90,8 @@ export default function MapPage({ mode }: { mode: Mode }) {
   const refused = searchParams.get("signin") === "refused";
   useEffect(() => {
     if (!refused) return;
-    toast.error("That sign-in was refused", {
+    notifyProblem({
+      title: "That sign-in was refused",
       description: "The provider has not verified that account's email address. Verify it there, or sign in with an emailed link.",
     });
     setSearchParams(prev => {

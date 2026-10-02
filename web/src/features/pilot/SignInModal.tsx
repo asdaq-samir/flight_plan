@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { toast } from "sonner";
+import { notifyProblem } from "../../lib/notify";
 import { Mail } from "lucide-react";
 import AppleLogo from "../../components/icons/AppleLogo";
 import GoogleLogo from "../../components/icons/GoogleLogo";
@@ -39,10 +39,11 @@ export default function SignInModal() {
     // Whose fault it was: an address the server refused is the pilot's
     // to fix; a server or network failure is not, and "check the
     // address" sent them looking for a typo that was not there.
-    onError: error => toast.error(
-      error instanceof ApiError && error.status === 429 ? "Too many sign-in links asked for. Wait a few minutes and try again."
+    onError: error => notifyProblem({
+      title: error instanceof ApiError && error.status === 429 ? "Too many sign-in links asked for. Wait a few minutes and try again."
         : error instanceof ApiError && error.status >= 400 && error.status < 500 ? "Couldn't send that link. Check the address and try again."
-          : "Couldn't reach the sign-in service. Try again in a minute."),
+          : "Couldn't reach the sign-in service. Try again in a minute.",
+    }),
     meta: { silent: true },
   });
   const sent = magicLink.isSuccess ? magicLink.variables : null;
