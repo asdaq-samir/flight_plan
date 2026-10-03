@@ -125,10 +125,12 @@ test("plan page: a departure time gives every checkpoint an ETA, and the nav log
   const day = calendar.locator(`td[data-day="${isoDay}"] button`);
   if (await day.count() === 0) await calendar.getByRole("button", { name: /next month/i }).click();
   await day.click();
-  await expect(calendar).toHaveCount(0);   // a pick closes the popover
   await expect(page).toHaveURL(/[?&]depart=/);
-  await expect(page.getByTestId("depart-date")).toContainText(String(when.getDate()));
+  // The time under the calendar, and Done.
   await page.getByTestId("depart-time").fill("15:00");
+  await page.getByTestId("depart-done").click();
+  await expect(calendar).toHaveCount(0);
+  await expect(page.getByTestId("depart-date")).toContainText("15:00");
   await expect(table.locator("thead")).toContainText("ETA");
   // The ETA column by its heading: the print-only ATA and fuel columns
   // sit after it, empty on screen.

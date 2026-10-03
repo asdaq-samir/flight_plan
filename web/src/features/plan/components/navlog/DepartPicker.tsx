@@ -1,7 +1,6 @@
 import { Suspense, lazy, useState } from "react";
 import { format } from "date-fns";
-import { CalendarIcon, X } from "lucide-react";
-import IconButton from "../../../../components/IconButton";
+import { CalendarIcon } from "lucide-react";
 import { Button } from "../../../../components/ui/button";
 
 /** The month grid is react-day-picker, which is not small and is only
@@ -31,15 +30,28 @@ function nextHour(): string {
   return `${String((new Date().getHours() + 1) % 24).padStart(2, "0")}:00`;
 }
 
+/** The departure in a few characters, as iOS's compact picker reads:
+ *  "Today 18:00", "Sat 18:00" within the week, "3 Oct 18:00" further
+ *  out -- short enough that the aeroplane, the time and the panel's
+ *  three buttons share one line on a phone, where the day, a time box
+ *  and a cross took a line of their own and pushed the buttons to a
+ *  third. */
+function shortWhen(date: Date): string {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const days = Math.round((new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime() - today.getTime()) / 86_400_000);
+  const day = days === 0 ? "Today" : days > 0 && days < 7 ? format(date, "EEE") : format(date, "d MMM");
+  return `${day} ${format(date, "HH:mm")}`;
+}
+
 /**
- * When the flight leaves: shadcn's own date picker -- a calendar in a
- * popover -- with a time box beside it, the "date and time picker"
- * shape from its docs, instead of the browser's `datetime-local`
- * control, which every browser draws its own way (and a phone as a
- * wheel). Empty is "about now", and the cross brings it back there.
- * The day and the time are one value to the caller, an ISO instant:
- * a new day keeps the time (or takes the next whole hour), a new time
- * keeps the day (or takes today).
+ * When the flight leaves: one compact field, "Now" or "Sat 18:00", that
+ * opens shadcn's own date picker -- the calendar in a popover, a sheet on
+ * a phone -- with the time under it and Leave Now to go back to about
+ * now, instead of the browser's `datetime-local` control, which every
+ * browser draws its own way. The day and the time are one value to the
+ * caller, an ISO instant: a new day keeps the time (or takes the next
+ * whole hour), a new time keeps the day.
  */
 export default function DepartPicker({ value, onChange }: Props) {
   const [open, setOpen] = useState(false);
@@ -47,57 +59,53 @@ export default function DepartPicker({ value, onChange }: Props) {
   const date = parsed && !Number.isNaN(parsed.getTime()) ? parsed : undefined;
   const time = date ? format(date, "HH:mm") : "";
   return (
-    <div className="flex items-center gap-1" data-testid="depart-picker">
-      <ResponsivePopover open={open} onOpenChange={setOpen}>
-        <ResponsivePopoverTrigger asChild>
-          <Button
-            // A field, as iOS's compact date picker is: the day in the
-            // text's colour at a row's size (TEXT), not a button's tint.
-            variant="outline" size="sm" className={cn("font-normal text-foreground", TEXT.row)}
-            aria-label="Departure date" data-testid="depart-date"
-          >
-            <CalendarIcon className="text-muted-foreground" />
-            {date ? format(date, "EEE d MMM") : "Now"}
-          </Button>
-        </ResponsivePopoverTrigger>
-        {/* A sheet from the bottom on a phone, the calendar centred in it. */}
-        <ResponsivePopoverContent title="Departure date" className="w-auto p-0" align="start">
-          <div className="flex justify-center">
-            {/* Sized like the grid it stands in for, so the popover does
-                not jump once it arrives. */}
-            <Suspense fallback={<div className="h-[21rem] w-[17rem]" />}>
+    <ResponsivePopover open={open} onOpenChange={setOpen}>
+      <ResponsivePopoverTrigger asChild>
+        <Button
+          // A field, as iOS's compact date picker is: the time in the
+          // text's colour at a row's size (TEXT), not a button's tint.
+          variant="outline" size="sm" className={cn("font-normal text-foreground", TEXT.row)}
+          aria-label="Departure date" data-testid="depart-date"
+        >
+          {!date && <CalendarIcon className="text-muted-foreground" />}
+          {date ? shortWhen(date) : "Now"}
+        </Button>
+      </ResponsivePopoverTrigger>
+      {/* A sheet from the bottom on a phone, the calendar centred in it. */}
+      <ResponsivePopoverContent title="Departure" className="w-auto p-0" align="start">
+        <div className="flex flex-col items-center gap-3 pb-3" data-testid="depart-picker">
+          {/* Sized like the grid it stands in for, so the popover does
+              not jump once it arrives. */}
+          <Suspense fallback={<div className="h-[21rem] w-[17rem]" />}>
             <Calendar
               mode="single" required selected={date} defaultMonth={date} captionLayout="dropdown"
-              onSelect={day => { onChange(instantAt(day, time || nextHour())); setOpen(false); }}
+              onSelect={day => onChange(instantAt(day, time || nextHour()))}
             />
-            </Suspense>
+          </Suspense>
+          {/* The time once a day is picked -- picking one gives it the
+              next whole hour -- and the way back to about now. The stock
+              Input keeps 16px below md so a phone does not zoom on it. */}
+          <div className="flex items-center gap-2 px-3">
+            {date && (
+              <Input
+                type="time"
+                value={time}
+                onChange={e => { if (e.target.value) onChange(instantAt(date, e.target.value)); }}
+                aria-label="Departure time"
+                className="h-8 w-28 appearance-none bg-background [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-calendar-picker-indicator]:appearance-none"
+                data-testid="depart-time"
+              />
+            )}
+            <Button
+              type="button" variant="ghost" size="sm" className="text-tint"
+              onClick={() => { onChange(""); setOpen(false); }} disabled={!date} data-testid="depart-clear"
+            >
+              Leave now
+            </Button>
+            <Button type="button" size="sm" onClick={() => setOpen(false)} data-testid="depart-done">Done</Button>
           </div>
-        </ResponsivePopoverContent>
-      </ResponsivePopover>
-      {/* The time, and the way back to "now", only once a day is
-          picked: with no departure the flight is planned for about now
-          and a time means nothing, and an empty `type="time"` box
-          renders as a wide blank with no placeholder and nothing to
-          say what it is. Picking a day gives it the next whole hour,
-          so it is never empty while it is on screen. The stock Input
-          keeps 16px below md so a phone does not zoom on it, and the
-          browser's own picker indicator is hidden the way shadcn's own
-          example hides it -- the box is the control. */}
-      {date && (
-        <>
-          <Input
-            type="time"
-            value={time}
-            onChange={e => { if (e.target.value) onChange(instantAt(date, e.target.value)); }}
-            aria-label="Departure time"
-            className="h-8 w-[6.5rem] appearance-none bg-background [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-calendar-picker-indicator]:appearance-none"
-            data-testid="depart-time"
-          />
-          <IconButton label="Depart about now instead" onClick={() => onChange("")} data-testid="depart-clear">
-            <X className="size-5" />
-          </IconButton>
-        </>
-      )}
-    </div>
+        </div>
+      </ResponsivePopoverContent>
+    </ResponsivePopover>
   );
 }
