@@ -67,6 +67,7 @@ export default function AirportPicker({
   // airport rather than KDLH.
   const { typed, rows, answered } = useAirportSearch(query, open, fixes);
   const fields = rows.filter(r => r.kind !== "fix");
+  const suggesting = !!suggestions?.length;
   const waypoints = rows.filter(r => r.kind === "fix");
 
   const pick = (ident: string) => {
@@ -157,8 +158,10 @@ export default function AirportPicker({
             </IconButton>
           </div>
           {/* Its own height, not shrunk: with the keyboard up the sheet is
-              short, and the tiles were squeezed to a sliver of their tops. */}
-          {!typed && (home || favorites.length > 0) && (
+              short, and the tiles were squeezed to a sliver of their tops.
+              Not with suggestions: Fly via asks for a way round, and Home
+              and the favorites are places to go, not ways past. */}
+          {!typed && !suggesting && (home || favorites.length > 0) && (
             <div className="shrink-0">
               <FavoriteTiles home={home} favorites={favorites} from={fix} onOpen={choose} />
             </div>
@@ -176,12 +179,12 @@ export default function AirportPicker({
                 ))}
               </CommandGroup>
             )}
-            {!typed && recents.length > 0 && (
+            {!typed && !suggesting && recents.length > 0 && (
               <CommandGroup heading="Recents" className={GROUP}>
                 {recents.map(a => <AirportRow key={a.ident} airport={a} recent onSelect={() => choose(a)} />)}
               </CommandGroup>
             )}
-            {!typed && recents.length === 0 && !home && favorites.length === 0 && (
+            {!typed && !suggesting && recents.length === 0 && !home && favorites.length === 0 && (
               <p className={cn("px-1 text-muted-foreground", TEXT.note)}>Search by an airport's ident, its name or its town.</p>
             )}
             {fields.length > 0 && (

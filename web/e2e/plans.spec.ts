@@ -278,6 +278,9 @@ test("plan page: Class B in the way offers the waypoint round it, or accepting t
   await problem.getByTestId("unflyable-fly-via").click();
   const suggestion = page.getByTestId("picker-suggestion");
   await expect(suggestion).toHaveCount(1);
+  // The ways round alone: not Home, the favorites or the recents.
+  await expect(page.getByTestId("favorites")).toHaveCount(0);
+  await expect(page.getByText("Recents", { exact: true })).toHaveCount(0);
   await expect(suggestion).toContainText("BEPKE");
   await expect(suggestion).toContainText("+6 nm, clear of the Class B");
   await suggestion.click();
