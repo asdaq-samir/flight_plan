@@ -49,9 +49,10 @@ export function WaypointsLayer({ exclude, onAddStop }: {
         >
           {/* In Leaflet's own panes, not this one: a popup in the
               diamonds' pane had the diamonds after it drawn over it. */}
-          {hovers && <MapTooltip pane="tooltipPane">{w.ident} · VFR waypoint</MapTooltip>}
+          {hovers && <MapTooltip pane="tooltipPane">{w.ident} · VFR waypoint{w.description ? ` ${w.description}` : ""}</MapTooltip>}
           <MapPopup pane="popupPane">
-            <MapCard title={w.ident} subtitle="VFR waypoint">
+            {/* No name of its own: where it is (the planner's vfr.places). */}
+            <MapCard title={w.ident} subtitle={w.description ? `VFR waypoint ${w.description}` : "VFR waypoint"}>
               {onAddStop && (
                 <Button
                   type="button" size="sm" className="w-full"

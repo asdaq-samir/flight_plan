@@ -145,4 +145,4 @@ def test_the_vfr_waypoints_in_view_are_the_sectionals_magenta_flags_only(monkeyp
     resp = client.get("/api/waypoints/in-view", params={"south": 41.5, "west": -88.5, "north": 42.5, "east": -87.5})
 
     assert resp.status_code == 200
-    assert resp.json() == {"waypoints": [{"ident": "VPBNG", "lat": 42.0, "lon": -88.0}]}
+    assert resp.json() == {"waypoints": [{"ident": "VPBNG", "lat": 42.0, "lon": -88.0, "description": None}]}

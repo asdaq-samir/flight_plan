@@ -35,7 +35,7 @@ from fastapi import FastAPI, Request
 from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse
 from pydantic import TypeAdapter
-from vfr import airspace, altitude, charts, faa_data, fixes, remarks, weather
+from vfr import airspace, altitude, charts, faa_data, fixes, places, remarks, weather
 
 from . import chart_refresh
 from .common import PROCESSED_DIR
@@ -112,6 +112,14 @@ def _warm_reference_data() -> None:
         except Exception:  # noqa: BLE001 -- the first altitude selection will load it, and report its own error
             log.exception("%s warm-up failed", name)
     WARM.set()
+
+    # After warm, not before it: the first start downloads the USGS's
+    # place names (vfr.places), and nothing waits on them -- a waypoint
+    # is only left undescribed until they are in.
+    try:
+        places.preload()
+    except Exception:  # noqa: BLE001
+        log.exception("places warm-up failed")
 
     if chart_refresh.AUTO_REFRESH:
         chart_refresh.maybe_refresh()

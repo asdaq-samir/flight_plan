@@ -10,7 +10,7 @@ national cache vfr.weather keeps for minutes at a time. A card costs a
 few table lookups and a point-in-polygon test.
 """
 from fastapi import APIRouter, HTTPException, Query
-from vfr import airports, airspace, altitude, fixes, remarks, weather
+from vfr import airports, airspace, altitude, fixes, places, remarks, weather
 
 from ..schemas import AirportPlace, AirportsInView, WaypointsInView
 
@@ -66,7 +66,10 @@ def waypoints_in_view(
     if south > north or west > east:
         raise HTTPException(422, "The box's south is above its north, or its west east of its east.")
     found = sorted((f for f in fixes.within(south, west, north, east) if f["vfr"]), key=lambda f: f["ident"])
-    return {"waypoints": [{"ident": f["ident"], "lat": f["lat"], "lon": f["lon"]} for f in found[:limit]]}
+    return {"waypoints": [
+        {"ident": f["ident"], "lat": f["lat"], "lon": f["lon"], "description": places.describe(f["lat"], f["lon"])}
+        for f in found[:limit]
+    ]}
 
 
 def _notes(ident: str) -> dict:

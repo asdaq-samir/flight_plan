@@ -661,6 +661,8 @@ class Detour(BaseModel):
     #: How much longer the route is through it.
     added_nm: float
     stop_index: int
+    #: Where it is: "in Downers Grove" (vfr.places).
+    description: str | None = None
 
 
 class NavLogError(BaseModel):
@@ -818,6 +820,10 @@ class WaypointPin(BaseModel):
     ident: str
     lat: float
     lon: float
+    #: Where it is, a stand-alone waypoint having no name of its own: "by
+    #: Bangs Lake", "2 nm W of Glenview" (vfr.places). None before the
+    #: place names have loaded, or where nothing is near.
+    description: str | None = None
 
 
 class WaypointsInView(BaseModel):

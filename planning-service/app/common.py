@@ -7,7 +7,7 @@ from itertools import pairwise
 from fastapi import HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from vfr import airports, fixes, geo, weather
+from vfr import airports, fixes, geo, places, weather
 from vfr.config import PROCESSED_DIR  # noqa: F401  (re-exported for the routers)
 from vfr.config import corridor_paths as paths  # noqa: F401  (the routers' name for it)
 
@@ -57,7 +57,11 @@ def resolve_stop(ident: str) -> dict:
         fix = fixes.find_fix(ident)
         if fix is None:
             raise HTTPException(404, f"No airport or waypoint goes by {ident!r}.") from err
-        return {"name": fix["kind"], "lat": fix["lat"], "lon": fix["lon"], "elevation_ft": None, "fix": True}
+        # Its kind and where it is: "VFR waypoint by Bangs Lake" -- a
+        # stand-alone waypoint has no name of its own (vfr.places).
+        where = places.describe(fix["lat"], fix["lon"])
+        return {"name": f"{fix['kind']} {where}" if where else fix["kind"], "lat": fix["lat"], "lon": fix["lon"],
+                "elevation_ft": None, "fix": True}
 
 
 @dataclass(frozen=True)

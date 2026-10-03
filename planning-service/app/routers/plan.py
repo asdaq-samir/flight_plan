@@ -19,7 +19,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
-from vfr import charts, geo, navlog
+from vfr import charts, fixes, geo, navlog, places
 from vfr.config import VFR_SECTIONAL_MAX_ZOOM, VFR_SECTIONAL_MIN_ZOOM
 from vfr.weather import WeatherServiceError
 
@@ -304,7 +304,12 @@ def unflyable_parts(outcome: Unflyable, runs: list[HopRun]) -> tuple[dict, list[
     hop = runs[at].hop
     ways = class_b_detours(outcome.selection, hop.start, hop.end)
     why = no_altitude(outcome.selection, outcome.between, ways[0] if ways else None)
-    return why, [{**way, "stop_index": at} for way in ways]
+    return why, [{**way, "stop_index": at, "description": _where(way["ident"])} for way in ways]
+
+
+def _where(ident: str) -> str | None:
+    fix = fixes.find_fix(ident)
+    return places.describe(fix["lat"], fix["lon"]) if fix else None
 
 
 def totals_of(r: Route, runs: list[HopRun], outcome: "Flown", profile: dict) -> dict:

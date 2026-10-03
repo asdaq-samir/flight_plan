@@ -48,7 +48,10 @@ export default function StopsBar({ stops, onChange, adding, onAddingChange, via 
           value="" placeholder="Add Stop" ariaLabel="Add a stop" look="add" className="h-8" fixes
           open={adding} onOpenChange={onAddingChange} testId="add-stop"
           onChange={ident => onChange([...stops.slice(0, at), ident, ...stops.slice(at)])}
-          suggestions={via?.map(d => ({ ident: d.ident, kind: d.kind, detail: `+${Math.round(d.added_nm)} nm, clear of the Class B` }))}
+          suggestions={via?.map(d => ({
+            ident: d.ident, kind: d.kind,
+            detail: [d.description, `+${Math.round(d.added_nm)} nm, clear of the Class B`].filter(Boolean).join(" · "),
+          }))}
         />
       )}
     </div>

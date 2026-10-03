@@ -6,7 +6,7 @@ Nothing the planner's own scoring path depends on."""
 import json
 
 from fastapi import APIRouter
-from vfr import aircraft, airports, model_registry
+from vfr import aircraft, airports, model_registry, places
 from vfr import fixes as fixes_module
 
 from ..schemas import AircraftProfiles, AirportSearch, ModelComparison
@@ -26,6 +26,13 @@ def aircraft_profiles() -> AircraftProfiles:
     return {"profiles": profiles}
 
 
+def _where(fix: dict) -> str | None:
+    """A fix's line under its name: where it is, and its state -- "by
+    Bangs Lake, IL" (vfr.places) -- or the state alone."""
+    where = places.describe(fix["lat"], fix["lon"])
+    return ", ".join(part for part in (where, fix["state"]) if part) or None
+
+
 @router.get("/api/airports/search")
 def airport_search(q: str = "", fixes: bool = False) -> AirportSearch:
     """DEP/DEST's own autocomplete -- every airport whose ident or name
@@ -39,7 +46,7 @@ def airport_search(q: str = "", fixes: bool = False) -> AirportSearch:
     if fixes:
         known = {a["ident"] for a in found}
         found += [
-            {"ident": f["ident"], "name": f["kind"], "region": f["state"], "kind": "fix"}
+            {"ident": f["ident"], "name": f["kind"], "region": _where(f), "kind": "fix"}
             for f in fixes_module.search_fixes(q) if f["ident"] not in known
         ]
     return {"airports": found}

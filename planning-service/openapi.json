@@ -2353,6 +2353,18 @@
             "title": "Added Nm",
             "type": "number"
           },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Description"
+          },
           "ident": {
             "title": "Ident",
             "type": "string"
@@ -5034,6 +5046,17 @@
       "WaypointPin": {
         "description": "A VFR waypoint on the sectional (VPBNG), for the map's diamond: a\ntap names it, and with a route open puts it in the stops.",
         "properties": {
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
           "ident": {
             "title": "Ident",
             "type": "string"
