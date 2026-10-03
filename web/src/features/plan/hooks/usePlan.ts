@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { experimental_streamedQuery as streamedQuery, keepPreviousData, useQuery } from "@tanstack/react-query";
 import { ApiError, api, describeError } from "../../../lib/api/client";
 import { courseQuery } from "../../../lib/queryClient";
-import { routeOf } from "../../../lib/identSchema";
+import { identOf, routeOf } from "../../../lib/identSchema";
 import { ended } from "../../../lib/api/streams";
 import type {
   AircraftChoice, AltitudeChoice, Briefing, Detour, Leg, NavLogAltitude, NavLogMessage, Totals,
@@ -58,6 +58,8 @@ export interface PlanParams {
   load: number;
   /** The pilot will have a Class B clearance: planned through it. */
   classBClearance?: boolean;
+  /** A local flight's time aloft, in minutes (one airport to itself). */
+  localMin?: number;
 }
 
 /** Where the route's briefing stands -- one value, read by the map's
@@ -76,20 +78,25 @@ export type BriefingState =
   | { state: "failed"; detail: string };
 
 export function usePlan(
-  { dep, dest, stops, altitudeFt, altitudeChoice, depart, aircraft, load, classBClearance = false }: PlanParams,
+  { dep, dest, stops, altitudeFt, altitudeChoice, depart, aircraft, load, classBClearance = false, localMin = 60 }: PlanParams,
 ) {
   const routeKnown = routeOf(dep, dest, stops) !== null;
-  // The form will not submit a route from an airport to itself, but the
-  // address can hold one -- a pasted link, an edited URL, a back button
-  // to a half-typed state. Nothing is fetched for it, so without this
-  // the page sat blank: no chart, no message, nothing to press. With a
-  // stop between, it is a round trip.
-  const sameAirport = !!dep && dep === dest && stops.length === 0;
+  // An airport to itself with no stop between: a local flight -- the
+  // pattern, practice approaches. No course or legs to plan; the field's
+  // briefing, and the time aloft with its fuel check (localFlight). It
+  // was refused, the page asking for two different airports.
+  const local = !!identOf(dep) && dep === dest && stops.length === 0;
+  const briefable = routeKnown || local;
   const via = stops.join(",");
 
   // The previous route's course stays on the map until the new one is
   // charted, so the map is never taken down between routes.
-  const course = useQuery({ ...courseQuery(dep, dest, stops), enabled: routeKnown, placeholderData: keepPreviousData });
+  const course = useQuery({ ...courseQuery(dep, dest, stops), enabled: briefable, placeholderData: keepPreviousData });
+  const localFlight = useQuery({
+    queryKey: ["localFlight", dep, localMin, depart, aircraft.profile, aircraft.fuelBurnGph ?? null, aircraft.usableFuelGal ?? null],
+    queryFn: () => api.localFlight(dep, localMin, aircraft, depart || undefined),
+    enabled: local, placeholderData: keepPreviousData,
+  });
 
   const checkpoints = useQuery({
     queryKey: ["checkpoints", dep, dest, via], queryFn: () => api.checkpoints(dep, dest, stops),
@@ -160,14 +167,14 @@ export function usePlan(
   // arrival -- so it is asked again once the nav log's totals give the
   // ETE; the previous answer stays up meanwhile, so the map's chips do
   // not flash back to "checking".
-  const eteMin = totals?.ete_min ?? undefined;
+  const eteMin = (local ? localMin : totals?.ete_min) ?? undefined;
   const briefing = useQuery({
     queryKey: ["briefing", dep, dest, via, depart, eteMin ?? null, load],
     queryFn: () => api.briefing(dep, dest, depart || undefined, eteMin, stops),
     // Not on the previous route's placeholder course once the route is
     // closed: asked for two empty idents, it toasted "Airport identifier
     // '' not found".
-    enabled: routeKnown && !!course.data, staleTime: 5 * 60_000, refetchInterval: 5 * 60_000,
+    enabled: briefable && !!course.data, staleTime: 5 * 60_000, refetchInterval: 5 * 60_000,
     placeholderData: keepPreviousData,
   });
 
@@ -177,13 +184,14 @@ export function usePlan(
   return {
     // Not the previous route's, kept as a placeholder, once the route is
     // closed (the capsule's X): the map is the chart alone then.
-    course: routeKnown ? course.data ?? null : null,
+    course: briefable ? course.data ?? null : null,
     candidates: checkpoints.data?.candidates ?? [],
     selected: checkpoints.data?.selected ?? [],
-    legs, nav, totals, navStage, stage, unflyable,
-    sameAirport,
+    legs, nav, navStage, stage, unflyable,
+    totals: local ? localFlight.data ?? null : totals,
+    local,
     briefing: ((): BriefingState => {
-      if (!routeKnown || !course.data) return { state: "waiting" };
+      if (!briefable || !course.data) return { state: "waiting" };
       if (briefing.data) {
         return {
           state: "ready", data: briefing.data, fetchedAt: briefing.dataUpdatedAt,

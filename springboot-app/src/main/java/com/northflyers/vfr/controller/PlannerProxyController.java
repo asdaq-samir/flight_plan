@@ -83,6 +83,7 @@ public class PlannerProxyController {
             route("GET", "/api/course"),
             route("GET", "/api/checkpoints"),
             route("GET", "/api/navlog"),
+            route("GET", "/api/local-flight"),
             route("GET", "/api/plan"),
             route("GET", "/api/altitude-breakdown"),
             route("GET", "/api/briefing"),

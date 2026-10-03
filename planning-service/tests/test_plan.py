@@ -399,3 +399,20 @@ def test_no_altitude_names_the_class_b_and_what_it_takes():
         "The lowest altitude above that is 2,000 ft.",
         "The Chicago Class B over it starts at 1,900 ft; going into it needs a clearance.",
     ]
+
+
+def test_a_local_flight_is_its_time_aloft_at_cruise_burn_with_the_fuel_check():
+    """C81 to C81, the pattern for an hour and a half: no legs, the fuel
+    the burn gives, the day reserve with no departure time."""
+    resp = client.get("/api/local-flight", params={"dep": "C81", "dest": "C81", "duration_min": 90})
+
+    assert resp.status_code == 200
+    totals = resp.json()
+    assert totals["distance_nm"] == 0 and totals["ete_min"] == 90
+    assert totals["fuel_gal"] > 0
+    assert totals["reserve_min"] == 30 and totals["night"] is None
+    assert totals["fuel_required_gal"] == round(totals["fuel_gal"] + totals["taxi_gal"] + totals["reserve_gal"], 1)
+
+
+def test_a_local_flight_is_one_airport_to_itself():
+    assert client.get("/api/local-flight", params={"dep": "C81", "dest": "KDLH"}).status_code == 422

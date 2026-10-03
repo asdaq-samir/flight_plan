@@ -6056,6 +6056,248 @@
         "summary": "Start Dev Service"
       }
     },
+    "/api/local-flight": {
+      "get": {
+        "description": "A flight that leaves and lands at the same airport -- the pattern,\npractice approaches, an hour's sightseeing: no course and no legs to\nplan, so its totals are the time aloft at the aeroplane's cruise burn,\nwith the fuel check a route's has (the start and taxi allowance, the\nVFR reserve by day or by night, the usable fuel). Night is judged at\nthe field at both ends of the time aloft. A 422 for a route that is\nnot one airport to itself.",
+        "operationId": "local_flight_api_local_flight_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "duration_min",
+            "required": false,
+            "schema": {
+              "default": 60.0,
+              "exclusiveMinimum": 0,
+              "maximum": 720,
+              "title": "Duration Min",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "dep",
+            "required": true,
+            "schema": {
+              "title": "Dep",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "dest",
+            "required": true,
+            "schema": {
+              "title": "Dest",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "stops",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Stops",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "altitude_ft",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Altitude Ft"
+            }
+          },
+          {
+            "in": "query",
+            "name": "altitude_choice",
+            "required": false,
+            "schema": {
+              "default": "fastest",
+              "enum": [
+                "lowest",
+                "highest",
+                "fastest",
+                "economical"
+              ],
+              "title": "Altitude Choice",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "aircraft",
+            "required": false,
+            "schema": {
+              "default": "c172",
+              "title": "Aircraft",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cruise_tas_kt",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "maximum": 1000,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cruise Tas Kt"
+            }
+          },
+          {
+            "in": "query",
+            "name": "fuel_burn_gph",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Fuel Burn Gph"
+            }
+          },
+          {
+            "in": "query",
+            "name": "usable_fuel_gal",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Usable Fuel Gal"
+            }
+          },
+          {
+            "in": "query",
+            "name": "climb_tas_kt",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "maximum": 1000,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Climb Tas Kt"
+            }
+          },
+          {
+            "in": "query",
+            "name": "climb_fuel_burn_gph",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Climb Fuel Burn Gph"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cruise_power_pct",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 100,
+                  "minimum": 40,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cruise Power Pct"
+            }
+          },
+          {
+            "in": "query",
+            "name": "depart",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Depart"
+            }
+          },
+          {
+            "in": "query",
+            "name": "class_b_clearance",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Class B Clearance",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Totals"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Local Flight"
+      }
+    },
     "/api/model-comparison": {
       "get": {
         "description": "Every algorithm anyone has actually trained for this problem,\nnot just the sklearn family retrain() grid-searches: the promoted\nmodel's own comparison against Ridge/GradientBoosting/a dummy\n\"predict the mean\" baseline, plus PyTorch/TensorFlow/Spark's own\ncandidates (vfr.model_candidates), when they exist.\n\nEach entry names its own metric rather than pretending they are\nall the same number: the sklearn family's own selection already\nruns 5-fold CV (cv_mae), while the new candidates report a single\nheld-out split's MAE (held_out_mae) -- except Spark, whose own\nCrossValidator gives it a real cv_mae too. Blending these into one\nunlabeled column would overstate how comparable they actually are.",

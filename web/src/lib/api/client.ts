@@ -7,7 +7,7 @@ import type {
   Flight, FlightSummary, ModelComparison, NarrativeMessage, NarrativeRequest, NavLogMessage, PickDeleted, PickSaved,
   ClassBResponse, DevServices, DevServiceStarted, PicksResponse, Pilot, Rating, RetrainStarted, Role, SaveFlightRequest,
   SignInCapabilities,
-  Status, StreamMessage, WaypointsInView,
+  Status, StreamMessage, Totals, WaypointsInView,
 } from "./types";
 
 /**
@@ -243,6 +243,21 @@ export const api = {
       .then(data<DevServiceStarted>),
 
   /** The stock performance profiles the nav log can be computed for. */
+  /** A flight from one airport back to it, with no stops -- the pattern,
+   *  practice approaches: its time aloft at the aeroplane's burn, and the
+   *  fuel check. */
+  localFlight: (ident: string, durationMin: number, aircraft?: AircraftChoice, depart?: string) =>
+    planner.GET("/api/local-flight", {
+      params: {
+        query: {
+          dep: ident, dest: ident, duration_min: durationMin, aircraft: aircraft?.profile,
+          cruise_tas_kt: aircraft?.cruiseTasKt, fuel_burn_gph: aircraft?.fuelBurnGph, usable_fuel_gal: aircraft?.usableFuelGal,
+          climb_tas_kt: aircraft?.climbTasKt, climb_fuel_burn_gph: aircraft?.climbFuelBurnGph,
+          cruise_power_pct: aircraft?.cruisePowerPct, depart: depart || undefined,
+        },
+      },
+    }).then(data<Totals>),
+
   aircraftProfiles: () => planner.GET("/api/aircraft-profiles").then(data<AircraftProfiles>).then(r => r.profiles),
 
   /** The whole stack in one snapshot -- the developer console. */

@@ -19,7 +19,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
-from vfr import charts, fixes, geo, navlog, places
+from vfr import charts, fixes, geo, navlog, places, sun
 from vfr.config import VFR_SECTIONAL_MAX_ZOOM, VFR_SECTIONAL_MIN_ZOOM
 from vfr.weather import WeatherServiceError
 
@@ -44,6 +44,7 @@ from ..schemas import (
     NavLogLeg,
     NavLogStage,
     Plan,
+    Totals,
 )
 from ..scoring import route_checkpoints
 
@@ -497,6 +498,34 @@ def plan(q: Annotated[PlanQuery, Depends()]) -> Plan:
         winds_forecast_hr=runs[0].fcst_hr,
         aircraft={"name": q.aircraft, **profile},
         **_chart_info(),
+    )
+
+
+#: The longest local flight planned: a day's flying.
+LocalMinutes = Annotated[float, Query(gt=0, le=12 * 60)]
+
+
+@router.get("/api/local-flight")
+def local_flight(q: Annotated[PlanQuery, Depends()], duration_min: LocalMinutes = 60.0) -> Totals:
+    """A flight that leaves and lands at the same airport -- the pattern,
+    practice approaches, an hour's sightseeing: no course and no legs to
+    plan, so its totals are the time aloft at the aeroplane's cruise burn,
+    with the fuel check a route's has (the start and taxi allowance, the
+    VFR reserve by day or by night, the usable fuel). Night is judged at
+    the field at both ends of the time aloft. A 422 for a route that is
+    not one airport to itself."""
+    r = load_route(q.dep, q.dest, q.stops)
+    if r.dep_ident != r.dest_ident or len(r.idents) != 2:
+        raise HTTPException(422, "A local flight leaves and lands at the same airport, with no stops.")
+    profile = q.profile()
+    fuel = round(profile["fuel_burn_gph"] * duration_min / 60, 1)
+    night = None
+    if q.depart is not None:
+        depart = q.depart if q.depart.tzinfo else q.depart.replace(tzinfo=timezone.utc)
+        night = sun.is_night(*r.start, depart) or sun.is_night(*r.start, depart + timedelta(minutes=duration_min))
+    return Totals(
+        distance_nm=0.0, ete_min=duration_min, fuel_gal=fuel, unflyable_legs=0, legs_without_wind=0,
+        **navlog.fuel_plan(fuel, profile, night),
     )
 
 

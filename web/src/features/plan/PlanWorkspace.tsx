@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { Share, TowerControl, X } from "lucide-react";
+import { Printer, Share, TowerControl, X } from "lucide-react";
 import { toast } from "sonner";
 import { showError } from "../../lib/problems";
 import { cn } from "cn";
@@ -24,8 +24,10 @@ import { useProgressToast } from "../../lib/useProgressToast";
 import { useSearchParamsNow } from "../../lib/useSearchParamsNow";
 import type { WorkspaceProps } from "../page/workspace";
 import { PilotPanel } from "../pilot/PilotPanel";
-import { Alert, AlertDescription, AlertTitle } from "../../components/ui/alert";
+import { Alert, AlertDescription } from "../../components/ui/alert";
 import IconButton from "../../components/IconButton";
+import ToolbarButton from "../../components/ToolbarButton";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/ui/select";
 import { Button } from "../../components/ui/button";
 import { RouteCapsule, SearchField, SearchResults } from "../../components/PanelCapsule";
 import RouteProblem from "./components/RouteProblem";
@@ -39,6 +41,13 @@ import NavLogActions from "./components/navlog/NavLogActions";
 import NavLogView from "./components/navlog/NavLogView";
 import RouteMap from "./components/RouteMap";
 import { usePlan } from "./hooks/usePlan";
+
+/** A local flight's times aloft to choose from, in minutes: a menu, not a
+ *  slider. */
+const LOCAL_MINUTES = [30, 45, 60, 90, 120, 150, 180, 240];
+
+/** "1 h", "1.5 h", "45 min". */
+const hoursOf = (minutes: number) => (minutes < 60 ? `${minutes} min` : `${minutes / 60} h`);
 
 /** Which of the four altitude plans the log flies -- the fastest for
  *  the winds unless the URL says otherwise, the plan a pilot with the
@@ -79,6 +88,9 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // Class B accepted: the pilot will have the clearance, and the route
   // is planned through it (RouteProblem's Accept Class B).
   const classBClearance = searchParams.get("class_b") === "1";
+  // A local flight's time aloft, in minutes (`local_min`): an hour unless
+  // the address says otherwise.
+  const localMin = LOCAL_MINUTES.includes(Number(searchParams.get("local_min"))) ? Number(searchParams.get("local_min")) : 60;
   // The Custom altitude box's own draft, sent with the next load -- and,
   // like the header's route, belonging to the plan it was typed over: a
   // different route or altitude in the address shows that one.
@@ -116,7 +128,16 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   const aircraft = aircraftOptions.find(o => aircraftKey(o) === aircraftKey(remembered)) ?? remembered;
   const s = usePlan({
     dep: planned.dep, dest: planned.dest, stops: planned.stops, altitudeFt, altitudeChoice, depart, aircraft, load, classBClearance,
+    localMin,
   });
+  const changeLocalMin = useCallback((minutes: number) => {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      if (minutes === 60) next.delete("local_min");
+      else next.set("local_min", String(minutes));
+      return next;
+    }, { replace: true });
+  }, [setSearchParams]);
   const { course, selected } = s;
   // Keep Charts Offline, the setting: each route loaded keeps its charts.
   useKeepOffline(course);
@@ -281,7 +302,10 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // for from Favorites, becomes Home or a favorite. Half a route (Fly
   // Here with no position to fly from) is a route: its form asks for the
   // other end.
-  const routed = routeOf(planned.dep, planned.dest, planned.stops) !== null;
+  // A route on screen: one the planner plans, or a local flight -- an
+  // airport to itself with no stop (usePlan's `local`).
+  const local = !!planned.dep && planned.dep === planned.dest && planned.stops.length === 0;
+  const routed = routeOf(planned.dep, planned.dest, planned.stops) !== null || local;
   // The stops flown through rather than landed at: the course's own word
   // for each, and before it answers, any ident too long for an airport.
   const waypointStops = useMemo(() => new Set(planned.stops.filter(stop =>
@@ -494,6 +518,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       aircraftLabel={aircraft.label}
       notice={<BriefingNotices briefing={s.briefing} />}
       footer={<PlanningAidNote />}
+      local={s.local}
       titleNote={s.unflyable ? (
         <RouteProblem
           problem={s.unflyable} onAddStop={() => setAddingStop("stop")} onFly={flyAt}
@@ -622,7 +647,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     // The route as one box of pills, in place of the two airport fields.
     // An airport twice (a round trip with its stop taken out) keeps the
     // box, its notice saying what to change.
-    route: routed || s.sameAirport ? (
+    route: routed ? (
       <RouteBox
         points={[planned.dep, ...planned.stops, planned.dest]} waypoints={waypointStops}
         onChange={setRoute}
@@ -633,6 +658,8 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     // The aeroplane and the departure time, under the route with the
     // panel out, and beside them saving the flight, the narrative and
     // Print: the route's box has the top row to itself.
+    // A local flight: how long aloft in place of the narrative, which is
+    // written from legs it has none of.
     controls: routed && (
       <>
         <FlightInputs
@@ -641,11 +668,26 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           onAircraftChange={changeAircraft}
           depart={depart} onDepartChange={changeDepart}
         />
-        <div className="flex items-center">{routeActions}</div>
+        {s.local ? (
+          <>
+            <Select value={String(localMin)} onValueChange={v => changeLocalMin(Number(v))}>
+              <SelectTrigger size="sm" aria-label="Time aloft" className="pointer-coarse:text-[0.9375rem]" data-testid="local-duration">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {LOCAL_MINUTES.map(m => <SelectItem key={m} value={String(m)}>{hoursOf(m)}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <ToolbarButton
+              text="Print" label="Print the briefing" icon={<Printer />} onClick={() => window.print()}
+              className="print:hidden" data-testid="print-button"
+            />
+          </>
+        ) : <div className="flex items-center">{routeActions}</div>}
       </>
     ),
     // Beside the route form while there is no whole route yet.
-    actions: routed || s.sameAirport ? undefined : routeActions,
+    actions: routed ? undefined : routeActions,
     console: <PilotPanel />,
     submit,
     loading: s.stage !== null,
@@ -660,13 +702,6 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           Planned through Class B: you&apos;ll need a clearance.
         </AlertDescription>
         <Button type="button" size="sm" variant="ghost" className="shrink-0 text-tint" onClick={() => acceptClassB(false)}>Undo</Button>
-      </Alert>
-    ) : s.sameAirport ? (
-      <Alert className="rounded-none border-x-0 border-t-0 border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/40">
-        <AlertTitle>A route needs two different airports.</AlertTitle>
-        <AlertDescription>
-          {planned.dep} is both the departure and the destination: change one of them, or add a stop to fly a round trip.
-        </AlertDescription>
       </Alert>
     ) : null,
   });

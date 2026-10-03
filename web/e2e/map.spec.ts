@@ -1,26 +1,27 @@
 import { test, expect } from "@playwright/test";
-import { slow, settle, tapTheChart, beforeTheRoute } from "./helpers";
+import { beforeTheRoute, openPanel, settle, slow, tapTheChart } from "./helpers";
 
 /**
  * The map: its popups, its zoom toggle and the dev page's zoom button,
  * own ship when the map is panned, and a route with no map to draw.
  */
 
-test("plan page: a route from an airport to itself says so, rather than showing nothing at all", async ({ page }) => {
-  // The form refuses to submit one, but the address can hold one: a
-  // pasted link, an edited URL. Nothing is fetched for it, so the page
-  // used to sit blank -- no chart, no message, nothing to press.
+test("plan page: a route from an airport to itself is a local flight: the field's briefing, and the time aloft with its fuel check", async ({ page }) => {
+  // The pattern, practice approaches: it was refused, the page asking for
+  // two different airports.
   await page.goto("/app/plan?dep=C81&dest=C81");
-  await settle(page);
-  await expect(page.getByText("A route needs two different airports.")).toBeVisible();
-  await expect(page.getByText(/C81 is both the departure and the destination/)).toBeVisible();
+  await expect(page.getByTestId("capsule-title")).toHaveText("C81 local", { timeout: slow(30000) });
+  await openPanel(page);
+  const section = page.locator("[data-slot=accordion-trigger]").filter({ hasText: "Local Flight" });
+  await expect(section).toContainText(/Aloft 1h 00m/, { timeout: slow(30000) });
+  await section.click();
+  await expect(page.getByTestId("fuel-check")).toContainText("Fuel required");
 
-  // And it is a state the pilot can leave: change one in the route's box
-  // and the route loads, with no Load to press.
-  await page.getByLabel("Destination", { exact: true }).click();
-  await page.getByPlaceholder("Search for a destination").fill("KDLH");
-  await page.getByRole("option", { name: /KDLH/ }).first().click();
-  await expect(page.getByText("A route needs two different airports.")).toBeHidden({ timeout: slow(25000) });
+  // Longer aloft: in the address, and more fuel.
+  await page.getByTestId("local-duration").click();
+  await page.getByRole("option", { name: "2 h", exact: true }).click();
+  await expect(page).toHaveURL(/[?&]local_min=120/);
+  await expect(section).toContainText(/Aloft 2h 00m/, { timeout: slow(30000) });
 });
 
 test("plan page: every popup the map opens dismisses the same way", async ({ page }) => {

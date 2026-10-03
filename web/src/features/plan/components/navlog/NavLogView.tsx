@@ -30,7 +30,7 @@ import { legOf, navLogRows, rowPoint, type NavLogRow, type RouteEnds } from "./r
 
 /** Every section of the drawer, the nav log's own first: what the
  *  printer gets, whatever is open on screen. */
-const ALL_SECTIONS = ["Nav Log", ...BRIEFING_SECTIONS];
+const ALL_SECTIONS = ["Nav Log", "Local Flight", ...BRIEFING_SECTIONS];
 
 // TanStack Table's own extension point for arbitrary per-column data --
 // used below to carry each numeric column's shared className (bordered,
@@ -114,8 +114,12 @@ interface Props {
    *  reminder). */
   footer?: ReactNode;
   /** Beside the Nav Log's title, folded or open: a mark that opens to a
-   *  note (a tight altitude, TightAltitudeNote). */
+   *  note (a tight altitude, no legal altitude: TitleNote). */
   titleNote?: ReactNode;
+  /** A local flight, one airport to itself: no legs, so the section is
+   *  "Local Flight" -- the time aloft, the time back and the fuel, and
+   *  the fuel check -- in place of the nav log. */
+  local?: boolean;
   /** Clicking a row focuses that waypoint on the map (pans/zooms to
    *  it, draws the halo) the same way clicking its marker there
    *  selects this row -- keyed by coordinates rather than a row
@@ -385,7 +389,7 @@ export default function NavLogView({
   totals, nav, onAltitudeChoiceChange, depart,
   legs, dep, dest, ends,
   selected, descriptions, onSaveDescription,
-  onGenerateDescriptions, descriptionsLoading, children, notice, footer, titleNote,
+  onGenerateDescriptions, descriptionsLoading, children, notice, footer, titleNote, local = false,
   selectedPoint, onSelectPoint, onDeselectPoint, drawerOpen, alt, onAltChange, onSubmit,
   aircraftLabel,
 }: Props) {
@@ -419,7 +423,11 @@ export default function NavLogView({
   const arrival = totals?.ete_min != null ? etaAt(depart || new Date().toISOString(), totals.ete_min) : null;
   const foldedSummary = parts && (
     <span className="pointer-coarse:text-[0.8125rem] pointer-coarse:leading-[1.125rem]">
-      {([
+      {(local ? [
+        ["Aloft", parts.time],
+        ["Back", arrival ?? "—"],
+        ["Fuel", parts.fuel],
+      ] as const : [
         ["Dist", parts.distance],
         ["ETA", arrival ? `${arrival} (${parts.time})` : parts.time],
         ["Fuel", parts.fuel],
@@ -975,12 +983,18 @@ export default function NavLogView({
       >
         {notice}
         <Accordion type="multiple" value={printing ? ALL_SECTIONS : open} onValueChange={setOpen}>
-          <AccordionSection title="Nav Log" summary={foldedSummary} aside={titleNote}>
-            {summary}
-            {navLogTable}
-            {fuelNote}
-            {hopsNote}
-          </AccordionSection>
+          {local ? (
+            <AccordionSection title="Local Flight" summary={foldedSummary}>
+              {fuelNote}
+            </AccordionSection>
+          ) : (
+            <AccordionSection title="Nav Log" summary={foldedSummary} aside={titleNote}>
+              {summary}
+              {navLogTable}
+              {fuelNote}
+              {hopsNote}
+            </AccordionSection>
+          )}
           {children}
         </Accordion>
         {footer}

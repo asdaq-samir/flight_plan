@@ -37,6 +37,9 @@ interface Props {
 const COUNTRY: [number, number] = [39.5, -98.35];
 const COUNTRY_ZOOM = 4;
 
+/** The least the map is fitted to round a route: about 10 nm across. */
+const MIN_FIT_M = 18_520;
+
 export function MapShell({ course, onReady, children, onSelectPlace }: Props) {
   const [map, setMap] = useState<L.Map | null>(null);
   // The chart alone while there is no route: the planner opens on a
@@ -44,7 +47,15 @@ export function MapShell({ course, onReady, children, onSelectPlace }: Props) {
   const { data: chartOnly } = useQuery({ ...chartQuery, enabled: !course });
   const chart = course ?? chartOnly ?? null;
   const [previewing, setPreviewing] = useState(false);
-  const bounds = useMemo(() => (course ? L.latLngBounds(course.course_line as [number, number][]) : null), [course]);
+  // At least a few miles round the route: a local flight's course is the
+  // one airport, and fitted to a point the map went in past the chart's
+  // own zoom, to blocks of pixels.
+  const bounds = useMemo(() => {
+    if (!course) return null;
+    const line = L.latLngBounds(course.course_line as [number, number][]);
+    const centre = line.getCenter();
+    return line.extend(centre.toBounds(MIN_FIT_M));
+  }, [course]);
 
   // invalidateSize before fitBounds: on a fresh reload the map can fit
   // against a stale cached container size before it's ever been measured.

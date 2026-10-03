@@ -47,5 +47,7 @@ export function routeOf(
 
 /** "C81 → KMSN → KDLH": a route's airports in order, as the capsule and a
  *  saved flight name it. */
-export const routeName = (dep: string, dest: string, stops: string[] = []) => [dep, ...stops, dest].join(" → ");
+export const routeName = (dep: string, dest: string, stops: string[] = []) =>
+  // A local flight, one airport to itself: "KDLH local".
+  dep && dep === dest && stops.length === 0 ? `${dep} local` : [dep, ...stops, dest].join(" → ");
 
