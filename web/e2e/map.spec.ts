@@ -13,13 +13,13 @@ test("plan page: a route from an airport to itself says so, rather than showing 
   await page.goto("/app/plan?dep=C81&dest=C81");
   await settle(page);
   await expect(page.getByText("A route needs two different airports.")).toBeVisible();
-  await expect(page.getByText("C81 is both the departure and the destination.")).toBeVisible();
+  await expect(page.getByText(/C81 is both the departure and the destination/)).toBeVisible();
 
-  // And it is a state the pilot can leave: change one and the route loads.
+  // And it is a state the pilot can leave: change one in the route's box
+  // and the route loads, with no Load to press.
   await page.getByLabel("Destination", { exact: true }).click();
   await page.getByPlaceholder("Search for a destination").fill("KDLH");
   await page.getByRole("option", { name: /KDLH/ }).first().click();
-  await page.getByRole("button", { name: "Load" }).click();
   await expect(page.getByText("A route needs two different airports.")).toBeHidden({ timeout: slow(25000) });
 });
 

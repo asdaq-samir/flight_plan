@@ -52,7 +52,13 @@ export default function RouteBox({ points, waypoints, onChange, adding, onAdding
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
   const isEnd = (ident: string) => identSchema.safeParse(ident).success && !waypoints.has(ident);
-  const valid = (next: string[]) => next.length >= 2 && isEnd(next[0]!) && isEnd(next.at(-1)!) && next.length - 2 <= MAX_STOPS;
+  // No point straight after itself (KDLH, KDLH, KMDW) -- but a route
+  // left as one airport twice is let through, to be said (PlanWorkspace's
+  // notice) and changed in this box: taking the stop out of a round trip
+  // did nothing at all.
+  const repeats = (next: string[]) => next.some((p, i) => i > 0 && p === next[i - 1]);
+  const valid = (next: string[]) => next.length >= 2 && isEnd(next[0]!) && isEnd(next.at(-1)!) && next.length - 2 <= MAX_STOPS
+    && (!repeats(next) || next.length === 2);
   const change = (next: string[]) => { if (valid(next)) onChange(next); };
 
   // Where a new point goes: before the destination, as a stop -- or, from

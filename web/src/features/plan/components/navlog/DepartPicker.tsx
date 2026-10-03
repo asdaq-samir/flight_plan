@@ -31,17 +31,18 @@ function nextHour(): string {
 }
 
 /** The departure in a few characters, as iOS's compact picker reads:
- *  "Today 18:00", "Sat 18:00" within the week, "3 Oct 18:00" further
- *  out -- short enough that the aeroplane, the time and the panel's
- *  three buttons share one line on a phone, where the day, a time box
- *  and a cross took a line of their own and pushed the buttons to a
- *  third. */
+ *  "18:00" today, "Sat 18:00" within the week, "11/17 18:00" further
+ *  out -- short enough that the aeroplane, the time and Save, Brief and
+ *  Print share one line on a phone, where the day, a time box and a
+ *  cross took a line of their own, and "17 Nov 18:00" still pushed the
+ *  buttons to the next. */
 function shortWhen(date: Date): string {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const days = Math.round((new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime() - today.getTime()) / 86_400_000);
-  const day = days === 0 ? "Today" : days > 0 && days < 7 ? format(date, "EEE") : format(date, "d MMM");
-  return `${day} ${format(date, "HH:mm")}`;
+  const time = format(date, "HH:mm");
+  if (days === 0) return time;
+  return `${days > 0 && days < 7 ? format(date, "EEE") : format(date, "M/d")} ${time}`;
 }
 
 /**
@@ -64,7 +65,8 @@ export default function DepartPicker({ value, onChange }: Props) {
         <Button
           // A field, as iOS's compact date picker is: the time in the
           // text's colour at a row's size (TEXT), not a button's tint.
-          variant="outline" size="sm" className={cn("font-normal text-foreground", TEXT.row)}
+          // 15 to a finger, as the aeroplane beside it (FlightInputs).
+          variant="outline" size="sm" className={cn("px-2.5 font-normal text-foreground", TEXT.detail)}
           aria-label="Departure date" data-testid="depart-date"
         >
           {!date && <CalendarIcon className="text-muted-foreground" />}

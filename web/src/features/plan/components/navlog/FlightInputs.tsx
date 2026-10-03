@@ -22,7 +22,11 @@ export default function FlightInputs({ aircraftValue, aircraftOptions, onAircraf
   return (
     <>
       <Select value={aircraftValue} onValueChange={onAircraftChange}>
-        <SelectTrigger size="sm" aria-label="Aircraft" data-testid="aircraft-select">
+        {/* 15 to a finger, as Maps' route options are, where a row's name
+            is 17: the aeroplane, the time and Save, Brief and Print on one
+            line of a phone, where at 17 the buttons went to a line of
+            their own. */}
+        <SelectTrigger size="sm" aria-label="Aircraft" data-testid="aircraft-select" className="pointer-coarse:text-[0.9375rem]">
           {/* Its short name -- C172, N12345 -- so a departure time picked
               beside it stays on the same line; the list has them whole. */}
           <SelectValue>{shortName(aircraftOptions.find(o => o.value === aircraftValue)?.label ?? "")}</SelectValue>

@@ -607,7 +607,9 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       />
     ) : started ? undefined : searchField,
     // The route as one box of pills, in place of the two airport fields.
-    route: routed ? (
+    // An airport twice (a round trip with its stop taken out) keeps the
+    // box, its notice saying what to change.
+    route: routed || s.sameAirport ? (
       <RouteBox
         points={[planned.dep, ...planned.stops, planned.dest]} waypoints={waypointStops}
         onChange={setRoute}
@@ -630,7 +632,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       </>
     ),
     // Beside the route form while there is no whole route yet.
-    actions: routed ? undefined : routeActions,
+    actions: routed || s.sameAirport ? undefined : routeActions,
     console: <PilotPanel />,
     submit,
     loading: s.stage !== null,
@@ -655,7 +657,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       <Alert className="rounded-none border-x-0 border-t-0 border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/40">
         <AlertTitle>A route needs two different airports.</AlertTitle>
         <AlertDescription>
-          {planned.dep} is both the departure and the destination. Change one of them and press Load.
+          {planned.dep} is both the departure and the destination: change one of them, or add a stop to fly a round trip.
         </AlertDescription>
       </Alert>
     ) : null,
