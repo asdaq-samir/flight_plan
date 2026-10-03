@@ -1,5 +1,5 @@
 import { useState, type KeyboardEvent } from "react";
-import { ArrowRight, Diamond, X } from "lucide-react";
+import { Diamond, X } from "lucide-react";
 import {
   DndContext, KeyboardSensor, MouseSensor, TouchSensor, closestCenter, useSensor, useSensors, type DragEndEvent,
 } from "@dnd-kit/core";
@@ -7,7 +7,7 @@ import { SortableContext, arrayMove, horizontalListSortingStrategy, sortableKeyb
 import { CSS } from "@dnd-kit/utilities";
 import { cn } from "cn";
 import AirportPicker from "../../../components/AirportPicker";
-import { InputGroup, InputGroupAddon, InputGroupButton } from "../../../components/ui/input-group";
+import { InputGroup, InputGroupAddon } from "../../../components/ui/input-group";
 import type { Detour } from "../../../lib/api/types";
 import { MAX_STOPS, identSchema, stopSchema } from "../../../lib/identSchema";
 import { TEXT } from "../../../lib/text";
@@ -19,23 +19,21 @@ import { TEXT } from "../../../lib/text";
  * change, crossed out, and more typed after them ("VPBNG 06C", Enter) or
  * found with the plus. A point added goes in before the destination, as
  * a stop; from Fly via, on the flight the Class B stops (`via`), its
- * suggestions at the top of the picker. Every change re-plans at once;
- * the arrow plans the same route again, the winds fresh. It was two
- * airport fields and a Load button, with the stops as chips in the row
- * under them.
+ * suggestions at the top of the picker. Every change re-plans at once,
+ * so there is no Load button: the plus has its place at the box's end.
+ * It was two airport fields and a Load button, with the stops as chips
+ * in the row under them.
  *
  * The ends stay airports: a waypoint is flown through, never taken off
  * from or landed at, so a drag that would put one at an end is undone,
  * as is a route left with fewer than two points.
  */
-export default function RouteBox({ points, waypoints, onChange, onSubmit, disabled, adding, onAddingChange, via }: {
+export default function RouteBox({ points, waypoints, onChange, adding, onAddingChange, via }: {
   /** The departure, the stops, the destination. */
   points: string[];
   /** Which of them are waypoints, flown through: a diamond on the pill. */
   waypoints: Set<string>;
   onChange: (points: string[]) => void;
-  onSubmit: () => void;
-  disabled?: boolean;
   /** The plus's picker open, from here or a problem's Add a stop. */
   adding: boolean;
   onAddingChange: (adding: boolean) => void;
@@ -88,7 +86,7 @@ export default function RouteBox({ points, waypoints, onChange, onSubmit, disabl
     // The box's own presses are its pills', not the panel's drag.
     <form
       className="min-w-0" autoComplete="off" onPointerDown={e => e.stopPropagation()}
-      onSubmit={e => { e.preventDefault(); if (typed.trim()) commitTyped(); else onSubmit(); }}
+      onSubmit={e => { e.preventDefault(); if (typed.trim()) commitTyped(); }}
     >
       <InputGroup className="h-auto min-h-9 py-1 pl-1" data-testid="route-box">
         {/* One line that slides sideways under a finger, as ForeFlight's
@@ -117,10 +115,14 @@ export default function RouteBox({ points, waypoints, onChange, onSubmit, disabl
           data-testid="route-type"
         />
         </div>
-        <InputGroupAddon align="inline-end" className="gap-1 pr-1">
+        {/* Inside the box's border: the stock addon pulls a button half
+            out past it. */}
+        <InputGroupAddon align="inline-end" className="gap-1 pr-1 has-[>button]:mr-0">
           {points.length - 2 < MAX_STOPS && (
             <AirportPicker
-              value="" placeholder="" ariaLabel="Add a stop" look="add" className="h-8 rounded-full px-2" fixes
+              value="" placeholder="" ariaLabel="Add a stop" look="add" fixes
+              // Where the Load button was, filled as it was.
+              className="size-8 rounded-md bg-primary p-0 text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground"
               open={adding} onOpenChange={onAddingChange} testId="add-stop"
               onChange={ident => insert([ident])}
               suggestions={via?.map(d => ({
@@ -129,9 +131,6 @@ export default function RouteBox({ points, waypoints, onChange, onSubmit, disabl
               }))}
             />
           )}
-          <InputGroupButton type="submit" variant="default" size="icon-sm" disabled={disabled} aria-label="Load">
-            <ArrowRight />
-          </InputGroupButton>
         </InputGroupAddon>
       </InputGroup>
     </form>

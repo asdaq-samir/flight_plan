@@ -34,9 +34,13 @@ export function RouteCapsule({ title, detail, tone = "default", onDetail, leadin
     <div className="flex w-full items-center gap-3">
       <div className="flex w-9 shrink-0 justify-start">{leading}</div>
       <div className="flex min-w-0 flex-1 flex-col items-center gap-1">
-        {/* Not a target of its own: the chip's hit area (index.css)
-            reaches up under it, as Maps' Options takes a tap on its title. */}
-        <span className={cn("pointer-events-none max-w-full truncate font-semibold", TEXT.row)} data-testid="capsule-title">{title}</span>
+        {/* A route too long for the capsule slides sideways under a
+            finger, where it was cut short ("KDLH → VPBNG → ..."); one that
+            fits sits in the middle, as before. Its own scroller, so the
+            panel's drag, which takes no pan, does not take this one. */}
+        <div className="max-w-full touch-pan-x overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" data-testid="capsule-title-slide">
+          <span className={cn("whitespace-nowrap font-semibold", TEXT.row)} data-testid="capsule-title">{title}</span>
+        </div>
         {detail && (
           // The tint's own words on a wash of it, as Maps' Options chip.
           <button

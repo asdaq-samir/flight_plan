@@ -594,7 +594,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     route: routed ? (
       <RouteBox
         points={[planned.dep, ...planned.stops, planned.dest]} waypoints={waypointStops}
-        onChange={setRoute} onSubmit={() => setLoad(n => n + 1)} disabled={s.stage !== null}
+        onChange={setRoute}
         adding={!!addingStop} onAddingChange={open => setAddingStop(open ? "stop" : false)}
         via={addingStop === "via" ? s.unflyable?.detours : undefined}
       />

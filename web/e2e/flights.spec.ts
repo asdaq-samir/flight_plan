@@ -93,8 +93,8 @@ test("opening a saved flight puts its route in the header, and Load plans that r
   await expect(consoleSheet(page)).toHaveCount(0);
 
   await openPanel(page);
+  // Planned at once: there is no Load to press.
   await expect(page.getByLabel("Departure", { exact: true })).toContainText("KMSP");
-  await page.getByRole("button", { name: "Load" }).click();
   await expect(page).toHaveURL(/dep=KMSP/);
   await expect(page).toHaveURL(/altitude_ft=5500/);
 });
