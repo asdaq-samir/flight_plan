@@ -3,7 +3,7 @@ import { ArrowRight, Diamond, X } from "lucide-react";
 import {
   DndContext, KeyboardSensor, MouseSensor, TouchSensor, closestCenter, useSensor, useSensors, type DragEndEvent,
 } from "@dnd-kit/core";
-import { SortableContext, arrayMove, rectSortingStrategy, sortableKeyboardCoordinates, useSortable } from "@dnd-kit/sortable";
+import { SortableContext, arrayMove, horizontalListSortingStrategy, sortableKeyboardCoordinates, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { cn } from "cn";
 import AirportPicker from "../../../components/AirportPicker";
@@ -90,9 +90,13 @@ export default function RouteBox({ points, waypoints, onChange, onSubmit, disabl
       className="min-w-0" autoComplete="off" onPointerDown={e => e.stopPropagation()}
       onSubmit={e => { e.preventDefault(); if (typed.trim()) commitTyped(); else onSubmit(); }}
     >
-      <InputGroup className="h-auto min-h-9 flex-wrap gap-1 py-1 pl-1" data-testid="route-box">
+      <InputGroup className="h-auto min-h-9 py-1 pl-1" data-testid="route-box">
+        {/* One line that slides sideways under a finger, as ForeFlight's
+            route does, where the pills wrapped onto a second and a third;
+            the plus and the arrow stay put at its end. */}
+        <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" data-testid="route-slide">
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
-          <SortableContext items={ids} strategy={rectSortingStrategy}>
+          <SortableContext items={ids} strategy={horizontalListSortingStrategy}>
             {points.map((point, i) => (
               <Pill
                 key={ids[i]} id={ids[i]!} ident={point} waypoint={waypoints.has(point)} index={i}
@@ -109,9 +113,10 @@ export default function RouteBox({ points, waypoints, onChange, onSubmit, disabl
           onBlur={() => typed.trim() && commitTyped()}
           placeholder={points.length ? "" : "Route"} aria-label="Add to the route"
           enterKeyHint="done" autoCapitalize="characters" autoCorrect="off" spellCheck={false}
-          className={cn("w-16 min-w-0 flex-1 bg-transparent font-mono uppercase outline-none", TEXT.row)}
+          className={cn("w-16 min-w-16 flex-1 bg-transparent font-mono uppercase outline-none", TEXT.row)}
           data-testid="route-type"
         />
+        </div>
         <InputGroupAddon align="inline-end" className="gap-1 pr-1">
           {points.length - 2 < MAX_STOPS && (
             <AirportPicker
@@ -148,7 +153,8 @@ function Pill({ id, ident, waypoint, index, role, removable, onChange, onRemove 
       ref={setNodeRef} {...attributes} {...listeners}
       style={{ transform: CSS.Transform.toString(transform), transition }}
       className={cn(
-        "inline-flex touch-none items-center rounded-full bg-foreground/8 pr-0.5 select-none",
+        // A sideways swipe slides the line; a hold, then a move, drags.
+        "inline-flex shrink-0 touch-pan-x items-center rounded-full bg-foreground/8 pr-0.5 select-none",
         isDragging && "z-10 shadow-md ring-2 ring-tint",
       )}
       data-testid={role === "stop" ? "stop" : `route-${role}`}
