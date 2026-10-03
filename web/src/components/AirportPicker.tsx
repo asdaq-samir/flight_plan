@@ -21,10 +21,11 @@ interface Props {
   ariaLabel: string;
   invalid?: boolean;
   className?: string;
-  /** "add": a plus and the placeholder in the tint, no chevrons -- a stop
-   *  to add (StopsBar), not a field to change. */
-  look?: "field" | "add";
-  /** Open from elsewhere: a problem's Add a stop (PlanWorkspace). */
+  /** "add": a plus and the placeholder in the tint, no chevrons -- a
+   *  point to add (RouteBox), not a field to change. "pill": the ident
+   *  alone, a point of a route in its box. */
+  look?: "field" | "add" | "pill";
+  /** Open from elsewhere: a problem's Add a stop or Fly via (PlanWorkspace). */
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
   testId?: string;
@@ -32,7 +33,7 @@ interface Props {
    *  (useAirportSearch), a route flying through one. */
   fixes?: boolean;
   /** Waypoints to offer first, before anything is typed: the ones round
-   *  the Class B a flight is stopped by (StopsBar's `via`). */
+   *  the Class B a flight is stopped by (RouteBox's `via`). */
   suggestions?: { ident: string; kind: string; detail: string }[];
 }
 

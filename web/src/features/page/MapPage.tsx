@@ -296,10 +296,12 @@ export default function MapPage({ mode }: { mode: Mode }) {
             top={pieces.alone ? null : pieces.head ?? (
               <>
                 <div className="min-w-0 flex-1">
-                  <RouteForm
-                    dep={dep} dest={dest} onDepChange={setDep} onDestChange={setDest}
-                    onSubmit={pieces.submit} disabled={pieces.loading}
-                  />
+                  {pieces.route ?? (
+                    <RouteForm
+                      dep={dep} dest={dest} onDepChange={setDep} onDestChange={setDest}
+                      onSubmit={pieces.submit} disabled={pieces.loading}
+                    />
+                  )}
                 </div>
                 {pieces.actions && <div className="flex shrink-0 items-center">{pieces.actions}</div>}
               </>

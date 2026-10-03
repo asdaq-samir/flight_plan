@@ -33,7 +33,7 @@ import { Favorites, FavoritesList } from "../../components/Favorites";
 import FlightBriefingView, { BriefingNotices, PlanningAidNote, SaveFlightButton } from "./components/briefing/FlightBriefingView";
 import FlightInputs from "./components/navlog/FlightInputs";
 import PlaceCard from "./components/PlaceCard";
-import StopsBar from "./components/StopsBar";
+import RouteBox from "./components/RouteBox";
 import NavLogActions from "./components/navlog/NavLogActions";
 import NavLogView from "./components/navlog/NavLogView";
 import RouteMap from "./components/RouteMap";
@@ -217,16 +217,22 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     setLoad(n => n + 1);
   }, [dep, dest, planned.dep, planned.dest, planned.stops, via, alt, altitudeChoice, depart, classBClearance, panel, setSearchParams]);
 
-  // The stops, changed in the panel's second row (StopsBar): in the
-  // address at once, which re-plans, as the aeroplane and the time do.
-  const setStops = useCallback((stops: string[]) => {
+  // The route, changed in its box (RouteBox): in the address at once,
+  // which re-plans, as the aeroplane and the time do -- the departure,
+  // the stops, the destination.
+  const setRoute = useCallback((points: string[]) => {
     setSearchParams(prev => {
       const next = new URLSearchParams(prev);
+      next.set("dep", points[0]!);
+      next.set("dest", points.at(-1)!);
+      const stops = points.slice(1, -1);
       if (stops.length) next.set("stops", stops.join(","));
       else next.delete("stops");
       return next;
     }, { replace: true });
   }, [setSearchParams]);
+  const setStops = useCallback(
+    (stops: string[]) => setRoute([planned.dep, ...stops, planned.dest]), [setRoute, planned.dep, planned.dest]);
   // Add Stop open: from its own button, or from no legal altitude's --
   // "via", its Fly via round a Class B, the ways round suggested.
   const [addingStop, setAddingStop] = useState<false | "stop" | "via">(false);
@@ -275,6 +281,10 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // Here with no position to fly from) is a route: its form asks for the
   // other end.
   const routed = routeOf(planned.dep, planned.dest, planned.stops) !== null;
+  // The stops flown through rather than landed at: the course's own word
+  // for each, and before it answers, any ident too long for an airport.
+  const waypointStops = useMemo(() => new Set(planned.stops.filter(stop =>
+    course?.stops?.some(a => a.ident === stop && a.kind === "fix") || !identOf(stop))), [planned.stops, course]);
   const started = routed || !!planned.dep || !!planned.dest;
   const [query, setQuery] = useState("");
   const [picking, setPicking] = useState<"place" | "home" | "favorite">("place");
@@ -565,22 +575,24 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
         trailing={<IconButton label="Close the route" variant="secondary" className="rounded-full" onClick={clearRoute} data-testid="clear-route"><X /></IconButton>}
       />
     ) : started ? undefined : searchField,
-    // The stops, the aeroplane and the departure time, under the route
-    // with the panel out.
-    controls: routed && (
-      <>
-      <StopsBar
-        stops={planned.stops} onChange={setStops} adding={!!addingStop}
-        onAddingChange={open => setAddingStop(open ? "stop" : false)}
+    // The route as one box of pills, in place of the two airport fields.
+    route: routed ? (
+      <RouteBox
+        points={[planned.dep, ...planned.stops, planned.dest]} waypoints={waypointStops}
+        onChange={setRoute} onSubmit={() => setLoad(n => n + 1)} disabled={s.stage !== null}
+        adding={!!addingStop} onAddingChange={open => setAddingStop(open ? "stop" : false)}
         via={addingStop === "via" ? s.unflyable?.detours : undefined}
       />
+    ) : undefined,
+    // The aeroplane and the departure time, under the route with the
+    // panel out.
+    controls: routed && (
       <FlightInputs
         aircraftValue={aircraftKey(aircraft)}
         aircraftOptions={aircraftOptions.map(o => ({ value: aircraftKey(o), label: o.label }))}
         onAircraftChange={changeAircraft}
         depart={depart} onDepartChange={changeDepart}
       />
-      </>
     ),
     // Saving the flight, the narrative and Print, beside the route.
     actions: (

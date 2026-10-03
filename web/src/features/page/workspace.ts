@@ -31,6 +31,9 @@ export interface WorkspacePieces {
   /** The panel at rest: a capsule with the route in it, or a search bar
    *  while there is none (PanelCapsule). */
   compact?: ReactNode;
+  /** The route's own box in place of the page's route form, beside the
+   *  actions: the planner's pills (RouteBox). */
+  route?: ReactNode;
   /** The panel's top row with it out, in place of the route form and the
    *  actions: the search bar, while there is no route. */
   head?: ReactNode;
