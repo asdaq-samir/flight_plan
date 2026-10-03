@@ -490,6 +490,21 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     </NavLogView>
   );
 
+  // Saving the flight, the narrative and Print.
+  const routeActions = (
+    <>
+      <SaveFlightButton
+        course={course} totals={s.totals} nav={s.nav} legs={s.legs} selected={selected}
+        aircraftId={aircraft.aircraftId ?? null} depart={depart}
+      />
+      <NavLogActions
+        onGenerateNarrative={s.generateNarrative}
+        langgraphNarrative={s.langgraphNarrative}
+        crewaiNarrative={s.crewaiNarrative}
+      />
+    </>
+  );
+
   return children({
     // The map stays mounted beside the briefing (the arrow walk still
     // pans it) but stays off the paper: the drawer is the printed page.
@@ -585,29 +600,21 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       />
     ) : undefined,
     // The aeroplane and the departure time, under the route with the
-    // panel out.
+    // panel out, and beside them saving the flight, the narrative and
+    // Print: the route's box has the top row to itself.
     controls: routed && (
-      <FlightInputs
-        aircraftValue={aircraftKey(aircraft)}
-        aircraftOptions={aircraftOptions.map(o => ({ value: aircraftKey(o), label: o.label }))}
-        onAircraftChange={changeAircraft}
-        depart={depart} onDepartChange={changeDepart}
-      />
-    ),
-    // Saving the flight, the narrative and Print, beside the route.
-    actions: (
       <>
-        <SaveFlightButton
-          course={course} totals={s.totals} nav={s.nav} legs={s.legs} selected={selected}
-          aircraftId={aircraft.aircraftId ?? null} depart={depart}
+        <FlightInputs
+          aircraftValue={aircraftKey(aircraft)}
+          aircraftOptions={aircraftOptions.map(o => ({ value: aircraftKey(o), label: o.label }))}
+          onAircraftChange={changeAircraft}
+          depart={depart} onDepartChange={changeDepart}
         />
-        <NavLogActions
-          onGenerateNarrative={s.generateNarrative}
-          langgraphNarrative={s.langgraphNarrative}
-          crewaiNarrative={s.crewaiNarrative}
-        />
+        <div className="flex items-center">{routeActions}</div>
       </>
     ),
+    // Beside the route form while there is no whole route yet.
+    actions: routed ? undefined : routeActions,
     console: <PilotPanel />,
     submit,
     loading: s.stage !== null,
