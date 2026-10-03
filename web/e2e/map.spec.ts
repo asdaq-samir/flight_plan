@@ -39,15 +39,15 @@ test("plan page: every popup the map opens dismisses the same way", async ({ pag
   // A tap on the chart itself, where nothing is drawn: a fixed corner
   // had a Class B chip under it once the pin had flown the map to KORD.
 
-  // The departure marker: a tap opens its card, a tap on the chart puts
-  // it away. There is no close button on a card -- closing one is
-  // Leaflet's own `closeOnClick`. The tap goes to the marker and brings
-  // the map in to it, so the wheel takes it back out before KORD can be
-  // found.
+  // The departure marker: a tap opens its card in the panel, as every
+  // airport on the chart does -- it was a weather card over the chart --
+  // and a tap on the chart puts it away. The card brings the map in to
+  // the field, so the wheel takes it back out before KORD can be found.
   await page.locator(".leaflet-marker-icon", { hasText: "C81" }).first().click();
-  await expect(popups).toHaveCount(1);
-  await tapTheChart(page);
+  await expect(page.getByTestId("place-card")).toBeVisible({ timeout: slow(15000) });
   await expect(popups).toHaveCount(0);
+  await tapTheChart(page);
+  await expect(page.getByTestId("place-card")).toHaveCount(0);
   const map = (await page.locator(".leaflet-container").boundingBox())!;
   await page.mouse.move(map.x + map.width / 2, map.y + map.height / 3);
   for (let i = 0; i < 4; i++) {

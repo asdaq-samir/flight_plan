@@ -6,7 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { classBQuery } from "../../../lib/queryClient";
 import type { Candidate, ClassBAirport, Course } from "../../../lib/api/types";
 import type { BriefingState } from "../hooks/usePlan";
-import { AirportCard, type AirportWeather } from "../../../lib/map/AirportCard";
+import type { AirportWeather } from "../../../lib/map/AirportCard";
 import { AirportsLayer } from "../../../lib/map/AirportsLayer";
 import { WaypointsLayer } from "../../../lib/map/WaypointsLayer";
 import { chipColourOf } from "../../../lib/map/flightCategory";
@@ -18,6 +18,7 @@ import { MapCard } from "../../../lib/map/MapCard";
 import { MapPopup } from "../../../lib/map/MapPopup";
 import { MapShell } from "../../../lib/map/MapShell";
 import { MapTooltip } from "../../../lib/map/MapTooltip";
+import { hovers } from "../../../lib/map/view";
 import { useCardedMarker } from "../../../lib/map/useCardedMarker";
 import { usePreferences } from "../../../lib/preferences";
 import { inkOn } from "../../../lib/scoreScale";
@@ -111,17 +112,19 @@ function routeAirports(course: Course, each = false) {
 }
 
 /**
- * The route's departure, stops and destination. Selectable like every other
- * marker: a tap brings the map to it and selects it, which is also what
- * the nav log's first and last rows do. They are the two markers drawn
- * at every zoom, so on a route whose checkpoints are still too far out
- * to draw they are the only ones there to tap. An airport chip coloured
- * by the field's own current METAR; the Class B pill, and its forecast,
- * when the field is one on the Class B layer (which then leaves it to
- * this rather than drawing a second chip on top).
+ * The route's departure, stops and destination, drawn at every zoom, so
+ * on a route whose checkpoints are still too far out to draw they are
+ * the only ones there to tap. An airport chip coloured by the field's
+ * own current METAR -- the Class B pill when the field is one on the
+ * Class B layer (which then leaves it to this rather than drawing a
+ * second chip on top) -- and a tap opens its card in the panel
+ * (PlaceCard), as every airport on the chart does: it was a weather card
+ * over the chart. A waypoint flown through brings the map to it, as the
+ * nav log's rows do.
  */
-function Endpoints({ course, weather, onSelectPoint }: { course: Course; weather: BriefingState; onSelectPoint: Props["onSelectPoint"] }) {
-  const { carded, cardEvents } = useCardedMarker<string>();
+function Endpoints({ course, weather, onSelectPoint, onSelectPlace }: {
+  course: Course; weather: BriefingState; onSelectPoint: Props["onSelectPoint"]; onSelectPlace: Props["onSelectPlace"];
+}) {
   const classBShown = usePreferences(p => p.classB);
   // The Class B layer's own answer, read from its cache rather than asked
   // for again; only while that layer is showing.
@@ -146,15 +149,9 @@ function Endpoints({ course, weather, onSelectPoint }: { course: Course; weather
           <Marker
             key={a.ident} position={[a.lat, a.lon]}
             icon={airportIcon(chipColourOf(w), a.ident, { classB: !!field })}
-            eventHandlers={{
-              click: e => { L.DomEvent.stopPropagation(e); onSelectPoint(a.lat, a.lon); },
-              ...cardEvents(a.ident),
-            }}
+            eventHandlers={{ click: e => { L.DomEvent.stopPropagation(e); onSelectPlace(a.ident); } }}
           >
-            {carded !== a.ident && (
-              <MapTooltip><AirportCard ident={a.ident} name={a.name} weather={w} /></MapTooltip>
-            )}
-            <MapPopup><AirportCard ident={a.ident} name={a.name} weather={w} /></MapPopup>
+            {hovers && <MapTooltip>{a.ident} · {a.name} · {w.category ?? "no report"}</MapTooltip>}
           </Marker>
         );
       })}
@@ -260,7 +257,7 @@ export default function RouteMap({
             line={course.course_line as [number, number][]}
             tooltip={`${routeAirports(course, true).map(a => a.ident).join(" → ")} · ${course.distance_nm} nm`}
           />
-          <Endpoints course={course} weather={airportWeather} onSelectPoint={onSelectPoint} />
+          <Endpoints course={course} weather={airportWeather} onSelectPoint={onSelectPoint} onSelectPlace={onSelectPlace} />
           <Checkpoints candidates={candidates} selected={selected} onSelectCandidate={onSelectCandidate} />
           {focus && <Halo at={focus} />}
           <FocusOn point={focus} zoom={focusZoom} />
