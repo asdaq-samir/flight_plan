@@ -28,6 +28,10 @@ KINDS = {
     "RADAR": "Radar fix",
 }
 
+#: The charts a VFR waypoint must be on to be one a pilot can see:
+#: NASR's CHARTS column.
+VFR_CHARTS = {"SECTIONAL", "VFR TERMINAL AREA"}
+
 _TABLE: dict[str, dict] | None = None
 _LOCK = threading.Lock()
 
@@ -44,9 +48,19 @@ def _read(path: Path) -> dict[str, dict]:
             if not ident:
                 continue
             use = (row.get("FIX_USE_CODE") or "").strip()
+            charts = {c.strip() for c in (row.get("CHARTS") or "").split(",") if c.strip()}
+            # A VFR waypoint a fixed-wing pilot has on a chart: on the
+            # sectional or the terminal area chart. NASR files the
+            # helicopter routes' waypoints as VFR too -- the line of
+            # them across O'Hare (VPDVA to VPDVI) -- and a few no chart
+            # carries.
+            vfr = use == "VFR" and bool(charts & VFR_CHARTS)
+            kind = KINDS.get(use, "Fix")
+            if use == "VFR" and not vfr:
+                kind = "Helicopter route waypoint" if "HELICOPTER ROUTE" in charts else "Uncharted VFR waypoint"
             table[ident] = {
-                "ident": ident, "lat": lat, "lon": lon, "kind": KINDS.get(use, "Fix"),
-                "vfr": use == "VFR", "state": (row.get("STATE_CODE") or "").strip() or None,
+                "ident": ident, "lat": lat, "lon": lon, "kind": kind,
+                "vfr": vfr, "state": (row.get("STATE_CODE") or "").strip() or None,
             }
     return table
 

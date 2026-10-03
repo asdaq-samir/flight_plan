@@ -252,7 +252,10 @@ export default function MapPanel({ label, top, controls, notices, compact, child
             // route's chip keeps its hit area (index.css), eleven under it,
             // clear of the grabber in the padding under it.
             capsule ? cn("p-[14px]", !fromBottom && "has-[[data-testid=capsule-detail]]:pb-6")
-              : cn("px-3 pb-1", fromBottom ? "pt-5" : onPhone ? "pt-[max(0.5rem,env(safe-area-inset-top))]" : "pt-2"),
+              // No top row (a place's card alone): only the room the status
+              // bar takes from the top of a phone's screen.
+              : top == null ? (!fromBottom && onPhone ? "pt-[env(safe-area-inset-top)]" : undefined)
+                : cn("px-3 pb-1", fromBottom ? "pt-5" : onPhone ? "pt-[max(0.5rem,env(safe-area-inset-top))]" : "pt-2"),
           )}
         >
           {capsule ? compact : top}

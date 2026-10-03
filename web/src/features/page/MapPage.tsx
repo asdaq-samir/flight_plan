@@ -290,10 +290,10 @@ export default function MapPage({ mode }: { mode: Mode }) {
               capsule, which has no search: never with the planner's route. */}
           <ConsoleButtonContext.Provider value={mode === "dev" || pieces.searching ? settingsButton : null}>
           <MapPanel
-            label={panelLabel} controls={pieces.controls}
+            label={panelLabel} controls={pieces.alone ? undefined : pieces.controls}
             state={panel} onStateChange={setPanel} onInsetsChange={changeInsets}
-            notices={pieces.notices} compact={pieces.compact}
-            top={pieces.head ?? (
+            notices={pieces.alone ? undefined : pieces.notices} compact={pieces.compact}
+            top={pieces.alone ? null : pieces.head ?? (
               <>
                 <div className="min-w-0 flex-1">
                   <RouteForm
