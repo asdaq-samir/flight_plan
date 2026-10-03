@@ -360,6 +360,20 @@ def is_own_surface_area(polygon: dict, start_point, end_point) -> bool:
     return polygon["geometry"].contains(start_point) or polygon["geometry"].contains(end_point)
 
 
+def own_class_b(polygons: list, start_point, end_point) -> set[str]:
+    """The Class B a route takes off from or lands in, by name: those whose
+    surface area holds one of its ends. Landing at O'Hare takes a Class B
+    clearance anyway, so none of Chicago's shelves is a ceiling on the way
+    in -- Midway to O'Hare had no legal altitude under the 1,900 ft shelf
+    between them, only the surface area round O'Hare itself being left
+    out. A field under a shelf, not in a surface area (Midway under
+    Chicago's 3,000), is flown out of under it as before."""
+    return {
+        p["name"] for p in polygons
+        if p["class"] in CLEARANCE_CLASSES and is_own_surface_area(p, start_point, end_point)
+    }
+
+
 def max_airspace_altitude_msl(route_start: tuple, route_end: tuple, shp_path) -> float | None:
     """The highest altitude the route can cruise at while staying beneath
     every Class B shelf it laterally passes through, in feet MSL -- i.e.
@@ -413,17 +427,17 @@ def airspace_ceiling_profile(route_start: tuple, route_end: tuple, fixes: list, 
     once past it. The route's own surface areas are excluded on the
     whole route's ends, as in max_airspace_altitude_msl: a leg that
     starts at the departure begins inside that airport's airspace just
-    as the route does.
+    as the route does -- and with them the whole Class B they are part
+    of (own_class_b): a route into or out of it is cleared through it.
     """
     from .geo import corridor_bbox
 
     bbox = corridor_bbox(route_start, route_end, buffer_nm=2.0)
     start_point = Point(route_start[1], route_start[0])
     end_point = Point(route_end[1], route_end[0])
-    shelves = [
-        p for p in load_controlled_airspace(shp_path, bbox)
-        if p["class"] in CLEARANCE_CLASSES and not is_own_surface_area(p, start_point, end_point)
-    ]
+    polygons = load_controlled_airspace(shp_path, bbox)
+    own = own_class_b(polygons, start_point, end_point)
+    shelves = [p for p in polygons if p["class"] in CLEARANCE_CLASSES and p["name"] not in own]
 
     ceilings = []
     for (lat1, lon1), (lat2, lon2) in zip(fixes, fixes[1:]):
@@ -460,10 +474,11 @@ def detour_waypoints(route_start: tuple, route_end: tuple, shp_path, below_ft: f
     from .geo import corridor_bbox
 
     start_point, end_point = Point(route_start[1], route_start[0]), Point(route_end[1], route_end[0])
+    polygons = load_controlled_airspace(shp_path, corridor_bbox(route_start, route_end, buffer_nm=30.0))
+    own = own_class_b(polygons, start_point, end_point)
     blocking = [
-        p["geometry"] for p in load_controlled_airspace(shp_path, corridor_bbox(route_start, route_end, buffer_nm=30.0))
-        if p["class"] in CLEARANCE_CLASSES and p["floor_ft_msl"] < below_ft
-        and not is_own_surface_area(p, start_point, end_point)
+        p["geometry"] for p in polygons
+        if p["class"] in CLEARANCE_CLASSES and p["floor_ft_msl"] < below_ft and p["name"] not in own
     ]
     if not blocking:
         return []

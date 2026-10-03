@@ -53,3 +53,17 @@ def test_the_route_wide_ceiling_is_the_one_leg_profile_on_every_fixture(monkeypa
         monkeypatch.setattr(airspace, "load_controlled_airspace", lambda shp_path, bbox, shapes=shapes: shapes)
         assert airspace.max_airspace_altitude_msl(START, END, shp_path="unused") == \
             airspace.airspace_ceiling_profile(START, END, [START, END], shp_path="unused")[0]
+
+
+def test_a_route_into_a_class_b_airport_is_cleared_through_its_whole_class_b(monkeypatch):
+    # Midway to O'Hare: the surface area round the destination and a low
+    # shelf of the same Class B between them. Landing there takes the
+    # clearance, so neither caps the route.
+    shapes = [
+        _shelf(0.0, -88.4, 41.2, -88.0, 41.6, name="CHICAGO CLASS B"),      # round END
+        _shelf(1900.0, -89.3, 40.5, -88.9, 40.9, name="CHICAGO CLASS B"),   # across the way
+        _shelf(2500.0, -90.2, 39.8, -89.5, 40.4, name="ELSEWHERE CLASS B"), # another one entirely
+    ]
+    monkeypatch.setattr(airspace, "load_controlled_airspace", lambda shp_path, bbox: shapes)
+
+    assert airspace.airspace_ceiling_profile(START, END, [START, MID, END], shp_path="unused") == [2500.0, None]
