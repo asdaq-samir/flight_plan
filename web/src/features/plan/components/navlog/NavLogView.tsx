@@ -113,6 +113,9 @@ interface Props {
   /** The drawer's last line, under every section (the planning-aid
    *  reminder). */
   footer?: ReactNode;
+  /** Beside the Nav Log's title, folded or open: a mark that opens to a
+   *  note (a tight altitude, TightAltitudeNote). */
+  titleNote?: ReactNode;
   /** Clicking a row focuses that waypoint on the map (pans/zooms to
    *  it, draws the halo) the same way clicking its marker there
    *  selects this row -- keyed by coordinates rather than a row
@@ -382,7 +385,7 @@ export default function NavLogView({
   totals, nav, onAltitudeChoiceChange, depart,
   legs, dep, dest, ends,
   selected, descriptions, onSaveDescription,
-  onGenerateDescriptions, descriptionsLoading, children, notice, footer,
+  onGenerateDescriptions, descriptionsLoading, children, notice, footer, titleNote,
   selectedPoint, onSelectPoint, onDeselectPoint, drawerOpen, alt, onAltChange, onSubmit,
   aircraftLabel,
 }: Props) {
@@ -972,7 +975,7 @@ export default function NavLogView({
       >
         {notice}
         <Accordion type="multiple" value={printing ? ALL_SECTIONS : open} onValueChange={setOpen}>
-          <AccordionSection title="Nav Log" summary={foldedSummary}>
+          <AccordionSection title="Nav Log" summary={foldedSummary} aside={titleNote}>
             {summary}
             {navLogTable}
             {fuelNote}

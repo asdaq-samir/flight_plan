@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { Share, TowerControl, TriangleAlert, X } from "lucide-react";
+import { Share, TowerControl, X } from "lucide-react";
 import { toast } from "sonner";
 import { showError } from "../../lib/problems";
 import { cn } from "cn";
@@ -34,6 +34,7 @@ import FlightBriefingView, { BriefingNotices, PlanningAidNote, SaveFlightButton 
 import FlightInputs from "./components/navlog/FlightInputs";
 import PlaceCard from "./components/PlaceCard";
 import RouteBox from "./components/RouteBox";
+import TightAltitudeNote from "./components/navlog/TightAltitudeNote";
 import NavLogActions from "./components/navlog/NavLogActions";
 import NavLogView from "./components/navlog/NavLogView";
 import RouteMap from "./components/RouteMap";
@@ -459,6 +460,20 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // The flight planning drawer: the nav log as the first section, the
   // briefing's sections under it, the briefing's own actions in the
   // drawer's header.
+  // A leg where no 500 ft step fits and the planner flies the highest
+  // whole hundred under its ceiling (vfr.altitude's tight altitude):
+  // where, at what, and how little room there is either side.
+  const tight = s.nav?.altitude_selection.segments?.find(seg => seg.tight);
+  const tightLeg = tight && tight.candidates_ft[0] !== undefined && tight.band_ceiling_ft != null ? (() => {
+    const altitude = tight.candidates_ft[0]!;
+    const under = tight.band_ceiling_ft === tight.airspace_ceiling_ft ? "the Class B"
+      : tight.band_ceiling_ft === tight.cloud_ceiling_ft ? "the cloud clearance" : "the service ceiling";
+    const over = Math.round(altitude - tight.floor_ft);
+    return `Tight ${Math.round(tight.from_nm)}–${Math.round(tight.to_nm)} nm along: ${altitude.toLocaleString()} ft, `
+      + `${Math.round(tight.band_ceiling_ft - altitude)} ft under ${under} and `
+      + `${over > 0 ? `${over} ft over` : "right at"} the obstacle minimum.`;
+  })() : null;
+
   const navLog = (
     <NavLogView
       totals={s.totals} nav={s.nav} legs={s.legs}
@@ -478,6 +493,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       aircraftLabel={aircraft.label}
       notice={<BriefingNotices briefing={s.briefing} />}
       footer={<PlanningAidNote />}
+      titleNote={tightLeg ? <TightAltitudeNote note={tightLeg} /> : undefined}
     >
       <FlightBriefingView
         nav={s.nav} legs={s.legs}
@@ -489,20 +505,6 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       />
     </NavLogView>
   );
-
-  // A leg where no 500 ft step fits and the planner flies the highest
-  // whole hundred under its ceiling (vfr.altitude's tight altitude):
-  // where, at what, and how little room there is either side.
-  const tight = s.nav?.altitude_selection.segments?.find(seg => seg.tight);
-  const tightLeg = tight && tight.candidates_ft[0] !== undefined && tight.band_ceiling_ft != null ? (() => {
-    const altitude = tight.candidates_ft[0]!;
-    const under = tight.band_ceiling_ft === tight.airspace_ceiling_ft ? "the Class B"
-      : tight.band_ceiling_ft === tight.cloud_ceiling_ft ? "the cloud clearance" : "the service ceiling";
-    const over = Math.round(altitude - tight.floor_ft);
-    return `Tight ${Math.round(tight.from_nm)}–${Math.round(tight.to_nm)} nm along: ${altitude.toLocaleString()} ft, `
-      + `${Math.round(tight.band_ceiling_ft - altitude)} ft under ${under} and `
-      + `${over > 0 ? `${over} ft over` : "right at"} the obstacle minimum.`;
-  })() : null;
 
   // Saving the flight, the narrative and Print.
   const routeActions = (
@@ -648,15 +650,6 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           Planned through Class B: you&apos;ll need a clearance.
         </AlertDescription>
         <Button type="button" size="sm" variant="ghost" className="shrink-0 text-tint" onClick={() => acceptClassB(false)}>Undo</Button>
-      </Alert>
-    ) : tightLeg ? (
-      // A leg flown at a tight altitude (vfr.altitude): legal, said so.
-      <Alert
-        className="flex items-center gap-2 rounded-none border-x-0 border-t-0 bg-transparent py-1.5 pr-3 pl-4 *:[svg]:translate-y-0"
-        data-testid="tight-altitude"
-      >
-        <TriangleAlert className="shrink-0 text-amber-600 dark:text-amber-400" />
-        <AlertDescription className={cn("min-w-0 flex-1 text-foreground", TEXT.detail)}>{tightLeg}</AlertDescription>
       </Alert>
     ) : s.sameAirport ? (
       <Alert className="rounded-none border-x-0 border-t-0 border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/40">

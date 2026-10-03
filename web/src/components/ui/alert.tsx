@@ -54,7 +54,10 @@ function AlertDescription({
     <div
       data-slot="alert-description"
       className={cn(
-        "text-sm text-balance text-muted-foreground md:text-pretty [&_a]:underline [&_a]:underline-offset-3 [&_a]:hover:text-foreground [&_p:not(:last-child)]:mb-4",
+        // Wrapped to the full width, not balanced: balancing evened a
+        // two-line note out and left a third of the panel empty beside it,
+        // and Safari's pretty wrapping still left a fifth.
+        "text-sm text-wrap text-muted-foreground [&_a]:underline [&_a]:underline-offset-3 [&_a]:hover:text-foreground [&_p:not(:last-child)]:mb-4",
         className
       )}
       {...props}
