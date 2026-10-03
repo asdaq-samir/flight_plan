@@ -256,3 +256,23 @@ def test_the_book_service_ceiling_where_the_temperatures_are_unknown(sources, mo
     result = altitude.select_cruise_altitude(DEP, DEST, PROFILE)
 
     assert result["service_ceiling_ft"] == result["band_ceiling_ft"] == 14000
+
+
+# --- A tight altitude, where no 500 ft step fits -------------------------
+#
+# KDPA to KMDW: the obstacles need 1,800 ft and Chicago's Class B starts
+# at 1,900. Below 3,000 ft above the ground any altitude is legal, so
+# 1,800 is -- under the shelf, not at it -- though tight.
+
+from vfr.altitude import tight_cruising_altitude  # noqa: E402
+
+
+def test_the_highest_whole_hundred_under_the_ceiling_that_clears_the_floor():
+    assert tight_cruising_altitude(1800.0, 1900.0, 3600.0) == 1800.0
+    assert tight_cruising_altitude(1750.0, 1950.0, 3600.0) == 1900.0
+
+
+def test_nothing_tight_where_nothing_fits_or_the_rule_applies():
+    assert tight_cruising_altitude(1850.0, 1900.0, 3600.0) is None   # no hundred between
+    assert tight_cruising_altitude(1800.0, None, 3600.0) is None     # no ceiling to be tight under
+    assert tight_cruising_altitude(3800.0, 4000.0, 3600.0) is None   # 91.159's altitudes up there

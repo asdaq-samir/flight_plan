@@ -1039,6 +1039,11 @@
             "default": null,
             "title": "Service Ceiling Ft"
           },
+          "tight": {
+            "default": false,
+            "title": "Tight",
+            "type": "boolean"
+          },
           "to_nm": {
             "title": "To Nm",
             "type": "number"

@@ -117,7 +117,7 @@ export default function RouteBox({ points, waypoints, onChange, adding, onAdding
         </div>
         {/* Inside the box's border: the stock addon pulls a button half
             out past it. */}
-        <InputGroupAddon align="inline-end" className="gap-1 pr-1 has-[>button]:mr-0">
+        <InputGroupAddon align="inline-end" className="mr-0 gap-1 pr-1.5 has-[>button]:mr-0">
           {points.length - 2 < MAX_STOPS && (
             <AirportPicker
               value="" placeholder="" ariaLabel="Add a stop" look="add" fixes

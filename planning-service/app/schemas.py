@@ -286,6 +286,10 @@ class AltitudeSegment(BaseModel):
     #: Where the rule begins over this leg (see AltitudeBreakdown's).
     hemispheric_rule_from_ft: float | None = None
     candidates_ft: list[float]
+    #: No 500 ft step fits under this leg's ceiling, and its one altitude
+    #: is the highest whole hundred under it that clears the floor (1,800
+    #: ft under a 1,900 ft shelf): legal, but tight (vfr.altitude).
+    tight: bool = False
 
 
 class AltitudeBreakdown(BaseModel):

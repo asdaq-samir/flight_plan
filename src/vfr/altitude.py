@@ -207,6 +207,27 @@ def legal_cruising_altitudes(
     return sorted(altitudes)
 
 
+#: Where no 500 ft step fits under a ceiling, the step a tight altitude is
+#: found on.
+TIGHT_STEP_FT = 100
+
+
+def tight_cruising_altitude(floor_ft: float, ceiling_ft: float | None, rule_from_ft: float | None) -> float | None:
+    """Where no 500 ft step fits between the floor and the ceiling (a
+    1,800 ft floor under Chicago's 1,900 ft Class B shelf), the highest
+    whole hundred under the ceiling that clears the floor: legal below
+    3,000 ft above the ground, where 14 CFR 91.159's altitudes do not
+    apply -- under it, not at it, as a shelf's floor is Class B -- but
+    tight, and said so (the segment's `tight`). None where nothing fits,
+    there is no ceiling, or it is above where the rule begins."""
+    if ceiling_ft is None or rule_from_ft is None:
+        return None
+    altitude = (math.ceil(ceiling_ft / TIGHT_STEP_FT) - 1) * TIGHT_STEP_FT
+    if altitude < floor_ft or altitude >= rule_from_ft:
+        return None
+    return float(altitude)
+
+
 def _service_ceiling_ft(aircraft_profile: dict, a: tuple, b: tuple, fcst_hr: str, temperatures: bool) -> float:
     """The profile's service ceiling as an altitude over the leg from a
     to b: a density altitude -- the height where the best climb has
@@ -409,18 +430,25 @@ def select_cruise_altitude(
         return min(ceilings) if ceilings else None
 
     def band(floor, airspace_ceiling, service_ceiling, cloud_base, course, areas, rule_from):
-        """(ceiling, legal altitudes, cloud clearance kept): the legal
-        altitudes from the floor to the lowest ceiling, the clouds'
-        included, none through a prohibited area -- or, where the clouds
-        leave none, the band without them, and False."""
+        """(ceiling, legal altitudes, cloud clearance kept, tight): the
+        legal altitudes from the floor to the lowest ceiling, the
+        clouds' included, none through a prohibited area -- or, where no
+        500 ft step fits, the one tight altitude under the ceiling
+        (tight_cruising_altitude), and True -- or, where the clouds leave
+        none, the band without them, and False."""
         def legal(ceiling):
-            return [a for a in legal_cruising_altitudes(floor, ceiling, course, rule_from) if not sua.blocked(a, areas)]
+            found = [a for a in legal_cruising_altitudes(floor, ceiling, course, rule_from) if not sua.blocked(a, areas)]
+            if found:
+                return found, False
+            tight = tight_cruising_altitude(floor, ceiling, rule_from)
+            return ([tight], True) if tight is not None and not sua.blocked(tight, areas) else ([], False)
         ceiling = band_ceiling(airspace_ceiling, service_ceiling, cloud_base)
-        altitudes = legal(ceiling)
+        altitudes, tight = legal(ceiling)
         if altitudes or cloud_base is None:
-            return ceiling, altitudes, True
+            return ceiling, altitudes, True, tight
         ceiling = band_ceiling(airspace_ceiling, service_ceiling)
-        return ceiling, legal(ceiling), False
+        altitudes, tight = legal(ceiling)
+        return ceiling, altitudes, False, tight
 
     # The whole route's own band: the highest floor and the lowest
     # shelf, cloud and service ceiling anywhere along it -- the altitude
@@ -429,7 +457,7 @@ def select_cruise_altitude(
     rule_from_ft = min(rules_from_ft)
     shelf_floors = [c for c in airspace_ceilings_ft if c is not None]
     airspace_ceiling_ft = min(shelf_floors) if shelf_floors else None
-    band_ceiling_ft, candidates_ft, cloud_clearance_kept = band(
+    band_ceiling_ft, candidates_ft, cloud_clearance_kept, _ = band(
         floor_ft, airspace_ceiling_ft, service_ceiling_ft, cloud_base_ft, course_magnetic_deg, special_use,
         rule_from_ft)
 
@@ -463,7 +491,7 @@ def select_cruise_altitude(
         for i, (a, b) in enumerate(zip(breaks_nm, breaks_nm[1:])):
             leg_cloud_base_ft, leg_cloud_station = cloud_bases[i]
             leg_course = _leg_course_magnetic_deg(fixes[i], fixes[i + 1])
-            segment_ceiling_ft, segment_candidates_ft, segment_clearance_kept = band(
+            segment_ceiling_ft, segment_candidates_ft, segment_clearance_kept, segment_tight = band(
                 floors_ft[i], airspace_ceilings_ft[i], service_ceilings_ft[i], leg_cloud_base_ft, leg_course,
                 [area for area in special_use if i in area["legs"]], rules_from_ft[i])
             segments.append({
@@ -481,6 +509,7 @@ def select_cruise_altitude(
                 "eastbound": is_eastbound(leg_course),
                 "hemispheric_rule_from_ft": round(rules_from_ft[i]),
                 "candidates_ft": segment_candidates_ft,
+                "tight": segment_tight,
             })
 
     # Icing: an altitude this could recommend reaching the freezing level
