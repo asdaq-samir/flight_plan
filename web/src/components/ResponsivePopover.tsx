@@ -1,7 +1,7 @@
 import { createContext, useContext, type ComponentProps, type ReactNode } from "react";
 import { cn } from "cn";
 import { Drawer, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle, DrawerTrigger } from "./ui/drawer";
-import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
+import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from "./ui/popover";
 import { useIsMobile } from "../hooks/use-mobile";
 import { useNavEdge } from "../hooks/use-nav-edge";
 import type { NavEdge } from "../lib/preferences";
@@ -48,6 +48,12 @@ export function ResponsivePopoverTrigger(props: ComponentProps<typeof PopoverTri
   return useContext(OnPhone) ? <DrawerTrigger {...props} /> : <PopoverTrigger {...props} />;
 }
 
+/** What the popover is placed against, where a trigger cannot be (a mark
+ *  inside another button, TitleNote); a phone's sheet needs none. */
+export function ResponsivePopoverAnchor({ children, ...props }: ComponentProps<typeof PopoverAnchor>) {
+  return useContext(OnPhone) ? <>{children}</> : <PopoverAnchor {...props}>{children}</PopoverAnchor>;
+}
+
 type ContentProps = ComponentProps<typeof PopoverContent> & {
   /** The sheet's heading on a phone -- and its accessible name either way. */
   title: string;
@@ -68,11 +74,17 @@ type ContentProps = ComponentProps<typeof PopoverContent> & {
   sheetClassName?: string;
 };
 
-export function ResponsivePopoverContent({ title, description, titleHidden, action, leading, className, sheetClassName, children, align, side, sideOffset, alignOffset, ...props }: ContentProps) {
+export function ResponsivePopoverContent({
+  title, description, titleHidden, action, leading, className, sheetClassName, children, align, side, sideOffset, alignOffset,
+  collisionPadding, ...props
+}: ContentProps) {
   const edge = useContext(OnPhone);
   if (!edge) {
     return (
-      <PopoverContent aria-label={title} className={className} align={align} side={side} sideOffset={sideOffset} alignOffset={alignOffset} {...props}>
+      <PopoverContent
+        aria-label={title} className={className} align={align} side={side} sideOffset={sideOffset} alignOffset={alignOffset}
+        collisionPadding={collisionPadding} {...props}
+      >
         {action !== undefined && (
           <div className="flex min-h-8 items-center justify-between gap-2">
             {leading}

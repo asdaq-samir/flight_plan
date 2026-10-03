@@ -34,7 +34,7 @@ import FlightBriefingView, { BriefingNotices, PlanningAidNote, SaveFlightButton 
 import FlightInputs from "./components/navlog/FlightInputs";
 import PlaceCard from "./components/PlaceCard";
 import RouteBox from "./components/RouteBox";
-import TightAltitudeNote from "./components/navlog/TightAltitudeNote";
+import TitleNote from "./components/navlog/TitleNote";
 import NavLogActions from "./components/navlog/NavLogActions";
 import NavLogView from "./components/navlog/NavLogView";
 import RouteMap from "./components/RouteMap";
@@ -260,8 +260,8 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   }, [setSearchParams]);
 
   // No legal altitude for the route (usePlan) is the route's own problem:
-  // its capsule's chip says so at rest, and the panel says where, why and
-  // the two ways on under the route (RouteProblem). It was a toast over
+  // its capsule's chip says so at rest, and a mark beside the Nav Log's
+  // title opens to where, why and the ways on (RouteProblem). It was a toast over
   // the map, then the same at the head of the nav log, where it took the
   // room the log needs.
   const flyAt = useCallback((feet: string) => {
@@ -460,6 +460,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // The flight planning drawer: the nav log as the first section, the
   // briefing's sections under it, the briefing's own actions in the
   // drawer's header.
+  const [tightOpen, setTightOpen] = useState(false);
   // A leg where no 500 ft step fits and the planner flies the highest
   // whole hundred under its ceiling (vfr.altitude's tight altitude):
   // where, at what, and how little room there is either side.
@@ -493,7 +494,19 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       aircraftLabel={aircraft.label}
       notice={<BriefingNotices briefing={s.briefing} />}
       footer={<PlanningAidNote />}
-      titleNote={tightLeg ? <TightAltitudeNote note={tightLeg} /> : undefined}
+      titleNote={s.unflyable ? (
+        <RouteProblem
+          problem={s.unflyable} onAddStop={() => setAddingStop("stop")} onFly={flyAt}
+          onFlyVia={() => setAddingStop("via")} onAcceptClassB={() => acceptClassB(true)}
+        />
+      ) : tightLeg ? (
+        <TitleNote
+          tone="warning" title="Tight altitude" open={tightOpen} onOpenChange={setTightOpen}
+          testId="tight-altitude-flag" contentTestId="tight-altitude"
+        >
+          {tightLeg}
+        </TitleNote>
+      ) : undefined}
     >
       <FlightBriefingView
         nav={s.nav} legs={s.legs}
@@ -636,12 +649,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     console: <PilotPanel />,
     submit,
     loading: s.stage !== null,
-    notices: s.unflyable ? (
-      <RouteProblem
-        problem={s.unflyable} onAddStop={() => setAddingStop("stop")} onFly={flyAt}
-        onFlyVia={() => setAddingStop("via")} onAcceptClassB={() => acceptClassB(true)}
-      />
-    ) : classBClearance ? (
+    notices: classBClearance ? (
       // One line while it lasts: what was accepted, and Undo.
       <Alert
         className="flex items-center gap-2 rounded-none border-x-0 border-t-0 bg-transparent py-1 pr-2 pl-4 *:[svg]:translate-y-0"

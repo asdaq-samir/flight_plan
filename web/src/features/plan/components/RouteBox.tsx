@@ -133,7 +133,7 @@ export default function RouteBox({ points, waypoints, onChange, adding, onAdding
               onChange={ident => insert([ident])}
               suggestions={via?.map(d => ({
                 ident: d.ident, kind: d.kind,
-                detail: [d.description, `+${Math.round(d.added_nm)} nm, clear of the Class B`].filter(Boolean).join(" · "),
+                detail: [`+${Math.round(d.added_nm)} nm`, d.description].filter(Boolean).join(" · "),
               }))}
             />
           )}
