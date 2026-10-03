@@ -236,6 +236,7 @@ def select_cruise_altitude(
     fcst_hr: str = "06",
     pending: set | None = None,
     window: tuple | None = None,
+    class_b_cleared: bool = False,
 ) -> dict:
     """Returns a dict with the recommended altitude (None if no legal VFR
     altitude exists for this route/aircraft) plus the floor/ceiling
@@ -250,6 +251,9 @@ def select_cruise_altitude(
     still running while this works (see _timed). `window`, (start, end)
     in unix seconds, is the flight from departure to past arrival that
     the go/no-go forecast is read over; now when not given.
+    `class_b_cleared`: the pilot will have a Class B clearance, so its
+    shelves are no ceiling -- the route is planned through it, and its
+    transits still say it takes a clearance.
 
     The freezing level no longer caps the band. Icing needs visible
     moisture as well as cold, so a hard ceiling at the freezing level
@@ -303,7 +307,7 @@ def select_cruise_altitude(
         # The legs flown, or the direct line as the one leg: one path
         # for the Class B rule, where two functions of different shapes
         # used to be chosen between and the answer coerced back.
-        airspace_future = pool.submit(
+        airspace_future = None if class_b_cleared else pool.submit(
             timed("airspace.airspace_ceiling_profile", airspace.airspace_ceiling_profile),
             route_start, route_end, fixes or [route_start, route_end], shp_path,
         )
@@ -342,7 +346,8 @@ def select_cruise_altitude(
         # icing/ceiling/hazard verdict pretending the missing source
         # means "no concern found."
         floors = floor_future.result()
-        airspace_ceilings_ft = airspace_future.result()
+        airspace_ceilings_ft = (
+            airspace_future.result() if airspace_future else [None] * (len(fixes) - 1 if fixes else 1))
         transits = transits_future.result()
         # The hemispheric rule is written for magnetic course, and the
         # variation is the World Magnetic Model's (vfr.magnetic), worked
@@ -511,6 +516,7 @@ def select_cruise_altitude(
         "hemispheric_rule_from_ft": round(rule_from_ft),
         "floor_ft": floor_ft,
         "airspace_ceiling_ft": airspace_ceiling_ft,
+        "class_b_cleared": class_b_cleared,
         # The aeroplane's service ceiling where it is in the forecast air
         # (the lowest over any leg); the book figure is the profile's.
         "service_ceiling_ft": service_ceiling_ft,

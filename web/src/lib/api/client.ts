@@ -3,11 +3,11 @@ import type { paths } from "./schema";
 import type { paths as WebappPaths } from "./webapp-schema";
 import type {
   Aircraft, AircraftChoice, AircraftProfiles, AircraftRequest, AirportPlace, AirportSearch, AirportsInView, AltitudeChoice, Briefing,
-  ChartInfo, ChartRefreshStarted, CheckpointDescriptionMessage, CheckpointNoteSaved, Checkpoints, Classification, Course,
+  ChartInfo, ChartRefreshStarted, CheckpointDescriptionMessage, CheckpointNoteSaved, Checkpoints, Classification, Course, Detour,
   Flight, FlightSummary, ModelComparison, NarrativeMessage, NarrativeRequest, NavLogMessage, PickDeleted, PickSaved,
   ClassBResponse, DevServices, DevServiceStarted, PicksResponse, Pilot, Rating, RetrainStarted, Role, SaveFlightRequest,
   SignInCapabilities,
-  Status, StreamMessage,
+  Status, StreamMessage, WaypointsInView,
 } from "./types";
 
 /**
@@ -25,8 +25,13 @@ import type {
 
 export class ApiError extends Error {
   /** `reasons` and `advice`: why, and what to do, where the server says
-   *  (a nav log with no legal altitude), apart from the message. */
-  constructor(message: string, readonly status: number, readonly reasons: string[] = [], readonly advice: string | null = null) {
+   *  (a nav log with no legal altitude), apart from the message;
+   *  `classB`, Class B airspace is what stops it, and `detours` the
+   *  waypoints round it, best first. */
+  constructor(
+    message: string, readonly status: number, readonly reasons: string[] = [], readonly advice: string | null = null,
+    readonly classB = false, readonly detours: Detour[] = [],
+  ) {
     super(message);
     this.name = "ApiError";
   }
@@ -197,7 +202,7 @@ export const api = {
    */
   async *navlog(
     dep: string, dest: string, altitudeFt?: string, aircraft?: AircraftChoice, altitudeChoice?: AltitudeChoice,
-    depart?: string, signal?: AbortSignal, stops?: string[],
+    depart?: string, signal?: AbortSignal, stops?: string[], classBClearance?: boolean,
   ): AsyncGenerator<NavLogMessage> {
     const result = await planner.GET("/api/navlog", {
       params: {
@@ -213,6 +218,7 @@ export const api = {
           climb_fuel_burn_gph: aircraft?.climbFuelBurnGph,
           cruise_power_pct: aircraft?.cruisePowerPct,
           depart: depart || undefined,
+          class_b_clearance: classBClearance || undefined,
         },
       },
       parseAs: "stream", signal,
@@ -344,6 +350,10 @@ export const api = {
   airportsInView: (box: { south: number; west: number; north: number; east: number; limit?: number; reporting?: boolean }) =>
     planner.GET("/api/airports/in-view", { params: { query: box }, priority: "high" })
       .then(data<AirportsInView>).then(r => r.airports),
+
+  /** The VFR waypoints in the map's view (VPBNG), for its diamonds. */
+  waypointsInView: (box: { south: number; west: number; north: number; east: number }) =>
+    planner.GET("/api/waypoints/in-view", { params: { query: box } }).then(data<WaypointsInView>).then(r => r.waypoints),
 
   /**
    * The signed-in pilot, or null when signed out -- a Spring Boot

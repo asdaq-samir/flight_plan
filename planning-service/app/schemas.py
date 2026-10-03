@@ -309,6 +309,9 @@ class AltitudeBreakdown(BaseModel):
     hemispheric_rule_from_ft: float | None = None
     floor_ft: float
     airspace_ceiling_ft: float | None
+    #: Planned with a Class B clearance: its shelves are no ceiling, and
+    #: its transits still say it takes one.
+    class_b_cleared: bool = False
     #: The aeroplane's service ceiling where it is in the forecast air,
     #: the lowest over any leg: a service ceiling is a density altitude
     #: (the profile's `service_ceiling_ft`, the book figure), so a warm
@@ -647,6 +650,19 @@ class NavLogStage(BaseModel):
     detail: str
 
 
+class Detour(BaseModel):
+    """A named fix that keeps a route out of the Class B airspace it is
+    stopped by (vfr.airspace.detour_waypoint), and where it goes in the
+    stops: before the stop at `stop_index`, so on the hop it is for."""
+
+    ident: str
+    #: What it is to a pilot: "VFR waypoint", "GPS waypoint" (vfr.fixes).
+    kind: str
+    #: How much longer the route is through it.
+    added_nm: float
+    stop_index: int
+
+
 class NavLogError(BaseModel):
     """The stream's failure. `retry` False where asking again gets the
     same answer -- a route with no legal altitude -- so the page offers
@@ -659,6 +675,13 @@ class NavLogError(BaseModel):
     retry: bool = True
     reasons: list[str] = []
     advice: str | None = None
+    #: Class B airspace is what leaves no altitude: the page offers to
+    #: plan it with a clearance (`class_b_clearance`), or to fly via a
+    #: waypoint, `detours` the ones that keep the route out of it, best
+    #: first.
+    class_b: bool = False
+    detours: list[Detour] = []
+
 
 
 class NavLogAltitude(BaseModel):
@@ -786,6 +809,19 @@ class AirportPin(BaseModel):
 
 class AirportsInView(BaseModel):
     airports: list[AirportPin]
+
+
+class WaypointPin(BaseModel):
+    """A VFR waypoint on the sectional (VPBNG), for the map's diamond: a
+    tap names it, and with a route open puts it in the stops."""
+
+    ident: str
+    lat: float
+    lon: float
+
+
+class WaypointsInView(BaseModel):
+    waypoints: list[WaypointPin]
 
 
 class AirportPlace(BaseModel):

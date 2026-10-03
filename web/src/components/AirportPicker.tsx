@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { Command as CommandPrimitive } from "cmdk";
-import { ChevronsUpDown, Flag, History, Plus, Search, X } from "lucide-react";
+import { ChevronsUpDown, Diamond, History, Plus, Search, X } from "lucide-react";
 import { cn } from "cn";
 import { TEXT } from "../lib/text";
 import { Button } from "./ui/button";
@@ -31,6 +31,9 @@ interface Props {
   /** A stop's: the VFR and GPS waypoints as well as the airports
    *  (useAirportSearch), a route flying through one. */
   fixes?: boolean;
+  /** Waypoints to offer first, before anything is typed: the ones round
+   *  the Class B a flight is stopped by (StopsBar's `via`). */
+  suggestions?: { ident: string; kind: string; detail: string }[];
 }
 
 /**
@@ -49,7 +52,7 @@ interface Props {
  */
 export default function AirportPicker({
   value, onChange, placeholder, ariaLabel, invalid, className, look = "field", open: openFrom, onOpenChange, testId,
-  fixes = false,
+  fixes = false, suggestions,
 }: Props) {
   const [ownOpen, setOwnOpen] = useState(false);
   const open = openFrom ?? ownOpen;
@@ -130,7 +133,10 @@ export default function AirportPicker({
               <Search className="size-5 shrink-0" aria-hidden="true" />
               <CommandPrimitive.Input
                 ref={input}
-                placeholder={fixes ? "Search airports and waypoints" : `Search for a ${ariaLabel.toLowerCase()}`}
+                // Short enough for a phone's field, as Maps' "Search Maps"
+                // is: "Search airports and waypoints" was cut at "wayp".
+                // Its label says the whole of it.
+                placeholder={fixes ? "Search" : `Search for a ${ariaLabel.toLowerCase()}`}
                 aria-label={fixes ? "Search airports and waypoints" : `Search for a ${ariaLabel.toLowerCase()}`}
                 value={query}
                 onValueChange={setQuery}
@@ -150,12 +156,26 @@ export default function AirportPicker({
               <X />
             </IconButton>
           </div>
+          {/* Its own height, not shrunk: with the keyboard up the sheet is
+              short, and the tiles were squeezed to a sliver of their tops. */}
           {!typed && (home || favorites.length > 0) && (
-            <FavoriteTiles home={home} favorites={favorites} from={fix} onOpen={choose} />
+            <div className="shrink-0">
+              <FavoriteTiles home={home} favorites={favorites} from={fix} onOpen={choose} />
+            </div>
           )}
           {/* Dimmed while they answer something older than the box. */}
           <CommandList className={cn("max-h-none overflow-visible", typed && !answered && "opacity-60")} aria-busy={!answered}>
             {typed && <CommandEmpty>No {fixes ? "airport or waypoint" : "airport"} matches; Enter keeps what you typed.</CommandEmpty>}
+            {!typed && suggestions && suggestions.length > 0 && (
+              <CommandGroup heading="Suggested" className={GROUP}>
+                {suggestions.map(s => (
+                  <AirportRow
+                    key={s.ident} waypoint airport={{ ident: s.ident, name: s.kind, municipality: s.detail }}
+                    onSelect={() => pick(s.ident)} testId="picker-suggestion"
+                  />
+                ))}
+              </CommandGroup>
+            )}
             {!typed && recents.length > 0 && (
               <CommandGroup heading="Recents" className={GROUP}>
                 {recents.map(a => <AirportRow key={a.ident} airport={a} recent onSelect={() => choose(a)} />)}
@@ -199,13 +219,15 @@ const GROUP = "p-0 **:[[cmdk-group-heading]]:px-1 **:[[cmdk-group-heading]]:pb-1
 
 /** One airport in the picker's list, as a row of the search bar's: its
  *  ident and name, its town under them -- or a waypoint, with the
- *  sectional's magenta flag, its kind and its state. */
-function AirportRow({ airport, recent = false, waypoint = false, onSelect }: {
-  airport: RecentAirport; recent?: boolean; waypoint?: boolean; onSelect: () => void;
+ *  magenta diamond the map marks one with, its kind and its state. */
+function AirportRow({ airport, recent = false, waypoint = false, onSelect, testId }: {
+  airport: RecentAirport; recent?: boolean; waypoint?: boolean; onSelect: () => void; testId?: string;
 }) {
   return (
-    <CommandItem value={airport.ident} onSelect={onSelect} className="min-h-11 gap-3 rounded-lg px-2 py-2">
-      {waypoint ? <Flag className="size-5 text-[#b02e7c] dark:text-[#e070b0]" />
+    <CommandItem value={airport.ident} onSelect={onSelect} className="min-h-11 gap-3 rounded-lg px-2 py-2" data-testid={testId}>
+      {/* Its magenta as fill and stroke, not the text colour: a row's
+          highlight recolours its icons' text, and the diamond went black. */}
+      {waypoint ? <Diamond className="size-5 fill-[#b02e7c] stroke-[#b02e7c] dark:fill-[#e070b0] dark:stroke-[#e070b0]" />
         : recent ? <History className="size-5 text-muted-foreground" /> : <Search className="size-5 text-muted-foreground" />}
       <span className="min-w-0 flex-1">
         <span className={cn("block truncate", TEXT.row)}><span className="font-mono font-semibold">{airport.ident}</span> · {airport.name}</span>

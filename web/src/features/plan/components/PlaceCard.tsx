@@ -1,6 +1,6 @@
 import { useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
-import { CloudSun, Lightbulb, Navigation, Radio, Star, X } from "lucide-react";
+import { CloudSun, Lightbulb, MapPinPlus, Navigation, Radio, Star, X } from "lucide-react";
 import { cn } from "cn";
 import { usePreferences } from "../../../lib/preferences";
 import IconButton from "../../../components/IconButton";
@@ -63,19 +63,22 @@ function Action({ icon, label, filled, onClick, testId }: { icon: ReactNode; lab
  * An airport's card in the panel, as a place's is in Maps: its name and
  * what kind of field it is, the weather there now as the colour pilots
  * read it in, and three things to do -- fly there, the weather, the
- * radio -- over the details: the report itself, the frequencies, the
+ * radio, and with a route open a fourth, land there on the way -- over
+ * the details: the report itself, the frequencies, the
  * runways. Opened by a tap on the airport on the chart (AirportsLayer),
  * and held in the address (`?place=KDLH`), so a link lands on it.
  *
  * How far it is is from the pilot's own position when it is known, and
  * from the route's departure otherwise.
  */
-export default function PlaceCard({ ident, from, onClose, onFlyHere, onExpand }: {
+export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, onExpand }: {
   ident: string;
   /** What the distance is measured from: own ship, or the departure. */
   from: { point: LatLon; name: string | null } | null;
   onClose: () => void;
   onFlyHere: (place: AirportPlace) => void;
+  /** With a route open, the field landed at on the way: Add Stop. */
+  onAddStop?: (place: AirportPlace) => void;
   /** The panel all the way up, for a section scrolled to. */
   onExpand: () => void;
 }) {
@@ -141,8 +144,9 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onExpand }:
           </IconButton>
         </div>
         {place && (
-          <div className="mt-3 grid grid-cols-3 gap-2">
+          <div className={cn("mt-3 grid gap-2", onAddStop ? "grid-cols-4" : "grid-cols-3")}>
             <Action icon={<Navigation />} label="Fly Here" filled onClick={() => onFlyHere(place)} testId="fly-here" />
+            {onAddStop && <Action icon={<MapPinPlus />} label="Add Stop" onClick={() => onAddStop(place)} testId="place-add-stop" />}
             <Action icon={<CloudSun />} label="Weather" onClick={() => show(weatherRef.current)} testId="place-weather" />
             <Action icon={<Radio />} label="Frequencies" onClick={() => show(radioRef.current)} testId="place-frequencies" />
           </div>

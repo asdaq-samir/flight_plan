@@ -356,3 +356,46 @@ def test_no_altitude_says_where_and_why_in_a_pilots_words():
     detail = planning.no_altitude_detail(selection)
     assert detail.startswith("No legal VFR cruising altitude 980-1040 nm along the route. The terrain")
     assert "altitude_ft" not in detail
+
+
+def test_no_altitude_names_the_class_b_and_what_it_takes():
+    """Midway to Duluth: the straight line runs over O'Hare, where the
+    Chicago Class B reaches the ground. It said "The airspace over it
+    stops at 0 ft"."""
+    from app import planning
+
+    selection = {
+        "airspace_transits": [
+            {"name": "CHICAGO CLASS C", "class": "C", "floor_ft_msl": 0.0, "along_track_nm": 0.0},
+            {"name": "CHICAGO CLASS B", "class": "B", "floor_ft_msl": 3600.0, "along_track_nm": 11.3},
+        ],
+        "segments": [
+            {"from_nm": 0.0, "to_nm": 1.0, "floor_ft": 1700.0, "service_ceiling_ft": 12600.0, "airspace_ceiling_ft": None,
+             "band_ceiling_ft": 12600.0, "course_magnetic_deg": 332.0, "eastbound": False, "candidates_ft": [2500.0]},
+            {"from_nm": 1.0, "to_nm": 15.0, "floor_ft": 1700.0, "service_ceiling_ft": 12600.0, "airspace_ceiling_ft": 0.0,
+             "band_ceiling_ft": 0.0, "course_magnetic_deg": 332.0, "eastbound": False, "candidates_ft": []},
+        ],
+    }
+
+    why = planning.no_altitude(selection)
+
+    # From the ground up, the Class B is the whole of why, and the page
+    # offers a clearance or a way round.
+    assert why["reasons"] == ["The Chicago Class B reaches the ground there; going through it needs a clearance."]
+    assert why["class_b"] is True
+    assert why["advice"] == "Add a stop to route around it, or plan it with a Class B clearance."
+    # The waypoint round it, when there is one.
+    via = {"ident": "VPDVB", "kind": "VFR waypoint", "added_nm": 6.2}
+    assert planning.no_altitude(selection, via=via)["advice"] == (
+        "Fly via VPDVB (6 nm further) to stay out of it, or plan it with a Class B clearance.")
+
+    # A shelf above the ground says where it starts, and the altitude
+    # under it is the band's own: any 500 ft below the cruising-altitude
+    # rule, which begins 3,000 ft above the ground, not the first
+    # westbound one (it said 2,500 ft over a 1,700 ft floor).
+    selection["segments"][1].update(airspace_ceiling_ft=1900.0, band_ceiling_ft=1900.0, hemispheric_rule_from_ft=3600.0)
+    assert planning.no_altitude(selection)["reasons"] == [
+        "The terrain and obstacles there need 1,700 ft.",
+        "The lowest altitude above that is 2,000 ft.",
+        "The Chicago Class B over it starts at 1,900 ft; going into it needs a clearance.",
+    ]

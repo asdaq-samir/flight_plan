@@ -107,7 +107,7 @@ test("a stop may be a VFR waypoint, found in the picker after the airports and f
   await openPanel(page);
 
   await sideDrawer(page).getByTestId("add-stop").click();
-  await page.getByPlaceholder("Search airports and waypoints").fill("VPBNG");
+  await page.getByPlaceholder("Search", { exact: true }).fill("VPBNG");
   const waypoint = page.getByRole("option", { name: /VPBNG · VFR waypoint/ });
   await expect(waypoint).toBeVisible({ timeout: slow(10000) });
   await waypoint.click();
@@ -115,4 +115,53 @@ test("a stop may be a VFR waypoint, found in the picker after the airports and f
 
   // On the map in the sectional's magenta, not as an airport's chip.
   await expect(page.locator(".leaflet-marker-icon", { hasText: "VPBNG" }).first()).toBeVisible({ timeout: slow(15000) });
+});
+
+test("an airport's card adds it as a stop, where it bends the route least; the route's own airports have no Add Stop", async ({ page }) => {
+  await recordedStops(page);
+  await page.goto("/app/plan?dep=C81&dest=KDLH&place=KDLH");
+  await expect(page.getByTestId("place-card")).toBeVisible({ timeout: slow(30000) });
+  await expect(page.getByTestId("fly-here")).toBeVisible();
+  await expect(page.getByTestId("place-add-stop")).toHaveCount(0);
+
+  await page.goto("/app/plan?dep=C81&dest=KDLH&place=KMSN");
+  const add = page.getByTestId("place-add-stop");
+  await expect(add).toBeVisible({ timeout: slow(30000) });
+  const drawn = page.waitForResponse(r => r.url().includes("/course") && r.url().includes("stops=KMSN"));
+  await add.click();
+  await expect(page).toHaveURL(/[?&]stops=KMSN/);
+  await expect(page.getByTestId("place-card")).toHaveCount(0);
+  // The route through it, once it is drawn: in the capsule at rest, or
+  // the panel's stops.
+  await drawn;
+  await expect(page.getByTestId("capsule-title").or(sideDrawer(page).getByTestId("stop")).first())
+    .toContainText("KMSN", { timeout: slow(30000) });
+});
+
+test("a VFR waypoint on the chart is a diamond, and its card adds it as a stop", async ({ page }) => {
+  // The planner's own, through the webapp: Chicago's VFR waypoints.
+  const answer = await page.request.get("/api/planner/waypoints/in-view?south=41.5&west=-88.5&north=42.5&east=-87.5");
+  expect(answer.ok()).toBe(true);
+  expect((await answer.json()).waypoints.map((w: { ident: string }) => w.ident)).toContain("VPBNG");
+
+  // One waypoint, where it is: VPBNG, by Campbell. In close enough for
+  // the diamonds -- the wheel over C81, a level at a time.
+  await page.route(url => url.pathname.endsWith("/waypoints/in-view"), route =>
+    route.fulfill({ json: { waypoints: [{ ident: "VPBNG", lat: 42.2673, lon: -88.1311 }] } }));
+  await page.goto("/app/plan?dep=C81&dest=KDLH");
+  const departure = page.locator(".leaflet-marker-icon", { hasText: "C81" }).first();
+  await expect(departure).toBeVisible({ timeout: slow(30000) });
+  const box = (await departure.boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  for (let i = 0; i < 4; i++) {
+    await page.mouse.wheel(0, -60);
+    await page.waitForTimeout(400);
+  }
+  const diamond = page.locator(".leaflet-waypoints-pane .leaflet-marker-icon");
+  await expect(diamond).toHaveCount(1, { timeout: slow(20000) });
+  await diamond.click();
+  const add = page.getByTestId("waypoint-add-stop");
+  await expect(add).toBeVisible();
+  await add.click();
+  await expect(page).toHaveURL(/[?&]stops=VPBNG/);
 });

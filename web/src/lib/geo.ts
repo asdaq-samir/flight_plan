@@ -12,6 +12,19 @@ export function distanceNm(a: LatLon, b: LatLon): number {
   return 2 * EARTH_NM * Math.asin(Math.min(1, Math.sqrt(h)));
 }
 
+/** Where a stop at `at` goes in a route's stops so it adds the least
+ *  distance: between the two of `points` -- the departure, the stops,
+ *  the destination -- it bends the route least between. The index into
+ *  the stops. */
+export function bestStopIndex(points: LatLon[], at: LatLon): number {
+  let best = 0, bestAdded = Infinity;
+  for (let i = 0; i < points.length - 1; i++) {
+    const added = distanceNm(points[i]!, at) + distanceNm(at, points[i + 1]!) - distanceNm(points[i]!, points[i + 1]!);
+    if (added < bestAdded) [best, bestAdded] = [i, added];
+  }
+  return best;
+}
+
 /** True bearing from `a` to `b`, 0 to 360. */
 export function bearingDeg(a: LatLon, b: LatLon): number {
   const dLon = rad(b.lon - a.lon);

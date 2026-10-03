@@ -10,9 +10,9 @@ national cache vfr.weather keeps for minutes at a time. A card costs a
 few table lookups and a point-in-polygon test.
 """
 from fastapi import APIRouter, HTTPException, Query
-from vfr import airports, airspace, altitude, remarks, weather
+from vfr import airports, airspace, altitude, fixes, remarks, weather
 
-from ..schemas import AirportPlace, AirportsInView
+from ..schemas import AirportPlace, AirportsInView, WaypointsInView
 
 router = APIRouter()
 
@@ -50,6 +50,23 @@ def airports_in_view(
     return {"airports": [
         {**p, "flight_category": (metars.get(p["source_ident"]) or {}).get("flight_category")} for p in places
     ]}
+
+
+@router.get("/api/waypoints/in-view", response_model=WaypointsInView)
+def waypoints_in_view(
+    south: float = Query(ge=-90, le=90), west: float = Query(ge=-180, le=180),
+    north: float = Query(ge=-90, le=90), east: float = Query(ge=-180, le=180),
+    limit: int = Query(default=500, ge=1, le=1000),
+) -> WaypointsInView:
+    """The VFR waypoints inside the map's view (vfr.fixes), at most
+    `limit`: the magenta flags the sectional prints round busy airspace,
+    for the map to mark each with a diamond a pilot can tap and route
+    through. GPS waypoints and the rest of NASR's fixes are left out:
+    they are not on a VFR chart."""
+    if south > north or west > east:
+        raise HTTPException(422, "The box's south is above its north, or its west east of its east.")
+    found = sorted((f for f in fixes.within(south, west, north, east) if f["vfr"]), key=lambda f: f["ident"])
+    return {"waypoints": [{"ident": f["ident"], "lat": f["lat"], "lon": f["lon"]} for f in found[:limit]]}
 
 
 def _notes(ident: str) -> dict:

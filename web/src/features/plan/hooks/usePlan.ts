@@ -5,7 +5,7 @@ import { courseQuery } from "../../../lib/queryClient";
 import { routeOf } from "../../../lib/identSchema";
 import { ended } from "../../../lib/api/streams";
 import type {
-  AircraftChoice, AltitudeChoice, Briefing, Leg, NavLogAltitude, NavLogMessage, Totals,
+  AircraftChoice, AltitudeChoice, Briefing, Detour, Leg, NavLogAltitude, NavLogMessage, Totals,
 } from "../../../lib/api/types";
 import { useCheckpointNotes } from "./useCheckpointNotes";
 import { useNarratives } from "./useNarratives";
@@ -36,6 +36,10 @@ export interface Unflyable {
   title: string;
   reasons: string[];
   advice: string | null;
+  /** Class B airspace is what stops it: a clearance, or a waypoint to
+   *  fly via -- `detours`, the ones round it, best first -- are the ways on. */
+  classB: boolean;
+  detours: Detour[];
 }
 
 export interface PlanParams {
@@ -52,6 +56,8 @@ export interface PlanParams {
   aircraft: AircraftChoice;
   /** Load pressed again for the same route: a fresh nav log, fresh winds. */
   load: number;
+  /** The pilot will have a Class B clearance: planned through it. */
+  classBClearance?: boolean;
 }
 
 /** Where the route's briefing stands -- one value, read by the map's
@@ -70,7 +76,7 @@ export type BriefingState =
   | { state: "failed"; detail: string };
 
 export function usePlan(
-  { dep, dest, stops, altitudeFt, altitudeChoice, depart, aircraft, load }: PlanParams,
+  { dep, dest, stops, altitudeFt, altitudeChoice, depart, aircraft, load, classBClearance = false }: PlanParams,
 ) {
   const routeKnown = routeOf(dep, dest, stops) !== null;
   // The form will not submit a route from an airport to itself, but the
@@ -95,7 +101,7 @@ export function usePlan(
   // Everything the nav log is computed from -- the narratives below are
   // keyed on the same, so a narrative is always about the log on screen.
   const planKey = [
-    dep, dest, via, altitudeFt, altitudeChoice, depart, load,
+    dep, dest, via, altitudeFt, altitudeChoice, depart, load, classBClearance,
     aircraft.profile, aircraft.cruiseTasKt ?? null, aircraft.fuelBurnGph ?? null, aircraft.usableFuelGal ?? null,
     aircraft.climbTasKt ?? null, aircraft.climbFuelBurnGph ?? null, aircraft.cruisePowerPct ?? null,
   ];
@@ -103,7 +109,8 @@ export function usePlan(
     queryKey: ["navlog", ...planKey],
     queryFn: streamedQuery({
       streamFn: ({ signal }) => ended(
-        api.navlog(dep, dest, altitudeFt || undefined, aircraft, altitudeChoice, depart || undefined, signal, stops), "nav log",
+        api.navlog(dep, dest, altitudeFt || undefined, aircraft, altitudeChoice, depart || undefined, signal, stops, classBClearance),
+        "nav log",
       ),
     }),
     enabled: !!checkpoints.data, staleTime: Infinity,
@@ -127,7 +134,7 @@ export function usePlan(
   const unflyable = useMemo<Unflyable | null>(() => {
     const error = navlog.error;
     return error instanceof ApiError && error.advice !== null
-      ? { title: error.message, reasons: error.reasons, advice: error.advice } : null;
+      ? { title: error.message, reasons: error.reasons, advice: error.advice, classB: error.classB, detours: error.detours } : null;
   }, [navlog.error]);
   const stages = messages.filter(m => m.type === "stage");
   const navStage = navlog.isFetching ? (stages.at(-1) as { detail?: string } | undefined)?.detail ?? null : null;

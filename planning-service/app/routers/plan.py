@@ -25,9 +25,9 @@ from vfr.weather import WeatherServiceError
 
 from ..common import DEFAULT_AIRCRAFT, Route, line, load_route, ndjson
 from ..planning import (
-    COMPUTE_LIMIT_S, StillComputing, aircraft_profile, altitude_plans, altitude_waiting_on, cruise_altitude,
-    flight_totals, flight_window, forecast_hour_for, join_selections, no_altitude, no_altitude_detail, route_line,
-    route_totals,
+    COMPUTE_LIMIT_S, StillComputing, aircraft_profile, altitude_plans, altitude_waiting_on, class_b_detours,
+    cruise_altitude, flight_totals, flight_window, forecast_hour_for, join_selections, no_altitude, no_altitude_detail,
+    route_line, route_totals,
 )
 from ..schemas import (
     AltitudeBreakdown,
@@ -79,6 +79,9 @@ class PlanQuery:
     climb_fuel_burn_gph: float | None = None
     cruise_power_pct: CruisePower = None
     depart: datetime | None = None
+    #: The pilot will have a Class B clearance: its shelves are no
+    #: ceiling, and the route is planned through it (vfr.altitude).
+    class_b_clearance: bool = False
 
     def profile(self) -> dict:
         return aircraft_profile(
@@ -153,7 +156,7 @@ class NoWinds:
 
 def resolve_altitude(
     r, fix_list: list, profile: dict, aircraft: str, altitude_ft: float | None, choice: AltitudeChoice,
-    fcst_hr: str = "06", window: tuple | None = None,
+    fcst_hr: str = "06", window: tuple | None = None, class_b_cleared: bool = False,
 ) -> Flown | Unflyable | NoWinds:
     """What the log flies, decided once for /api/plan and /api/navlog
     alike. It used to be a 4-tuple (selection, options, plan, failure)
@@ -166,7 +169,8 @@ def resolve_altitude(
 
     The four plans are made beside a pilot's own altitude as well, as
     what the planner would have flown."""
-    selection = cruise_altitude(r.start, r.end, profile, aircraft, fixes=_fixes(fix_list), fcst_hr=fcst_hr, window=window)
+    selection = cruise_altitude(r.start, r.end, profile, aircraft, fixes=_fixes(fix_list), fcst_hr=fcst_hr, window=window,
+                                class_b_cleared=class_b_cleared)
     try:
         plans = altitude_plans(fix_list, selection, profile, aircraft, fcst_hr, departure_elevation(r))
         failure = None
@@ -232,6 +236,7 @@ def hop_runs(r: Route, by_hop: list, depart: datetime | None, profile: dict) -> 
 def resolve_run(run: HopRun, profile: dict, q: "PlanQuery") -> "Flown | Unflyable | NoWinds":
     return resolve_altitude(
         run.hop, run.fixes, profile, q.aircraft, q.altitude_ft, q.altitude_choice, run.fcst_hr, run.window,
+        q.class_b_clearance,
     )
 
 
@@ -290,6 +295,18 @@ def join_outcomes(runs: list[HopRun], outcomes: list) -> "Flown | Unflyable | No
     )
 
 
+def unflyable_parts(outcome: Unflyable, runs: list[HopRun]) -> tuple[dict, list[dict]]:
+    """no_altitude's words for a route with no legal altitude, and the
+    waypoints round the Class B airspace that stops it, best first
+    (class_b_detours), each with its place in the stops: on the hop it
+    fails on."""
+    at = next((i for i, run in enumerate(runs) if (run.hop.dep_ident, run.hop.dest_ident) == outcome.between), 0)
+    hop = runs[at].hop
+    ways = class_b_detours(outcome.selection, hop.start, hop.end)
+    why = no_altitude(outcome.selection, outcome.between, ways[0] if ways else None)
+    return why, [{**way, "stop_index": at} for way in ways]
+
+
 def totals_of(r: Route, runs: list[HopRun], outcome: "Flown", profile: dict) -> dict:
     """The trip's totals: each flight's own, from one landing to the next
     through any waypoints (Route.flights), with its fuel check, joined
@@ -330,13 +347,14 @@ def _result(waiting):
             return done.value
 
 
-def _running_stages(run: HopRun, aircraft: str) -> list:
-    running = _waiting_on(run, aircraft)
+def _running_stages(run: HopRun, q: "PlanQuery") -> list:
+    running = _waiting_on(run, q)
     return [running] if running else []
 
 
-def _waiting_on(run: HopRun, aircraft: str) -> str:
-    return altitude_waiting_on(run.hop.start, run.hop.end, aircraft, _fixes(run.fixes), run.fcst_hr, run.window)
+def _waiting_on(run: HopRun, q: "PlanQuery") -> str:
+    return altitude_waiting_on(
+        run.hop.start, run.hop.end, q.aircraft, _fixes(run.fixes), run.fcst_hr, run.window, q.class_b_clearance)
 
 
 def _chart_info() -> dict:
@@ -446,14 +464,15 @@ def plan(q: Annotated[PlanQuery, Depends()]) -> Plan:
     try:
         scored, selected, outcome = _result(_waited(
             pool.submit(work), COMPUTE_LIMIT_S,
-            lambda: [stage for run in runs for stage in _running_stages(run, q.aircraft)] if runs else ["chart"],
+            lambda: [stage for run in runs for stage in _running_stages(run, q)] if runs else ["chart"],
         ))
     finally:
         pool.shutdown(wait=False)
     if isinstance(outcome, NoWinds):
         raise outcome.error
     if isinstance(outcome, Unflyable):
-        raise HTTPException(422, no_altitude_detail(outcome.selection, outcome.between))
+        _, ways = unflyable_parts(outcome, runs)
+        raise HTTPException(422, no_altitude_detail(outcome.selection, outcome.between, ways[0] if ways else None))
     leg_list = outcome.legs
 
     return Plan(
@@ -532,14 +551,14 @@ def navlog_stream(q: Annotated[PlanQuery, Depends()]) -> StreamingResponse:
             futures = [altitude_pool.submit(resolve_run, run, profile, q) for run in runs]
             for run, future in zip(runs, futures):
                 where = f" {run.hop.dep_ident} → {run.hop.dest_ident}," if len(runs) > 1 else ""
-                waiting = _waited(future, HEARTBEAT_S, lambda run=run: _running_stages(run, q.aircraft))
+                waiting = _waited(future, HEARTBEAT_S, lambda run=run: _running_stages(run, q))
                 while True:
                     try:
                         elapsed = next(waiting)
                     except StopIteration as done:
                         outcomes.append(done.value)
                         break
-                    named = _waiting_on(run, q.aircraft)
+                    named = _waiting_on(run, q)
                     yield line(NavLogStage(detail=(
                         f"Planning cruise altitudes ({where} {elapsed:.0f} s, waiting on {named})…".replace("( ", "(")
                         if named
@@ -553,8 +572,9 @@ def navlog_stream(q: Annotated[PlanQuery, Depends()]) -> StreamingResponse:
 
         aircraft_line = {"name": q.aircraft, **profile}
         if isinstance(outcome, Unflyable):
-            why = no_altitude(outcome.selection, outcome.between)
-            yield line(NavLogError(detail=why["title"], reasons=why["reasons"], advice=why["advice"], retry=False))
+            why, detours = unflyable_parts(outcome, runs)
+            yield line(NavLogError(detail=why["title"], reasons=why["reasons"], advice=why["advice"], retry=False,
+                                   class_b=why["class_b"], detours=detours))
             return
         if isinstance(outcome, NoWinds):
             # The selection stands -- terrain, airspace, the legal

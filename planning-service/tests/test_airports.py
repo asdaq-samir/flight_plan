@@ -130,3 +130,19 @@ def test_a_box_turned_inside_out_is_refused(monkeypatch):
     monkeypatch.setattr(airports, "places_in", lambda *args: [])
     response = client.get("/api/airports/in-view", params={"south": 47, "west": -93, "north": 46, "east": -92})
     assert response.status_code == 422
+
+
+def test_the_vfr_waypoints_in_view_are_the_sectionals_magenta_flags_only(monkeypatch):
+    from vfr import fixes
+
+    monkeypatch.setattr(fixes, "_fixes", lambda: {
+        "VPBNG": {"ident": "VPBNG", "lat": 42.0, "lon": -88.0, "vfr": True, "kind": "VFR waypoint"},
+        "BEPKE": {"ident": "BEPKE", "lat": 42.0, "lon": -88.1, "vfr": False, "kind": "GPS waypoint"},
+        "VPFAR": {"ident": "VPFAR", "lat": 45.0, "lon": -88.0, "vfr": True, "kind": "VFR waypoint"},
+    })
+    client = TestClient(app)
+
+    resp = client.get("/api/waypoints/in-view", params={"south": 41.5, "west": -88.5, "north": 42.5, "east": -87.5})
+
+    assert resp.status_code == 200
+    assert resp.json() == {"waypoints": [{"ident": "VPBNG", "lat": 42.0, "lon": -88.0}]}

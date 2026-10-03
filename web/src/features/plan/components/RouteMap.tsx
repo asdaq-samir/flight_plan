@@ -8,6 +8,7 @@ import type { Candidate, ClassBAirport, Course } from "../../../lib/api/types";
 import type { BriefingState } from "../hooks/usePlan";
 import { AirportCard, type AirportWeather } from "../../../lib/map/AirportCard";
 import { AirportsLayer } from "../../../lib/map/AirportsLayer";
+import { WaypointsLayer } from "../../../lib/map/WaypointsLayer";
 import { chipColourOf } from "../../../lib/map/flightCategory";
 import { CourseLine } from "../../../lib/map/CourseLine";
 import { Halo } from "../../../lib/map/Halo";
@@ -41,6 +42,8 @@ interface Props {
    *  chart (AirportsLayer) -- or, with null, to put it away. */
   place: { ident: string; lat: number; lon: number } | null;
   onSelectPlace: (ident: string | null) => void;
+  /** A VFR waypoint tapped on the chart, put in the route's stops. */
+  onAddStop?: (waypoint: { ident: string; lat: number; lon: number }) => void;
 }
 
 /** What a checkpoint's popup says: the same small card whether the
@@ -215,7 +218,7 @@ const PLACE_ZOOM = 9;
 
 export default function RouteMap({
   course, candidates, selected, focus, onSelectCandidate, onSelectPoint,
-  airportWeather, place, onSelectPlace,
+  airportWeather, place, onSelectPlace, onAddStop,
 }: Props) {
   const focusZoom = course?.max_zoom ?? 12;
   // The fields that wear a chip of their own already: the route's two,
@@ -245,6 +248,7 @@ export default function RouteMap({
       {/* The chart's own airports with no route as well: a tap on a field
           opens its card, and Fly Here makes the route. */}
       <AirportsLayer selected={place} onSelect={onSelectPlace} exclude={chipped} route={routeBox} />
+      <WaypointsLayer exclude={chipped} onAddStop={course ? onAddStop : undefined} />
       {/* The airport whose card opens comes to the middle of the chart
           clear of the panel, in close enough to find it, as a place
           picked in Maps does: from the search bar it was wherever the

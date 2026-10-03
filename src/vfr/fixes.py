@@ -75,6 +75,12 @@ def search_fixes(query: str, limit: int = 5) -> list[dict]:
     return sorted(hits, key=lambda fix: (fix["ident"] != query, not fix["vfr"], fix["ident"]))[:limit]
 
 
+def within(south: float, west: float, north: float, east: float) -> list[dict]:
+    """Every fix inside the box, for a route to be bent through one
+    (vfr.airspace.detour_waypoint)."""
+    return [fix for fix in _fixes().values() if south <= fix["lat"] <= north and west <= fix["lon"] <= east]
+
+
 def preload() -> None:
     """Read the table now, at a service's start, rather than on the
     first route through a fix."""

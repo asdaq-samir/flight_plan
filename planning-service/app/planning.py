@@ -10,7 +10,7 @@ from cachetools import TTLCache
 
 from vfr import aircraft as aircraft_module
 from vfr import altitude as altitude_module
-from vfr import geo, navlog, sun, weather
+from vfr import airspace, geo, navlog, sun, weather
 from vfr.config import PLAN_LIMIT_S
 
 
@@ -260,11 +260,11 @@ _ALTITUDE_CACHE = SingleFlightTTLCache(maxsize=512, ttl=_ALTITUDE_TTL_S)
 
 
 def _altitude_key(start: tuple, end: tuple, aircraft: str, fixes: list | None, fcst_hr: str,
-                  window: tuple | None = None) -> tuple:
+                  window: tuple | None = None, class_b_cleared: bool = False) -> tuple:
     return (
         round(start[0], 4), round(start[1], 4), round(end[0], 4), round(end[1], 4), aircraft,
         tuple((round(lat, 4), round(lon, 4)) for lat, lon in fixes) if fixes else None, fcst_hr,
-        (round(window[0]), round(window[1])) if window else None,
+        (round(window[0]), round(window[1])) if window else None, class_b_cleared,
     )
 
 
@@ -284,13 +284,14 @@ def flight_window(depart: datetime | None, distance_nm: float, cruise_tas_kt: fl
 
 def cruise_altitude(
     start: tuple, end: tuple, profile: dict, aircraft: str, fixes: list | None = None, fcst_hr: str = "06",
-    window: tuple | None = None,
+    window: tuple | None = None, class_b_cleared: bool = False,
 ) -> dict:
     """`fixes`, the nav log's own (lat, lon) fixes, add the leg-by-leg
     segments the stepped plans need; they are part of the key, since a
     different set of checkpoints is a different set of legs. So is the
-    forecast period, since the freezing level is read from it. Raises
-    StillComputing when the same selection has been running longer
+    forecast period, since the freezing level is read from it, and
+    `class_b_cleared`, a pilot who will have a Class B clearance (vfr.altitude).
+    Raises StillComputing when the same selection has been running longer
     than COMPUTE_LIMIT_S."""
     pending: set = set()
 
@@ -305,19 +306,22 @@ def cruise_altitude(
             extra["fcst_hr"] = fcst_hr
         if window is not None:
             extra["window"] = window
+        if class_b_cleared:
+            extra["class_b_cleared"] = True
         return altitude_module.select_cruise_altitude(start, end, profile, pending=pending, **extra)
 
     return _ALTITUDE_CACHE.get_or_compute(
-        _altitude_key(start, end, aircraft, fixes, fcst_hr, window), compute, COMPUTE_LIMIT_S, pending,
+        _altitude_key(start, end, aircraft, fixes, fcst_hr, window, class_b_cleared), compute, COMPUTE_LIMIT_S,
+        pending,
     )
 
 
 def altitude_waiting_on(start: tuple, end: tuple, aircraft: str, fixes: list | None, fcst_hr: str,
-                        window: tuple | None = None) -> str:
+                        window: tuple | None = None, class_b_cleared: bool = False) -> str:
     """What the selection cruise_altitude() would be joining is still
     waiting on, in words -- "" when nothing of it is running, which is
     also the case once it is done and the plans' winds are what remains."""
-    running = _ALTITUDE_CACHE.running(_altitude_key(start, end, aircraft, fixes, fcst_hr, window))
+    running = _ALTITUDE_CACHE.running(_altitude_key(start, end, aircraft, fixes, fcst_hr, window, class_b_cleared))
     return "" if running is None else describe_stages(running[1])
 
 
@@ -359,7 +363,7 @@ def forecast_hour_for(depart: datetime | None) -> str:
     return weather.forecast_hour((depart - datetime.now(timezone.utc)).total_seconds() / 3600)
 
 
-def no_altitude(selection: dict, between: tuple[str, str] | None = None) -> dict:
+def no_altitude(selection: dict, between: tuple[str, str] | None = None, via: dict | None = None) -> dict:
     """Why no plan has an altitude, in a pilot's words, in three parts: a
     headline saying where along the route it fails, the reasons there as
     short sentences -- the terrain's floor, the first VFR altitude above
@@ -371,13 +375,16 @@ def no_altitude(selection: dict, between: tuple[str, str] | None = None) -> dict
     Las Vegas: the Rockies' floor beside the Chicago Class B shelf, a
     thousand miles apart) and asked for a query parameter. `between`, the
     hop of a route with stops it fails on: the distances are from its
-    start, and the headline names it."""
+    start, and the headline names it. `class_b` says Class B airspace is
+    what stops it, for the page to offer a clearance or a way round:
+    `via`, the best waypoint round it (class_b_detours), when there is one."""
     prohibited = [a["name"] for a in selection.get("special_use", []) if a.get("type") == "P"]
     if prohibited:
         return {
             "title": "The route crosses prohibited airspace",
             "reasons": [f"{name} is closed to every VFR altitude." for name in prohibited],
             "advice": "Plan around it.",
+            "class_b": False,
         }
     stuck = next((s for s in selection.get("segments", []) if not s.get("candidates_ft")), None)
     course = (stuck or {}).get("course_magnetic_deg", selection.get("course_magnetic_deg"))
@@ -388,27 +395,82 @@ def no_altitude(selection: dict, between: tuple[str, str] | None = None) -> dict
                       else "No legal VFR cruising altitude fits this route in this aircraft"),
             "reasons": [],
             "advice": "Set a cruise altitude of your own to plan it anyway.",
+            "class_b": False,
         }
-    lowest = altitude_module.lowest_vfr_cruising_altitude(floor, course)
-    stops = ("The aircraft's service ceiling" if top == stuck.get("service_ceiling_ft")
-             else "The airspace over it" if top == stuck.get("airspace_ceiling_ft") else "The cloud base")
+    # The first altitude the band would have taken: the same rule as the
+    # band's own (legal_cruising_altitudes) -- any 500 ft under 3,000 ft
+    # above the ground, the course's own thousands-plus-500 over it. It
+    # said the first westbound altitude whatever the height, 2,500 ft
+    # over a 1,700 ft floor by Chicago, where 2,000 ft is legal.
+    rule_from = stuck.get("hemispheric_rule_from_ft")
+    first = (altitude_module.legal_cruising_altitudes(floor, None, course, rule_from)
+             or [altitude_module.lowest_vfr_cruising_altitude(floor, course)])[0]
+    under_rule = rule_from is not None and first < rule_from
     heading = "eastbound" if stuck.get("eastbound") else "westbound"
+    first_line = (f"The lowest altitude above that is {first:,.0f} ft." if under_rule
+                  else f"The first {heading} VFR altitude above that is {first:,.0f} ft.")
+    advice = "Route around the high ground, or set a cruise altitude of your own to plan it anyway."
+    class_b = False
+    if top == stuck.get("service_ceiling_ft"):
+        stops = f"The aircraft's service ceiling stops at {top:,.0f} ft."
+    elif top == stuck.get("airspace_ceiling_ft"):
+        # The Class B by name, and what it takes: "The airspace over it
+        # stops at 0 ft" was Midway to Duluth's straight line over O'Hare.
+        bravo = f"The {_class_b_over(selection, stuck)}"
+        stops = (f"{bravo} reaches the ground there; going through it needs a clearance." if top <= 0
+                 else f"{bravo} over it starts at {top:,.0f} ft; going into it needs a clearance.")
+        class_b = True
+        advice = (f"Fly via {via['ident']} ({via['added_nm']:.0f} nm further) to stay out of it" if via
+                  else "Add a stop to route around it") + ", or plan it with a Class B clearance."
+    else:
+        stops = f"The cloud base stops at {top:,.0f} ft."
+    title = f"No legal VFR cruising altitude {stuck['from_nm']:.0f}-{stuck['to_nm']:.0f} nm " + (
+        f"out of {between[0]} toward {between[1]}" if between else "along the route")
+    if top <= 0:
+        # Airspace from the ground up leaves no altitude whatever the
+        # terrain: the floor and the first altitude over it were noise.
+        return {"title": title, "reasons": [stops], "advice": advice, "class_b": class_b}
     return {
-        "title": f"No legal VFR cruising altitude {stuck['from_nm']:.0f}-{stuck['to_nm']:.0f} nm " + (
-            f"out of {between[0]} toward {between[1]}" if between else "along the route"),
-        "reasons": [
-            f"The terrain and obstacles there need {floor:,.0f} ft.",
-            f"The first {heading} VFR altitude above that is {lowest:,.0f} ft.",
-            f"{stops} stops at {top:,.0f} ft.",
-        ],
-        "advice": "Route around the high ground, or set a cruise altitude of your own to plan it anyway.",
+        "title": title,
+        "reasons": [f"The terrain and obstacles there need {floor:,.0f} ft.", first_line, stops],
+        "advice": advice,
+        "class_b": class_b,
     }
 
 
-def no_altitude_detail(selection: dict, between: tuple[str, str] | None = None) -> str:
+def class_b_detours(selection: dict, start: tuple, end: tuple) -> list[dict]:
+    """Where Class B airspace is what leaves a leg of the flight from
+    `start` to `end` no altitude, the waypoints that keep both legs out of
+    it (vfr.airspace.detour_waypoints), best first -- out of the parts low
+    enough to stop the lowest altitude the leg's ground allows; none
+    otherwise."""
+    stuck = next((s for s in selection.get("segments", []) if not s.get("candidates_ft")), None)
+    if stuck is None or stuck.get("airspace_ceiling_ft") is None or stuck.get("band_ceiling_ft") != stuck["airspace_ceiling_ft"]:
+        return []
+    lowest = altitude_module.legal_cruising_altitudes(
+        stuck["floor_ft"], None, stuck.get("course_magnetic_deg", 0.0), stuck.get("hemispheric_rule_from_ft"))
+    if not lowest:
+        return []
+    shp_path = airspace.ensure_class_airspace_shapefile(altitude_module.DEFAULT_FAA_CACHE_DIR)
+    return airspace.detour_waypoints(start, end, shp_path, lowest[0])
+
+
+def _class_b_over(selection: dict, segment: dict) -> str:
+    """The Class B a leg is stuck under, as a pilot says it ("Chicago
+    Class B"): of the route's Class B transits, the one nearest the leg's
+    middle; "Class B airspace" where none is named."""
+    middle = (segment["from_nm"] + segment["to_nm"]) / 2
+    bravos = [t for t in selection.get("airspace_transits", []) if t.get("class") == "B"]
+    if not bravos:
+        return "Class B airspace"
+    name = min(bravos, key=lambda t: abs(t.get("along_track_nm", 0.0) - middle))["name"]
+    return " ".join(word.capitalize() if len(word) > 1 else word for word in name.split())
+
+
+def no_altitude_detail(selection: dict, between: tuple[str, str] | None = None, via: dict | None = None) -> str:
     """no_altitude as one message, for /api/plan's 422 and the agents
     that read it."""
-    parts = no_altitude(selection, between)
+    parts = no_altitude(selection, between, via)
     reasons = " ".join(parts["reasons"])
     return f"{parts['title']}. {reasons + ' ' if reasons else ''}{parts['advice']}"
 

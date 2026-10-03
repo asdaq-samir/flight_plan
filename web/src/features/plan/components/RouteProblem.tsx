@@ -12,14 +12,19 @@ import type { Unflyable } from "../hooks/usePlan";
  * it, as Maps says a route it cannot find in its own card: one line --
  * where along the route -- that opens in place to why, as a list, and the
  * two ways on, a stop to route round the high ground or an altitude of
- * the pilot's own to plan it anyway. The stock Alert, closed by default,
- * so it takes a line of the panel and no more until it is asked for.
- * At rest the route's capsule says so in its chip (PlanWorkspace).
+ * the pilot's own to plan it anyway. Where Class B airspace is what
+ * stops it, the ways on are Fly via -- the stop picker, the waypoints
+ * the planner found round it suggested at its top -- and accepting the
+ * Class B: planned through it, for a pilot who will have the clearance. The stock Alert, closed by default, so it takes a line
+ * of the panel and no more until it is asked for. At rest the route's
+ * capsule says so in its chip (PlanWorkspace).
  */
-export default function RouteProblem({ problem, onAddStop, onFly }: {
+export default function RouteProblem({ problem, onAddStop, onFly, onFlyVia, onAcceptClassB }: {
   problem: Unflyable;
   onAddStop: () => void;
   onFly: (feet: string) => void;
+  onFlyVia: () => void;
+  onAcceptClassB: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [feet, setFeet] = useState("");
@@ -44,22 +49,31 @@ export default function RouteProblem({ problem, onAddStop, onFly }: {
               {problem.reasons.map(reason => <li key={reason}>{reason}</li>)}
             </ul>
           )}
-          <div className="flex flex-wrap items-center gap-2">
-            <Button type="button" size="sm" variant="outline" className="text-foreground" onClick={onAddStop} data-testid="unflyable-add-stop">
-              Add a stop
-            </Button>
-            <form
-              className="flex min-w-0 flex-1 items-center gap-2" aria-label="Custom altitude"
-              onSubmit={e => { e.preventDefault(); if (feet) onFly(feet); }}
-            >
-              <Input
-                value={feet} onChange={e => setFeet(e.target.value.replace(/[^0-9]/g, ""))}
-                inputMode="numeric" placeholder="Altitude, ft" aria-label="Cruise altitude, feet"
-                className="h-8 min-w-24 flex-1 text-foreground" data-testid="unflyable-altitude"
-              />
-              <Button type="submit" size="sm" disabled={!feet} data-testid="unflyable-fly">Fly</Button>
-            </form>
-          </div>
+          {problem.classB ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <Button type="button" size="sm" onClick={onFlyVia} data-testid="unflyable-fly-via">Fly via…</Button>
+              <Button type="button" size="sm" variant="outline" className="text-foreground" onClick={onAcceptClassB} data-testid="unflyable-accept-class-b">
+                Accept Class B
+              </Button>
+            </div>
+          ) : (
+            <div className="flex flex-wrap items-center gap-2">
+              <Button type="button" size="sm" variant="outline" className="text-foreground" onClick={onAddStop} data-testid="unflyable-add-stop">
+                Add a stop
+              </Button>
+              <form
+                className="flex min-w-0 flex-1 items-center gap-2" aria-label="Custom altitude"
+                onSubmit={e => { e.preventDefault(); if (feet) onFly(feet); }}
+              >
+                <Input
+                  value={feet} onChange={e => setFeet(e.target.value.replace(/[^0-9]/g, ""))}
+                  inputMode="numeric" placeholder="Altitude, ft" aria-label="Cruise altitude, feet"
+                  className="h-8 min-w-24 flex-1 text-foreground" data-testid="unflyable-altitude"
+                />
+                <Button type="submit" size="sm" disabled={!feet} data-testid="unflyable-fly">Fly</Button>
+              </form>
+            </div>
+          )}
         </AlertDescription>
       )}
     </Alert>

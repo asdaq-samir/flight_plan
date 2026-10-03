@@ -31,6 +31,7 @@ from pathlib import Path
 import shapefile
 from shapely import from_wkb, to_wkb
 from shapely.geometry import LineString, Point, shape as shapely_shape
+from shapely.ops import unary_union
 
 from .faa_data import NASR_INDEX_URL, download_and_extract, find_current_cycle_page, find_download_link
 
@@ -430,6 +431,68 @@ def airspace_ceiling_profile(route_start: tuple, route_end: tuple, fixes: list, 
         floors = [p["floor_ft_msl"] for p in shelves if leg_line.intersects(p["geometry"])]
         ceilings.append(min(floors) if floors else None)
     return ceilings
+
+
+#: Kept from Class B airspace a route is bent round, as a pilot keeps a
+#: margin from its edge rather than skimming it.
+DETOUR_MARGIN_NM = 1.0
+#: A detour no longer than the route by more than this is offered.
+DETOUR_MAX_ADDED_NM = 40.0
+#: What a fix that is not a VFR waypoint costs in the ranking, in miles:
+#: a VFR pilot flies to the magenta flags on the sectional by eye, and a
+#: GPS fix only where it saves more than this.
+DETOUR_NON_VFR_NM = 10.0
+
+
+#: How many ways round a pilot is offered to choose from.
+DETOUR_CHOICES = 5
+
+
+def detour_waypoints(route_start: tuple, route_end: tuple, shp_path, below_ft: float) -> list[dict]:
+    """Named fixes to fly through so that neither leg enters the Class B
+    airspace whose floor is under `below_ft` -- the lowest altitude the
+    route can fly there, so a shelf above it is passed under -- the ones
+    adding the least distance first, a VFR waypoint (VPBNG, on the
+    sectional) before a GPS fix (vfr.fixes): at most DETOUR_CHOICES, none
+    further than DETOUR_MAX_ADDED_NM. The route's own surface areas
+    aside, as for the ceiling. Each as {"ident", "kind", "added_nm"}."""
+    from . import fixes
+    from .geo import corridor_bbox
+
+    start_point, end_point = Point(route_start[1], route_start[0]), Point(route_end[1], route_end[0])
+    blocking = [
+        p["geometry"] for p in load_controlled_airspace(shp_path, corridor_bbox(route_start, route_end, buffer_nm=30.0))
+        if p["class"] in CLEARANCE_CLASSES and p["floor_ft_msl"] < below_ft
+        and not is_own_surface_area(p, start_point, end_point)
+    ]
+    if not blocking:
+        return []
+    west, south, east, north = unary_union(blocking).bounds
+    pad = DETOUR_MAX_ADDED_NM / 60.0
+    return _detour_through(route_start, route_end, blocking, fixes.within(south - pad, west - pad, north + pad, east + pad))
+
+
+def _detour_through(route_start: tuple, route_end: tuple, blocking: list, candidates: list[dict]) -> list[dict]:
+    """detour_waypoints' choice among `candidates` (fixes, as vfr.fixes
+    has them) round the `blocking` geometries, lon/lat as the shapefile's."""
+    from shapely.prepared import prep
+
+    from .geo import distance_nm
+
+    wall = prep(unary_union(blocking).buffer(DETOUR_MARGIN_NM / 60.0))
+    direct = distance_nm(*route_start, *route_end)
+    ranked = []
+    for fix in candidates:
+        added = distance_nm(*route_start, fix["lat"], fix["lon"]) + distance_nm(fix["lat"], fix["lon"], *route_end) - direct
+        if added > DETOUR_MAX_ADDED_NM:
+            continue
+        via = (fix["lon"], fix["lat"])
+        if wall.intersects(LineString([(route_start[1], route_start[0]), via])) or wall.intersects(
+                LineString([via, (route_end[1], route_end[0])])):
+            continue
+        rank = added + (0.0 if fix.get("vfr") else DETOUR_NON_VFR_NM)
+        ranked.append((rank, {"ident": fix["ident"], "kind": fix.get("kind", "Fix"), "added_nm": round(added, 1)}))
+    return [detour for _, detour in sorted(ranked, key=lambda r: (r[0], r[1]["ident"]))[:DETOUR_CHOICES]]
 
 
 def airspace_transits(route_start: tuple, route_end: tuple, shp_path, fixes: list | None = None) -> list:

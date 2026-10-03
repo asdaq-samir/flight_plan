@@ -7,6 +7,7 @@ import type { AirportPin } from "../api/types";
 import { colourOf } from "./flightCategory";
 import { airportIcon } from "./icons";
 import { MapTooltip } from "./MapTooltip";
+import { boxOf, hovers } from "./view";
 
 /** From this zoom in a sectional draws its airports big enough to aim a
  *  finger at; further out the targets would be a field of overlapping
@@ -21,19 +22,6 @@ const NO_REPORT_FROM_ZOOM = 10;
 
 /** A finger's width round each airport symbol, 44 points across. */
 const TARGET_RADIUS = 22;
-
-/** A pointer that hovers: a name shows under it. A finger's tap is the
- *  card's, not a tooltip's. */
-const hovers = typeof window !== "undefined" && window.matchMedia("(hover: hover)").matches;
-
-/** The view as a box on a half-degree grid, rounded outward: a pan of a
- *  few miles asks the planner for the same box again, which is cached. */
-function boxOf(map: L.Map) {
-  const b = map.getBounds();
-  const out = (v: number, up: boolean) => (up ? Math.ceil(v * 2) : Math.floor(v * 2)) / 2;
-  const box = { south: out(b.getSouth(), false), west: out(b.getWest(), false), north: out(b.getNorth(), true), east: out(b.getEast(), true) };
-  return { box, zoom: map.getZoom(), key: `${box.south},${box.west},${box.north},${box.east}` };
-}
 
 /**
  * The chart's own airports, made tappable, from zoom 8 in: each one that

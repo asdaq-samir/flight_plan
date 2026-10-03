@@ -1,15 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { Share, X } from "lucide-react";
+import { Share, TowerControl, X } from "lucide-react";
 import { toast } from "sonner";
 import { showError } from "../../lib/problems";
 import { cn } from "cn";
+import { TEXT } from "../../lib/text";
 import { api } from "../../lib/api/client";
 import { pilotQuery, queryClient } from "../../lib/queryClient";
 import type { AircraftChoice, AirportPlace, AltitudeChoice, Candidate } from "../../lib/api/types";
 import { aircraftKey, choiceOf, shortName } from "../../lib/aircraftChoice";
-import { distanceNm } from "../../lib/geo";
+import { bestStopIndex, distanceNm } from "../../lib/geo";
 import { useKeepOffline } from "../../lib/map/keepStatus";
 import { useOwnShip } from "../../lib/map/ownShip";
 import { identOf, routeName, routeOf, stopsOf } from "../../lib/identSchema";
@@ -25,6 +26,7 @@ import type { WorkspaceProps } from "../page/workspace";
 import { PilotPanel } from "../pilot/PilotPanel";
 import { Alert, AlertDescription, AlertTitle } from "../../components/ui/alert";
 import IconButton from "../../components/IconButton";
+import { Button } from "../../components/ui/button";
 import { RouteCapsule, SearchField, SearchResults } from "../../components/PanelCapsule";
 import RouteProblem from "./components/RouteProblem";
 import { Favorites, FavoritesList } from "../../components/Favorites";
@@ -73,6 +75,9 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // the winds forecast period the planner flies the legs on, gives
   // every checkpoint an ETA, and is what a saved flight is planned for.
   const depart = searchParams.get("depart") ?? "";
+  // Class B accepted: the pilot will have the clearance, and the route
+  // is planned through it (RouteProblem's Accept Class B).
+  const classBClearance = searchParams.get("class_b") === "1";
   // The Custom altitude box's own draft, sent with the next load -- and,
   // like the header's route, belonging to the plan it was typed over: a
   // different route or altitude in the address shows that one.
@@ -108,7 +113,9 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // in the pilot console (a climb burn added, say) re-plans. It used to
   // fly the copy remembered at the pick until it was picked again.
   const aircraft = aircraftOptions.find(o => aircraftKey(o) === aircraftKey(remembered)) ?? remembered;
-  const s = usePlan({ dep: planned.dep, dest: planned.dest, stops: planned.stops, altitudeFt, altitudeChoice, depart, aircraft, load });
+  const s = usePlan({
+    dep: planned.dep, dest: planned.dest, stops: planned.stops, altitudeFt, altitudeChoice, depart, aircraft, load, classBClearance,
+  });
   const { course, selected } = s;
   // Keep Charts Offline, the setting: each route loaded keeps its charts.
   useKeepOffline(course);
@@ -203,10 +210,12 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     if (alt.trim()) next.altitude_ft = alt.trim();
     if (altitudeChoice !== "fastest") next.altitude_choice = altitudeChoice;
     if (depart) next.depart = depart;
+    // Class B accepted for this route, not the next one.
+    if (classBClearance && route.dep === planned.dep && route.dest === planned.dest) next.class_b = "1";
     if (panel === "full") next.view = "briefing";
     setSearchParams(next, { replace: true });
     setLoad(n => n + 1);
-  }, [dep, dest, planned.stops, via, alt, altitudeChoice, depart, panel, setSearchParams]);
+  }, [dep, dest, planned.dep, planned.dest, planned.stops, via, alt, altitudeChoice, depart, classBClearance, panel, setSearchParams]);
 
   // The stops, changed in the panel's second row (StopsBar): in the
   // address at once, which re-plans, as the aeroplane and the time do.
@@ -218,8 +227,30 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       return next;
     }, { replace: true });
   }, [setSearchParams]);
-  // Add Stop open: from its own button, or from no legal altitude's.
-  const [addingStop, setAddingStop] = useState(false);
+  // Add Stop open: from its own button, or from no legal altitude's --
+  // "via", its Fly via round a Class B, the ways round suggested.
+  const [addingStop, setAddingStop] = useState<false | "stop" | "via">(false);
+  // The other way past Class B airspace that stops the route: accepted,
+  // and taken back.
+  // A field's card or a waypoint's diamond on the chart, put in the
+  // stops where it bends the route least (bestStopIndex): landed at, or
+  // flown through.
+  const addStopAt = useCallback((at: { ident: string; lat: number; lon: number }) => {
+    if (!course) return;
+    const points = [course.departure, ...(course.stops ?? []), course.destination];
+    if (points.some(p => p.ident === at.ident)) return;
+    const stops = [...planned.stops];
+    stops.splice(bestStopIndex(points, at), 0, at.ident);
+    setStops(stops);
+  }, [course, planned.stops, setStops]);
+  const acceptClassB = useCallback((accept: boolean) => {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      if (accept) next.set("class_b", "1");
+      else next.delete("class_b");
+      return next;
+    }, { replace: true });
+  }, [setSearchParams]);
 
   // No legal altitude for the route (usePlan) is the route's own problem:
   // its capsule's chip says so at rest, and the panel says where, why and
@@ -464,6 +495,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           airportWeather={s.briefing}
           place={placePin}
           onSelectPlace={selectPlace}
+          onAddStop={addStopAt}
         />
       </div>
     ),
@@ -506,6 +538,8 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           <PlaceCard
             key={place} ident={place} from={measuredFrom}
             onClose={() => selectPlace(null)} onFlyHere={to => void flyHere(to)} onExpand={() => setPanel("full")}
+            onAddStop={routed && course && ![course.departure, ...(course.stops ?? []), course.destination].some(p => p.ident === place)
+              ? to => { addStopAt(to); selectPlace(null); } : undefined}
           />
         )}
         <div className={cn("flex min-h-0 flex-1 flex-col print:flex", place && "hidden")}>{navLog}</div>
@@ -532,7 +566,11 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     // with the panel out.
     controls: routed && (
       <>
-      <StopsBar stops={planned.stops} onChange={setStops} adding={addingStop} onAddingChange={setAddingStop} />
+      <StopsBar
+        stops={planned.stops} onChange={setStops} adding={!!addingStop}
+        onAddingChange={open => setAddingStop(open ? "stop" : false)}
+        via={addingStop === "via" ? s.unflyable?.detours : undefined}
+      />
       <FlightInputs
         aircraftValue={aircraftKey(aircraft)}
         aircraftOptions={aircraftOptions.map(o => ({ value: aircraftKey(o), label: o.label }))}
@@ -559,7 +597,22 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     submit,
     loading: s.stage !== null,
     notices: s.unflyable ? (
-      <RouteProblem problem={s.unflyable} onAddStop={() => setAddingStop(true)} onFly={flyAt} />
+      <RouteProblem
+        problem={s.unflyable} onAddStop={() => setAddingStop("stop")} onFly={flyAt}
+        onFlyVia={() => setAddingStop("via")} onAcceptClassB={() => acceptClassB(true)}
+      />
+    ) : classBClearance ? (
+      // One line while it lasts: what was accepted, and Undo.
+      <Alert
+        className="flex items-center gap-2 rounded-none border-x-0 border-t-0 bg-transparent py-1 pr-2 pl-4 *:[svg]:translate-y-0"
+        data-testid="class-b-accepted"
+      >
+        <TowerControl className="shrink-0" />
+        <AlertDescription className={cn("min-w-0 flex-1 text-foreground", TEXT.detail)}>
+          Planned through Class B: you&apos;ll need a clearance.
+        </AlertDescription>
+        <Button type="button" size="sm" variant="ghost" className="shrink-0 text-tint" onClick={() => acceptClassB(false)}>Undo</Button>
+      </Alert>
     ) : s.sameAirport ? (
       <Alert className="rounded-none border-x-0 border-t-0 border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/40">
         <AlertTitle>A route needs two different airports.</AlertTitle>

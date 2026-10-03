@@ -617,6 +617,11 @@
             "title": "Candidates Ft",
             "type": "array"
           },
+          "class_b_cleared": {
+            "default": false,
+            "title": "Class B Cleared",
+            "type": "boolean"
+          },
           "cloud_base_ft": {
             "anyOf": [
               {
@@ -2341,6 +2346,35 @@
         "title": "Detection",
         "type": "object"
       },
+      "Detour": {
+        "description": "A named fix that keeps a route out of the Class B airspace it is\nstopped by (vfr.airspace.detour_waypoint), and where it goes in the\nstops: before the stop at `stop_index`, so on the hop it is for.",
+        "properties": {
+          "added_nm": {
+            "title": "Added Nm",
+            "type": "number"
+          },
+          "ident": {
+            "title": "Ident",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "stop_index": {
+            "title": "Stop Index",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "ident",
+          "kind",
+          "added_nm",
+          "stop_index"
+        ],
+        "title": "Detour",
+        "type": "object"
+      },
       "DevService": {
         "description": "One service the developer console links to, and whether it is up.\n\n`state` is Docker's own word for it -- running, exited, created --\nor \"absent\" where compose has never created the container at all,\nwhich needs `docker compose up -d <service>` once rather than a\nstart.",
         "properties": {
@@ -3338,9 +3372,22 @@
             "default": null,
             "title": "Advice"
           },
+          "class_b": {
+            "default": false,
+            "title": "Class B",
+            "type": "boolean"
+          },
           "detail": {
             "title": "Detail",
             "type": "string"
+          },
+          "detours": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/Detour"
+            },
+            "title": "Detours",
+            "type": "array"
           },
           "reasons": {
             "default": [],
@@ -4984,6 +5031,46 @@
         "title": "ValidationError",
         "type": "object"
       },
+      "WaypointPin": {
+        "description": "A VFR waypoint on the sectional (VPBNG), for the map's diamond: a\ntap names it, and with a route open puts it in the stops.",
+        "properties": {
+          "ident": {
+            "title": "Ident",
+            "type": "string"
+          },
+          "lat": {
+            "title": "Lat",
+            "type": "number"
+          },
+          "lon": {
+            "title": "Lon",
+            "type": "number"
+          }
+        },
+        "required": [
+          "ident",
+          "lat",
+          "lon"
+        ],
+        "title": "WaypointPin",
+        "type": "object"
+      },
+      "WaypointsInView": {
+        "properties": {
+          "waypoints": {
+            "items": {
+              "$ref": "#/components/schemas/WaypointPin"
+            },
+            "title": "Waypoints",
+            "type": "array"
+          }
+        },
+        "required": [
+          "waypoints"
+        ],
+        "title": "WaypointsInView",
+        "type": "object"
+      },
       "WeatherDataset": {
         "properties": {
           "age_s": {
@@ -6153,6 +6240,16 @@
               ],
               "title": "Depart"
             }
+          },
+          {
+            "in": "query",
+            "name": "class_b_clearance",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Class B Clearance",
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -6519,6 +6616,16 @@
               ],
               "title": "Depart"
             }
+          },
+          {
+            "in": "query",
+            "name": "class_b_clearance",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Class B Clearance",
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -6582,6 +6689,93 @@
           }
         },
         "summary": "Status"
+      }
+    },
+    "/api/waypoints/in-view": {
+      "get": {
+        "description": "The VFR waypoints inside the map's view (vfr.fixes), at most\n`limit`: the magenta flags the sectional prints round busy airspace,\nfor the map to mark each with a diamond a pilot can tap and route\nthrough. GPS waypoints and the rest of NASR's fixes are left out:\nthey are not on a VFR chart.",
+        "operationId": "waypoints_in_view_api_waypoints_in_view_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "south",
+            "required": true,
+            "schema": {
+              "maximum": 90,
+              "minimum": -90,
+              "title": "South",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "west",
+            "required": true,
+            "schema": {
+              "maximum": 180,
+              "minimum": -180,
+              "title": "West",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "north",
+            "required": true,
+            "schema": {
+              "maximum": 90,
+              "minimum": -90,
+              "title": "North",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "east",
+            "required": true,
+            "schema": {
+              "maximum": 180,
+              "minimum": -180,
+              "title": "East",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 500,
+              "maximum": 1000,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WaypointsInView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Waypoints In View"
       }
     }
   }

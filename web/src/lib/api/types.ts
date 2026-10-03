@@ -23,6 +23,8 @@ type Webapp = WebappComponents["schemas"];
 
 export type Airport = Schemas["AirportEnd"];
 export type Course = Schemas["Course"];
+/** A waypoint that keeps a route out of the Class B that stops it. */
+export type Detour = Schemas["Detour"];
 /** One chart kind the map may draw, with its zooms -- and, for an
  *  overlay, its sheets and where each is. */
 export type ChartLayer = Schemas["ChartLayer"];
@@ -61,6 +63,8 @@ export type AirportSearch = Schemas["AirportSearch"];
 export type AirportPlace = Schemas["AirportPlace"];
 export type AirportPin = Schemas["AirportPin"];
 export type AirportsInView = Schemas["AirportsInView"];
+export type WaypointPin = Schemas["WaypointPin"];
+export type WaypointsInView = Schemas["WaypointsInView"];
 export type ModelComparisonEntry = Schemas["ModelComparisonEntry"];
 export type ModelComparison = Schemas["ModelComparison"];
 export type Status = Schemas["Status"];

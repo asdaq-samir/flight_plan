@@ -229,6 +229,61 @@ test("plan page: no legal altitude is the route's own problem: its chip says so 
   await expect(page.getByPlaceholder(/Search/)).toBeVisible();
 });
 
+test("plan page: Class B in the way offers the waypoint round it, or accepting the Class B, which is said while it lasts", async ({ page }) => {
+  // Midway to Duluth runs over O'Hare, where the Chicago Class B reaches
+  // the ground: the planner names a waypoint round it (BEPKE, 6 nm
+  // further), or plans it through for a pilot who will be cleared.
+  let cleared = false;
+  await page.route("**/api/planner/navlog**", route => {
+    if (new URL(route.request().url()).searchParams.get("class_b_clearance") === "true") {
+      cleared = true;
+      return route.fallback();
+    }
+    return route.fulfill({
+      status: 200, contentType: "application/x-ndjson",
+      body: JSON.stringify({
+        type: "error", retry: false, detail: "No legal VFR cruising altitude 1-15 nm along the route",
+        reasons: ["The Chicago Class B reaches the ground there; going through it needs a clearance."],
+        advice: "Fly via BEPKE (6 nm further) to stay out of it, or plan it with a Class B clearance.",
+        class_b: true, detours: [{ ident: "BEPKE", kind: "GPS waypoint", added_nm: 5.9, stop_index: 0 }],
+      }) + "\n",
+    });
+  });
+  await page.goto("/app/plan?dep=C81&dest=KDLH");
+  const chip = page.getByTestId("capsule-detail");
+  await expect(chip).toHaveText("No legal altitude", { timeout: slow(30000) });
+  await chip.click();
+  const problem = page.getByTestId("route-problem");
+  await problem.getByTestId("route-problem-title").click();
+  await expect(problem.getByRole("listitem")).toHaveText(["The Chicago Class B reaches the ground there; going through it needs a clearance."]);
+  // The two ways past it, and no altitude of the pilot's own: under a
+  // Class B to the ground there is none.
+  await expect(problem.getByTestId("unflyable-fly-via")).toBeVisible();
+  await expect(problem.getByTestId("unflyable-altitude")).toHaveCount(0);
+
+  // Accepted: planned through it, and a line says so, with Undo.
+  await problem.getByTestId("unflyable-accept-class-b").click();
+  await expect(page).toHaveURL(/[?&]class_b=1/);
+  const accepted = page.getByTestId("class-b-accepted");
+  await expect(accepted).toContainText("you'll need a clearance");
+  await expect.poll(() => cleared, { timeout: slow(30000) }).toBe(true);
+  await accepted.getByRole("button", { name: "Undo" }).click();
+  await expect(page).not.toHaveURL(/class_b=/);
+
+  // Or round it: Fly via, the stop picker with the ways round at its
+  // top, and the one picked in the stops.
+  await expect(problem).toBeVisible({ timeout: slow(30000) });
+  const title = problem.getByTestId("route-problem-title");
+  if ((await title.getAttribute("aria-expanded")) !== "true") await title.click();
+  await problem.getByTestId("unflyable-fly-via").click();
+  const suggestion = page.getByTestId("picker-suggestion");
+  await expect(suggestion).toHaveCount(1);
+  await expect(suggestion).toContainText("BEPKE");
+  await expect(suggestion).toContainText("+6 nm, clear of the Class B");
+  await suggestion.click();
+  await expect(page).toHaveURL(/[?&]stops=BEPKE/);
+});
+
 test("plan page: no legal altitude's own altitude field takes a tap in the panel's head, which is dragged", async ({ page }) => {
   // The head of the panel follows a finger (useDetentDrag): a tap on a
   // field in it is still the field's, its keyboard coming up.
