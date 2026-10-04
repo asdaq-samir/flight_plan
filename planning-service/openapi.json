@@ -3001,6 +3001,17 @@
             ],
             "title": "Wind Dir True Deg"
           },
+          "wind_gust_kt": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wind Gust Kt"
+          },
           "wind_speed_kt": {
             "anyOf": [
               {
@@ -4609,6 +4620,16 @@
               }
             ],
             "title": "Width Ft"
+          },
+          "wind": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RunwayWind"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -4620,6 +4641,41 @@
           "closed"
         ],
         "title": "Runway",
+        "type": "object"
+      },
+      "RunwayWind": {
+        "description": "The reported wind on the end of a runway it favours, the one with\nthe most headwind (vfr.runway_wind): the headwind negative for a\ntailwind, the crosswind positive from the right, and the crosswind\nin the gusts where the report has them.",
+        "properties": {
+          "crosswind_kt": {
+            "title": "Crosswind Kt",
+            "type": "number"
+          },
+          "end": {
+            "title": "End",
+            "type": "string"
+          },
+          "gust_crosswind_kt": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gust Crosswind Kt"
+          },
+          "headwind_kt": {
+            "title": "Headwind Kt",
+            "type": "number"
+          }
+        },
+        "required": [
+          "end",
+          "headwind_kt",
+          "crosswind_kt"
+        ],
+        "title": "RunwayWind",
         "type": "object"
       },
       "ServiceStatus": {

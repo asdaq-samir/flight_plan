@@ -18,6 +18,7 @@ import type { FrameworkNarrative } from "../../hooks/useNarratives";
 import type { BriefingState } from "../../hooks/usePlan";
 import { altFt, clockTime, deg, describeFuel, describeSteps, describeTime } from "../../format";
 import { navLogRows, savedCheckpoints } from "../navlog/rows";
+import { RunwayRow } from "../RunwayRow";
 import { CATEGORY_RANK, categoryOf, colourOf } from "../../../../lib/map/flightCategory";
 
 interface Props {
@@ -160,17 +161,6 @@ function primaryFrequency(frequencies: { type?: string | null; frequency_mhz?: n
     if (f) return `${FREQUENCY_NAMES[code]} ${f.frequency_mhz}`;
   }
   return null;
-}
-
-const SURFACE_NAMES: Record<string, string> = {
-  ASP: "asphalt", ASPH: "asphalt", CON: "concrete", CONC: "concrete", TURF: "turf", GRS: "grass", GRASS: "grass",
-  GRVL: "gravel", GRAVEL: "gravel", DIRT: "dirt", WATER: "water", SNOW: "snow",
-};
-
-function surfaceName(surface: string | null | undefined): string | null {
-  if (!surface) return null;
-  const code = (surface.split(/[-/ ]/)[0] ?? "").toUpperCase();
-  return SURFACE_NAMES[code] ?? surface.toLowerCase();
 }
 
 const PLAN_LABEL: Record<string, string> = { lowest: "Lowest", highest: "Highest", fastest: "Fastest", economical: "Economical" };
@@ -585,14 +575,7 @@ export default function FlightBriefingView({
                     })
                     : <ListRow title={<span className="text-muted-foreground">No published frequencies</span>} />}
                   {info?.runways.length
-                    ? info.runways.map((r, i) => (
-                      <ListRow
-                        key={`r${i}`}
-                        title={`Runway ${r.ends ?? "—"}`}
-                        description={[surfaceName(r.surface), r.lighted && "lighted", r.closed && "closed"].filter(Boolean).join(" · ") || undefined}
-                        value={`${r.length_ft != null ? altFt(r.length_ft) : "—"} × ${r.width_ft ?? "—"} ft`}
-                      />
-                    ))
+                    ? info.runways.map((r, i) => <RunwayRow key={`r${i}`} runway={r} />)
                     : <ListRow title={<span className="text-muted-foreground">No published runway data</span>} />}
                 </ListGroup>
               );

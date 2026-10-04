@@ -13,6 +13,7 @@ import { compassPoint } from "../../../lib/compass";
 import { bearingDeg, distanceNm, type LatLon } from "../../../lib/geo";
 import { chipColourOf } from "../../../lib/map/flightCategory";
 import { feet, miles } from "../../../lib/units";
+import { RunwayRow } from "./RunwayRow";
 import { TEXT } from "../../../lib/text";
 
 /** "18 nm NE", from wherever the card is measured from. */
@@ -213,14 +214,7 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
           <div className="pt-5">
             <ListGroup title="Field">
               <ListRow title="Elevation" value={feet(place.elevation_ft)} />
-              {place.runways.map((r, i) => (
-                <ListRow
-                  key={`${r.ends}-${i}`}
-                  title={`Runway ${r.ends ?? "—"}`}
-                  description={[r.surface, r.lighted ? "lighted" : null].filter(Boolean).join(" · ") || undefined}
-                  value={r.length_ft ? `${r.length_ft.toLocaleString()} × ${r.width_ft ?? "—"} ft` : "—"}
-                />
-              ))}
+              {place.runways.map((r, i) => <RunwayRow key={`${r.ends}-${i}`} runway={r} />)}
             </ListGroup>
           </div>
         </>

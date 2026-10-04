@@ -554,6 +554,7 @@ def _parse_metars(xml_bytes: bytes) -> dict:
             # "VRB" is a direction the arithmetic can't use.
             "wind_dir_true_deg": _float(el.findtext("wind_dir_degrees")),
             "wind_speed_kt": _float(el.findtext("wind_speed_kt")),
+            "wind_gust_kt": _float(el.findtext("wind_gust_kt")),
             "temp_c": _float(el.findtext("temp_c")),
             "dewpoint_c": _float(el.findtext("dewpoint_c")),
         })

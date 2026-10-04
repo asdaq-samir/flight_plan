@@ -506,8 +506,21 @@ class Metar(BaseModel):
     visibility_sm: float | None = None
     wind_dir_true_deg: float | None = None
     wind_speed_kt: float | None = None
+    wind_gust_kt: float | None = None
     temp_c: float | None = None
     dewpoint_c: float | None = None
+
+
+class RunwayWind(BaseModel):
+    """The reported wind on the end of a runway it favours, the one with
+    the most headwind (vfr.runway_wind): the headwind negative for a
+    tailwind, the crosswind positive from the right, and the crosswind
+    in the gusts where the report has them."""
+
+    end: str
+    headwind_kt: float
+    crosswind_kt: float
+    gust_crosswind_kt: float | None = None
 
 
 class Runway(BaseModel):
@@ -517,6 +530,9 @@ class Runway(BaseModel):
     surface: str | None
     lighted: bool
     closed: bool
+    #: The current METAR's wind on the end it favours; None without a
+    #: report, with a variable wind, or for a helipad.
+    wind: RunwayWind | None = None
 
 
 class Frequency(BaseModel):

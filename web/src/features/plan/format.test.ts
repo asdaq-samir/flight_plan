@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Leg, Totals } from "../../lib/api/types";
 import { inkOn, SCORE_STEPS } from "../../lib/scoreScale";
-import { cruiseByAltitude, deg, elapsed, hhmm, one, scoreColor, signed, totalsParts } from "./format";
+import { cruiseByAltitude, deg, elapsed, hhmm, one, runwayWind, scoreColor, signed, totalsParts } from "./format";
 
 describe("scoreColor", () => {
   it("bands on the boundary, not just inside it", () => {
@@ -98,5 +98,15 @@ describe("cruiseByAltitude", () => {
     expect(cruiseByAltitude([leg(12500, 117.1, null, 12500, 64.0, 8.37)], 65)).toEqual([
       "12,500 ft: density altitude 12,500 ft, 117 kt, 8.4 gph (full throttle, 64%)",
     ]);
+  });
+});
+
+describe("runwayWind", () => {
+  it("the favoured end, its headwind and the side its crosswind comes from, and the gusts'", () => {
+    expect(runwayWind({ end: "27", headwind_kt: 10, crosswind_kt: 6, gust_crosswind_kt: 9 }))
+      .toBe("Favors 27: 10 kt headwind, 6 kt crosswind from the right, 9 in the gusts");
+    expect(runwayWind({ end: "9", headwind_kt: -3, crosswind_kt: -12, gust_crosswind_kt: null }))
+      .toBe("Favors 9: 3 kt tailwind, 12 kt crosswind from the left");
+    expect(runwayWind({ end: "18", headwind_kt: 0, crosswind_kt: 0, gust_crosswind_kt: null })).toBe("Calm on 18");
   });
 });

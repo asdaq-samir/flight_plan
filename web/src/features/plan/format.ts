@@ -1,4 +1,4 @@
-import type { AltitudeOption, Leg, Totals } from "../../lib/api/types";
+import type { AltitudeOption, Leg, Runway, Totals } from "../../lib/api/types";
 import { SCORE_STEPS } from "../../lib/scoreScale";
 import { altFt } from "../../lib/units";
 
@@ -130,4 +130,28 @@ export function etaAt(departIso: string, minutes: number | null): string {
 export function elapsed(ms: number): string {
   const secs = Math.floor(ms / 1000);
   return `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, "0")}`;
+}
+
+const SURFACE_NAMES: Record<string, string> = {
+  ASP: "asphalt", ASPH: "asphalt", CON: "concrete", CONC: "concrete", TURF: "turf", GRS: "grass", GRASS: "grass",
+  GRVL: "gravel", GRAVEL: "gravel", DIRT: "dirt", WATER: "water", SNOW: "snow",
+};
+
+/** A runway's surface in words: OurAirports' "ASPH-G" is asphalt. */
+export function surfaceName(surface: string | null | undefined): string | null {
+  if (!surface) return null;
+  const code = (surface.split(/[-/ ]/)[0] ?? "").toUpperCase();
+  return SURFACE_NAMES[code] ?? surface.toLowerCase();
+}
+
+/** The reported wind on the end it favours, as a pilot says it:
+ *  "Favors 27: 10 kt headwind, 6 kt crosswind from the right, 9 in the
+ *  gusts" -- a tailwind where every end has one. */
+export function runwayWind(wind: NonNullable<Runway["wind"]>): string {
+  if (wind.headwind_kt === 0 && wind.crosswind_kt === 0 && wind.gust_crosswind_kt == null) return `Calm on ${wind.end}`;
+  const along = wind.headwind_kt >= 0 ? `${wind.headwind_kt} kt headwind` : `${-wind.headwind_kt} kt tailwind`;
+  const side = wind.crosswind_kt > 0 ? " from the right" : wind.crosswind_kt < 0 ? " from the left" : "";
+  const gusts = wind.gust_crosswind_kt != null && Math.abs(wind.gust_crosswind_kt) !== Math.abs(wind.crosswind_kt)
+    ? `, ${Math.abs(wind.gust_crosswind_kt)} in the gusts` : "";
+  return `Favors ${wind.end}: ${along}, ${Math.abs(wind.crosswind_kt)} kt crosswind${side}${gusts}`;
 }

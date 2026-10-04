@@ -251,6 +251,9 @@ def get_runways(ident: str, cache_path: Path = RUNWAYS_CACHE_PATH) -> list[dict]
     information section. Keyed by `airport_ident` directly --
     OurAirports' runways.csv carries the ident string alongside its own
     numeric `airport_ref`, so no join against airports.csv is needed.
+    Each runway's `ends` are its two ends' idents, and `end_headings` each
+    end's ident and true heading, None where the table has none
+    (vfr.runway_wind turns its number true then).
     """
     ident = ident.strip().upper()
     df = _load_table(RUNWAYS_URL, cache_path)
@@ -262,6 +265,10 @@ def get_runways(ident: str, cache_path: Path = RUNWAYS_CACHE_PATH) -> list[dict]
         length, width = row.get("length_ft"), row.get("width_ft")
         runways.append({
             "ends": ends,
+            "end_headings": [
+                (str(end), float(row.get(f"{side}_heading_degT")) if pd.notna(row.get(f"{side}_heading_degT")) else None)
+                for side, end in (("le", le), ("he", he)) if pd.notna(end)
+            ],
             "length_ft": int(length) if pd.notna(length) else None,
             "width_ft": int(width) if pd.notna(width) else None,
             "surface": row.get("surface") if pd.notna(row.get("surface")) else None,

@@ -19,7 +19,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 
 from fastapi import APIRouter
-from vfr import airports, weather
+from vfr import airports, runway_wind, weather
 
 from ..common import load_route
 from ..schemas import Briefing
@@ -71,6 +71,7 @@ def briefing(dep: str, dest: str, stops: str = "", depart: datetime | None = Non
     # Every airport landed at, once each -- a round trip lands where it
     # left -- not a waypoint flown through, which has no weather of its own.
     idents = tuple(dict.fromkeys(i for i, a in zip(r.idents, r.airports) if not a.get("fix")))
+    where = {i: (a["lat"], a["lon"]) for i, a in zip(r.idents, r.airports)}
     start = time.time() if depart is None else (depart if depart.tzinfo else depart.replace(tzinfo=timezone.utc)).timestamp()
     window = (start, start + (ete_min if ete_min is not None else DEFAULT_ETE_MIN) * 60 + MARGIN_S)
 
@@ -122,7 +123,8 @@ def briefing(dep: str, dest: str, stops: str = "", depart: datetime | None = Non
         "weather_unavailable": weather_unavailable,
         "vfr_not_recommended": weather.vfr_not_recommended_reasons(list(idents), metars, forecast),
         "airports": {
-            ident: {"runways": runways[ident], "frequencies": frequencies[ident]}
+            ident: {"runways": runway_wind.with_winds(runways[ident], metars.get(ident), *where[ident]),
+                    "frequencies": frequencies[ident]}
             for ident in idents
         },
     }
