@@ -4659,6 +4659,69 @@
         "title": "Plan",
         "type": "object"
       },
+      "ProfileAirspace": {
+        "description": "A Class B, C or D the route passes through: where along it, from\nits floor to its ceiling (feet MSL; the ceiling None where the FAA's\nfile has none).",
+        "properties": {
+          "ceiling_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ceiling Ft"
+          },
+          "class": {
+            "title": "Class",
+            "type": "string"
+          },
+          "floor_ft": {
+            "title": "Floor Ft",
+            "type": "number"
+          },
+          "from_nm": {
+            "title": "From Nm",
+            "type": "number"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "to_nm": {
+            "title": "To Nm",
+            "type": "number"
+          }
+        },
+        "required": [
+          "name",
+          "class",
+          "from_nm",
+          "to_nm",
+          "floor_ft"
+        ],
+        "title": "ProfileAirspace",
+        "type": "object"
+      },
+      "ProfileGround": {
+        "properties": {
+          "along_nm": {
+            "title": "Along Nm",
+            "type": "number"
+          },
+          "ground_ft": {
+            "title": "Ground Ft",
+            "type": "number"
+          }
+        },
+        "required": [
+          "along_nm",
+          "ground_ft"
+        ],
+        "title": "ProfileGround",
+        "type": "object"
+      },
       "PyramidPass": {
         "description": "A pass of `python -m vfr.charts pyramid` under way: sheets done of\nthe sheets it set out to render, and the one it is on.",
         "properties": {
@@ -4795,6 +4858,36 @@
           "state"
         ],
         "title": "RetrainStarted",
+        "type": "object"
+      },
+      "RouteProfile": {
+        "description": "The route's side view (vfr.profile): its length, the ground under\nit, and the controlled airspace it passes through.",
+        "properties": {
+          "airspace": {
+            "items": {
+              "$ref": "#/components/schemas/ProfileAirspace"
+            },
+            "title": "Airspace",
+            "type": "array"
+          },
+          "length_nm": {
+            "title": "Length Nm",
+            "type": "number"
+          },
+          "terrain": {
+            "items": {
+              "$ref": "#/components/schemas/ProfileGround"
+            },
+            "title": "Terrain",
+            "type": "array"
+          }
+        },
+        "required": [
+          "length_nm",
+          "terrain",
+          "airspace"
+        ],
+        "title": "RouteProfile",
         "type": "object"
       },
       "RouteTfr": {
@@ -7708,6 +7801,65 @@
           }
         },
         "summary": "Retrain"
+      }
+    },
+    "/api/route-profile": {
+      "get": {
+        "description": "The route's side view: the ground under it every 2 nm and the\nClass B, C and D airspace it passes through, floor and ceiling, along\nthe whole route through its stops (vfr.profile) -- for the page to\ndraw the plan's altitudes, climbs and descents over.",
+        "operationId": "route_profile_api_route_profile_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "dep",
+            "required": true,
+            "schema": {
+              "title": "Dep",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "dest",
+            "required": true,
+            "schema": {
+              "title": "Dest",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "stops",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Stops",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RouteProfile"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Route Profile"
       }
     },
     "/api/status": {

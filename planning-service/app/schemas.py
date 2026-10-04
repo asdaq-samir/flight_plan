@@ -575,6 +575,35 @@ class Tfr(TfrInfo):
     geometry: dict
 
 
+class ProfileGround(BaseModel):
+    along_nm: float
+    ground_ft: float
+
+
+class ProfileAirspace(BaseModel):
+    """A Class B, C or D the route passes through: where along it, from
+    its floor to its ceiling (feet MSL; the ceiling None where the FAA's
+    file has none)."""
+
+    name: str
+    class_: str = Field(alias="class")
+    from_nm: float
+    to_nm: float
+    floor_ft: float
+    ceiling_ft: float | None = None
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class RouteProfile(BaseModel):
+    """The route's side view (vfr.profile): its length, the ground under
+    it, and the controlled airspace it passes through."""
+
+    length_nm: float
+    terrain: list[ProfileGround]
+    airspace: list[ProfileAirspace]
+
+
 class Tfrs(BaseModel):
     tfrs: list[Tfr]
 

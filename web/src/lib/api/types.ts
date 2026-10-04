@@ -87,6 +87,8 @@ export type ClassBResponse = Schemas["ClassBResponse"];
 /** A temporary flight restriction, with its areas, for the map. */
 export type Tfr = Schemas["Tfr"];
 export type Tfrs = Schemas["Tfrs"];
+/** The route from the side: the ground and the controlled airspace. */
+export type RouteProfile = Schemas["RouteProfile"];
 /** One service the developer console links to, and whether it is up.
  *  `state` is Docker's own word -- running, exited, created -- or
  *  "absent" where compose has never created the container. */

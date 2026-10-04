@@ -143,6 +143,15 @@ def ensure_class_airspace_shapefile(cache_dir) -> Path:
     return shp_path
 
 
+def _ceiling_ft_msl(record: dict) -> float | None:
+    """UPPER_VAL -> the top in feet MSL, which every Class B, C and D's
+    is; None where it is not a number."""
+    try:
+        return float(record.get("UPPER_VAL")) if record.get("UPPER_CODE") in ("MSL", None) else None
+    except (TypeError, ValueError):
+        return None
+
+
 def _floor_ft_msl(record: dict) -> float:
     """LOWER_VAL/LOWER_CODE -> floor altitude in feet MSL. SFC (surface)
     floors are 0 MSL; anything not plain feet MSL (rare for B/C/D, mostly
@@ -175,7 +184,7 @@ _ALL_AIRSPACE_LOCK = threading.Lock()
 # v2: the cached records gained an "ident" field, and a cache written
 # before that has no way to say so -- a new suffix rebuilds rather
 # than reading records that are missing a key every caller now reads.
-_CONTROLLED_CACHE_SUFFIX = ".controlled.v2.pkl"
+_CONTROLLED_CACHE_SUFFIX = ".controlled.v3.pkl"
 
 
 def _load_all_controlled_airspace(shp_path) -> list:
@@ -215,6 +224,7 @@ def _parse_controlled_airspace(shp_path: Path) -> list:
                 "name": record["NAME"],
                 "class": record["CLASS"],
                 "floor_ft_msl": _floor_ft_msl(record),
+                "ceiling_ft_msl": _ceiling_ft_msl(record),
                 "geometry": shapely_shape(sr.shape.__geo_interface__),
                 "bbox": tuple(sr.shape.bbox),  # (min_lon, min_lat, max_lon, max_lat)
             }
@@ -240,7 +250,7 @@ def _read_controlled_cache(shp_path: Path, key: tuple) -> list | None:
     return [
         {
             "ident": p.get("ident", ""), "name": p["name"], "class": p["class"],
-            "floor_ft_msl": p["floor_ft_msl"],
+            "floor_ft_msl": p["floor_ft_msl"], "ceiling_ft_msl": p.get("ceiling_ft_msl"),
             "bbox": tuple(p["bbox"]), "geometry": from_wkb(p["wkb"]),
         }
         for p in cached["polygons"]
@@ -254,7 +264,7 @@ def _write_controlled_cache(shp_path: Path, key: tuple, polygons: list) -> None:
         "polygons": [
             {
                 "ident": p.get("ident", ""), "name": p["name"], "class": p["class"],
-                "floor_ft_msl": p["floor_ft_msl"],
+                "floor_ft_msl": p["floor_ft_msl"], "ceiling_ft_msl": p.get("ceiling_ft_msl"),
                 "bbox": p["bbox"], "wkb": to_wkb(p["geometry"]),
             }
             for p in polygons

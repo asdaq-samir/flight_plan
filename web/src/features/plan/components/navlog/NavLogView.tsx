@@ -29,10 +29,11 @@ import AccordionSection from "../../../../components/AccordionSection";
 import { Spinner } from "../../../../components/ui/spinner";
 import { BRIEFING_SECTIONS } from "../briefing/sections";
 import { isLegPoint, legOf, navLogRows, rowPoint, type NavLogRow, type RouteEnds } from "./rows";
+import RouteProfileSection from "./RouteProfileSection";
 
 /** Every section of the drawer, the nav log's own first: what the
  *  printer gets, whatever is open on screen. */
-const ALL_SECTIONS = ["Nav Log", "Local Flight", ...BRIEFING_SECTIONS];
+const ALL_SECTIONS = ["Nav Log", "Local Flight", "Profile", ...BRIEFING_SECTIONS];
 
 // TanStack Table's own extension point for arbitrary per-column data --
 // used below to carry each numeric column's shared className (bordered,
@@ -1020,6 +1021,7 @@ export default function NavLogView({
               {hopsNote}
             </AccordionSection>
           )}
+          {!local && ends && <RouteProfileSection ends={ends} rows={data} wanted={printing || open.includes("Profile")} />}
           {children}
         </Accordion>
         {footer}

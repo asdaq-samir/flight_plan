@@ -19,7 +19,8 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
-from vfr import charts, faa_data, fixes, geo, navlog, places, sun
+from vfr import airspace, altitude, charts, faa_data, fixes, geo, navlog, places, sun
+from vfr.profile import route_profile as side_view
 from vfr.config import DATA_DIR, VFR_SECTIONAL_MAX_ZOOM, VFR_SECTIONAL_MIN_ZOOM
 from vfr.weather import WeatherServiceError
 
@@ -44,6 +45,7 @@ from ..schemas import (
     NavLogLeg,
     NavLogStage,
     Plan,
+    RouteProfile,
     Totals,
 )
 from ..scoring import route_checkpoints
@@ -402,6 +404,17 @@ def chart_info() -> ChartInfo:
     """The chart the map draws, for a map with no route on it yet: the
     planner's page opens on a search bar over the chart, as Maps does."""
     return ChartInfo(**_chart_info())
+
+
+@router.get("/api/route-profile")
+def route_profile(dep: str, dest: str, stops: str = "") -> RouteProfile:
+    """The route's side view: the ground under it every 2 nm and the
+    Class B, C and D airspace it passes through, floor and ceiling, along
+    the whole route through its stops (vfr.profile) -- for the page to
+    draw the plan's altitudes, climbs and descents over."""
+    r = load_route(dep, dest, stops)
+    shp_path = airspace.ensure_class_airspace_shapefile(altitude.DEFAULT_FAA_CACHE_DIR)
+    return side_view([(a["lat"], a["lon"]) for a in r.airports], shp_path)
 
 
 @router.get("/api/course")

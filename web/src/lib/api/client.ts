@@ -5,7 +5,7 @@ import type {
   Aircraft, AircraftChoice, AircraftProfiles, AircraftRequest, AirportPlace, AirportSearch, AirportsInView, AltitudeChoice, Briefing,
   ChartInfo, ChartRefreshStarted, CheckpointDescriptionMessage, CheckpointNoteSaved, Checkpoints, Classification, Course, Detour,
   Flight, FlightSummary, ModelComparison, NarrativeMessage, NarrativeRequest, NavLogMessage, PickDeleted, PickSaved,
-  ClassBResponse, Tfrs, DevServices, DevServiceStarted, PicksResponse, Pilot, Rating, RetrainStarted, Role, SaveFlightRequest,
+  ClassBResponse, RouteProfile, Tfrs, DevServices, DevServiceStarted, PicksResponse, Pilot, Rating, RetrainStarted, Role, SaveFlightRequest,
   SignInCapabilities,
   Status, StreamMessage, Totals, WaypointsInView,
 } from "./types";
@@ -277,6 +277,10 @@ export const api = {
    *  is a single quick call, not navlog's slow per-leg loop. */
   /** The briefing for the flight: its forecast is read from `depart`
    *  (now when empty) to an hour past arrival, `eteMin` later. */
+  /** The route from the side: the ground and the airspace along it. */
+  routeProfile: (dep: string, dest: string, stops?: string[]) =>
+    planner.GET("/api/route-profile", { params: { query: { dep, dest, stops: stopsParam(stops) } } }).then(data<RouteProfile>),
+
   briefing: (dep: string, dest: string, depart?: string, eteMin?: number, stops?: string[]) =>
     planner.GET("/api/briefing", {
       params: { query: { dep, dest, stops: stopsParam(stops), depart, ete_min: eteMin } },
