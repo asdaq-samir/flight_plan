@@ -6,7 +6,7 @@ import type {
   ChartInfo, ChartRefreshStarted, CheckpointDescriptionMessage, CheckpointNoteSaved, Checkpoints, Classification, Course, Detour,
   Flight, FlightSummary, ModelComparison, NarrativeMessage, NarrativeRequest, NavLogMessage, PickDeleted, PickSaved,
   ClassBResponse, NearestAirports, RouteProfile, Tfrs, DevServices, DevServiceStarted, PicksResponse, Pilot, Rating, RetrainStarted, Role, SaveFlightRequest,
-  SignInCapabilities,
+  SignInCapabilities, LogbookEntry, LogbookEntryRequest, Currency, CurrencyDatesRequest,
   Status, StreamMessage, Totals, WaypointsInView,
 } from "./types";
 
@@ -473,6 +473,19 @@ export const api = {
     remove: async (id: number): Promise<void> => {
       await webapp.DELETE("/api/aircraft/{id}", { params: { path: { id } } });
     },
+  },
+
+  /** A signed-in pilot's logbook and currency. */
+  logbook: {
+    list: () => webapp.GET("/api/logbook").then(data<LogbookEntry[]>),
+    add: (request: LogbookEntryRequest) => webapp.POST("/api/logbook", { body: request }).then(data<LogbookEntry>),
+    update: (id: number, request: LogbookEntryRequest) =>
+      webapp.PUT("/api/logbook/{id}", { params: { path: { id } }, body: request }).then(data<LogbookEntry>),
+    remove: async (id: number): Promise<void> => {
+      await webapp.DELETE("/api/logbook/{id}", { params: { path: { id } } });
+    },
+    currency: () => webapp.GET("/api/logbook/currency").then(data<Currency>),
+    setCurrencyDates: (request: CurrencyDatesRequest) => webapp.PUT("/api/logbook/currency", { body: request }).then(data<Currency>),
   },
 
   /** A signed-in pilot's own filed flights. */

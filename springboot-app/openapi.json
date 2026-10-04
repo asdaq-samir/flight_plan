@@ -104,6 +104,66 @@
         "required" : [ "access", "oauthConfigured" ],
         "type" : "object"
       },
+      "CurrencyDatesRequest" : {
+        "properties" : {
+          "flightReviewOn" : {
+            "format" : "date",
+            "type" : [ "string", "null" ]
+          },
+          "medicalExpiresOn" : {
+            "format" : "date",
+            "type" : [ "string", "null" ]
+          }
+        },
+        "required" : [ "flightReviewOn", "medicalExpiresOn" ],
+        "type" : "object"
+      },
+      "CurrencyDto" : {
+        "properties" : {
+          "crossCountryHours" : {
+            "format" : "double",
+            "type" : "number"
+          },
+          "dayPassengersUntil" : {
+            "format" : "date",
+            "type" : [ "string", "null" ]
+          },
+          "flightReviewOn" : {
+            "format" : "date",
+            "type" : [ "string", "null" ]
+          },
+          "flightReviewUntil" : {
+            "format" : "date",
+            "type" : [ "string", "null" ]
+          },
+          "flights" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "landings" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "medicalExpiresOn" : {
+            "format" : "date",
+            "type" : [ "string", "null" ]
+          },
+          "nightHours" : {
+            "format" : "double",
+            "type" : "number"
+          },
+          "nightPassengersUntil" : {
+            "format" : "date",
+            "type" : [ "string", "null" ]
+          },
+          "totalHours" : {
+            "format" : "double",
+            "type" : "number"
+          }
+        },
+        "required" : [ "crossCountryHours", "dayPassengersUntil", "flightReviewOn", "flightReviewUntil", "flights", "landings", "medicalExpiresOn", "nightHours", "nightPassengersUntil", "totalHours" ],
+        "type" : "object"
+      },
       "FlightCheckpointDto" : {
         "properties" : {
           "alongTrackNm" : {
@@ -262,6 +322,103 @@
           }
         },
         "required" : [ "aircraftTailNumber", "createdAt", "cruiseAltitudeFt", "departureIdent", "destinationIdent", "id", "plannedFor", "stops", "totalDistanceNm", "totalEteMin", "totalFuelGal" ],
+        "type" : "object"
+      },
+      "LogbookEntryDto" : {
+        "properties" : {
+          "aircraft" : {
+            "type" : [ "string", "null" ]
+          },
+          "aircraftType" : {
+            "type" : [ "string", "null" ]
+          },
+          "crossCountryHours" : {
+            "format" : "double",
+            "type" : "number"
+          },
+          "dayLandings" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "flownOn" : {
+            "format" : "date",
+            "type" : "string"
+          },
+          "id" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "nightHours" : {
+            "format" : "double",
+            "type" : "number"
+          },
+          "nightLandings" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "remarks" : {
+            "type" : [ "string", "null" ]
+          },
+          "route" : {
+            "type" : [ "string", "null" ]
+          },
+          "totalHours" : {
+            "format" : "double",
+            "type" : "number"
+          }
+        },
+        "required" : [ "aircraft", "aircraftType", "crossCountryHours", "dayLandings", "flownOn", "id", "nightHours", "nightLandings", "remarks", "route", "totalHours" ],
+        "type" : "object"
+      },
+      "LogbookEntryRequest" : {
+        "properties" : {
+          "aircraft" : {
+            "maxLength" : 16,
+            "minLength" : 0,
+            "type" : [ "string", "null" ]
+          },
+          "aircraftType" : {
+            "maxLength" : 16,
+            "minLength" : 0,
+            "type" : [ "string", "null" ]
+          },
+          "crossCountryHours" : {
+            "format" : "double",
+            "type" : "number"
+          },
+          "dayLandings" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "flownOn" : {
+            "format" : "date",
+            "type" : "string"
+          },
+          "nightHours" : {
+            "format" : "double",
+            "type" : "number"
+          },
+          "nightLandings" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "remarks" : {
+            "maxLength" : 500,
+            "minLength" : 0,
+            "type" : [ "string", "null" ]
+          },
+          "route" : {
+            "maxLength" : 120,
+            "minLength" : 0,
+            "type" : [ "string", "null" ]
+          },
+          "totalHours" : {
+            "format" : "double",
+            "maximum" : 24,
+            "type" : "number"
+          }
+        },
+        "required" : [ "aircraft", "aircraftType", "crossCountryHours", "dayLandings", "flownOn", "nightHours", "nightLandings", "remarks", "route", "totalHours" ],
         "type" : "object"
       },
       "MagicLinkRequest" : {
@@ -432,7 +589,7 @@
   "paths" : {
     "/api/aircraft" : {
       "get" : {
-        "operationId" : "list_1",
+        "operationId" : "list_2",
         "responses" : {
           "200" : {
             "content" : {
@@ -451,7 +608,7 @@
         "tags" : [ "aircraft-controller" ]
       },
       "post" : {
-        "operationId" : "add",
+        "operationId" : "add_1",
         "requestBody" : {
           "content" : {
             "application/json" : {
@@ -479,7 +636,7 @@
     },
     "/api/aircraft/{id}" : {
       "delete" : {
-        "operationId" : "delete",
+        "operationId" : "delete_1",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -497,7 +654,7 @@
         "tags" : [ "aircraft-controller" ]
       },
       "put" : {
-        "operationId" : "update",
+        "operationId" : "update_1",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -662,7 +819,7 @@
     },
     "/api/flights" : {
       "get" : {
-        "operationId" : "list",
+        "operationId" : "list_1",
         "responses" : {
           "200" : {
             "content" : {
@@ -709,7 +866,7 @@
     },
     "/api/flights/{id}" : {
       "delete" : {
-        "operationId" : "delete_2",
+        "operationId" : "delete_3",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -752,6 +909,152 @@
         "tags" : [ "flight-controller" ]
       }
     },
+    "/api/logbook" : {
+      "get" : {
+        "operationId" : "list",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/LogbookEntryDto"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "logbook-controller" ]
+      },
+      "post" : {
+        "operationId" : "add",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/LogbookEntryRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/LogbookEntryDto"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "logbook-controller" ]
+      }
+    },
+    "/api/logbook/currency" : {
+      "get" : {
+        "operationId" : "currency",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CurrencyDto"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "logbook-controller" ]
+      },
+      "put" : {
+        "operationId" : "setCurrencyDates",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CurrencyDatesRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CurrencyDto"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "logbook-controller" ]
+      }
+    },
+    "/api/logbook/{id}" : {
+      "delete" : {
+        "operationId" : "delete",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "logbook-controller" ]
+      },
+      "put" : {
+        "operationId" : "update",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/LogbookEntryRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/LogbookEntryDto"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "logbook-controller" ]
+      }
+    },
     "/api/me" : {
       "get" : {
         "description" : "Creates the pilot record on first sign-in. 401 when no session exists.",
@@ -785,7 +1088,7 @@
     "/api/planner/**" : {
       "delete" : {
         "description" : "picks",
-        "operationId" : "delete_1",
+        "operationId" : "delete_2",
         "responses" : {
           "200" : {
             "content" : {

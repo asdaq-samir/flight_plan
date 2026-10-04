@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { settle } from "./helpers";
+import { settle, slow } from "./helpers";
 
 /**
  * The route as a file for another app or the panel's GPS: the capsule's
@@ -10,6 +10,8 @@ import { settle } from "./helpers";
 test("the route exports as a Garmin flight plan through its checkpoints", async ({ page }) => {
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
+  // The checkpoints in, as the file goes through them.
+  await expect(page.locator(".leaflet-marker-icon", { hasText: /^1$/ }).first()).toBeVisible({ timeout: slow(30000) });
   await page.getByTestId("share-route").click();
   const download = page.waitForEvent("download");
   await page.getByTestId("export-fpl").click();

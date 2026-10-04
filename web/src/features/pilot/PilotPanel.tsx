@@ -2,7 +2,9 @@ import { usePreferences } from "../../lib/preferences";
 import { useQuery } from "@tanstack/react-query";
 import ConsoleTabs from "../../components/ConsoleTabs";
 import { pilotQuery } from "../../lib/queryClient";
+import { shortName } from "../../lib/aircraftChoice";
 import { AircraftPanel, FlightsPanel, type PilotState } from "./AccountPanels";
+import { LogbookPanel } from "./LogbookPanel";
 import PilotGuide from "./PilotGuide";
 
 /**
@@ -18,6 +20,8 @@ export function PilotPanel() {
   const pilotState: PilotState = isLoading ? "loading" : (pilot ?? (isError ? "error" : null));
   const savedTab = usePreferences(s => s.pilotTab);
   const changeTab = usePreferences(s => s.setPilotTab);
+  // The aeroplane picked for planning, for a logbook entry's.
+  const aircraft = usePreferences(s => s.aircraft);
 
   return (
     <ConsoleTabs
@@ -27,6 +31,7 @@ export function PilotPanel() {
         { value: "guide", label: "Guide", content: <PilotGuide /> },
         { value: "aircraft", label: "Aircraft", content: <AircraftPanel pilot={pilotState} /> },
         { value: "flights", label: "Flights", content: <FlightsPanel pilot={pilotState} /> },
+        { value: "logbook", label: "Logbook", content: <LogbookPanel pilot={pilotState} aircraft={shortName(aircraft.label)} /> },
       ]}
     />
   );

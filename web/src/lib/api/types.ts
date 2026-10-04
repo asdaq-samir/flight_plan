@@ -197,6 +197,14 @@ export type FlightCheckpointRequest = Webapp["SaveFlightCheckpointRequest"];
  *  log for a route this pilot planned. */
 export type SaveFlightRequest = Webapp["SaveFlightRequest"];
 
+/** A flight in the pilot's logbook, from `/api/logbook`. */
+export type LogbookEntry = Webapp["LogbookEntryDto"];
+export type LogbookEntryRequest = Webapp["LogbookEntryRequest"];
+/** Where the pilot stands -- passengers by day and at night, the flight
+ *  review, the medical -- and the logbook's totals. */
+export type Currency = Webapp["CurrencyDto"];
+export type CurrencyDatesRequest = Webapp["CurrencyDatesRequest"];
+
 // ---------------------------------------------------------------------
 // The narrative agents, reached through ComparisonProxyController, which
 // forwards the body as it is: no server schema describes it, so it is

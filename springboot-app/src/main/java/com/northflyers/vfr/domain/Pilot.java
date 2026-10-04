@@ -9,6 +9,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.Instant;
+import java.time.LocalDate;
 import lombok.Getter;
 
 /**
@@ -55,6 +56,12 @@ public class Pilot {
     @Column(nullable = false)
     private Instant createdAt;
 
+    /** When the pilot last passed a flight review (14 CFR 61.56), and the
+     *  day their medical certificate runs out: the dates their currency
+     *  is reckoned from beside the logbook (V12). Null until they say. */
+    private LocalDate flightReviewOn;
+    private LocalDate medicalExpiresOn;
+
     protected Pilot() {
         // JPA
     }
@@ -88,6 +95,12 @@ public class Pilot {
     /** The address the provider now vouches for, when it changed there. */
     public void changeEmail(String email) {
         this.email = email;
+    }
+
+    /** The flight review's and the medical's dates, as the pilot gives them. */
+    public void setCurrencyDates(LocalDate flightReviewOn, LocalDate medicalExpiresOn) {
+        this.flightReviewOn = flightReviewOn;
+        this.medicalExpiresOn = medicalExpiresOn;
     }
 
     /** Made a developer: an address `app.developer-emails` lists (see
