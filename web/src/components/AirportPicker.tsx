@@ -91,7 +91,7 @@ export default function AirportPicker({
   return (
     // From the top of a phone's screen, sized to what is in sight above the
     // keyboard: from the bottom the keyboard came up over it, field and all.
-    <ResponsivePopover open={open} onOpenChange={next => { setOpen(next); if (!next) setQuery(""); }} phoneEdge="top">
+    <ResponsivePopover open={open} onOpenChange={next => { setOpen(next); if (!next) setQuery(""); }} phoneEdge="top" handleOnly>
       <ResponsivePopoverTrigger asChild>
         <Button
           type="button"

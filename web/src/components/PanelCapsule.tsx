@@ -33,7 +33,7 @@ export function RouteCapsule({ title, detail, tone = "default", onDetail, leadin
     // The two sides' buttons, or room as wide, so the route is centred.
     <div className="flex w-full items-center gap-3">
       <div className="flex w-9 shrink-0 justify-start">{leading}</div>
-      <div className="flex min-w-0 flex-1 flex-col items-center gap-1">
+      <div className="flex min-w-0 flex-1 flex-col items-center gap-0.5">
         {/* A route too long for the capsule slides sideways under a
             finger, where it was cut short ("KDLH → VPBNG → ..."); one that
             fits sits in the middle, as before. Its own scroller, so the
@@ -46,7 +46,8 @@ export function RouteCapsule({ title, detail, tone = "default", onDetail, leadin
           <button
             type="button" onClick={onDetail} data-testid="capsule-detail" data-tone={tone}
             className={cn(
-              "max-w-full rounded-full px-3 py-0.5 font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring", TEXT.detail,
+              // A note's size, the capsule a line thinner, as Maps' Options.
+              "max-w-full rounded-full px-2.5 py-px font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring", TEXT.note,
               tone === "destructive" ? "bg-destructive/12 text-destructive" : "bg-tint/12 text-tint",
             )}
           >

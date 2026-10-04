@@ -1,8 +1,10 @@
 import { useEffect, useRef, type MouseEvent, type PointerEvent as ReactPointerEvent } from "react";
 
 /** How far a finger moves before a press is a drag rather than a tap on
- *  what it pressed. */
-const DRAG_SLOP = 6;
+ *  what it pressed: iOS's own ten points. At six, a tap on a button in the
+ *  head -- the route box's plus -- that rolled a little under the finger
+ *  dragged the sheet instead, and its click was swallowed. */
+const DRAG_SLOP = 10;
 
 /**
  * A sheet's drag, as iOS's: it follows the finger between its lowest and

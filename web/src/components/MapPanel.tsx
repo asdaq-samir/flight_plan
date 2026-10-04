@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { cn } from "cn";
 import { useDetentDrag } from "../hooks/use-detent-drag";
 import { useIsMobile } from "../hooks/use-mobile";
@@ -35,13 +35,14 @@ interface Props {
 }
 
 /** The capsule's way in from the screen's sides, as Maps' sits on iOS
- *  26 (measured from its screenshot: 28 in, 28 up from the bottom, a
- *  pill 69 tall round a 41-point field with 14 of glass about it). It
+ *  26 (measured from its screenshot: 28 in, 28 up from the bottom). It
  *  was 16 in, 76 tall with a row of its own for the grabber, and opaque:
  *  thick beside Maps'. Its corners are half its height, a full pill. */
 const CAPSULE_INSET = 28;
-/** What the capsule's content keeps from its edges. */
-const CAPSULE_PAD = 14;
+/** What the capsule's content keeps from its edges: nine, the grabber in
+ *  the top's, so the pill round the 41-point field is 59 -- the pilot
+ *  found 69, with fourteen, thick beside Maps'. */
+const CAPSULE_PAD = 9;
 /** The grabber's button: 16 tall, its pill five in from the panel's edge. */
 const GRABBER = 16;
 
@@ -86,8 +87,21 @@ export default function MapPanel({ label, top, controls, notices, compact, child
   // The head's own height decides the lowest detent: the top row and the
   // controls in sight, with the grabber. Measured, since a notice or the
   // text set larger changes it.
-  const [head, setHead] = useState<HTMLDivElement | null>(null);
+  // Before the first paint, so the panel opens at its own height: it
+  // was drawn 120 tall and eased down to the capsule's as the page came
+  // up, a thick capsule for half a second. Eased from then on only.
+  const [head, setHeadNode] = useState<HTMLDivElement | null>(null);
   const [headHeight, setHeadHeight] = useState(120);
+  const [measured, setMeasured] = useState(false);
+  // A ref's callback runs as the head is put in the page, before it is
+  // painted.
+  const setHead = useCallback((node: HTMLDivElement | null) => {
+    setHeadNode(node);
+    if (node) {
+      setHeadHeight(node.offsetHeight);
+      setMeasured(true);
+    }
+  }, []);
   useEffect(() => {
     if (!head) return;
     const observer = new ResizeObserver(() => setHeadHeight(head.offsetHeight));
@@ -196,8 +210,13 @@ export default function MapPanel({ label, top, controls, notices, compact, child
       style={{ height: capsule ? CAPSULE_PAD : GRABBER }}
       className={cn(
         "mx-auto flex w-24 shrink-0 touch-none justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset print:hidden",
-        fromBottom ? "items-start pt-[5px]" : "items-end pb-[5px]",
+        // In the capsule's thin padding, two points from its edge; on the
+        // sheet five, as iOS's.
+        fromBottom ? (capsule ? "items-start pt-[2px]" : "items-start pt-[5px]") : (capsule ? "items-end pb-[2px]" : "items-end pb-[5px]"),
         capsule && cn("absolute inset-x-0 z-10 after:hidden!", fromBottom ? "top-0" : "bottom-0"),
+        // Its hit area (index.css) wide but no further into the head than
+        // four points: the route's box starts four under it.
+        !capsule && (fromBottom ? "after:bottom-[-4px]! after:top-0!" : "after:top-[-4px]! after:bottom-0!"),
       )}
     >
       <span className="h-[5px] w-9 rounded-full bg-muted-foreground/40" aria-hidden="true" />
@@ -215,7 +234,7 @@ export default function MapPanel({ label, top, controls, notices, compact, child
       style={{
         // The height follows a finger without lag; the shape eases in
         // and out as a drag crosses into another.
-        height: shown, transition: dragged === null ? SHEET_SETTLE : SHEET_RESHAPE,
+        height: shown, transition: !measured ? "none" : dragged === null ? SHEET_SETTLE : SHEET_RESHAPE,
         ...(onPhone ? {
           left: geometry.side, right: geometry.side,
           ...(fromBottom ? { bottom: keyboard && !capsule ? keyboard + geometry.gap : geometry.gap } : { top: geometry.gap }),
@@ -256,11 +275,13 @@ export default function MapPanel({ label, top, controls, notices, compact, child
             // The same glass all round from either edge. From the top, a
             // route's chip keeps its hit area (index.css), eleven under it,
             // clear of the grabber in the padding under it.
-            capsule ? cn("p-[14px]", !fromBottom && "has-[[data-testid=capsule-detail]]:pb-6")
+            capsule ? cn("p-[9px]", !fromBottom && "has-[[data-testid=capsule-detail]]:pb-6")
               // No top row (a place's card alone): only the room the status
               // bar takes from the top of a phone's screen.
               : top == null ? (!fromBottom && onPhone ? "pt-[env(safe-area-inset-top)]" : undefined)
-                : cn("px-3 pb-1", fromBottom ? "pt-5" : onPhone ? "pt-[max(0.5rem,env(safe-area-inset-top))]" : "pt-2"),
+                // Four under the grabber from the bottom: the band over the
+                // route's box was 36 points, thick beside Maps' 20.
+                : cn("px-3 pb-1", fromBottom ? "pt-1" : onPhone ? "pt-[max(0.5rem,env(safe-area-inset-top))]" : "pt-2"),
           )}
         >
           {capsule ? compact : top}
