@@ -88,6 +88,22 @@ class FlightPersistenceTest {
         assertThat(flights.save(new Flight(pilot, null, "C81", "KDLH")).getStops()).isEmpty();
     }
 
+    @Test
+    void theRiskAssessmentRoundTripsWithItsFactorsInOrder() {
+        Pilot pilot = newPilot();
+        Flight saved = flights.save(new Flight(pilot, null, "C81", "KDLH")
+                .assessed(13, "high", List.of("Under your personal minimums", "Night")));
+
+        Flight found = flights.findById(saved.getId()).orElseThrow();
+
+        assertThat(found.getRiskScore()).isEqualTo(13);
+        assertThat(found.getRiskLevel()).isEqualTo("high");
+        assertThat(found.getRiskFactors()).containsExactly("Under your personal minimums", "Night");
+        Flight none = flights.save(new Flight(pilot, null, "C81", "KDLH"));
+        assertThat(none.getRiskScore()).isNull();
+        assertThat(none.getRiskFactors()).isEmpty();
+    }
+
     /**
      * The destination row has no leg after it, and that has to survive the
      * round trip as null rather than as zero -- a zero there reads as a

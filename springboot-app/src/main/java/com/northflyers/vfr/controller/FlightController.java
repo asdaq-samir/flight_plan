@@ -5,6 +5,7 @@ import com.northflyers.vfr.domain.FlightCheckpoint;
 import com.northflyers.vfr.dto.FlightCheckpointDto;
 import com.northflyers.vfr.dto.FlightDto;
 import com.northflyers.vfr.dto.FlightSummaryDto;
+import com.northflyers.vfr.dto.RiskAssessmentDto;
 import com.northflyers.vfr.dto.SaveFlightRequest;
 import com.northflyers.vfr.service.FlightService;
 import com.northflyers.vfr.service.PilotService;
@@ -57,7 +58,11 @@ public class FlightController {
         return new FlightSummaryDto(f.getId(), f.getDepartureIdent(), f.getDestinationIdent(), f.getStops(),
                 f.getAircraft() == null ? null : f.getAircraft().getTailNumber(),
                 f.getCruiseAltitudeFt(), f.getTotalDistanceNm(), f.getTotalEteMin(), f.getTotalFuelGal(),
-                f.getPlannedFor(), f.getCreatedAt());
+                f.getPlannedFor(), f.getCreatedAt(), riskOf(f));
+    }
+
+    private static RiskAssessmentDto riskOf(Flight f) {
+        return f.getRiskScore() == null ? null : new RiskAssessmentDto(f.getRiskScore(), f.getRiskLevel(), f.getRiskFactors());
     }
 
     private static FlightDto toDto(Flight f) {
@@ -67,7 +72,7 @@ public class FlightController {
         return new FlightDto(f.getId(), f.getDepartureIdent(), f.getDestinationIdent(), f.getStops(),
                 f.getAircraft() == null ? null : f.getAircraft().getTailNumber(),
                 f.getCruiseAltitudeFt(), f.getTotalDistanceNm(), f.getTotalEteMin(), f.getTotalFuelGal(),
-                f.getPlannedFor(), f.getCreatedAt(), checkpoints);
+                f.getPlannedFor(), f.getCreatedAt(), riskOf(f), checkpoints);
     }
 
     private static FlightCheckpointDto toCheckpointDto(FlightCheckpoint c) {

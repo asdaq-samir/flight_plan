@@ -24,6 +24,7 @@ import { CRUISE_REFERENCE_FT } from "../../lib/performance";
 import { usePreferences } from "../../lib/preferences";
 import { TEXT } from "../../lib/text";
 import { altFt, feet } from "../../lib/units";
+import { LEVEL_TONE, riskLine, type RiskLevel } from "../../lib/frat";
 
 /** Who is signed in, or why nobody is: null signed out, "loading"
  *  while the check is in flight, "error" when it failed. */
@@ -449,6 +450,8 @@ export function FlightsPanel({ pilot }: { pilot: PilotState }) {
               </>,
               description: <span className="tabular-nums">
                 {feet(f.cruiseAltitudeFt)}{f.totalDistanceNm != null && ` · ${f.totalDistanceNm.toFixed(1)} nm`} · filed {new Date(f.createdAt).toLocaleDateString()}
+                {/* The risk assessment it was saved with (lib/frat). */}
+                {f.risk && <span className={cn("block", LEVEL_TONE[f.risk.level as RiskLevel])} data-testid="flight-risk">Risk {riskLine(f.risk).toLowerCase()}</span>}
               </span>,
             };
             return editing ? (

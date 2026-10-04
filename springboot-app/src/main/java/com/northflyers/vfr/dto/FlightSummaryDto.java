@@ -19,5 +19,7 @@ public record FlightSummaryDto(
         @Nullable Double totalEteMin,
         @Nullable Double totalFuelGal,
         @Nullable Instant plannedFor,
-        Instant createdAt) {
+        Instant createdAt,
+        /** The pilot's risk assessment, as saved with it; null without one. */
+        @Nullable RiskAssessmentDto risk) {
 }

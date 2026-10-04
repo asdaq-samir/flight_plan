@@ -63,6 +63,9 @@ public class FlightService {
         if (request.plannedFor() != null) {
             flight.plannedFor(request.plannedFor());
         }
+        if (request.risk() != null) {
+            flight.assessed(request.risk().score(), request.risk().level(), request.risk().factors());
+        }
         return flights.save(flight);
     }
 

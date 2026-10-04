@@ -101,6 +101,36 @@ class FlightControllerTest {
     }
 
     @Test
+    void save_returns400_whenTheRiskLevelIsNotOneOfTheThree() throws Exception {
+        given(pilotService.current(any())).willReturn(Optional.of(samplePilot()));
+
+        mockMvc.perform(post("/api/flights").with(oidcLogin()).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"departureIdent\":\"C81\",\"destinationIdent\":\"KDLH\","
+                                + "\"risk\":{\"score\":4,\"level\":\"fine\",\"factors\":[]}}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void theRiskAssessmentIsSavedWithTheFlightAndListedWithIt() throws Exception {
+        given(pilotService.current(any())).willReturn(Optional.of(samplePilot()));
+        Flight assessed = sampleFlight().assessed(9, "caution", List.of("Night", "Somewhere to be by a time"));
+        given(flightService.save(any(), any())).willReturn(assessed);
+        given(flightService.list(any())).willReturn(List.of(assessed));
+
+        mockMvc.perform(post("/api/flights").with(oidcLogin()).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"departureIdent\":\"C81\",\"destinationIdent\":\"KDLH\",\"checkpoints\":[],"
+                                + "\"risk\":{\"score\":9,\"level\":\"caution\",\"factors\":[\"Night\",\"Somewhere to be by a time\"]}}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.risk.level").value("caution"));
+        mockMvc.perform(get("/api/flights").with(oidcLogin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].risk.score").value(9))
+                .andExpect(jsonPath("$[0].risk.factors[1]").value("Somewhere to be by a time"));
+    }
+
+    @Test
     void save_returns200_forAValidRequest() throws Exception {
         given(pilotService.current(any())).willReturn(Optional.of(samplePilot()));
         given(flightService.save(any(), any())).willReturn(sampleFlight());

@@ -1,11 +1,13 @@
 package com.northflyers.vfr.config;
 
 import io.swagger.v3.core.converter.AnnotatedType;
+import io.swagger.v3.oas.models.media.Schema;
 import io.swagger.v3.oas.models.servers.Server;
 import java.lang.annotation.Annotation;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 import java.util.TreeSet;
 import org.springdoc.core.customizers.OpenApiCustomizer;
 import org.springdoc.core.customizers.PropertyCustomizer;
@@ -22,7 +24,8 @@ import org.springframework.context.annotation.Configuration;
  * be null -- the opposite of this app, where Jackson writes every field
  * of every record, as null where there is nothing. So every property is
  * listed as required, and one declared {@code @Nullable} in its DTO
- * gains {@code null} as a type. A field that can be null and is not
+ * gains {@code null} as a type -- or, where it is another record, is
+ * that record or null. A field that can be null and is not
  * annotated generates a type that says it cannot be: the annotation is
  * the contract.
  */
@@ -33,7 +36,13 @@ public class OpenApiConfig {
     PropertyCustomizer nullableWhereDeclared() {
         return (property, type) -> {
             if (declaredNullable(type)) {
-                if (property.getTypes() != null && !property.getTypes().isEmpty()) {
+                if (property.get$ref() != null) {
+                    // Another record: OpenAPI 3.1 reads nothing beside a
+                    // $ref, so the reference or null.
+                    Schema<?> record = new Schema<>().$ref(property.get$ref());
+                    property.set$ref(null);
+                    property.setAnyOf(List.of(record, new Schema<>().types(Set.of("null"))));
+                } else if (property.getTypes() != null && !property.getTypes().isEmpty()) {
                     property.addType("null");
                 } else {
                     property.setNullable(true);

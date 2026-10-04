@@ -35,5 +35,7 @@ public record SaveFlightRequest(
          *  for a flight flown straight. */
         @Nullable
         @Size(max = 8, message = "a flight makes at most 8 stops")
-        List<@Pattern(regexp = "[A-Za-z0-9]{2,5}", message = "a stop must be a 2-5 character airport or waypoint ident") String> stops) {
+        List<@Pattern(regexp = "[A-Za-z0-9]{2,5}", message = "a stop must be a 2-5 character airport or waypoint ident") String> stops,
+        /** The pilot's risk assessment for it, where the planner made one. */
+        @Nullable @Valid RiskAssessmentDto risk) {
 }

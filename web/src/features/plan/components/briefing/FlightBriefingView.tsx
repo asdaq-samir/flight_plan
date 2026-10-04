@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { format } from "date-fns";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { cn } from "cn";
 import { Check, CloudOff, Loader2, Save, TriangleAlert } from "lucide-react";
@@ -31,6 +32,8 @@ import { runwayInUse, runwayNumber } from "../../../../lib/pattern";
 import { callSign } from "../../../../lib/radio";
 import { shortName } from "../../../../lib/aircraftChoice";
 import PatternRadio from "./PatternRadio";
+import RiskAssessment from "./RiskAssessment";
+import { assess, LEVEL_TONE, riskLine, useRisk } from "../../../../lib/frat";
 
 interface Props {
   nav: NavLogAltitude | null;
@@ -244,6 +247,8 @@ export function SaveFlightButton({
   // one-shot lookup here used to hide the section for the session after
   // one failed check, and keep offering Save after a Log out.
   const { data: pilot } = useQuery(pilotQuery);
+  // The briefing's risk assessment (lib/frat), filed with the flight.
+  const risk = useRisk(s => s.assessment);
 
   // What would be filed, and only once there is a whole plan to file:
   // the course (the airports' own idents and places, not a route being
@@ -263,8 +268,9 @@ export function SaveFlightButton({
       plannedFor: depart || null,
       // The nav log's own rows (navLogRows), as the checkpoints Spring files.
       checkpoints: savedCheckpoints(navLogRows(course, selected, legs), course.distance_nm),
+      risk: risk ? { score: risk.score, level: risk.level, factors: risk.factors.map(f => f.label) } : null,
     };
-  }, [course, nav, totals, aircraftId, depart, selected, legs]);
+  }, [course, nav, totals, aircraftId, depart, selected, legs, risk]);
 
   const save = useMutation({
     mutationFn: api.flights.save,
@@ -396,6 +402,33 @@ export default function FlightBriefingView({
   const make = nav?.aircraft.type?.split(" ")[0] || "Aircraft";
   const ownCallSign = callSign(make, flying.aircraftId != null ? shortName(flying.label) : null);
   const destFacilities = briefing?.airports[dest];
+  // The risk assessment (lib/frat): the briefing's, the nav log's and the
+  // logbook's factors, and what the pilot ticks. Published for the Save
+  // button, which files it with the flight.
+  const { data: pilot } = useQuery(pilotQuery);
+  const { data: currency } = useQuery({ queryKey: ["currency"], queryFn: api.logbook.currency, enabled: !!pilot });
+  const ticked = useRisk(s => s.ticked);
+  const setAssessment = useRisk(s => s.setAssessment);
+  const margins = [totals?.fuel_margin_gal, ...(totals?.hops ?? []).map(h => h.totals.fuel_margin_gal)]
+    .filter((n): n is number => n != null);
+  const assessment = briefing ? assess({
+    vfrNotRecommended: vnrReasons.length > 0,
+    underMinimums: underMine,
+    tfrOnRoute: tfrsCrossed.length > 0,
+    hazards: unchecked("hazards") && unchecked("gairmets") ? 0 : briefing.hazards.length + briefing.gairmets.length,
+    night: totals?.night === true,
+    fuelMarginGal: margins.length ? Math.min(...margins) : null,
+    currency: currency ?? null,
+    day: format(new Date(depart || opened), "yyyy-MM-dd"),
+    ticked,
+  }) : null;
+  const assessmentKey = assessment ? `${assessment.level}:${assessment.score}:${assessment.factors.map(f => f.key).join(",")}` : "";
+  useEffect(() => {
+    setAssessment(assessment);
+    // Keyed on what it says, not the object made each render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [assessmentKey, setAssessment]);
+  useEffect(() => () => setAssessment(null), [setAssessment]);
   const destInUse = destFacilities ? runwayInUse(destFacilities.runways) : null;
   const summaries = {
     adverse: !briefing ? undefined
@@ -421,6 +454,7 @@ export default function FlightBriefingView({
       ? `${Math.abs(Math.round(chosen.tailwind_kt))} kt ${chosen.tailwind_kt >= 0 ? "tailwind" : "headwind"} on average`
       : stretches.some(st => st.wind) ? `${stretches.filter(st => st.wind).length} stretches of wind` : undefined,
     airports: !briefing ? undefined : destFrequency ? `${dest} ${destFrequency}` : `${dep} · ${dest}`,
+    risk: assessment ? riskLine(assessment) : undefined,
     pattern: !destFacilities ? undefined
       : [destFacilities.pattern?.altitude_ft != null && `${dest} pattern ${altFt(destFacilities.pattern.altitude_ft)} ft`,
         destInUse && `runway ${runwayNumber(destInUse.end.ident)} ${destInUse.end.traffic} traffic`].filter(Boolean).join(" · "),
@@ -818,6 +852,24 @@ export default function FlightBriefingView({
         aircraft={nav?.aircraft} briefing={briefing} course={course}
         takeoff={loaded?.takeoff.weightLb ?? null} landing={loaded?.landing.weightLb ?? null}
       />
+
+      {/* Everything above in one go/no-go reckoning, with what only the
+          pilot can say (lib/frat): last, as the decision is. */}
+      <AccordionSection
+        title="Risk Assessment" summary={summaries.risk}
+        aside={assessment && assessment.level !== "low" ? (
+          <span className={cn("inline-flex items-center gap-1 font-semibold", TEXT.note, LEVEL_TONE[assessment.level])} data-testid="risk-flag">
+            <TriangleAlert className="size-3.5" aria-hidden />
+            {assessment.level === "high" ? "High risk" : "Risk raised"}
+          </span>
+        ) : undefined}
+      >
+        {!assessment ? (
+          <p className="text-muted-foreground">{briefingPendingMessage}</p>
+        ) : (
+          <RiskAssessment assessment={assessment} />
+        )}
+      </AccordionSection>
     </>
   );
 }

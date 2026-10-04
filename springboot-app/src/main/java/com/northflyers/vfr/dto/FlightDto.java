@@ -21,5 +21,7 @@ public record FlightDto(
         @Nullable Double totalFuelGal,
         @Nullable Instant plannedFor,
         Instant createdAt,
+        /** The pilot's risk assessment, as saved with it; null without one. */
+        @Nullable RiskAssessmentDto risk,
         List<FlightCheckpointDto> checkpoints) {
 }

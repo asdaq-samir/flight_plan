@@ -68,6 +68,15 @@ public class Flight {
     @Column(nullable = false)
     private Instant createdAt;
 
+    /** The pilot's risk assessment as saved with the flight: its points,
+     *  its level (low, caution, high) and what raised them, one a line.
+     *  All null without one. */
+    private Integer riskScore;
+    @Column(length = 8)
+    private String riskLevel;
+    @Column(length = 2000)
+    private String riskFactors;
+
     @OneToMany(mappedBy = "flight", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
     @OrderBy("sequenceNo ASC")
     private List<FlightCheckpoint> checkpoints = new ArrayList<>();
@@ -103,6 +112,27 @@ public class Flight {
     public Flight plannedFor(Instant when) {
         this.plannedFor = when;
         return this;
+    }
+
+    /** The pilot's risk assessment for it. */
+    public Flight assessed(int score, String level, List<String> factors) {
+        this.riskScore = score;
+        this.riskLevel = level;
+        this.riskFactors = String.join("\n", factors);
+        return this;
+    }
+
+    public Integer getRiskScore() {
+        return riskScore;
+    }
+
+    public String getRiskLevel() {
+        return riskLevel;
+    }
+
+    /** What raised the assessment, in the order the planner gave them. */
+    public List<String> getRiskFactors() {
+        return riskFactors == null || riskFactors.isBlank() ? List.of() : List.of(riskFactors.split("\n"));
     }
 
     /** The airports it lands at on the way, in order. */
