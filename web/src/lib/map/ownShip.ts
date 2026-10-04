@@ -22,6 +22,8 @@ export interface Fix {
   /** True heading from the GPS, degrees, or null while stationary. */
   headingDeg: number | null;
   speedKt: number | null;
+  /** The GPS's altitude, feet MSL, where it gives one (a phone does). */
+  altitudeFt: number | null;
   at: number;
 }
 
@@ -56,13 +58,14 @@ function startWatching(set: (patch: Partial<OwnShip>) => void) {
   if (!ownShipAvailable() || watchId !== null) return;
   watchId = navigator.geolocation.watchPosition(
     position => {
-      const { latitude, longitude, accuracy, heading, speed } = position.coords;
+      const { latitude, longitude, accuracy, heading, speed, altitude } = position.coords;
       set({
         error: null,
         fix: {
           lat: latitude, lon: longitude, accuracyM: accuracy,
           headingDeg: heading === null || Number.isNaN(heading) ? null : heading,
           speedKt: speed === null || Number.isNaN(speed) ? null : speed * 1.943844,
+          altitudeFt: altitude === null || Number.isNaN(altitude) ? null : altitude * 3.28084,
           at: position.timestamp,
         },
       });

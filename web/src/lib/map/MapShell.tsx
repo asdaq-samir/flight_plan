@@ -124,7 +124,7 @@ export function MapShell({ course, onReady, children, onSelectPlace }: Props) {
         <div className="h-full w-full bg-slate-100 dark:bg-slate-900" />
       )}
       <ProblemBanner />
-      <MapControls />
+      <MapControls onSelectPlace={onSelectPlace ? ident => onSelectPlace(ident) : undefined} />
     </div>
   );
 }

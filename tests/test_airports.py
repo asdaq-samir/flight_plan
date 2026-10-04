@@ -6,6 +6,7 @@ tmp_path and _load_table keys its cache on that exact path.
 import pandas as pd
 import pytest
 
+from vfr import airports
 from vfr.airports import find_place, get_airport, get_frequencies, get_runways, places_in, search_airports
 
 
@@ -214,3 +215,18 @@ def test_a_search_puts_the_bigger_field_first(tmp_path):
 
     # Wittman is Oshkosh's by its town, and the bigger field.
     assert [a["ident"] for a in search_airports("oshkosh", cache_path=path)] == ["KOSH", "2WN8"]
+
+
+def test_the_nearest_fields_are_found_nearest_first_with_how_far_and_which_way(tmp_path):
+    csv = tmp_path / "airports.csv"
+    csv.write_text(
+        "id,ident,type,name,latitude_deg,longitude_deg,elevation_ft,continent,iso_country,iso_region,municipality,"
+        "scheduled_service,icao_code,iata_code,gps_code,local_code,home_link,wikipedia_link,keywords\n"
+        '1,"KC81","small_airport","Campbell",42.3246,-88.0741,788,"NA","US","US-IL","Grayslake","no",,,"KC81","C81",,,\n'
+        '2,"KUGN","medium_airport","Waukegan",42.4222,-87.8679,727,"NA","US","US-IL","Waukegan","no","KUGN",,"KUGN","UGN",,,\n'
+        '3,"IL99","heliport","A Hospital",42.33,-88.07,700,"NA","US","US-IL","Somewhere","no",,,,"IL99",,,\n'
+    )
+    found = airports.nearest(42.30, -88.10, limit=2, cache_path=csv)
+    assert [f["ident"] for f in found] == ["C81", "KUGN"]
+    assert found[0]["distance_nm"] < found[1]["distance_nm"]
+    assert 0 <= found[1]["bearing_deg"] < 90

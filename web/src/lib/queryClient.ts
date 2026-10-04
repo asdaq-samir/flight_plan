@@ -147,6 +147,16 @@ export const tfrsQuery = queryOptions({
   queryKey: ["tfrs"], queryFn: () => api.tfrs(), staleTime: 5 * 60_000, refetchInterval: 10 * 60_000,
 });
 
+/** The fields nearest a position, asked again only when it has moved a
+ *  few miles (a twentieth of a degree): not at every GPS fix. */
+export const nearestQuery = (lat: number, lon: number) => {
+  const at = (n: number) => Math.round(n * 20) / 20;
+  return queryOptions({
+    queryKey: ["nearest", at(lat), at(lon)], queryFn: () => api.nearestAirports(at(lat), at(lon)), staleTime: 10 * 60_000,
+    meta: { silent: true },
+  });
+};
+
 export const classBQuery = queryOptions({
   queryKey: ["classB"], queryFn: () => api.classB(), staleTime: 5 * 60_000, meta: { silent: true },
 });

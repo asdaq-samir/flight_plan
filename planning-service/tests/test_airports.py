@@ -146,3 +146,19 @@ def test_the_vfr_waypoints_in_view_are_the_sectionals_magenta_flags_only(monkeyp
 
     assert resp.status_code == 200
     assert resp.json() == {"waypoints": [{"ident": "VPBNG", "lat": 42.0, "lon": -88.0, "description": None}]}
+
+
+def test_the_nearest_fields_are_the_nearest_first_with_their_way_and_runway(monkeypatch):
+    monkeypatch.setattr(airports, "nearest", lambda lat, lon, limit: [
+        {"ident": "C81", "source_ident": "KC81", "name": "Campbell", "municipality": "Grayslake", "region": "US-IL",
+         "lat": 42.32, "lon": -88.07, "elevation_ft": 788.0, "kind": "small", "distance_nm": 2.1, "bearing_deg": 45},
+    ])
+    monkeypatch.setattr(airports, "get_runways", lambda ident: [
+        {"ends": "06/24", "length_ft": 3573, "closed": False}, {"ends": "09/27", "length_ft": 3270, "closed": False},
+    ])
+    monkeypatch.setattr(weather, "metar_for_idents", lambda idents: {i: None for i in idents})
+    body = client.get("/api/airports/nearest", params={"lat": 42.3, "lon": -88.1}).json()
+    assert body["airports"][0] == {
+        "ident": "C81", "name": "Campbell", "lat": 42.32, "lon": -88.07, "kind": "small", "flight_category": None,
+        "municipality": "Grayslake", "elevation_ft": 788.0, "distance_nm": 2.1, "bearing_deg": 45, "longest_runway_ft": 3573,
+    }

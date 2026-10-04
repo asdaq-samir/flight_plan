@@ -1028,6 +1028,21 @@ class AirportPin(BaseModel):
     flight_category: str | None = None
 
 
+class NearestAirport(AirportPin):
+    """A field near a position: how far and which way (true), its town,
+    elevation and longest open runway."""
+
+    municipality: str | None = None
+    elevation_ft: float | None = None
+    distance_nm: float
+    bearing_deg: float
+    longest_runway_ft: int | None = None
+
+
+class NearestAirports(BaseModel):
+    airports: list[NearestAirport]
+
+
 class AirportsInView(BaseModel):
     airports: list[AirportPin]
 

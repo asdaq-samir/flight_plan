@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useRef } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Circle, Marker, useMap, useMapEvents } from "react-leaflet";
+import { nearestQuery } from "../queryClient";
+import { glideRangeNm } from "./glide";
 import { centreClear } from "./clear";
 import { ownShipIcon } from "./icons";
 import { useOwnShip } from "./ownShip";
@@ -57,9 +60,20 @@ export function OwnShipLayer() {
     }
     map.panTo(centreClear(map, [fix.lat, fix.lon], map.getZoom()), { animate: true, duration: 0.5 });
   }, [map, enabled, fix, follow, recentred]);
+  // The still-air glide from the GPS's altitude over the nearest field
+  // (lib/map/glide), a dashed ring in the air, as an EFB's glide advisor
+  // draws it; nothing on the ground.
+  const { data: nearest } = useQuery({ ...nearestQuery(fix?.lat ?? 0, fix?.lon ?? 0), enabled: enabled && !!fix });
+  const glide = glideRangeNm(fix, nearest?.[0]?.elevation_ft);
   if (!enabled || !fix) return null;
   return (
     <>
+      {glide != null && (
+        <Circle
+          center={[fix.lat, fix.lon]} radius={glide * 1852}
+          pathOptions={{ color: "#16a34a", weight: 2, dashArray: "8 6", fillOpacity: 0, interactive: false }}
+        />
+      )}
       <Circle
         center={[fix.lat, fix.lon]} radius={fix.accuracyM}
         pathOptions={{ color: "#1d4ed8", weight: 1, opacity: 0.5, fillColor: "#3b82f6", fillOpacity: 0.08, interactive: false }}

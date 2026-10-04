@@ -91,6 +91,9 @@ export type ClassBResponse = Schemas["ClassBResponse"];
 /** A temporary flight restriction, with its areas, for the map. */
 export type Tfr = Schemas["Tfr"];
 export type Tfrs = Schemas["Tfrs"];
+/** The fields nearest a position: how far, which way, the longest runway. */
+export type NearestAirports = Schemas["NearestAirports"];
+export type NearestAirport = Schemas["NearestAirport"];
 /** The route from the side: the ground and the controlled airspace. */
 export type RouteProfile = Schemas["RouteProfile"];
 /** One service the developer console links to, and whether it is up.

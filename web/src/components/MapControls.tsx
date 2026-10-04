@@ -1,6 +1,7 @@
 import { cn } from "cn";
 import FullscreenButton from "./FullscreenButton";
 import MyPositionButton from "./MyPositionButton";
+import NearestButton from "./NearestButton";
 import { GLASS } from "./mapChrome";
 
 /**
@@ -16,7 +17,10 @@ import { GLASS } from "./mapChrome";
  * each one's 44-point hit area (index.css) meets the next one's rather
  * than overlapping it.
  */
-export default function MapControls() {
+export default function MapControls({ onSelectPlace }: {
+  /** Opens a field's card: on the planner, where Nearest is offered. */
+  onSelectPlace?: (ident: string) => void;
+}) {
   return (
     // z-[1000]: over Leaflet's own panes, the level Leaflet gives its
     // controls; still inside the map's own stacking context, under the
@@ -35,6 +39,8 @@ export default function MapControls() {
         )}
       >
         <MyPositionButton />
+        {/* Nearest, while own ship has a position, on the planner. */}
+        {onSelectPlace && <NearestButton onSelectPlace={onSelectPlace} />}
         {/* Draws itself only where full screen actually works: a desktop
             browser and an iPad, never an iPhone. */}
         <FullscreenButton />

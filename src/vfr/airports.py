@@ -9,6 +9,7 @@ from pathlib import Path
 import pandas as pd
 import requests
 
+from . import geo
 from .routecsv import locked
 
 OURAIRPORTS_URL = "https://davidmegginson.github.io/ourairports-data/airports.csv"
@@ -244,6 +245,34 @@ def places_in(south: float, west: float, north: float, east: float, limit: int =
     ordered = inside.assign(_rank=rank).sort_values(["_rank", "_display_ident"])
     chosen = ordered.drop_duplicates("_display_ident").head(limit)
     return [_place_of(row) for _, row in chosen.iterrows()]
+
+
+#: How far round a position the nearest fields are looked for first, in
+#: degrees: a box a few minutes' flight across, widened where it is empty.
+_NEAREST_BOX_DEG = (0.75, 2.0, 6.0)
+
+
+def nearest(lat: float, lon: float, limit: int = 10, cache_path: Path = DEFAULT_CACHE_PATH) -> list[dict]:
+    """The landing fields nearest a position, the nearest first: each a
+    place (as find_place's) with `distance_nm` and `bearing_deg`, true,
+    from the position to it -- what a pilot with an engine running rough
+    looks for. Asked in a box round the position, widened until it holds
+    `limit` of them."""
+    df = _us_airports(cache_path)
+    fields = df[df["type"].isin(list(_FIELD_KINDS))]
+    for half in _NEAREST_BOX_DEG:
+        box = fields[fields["latitude_deg"].between(lat - half, lat + half)
+                     & fields["longitude_deg"].between(lon - half * 1.5, lon + half * 1.5)]
+        if len(box) >= limit:
+            break
+    lats, lons = box["latitude_deg"].to_numpy(dtype=float), box["longitude_deg"].to_numpy(dtype=float)
+    distances = geo.distance_nm(lat, lon, lats, lons)
+    bearings = geo.bearing_deg(lat, lon, lats, lons)
+    ordered = box.assign(_d=distances, _b=bearings).sort_values("_d").drop_duplicates("_display_ident").head(limit)
+    return [
+        {**_place_of(row), "distance_nm": round(float(row["_d"]), 1), "bearing_deg": round(float(row["_b"])) % 360}
+        for _, row in ordered.iterrows()
+    ]
 
 
 def get_runways(ident: str, cache_path: Path = RUNWAYS_CACHE_PATH) -> list[dict]:

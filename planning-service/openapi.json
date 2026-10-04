@@ -4023,6 +4023,116 @@
         "title": "NavLogStage",
         "type": "object"
       },
+      "NearestAirport": {
+        "description": "A field near a position: how far and which way (true), its town,\nelevation and longest open runway.",
+        "properties": {
+          "bearing_deg": {
+            "title": "Bearing Deg",
+            "type": "number"
+          },
+          "distance_nm": {
+            "title": "Distance Nm",
+            "type": "number"
+          },
+          "elevation_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Elevation Ft"
+          },
+          "flight_category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Flight Category"
+          },
+          "ident": {
+            "title": "Ident",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "large",
+              "medium",
+              "small",
+              "other"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "lat": {
+            "title": "Lat",
+            "type": "number"
+          },
+          "lon": {
+            "title": "Lon",
+            "type": "number"
+          },
+          "longest_runway_ft": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Longest Runway Ft"
+          },
+          "municipality": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Municipality"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "ident",
+          "name",
+          "lat",
+          "lon",
+          "kind",
+          "distance_nm",
+          "bearing_deg"
+        ],
+        "title": "NearestAirport",
+        "type": "object"
+      },
+      "NearestAirports": {
+        "properties": {
+          "airports": {
+            "items": {
+              "$ref": "#/components/schemas/NearestAirport"
+            },
+            "title": "Airports",
+            "type": "array"
+          }
+        },
+        "required": [
+          "airports"
+        ],
+        "title": "NearestAirports",
+        "type": "object"
+      },
       "NoteCheckpoint": {
         "description": "`source` says where the text came from: \"saved\" is a pilot's own\nearlier edit, \"generated\" a fresh model call, \"error\" that call\nfailing for this checkpoint alone (`description` is None then).",
         "properties": {
@@ -6449,6 +6559,71 @@
           }
         },
         "summary": "Airports In View"
+      }
+    },
+    "/api/airports/nearest": {
+      "get": {
+        "description": "The landing fields nearest a position -- own ship's, for the map's\nNearest -- the nearest first: how far and which way, each one's\nlongest open runway and its flight category where it reports.",
+        "operationId": "nearest_airports_api_airports_nearest_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "lat",
+            "required": true,
+            "schema": {
+              "maximum": 90,
+              "minimum": -90,
+              "title": "Lat",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "lon",
+            "required": true,
+            "schema": {
+              "maximum": 180,
+              "minimum": -180,
+              "title": "Lon",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 10,
+              "maximum": 25,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NearestAirports"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Nearest Airports"
       }
     },
     "/api/airports/search": {

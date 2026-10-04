@@ -12,7 +12,7 @@ few table lookups and a point-in-polygon test.
 from fastapi import APIRouter, HTTPException, Query
 from vfr import airports, airspace, altitude, fixes, places, publications, remarks, runway_wind, weather
 
-from ..schemas import AirportPlace, AirportsInView, WaypointsInView
+from ..schemas import AirportPlace, AirportsInView, NearestAirports, WaypointsInView
 
 router = APIRouter()
 
@@ -50,6 +50,29 @@ def airports_in_view(
     return {"airports": [
         {**p, "flight_category": (metars.get(p["source_ident"]) or {}).get("flight_category")} for p in places
     ]}
+
+
+@router.get("/api/airports/nearest", response_model=NearestAirports)
+def nearest_airports(
+    lat: float = Query(ge=-90, le=90), lon: float = Query(ge=-180, le=180),
+    limit: int = Query(default=10, ge=1, le=25),
+) -> NearestAirports:
+    """The landing fields nearest a position -- own ship's, for the map's
+    Nearest -- the nearest first: how far and which way, each one's
+    longest open runway and its flight category where it reports."""
+    found = airports.nearest(lat, lon, limit)
+    try:
+        metars = weather.metar_for_idents([p["source_ident"] for p in found])
+    except weather.WeatherServiceError:
+        metars = {}
+    out = []
+    for p in found:
+        lengths = [r["length_ft"] for r in airports.get_runways(p["source_ident"]) if not r["closed"] and r["length_ft"]]
+        out.append({
+            **p, "longest_runway_ft": max(lengths) if lengths else None,
+            "flight_category": (metars.get(p["source_ident"]) or {}).get("flight_category"),
+        })
+    return {"airports": out}
 
 
 @router.get("/api/waypoints/in-view", response_model=WaypointsInView)
