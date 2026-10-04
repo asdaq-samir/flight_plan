@@ -513,6 +513,15 @@ MAX_BLOCK_TILES = 6
 # feature, seen from two overlapping blocks.
 DEDUPE_NM = 0.2
 
+# Blocks read at once, each on a thread of its own: most of a block's
+# time is numpy and scipy, which let go of the GIL, so C81->KDLH's ten
+# blocks read in 4.2 s four at a time where they took 10.2 s one after
+# another (six were 3.9 s, and six processes 3.2 s for the price of a
+# process each). Four, not every core: each block holds its mosaic and
+# masks, a few hundred MB on a long one, and several routes can be read
+# at once.
+READ_AT_ONCE = 4
+
 
 def _has_chart(block: list, zoom: int) -> bool:
     """Whether any sectional sheet reaches this block at all.
@@ -947,32 +956,46 @@ def iter_landmarks_along_route(
         return along_track_distance_nm(lat, lon, start, end)
 
     blocks = [b for b in sorted(tile_blocks(tiles), key=block_along_track) if _has_chart(b, zoom)]
-    for index, block in enumerate(blocks):
-        mosaic = build_mosaic(block, zoom)
-        block_landmarks = detect_landmarks(mosaic) + linear_crossings(
-            mosaic, start, end, course_px=course_px
-        )
-        kept = []
-        for landmark in block_landmarks:
-            cross = cross_track_distance_nm(landmark.lat, landmark.lon, start, end)
-            along = along_track_distance_nm(landmark.lat, landmark.lon, start, end)
-            if abs(cross) > half_width_nm or not (-margin_nm <= along <= route_nm + margin_nm):
-                continue
-            if not big_enough_to_see(landmark, cross):
-                continue
-            landmark.extras.update({"cross_track_nm": cross, "along_track_nm": along})
-            kept.append(landmark)
 
-        yield {
-            "landmarks": _dedupe(kept),
-            "block": index,
-            "blocks": len(blocks),
-            "tiles": len(tiles),
-            "missing": mosaic.missing_tiles,
-            "fetched": mosaic.fetched_tiles,
-            "cached": mosaic.cached_tiles,
-            "route_nm": route_nm,
-        }
+    def read(block):
+        """One block's detections and its tile counts -- not the mosaic,
+        which would be held while earlier blocks are still being read."""
+        mosaic = build_mosaic(block, zoom)
+        found = detect_landmarks(mosaic) + linear_crossings(mosaic, start, end, course_px=course_px)
+        return found, mosaic.missing_tiles, mosaic.fetched_tiles, mosaic.cached_tiles
+
+    # Every block asked for at once, READ_AT_ONCE read at a time in the
+    # order asked, and handed on in that order: the departure end still
+    # comes first. A caller that stops listening stops the blocks not
+    # yet begun.
+    pool = ThreadPoolExecutor(max_workers=READ_AT_ONCE)
+    try:
+        reads = [pool.submit(read, block) for block in blocks]
+        for index, done in enumerate(reads):
+            block_landmarks, missing, fetched, cached = done.result()
+            kept = []
+            for landmark in block_landmarks:
+                cross = cross_track_distance_nm(landmark.lat, landmark.lon, start, end)
+                along = along_track_distance_nm(landmark.lat, landmark.lon, start, end)
+                if abs(cross) > half_width_nm or not (-margin_nm <= along <= route_nm + margin_nm):
+                    continue
+                if not big_enough_to_see(landmark, cross):
+                    continue
+                landmark.extras.update({"cross_track_nm": cross, "along_track_nm": along})
+                kept.append(landmark)
+
+            yield {
+                "landmarks": _dedupe(kept),
+                "block": index,
+                "blocks": len(blocks),
+                "tiles": len(tiles),
+                "missing": missing,
+                "fetched": fetched,
+                "cached": cached,
+                "route_nm": route_nm,
+            }
+    finally:
+        pool.shutdown(wait=False, cancel_futures=True)
 
 
 # Order matters: the tests are not mutually exclusive and the first match
