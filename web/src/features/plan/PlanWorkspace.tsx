@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { Printer, Share, TowerControl, X } from "lucide-react";
+import { FileDown, Link2, Printer, Share, TowerControl, X } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../../components/ui/dropdown-menu";
+import { fplOf, gpxOf, shareFile, type PlanPoint } from "../../lib/flightPlanFiles";
+import { navLogRows } from "./components/navlog/rows";
 import { toast } from "sonner";
 import { showError } from "../../lib/problems";
 import { cn } from "cn";
@@ -409,6 +412,25 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     }
   }, [planned.dep, planned.dest, planned.stops]);
 
+  // The route as a file: the departure, each checkpoint, stop and the
+  // destination, as the nav log lists them (lib/flightPlanFiles).
+  const exportPlan = useCallback(async (kind: "fpl" | "gpx") => {
+    if (!course) return;
+    const points: PlanPoint[] = navLogRows(course, selected, []).flatMap((row): PlanPoint[] => {
+      if (row.kind === "checkpoint") return [{ ident: "", name: row.cp.name || row.cp.category, kind: "checkpoint", lat: row.cp.lat, lon: row.cp.lon }];
+      if (row.kind === "toc" || row.kind === "tod") return [];
+      return [{ ident: row.airport.ident, name: row.airport.name ?? row.airport.ident, kind: row.airport.kind === "fix" ? "fix" : "airport", lat: row.airport.lat, lon: row.airport.lon }];
+    });
+    const name = routeName(planned.dep, planned.dest, planned.stops);
+    const file = name.replace(/[^A-Za-z0-9]+/g, "-").replace(/^-|-$/g, "");
+    try {
+      if (kind === "fpl") await shareFile(`${file}.fpl`, "application/xml", fplOf(points, name));
+      else await shareFile(`${file}.gpx`, "application/gpx+xml", gpxOf(points, name));
+    } catch (err) {
+      if ((err as Error).name !== "AbortError") showError("Could not export the route", (err as Error).message);
+    }
+  }, [course, selected, planned.dep, planned.dest, planned.stops]);
+
   // A different aeroplane means different legs: remembered, and the
   // nav log's own key changes with it.
   const changeAircraft = useCallback((value: string) => {
@@ -668,7 +690,20 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
         detail={s.unflyable ? "No legal altitude" : `${shortName(aircraft.label)} · ${depart ? format(new Date(depart), "EEE d MMM, HH:mm") : "Now"}`}
         tone={s.unflyable ? "destructive" : "default"}
         onDetail={() => setPanel("half")}
-        leading={<IconButton label="Share this route" variant="secondary" className="rounded-full" onClick={() => void share()}><Share /></IconButton>}
+        leading={
+          // Maps' share, and the route as a file for another app or the
+          // panel's GPS: on an iPhone the share sheet's Open in ForeFlight.
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <IconButton label="Share this route" variant="secondary" className="rounded-full" data-testid="share-route"><Share /></IconButton>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="min-w-56">
+              <DropdownMenuItem onSelect={() => void share()}><Link2 />Share link</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => void exportPlan("fpl")} data-testid="export-fpl"><FileDown />Flight plan (.fpl)</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => void exportPlan("gpx")} data-testid="export-gpx"><FileDown />GPX route (.gpx)</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        }
         trailing={<IconButton label="Close the route" variant="secondary" className="rounded-full" onClick={clearRoute} data-testid="clear-route"><X /></IconButton>}
       />
     ) : started ? undefined : searchField,
