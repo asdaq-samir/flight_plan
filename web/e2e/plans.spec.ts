@@ -284,8 +284,12 @@ test("plan page: Class B in the way offers the waypoint round it, or accepting t
 
   // Or round it: Fly via, the stop picker with the ways round at its
   // top, and the one picked in the stops.
-  await expect(mark).toBeVisible({ timeout: slow(30000) });
-  await mark.click();
+  // Once planned again without it: the mark goes and comes back as the
+  // plan is made, and a tap on the one going opened nothing.
+  await expect(async () => {
+    if (!(await problem.isVisible())) await mark.click();
+    await expect(problem.getByTestId("unflyable-fly-via")).toBeVisible({ timeout: 2000 });
+  }).toPass({ timeout: slow(30000) });
   await problem.getByTestId("unflyable-fly-via").click();
   const suggestion = page.getByTestId("picker-suggestion");
   await expect(suggestion).toHaveCount(1);
