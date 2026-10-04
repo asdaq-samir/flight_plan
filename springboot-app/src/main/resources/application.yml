@@ -109,6 +109,15 @@ server:
     min-response-size: 1024
 
 management:
+  # Traces (Micrometer's OpenTelemetry bridge) only where they are asked
+  # for: docker-compose's tracing profile sets MANAGEMENT_TRACING_ENABLED
+  # and the OTLP endpoint (Jaeger's). On, each request is a span and the
+  # planner's spans go under it (StreamingProxy passes the context on).
+  tracing:
+    enabled: false
+  opentelemetry:
+    resource-attributes:
+      service.name: webapp
   endpoints:
     web:
       exposure:

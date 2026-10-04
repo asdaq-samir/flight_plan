@@ -37,7 +37,7 @@ from fastapi.responses import JSONResponse
 from pydantic import TypeAdapter
 from vfr import airspace, altitude, charts, faa_data, fixes, places, publications, remarks, weather
 
-from . import chart_refresh, errors
+from . import chart_refresh, errors, tracing
 from .common import PROCESSED_DIR
 from .planning import StillComputing
 from .routers import airports, briefing, chart, classb, devml, devservices, notes, plan, system
@@ -160,6 +160,8 @@ async def _lifespan(app: FastAPI):
 app = FastAPI(title="Wingtip Maps planner", lifespan=_lifespan)
 # What failed lately, for the Dev console (app.errors).
 app.add_middleware(errors.RecordFailures)
+# Traces, where an OTLP endpoint is set (app.tracing).
+tracing.instrument(app)
 
 
 @app.exception_handler(weather.WeatherServiceError)

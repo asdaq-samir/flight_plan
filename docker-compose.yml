@@ -205,6 +205,10 @@ services:
       CREWAI_AGENT_URL: http://crewai-agent:8000
       AIRFLOW_URL: http://airflow:8080
       AIRFLOW_PASSWORDS_FILE: /airflow-home/simple_auth_manager_passwords.json.generated
+      # Traces to Jaeger, with the tracing profile up and TRACING=1 (see
+      # the jaeger service below); unset, the planner sends none.
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${TRACING:+http://jaeger:4318}
+      OTEL_SERVICE_NAME: planner
     depends_on:
       model-service:
         condition: service_healthy
@@ -392,6 +396,11 @@ services:
       SPRING_DATASOURCE_USERNAME: vfr
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-vfr}
       PLANNER_SERVICE_URL: http://planning-service:8000
+      # Traces to Jaeger with TRACING=1, the planner's calls under the
+      # webapp's (see the jaeger service); off otherwise.
+      MANAGEMENT_TRACING_ENABLED: ${TRACING:-false}
+      MANAGEMENT_TRACING_SAMPLING_PROBABILITY: "1.0"
+      MANAGEMENT_OTLP_TRACING_ENDPOINT: http://jaeger:4318/v1/traces
       # Local start-up time, not a production setting. The class-data
       # archive (kept on the webapp-cds volume, see the Dockerfile) lets
       # a restart of the same jar skip the class loading and
@@ -465,6 +474,20 @@ services:
       # make-certs.sh writes it with.
       APP_HTTPS_KEYSTORE: ${APP_HTTPS_KEYSTORE:-/certs/webapp.p12}
       APP_HSTS: "false"
+
+  # Traces of a request from the webapp down through the planner to every
+  # source it asks (aviationweather.gov, the FAA, the USGS, model-service),
+  # in Jaeger's UI on http://localhost:16686:
+  #
+  #   TRACING=true docker compose --profile tracing up -d jaeger webapp planning-service
+  #
+  # Without TRACING neither service sends a span.
+  jaeger:
+    profiles: ["tracing"]
+    image: jaegertracing/jaeger:2.11.0
+    ports:
+      - "127.0.0.1:16686:16686"
+    restart: unless-stopped
 
 networks:
   # dev-services and planning-service only (see dev-services above).

@@ -10,8 +10,13 @@ import java.net.http.HttpTimeoutException;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.function.Function;
+import io.micrometer.tracing.TraceContext;
+import io.micrometer.tracing.Tracer;
+import io.micrometer.tracing.propagation.Propagator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -71,6 +76,35 @@ public class StreamingProxy {
             .followRedirects(HttpClient.Redirect.NEVER)
             .build();
 
+    /** Where tracing is on (management.tracing), the request's trace and
+     *  how to pass it on: the JDK's client is not one Micrometer
+     *  instruments, so the context goes into each upstream request's
+     *  headers here, and the upstream's spans go under this request's. */
+    private final Tracer tracer;
+    private final Propagator propagator;
+
+    public StreamingProxy() {
+        this(null, null);
+    }
+
+    @Autowired
+    public StreamingProxy(ObjectProvider<Tracer> tracer, ObjectProvider<Propagator> propagator) {
+        this.tracer = tracer == null ? null : tracer.getIfAvailable();
+        this.propagator = propagator == null ? null : propagator.getIfAvailable();
+    }
+
+    /** {@code request} with the current trace's headers (traceparent), or
+     *  as it is where there is no trace. */
+    HttpRequest traced(HttpRequest request) {
+        TraceContext context = tracer == null || propagator == null ? null : tracer.currentTraceContext().context();
+        if (context == null) {
+            return request;
+        }
+        HttpRequest.Builder builder = HttpRequest.newBuilder(request, (name, value) -> true);
+        propagator.inject(context, builder, (carrier, key, value) -> carrier.setHeader(key, value));
+        return builder.build();
+    }
+
     /**
      * Sends {@code request}, and hands the response to {@code onResponse}
      * with its body still unread, so it can be piped rather than
@@ -80,7 +114,7 @@ public class StreamingProxy {
     public ResponseEntity<StreamingResponseBody> exchange(
             Upstream upstream, HttpRequest request, ResponseShaper onResponse) {
         try {
-            return onResponse.apply(http.send(request, HttpResponse.BodyHandlers.ofInputStream()));
+            return onResponse.apply(http.send(traced(request), HttpResponse.BodyHandlers.ofInputStream()));
         } catch (HttpTimeoutException err) {
             // An IOException too, so caught first: an upstream that took
             // too long answered, slowly -- it was reported as unreachable,
