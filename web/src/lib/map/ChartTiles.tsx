@@ -77,19 +77,18 @@ export function ChartTiles({ chart, previewing }: Props) {
   useEffect(() => () => { if (prefetchTimer.current) clearTimeout(prefetchTimer.current); }, []);
 
   if (!baseLayer) return null;
-  const attribution = (kind: string) => (kind.startsWith("ifr") ? "FAA IFR enroute charts" : "FAA VFR charts");
   return (
     <>
       <TileLayer
         key={baseLayer.kind} ref={baseRef}
-        url={tileTemplate(chart, baseLayer.kind)} attribution={attribution(baseLayer.kind)}
+        url={tileTemplate(chart, baseLayer.kind)}
         minZoom={baseLayer.min_zoom} maxNativeZoom={baseLayer.max_zoom} maxZoom={baseLayer.max_zoom + 3}
         keepBuffer={4} updateWhenIdle={false}
       />
       {overlay && (pinned || previewing) && (
         <TileLayer
           key={overlay.kind}
-          url={tileTemplate(chart, overlay.kind)} attribution={attribution(overlay.kind)}
+          url={tileTemplate(chart, overlay.kind)}
           minZoom={overlay.min_zoom} maxNativeZoom={overlay.max_zoom} maxZoom={overlay.max_zoom + 3}
           keepBuffer={2} zIndex={5} updateWhenIdle={false}
         />

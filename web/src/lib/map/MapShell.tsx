@@ -1,7 +1,7 @@
 import L from "leaflet";
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { AttributionControl, MapContainer } from "react-leaflet";
+import { MapContainer } from "react-leaflet";
 import MapControls from "../../components/MapControls";
 import ProblemBanner from "../../components/ProblemBanner";
 import { MapInsetsContext } from "../../components/mapChrome";
@@ -106,7 +106,6 @@ export function MapShell({ course, onReady, children, onSelectPlace }: Props) {
           zoomControl={false} minZoom={3} keyboard={false} attributionControl={false}
           className="h-full w-full bg-slate-100 dark:bg-slate-900"
         >
-          <AttributionControl prefix={false} />
           <ResizeAware />
           <ChartTiles chart={chart} previewing={previewing} />
           {/* Both maps get it: a Class B is worth seeing whether

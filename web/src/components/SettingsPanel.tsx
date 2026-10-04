@@ -1,11 +1,22 @@
 import { CloudSun, Download, Eye, EyeOff, Map as MapIcon, Monitor, Moon, PanelBottom, PanelTop, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
+import { useQuery } from "@tanstack/react-query";
+import { format } from "date-fns";
 import { ListGroup, ListRow } from "./GroupedList";
 import Segmented from "./Segmented";
 import TogglePill from "./TogglePill";
 import { useNavEdge } from "../hooks/use-nav-edge";
 import { keepingAvailable } from "../lib/map/keepRoute";
 import { BASE_CHARTS, usePreferences, type BaseChart, type NavEdge } from "../lib/preferences";
+import { chartQuery } from "../lib/queryClient";
+
+/** "09-03-2026", the FAA's cycle as the chart server names it, as "3 Sep
+ *  2026"; the cycle as it is where it reads otherwise. */
+function editionOf(cycle: string): string {
+  const [month, day, year] = cycle.split("-").map(Number);
+  const date = new Date(year!, (month ?? 1) - 1, day);
+  return Number.isNaN(date.getTime()) ? cycle : format(date, "d MMM yyyy");
+}
 
 /**
  * The settings, the consoles' last tab (ConsoleTabs), laid out the way
@@ -49,8 +60,16 @@ function MapGroup() {
   const keepOffline = usePreferences(s => s.keepOffline);
   const setKeepOffline = usePreferences(s => s.setKeepOffline);
   const available = keepingAvailable();
+  // Where the charts come from and which edition is up, under the map's
+  // settings: it was a credit in the chart's corner, which the FAA's
+  // charts, a US government work, do not ask for. The edition is what a
+  // pilot checks: a chart is current for its cycle.
+  const { data: chart } = useQuery(chartQuery);
   return (
-    <ListGroup title="Map">
+    <ListGroup
+      title="Map"
+      footer={chart ? `Charts from the FAA, the ${editionOf(chart.chart_cycle)} edition.` : "Charts from the FAA."}
+    >
       <ListRow title="Chart">
         <Segmented
           label="Chart" value={base} onChange={v => setBase(v as BaseChart)} testId="base-chart-select"

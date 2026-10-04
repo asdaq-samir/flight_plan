@@ -59,10 +59,6 @@ input, select, textarea {
   background: var(--popover);
   color: var(--popover-foreground);
 }
-.dark .leaflet-control-attribution {
-  background: rgba(0, 0, 0, 0.6);
-  color: #cbd5e1;
-}
 
 /* The map's words in the app's own typeface. Leaflet's stylesheet sets
    its container to Helvetica Neue, so every popup, chip and marker number
@@ -72,9 +68,9 @@ body .leaflet-container {
   font-family: inherit;
 }
 
-/* Clear of the map panel (MapPanel): its edge's corner controls -- the
-   chart credit, in the bottom right -- sit past what the panel covers
-   at rest (MapPage sets the insets), and past the home indicator. */
+/* Clear of the map panel (MapPanel): its edge's corner controls sit
+   past what the panel covers at rest (MapPage sets the insets), and past
+   the home indicator. */
 .leaflet-container .leaflet-bottom {
   bottom: max(var(--map-inset-bottom, 0px), env(safe-area-inset-bottom));
 }
@@ -90,16 +86,6 @@ body .leaflet-container {
 body:has([data-slot="map-panel"][data-sheet][data-panel="full"]) [data-map-controls] {
   opacity: 0;
   pointer-events: none;
-}
-
-/* Smaller, not gone -- the chart credit is a requirement of the
-   charts' use, not decoration, so it can't just be removed. At Apple's
-   floor for text meant to be read, 11 on 13, where it was 9: as little
-   room as it can take and still be read on a phone. */
-.leaflet-container .leaflet-control.leaflet-control-attribution {
-  padding: 0 4px;
-  font-size: 11px;
-  line-height: 13px;
 }
 
 /* iOS's leading on a touch screen: each text style's line is its size
