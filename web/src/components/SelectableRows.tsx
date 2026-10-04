@@ -22,7 +22,9 @@ export function SelectableRow({
   /** A leg worked out without its wind (or not in yet): in italics. */
   estimated?: boolean;
   /** Whether selecting the row opens a note row under it (the nav
-   *  log's), said to a reader as aria-expanded. */
+   *  log's): `data-expanded` while it is open. The selected row is said
+   *  to a reader as the current one (aria-current); aria-expanded is
+   *  not a plain table row's to have (axe's aria-conditional-attr). */
   expands?: boolean;
   onSelect: () => void;
   /** Only the actually-selected row needs this -- see the callers'
@@ -37,7 +39,8 @@ export function SelectableRow({
       tabIndex={0}
       data-selected={selected || undefined}
       data-kind={kind}
-      aria-expanded={expands ? selected : undefined}
+      aria-current={selected || undefined}
+      data-expanded={expands ? selected : undefined}
       onKeyDown={e => {
         // The row's own keys, not a button's inside it (Dev's inline
         // rating buttons sit in the note row below, but a control in

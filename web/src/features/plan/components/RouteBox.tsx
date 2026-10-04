@@ -155,8 +155,12 @@ function Pill({ id, ident, waypoint, index, role, removable, onChange, onRemove 
   // The fields' own names, as the two fields were: "Departure", "Stop 1".
   const label = role === "dep" ? "Departure" : role === "dest" ? "Destination" : `Stop ${index}`;
   return (
+    // A group, not dnd-kit's button: the picker and the cross inside it
+    // are the buttons, and a button in a button is nothing a reader can
+    // use (axe's nested-interactive). Still focusable, for the keyboard's
+    // reordering (KeyboardSensor).
     <span
-      ref={setNodeRef} {...attributes} {...listeners}
+      ref={setNodeRef} {...attributes} {...listeners} role="group" aria-label={`${label} ${ident}`}
       style={{ transform: CSS.Transform.toString(transform), transition }}
       className={cn(
         // A sideways swipe slides the line; a hold, then a move, drags.

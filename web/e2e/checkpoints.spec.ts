@@ -17,6 +17,9 @@ test("plan page: a click or Enter selects a nav log checkpoint, with the briefin
   // The rows arrive with the scored checkpoints; wait for more than
   // the departure and the destination.
   await expect.poll(async () => table.locator("tbody tr[data-selected], tbody tr").count(), { timeout: slow(15000) }).toBeGreaterThan(4);
+  // And the legs: their tops of climb and descent are rows of their own,
+  // put in as the legs arrive, and a row counted before them moves.
+  await expect(page.getByTestId("fuel-check")).toBeVisible({ timeout: slow(120000) });
   const selectedRow = table.locator("tbody tr[data-selected]");
   await expect(selectedRow).toHaveCount(0);
 
@@ -125,10 +128,10 @@ test("plan page: a checkpoint picked on the map is brought to the middle of the 
   await neighbour.scrollIntoViewIfNeeded();
 
   // The selected row clicked again: deselected, and its note closed.
-  await expect(selectedRow).toHaveAttribute("aria-expanded", "true");
+  await expect(selectedRow).toHaveAttribute("data-expanded", "true");
   await neighbour.locator("td").first().click();
   await expect(selectedRow).toHaveCount(0);
-  await expect(table.locator('tbody tr[aria-expanded="true"]')).toHaveCount(0);
+  await expect(table.locator('tbody tr[data-expanded="true"]')).toHaveCount(0);
 });
 
 test("plan page: the briefing's nav log scrolls inside the drawer, not the page", async ({ page }) => {
