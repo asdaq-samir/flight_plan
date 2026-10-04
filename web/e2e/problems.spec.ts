@@ -228,21 +228,11 @@ test("the chart underneath stays draggable while a toast is showing", async ({ p
   expect(beneath).toBe("something under it");
 });
 
-test("a tap on a toast over the open panel is the toast's, not the panel's", async ({ page }) => {
-  // Over the chart a toast is transparent to the pointer (the test
-  // above). Over the open panel that made a tap on the card fall through
-  // to the panel's own controls: tapping a toast opened the briefing
-  // section behind it.
+test("with the panel out, the progress is the Nav Log's line, and no toast is over the panel", async ({ page }) => {
+  // From the bottom of a phone the toast came in over the panel's top,
+  // the route's box under it out of reach for as long as the plan took.
   await holdCourse(page);
   await page.goto(`${PLAN}&view=briefing`);
-  const first = page.locator('[data-sonner-toast][data-front="true"]');
-  await expect(first).toBeVisible({ timeout: 20000 });
-  await settled(page, '[data-sonner-toast][data-front="true"]');
-  const box = (await first.boundingBox())!;
-
-  const hit = await page.evaluate(([x, y]) => {
-    const el = document.elementFromPoint(x, y);
-    return el?.closest("[data-sonner-toast]") ? "the toast" : "something under it";
-  }, [box.x + box.width / 2, box.y + box.height / 2]);
-  expect(hit).toBe("the toast");
+  await expect(page.getByTestId("navlog-progress")).toContainText("Plotting the course", { timeout: 20000 });
+  await expect(toasts(page)).toHaveCount(0);
 });

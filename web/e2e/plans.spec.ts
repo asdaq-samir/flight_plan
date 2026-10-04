@@ -268,9 +268,12 @@ test("plan page: Class B in the way offers the waypoint round it, or accepting t
   // Accepted: planned through it, and a line says so, with Undo.
   await problem.getByTestId("unflyable-accept-class-b").click();
   await expect(page).toHaveURL(/[?&]class_b=1/);
+  // A mark in the tint beside the Nav Log, not a line across the panel:
+  // what it means, and Undo.
+  await expect.poll(() => cleared, { timeout: slow(30000) }).toBe(true);
+  await page.getByTestId("class-b-accepted-flag").click();
   const accepted = page.getByTestId("class-b-accepted");
   await expect(accepted).toContainText("you'll need a clearance");
-  await expect.poll(() => cleared, { timeout: slow(30000) }).toBe(true);
   await accepted.getByRole("button", { name: "Undo" }).click();
   await expect(page).not.toHaveURL(/class_b=/);
 

@@ -25,6 +25,7 @@ import { TEXT } from "../../../../lib/text";
 import { type Description, descriptionKey } from "../../hooks/useCheckpointNotes";
 import { altFt, clockTime, deg, describeFuel, describeSteps, describeTime, etaAt, one, signed, totalsParts } from "../../format";
 import AccordionSection from "../../../../components/AccordionSection";
+import { Spinner } from "../../../../components/ui/spinner";
 import { BRIEFING_SECTIONS } from "../briefing/sections";
 import { legOf, navLogRows, rowPoint, type NavLogRow, type RouteEnds } from "./rows";
 
@@ -116,6 +117,9 @@ interface Props {
   /** Beside the Nav Log's title, folded or open: a mark that opens to a
    *  note (a tight altitude, no legal altitude: TitleNote). */
   titleNote?: ReactNode;
+  /** What is being worked on, with the panel out: said on the section's
+   *  line, under its title, in place of the toast over the map. */
+  progress?: string | null;
   /** A local flight, one airport to itself: no legs, so the section is
    *  "Local Flight" -- the time aloft, the time back and the fuel, and
    *  the fuel check -- in place of the nav log. */
@@ -389,7 +393,7 @@ export default function NavLogView({
   totals, nav, onAltitudeChoiceChange, depart,
   legs, dep, dest, ends,
   selected, descriptions, onSaveDescription,
-  onGenerateDescriptions, descriptionsLoading, children, notice, footer, titleNote, local = false,
+  onGenerateDescriptions, descriptionsLoading, children, notice, footer, titleNote, local = false, progress = null,
   selectedPoint, onSelectPoint, onDeselectPoint, drawerOpen, alt, onAltChange, onSubmit,
   aircraftLabel,
 }: Props) {
@@ -434,6 +438,14 @@ export default function NavLogView({
       ] as const).map(([name, figure], i) => (
         <Fragment key={name}>{i > 0 && " · "}<span className="whitespace-nowrap" data-testid={name === "ETA" ? "navlog-eta" : undefined}>{name} {figure}</span></Fragment>
       ))}
+    </span>
+  );
+  // While something is worked on, the line says what, with a spinner:
+  // the summary once it is done.
+  const progressLine = progress && (
+    <span className="flex items-center gap-1.5 pointer-coarse:text-[0.8125rem] pointer-coarse:leading-[1.125rem]" role="status" data-testid="navlog-progress">
+      <Spinner className="size-3.5 shrink-0" role="presentation" aria-label={undefined} aria-hidden />
+      <span className="min-w-0">{progress}</span>
     </span>
   );
   // Which sections are open: none to begin with (a pilot skims the
@@ -984,11 +996,11 @@ export default function NavLogView({
         {notice}
         <Accordion type="multiple" value={printing ? ALL_SECTIONS : open} onValueChange={setOpen}>
           {local ? (
-            <AccordionSection title="Local Flight" summary={foldedSummary}>
+            <AccordionSection title="Local Flight" summary={progressLine ?? foldedSummary}>
               {fuelNote}
             </AccordionSection>
           ) : (
-            <AccordionSection title="Nav Log" summary={foldedSummary} aside={titleNote}>
+            <AccordionSection title="Nav Log" summary={progressLine ?? foldedSummary} aside={titleNote}>
               {summary}
               {navLogTable}
               {fuelNote}

@@ -9,7 +9,8 @@ import { TEXT } from "../../../../lib/text";
 /**
  * A mark beside the Nav Log's title, folded or open, that opens to what
  * it is about: amber for a warning (a tight altitude), red, with its
- * words, for what stops the plan (no legal altitude, RouteProblem). A
+ * words, for what stops the plan (no legal altitude, RouteProblem), the
+ * tint for what the pilot chose (planned through Class B). A
  * popover from `md` up, a sheet on a phone. It was a line of its own
  * across the panel, under the route.
  *
@@ -18,8 +19,10 @@ import { TEXT } from "../../../../lib/text";
  * as it was, and the popover placed against it (an anchor, not a
  * trigger, whose tap would be the section's too).
  */
-export default function TitleNote({ tone, label, title, open, onOpenChange, testId, contentTestId, children }: {
-  tone: "warning" | "destructive";
+export default function TitleNote({ tone, icon, label, title, open, onOpenChange, testId, contentTestId, children }: {
+  tone: "warning" | "destructive" | "info";
+  /** The mark's own glyph, where it is not the tone's. */
+  icon?: ReactNode;
   /** Words beside the mark ("No legal altitude"); a mark alone without. */
   label?: string;
   /** The sheet's heading on a phone, and the popover's name. */
@@ -36,6 +39,7 @@ export default function TitleNote({ tone, label, title, open, onOpenChange, test
     onOpenChange(!open);
   };
   const Icon = tone === "warning" ? TriangleAlert : CircleAlert;
+  const mark = icon ?? <Icon className="size-4 shrink-0" aria-hidden="true" />;
   return (
     <ResponsivePopover open={open} onOpenChange={onOpenChange}>
       <ResponsivePopoverAnchor asChild>
@@ -47,12 +51,12 @@ export default function TitleNote({ tone, label, title, open, onOpenChange, test
           // rule is for buttons; this is a span inside one).
           className={cn(
             "relative z-10 inline-flex min-h-6 items-center gap-1 rounded-full font-semibold outline-none after:absolute after:-inset-2.5 focus-visible:ring-2 focus-visible:ring-ring",
-            tone === "warning" ? "text-amber-600 dark:text-amber-400" : "text-red-700 dark:text-red-400",
+            tone === "warning" ? "text-amber-600 dark:text-amber-400" : tone === "info" ? "text-tint" : "text-red-700 dark:text-red-400",
             label ? TEXT.note : "size-6 justify-center",
           )}
           data-testid={testId}
         >
-          <Icon className="size-4 shrink-0" aria-hidden="true" />
+          {mark}
           {label}
         </span>
       </ResponsivePopoverAnchor>

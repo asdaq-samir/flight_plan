@@ -5,7 +5,6 @@ import { Printer, Share, TowerControl, X } from "lucide-react";
 import { toast } from "sonner";
 import { showError } from "../../lib/problems";
 import { cn } from "cn";
-import { TEXT } from "../../lib/text";
 import { api } from "../../lib/api/client";
 import { pilotQuery, queryClient } from "../../lib/queryClient";
 import type { AircraftChoice, AirportPlace, AltitudeChoice, Candidate } from "../../lib/api/types";
@@ -24,7 +23,6 @@ import { useProgressToast } from "../../lib/useProgressToast";
 import { useSearchParamsNow } from "../../lib/useSearchParamsNow";
 import type { WorkspaceProps } from "../page/workspace";
 import { PilotPanel } from "../pilot/PilotPanel";
-import { Alert, AlertDescription } from "../../components/ui/alert";
 import IconButton from "../../components/IconButton";
 import ToolbarButton from "../../components/ToolbarButton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/ui/select";
@@ -472,19 +470,23 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // nothing measured, and "Loading briefing…" over a nav log still
   // streaming. Failures are the query client's to report
   // (queryClient.ts).
-  useProgressToast(
-    s.navStage
+  const progress = s.navStage
     ?? (s.stage === "navlog" ? "Asking the planner for the nav log…" : null)
     ?? (s.stage === "course" ? "Plotting the course…" : null)
     ?? (s.stage === "checkpoints" ? "Scoring checkpoints…" : null)
     ?? (s.briefing.state === "loading" ? "Fetching METARs, forecasts, hazards, runways and frequencies…" : null)
-    ?? (s.descriptionProgress ? `Writing descriptions ${s.descriptionProgress.done}/${s.descriptionProgress.total}…` : null),
-  );
+    ?? (s.descriptionProgress ? `Writing descriptions ${s.descriptionProgress.done}/${s.descriptionProgress.total}…` : null);
+  // A toast over the map only while the panel is at rest; with it out,
+  // the Nav Log's own line says it (NavLogView's `progress`). From the
+  // bottom of a phone the toast came in over the panel's top, the route's
+  // box under it out of reach for as long as the plan took.
+  useProgressToast(panelOpen ? null : progress);
 
   // The flight planning drawer: the nav log as the first section, the
   // briefing's sections under it, the briefing's own actions in the
   // drawer's header.
   const [tightOpen, setTightOpen] = useState(false);
+  const [classBOpen, setClassBOpen] = useState(false);
   // A leg where no 500 ft step fits and the planner flies the highest
   // whole hundred under its ceiling (vfr.altitude's tight altitude):
   // where, at what, and how little room there is either side.
@@ -519,19 +521,44 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       notice={<BriefingNotices briefing={s.briefing} />}
       footer={<PlanningAidNote />}
       local={s.local}
+      progress={panelOpen ? progress : null}
       titleNote={s.unflyable ? (
         <RouteProblem
           problem={s.unflyable} onAddStop={() => setAddingStop("stop")} onFly={flyAt}
           onFlyVia={() => setAddingStop("via")} onAcceptClassB={() => acceptClassB(true)}
         />
-      ) : tightLeg ? (
-        <TitleNote
-          tone="warning" title="Tight altitude" open={tightOpen} onOpenChange={setTightOpen}
-          testId="tight-altitude-flag" contentTestId="tight-altitude"
-        >
-          {tightLeg}
-        </TitleNote>
-      ) : undefined}
+      ) : (
+        <>
+          {tightLeg && (
+            <TitleNote
+              tone="warning" title="Tight altitude" open={tightOpen} onOpenChange={setTightOpen}
+              testId="tight-altitude-flag" contentTestId="tight-altitude"
+            >
+              {tightLeg}
+            </TitleNote>
+          )}
+          {/* Planned through Class B, at the pilot's word: a mark in the
+              tint that opens to what it means, and Undo. It was a line
+              across the panel under the route. */}
+          {classBClearance && (
+            <TitleNote
+              tone="info" icon={<TowerControl className="size-4 shrink-0" aria-hidden="true" />} label="Class B"
+              title="Planned through Class B" open={classBOpen} onOpenChange={setClassBOpen}
+              testId="class-b-accepted-flag" contentTestId="class-b-accepted"
+            >
+              <div className="space-y-3">
+                <p>Planned through Class B: you&apos;ll need a clearance to enter it.</p>
+                <Button
+                  type="button" size="sm" variant="outline"
+                  onClick={() => { setClassBOpen(false); acceptClassB(false); }}
+                >
+                  Undo
+                </Button>
+              </div>
+            </TitleNote>
+          )}
+        </>
+      )}
     >
       <FlightBriefingView
         nav={s.nav} legs={s.legs}
@@ -695,18 +722,6 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     console: <PilotPanel />,
     submit,
     loading: s.stage !== null,
-    notices: classBClearance ? (
-      // One line while it lasts: what was accepted, and Undo.
-      <Alert
-        className="flex items-center gap-2 rounded-none border-x-0 border-t-0 bg-transparent py-1 pr-2 pl-4 *:[svg]:translate-y-0"
-        data-testid="class-b-accepted"
-      >
-        <TowerControl className="shrink-0" />
-        <AlertDescription className={cn("min-w-0 flex-1 text-foreground", TEXT.detail)}>
-          Planned through Class B: you&apos;ll need a clearance.
-        </AlertDescription>
-        <Button type="button" size="sm" variant="ghost" className="shrink-0 text-tint" onClick={() => acceptClassB(false)}>Undo</Button>
-      </Alert>
-    ) : null,
+    notices: null,
   });
 }
