@@ -546,16 +546,91 @@ class AirportFacilities(BaseModel):
     frequencies: list[Frequency]
 
 
+class TfrInfo(BaseModel):
+    """A temporary flight restriction (vfr.tfr): its NOTAM, the site's
+    title and kind, when it is in force (UTC; `expires` None until further
+    notice), the rule it is issued under, why, and how high it reaches --
+    the lowest floor and highest ceiling of its areas, MSL or AGL."""
+
+    notam_id: str
+    title: str | None = None
+    kind: str | None = None
+    state: str | None = None
+    effective: str | None = None
+    expires: str | None = None
+    rule: str | None = None
+    purpose: str | None = None
+    floor_ft: float | None = None
+    floor_ref: Literal["MSL", "AGL"] | None = None
+    ceiling_ft: float | None = None
+    ceiling_ref: Literal["MSL", "AGL"] | None = None
+
+
+class Tfr(TfrInfo):
+    """A TFR with its areas, for the map: a GeoJSON MultiPolygon."""
+
+    geometry: dict
+
+
+class Tfrs(BaseModel):
+    tfrs: list[Tfr]
+
+
+class RouteTfr(TfrInfo):
+    """A TFR within a few miles of the route and in force at some time
+    during the flight: how far along the route it is, whether the route
+    goes through it, and whether it is in force now."""
+
+    along_track_nm: float
+    crosses: bool
+    active_now: bool
+
+
+class Pirep(BaseModel):
+    """A pilot report near the route (vfr.weather.pireps_along_route):
+    when, how high, in what, the turbulence and icing it reports (the
+    intensity, as reported: "LGT", "MOD", "NEG"), and its own words."""
+
+    observed_at: str | None = None
+    altitude_ft: float | None = None
+    aircraft: str | None = None
+    urgent: bool = False
+    turbulence: str | None = None
+    icing: str | None = None
+    raw: str | None = None
+    along_track_nm: float
+
+
+class GAirmet(BaseModel):
+    """A G-AIRMET the route crosses during the flight
+    (vfr.weather.gairmets_along_route): the hazard in words, its severity
+    and cause, the time its snapshot is valid at, and its altitudes --
+    `from_freezing_level` where it starts there."""
+
+    hazard: str
+    severity: str | None = None
+    due_to: str | None = None
+    valid_at: str | None = None
+    altitude_low_ft: float | None = None
+    from_freezing_level: bool = False
+    altitude_high_ft: float | None = None
+
+
 class Briefing(BaseModel):
-    """`weather_unavailable` names which of hazards/forecast/metars come
-    from a call that failed rather than one that found nothing: an empty
-    `hazards` must not read the same as "no hazards reported"."""
+    """`weather_unavailable` names which of hazards/forecast/metars/tfrs
+    come from a call that failed rather than one that found nothing: an
+    empty `hazards` must not read the same as "no hazards reported"."""
 
     hazards: list[Hazard]
     forecast: Forecast
     metars: dict[str, Metar | None]
     airports: dict[str, AirportFacilities]
-    weather_unavailable: list[Literal["hazards", "forecast", "metars"]]
+    weather_unavailable: list[Literal["hazards", "forecast", "metars", "tfrs", "pireps", "gairmets"]]
+    # The TFRs near the route during the flight (vfr.tfr.along_route).
+    tfrs: list[RouteTfr] = []
+    # Pilot reports near the route, and the G-AIRMETs it crosses.
+    pireps: list[Pirep] = []
+    gairmets: list[GAirmet] = []
     # "VFR flight not recommended" (AIM 7-1-5), as its reasons -- either
     # end reporting IFR/LIFR, the forecast under 14 CFR 91.155's basic
     # minimums -- worked out here (vfr.weather) rather than by the page.

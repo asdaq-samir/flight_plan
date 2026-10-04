@@ -9,6 +9,7 @@ import type { BriefingState } from "../hooks/usePlan";
 import type { AirportWeather } from "../../../lib/map/AirportCard";
 import { AirportsLayer } from "../../../lib/map/AirportsLayer";
 import { WaypointsLayer } from "../../../lib/map/WaypointsLayer";
+import { TfrLayer } from "../../../lib/map/TfrLayer";
 import { chipColourOf } from "../../../lib/map/flightCategory";
 import { CourseLine } from "../../../lib/map/CourseLine";
 import { Halo } from "../../../lib/map/Halo";
@@ -276,6 +277,7 @@ export default function RouteMap({
       {/* The chart's own airports with no route as well: a tap on a field
           opens its card, and Fly Here makes the route. */}
       <AirportsLayer selected={place} onSelect={onSelectPlace} exclude={chipped} route={routeBox} />
+      <TfrLayer />
       <WaypointsLayer exclude={chipped} onAddStop={course ? onAddStop : undefined} />
       {/* The airport whose card opens comes to the middle of the chart
           clear of the panel, in close enough to find it, as a place

@@ -352,6 +352,10 @@ _SOURCES = {
              lambda resp: _parse_tafs(gzip.decompress(resp.content)), _DATASET_TTL_S, _DATASET_STALE_MAX_S),
     "airsigmets": (f"{CACHE_BASE_URL}/airsigmets.cache.xml.gz", {},
                    lambda resp: _parse_airsigmets(gzip.decompress(resp.content)), _DATASET_TTL_S, _DATASET_STALE_MAX_S),
+    "pireps": (f"{CACHE_BASE_URL}/aircraftreports.cache.xml.gz", {},
+               lambda resp: _parse_pireps(gzip.decompress(resp.content)), _DATASET_TTL_S, _DATASET_STALE_MAX_S),
+    "gairmets": (f"{CACHE_BASE_URL}/gairmets.cache.xml.gz", {},
+                 lambda resp: _parse_gairmets(gzip.decompress(resp.content)), _DATASET_TTL_S, _DATASET_STALE_MAX_S),
     **{f"winds-{hr}": _winds_source(hr) for hr in ("06", "12", "24")},
 }
 
@@ -817,7 +821,7 @@ def hazards_along_route(route_start: tuple, route_end: tuple, corridor_buffer_nm
     those valid right now. The bbox is a coarse prefilter (convective
     SIGMETs commonly span several states); the real filter is the
     route/polygon intersection. CONUS AIRMETs were discontinued in
-    January 2025 in favour of G-AIRMETs, which this does not read yet.
+    January 2025 in favour of G-AIRMETs: gairmets_along_route reads them.
     """
     from shapely.geometry import LineString, Polygon
 
@@ -846,6 +850,152 @@ def hazards_along_route(route_start: tuple, route_end: tuple, corridor_buffer_nm
     return hits
 
 
+# --- PIREPs ---
+
+#: How old a PIREP is still told: the conditions it reports move on.
+PIREP_MAX_AGE_S = 90 * 60
+#: The highest a PIREP is told for: a light aeroplane's sky, not the
+#: airliners' reports from the flight levels.
+PIREP_MAX_ALT_FT = 18000.0
+#: How far either side of the route a PIREP is told.
+PIREP_CORRIDOR_NM = 30.0
+
+
+def _parse_pireps(xml_bytes: bytes) -> list:
+    """The pilot reports in the aircraft reports file -- routine and urgent
+    (UUA) -- leaving out the AIREPs, airliners' position reports from the
+    ocean routes, which are most of it."""
+    reports = []
+    for el in ET.fromstring(xml_bytes).iter("AircraftReport"):
+        kind = el.findtext("report_type") or ""
+        if "PIREP" not in kind:
+            continue
+        lat, lon = _float(el.findtext("latitude")), _float(el.findtext("longitude"))
+        if lat is None or lon is None:
+            continue
+        turbulence = [t.get("turbulence_intensity") for t in el.iter("turbulence_condition") if t.get("turbulence_intensity")]
+        icing = [i.get("icing_intensity") for i in el.iter("icing_condition") if i.get("icing_intensity")]
+        reports.append({
+            "observed_at": el.findtext("observation_time"),
+            "observed": _unix(el.findtext("observation_time")),
+            "lat": lat, "lon": lon,
+            "altitude_ft": _float(el.findtext("altitude_ft_msl")),
+            "aircraft": el.findtext("aircraft_ref"),
+            "urgent": kind.startswith("Urgent"),
+            "turbulence": turbulence[0] if turbulence else None,
+            "icing": icing[0] if icing else None,
+            "raw": el.findtext("raw_text"),
+        })
+    return reports
+
+
+def pireps_along_route(path: list, corridor_nm: float = PIREP_CORRIDOR_NM) -> list:
+    """The pilot reports of the last PIREP_MAX_AGE_S within `corridor_nm`
+    of the route flown through `path` [(lat, lon)], at or under
+    PIREP_MAX_ALT_FT, in along-route order, urgent ones first: each
+    {"observed_at", "altitude_ft", "aircraft", "urgent", "turbulence",
+    "icing", "raw", "along_track_nm"}."""
+    from .geo import along_track_distance_nm, cross_track_distance_nm, distance_nm
+
+    now = time.time()
+    found = []
+    for report in _dataset("pireps"):
+        if report["observed"] is None or now - report["observed"] > PIREP_MAX_AGE_S:
+            continue
+        if report["altitude_ft"] is not None and report["altitude_ft"] > PIREP_MAX_ALT_FT:
+            continue
+        nearest = None
+        offset = 0.0
+        for a, b in pairwise(path):
+            along = along_track_distance_nm(report["lat"], report["lon"], a, b)
+            leg_nm = distance_nm(*a, *b)
+            if -corridor_nm <= along <= leg_nm + corridor_nm and abs(cross_track_distance_nm(report["lat"], report["lon"], a, b)) <= corridor_nm:
+                nearest = offset + max(0.0, min(along, leg_nm))
+                break
+            offset += leg_nm
+        if nearest is None:
+            continue
+        found.append({**{k: v for k, v in report.items() if k not in ("observed", "lat", "lon")}, "along_track_nm": round(nearest, 1)})
+    return sorted(found, key=lambda r: (not r["urgent"], r["along_track_nm"]))
+
+
+# --- G-AIRMETs ---
+
+#: The G-AIRMET hazards a VFR flight is told of, in words. High-level
+#: turbulence (TURB-HI, above FL180) and the freezing-level contours are
+#: not: the one is above it, the others lines, not areas.
+GAIRMET_HAZARDS = {
+    "IFR": "IFR conditions",
+    "MT_OBSC": "Mountains obscured",
+    "TURB-LO": "Turbulence",
+    "ICE": "Icing",
+    "LLWS": "Low-level wind shear",
+    "SFC_WND": "Strong surface winds",
+}
+#: A G-AIRMET is a snapshot valid at its time, three hours apart: one is
+#: told when it is valid within this of some time of the flight.
+GAIRMET_SNAPSHOT_S = 90 * 60
+
+
+def _parse_gairmets(xml_bytes: bytes) -> list:
+    advisories = []
+    for el in ET.fromstring(xml_bytes).iter("GAIRMET"):
+        hazard = el.find("hazard")
+        kind = hazard.get("type") if hazard is not None else None
+        if kind not in GAIRMET_HAZARDS or el.findtext("geometry_type") != "AREA":
+            continue
+        altitude = el.find("altitude")
+        low = altitude.get("min_ft_msl") if altitude is not None else None
+        points = [(_float(p.findtext("latitude")), _float(p.findtext("longitude"))) for p in el.iter("point")]
+        advisories.append({
+            "hazard": GAIRMET_HAZARDS[kind],
+            "severity": (hazard.get("severity") or None) if hazard is not None else None,
+            "due_to": el.findtext("due_to"),
+            "valid_at": el.findtext("valid_time"),
+            "valid": _unix(el.findtext("valid_time")),
+            # "FZL": from the freezing level, which the advisory gives
+            # beside it.
+            "altitude_low_ft": None if low in (None, "", "FZL", "SFC") else _float(low),
+            "from_freezing_level": low == "FZL",
+            "altitude_high_ft": _float(altitude.get("max_ft_msl")) if altitude is not None else None,
+            "coords": [(lat, lon) for lat, lon in points if lat is not None and lon is not None],
+        })
+    return advisories
+
+
+def gairmets_along_route(path: list, window: tuple) -> list:
+    """The G-AIRMETs (IFR, mountain obscuration, low-level turbulence,
+    icing, wind shear, strong surface winds) whose area the route flown
+    through `path` [(lat, lon)] crosses, valid at some time of the flight
+    `window` (start, end; UNIX seconds) give or take GAIRMET_SNAPSHOT_S:
+    one per hazard, the snapshot nearest the departure, each {"hazard",
+    "severity", "due_to", "valid_at", "altitude_low_ft",
+    "from_freezing_level", "altitude_high_ft"}."""
+    from shapely.geometry import LineString, Polygon
+
+    line = LineString([(lon, lat) for lat, lon in path])
+    start, end = window
+    nearest: dict = {}
+    for advisory in _dataset("gairmets"):
+        valid = advisory["valid"]
+        if valid is None or valid < start - GAIRMET_SNAPSHOT_S or valid > end + GAIRMET_SNAPSHOT_S:
+            continue
+        if len(advisory["coords"]) < 3:
+            continue
+        polygon = Polygon([(lon, lat) for lat, lon in advisory["coords"]])
+        if not polygon.is_valid:
+            polygon = polygon.buffer(0)
+        if not line.intersects(polygon):
+            continue
+        held = nearest.get(advisory["hazard"])
+        if held is None or abs(valid - start) < abs(held["valid"] - start):
+            nearest[advisory["hazard"]] = advisory
+    return [
+        {k: v for k, v in a.items() if k not in ("valid", "coords")}
+        for a in sorted(nearest.values(), key=lambda a: list(GAIRMET_HAZARDS.values()).index(a["hazard"]))
+    ]
+
+
 def _fetch_each(names, force: bool = False) -> None:
     """Every one of `names` attempted, then the first failure raised --
     one source down must not keep the others from being fetched."""
@@ -860,10 +1010,10 @@ def _fetch_each(names, force: bool = False) -> None:
 
 
 def preload() -> None:
-    """Fetches the three cache files and the current winds now -- a
+    """Fetches the cache files and the current winds now -- a
     briefing's worth of data for every route -- so a service's first
     pilot after a restart doesn't wait on the downloads."""
-    _fetch_each(("metars", "tafs", "airsigmets", "winds-06"))
+    _fetch_each(("metars", "tafs", "airsigmets", "pireps", "gairmets", "winds-06"))
 
 
 def refresh() -> None:
@@ -875,7 +1025,7 @@ def refresh() -> None:
     the held copy in place, to be served stale as before; the winds used
     to be written here by hand, and had no such fallback."""
     winds = [name for name in _DATASETS if name.startswith("winds-")] or ["winds-06"]
-    _fetch_each(("metars", "tafs", "airsigmets", *winds), force=True)
+    _fetch_each(("metars", "tafs", "airsigmets", "pireps", "gairmets", *winds), force=True)
 
 
 def forecast_hour(hours_ahead: float | None) -> str:

@@ -1090,7 +1090,7 @@
         "type": "object"
       },
       "Briefing": {
-        "description": "`weather_unavailable` names which of hazards/forecast/metars come\nfrom a call that failed rather than one that found nothing: an empty\n`hazards` must not read the same as \"no hazards reported\".",
+        "description": "`weather_unavailable` names which of hazards/forecast/metars/tfrs\ncome from a call that failed rather than one that found nothing: an\nempty `hazards` must not read the same as \"no hazards reported\".",
         "properties": {
           "airports": {
             "additionalProperties": {
@@ -1101,6 +1101,14 @@
           },
           "forecast": {
             "$ref": "#/components/schemas/Forecast"
+          },
+          "gairmets": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/GAirmet"
+            },
+            "title": "Gairmets",
+            "type": "array"
           },
           "hazards": {
             "items": {
@@ -1123,6 +1131,22 @@
             "title": "Metars",
             "type": "object"
           },
+          "pireps": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/Pirep"
+            },
+            "title": "Pireps",
+            "type": "array"
+          },
+          "tfrs": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/RouteTfr"
+            },
+            "title": "Tfrs",
+            "type": "array"
+          },
           "vfr_not_recommended": {
             "default": [],
             "items": {
@@ -1136,7 +1160,10 @@
               "enum": [
                 "hazards",
                 "forecast",
-                "metars"
+                "metars",
+                "tfrs",
+                "pireps",
+                "gairmets"
               ],
               "type": "string"
             },
@@ -2600,6 +2627,80 @@
           }
         },
         "title": "Frequency",
+        "type": "object"
+      },
+      "GAirmet": {
+        "description": "A G-AIRMET the route crosses during the flight\n(vfr.weather.gairmets_along_route): the hazard in words, its severity\nand cause, the time its snapshot is valid at, and its altitudes --\n`from_freezing_level` where it starts there.",
+        "properties": {
+          "altitude_high_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Altitude High Ft"
+          },
+          "altitude_low_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Altitude Low Ft"
+          },
+          "due_to": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Due To"
+          },
+          "from_freezing_level": {
+            "default": false,
+            "title": "From Freezing Level",
+            "type": "boolean"
+          },
+          "hazard": {
+            "title": "Hazard",
+            "type": "string"
+          },
+          "severity": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Severity"
+          },
+          "valid_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valid At"
+          }
+        },
+        "required": [
+          "hazard"
+        ],
+        "title": "GAirmet",
         "type": "object"
       },
       "GenerateNotesRequest": {
@@ -4265,6 +4366,91 @@
         "title": "PipelineStatus",
         "type": "object"
       },
+      "Pirep": {
+        "description": "A pilot report near the route (vfr.weather.pireps_along_route):\nwhen, how high, in what, the turbulence and icing it reports (the\nintensity, as reported: \"LGT\", \"MOD\", \"NEG\"), and its own words.",
+        "properties": {
+          "aircraft": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Aircraft"
+          },
+          "along_track_nm": {
+            "title": "Along Track Nm",
+            "type": "number"
+          },
+          "altitude_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Altitude Ft"
+          },
+          "icing": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Icing"
+          },
+          "observed_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observed At"
+          },
+          "raw": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Raw"
+          },
+          "turbulence": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Turbulence"
+          },
+          "urgent": {
+            "default": false,
+            "title": "Urgent",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "along_track_nm"
+        ],
+        "title": "Pirep",
+        "type": "object"
+      },
       "Plan": {
         "properties": {
           "aircraft": {
@@ -4565,6 +4751,164 @@
           "state"
         ],
         "title": "RetrainStarted",
+        "type": "object"
+      },
+      "RouteTfr": {
+        "description": "A TFR within a few miles of the route and in force at some time\nduring the flight: how far along the route it is, whether the route\ngoes through it, and whether it is in force now.",
+        "properties": {
+          "active_now": {
+            "title": "Active Now",
+            "type": "boolean"
+          },
+          "along_track_nm": {
+            "title": "Along Track Nm",
+            "type": "number"
+          },
+          "ceiling_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ceiling Ft"
+          },
+          "ceiling_ref": {
+            "anyOf": [
+              {
+                "enum": [
+                  "MSL",
+                  "AGL"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ceiling Ref"
+          },
+          "crosses": {
+            "title": "Crosses",
+            "type": "boolean"
+          },
+          "effective": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Effective"
+          },
+          "expires": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires"
+          },
+          "floor_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Floor Ft"
+          },
+          "floor_ref": {
+            "anyOf": [
+              {
+                "enum": [
+                  "MSL",
+                  "AGL"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Floor Ref"
+          },
+          "kind": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kind"
+          },
+          "notam_id": {
+            "title": "Notam Id",
+            "type": "string"
+          },
+          "purpose": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Purpose"
+          },
+          "rule": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rule"
+          },
+          "state": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "State"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          }
+        },
+        "required": [
+          "notam_id",
+          "along_track_nm",
+          "crosses",
+          "active_now"
+        ],
+        "title": "RouteTfr",
         "type": "object"
       },
       "Runway": {
@@ -4917,6 +5261,171 @@
           "corridors"
         ],
         "title": "Status",
+        "type": "object"
+      },
+      "Tfr": {
+        "description": "A TFR with its areas, for the map: a GeoJSON MultiPolygon.",
+        "properties": {
+          "ceiling_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ceiling Ft"
+          },
+          "ceiling_ref": {
+            "anyOf": [
+              {
+                "enum": [
+                  "MSL",
+                  "AGL"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ceiling Ref"
+          },
+          "effective": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Effective"
+          },
+          "expires": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires"
+          },
+          "floor_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Floor Ft"
+          },
+          "floor_ref": {
+            "anyOf": [
+              {
+                "enum": [
+                  "MSL",
+                  "AGL"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Floor Ref"
+          },
+          "geometry": {
+            "additionalProperties": true,
+            "title": "Geometry",
+            "type": "object"
+          },
+          "kind": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kind"
+          },
+          "notam_id": {
+            "title": "Notam Id",
+            "type": "string"
+          },
+          "purpose": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Purpose"
+          },
+          "rule": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rule"
+          },
+          "state": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "State"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          }
+        },
+        "required": [
+          "notam_id",
+          "geometry"
+        ],
+        "title": "Tfr",
+        "type": "object"
+      },
+      "Tfrs": {
+        "properties": {
+          "tfrs": {
+            "items": {
+              "$ref": "#/components/schemas/Tfr"
+            },
+            "title": "Tfrs",
+            "type": "array"
+          }
+        },
+        "required": [
+          "tfrs"
+        ],
+        "title": "Tfrs",
         "type": "object"
       },
       "TopOfClimb": {
@@ -7174,6 +7683,25 @@
           }
         },
         "summary": "Status"
+      }
+    },
+    "/api/tfrs": {
+      "get": {
+        "description": "Every temporary flight restriction in force or to come, for the\nmap: each NOTAM's areas, when, how high and why (vfr.tfr). A 502 when\ntfr.faa.gov does not answer, for the map to say so rather than draw\na sky with none.",
+        "operationId": "tfrs_api_tfrs_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Tfrs"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Tfrs"
       }
     },
     "/api/waypoints/in-view": {

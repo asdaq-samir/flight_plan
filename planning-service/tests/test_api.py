@@ -13,7 +13,7 @@ import json
 from fastapi.testclient import TestClient
 from vfr import airports
 from vfr import altitude as altitude_module
-from vfr import model_registry, weather
+from vfr import model_registry, tfr, weather
 from vfr.weather import WeatherServiceError
 
 from app.main import app
@@ -109,7 +109,7 @@ def test_status_reports_every_service_and_the_data_on_disk(monkeypatch):
     assert body["services"]["db"] == {"up": False, "detail": "HTTP 503"}
     assert body["pipeline"]["airflow_configured"] is False
     # Every weather source, the winds for each forecast period included.
-    assert {w["name"] for w in body["weather"]} == {"metars", "tafs", "airsigmets", "winds-06", "winds-12", "winds-24"}
+    assert {w["name"] for w in body["weather"]} == {"metars", "tafs", "airsigmets", "pireps", "gairmets", "winds-06", "winds-12", "winds-24"}
     for corridor in body["corridors"]:
         assert corridor["departure_ident"].isupper() and "by_rating" in corridor["labels"]
 
@@ -236,6 +236,52 @@ def test_the_briefing_forecast_is_read_over_the_flight(monkeypatch):
     assert resp.status_code == 200
     start = 1790341200.0  # 2026-09-25T13:00:00Z
     assert windows == [(start, start + 150 * 60 + 3600)]
+
+
+def test_the_briefing_tells_the_tfrs_pilot_reports_and_g_airmets_on_the_route(monkeypatch):
+    monkeypatch.setattr(weather, "hazards_along_route", lambda start, end: [])
+    monkeypatch.setattr(weather, "ceiling_visibility_along_route", lambda start, end, window=None: (
+        {"min_ceiling_ft": None, "min_visibility_sm": None, "stations": []}))
+    monkeypatch.setattr(weather, "metar_for_idents", lambda idents: {ident: None for ident in idents})
+    monkeypatch.setattr(airports, "get_runways", lambda ident: [])
+    monkeypatch.setattr(airports, "get_frequencies", lambda ident: [])
+    paths = []
+    monkeypatch.setattr(tfr, "along_route", lambda path, start, end: paths.append(path) or [{
+        "notam_id": "6/6664", "kind": "Security", "floor_ft": 0.0, "floor_ref": "AGL", "ceiling_ft": 400.0,
+        "ceiling_ref": "AGL", "effective": "2026-10-06T23:00:00Z", "expires": "2026-10-07T01:00:00Z",
+        "along_track_nm": 12.0, "crosses": True, "active_now": False, "geometry": {"type": "MultiPolygon"}}])
+    monkeypatch.setattr(weather, "pireps_along_route", lambda path: [{
+        "observed_at": "2026-10-04T04:07:00Z", "altitude_ft": 7000.0, "aircraft": "BE58", "urgent": False,
+        "turbulence": "MOD", "icing": None, "raw": "UA /OV ...", "along_track_nm": 40.0}])
+    monkeypatch.setattr(weather, "gairmets_along_route", lambda path, window: [{
+        "hazard": "Icing", "severity": "MOD", "due_to": "ICE", "valid_at": "2026-10-04T03:00:00Z",
+        "altitude_low_ft": None, "from_freezing_level": True, "altitude_high_ft": 22000.0}])
+
+    body = client.get("/api/briefing", params={"dep": "C81", "dest": "KDLH", "stops": "KMSN"}).json()
+
+    # Along the whole route, through its stop.
+    assert [len(path) for path in paths] == [3]
+    assert body["tfrs"][0]["notam_id"] == "6/6664" and body["tfrs"][0]["crosses"] and "geometry" not in body["tfrs"][0]
+    assert body["pireps"][0]["turbulence"] == "MOD"
+    assert body["gairmets"][0]["hazard"] == "Icing"
+
+
+def test_a_tfr_site_that_does_not_answer_is_said_not_taken_for_none(monkeypatch):
+    monkeypatch.setattr(weather, "hazards_along_route", lambda start, end: [])
+    monkeypatch.setattr(weather, "ceiling_visibility_along_route", lambda start, end, window=None: (
+        {"min_ceiling_ft": None, "min_visibility_sm": None, "stations": []}))
+    monkeypatch.setattr(weather, "metar_for_idents", lambda idents: {ident: None for ident in idents})
+    monkeypatch.setattr(airports, "get_runways", lambda ident: [])
+    monkeypatch.setattr(airports, "get_frequencies", lambda ident: [])
+
+    def down(*args):
+        raise tfr.TfrUnavailable("down")
+    monkeypatch.setattr(tfr, "along_route", down)
+    monkeypatch.setattr(tfr, "all_tfrs", down)
+
+    assert "tfrs" in client.get("/api/briefing", params={"dep": "C81", "dest": "KDLH"}).json()["weather_unavailable"]
+    resp = client.get("/api/tfrs")
+    assert resp.status_code == 502 and "tfr.faa.gov" in resp.json()["detail"]
 
 
 # --- / ---

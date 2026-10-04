@@ -487,7 +487,7 @@ def test_a_refresh_tries_every_source_and_raises_the_first_failure(mock_get, moc
     with pytest.raises(WeatherServiceError, match="metars down"):
         weather.refresh()
     fetched = {name for name, at in weather.dataset_status().items() if at is not None}
-    assert fetched == {"tafs", "airsigmets", "winds-06"}
+    assert fetched == {"tafs", "airsigmets", "pireps", "gairmets", "winds-06"}
 
 
 @patch("vfr.weather.requests.get")
@@ -501,3 +501,59 @@ def test_preload_fetches_the_current_winds_and_refresh_only_the_periods_held(moc
     weather.refresh()
     winds = sorted(c.kwargs["params"]["fcst"] for c in mock_get.call_args_list if c.args[0] == weather.WINDTEMP_URL)
     assert winds == ["06", "12"]
+
+
+# --- PIREPs and G-AIRMETs ---
+
+PIREP_XML = b"""<response><data>
+<AircraftReport><observation_time>{now}</observation_time><aircraft_ref>C172</aircraft_ref><latitude>42.5</latitude>
+  <longitude>-88.1</longitude><altitude_ft_msl>5500</altitude_ft_msl><turbulence_condition turbulence_intensity="MOD" />
+  <icing_condition icing_intensity="NEG" /><report_type>PIREP</report_type><raw_text>UA /OV ... /TB MOD</raw_text></AircraftReport>
+<AircraftReport><observation_time>{now}</observation_time><aircraft_ref>B738</aircraft_ref><latitude>42.6</latitude>
+  <longitude>-88.0</longitude><altitude_ft_msl>36000</altitude_ft_msl><report_type>PIREP</report_type><raw_text>UA FL360</raw_text></AircraftReport>
+<AircraftReport><observation_time>{now}</observation_time><latitude>54.0</latitude><longitude>-50.0</longitude>
+  <altitude_ft_msl>37000</altitude_ft_msl><report_type>AIREP</report_type><raw_text>ARP</raw_text></AircraftReport>
+<AircraftReport><observation_time>{now}</observation_time><latitude>42.5</latitude><longitude>-80.0</longitude>
+  <altitude_ft_msl>4000</altitude_ft_msl><report_type>Urgent PIREP</report_type><raw_text>UUA far east</raw_text></AircraftReport>
+</data></response>"""
+
+
+def test_the_pilot_reports_near_the_route_are_a_light_aeroplanes_not_the_airliners(monkeypatch):
+    from datetime import datetime, timezone
+
+    from vfr import weather
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z").encode()
+    reports = weather._parse_pireps(PIREP_XML.replace(b"{now}", now))
+    assert [r["aircraft"] for r in reports] == ["C172", "B738", None]   # the AIREP left out
+    monkeypatch.setattr(weather, "_dataset", lambda name: reports)
+    near = weather.pireps_along_route([(42.0, -88.0), (43.0, -88.0)])
+    assert [(r["aircraft"], r["turbulence"], r["icing"]) for r in near] == [("C172", "MOD", "NEG")]
+    assert near[0]["along_track_nm"] == pytest.approx(30.0, abs=1.0)
+
+
+GAIRMET_XML = b"""<response><data>
+<GAIRMET><valid_time>2026-10-04T15:00:00.000Z</valid_time><hazard type="ICE" severity="MOD" /><geometry_type>AREA</geometry_type>
+  <due_to>ICE</due_to><altitude min_ft_msl="FZL" max_ft_msl="16000" />
+  <area><point><longitude>-89</longitude><latitude>42</latitude></point><point><longitude>-87</longitude><latitude>42</latitude></point>
+  <point><longitude>-87</longitude><latitude>43</latitude></point><point><longitude>-89</longitude><latitude>43</latitude></point></area></GAIRMET>
+<GAIRMET><valid_time>2026-10-04T18:00:00.000Z</valid_time><hazard type="ICE" severity="MOD" /><geometry_type>AREA</geometry_type>
+  <due_to>ICE</due_to><altitude min_ft_msl="FZL" max_ft_msl="18000" />
+  <area><point><longitude>-89</longitude><latitude>42</latitude></point><point><longitude>-87</longitude><latitude>42</latitude></point>
+  <point><longitude>-87</longitude><latitude>43</latitude></point><point><longitude>-89</longitude><latitude>43</latitude></point></area></GAIRMET>
+<GAIRMET><valid_time>2026-10-04T15:00:00.000Z</valid_time><hazard type="TURB-HI" severity="MOD" /><geometry_type>AREA</geometry_type>
+  <area><point><longitude>-89</longitude><latitude>42</latitude></point><point><longitude>-87</longitude><latitude>42</latitude></point>
+  <point><longitude>-87</longitude><latitude>43</latitude></point></area></GAIRMET>
+</data></response>"""
+
+
+def test_the_g_airmets_the_route_crosses_are_one_per_hazard_the_snapshot_nearest_the_departure(monkeypatch):
+    from vfr import weather
+    advisories = weather._parse_gairmets(GAIRMET_XML)
+    assert len(advisories) == 2                                 # high-level turbulence left out
+    monkeypatch.setattr(weather, "_dataset", lambda name: advisories)
+    start = 1791126000.0                                          # 2026-10-04T14:20:00Z
+    found = weather.gairmets_along_route([(41.5, -88.0), (43.5, -88.0)], (start, start + 2 * 3600))
+    assert found == [{
+        "hazard": "Icing", "severity": "MOD", "due_to": "ICE", "valid_at": "2026-10-04T15:00:00.000Z",
+        "altitude_low_ft": None, "from_freezing_level": True, "altitude_high_ft": 16000.0,
+    }]

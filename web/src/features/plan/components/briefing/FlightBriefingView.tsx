@@ -19,6 +19,7 @@ import type { BriefingState } from "../../hooks/usePlan";
 import { altFt, clockTime, deg, describeFuel, describeSteps, describeTime } from "../../format";
 import { navLogRows, savedCheckpoints } from "../navlog/rows";
 import { RunwayRow } from "../RunwayRow";
+import { gairmetAltitudes, gairmetTitle, pirepConditions, tfrAltitudes, tfrTimes } from "../../../../lib/advisories";
 import { CATEGORY_RANK, categoryOf, colourOf } from "../../../../lib/map/flightCategory";
 
 interface Props {
@@ -91,6 +92,9 @@ const WEATHER_SOURCE_LABEL: Record<Briefing["weather_unavailable"][number], stri
   hazards: "SIGMETs",
   forecast: "the TAF forecast",
   metars: "current METARs",
+  tfrs: "TFRs",
+  pireps: "pilot reports",
+  gairmets: "G-AIRMETs",
 };
 
 interface Stretch {
@@ -320,11 +324,16 @@ export default function FlightBriefingView({
       || (a.visibility_sm ?? Infinity) - (b.visibility_sm ?? Infinity));
   const chosen = nav?.options.find(o => o.kind === nav.flown);
   const destFrequency = briefing ? primaryFrequency(briefing.airports[dest]?.frequencies ?? []) : null;
+  // The TFRs the route goes through while they are in force.
+  const tfrsCrossed = briefing?.tfrs.filter(t => t.crosses) ?? [];
   const summaries = {
     adverse: !briefing ? undefined
-      : unchecked("hazards") ? "Not checked"
-        : briefing.hazards.length === 0 ? "None along the route"
-          : `${briefing.hazards.length} SIGMET${briefing.hazards.length === 1 ? "" : "s"} or AIRMET${briefing.hazards.length === 1 ? "" : "s"}`,
+      : unchecked("hazards") && unchecked("gairmets") ? "Not checked"
+        : briefing.hazards.length + briefing.gairmets.length === 0 ? "None along the route"
+          : [
+            briefing.hazards.length && `${briefing.hazards.length} SIGMET${briefing.hazards.length === 1 ? "" : "s"}`,
+            briefing.gairmets.length && briefing.gairmets.map(g => g.hazard).join(", "),
+          ].filter(Boolean).join(" · "),
     current: !briefing ? undefined
       : unchecked("metars") ? "Not checked"
         : landings.map(ident => `${ident} ${briefing.metars[ident]?.flight_category ?? "no report"}`).join(" · "),
@@ -341,6 +350,10 @@ export default function FlightBriefingView({
       ? `${Math.abs(Math.round(chosen.tailwind_kt))} kt ${chosen.tailwind_kt >= 0 ? "tailwind" : "headwind"} on average`
       : stretches.some(st => st.wind) ? `${stretches.filter(st => st.wind).length} stretches of wind` : undefined,
     airports: !briefing ? undefined : destFrequency ? `${dest} ${destFrequency}` : `${dep} · ${dest}`,
+    check: !briefing ? "TFRs, NOTAMs and ATC delays"
+      : unchecked("tfrs") ? "TFRs not checked · NOTAMs and ATC delays"
+        : briefing.tfrs.length === 0 ? "No TFRs on the route · NOTAMs and ATC delays"
+          : `${briefing.tfrs.length} TFR${briefing.tfrs.length === 1 ? "" : "s"} near the route · NOTAMs and ATC delays`,
   };
 
   return (
@@ -367,27 +380,43 @@ export default function FlightBriefingView({
       <AccordionSection title="Adverse Conditions" summary={summaries.adverse}>
         {!briefing ? (
           <p className="text-muted-foreground">{briefingPendingMessage}</p>
-        ) : unchecked("hazards") ? (
+        ) : unchecked("hazards") && unchecked("gairmets") ? (
           <p className="text-amber-700 dark:text-amber-300">
-            SIGMET/AIRMET data could not be checked — aviationweather.gov didn’t respond. Verify separately before flight.
+            SIGMET and G-AIRMET data could not be checked — aviationweather.gov didn’t respond. Verify separately before flight.
           </p>
-        ) : briefing.hazards.length === 0 ? (
-          <p className="text-muted-foreground">No SIGMETs or AIRMETs reported along this route.</p>
+        ) : briefing.hazards.length + briefing.gairmets.length === 0 ? (
+          <p className="text-muted-foreground">No SIGMETs or G-AIRMETs along this route during the flight.</p>
         ) : (
-          // A row a SIGMET or AIRMET, as the rest of the briefing's lists
-          // are, marked with the warning triangle: it was an amber card
-          // each.
+          // A row a SIGMET or G-AIRMET, as the rest of the briefing's
+          // lists are, marked with the warning triangle: it was an amber
+          // card each. The G-AIRMETs replaced the text AIRMETs in 2025:
+          // the snapshot nearest the departure, one per hazard.
           <ListGroup>
             {briefing.hazards.map((h, i) => (
               <ListRow
-                key={i}
+                key={`s${i}`}
                 media={<TriangleAlert className="size-4 text-amber-600 dark:text-amber-400" aria-hidden />}
                 title={`${h.hazard ?? h.type ?? "Hazard"}${hazardAltitudeRange(h.altitude_low_ft, h.altitude_high_ft)
                   ? ` — ${hazardAltitudeRange(h.altitude_low_ft, h.altitude_high_ft)}` : ""}`}
                 description={h.raw && <span className="font-mono whitespace-pre-wrap">{h.raw}</span>}
               />
             ))}
+            {briefing.gairmets.map((g, i) => (
+              <ListRow
+                key={`g${i}`}
+                media={<TriangleAlert className="size-4 text-amber-600 dark:text-amber-400" aria-hidden />}
+                title={gairmetTitle(g)}
+                description={[gairmetAltitudes(g), g.due_to, g.valid_at && `G-AIRMET for ${clockTime(new Date(g.valid_at))}`]
+                  .filter(Boolean).join(" · ")}
+                data-testid="gairmet"
+              />
+            ))}
           </ListGroup>
+        )}
+        {unchecked("hazards") !== unchecked("gairmets") && (
+          <p className={cn("pt-2 text-amber-700 dark:text-amber-300", TEXT.detail)}>
+            {unchecked("hazards") ? "SIGMETs" : "G-AIRMETs"} could not be checked — verify separately before flight.
+          </p>
         )}
       </AccordionSection>
 
@@ -439,6 +468,34 @@ export default function FlightBriefingView({
               );
             })}
           </ListGroup>
+        )}
+        {/* The pilot reports near the route (AIM 7-1-5(d) puts them with
+            the current conditions): the last hour and a half's, at a light
+            aeroplane's altitudes, an urgent one first and in red. */}
+        {briefing && !unchecked("pireps") && (
+          <div className="pt-3" data-testid="pireps">
+            <ListGroup title="Pilot reports">
+              {briefing.pireps.length === 0 ? (
+                <ListRow title={<span className="text-muted-foreground">None near the route in the last 90 minutes</span>} />
+              ) : briefing.pireps.map((p, i) => (
+                <ListRow
+                  key={i}
+                  title={
+                    <span className={cn(p.urgent && "font-semibold text-red-700 dark:text-red-400")}>
+                      {[p.urgent ? "Urgent PIREP" : "PIREP", p.altitude_ft != null && `${altFt(p.altitude_ft)} ft`, p.aircraft].filter(Boolean).join(" · ")}
+                    </span>
+                  }
+                  description={
+                    <>
+                      {pirepConditions(p) && <span className="block">{pirepConditions(p)}</span>}
+                      {p.raw && <span className="block font-mono whitespace-pre-wrap">{p.raw}</span>}
+                    </>
+                  }
+                  value={`${Math.round(p.along_track_nm)} nm`}
+                />
+              ))}
+            </ListGroup>
+          </div>
         )}
       </AccordionSection>
 
@@ -548,11 +605,48 @@ export default function FlightBriefingView({
           certain operators -- in one place, each a link to where a pilot
           gets it. They were two sections that could only ever say "Not
           fetched here". */}
-      <AccordionSection title="Check before you fly" summary="NOTAMs, TFRs and ATC delays">
+      <AccordionSection
+        title="Check before you fly"
+        summary={summaries.check}
+        // A TFR the route goes through while it is in force is said on the
+        // section's title, as VFR not recommended is.
+        aside={tfrsCrossed.length > 0 ? (
+          <span className={cn("inline-flex items-center gap-1 font-semibold text-red-700 dark:text-red-400", TEXT.note)} data-testid="tfr-flag">
+            <TriangleAlert className="size-3.5" aria-hidden />
+            TFR on the route
+          </span>
+        ) : undefined}
+      >
+        {/* The TFRs within five miles of the route during the flight,
+            from tfr.faa.gov: one the route goes through in red. */}
+        {briefing && (
+          <div className="pb-3" data-testid="tfrs">
+            <ListGroup title="Temporary flight restrictions">
+              {unchecked("tfrs") ? (
+                <ListRow title={<span className="text-amber-700 dark:text-amber-300">tfr.faa.gov did not answer — check it before flight</span>} href="https://tfr.faa.gov" />
+              ) : briefing.tfrs.length === 0 ? (
+                <ListRow title={<span className="text-muted-foreground">None within 5 nm of the route during the flight</span>} />
+              ) : briefing.tfrs.map(t => (
+                <ListRow
+                  key={t.notam_id}
+                  media={<TriangleAlert className={cn("size-4", t.crosses ? "text-red-600 dark:text-red-400" : "text-amber-600 dark:text-amber-400")} aria-hidden />}
+                  title={<span className={cn(t.crosses && "font-semibold text-red-700 dark:text-red-400")}>{`TFR ${t.notam_id}${t.kind ? ` · ${t.kind}` : ""}`}</span>}
+                  description={
+                    <>
+                      {[tfrAltitudes(t), tfrTimes(t)].filter(Boolean).map(line => <span key={line} className="block">{line}</span>)}
+                      {(t.purpose ?? t.rule) && <span className="block">{t.purpose ?? t.rule}</span>}
+                    </>
+                  }
+                  value={t.crosses ? "On the route" : `${Math.round(t.along_track_nm)} nm along`}
+                  href={`https://tfr.faa.gov/tfr3/?page=detail_${t.notam_id.replace("/", "_")}`}
+                />
+              ))}
+            </ListGroup>
+          </div>
+        )}
         <ListGroup footer="The FAA's NOTAM and flow-control feeds need operator credentials, so these are not fetched here.">
           <ListRow title="NOTAMs" description="1800wxbrief.com" href="https://www.1800wxbrief.com" />
           <ListRow title="NOTAM search" description="notams.aim.faa.gov" href="https://notams.aim.faa.gov/notamSearch/" />
-          <ListRow title="Temporary flight restrictions" description="tfr.faa.gov" href="https://tfr.faa.gov" />
           <ListRow title="ATC delays" description="fly.faa.gov" href="https://www.fly.faa.gov" />
         </ListGroup>
       </AccordionSection>

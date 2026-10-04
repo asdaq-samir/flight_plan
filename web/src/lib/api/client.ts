@@ -5,7 +5,7 @@ import type {
   Aircraft, AircraftChoice, AircraftProfiles, AircraftRequest, AirportPlace, AirportSearch, AirportsInView, AltitudeChoice, Briefing,
   ChartInfo, ChartRefreshStarted, CheckpointDescriptionMessage, CheckpointNoteSaved, Checkpoints, Classification, Course, Detour,
   Flight, FlightSummary, ModelComparison, NarrativeMessage, NarrativeRequest, NavLogMessage, PickDeleted, PickSaved,
-  ClassBResponse, DevServices, DevServiceStarted, PicksResponse, Pilot, Rating, RetrainStarted, Role, SaveFlightRequest,
+  ClassBResponse, Tfrs, DevServices, DevServiceStarted, PicksResponse, Pilot, Rating, RetrainStarted, Role, SaveFlightRequest,
   SignInCapabilities,
   Status, StreamMessage, Totals, WaypointsInView,
 } from "./types";
@@ -231,6 +231,7 @@ export const api = {
    *  marker on hover: the planner has the airspace and both national
    *  weather caches in memory already. */
   classB: () => planner.GET("/api/class-b").then(data<ClassBResponse>).then(r => r.airports),
+  tfrs: () => planner.GET("/api/tfrs").then(data<Tfrs>).then(r => r.tfrs),
 
   /** Which of the services the developer console links to are
    *  running, and whether starting one is possible here at all. */

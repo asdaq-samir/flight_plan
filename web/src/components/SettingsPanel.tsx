@@ -55,6 +55,8 @@ function MapGroup() {
   const setBase = usePreferences(s => s.setBase);
   const setTac = usePreferences(s => s.setTac);
   const setClassB = usePreferences(s => s.setClassB);
+  const tfrs = usePreferences(s => s.tfrs);
+  const setTfrs = usePreferences(s => s.setTfrs);
   const waypoints = usePreferences(s => s.waypoints);
   const setWaypoints = usePreferences(s => s.setWaypoints);
   const keepOffline = usePreferences(s => s.keepOffline);
@@ -96,6 +98,11 @@ function MapGroup() {
           line and its two airports alone. */}
       <ListRow title="Waypoints">
         <TogglePill pressed={waypoints} onPressedChange={setWaypoints} icon={waypoints ? <Eye /> : <EyeOff />} label="Show" testId="waypoints-toggle" />
+      </ListRow>
+      {/* The temporary flight restrictions, from tfr.faa.gov: on unless
+          turned off, as a pilot must know of every one near the route. */}
+      <ListRow title="TFRs">
+        <TogglePill pressed={tfrs} onPressedChange={setTfrs} icon={tfrs ? <Eye /> : <EyeOff />} label="Show" testId="tfrs-toggle" />
       </ListRow>
       {/* The base chart along each route loaded, held for the air
           (useKeepOffline); how a keep goes is its toast. Over plain http

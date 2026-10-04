@@ -18,11 +18,11 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 
-from fastapi import APIRouter
-from vfr import airports, runway_wind, weather
+from fastapi import APIRouter, HTTPException
+from vfr import airports, runway_wind, tfr, weather
 
 from ..common import load_route
-from ..schemas import Briefing
+from ..schemas import Briefing, Tfrs
 
 #: How long past the arrival the forecast is read over, and the flight
 #: assumed when the caller does not say how long it is.
@@ -52,6 +52,18 @@ def _joined_forecast(forecasts: list[dict]) -> dict:
         "min_visibility_sm": _least(f["min_visibility_sm"] for f in forecasts),
         "stations": list({s["icaoId"]: s for f in forecasts for s in f["stations"]}.values()),
     }
+
+
+@router.get("/api/tfrs")
+def tfrs() -> Tfrs:
+    """Every temporary flight restriction in force or to come, for the
+    map: each NOTAM's areas, when, how high and why (vfr.tfr). A 502 when
+    tfr.faa.gov does not answer, for the map to say so rather than draw
+    a sky with none."""
+    try:
+        return {"tfrs": tfr.all_tfrs()}
+    except tfr.TfrUnavailable as err:
+        raise HTTPException(502, "tfr.faa.gov did not answer, so the map has no TFRs on it.") from err
 
 
 @router.get("/api/briefing")
@@ -86,6 +98,12 @@ def briefing(dep: str, dest: str, stops: str = "", depart: datetime | None = Non
         forecast_future = pool.submit(
             _along_hops, r, lambda a, b: weather.ceiling_visibility_along_route(a, b, window=window))
         metars_future = pool.submit(weather.metar_for_idents, list(idents))
+        path = [(a["lat"], a["lon"]) for a in r.airports]
+        tfrs_future = pool.submit(
+            tfr.along_route, path,
+            datetime.fromtimestamp(window[0], timezone.utc), datetime.fromtimestamp(window[1], timezone.utc))
+        pireps_future = pool.submit(weather.pireps_along_route, path)
+        gairmets_future = pool.submit(weather.gairmets_along_route, path, window)
         runways = {ident: pool.submit(airports.get_runways, ident) for ident in idents}
         frequencies = {ident: pool.submit(airports.get_frequencies, ident) for ident in idents}
 
@@ -113,6 +131,21 @@ def briefing(dep: str, dest: str, stops: str = "", depart: datetime | None = Non
         except weather.WeatherServiceError:
             metars = {ident: None for ident in idents}
             weather_unavailable.append("metars")
+        try:
+            tfrs = tfrs_future.result()
+        except tfr.TfrUnavailable:
+            tfrs = []
+            weather_unavailable.append("tfrs")
+        try:
+            pireps = pireps_future.result()
+        except weather.WeatherServiceError:
+            pireps = []
+            weather_unavailable.append("pireps")
+        try:
+            gairmets = gairmets_future.result()
+        except weather.WeatherServiceError:
+            gairmets = []
+            weather_unavailable.append("gairmets")
         runways = {ident: f.result() for ident, f in runways.items()}
         frequencies = {ident: f.result() for ident, f in frequencies.items()}
 
@@ -121,6 +154,9 @@ def briefing(dep: str, dest: str, stops: str = "", depart: datetime | None = Non
         "forecast": forecast,
         "metars": metars,
         "weather_unavailable": weather_unavailable,
+        "tfrs": tfrs,
+        "pireps": pireps,
+        "gairmets": gairmets,
         "vfr_not_recommended": weather.vfr_not_recommended_reasons(list(idents), metars, forecast),
         "airports": {
             ident: {"runways": runway_wind.with_winds(runways[ident], metars.get(ident), *where[ident]),

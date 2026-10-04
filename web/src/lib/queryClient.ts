@@ -140,6 +140,13 @@ export const chartQuery = queryOptions({
   queryKey: ["chart"], queryFn: () => api.chart(), staleTime: 60 * 60_000,
 });
 
+/** Every TFR, for the map: held five minutes, as the FAA's site updates
+ *  them every few. Not silent: a sky drawn with none when the FAA's site
+ *  is down must say so. */
+export const tfrsQuery = queryOptions({
+  queryKey: ["tfrs"], queryFn: () => api.tfrs(), staleTime: 5 * 60_000, refetchInterval: 10 * 60_000,
+});
+
 export const classBQuery = queryOptions({
   queryKey: ["classB"], queryFn: () => api.classB(), staleTime: 5 * 60_000, meta: { silent: true },
 });

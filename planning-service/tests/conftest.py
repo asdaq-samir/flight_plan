@@ -3,7 +3,7 @@ flyable altitude selection and an NDJSON reader."""
 import json
 
 import pytest
-from vfr import airports, faa_data, model_client
+from vfr import airports, faa_data, model_client, tfr, weather
 
 from app import detection, planning, scoring
 
@@ -43,6 +43,16 @@ def known_patterns(monkeypatch):
     """Every field's pattern 1,000 ft above it, without the FAA's airport
     file -- which a fresh checkout does not have, and would download."""
     monkeypatch.setattr(faa_data, "pattern_agl_ft", lambda ident, cache_dir: faa_data.PATTERN_AGL_FT)
+
+
+@pytest.fixture(autouse=True)
+def quiet_sky(monkeypatch):
+    """No TFRs, PIREPs or G-AIRMETs near any route, without asking
+    tfr.faa.gov or aviationweather.gov: a test about them stubs them
+    again itself."""
+    monkeypatch.setattr(tfr, "along_route", lambda path, start, end: [])
+    monkeypatch.setattr(weather, "pireps_along_route", lambda path: [])
+    monkeypatch.setattr(weather, "gairmets_along_route", lambda path, window: [])
 
 
 @pytest.fixture
