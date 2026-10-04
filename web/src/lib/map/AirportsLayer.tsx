@@ -14,6 +14,11 @@ import { boxOf, hovers } from "./view";
  *  circles over half a state. */
 const FROM_ZOOM = 8;
 
+/** A zoom further out the fields that report wear their chips already,
+ *  the rest nothing: the weather across a region at a glance, the chart
+ *  under it still readable. */
+const REPORTING_FROM_ZOOM = 7;
+
 /** From this zoom the fields with no report wear a chip too, in the
  *  grey of no report: the sectional's own scale, where they are a
  *  handful on the screen rather than every strip in half a state.
@@ -24,7 +29,8 @@ const NO_REPORT_FROM_ZOOM = 10;
 const TARGET_RADIUS = 22;
 
 /**
- * The chart's own airports, made tappable, from zoom 8 in: each one that
+ * The chart's own airports, made tappable, from zoom 8 in -- the ones
+ * that report from zoom 7: each one that
  * reports its weather wears a chip, its ident in its METAR's flight
  * category's colour, as the route's own airports and the Class B ones
  * do; from zoom 10 every other landing field one in the grey of no
@@ -65,6 +71,9 @@ export function AirportsLayer({ selected, onSelect, exclude, route }: {
   useMapEvents(handlers);
   const zoom = easingTo ?? view.zoom;
   const near = zoom >= FROM_ZOOM;
+  const reports = zoom >= REPORTING_FROM_ZOOM;
+  // At zoom 7 the view asks for the fields that report alone.
+  const reportingOnly = view.zoom < FROM_ZOOM;
   // The fields along the route that report, asked for once the route is
   // drawn: zoomed in anywhere on it, their chips are already here, where
   // they used to wait for the zoom to settle and then behind its tiles.
@@ -79,9 +88,9 @@ export function AirportsLayer({ selected, onSelect, exclude, route }: {
     meta: { silent: true },
   });
   const { data: inView } = useQuery({
-    queryKey: ["airportsInView", view.key],
-    queryFn: () => api.airportsInView(view.box),
-    enabled: view.zoom >= FROM_ZOOM,
+    queryKey: ["airportsInView", view.key, reportingOnly],
+    queryFn: () => api.airportsInView({ ...view.box, reporting: reportingOnly }),
+    enabled: view.zoom >= REPORTING_FROM_ZOOM,
     staleTime: 10 * 60_000,
     placeholderData: keepPreviousData,
     meta: { silent: true },
@@ -97,7 +106,7 @@ export function AirportsLayer({ selected, onSelect, exclude, route }: {
   }, [alongRoute, inView, view.box]);
   return (
     <Pane name="airports" style={{ zIndex: 450 }}>
-      {near && data.filter(a => !exclude.has(a.ident)).map((a: AirportPin) => (a.flight_category || zoom >= NO_REPORT_FROM_ZOOM ? (
+      {reports && data.filter(a => !exclude.has(a.ident) && (near || a.flight_category)).map((a: AirportPin) => (a.flight_category || zoom >= NO_REPORT_FROM_ZOOM ? (
         <Marker
           key={a.ident} position={[a.lat, a.lon]} icon={airportIcon(colourOf(a.flight_category), a.ident)}
           eventHandlers={{ click: e => { L.DomEvent.stopPropagation(e); onSelect(a.ident); } }}
