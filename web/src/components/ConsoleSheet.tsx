@@ -4,7 +4,7 @@ import { cn } from "cn";
 import { useDetentDrag } from "../hooks/use-detent-drag";
 import { useKeyboardInset, useSafeArea, useVisualHeight, useWindowHeight } from "../hooks/use-viewport";
 import { DialogOverlay, DialogPortal } from "./ui/dialog";
-import { GLASS_SHEET, SHEET_DRAGGING, SHEET_INSET, SHEET_INSET_RADIUS, SHEET_MARGIN, SHEET_RESHAPE, SHEET_SETTLE } from "./mapChrome";
+import { GLASS_SHEET, GLASS_SHEET_FULL, SHEET_DRAGGING, SHEET_INSET, SHEET_INSET_RADIUS, SHEET_MARGIN, SHEET_RESHAPE, SHEET_SETTLE } from "./mapChrome";
 
 export type ConsoleDetent = "medium" | "large";
 
@@ -49,15 +49,18 @@ export default function ConsoleSheet({
   const room = keyboard || visualHeight < windowHeight - 1
     ? visualHeight - Math.round(safe.top) - SHEET_MARGIN
     : windowHeight - Math.round(fromBottom ? safe.top : safe.bottom) - SHEET_MARGIN;
-  const detents = { closed: 0, medium: Math.round(room / 2), large: room };
+  // In from its own edge as from the far one (SHEET_INSET).
+  const detents = { closed: 0, medium: Math.round(room / 2), large: room - SHEET_INSET };
   const [dragged, setDragged] = useState<number | null>(null);
   const shown = dragged ?? detents[detent];
   const { startDrag, swallow } = useDetentDrag({
     detents, shown, fromBottom, setDragged,
     onRelease: next => (next === "closed" ? onOpenChange(false) : onDetentChange(next)),
   });
-  const shape = shown >= (detents.medium + detents.large) / 2 ? "edge" : "inset";
-  const gap = shape === "inset" ? SHEET_INSET : 0;
+  // In from the screen's edges at every height, as the map's panel is;
+  // nearer all the way up than half, its glass nearly whole.
+  const nearFull = shown >= (detents.medium + detents.large) / 2;
+  const gap = SHEET_INSET;
   // Under half it slides toward its edge, as a sheet being put away does,
   // rather than shrinking.
   const slide = Math.max(0, detents.medium - shown);
@@ -83,7 +86,7 @@ export default function ConsoleSheet({
         <DialogOverlay className="bg-black/20" />
         <DialogPrimitive.Content
           data-slot="console-sheet" data-testid="console-sheet"
-          data-detent={detent} data-shape={shape === "inset" ? "inset" : undefined} data-edge={edge}
+          data-detent={detent} data-shape="inset" data-edge={edge}
           onCloseAutoFocus={onCloseAutoFocus}
           // A toast is not "outside" (see SheetContent): tapping its close
           // button closed this instead of the toast.
@@ -95,14 +98,14 @@ export default function ConsoleSheet({
             left: gap, right: gap,
             ...(fromBottom ? { bottom: keyboard ? keyboard + gap : gap } : { top: gap }),
             height: Math.max(shown, detents.medium),
-            borderRadius: shape === "inset" ? SHEET_INSET_RADIUS : fromBottom ? "10px 10px 0 0" : "0 0 10px 10px",
+            borderRadius: SHEET_INSET_RADIUS,
             transform: slide ? `translateY(${fromBottom ? slide : -slide}px)` : undefined,
             transition: dragged === null ? `${SHEET_SETTLE}, transform 0.5s cubic-bezier(0.32, 0.72, 0, 1)` : SHEET_RESHAPE,
             [fromBottom ? "paddingBottom" : "paddingTop"]: pad,
           }}
           className={cn(
             "fixed z-50 flex flex-col overflow-clip text-card-foreground outline-none",
-            dragged !== null ? SHEET_DRAGGING : shape === "inset" ? GLASS_SHEET : "bg-card shadow-lg",
+            dragged !== null ? SHEET_DRAGGING : nearFull ? GLASS_SHEET_FULL : GLASS_SHEET,
             "duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] data-[state=open]:animate-in data-[state=closed]:animate-out",
             fromBottom
               ? "data-[state=open]:slide-in-from-bottom data-[state=closed]:slide-out-to-bottom"

@@ -5,7 +5,7 @@ import { useIsMobile } from "../hooks/use-mobile";
 import { useNavEdge } from "../hooks/use-nav-edge";
 import { useKeyboardInset, useSafeArea, useVisualHeight, useWindowHeight } from "../hooks/use-viewport";
 import {
-  GLASS, GLASS_SHEET, MATERIAL, PanelHalfContext, SHEET_DRAGGING, SHEET_INSET, SHEET_INSET_RADIUS, SHEET_MARGIN, SHEET_RESHAPE,
+  GLASS, GLASS_SHEET, GLASS_SHEET_FULL, MATERIAL, PanelHalfContext, SHEET_DRAGGING, SHEET_INSET, SHEET_INSET_RADIUS, SHEET_MARGIN, SHEET_RESHAPE,
   SHEET_SETTLE, type MapInsets, type PanelState,
 } from "./mapChrome";
 
@@ -126,25 +126,26 @@ export default function MapPanel({ label, top, controls, notices, compact, child
   // toolbar taking a share of the screen.
   const [bodyNeeds, setBodyNeeds] = useState<number | null>(null);
   const detents = useMemo<Record<PanelState, number>>(() => {
-    const full = Math.max(peek, room);
+    // A phone's sheet in from its own edge (SHEET_INSET) as from the far
+    // one: eight clear of the status bar all the way up.
+    const full = Math.max(peek, room - (onPhone ? SHEET_INSET : 0));
     const half = Math.max(peek, Math.round(room / 2), bodyNeeds === null ? 0 : peek + bodyNeeds);
     return { peek, half: Math.min(half, full), full };
-  }, [peek, room, bodyNeeds]);
+  }, [peek, room, bodyNeeds, onPhone]);
 
   // A drag on the grabber or the head follows the finger, and lets go to
   // the detent it was heading for (useDetentDrag).
   const shown = dragged ?? detents[state];
-  // A phone's panel takes Maps' three shapes: the capsule at rest; in
-  // from the edges, every corner round, up to half way and while dragged
-  // there; on the edges nearer the top -- where it was the one shape at
-  // every height, a slab across the screen from half way.
-  const shape: "capsule" | "inset" | "edge" = capsule ? "capsule"
-    : shown >= (detents.half + detents.full) / 2 ? "edge" : "inset";
+  // A phone's panel takes Maps' shapes: the capsule at rest, and out of
+  // it a sheet in from the edges, every corner round, at every height --
+  // all the way up as well, where it was a slab across the screen.
+  const shape: "capsule" | "inset" = capsule ? "capsule" : "inset";
   const geometry = {
     capsule: { side: CAPSULE_INSET, gap: capsuleGap, radius: `${headHeight / 2}px` },
     inset: { side: SHEET_INSET, gap: SHEET_INSET, radius: `${SHEET_INSET_RADIUS}px` },
-    edge: { side: 0, gap: 0, radius: fromBottom ? "10px 10px 0 0" : "0 0 10px 10px" },
   }[shape];
+  // Nearer all the way up than half, its glass nearly whole.
+  const nearFull = shown >= (detents.half + detents.full) / 2;
   const { startDrag, swallow } = useDetentDrag({ detents, shown, fromBottom, onRelease: onStateChange, setDragged });
 
   // What it covers of the map at rest, for the map to fit a route clear
@@ -223,19 +224,17 @@ export default function MapPanel({ label, top, controls, notices, compact, child
         // scrolled by a script, and a row brought into view in the body
         // scrolled the whole panel, its head up out of sight.
         "fixed z-40 flex flex-col overflow-clip text-foreground",
-        // Liquid Glass at rest and at half, as Maps' is: the chart through
-        // it, its rim lit, its own shadow -- the half sheet a frostier pane
-        // of it, for a nav log read on it. All the way out, opaque.
-        capsule ? GLASS : onPhone && dragged !== null ? SHEET_DRAGGING : onPhone && shape === "inset" ? GLASS_SHEET : MATERIAL,
-        onPhone
-          ? shape === "edge" && (fromBottom
-            ? "shadow-[0_-2px_20px_rgba(0,0,0,0.1)] dark:shadow-[0_-2px_20px_rgba(0,0,0,0.4)]"
-            : "shadow-[0_2px_20px_rgba(0,0,0,0.1)] dark:shadow-[0_2px_20px_rgba(0,0,0,0.4)]")
-          : cn(
-            "left-[max(1rem,env(safe-area-inset-left))] w-[24rem]",
-            !capsule && "rounded-[10px] shadow-[0_2px_10px_rgba(0,0,0,0.12)] ring-1 ring-black/5 dark:shadow-[0_2px_10px_rgba(0,0,0,0.45)] dark:ring-white/10",
-            fromBottom ? "bottom-[max(0.5rem,env(safe-area-inset-bottom))]" : "top-[max(0.5rem,env(safe-area-inset-top))]",
-          ),
+        // Liquid Glass at every height, as Maps' is: the chart through it,
+        // its rim lit, its own shadow -- the sheet a frostier pane of it,
+        // for a nav log read on it, and all the way out nearly whole.
+        capsule ? GLASS
+          : !onPhone ? MATERIAL
+            : dragged !== null ? SHEET_DRAGGING : nearFull ? GLASS_SHEET_FULL : GLASS_SHEET,
+        !onPhone && cn(
+          "left-[max(1rem,env(safe-area-inset-left))] w-[24rem]",
+          !capsule && "rounded-[10px] shadow-[0_2px_10px_rgba(0,0,0,0.12)] ring-1 ring-black/5 dark:shadow-[0_2px_10px_rgba(0,0,0,0.45)] dark:ring-white/10",
+          fromBottom ? "bottom-[max(0.5rem,env(safe-area-inset-bottom))]" : "top-[max(0.5rem,env(safe-area-inset-top))]",
+        ),
       )}
     >
       {/* The head, dragged as the grabber is: the grabber first on a sheet
