@@ -6390,7 +6390,7 @@
     },
     "/api/airports/in-view": {
       "get": {
-        "description": "The landing fields inside the map's view, the biggest first --\nat most `limit` of them, since a whole state holds thousands and the\nmap only lays a tap target over each -- with each one's flight\ncategory from its METAR, for a weather chip on the ones that report.\nThe METARs are the national cache already in memory; with the\nweather service out the fields come back without, as fields with no\nstation do. With `reporting`, only the fields that report, before\nthe limit: what the map asks once for a whole route's box, so its\nchips are there before the pilot zooms in on any of it.",
+        "description": "The landing fields inside the map's view, the ones that report\nfirst and then the biggest -- at most `limit` of them, since a whole\nstate holds thousands and the map only lays a tap target over each --\nwith each one's flight category from its METAR, for a weather chip on\nthe ones that report: the limit drops small fields with nothing to\nshow, never a chip a pilot saw a zoom further out.\nThe METARs are the national cache already in memory; with the\nweather service out the fields come back without, as fields with no\nstation do. With `reporting`, only the fields that report, before\nthe limit: what the map asks once for a whole route's box, so its\nchips are there before the pilot zooms in on any of it.",
         "operationId": "airports_in_view_api_airports_in_view_get",
         "parameters": [
           {

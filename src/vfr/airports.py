@@ -223,13 +223,17 @@ def find_place(ident: str, cache_path: Path = DEFAULT_CACHE_PATH) -> dict | None
 
 
 def places_in(south: float, west: float, north: float, east: float, limit: int = 300,
-              cache_path: Path = DEFAULT_CACHE_PATH, only: set | None = None) -> list[dict]:
+              cache_path: Path = DEFAULT_CACHE_PATH, only: set | None = None,
+              first: set | None = None) -> list[dict]:
     """The landing fields inside a box, the biggest first, at most
     `limit` of them -- what the map lays its tap targets over, so a tap
     on an airport printed on the chart opens its card. Zoomed out the
     box holds thousands, and the small ones are what the limit drops.
     `only`, OurAirports idents, keeps those alone before the limit: the
-    fields that report their weather, along a whole route."""
+    fields that report their weather, along a whole route. `first` puts
+    those ahead of the rest before the limit: the fields that report,
+    so a busy box's limit drops small fields with no weather to show,
+    never a small field's weather chip."""
     df = _us_airports(cache_path)
     inside = df[
         df["type"].isin(list(_FIELD_KINDS))
@@ -239,10 +243,11 @@ def places_in(south: float, west: float, north: float, east: float, limit: int =
     if only is not None:
         inside = inside[inside["ident"].isin(only)]
     rank = inside["type"].map({kind: i for i, kind in enumerate(_FIELD_KINDS)})
+    behind = ~inside["ident"].isin(first) if first else False
     # One per ident: OurAirports lists a few fields twice under the same
     # local code (an old record and its successor), and the map keys its
     # targets on it.
-    ordered = inside.assign(_rank=rank).sort_values(["_rank", "_display_ident"])
+    ordered = inside.assign(_behind=behind, _rank=rank).sort_values(["_behind", "_rank", "_display_ident"])
     chosen = ordered.drop_duplicates("_display_ident").head(limit)
     return [_place_of(row) for _, row in chosen.iterrows()]
 

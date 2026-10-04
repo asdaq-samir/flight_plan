@@ -192,6 +192,10 @@ def test_the_places_in_a_box_are_landing_fields_biggest_first(us_airports_csv):
     assert [p["ident"] for p in places_in(40, -95, 47, -87, limit=1, cache_path=us_airports_csv)] == ["KMSP"]
     # Only the ones asked for, before the limit: KMSP would come first.
     assert [p["ident"] for p in places_in(40, -95, 47, -87, limit=1, cache_path=us_airports_csv, only={"KDLH"})] == ["KDLH"]
+    # The ones that report ahead of the rest, then by size: the limit
+    # drops the bigger fields with no weather, not the small one with it.
+    first = places_in(40, -95, 47, -87, limit=2, cache_path=us_airports_csv, first={"KC81"})
+    assert [p["ident"] for p in first] == ["C81", "KMSP"]
 
 
 def test_a_search_finds_a_word_of_the_name_not_only_its_start(us_airports_csv):

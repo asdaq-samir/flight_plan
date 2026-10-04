@@ -265,6 +265,7 @@ def test_a_failure_is_held_for_the_dev_console_with_its_words(monkeypatch):
     def down(*args, **kwargs):
         raise WeatherServiceError("aviationweather.gov metars unavailable: 503")
 
+    monkeypatch.setattr(weather, "reporting_idents", down)
     monkeypatch.setattr(weather, "metar_for_idents", down)
     client.get("/api/airports/in-view", params={"south": 42, "west": -89, "north": 43, "east": -88})
     monkeypatch.setattr(tfr, "all_tfrs", lambda: (_ for _ in ()).throw(tfr.TfrUnavailable("down")))
