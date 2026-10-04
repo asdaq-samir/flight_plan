@@ -11,7 +11,17 @@ import { settle, slow } from "./helpers";
  * and its tiles are pictures of a chart.
  */
 
+/** Every animation on the page finished (a spinner's, which never does,
+ *  left out): a sheet sliding in is glass over a moving map, and its
+ *  words were read against that. */
+async function atRest(page: Page) {
+  await page.evaluate(() => Promise.all(document.getAnimations()
+    .filter(a => a.effect?.getTiming().iterations !== Infinity).map(a => a.finished.catch(() => undefined))));
+  await page.waitForTimeout(300);
+}
+
 async function violations(page: Page, within?: string) {
+  await atRest(page);
   let axe = new AxeBuilder({ page })
     .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
     .exclude(".leaflet-pane")

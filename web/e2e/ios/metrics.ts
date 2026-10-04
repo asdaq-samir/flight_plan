@@ -267,14 +267,17 @@ export function componentFindings(page: Page): Promise<ComponentFinding[]> {
     document.body.append(theme);
     const radius = parseFloat(getComputedStyle(theme).borderTopLeftRadius);
     theme.remove();
-    const floats = ['[data-slot="drawer-content"][data-vaul-drawer-direction="bottom"]', '[data-slot="console-sheet"][data-shape="inset"]', '[data-slot="map-panel"]', '[data-slot="popover-content"]', '[data-slot="dialog-content"]',
+    const floats = ['[data-slot="drawer-content"][data-vaul-drawer-direction="bottom"]', '[data-slot="console-sheet"]', '[data-slot="map-panel"]', '[data-slot="popover-content"]', '[data-slot="dialog-content"]',
       '[data-slot="alert-dialog-content"]', ".leaflet-popup-content-wrapper", '[data-slot="item-group"].border', "[data-sonner-toast]"].join(", ");
     for (const box of document.querySelectorAll(floats)) {
       if (!on(box)) continue;
       // A sheet from the top of the screen is rounded at its bottom only.
       const r = Math.max(parseFloat(getComputedStyle(box).borderTopLeftRadius), parseFloat(getComputedStyle(box).borderBottomLeftRadius));
-      // The capsule a full pill, its corners half its height, as Maps'.
-      const shape = box.matches("[data-capsule]") ? box.getBoundingClientRect().height / 2 : box.matches('[data-shape="inset"]') ? 36 : radius;
+      // The capsule a full pill, its corners half its height, as Maps'; a
+      // phone's sheet (the map's panel, the console) 36, inset or on the
+      // screen's edges with its far corners round.
+      const sheet = box.matches('[data-slot="map-panel"][data-sheet], [data-slot="console-sheet"]');
+      const shape = box.matches("[data-capsule]") ? box.getBoundingClientRect().height / 2 : sheet ? 36 : radius;
       if (Math.abs(r - shape) > 0.5) found.push({ rule: `one radius, ${Math.round(shape)}`, what: name(box), measured: `${r}` });
     }
     for (const button of document.querySelectorAll<HTMLElement>('button, a[data-slot="button"]')) {

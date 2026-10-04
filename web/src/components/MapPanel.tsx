@@ -275,7 +275,10 @@ export default function MapPanel({ label, top, controls, notices, compact, child
             // The same glass all round from either edge. From the top, a
             // route's chip keeps its hit area (index.css), eleven under it,
             // clear of the grabber in the padding under it.
-            capsule ? cn("p-[9px]", !fromBottom && "has-[[data-testid=capsule-detail]]:pb-6")
+            // With a route's chip, twelve under it from the bottom: its
+            // 44-point hit area (index.css) reaches that far down, and the
+            // capsule clips what is past its edge.
+            capsule ? cn("p-[9px]", fromBottom ? "has-[[data-testid=capsule-detail]]:pb-3" : "has-[[data-testid=capsule-detail]]:pb-6")
               // No top row (a place's card alone): only the room the status
               // bar takes from the top of a phone's screen.
               : top == null ? (!fromBottom && onPhone ? "pt-[env(safe-area-inset-top)]" : undefined)

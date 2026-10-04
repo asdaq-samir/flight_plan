@@ -46,8 +46,10 @@ export function RouteCapsule({ title, detail, tone = "default", onDetail, leadin
           <button
             type="button" onClick={onDetail} data-testid="capsule-detail" data-tone={tone}
             className={cn(
-              // A note's size, the capsule a line thinner, as Maps' Options.
-              "max-w-full rounded-full px-2.5 py-px font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring", TEXT.note,
+              // A note's size, the capsule a line thinner, as Maps' Options;
+              // over the title, so its 44-point hit area (index.css) is its
+              // own where it reaches up across the route's line.
+              "relative z-10 max-w-full rounded-full px-2.5 py-px font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring", TEXT.note,
               tone === "destructive" ? "bg-destructive/12 text-destructive" : "bg-tint/12 text-tint",
             )}
           >
