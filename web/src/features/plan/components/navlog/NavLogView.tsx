@@ -29,6 +29,7 @@ import AccordionSection from "../../../../components/AccordionSection";
 import { Spinner } from "../../../../components/ui/spinner";
 import { BRIEFING_SECTIONS } from "../briefing/sections";
 import { isLegPoint, legOf, navLogRows, rowPoint, type NavLogRow, type RouteEnds } from "./rows";
+import LegWorkings from "./LegWorkings";
 import RouteProfileSection from "./RouteProfileSection";
 
 /** Every section of the drawer, the nav log's own first: what the
@@ -277,14 +278,18 @@ function LegLine({ leg }: { leg: Leg }) {
     ["Fuel", `${one(leg.fuel_gal)} gal`],
   ];
   return (
-    <dl className="mb-1.5 grid grid-cols-[repeat(auto-fill,minmax(3.75rem,1fr))] gap-x-2 gap-y-1 print:hidden">
-      {figures.map(([name, value]) => (
-        <div key={name}>
-          <dt className={TEXT.note}>{name}</dt>
-          <dd className={cn("text-foreground tabular-nums", TEXT.detail)}>{value}</dd>
-        </div>
-      ))}
-    </dl>
+    <div className="mb-1.5 space-y-1 print:hidden">
+      <dl className="grid grid-cols-[repeat(auto-fill,minmax(3.75rem,1fr))] gap-x-2 gap-y-1">
+        {figures.map(([name, value]) => (
+          <div key={name}>
+            <dt className={TEXT.note}>{name}</dt>
+            <dd className={cn("text-foreground tabular-nums", TEXT.detail)}>{value}</dd>
+          </div>
+        ))}
+      </dl>
+      {/* The same figures worked out, for a student to follow or try. */}
+      <LegWorkings leg={leg} />
+    </div>
   );
 }
 
