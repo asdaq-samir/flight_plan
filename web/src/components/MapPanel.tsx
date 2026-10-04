@@ -126,26 +126,29 @@ export default function MapPanel({ label, top, controls, notices, compact, child
   // toolbar taking a share of the screen.
   const [bodyNeeds, setBodyNeeds] = useState<number | null>(null);
   const detents = useMemo<Record<PanelState, number>>(() => {
-    // A phone's sheet in from its own edge (SHEET_INSET) as from the far
-    // one: eight clear of the status bar all the way up.
-    const full = Math.max(peek, room - (onPhone ? SHEET_INSET : 0));
+    const full = Math.max(peek, room);
     const half = Math.max(peek, Math.round(room / 2), bodyNeeds === null ? 0 : peek + bodyNeeds);
     return { peek, half: Math.min(half, full), full };
-  }, [peek, room, bodyNeeds, onPhone]);
+  }, [peek, room, bodyNeeds]);
 
   // A drag on the grabber or the head follows the finger, and lets go to
   // the detent it was heading for (useDetentDrag).
   const shown = dragged ?? detents[state];
-  // A phone's panel takes Maps' shapes: the capsule at rest, and out of
-  // it a sheet in from the edges, every corner round, at every height --
-  // all the way up as well, where it was a slab across the screen.
-  const shape: "capsule" | "inset" = capsule ? "capsule" : "inset";
+  // A phone's panel takes Maps' three shapes: the capsule at rest; in
+  // from the edges, every corner round, up to half way and while dragged
+  // there; and nearer the top on the screen's edges, as Maps' is all the
+  // way up -- its far corners as round as the half sheet's, the glass
+  // nearly whole.
+  const nearFull = shown >= (detents.half + detents.full) / 2;
+  const shape: "capsule" | "inset" | "edge" = capsule ? "capsule" : nearFull ? "edge" : "inset";
   const geometry = {
     capsule: { side: CAPSULE_INSET, gap: capsuleGap, radius: `${headHeight / 2}px` },
     inset: { side: SHEET_INSET, gap: SHEET_INSET, radius: `${SHEET_INSET_RADIUS}px` },
+    edge: {
+      side: 0, gap: 0,
+      radius: fromBottom ? `${SHEET_INSET_RADIUS}px ${SHEET_INSET_RADIUS}px 0 0` : `0 0 ${SHEET_INSET_RADIUS}px ${SHEET_INSET_RADIUS}px`,
+    },
   }[shape];
-  // Nearer all the way up than half, its glass nearly whole.
-  const nearFull = shown >= (detents.half + detents.full) / 2;
   const { startDrag, swallow } = useDetentDrag({ detents, shown, fromBottom, onRelease: onStateChange, setDragged });
 
   // What it covers of the map at rest, for the map to fit a route clear

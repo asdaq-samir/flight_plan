@@ -72,10 +72,10 @@ export const GLASS = "liquid-glass";
  *  panel and the console. */
 export const GLASS_SHEET = "liquid-glass [--glass-fill:62%]";
 
-/** And all the way up, nearly whole: still a pane floating in from the
- *  screen's edges with its rim lit, as at half -- the slab across the
- *  screen it turned into was heavy, the pilot found -- but the chart only
- *  faintly under a screenful of nav log. */
+/** And all the way up, on the screen's edges as Maps' sheet is, nearly
+ *  whole: its rim lit and its far corners round, as at half -- the opaque
+ *  slab it was read heavy, the pilot found -- but the chart only faintly
+ *  under a screenful of nav log. */
 export const GLASS_SHEET_FULL = "liquid-glass [--glass-fill:88%]";
 
 /** A sheet while a finger drags it: its fill nearly whole and no blur
@@ -93,7 +93,7 @@ export const SHEET_SETTLE = `height ${SHEET_CURVE}, ${SHEET_RESHAPE}`;
 
 /** Maps' medium sheet: in from the sides and its edge, every corner
  *  round, as the screen's own are -- the map's panel and the console's
- *  sheet, at every height. */
+ *  sheet up to half way, and their far corners all the way up. */
 export const SHEET_INSET = 8;
 export const SHEET_INSET_RADIUS = 36;
 

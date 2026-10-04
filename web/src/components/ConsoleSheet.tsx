@@ -49,18 +49,17 @@ export default function ConsoleSheet({
   const room = keyboard || visualHeight < windowHeight - 1
     ? visualHeight - Math.round(safe.top) - SHEET_MARGIN
     : windowHeight - Math.round(fromBottom ? safe.top : safe.bottom) - SHEET_MARGIN;
-  // In from its own edge as from the far one (SHEET_INSET).
-  const detents = { closed: 0, medium: Math.round(room / 2), large: room - SHEET_INSET };
+  const detents = { closed: 0, medium: Math.round(room / 2), large: room };
   const [dragged, setDragged] = useState<number | null>(null);
   const shown = dragged ?? detents[detent];
   const { startDrag, swallow } = useDetentDrag({
     detents, shown, fromBottom, setDragged,
     onRelease: next => (next === "closed" ? onOpenChange(false) : onDetentChange(next)),
   });
-  // In from the screen's edges at every height, as the map's panel is;
-  // nearer all the way up than half, its glass nearly whole.
+  // In from the screen's edges up to half way, as the map's panel is, and
+  // on them nearer all the way up, its glass nearly whole.
   const nearFull = shown >= (detents.medium + detents.large) / 2;
-  const gap = SHEET_INSET;
+  const gap = nearFull ? 0 : SHEET_INSET;
   // Under half it slides toward its edge, as a sheet being put away does,
   // rather than shrinking.
   const slide = Math.max(0, detents.medium - shown);
@@ -86,7 +85,7 @@ export default function ConsoleSheet({
         <DialogOverlay className="bg-black/20" />
         <DialogPrimitive.Content
           data-slot="console-sheet" data-testid="console-sheet"
-          data-detent={detent} data-shape="inset" data-edge={edge}
+          data-detent={detent} data-shape={nearFull ? undefined : "inset"} data-edge={edge}
           onCloseAutoFocus={onCloseAutoFocus}
           // A toast is not "outside" (see SheetContent): tapping its close
           // button closed this instead of the toast.
@@ -98,7 +97,8 @@ export default function ConsoleSheet({
             left: gap, right: gap,
             ...(fromBottom ? { bottom: keyboard ? keyboard + gap : gap } : { top: gap }),
             height: Math.max(shown, detents.medium),
-            borderRadius: SHEET_INSET_RADIUS,
+            borderRadius: !nearFull ? SHEET_INSET_RADIUS
+              : fromBottom ? `${SHEET_INSET_RADIUS}px ${SHEET_INSET_RADIUS}px 0 0` : `0 0 ${SHEET_INSET_RADIUS}px ${SHEET_INSET_RADIUS}px`,
             transform: slide ? `translateY(${fromBottom ? slide : -slide}px)` : undefined,
             transition: dragged === null ? `${SHEET_SETTLE}, transform 0.5s cubic-bezier(0.32, 0.72, 0, 1)` : SHEET_RESHAPE,
             [fromBottom ? "paddingBottom" : "paddingTop"]: pad,

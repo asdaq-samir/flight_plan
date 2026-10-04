@@ -22,8 +22,8 @@ test("plan page: the flight planning drawer opens the way the Model Training dra
 
   // The flight planning panel: the URL says briefing, and it is the
   // same panel in the same place -- a strip of map beside it from md
-  // up; on a phone the sheet, in from the screen's sides as Maps' is,
-  // all the way out as well.
+  // up; on a phone the sheet, the screen's width all the way out, as
+  // Maps' is.
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
   await page.getByTestId("sidebar-trigger-button").click();
@@ -33,7 +33,7 @@ test("plan page: the flight planning drawer opens the way the Model Training dra
   expect(Math.abs(box!.width - devBox!.width)).toBeLessThan(2);
   expect(Math.abs(box!.x - devBox!.x)).toBeLessThan(2);
   if (viewport.width >= 768) expect(box!.width).toBeLessThan(viewport.width);
-  else expect(Math.round(box!.width)).toBe(viewport.width - 2 * 8);
+  else expect(Math.round(box!.width)).toBe(viewport.width);
 
   // The panel's controls are the two inputs the log is computed from
   // -- the aeroplane and the departure time -- and nothing else of the
