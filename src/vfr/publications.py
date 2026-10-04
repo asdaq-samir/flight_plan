@@ -20,7 +20,6 @@ import os
 import threading
 import xml.etree.ElementTree as ET
 from datetime import date, timedelta
-from pathlib import Path
 
 import requests
 

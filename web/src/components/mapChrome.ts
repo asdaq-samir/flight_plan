@@ -14,7 +14,6 @@ import { create } from "zustand";
  * briefing).
  */
 export type PanelState = "peek" | "half" | "full";
-export const PANEL_STATES: PanelState[] = ["peek", "half", "full"];
 
 /** What the panel covers of the map at rest, in pixels from each edge,
  *  so the map can fit a route clear of it and keep its chart credit in

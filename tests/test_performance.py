@@ -61,9 +61,10 @@ def test_above_its_full_throttle_height_the_engine_makes_less_and_burns_less():
 
 
 def test_the_climb_falls_to_100_fpm_at_the_service_ceiling():
-    assert performance.climb_rate_fpm(C172, 0.0) == 730.0
-    assert performance.climb_rate_fpm(C172, 13500.0) == pytest.approx(100.0)
-    assert performance.climb_rate_fpm(C172, 30000.0) == performance.MIN_CLIMB_RATE_FPM
+    sea_level, ceiling = C172["climb_rate_fpm_sea_level"], C172["service_ceiling_ft"]
+    assert performance._climb_rate(sea_level, ceiling, 0.0) == 730.0
+    assert performance._climb_rate(sea_level, ceiling, 13500.0) == pytest.approx(100.0)
+    assert performance._climb_rate(sea_level, ceiling, 30000.0) == performance.MIN_CLIMB_RATE_FPM
 
 
 def test_a_climbs_minutes_are_the_straight_lines_integral():

@@ -54,7 +54,7 @@ def test_an_airports_card_names_its_class_tower_runways_radio_and_weather(monkey
     # Its lights, by the FAA's own identifier (DLH): turned on from the
     # cockpit, with no count of clicks of their own.
     assert body["lighting"] == ["Activate MIRL runway 09/27 - CTAF."]
-    assert body["pilot_controlled_lighting"] is True and body["standard_keying"] is True
+    assert body["standard_keying"] is True
 
 
 def test_a_field_with_no_tower_or_station_says_so_rather_than_failing(monkeypatch):

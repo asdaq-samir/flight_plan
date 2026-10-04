@@ -910,7 +910,8 @@ def pireps_along_route(path: list, corridor_nm: float = PIREP_CORRIDOR_NM) -> li
         for a, b in pairwise(path):
             along = along_track_distance_nm(report["lat"], report["lon"], a, b)
             leg_nm = distance_nm(*a, *b)
-            if -corridor_nm <= along <= leg_nm + corridor_nm and abs(cross_track_distance_nm(report["lat"], report["lon"], a, b)) <= corridor_nm:
+            beside = abs(cross_track_distance_nm(report["lat"], report["lon"], a, b)) <= corridor_nm
+            if -corridor_nm <= along <= leg_nm + corridor_nm and beside:
                 nearest = offset + max(0.0, min(along, leg_nm))
                 break
             offset += leg_nm

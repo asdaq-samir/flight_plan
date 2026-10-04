@@ -4,9 +4,8 @@ Description: >
   Deploys into an existing VPC (bring-your-own-network, a common constraint in
   real orgs, and it keeps this template focused on the application-level
   resources) -- ECS Fargate (Spring Boot API, nav-log-agent, crewai-agent,
-  and a self-hosted Airflow) behind an ALB, RDS PostgreSQL, a SageMaker
-  Endpoint for the trained model, and the Go Lambda "Retrain Trigger" behind
-  an HTTP API. Not yet deployed anywhere -- see docs/README-AWS.md's
+  and a self-hosted Airflow) behind an ALB, RDS PostgreSQL, and the Go
+  Lambda "Retrain Trigger" behind an HTTP API. Not yet deployed anywhere -- see docs/README-AWS.md's
   "Infrastructure as code" section for what has and hasn't been verified
   about this template specifically.
 
@@ -24,7 +23,6 @@ Metadata:
         Parameters:
           - WebappImageUri
           - PlanningServiceImageUri
-          - ModelServiceImageUri
           - NavLogAgentImageUri
           - CrewaiAgentImageUri
           - AirflowImageUri
@@ -35,11 +33,6 @@ Metadata:
           - DBAllocatedStorageGb
           - DBName
           - DBUsername
-      - Label:
-          default: SageMaker
-        Parameters:
-          - ModelArtifactS3Uri
-          - SageMakerInstanceType
       - Label:
           default: Gen AI (nav-log-agent / crewai-agent)
         Parameters:
@@ -78,9 +71,6 @@ Parameters:
   PlanningServiceImageUri:
     Type: String
     Description: Full ECR image URI for planning-service -- chart vision, checkpoint selection and the nav log. Internal only; webapp proxies to it and nothing else reaches it.
-  ModelServiceImageUri:
-    Type: String
-    Description: Full ECR image URI for model-service -- this is what SageMaker actually runs, see ModelArtifactS3Uri below.
   NavLogAgentImageUri:
     Type: String
     Description: Full ECR image URI for nav-log-agent.
@@ -104,13 +94,6 @@ Parameters:
     Type: String
     Default: vfr
 
-  ModelArtifactS3Uri:
-    Type: String
-    Description: s3://bucket/key to the trained model.tar.gz -- produced by pipeline-training's retrain(), once one exists (see docs/README.md's Status section on why none does yet).
-  SageMakerInstanceType:
-    Type: String
-    Default: ml.t2.medium
-
   AnthropicApiKeySecretArn:
     Type: String
     Description: ARN of an existing Secrets Manager secret holding the raw Anthropic API key as its secret value (plaintext, not JSON) -- used by nav-log-agent and crewai-agent.
@@ -120,7 +103,7 @@ Parameters:
 
   DataS3BucketName:
     Type: String
-    Description: S3 bucket holding pipeline data (candidates/features/labels in, trained models out) -- read and written by the SageMaker Processing/Training Jobs Airflow launches (airflow/dags/vfr_pipeline_aws_dag.py). Can be the same bucket ModelArtifactS3Uri's model.tar.gz lives in.
+    Description: S3 bucket holding pipeline data (candidates/features/labels in, trained models out) -- read and written by the SageMaker Processing/Training Jobs Airflow launches (airflow/dags/vfr_pipeline_aws_dag.py).
 
   LambdaCodeS3Bucket:
     Type: String
@@ -296,21 +279,13 @@ Resources:
   EcsTaskRole:
     Type: AWS::IAM::Role
     Properties:
-      Description: Assumed by the webapp and planning-service containers. planning-service scores routes through the SageMaker endpoint (vfr.model_client) and reads the data bucket.
+      Description: Assumed by the webapp and planning-service containers.
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
         Statement:
           - Effect: Allow
             Principal: { Service: ecs-tasks.amazonaws.com }
             Action: sts:AssumeRole
-      Policies:
-        - PolicyName: InvokeSageMakerEndpoint
-          PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
-              - Effect: Allow
-                Action: sagemaker:InvokeEndpoint
-                Resource: !Ref SageMakerEndpoint
 
   ChartRefreshTaskRole:
     Type: AWS::IAM::Role
@@ -422,26 +397,6 @@ Resources:
                   - ssmmessages:OpenControlChannel
                   - ssmmessages:OpenDataChannel
                 Resource: "*"
-
-  SageMakerExecutionRole:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: "2012-10-17"
-        Statement:
-          - Effect: Allow
-            Principal: { Service: sagemaker.amazonaws.com }
-            Action: sts:AssumeRole
-      Policies:
-        - PolicyName: ReadModelArtifact
-          PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
-              - Effect: Allow
-                Action: s3:GetObject
-                Resource: !Sub
-                  - "arn:aws:s3:::${BucketAndKey}"
-                  - BucketAndKey: !Select [1, !Split ["s3://", !Ref ModelArtifactS3Uri]]
 
   LambdaExecutionRole:
     Type: AWS::IAM::Role
@@ -663,10 +618,7 @@ Resources:
   # ---------------------------------------------------------------------
   # ECS Fargate -- planning-service (chart vision, checkpoints, nav log)
   #
-  # Fargate rather than SageMaker, unlike model-service: SageMaker's
-  # contract is /ping + /invocations for model inference, and this does
-  # I/O-heavy domain computation that *calls* a model rather than being
-  # one. It reads FAA sectional raster tiles, walks great circles, selects
+  # It reads FAA sectional raster tiles, walks great circles, selects
   # checkpoints and computes dead reckoning.
   #
   # No ALB listener rule and no public IP. The browser never reaches it;
@@ -707,10 +659,6 @@ Resources:
             # EcsTaskRole already carries the s3 permissions for it.
             - Name: VFR_DATA_S3_BUCKET
               Value: !Ref DataS3BucketName
-            - Name: SAGEMAKER_ENDPOINT_NAME
-              Value: !GetAtt SageMakerEndpoint.EndpointName
-              # Presence alone switches vfr.model_client from the local
-              # model-service HTTP call to SageMaker Runtime's InvokeEndpoint.
             - Name: CHART_TILES_URL
               Value: !Sub "https://${ChartTilesDistribution.DomainName}/tiles"
               # The map's tiles come from CloudFront, not from this
@@ -931,8 +879,8 @@ Resources:
       Memory: "1024"
       ExecutionRoleArn: !GetAtt EcsTaskExecutionRole.Arn
       # No task role: the agent calls no AWS API. Its nav log comes from
-      # planning-service over the private network, not from the
-      # SageMaker endpoint; its secrets arrive through the execution role.
+      # planning-service over the private network; its secrets arrive
+      # through the execution role.
       ContainerDefinitions:
         - Name: nav-log-agent
           Image: !Ref NavLogAgentImageUri
@@ -1179,32 +1127,6 @@ Resources:
         HostedZoneId: !GetAtt Alb.CanonicalHostedZoneID
 
   # ---------------------------------------------------------------------
-  # SageMaker -- serves model-service's image, per that service's own
-  # /ping + /invocations contract (see model-service/app/main.py).
-  # ---------------------------------------------------------------------
-  SageMakerModel:
-    Type: AWS::SageMaker::Model
-    Properties:
-      ExecutionRoleArn: !GetAtt SageMakerExecutionRole.Arn
-      PrimaryContainer:
-        Image: !Ref ModelServiceImageUri
-        ModelDataUrl: !Ref ModelArtifactS3Uri
-
-  SageMakerEndpointConfig:
-    Type: AWS::SageMaker::EndpointConfig
-    Properties:
-      ProductionVariants:
-        - VariantName: primary
-          ModelName: !GetAtt SageMakerModel.ModelName
-          InstanceType: !Ref SageMakerInstanceType
-          InitialInstanceCount: 1
-
-  SageMakerEndpoint:
-    Type: AWS::SageMaker::Endpoint
-    Properties:
-      EndpointConfigName: !GetAtt SageMakerEndpointConfig.EndpointConfigName
-
-  # ---------------------------------------------------------------------
   # Retrain Trigger -- infra/lambda-retrain-trigger (Go), behind an HTTP
   # API. Triggers vfr_pipeline on demand instead of waiting on Airflow's
   # own schedule.
@@ -1289,8 +1211,6 @@ Outputs:
   DatabaseSecretArn:
     Description: Fetch the actual generated password with `aws secretsmanager get-secret-value`.
     Value: !GetAtt Database.MasterUserSecret.SecretArn
-  SageMakerEndpointName:
-    Value: !GetAtt SageMakerEndpoint.EndpointName
   RetrainApiUrl:
     Value: !Sub "${RetrainApi.ApiEndpoint}/retrain"
   McpUrl:

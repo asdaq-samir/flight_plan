@@ -13,9 +13,9 @@ the whole model exists to answer.
 
 Split of responsibility, and why it falls this way:
 
-- model-service owns the model artifact and its pinned scikit-learn, and
-  stays /ping + /invocations + /routes, mirroring a SageMaker inference
-  container. This service never loads a model.
+- model-service owns the chart model's artifact and its pinned
+  scikit-learn, and scores the detections this service sends it
+  (/score-detections). This service never loads a model.
 - This service owns everything route-shaped: reading the chart along
   it, computing the nav log, and drawing it.
 
@@ -49,8 +49,8 @@ from .schemas import STREAM_MESSAGES, Index
 # Python's root logger defaults to WARNING, and uvicorn's own
 # --log-level only reaches its own uvicorn.access/uvicorn.error
 # loggers, not a plain logging.getLogger(__name__) anywhere else in the
-# process. Found while adding the timing lines in vfr.altitude,
-# vfr.model_client and app.routers.classb (2026-09-23) and running one
+# process. Found while adding the timing lines in vfr.altitude and
+# app.routers.classb (2026-09-23) and running one
 # live to see it -- nothing appeared. LOG_LEVEL, not a hardcoded INFO,
 # so a noisy deploy can be turned back down without a code change.
 logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO"))
@@ -167,8 +167,8 @@ tracing.instrument(app)
 @app.exception_handler(weather.WeatherServiceError)
 async def _weather_service_error(request: Request, exc: weather.WeatherServiceError):
     # One place, not one try/except per call site -- weather.py's
-    # functions are called from /api/plan, /api/navlog, /api/briefing
-    # and /api/altitude-breakdown alike, and a down or slow
+    # functions are called from /api/plan, /api/navlog and /api/briefing
+    # alike, and a down or slow
     # aviationweather.gov should read as "the weather source is
     # unavailable" everywhere, not a raw 500.
     errors.record_for(request, 502, str(exc))

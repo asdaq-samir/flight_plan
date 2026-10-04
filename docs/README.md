@@ -96,7 +96,7 @@ The system runs today as ten Docker services:
 | Service | Role |
 |---|---|
 | `webapp` | Spring Boot API — the public-facing route-planning service |
-| `model-service` | FastAPI model-serving endpoint (`/ping`, `/invocations`) |
+| `model-service` | FastAPI — serves the chart model's scores (`/score-detections`) |
 | `nav-log-agent` | LangGraph agent (MCP server) that assembles the full nav log and briefing |
 | `crewai-agent` | The same task, built in CrewAI, for framework comparison |
 | `db` | PostgreSQL + pgvector — application data and agent long-term memory |
@@ -193,9 +193,8 @@ service discovery at `planning-service.vfr-route.internal`.
   freshness, the model registry, collected corridors and their labels),
   a retrain run through Airflow, and the stock aircraft profiles the nav
   log's aircraft picker offers
-- `/api/altitude-breakdown` — the full reasoning behind a recommended
-  cruise altitude for any route; the nav log works the same floor and
-  ceiling out leg by leg (a Class B shelf caps only the legs under it)
+- Cruise altitudes — the nav log works the floor and ceiling out leg by
+  leg (a Class B shelf caps only the legs under it)
   and offers four plans of the legal altitudes -- the lowest, the
   highest, the fastest for the winds aloft, and the one that burns the
   least fuel, climb and cruise -- every climb flown on
@@ -219,21 +218,17 @@ service discovery at `planning-service.vfr-route.internal`.
   would mean handing this service the Docker socket, a far larger grant
   than it needs
 
-**`model-service`** — FastAPI model-serving endpoint.
+**`model-service`** — FastAPI, serving the chart model.
 
-- `/ping` (health) and `/invocations` (inference) — matches the SageMaker serving container contract
-- Real inference against whichever model `/invocations` is asked for: the
-  promoted model by default (loaded from `/opt/ml/model`, SageMaker's own
-  path, bind-mounted from `data/models/current`), or explicitly one of the
-  PyTorch/TensorFlow/Spark candidates `vfr.model_candidates` trained
-  (`data/models/candidates/<algo>`) — the planner only ever asks for the
-  promoted one; the Dev ML comparison shows how the rest measured up.
-  A promotion (the pipeline's, or the Dev console's retrain) writes new
-  files into that directory, and the service notices their timestamps
-  on its next request and serves the new model without a restart
-- Serves whichever precomputed feature stores exist in `FEATURES_DIR`, keyed by
-  route; an uncollected corridor returns 404 carrying the two commands that build
-  it, since collection is a batch job rather than an inference call
+- `/score-detections` — the chart model's score for each of the chart
+  reader's detections the planner sends, from the promoted model
+  (bind-mounted from `data/models/chart/current`); a 503 while none is
+  promoted, and the planner ranks by the palette's constants. A promotion
+  (the Dev console's retrain) writes new files into that directory, and
+  the service notices their timestamps on its next request and serves
+  the new model without a restart
+- `/ping` (health) — whether a chart model is promoted, and when it was
+  trained
 - Interactive API docs (a FastAPI default) at `http://localhost:8000/docs`, raw spec at `/openapi.json`
 
 **`springboot-app` (webapp)** — the public-facing route-planning API.
@@ -368,7 +363,6 @@ CloudFormation/Lambda reference, and the deploy runbook.
 | `nav-log-agent` | ECS Fargate, behind the same ALB (`/mcp/*`) |
 | `crewai-agent` | ECS Fargate task definition, run on demand |
 | `db` | RDS PostgreSQL |
-| `model-service` | SageMaker Endpoint |
 | `airflow` | ECS Fargate (self-hosted), EFS-backed metadata |
 | `pipeline-processing` / `pipeline-training` | SageMaker Processing/Training Jobs |
 | Model evaluation/promotion | SageMaker Model Registry pattern |
@@ -462,7 +456,7 @@ src/vfr/          shared Python package — pipeline.py, model_registry.py, navl
 airflow/dags/     the vfr_pipeline DAG (local) and vfr_pipeline_aws_dag.py (AWS, see README-AWS.md)
 docker/           Dockerfiles + requirements for ml / pipeline-processing / pipeline-training / airflow
                   (each including vfr's own list, src/requirements.txt)
-model-service/    FastAPI model-serving app (/ping, /invocations)
+model-service/    FastAPI app serving the chart model (/score-detections)
 springboot-app/   Spring Boot API (webapp) — routes, DB, calls model-service
 nav-log-agent/    LangGraph agent (MCP server) — assembles the full nav log + briefing
 crewai-agent/     the same task, built in CrewAI, for framework comparison
@@ -550,12 +544,12 @@ A request crosses four services, each with one job:
 browser (web/)   the map, the keyboard, the rows
   -> webapp        :8080  serves the page, proxies /api/planner/*, owns auth and the database
   -> planning-service    :8084  reads sectional tiles, great-circle geometry, checkpoint selection, nav log
-  -> model-service :8000  scores candidates (/invocations, SageMaker's contract)
+  -> model-service :8000  scores the chart's detections (/score-detections)
   -> db            :5432  pilots, flights, agent memory
 ```
 
 `planning-service` is a *client* of `model-service`, not a version of it — it
-calls `/invocations` when it needs a score. And despite its name it serves
+calls `/score-detections` when it needs a score. And despite its name it serves
 no pages; see [Services in detail](#services-in-detail).
 
 ### Notebooks
@@ -618,14 +612,14 @@ Six suites, split by what each can actually prove:
   METAR parsing and `vfr.airports`' runway/frequency lookups.
 - **`planning-service/tests/`** (pytest, its own suite) — the HTTP
   contract for the endpoints with no coverage anywhere else
-  (`/api/model-comparison`, `/api/checkpoints`' error translation,
-  `/api/altitude-breakdown`): status codes, response shape, and that a
-  `WeatherServiceError` anywhere underneath reaches the caller as a
-  clean `502`, not a raw `500`; plus that the committed `openapi.json`
+  (`/api/model-comparison`, `/api/checkpoints`' error translation):
+  status codes, response shape, and that a `WeatherServiceError`
+  anywhere underneath reaches the caller as a clean `502`, not a raw
+  `500`; plus that the committed `openapi.json`
   (which `web/` generates its API types from) matches the app.
-- **`model-service/tests/`** (pytest) — `/ping`, `/invocations` and the
-  reload of a newly promoted model, against real joblib and parquet
-  files in a temporary directory.
+- **`model-service/tests/`** (pytest) — `/ping`, `/score-detections` and
+  the reload of a newly promoted model, against real joblib files in a
+  temporary directory.
 - **`nav-log-agent/tests/`** and **`crewai-agent/tests/`** (pytest) — the
   agents' own logic with the database, planning-service and Claude
   mocked: what goes into the briefing prompt, that a failed narration is
@@ -738,9 +732,9 @@ empty commit:
 | `changes` | A path filter (`dorny/paths-filter`) telling both `build-images` and `docs` which service images a change could have touched. Runs on pull requests (where `build-images` uses it to build only the touched images) and on pushes to `main` (where `build-images` ignores it on purpose — main's images stay fully in sync with every dependency bump — but `docs` uses it to skip the three heavy `pdoc` steps below when nothing they document changed). |
 | `test-web` | `tsc --noEmit`, `vitest` and a production build over `web/` — filters, ordering, what counts as rated, and which leg leaves a checkpoint, all pure functions needing no browser |
 | `test-webapp` | `mvn test` — webapp's JUnit suite, including the Testcontainers Postgres test |
-| `e2e` | The browser suite (`web/e2e`, Playwright) against the stack a pilot uses — the webapp, the planner and the model service built from the commit, Postgres and Mailpit — under `docker-compose.ci.yml`, with the suite's own small trained model (`web/e2e/fixtures/model`) and the planner's reference data (about a gigabyte it fetches for itself) kept in the Actions cache between runs. Run on every push, and on a pull request that touches anything the stack is built from |
+| `e2e` | The browser suite (`web/e2e`, Playwright) against the stack a pilot uses — the webapp, the planner and the model service built from the commit, Postgres and Mailpit — under `docker-compose.ci.yml`, with the planner's reference data (about a gigabyte it fetches for itself) kept in the Actions cache between runs. Run on every push, and on a pull request that touches anything the stack is built from |
 | `test-planning-service` | ruff + pytest over `planning-service/tests/` — its own dependency set (`planning-service/requirements-dev.txt`), separate from `test`'s unrelated `src/vfr` ones |
-| `test-model-service` | ruff + pytest over `model-service/tests/`, on the service's own requirements (torch and tensorflow included) |
+| `test-model-service` | ruff + pytest over `model-service/tests/`, on the service's own requirements |
 | `test-nav-log-agent` / `test-crewai-agent` | ruff + pytest over each agent's `tests/`, on that agent's own requirements; the database, planning-service and Claude are mocked, so nothing is billed |
 | `docs` | Regenerates Javadoc + godoc on every push/PR. The three `pdoc` steps -- which each build one of this repo's heavy ML images (torch/tensorflow/Spark) purely so `pdoc` can import the modules inside -- run only on pushes to `main`, and only for whichever of `src/vfr`, `nav-log-agent` or `crewai-agent` `changes` says actually changed; a push that only touched `web/` skips all three rather than paying six figures of milliseconds to rebuild and re-document code nobody edited. Output uploads as a `documentation` artifact. |
 | `build-images` | Builds every service Dockerfile, publishes each to GHCR on push to `main`. Every Python image's last build step imports that service's own code and the packages it imports lazily (`import app.main, rasterio.vrt, …`, `import vfr.pipeline, …`; the local Airflow image loads its DAG), so a missing dependency fails the build -- here and in a local `docker compose build` alike -- the check that would have caught 2026-09-22's missing `pyproj` in four images |

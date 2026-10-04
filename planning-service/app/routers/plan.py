@@ -31,7 +31,6 @@ from ..planning import (
     route_line, route_totals,
 )
 from ..schemas import (
-    AltitudeBreakdown,
     AltitudeChoice,
     AltitudeOption,
     ChartLayer,
@@ -451,17 +450,6 @@ def checkpoints(dep: str, dest: str, stops: str = "") -> Checkpoints:
     )
 
 
-@router.get("/api/altitude-breakdown")
-def altitude_breakdown(dep: str, dest: str, aircraft: str = DEFAULT_AIRCRAFT) -> AltitudeBreakdown:
-    """The full select_cruise_altitude() breakdown for any route -- floor,
-    ceiling band and each of its own components (airspace, aircraft
-    service ceiling), and the weather go/no-go flags, icing among them.
-    /api/navlog's "altitude" line carries the same dict for the route a
-    pilot has open; this is a standalone read of it for any pair."""
-    r = load_route(dep, dest)
-    return cruise_altitude(r.start, r.end, aircraft_profile(aircraft), aircraft)
-
-
 @router.get("/api/plan")
 def plan(q: Annotated[PlanQuery, Depends()]) -> Plan:
     """The whole plan: course line, every scored candidate, the selected
@@ -533,7 +521,6 @@ def plan(q: Annotated[PlanQuery, Depends()]) -> Plan:
         altitude_selection=outcome.selection,
         altitude_options=outcome.options,
         altitude_choice=outcome.choice,
-        winds_forecast_hr=runs[0].fcst_hr,
         aircraft={"name": q.aircraft, **profile},
         **_chart_info(),
     )
@@ -640,7 +627,6 @@ def navlog_stream(q: Annotated[PlanQuery, Depends()]) -> StreamingResponse:
         finally:
             altitude_pool.shutdown(wait=False)
         outcome = join_outcomes(runs, outcomes)
-        fcst_hr = runs[0].fcst_hr
 
         aircraft_line = {"name": q.aircraft, **profile}
         if isinstance(outcome, Unflyable):
@@ -657,7 +643,6 @@ def navlog_stream(q: Annotated[PlanQuery, Depends()]) -> StreamingResponse:
                 altitude_ft=None,
                 altitude_selection=outcome.selection,
                 options=outcome.options,
-                winds_forecast_hr=fcst_hr,
                 aircraft=aircraft_line,
             ))
             yield line(NavLogError(detail=str(outcome.error)))
@@ -671,7 +656,6 @@ def navlog_stream(q: Annotated[PlanQuery, Depends()]) -> StreamingResponse:
             altitude_ft=outcome.altitude_ft,
             altitude_selection=outcome.selection,
             options=outcome.options,
-            winds_forecast_hr=fcst_hr,
             aircraft=aircraft_line,
         ))
         for leg in flown_legs(r, runs, outcome):

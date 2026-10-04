@@ -20,8 +20,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/** A pilot's own filed flights -- list, view one (with its nav log),
- *  save a new one, delete. Pilot-scoped the same way {@link AircraftController}
+/** A pilot's own filed flights -- list, save a new one (answered with
+ *  its nav log), delete. Pilot-scoped the same way {@link AircraftController}
  *  is, for the same reason. */
 @RestController
 @RequestMapping("/api/flights")
@@ -39,13 +39,6 @@ public class FlightController {
     public ResponseEntity<List<FlightSummaryDto>> list(Authentication authentication) {
         return PilotResponses.withPilot(pilots, authentication, pilot ->
                 ResponseEntity.ok(flightService.list(pilot).stream().map(FlightController::toSummaryDto).toList()));
-    }
-
-    @GetMapping("/{id}")
-    public ResponseEntity<FlightDto> get(Authentication authentication, @PathVariable Long id) {
-        return PilotResponses.withPilot(pilots, authentication, pilot -> flightService.get(pilot, id)
-                .map(f -> ResponseEntity.ok(toDto(f)))
-                .orElse(ResponseEntity.notFound().build()));
     }
 
     @PostMapping

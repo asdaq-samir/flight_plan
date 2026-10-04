@@ -148,14 +148,6 @@ def _climb_rate(sea_level_fpm: float, ceiling_ft: float, density_altitude: float
     return max(MIN_CLIMB_RATE_FPM, rate)
 
 
-def climb_rate_fpm(aircraft_profile: dict, density_altitude: float) -> float:
-    """The best climb rate at a density altitude: the profile's
-    sea-level `climb_rate_fpm_sea_level`, falling in a straight line to
-    100 fpm at its service ceiling."""
-    sea_level = aircraft_profile.get("climb_rate_fpm_sea_level") or DEFAULT_CLIMB_RATE_FPM
-    return _climb_rate(sea_level, aircraft_profile["service_ceiling_ft"], density_altitude)
-
-
 class Climb(NamedTuple):
     minutes: float
     gallons: float

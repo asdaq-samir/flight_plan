@@ -1,13 +1,18 @@
-# The service as it ships: the scikit-learn serving stack, and the two
-# framework candidates it can also serve.
--r requirements-serving.txt
+# What serves the chart model.
+fastapi==0.141.1
+uvicorn[standard]==0.52.4
+pydantic==2.13.5
 
-# The PyTorch and TensorFlow candidates (vfr.model_candidates, trained
-# one-off inside the `ml` image) -- pinned to exactly what that image
-# resolved to, same reasoning as scikit-learn above: a state_dict or a
-# Keras model loads most reliably against the runtime that wrote it.
-# CPU-only wheel, same reason as the `ml` image's own install line --
-# no GPU to use here either.
---extra-index-url https://download.pytorch.org/whl/cpu
-torch==2.14.0
-tensorflow==2.21.0
+# The model's own runtime, pinned exactly as the image that writes the
+# model pins it (docker/requirements-training.txt, numpy and pandas
+# through src/requirements.txt). A joblib artifact is a pickle of
+# scikit-learn's own objects, so the version that loads it has to match
+# the version that wrote it -- a serving image drifting from the training
+# image is a textbook way to get an InconsistentVersionWarning and,
+# eventually, a model that either fails to unpickle or silently
+# mispredicts. The training side used to be unpinned under a "bump both
+# together" note; tests/test_requirements.py now fails if the two differ.
+scikit-learn==1.9.1
+numpy==2.5.3
+pandas==3.0.5
+joblib==1.6.0

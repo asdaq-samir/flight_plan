@@ -5,7 +5,7 @@ import type {
   Aircraft, AircraftChoice, AircraftProfiles, AircraftRequest, AirportPlace, AirportSearch, AirportsInView, AltitudeChoice, Briefing,
   ChartInfo, ChartRefreshStarted, CheckpointDescriptionMessage, CheckpointNoteSaved, Checkpoints, Classification, Course, Detour,
   Flight, FlightSummary, ModelComparison, NarrativeMessage, NarrativeRequest, NavLogMessage, PickDeleted, PickSaved,
-  ClassBResponse, NearestAirports, RouteProfile, Tfrs, DevServices, DevServiceStarted, PicksResponse, Pilot, Rating, RetrainStarted, Role, SaveFlightRequest,
+  ClassBResponse, NearestAirports, RouteProfile, Tfrs, DevServices, DevServiceStarted, Pilot, Rating, RetrainStarted, Role, SaveFlightRequest,
   SignInCapabilities, LogbookEntry, LogbookEntryRequest, Currency, CurrencyDatesRequest,
   Status, StreamMessage, Totals, WaypointsInView,
 } from "./types";
@@ -296,9 +296,6 @@ export const api = {
   classify: (lat: number, lon: number) =>
     planner.GET("/api/classify", { params: { query: { lat, lon } } }).then(data<Classification>),
 
-  picks: (dep: string, dest: string) =>
-    planner.GET("/api/picks", { params: { query: { dep, dest } } }).then(data<PicksResponse>),
-
   savePick: (pick: {
     departure_ident: string;
     destination_ident: string;
@@ -491,7 +488,6 @@ export const api = {
   /** A signed-in pilot's own filed flights. */
   flights: {
     list: () => webapp.GET("/api/flights").then(data<FlightSummary[]>),
-    get: (id: number) => webapp.GET("/api/flights/{id}", { params: { path: { id } } }).then(data<Flight>),
     save: (request: SaveFlightRequest) => webapp.POST("/api/flights", { body: request }).then(data<Flight>),
     remove: async (id: number): Promise<void> => {
       await webapp.DELETE("/api/flights/{id}", { params: { path: { id } } });

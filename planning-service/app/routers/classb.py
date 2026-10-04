@@ -67,7 +67,6 @@ def class_b_airports() -> ClassBResponse:
                 shelves=a["shelves"],
                 flight_category=metar.get("flight_category"),
                 metar=metar.get("raw"),
-                metar_observed_at=metar.get("observed_at"),
                 ceiling_ft=metar.get("ceiling_ft"),
                 visibility_sm=metar.get("visibility_sm"),
                 wind_dir_true_deg=metar.get("wind_dir_true_deg"),

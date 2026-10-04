@@ -84,8 +84,6 @@ public class PlannerProxyController {
             route("GET", "/api/checkpoints"),
             route("GET", "/api/navlog"),
             route("GET", "/api/local-flight"),
-            route("GET", "/api/plan"),
-            route("GET", "/api/altitude-breakdown"),
             route("GET", "/api/briefing"),
             route("GET", "/api/tfrs"),
             route("GET", "/api/route-profile"),
@@ -102,7 +100,6 @@ public class PlannerProxyController {
             // The developer's.
             route("GET", "/api/detect/stream"),
             route("GET", "/api/classify"),
-            route("GET", "/api/picks"),
             route("POST", "/api/picks"),
             route("DELETE", "/api/picks"),
             route("GET", "/api/model-comparison"),

@@ -472,11 +472,6 @@
             "title": "Name",
             "type": "string"
           },
-          "pilot_controlled_lighting": {
-            "default": false,
-            "title": "Pilot Controlled Lighting",
-            "type": "boolean"
-          },
           "radio_notes": {
             "default": [],
             "items": {
@@ -1905,17 +1900,6 @@
               }
             ],
             "title": "Metar"
-          },
-          "metar_observed_at": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Metar Observed At"
           },
           "name": {
             "title": "Name",
@@ -3512,14 +3496,6 @@
             ],
             "title": "Detail"
           },
-          "models": {
-            "additionalProperties": {
-              "type": "boolean"
-            },
-            "default": {},
-            "title": "Models",
-            "type": "object"
-          },
           "trained_at": {
             "anyOf": [
               {
@@ -3717,11 +3693,6 @@
             "const": "altitude",
             "default": "altitude",
             "title": "Type",
-            "type": "string"
-          },
-          "winds_forecast_hr": {
-            "default": "06",
-            "title": "Winds Forecast Hr",
             "type": "string"
           }
         },
@@ -4554,31 +4525,6 @@
         "title": "PickSummary",
         "type": "object"
       },
-      "PicksResponse": {
-        "properties": {
-          "picks": {
-            "items": {
-              "$ref": "#/components/schemas/Pick"
-            },
-            "title": "Picks",
-            "type": "array"
-          },
-          "route": {
-            "title": "Route",
-            "type": "string"
-          },
-          "summary": {
-            "$ref": "#/components/schemas/PickSummary"
-          }
-        },
-        "required": [
-          "route",
-          "picks",
-          "summary"
-        ],
-        "title": "PicksResponse",
-        "type": "object"
-      },
       "PipelineRun": {
         "description": "A run of the training DAG. `error`, for one that failed: the\nexception its failed task ended on, from that task's own log.",
         "properties": {
@@ -4593,17 +4539,6 @@
             ],
             "title": "Dag Run Id"
           },
-          "end_date": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "End Date"
-          },
           "error": {
             "anyOf": [
               {
@@ -4614,17 +4549,6 @@
               }
             ],
             "title": "Error"
-          },
-          "start_date": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Start Date"
           },
           "state": {
             "anyOf": [
@@ -4640,9 +4564,7 @@
         },
         "required": [
           "dag_run_id",
-          "state",
-          "start_date",
-          "end_date"
+          "state"
         ],
         "title": "PipelineRun",
         "type": "object"
@@ -4657,28 +4579,6 @@
           "airflow_reachable": {
             "title": "Airflow Reachable",
             "type": "boolean"
-          },
-          "airflow_url": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Airflow Url"
-          },
-          "dag_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Dag Id"
           },
           "detail": {
             "anyOf": [
@@ -4715,7 +4615,6 @@
         "required": [
           "airflow_configured",
           "airflow_reachable",
-          "airflow_url",
           "last_run",
           "detail"
         ],
@@ -4944,11 +4843,6 @@
           },
           "totals": {
             "$ref": "#/components/schemas/Totals"
-          },
-          "winds_forecast_hr": {
-            "default": "06",
-            "title": "Winds Forecast Hr",
-            "type": "string"
           }
         },
         "required": [
@@ -6367,17 +6261,6 @@
       },
       "WeatherDataset": {
         "properties": {
-          "age_s": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Age S"
-          },
           "fetched_at": {
             "anyOf": [
               {
@@ -6396,8 +6279,7 @@
         },
         "required": [
           "name",
-          "fetched_at",
-          "age_s"
+          "fetched_at"
         ],
         "title": "WeatherDataset",
         "type": "object"
@@ -6717,65 +6599,6 @@
           }
         },
         "summary": "Airport Search"
-      }
-    },
-    "/api/altitude-breakdown": {
-      "get": {
-        "description": "The full select_cruise_altitude() breakdown for any route -- floor,\nceiling band and each of its own components (airspace, aircraft\nservice ceiling), and the weather go/no-go flags, icing among them.\n/api/navlog's \"altitude\" line carries the same dict for the route a\npilot has open; this is a standalone read of it for any pair.",
-        "operationId": "altitude_breakdown_api_altitude_breakdown_get",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "dep",
-            "required": true,
-            "schema": {
-              "title": "Dep",
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "dest",
-            "required": true,
-            "schema": {
-              "title": "Dest",
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "aircraft",
-            "required": false,
-            "schema": {
-              "default": "c172",
-              "title": "Aircraft",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AltitudeBreakdown"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Altitude Breakdown"
       }
     },
     "/api/briefing": {
@@ -7940,52 +7763,6 @@
           }
         },
         "summary": "Remove Pick"
-      },
-      "get": {
-        "operationId": "list_picks_api_picks_get",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "dep",
-            "required": true,
-            "schema": {
-              "title": "Dep",
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "dest",
-            "required": true,
-            "schema": {
-              "title": "Dest",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PicksResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "List Picks"
       },
       "post": {
         "operationId": "add_pick_api_picks_post",

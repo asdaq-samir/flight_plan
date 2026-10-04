@@ -36,7 +36,7 @@ flowchart LR
     end
     airflow["§3 airflow<br/>(orchestrates the row above)"] -.-> collect
 
-    registry --> model[("model-service<br/>/ping · /invocations")]
+    registry --> model[("model-service<br/>/ping · /score-detections")]
 
     webapp["§4 webapp<br/>(Spring Boot API)"] --> model
     webapp --> db[("db<br/>Postgres + pgvector")]
@@ -179,9 +179,7 @@ disk. `docker images` on a working copy of this repo shows two kinds.
 **The nine built from this repo**, named after the project directory
 (`flight_plan-webapp`, `flight_plan-ml`, and so on). `ml` is by far the
 largest, and legitimately so: scikit-learn, PyTorch, TensorFlow, PySpark
-and a JVM in one place. `model-service` is next, because it serves the
-PyTorch and TensorFlow candidates as well as the promoted scikit-learn
-model. Only four of the nine run the application — `webapp`,
+and a JVM in one place. Only four of the nine run the application — `webapp`,
 `planning-service`, `model-service` and the database's own image below;
 the rest exist for building, training, orchestrating or testing.
 
@@ -546,25 +544,12 @@ Two services answer real HTTP requests: `model-service` (predictions) and
 
 [`model-service/app/main.py`](../model-service/app/main.py) is
 deliberately minimal: two routes, `/ping` (health check) and
-`/invocations` (inference). Those exact names aren't arbitrary — they're
-what a **SageMaker real-time inference container** is required to expose.
-Building to that contract from day one means the container doesn't need
-restructuring later to actually run on SageMaker; only *what's inside*
-`/invocations` changes — and that payoff was collected for real. It held
-a hand-written stub until labeling finished; swapping in real inference
-touched only the body of that route, never its shape or its name.
-
-The same idea extends to *where* it reads from. The model loads from
-`MODEL_DIR`, defaulting to `/opt/ml/model` — the path SageMaker mounts a
-model artifact at — and docker-compose bind-mounts `data/models/current`
-there, so identical code serves locally and on AWS.
-
-One thing it deliberately refuses to do: score an arbitrary route.
-Building features for a new corridor means Overpass queries, FAA
-downloads and a per-candidate elevation lookup — minutes of network I/O.
-That is a batch job, so a request for an unknown route returns 404 rather
-than pretending. On AWS the same split holds: a Processing Job builds
-features, an endpoint scores them.
+`/score-detections`, the chart model's score for each detection the
+planner reads off the chart. The model loads from `CHART_MODEL_DIR`,
+which docker-compose bind-mounts from `data/models/chart/current`, and is
+read again when a retrain promotes a new one there — no restart. With
+none promoted it answers 503, and the planner ranks the detections by
+the chart palette's constants instead.
 
 ### Select → the checkpoints actually flown
 
@@ -590,8 +575,7 @@ checkpoint" and "more even spacing" — and greedy has the property that
 matters, which is that the best feature on the route never gets dropped to
 tidy up spacing elsewhere. And a minimum score means a barren stretch
 yields a genuinely long leg instead of a checkpoint the pilot will look
-for and fail to see; `selection_gaps_nm()` exists so that gap can be shown
-rather than hidden.
+for and fail to see.
 
 ### webapp (Spring Boot)
 
@@ -669,13 +653,7 @@ this service. Scoring a route belongs to `planning-service`, which
 `webapp` only proxies (`PlannerProxyController`, `/api/planner/*`), and
 planning-service reaches the model through one shared module,
 [`vfr.model_client`](../src/vfr/model_client.py): an HTTP call to
-`model-service`'s `/invocations` locally, or SageMaker Runtime's
-`InvokeEndpoint` on AWS, where `model-service`'s image *is* the SageMaker
-Endpoint's serving container rather than a plain HTTP service. Which path
-runs is decided by whether `SAGEMAKER_ENDPOINT_NAME` is set — true only on
-AWS — not a separate build; both paths send the identical JSON, since
-`InvokeEndpoint` just proxies the body straight to the same
-`/invocations` route. Only planning-service imports it: the Gen AI agents
+`model-service`'s `/score-detections`. Only planning-service imports it: the Gen AI agents
 ask planning-service itself for the nav log (through
 [`vfr.planner_client`](../src/vfr/planner_client.py)), so there is one
 client to get right and one place a nav log is built.

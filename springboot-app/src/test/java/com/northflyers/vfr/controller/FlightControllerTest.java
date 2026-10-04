@@ -1,7 +1,6 @@
 package com.northflyers.vfr.controller;
 
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.oidcLogin;
@@ -79,25 +78,6 @@ class FlightControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].stops[0]").value("KMSN"))
                 .andExpect(jsonPath("$[0].stops[1]").value("KEAU"));
-    }
-
-    @Test
-    void get_returns404_whenTheFlightIsNotThisPilots() throws Exception {
-        given(pilotService.current(any())).willReturn(Optional.of(samplePilot()));
-        given(flightService.get(any(), anyLong())).willReturn(Optional.empty());
-
-        mockMvc.perform(get("/api/flights/999").with(oidcLogin())).andExpect(status().isNotFound());
-    }
-
-    @Test
-    void get_returns200_withTheFiledNavLog() throws Exception {
-        given(pilotService.current(any())).willReturn(Optional.of(samplePilot()));
-        given(flightService.get(any(), anyLong())).willReturn(Optional.of(sampleFlight()));
-
-        mockMvc.perform(get("/api/flights/1").with(oidcLogin()))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.checkpoints[0].name").value("C81"))
-                .andExpect(jsonPath("$.totalFuelGal").value(29.0));
     }
 
     @Test

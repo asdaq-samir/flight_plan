@@ -34,10 +34,10 @@ def select_checkpoints(
     max_count: int | None = None,
     min_score: float | None = DEFAULT_MIN_SCORE,
 ) -> list:
-    """Pick nav-log checkpoints from model-service's scored candidates.
+    """Pick nav-log checkpoints from the scored candidates.
 
-    `scored` is the /invocations checkpoint list: dicts with at least
-    `along_track_nm` and `predicted_score`. Returns the chosen subset in
+    `scored` is the planner's candidate list (app.scoring): dicts with at
+    least `along_track_nm` and `predicted_score`. Returns the chosen subset in
     route order (by along-track distance), ready to be zipped into legs.
 
     Greedy by score, subject to spacing: take the highest-scored candidate
@@ -77,16 +77,3 @@ def select_checkpoints(
         if all(abs(cand["along_track_nm"] - t["along_track_nm"]) >= min_spacing_nm for t in chosen):
             chosen.append(cand)
     return sorted(chosen, key=lambda c: c["along_track_nm"])
-
-
-def selection_gaps_nm(selected: list) -> list:
-    """Along-track distances between consecutive selected checkpoints.
-
-    Worth surfacing rather than hiding: min_score means a stretch of route
-    with nothing worth looking at produces a long leg, and a pilot should
-    be told that rather than discovering it in the air.
-    """
-    return [
-        round(b["along_track_nm"] - a["along_track_nm"], 2)
-        for a, b in zip(selected, selected[1:])
-    ]

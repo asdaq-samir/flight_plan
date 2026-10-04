@@ -37,10 +37,6 @@ from .faa_data import NASR_INDEX_URL, download_and_extract, find_current_cycle_p
 
 CONTROLLED_CLASSES = ("B", "C", "D")
 
-# Classes that need only two-way radio communication established, not a
-# clearance -- so they are reported, never used as a ceiling.
-TWO_WAY_COMMS_CLASSES = ("C", "D")
-
 # Class E surface areas (E2) and their extensions (E3, E4): controlled
 # from the ground, the dashed magenta line the chart draws round a field.
 # Read only for an airport's own class (surface_class_at); a route never

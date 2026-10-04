@@ -36,7 +36,8 @@ def test_a_height_above_the_ground_or_a_flight_level_is_said_so():
 
 
 def _square(lat, lon, half=0.05):
-    return [[[lon - half, lat - half], [lon + half, lat - half], [lon + half, lat + half], [lon - half, lat + half], [lon - half, lat - half]]]
+    corners = [(lon - half, lat - half), (lon + half, lat - half), (lon + half, lat + half), (lon - half, lat + half)]
+    return [[list(c) for c in corners + corners[:1]]]
 
 
 @pytest.fixture

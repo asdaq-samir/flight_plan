@@ -19,7 +19,6 @@ from ..schemas import (
     DetectStart,
     PickDeleted,
     PickSaved,
-    PicksResponse,
 )
 
 router = APIRouter()
@@ -123,12 +122,6 @@ def remove_pick(dep: str, dest: str, lat: float, lon: float) -> PickDeleted:
     route = chartlabels.route_key(*route_key(dep, dest))
     removed = chartlabels.delete_pick(route, lat, lon)
     return PickDeleted(ok=removed, summary=chartlabels.summarise(route))
-
-
-@router.get("/api/picks")
-def list_picks(dep: str, dest: str) -> PicksResponse:
-    route = chartlabels.route_key(*route_key(dep, dest))
-    return PicksResponse(route=route, picks=chartlabels.load_picks(route), summary=chartlabels.summarise(route))
 
 
 @router.get("/api/detect/stream")

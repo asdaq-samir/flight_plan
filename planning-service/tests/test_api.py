@@ -12,7 +12,6 @@ import json
 
 from fastapi.testclient import TestClient
 from vfr import airports
-from vfr import altitude as altitude_module
 from vfr import model_registry, tfr, weather
 from vfr.weather import WeatherServiceError
 
@@ -102,14 +101,16 @@ def test_status_reports_every_service_and_the_data_on_disk(monkeypatch):
 
     assert resp.status_code == 200
     body = resp.json()
-    assert body["services"]["model_service"] == {"up": False, "detail": "connection refused", "trained_at": None, "models": {}}
+    assert body["services"]["model_service"] == {"up": False, "detail": "connection refused", "trained_at": None}
     assert body["services"]["nav_log_agent"] == {"up": True, "detail": "HTTP 401"}
     assert body["services"]["crewai_agent"] is None
     assert body["services"]["webapp"] == {"up": True, "detail": "HTTP 200"}
     assert body["services"]["db"] == {"up": False, "detail": "HTTP 503"}
     assert body["pipeline"]["airflow_configured"] is False
     # Every weather source, the winds for each forecast period included.
-    assert {w["name"] for w in body["weather"]} == {"metars", "tafs", "airsigmets", "pireps", "gairmets", "winds-06", "winds-12", "winds-24"}
+    assert {w["name"] for w in body["weather"]} == {
+        "metars", "tafs", "airsigmets", "pireps", "gairmets", "winds-06", "winds-12", "winds-24",
+    }
     for corridor in body["corridors"]:
         assert corridor["departure_ident"].isupper() and "by_rating" in corridor["labels"]
 
@@ -151,49 +152,6 @@ def test_aircraft_profiles_lists_the_stock_profiles():
     assert resp.status_code == 200
     names = {p["name"]: p for p in resp.json()["profiles"]}
     assert names["c172"]["cruise_tas_kt"] == 110 and names["c172"]["type"] == "Cessna 172"
-
-
-# --- /api/altitude-breakdown ---
-
-
-def test_altitude_breakdown_returns_select_cruise_altitudes_result(monkeypatch):
-    monkeypatch.setattr(altitude_module, "select_cruise_altitude", lambda start, end, profile, pending=None: {
-        "recommended_ft": 2500.0, "course_magnetic_deg": 335.0, "eastbound": False,
-        "floor_ft": 2200.0, "airspace_ceiling_ft": None, "airspace_transits": [],
-        "freezing_level_ft": None, "band_ceiling_ft": None, "min_ceiling_ft": None, "min_visibility_sm": None,
-        "hazards": [], "low_ceiling_or_visibility": False,
-    })
-
-    resp = client.get("/api/altitude-breakdown", params={"dep": "C81", "dest": "KDLH"})
-
-    assert resp.status_code == 200
-    assert resp.json()["recommended_ft"] == 2500.0
-
-
-def test_altitude_breakdown_404s_for_an_unknown_ident(monkeypatch):
-    def raise_unknown(ident, **kw):
-        raise ValueError(f"Airport identifier {ident!r} not found")
-
-    monkeypatch.setattr(airports, "get_airport", raise_unknown)
-
-    resp = client.get("/api/altitude-breakdown", params={"dep": "ZZZZ", "dest": "KDLH"})
-
-    assert resp.status_code == 404
-
-
-def test_altitude_breakdown_surfaces_a_weather_outage_as_502(monkeypatch):
-    """The point of Priority 1's WeatherServiceError fix: an
-    aviationweather.gov failure anywhere inside select_cruise_altitude
-    reaches the caller as a clean 502 from the global exception handler,
-    not a raw 500."""
-    def raise_weather_error(start, end, profile, pending=None):
-        raise WeatherServiceError("aviationweather.gov request failed: timed out")
-
-    monkeypatch.setattr(altitude_module, "select_cruise_altitude", raise_weather_error)
-
-    resp = client.get("/api/altitude-breakdown", params={"dep": "C81", "dest": "KDLH"})
-
-    assert resp.status_code == 502
 
 
 # --- /api/briefing ---

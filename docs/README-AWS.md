@@ -47,8 +47,7 @@ provisions Retrain Trigger + AWS Serving Layer) → Gen AI**.
 ### 1. CI/CD (amber)
 
 > Every push to main tests, lints, and builds a Docker image, then pushes
-> it to ECR — the same image Airflow's workers and the SageMaker endpoint
-> both pull from.
+> it to ECR — the images Airflow's workers and the ECS services pull from.
 
 **GitHub** (`git push -> main`) → **GitHub Actions** (`test · lint ·
 build`) → **ECR** (`Docker images`). A failing test or lint never reaches
@@ -66,7 +65,6 @@ comparison passes — this is the task that makes a model "live").
 Crossing connections:
 
 - **ECR → Collect** (`deploys DAG image`) — the image CI/CD just built is what Airflow's workers run
-- **Promote → SageMaker Endpoint** (`promoted model`) — a promoted model goes live there
 - **Lambda (Go) → Collect** (`DAG trigger`) — the on-demand path into this same DAG
 
 ### 3. CloudFormation (IaC) — provisions everything below
@@ -86,12 +84,13 @@ One box, **Lambda (Go)**: receives a webhook/schedule hit via API Gateway
 #### 3b. AWS Serving Layer (grey)
 
 > The AWS-hosted version of the local Docker Compose stack — same Spring
-> Boot app, same Postgres schema, same REST contract to the model service,
-> on managed infra that scales independently.
+> Boot app, same planning-service, same Postgres schema, on managed infra
+> that scales independently.
 
 **northflyers.com** (public, black border) → **API Gateway** → **ECS
-Fargate** (Spring Boot API) → **SageMaker Endpoint** (`/invocations`) and
-**RDS PostgreSQL** (JDBC, bidirectional).
+Fargate** (Spring Boot API) → **planning-service** and **RDS PostgreSQL**
+(JDBC, bidirectional); planning-service publishes the chart tiles to
+**S3 + CloudFront**, which the browser reads directly.
 
 ### 4. Gen AI — LangGraph / MCP / CrewAI (violet)
 
@@ -125,12 +124,8 @@ VPC/subnet/NAT-gateway layout most orgs already have):
   security group admits traffic from `webapp`'s alone. `webapp` finds it
   through the same Cloud Map namespace Airflow uses
   (`planning-service.vfr-route.internal`), which is why no URL parameter
-  is needed. Fargate rather than SageMaker even though it is the
-  chart-vision service — SageMaker's contract is `/ping` +
-  `/invocations` for model inference, and this does I/O-heavy domain
-  computation that *calls* a model rather than being one. Sized larger
-  than `webapp` (1 vCPU / 4 GB) because sectional tiles are decoded into
-  numpy arrays block by block.
+  is needed. Sized larger than `webapp` (1 vCPU / 4 GB) because
+  sectional tiles are decoded into numpy arrays block by block.
 - **The chart tiles** — an S3 bucket (`ChartTilesBucket`) behind a
   CloudFront distribution. The map draws nothing but FAA charts, a
   static pyramid of some 400,000 tiles per 56-day cycle rendered from
@@ -159,7 +154,6 @@ VPC/subnet/NAT-gateway layout most orgs already have):
   matches its local one-shot-CLI role; run with `aws ecs run-task`.
 - **RDS PostgreSQL** — `ManageMasterUserPassword` (native Secrets Manager
   integration, no hand-created secret resource).
-- **A SageMaker real-time Endpoint** serving `model-service`'s image.
 - **Airflow, self-hosted on ECS Fargate** — chosen over Amazon MWAA to
   reuse the same Fargate pattern as every other service rather than bring
   in a second, differently-shaped managed service for one component. Its
@@ -188,7 +182,7 @@ once after deploy — see [Deployment Guide](#deployment-guide).
 **What's verified**, without needing an AWS account:
 
 - `cfn-lint` passes with zero errors/warnings
-- Every image the template references (`webapp`, `planning-service`, `model-service`, `nav-log-agent`, `crewai-agent`, the AWS-mode `airflow`) builds cleanly
+- Every image the template references (`webapp`, `planning-service`, `nav-log-agent`, `crewai-agent`, the AWS-mode `airflow`) builds cleanly
 - The Lambda compiles (`GOOS=linux GOARCH=arm64`) and passes `go vet`
 - The AWS-mode DAG parses with zero import errors and the correct five-task order
 
@@ -231,6 +225,9 @@ or undermine a real deploy, and are known:
   crewai-agent is a one-off task definition while webapp calls it as a
   running service.
 - planning-service has no Anthropic key, so checkpoint notes fail.
+- There is no model-service: the chart model's scorer runs only in the
+  local stack, so planning-service ranks the chart's detections by the
+  palette's constants, as it does locally before a model is promoted.
 - The template takes no sign-in settings. With none, the webapp refuses
   every planner write and the narrative (`app.open-writes` is off), so
   the site would be read-only until Google, Apple or mail sign-in is
@@ -262,8 +259,7 @@ The runbook, in order.
    Cheapest fix for a low-traffic project: one NAT Gateway; VPC endpoints
    (ECR api + dkr, Secrets Manager, CloudWatch Logs, an S3 gateway
    endpoint) avoid its hourly + per-GB cost instead.
-7. **An S3 bucket** for `DataS3BucketName` (pipeline data) — can be the
-   same bucket the model artifact lives in.
+7. **An S3 bucket** for `DataS3BucketName` (pipeline data).
 8. **(Optional) Route 53 hosted zone + ACM certificate**, if using
    `DomainName`/`CertificateArn`. Leave both blank for an initial test
    deploy — a working ALB DNS name with no custom domain is enough to
@@ -271,9 +267,9 @@ The runbook, in order.
 
 ### Deploy runbook
 
-1. **Create the six ECR repositories:**
+1. **Create the five ECR repositories:**
    ```bash
-   for repo in webapp planning-service model-service nav-log-agent crewai-agent airflow; do
+   for repo in webapp planning-service nav-log-agent crewai-agent airflow; do
      aws ecr create-repository --repository-name vfr-route/$repo
    done
    ```
@@ -285,28 +281,22 @@ The runbook, in order.
    aws ecr get-login-password | docker login --username AWS --password-stdin <account>.dkr.ecr.<region>.amazonaws.com
    docker build -t <account>.dkr.ecr.<region>.amazonaws.com/vfr-route/webapp:latest ./springboot-app
    docker push <account>.dkr.ecr.<region>.amazonaws.com/vfr-route/webapp:latest
-   # repeat for planning-service, model-service, nav-log-agent,
-   # crewai-agent, and airflow (built from
+   # repeat for planning-service, nav-log-agent, crewai-agent, and
+   # airflow (built from
    # docker/Dockerfile.airflow.aws, not Dockerfile.airflow)
    ```
-3. **Package and upload the model artifact**, once a real one exists (see
-   `README.md`'s Status):
-   ```bash
-   tar -czf model.tar.gz -C data/models/current model.joblib
-   aws s3 cp model.tar.gz s3://<DataS3BucketName>/model.tar.gz
-   ```
-4. **Upload labels**, since they're hand-produced, not pipeline output:
+3. **Upload labels**, since they're hand-produced, not pipeline output:
    ```bash
    aws s3 cp data/labels/spottability_ratings.csv s3://<DataS3BucketName>/labels/spottability_ratings.csv
    ```
-5. **Build and upload the Lambda:**
+4. **Build and upload the Lambda:**
    ```bash
    cd infra/lambda-retrain-trigger
    GOOS=linux GOARCH=arm64 go build -o bootstrap main.go
    zip bootstrap.zip bootstrap
    aws s3 cp bootstrap.zip s3://<your-bucket>/retrain-trigger/bootstrap.zip
    ```
-6. **Create the three secrets** the template reads (it doesn't create
+5. **Create the three secrets** the template reads (it doesn't create
    any of them):
    ```bash
    aws secretsmanager create-secret --name anthropic-api-key --secret-string '<your key>'
@@ -316,12 +306,12 @@ The runbook, in order.
    # reuse another secret's value:
    aws secretsmanager create-secret --name nav-log-agent-api-key --secret-string "$(openssl rand -base64 32)"
    ```
-7. **Verify the RDS engine version is still valid** — the template pins
+6. **Verify the RDS engine version is still valid** — the template pins
    `EngineVersion: "17.4"` with a documented lint suppression:
    ```bash
    aws rds describe-db-engine-versions --engine postgres --query "DBEngineVersions[].EngineVersion"
    ```
-8. **Deploy the stack:**
+7. **Deploy the stack:**
    ```bash
    aws cloudformation deploy \
      --template-file infra/cloudformation/template.yaml \
@@ -333,23 +323,21 @@ The runbook, in order.
        PrivateSubnetIds=subnet-...,subnet-... \
        WebappImageUri=<account>.dkr.ecr.<region>.amazonaws.com/vfr-route/webapp:latest \
        PlanningServiceImageUri=<account>.dkr.ecr.<region>.amazonaws.com/vfr-route/planning-service:latest \
-       ModelServiceImageUri=<account>.dkr.ecr.<region>.amazonaws.com/vfr-route/model-service:latest \
        NavLogAgentImageUri=<account>.dkr.ecr.<region>.amazonaws.com/vfr-route/nav-log-agent:latest \
        CrewaiAgentImageUri=<account>.dkr.ecr.<region>.amazonaws.com/vfr-route/crewai-agent:latest \
        AirflowImageUri=<account>.dkr.ecr.<region>.amazonaws.com/vfr-route/airflow:latest \
-       ModelArtifactS3Uri=s3://<DataS3BucketName>/model.tar.gz \
        DataS3BucketName=<DataS3BucketName> \
        AnthropicApiKeySecretArn=arn:aws:secretsmanager:... \
        NavLogAgentApiKeySecretArn=arn:aws:secretsmanager:... \
        LambdaCodeS3Bucket=<your-bucket> \
        AirflowCredentialsSecretArn=arn:aws:secretsmanager:...
    ```
-9. **Watch it deploy** (`aws cloudformation describe-stack-events
+8. **Watch it deploy** (`aws cloudformation describe-stack-events
    --stack-name vfr-route`). A stuck `WebappService`/`NavLogAgentService`
    (see the NAT/VPC-endpoint note above) is the most likely first-deploy
    snag; RDS typically takes the longest wall time but rarely fails
    outright once parameters are valid.
-10. **Set the Airflow Variables** the AWS DAG reads, via
+9. **Set the Airflow Variables** the AWS DAG reads, via
     `aws ecs execute-command` (enabled on `AirflowService`):
     ```bash
     aws ecs execute-command --cluster vfr-route --container airflow --interactive \
@@ -361,14 +349,15 @@ The runbook, in order.
     (`pipeline-processing`/`pipeline-training` aren't in the ECR-repo list
     above since Airflow's SageMaker Jobs pull them directly by URI —
     create and push those two repos the same way as step 1/2 first.)
-11. **Verify each piece**: ALB target health for both `webapp` and
+10. **Verify each piece**: ALB target health for both `webapp` and
     `nav-log-agent` (`healthy` confirms Flyway's migrations applied and
-    the MCP SSE endpoint responds); `aws sagemaker describe-endpoint`
-    shows `InService`; `curl -X POST <RetrainApiUrl>` reaches the Lambda.
-12. **Smoke test**: `GET /api/planner/course?dep=C81&dest=KDLH` against
+    the MCP SSE endpoint responds); `curl -X POST <RetrainApiUrl>`
+    reaches the Lambda.
+11. **Smoke test**: `GET /api/planner/course?dep=C81&dest=KDLH` against
     the ALB/domain (the webapp → planning-service hop),
-    `GET /api/planner/checkpoints?dep=C81&dest=KDLH` (planning-service →
-    the SageMaker endpoint), `GET /actuator/health/readiness` (RDS), then
+    `GET /api/planner/checkpoints?dep=C81&dest=KDLH` (planning-service
+    reading the chart along the route), `GET /actuator/health/readiness`
+    (RDS), then
     trigger a retrain via the API Gateway URL and confirm Airflow received
     the DAG-run request.
 
@@ -386,10 +375,8 @@ teardown.
 
 ### Cost awareness
 
-Billed hourly regardless of traffic: the **SageMaker Endpoint**
-(real-time, not serverless — worth reconsidering Serverless Inference for
-a low-traffic project before a long-lived deploy), **RDS**, the **ALB**,
-and a **NAT Gateway** if that's the route chosen for private-subnet
+Billed hourly regardless of traffic: **RDS**, the **ALB**, and a **NAT
+Gateway** if that's the route chosen for private-subnet
 internet access (often the single biggest line item at this scale). Free
 or near-free at this project's scale: Lambda, API Gateway, EFS, S3.
 
@@ -406,16 +393,17 @@ or near-free at this project's scale: Lambda, API Gateway, EFS, S3.
 | Feature-Engineer | Retrain | features.parquet | solid | no (within Airflow) |
 | Retrain | Evaluate | model | solid | no (within Airflow) |
 | Evaluate | Promote | metrics pass | solid | no (within Airflow) |
-| Promote | SageMaker Endpoint | promoted model | dashed | Airflow → AWS Serving Layer |
 | API Gateway | Lambda (Go) | POST /retrain (webhook/schedule) | dashed | AWS Serving Layer → Retrain Trigger |
 | Lambda (Go) | Collect | DAG trigger | dashed | Retrain Trigger → Airflow |
 | northflyers.com | API Gateway | HTTPS | solid | no (within AWS Serving Layer) |
 | API Gateway | ECS Fargate | *(unlabeled)* | solid | no (within AWS Serving Layer) |
-| ECS Fargate | SageMaker Endpoint | /invocations | solid | no (within AWS Serving Layer) |
+| ECS Fargate | planning-service | *(unlabeled)* | solid | no (within AWS Serving Layer) |
+| planning-service | S3 + CloudFront | publishes tiles | solid | no (within AWS Serving Layer) |
+| northflyers.com | S3 + CloudFront | tiles (direct, once published) | dashed | no (within AWS Serving Layer) |
 | ECS Fargate | RDS PostgreSQL | JDBC | solid, bidirectional | no (within AWS Serving Layer) |
 | LangGraph Agent | Vector Store | long-term memory | solid, bidirectional | no (within Gen AI) |
 | CrewAI Agent | LangGraph Agent | parallel comparison, not pipeline-connected | dashed, no arrowheads | no (within Gen AI) |
-| LangGraph Agent | SageMaker Endpoint | model output via MCP tool call | dashed | Gen AI → AWS Serving Layer |
+| LangGraph Agent | planning-service | nav log (HTTP) | dashed | Gen AI → AWS Serving Layer |
 
 ### CloudFormation parameter reference
 

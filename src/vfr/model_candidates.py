@@ -185,17 +185,8 @@ def train_spark(
     parquet (not the notebook's own from-scratch Spark feature
     rebuild) for comparability with the others.
 
-    Not served live: a JVM + Spark session's cold-start time is wildly
-    inappropriate for a request-serving container that everything else
-    answers in milliseconds, and model-service is deliberately lean
-    (see its own docstring). Instead this scores every labeled
-    candidate now, at training time, and persists the predictions
-    themselves (`predictions.json`, keyed by osm_id) -- model-service
-    serves Spark's results the same way it already serves everything
-    else, by reading a precomputed store, which is the exact pattern
-    its own docstring already establishes for feature stores in
-    general ("this serves whichever precomputed feature stores... are
-    present" rather than computing them per request).
+    Persists its metrics alone, for the Dev console's comparison:
+    nothing serves the landmark models.
     """
     from pyspark.ml import Pipeline
     from pyspark.ml.evaluation import RegressionEvaluator
@@ -233,7 +224,6 @@ def train_spark(
 
         spark_train = spark.createDataFrame(train_df[feature_cols + ["rating", "osm_id"]])
         spark_test = spark.createDataFrame(test_df[feature_cols + ["rating", "osm_id"]])
-        spark_all = spark.createDataFrame(labeled_df[feature_cols + ["rating", "osm_id"]])
 
         cv_model = cv.fit(spark_train)
         best_cv_mae = min(cv_model.avgMetrics)
@@ -244,13 +234,6 @@ def train_spark(
         rmse_evaluator = RegressionEvaluator(labelCol="rating", predictionCol="prediction", metricName="rmse")
         held_out_r2 = r2_evaluator.evaluate(test_predictions)
         held_out_rmse = rmse_evaluator.evaluate(test_predictions)
-
-        # Score every labeled candidate (not only the test split) --
-        # model-service's own lookup needs a prediction for whichever
-        # osm_id a route's checkpoints ask about, and this is a one-time
-        # batch job, not a per-request cost.
-        all_predictions = cv_model.bestModel.transform(spark_all).select("osm_id", "prediction").collect()
-        predictions = {row["osm_id"]: row["prediction"] for row in all_predictions}
     finally:
         spark.stop()
 
@@ -265,7 +248,6 @@ def train_spark(
     )
 
     out_dir = _ensure_local_dir(out_dir)
-    (out_dir / "predictions.json").write_text(json.dumps(predictions, indent=2))
     (out_dir / "metrics.json").write_text(json.dumps(metrics, indent=2))
     return metrics
 

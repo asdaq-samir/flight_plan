@@ -109,7 +109,6 @@ def _notes(ident: str) -> dict:
         return {}
     return {
         "lighting": notes["lighting"], "radio_notes": notes["radio"],
-        "pilot_controlled_lighting": notes["pilot_controlled"],
         "standard_keying": notes["pilot_controlled"] and not notes["explicit_clicks"],
     }
 

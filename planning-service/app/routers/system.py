@@ -100,7 +100,7 @@ def _model_service_status() -> ModelServiceStatus:
         body = resp.json() if resp.ok else {}
         return ModelServiceStatus(
             up=resp.ok, detail=f"HTTP {resp.status_code}",
-            trained_at=body.get("trained_at"), models=body.get("models", {}),
+            trained_at=body.get("trained_at"),
         )
     except (requests.RequestException, ValueError) as err:
         return ModelServiceStatus(up=False, detail=str(err).split("\n")[0][:160])
@@ -203,11 +203,7 @@ def _faa_files() -> list[DataFile]:
 
 
 def _weather_datasets() -> list[WeatherDataset]:
-    now = datetime.now(tz=timezone.utc).timestamp()
-    out = []
-    for name, fetched in weather.dataset_status().items():
-        out.append(WeatherDataset(name=name, fetched_at=_iso(fetched), age_s=(now - fetched) if fetched else None))
-    return out
+    return [WeatherDataset(name=name, fetched_at=_iso(fetched)) for name, fetched in weather.dataset_status().items()]
 
 
 def _airflow_credentials() -> tuple[str, str] | None:
@@ -232,10 +228,7 @@ def _airflow_token(user: str, password: str) -> str:
 
 
 def _pipeline_unreachable(detail: str, configured: bool) -> PipelineStatus:
-    return PipelineStatus(
-        airflow_configured=configured, airflow_reachable=False, airflow_url=AIRFLOW_URL,
-        dag_id=AIRFLOW_DAG_ID if AIRFLOW_URL else None, last_run=None, detail=detail,
-    )
+    return PipelineStatus(airflow_configured=configured, airflow_reachable=False, last_run=None, detail=detail)
 
 
 # A failed run's error, by run id: it never changes, and the status is
@@ -313,11 +306,8 @@ def _pipeline_status() -> PipelineStatus:
     last = runs[0] if runs else None
     error = _run_error(last["dag_run_id"], {"Authorization": f"Bearer {token}"}) if last and last.get("state") == "failed" else None
     return PipelineStatus(
-        airflow_configured=True, airflow_reachable=True, airflow_url=AIRFLOW_URL, dag_id=AIRFLOW_DAG_ID, detail=None,
-        last_run=PipelineRun(
-            dag_run_id=last.get("dag_run_id"), state=last.get("state"),
-            start_date=last.get("start_date"), end_date=last.get("end_date"), error=error,
-        ) if last else None,
+        airflow_configured=True, airflow_reachable=True, detail=None,
+        last_run=PipelineRun(dag_run_id=last.get("dag_run_id"), state=last.get("state"), error=error) if last else None,
     )
 
 

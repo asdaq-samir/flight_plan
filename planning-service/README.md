@@ -117,16 +117,13 @@ once in ten.
 | `GET /api/navlog` | The four altitude plans (lowest, highest, fastest for the winds, and the least fuel, climb and cruise; each stepping under a Class B shelf and up past it), the one chosen (`altitude_choice`), and the dead-reckoning legs, streamed as NDJSON. `depart`, an ISO time, picks the winds forecast period (6, 12 or 24 hours out) and whether the fuel reserve is the day or the night one; the totals carry the fuel check against the aeroplane's usable fuel (`usable_fuel_gal` overrides the profile's). Each leg flies the aeroplane's cruise figures -- the profile's, or a pilot's own (`cruise_tas_kt`, `fuel_burn_gph`, and `cruise_power_pct`, the power they are at) -- in its own air: they are its figures at 6,000 ft on a standard day, and the forecast temperature at the leg's altitude gives the density altitude, the TAS and the burn it flies at (`vfr.performance`). Each leg carries its climb -- from the field on the first, up to a new level where a plan steps -- at the best rate for the density altitude, falling to 100 fpm at the service ceiling. The slow one. |
 | `GET /api/plan` | All three at once, for non-browser callers. |
 | `GET /api/briefing` | The FAA-sequence weather briefing behind Plan's briefing (the nav log drawer opened wide). |
-| `GET /api/altitude-breakdown` | The reasoning behind a recommended cruise altitude. |
 | `GET /api/detect/stream` | Chart-vision detections, streamed as NDJSON. |
 | `GET /api/classify` | What the chart draws at one point. |
 | `GET /api/chart-tile/{kind}/{z}/{x}/{y}.png` | The map's tiles, rendered from the FAA's own GeoTIFF of each sheet (`vfr.charts`), collar clipped away so sheets butt together; 404 where no sheet of that kind covers the tile. Any chart kind by key -- `sec`, `tac`, `ifr_low`, `ifr_high` (the IFR enroute charts, base layers the map's info popover can switch to), `ifr_area` (the enroute charts' terminal-area sheets, an overlay over the IFR bases the way the TAC is over the sectional). `chart_layers` on the course lists the kinds, their zooms and which base each overlay belongs over. On AWS the course also carries `chart_tiles_base`, the CloudFront URL the browser fetches tiles from instead (docs/README-AWS.md). |
 | `GET /api/class-b` | Every Class B airport: where it is, and what its METAR/TAF are doing now and forecast. One call for all thirty rather than one per marker -- the airspace shapefile is parsed once and pickled (`vfr.classb`, `data/raw/faa_nasr/Shape_Files/Class_Airspace.controlled.v3.pkl`), and the METAR/TAF national caches are already held in memory by `vfr.weather`, so assembling all thirty costs about as much as assembling one. |
-| `GET/POST/DELETE /api/picks` | Hand-marked checkpoints. |
+| `POST/DELETE /api/picks` | Hand-marked checkpoints. |
 | `POST /api/checkpoint-notes/generate`, `POST /api/checkpoint-notes` | A "how to spot it" note per checkpoint: streamed, generating (one Claude call each) only the checkpoints with no note yet; and a pilot's own edit. An edit is that pilot's alone (webapp's proxy sends `X-Pilot-Id` from the session) and is appended, so the note it replaced stays in `checkpoint_notes.csv`; everyone else keeps the shared note. |
 | `GET /api/airports/search` | Identifier and name lookup for the route form. |
-| `POST /api/build`, `GET /api/build/{id}` | Start and poll a corridor collection. |
-| `GET /api/routes` | Corridors the feature store already covers. |
 | `GET /api/model-comparison` | Every trained algorithm's accuracy side by side, and which one is promoted. |
 | `GET /api/aircraft-profiles` | The stock performance profiles the nav log can be computed for. `/api/plan` and `/api/navlog` take `aircraft` plus optional `cruise_tas_kt`/`fuel_burn_gph` for a pilot's own aeroplane. |
 | `GET /api/status` | The whole stack in one snapshot for the dev console: which services answer, how fresh the FAA and weather data is, the model registry, and every collected corridor with its label counts. |
@@ -247,10 +244,9 @@ exception.
 was invisible until something went looking.** `vfr.altitude.
 select_cruise_altitude` times each of its seven concurrent calls
 (terrain, both airspace queries, transits, magnetic variation, and the
-three weather calls) plus its own total; `vfr.model_client.invoke`
-times the call to `model-service` or SageMaker; this router's own
+three weather calls) plus its own total; this router's own
 `/api/class-b` times the airspace read and the weather lookup
-separately. All three were added, run against the built container, and
+separately. Both were added, run against the built container, and
 found to produce *no output at all* -- Python's root logger defaults
 to `WARNING`, uvicorn's own `--log-level` only reaches its own
 `uvicorn.access`/`uvicorn.error` loggers, and nothing in this process

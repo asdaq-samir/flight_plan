@@ -1,10 +1,8 @@
 import type { ReactNode } from "react";
-import { useQuery } from "@tanstack/react-query";
 import { Download, Layers, Maximize, Navigation, Settings } from "lucide-react";
 import { cn } from "cn";
 import { ConsolePages, PageRow, StepRow } from "../../components/ConsolePages";
 import { ListGroup, ListRow } from "../../components/GroupedList";
-import { api } from "../../lib/api/client";
 import { CRUISE_REFERENCE_FT } from "../../lib/performance";
 import { TEXT } from "../../lib/text";
 import { altFt } from "../../lib/units";
@@ -17,19 +15,6 @@ const BUCKETS: [string, string][] = [
   [scoreColor(3.0), "3 to 3.5: weak; keep a second reference"],
   [scoreColor(0), "below 3: not one to plan on"],
 ];
-
-/** Which model rated the checkpoints, in one line a pilot might
- *  reasonably want -- nothing at all while it loads or when no model
- *  has been promoted yet. */
-function useModelProvenance(): string | null {
-  const { data } = useQuery({
-    queryKey: ["modelComparison"], queryFn: api.modelComparison, retry: false, staleTime: Infinity,
-  });
-  const promoted = data?.models.find(m => m.promoted);
-  if (!data || !promoted) return null;
-  return `Rated by ${promoted.name}${promoted.score !== null ? `, off by ${promoted.score.toFixed(2)} on average` : ""}${
-    data.n_labeled != null ? ` against ${data.n_labeled} checkpoints pilots rated by hand` : ""}.`;
-}
 
 /** A page's reading: the text's own colour at a paragraph's size. */
 function Reading({ children }: { children: ReactNode }) {
@@ -49,7 +34,6 @@ function Reading({ children }: { children: ReactNode }) {
  * after both had gone.
  */
 export default function PilotGuide() {
-  const provenance = useModelProvenance();
   return (
     <ConsolePages
       back="Guide"
@@ -116,7 +100,7 @@ export default function PilotGuide() {
           <StepRow n={5} title="Take it with you" description="Print, beside the route, for the nav log on paper; and Offline in the settings keeps each route's charts on this device for the air." />
         </ListGroup>
 
-        <ListGroup title="Checkpoint colours" footer={provenance ?? "Each checkpoint is rated for how findable it is from the cockpit, 0 to 5."}>
+        <ListGroup title="Checkpoint colours" footer="Each checkpoint is rated for how findable it is from the cockpit, 0 to 5.">
           {/* A row a colour, its dot before the words, as the app's lists
               are (the developer's rating scale is the same). */}
           {BUCKETS.map(([color, label]) => (

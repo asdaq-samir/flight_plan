@@ -106,7 +106,7 @@ export default defineConfig({
             // weather could not be checked. (The nav log below is still
             // cached: it is the plan the pilot flies, made before they
             // went.)
-            urlPattern: ({ url }) => /^\/api\/planner\/(briefing|class-b|altitude-breakdown)\b/.test(url.pathname),
+            urlPattern: ({ url }) => /^\/api\/planner\/(briefing|class-b)\b/.test(url.pathname),
             handler: "NetworkOnly",
           },
           {

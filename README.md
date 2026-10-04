@@ -40,7 +40,7 @@ Demo route: **Campbell Airport (C81)** → **Duluth International (KDLH)**.
 |---|---|
 | `webapp` | Spring Boot — public API, auth, and the React front end |
 | `planning-service` | FastAPI — sectional chart vision, checkpoint selection, dead reckoning |
-| `model-service` | FastAPI — model serving (`/ping`, `/invocations`) |
+| `model-service` | FastAPI — serves the chart model's scores (`/score-detections`) |
 | `nav-log-agent` | LangGraph agent, served over MCP — assembles the nav log and briefing |
 | `crewai-agent` | The identical task in CrewAI, for framework comparison |
 | `db` | PostgreSQL + pgvector — application data and agent long-term memory |

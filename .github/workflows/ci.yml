@@ -58,17 +58,11 @@ permissions:
 # cache is keyed by it too.
 env:
   PLAYWRIGHT_IMAGE: mcr.microsoft.com/playwright:v1.55.1-noble
-  # The Python suites install with uv (the `test` job says why), reading
-  # an extra index as pip does: the best version across every index, not
-  # the first index's -- model-service's requirements add PyTorch's CPU
-  # index to PyPI for torch alone.
-  UV_INDEX_STRATEGY: unsafe-best-match
 
 jobs:
   # The Python suites install their requirements with uv, the same
   # pinned lists pip installs into each image, several times faster:
-  # pip spent 68 of test-model-service's 83 seconds on torch and
-  # tensorflow, and 50 of test-nav-log-agent's 90, when the browser
+  # pip spent 50 of test-nav-log-agent's 90 seconds, when the browser
   # suite's shards end at about that. No pip cache in the Actions cache
   # either: the suites' pip caches were 6.5 of its 10 GB, and what they
   # pushed out was the browser suite's own planner data.
@@ -204,9 +198,7 @@ jobs:
       - run: ruff check app tests
       - run: pytest tests/ -v
 
-  # model-service's own suite. Its requirements carry torch and
-  # tensorflow (the candidates it serves), which is most of this job's
-  # time, and none of the other suites needs them.
+  # model-service's own suite.
   test-model-service:
     runs-on: ubuntu-26.04
     needs: [changes]

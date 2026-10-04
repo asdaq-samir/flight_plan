@@ -14,7 +14,7 @@
 -r ../src/requirements-charts.txt   # vfr's own list, charts included: this service draws them
 fastapi==0.141.1
 uvicorn[standard]==0.53.0
-boto3==1.43.98      # vfr.model_client's SageMaker Runtime path and vfr.charts' S3 publish, used only on AWS
+boto3==1.43.98      # vfr.charts' S3 publish, used only on AWS
 anthropic==1.6.0   # /api/checkpoint-notes: one Claude call per checkpoint
 # Traces to an OTLP collector, only where OTEL_EXPORTER_OTLP_ENDPOINT is
 # set (app.tracing; docker-compose's tracing profile).

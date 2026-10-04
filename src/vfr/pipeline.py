@@ -122,8 +122,7 @@ def _publish(out_path, write) -> Path:
     part of one.
 
     Every reader takes "the file exists" to mean "the corridor is built":
-    the planner's build answers "already built", model-service serves it,
-    the Dev console lists it. A write cut short -- a full disk, a task
+    the trainers read it, the Dev console lists it. A write cut short -- a full disk, a task
     killed part-way -- used to leave a torn file that read as built until
     someone deleted it by hand; now it leaves the previous file. The temp
     name starts with a dot and ends in .part, so no reader's glob

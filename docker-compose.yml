@@ -221,24 +221,12 @@ services:
     build: ./model-service
     ports:
       - "127.0.0.1:8000:8000"
-    # Mounted at SageMaker's own paths rather than at the project layout:
-    # /opt/ml/model is where SageMaker places a model artifact for an
-    # inference container, so the service reads the same location locally
-    # and on AWS and needs no code change to move. Read-only -- serving
-    # never writes to either.
+    # The chart reader's scorer (vfr.chartmodel), as a retrain promotes
+    # it. Read-only -- serving never writes to it.
     volumes:
-      - ./data/models/current:/opt/ml/model:ro
-      - ./data/processed:/opt/ml/features:ro
-      # PyTorch/TensorFlow/Spark's own artifacts (vfr.model_candidates,
-      # trained one-off inside the `ml` image, see that module's
-      # docstring) -- read-only for the same reason as the two above.
-      - ./data/models/candidates:/opt/ml/candidates:ro
-      # The chart reader's scorer (vfr.chartmodel), promoted by the same
-      # gate into a registry of its own.
       - ./data/models/chart/current:/opt/ml/chart-model:ro
     # No curl/wget in the python:3.13-slim base -- a stdlib urllib call
-    # needs neither, and /ping is the same real "did the model actually
-    # load" check SageMaker itself would use.
+    # needs neither.
     healthcheck:
       <<: *python-healthcheck
       test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/ping')"]

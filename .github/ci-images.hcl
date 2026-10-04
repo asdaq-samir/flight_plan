@@ -107,13 +107,9 @@ target "playwright" {
   output            = ["type=registry,compression=zstd,force-compression=true,oci-mediatypes=true"]
 }
 
-# `slim`: the scikit-learn serving stack alone, which is all the suite's
-# fixture model needs -- the full image's torch and tensorflow were four
-# of the five gigabytes each runner loaded. See model-service/Dockerfile.
 target "model-service" {
   context    = "model-service"
   dockerfile = "Dockerfile"
-  target     = "slim"
   tags       = tags("model-service", MODEL_SERVICE_KEY)
   cache-from = cache("model-service")
   cache-to   = MODEL_SERVICE_KEY == "" ? [] : ["type=inline"]

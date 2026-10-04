@@ -1,4 +1,4 @@
-from vfr.checkpoints import select_checkpoints, selection_gaps_nm
+from vfr.checkpoints import select_checkpoints
 
 
 def _c(along, score, name="x"):
@@ -32,7 +32,6 @@ def test_min_score_leaves_a_gap_rather_than_picking_something_unusable():
         min_score=2.5,
     )
     assert [c["name"] for c in picked] == ["a", "b"]
-    assert selection_gaps_nm(picked) == [80.0]
 
 
 def test_max_count_caps_the_list():
@@ -57,7 +56,3 @@ def test_ignores_rows_missing_a_score():
         [{"along_track_nm": 5.0, "name": "no score"}, _c(50, 4.0, "ok")], min_spacing_nm=10
     )
     assert [c["name"] for c in picked] == ["ok"]
-
-
-def test_gaps_are_empty_for_a_single_checkpoint():
-    assert selection_gaps_nm([_c(10, 4.0)]) == []

@@ -1,33 +1,14 @@
 """The one way to ask model-service for scores: the chart model's for the
-chart reader's detections (score_detections), which the planner's
-checkpoints and the training page's points are ranked by, and the
-landmark model's for a collected corridor (invoke), which nothing in the
-planner asks for since its checkpoints came off the chart.
-
-Locally that is an HTTP POST to the model-service container's
-/invocations. On AWS the same image runs as a SageMaker Endpoint's serving
-container, with no HTTP service to call, so the identical request goes
-through SageMaker Runtime's invoke_endpoint instead. Which path runs is
-decided by SAGEMAKER_ENDPOINT_NAME alone -- set only on AWS, by the task
-definition in infra/cloudformation/template.yaml -- so planning-service
-never needs to know which it is talking to. The agents get their nav
-log, scores included, from planning-service itself (vfr.planner_client).
+chart reader's detections, which the planner's checkpoints and the
+training page's points are ranked by. An HTTP POST to the model-service
+container. The agents get their nav log, scores included, from
+planning-service itself (vfr.planner_client).
 """
-import json
-import logging
 import os
-import threading
-import time
 
 import requests
 
-from .retry import upstream_detail
-
-log = logging.getLogger(__name__)
-
 MODEL_SERVICE_URL = os.environ.get("MODEL_SERVICE_URL", "http://model-service:8000")
-SAGEMAKER_ENDPOINT_NAME = os.environ.get("SAGEMAKER_ENDPOINT_NAME")
-TIMEOUT_S = 90
 
 # One Session per process, not one per call: a bare requests.post() opens
 # a fresh TCP connection (and, to model-service over plain HTTP inside the
@@ -36,112 +17,15 @@ TIMEOUT_S = 90
 # connection instead.
 _session = requests.Session()
 
-# boto3 clients are expensive to build (they parse the service's whole
-# API model from botocore's bundled JSON on every construction) and are
-# documented as thread-safe once built, so one lazily-created client is
-# reused rather than one per inference. Lazy, not built at import time:
-# importing this module must not need boto3 at all outside AWS, and the
-# non-AWS images do not install it.
-_sagemaker_client = None
-_sagemaker_client_lock = threading.Lock()
-
-
-def _sagemaker() -> "object":
-    global _sagemaker_client
-    if _sagemaker_client is None:
-        with _sagemaker_client_lock:
-            if _sagemaker_client is None:
-                import boto3
-                _sagemaker_client = boto3.client("sagemaker-runtime")
-    return _sagemaker_client
-
-
-class ModelServiceError(Exception):
-    """No result from model-service or the endpoint standing in for it.
-    `status` is what an HTTP caller should relay: 502 when the service
-    could not be reached, otherwise the status it answered with."""
-
-    def __init__(self, message: str, status: int = 502):
-        super().__init__(message)
-        self.status = status
-
-
-class RouteNotCollected(ModelServiceError):
-    """model-service has no feature store for this corridor -- its 404.
-    Collection is a pipeline job, not something a scoring call can do."""
-
-    def __init__(self, departure_ident: str, destination_ident: str):
-        super().__init__(f"{departure_ident}->{destination_ident} has not been collected yet", 404)
-
-
-def invoke(departure_ident: str, destination_ident: str, model: str | None = None) -> dict:
-    """The full /invocations response. `model` picks one of the trained
-    candidates instead of whatever is promoted; the planner never sets it."""
-    payload = {"departure_ident": departure_ident, "destination_ident": destination_ident}
-    if model is not None:
-        payload["model"] = model
-    path = "sagemaker" if SAGEMAKER_ENDPOINT_NAME else "http"
-    started = time.time()
-    try:
-        if SAGEMAKER_ENDPOINT_NAME:
-            return _invoke_sagemaker(payload)
-        return _invoke_http(payload)
-    finally:
-        # Logged whether this succeeded or raised (a timeout is exactly
-        # the case worth seeing the duration of): the one place every
-        # scored-route request passes through, whichever of the two
-        # backends is answering it.
-        log.info("model_client.invoke (%s): %s->%s in %.2fs", path, departure_ident, destination_ident, time.time() - started)
-
-
-def get_checkpoints(departure_ident: str, destination_ident: str) -> list[dict]:
-    return invoke(departure_ident, destination_ident)["checkpoints"]
-
 
 def score_detections(rows: list[dict]) -> list | None:
     """The chart model's score for each of the chart reader's detections,
     from their feature rows (vfr.chartfeatures), in order; None where
     model-service has no chart model promoted, or does not answer. Never
     an error: the training page shows the palette's constants alone
-    then, as it did before there was a model. HTTP only, like /routes."""
+    then, as it did before there was a model."""
     try:
         resp = _session.post(f"{MODEL_SERVICE_URL}/score-detections", json={"rows": rows}, timeout=10)
         return resp.json()["scores"] if resp.status_code == 200 else None
     except (requests.RequestException, ValueError, KeyError):
         return None
-
-
-def _invoke_http(payload: dict) -> dict:
-    try:
-        resp = _session.post(f"{MODEL_SERVICE_URL}/invocations", json=payload, timeout=TIMEOUT_S)
-    except requests.RequestException as err:
-        raise ModelServiceError(f"Could not reach model-service: {err}") from err
-    if resp.status_code == 404:
-        raise RouteNotCollected(payload["departure_ident"], payload["destination_ident"])
-    if resp.status_code != 200:
-        raise ModelServiceError(upstream_detail(resp, "model-service"), resp.status_code)
-    return resp.json()
-
-
-def _invoke_sagemaker(payload: dict) -> dict:
-    # BotoCoreError/ClientError imported here so the local images and the
-    # test suite need no boto3; the AWS images install it. The client
-    # itself is _sagemaker()'s job now, built once and reused.
-    from botocore.exceptions import BotoCoreError, ClientError
-
-    client = _sagemaker()
-    try:
-        response = client.invoke_endpoint(
-            EndpointName=SAGEMAKER_ENDPOINT_NAME,
-            ContentType="application/json",
-            Body=json.dumps(payload),
-        )
-    except ClientError as err:
-        # The container's own status comes back on the ModelError.
-        status = int(err.response.get("OriginalStatusCode") or 0)
-        if status == 404:
-            raise RouteNotCollected(payload["departure_ident"], payload["destination_ident"]) from err
-        raise ModelServiceError(f"SageMaker endpoint {SAGEMAKER_ENDPOINT_NAME}: {err}", status or 502) from err
-    except BotoCoreError as err:
-        raise ModelServiceError(f"Could not reach SageMaker endpoint {SAGEMAKER_ENDPOINT_NAME}: {err}") from err
-    return json.loads(response["Body"].read())

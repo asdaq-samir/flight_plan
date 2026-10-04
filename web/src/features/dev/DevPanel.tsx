@@ -112,9 +112,9 @@ const modelComparisonChartConfig = {
   score: { label: "MAE", color: "var(--chart-1)" },
 } satisfies ChartConfig;
 
-// Emerald, the dot of the serving model's own Serving badge (StatusBadge's
-// "up") -- the one bar that's actually serving predictions reads as
-// such at a glance, not just on hover.
+// Emerald, the dot of the promoted model's own Promoted badge
+// (StatusBadge's "up") -- the promoted one's bar reads as such at a
+// glance, not just on hover.
 const PROMOTED_BAR_COLOR = "#10b981";
 
 function ModelComparison() {
@@ -239,7 +239,7 @@ function RoutesGroup({ status, failed }: { status: Status | undefined; failed: b
 }
 
 /**
- * The model serving predictions: what it is, how it scored, and the
+ * The promoted landmark model: what it is, how it scored, and the
  * versions promoted before it (a page of their own), with how each
  * moved the error. Then the chart model (vfr.chartmodel), which scores
  * the chart reader's points on the training page, against the palette's
@@ -254,7 +254,7 @@ function ModelGroup({ status, failed }: { status: Status | undefined; failed: bo
       {current ? (
         <ListGroup title="Model">
           <ListRow title={current.model_type ?? "Unknown model"} description={`Trained ${ago(current.trained_at)} · ${current.n_features} features`}>
-            <StatusBadge tone="up">Serving</StatusBadge>
+            <StatusBadge tone="up">Promoted</StatusBadge>
           </ListRow>
           <ListRow title="CV MAE" value={current.cv_mae == null ? "—" : mae(current.cv_mae)} />
           <ListRow title="Held-out MAE" value={current.held_out_mae == null ? "—" : mae(current.held_out_mae)} />
@@ -623,9 +623,9 @@ function SystemTab({ status, failed, onRefresh, refreshing }: {
     { name: "planning-service", health: reported(status ? { up: true } : null, failed), detail: "course, checkpoints, nav log, briefing, chart reading" },
     {
       name: "model-service", health: reported(modelService, failed),
-      detail: modelService?.up && modelService.trained_at
-        ? `serving a model trained ${ago(modelService.trained_at)}`
-        : modelService?.detail ?? "scores candidate checkpoints",
+      detail: modelService?.up
+        ? modelService.trained_at ? `serving the chart model trained ${ago(modelService.trained_at)}` : "no chart model promoted yet"
+        : modelService?.detail ?? "scores the chart's detections",
     },
     { name: "nav-log-agent (LangGraph, MCP)", health: reported(services?.nav_log_agent, failed), detail: "the briefing narrative, with memory" },
     { name: "crewai-agent", health: reported(services?.crewai_agent, failed), detail: "the same narrative, in CrewAI" },

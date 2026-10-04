@@ -111,10 +111,6 @@ jobs:
             ecrRepo: planning-service
             context: .
             dockerfile: planning-service/Dockerfile
-          - service: model-service
-            ecrRepo: model-service
-            context: ./model-service
-            dockerfile: ./model-service/Dockerfile
           - service: nav-log-agent
             ecrRepo: nav-log-agent
             context: .

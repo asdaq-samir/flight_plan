@@ -138,7 +138,6 @@ export type Detection = Schemas["Detection"];
 /** A pick no detection claimed: a miss, or one whose detection has moved. */
 export type LoosePick = Schemas["Pick"];
 export type PickSummary = Schemas["PickSummary"];
-export type PicksResponse = Schemas["PicksResponse"];
 export type PickSaved = Schemas["PickSaved"];
 export type PickDeleted = Schemas["PickDeleted"];
 export type Classification = Schemas["Classification"];

@@ -117,18 +117,33 @@ def test_navlog_streams_altitude_then_legs_then_done(messages):
     assert altitude["flown"] == "fastest" and altitude["altitude_ft"] == 4500.0
 
 
-def test_a_departure_time_picks_the_winds_forecast_period(messages):
+def test_a_departure_time_picks_the_winds_forecast_period(monkeypatch, messages):
     from datetime import datetime, timedelta, timezone
 
+    # The forecast period each leg's winds are read for.
+    asked = []
+
+    def leg(start, end, altitude_ft, profile, fcst_hr="06"):
+        asked.append(fcst_hr)
+        return _leg(start, end, altitude_ft, profile, fcst_hr)
+
+    monkeypatch.setattr(navlog, "assemble_leg", leg)
     soon = (datetime.now(timezone.utc) + timedelta(hours=2)).isoformat()
     later = (datetime.now(timezone.utc) + timedelta(hours=14)).isoformat()
     tomorrow = (datetime.now(timezone.utc) + timedelta(hours=30)).isoformat()
 
+    assert client.get("/api/plan", params={"dep": "C81", "dest": "KDLH", "depart": later}).status_code == 200
+    assert set(asked) == {"12"}
+    seen = set()
     for depart, expected in ((None, "06"), (soon, "06"), (later, "12"), (tomorrow, "24")):
+        asked.clear()
         params = {"dep": "C81", "dest": "KDLH", **({"depart": depart} if depart else {})}
-        altitude = next(m for m in messages(client.get("/api/navlog", params=params)) if m["type"] == "altitude")
-        assert altitude["winds_forecast_hr"] == expected, depart
-    assert client.get("/api/plan", params={"dep": "C81", "dest": "KDLH", "depart": later}).json()["winds_forecast_hr"] == "12"
+        messages(client.get("/api/navlog", params=params))
+        # A period's legs already worked out come from the cache, with no
+        # wind asked for again.
+        assert set(asked) <= {expected}, depart
+        seen |= set(asked)
+    assert {"06", "24"} <= seen
 
 
 def test_totals_carry_the_fuel_check(messages):

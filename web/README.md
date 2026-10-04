@@ -89,8 +89,7 @@ unless it opens a signed-out one itself. With
 CI runs the same suite on every push and pull request (the `e2e` job in
 `.github/workflows/ci.yml`): the webapp, the planner and the model
 service built from the commit, under `docker-compose.ci.yml`, with the
-suite's own small trained model (`e2e/fixtures/model`) and the planner's
-reference data kept in the Actions cache between runs. It runs the tests
+planner's reference data kept in the Actions cache between runs. It runs the tests
 in the same Playwright image as above, split over six runners. Failures
 show on the commit's checks, with traces and screenshots as a run
 artifact, and each shard's notice lists its slowest tests.

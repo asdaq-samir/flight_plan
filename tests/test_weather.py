@@ -510,7 +510,8 @@ PIREP_XML = b"""<response><data>
   <longitude>-88.1</longitude><altitude_ft_msl>5500</altitude_ft_msl><turbulence_condition turbulence_intensity="MOD" />
   <icing_condition icing_intensity="NEG" /><report_type>PIREP</report_type><raw_text>UA /OV ... /TB MOD</raw_text></AircraftReport>
 <AircraftReport><observation_time>{now}</observation_time><aircraft_ref>B738</aircraft_ref><latitude>42.6</latitude>
-  <longitude>-88.0</longitude><altitude_ft_msl>36000</altitude_ft_msl><report_type>PIREP</report_type><raw_text>UA FL360</raw_text></AircraftReport>
+  <longitude>-88.0</longitude><altitude_ft_msl>36000</altitude_ft_msl><report_type>PIREP</report_type>
+  <raw_text>UA FL360</raw_text></AircraftReport>
 <AircraftReport><observation_time>{now}</observation_time><latitude>54.0</latitude><longitude>-50.0</longitude>
   <altitude_ft_msl>37000</altitude_ft_msl><report_type>AIREP</report_type><raw_text>ARP</raw_text></AircraftReport>
 <AircraftReport><observation_time>{now}</observation_time><latitude>42.5</latitude><longitude>-80.0</longitude>

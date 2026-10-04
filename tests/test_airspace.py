@@ -97,7 +97,7 @@ def test_absent_file_is_rejected(tmp_path):
 
 # --- the hemispheric cruising-altitude rule ---
 
-from vfr.airspace import CLEARANCE_CLASSES, TWO_WAY_COMMS_CLASSES  # noqa: E402
+from vfr.airspace import CLEARANCE_CLASSES  # noqa: E402
 from vfr.altitude import lowest_vfr_cruising_altitude  # noqa: E402
 
 EAST, WEST = 90.0, 270.0
@@ -126,7 +126,6 @@ def test_only_class_b_takes_a_clearance():
     """The domain rule this module now encodes: C and D need two-way
     radio communication established, B needs a clearance."""
     assert CLEARANCE_CLASSES == ("B",)
-    assert set(TWO_WAY_COMMS_CLASSES) == {"C", "D"}
 
 
 # --- the parsed-polygon cache beside the shapefile ---

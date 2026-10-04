@@ -296,9 +296,8 @@ def cruise_altitude(
     pending: set = set()
 
     def compute():
-        # The keywords only when they differ from the defaults: the
-        # route-wide caller (/api/altitude-breakdown, which the CrewAI
-        # agent's altitude tool asks) keeps the original call.
+        # The keywords only when they differ from the defaults: a
+        # route-wide call keeps the original one.
         extra = {}
         if fixes:
             extra["fixes"] = fixes

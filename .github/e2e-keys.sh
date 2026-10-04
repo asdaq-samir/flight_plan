@@ -15,8 +15,8 @@
 #                     it installs. Not its code, which the stack mounts
 #                     from the checkout over the image's
 #                     (docker-compose.yml).
-#   model-service     its `slim` stage: the Dockerfile, the serving
-#                     requirements and the service's code.
+#   model-service     the Dockerfile, its requirements and the
+#                     service's code.
 #   page              the page: web/ but its browser suite (web/e2e),
 #                     the two API documents its types are made from, and
 #                     the Node it is built with.
@@ -27,6 +27,6 @@ set -euo pipefail
 key() { { echo "zstd"; git ls-tree -r HEAD -- "$@"; } | git hash-object --stdin | cut -c1-16; }
 echo "webapp $(key springboot-app/Dockerfile springboot-app/pom.xml springboot-app/src/main)"
 echo "planning-service $(key planning-service/Dockerfile planning-service/requirements.txt src/requirements.txt src/requirements-charts.txt)"
-echo "model-service $(key model-service/Dockerfile model-service/requirements-serving.txt model-service/app)"
+echo "model-service $(key model-service/Dockerfile model-service/requirements.txt model-service/app)"
 echo "page $(git ls-tree -r HEAD -- web planning-service/openapi.json springboot-app/openapi.json .nvmrc \
   | grep -v $'\tweb/e2e/' | git hash-object --stdin | cut -c1-16)"

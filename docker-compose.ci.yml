@@ -3,9 +3,7 @@
 # images that job pulled (or, for a pull request, built), under the
 # names it gave them; the page built from the commit (web/dist: by
 # e2e-images once per key, or on a pull request by the job itself), in
-# place of the one in the webapp's image; and the suite's own small
-# trained model in place of data/models/current, which is not in git.
-# The images are built once per key (.github/e2e-keys.sh): the webapp's
+# place of the one in the webapp's image. The images are built once per key (.github/e2e-keys.sh): the webapp's
 # for its jar, the planner's for its packages -- its code is the
 # checkout, mounted by docker-compose.yml -- so the page and the
 # planner's code are always this commit's, whichever commit built the
@@ -92,5 +90,3 @@ services:
     healthcheck:
       start_period: 60s
       start_interval: 1s
-    volumes:
-      - ./web/e2e/fixtures/model:/opt/ml/model:ro

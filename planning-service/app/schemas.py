@@ -523,9 +523,6 @@ class Plan(BaseModel):
     altitude_selection: AltitudeBreakdown | None
     altitude_options: list[AltitudeOption] = []
     altitude_choice: AltitudeChoice | None = None
-    # Which winds-aloft forecast period the legs were flown on: 06, 12
-    # or 24 hours out, from the departure time given.
-    winds_forecast_hr: str = "06"
     aircraft: AircraftProfile
     max_zoom: int
     min_zoom: int
@@ -765,12 +762,6 @@ class Pick(BaseModel):
         return self.rating is not None
 
 
-class PicksResponse(BaseModel):
-    route: str
-    picks: list[Pick]
-    summary: PickSummary
-
-
 class DisplacedPick(BaseModel):
     """A pick on another point that a save took the place of: the store
     keeps one pick per place (vfr.routecsv.SAME_PLACE_NM), whatever each
@@ -904,7 +895,6 @@ class NavLogError(BaseModel):
     detours: list[Detour] = []
 
 
-
 class NavLogAltitude(BaseModel):
     """Which altitudes the legs that follow fly. `flown` is the planner's
     plan of that name, or "custom" for a pilot's own altitude; None when
@@ -923,7 +913,6 @@ class NavLogAltitude(BaseModel):
     altitude_ft: float | None
     altitude_selection: AltitudeBreakdown
     options: list[AltitudeOption] = []
-    winds_forecast_hr: str = "06"
     aircraft: AircraftProfile
 
 
@@ -1083,13 +1072,12 @@ class AirportPlace(BaseModel):
     towered: bool
     # Its remarks a pilot acts on from the cockpit, in plain English
     # (vfr.remarks): the lighting schedule -- lights turned on by keying
-    # the mic, `pilot_controlled_lighting` -- and the other remarks that
-    # count mic clicks, such as the weather read out on the CTAF.
-    # `standard_keying` where the lights are the pilot's and the remarks
-    # do not say how many clicks: AIM 4-1-9's 7, 5 and 3 apply.
+    # the mic -- and the other remarks that count mic clicks, such as the
+    # weather read out on the CTAF. `standard_keying` where the lights
+    # are the pilot's and the remarks do not say how many clicks: AIM
+    # 4-1-9's 7, 5 and 3 apply.
     lighting: list[str] = []
     radio_notes: list[str] = []
-    pilot_controlled_lighting: bool = False
     standard_keying: bool = False
     runways: list[Runway]
     frequencies: list[Frequency]
@@ -1141,8 +1129,9 @@ class ServiceStatus(BaseModel):
 
 
 class ModelServiceStatus(ServiceStatus):
+    #: When the chart model it serves was trained; None while none is
+    #: promoted.
     trained_at: str | None = None
-    models: dict[str, bool] = {}
 
 
 class Services(BaseModel):
@@ -1168,7 +1157,6 @@ class DataFile(BaseModel):
 class WeatherDataset(BaseModel):
     name: str
     fetched_at: str | None
-    age_s: float | None
 
 
 class ModelSnapshot(BaseModel):
@@ -1224,8 +1212,6 @@ class PipelineRun(BaseModel):
 
     dag_run_id: str | None
     state: str | None
-    start_date: str | None
-    end_date: str | None
     error: str | None = None
 
 
@@ -1253,9 +1239,6 @@ class PipelineStatus(BaseModel):
 
     airflow_configured: bool
     airflow_reachable: bool
-    airflow_url: str | None
-    # The training DAG's id, for a link to it in Airflow's own UI.
-    dag_id: str | None = None
     last_run: PipelineRun | None
     detail: str | None
     training: TrainingReadiness | None = None
@@ -1395,8 +1378,6 @@ class ClassBAirport(BaseModel):
     #: project's arithmetic.
     flight_category: str | None = None
     metar: str | None = None
-    #: When the METAR was made (ISO 8601, UTC).
-    metar_observed_at: str | None = None
     ceiling_ft: float | None = None
     visibility_sm: float | None = None
     wind_dir_true_deg: float | None = None
