@@ -30,6 +30,7 @@ import { Spinner } from "../../../../components/ui/spinner";
 import { BRIEFING_SECTIONS } from "../briefing/sections";
 import { isLegPoint, legOf, navLogRows, rowPoint, type NavLogRow, type RouteEnds } from "./rows";
 import LegWorkings from "./LegWorkings";
+import DiversionDrill from "./DiversionDrill";
 import RouteProfileSection from "./RouteProfileSection";
 
 /** Every section of the drawer, the nav log's own first: what the
@@ -266,7 +267,7 @@ function legPointNote(point: TopOfClimb | TopOfDescent, descent: TopOfDescent | 
   return `Top of descent: ${descent.fpm} fpm down to ${feet(descent.to_ft)}${descent.pattern ? ", the pattern" : ""}.`;
 }
 
-function LegLine({ leg }: { leg: Leg }) {
+function LegLine({ leg, at }: { leg: Leg; at: { name: string; lat: number; lon: number } }) {
   const figures: [string, string][] = [
     ["TC", deg(leg.true_course_deg)],
     ["Wind", leg.wind ? `${deg(leg.wind.wind_dir_true_deg)}/${Math.round(leg.wind.wind_speed_kt)}` : "no data"],
@@ -287,8 +288,12 @@ function LegLine({ leg }: { leg: Leg }) {
           </div>
         ))}
       </dl>
-      {/* The same figures worked out, for a student to follow or try. */}
-      <LegWorkings leg={leg} />
+      {/* The same figures worked out, for a student to follow or try;
+          and a diversion from the row's point, against the clock. */}
+      <div className="flex flex-wrap gap-x-4 gap-y-1">
+        <LegWorkings leg={leg} />
+        <DiversionDrill leg={leg} at={at} />
+      </div>
     </div>
   );
 }
@@ -858,7 +863,7 @@ export default function NavLogView({
                   every row is open. */}
               {(rowSelected || printing) && (
               <NoteRow selected={rowSelected} colSpan={columns.length}>
-                {leg && <LegLine leg={leg} />}
+                {leg && <LegLine leg={leg} at={rowPoint(r)} />}
                 {r.kind === "departure" ? (
                   // The departure airport's own name, not editable
                   // and never AI-generated -- there's no "how to
