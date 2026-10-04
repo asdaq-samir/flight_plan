@@ -297,3 +297,21 @@ def test_the_health_probe_says_whether_the_warm_up_is_done(monkeypatch):
     assert client.get("/").json()["warm"] is False
     main.WARM.set()
     assert client.get("/").json()["warm"] is True
+
+
+def test_a_failure_is_held_for_the_dev_console_with_its_words(monkeypatch):
+    from app import errors
+
+    errors._HELD.clear()
+
+    def down(*args, **kwargs):
+        raise WeatherServiceError("aviationweather.gov metars unavailable: 503")
+
+    monkeypatch.setattr(weather, "metar_for_idents", down)
+    client.get("/api/airports/in-view", params={"south": 42, "west": -89, "north": 43, "east": -88})
+    monkeypatch.setattr(tfr, "all_tfrs", lambda: (_ for _ in ()).throw(tfr.TfrUnavailable("down")))
+    client.get("/api/tfrs")
+
+    held = errors.recent()
+    assert [(e["path"].split("?")[0], e["status"]) for e in held] == [("/api/tfrs", 502)]
+    assert held[0]["detail"].startswith("Bad gateway")

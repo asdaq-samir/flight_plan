@@ -1322,6 +1322,17 @@ class ChartRefreshStarted(BaseModel):
     current_cycle: str
 
 
+class RecentError(BaseModel):
+    """A failure the planner answered lately (app.errors): when (UNIX
+    seconds), the call, its status and its words."""
+
+    at: float
+    method: str
+    path: str
+    status: int
+    detail: str
+
+
 class Status(BaseModel):
     checked_at: str
     services: Services
@@ -1331,6 +1342,8 @@ class Status(BaseModel):
     model: ModelRegistry
     pipeline: PipelineStatus
     corridors: list[CorridorStatus]
+    # What the planner failed at lately, the newest first (app.errors).
+    recent_errors: list[RecentError] = []
 
 
 class RetrainStarted(BaseModel):

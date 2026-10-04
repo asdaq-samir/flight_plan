@@ -14,7 +14,7 @@ from fastapi import APIRouter, HTTPException
 from vfr import chartlabels, charts, checkpoint_notes, model_registry, weather
 from vfr.terrain import DEFAULT_FAA_CACHE_DIR
 
-from .. import chart_model, chart_refresh
+from .. import chart_model, chart_refresh, errors
 from ..common import PROCESSED_DIR, paths
 from ..settings import CHARTS_REFRESH_WINDOW, CHARTS_REFRESH_WORKERS
 from ..schemas import (
@@ -348,6 +348,7 @@ def status() -> Status:
                    "chart": _chart_model()},
             pipeline=pipeline.result().model_copy(update={"training": _training()}),
             corridors=_corridors(),
+            recent_errors=errors.recent(),
         )
 
 

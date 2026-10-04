@@ -37,7 +37,7 @@ from fastapi.responses import JSONResponse
 from pydantic import TypeAdapter
 from vfr import airspace, altitude, charts, faa_data, fixes, places, publications, remarks, weather
 
-from . import chart_refresh
+from . import chart_refresh, errors
 from .common import PROCESSED_DIR
 from .planning import StillComputing
 from .routers import airports, briefing, chart, classb, devml, devservices, notes, plan, system
@@ -158,6 +158,8 @@ async def _lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Wingtip Maps planner", lifespan=_lifespan)
+# What failed lately, for the Dev console (app.errors).
+app.add_middleware(errors.RecordFailures)
 
 
 @app.exception_handler(weather.WeatherServiceError)
@@ -167,6 +169,7 @@ async def _weather_service_error(request: Request, exc: weather.WeatherServiceEr
     # and /api/altitude-breakdown alike, and a down or slow
     # aviationweather.gov should read as "the weather source is
     # unavailable" everywhere, not a raw 500.
+    errors.record_for(request, 502, str(exc))
     return JSONResponse(status_code=502, content={"detail": str(exc)})
 
 
@@ -175,6 +178,7 @@ async def _still_computing(request: Request, exc: StillComputing):
     # A computation for this route has run past its limit (app.planning):
     # a 504 that says what it is still waiting on, and that asking again
     # in a minute gets the answer it goes on to cache.
+    errors.record_for(request, 504, str(exc))
     return JSONResponse(status_code=504, content={"detail": str(exc)})
 
 

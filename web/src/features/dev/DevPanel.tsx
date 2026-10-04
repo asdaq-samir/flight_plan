@@ -700,6 +700,27 @@ function SystemTab({ status, failed, onRefresh, refreshing }: {
             ? <ChartsSection charts={status.charts} onRefresh={() => refreshCharts.mutate()} refreshing={refreshCharts.isPending} />
             : <ListGroup><ListRow title={<span className="text-muted-foreground">{waiting(failed)}</span>} /></ListGroup>,
         },
+        errors: {
+          title: "Recent errors",
+          content: (
+            // What the planner failed at lately, the newest first: the call
+            // a pilot made, its status and its words (app.errors).
+            <ListGroup footer="The planner's last 50 answers of 500 or more since it started, and the exceptions no handler caught.">
+              {(status?.recent_errors ?? []).map((e, i) => (
+                <ListRow
+                  key={`${e.at}-${i}`}
+                  title={<span className="font-mono break-all">{e.method} {e.path}</span>}
+                  description={e.detail}
+                  value={<span className="whitespace-nowrap">{e.status} · {ago(new Date(e.at * 1000).toISOString())}</span>}
+                  data-testid="recent-error"
+                />
+              ))}
+              {(status?.recent_errors ?? []).length === 0 && (
+                <ListRow title={<span className="text-muted-foreground">{status ? "None since the planner started." : waiting(failed)}</span>} />
+              )}
+            </ListGroup>
+          ),
+        },
         elsewhere: {
           title: "Elsewhere in the stack",
           content: (
@@ -749,6 +770,7 @@ function SystemTab({ status, failed, onRefresh, refreshing }: {
               well the name wrapped on a phone. The page has the dates. */}
           <PageRow page="data" title="Reference data" value={status ? `${datasets.length} files` : undefined} />
           <PageRow page="charts" title="Charts" value={status?.charts ? `cycle ${status.charts.cycle}` : undefined} />
+          <PageRow page="errors" title="Recent errors" value={status ? (status.recent_errors ?? []).length : undefined} />
           <PageRow page="elsewhere" title="Elsewhere in the stack" value={shown.length} />
         </ListGroup>
         {/* The services and the data are probed on a 30-second tick, and

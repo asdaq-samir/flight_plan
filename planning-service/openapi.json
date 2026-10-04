@@ -5140,6 +5140,40 @@
         "title": "PyramidProgress",
         "type": "object"
       },
+      "RecentError": {
+        "description": "A failure the planner answered lately (app.errors): when (UNIX\nseconds), the call, its status and its words.",
+        "properties": {
+          "at": {
+            "title": "At",
+            "type": "number"
+          },
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          },
+          "method": {
+            "title": "Method",
+            "type": "string"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "at",
+          "method",
+          "path",
+          "status",
+          "detail"
+        ],
+        "title": "RecentError",
+        "type": "object"
+      },
       "RetrainStarted": {
         "properties": {
           "dag_run_id": {
@@ -5738,6 +5772,14 @@
           },
           "pipeline": {
             "$ref": "#/components/schemas/PipelineStatus"
+          },
+          "recent_errors": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/RecentError"
+            },
+            "title": "Recent Errors",
+            "type": "array"
           },
           "services": {
             "$ref": "#/components/schemas/Services"
