@@ -62,6 +62,11 @@ public class Pilot {
     private LocalDate flightReviewOn;
     private LocalDate medicalExpiresOn;
 
+    /** The ACS codes on their Airman Knowledge Test Report, space
+     *  separated (V13); null until they give them. */
+    @Column(length = 2000)
+    private String knowledgeTestCodes;
+
     protected Pilot() {
         // JPA
     }
@@ -101,6 +106,11 @@ public class Pilot {
     public void setCurrencyDates(LocalDate flightReviewOn, LocalDate medicalExpiresOn) {
         this.flightReviewOn = flightReviewOn;
         this.medicalExpiresOn = medicalExpiresOn;
+    }
+
+    /** The knowledge test report's ACS codes, as the pilot gives them. */
+    public void setKnowledgeTestCodes(String codes) {
+        this.knowledgeTestCodes = codes;
     }
 
     /** Made a developer: an address `app.developer-emails` lists (see

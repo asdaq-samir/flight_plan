@@ -86,6 +86,7 @@ public class LogbookController {
     private static LogbookEntryDto toDto(LogbookEntry e) {
         return new LogbookEntryDto(e.getId(), e.getFlownOn(), e.getAircraft(), e.getAircraftType(), e.getRoute(),
                 e.getTotalHours(), e.getNightHours(), e.getCrossCountryHours(), e.getDayLandings(), e.getNightLandings(),
-                e.getRemarks());
+                e.getRemarks(), e.getDualHours(), e.getSoloHours(), e.getInstrumentHours(), e.getToweredLandings(),
+                e.getDistanceNm(), e.getLongestLegNm());
     }
 }

@@ -15,5 +15,11 @@ public record LogbookEntryDto(
         double crossCountryHours,
         int dayLandings,
         int nightLandings,
-        @Nullable String remarks) {
+        @Nullable String remarks,
+        double dualHours,
+        double soloHours,
+        double instrumentHours,
+        int toweredLandings,
+        double distanceNm,
+        double longestLegNm) {
 }

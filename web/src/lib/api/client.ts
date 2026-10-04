@@ -7,7 +7,7 @@ import type {
   Flight, FlightSummary, ModelComparison, NarrativeMessage, NarrativeRequest, NavLogMessage, PickDeleted, PickSaved,
   AirspaceAt, ClassBResponse, NearestAirports, RouteProfile, Tfrs, DevServices, DevServiceStarted, Pilot, Rating, RetrainStarted, Role, SaveFlightRequest,
   SignInCapabilities, LogbookEntry, LogbookEntryRequest, Currency, CurrencyDatesRequest,
-  Status, StreamMessage, Totals, WaypointsInView,
+  Status, StreamMessage, Totals, WaypointsInView, Training,
 } from "./types";
 
 /**
@@ -488,6 +488,17 @@ export const api = {
     },
     currency: () => webapp.GET("/api/logbook/currency").then(data<Currency>),
     setCurrencyDates: (request: CurrencyDatesRequest) => webapp.PUT("/api/logbook/currency", { body: request }).then(data<Currency>),
+  },
+
+  /** A student's way to the checkride, beside the logbook. */
+  training: {
+    get: () => webapp.GET("/api/training").then(data<Training>),
+    setKnowledgeTest: (codes: string[]) =>
+      webapp.PUT("/api/training/knowledge-test", { body: { codes } }).then(data<Training>),
+    endorse: (code: string, endorsedOn: string) =>
+      webapp.PUT("/api/training/endorsements/{code}", { params: { path: { code } }, body: { endorsedOn } }).then(data<Training>),
+    withdraw: (code: string) =>
+      webapp.DELETE("/api/training/endorsements/{code}", { params: { path: { code } } }).then(data<Training>),
   },
 
   /** A signed-in pilot's own filed flights. */

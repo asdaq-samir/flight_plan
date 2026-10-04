@@ -1,9 +1,10 @@
 import { useId, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format, parseISO } from "date-fns";
-import { BookOpen, CircleMinus, Plus } from "lucide-react";
+import { BookOpen, CircleMinus, GraduationCap, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "cn";
+import { ConsolePages, PageRow } from "../../components/ConsolePages";
 import EmptyState from "../../components/EmptyState";
 import IconButton from "../../components/IconButton";
 import { ListGroup, ListRow } from "../../components/GroupedList";
@@ -15,6 +16,7 @@ import { api } from "../../lib/api/client";
 import type { Currency, LogbookEntry, LogbookEntryRequest } from "../../lib/api/types";
 import { TEXT } from "../../lib/text";
 import type { PilotState } from "./AccountPanels";
+import CheckridePage from "./CheckridePage";
 
 const day = (iso: string) => format(parseISO(iso), "d MMM yyyy");
 const today = () => format(new Date(), "yyyy-MM-dd");
@@ -44,6 +46,7 @@ function DateField({ value, label, onChange, testId }: { value: string | null | 
 const BLANK: LogbookEntryRequest = {
   flownOn: today(), aircraft: "", aircraftType: "", route: "", totalHours: 0, nightHours: 0, crossCountryHours: 0,
   dayLandings: 1, nightLandings: 0, remarks: "",
+  dualHours: 0, soloHours: 0, instrumentHours: 0, toweredLandings: 0, distanceNm: 0, longestLegNm: 0,
 };
 
 /** One entry's form: a paper logbook's columns. */
@@ -71,6 +74,14 @@ function EntryForm({ initial, onSave, saving }: { initial: LogbookEntryRequest; 
       {field("crossCountryHours", "Cross-country", "number")}
       {field("dayLandings", "Day landings", "number")}
       {field("nightLandings", "Night landings", "number")}
+      {/* What a student's 61.109 experience is counted from: the
+          Checkride page. */}
+      {field("dualHours", "Dual received", "number")}
+      {field("soloHours", "Solo", "number")}
+      {field("instrumentHours", "Sim. instrument", "number")}
+      {field("toweredLandings", "Towered landings", "number")}
+      {field("distanceNm", "Distance (nm)", "number")}
+      {field("longestLegNm", "Longest leg (nm)", "number")}
       {field("remarks", "Remarks")}
       <div className="flex justify-end pt-1">
         <Button type="submit" size="sm" disabled={saving || !entry.flownOn} data-testid="logbook-save">Save</Button>
@@ -97,9 +108,11 @@ export function LogbookPanel({ pilot, aircraft }: { pilot: PilotState; aircraft?
   const [toDelete, setToDelete] = useState<LogbookEntry | null>(null);
   const { data: entries, isLoading } = useQuery({ queryKey: ["logbook"], queryFn: api.logbook.list, enabled: signedIn });
   const { data: currency } = useQuery({ queryKey: ["currency"], queryFn: api.logbook.currency, enabled: signedIn });
+  const { data: training } = useQuery({ queryKey: ["training"], queryFn: api.training.get, enabled: signedIn });
   const refresh = () => {
     void queryClient.invalidateQueries({ queryKey: ["logbook"] });
     void queryClient.invalidateQueries({ queryKey: ["currency"] });
+    void queryClient.invalidateQueries({ queryKey: ["training"] });
   };
   const save = useMutation({
     mutationFn: ({ id, entry }: { id?: number; entry: LogbookEntryRequest }) => (id ? api.logbook.update(id, entry) : api.logbook.add(entry)),
@@ -124,8 +137,20 @@ export function LogbookPanel({ pilot, aircraft }: { pilot: PilotState; aircraft?
   }
   const reviewOn = currency?.flightReviewOn ?? null;
   const medicalOn = currency?.medicalExpiresOn ?? null;
+  const met = training?.experience.filter(i => i.met).length ?? 0;
   return (
+    <ConsolePages
+      back="Logbook"
+      pages={{ checkride: { title: "Private pilot checkride", content: <CheckridePage training={training} /> } }}
+    >
     <section aria-label="Logbook" className="space-y-5">
+      <ListGroup>
+        <PageRow
+          page="checkride" title="Checkride" media={<GraduationCap className="size-5 text-tint" />}
+          description="61.109 experience, knowledge test codes, endorsements"
+          value={training ? `${met} of ${training.experience.length}` : undefined}
+        />
+      </ListGroup>
       <ListGroup title="Currency" footer="From your logbook and the two dates above it: no one's sign-off. 61.57 counts takeoffs and landings in the same category and class; at night, to a full stop.">
         <ListRow title="Passengers by day" description="3 takeoffs and landings in 90 days"><Until date={currency?.dayPassengersUntil} what="day" /></ListRow>
         <ListRow title="Passengers at night" description="3 to a full stop at night in 90 days"><Until date={currency?.nightPassengersUntil} what="night" /></ListRow>
@@ -201,5 +226,6 @@ export function LogbookPanel({ pilot, aircraft }: { pilot: PilotState; aircraft?
       </ResponsivePopover>
       {deleteDialog}
     </section>
+    </ConsolePages>
   );
 }

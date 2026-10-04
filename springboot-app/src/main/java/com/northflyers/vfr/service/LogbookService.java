@@ -52,7 +52,9 @@ public class LogbookService {
     private static LogbookEntry fill(LogbookEntry e, LogbookEntryRequest r) {
         return e.set(r.flownOn(), blankToNull(r.aircraft()), blankToNull(r.aircraftType()), blankToNull(r.route()),
                 r.totalHours(), r.nightHours(), r.crossCountryHours(), r.dayLandings(), r.nightLandings(),
-                blankToNull(r.remarks()));
+                blankToNull(r.remarks()))
+                .training(r.dualHours(), r.soloHours(), r.instrumentHours(), r.toweredLandings(), r.distanceNm(),
+                        r.longestLegNm());
     }
 
     private static String blankToNull(String s) {

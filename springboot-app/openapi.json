@@ -164,6 +164,58 @@
         "required" : [ "crossCountryHours", "dayPassengersUntil", "flightReviewOn", "flightReviewUntil", "flights", "landings", "medicalExpiresOn", "nightHours", "nightPassengersUntil", "totalHours" ],
         "type" : "object"
       },
+      "EndorsementDto" : {
+        "properties" : {
+          "code" : {
+            "type" : "string"
+          },
+          "endorsedOn" : {
+            "format" : "date",
+            "type" : "string"
+          }
+        },
+        "required" : [ "code", "endorsedOn" ],
+        "type" : "object"
+      },
+      "EndorsementRequest" : {
+        "properties" : {
+          "endorsedOn" : {
+            "format" : "date",
+            "type" : "string"
+          }
+        },
+        "required" : [ "endorsedOn" ],
+        "type" : "object"
+      },
+      "ExperienceItemDto" : {
+        "properties" : {
+          "have" : {
+            "format" : "double",
+            "type" : "number"
+          },
+          "key" : {
+            "type" : "string"
+          },
+          "label" : {
+            "type" : "string"
+          },
+          "met" : {
+            "type" : "boolean"
+          },
+          "need" : {
+            "format" : "double",
+            "type" : "number"
+          },
+          "rule" : {
+            "type" : "string"
+          },
+          "unit" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "have", "key", "label", "met", "need", "rule", "unit" ],
+        "type" : "object"
+      },
       "FlightCheckpointDto" : {
         "properties" : {
           "alongTrackNm" : {
@@ -324,6 +376,21 @@
         "required" : [ "aircraftTailNumber", "createdAt", "cruiseAltitudeFt", "departureIdent", "destinationIdent", "id", "plannedFor", "stops", "totalDistanceNm", "totalEteMin", "totalFuelGal" ],
         "type" : "object"
       },
+      "KnowledgeTestRequest" : {
+        "properties" : {
+          "codes" : {
+            "items" : {
+              "pattern" : "^[A-Z]{2}\\.[IVX]{1,4}\\.[A-Z]\\.[KRS]\\d{1,2}[a-z]?$",
+              "type" : "string"
+            },
+            "maxItems" : 120,
+            "minItems" : 0,
+            "type" : "array"
+          }
+        },
+        "required" : [ "codes" ],
+        "type" : "object"
+      },
       "LogbookEntryDto" : {
         "properties" : {
           "aircraft" : {
@@ -340,6 +407,14 @@
             "format" : "int32",
             "type" : "integer"
           },
+          "distanceNm" : {
+            "format" : "double",
+            "type" : "number"
+          },
+          "dualHours" : {
+            "format" : "double",
+            "type" : "number"
+          },
           "flownOn" : {
             "format" : "date",
             "type" : "string"
@@ -347,6 +422,14 @@
           "id" : {
             "format" : "int64",
             "type" : "integer"
+          },
+          "instrumentHours" : {
+            "format" : "double",
+            "type" : "number"
+          },
+          "longestLegNm" : {
+            "format" : "double",
+            "type" : "number"
           },
           "nightHours" : {
             "format" : "double",
@@ -362,12 +445,20 @@
           "route" : {
             "type" : [ "string", "null" ]
           },
+          "soloHours" : {
+            "format" : "double",
+            "type" : "number"
+          },
           "totalHours" : {
             "format" : "double",
             "type" : "number"
+          },
+          "toweredLandings" : {
+            "format" : "int32",
+            "type" : "integer"
           }
         },
-        "required" : [ "aircraft", "aircraftType", "crossCountryHours", "dayLandings", "flownOn", "id", "nightHours", "nightLandings", "remarks", "route", "totalHours" ],
+        "required" : [ "aircraft", "aircraftType", "crossCountryHours", "dayLandings", "distanceNm", "dualHours", "flownOn", "id", "instrumentHours", "longestLegNm", "nightHours", "nightLandings", "remarks", "route", "soloHours", "totalHours", "toweredLandings" ],
         "type" : "object"
       },
       "LogbookEntryRequest" : {
@@ -390,9 +481,25 @@
             "format" : "int32",
             "type" : "integer"
           },
+          "distanceNm" : {
+            "format" : "double",
+            "type" : "number"
+          },
+          "dualHours" : {
+            "format" : "double",
+            "type" : "number"
+          },
           "flownOn" : {
             "format" : "date",
             "type" : "string"
+          },
+          "instrumentHours" : {
+            "format" : "double",
+            "type" : "number"
+          },
+          "longestLegNm" : {
+            "format" : "double",
+            "type" : "number"
           },
           "nightHours" : {
             "format" : "double",
@@ -412,13 +519,21 @@
             "minLength" : 0,
             "type" : [ "string", "null" ]
           },
+          "soloHours" : {
+            "format" : "double",
+            "type" : "number"
+          },
           "totalHours" : {
             "format" : "double",
             "maximum" : 24,
             "type" : "number"
+          },
+          "toweredLandings" : {
+            "format" : "int32",
+            "type" : "integer"
           }
         },
-        "required" : [ "aircraft", "aircraftType", "crossCountryHours", "dayLandings", "flownOn", "nightHours", "nightLandings", "remarks", "route", "totalHours" ],
+        "required" : [ "aircraft", "aircraftType", "crossCountryHours", "dayLandings", "distanceNm", "dualHours", "flownOn", "instrumentHours", "longestLegNm", "nightHours", "nightLandings", "remarks", "route", "soloHours", "totalHours", "toweredLandings" ],
         "type" : "object"
       },
       "MagicLinkRequest" : {
@@ -576,6 +691,30 @@
         "type" : "object"
       },
       "StreamingResponseBody" : {
+        "type" : "object"
+      },
+      "TrainingDto" : {
+        "properties" : {
+          "endorsements" : {
+            "items" : {
+              "$ref" : "#/components/schemas/EndorsementDto"
+            },
+            "type" : "array"
+          },
+          "experience" : {
+            "items" : {
+              "$ref" : "#/components/schemas/ExperienceItemDto"
+            },
+            "type" : "array"
+          },
+          "knowledgeTestCodes" : {
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
+          }
+        },
+        "required" : [ "endorsements", "experience", "knowledgeTestCodes" ],
         "type" : "object"
       }
     }
@@ -1123,6 +1262,113 @@
         },
         "summary" : "Any planner POST",
         "tags" : [ "Planner" ]
+      }
+    },
+    "/api/training" : {
+      "get" : {
+        "operationId" : "get_1",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TrainingDto"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "training-controller" ]
+      }
+    },
+    "/api/training/endorsements/{code}" : {
+      "delete" : {
+        "operationId" : "withdraw",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "code",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TrainingDto"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "training-controller" ]
+      },
+      "put" : {
+        "operationId" : "endorse",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "code",
+          "required" : true,
+          "schema" : {
+            "pattern" : "^[a-z0-9-]{1,40}$",
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/EndorsementRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TrainingDto"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "training-controller" ]
+      }
+    },
+    "/api/training/knowledge-test" : {
+      "put" : {
+        "operationId" : "setKnowledgeTest",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/KnowledgeTestRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TrainingDto"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "training-controller" ]
       }
     }
   },

@@ -2,8 +2,10 @@ package com.northflyers.vfr;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.northflyers.vfr.domain.Endorsement;
 import com.northflyers.vfr.domain.LogbookEntry;
 import com.northflyers.vfr.domain.Pilot;
+import com.northflyers.vfr.repository.EndorsementRepository;
 import com.northflyers.vfr.repository.LogbookRepository;
 import com.northflyers.vfr.repository.PilotRepository;
 import java.time.LocalDate;
@@ -33,6 +35,9 @@ class LogbookPersistenceTest {
     @Autowired
     private LogbookRepository logbook;
 
+    @Autowired
+    private EndorsementRepository endorsements;
+
     private Pilot newPilot() {
         String unique = UUID.randomUUID().toString();
         return pilots.save(new Pilot(unique + "@example.com", "Test Pilot", "sub-" + unique));
@@ -61,5 +66,27 @@ class LogbookPersistenceTest {
         Pilot found = pilots.findById(pilot.getId()).orElseThrow();
         assertThat(found.getFlightReviewOn()).isEqualTo(LocalDate.of(2025, 6, 14));
         assertThat(found.getMedicalExpiresOn()).isEqualTo(LocalDate.of(2027, 6, 30));
+    }
+
+    /** V13: the training columns round-trip, and an endorsement is one
+     *  per pilot and code, taken out with the pilot. */
+    @Test
+    void theTrainingColumnsAndEndorsementsAreKept() {
+        Pilot pilot = newPilot();
+        LogbookEntry saved = logbook.saveAndFlush(new LogbookEntry(pilot)
+                .set(LocalDate.of(2026, 9, 12), "N12345", "C172", "C81 KRFD KMSN C81", 3.6, 0, 3.6, 3, 0, null)
+                .training(0, 3.6, 0, 2, 158, 62));
+        LogbookEntry found = logbook.findById(saved.getId()).orElseThrow();
+        assertThat(found.getSoloHours()).isEqualTo(3.6);
+        assertThat(found.getToweredLandings()).isEqualTo(2);
+        assertThat(found.getDistanceNm()).isEqualTo(158);
+        assertThat(found.getLongestLegNm()).isEqualTo(62);
+
+        endorsements.saveAndFlush(new Endorsement(pilot.getId(), "solo-90", LocalDate.of(2026, 9, 1)));
+        assertThat(endorsements.findByKeyPilotIdOrderByKeyCode(pilot.getId())).extracting(e -> e.getKey().code())
+                .containsExactly("solo-90");
+        pilots.deleteById(pilot.getId());
+        pilots.flush();
+        assertThat(endorsements.findByKeyPilotIdOrderByKeyCode(pilot.getId())).isEmpty();
     }
 }

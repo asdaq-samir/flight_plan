@@ -206,6 +206,10 @@ export type LogbookEntryRequest = Webapp["LogbookEntryRequest"];
  *  review, the medical -- and the logbook's totals. */
 export type Currency = Webapp["CurrencyDto"];
 export type CurrencyDatesRequest = Webapp["CurrencyDatesRequest"];
+/** A student's way to the checkride: 61.109's experience from the
+ *  logbook, the knowledge test report's ACS codes, the endorsements. */
+export type Training = Webapp["TrainingDto"];
+export type ExperienceItem = Webapp["ExperienceItemDto"];
 
 // ---------------------------------------------------------------------
 // The narrative agents, reached through ComparisonProxyController, which

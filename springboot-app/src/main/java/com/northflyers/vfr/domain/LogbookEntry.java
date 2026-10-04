@@ -56,6 +56,16 @@ public class LogbookEntry {
     @Column(length = 500)
     private String remarks;
 
+    // What 61.109's experience is reckoned from (V13): the hours with an
+    // instructor, alone and by reference to instruments, the full-stop
+    // landings at a towered field, and the flight's distance.
+    private double dualHours;
+    private double soloHours;
+    private double instrumentHours;
+    private int toweredLandings;
+    private double distanceNm;
+    private double longestLegNm;
+
     @Column(nullable = false)
     private Instant createdAt;
 
@@ -81,6 +91,18 @@ public class LogbookEntry {
         this.dayLandings = dayLandings;
         this.nightLandings = nightLandings;
         this.remarks = remarks;
+        return this;
+    }
+
+    /** The training columns, as the entry's form sends them. */
+    public LogbookEntry training(double dualHours, double soloHours, double instrumentHours, int toweredLandings,
+                                 double distanceNm, double longestLegNm) {
+        this.dualHours = dualHours;
+        this.soloHours = soloHours;
+        this.instrumentHours = instrumentHours;
+        this.toweredLandings = toweredLandings;
+        this.distanceNm = distanceNm;
+        this.longestLegNm = longestLegNm;
         return this;
     }
 }

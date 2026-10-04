@@ -9,7 +9,7 @@ import org.springframework.lang.Nullable;
 
 /** A logbook entry as its form sends it -- POST/PUT /api/logbook. The
  *  hours and landings are none or more; the text no longer than its
- *  columns (V12). */
+ *  columns (V12). The training columns (V13) are none when not sent. */
 public record LogbookEntryRequest(
         @NotNull(message = "flownOn is required") LocalDate flownOn,
         @Size(max = 16, message = "aircraft must be at most 16 characters") @Nullable String aircraft,
@@ -21,5 +21,11 @@ public record LogbookEntryRequest(
         @PositiveOrZero(message = "crossCountryHours must be zero or more") double crossCountryHours,
         @PositiveOrZero(message = "dayLandings must be zero or more") int dayLandings,
         @PositiveOrZero(message = "nightLandings must be zero or more") int nightLandings,
-        @Size(max = 500, message = "remarks must be at most 500 characters") @Nullable String remarks) {
+        @Size(max = 500, message = "remarks must be at most 500 characters") @Nullable String remarks,
+        @PositiveOrZero(message = "dualHours must be zero or more") double dualHours,
+        @PositiveOrZero(message = "soloHours must be zero or more") double soloHours,
+        @PositiveOrZero(message = "instrumentHours must be zero or more") double instrumentHours,
+        @PositiveOrZero(message = "toweredLandings must be zero or more") int toweredLandings,
+        @PositiveOrZero(message = "distanceNm must be zero or more") double distanceNm,
+        @PositiveOrZero(message = "longestLegNm must be zero or more") double longestLegNm) {
 }
