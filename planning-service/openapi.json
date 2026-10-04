@@ -228,6 +228,28 @@
       },
       "AirportFacilities": {
         "properties": {
+          "airport_diagram_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Airport Diagram Url"
+          },
+          "chart_supplement_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chart Supplement Url"
+          },
           "frequencies": {
             "items": {
               "$ref": "#/components/schemas/Frequency"
@@ -304,6 +326,17 @@
       "AirportPlace": {
         "description": "One airport the way the map's card shows it: its name and place,\nthe class of the airspace over it, whether it has a tower, its\nrunways and radio, and the weather there now. `metar` is None for a\nfield with no reporting station, and `weather_unavailable` says the\nweather service could not be asked at all -- not the same thing.",
         "properties": {
+          "airport_diagram_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Airport Diagram Url"
+          },
           "airspace_class": {
             "anyOf": [
               {
@@ -321,6 +354,17 @@
               }
             ],
             "title": "Airspace Class"
+          },
+          "chart_supplement_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chart Supplement Url"
           },
           "elevation_ft": {
             "anyOf": [

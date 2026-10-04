@@ -19,6 +19,7 @@ import type { BriefingState } from "../../hooks/usePlan";
 import { altFt, clockTime, deg, describeFuel, describeSteps, describeTime } from "../../format";
 import { navLogRows, savedCheckpoints } from "../navlog/rows";
 import { RunwayRow } from "../RunwayRow";
+import { PublicationRows } from "../PublicationRows";
 import { gairmetAltitudes, gairmetTitle, pirepConditions, tfrAltitudes, tfrTimes } from "../../../../lib/advisories";
 import { CATEGORY_RANK, categoryOf, colourOf } from "../../../../lib/map/flightCategory";
 
@@ -671,6 +672,7 @@ export default function FlightBriefingView({
                   {info?.runways.length
                     ? info.runways.map((r, i) => <RunwayRow key={`r${i}`} runway={r} />)
                     : <ListRow title={<span className="text-muted-foreground">No published runway data</span>} />}
+                  <PublicationRows diagram={info?.airport_diagram_url} supplement={info?.chart_supplement_url} />
                 </ListGroup>
               );
             })}

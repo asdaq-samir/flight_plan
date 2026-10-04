@@ -35,7 +35,7 @@ from fastapi import FastAPI, Request
 from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse
 from pydantic import TypeAdapter
-from vfr import airspace, altitude, charts, faa_data, fixes, places, remarks, weather
+from vfr import airspace, altitude, charts, faa_data, fixes, places, publications, remarks, weather
 
 from . import chart_refresh
 from .common import PROCESSED_DIR
@@ -120,6 +120,12 @@ def _warm_reference_data() -> None:
         places.preload()
     except Exception:  # noqa: BLE001
         log.exception("places warm-up failed")
+    # The same for the airport diagrams' and Chart Supplement's indexes
+    # (vfr.publications), once per edition: a card only links them.
+    try:
+        publications.preload()
+    except Exception:  # noqa: BLE001
+        log.exception("publications warm-up failed")
 
     if chart_refresh.AUTO_REFRESH:
         chart_refresh.maybe_refresh()

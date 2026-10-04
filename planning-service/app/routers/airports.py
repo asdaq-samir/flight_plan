@@ -10,7 +10,7 @@ national cache vfr.weather keeps for minutes at a time. A card costs a
 few table lookups and a point-in-polygon test.
 """
 from fastapi import APIRouter, HTTPException, Query
-from vfr import airports, airspace, altitude, fixes, places, remarks, runway_wind, weather
+from vfr import airports, airspace, altitude, fixes, places, publications, remarks, runway_wind, weather
 
 from ..schemas import AirportPlace, AirportsInView, WaypointsInView
 
@@ -122,4 +122,6 @@ def airport_place(ident: str) -> AirportPlace:
         "frequencies": frequencies,
         "metar": metar,
         "weather_unavailable": unavailable,
+        "airport_diagram_url": publications.airport_diagram_url(place["ident"]),
+        "chart_supplement_url": publications.chart_supplement_url(place["ident"]),
     }

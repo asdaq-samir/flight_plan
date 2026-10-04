@@ -14,6 +14,7 @@ import { bearingDeg, distanceNm, type LatLon } from "../../../lib/geo";
 import { chipColourOf } from "../../../lib/map/flightCategory";
 import { feet, miles } from "../../../lib/units";
 import { RunwayRow } from "./RunwayRow";
+import { PublicationRows } from "./PublicationRows";
 import { TEXT } from "../../../lib/text";
 
 /** "18 nm NE", from wherever the card is measured from. */
@@ -217,6 +218,14 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
               {place.runways.map((r, i) => <RunwayRow key={`${r.ends}-${i}`} runway={r} />)}
             </ListGroup>
           </div>
+
+          {(place.airport_diagram_url || place.chart_supplement_url) && (
+            <div className="pt-5">
+              <ListGroup title="FAA">
+                <PublicationRows diagram={place.airport_diagram_url} supplement={place.chart_supplement_url} />
+              </ListGroup>
+            </div>
+          )}
         </>
       )}
       {isLoading && !known && <p className={cn("pt-4 text-muted-foreground", TEXT.prose)}>Looking the airport up…</p>}

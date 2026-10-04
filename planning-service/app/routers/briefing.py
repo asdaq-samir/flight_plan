@@ -19,7 +19,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException
-from vfr import airports, runway_wind, tfr, weather
+from vfr import airports, publications, runway_wind, tfr, weather
 
 from ..common import load_route
 from ..schemas import Briefing, Tfrs
@@ -160,7 +160,9 @@ def briefing(dep: str, dest: str, stops: str = "", depart: datetime | None = Non
         "vfr_not_recommended": weather.vfr_not_recommended_reasons(list(idents), metars, forecast),
         "airports": {
             ident: {"runways": runway_wind.with_winds(runways[ident], metars.get(ident), *where[ident]),
-                    "frequencies": frequencies[ident]}
+                    "frequencies": frequencies[ident],
+                    "airport_diagram_url": publications.airport_diagram_url(ident),
+                    "chart_supplement_url": publications.chart_supplement_url(ident)}
             for ident in idents
         },
     }

@@ -3,7 +3,7 @@ flyable altitude selection and an NDJSON reader."""
 import json
 
 import pytest
-from vfr import airports, faa_data, model_client, tfr, weather
+from vfr import airports, faa_data, model_client, publications, tfr, weather
 
 from app import detection, planning, scoring
 
@@ -53,6 +53,14 @@ def quiet_sky(monkeypatch):
     monkeypatch.setattr(tfr, "along_route", lambda path, start, end: [])
     monkeypatch.setattr(weather, "pireps_along_route", lambda path: [])
     monkeypatch.setattr(weather, "gairmets_along_route", lambda path, window: [])
+
+
+@pytest.fixture(autouse=True)
+def no_publications(monkeypatch):
+    """No airport diagram or Chart Supplement page, without the FAA's
+    indexes."""
+    monkeypatch.setattr(publications, "airport_diagram_url", lambda ident: None)
+    monkeypatch.setattr(publications, "chart_supplement_url", lambda ident: None)
 
 
 @pytest.fixture

@@ -543,6 +543,9 @@ class Frequency(BaseModel):
 
 class AirportFacilities(BaseModel):
     runways: list[Runway]
+    # The FAA's airport diagram and Chart Supplement page (vfr.publications).
+    airport_diagram_url: str | None = None
+    chart_supplement_url: str | None = None
     frequencies: list[Frequency]
 
 
@@ -994,6 +997,10 @@ class AirportPlace(BaseModel):
     frequencies: list[Frequency]
     metar: Metar | None = None
     weather_unavailable: bool = False
+    # The FAA's airport diagram and Chart Supplement page for the current
+    # editions (vfr.publications); None where the field has none.
+    airport_diagram_url: str | None = None
+    chart_supplement_url: str | None = None
 
 
 class ModelComparisonEntry(BaseModel):
