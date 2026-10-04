@@ -1,8 +1,36 @@
+import { readdirSync, statSync, unlinkSync } from "node:fs";
+import { join } from "node:path";
 import { fileURLToPath, URL } from "node:url";
-import { defineConfig } from "vite";
+import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { VitePWA } from "vite-plugin-pwa";
+
+// Under docker-compose.web-dev.yml's watch (VITE_KEEP_OUTDIR) web/dist is
+// never emptied, so a page loading mid-build still finds its chunks. The
+// files this build wrote, so that the service worker precaches them and
+// not every build's before them -- it listed 3,488 files, half a
+// gigabyte, for a phone to fetch -- and the old ones an hour stale
+// cleared away.
+const keepOutDir = !!process.env.VITE_KEEP_OUTDIR;
+const emitted = new Set<string>();
+const STALE_MS = 60 * 60 * 1000;
+const thisBuildOnly: Plugin = {
+  name: "this-build-only",
+  apply: "build",
+  generateBundle(_options, bundle) {
+    emitted.clear();
+    for (const file of Object.keys(bundle)) emitted.add(file);
+  },
+  writeBundle(options) {
+    if (!keepOutDir || !options.dir) return;
+    const assets = join(options.dir, "assets");
+    for (const name of readdirSync(assets)) {
+      const file = join(assets, name);
+      if (!emitted.has(`assets/${name}`) && Date.now() - statSync(file).mtimeMs > STALE_MS) unlinkSync(file);
+    }
+  },
+};
 
 // Built into Spring Boot's static resources, which is what makes it the
 // only public surface: the bundle and the API it calls arrive from one
@@ -10,6 +38,7 @@ import { VitePWA } from "vite-plugin-pwa";
 // front door on another port.
 export default defineConfig({
   plugins: [
+    thisBuildOnly,
     react(),
     tailwindcss(),
     // The app in the air: a service worker (Workbox, generated at
@@ -50,6 +79,11 @@ export default defineConfig({
         navigateFallback: "/app/index.html",
         navigateFallbackAllowlist: [/^\/app\//],
         globPatterns: ["**/*.{js,css,html,svg,woff2}"],
+        // This build's own chunks only, where the old ones are kept
+        // (thisBuildOnly).
+        manifestTransforms: keepOutDir ? [async entries => ({
+          manifest: entries.filter(e => !e.url.startsWith("assets/") || emitted.has(e.url)), warnings: [],
+        })] : [],
         runtimeCaching: [
           {
             // The chart tiles, served by the planner (…/chart-tile/…) or
@@ -106,9 +140,9 @@ export default defineConfig({
     // Emptied before a build -- except under docker-compose.web-dev.yml's
     // watch, which sets VITE_KEEP_OUTDIR: there the directory is what
     // the webapp is serving, and watch mode empties it on every rebuild,
-    // so a page loading that instant got nothing. Old chunks then
-    // accumulate, harmlessly; the service worker's manifest lists only
-    // the current ones. (The CLI's --emptyOutDir can only set it true.)
+    // so a page loading that instant got nothing. Old chunks are kept an
+    // hour, and the service worker's manifest lists only the current ones
+    // (thisBuildOnly). (The CLI's --emptyOutDir can only set it true.)
     emptyOutDir: !process.env.VITE_KEEP_OUTDIR,
     // The libraries in chunks of their own, so that a change to this
     // app's code (most deploys) leaves React, the map and the query
