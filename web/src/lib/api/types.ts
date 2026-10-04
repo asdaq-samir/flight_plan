@@ -37,6 +37,11 @@ export type Wind = Schemas["Wind"];
  *  near enough, which is not the same as calm; groundspeed/ETE/fuel are
  *  null when the wind exceeds true airspeed and the leg cannot be flown. */
 export type Leg = Schemas["Leg"];
+/** Where a leg's climb tops out (TOC), from the leg's start, and the
+ *  climb's speeds on the way up. */
+export type TopOfClimb = Schemas["TopOfClimb"];
+/** Where a leg's descent starts (TOD), to what and at what rate. */
+export type TopOfDescent = Schemas["TopOfDescent"];
 export type Totals = Schemas["Totals"];
 export type Hazard = Schemas["Hazard"];
 export type AirspaceTransit = Schemas["AirspaceTransit"];

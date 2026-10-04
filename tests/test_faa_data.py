@@ -114,3 +114,16 @@ def test_load_obstacles_is_the_typed_dof_columns_filtered(tmp_path, monkeypatch)
 
     elsewhere = faa_data.load_obstacles(dof, (45.0, -90.0, 46.0, -89.0), min_agl_ft=0)
     assert elsewhere.empty and "amsl_ft" in elsewhere.columns
+
+
+def test_a_pattern_is_the_faas_where_published_and_1000_ft_where_not(tmp_path):
+    (tmp_path / "APT_BASE.csv").write_text("ARPT_ID,ICAO_ID,TPA\nC81,,800\nDLH,KDLH,\n")
+    assert faa_data.pattern_agl_ft("c81", tmp_path) == 800.0
+    assert faa_data.pattern_agl_ft("KDLH", tmp_path) == faa_data.pattern_agl_ft("DLH", tmp_path) == 1000.0
+
+
+def test_no_airport_file_is_the_1000_ft_pattern_not_a_failure(monkeypatch, tmp_path):
+    def unreachable(name, cache_dir):
+        raise RuntimeError("the FAA is down")
+    monkeypatch.setattr(faa_data, "ensure_nasr_file", unreachable)
+    assert faa_data.pattern_agl_ft("C81", tmp_path) == 1000.0

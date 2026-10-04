@@ -11,10 +11,10 @@ deviation card, which isn't data this project has (vfr.aircraft profiles
 don't carry one). Magnetic heading is as far as this goes for now.
 """
 import math
-from itertools import pairwise
+from itertools import accumulate, pairwise
 
 from . import performance
-from .geo import bearing_deg, distance_nm
+from .geo import bearing_deg, destination_point, distance_nm
 from .magnetic import magnetic_variation_deg
 from .weather import temperature_at_altitude, wind_at_altitude
 
@@ -251,9 +251,12 @@ def with_climbs(leg_list: list, start_altitude_ft: float | None, aircraft_profil
     speed. A climb's minutes are flown over the ground at the climb
     speed scaled by the leg's own wind, the rest of the leg at the
     leg's cruise, and a climb longer than the leg carries into the next
-    one. Each leg says how much of its time is climb (`climb_min`); a
-    descent costs nothing here, since at cruise power it is if anything
-    faster. The cruise-only legs are not changed in place."""
+    one. Each leg says how much of its time is climb (`climb_min`), and
+    the leg a climb tops out on says where (`toc`: the miles, minutes and
+    gallons into the leg, the altitude, and the climb's true airspeed and
+    ground speed); a descent costs nothing
+    here, since at cruise power it is if anything faster (with_descents
+    places it). The cruise-only legs are not changed in place."""
     climb_tas = performance.climb_tas_kt(aircraft_profile)
     level_ft = start_altitude_ft
     climb_left_min = 0.0
@@ -270,6 +273,7 @@ def with_climbs(leg_list: list, start_altitude_ft: float | None, aircraft_profil
             climb_left_min += climb.minutes
         level_ft = target_ft if level_ft is None else max(level_ft, target_ft)
         leg["climb_min"] = 0.0
+        leg["toc"] = None
         if climb_left_min > 0 and leg["groundspeed_kt"] and leg["ete_min"] is not None:
             climb_gs = max(1.0, leg["groundspeed_kt"] * climb_tas / leg["tas_kt"])
             climb_nm = climb_gs * climb_left_min / 60
@@ -281,10 +285,97 @@ def with_climbs(leg_list: list, start_altitude_ft: float | None, aircraft_profil
                 climb_min = climb_left_min
                 cruise_min = (leg["distance_nm"] - climb_nm) / leg["groundspeed_kt"] * 60
                 climb_left_min = 0.0
+                leg["toc"] = {
+                    "along_nm": round(climb_nm, 1), "ete_min": round(climb_min, 1),
+                    "fuel_gal": round(climb_min / 60 * climb_burn_gph, 2), "altitude_ft": level_ft,
+                    "tas_kt": climb_tas, "groundspeed_kt": climb_gs,
+                }
             leg["climb_min"] = round(climb_min, 1)
             leg["ete_min"] = climb_min + cruise_min
             leg["fuel_gal"] = (climb_min / 60) * climb_burn_gph + (cruise_min / 60) * leg["fuel_burn_gph"]
         out.append(leg)
+    return out
+
+
+#: The descent: 1,000 ft for every 3 nm -- "three to one", a path of
+#: about 3 degrees, an ILS glideslope's -- at whatever the ground speed,
+#: which makes the rate about five times it (600 fpm at 110 kt).
+DESCENT_NM_PER_1000_FT = 3.0
+
+
+def with_descents(leg_list: list, fix_list: list, end_altitude_ft: float | None) -> list:
+    """The legs with their tops of descent: where to leave each level to
+    be down, at three to one, at `end_altitude_ft` where the legs end --
+    the pattern altitude of the field they land at, None for legs that
+    end in the air -- and at a lower leg's altitude by the fix it starts
+    at, where a plan steps down. A descent that would start before the
+    climb ahead of it has topped out starts at the top instead, steeper.
+    The leg a descent starts on says where (`tod`: the miles, minutes and
+    gallons into the leg, the altitude left and the one descended to,
+    whether that is the pattern's, and the rate), and its top of climb (`toc`, with_climbs) is placed too:
+    `fix_list`, the fixes the legs run between, gives both a latitude and
+    longitude.
+
+    The times and fuel are not changed: the descent is flown at the
+    cruise's ground speed and burn, and what a pilot saves by taking
+    power off stays in the tanks. The cruise legs are not changed in
+    place."""
+    out = [dict(leg, toc=leg.get("toc"), tod=None) for leg in leg_list]
+    if not out:
+        return out
+    ends = list(accumulate(leg["distance_nm"] for leg in out))
+    starts = [end - leg["distance_nm"] for end, leg in zip(ends, out)]
+    ft_per_nm = 1000 / DESCENT_NM_PER_1000_FT
+
+    # Backward from the end: the highest each leg's end can be and still
+    # make every level-off after it, and the level-off that binds -- its
+    # altitude, where along the legs it is, and whether it is the
+    # pattern's.
+    limit_ft, binds = (math.inf, None) if end_altitude_ft is None else (end_altitude_ft, (end_altitude_ft, ends[-1], True))
+    tods = []
+    for i in range(len(out) - 1, -1, -1):
+        altitude, distance = out[i]["altitude_ft"], out[i]["distance_nm"]
+        if altitude > limit_ft:
+            # On this leg, or at its start where it cannot have started
+            # sooner: the first leg, or one climbed to.
+            down_nm = (altitude - limit_ft) / ft_per_nm
+            if down_nm < distance or i == 0 or out[i - 1]["altitude_ft"] < altitude:
+                tods.append((max(starts[i], ends[i] - down_nm), i, binds))
+        limit_ft += distance * ft_per_nm
+        if altitude <= limit_ft:
+            limit_ft, binds = altitude, (altitude, starts[i], False)
+
+    # Each climb's ground, from the start of a leg it climbs on to its
+    # top, and the tops in order.
+    climbs = [(starts[i], starts[i] + (leg["toc"]["along_nm"] if leg["toc"] else leg["distance_nm"]))
+              for i, leg in enumerate(out) if leg.get("climb_min")]
+    tops = [(starts[i] + leg["toc"]["along_nm"], i) for i, leg in enumerate(out) if leg["toc"]]
+    for at, i, (to_ft, level_at, pattern) in reversed(tods):
+        if any(a <= at < b for a, b in climbs):
+            at, i = next(((t, j) for t, j in tops if t >= at), (None, None))
+            if at is None:
+                continue
+        leg = out[i]
+        from_ft = leg["altitude_ft"]
+        gs = leg["groundspeed_kt"]
+        if leg["tod"] or not gs or leg["ete_min"] is None or from_ft <= to_ft or level_at - at < 0.05:
+            continue
+        rest_min = (ends[i] - at) / gs * 60
+        lat, lon = destination_point(fix_list[i]["lat"], fix_list[i]["lon"], leg["true_course_deg"], at - starts[i])
+        leg["tod"] = {
+            "along_nm": round(at - starts[i], 1),
+            "ete_min": round(max(0.0, leg["ete_min"] - rest_min), 1),
+            "fuel_gal": None if leg["fuel_gal"] is None else round(max(0.0, leg["fuel_gal"] - rest_min / 60 * leg["fuel_burn_gph"]), 2),
+            "altitude_ft": from_ft, "to_ft": to_ft, "pattern": pattern,
+            # The ground speed's share of three to one, or what is left
+            # where the descent starts late, to the nearest 50 fpm.
+            "fpm": round((from_ft - to_ft) / ((level_at - at) / gs * 60) / 50) * 50,
+            "lat": lat, "lon": lon,
+        }
+    for i, leg in enumerate(out):
+        if leg["toc"]:
+            lat, lon = destination_point(fix_list[i]["lat"], fix_list[i]["lon"], leg["true_course_deg"], leg["toc"]["along_nm"])
+            leg["toc"] = {**leg["toc"], "lat": lat, "lon": lon}
     return out
 
 

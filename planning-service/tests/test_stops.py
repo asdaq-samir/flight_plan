@@ -72,6 +72,18 @@ def test_the_legs_land_at_the_stop_and_each_hop_has_its_own_fuel_check():
     assert len(body["altitude_selection"]["segments"]) == len(legs)
 
 
+def test_each_flight_climbs_from_its_field_and_comes_down_to_its_own_pattern():
+    # The stub's 10 nm legs at 4,500 ft, the fields at 900: the climb
+    # tops out on each flight's first leg, and each comes down to 1,900,
+    # 2,600 ft at three to one, 7.8 nm out -- on the leg into the field.
+    legs = client.get("/api/plan", params=VIA_MADISON).json()["legs"]
+
+    assert [leg["from"] for leg in legs if leg["toc"]] == ["C81", "KMSN"]
+    tods = [(leg["to"], leg["tod"]) for leg in legs if leg["tod"]]
+    assert [to for to, _ in tods] == ["KMSN", "KDLH"]
+    assert all(tod["to_ft"] == 1900.0 and tod["pattern"] and tod["along_nm"] == 2.2 for _, tod in tods)
+
+
 def test_the_stream_runs_through_the_stop_and_ends_on_the_hops_totals(messages):
     lines = messages(client.get("/api/navlog", params=VIA_MADISON))
 

@@ -136,6 +136,40 @@ class Wind(BaseModel):
     wind_speed_kt: float
 
 
+class LegPoint(BaseModel):
+    """A point on a leg that the nav log has a row for, the leg cut there.
+    The miles, minutes and gallons are from the leg's start;
+    `altitude_ft`, the level there."""
+
+    along_nm: float
+    ete_min: float
+    fuel_gal: float | None
+    altitude_ft: float
+    lat: float
+    lon: float
+
+
+class TopOfClimb(LegPoint):
+    """Where a climb tops out (TOC), and the climb's true airspeed and
+    ground speed on the way up to it (vfr.navlog.with_climbs)."""
+
+    tas_kt: float
+    groundspeed_kt: float
+
+
+class TopOfDescent(LegPoint):
+    """Where a descent starts (TOD): down from `altitude_ft` to `to_ft` --
+    the pattern altitude of the field landed at, or the next leg's lower
+    level -- at `fpm`, three to one at the leg's ground speed, or steeper
+    where the climb before it left less room (vfr.navlog.with_descents)."""
+
+    to_ft: float
+    # Whether `to_ft` is the pattern altitude at the field the flight
+    # lands at, rather than a lower level on the way.
+    pattern: bool
+    fpm: float
+
+
 class Leg(BaseModel):
     """One dead-reckoning leg. `wind` is None when no winds-aloft station
     is near enough, which is not the same as calm: groundspeed then falls
@@ -174,6 +208,10 @@ class Leg(BaseModel):
     # leg, and up to a new level where a plan steps -- flown at climb
     # speed and burn, and already in `ete_min` and `fuel_gal`.
     climb_min: float = 0.0
+    # The top of the climb, on the leg it is reached on, and the top of
+    # the descent, on the leg it starts on.
+    toc: TopOfClimb | None = None
+    tod: TopOfDescent | None = None
 
 
 class Totals(BaseModel):

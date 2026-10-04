@@ -18,7 +18,8 @@ import AltitudeReasoning from "../AltitudeReasoning";
 import {
   Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow,
 } from "../../../../components/ui/table";
-import type { AltitudeChoice, Candidate, Leg, NavLogAltitude, Totals } from "../../../../lib/api/types";
+import type { AltitudeChoice, Candidate, Leg, NavLogAltitude, Totals, TopOfClimb, TopOfDescent } from "../../../../lib/api/types";
+import { feet } from "../../../../lib/units";
 import { routeName } from "../../../../lib/identSchema";
 import { revealRow } from "../../../../lib/revealRow";
 import { TEXT } from "../../../../lib/text";
@@ -27,7 +28,7 @@ import { altFt, clockTime, deg, describeFuel, describeSteps, describeTime, etaAt
 import AccordionSection from "../../../../components/AccordionSection";
 import { Spinner } from "../../../../components/ui/spinner";
 import { BRIEFING_SECTIONS } from "../briefing/sections";
-import { legOf, navLogRows, rowPoint, type NavLogRow, type RouteEnds } from "./rows";
+import { isLegPoint, legOf, navLogRows, rowPoint, type NavLogRow, type RouteEnds } from "./rows";
 
 /** Every section of the drawer, the nav log's own first: what the
  *  printer gets, whatever is open on screen. */
@@ -256,6 +257,13 @@ export function DescriptionCell({
  *  its value at the rows' own size; it was a run of "TC 327° Wind
  *  220°/28 WCA ..." breaking wherever the line ran out. (Their whole
  *  names were tried, two across, and the pilot kept the shorthand.) */
+/** What a top of climb or descent's row says under it: the level, or
+ *  the rate down and what to. */
+function legPointNote(point: TopOfClimb | TopOfDescent, descent: TopOfDescent | null): string {
+  if (!descent) return `Top of climb: level at ${feet(point.altitude_ft)}.`;
+  return `Top of descent: ${descent.fpm} fpm down to ${feet(descent.to_ft)}${descent.pattern ? ", the pattern" : ""}.`;
+}
+
 function LegLine({ leg }: { leg: Leg }) {
   const figures: [string, string][] = [
     ["TC", deg(leg.true_course_deg)],
@@ -489,7 +497,7 @@ export default function NavLogView({
   // they line up when there is one segment fewer than rows. When they do
   // not, the nav log's summary says so once.
   const segments = nav?.altitude_selection.segments ?? [];
-  const perLeg = segments.length > 0 && segments.length === data.length - 1;
+  const perLeg = segments.length > 0 && segments.length === data.filter(r => !isLegPoint(r)).length - 1;
   // How the altitude was chosen -- the four plans, the pilot's own, and
   // why: a pilot should never have to take a cruise altitude on trust,
   // so the Alt column's own heading opens the planner's reasoning (floor,
@@ -599,6 +607,8 @@ export default function NavLogView({
       // the plan's first altitude until that leg streams in.
       cell: ({ row }) => {
         const r = row.original;
+        // A top of climb its level; a top of descent the level it leaves.
+        if (isLegPoint(r)) return altFt(r.point.altitude_ft);
         // A waypoint flown through, as a checkpoint: the leg's altitude.
         const flownThrough = r.kind === "checkpoint" || (r.kind === "stop" && r.airport.kind === "fix");
         return altFt(flownThrough ? (r.leg?.altitude_ft ?? nav?.altitude_ft) : r.airport.elevation_ft);
@@ -818,6 +828,7 @@ export default function NavLogView({
                   every row's figures were grey. */}
               <SelectableRow
                 selected={rowSelected}
+                kind={r.kind}
                 estimated={r.kind !== "departure" && !leg?.wind}
                 expands
                 // The selected row tapped again is deselected, on the
@@ -852,6 +863,8 @@ export default function NavLogView({
                   // inverts the same way when selected, so the
                   // pair still reads as one group.
                   (r.airport.name ?? "—")
+                ) : isLegPoint(r) ? (
+                  legPointNote(r.point, r.kind === "tod" ? r.point : null)
                 ) : r.kind === "checkpoint" ? (
                   <DescriptionCell
                     description={descriptions[r.key]}

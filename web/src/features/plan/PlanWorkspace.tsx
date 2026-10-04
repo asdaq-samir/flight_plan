@@ -602,6 +602,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           place={placePin}
           onSelectPlace={selectPlace}
           onAddStop={addStopAt}
+          legs={s.legs}
         />
       </div>
     ),

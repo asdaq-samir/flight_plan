@@ -228,3 +228,51 @@ def test_a_climb_longer_than_a_leg_carries_into_the_next():
     legs = navlog.with_climbs([_cruise_leg(10.0, 9500.0), _cruise_leg(60.0, 9500.0)], 500.0, PROFILE)
     assert legs[0]["climb_min"] == pytest.approx(8.6, abs=0.05)
     assert legs[1]["climb_min"] == pytest.approx(_climb_min(500, 9500) - 60 / 7, abs=0.05)
+
+
+def test_the_leg_a_climb_tops_out_on_says_where():
+    # 4.3 minutes from the field at 70 kt over the ground: 5 nm in.
+    legs = navlog.with_climbs([_cruise_leg(60.0, 3500.0), _cruise_leg(60.0, 3500.0)], 500.0, PROFILE)
+    climb_min = _climb_min(500, 3500)
+    assert legs[0]["toc"]["along_nm"] == round(70 * climb_min / 60, 1)
+    assert legs[0]["toc"]["ete_min"] == round(climb_min, 1) and legs[0]["toc"]["altitude_ft"] == 3500.0
+    assert legs[1]["toc"] is None
+
+
+def test_a_climb_that_carries_tops_out_on_the_next_leg():
+    legs = navlog.with_climbs([_cruise_leg(10.0, 9500.0), _cruise_leg(60.0, 9500.0)], 500.0, PROFILE)
+    assert legs[0]["toc"] is None
+    assert legs[1]["toc"]["along_nm"] == pytest.approx(70 * (_climb_min(500, 9500) - 60 / 7) / 60, abs=0.1)
+
+
+def _course_leg(distance_nm, altitude_ft, gs_kt=100.0):
+    return {**_cruise_leg(distance_nm, altitude_ft, gs_kt), "true_course_deg": 45.0, "climb_min": 0.0, "toc": None}
+
+
+def test_the_descent_to_the_pattern_starts_three_miles_out_for_every_thousand_feet():
+    # 5,500 down to a 1,500 ft pattern is 4,000 ft: 12 nm out, at 100 kt
+    # 556 fpm -- 550 to the nearest 50.
+    cruise = [_course_leg(60.0, 5500.0), _course_leg(60.0, 5500.0)]
+    legs = navlog.with_descents(cruise, FIXES, 1500.0)
+    assert legs[0]["tod"] is None
+    tod = legs[1]["tod"]
+    assert tod["along_nm"] == 48.0 and tod["to_ft"] == 1500.0 and tod["pattern"] and tod["fpm"] == 550
+    assert tod["ete_min"] == pytest.approx(28.8) and tod["lat"] > FIXES[1]["lat"]
+    # Flown at the cruise's speed and burn: the times and fuel are the same.
+    assert [leg["ete_min"] for leg in legs] == [leg["ete_min"] for leg in cruise]
+    assert "tod" not in cruise[1]
+
+
+def test_a_step_down_is_a_descent_to_the_lower_level_by_its_fix():
+    legs = navlog.with_descents([_course_leg(60.0, 5500.0), _course_leg(60.0, 3500.0)], FIXES, None)
+    assert legs[0]["tod"]["along_nm"] == 54.0 and legs[0]["tod"]["to_ft"] == 3500.0
+    assert not legs[0]["tod"]["pattern"] and legs[1]["tod"] is None
+
+
+def test_a_flight_too_short_for_three_to_one_starts_down_at_the_top_of_its_climb():
+    # 10 nm: the climb to 4,500 takes 5 of them, and 3,000 ft down at
+    # three to one would take 9.
+    climbed = navlog.with_climbs([_course_leg(10.0, 4500.0)], 500.0, PROFILE)
+    tod = navlog.with_descents(climbed, FIXES[:2], 1500.0)[0]["tod"]
+    assert tod["along_nm"] == climbed[0]["toc"]["along_nm"]
+    assert tod["fpm"] > 550

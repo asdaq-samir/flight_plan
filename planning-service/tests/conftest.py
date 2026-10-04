@@ -3,7 +3,7 @@ flyable altitude selection and an NDJSON reader."""
 import json
 
 import pytest
-from vfr import airports, model_client
+from vfr import airports, faa_data, model_client
 
 from app import detection, planning, scoring
 
@@ -36,6 +36,13 @@ def known_airports(monkeypatch):
     """C81, KDLH and KMSN, without the airports table. A test about an unknown
     ident stubs get_airport again itself."""
     monkeypatch.setattr(airports, "get_airport", lambda ident, **kw: airport(ident.upper()))
+
+
+@pytest.fixture(autouse=True)
+def known_patterns(monkeypatch):
+    """Every field's pattern 1,000 ft above it, without the FAA's airport
+    file -- which a fresh checkout does not have, and would download."""
+    monkeypatch.setattr(faa_data, "pattern_agl_ft", lambda ident, cache_dir: faa_data.PATTERN_AGL_FT)
 
 
 @pytest.fixture

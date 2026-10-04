@@ -123,6 +123,19 @@ export function waypointIcon(ident: string) {
   });
 }
 
+/** A top of climb or descent on the course line: "TOC" or "TOD" in a
+ *  small white tag edged in the line's orange, under the checkpoints'
+ *  dots (it is a point the plan works out, not one to look for). */
+export function legPointIcon(label: "TOC" | "TOD") {
+  return L.divIcon({
+    className: "",
+    iconSize: [38, 20], iconAnchor: [19, 10],
+    html:
+      `<span class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded-sm border-[1.5px] border-[#ff3b00] bg-white px-1 text-[11px] leading-[13px] font-bold text-[#1c1a17] shadow-sm"` +
+      `>${text(label)}</span>`,
+  });
+}
+
 export function airportIcon(colour: string, ident: string, { classB = false, unchecked = false } = {}) {
   const width = Math.max(40, Math.ceil(ident.length * 7.5) + 22);
   // A Class B field's pill is round-ended and coloured by its flight

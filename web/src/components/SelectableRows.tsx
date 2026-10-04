@@ -13,9 +13,12 @@ import { TableCell, TableRow } from "./ui/table";
  * it.
  */
 export function SelectableRow({
-  selected, estimated = false, expands = false, onSelect, scrollRef, children,
+  selected, estimated = false, expands = false, onSelect, scrollRef, kind, children,
 }: {
   selected: boolean;
+  /** What the row is, as `data-kind`: the nav log's checkpoint, airport
+   *  or top of climb or descent. */
+  kind?: string;
   /** A leg worked out without its wind (or not in yet): in italics. */
   estimated?: boolean;
   /** Whether selecting the row opens a note row under it (the nav
@@ -33,6 +36,7 @@ export function SelectableRow({
       onClick={onSelect}
       tabIndex={0}
       data-selected={selected || undefined}
+      data-kind={kind}
       aria-expanded={expands ? selected : undefined}
       onKeyDown={e => {
         // The row's own keys, not a button's inside it (Dev's inline

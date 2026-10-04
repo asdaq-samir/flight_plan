@@ -177,9 +177,9 @@ test("plan page: iOS never zooms the page in on a phone's field: the viewport fo
   // its title is clicked, and each under its own row, closed until
   // that row is selected.
   await sideDrawer(page).getByText("Nav Log", { exact: true }).click();
-  const rows = sideDrawer(page).locator("table tbody tr[tabindex='0']");
-  await expect.poll(() => rows.count(), { timeout: slow(15000) }).toBeGreaterThan(2);
-  await rows.nth(1).click();
+  const rows = sideDrawer(page).locator("table tbody tr[data-kind='checkpoint']");
+  await expect.poll(() => rows.count(), { timeout: slow(15000) }).toBeGreaterThan(0);
+  await rows.first().click();
   await expect.poll(() => page.locator("textarea").count(), { timeout: slow(15000) }).toBeGreaterThan(0);
   const small = await page.evaluate(() =>
     [...document.querySelectorAll<HTMLElement>("input, textarea, select")]

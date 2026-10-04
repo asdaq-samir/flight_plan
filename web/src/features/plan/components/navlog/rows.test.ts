@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import type { Airport, Candidate, Leg } from "../../../../lib/api/types";
-import { navLogRows, savedCheckpoints } from "./rows";
+import { legOf, navLogRows, rowPoint, savedCheckpoints } from "./rows";
 
 const airport = (ident: string, lat: number, lon: number): Airport =>
   ({ ident, name: `${ident} field`, lat, lon, elevation_ft: 900 }) as Airport;
@@ -69,5 +69,28 @@ describe("savedCheckpoints", () => {
     expect(saved[0]).toMatchObject({ sequenceNo: 0, name: "C81", category: "departure", alongTrackNm: 0, eteMin: null });
     expect(saved[1]).toMatchObject({ sequenceNo: 1, category: "lake_or_pond", alongTrackNm: 50, eteMin: 30, altitudeFt: 4500 });
     expect(saved.at(-1)).toMatchObject({ sequenceNo: 3, name: "KDLH", category: "destination", alongTrackNm: 323.4, eteMin: 50 });
+  });
+});
+
+describe("tops of climb and descent", () => {
+  const toc = { along_nm: 6, ete_min: 5, fuel_gal: 1, altitude_ft: 4500, lat: 42.2, lon: -88.2, tas_kt: 70, groundspeed_kt: 72 };
+  const tod = { along_nm: 20, ete_min: 14, fuel_gal: 2.5, altitude_ft: 4500, to_ft: 2400, pattern: true, fpm: 600, lat: 46.6, lon: -92 };
+  const climbAndDescent = { ...leg(30), toc, tod } as Leg;
+
+  test("each a row of its own, the leg cut there: each row its piece, the minutes running on to the leg's", () => {
+    const rows = navLogRows(ends, [], [climbAndDescent]);
+    expect(rows.map(r => r.kind)).toEqual(["departure", "toc", "tod", "destination"]);
+    expect(rows.map(r => legOf(r)?.distance_nm)).toEqual([undefined, 6, 14, 10]);
+    expect(rows.map(r => legOf(r)?.ete_min)).toEqual([undefined, 5, 9, 16]);
+    expect(rows.map(r => r.minutesFlown)).toEqual([0, 5, 14, 30]);
+    expect(rowPoint(rows[1]!)).toMatchObject({ name: "TOC", lat: 42.2, lon: -88.2 });
+    // Up to the top of climb, the climb's speeds; after it, the cruise's.
+    expect(rows.map(r => legOf(r)?.groundspeed_kt)).toEqual([undefined, 72, 100, 100]);
+  });
+
+  test("filed without them, as the whole legs fix to fix", () => {
+    const saved = savedCheckpoints(navLogRows(ends, [], [climbAndDescent]), 30);
+    expect(saved.map(c => c.name)).toEqual(["C81", "KDLH"]);
+    expect(saved[1]).toMatchObject({ sequenceNo: 1, legDistanceNm: 30, eteMin: 30 });
   });
 });

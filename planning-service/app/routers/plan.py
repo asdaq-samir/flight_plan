@@ -19,8 +19,8 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
-from vfr import charts, fixes, geo, navlog, places, sun
-from vfr.config import VFR_SECTIONAL_MAX_ZOOM, VFR_SECTIONAL_MIN_ZOOM
+from vfr import charts, faa_data, fixes, geo, navlog, places, sun
+from vfr.config import DATA_DIR, VFR_SECTIONAL_MAX_ZOOM, VFR_SECTIONAL_MIN_ZOOM
 from vfr.weather import WeatherServiceError
 
 from ..common import DEFAULT_AIRCRAFT, Route, line, load_route, ndjson
@@ -308,6 +308,31 @@ def unflyable_parts(outcome: Unflyable, runs: list[HopRun]) -> tuple[dict, list[
     return why, [{**way, "stop_index": at, "description": _where(way["ident"])} for way in ways]
 
 
+def pattern_altitude(flight: Route) -> float | None:
+    """The altitude a flight comes down to: the traffic pattern's at the
+    field it lands at (vfr.faa_data.pattern_agl_ft), to the nearest
+    hundred feet, as a pilot flies it. None where it ends in the air, or
+    the field's elevation is not known."""
+    elevation = flight.dest_airport.get("elevation_ft")
+    if not flight.lands or elevation is None:
+        return None
+    return round((elevation + faa_data.pattern_agl_ft(flight.dest_ident, DATA_DIR / "raw" / "faa_nasr")) / 100) * 100
+
+
+def flown_legs(r: Route, runs: list[HopRun], outcome: Flown) -> list:
+    """The legs a pilot flies, with each flight's tops of climb and
+    descent placed (navlog.with_descents): from one landing to the next,
+    through any waypoints, down to the pattern at the end of each."""
+    out, at = [], 0
+    for flight in r.flights:
+        hops = len(flight.idents) - 1
+        legs = [leg for legs in outcome.hop_legs[at:at + hops] for leg in legs]
+        fix_list = [fix for k, run in enumerate(runs[at:at + hops]) for fix in (run.fixes if k == 0 else run.fixes[1:])]
+        out.extend(navlog.with_descents(legs, fix_list, pattern_altitude(flight)))
+        at += hops
+    return out
+
+
 def _where(ident: str) -> str | None:
     fix = fixes.find_fix(ident)
     return places.describe(fix["lat"], fix["lon"]) if fix else None
@@ -479,7 +504,7 @@ def plan(q: Annotated[PlanQuery, Depends()]) -> Plan:
     if isinstance(outcome, Unflyable):
         _, ways = unflyable_parts(outcome, runs)
         raise HTTPException(422, no_altitude_detail(outcome.selection, outcome.between, ways[0] if ways else None))
-    leg_list = outcome.legs
+    leg_list = flown_legs(r, runs, outcome)
 
     return Plan(
         departure=r.departure,
@@ -636,7 +661,7 @@ def navlog_stream(q: Annotated[PlanQuery, Depends()]) -> StreamingResponse:
             winds_forecast_hr=fcst_hr,
             aircraft=aircraft_line,
         ))
-        for leg in outcome.legs:
+        for leg in flown_legs(r, runs, outcome):
             yield line(NavLogLeg.model_validate(leg))
 
         yield line(NavLogDone(totals=totals_of(r, runs, outcome, profile)))

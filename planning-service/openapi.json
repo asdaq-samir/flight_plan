@@ -2846,6 +2846,26 @@
             "title": "To",
             "type": "string"
           },
+          "toc": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TopOfClimb"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tod": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TopOfDescent"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "true_course_deg": {
             "title": "True Course Deg",
             "type": "number"
@@ -3523,6 +3543,28 @@
           "to": {
             "title": "To",
             "type": "string"
+          },
+          "toc": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TopOfClimb"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "tod": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TopOfDescent"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
           },
           "true_course_deg": {
             "title": "True Course Deg",
@@ -4819,6 +4861,123 @@
           "corridors"
         ],
         "title": "Status",
+        "type": "object"
+      },
+      "TopOfClimb": {
+        "description": "Where a climb tops out (TOC), and the climb's true airspeed and\nground speed on the way up to it (vfr.navlog.with_climbs).",
+        "properties": {
+          "along_nm": {
+            "title": "Along Nm",
+            "type": "number"
+          },
+          "altitude_ft": {
+            "title": "Altitude Ft",
+            "type": "number"
+          },
+          "ete_min": {
+            "title": "Ete Min",
+            "type": "number"
+          },
+          "fuel_gal": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fuel Gal"
+          },
+          "groundspeed_kt": {
+            "title": "Groundspeed Kt",
+            "type": "number"
+          },
+          "lat": {
+            "title": "Lat",
+            "type": "number"
+          },
+          "lon": {
+            "title": "Lon",
+            "type": "number"
+          },
+          "tas_kt": {
+            "title": "Tas Kt",
+            "type": "number"
+          }
+        },
+        "required": [
+          "along_nm",
+          "ete_min",
+          "fuel_gal",
+          "altitude_ft",
+          "lat",
+          "lon",
+          "tas_kt",
+          "groundspeed_kt"
+        ],
+        "title": "TopOfClimb",
+        "type": "object"
+      },
+      "TopOfDescent": {
+        "description": "Where a descent starts (TOD): down from `altitude_ft` to `to_ft` --\nthe pattern altitude of the field landed at, or the next leg's lower\nlevel -- at `fpm`, three to one at the leg's ground speed, or steeper\nwhere the climb before it left less room (vfr.navlog.with_descents).",
+        "properties": {
+          "along_nm": {
+            "title": "Along Nm",
+            "type": "number"
+          },
+          "altitude_ft": {
+            "title": "Altitude Ft",
+            "type": "number"
+          },
+          "ete_min": {
+            "title": "Ete Min",
+            "type": "number"
+          },
+          "fpm": {
+            "title": "Fpm",
+            "type": "number"
+          },
+          "fuel_gal": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fuel Gal"
+          },
+          "lat": {
+            "title": "Lat",
+            "type": "number"
+          },
+          "lon": {
+            "title": "Lon",
+            "type": "number"
+          },
+          "pattern": {
+            "title": "Pattern",
+            "type": "boolean"
+          },
+          "to_ft": {
+            "title": "To Ft",
+            "type": "number"
+          }
+        },
+        "required": [
+          "along_nm",
+          "ete_min",
+          "fuel_gal",
+          "altitude_ft",
+          "lat",
+          "lon",
+          "to_ft",
+          "pattern",
+          "fpm"
+        ],
+        "title": "TopOfDescent",
         "type": "object"
       },
       "Totals": {

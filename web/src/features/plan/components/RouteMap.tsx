@@ -4,7 +4,7 @@ import { CircleMarker, Marker } from "react-leaflet";
 import { Badge } from "../../../components/ui/badge";
 import { useQuery } from "@tanstack/react-query";
 import { classBQuery } from "../../../lib/queryClient";
-import type { Candidate, ClassBAirport, Course } from "../../../lib/api/types";
+import type { Candidate, ClassBAirport, Course, Leg } from "../../../lib/api/types";
 import type { BriefingState } from "../hooks/usePlan";
 import type { AirportWeather } from "../../../lib/map/AirportCard";
 import { AirportsLayer } from "../../../lib/map/AirportsLayer";
@@ -12,7 +12,7 @@ import { WaypointsLayer } from "../../../lib/map/WaypointsLayer";
 import { chipColourOf } from "../../../lib/map/flightCategory";
 import { CourseLine } from "../../../lib/map/CourseLine";
 import { Halo } from "../../../lib/map/Halo";
-import { airportIcon, dotIcon, waypointIcon } from "../../../lib/map/icons";
+import { airportIcon, dotIcon, legPointIcon, waypointIcon } from "../../../lib/map/icons";
 import { FocusOn } from "../../../lib/map/MapEffects";
 import { MapCard } from "../../../lib/map/MapCard";
 import { MapPopup } from "../../../lib/map/MapPopup";
@@ -22,6 +22,7 @@ import { hovers } from "../../../lib/map/view";
 import { useCardedMarker } from "../../../lib/map/useCardedMarker";
 import { usePreferences } from "../../../lib/preferences";
 import { inkOn } from "../../../lib/scoreScale";
+import { feet } from "../../../lib/units";
 import { scoreColor } from "../format";
 
 interface Props {
@@ -45,6 +46,8 @@ interface Props {
   onSelectPlace: (ident: string | null) => void;
   /** A VFR waypoint tapped on the chart, put in the route's stops. */
   onAddStop?: (waypoint: { ident: string; lat: number; lon: number }) => void;
+  /** The nav log's legs so far, for their tops of climb and descent. */
+  legs: Leg[];
 }
 
 /** What a checkpoint's popup says: the same small card whether the
@@ -202,6 +205,34 @@ function Checkpoints({ candidates, selected, onSelectCandidate }: Pick<Props, "c
   );
 }
 
+/** Each leg's top of climb and of descent, where the nav log has a row
+ *  for it: a tap brings the map there and selects the row, as a
+ *  checkpoint's does. */
+function LegPoints({ legs, onSelectPoint }: { legs: Leg[]; onSelectPoint: Props["onSelectPoint"] }) {
+  return (
+    <>
+      {legs.flatMap((leg, i) => [
+        leg.toc && (
+          <Marker
+            key={`toc-${i}`} position={[leg.toc.lat, leg.toc.lon]} icon={legPointIcon("TOC")} zIndexOffset={-100}
+            eventHandlers={{ click: e => { L.DomEvent.stopPropagation(e); onSelectPoint(leg.toc!.lat, leg.toc!.lon); } }}
+          >
+            <MapTooltip>Top of climb · {feet(leg.toc.altitude_ft)}</MapTooltip>
+          </Marker>
+        ),
+        leg.tod && (
+          <Marker
+            key={`tod-${i}`} position={[leg.tod.lat, leg.tod.lon]} icon={legPointIcon("TOD")} zIndexOffset={-100}
+            eventHandlers={{ click: e => { L.DomEvent.stopPropagation(e); onSelectPoint(leg.tod!.lat, leg.tod!.lon); } }}
+          >
+            <MapTooltip>Top of descent · {leg.tod.fpm} fpm to {feet(leg.tod.to_ft)}</MapTooltip>
+          </Marker>
+        ),
+      ])}
+    </>
+  );
+}
+
 /**
  * The planned route on the chart: the course line, the chart's own
  * airports made tappable, the route's two, the checkpoints, the
@@ -215,7 +246,7 @@ const PLACE_ZOOM = 9;
 
 export default function RouteMap({
   course, candidates, selected, focus, onSelectCandidate, onSelectPoint,
-  airportWeather, place, onSelectPlace, onAddStop,
+  airportWeather, place, onSelectPlace, onAddStop, legs,
 }: Props) {
   const focusZoom = course?.max_zoom ?? 12;
   // The fields that wear a chip of their own already: the route's two,
@@ -258,6 +289,7 @@ export default function RouteMap({
             tooltip={`${routeAirports(course, true).map(a => a.ident).join(" → ")} · ${course.distance_nm} nm`}
           />
           <Endpoints course={course} weather={airportWeather} onSelectPoint={onSelectPoint} onSelectPlace={onSelectPlace} />
+          <LegPoints legs={legs} onSelectPoint={onSelectPoint} />
           <Checkpoints candidates={candidates} selected={selected} onSelectCandidate={onSelectCandidate} />
           {focus && <Halo at={focus} />}
           <FocusOn point={focus} zoom={focusZoom} />

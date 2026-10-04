@@ -11,6 +11,7 @@ run -- ensure_nasr_data() only downloads if the cache is empty.
 """
 import io
 import json
+import logging
 import re
 import threading
 import zipfile
@@ -22,6 +23,8 @@ import pandas as pd
 import requests
 
 from .retry import with_retries
+
+log = logging.getLogger(__name__)
 
 # FAA's site 403s a bare python-requests User-Agent.
 FAA_HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; vfr-route-learning-project/0.1)"}
@@ -193,6 +196,40 @@ def _read_apt_base(apt_csv_path) -> pd.DataFrame:
     entries, so the one it replaces is dropped rather than held.
     """
     return _read_apt_base_cached(str(apt_csv_path), Path(apt_csv_path).stat().st_mtime)
+
+
+#: A field's traffic pattern above it where the FAA publishes none: AC
+#: 90-66C's 1,000 ft for a propeller aeroplane (1,500 for a large or
+#: turbine one, which no profile here is).
+PATTERN_AGL_FT = 1000.0
+
+
+@lru_cache(maxsize=2)
+def _patterns_of(path: str, _mtime: float) -> dict:
+    df = _read_apt_base_cached(path, _mtime)
+    df = df[df["TPA"].notna() & (df["TPA"].str.strip() != "")]
+    by_ident = {}
+    for arpt_id, icao_id, tpa in zip(df["ARPT_ID"], df["ICAO_ID"], df["TPA"]):
+        for ident in (arpt_id, icao_id):
+            if isinstance(ident, str) and ident.strip():
+                by_ident[ident.strip().upper()] = float(tpa)
+    return by_ident
+
+
+def pattern_agl_ft(ident: str, cache_dir) -> float:
+    """How high above the field its traffic pattern is flown: APT_BASE's
+    TPA, in feet above the field, where the FAA publishes one (about one
+    field in twenty-five, often 800 ft under a Class B shelf), by its
+    FAA or ICAO identifier; PATTERN_AGL_FT where not -- and where the
+    file cannot be had, since a nav log's top of descent is no reason to
+    fail it."""
+    try:
+        path = ensure_nasr_file("APT_BASE.csv", cache_dir)
+        patterns = _patterns_of(str(path), path.stat().st_mtime)
+    except Exception:
+        log.warning("No APT_BASE.csv for pattern altitudes; %s gets %.0f ft", ident, PATTERN_AGL_FT, exc_info=True)
+        return PATTERN_AGL_FT
+    return patterns.get(ident.strip().upper(), PATTERN_AGL_FT)
 
 
 def load_route_airports(apt_csv_path, bbox: tuple, exclude_idents: tuple = ()) -> pd.DataFrame:
