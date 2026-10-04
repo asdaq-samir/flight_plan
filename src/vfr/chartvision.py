@@ -31,6 +31,7 @@ pilot on.
 from __future__ import annotations
 
 import math
+import threading
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 
@@ -165,6 +166,31 @@ PALETTE = (
     PaletteClass("town", _urban, min_area_px=400, base_score=4.0),
 )
 
+# Each palette class's colour test answered once for every colour a
+# pixel can be, as a bit in a 16 MB table indexed by 0xRRGGBB, and then
+# looked up per pixel (Mosaic.colour): the tests are arithmetic over a
+# block's millions of pixels, several times over per block, and a
+# sectional is drawn in a handful of colours. Built on first use.
+_COLOUR_BITS: dict = {}
+_COLOUR_TABLE: np.ndarray | None = None
+_COLOUR_TABLE_LOCK = threading.Lock()
+
+
+def _colour_table() -> np.ndarray:
+    global _COLOUR_TABLE
+    with _COLOUR_TABLE_LOCK:
+        if _COLOUR_TABLE is None:
+            table = np.zeros(1 << 24, dtype=np.uint8)
+            g, b = np.meshgrid(np.arange(256, dtype=np.int16), np.arange(256, dtype=np.int16), indexing="ij")
+            for red in range(256):
+                r = np.full_like(g, red)
+                row = table[red << 16:(red + 1) << 16].reshape(256, 256)
+                for test, bit in _COLOUR_BITS.items():
+                    row |= np.where(test(r, g, b), bit, 0).astype(np.uint8)
+            _COLOUR_TABLE = table
+        return _COLOUR_TABLE
+
+
 # Two crossing pixels further apart than this along the course are
 # separate crossings. A river meanders and can cut the course several
 # times within a mile, but below this they are one checkpoint.
@@ -249,6 +275,8 @@ LINEAR_PALETTE = (
         min_extent_px=MIN_LINE_EXTENT_PX, base_score=3.6, graticule_ink=True,
     ),
 )
+
+_COLOUR_BITS.update({spec.test: 1 << i for i, spec in enumerate(PALETTE + LINEAR_PALETTE)})
 
 
 def latlon_to_global_px(lat: float, lon: float, zoom: int = DEFAULT_ZOOM) -> tuple:
@@ -345,6 +373,8 @@ class Mosaic:
     missing_tiles: int = 0
     fetched_tiles: int = 0
     cached_tiles: int = 0
+    #: Each pixel's palette classes as bits (_colour_table), read once.
+    _classes: np.ndarray | None = field(default=None, repr=False)
 
     def to_latlon(self, cx: float, cy: float) -> tuple:
         return global_px_to_latlon(self.origin_px[0] + cx, self.origin_px[1] + cy, self.zoom)
@@ -373,6 +403,22 @@ class Mosaic:
             col = round(latlon_to_global_px(north, k * step, self.zoom)[0] - self.origin_px[0])
             out[:, max(0, col - half):col + half + 1] = True
         return out
+
+    def colour(self, test) -> np.ndarray:
+        """Where `test` -- a palette class's colour test -- holds: looked
+        up per pixel in the table of every colour's answers, which one
+        pass over the block reads for every class at once, where each
+        test was arithmetic over the whole block. A test not in the
+        table is worked out as before."""
+        bit = _COLOUR_BITS.get(test)
+        if bit is None:
+            channels = self.pixels.astype(np.int16)
+            return test(channels[:, :, 0], channels[:, :, 1], channels[:, :, 2])
+        if self._classes is None:
+            pixels = self.pixels
+            codes = (pixels[:, :, 0].astype(np.uint32) << 16) | (pixels[:, :, 1].astype(np.uint32) << 8) | pixels[:, :, 2]
+            self._classes = _colour_table()[codes]
+        return (self._classes & bit) != 0
 
     def on_chart(self, mask: np.ndarray) -> np.ndarray:
         """`mask` with everything off the published chart removed. Every
@@ -450,14 +496,12 @@ def detect_landmarks(mosaic: Mosaic, palette=PALETTE) -> list:
     """
     from scipy import ndimage
 
-    channels = mosaic.pixels.astype(np.int16)
-    r, g, b = channels[:, :, 0], channels[:, :, 1], channels[:, :, 2]
     centre_lat, _ = mosaic.to_latlon(mosaic.pixels.shape[1] / 2, mosaic.pixels.shape[0] / 2)
     m_per_px = metres_per_pixel(centre_lat, mosaic.zoom)
 
     landmarks = []
     for spec in palette:
-        mask = mosaic.on_chart(spec.test(r, g, b))
+        mask = mosaic.on_chart(mosaic.colour(spec.test))
         labelled, count = ndimage.label(mask)
         if count == 0:
             continue
@@ -467,11 +511,15 @@ def detect_landmarks(mosaic: Mosaic, palette=PALETTE) -> list:
         # for everything else).
         sizes = np.bincount(labelled.ravel(), minlength=count + 1)[1:]
         boxes = ndimage.find_objects(labelled)
+        # By size first, over the whole array at once: nearly every
+        # component is a speck, and asking each of thousands in Python was
+        # a quarter of a block's time.
+        big = sizes >= spec.min_area_px
+        if spec.max_area_px is not None:
+            big &= sizes <= spec.max_area_px
         keep = [
-            i + 1 for i, size in enumerate(sizes)
-            if size >= spec.min_area_px
-            and (spec.max_area_px is None or size <= spec.max_area_px)
-            and (spec.max_box_fill is None or size <= spec.max_box_fill * _box_area(boxes[i]))
+            int(i) + 1 for i in np.nonzero(big)[0]
+            if spec.max_box_fill is None or sizes[i] <= spec.max_box_fill * _box_area(boxes[i])
         ]
         if not keep:
             continue
@@ -683,8 +731,6 @@ def linear_crossings(
     geometry -- the course is one line, so walking it is O(length) and
     needs no component analysis at all.
     """
-    channels = mosaic.pixels.astype(np.int16)
-    r, g, b = channels[:, :, 0], channels[:, :, 1], channels[:, :, 2]
     height, width = mosaic.pixels.shape[:2]
     if course_px is None:
         course_px = great_circle_pixels(start, end, mosaic.zoom)
@@ -704,6 +750,8 @@ def linear_crossings(
     indices = np.nonzero(inside)[0]
     if not len(indices):
         return []
+    # Each course point's pixel, rounded as round() rounds (half to even).
+    points = np.rint(local[indices]).astype(int)
 
     centre_lat, _ = mosaic.to_latlon(width / 2, height / 2)
     m_per_px = metres_per_pixel(centre_lat, mosaic.zoom)
@@ -711,28 +759,26 @@ def linear_crossings(
     found = []
     graticule = None
     for spec in palette:
-        mask = mosaic.on_chart(spec.test(r, g, b))
+        mask = mosaic.on_chart(mosaic.colour(spec.test))
         if spec.graticule_ink:
             graticule = mosaic.graticule() if graticule is None else graticule
             mask = mask & ~graticule
-        # Whether the thing under a crossing is a line at all: how far it
-        # runs, how thick it is, whether it is a number -- see
-        # MIN_LINE_EXTENT_PX, MAX_LINE_HALF_WIDTH_PX and
-        # MAX_SHORT_LINE_FILL.
-        lines = _Lines(mask, spec) if spec.min_extent_px or spec.max_half_width_px is not None else None
         # Sampled per course point rather than by filtering the whole
         # block. Precomputing proximity with a uniform_filter was tried
         # and was twice as slow: the course touches a couple of thousand
         # pixels of a block that holds millions, so answering the question
-        # everywhere costs far more than asking it where it matters.
-        hits = []
-        for step in indices:
-            ix, iy = int(round(local[step][0])), int(round(local[step][1]))
-            lo_y, hi_y = max(0, iy - CROSSING_TOLERANCE_PX), min(height, iy + CROSSING_TOLERANCE_PX + 1)
-            lo_x, hi_x = max(0, ix - CROSSING_TOLERANCE_PX), min(width, ix + CROSSING_TOLERANCE_PX + 1)
-            window = mask[lo_y:hi_y, lo_x:hi_x]
-            if window.any():
-                hits.append((step, ix, iy, int(window.sum())))
+        # everywhere costs far more than asking it where it matters. Each
+        # point's window, clipped to the block, read for every point at
+        # once (_course_windows): it was a Python loop, a fifth of a
+        # route's crossings.
+        hits = _course_windows(mask, points, indices)
+        if not hits:
+            continue
+        # Whether the thing under a crossing is a line at all: how far it
+        # runs, how thick it is, whether it is a number -- see
+        # MIN_LINE_EXTENT_PX, MAX_LINE_HALF_WIDTH_PX and
+        # MAX_SHORT_LINE_FILL. Only where the course meets the class.
+        lines = _Lines(mask, spec) if spec.min_extent_px or spec.max_half_width_px is not None else None
 
         # Collapse runs of consecutive hits into one crossing each.
         for group in _group_hits(hits):
@@ -811,21 +857,28 @@ class _Lines:
         from scipy import ndimage
 
         self.spec = spec
-        self.labelled, count = ndimage.label(mask)
+        self.labelled, _ = ndimage.label(mask)
         self.boxes = ndimage.find_objects(self.labelled)
-        self.extents = np.zeros(count + 1, dtype=int)
-        for index, box in enumerate(self.boxes, start=1):
-            self.extents[index] = max(box[0].stop - box[0].start, box[1].stop - box[1].start)
-        self.areas = np.bincount(self.labelled.ravel(), minlength=count + 1)
         self.thin_whole: dict = {}
 
+    # A component's extent and area, asked of the few a crossing touches:
+    # they were worked out for all of a block's thousands, most of them
+    # letters, which was half of a crossing's time.
+    def _extent(self, label: int) -> int:
+        box = self.boxes[label - 1]
+        return max(box[0].stop - box[0].start, box[1].stop - box[1].start)
+
+    def _area(self, label: int) -> int:
+        box = self.boxes[label - 1]
+        return int(np.count_nonzero(self.labelled[box] == label))
+
     def _is_line(self, label: int) -> bool:
-        extent = self.extents[label]
+        extent = self._extent(label)
         if extent < self.spec.min_extent_px:
             return False
         if self.spec.max_half_width_px is None or extent >= SHORT_LINE_PX:
             return True
-        return self.areas[label] / extent <= MAX_SHORT_LINE_FILL
+        return self._area(label) / extent <= MAX_SHORT_LINE_FILL
 
     def _thin_at(self, label: int, cx: int, cy: int) -> bool:
         """Whether the component is no thicker than max_half_width_px:
@@ -835,7 +888,7 @@ class _Lines:
         for the stroke's."""
         from scipy import ndimage
 
-        if self.extents[label] < LOCAL_THICKNESS_FROM_PX:
+        if self._extent(label) < LOCAL_THICKNESS_FROM_PX:
             if label not in self.thin_whole:
                 box = self.boxes[label - 1]
                 depth = ndimage.distance_transform_edt(np.pad(self.labelled[box] == label, 1))
@@ -861,6 +914,25 @@ class _Lines:
             ):
                 window = window & (labels != label)
         return window
+
+
+def _course_windows(mask, points, indices, radius: int = CROSSING_TOLERANCE_PX) -> list:
+    """(step, x, y, set pixels) for each course point with any of `mask`
+    within `radius` of it, the window clipped to the block: every
+    point's window gathered at once, offsets that fall off the block
+    counted as unset."""
+    height, width = mask.shape
+    offsets = np.arange(-radius, radius + 1)
+    ys = points[:, 1, None, None] + offsets[None, :, None]
+    xs = points[:, 0, None, None] + offsets[None, None, :]
+    ys, xs = np.broadcast_arrays(ys, xs)
+    on_block = (ys >= 0) & (ys < height) & (xs >= 0) & (xs < width)
+    set_pixels = mask[np.clip(ys, 0, height - 1), np.clip(xs, 0, width - 1)] & on_block
+    counts = set_pixels.sum(axis=(1, 2))
+    return [
+        (int(indices[i]), int(points[i, 0]), int(points[i, 1]), int(counts[i]))
+        for i in np.nonzero(counts)[0]
+    ]
 
 
 def _nearest_mask_pixel(mask, cx: int, cy: int, radius: int, lines: _Lines | None = None):
