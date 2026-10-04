@@ -19,7 +19,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException
-from vfr import airports, publications, runway_wind, tfr, weather
+from vfr import airports, airspace, altitude, pattern, publications, runway_wind, tfr, weather
 
 from ..common import load_route
 from ..schemas import Briefing, Tfrs
@@ -78,7 +78,9 @@ def briefing(dep: str, dest: str, stops: str = "", depart: datetime | None = Non
     """Everything the nav log's own leg math doesn't cover: adverse
     conditions (SIGMET/AIRMET), current conditions (METAR) and
     forecast (TAF-derived ceiling/visibility) along the route, and
-    each airport's runways and radio frequencies.
+    each airport's runways and radio frequencies, its traffic pattern
+    (vfr.pattern) and the class of the airspace over it, for its
+    pattern card and the radio calls.
 
     The forecast is for the flight: from `depart` (now when not given;
     UTC when naive) to an hour past arrival, `ete_min` after it (two
@@ -160,6 +162,8 @@ def briefing(dep: str, dest: str, stops: str = "", depart: datetime | None = Non
         runways = {ident: f.result() for ident, f in runways.items()}
         frequencies = {ident: f.result() for ident, f in frequencies.items()}
 
+    shp_path = airspace.ensure_class_airspace_shapefile(altitude.DEFAULT_FAA_CACHE_DIR)
+    airport_of = dict(zip(r.idents, r.airports))
     return {
         "hazards": hazards,
         "forecast": forecast,
@@ -170,7 +174,12 @@ def briefing(dep: str, dest: str, stops: str = "", depart: datetime | None = Non
         "gairmets": gairmets,
         "vfr_not_recommended": weather.vfr_not_recommended_reasons(list(idents), metars, forecast),
         "airports": {
-            ident: {"runways": runway_wind.with_winds(runways[ident], metars.get(ident), *where[ident]),
+            ident: {"name": airport_of[ident].get("name"),
+                    "elevation_ft": airport_of[ident].get("elevation_ft"),
+                    "airspace_class": airspace.surface_class_at(*where[ident], shp_path),
+                    "pattern": pattern.pattern_at(ident, airport_of[ident].get("elevation_ft")),
+                    "runways": pattern.with_traffic(
+                        runway_wind.with_winds(runways[ident], metars.get(ident), *where[ident]), ident, *where[ident]),
                     "frequencies": frequencies[ident],
                     "airport_diagram_url": publications.airport_diagram_url(ident),
                     "chart_supplement_url": publications.chart_supplement_url(ident)}

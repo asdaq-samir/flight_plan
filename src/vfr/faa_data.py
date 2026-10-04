@@ -132,6 +132,9 @@ _NASR_FILES = {
     # In the same zip as APT_BASE: every airport's remarks, the Chart
     # Supplement's own text (vfr.remarks).
     "APT_RMK.csv": lambda: find_download_link(find_current_cycle_page(NASR_INDEX_URL), r'href="([^"]*APT_CSV\.zip)"'),
+    # And each runway end's: which way its traffic pattern is flown
+    # (vfr.pattern).
+    "APT_RWY_END.csv": lambda: find_download_link(find_current_cycle_page(NASR_INDEX_URL), r'href="([^"]*APT_CSV\.zip)"'),
     "DOF.DAT": lambda: find_download_link(DOF_INDEX_URL, r'href="(https://aeronav\.faa\.gov/Obst_Data/DOF_\d+\.zip)"'),
     # Every named fix: the RNAV (GPS) waypoints, the reporting points and
     # the VFR waypoints charted on the sectionals (VPBNG) -- what a route
@@ -216,20 +219,26 @@ def _patterns_of(path: str, _mtime: float) -> dict:
     return by_ident
 
 
-def pattern_agl_ft(ident: str, cache_dir) -> float:
-    """How high above the field its traffic pattern is flown: APT_BASE's
-    TPA, in feet above the field, where the FAA publishes one (about one
-    field in twenty-five, often 800 ft under a Class B shelf), by its
-    FAA or ICAO identifier; PATTERN_AGL_FT where not -- and where the
-    file cannot be had, since a nav log's top of descent is no reason to
-    fail it."""
+def published_pattern_agl_ft(ident: str, cache_dir) -> float | None:
+    """APT_BASE's TPA, in feet above the field, where the FAA publishes
+    one (about one field in twenty-five, often 800 ft under a Class B
+    shelf), by its FAA or ICAO identifier; None where it does not -- and
+    where the file cannot be had, since a nav log's top of descent is no
+    reason to fail it."""
     try:
         path = ensure_nasr_file("APT_BASE.csv", cache_dir)
         patterns = _patterns_of(str(path), path.stat().st_mtime)
     except Exception:
-        log.warning("No APT_BASE.csv for pattern altitudes; %s gets %.0f ft", ident, PATTERN_AGL_FT, exc_info=True)
-        return PATTERN_AGL_FT
-    return patterns.get(ident.strip().upper(), PATTERN_AGL_FT)
+        log.warning("No APT_BASE.csv for pattern altitudes; %s gets none published", ident, exc_info=True)
+        return None
+    return patterns.get(ident.strip().upper())
+
+
+def pattern_agl_ft(ident: str, cache_dir) -> float:
+    """How high above the field its traffic pattern is flown: the TPA
+    the FAA publishes (published_pattern_agl_ft), else PATTERN_AGL_FT."""
+    published = published_pattern_agl_ft(ident, cache_dir)
+    return PATTERN_AGL_FT if published is None else published
 
 
 def load_route_airports(apt_csv_path, bbox: tuple, exclude_idents: tuple = ()) -> pd.DataFrame:

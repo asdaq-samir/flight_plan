@@ -3,7 +3,7 @@ flyable altitude selection and an NDJSON reader."""
 import json
 
 import pytest
-from vfr import airports, faa_data, model_client, publications, tfr, weather
+from vfr import airports, airspace, faa_data, model_client, pattern, publications, tfr, weather
 
 from app import detection, planning, scoring
 
@@ -40,9 +40,19 @@ def known_airports(monkeypatch):
 
 @pytest.fixture(autouse=True)
 def known_patterns(monkeypatch):
-    """Every field's pattern 1,000 ft above it, without the FAA's airport
-    file -- which a fresh checkout does not have, and would download."""
-    monkeypatch.setattr(faa_data, "pattern_agl_ft", lambda ident, cache_dir: faa_data.PATTERN_AGL_FT)
+    """Every field's pattern 1,000 ft above it and left-hand all round,
+    without the FAA's airport files -- which a fresh checkout does not
+    have, and would download."""
+    monkeypatch.setattr(faa_data, "published_pattern_agl_ft", lambda ident, cache_dir: None)
+    monkeypatch.setattr(pattern, "right_traffic_ends", lambda ident, cache_dir=None: set())
+
+
+@pytest.fixture(autouse=True)
+def uncontrolled_fields(monkeypatch):
+    """Class G at every field's surface, without the FAA's airspace
+    shapefile: a test about the class stubs these again itself."""
+    monkeypatch.setattr(airspace, "ensure_class_airspace_shapefile", lambda cache_dir: "Class_Airspace.shp")
+    monkeypatch.setattr(airspace, "surface_class_at", lambda lat, lon, shp: "G")
 
 
 @pytest.fixture(autouse=True)

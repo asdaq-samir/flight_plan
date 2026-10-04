@@ -27,6 +27,10 @@ import { PublicationRows } from "../PublicationRows";
 import { gairmetAltitudes, gairmetTitle, pirepConditions, suaAltitudes, tfrAltitudes, tfrTimes } from "../../../../lib/advisories";
 import { CATEGORY_RANK, categoryOf, colourOf } from "../../../../lib/map/flightCategory";
 import { passLine, passTime, suaWhen, tfrWhen, type SuaWhen, type TfrWhen } from "../../../../lib/passTimes";
+import { runwayInUse, runwayNumber } from "../../../../lib/pattern";
+import { callSign } from "../../../../lib/radio";
+import { shortName } from "../../../../lib/aircraftChoice";
+import PatternRadio from "./PatternRadio";
 
 interface Props {
   nav: NavLogAltitude | null;
@@ -386,6 +390,13 @@ export default function FlightBriefingView({
   }) ?? [];
   // The special-use areas the legs cross (vfr.sua, with the altitudes).
   const specialUse = nav?.altitude_selection.special_use ?? [];
+  // The call sign the radio calls use: the pilot's own aeroplane's
+  // registration where they fly one, and its make from its profile.
+  const flying = usePreferences(s => s.aircraft);
+  const make = nav?.aircraft.type?.split(" ")[0] || "Aircraft";
+  const ownCallSign = callSign(make, flying.aircraftId != null ? shortName(flying.label) : null);
+  const destFacilities = briefing?.airports[dest];
+  const destInUse = destFacilities ? runwayInUse(destFacilities.runways) : null;
   const summaries = {
     adverse: !briefing ? undefined
       : unchecked("hazards") && unchecked("gairmets") ? "Not checked"
@@ -410,6 +421,9 @@ export default function FlightBriefingView({
       ? `${Math.abs(Math.round(chosen.tailwind_kt))} kt ${chosen.tailwind_kt >= 0 ? "tailwind" : "headwind"} on average`
       : stretches.some(st => st.wind) ? `${stretches.filter(st => st.wind).length} stretches of wind` : undefined,
     airports: !briefing ? undefined : destFrequency ? `${dest} ${destFrequency}` : `${dep} · ${dest}`,
+    pattern: !destFacilities ? undefined
+      : [destFacilities.pattern?.altitude_ft != null && `${dest} pattern ${altFt(destFacilities.pattern.altitude_ft)} ft`,
+        destInUse && `runway ${runwayNumber(destInUse.end.ident)} ${destInUse.end.traffic} traffic`].filter(Boolean).join(" · "),
     check: !briefing ? "TFRs, NOTAMs and ATC delays"
       : unchecked("tfrs") ? "TFRs not checked · NOTAMs and ATC delays"
         : briefing.tfrs.length === 0 ? "No TFRs on the route · NOTAMs and ATC delays"
@@ -783,6 +797,17 @@ export default function FlightBriefingView({
               );
             })}
           </div>
+        )}
+      </AccordionSection>
+
+      {/* Each field's pattern drawn for the runway the wind favours, and
+          the radio calls in the order they are made, worded as the AIM
+          words them. */}
+      <AccordionSection title="Pattern & Radio" summary={summaries.pattern}>
+        {!briefing ? (
+          <p className="text-muted-foreground">{briefingPendingMessage}</p>
+        ) : (
+          <PatternRadio briefing={briefing} landings={landings} legs={legs} callSign={ownCallSign} />
         )}
       </AccordionSection>
 

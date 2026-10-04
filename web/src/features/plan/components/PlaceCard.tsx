@@ -215,6 +215,13 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
           <div className="pt-5">
             <ListGroup title="Field">
               <ListRow title="Elevation" value={feet(place.elevation_ft)} />
+              {place.pattern?.altitude_ft != null && (
+                <ListRow
+                  title="Pattern altitude"
+                  description={place.pattern.published ? "As the FAA publishes it" : "1,000 ft above the field: none published"}
+                  value={feet(place.pattern.altitude_ft)} data-testid="place-pattern"
+                />
+              )}
               {place.runways.map((r, i) => <RunwayRow key={`${r.ends}-${i}`} runway={r} />)}
             </ListGroup>
           </div>

@@ -4,5 +4,6 @@
  *  so the component's file keeps fast refresh. */
 export const BRIEFING_SECTIONS = [
   "Adverse Conditions", "Current Conditions", "Destination Forecast", "En Route Forecast", "Cruise Altitude",
-  "Winds Aloft", "Check before you fly", "Airport Information", "Weight & Balance", "Takeoff & Landing",
+  "Winds Aloft", "Check before you fly", "Airport Information", "Pattern & Radio", "Weight & Balance",
+  "Takeoff & Landing",
 ];

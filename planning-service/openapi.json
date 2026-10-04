@@ -272,6 +272,24 @@
             ],
             "title": "Airport Diagram Url"
           },
+          "airspace_class": {
+            "anyOf": [
+              {
+                "enum": [
+                  "B",
+                  "C",
+                  "D",
+                  "E",
+                  "G"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Airspace Class"
+          },
           "chart_supplement_url": {
             "anyOf": [
               {
@@ -283,12 +301,44 @@
             ],
             "title": "Chart Supplement Url"
           },
+          "elevation_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Elevation Ft"
+          },
           "frequencies": {
             "items": {
               "$ref": "#/components/schemas/Frequency"
             },
             "title": "Frequencies",
             "type": "array"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "pattern": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TrafficPattern"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "runways": {
             "items": {
@@ -471,6 +521,16 @@
           "name": {
             "title": "Name",
             "type": "string"
+          },
+          "pattern": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TrafficPattern"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "radio_notes": {
             "default": [],
@@ -5521,6 +5581,14 @@
             "title": "Lighted",
             "type": "boolean"
           },
+          "runway_ends": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/RunwayEnd"
+            },
+            "title": "Runway Ends",
+            "type": "array"
+          },
           "surface": {
             "anyOf": [
               {
@@ -5563,6 +5631,40 @@
           "closed"
         ],
         "title": "Runway",
+        "type": "object"
+      },
+      "RunwayEnd": {
+        "description": "One end of a runway (vfr.pattern): its true heading, None for a\nhelipad, and which way its traffic pattern is flown -- left unless\nthe FAA flags it right (14 CFR 91.126(b)(1)).",
+        "properties": {
+          "heading_true_deg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Heading True Deg"
+          },
+          "ident": {
+            "title": "Ident",
+            "type": "string"
+          },
+          "traffic": {
+            "default": "left",
+            "enum": [
+              "left",
+              "right"
+            ],
+            "title": "Traffic",
+            "type": "string"
+          }
+        },
+        "required": [
+          "ident"
+        ],
+        "title": "RunwayEnd",
         "type": "object"
       },
       "RunwayWind": {
@@ -6560,6 +6662,36 @@
         "title": "Totals",
         "type": "object"
       },
+      "TrafficPattern": {
+        "description": "How high a field's traffic pattern is flown (vfr.pattern):\n`agl_ft` above the field, the FAA's own where `published`, else AC\n90-66C's 1,000 ft for a propeller aeroplane; `altitude_ft` above sea\nlevel where the field's elevation is known.",
+        "properties": {
+          "agl_ft": {
+            "title": "Agl Ft",
+            "type": "number"
+          },
+          "altitude_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Altitude Ft"
+          },
+          "published": {
+            "default": false,
+            "title": "Published",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "agl_ft"
+        ],
+        "title": "TrafficPattern",
+        "type": "object"
+      },
       "TrainingReadiness": {
         "description": "Whether a retrain has enough to train the chart model on, asked\nbefore one is started (app.chart_model.readiness): the ratings on a\ndetection the trainer would get (`usable`) against what it needs, how\nmany of the `rated` are on a point the chart reader no longer finds\n(`off_detection`), and the routes whose chart is still being read,\nwhich cannot be counted yet. `message` says it in a sentence.",
         "properties": {
@@ -7147,7 +7279,7 @@
     },
     "/api/briefing": {
       "get": {
-        "description": "Everything the nav log's own leg math doesn't cover: adverse\nconditions (SIGMET/AIRMET), current conditions (METAR) and\nforecast (TAF-derived ceiling/visibility) along the route, and\neach airport's runways and radio frequencies.\n\nThe forecast is for the flight: from `depart` (now when not given;\nUTC when naive) to an hour past arrival, `ete_min` after it (two\nhours when not given). It used to be read at the moment of asking,\nwhatever time the pilot was planning to go. With stops (`stops`,\n\"KDSM,KLNK\"), along every hop and for every airport landed at.",
+        "description": "Everything the nav log's own leg math doesn't cover: adverse\nconditions (SIGMET/AIRMET), current conditions (METAR) and\nforecast (TAF-derived ceiling/visibility) along the route, and\neach airport's runways and radio frequencies, its traffic pattern\n(vfr.pattern) and the class of the airspace over it, for its\npattern card and the radio calls.\n\nThe forecast is for the flight: from `depart` (now when not given;\nUTC when naive) to an hour past arrival, `ete_min` after it (two\nhours when not given). It used to be read at the moment of asking,\nwhatever time the pilot was planning to go. With stops (`stops`,\n\"KDSM,KLNK\"), along every hop and for every airport landed at.",
         "operationId": "briefing_api_briefing_get",
         "parameters": [
           {

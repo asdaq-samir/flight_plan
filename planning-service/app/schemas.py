@@ -579,6 +579,16 @@ class RunwayWind(BaseModel):
     gust_crosswind_kt: float | None = None
 
 
+class RunwayEnd(BaseModel):
+    """One end of a runway (vfr.pattern): its true heading, None for a
+    helipad, and which way its traffic pattern is flown -- left unless
+    the FAA flags it right (14 CFR 91.126(b)(1))."""
+
+    ident: str
+    heading_true_deg: float | None = None
+    traffic: Literal["left", "right"] = "left"
+
+
 class Runway(BaseModel):
     ends: str | None
     length_ft: int | None
@@ -589,6 +599,18 @@ class Runway(BaseModel):
     #: The current METAR's wind on the end it favours; None without a
     #: report, with a variable wind, or for a helipad.
     wind: RunwayWind | None = None
+    runway_ends: list[RunwayEnd] = []
+
+
+class TrafficPattern(BaseModel):
+    """How high a field's traffic pattern is flown (vfr.pattern):
+    `agl_ft` above the field, the FAA's own where `published`, else AC
+    90-66C's 1,000 ft for a propeller aeroplane; `altitude_ft` above sea
+    level where the field's elevation is known."""
+
+    agl_ft: float
+    altitude_ft: float | None = None
+    published: bool = False
 
 
 class Frequency(BaseModel):
@@ -598,6 +620,13 @@ class Frequency(BaseModel):
 
 
 class AirportFacilities(BaseModel):
+    #: The airport's name, for what a pilot calls its tower or its
+    #: traffic, its elevation, and the class of the airspace at its
+    #: surface (vfr.airspace.surface_class_at).
+    name: str | None = None
+    elevation_ft: float | None = None
+    airspace_class: Literal["B", "C", "D", "E", "G"] | None = None
+    pattern: TrafficPattern | None = None
     runways: list[Runway]
     # The FAA's airport diagram and Chart Supplement page (vfr.publications).
     airport_diagram_url: str | None = None
@@ -1152,6 +1181,7 @@ class AirportPlace(BaseModel):
     lighting: list[str] = []
     radio_notes: list[str] = []
     standard_keying: bool = False
+    pattern: TrafficPattern | None = None
     runways: list[Runway]
     frequencies: list[Frequency]
     metar: Metar | None = None

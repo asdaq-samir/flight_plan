@@ -11,7 +11,7 @@ tests in the root tests/ package.
 import json
 
 from fastapi.testclient import TestClient
-from vfr import airports
+from vfr import airports, airspace, faa_data, pattern
 from vfr import model_registry, tfr, weather
 from vfr.weather import WeatherServiceError
 
@@ -222,6 +222,33 @@ def test_the_briefing_tells_the_tfrs_pilot_reports_and_g_airmets_on_the_route(mo
     assert body["tfrs"][0]["notam_id"] == "6/6664" and body["tfrs"][0]["crosses"] and "geometry" not in body["tfrs"][0]
     assert body["pireps"][0]["turbulence"] == "MOD"
     assert body["gairmets"][0]["hazard"] == "Icing"
+
+
+def test_each_airport_landed_at_has_its_pattern_and_its_runway_ends(monkeypatch):
+    """For the pattern card and the radio calls: how high the pattern is
+    and which way round at each end, the class over the field and what
+    it is called."""
+    monkeypatch.setattr(weather, "hazards_along_route", lambda start, end: [])
+    monkeypatch.setattr(weather, "ceiling_visibility_along_route", lambda start, end, window=None: (
+        {"min_ceiling_ft": None, "min_visibility_sm": None, "stations": []}))
+    monkeypatch.setattr(weather, "metar_for_idents", lambda idents: {ident: None for ident in idents})
+    monkeypatch.setattr(airports, "get_runways", lambda ident: [{
+        "ends": "09/27", "end_headings": [("09", 90.2), ("27", 270.2)], "length_ft": 3270, "width_ft": 40,
+        "surface": "ASP", "lighted": True, "closed": False}])
+    monkeypatch.setattr(airports, "get_frequencies", lambda ident: [])
+    monkeypatch.setattr(pattern, "right_traffic_ends", lambda ident, cache_dir=None: {"27"} if ident == "C81" else set())
+    monkeypatch.setattr(faa_data, "published_pattern_agl_ft", lambda ident, cache_dir: 800.0 if ident == "DLH" else None)
+    monkeypatch.setattr(airspace, "surface_class_at", lambda lat, lon, shp: "C" if lat > 46 else "E")
+
+    body = client.get("/api/briefing", params={"dep": "C81", "dest": "KDLH"}).json()
+
+    c81, dlh = body["airports"]["C81"], body["airports"]["KDLH"]
+    assert c81["pattern"] == {"agl_ft": 1000.0, "altitude_ft": 1900.0, "published": False}
+    assert dlh["pattern"] == {"agl_ft": 800.0, "altitude_ft": 1700.0, "published": True}
+    assert [(e["ident"], e["traffic"]) for e in c81["runways"][0]["runway_ends"]] == [("09", "left"), ("27", "right")]
+    assert c81["runways"][0]["runway_ends"][0]["heading_true_deg"] == 90.2
+    assert (c81["airspace_class"], dlh["airspace_class"]) == ("E", "C")
+    assert dlh["name"] == "KDLH" and dlh["elevation_ft"] == 900.0
 
 
 def test_a_tfr_site_that_does_not_answer_is_said_not_taken_for_none(monkeypatch):
