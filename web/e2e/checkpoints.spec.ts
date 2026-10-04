@@ -12,7 +12,7 @@ test("plan page: a click or Enter selects a nav log checkpoint, with the briefin
   await settle(page);
   await page.getByTestId("sidebar-trigger-button").click();
   // The sections start closed: open the nav log's to walk its rows.
-  await sideDrawer(page).getByText("Nav Log", { exact: true }).click();
+  await sideDrawer(page).getByRole("button", { name: "Nav Log", exact: true }).click();
   const table = page.getByRole("table", { name: /Navigation log from/i });
   // The rows arrive with the scored checkpoints; wait for more than
   // the departure and the destination.
@@ -179,7 +179,7 @@ test("plan page: iOS never zooms the page in on a phone's field: the viewport fo
   // The description boxes are in the nav log's section, closed until
   // its title is clicked, and each under its own row, closed until
   // that row is selected.
-  await sideDrawer(page).getByText("Nav Log", { exact: true }).click();
+  await sideDrawer(page).getByRole("button", { name: "Nav Log", exact: true }).click();
   const rows = sideDrawer(page).locator("table tbody tr[data-kind='checkpoint']");
   await expect.poll(() => rows.count(), { timeout: slow(15000) }).toBeGreaterThan(0);
   await rows.first().click();

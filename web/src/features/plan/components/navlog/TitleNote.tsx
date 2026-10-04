@@ -14,10 +14,9 @@ import { TEXT } from "../../../../lib/text";
  * popover from `md` up, a sheet on a phone. It was a line of its own
  * across the panel, under the route.
  *
- * Inside the section's title, which is the accordion's button: so not a
- * button of its own but a mark that takes its own tap, the section left
- * as it was, and the popover placed against it (an anchor, not a
- * trigger, whose tap would be the section's too).
+ * Beside the section's title, which lies over the accordion's button
+ * rather than in it (AccordionSection): a mark that takes its own tap,
+ * the section left as it was, and the popover placed against it.
  */
 export default function TitleNote({ tone, icon, label, title, open, onOpenChange, testId, contentTestId, children }: {
   tone: "warning" | "destructive" | "info";
@@ -48,7 +47,7 @@ export default function TitleNote({ tone, icon, label, title, open, onOpenChange
           onClick={toggle} onKeyDown={e => { if (e.key === "Enter" || e.key === " ") toggle(e); }}
           // Over the section button's own hit area, which lies across its
           // title, and a finger's 44 points round the mark (index.css's
-          // rule is for buttons; this is a span inside one).
+          // rule is for buttons; this is a span).
           className={cn(
             "relative z-10 inline-flex min-h-6 items-center gap-1 rounded-full font-semibold outline-none after:absolute after:-inset-2.5 focus-visible:ring-2 focus-visible:ring-ring",
             tone === "warning" ? "text-amber-600 dark:text-amber-400" : tone === "info" ? "text-tint" : "text-red-700 dark:text-red-400",

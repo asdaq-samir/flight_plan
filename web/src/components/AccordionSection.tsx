@@ -1,4 +1,4 @@
-import type { ComponentProps, ReactNode } from "react";
+import { useId, type ComponentProps, type ReactNode } from "react";
 import { cn } from "cn";
 import { AccordionContent, AccordionItem, AccordionTrigger } from "./ui/accordion";
 import { TEXT } from "../lib/text";
@@ -14,6 +14,13 @@ import { TEXT } from "../lib/text";
  * the page could have them instead; both are gone. A `description` is
  * the first line inside; a `summary` is a line under the title, folded
  * or open, so the drawer can be read without opening every section.
+ *
+ * The title, its aside and its summary are laid over the trigger, not
+ * inside it (the trigger's `label`): an aside may be a control of its
+ * own (the Nav Log's TitleNote), and inside the trigger it was a button
+ * in a button, which a screen reader cannot reach. The trigger is still
+ * the whole row's tap and is named by the title, the summary its
+ * description.
  */
 export default function AccordionSection({ title, description, aside, summary, children, ...props }: {
   title: string; description?: string;
@@ -25,22 +32,37 @@ export default function AccordionSection({ title, description, aside, summary, c
   summary?: ReactNode;
   children: ReactNode;
 } & Omit<ComponentProps<typeof AccordionItem>, "value" | "title">) {
-  const heading = aside ? <span className="flex flex-wrap items-center gap-x-2 gap-y-1"><span>{title}</span>{aside}</span> : title;
+  const titleId = useId();
+  const summaryId = useId();
   return (
     <AccordionItem value={title} {...props}>
       {/* Bold, over the stock trigger's medium: a section title is what
           the drawer is read by, and medium read as one more line. At a
           row's size (TEXT), its summary and its words at what is read,
           and its line of help a note's: 17, 15 and 13 to a finger, where
-          the title was 14 over rows of 17. */}
-      <AccordionTrigger className={cn("font-semibold", TEXT.row)}>
-        {summary ? (
-          <span className="flex min-w-0 flex-col gap-0.5">
-            {aside ? heading : <span>{title}</span>}
-            <span className={cn("font-normal text-muted-foreground", TEXT.prose)} data-slot="section-summary">{summary}</span>
+          the title was 14 over rows of 17. Taps fall through the label
+          to the trigger under it, but for the aside's own; it underlines
+          and fades with the trigger, as its words did inside it. */}
+      <AccordionTrigger
+        aria-labelledby={titleId} aria-describedby={summary ? summaryId : undefined}
+        label={(
+          <span
+            className={cn(
+              "pointer-events-none col-start-1 row-start-1 flex min-w-0 flex-col gap-0.5 self-start py-4 pr-6 text-left text-sm font-semibold",
+              "group-hover/accordion-header:underline pointer-coarse:group-has-[[data-slot=accordion-trigger]:active]/accordion-header:opacity-60",
+              TEXT.row,
+            )}
+          >
+            <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <span id={titleId}>{title}</span>
+              {aside && <span className="pointer-events-auto inline-flex">{aside}</span>}
+            </span>
+            {summary && (
+              <span id={summaryId} className={cn("font-normal text-muted-foreground", TEXT.prose)} data-slot="section-summary">{summary}</span>
+            )}
           </span>
-        ) : heading}
-      </AccordionTrigger>
+        )}
+      />
       <AccordionContent className={TEXT.prose}>
         {description && <div className={cn("text-muted-foreground", TEXT.note)}>{description}</div>}
         {children}

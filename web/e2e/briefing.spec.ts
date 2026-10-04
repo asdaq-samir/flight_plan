@@ -55,7 +55,7 @@ test("plan page: the flight planning drawer opens the way the Model Training dra
   // Opened, the nav log's section holds the totals and the
   // descriptions button above the table -- inside the section, not
   // the header.
-  await drawer.getByText("Nav Log", { exact: true }).click();
+  await drawer.getByRole("button", { name: "Nav Log", exact: true }).click();
   await expect(drawer.getByRole("table", { name: /Navigation log from/i })).toBeVisible();
   await expect(drawer.locator('[data-slot="accordion-content"] [data-testid="generate-descriptions-button"]')).toBeVisible();
   // The altitude, the Alt column's own heading, once the log has
@@ -109,10 +109,10 @@ test("plan page: the briefing ends on its 'planning aid only' reminder, with the
   await expect(drawer.getByText("Adverse Conditions")).toBeVisible();
   await expect(drawer.getByText("Airport Information")).toBeVisible();
   // A section unfolds on its title and folds again.
-  await drawer.getByText("Nav Log", { exact: true }).click();
+  await drawer.getByRole("button", { name: "Nav Log", exact: true }).click();
   await expect(drawer.getByRole("table", { name: /Navigation log from/i })).toBeVisible();
   await expect(navLog).toHaveCount(1);
-  await drawer.getByText("Nav Log", { exact: true }).click();
+  await drawer.getByRole("button", { name: "Nav Log", exact: true }).click();
   await expect(navLog).toHaveCount(0);
 });
 

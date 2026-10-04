@@ -12,7 +12,7 @@ import { useOwnShip } from "../lib/map/ownShip";
 import { ResponsivePopover, ResponsivePopoverContent, ResponsivePopoverTrigger } from "./ResponsivePopover";
 import { useAirportSearch } from "../lib/useAirportSearch";
 import { useIsMobile } from "../hooks/use-mobile";
-import { useVisualHeight } from "../hooks/use-viewport";
+import { useKeyboardInset } from "../hooks/use-viewport";
 
 interface Props {
   value: string;
@@ -61,7 +61,7 @@ export default function AirportPicker({
   const [query, setQuery] = useState("");
   const input = useRef<HTMLInputElement>(null);
   const onPhone = useIsMobile();
-  const visualHeight = useVisualHeight();
+  const keyboard = useKeyboardInset();
   // Enter takes the highlighted row only once the rows answer what is in
   // the box: it used to take it whenever there were rows, so "KD", a
   // pause, then "LH" and a quick Enter set the field to the first "KD..."
@@ -89,8 +89,8 @@ export default function AirportPicker({
   };
 
   return (
-    // From the top of a phone's screen, sized to what is in sight above the
-    // keyboard: from the bottom the keyboard came up over it, field and all.
+    // From the top of a phone's screen, where the keyboard cannot come up
+    // over the field: from the bottom it came up over it, field and all.
     <ResponsivePopover open={open} onOpenChange={next => { setOpen(next); if (!next) setQuery(""); }} phoneEdge="top" handleOnly>
       <ResponsivePopoverTrigger asChild>
         <Button
@@ -119,7 +119,11 @@ export default function AirportPicker({
           and Recents under it until something is typed. */}
       <ResponsivePopoverContent
         title={`${ariaLabel} airport`} titleHidden className="w-96 p-3" align="start"
-        style={onPhone ? { height: visualHeight - 8, maxHeight: "none" } : undefined}
+        // The whole screen's height, keyboard or not, as Maps' search
+        // sheet stands: sized to what was in sight above the keyboard, it
+        // stayed half a card once the keyboard went (iOS does not always
+        // say so). The list scrolls clear of the keyboard instead (below).
+        style={onPhone ? { height: "calc(100dvh - 8px)", maxHeight: "none" } : undefined}
         // The field focused as it opens, as the search bar is on its tap:
         // the sheet's own first focus went to the sheet itself.
         onOpenAutoFocus={e => { e.preventDefault(); input.current?.focus(); }}
@@ -127,7 +131,11 @@ export default function AirportPicker({
         {/* The server already filters (an ident, a word of a name or a
             town), so cmdk's own filter is off: it would drop a row whose
             name matched but whose ident, the `value`, did not. */}
-        <Command shouldFilter={false} className="gap-4 overflow-visible bg-transparent">
+        <Command
+          shouldFilter={false} className="gap-4 overflow-visible bg-transparent"
+          // Room under the last row for the keyboard, so it scrolls above it.
+          style={onPhone && keyboard > 0 ? { paddingBottom: keyboard } : undefined}
+        >
           {/* The field, and a close beside it, as Maps' search sheet has:
               on a phone the sheet stands over nearly the whole screen. */}
           <div className="flex shrink-0 items-center gap-2">

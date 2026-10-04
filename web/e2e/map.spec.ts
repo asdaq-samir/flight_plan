@@ -12,9 +12,9 @@ test("plan page: a route from an airport to itself is a local flight: the field'
   await page.goto("/app/plan?dep=C81&dest=C81");
   await expect(page.getByTestId("capsule-title")).toHaveText("C81 local", { timeout: slow(30000) });
   await openPanel(page);
-  const section = page.locator("[data-slot=accordion-trigger]").filter({ hasText: "Local Flight" });
+  const section = page.locator("[data-slot=accordion-header]").filter({ hasText: "Local Flight" });
   await expect(section).toContainText(/Aloft 1h 00m/, { timeout: slow(30000) });
-  await section.click();
+  await section.getByRole("button", { name: "Local Flight", exact: true }).click();
   await expect(page.getByTestId("fuel-check")).toContainText("Fuel required");
 
   // Longer aloft: in the address, and more fuel.

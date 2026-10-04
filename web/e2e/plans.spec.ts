@@ -16,7 +16,7 @@ test("plan page: the nav log's altitude opens the planner's own reasoning, and t
   await settle(page);
   await page.getByTestId("sidebar-trigger-button").click();
   // The sections start closed: the altitude is in the nav log's own.
-  await sideDrawer(page).getByText("Nav Log", { exact: true }).click();
+  await sideDrawer(page).getByRole("button", { name: "Nav Log", exact: true }).click();
   // The altitude arrives with the nav log stream, after the checkpoints:
   // the Alt column's own heading, named with the figure. The figure
   // alone: which plan it is shows as the pressed row in the popover, not
@@ -94,7 +94,7 @@ test("plan page: the nav log's altitude opens the planner's own reasoning, and t
   const drawer = sideDrawer(page);
   await expect(drawer.getByText("Cruise Altitude", { exact: true })).toBeVisible();
   await expect(drawer.getByText("14 CFR 91.159")).toBeHidden();
-  await drawer.getByText("Cruise Altitude", { exact: true }).click();
+  await drawer.getByRole("button", { name: "Cruise Altitude", exact: true }).click();
   await expect(drawer.getByText("14 CFR 91.159")).toBeVisible();
 });
 
@@ -102,7 +102,7 @@ test("plan page: a departure time gives every checkpoint an ETA, and the nav log
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
   await page.getByTestId("sidebar-trigger-button").click();
-  await sideDrawer(page).getByText("Nav Log", { exact: true }).click();
+  await sideDrawer(page).getByRole("button", { name: "Nav Log", exact: true }).click();
   const table = page.getByRole("table", { name: /Navigation log from/i });
   await expect(table.locator("thead")).not.toContainText("ETA");
 
@@ -205,7 +205,9 @@ test("plan page: no legal altitude is the route's own problem: its chip says so 
   await expect(mark).toHaveText("No legal altitude");
   const problem = page.getByTestId("route-problem");
   await expect(problem).toHaveCount(0);
-  const section = page.locator("[data-slot=accordion-trigger]").filter({ hasText: "Nav Log" });
+  // By its slot: on a phone the mark's sheet hides the page from the
+  // accessibility tree, and a role lookup with it.
+  const section = page.locator("[data-slot=accordion-header]").filter({ hasText: "Nav Log" }).locator("[data-slot=accordion-trigger]");
   const folded = await section.getAttribute("aria-expanded");
 
   // A tap on the mark: where, why as a list -- with no Try again, which

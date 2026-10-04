@@ -32,14 +32,22 @@ function AccordionItem({
 function AccordionTrigger({
   className,
   children,
+  label,
   ...props
-}: React.ComponentProps<typeof AccordionPrimitive.Trigger>) {
+}: React.ComponentProps<typeof AccordionPrimitive.Trigger> & {
+  /** What names the trigger, laid over it in the header rather than
+   *  inside it, so a control among it (a flag beside a section's title)
+   *  is not a button inside a button. Name the trigger from it with
+   *  aria-labelledby; the trigger stays the whole row's tap. */
+  label?: React.ReactNode
+}) {
   return (
-    <AccordionPrimitive.Header className="flex">
+    <AccordionPrimitive.Header data-slot="accordion-header" className={label ? "group/accordion-header grid" : "flex"}>
       <AccordionPrimitive.Trigger
         data-slot="accordion-trigger"
         className={cn(
           "group/accordion-trigger relative flex flex-1 items-start justify-between rounded-md border border-transparent py-4 text-left text-sm font-medium transition-all outline-none hover:underline pointer-coarse:active:opacity-60 pointer-coarse:active:duration-0 focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:ring-ring focus-visible:after:border-ring disabled:pointer-events-none disabled:opacity-50 **:data-[slot=accordion-trigger-icon]:ml-auto **:data-[slot=accordion-trigger-icon]:size-4 **:data-[slot=accordion-trigger-icon]:text-tint",
+          label && "col-start-1 row-start-1",
           className
         )}
         {...props}
@@ -48,6 +56,7 @@ function AccordionTrigger({
         <ChevronDownIcon data-slot="accordion-trigger-icon" className="pointer-events-none shrink-0 group-aria-expanded/accordion-trigger:hidden" />
         <ChevronUpIcon data-slot="accordion-trigger-icon" className="pointer-events-none hidden shrink-0 group-aria-expanded/accordion-trigger:inline" />
       </AccordionPrimitive.Trigger>
+      {label}
     </AccordionPrimitive.Header>
   )
 }
