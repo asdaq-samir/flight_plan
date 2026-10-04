@@ -42,11 +42,13 @@ export default function ProblemBanner() {
         <CircleAlert className="shrink-0" />
         <button
           type="button" onClick={() => setOpen(o => !o)} aria-expanded={open} data-testid="problem-banner-title"
-          className={cn("min-w-0 flex-1 py-1 text-left font-medium outline-none focus-visible:underline", TEXT.detail, !open && "truncate")}
+          // The line's whole height, so its 44-point hit area is its own:
+          // a 28-point box's reached past the glass round it.
+          className={cn("flex min-w-0 flex-1 flex-col justify-center self-stretch py-1 text-left font-medium outline-none focus-visible:underline", TEXT.detail)}
         >
           {open && problems.length > 1
             ? problems.map(p => <span key={p.id} className="ml-4 list-item list-disc" data-problem-item="">{p.title}</span>)
-            : title}
+            : <span className={cn("block max-w-full", !open && "truncate")}>{title}</span>}
         </button>
         {retries.length > 0 && (
           <Button

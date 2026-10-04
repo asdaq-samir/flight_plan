@@ -346,12 +346,13 @@ body:has([data-slot="map-panel"]:not([data-panel="peek"]), [role="dialog"][data-
    grows. Every button reaches 44 through a pseudo-element hit area
    around it instead, the way a toolbar glyph does on iOS: `min(0, …)`
    so a control already that size is not shrunk. Not for a tab, whose
-   own ::after is the line variant's underline, or a calendar cell, where areas reaching twelve pixels
-   into the neighbouring day would hand a tap to the wrong one. A
+   own ::after is the line variant's underline. A calendar's days are 44
+   to a finger (calendar.tsx), so theirs is the cell itself, square, its
+   rounded corners included; its month buttons get the 44 round them. A
    desktop keeps the tighter targets. Leaflet's markers are placed by
    their own size and are left alone. */
 @media (pointer: coarse) {
-  button:not([data-slot="tabs-trigger"]):not([data-slot="calendar"] button)::after,
+  button:not([data-slot="tabs-trigger"])::after,
   a[data-slot="button"]::after,
   .leaflet-popup-close-button::after {
     content: "";

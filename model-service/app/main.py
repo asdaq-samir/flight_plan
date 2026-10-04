@@ -68,7 +68,7 @@ CHART_MODEL_DIR = Path(os.environ.get("CHART_MODEL_DIR", "/opt/ml/chart-model"))
 # that varies per route is which feature store to score.
 FEATURES_PATTERN = "features_{dep}_{dest}.parquet"
 
-app = FastAPI(title="vfr-route model-service")
+app = FastAPI(title="Wingtip Maps model service")
 
 # Everything read from disk -- each model and each corridor's feature
 # store -- by one rule: kept while its files are unchanged, read again

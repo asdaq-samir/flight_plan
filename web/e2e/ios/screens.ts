@@ -102,4 +102,68 @@ export const SCREENS: Screen[] = [
       await expect(page.getByTestId("role-menu")).toBeVisible();
     },
   },
+  {
+    // The route's box of pills -- an airport landed at and a waypoint
+    // flown through -- and the aeroplane, the time and the actions under it.
+    name: "route box with stops",
+    ready: async page => {
+      await page.route(url => /\/(checkpoints|navlog|briefing)$/.test(url.pathname) && url.searchParams.get("stops") === "VPBNG,KMSN",
+        route => route.abort());
+      await page.goto(`/app/plan?${ROUTE}&stops=VPBNG,KMSN&view=briefing`);
+      await expect(page.getByTestId("route-box")).toBeVisible({ timeout: slow(30000) });
+      await expect(page.getByTestId("stop")).toHaveCount(2);
+    },
+  },
+  {
+    // No legal altitude's mark beside the Nav Log, its sheet open: the
+    // reasons and the ways round a Class B.
+    name: "no legal altitude, opened",
+    ready: async page => {
+      await page.route("**/api/planner/navlog**", route => route.fulfill({
+        status: 200, contentType: "application/x-ndjson",
+        body: JSON.stringify({
+          type: "error", retry: false, detail: "No legal VFR cruising altitude 1-15 nm along the route",
+          reasons: ["The Chicago Class B reaches the ground there; going through it needs a clearance."],
+          advice: "Fly via BEPKE (6 nm further) to stay out of it, or plan it with a Class B clearance.",
+          class_b: true, detours: [{ ident: "BEPKE", kind: "GPS waypoint", added_nm: 5.9, stop_index: 0, description: "in Downers Grove" }],
+        }) + "\n",
+      }));
+      await page.goto(`/app/plan?${ROUTE}&view=briefing`);
+      await page.getByTestId("route-problem-title").click({ timeout: slow(30000) });
+      await expect(page.getByTestId("unflyable-fly-via")).toBeVisible();
+    },
+  },
+  {
+    name: "departure picker",
+    ready: async page => {
+      await page.goto(`/app/plan?${ROUTE}&view=briefing`);
+      await page.getByTestId("depart-date").click({ timeout: slow(30000) });
+      await page.locator('[data-slot="calendar"] td button').nth(20).click();
+      await expect(page.getByTestId("depart-time")).toBeVisible();
+      // The plan made again for that day: Save enabled behind the sheet,
+      // not judged greyed out mid-plan.
+      await expect(page.getByTestId("save-flight-button")).toBeEnabled({ timeout: slow(120000) });
+    },
+  },
+  {
+    // The planner down: the one line by the map's buttons, Try again.
+    name: "a service out",
+    ready: async page => {
+      await page.route("**/api/planner/**", route => route.fulfill({
+        status: 502, contentType: "application/json", body: JSON.stringify({ detail: "planner service unreachable" }),
+      }));
+      await page.goto(`/app/plan?${ROUTE}`);
+      await expect(page.locator("[data-problem-banner]").getByRole("button", { name: "Try again" })).toBeVisible({ timeout: slow(30000) });
+    },
+  },
+  {
+    name: "local flight",
+    ready: async page => {
+      await page.goto("/app/plan?dep=C81&dest=C81&view=briefing");
+      const section = page.locator("[data-slot=accordion-trigger]").filter({ hasText: "Local Flight" });
+      await expect(section).toContainText("Aloft", { timeout: slow(30000) });
+      await section.click();
+      await expect(page.getByTestId("fuel-check")).toBeVisible();
+    },
+  },
 ];

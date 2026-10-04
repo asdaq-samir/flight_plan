@@ -38,12 +38,12 @@ test("plan page: the flight planning drawer opens the way the Model Training dra
   // -- the aeroplane and the departure time -- and nothing else of the
   // log's: neither is inside a section.
   await expect(drawer.getByTestId("aircraft-select")).toBeVisible();
-  await expect(drawer.getByTestId("depart-picker")).toBeVisible();
+  await expect(drawer.getByTestId("depart-date")).toBeVisible();
   // And, signed in, Save this flight beside the narrative and Print.
   await expect(drawer.getByTestId("save-flight-button")).toBeVisible();
   await expect(drawer.getByTestId("ai-narrative-button")).toBeVisible();
   expect(await drawer.locator('[data-slot="accordion-content"] [data-testid="aircraft-select"]').count()).toBe(0);
-  expect(await drawer.locator('[data-slot="accordion-content"] [data-testid="depart-picker"]').count()).toBe(0);
+  expect(await drawer.locator('[data-slot="accordion-content"] [data-testid="depart-date"]').count()).toBe(0);
   // Every section starts closed, the nav log's own first among them:
   // the drawer opens as the list of what the briefing holds.
   await expect(drawer.getByText("Nav Log", { exact: true })).toBeVisible();
@@ -77,10 +77,12 @@ test("plan page: the flight planning drawer opens the way the Model Training dra
   expect(moreBox).not.toBeNull();
   expect(aiBox!.x).toBeLessThan(moreBox!.x);
   expect(Math.abs(aiBox!.y - moreBox!.y)).toBeLessThan(10);
-  // In the route's row, after the route.
-  expect(await page.locator("header").getByTestId("print-button").count()).toBe(1);
-  const departure = (await page.locator("header").getByLabel("Departure", { exact: true }).boundingBox())!;
+  // Beside the aeroplane and the departure time, under the route: the
+  // route's box has the top row to itself.
+  expect(await page.locator("header").getByTestId("print-button").count()).toBe(0);
+  const departure = (await drawer.getByTestId("depart-date").boundingBox())!;
   expect(aiBox!.x).toBeGreaterThan(departure.x);
+  expect(Math.abs(aiBox!.y + aiBox!.height / 2 - (departure.y + departure.height / 2))).toBeLessThan(12);
 });
 
 test("plan page: the briefing ends on its 'planning aid only' reminder, with the nav log and the summary on screen", async ({ page }) => {

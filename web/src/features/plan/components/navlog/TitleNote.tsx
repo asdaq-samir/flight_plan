@@ -58,10 +58,13 @@ export default function TitleNote({ tone, label, title, open, onOpenChange, test
       </ResponsivePopoverAnchor>
       {/* Kept off the screen's edges, the panel's gutter's width. */}
       <ResponsivePopoverContent
-        title={title} titleHidden collisionPadding={16}
-        className={cn("w-80 font-normal", TEXT.detail)} data-testid={contentTestId}
+        // Twelve off the mark, past its 44-point hit area.
+        title={title} titleHidden collisionPadding={16} sideOffset={12}
+        className="w-80" data-testid={contentTestId}
       >
-        {children}
+        {/* Here, not on the content: a phone's sheet takes its own
+            classes, and its words were the stock 14. */}
+        <div className={cn("font-normal", TEXT.detail)}>{children}</div>
       </ResponsivePopoverContent>
     </ResponsivePopover>
   );

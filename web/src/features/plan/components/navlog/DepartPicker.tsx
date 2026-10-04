@@ -1,4 +1,4 @@
-import { Suspense, lazy, useState } from "react";
+import { Suspense, lazy, useId, useState } from "react";
 import { format } from "date-fns";
 import { CalendarIcon } from "lucide-react";
 import { Button } from "../../../../components/ui/button";
@@ -56,6 +56,7 @@ function shortWhen(date: Date): string {
  */
 export default function DepartPicker({ value, onChange }: Props) {
   const [open, setOpen] = useState(false);
+  const timeId = useId();
   const parsed = value ? new Date(value) : undefined;
   const date = parsed && !Number.isNaN(parsed.getTime()) ? parsed : undefined;
   const time = date ? format(date, "HH:mm") : "";
@@ -89,7 +90,11 @@ export default function DepartPicker({ value, onChange }: Props) {
               Input keeps 16px below md so a phone does not zoom on it. */}
           <div className="flex items-center gap-2 px-3">
             {date && (
+              // Wrapped, so a finger 6 above or below the 32-point field is
+              // still the field's: 44, as every control, without growing it.
+              <label className="-my-1.5 flex py-1.5" htmlFor={timeId}>
               <Input
+                id={timeId}
                 type="time"
                 value={time}
                 onChange={e => { if (e.target.value) onChange(instantAt(date, e.target.value)); }}
@@ -97,6 +102,7 @@ export default function DepartPicker({ value, onChange }: Props) {
                 className="h-8 w-28 appearance-none bg-background [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-calendar-picker-indicator]:appearance-none"
                 data-testid="depart-time"
               />
+              </label>
             )}
             <Button
               type="button" variant="ghost" size="sm" className="text-tint"

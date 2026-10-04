@@ -26,7 +26,13 @@ export default function FlightInputs({ aircraftValue, aircraftOptions, onAircraf
             is 17: the aeroplane, the time and Save, Brief and Print on one
             line of a phone, where at 17 the buttons went to a line of
             their own. */}
-        <SelectTrigger size="sm" aria-label="Aircraft" data-testid="aircraft-select" className="pointer-coarse:text-[0.9375rem]">
+        {/* No chevron to a finger: its words in the tint, in a field's
+            border, say it is a menu, and the twenty points it took put
+            Save, Brief and Print on a line of their own on a phone. */}
+        <SelectTrigger
+          size="sm" aria-label="Aircraft" data-testid="aircraft-select"
+          className="pointer-coarse:pr-2.5 pointer-coarse:text-[0.9375rem] pointer-coarse:[&_svg]:hidden"
+        >
           {/* Its short name -- C172, N12345 -- so a departure time picked
               beside it stays on the same line; the list has them whole. */}
           <SelectValue>{shortName(aircraftOptions.find(o => o.value === aircraftValue)?.label ?? "")}</SelectValue>

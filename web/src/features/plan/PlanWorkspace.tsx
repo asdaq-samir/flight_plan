@@ -683,7 +683,11 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
               className="print:hidden" data-testid="print-button"
             />
           </>
-        ) : <div className="flex items-center">{routeActions}</div>}
+        ) : (
+          // Their words' own width to a finger, each still 44 wide: the
+          // padding round them put the three on a line of their own.
+          <div className="flex items-center pointer-coarse:[&_button]:px-0.5">{routeActions}</div>
+        )}
       </>
     ),
     // Beside the route form while there is no whole route yet.

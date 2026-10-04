@@ -82,7 +82,9 @@ export function ResponsivePopoverContent({
   if (!edge) {
     return (
       <PopoverContent
-        aria-label={title} className={className} align={align} side={side} sideOffset={sideOffset} alignOffset={alignOffset}
+        // Eight off its trigger, past the trigger's hit area (index.css),
+        // where the stock four laid the popover over it.
+        aria-label={title} className={className} align={align} side={side} sideOffset={sideOffset ?? 8} alignOffset={alignOffset}
         collisionPadding={collisionPadding} {...props}
       >
         {action !== undefined && (

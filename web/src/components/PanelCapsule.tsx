@@ -38,7 +38,7 @@ export function RouteCapsule({ title, detail, tone = "default", onDetail, leadin
             finger, where it was cut short ("KDLH → VPBNG → ..."); one that
             fits sits in the middle, as before. Its own scroller, so the
             panel's drag, which takes no pan, does not take this one. */}
-        <div className="max-w-full touch-pan-x overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" data-testid="capsule-title-slide">
+        <div className="max-w-full touch-pan-x overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" data-testid="capsule-title-slide" data-slides="">
           <span className={cn("whitespace-nowrap font-semibold", TEXT.row)} data-testid="capsule-title">{title}</span>
         </div>
         {detail && (

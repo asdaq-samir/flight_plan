@@ -151,7 +151,7 @@ async def _lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="vfr-route planner", lifespan=_lifespan)
+app = FastAPI(title="Wingtip Maps planner", lifespan=_lifespan)
 
 
 @app.exception_handler(weather.WeatherServiceError)

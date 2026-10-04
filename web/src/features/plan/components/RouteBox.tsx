@@ -10,7 +10,6 @@ import AirportPicker from "../../../components/AirportPicker";
 import { InputGroup, InputGroupAddon } from "../../../components/ui/input-group";
 import type { Detour } from "../../../lib/api/types";
 import { MAX_STOPS, identSchema, stopSchema } from "../../../lib/identSchema";
-import { TEXT } from "../../../lib/text";
 
 /**
  * The route as ForeFlight's is: one box, every point of it a pill in the
@@ -98,7 +97,7 @@ export default function RouteBox({ points, waypoints, onChange, adding, onAdding
         {/* One line that slides sideways under a finger, as ForeFlight's
             route does, where the pills wrapped onto a second and a third;
             the plus and the arrow stay put at its end. */}
-        <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" data-testid="route-slide">
+        <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" data-testid="route-slide" data-slides="">
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
           <SortableContext items={ids} strategy={horizontalListSortingStrategy}>
             {points.map((point, i) => (
@@ -117,7 +116,9 @@ export default function RouteBox({ points, waypoints, onChange, adding, onAdding
           onBlur={() => typed.trim() && commitTyped()}
           placeholder={points.length ? "" : "Route"} aria-label="Add to the route"
           enterKeyHint="done" autoCapitalize="characters" autoCorrect="off" spellCheck={false}
-          className={cn("w-16 min-w-16 flex-1 bg-transparent font-mono uppercase outline-none", TEXT.row)}
+          // 16 at the least, as every field is: under 16 iOS zooms the
+          // page in on it.
+          className="w-16 min-w-16 flex-1 bg-transparent font-mono text-base uppercase outline-none md:text-sm pointer-coarse:text-[1.0625rem]"
           data-testid="route-type"
         />
         </div>

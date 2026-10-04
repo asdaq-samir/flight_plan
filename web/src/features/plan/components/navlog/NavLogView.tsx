@@ -954,7 +954,7 @@ export default function NavLogView({
       <span className="sr-only" data-testid="drawer-title">Flight Planning</span>
       <div className="hidden flex-col gap-1 border-b border-border px-4 py-3 text-sm print:flex">
         <div className="flex flex-wrap items-center gap-2">
-          <span className={cn("font-semibold", TEXT.title)}>Flight Planning</span>
+          <span className={cn("font-semibold", TEXT.title)}>Wingtip Maps</span>
           <span className="text-muted-foreground">{routeName(dep, dest, ends?.stops?.map(s => s.ident))}</span>
         </div>
         <div className="text-muted-foreground">

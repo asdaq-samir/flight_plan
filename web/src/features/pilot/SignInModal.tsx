@@ -61,7 +61,7 @@ export default function SignInModal() {
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Sign in</DialogTitle>
+          <DialogTitle>Sign in to Wingtip Maps</DialogTitle>
           <DialogDescription>Save your aeroplanes and filed flights to your own account.</DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-2">

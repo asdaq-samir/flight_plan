@@ -47,16 +47,13 @@ test("a flight is filed once, whole, and a new plan is offered for saving again"
   expect(flight.checkpoints[0]).toMatchObject({ category: "departure", sequenceNo: 0 });
   expect(flight.checkpoints.at(-1)).toMatchObject({ category: "destination" });
 
-  // Load again: a fresh nav log is a new plan. "Saved" used to stay for
-  // the session, and a click filed a duplicate of whatever was on screen.
-  // On a phone the drawer is a modal sheet over the header's Load, so it
-  // is closed for the press and opened again after.
-  const phone = (page.viewportSize()?.width ?? 0) < 768;
-  if (phone) {
-    await page.keyboard.press("Escape");
-    await openPanel(page);
-  }
-  await page.getByRole("button", { name: "Load" }).click();
+  // A new departure time: a fresh nav log is a new plan. "Saved" used to
+  // stay for the session, and a click filed a duplicate of whatever was
+  // on screen. (There is no Load: every change plans again.)
+  await page.getByTestId("depart-date").click();
+  await page.locator('[data-slot="calendar"] td button').nth(20).click();
+  await page.getByTestId("depart-done").click();
+  await expect(page).toHaveURL(/[?&]depart=/);
   await expect(save).toHaveAccessibleName("Save this flight", { timeout: 90_000 });
   await expect(save).toBeEnabled({ timeout: 90_000 });
 });

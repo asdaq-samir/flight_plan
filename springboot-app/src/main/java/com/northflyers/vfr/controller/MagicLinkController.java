@@ -205,7 +205,10 @@ public class MagicLinkController {
             message.setFrom(fromAddress);
             message.setTo(to);
             message.setSubject("Sign in to Wingtip Maps");
-            message.setText("Click to sign in (expires in 15 minutes):\n\n" + verifyUrl);
+            // The link last, alone on its line: what reads the email for it
+            // (the tests, the e2e sign-in) takes it from there to the end.
+            message.setText("Sign in to Wingtip Maps with this link. It works once, for 15 minutes. "
+                    + "If you did not ask to sign in, you can ignore this email.\n\n" + verifyUrl);
             mailSender.send(message);
         } catch (Exception e) {
             // An unreachable or unconfigured mail server (MAIL_HOST
