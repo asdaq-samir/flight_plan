@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { cn } from "cn";
 import { Check, CloudOff, Loader2, Save, TriangleAlert } from "lucide-react";
@@ -24,8 +24,9 @@ import { TakeoffLandingSection, WeightBalanceSection } from "./PreflightSections
 import { underMinimums } from "../../../../lib/minimums";
 import { usePreferences } from "../../../../lib/preferences";
 import { PublicationRows } from "../PublicationRows";
-import { gairmetAltitudes, gairmetTitle, pirepConditions, tfrAltitudes, tfrTimes } from "../../../../lib/advisories";
+import { gairmetAltitudes, gairmetTitle, pirepConditions, suaAltitudes, tfrAltitudes, tfrTimes } from "../../../../lib/advisories";
 import { CATEGORY_RANK, categoryOf, colourOf } from "../../../../lib/map/flightCategory";
+import { passLine, passTime, suaWhen, tfrWhen, type SuaWhen, type TfrWhen } from "../../../../lib/passTimes";
 
 interface Props {
   nav: NavLogAltitude | null;
@@ -38,6 +39,9 @@ interface Props {
    *  for the fuel burned by the landing (Weight & Balance). */
   course?: Course | null;
   totals?: Totals | null;
+  /** The departure time picked, ISO; empty for now. For when the flight
+   *  passes each TFR and special-use area. */
+  depart?: string;
   /** Where the briefing stands (see `usePlan`'s BriefingState). The
    *  page keeps its standard sections visible and says which state
    *  applies, rather than making a failed briefing indistinguishable
@@ -300,8 +304,38 @@ export function SaveFlightButton({
  * section says so and links out to a real briefing service instead of
  * silently disappearing the way an unnamed gap would.
  */
+/** What a special-use area's times of use say for the pass (lib/passTimes). */
+const SUA_WORDS: Record<SuaWhen, string> = {
+  "active": "scheduled in use then",
+  "by-notam": "not scheduled then, but a NOTAM can activate it",
+  "not-scheduled": "not scheduled then",
+  "unknown": "read its times against yours",
+};
+const SUA_TONE: Record<SuaWhen, string> = {
+  "active": "text-red-600 dark:text-red-400",
+  "by-notam": "text-amber-600 dark:text-amber-400",
+  "not-scheduled": "text-muted-foreground",
+  "unknown": "text-amber-600 dark:text-amber-400",
+};
+const TFR_WORDS: Record<TfrWhen, string> = {
+  "in-force": "in force then",
+  "before": "before it starts",
+  "after": "after it ends",
+};
+
+/** When the flight gets to a TFR, and whether it is in force then: red
+ *  where it is. */
+function PassNote({ when }: { when: { pass: Date; state: TfrWhen } | null }) {
+  if (!when) return null;
+  return (
+    <span className={cn("block", when.state === "in-force" && "font-semibold text-red-700 dark:text-red-400")} data-testid="tfr-pass">
+      {`You pass about ${passLine(when.pass)}, ${TFR_WORDS[when.state]}`}
+    </span>
+  );
+}
+
 export default function FlightBriefingView({
-  nav, legs, dep, dest, stops = [], course = null, totals = null,
+  nav, legs, dep, dest, stops = [], course = null, totals = null, depart = "",
   briefing: briefingState,
   langgraphNarrative, crewaiNarrative,
 }: Props) {
@@ -338,8 +372,20 @@ export default function FlightBriefingView({
   // Where the weather is under the pilot's own minimums (lib/minimums).
   const minimums = usePreferences(s => s.minimums);
   const underMine = briefing ? underMinimums(minimums, briefing, landings, dest) : [];
-  // The TFRs the route goes through while they are in force.
-  const tfrsCrossed = briefing?.tfrs.filter(t => t.crosses) ?? [];
+  // When the flight passes a point along the route: from the departure
+  // picked, or from now, the time the page was opened, for "Now".
+  const [opened] = useState(() => new Date().toISOString());
+  const passAt = (alongNm: number) => passTime(legs, depart || opened, alongNm);
+  // The TFRs the route goes through while they are in force: in force
+  // when the flight gets there (half an hour either way), or at some time
+  // during the flight where that time is not known yet.
+  const tfrsCrossed = briefing?.tfrs.filter(t => {
+    if (!t.crosses) return false;
+    const pass = passAt(t.along_track_nm);
+    return !pass || tfrWhen(t, pass) === "in-force";
+  }) ?? [];
+  // The special-use areas the legs cross (vfr.sua, with the altitudes).
+  const specialUse = nav?.altitude_selection.special_use ?? [];
   const summaries = {
     adverse: !briefing ? undefined
       : unchecked("hazards") && unchecked("gairmets") ? "Not checked"
@@ -663,6 +709,7 @@ export default function FlightBriefingView({
                   description={
                     <>
                       {[tfrAltitudes(t), tfrTimes(t)].filter(Boolean).map(line => <span key={line} className="block">{line}</span>)}
+                      <PassNote when={(() => { const pass = passAt(t.along_track_nm); return pass && { pass, state: tfrWhen(t, pass) }; })()} />
                       {(t.purpose ?? t.rule) && <span className="block">{t.purpose ?? t.rule}</span>}
                     </>
                   }
@@ -670,6 +717,37 @@ export default function FlightBriefingView({
                   href={`https://tfr.faa.gov/tfr3/?page=detail_${t.notam_id.replace("/", "_")}`}
                 />
               ))}
+            </ListGroup>
+          </div>
+        )}
+        {/* The special-use areas the legs cross, with when the flight
+            gets to each against its published times of use. */}
+        {specialUse.length > 0 && (
+          <div className="pb-3" data-testid="special-use">
+            <ListGroup
+              title="Special-use airspace"
+              footer="Times of use as the FAA publishes them; LOCAL read as this device's time. Ask flight service or the controlling agency whether each is active."
+            >
+              {specialUse.map(area => {
+                const pass = passAt(area.along_track_nm);
+                const state = pass ? suaWhen(area.times_of_use, pass) : null;
+                return (
+                  <ListRow
+                    key={area.name}
+                    media={<TriangleAlert className={cn("size-4", SUA_TONE[state ?? "unknown"])} aria-hidden />}
+                    title={`${area.name} · ${area.kind}`}
+                    description={
+                      <>
+                        <span className="block">{suaAltitudes(area)}</span>
+                        {area.times_of_use && <span className="block">In use {area.times_of_use}</span>}
+                        {pass && state && <span className="block" data-testid="sua-pass">{`You pass about ${passLine(pass)}: ${SUA_WORDS[state]}`}</span>}
+                      </>
+                    }
+                    value={`${Math.round(area.along_track_nm)} nm along`}
+                    data-testid="special-use-area"
+                  />
+                );
+              })}
             </ListGroup>
           </div>
         )}

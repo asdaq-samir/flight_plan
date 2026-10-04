@@ -56,3 +56,16 @@ export function tfrTimes(t: Pick<RouteTfr, "effective" | "expires">): string | n
   if (to) return `Until ${format(to, day)}`;
   return null;
 }
+
+/** A special-use area's floor and ceiling as the chart's tables write
+ *  them: "Surface to 18,000 ft", "8,000 ft to FL180", "500 ft AGL to
+ *  FL180". */
+export function suaAltitudes(a: { floor_ft?: number | null; floor_ref?: string | null; ceiling_ft?: number | null; ceiling_ref?: string | null }): string {
+  const height = (ft: number | null | undefined, ref: string | null | undefined, bottom: boolean) => {
+    if (ref === "SFC" || (bottom && ft === 0)) return "Surface";
+    if (ft == null) return "unstated";
+    if (ref === "STD") return `FL${Math.round(ft / 100)}`;
+    return `${altFt(ft)} ft${ref === "AGL" ? " AGL" : ""}`;
+  };
+  return `${height(a.floor_ft, a.floor_ref, true)} to ${height(a.ceiling_ft, a.ceiling_ref, false)}`;
+}
