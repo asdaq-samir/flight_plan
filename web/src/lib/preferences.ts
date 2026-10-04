@@ -3,6 +3,7 @@ import { persist } from "zustand/middleware";
 import { DEFAULT_FILTERS, type FilterKey, type Filters } from "../features/train/logic";
 import type { AircraftChoice } from "./api/types";
 import { NO_MINIMUMS, type Minimums } from "./minimums";
+import type { Load } from "./weightBalance";
 
 /**
  * Everything remembered per browser, in one zustand store persisted to
@@ -54,6 +55,8 @@ interface Preferences {
   tfrs: boolean;
   /** The pilot's personal minimums (lib/minimums), each off until set. */
   minimums: Minimums;
+  /** Each aeroplane's load as last set (lib/weightBalance), by its name. */
+  loads: Record<string, Load>;
   /** Whether each route loaded keeps its charts for use without a
    *  connection (keepRoute): the base chart's tiles along the course,
    *  held by the service worker. Off by default, as it downloads. */
@@ -79,6 +82,7 @@ interface Preferences {
   setClassB: (classB: boolean) => void;
   setTfrs: (tfrs: boolean) => void;
   setMinimum: (key: keyof Minimums, value: number | null) => void;
+  setLoad: (aircraft: string, load: Load) => void;
   setKeepOffline: (keepOffline: boolean) => void;
   setAircraft: (aircraft: AircraftChoice) => void;
   setFilter: (key: FilterKey, on: boolean) => void;
@@ -115,6 +119,7 @@ export const usePreferences = create<Preferences>()(
       classB: false,
       tfrs: true,
       minimums: NO_MINIMUMS,
+      loads: {},
       keepOffline: false,
       aircraft: DEFAULT_AIRCRAFT,
       filters: DEFAULT_FILTERS,
@@ -130,6 +135,7 @@ export const usePreferences = create<Preferences>()(
       setClassB: classB => set({ classB }),
       setTfrs: tfrs => set({ tfrs }),
       setMinimum: (key, value) => set(s => ({ minimums: { ...s.minimums, [key]: value } })),
+      setLoad: (aircraft, load) => set(s => ({ loads: { ...s.loads, [aircraft]: load } })),
       setKeepOffline: keepOffline => set({ keepOffline }),
       setAircraft: aircraft => set({ aircraft }),
       setFilter: (key, on) => set(s => ({ filters: { ...s.filters, [key]: on } })),
@@ -156,7 +162,7 @@ export const usePreferences = create<Preferences>()(
       name: "vfr.preferences",
       // The functions are not state; only the values are written.
       partialize: s => ({
-        base: s.base, tac: s.tac, waypoints: s.waypoints, classB: s.classB, tfrs: s.tfrs, minimums: s.minimums, keepOffline: s.keepOffline, aircraft: s.aircraft, filters: s.filters, devTab: s.devTab, pilotTab: s.pilotTab, navBar: s.navBar,
+        base: s.base, tac: s.tac, waypoints: s.waypoints, classB: s.classB, tfrs: s.tfrs, minimums: s.minimums, loads: s.loads, keepOffline: s.keepOffline, aircraft: s.aircraft, filters: s.filters, devTab: s.devTab, pilotTab: s.pilotTab, navBar: s.navBar,
         recentAirports: s.recentAirports, homeAirport: s.homeAirport, favoriteAirports: s.favoriteAirports,
       }),
     },

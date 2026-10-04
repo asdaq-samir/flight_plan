@@ -54,6 +54,13 @@ def _joined_forecast(forecasts: list[dict]) -> dict:
     }
 
 
+def _metars_by_route_ident(idents: tuple, source: dict) -> dict:
+    """Each airport's METAR by the ident the route names it by, looked up
+    by its station's (the airports table's, KC81 for C81) or that one."""
+    found = weather.metar_for_idents(list(dict.fromkeys([*(source[i] for i in idents), *idents])))
+    return {i: found.get(source[i]) or found.get(i) for i in idents}
+
+
 @router.get("/api/tfrs")
 def tfrs() -> Tfrs:
     """Every temporary flight restriction in force or to come, for the
@@ -84,6 +91,10 @@ def briefing(dep: str, dest: str, stops: str = "", depart: datetime | None = Non
     # left -- not a waypoint flown through, which has no weather of its own.
     idents = tuple(dict.fromkeys(i for i, a in zip(r.idents, r.airports) if not a.get("fix")))
     where = {i: (a["lat"], a["lon"]) for i, a in zip(r.idents, r.airports)}
+    # Each one's own identifier in the airports table, which its runways,
+    # radio and weather station go by: C81's is KC81, and asked as C81
+    # it had no runways or frequencies.
+    source = {i: a.get("ident") or i for i, a in zip(r.idents, r.airports)}
     start = time.time() if depart is None else (depart if depart.tzinfo else depart.replace(tzinfo=timezone.utc)).timestamp()
     window = (start, start + (ete_min if ete_min is not None else DEFAULT_ETE_MIN) * 60 + MARGIN_S)
 
@@ -97,15 +108,15 @@ def briefing(dep: str, dest: str, stops: str = "", depart: datetime | None = Non
         hazards_future = pool.submit(_along_hops, r, lambda a, b: weather.hazards_along_route(a, b))
         forecast_future = pool.submit(
             _along_hops, r, lambda a, b: weather.ceiling_visibility_along_route(a, b, window=window))
-        metars_future = pool.submit(weather.metar_for_idents, list(idents))
+        metars_future = pool.submit(_metars_by_route_ident, idents, source)
         path = [(a["lat"], a["lon"]) for a in r.airports]
         tfrs_future = pool.submit(
             tfr.along_route, path,
             datetime.fromtimestamp(window[0], timezone.utc), datetime.fromtimestamp(window[1], timezone.utc))
         pireps_future = pool.submit(weather.pireps_along_route, path)
         gairmets_future = pool.submit(weather.gairmets_along_route, path, window)
-        runways = {ident: pool.submit(airports.get_runways, ident) for ident in idents}
-        frequencies = {ident: pool.submit(airports.get_frequencies, ident) for ident in idents}
+        runways = {ident: pool.submit(airports.get_runways, source[ident]) for ident in idents}
+        frequencies = {ident: pool.submit(airports.get_frequencies, source[ident]) for ident in idents}
 
         # Same reasoning as vfr.altitude.select_cruise_altitude: these are
         # three independent live aviationweather.gov calls, and a transient

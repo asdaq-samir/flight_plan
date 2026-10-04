@@ -428,6 +428,54 @@ class AltitudeOption(BaseModel):
     needs_oxygen: bool
 
 
+class LoadingStation(BaseModel):
+    name: str
+    arm_in: float
+    max_lb: float | None = None
+
+
+class Loading(BaseModel):
+    """How the aeroplane is loaded (its POH's weight and balance): the
+    weight limits, a sample empty weight and moment (each aeroplane's own
+    is on its weight and balance record), the stations and their arms,
+    the fuel's, and the centre-of-gravity envelope as (arm, weight)
+    corners."""
+
+    source: str
+    max_ramp_lb: float
+    max_takeoff_lb: float
+    max_landing_lb: float
+    sample_empty_weight_lb: float
+    sample_empty_moment_lb_in: float
+    stations: list[LoadingStation]
+    baggage_combined_max_lb: float | None = None
+    fuel_arm_in: float
+    fuel_max_gal: float
+    fuel_lb_per_gal: float = 6.0
+    start_taxi_fuel_lb: float = 0.0
+    envelope: list[tuple[float, float]]
+
+
+class DistanceTable(BaseModel):
+    """One weight's distances, by pressure altitude (rows) and
+    temperature (columns)."""
+
+    ground_roll_ft: list[list[float]]
+    total_50ft_ft: list[list[float]]
+
+
+class ShortField(BaseModel):
+    """A POH's short-field takeoff or landing distances: a table per
+    weight, and how much a dry grass runway adds to the ground roll."""
+
+    source: str
+    pressure_altitudes_ft: list[float]
+    temperatures_c: list[float]
+    weights_lb: list[float]
+    tables: list[DistanceTable]
+    grass_ground_roll_pct: float
+
+
 class AircraftProfile(BaseModel):
     """The aircraft's name plus its performance profile -- every field a
     data/aircraft/*.json file carries, declared, so a page reads them as
@@ -454,6 +502,11 @@ class AircraftProfile(BaseModel):
     usable_fuel_gal: float | None = None
     supplemental_oxygen: bool | None = None
     pressurized: bool | None = None
+    # Its POH's loading and short-field distances, where the profile has
+    # them (the Cessna 172S's).
+    loading: Loading | None = None
+    takeoff: ShortField | None = None
+    landing: ShortField | None = None
 
 
 class Plan(BaseModel):
@@ -507,6 +560,7 @@ class Metar(BaseModel):
     wind_dir_true_deg: float | None = None
     wind_speed_kt: float | None = None
     wind_gust_kt: float | None = None
+    altimeter_in_hg: float | None = None
     temp_c: float | None = None
     dewpoint_c: float | None = None
 

@@ -587,7 +587,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
         dep={planned.dep} dest={planned.dest}
         // The airports landed at: a waypoint has no weather of its own.
         stops={(course?.stops ?? []).filter(stop => stop.kind !== "fix").map(stop => stop.ident)}
-        briefing={s.briefing}
+        briefing={s.briefing} course={course} totals={s.totals}
         langgraphNarrative={s.langgraphNarrative} crewaiNarrative={s.crewaiNarrative}
       />
     </NavLogView>

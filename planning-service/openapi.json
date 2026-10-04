@@ -61,6 +61,28 @@
             "title": "Fuel Burn Gph",
             "type": "number"
           },
+          "landing": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ShortField"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "loading": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Loading"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
           "name": {
             "title": "Name",
             "type": "string"
@@ -92,6 +114,17 @@
             ],
             "default": null,
             "title": "Supplemental Oxygen"
+          },
+          "takeoff": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ShortField"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
           },
           "type": {
             "anyOf": [
@@ -2557,6 +2590,37 @@
         "title": "DisplacedPick",
         "type": "object"
       },
+      "DistanceTable": {
+        "description": "One weight's distances, by pressure altitude (rows) and\ntemperature (columns).",
+        "properties": {
+          "ground_roll_ft": {
+            "items": {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "title": "Ground Roll Ft",
+            "type": "array"
+          },
+          "total_50ft_ft": {
+            "items": {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "title": "Total 50Ft Ft",
+            "type": "array"
+          }
+        },
+        "required": [
+          "ground_roll_ft",
+          "total_50ft_ft"
+        ],
+        "title": "DistanceTable",
+        "type": "object"
+      },
       "Forecast": {
         "properties": {
           "min_ceiling_ft": {
@@ -3056,8 +3120,146 @@
         "title": "Leg",
         "type": "object"
       },
+      "Loading": {
+        "description": "How the aeroplane is loaded (its POH's weight and balance): the\nweight limits, a sample empty weight and moment (each aeroplane's own\nis on its weight and balance record), the stations and their arms,\nthe fuel's, and the centre-of-gravity envelope as (arm, weight)\ncorners.",
+        "properties": {
+          "baggage_combined_max_lb": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Baggage Combined Max Lb"
+          },
+          "envelope": {
+            "items": {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            "title": "Envelope",
+            "type": "array"
+          },
+          "fuel_arm_in": {
+            "title": "Fuel Arm In",
+            "type": "number"
+          },
+          "fuel_lb_per_gal": {
+            "default": 6.0,
+            "title": "Fuel Lb Per Gal",
+            "type": "number"
+          },
+          "fuel_max_gal": {
+            "title": "Fuel Max Gal",
+            "type": "number"
+          },
+          "max_landing_lb": {
+            "title": "Max Landing Lb",
+            "type": "number"
+          },
+          "max_ramp_lb": {
+            "title": "Max Ramp Lb",
+            "type": "number"
+          },
+          "max_takeoff_lb": {
+            "title": "Max Takeoff Lb",
+            "type": "number"
+          },
+          "sample_empty_moment_lb_in": {
+            "title": "Sample Empty Moment Lb In",
+            "type": "number"
+          },
+          "sample_empty_weight_lb": {
+            "title": "Sample Empty Weight Lb",
+            "type": "number"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "start_taxi_fuel_lb": {
+            "default": 0.0,
+            "title": "Start Taxi Fuel Lb",
+            "type": "number"
+          },
+          "stations": {
+            "items": {
+              "$ref": "#/components/schemas/LoadingStation"
+            },
+            "title": "Stations",
+            "type": "array"
+          }
+        },
+        "required": [
+          "source",
+          "max_ramp_lb",
+          "max_takeoff_lb",
+          "max_landing_lb",
+          "sample_empty_weight_lb",
+          "sample_empty_moment_lb_in",
+          "stations",
+          "fuel_arm_in",
+          "fuel_max_gal",
+          "envelope"
+        ],
+        "title": "Loading",
+        "type": "object"
+      },
+      "LoadingStation": {
+        "properties": {
+          "arm_in": {
+            "title": "Arm In",
+            "type": "number"
+          },
+          "max_lb": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Max Lb"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "arm_in"
+        ],
+        "title": "LoadingStation",
+        "type": "object"
+      },
       "Metar": {
         "properties": {
+          "altimeter_in_hg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Altimeter In Hg"
+          },
           "ceiling_ft": {
             "anyOf": [
               {
@@ -5236,6 +5438,57 @@
           "crewai_agent"
         ],
         "title": "Services",
+        "type": "object"
+      },
+      "ShortField": {
+        "description": "A POH's short-field takeoff or landing distances: a table per\nweight, and how much a dry grass runway adds to the ground roll.",
+        "properties": {
+          "grass_ground_roll_pct": {
+            "title": "Grass Ground Roll Pct",
+            "type": "number"
+          },
+          "pressure_altitudes_ft": {
+            "items": {
+              "type": "number"
+            },
+            "title": "Pressure Altitudes Ft",
+            "type": "array"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "tables": {
+            "items": {
+              "$ref": "#/components/schemas/DistanceTable"
+            },
+            "title": "Tables",
+            "type": "array"
+          },
+          "temperatures_c": {
+            "items": {
+              "type": "number"
+            },
+            "title": "Temperatures C",
+            "type": "array"
+          },
+          "weights_lb": {
+            "items": {
+              "type": "number"
+            },
+            "title": "Weights Lb",
+            "type": "array"
+          }
+        },
+        "required": [
+          "source",
+          "pressure_altitudes_ft",
+          "temperatures_c",
+          "weights_lb",
+          "tables",
+          "grass_ground_roll_pct"
+        ],
+        "title": "ShortField",
         "type": "object"
       },
       "SpecialUseArea": {

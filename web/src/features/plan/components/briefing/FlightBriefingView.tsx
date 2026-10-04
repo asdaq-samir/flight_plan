@@ -19,6 +19,8 @@ import type { BriefingState } from "../../hooks/usePlan";
 import { altFt, clockTime, deg, describeFuel, describeSteps, describeTime } from "../../format";
 import { navLogRows, savedCheckpoints } from "../navlog/rows";
 import { RunwayRow } from "../RunwayRow";
+import { useLoad } from "../../hooks/useLoad";
+import { TakeoffLandingSection, WeightBalanceSection } from "./PreflightSections";
 import { underMinimums } from "../../../../lib/minimums";
 import { usePreferences } from "../../../../lib/preferences";
 import { PublicationRows } from "../PublicationRows";
@@ -32,6 +34,10 @@ interface Props {
   dest: string;
   /** The airports landed at on the way, in order. */
   stops?: string[];
+  /** The course, for the airports' elevations, and the trip's totals,
+   *  for the fuel burned by the landing (Weight & Balance). */
+  course?: Course | null;
+  totals?: Totals | null;
   /** Where the briefing stands (see `usePlan`'s BriefingState). The
    *  page keeps its standard sections visible and says which state
    *  applies, rather than making a failed briefing indistinguishable
@@ -295,10 +301,12 @@ export function SaveFlightButton({
  * silently disappearing the way an unnamed gap would.
  */
 export default function FlightBriefingView({
-  nav, legs, dep, dest, stops = [],
+  nav, legs, dep, dest, stops = [], course = null, totals = null,
   briefing: briefingState,
   langgraphNarrative, crewaiNarrative,
 }: Props) {
+  // The load's weights, for the takeoff and landing distances.
+  const { result: loaded } = useLoad(nav?.aircraft, totals?.fuel_gal ?? null);
   // Every airport the flight lands at, each once: a round trip's
   // departure is its destination.
   const landings = [...new Set([dep, ...stops, dest])];
@@ -699,6 +707,14 @@ export default function FlightBriefingView({
           </div>
         )}
       </AccordionSection>
+
+      {/* Before the flight, the aeroplane's own: its weight and balance,
+          and the runway it needs at each end. */}
+      <WeightBalanceSection aircraft={nav?.aircraft} tripFuelGal={totals?.fuel_gal ?? null} />
+      <TakeoffLandingSection
+        aircraft={nav?.aircraft} briefing={briefing} course={course}
+        takeoff={loaded?.takeoff.weightLb ?? null} landing={loaded?.landing.weightLb ?? null}
+      />
     </>
   );
 }

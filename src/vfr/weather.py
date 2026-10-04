@@ -559,6 +559,7 @@ def _parse_metars(xml_bytes: bytes) -> dict:
             "wind_dir_true_deg": _float(el.findtext("wind_dir_degrees")),
             "wind_speed_kt": _float(el.findtext("wind_speed_kt")),
             "wind_gust_kt": _float(el.findtext("wind_gust_kt")),
+            "altimeter_in_hg": _float(el.findtext("altim_in_hg")),
             "temp_c": _float(el.findtext("temp_c")),
             "dewpoint_c": _float(el.findtext("dewpoint_c")),
         })

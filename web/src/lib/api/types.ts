@@ -53,6 +53,10 @@ export type AltitudeOption = Schemas["AltitudeOption"];
 export type AltitudeStep = Schemas["AltitudeStep"];
 export type AltitudeChoice = AltitudeOption["kind"];
 export type AircraftProfile = Schemas["AircraftProfile"];
+/** How an aeroplane is loaded: its POH's stations, limits and envelope. */
+export type Loading = Schemas["Loading"];
+/** A POH's short-field takeoff or landing distances. */
+export type ShortField = Schemas["ShortField"];
 /** One line of the nav log's stream: "stage" before each piece of work,
  *  "altitude" the moment that's decided, one "leg" per leg, then "done"
  *  with the totals; "error" for an unflyable route. */
