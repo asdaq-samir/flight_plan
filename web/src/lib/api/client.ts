@@ -5,7 +5,7 @@ import type {
   Aircraft, AircraftChoice, AircraftProfiles, AircraftRequest, AirportPlace, AirportSearch, AirportsInView, AltitudeChoice, Briefing,
   ChartInfo, ChartRefreshStarted, CheckpointDescriptionMessage, CheckpointNoteSaved, Checkpoints, Classification, Course, Detour,
   Flight, FlightSummary, ModelComparison, NarrativeMessage, NarrativeRequest, NavLogMessage, PickDeleted, PickSaved,
-  ClassBResponse, NearestAirports, RouteProfile, Tfrs, DevServices, DevServiceStarted, Pilot, Rating, RetrainStarted, Role, SaveFlightRequest,
+  AirspaceAt, ClassBResponse, NearestAirports, RouteProfile, Tfrs, DevServices, DevServiceStarted, Pilot, Rating, RetrainStarted, Role, SaveFlightRequest,
   SignInCapabilities, LogbookEntry, LogbookEntryRequest, Currency, CurrencyDatesRequest,
   Status, StreamMessage, Totals, WaypointsInView,
 } from "./types";
@@ -369,6 +369,11 @@ export const api = {
   airportsInView: (box: { south: number; west: number; north: number; east: number; limit?: number; reporting?: boolean }) =>
     planner.GET("/api/airports/in-view", { params: { query: box }, priority: "high" })
       .then(data<AirportsInView>).then(r => r.airports),
+
+  /** The airspace over a point, from the ground up: the classes in
+   *  bands with their minimums, the Mode C veil, special use and TFRs. */
+  airspaceAt: (lat: number, lon: number) =>
+    planner.GET("/api/airspace/at", { params: { query: { lat, lon } } }).then(data<AirspaceAt>),
 
   /** The VFR waypoints in the map's view (VPBNG), for its diamonds. */
   waypointsInView: (box: { south: number; west: number; north: number; east: number }) =>

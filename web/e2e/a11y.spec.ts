@@ -66,3 +66,9 @@ test("the console's Settings", async ({ page }) => {
   await page.waitForTimeout(800);
   expect(await violations(page, '[data-testid="console-sheet"]')).toEqual([]);
 });
+
+test("the airspace over a point", async ({ page }) => {
+  await page.goto("/app/plan?at=42.3172,-88.0905");
+  await expect(page.getByTestId("airspace-band").first()).toBeVisible({ timeout: slow(30000) });
+  expect(await violations(page, '[data-testid="airspace-card"]')).toEqual([]);
+});

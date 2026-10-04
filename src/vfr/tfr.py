@@ -23,7 +23,7 @@ from datetime import datetime, timezone
 
 import requests
 from cachetools import LRUCache, TTLCache
-from shapely.geometry import LineString, shape
+from shapely.geometry import LineString, Point, shape
 
 from .geo import along_track_distance_nm
 
@@ -223,3 +223,19 @@ def along_route(path: list, start: datetime, end: datetime, near_nm: float = NEA
             "active_now": in_force(tfr, now, now),
         })
     return sorted(found, key=lambda t: t["along_track_nm"])
+
+
+def at_point(lat: float, lon: float) -> list:
+    """The TFRs in force or to come over a point: each of all_tfrs()'s,
+    with "active_now"."""
+    point = Point(lon, lat)
+    now = datetime.now(timezone.utc)
+    found = []
+    for tfr in all_tfrs():
+        try:
+            geometry = shape(tfr["geometry"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        if geometry.contains(point):
+            found.append({**tfr, "active_now": in_force(tfr, now, now)})
+    return found

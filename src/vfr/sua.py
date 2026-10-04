@@ -17,7 +17,7 @@ import threading
 
 import requests
 from cachetools import TTLCache
-from shapely.geometry import LineString, shape
+from shapely.geometry import LineString, Point, shape
 
 from .geo import along_track_distance_nm, corridor_bbox
 
@@ -118,21 +118,44 @@ def along_route(route_start: tuple, route_end: tuple, fixes: list | None = None)
         if entry is not None:
             entry["legs"] = sorted(set(entry["legs"]) | set(crossed))
         if entry is None or along < entry["along_track_nm"]:
-            type_code = props.get("TYPE_CODE") or ""
             found[name] = {
-                "name": name,
-                "type": type_code,
-                "kind": TYPES.get(type_code, type_code.lower() or "special-use airspace"),
-                "floor_ft": _height_ft(props.get("LOWER_VAL"), props.get("LOWER_UOM"), props.get("LOWER_CODE")),
-                "floor_ref": props.get("LOWER_CODE"),
-                "ceiling_ft": _height_ft(props.get("UPPER_VAL"), props.get("UPPER_UOM"), props.get("UPPER_CODE")),
-                "ceiling_ref": props.get("UPPER_CODE"),
-                "times_of_use": props.get("TIMESOFUSE"),
-                "controlling_agency": props.get("CONT_AGENT"),
+                **_area(props),
                 "along_track_nm": along,
                 "legs": sorted(set(crossed) | set(entry["legs"] if entry else [])),
             }
     return sorted(found.values(), key=lambda a: a["along_track_nm"])
+
+
+def _area(props: dict) -> dict:
+    """One area's description, from the feature service's fields."""
+    type_code = props.get("TYPE_CODE") or ""
+    return {
+        "name": props.get("NAME") or "(unnamed)",
+        "type": type_code,
+        "kind": TYPES.get(type_code, type_code.lower() or "special-use airspace"),
+        "floor_ft": _height_ft(props.get("LOWER_VAL"), props.get("LOWER_UOM"), props.get("LOWER_CODE")),
+        "floor_ref": props.get("LOWER_CODE"),
+        "ceiling_ft": _height_ft(props.get("UPPER_VAL"), props.get("UPPER_UOM"), props.get("UPPER_CODE")),
+        "ceiling_ref": props.get("UPPER_CODE"),
+        "times_of_use": props.get("TIMESOFUSE"),
+        "controlling_agency": props.get("CONT_AGENT"),
+    }
+
+
+def at_point(lat: float, lon: float) -> list:
+    """The special-use airspace over a point, one entry per named area,
+    lowest first: as along_route's, without the route's own fields."""
+    point = Point(lon, lat)
+    found = {}
+    for feature in _query((lat, lon, lat, lon)):
+        try:
+            geometry = shape(feature["geometry"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        if geometry.contains(point):
+            area = _area(feature.get("properties") or {})
+            found.setdefault(area["name"], area)
+    return sorted(found.values(), key=lambda a: (a["floor_ft"] is None, a["floor_ft"] or 0))
 
 
 def blocked(altitude_ft: float, areas: list) -> bool:

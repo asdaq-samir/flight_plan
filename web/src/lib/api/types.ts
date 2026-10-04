@@ -96,6 +96,9 @@ export type NearestAirports = Schemas["NearestAirports"];
 export type NearestAirport = Schemas["NearestAirport"];
 /** The route from the side: the ground and the controlled airspace. */
 export type RouteProfile = Schemas["RouteProfile"];
+export type AirspaceAt = Schemas["AirspaceAt"];
+export type AirspaceBand = Schemas["AirspaceBand"];
+export type VfrMinimums = Schemas["VfrMinimums"];
 /** One service the developer console links to, and whether it is up.
  *  `state` is Docker's own word -- running, exited, created -- or
  *  "absent" where compose has never created the container. */

@@ -9,10 +9,16 @@ cached to disk (keyed by lat/lon rounded to ~1m) -- a fresh run over ~230
 candidates takes several minutes the first time and is instant after.
 """
 import csv
+import io
+import math
+import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
+import numpy as np
 import requests
+from cachetools import LRUCache
+from PIL import Image
 
 from .geo import destination_point
 from .retry import with_retries
@@ -151,3 +157,51 @@ def elevation_prominence_m(
         ring_mean = sum(elevations[p] for p in ring_points) / n_ring
         results.append(base - ring_mean)
     return results
+
+
+# One point's ground at once, for a tap on the chart (vfr.airspace_at):
+# EPQS took 4 to 8 s a point, the elevation tiles AWS publishes
+# (Terrain Tiles, from USGS 3DEP and SRTM) a third of a second for a
+# tile ten kilometres across, then nothing. Zoom 12: about 38 m a pixel,
+# well inside what an AGL floor needs.
+TERRAIN_TILE_URL = "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png"
+TERRAIN_TILE_ZOOM = 12
+TERRAIN_TILE_DIR = Path(__file__).resolve().parents[2] / "data" / "raw" / "terrain-tiles"
+_TERRAIN_TILES: LRUCache = LRUCache(maxsize=64)
+_TERRAIN_LOCK = threading.Lock()
+
+
+def _terrain_tile(z: int, x: int, y: int) -> np.ndarray:
+    """A terrarium tile's heights in metres, from disk or fetched once."""
+    with _TERRAIN_LOCK:
+        held = _TERRAIN_TILES.get((z, x, y))
+    if held is not None:
+        return held
+    path = TERRAIN_TILE_DIR / str(z) / str(x) / f"{y}.png"
+    if path.exists():
+        data = path.read_bytes()
+    else:
+        resp = requests.get(TERRAIN_TILE_URL.format(z=z, x=x, y=y), headers=REQUEST_HEADERS, timeout=20)
+        resp.raise_for_status()
+        data = resp.content
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(data)
+    rgb = np.asarray(Image.open(io.BytesIO(data)).convert("RGB")).astype(np.float64)
+    heights = rgb[:, :, 0] * 256 + rgb[:, :, 1] + rgb[:, :, 2] / 256 - 32768
+    with _TERRAIN_LOCK:
+        _TERRAIN_TILES[(z, x, y)] = heights
+    return heights
+
+
+def ground_m(lat: float, lon: float, zoom: int = TERRAIN_TILE_ZOOM) -> float:
+    """The ground's height at a point, in metres, from the terrain tiles.
+    Raises requests.RequestException where they cannot be fetched."""
+    n = 2 ** zoom
+    fx = (lon + 180.0) / 360.0 * n
+    fy = (1.0 - math.asinh(math.tan(math.radians(lat))) / math.pi) / 2.0 * n
+    x, y = int(fx), int(fy)
+    heights = _terrain_tile(zoom, x, y)
+    size = heights.shape[0]
+    col = min(size - 1, int((fx - x) * size))
+    row = min(size - 1, int((fy - y) * size))
+    return float(heights[row, col])

@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import L from "leaflet";
-import { CircleMarker, Marker } from "react-leaflet";
+import { CircleMarker, Marker, useMapEvents } from "react-leaflet";
 import { Badge } from "../../../components/ui/badge";
 import { useQuery } from "@tanstack/react-query";
 import { classBQuery } from "../../../lib/queryClient";
@@ -49,6 +49,35 @@ interface Props {
   onAddStop?: (waypoint: { ident: string; lat: number; lon: number }) => void;
   /** The nav log's legs so far, for their tops of climb and descent. */
   legs: Leg[];
+  /** The point whose airspace card is open, and the way to open one: a
+   *  finger held on the chart, or a right-click. */
+  heldPoint: { lat: number; lon: number } | null;
+  onHoldPoint: (point: { lat: number; lon: number }) => void;
+}
+
+/** A finger held on the chart, or a right-click, asks what airspace is
+ *  there (AirspaceCard): Leaflet's contextmenu, which it raises for a
+ *  long press on a phone as well (TapHold) and keeps the browser's own
+ *  menu from. The point wears a pin while its card is open. */
+function HeldPoint({ point, onHold }: { point: Props["heldPoint"]; onHold: Props["onHoldPoint"] }) {
+  // Memoized, not a literal: see AirportsLayer.
+  const handlers = useMemo(() => ({
+    contextmenu: (e: L.LeafletMouseEvent) => onHold({ lat: e.latlng.lat, lon: e.latlng.lng }),
+  }), [onHold]);
+  useMapEvents(handlers);
+  if (!point) return null;
+  return (
+    <>
+      <CircleMarker
+        center={[point.lat, point.lon]} radius={16} interactive={false}
+        pathOptions={{ color: "#F2B600", weight: 4, opacity: 0.95, fill: false }}
+      />
+      <CircleMarker
+        center={[point.lat, point.lon]} radius={6} interactive={false}
+        pathOptions={{ color: "#ffffff", weight: 2, fillColor: "#0a84ff", fillOpacity: 1 }}
+      />
+    </>
+  );
 }
 
 /** What a checkpoint's popup says: the same small card whether the
@@ -247,7 +276,7 @@ const PLACE_ZOOM = 9;
 
 export default function RouteMap({
   course, candidates, selected, focus, onSelectCandidate, onSelectPoint,
-  airportWeather, place, onSelectPlace, onAddStop, legs,
+  airportWeather, place, onSelectPlace, onAddStop, legs, heldPoint, onHoldPoint,
 }: Props) {
   const focusZoom = course?.max_zoom ?? 12;
   // The fields that wear a chip of their own already: the route's two,
@@ -284,6 +313,7 @@ export default function RouteMap({
           picked in Maps does: from the search bar it was wherever the
           map happened to be, a ring over half the country. */}
       <FocusOn point={place} zoom={PLACE_ZOOM} />
+      <HeldPoint point={heldPoint} onHold={onHoldPoint} />
       {course && (
         <>
           <CourseLine

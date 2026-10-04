@@ -274,8 +274,8 @@ class AirspaceTransit(BaseModel):
     along_track_nm: float
 
 
-class SpecialUseArea(BaseModel):
-    """One special-use area the route crosses, as the FAA publishes it."""
+class SpecialUse(BaseModel):
+    """One special-use area, as the FAA publishes it."""
 
     name: str
     #: P, R, MOA, W, A or D.
@@ -288,6 +288,11 @@ class SpecialUseArea(BaseModel):
     ceiling_ref: str | None = None
     times_of_use: str | None = None
     controlling_agency: str | None = None
+
+
+class SpecialUseArea(SpecialUse):
+    """One special-use area the route crosses."""
+
     along_track_nm: float
     #: The legs (between consecutive fixes) that cross it.
     legs: list[int] = []
@@ -624,6 +629,74 @@ class Tfr(TfrInfo):
     """A TFR with its areas, for the map: a GeoJSON MultiPolygon."""
 
     geometry: dict
+
+
+class VfrMinimums(BaseModel):
+    """14 CFR 91.155(a)'s basic VFR weather minimums: the flight
+    visibility, and the distance from clouds -- clear of them, or so far
+    below, above and to the side (5,280 ft is a statute mile)."""
+
+    visibility_sm: float
+    clear_of_clouds: bool
+    below_ft: float | None = None
+    above_ft: float | None = None
+    horizontal_ft: float | None = None
+
+
+class DayNightMinimums(BaseModel):
+    day: VfrMinimums
+    night: VfrMinimums
+
+
+class AirspaceBand(BaseModel):
+    """One class of airspace over a point, from `floor_ft` to
+    `ceiling_ft` MSL (vfr.airspace_at): its name where it is a B, C or
+    D; the VFR minimums in it (None in A); what it takes to go in; the
+    equipment it asks for; and the 91.117 speed limit there."""
+
+    floor_ft: float
+    ceiling_ft: float
+    class_: Literal["A", "B", "C", "D", "E", "G"] = Field(alias="class")
+    name: str | None = None
+    minimums: DayNightMinimums | None = None
+    entry: str
+    equipment: str | None = None
+    speed_kt: int | None = None
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class ModeCVeil(BaseModel):
+    """The Class B primary airport whose 30 nm Mode C veil the point is in."""
+
+    ident: str
+    name: str | None = None
+    distance_nm: float
+
+
+class TfrHere(TfrInfo):
+    """A TFR over the point, and whether it is in force now."""
+
+    active_now: bool
+
+
+class AirspaceAt(BaseModel):
+    """The airspace over a point on the chart, from the ground up: the
+    classes in bands, the Mode C veil, the special-use areas and the
+    TFRs there. `ground_ft` is the ground's height the AGL floors were
+    placed from (Terrain Tiles); None where it could not be read, and
+    the bands are then measured from sea level. Either source of areas
+    out is said so rather than shown as none."""
+
+    lat: float
+    lon: float
+    ground_ft: float | None
+    bands: list[AirspaceBand]
+    mode_c_veil: ModeCVeil | None = None
+    special_use: list[SpecialUse] = []
+    special_use_unavailable: bool = False
+    tfrs: list[TfrHere] = []
+    tfrs_unavailable: bool = False
 
 
 class ProfileGround(BaseModel):

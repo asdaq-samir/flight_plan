@@ -608,6 +608,161 @@
         "title": "AirportsInView",
         "type": "object"
       },
+      "AirspaceAt": {
+        "description": "The airspace over a point on the chart, from the ground up: the\nclasses in bands, the Mode C veil, the special-use areas and the\nTFRs there. `ground_ft` is the ground's height the AGL floors were\nplaced from (Terrain Tiles); None where it could not be read, and\nthe bands are then measured from sea level. Either source of areas\nout is said so rather than shown as none.",
+        "properties": {
+          "bands": {
+            "items": {
+              "$ref": "#/components/schemas/AirspaceBand"
+            },
+            "title": "Bands",
+            "type": "array"
+          },
+          "ground_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ground Ft"
+          },
+          "lat": {
+            "title": "Lat",
+            "type": "number"
+          },
+          "lon": {
+            "title": "Lon",
+            "type": "number"
+          },
+          "mode_c_veil": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ModeCVeil"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "special_use": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/SpecialUse"
+            },
+            "title": "Special Use",
+            "type": "array"
+          },
+          "special_use_unavailable": {
+            "default": false,
+            "title": "Special Use Unavailable",
+            "type": "boolean"
+          },
+          "tfrs": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/TfrHere"
+            },
+            "title": "Tfrs",
+            "type": "array"
+          },
+          "tfrs_unavailable": {
+            "default": false,
+            "title": "Tfrs Unavailable",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "lat",
+          "lon",
+          "ground_ft",
+          "bands"
+        ],
+        "title": "AirspaceAt",
+        "type": "object"
+      },
+      "AirspaceBand": {
+        "description": "One class of airspace over a point, from `floor_ft` to\n`ceiling_ft` MSL (vfr.airspace_at): its name where it is a B, C or\nD; the VFR minimums in it (None in A); what it takes to go in; the\nequipment it asks for; and the 91.117 speed limit there.",
+        "properties": {
+          "ceiling_ft": {
+            "title": "Ceiling Ft",
+            "type": "number"
+          },
+          "class": {
+            "enum": [
+              "A",
+              "B",
+              "C",
+              "D",
+              "E",
+              "G"
+            ],
+            "title": "Class",
+            "type": "string"
+          },
+          "entry": {
+            "title": "Entry",
+            "type": "string"
+          },
+          "equipment": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Equipment"
+          },
+          "floor_ft": {
+            "title": "Floor Ft",
+            "type": "number"
+          },
+          "minimums": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DayNightMinimums"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "speed_kt": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Speed Kt"
+          }
+        },
+        "required": [
+          "floor_ft",
+          "ceiling_ft",
+          "class",
+          "entry"
+        ],
+        "title": "AirspaceBand",
+        "type": "object"
+      },
       "AirspaceTransit": {
         "description": "Controlled airspace the route passes through: a radio call to\nmake, not a ceiling constraint.",
         "properties": {
@@ -2204,6 +2359,22 @@
         "title": "DataFile",
         "type": "object"
       },
+      "DayNightMinimums": {
+        "properties": {
+          "day": {
+            "$ref": "#/components/schemas/VfrMinimums"
+          },
+          "night": {
+            "$ref": "#/components/schemas/VfrMinimums"
+          }
+        },
+        "required": [
+          "day",
+          "night"
+        ],
+        "title": "DayNightMinimums",
+        "type": "object"
+      },
       "DetectBlock": {
         "properties": {
           "block": {
@@ -3356,6 +3527,36 @@
           }
         },
         "title": "Metar",
+        "type": "object"
+      },
+      "ModeCVeil": {
+        "description": "The Class B primary airport whose 30 nm Mode C veil the point is in.",
+        "properties": {
+          "distance_nm": {
+            "title": "Distance Nm",
+            "type": "number"
+          },
+          "ident": {
+            "title": "Ident",
+            "type": "string"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          }
+        },
+        "required": [
+          "ident",
+          "distance_nm"
+        ],
+        "title": "ModeCVeil",
         "type": "object"
       },
       "ModelComparison": {
@@ -5529,8 +5730,98 @@
         "title": "ShortField",
         "type": "object"
       },
+      "SpecialUse": {
+        "description": "One special-use area, as the FAA publishes it.",
+        "properties": {
+          "ceiling_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ceiling Ft"
+          },
+          "ceiling_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ceiling Ref"
+          },
+          "controlling_agency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Controlling Agency"
+          },
+          "floor_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Floor Ft"
+          },
+          "floor_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Floor Ref"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "times_of_use": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Times Of Use"
+          },
+          "type": {
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "type",
+          "kind"
+        ],
+        "title": "SpecialUse",
+        "type": "object"
+      },
       "SpecialUseArea": {
-        "description": "One special-use area the route crosses, as the FAA publishes it.",
+        "description": "One special-use area the route crosses.",
         "properties": {
           "along_track_nm": {
             "title": "Along Track Nm",
@@ -5846,6 +6137,154 @@
           "geometry"
         ],
         "title": "Tfr",
+        "type": "object"
+      },
+      "TfrHere": {
+        "description": "A TFR over the point, and whether it is in force now.",
+        "properties": {
+          "active_now": {
+            "title": "Active Now",
+            "type": "boolean"
+          },
+          "ceiling_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ceiling Ft"
+          },
+          "ceiling_ref": {
+            "anyOf": [
+              {
+                "enum": [
+                  "MSL",
+                  "AGL"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ceiling Ref"
+          },
+          "effective": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Effective"
+          },
+          "expires": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires"
+          },
+          "floor_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Floor Ft"
+          },
+          "floor_ref": {
+            "anyOf": [
+              {
+                "enum": [
+                  "MSL",
+                  "AGL"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Floor Ref"
+          },
+          "kind": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kind"
+          },
+          "notam_id": {
+            "title": "Notam Id",
+            "type": "string"
+          },
+          "purpose": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Purpose"
+          },
+          "rule": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rule"
+          },
+          "state": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "State"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          }
+        },
+        "required": [
+          "notam_id",
+          "active_now"
+        ],
+        "title": "TfrHere",
         "type": "object"
       },
       "Tfrs": {
@@ -6206,6 +6645,58 @@
           "type"
         ],
         "title": "ValidationError",
+        "type": "object"
+      },
+      "VfrMinimums": {
+        "description": "14 CFR 91.155(a)'s basic VFR weather minimums: the flight\nvisibility, and the distance from clouds -- clear of them, or so far\nbelow, above and to the side (5,280 ft is a statute mile).",
+        "properties": {
+          "above_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Above Ft"
+          },
+          "below_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Below Ft"
+          },
+          "clear_of_clouds": {
+            "title": "Clear Of Clouds",
+            "type": "boolean"
+          },
+          "horizontal_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Horizontal Ft"
+          },
+          "visibility_sm": {
+            "title": "Visibility Sm",
+            "type": "number"
+          }
+        },
+        "required": [
+          "visibility_sm",
+          "clear_of_clouds"
+        ],
+        "title": "VfrMinimums",
         "type": "object"
       },
       "WaypointPin": {
@@ -6599,6 +7090,59 @@
           }
         },
         "summary": "Airport Search"
+      }
+    },
+    "/api/airspace/at": {
+      "get": {
+        "description": "The airspace over a point, from the ground to FL600, in bands\n(vfr.airspace_at): each class's floor and ceiling in feet MSL, its\nVFR weather minimums by day and by night (91.155), what it takes to\nenter and what the aeroplane must carry -- with the Class B Mode C\nveil the point is in, and the special-use areas and TFRs over it.\nThe ground, the shapefile and the two feeds are read at once.",
+        "operationId": "airspace_at_point_api_airspace_at_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "lat",
+            "required": true,
+            "schema": {
+              "maximum": 90,
+              "minimum": -90,
+              "title": "Lat",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "lon",
+            "required": true,
+            "schema": {
+              "maximum": 180,
+              "minimum": -180,
+              "title": "Lon",
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AirspaceAt"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Airspace At Point"
       }
     },
     "/api/briefing": {

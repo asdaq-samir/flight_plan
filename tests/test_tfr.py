@@ -63,3 +63,10 @@ def test_a_tfr_the_route_goes_through_during_the_flight_is_told(two_tfrs):
 def test_a_tfr_over_before_the_flight_is_not(two_tfrs):
     start = datetime(2026, 10, 7, 2, 0, tzinfo=timezone.utc)
     assert tfr.along_route([(42.0, -88.0), (43.0, -88.0)], start, start + timedelta(hours=2)) == []
+
+
+def test_the_tfrs_over_a_point_are_those_that_hold_it(two_tfrs):
+    here = tfr.at_point(42.5, -88.0)
+    assert [t["notam_id"] for t in here] == ["6/1"]
+    assert here[0]["active_now"] is False
+    assert tfr.at_point(44.0, -88.0) == []

@@ -74,3 +74,17 @@ def test_a_prohibited_area_blocks_the_altitudes_between_its_limits(altitude, exp
 def test_an_agl_ceiling_is_taken_as_unlimited_and_a_restricted_area_blocks_nothing():
     assert sua.blocked(30000, [{"type": "P", "floor_ft": 0.0, "ceiling_ft": 3000.0, "ceiling_ref": "AGL"}])
     assert not sua.blocked(4500, [{"type": "R", "floor_ft": 0.0, "ceiling_ft": 18000.0, "ceiling_ref": "MSL"}])
+
+
+def test_the_areas_over_a_point_are_those_that_hold_it_lowest_first():
+    features = [
+        _feature("MOA NORTH", "MOA", BOX_ON_ROUTE, lower=("500", "FT", "AGL")),
+        _feature("R-4501", "R", BOX_ON_ROUTE),
+        _feature("R-OFF", "R", BOX_OFF_ROUTE),
+    ]
+    with patch("vfr.sua.requests.get", return_value=_service(features)):
+        here = sua.at_point(45.5, -90.0)
+    assert [(a["name"], a["kind"], a["floor_ft"], a["floor_ref"]) for a in here] == [
+        ("R-4501", "restricted area", 0.0, "SFC"), ("MOA NORTH", "military operations area", 500.0, "AGL"),
+    ]
+    assert "along_track_nm" not in here[0]

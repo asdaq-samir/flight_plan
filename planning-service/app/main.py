@@ -40,7 +40,7 @@ from vfr import airspace, altitude, charts, faa_data, fixes, places, publication
 from . import chart_refresh, errors, tracing
 from .common import PROCESSED_DIR
 from .planning import StillComputing
-from .routers import airports, briefing, chart, classb, devml, devservices, notes, plan, system
+from .routers import airports, airspace as airspace_router, briefing, chart, classb, devml, devservices, notes, plan, system
 from .schemas import STREAM_MESSAGES, Index
 
 # Nothing else in the process configured logging, so every log.info() in
@@ -193,7 +193,7 @@ def index() -> Index:
     return Index(service="planner", ui="served by the gateway at /app", warm=WARM.is_set())
 
 
-for module in (plan, chart, briefing, notes, devml, system, classb, devservices, airports):
+for module in (plan, chart, briefing, notes, devml, system, classb, devservices, airports, airspace_router):
     app.include_router(module.router)
 
 

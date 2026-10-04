@@ -64,6 +64,11 @@ export default function PilotGuide() {
             <>
               <Reading>
                 <p>The chart is the FAA sectional, the whole country, at every zoom, and the route panel sits over it.</p>
+                <p>
+                  Hold a finger on the chart, or right-click it, for the airspace over that point: each class from the
+                  ground up, its VFR minimums by day and night, what it takes to go in and what to carry, and any
+                  special-use airspace or TFR there.
+                </p>
               </Reading>
               <ListGroup title="The map's buttons">
                 <ListRow media={<Settings className="size-5 text-tint" />} title="Settings" description="This, beside the search bar: the guide, your aircraft and flights, and the settings. Close a route to reach it" />

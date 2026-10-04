@@ -15,6 +15,7 @@ import { aircraftKey, choiceOf, shortName } from "../../lib/aircraftChoice";
 import { bestStopIndex, distanceNm } from "../../lib/geo";
 import { useKeepOffline } from "../../lib/map/keepStatus";
 import { useOwnShip } from "../../lib/map/ownShip";
+import { pointOf } from "../../lib/airspace";
 import { identOf, routeName, routeOf, stopsOf } from "../../lib/identSchema";
 import { usePreferences, type RecentAirport } from "../../lib/preferences";
 import { useAirportSearch } from "../../lib/useAirportSearch";
@@ -35,6 +36,7 @@ import RouteProblem from "./components/RouteProblem";
 import { Favorites, FavoritesList } from "../../components/Favorites";
 import FlightBriefingView, { BriefingNotices, PlanningAidNote, SaveFlightButton } from "./components/briefing/FlightBriefingView";
 import FlightInputs from "./components/navlog/FlightInputs";
+import AirspaceCard from "./components/AirspaceCard";
 import PlaceCard from "./components/PlaceCard";
 import RouteBox from "./components/RouteBox";
 import TitleNote from "./components/navlog/TitleNote";
@@ -160,25 +162,41 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // link lands on it. Opening one brings the panel up half way; putting
   // it away lowers the panel again.
   const place = identOf(searchParams.get("place")) || null;
+  // Or the point a finger was held on, for the airspace over it
+  // (AirspaceCard): `?at=42.3172,-88.0905`. One card at a time: either
+  // puts the other away, and a tap on the chart puts both away.
+  const atParam = searchParams.get("at");
+  const heldPoint = useMemo(() => pointOf(atParam), [atParam]);
   const selectPlace = useCallback((ident: string | null) => {
-    if ((ident ?? null) === place) return;
+    if ((ident ?? null) === place && !heldPoint) return;
     setSearchParams(prev => {
       const next = new URLSearchParams(prev);
       if (ident) next.set("place", ident);
       else next.delete("place");
+      next.delete("at");
       next.delete("view");
       return next;
     }, { replace: true });
     setPanel(ident ? "half" : "peek");
-  }, [place, setSearchParams, setPanel]);
+  }, [place, heldPoint, setSearchParams, setPanel]);
+  const holdPoint = useCallback((point: { lat: number; lon: number }) => {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      next.set("at", `${point.lat.toFixed(4)},${point.lon.toFixed(4)}`);
+      next.delete("place");
+      next.delete("view");
+      return next;
+    }, { replace: true });
+    setPanel("half");
+  }, [setSearchParams, setPanel]);
   // Landed on with a card in the address, the panel comes up to show it
   // -- once, on landing, and never again when the panel moves later.
   const landed = useRef(false);
   useEffect(() => {
     if (landed.current) return;
     landed.current = true;
-    if (place) setPanel("half");
-  }, [place, setPanel]);
+    if (place || heldPoint) setPanel("half");
+  }, [place, heldPoint, setPanel]);
   const { data: placeData } = useQuery({
     queryKey: ["airport", place], queryFn: () => api.airport(place!), enabled: !!place, staleTime: 5 * 60_000,
   });
@@ -625,6 +643,8 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           onSelectPlace={selectPlace}
           onAddStop={addStopAt}
           legs={s.legs}
+          heldPoint={heldPoint}
+          onHoldPoint={holdPoint}
         />
       </div>
     ),
@@ -637,6 +657,8 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           key={place} ident={place} from={measuredFrom}
           onClose={() => selectPlace(null)} onFlyHere={to => void flyHere(to)} onExpand={() => setPanel("full")}
         />
+      ) : heldPoint ? (
+        <AirspaceCard key={atParam} point={heldPoint} onClose={() => selectPlace(null)} />
       ) : favoritesOpen ? (
         <div className="min-h-0 flex-1 overflow-y-auto px-4 pt-2 pb-4">
           <FavoritesList
@@ -671,13 +693,14 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
               ? to => { addStopAt(to); selectPlace(null); } : undefined}
           />
         )}
-        <div className={cn("flex min-h-0 flex-1 flex-col print:flex", place && "hidden")}>{navLog}</div>
+        {!place && heldPoint && <AirspaceCard key={atParam} point={heldPoint} onClose={() => selectPlace(null)} />}
+        <div className={cn("flex min-h-0 flex-1 flex-col print:flex", (place || heldPoint) && "hidden")}>{navLog}</div>
       </>
     ),
     head: started ? undefined : searchField,
     // An airport tapped with a route open: its card alone, the route
     // under it again when it is closed.
-    alone: started && !!place,
+    alone: started && (!!place || !!heldPoint),
     searching: !started,
     // At rest, Maps' capsule: the route with share and close either side
     // and the aeroplane and time under it, which opens the panel to them;
