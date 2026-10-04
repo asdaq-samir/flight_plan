@@ -225,9 +225,14 @@ test("plan page: no legal altitude is the route's own problem: its chip says so 
   await problem.getByTestId("unflyable-fly").click();
   await expect(page).toHaveURL(/[?&]altitude_ft=12500/);
 
-  // Or a stop: the route's Add Stop open.
-  await expect(mark).toBeVisible({ timeout: slow(30000) });
-  await mark.click();
+  // Or a stop: the route's Add Stop open. Once planned again at that
+  // altitude: the mark goes and comes back as the plan is made, and a
+  // tap on the one going opened nothing.
+  await expect(page.getByTestId("navlog-progress")).toHaveCount(0, { timeout: slow(30000) });
+  await expect(async () => {
+    if (!(await problem.isVisible())) await mark.click();
+    await expect(problem.getByTestId("unflyable-add-stop")).toBeVisible({ timeout: 2000 });
+  }).toPass({ timeout: slow(30000) });
   await problem.getByTestId("unflyable-add-stop").click();
   await expect(page.getByPlaceholder(/Search/)).toBeVisible();
 });

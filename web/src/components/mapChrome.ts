@@ -72,6 +72,13 @@ export const GLASS = "liquid-glass";
  *  panel and the console. All the way up a sheet is opaque. */
 export const GLASS_SHEET = "liquid-glass [--glass-fill:62%]";
 
+/** A sheet while a finger drags it: its fill nearly whole and no blur
+ *  behind it. A blur re-drawn under a sheet changing height every frame
+ *  cost a frame in two (measured: half the frames over 33 ms with the
+ *  glass, one in thirty without), the drag stepping rather than
+ *  following; the glass comes back as it settles. */
+export const SHEET_DRAGGING = "bg-background/95 shadow-lg dark:bg-popover/95";
+
 /** iOS's sheet curve, the one vaul uses too: a sheet's height, and its
  *  way in from the screen's edges as it changes shape. */
 const SHEET_CURVE = "0.5s cubic-bezier(0.32, 0.72, 0, 1)";

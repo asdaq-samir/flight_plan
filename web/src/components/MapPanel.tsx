@@ -4,7 +4,10 @@ import { useDetentDrag } from "../hooks/use-detent-drag";
 import { useIsMobile } from "../hooks/use-mobile";
 import { useNavEdge } from "../hooks/use-nav-edge";
 import { useKeyboardInset, useSafeArea, useVisualHeight, useWindowHeight } from "../hooks/use-viewport";
-import { GLASS, GLASS_SHEET, MATERIAL, PanelHalfContext, SHEET_INSET, SHEET_INSET_RADIUS, SHEET_MARGIN, SHEET_RESHAPE, SHEET_SETTLE, type MapInsets, type PanelState } from "./mapChrome";
+import {
+  GLASS, GLASS_SHEET, MATERIAL, PanelHalfContext, SHEET_DRAGGING, SHEET_INSET, SHEET_INSET_RADIUS, SHEET_MARGIN, SHEET_RESHAPE,
+  SHEET_SETTLE, type MapInsets, type PanelState,
+} from "./mapChrome";
 
 interface Props {
   /** The panel's name -- "Flight Planning", "Model Training" -- for its
@@ -223,7 +226,7 @@ export default function MapPanel({ label, top, controls, notices, compact, child
         // Liquid Glass at rest and at half, as Maps' is: the chart through
         // it, its rim lit, its own shadow -- the half sheet a frostier pane
         // of it, for a nav log read on it. All the way out, opaque.
-        capsule ? GLASS : onPhone && shape === "inset" ? GLASS_SHEET : MATERIAL,
+        capsule ? GLASS : onPhone && dragged !== null ? SHEET_DRAGGING : onPhone && shape === "inset" ? GLASS_SHEET : MATERIAL,
         onPhone
           ? shape === "edge" && (fromBottom
             ? "shadow-[0_-2px_20px_rgba(0,0,0,0.1)] dark:shadow-[0_-2px_20px_rgba(0,0,0,0.4)]"

@@ -36,6 +36,10 @@ export function useDetentDrag<S extends string>({ detents, shown, fromBottom, on
     const from = latest.current.shown;
     const sign = latest.current.fromBottom ? -1 : 1;
     let moved = false, last = start.clientY, at = start.timeStamp, speed = 0, to = from;
+    // One height a frame, however many moves a frame brings: a touch
+    // screen sends them at twice the display's rate on a ProMotion
+    // iPhone, each a render of the sheet.
+    let frame = 0;
     const move = (event: PointerEvent) => {
       if (!moved && Math.abs(event.clientY - start.clientY) < DRAG_SLOP) return;
       moved = true;
@@ -44,9 +48,11 @@ export function useDetentDrag<S extends string>({ detents, shown, fromBottom, on
       at = event.timeStamp;
       const heights = Object.values<number>(latest.current.detents);
       to = Math.min(Math.max(...heights), Math.max(Math.min(...heights), from + sign * (event.clientY - start.clientY)));
-      setDragged(to);
+      if (!frame) frame = requestAnimationFrame(() => { frame = 0; setDragged(to); });
     };
     const end = (event: PointerEvent) => {
+      if (frame) cancelAnimationFrame(frame);
+      frame = 0;
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", end);
       window.removeEventListener("pointercancel", end);

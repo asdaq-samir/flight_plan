@@ -713,7 +713,8 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
         ) : (
           // Their words' own width to a finger, each still 44 wide: the
           // padding round them put the three on a line of their own.
-          <div className="flex items-center pointer-coarse:[&_button]:px-0.5">{routeActions}</div>
+          // At the row's end, as Maps puts a card's actions.
+          <div className="ml-auto flex items-center pointer-coarse:[&_button]:px-0.5">{routeActions}</div>
         )}
       </>
     ),
