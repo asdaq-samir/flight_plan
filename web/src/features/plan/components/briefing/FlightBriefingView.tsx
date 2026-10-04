@@ -19,6 +19,8 @@ import type { BriefingState } from "../../hooks/usePlan";
 import { altFt, clockTime, deg, describeFuel, describeSteps, describeTime } from "../../format";
 import { navLogRows, savedCheckpoints } from "../navlog/rows";
 import { RunwayRow } from "../RunwayRow";
+import { underMinimums } from "../../../../lib/minimums";
+import { usePreferences } from "../../../../lib/preferences";
 import { PublicationRows } from "../PublicationRows";
 import { gairmetAltitudes, gairmetTitle, pirepConditions, tfrAltitudes, tfrTimes } from "../../../../lib/advisories";
 import { CATEGORY_RANK, categoryOf, colourOf } from "../../../../lib/map/flightCategory";
@@ -325,6 +327,9 @@ export default function FlightBriefingView({
       || (a.visibility_sm ?? Infinity) - (b.visibility_sm ?? Infinity));
   const chosen = nav?.options.find(o => o.kind === nav.flown);
   const destFrequency = briefing ? primaryFrequency(briefing.airports[dest]?.frequencies ?? []) : null;
+  // Where the weather is under the pilot's own minimums (lib/minimums).
+  const minimums = usePreferences(s => s.minimums);
+  const underMine = briefing ? underMinimums(minimums, briefing, landings, dest) : [];
   // The TFRs the route goes through while they are in force.
   const tfrsCrossed = briefing?.tfrs.filter(t => t.crosses) ?? [];
   const summaries = {
@@ -425,11 +430,17 @@ export default function FlightBriefingView({
         title="Current Conditions"
         summary={summaries.current}
         // Seen with the section folded: the reasons are inside it, but
-        // that VFR is not recommended is on its title, not behind a tap.
+        // that VFR is not recommended is on its title, not behind a tap --
+        // or, short of that, that it is under the pilot's own minimums.
         aside={vnrReasons.length > 0 ? (
           <span className={cn("inline-flex items-center gap-1 font-semibold text-red-700 dark:text-red-400", TEXT.note)} data-testid="vnr-flag">
             <TriangleAlert className="size-3.5" aria-hidden />
             VFR not recommended
+          </span>
+        ) : underMine.length > 0 ? (
+          <span className={cn("inline-flex items-center gap-1 font-semibold text-amber-700 dark:text-amber-400", TEXT.note)} data-testid="minimums-flag">
+            <TriangleAlert className="size-3.5" aria-hidden />
+            Under your minimums
           </span>
         ) : undefined}
       >
@@ -444,6 +455,15 @@ export default function FlightBriefingView({
             <AlertTitle>VFR flight not recommended</AlertTitle>
             <ul className="col-start-2 list-disc space-y-0.5 pl-4">
               {vnrReasons.map(reason => <li key={reason}>{reason}</li>)}
+            </ul>
+          </Alert>
+        )}
+        {underMine.length > 0 && (
+          <Alert className={cn("mb-2 border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-100", TEXT.prose)} data-testid="minimums-alert">
+            <TriangleAlert />
+            <AlertTitle>Under your personal minimums</AlertTitle>
+            <ul className="col-start-2 list-disc space-y-0.5 pl-4">
+              {underMine.map(reason => <li key={reason}>{reason}</li>)}
             </ul>
           </Alert>
         )}

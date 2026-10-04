@@ -9,6 +9,8 @@ import { useNavEdge } from "../hooks/use-nav-edge";
 import { keepingAvailable } from "../lib/map/keepRoute";
 import { BASE_CHARTS, usePreferences, type BaseChart, type NavEdge } from "../lib/preferences";
 import { chartQuery } from "../lib/queryClient";
+import { MINIMUM_CHOICES, type Minimums } from "../lib/minimums";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 
 /** "09-03-2026", the FAA's cycle as the chart server names it, as "3 Sep
  *  2026"; the cycle as it is where it reads otherwise. */
@@ -44,6 +46,7 @@ export default function SettingsPanel() {
     <div className="@container/settings space-y-5 pb-1" data-testid="settings-panel">
       <AppearanceGroup />
       <MapGroup />
+      <MinimumsGroup />
     </div>
   );
 }
@@ -113,6 +116,39 @@ function MapGroup() {
           icon={<Download />} label="Keep charts" testId="keep-offline-toggle"
         />
       </ListRow>
+    </ListGroup>
+  );
+}
+
+/** How each minimum reads in its menu. */
+const MINIMUM_ROWS: { key: keyof Minimums; title: string; unit: (n: number) => string }[] = [
+  { key: "ceilingFt", title: "Ceiling", unit: n => `${n.toLocaleString()} ft` },
+  { key: "visibilitySm", title: "Visibility", unit: n => `${n} sm` },
+  { key: "crosswindKt", title: "Crosswind", unit: n => `${n} kt` },
+  { key: "windKt", title: "Wind, with gusts", unit: n => `${n} kt` },
+];
+
+/** The pilot's personal minimums: the weather they will not take off or
+ *  land in, each a menu, Off until picked. The briefing says where the
+ *  weather is under them (lib/minimums). */
+function MinimumsGroup() {
+  const minimums = usePreferences(s => s.minimums);
+  const setMinimum = usePreferences(s => s.setMinimum);
+  return (
+    <ListGroup title="Personal minimums" footer="The briefing says where the weather is under them.">
+      {MINIMUM_ROWS.map(({ key, title, unit }) => (
+        <ListRow key={key} title={title}>
+          <Select value={minimums[key] == null ? "off" : String(minimums[key])} onValueChange={v => setMinimum(key, v === "off" ? null : Number(v))}>
+            <SelectTrigger size="sm" aria-label={`Minimum ${title.toLowerCase()}`} data-testid={`minimum-${key}`}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent align="end">
+              <SelectItem value="off">Off</SelectItem>
+              {MINIMUM_CHOICES[key].map(n => <SelectItem key={n} value={String(n)}>{unit(n)}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </ListRow>
+      ))}
     </ListGroup>
   );
 }
