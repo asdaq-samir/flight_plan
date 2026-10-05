@@ -127,6 +127,16 @@ test.describe("the email sign-in link", () => {
     await expect(page.getByTestId("sign-in-error")).toContainText("Too many sign-in links");
   });
 
+  test("a refused token says to reload, not to check the address", async ({ page }) => {
+    // What an http page that could not read the https port's Secure
+    // XSRF-TOKEN got: its POST refused before the address was looked at.
+    await page.route("**/api/auth/magic-link", route => route.fulfill({ status: 401, body: "" }));
+    const console = await openConsole(page);
+    await console.getByRole("button", { name: "Sign in" }).click();
+    await page.getByLabel("Email address").fill("a@example.com");
+    await page.getByRole("button", { name: "Send sign-in link" }).click();
+    await expect(page.getByTestId("sign-in-error")).toHaveText("Couldn't send that link. Reload the page and try again.");
+  });
 });
 
 test("the aeroplane the nav log flies is ticked, and a tap on another flies that one", async ({ page }) => {

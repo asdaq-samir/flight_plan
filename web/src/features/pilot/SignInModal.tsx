@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { Mail } from "lucide-react";
 import AppleLogo from "../../components/icons/AppleLogo";
 import GoogleLogo from "../../components/icons/GoogleLogo";
@@ -11,6 +11,7 @@ import {
 import { Input } from "../../components/ui/input";
 import { Spinner } from "../../components/ui/spinner";
 import { ApiError, api } from "../../lib/api/client";
+import { capabilitiesQuery } from "../../lib/queryClient";
 
 /**
  * Three ways in, the standard shape every "sign in" prompt (Auth.js,
@@ -18,16 +19,16 @@ import { ApiError, api } from "../../lib/api/client";
  * converges on: one branded button per OIDC provider, opening a
  * redirect this app doesn't otherwise touch, plus an email fallback
  * for a pilot who'd rather not use either. Google/Apple are plain
- * links to Spring Security's own `/oauth2/authorization/{id}` routes
- * -- nothing for this component to do once clicked, including while
- * that provider isn't actually configured server-side yet (Apple,
- * today): the same honest 404 Google gives unconfigured, not a second
- * "is this available" check duplicating what the click itself already
- * answers.
+ * links to Spring Security's own `/oauth2/authorization/{id}` routes,
+ * offered only for the providers the deployment has registered
+ * (capabilitiesQuery). Both were offered whatever was registered, and
+ * one that was not opened a blank 401 -- on the local stack, which
+ * registers neither, both did.
  */
 export default function SignInModal() {
   const [open, setOpen] = useState(false);
   const [email, setEmail] = useState("");
+  const providers = useQuery(capabilitiesQuery).data?.providers ?? [];
   const trimmedEmail = email.trim();
   // The address a link went to is the one it was asked for with -- the
   // mutation's own variable -- not a copy taken from the box when the
@@ -42,10 +43,14 @@ export default function SignInModal() {
   // fix; a server or network failure is not, and "check the address"
   // sent them looking for a typo that was not there.
   const linkError = magicLink.error;
+  // Only a 400 is the address: a 401 or 403 is the page's own token
+  // refused (an http page that could not read the https port's Secure
+  // cookie was one), which a reload replaces.
   const linkFailure = !linkError ? null
     : linkError instanceof ApiError && linkError.status === 429 ? "Too many sign-in links asked for. Wait a few minutes and try again."
-      : linkError instanceof ApiError && linkError.status >= 400 && linkError.status < 500 ? "Couldn't send that link. Check the address and try again."
-        : "Couldn't reach the sign-in service. Try again in a minute.";
+      : linkError instanceof ApiError && linkError.status === 400 ? "Couldn't send that link. Check the address and try again."
+        : linkError instanceof ApiError && linkError.status < 500 ? "Couldn't send that link. Reload the page and try again."
+          : "Couldn't reach the sign-in service. Try again in a minute.";
   const sent = magicLink.isSuccess ? magicLink.variables : null;
 
   return (
@@ -64,23 +69,31 @@ export default function SignInModal() {
           <DialogTitle>Sign in to Wingtip Maps</DialogTitle>
           <DialogDescription>Save your aeroplanes and filed flights to your own account.</DialogDescription>
         </DialogHeader>
-        <div className="flex flex-col gap-2">
-          <Button asChild variant="outline" className="justify-start gap-3">
-            <a href="/oauth2/authorization/google">
-              <GoogleLogo className="size-4" />
-              Continue with Google
-            </a>
-          </Button>
-          <Button asChild variant="outline" className="justify-start gap-3">
-            <a href="/oauth2/authorization/apple">
-              <AppleLogo className="size-4" />
-              Continue with Apple
-            </a>
-          </Button>
-        </div>
-        <div className="flex items-center gap-3 text-xs text-muted-foreground before:h-px before:flex-1 before:bg-border after:h-px after:flex-1 after:bg-border">
-          or
-        </div>
+        {providers.length > 0 && (
+          <>
+            <div className="flex flex-col gap-2">
+              {providers.includes("google") && (
+                <Button asChild variant="outline" className="justify-start gap-3">
+                  <a href="/oauth2/authorization/google">
+                    <GoogleLogo className="size-4" />
+                    Continue with Google
+                  </a>
+                </Button>
+              )}
+              {providers.includes("apple") && (
+                <Button asChild variant="outline" className="justify-start gap-3">
+                  <a href="/oauth2/authorization/apple">
+                    <AppleLogo className="size-4" />
+                    Continue with Apple
+                  </a>
+                </Button>
+              )}
+            </div>
+            <div className="flex items-center gap-3 text-xs text-muted-foreground before:h-px before:flex-1 before:bg-border after:h-px after:flex-1 after:bg-border">
+              or
+            </div>
+          </>
+        )}
         {sent ? (
           <p className="text-sm text-muted-foreground" role="status">
             Check <span className="font-semibold text-foreground">{sent}</span> for a sign-in link.

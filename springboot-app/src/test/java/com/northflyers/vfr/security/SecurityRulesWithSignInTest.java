@@ -147,6 +147,9 @@ class SecurityRulesWithSignInTest {
     void theCapabilitiesSayHowThisDeploymentIsReached() throws Exception {
         mockMvc.perform(get("/api/auth/capabilities"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.access").value("SIGN_IN"));
+                .andExpect(jsonPath("$.access").value("SIGN_IN"))
+                // Signed in by the emailed link alone: no Google or Apple
+                // button, which would open a blank 401.
+                .andExpect(jsonPath("$.providers").isEmpty());
     }
 }

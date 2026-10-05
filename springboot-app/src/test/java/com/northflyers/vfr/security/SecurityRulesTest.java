@@ -127,7 +127,8 @@ class SecurityRulesTest {
     void theCapabilitiesSayHowThisDeploymentIsReached() throws Exception {
         mockMvc.perform(get("/api/auth/capabilities"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.access").value("CLOSED"));
+                .andExpect(jsonPath("$.access").value("CLOSED"))
+                .andExpect(jsonPath("$.providers").isEmpty());
     }
 
     /** Nobody can sign in and nothing opened it: the developer's

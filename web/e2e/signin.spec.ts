@@ -39,6 +39,31 @@ test("signed out, the planner opens on the map, and the sign-in is in the pilot 
   await expect(consoleSheet(page).getByRole("button", { name: "Sign in" })).toBeVisible();
 });
 
+test("signed out, the Library says once what signing in keeps, and the dialog offers only the providers registered", async ({ page }) => {
+  await page.goto("/app/plan");
+  await page.getByTestId("settings-button").click();
+  const sheet = consoleSheet(page);
+  await sheet.getByRole("tab", { name: "Library" }).click();
+  await expect(sheet.getByText("Not Signed In")).toBeVisible();
+  await expect(sheet.getByTestId("library-section")).toHaveCount(0);
+  // This stack registers neither Google nor Apple: their buttons opened a blank 401.
+  await sheet.getByRole("tabpanel").getByRole("button", { name: "Sign in" }).click();
+  const dialog = page.getByRole("dialog", { name: "Sign in to Wingtip Maps" });
+  await expect(dialog.getByLabel("Email address")).toBeVisible();
+  await expect(dialog.getByRole("link", { name: /Continue with/ })).toHaveCount(0);
+  await page.keyboard.press("Escape");
+
+  // Where Google is registered, Google alone.
+  await page.route("**/api/auth/capabilities", route => route.fulfill({
+    status: 200, contentType: "application/json", body: JSON.stringify({ access: "SIGN_IN", providers: ["google"] }),
+  }));
+  await page.reload();
+  await page.getByTestId("settings-button").click();
+  await consoleSheet(page).getByRole("tabpanel").getByRole("button", { name: "Sign in" }).click();
+  await expect(dialog.getByRole("link", { name: "Continue with Google" })).toBeVisible();
+  await expect(dialog.getByRole("link", { name: "Continue with Apple" })).toHaveCount(0);
+});
+
 test("signed out, the dev page sends you to the planner", async ({ page }) => {
   await page.goto("/app/dev");
   await page.waitForURL(/\/app\/plan/);

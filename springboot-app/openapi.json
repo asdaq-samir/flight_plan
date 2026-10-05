@@ -95,13 +95,16 @@
             "example" : "SIGN_IN",
             "type" : "string"
           },
-          "oauthConfigured" : {
-            "description" : "Google or Apple has real credentials registered.",
-            "example" : true,
-            "type" : "boolean"
+          "providers" : {
+            "description" : "The OIDC providers with real credentials, by registration id: the sign-in buttons to offer. Empty where only the emailed link signs in (the local stack).",
+            "example" : [ "google", "apple" ],
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
           }
         },
-        "required" : [ "access", "oauthConfigured" ],
+        "required" : [ "access", "providers" ],
         "type" : "object"
       },
       "CurrencyDatesRequest" : {

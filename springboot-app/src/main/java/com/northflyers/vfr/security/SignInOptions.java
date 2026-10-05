@@ -1,5 +1,7 @@
 package com.northflyers.vfr.security;
 
+import java.util.List;
+
 /**
  * How this deployment is reached: the one answer the access rules and the
  * front end both read.
@@ -28,10 +30,13 @@ package com.northflyers.vfr.security;
  * security configuration but not arbitrary components, so a component
  * here would break every controller slice test in the suite.
  *
- * @param oauthConfigured at least one of Google or Apple has real credentials
+ * @param providers the OIDC providers with real credentials, by their
+ *        registration ids ("google", "apple"): the buttons the sign-in
+ *        dialog offers. A button for one that is not registered opened a
+ *        blank 401.
  * @param access how this deployment is reached
  */
-public record SignInOptions(boolean oauthConfigured, Access access) {
+public record SignInOptions(List<String> providers, Access access) {
 
     /** How a deployment is reached; see {@link SignInOptions}. */
     public enum Access { SIGN_IN, OPEN, CLOSED }

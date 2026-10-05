@@ -1,6 +1,9 @@
 package com.northflyers.vfr.security;
 
 import com.northflyers.vfr.service.PilotService;
+import java.net.URI;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -12,6 +15,7 @@ import org.springframework.security.authorization.AuthorizationManager;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
+import org.springframework.security.oauth2.client.registration.InMemoryClientRegistrationRepository;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.intercept.RequestAuthorizationContext;
 import org.springframework.security.web.authentication.HttpStatusEntryPoint;
@@ -64,6 +68,9 @@ public class SecurityConfig {
     // everything on this machine uses. Off locally (docker-compose.yml),
     // on by default.
     private final boolean hsts;
+    /** The public address's host where that address is https, else null:
+     *  see the redirect at the end of the filter chain. */
+    private final String httpsHost;
 
     private final SignInOptions signIn;
 
@@ -71,8 +78,10 @@ public class SecurityConfig {
                    @Value("${spring.mail.host:}") String mailHost,
                    @Value("${app.chart-tiles-origin:}") String chartTilesOrigin,
                    @Value("${app.hsts:true}") boolean hsts,
-                   @Value("${app.open-writes:false}") boolean openWrites) {
+                   @Value("${app.open-writes:false}") boolean openWrites,
+                   @Value("${app.public-base-url:}") String publicBaseUrl) {
         this.hsts = hsts;
+        this.httpsHost = publicBaseUrl.startsWith("https://") ? URI.create(publicBaseUrl).getHost() : null;
         // A session can be obtained through OIDC, or through the magic
         // link -- which only ever sends when a mail host is configured.
         // Where nobody can sign in, writes are open to every caller only
@@ -81,7 +90,13 @@ public class SecurityConfig {
         // not -- a deployment that forgot its sign-in settings.
         this.oauthConfigured = clientRegistrations.isPresent();
         boolean signInPossible = oauthConfigured || !mailHost.isBlank();
-        this.signIn = new SignInOptions(oauthConfigured, SignInOptions.accessFor(signInPossible, openWrites));
+        List<String> providers = new ArrayList<>();
+        clientRegistrations.ifPresent(registrations -> {
+            if (registrations instanceof InMemoryClientRegistrationRepository registered) {
+                registered.forEach(registration -> providers.add(registration.getRegistrationId()));
+            }
+        });
+        this.signIn = new SignInOptions(List.copyOf(providers), SignInOptions.accessFor(signInPossible, openWrites));
         // The CDN the chart tiles come from on AWS (application.yml's
         // app.chart-tiles-origin), which img-src must allow; blank
         // locally, where the tiles are same-origin.
@@ -258,6 +273,19 @@ public class SecurityConfig {
         // it made a session for every refused request -- with sessions in
         // Postgres for 30 days, a row per signed-out visit (94 of 145).
         http.requestCache(cache -> cache.requestCache(new NullRequestCache()));
+        if (httpsHost != null) {
+            // The public address's host over plain http goes to https, the
+            // port mapped as Spring's PortMapper maps it (8080 to 8443).
+            // On the phone's LAN address both ports answer, and the emailed
+            // link always lands on https, whose cookies are Secure: back on
+            // http the session was never sent, and the http page's own
+            // XSRF-TOKEN could not replace the Secure one, so every POST --
+            // asking for a sign-in link included -- failed CSRF. Anything
+            // else (localhost, host.docker.internal, the tests) is left on
+            // http; behind the load balancer a request is already secure.
+            http.redirectToHttps(https -> https.requestMatchers(
+                    request -> httpsHost.equalsIgnoreCase(request.getServerName())));
+        }
         if (oauthConfigured) {
             // The pilot is resolved at sign-in (PilotOidcUserService), and
             // a sign-in it refuses lands here -- Spring's default

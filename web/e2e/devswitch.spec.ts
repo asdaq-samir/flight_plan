@@ -38,7 +38,7 @@ async function withAuth(page: Page, opts: { access: "SIGN_IN" | "OPEN" | "CLOSED
   await page.route("**/api/auth/capabilities", route =>
     route.fulfill({
       status: 200, contentType: "application/json",
-      body: JSON.stringify({ access: opts.access, oauthConfigured: opts.access === "SIGN_IN" }),
+      body: JSON.stringify({ access: opts.access, providers: opts.access === "SIGN_IN" ? ["google"] : [] }),
     }));
   await page.route("**/api/me", route =>
     opts.pilot

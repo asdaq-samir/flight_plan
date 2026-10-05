@@ -4,6 +4,7 @@ import com.northflyers.vfr.security.SignInOptions;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import java.util.List;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -29,14 +30,15 @@ import org.springframework.web.bind.annotation.RestController;
 public class SignInCapabilitiesController {
 
     /** @param access how this deployment is reached (SignInOptions).
-     *  @param oauthConfigured whether Google or Apple is really registered. */
+     *  @param providers the OIDC providers really registered. */
     public record Capabilities(
             @Schema(description = "SIGN_IN: a session can be had, and the developer's workspace needs the role. "
                     + "OPEN: nobody can sign in and everything is open (the local stack). "
                     + "CLOSED: nobody can sign in, and writes and the developer's workspace are refused.",
                     example = "SIGN_IN") SignInOptions.Access access,
-            @Schema(description = "Google or Apple has real credentials registered.",
-                    example = "true") boolean oauthConfigured) {}
+            @Schema(description = "The OIDC providers with real credentials, by registration id: the sign-in "
+                    + "buttons to offer. Empty where only the emailed link signs in (the local stack).",
+                    example = "[\"google\", \"apple\"]") List<String> providers) {}
 
     private final SignInOptions signIn;
 
@@ -47,6 +49,6 @@ public class SignInCapabilitiesController {
     @Operation(summary = "Whether anyone can sign in here")
     @GetMapping
     public Capabilities capabilities() {
-        return new Capabilities(signIn.access(), signIn.oauthConfigured());
+        return new Capabilities(signIn.access(), signIn.providers());
     }
 }

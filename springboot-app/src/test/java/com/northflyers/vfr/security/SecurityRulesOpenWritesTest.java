@@ -58,6 +58,7 @@ class SecurityRulesOpenWritesTest {
     void theCapabilitiesSayHowThisDeploymentIsReached() throws Exception {
         mockMvc.perform(get("/api/auth/capabilities"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.access").value("OPEN"));
+                .andExpect(jsonPath("$.access").value("OPEN"))
+                .andExpect(jsonPath("$.providers").isEmpty());
     }
 }
