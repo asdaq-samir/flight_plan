@@ -99,6 +99,8 @@ public class PlannerProxyController {
             route("POST", "/api/checkpoint-notes"),
             route("POST", "/api/checkpoint-notes/generate"),
             // The developer's.
+            route("POST", "/api/oral/question"),
+            route("POST", "/api/oral/grade"),
             route("GET", "/api/detect/stream"),
             route("GET", "/api/classify"),
             route("POST", "/api/picks"),

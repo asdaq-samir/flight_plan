@@ -4480,6 +4480,264 @@
         "title": "NoteStart",
         "type": "object"
       },
+      "OralCitation": {
+        "description": "A passage an answer rests on, quoted word for word (checked), with\nits source's title and where to read it.",
+        "properties": {
+          "quote": {
+            "title": "Quote",
+            "type": "string"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source",
+          "title",
+          "url",
+          "quote"
+        ],
+        "title": "OralCitation",
+        "type": "object"
+      },
+      "OralEditions": {
+        "description": "The editions the sources are: the eCFR's issue date and the day the\nAIM was read.",
+        "properties": {
+          "aim_fetched": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Aim Fetched"
+          },
+          "cfr_issued": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cfr Issued"
+          }
+        },
+        "title": "OralEditions",
+        "type": "object"
+      },
+      "OralFocus": {
+        "description": "An ACS element the mock oral examines: its code and its words.",
+        "properties": {
+          "code": {
+            "pattern": "^[A-Z]{2}\\.[IVX]+\\.[A-Z]\\.[KRS]\\d+[a-z]?$",
+            "title": "Code",
+            "type": "string"
+          },
+          "text": {
+            "maxLength": 400,
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "text"
+        ],
+        "title": "OralFocus",
+        "type": "object"
+      },
+      "OralGrade": {
+        "description": "The student's answer graded: satisfactory, partial or unsatisfactory,\nin a few sentences, the key points it missed, and the citations.",
+        "properties": {
+          "citations": {
+            "items": {
+              "$ref": "#/components/schemas/OralCitation"
+            },
+            "title": "Citations",
+            "type": "array"
+          },
+          "feedback": {
+            "title": "Feedback",
+            "type": "string"
+          },
+          "missed": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Missed",
+            "type": "array"
+          },
+          "verdict": {
+            "enum": [
+              "satisfactory",
+              "partial",
+              "unsatisfactory"
+            ],
+            "title": "Verdict",
+            "type": "string"
+          }
+        },
+        "required": [
+          "verdict",
+          "feedback",
+          "missed",
+          "citations"
+        ],
+        "title": "OralGrade",
+        "type": "object"
+      },
+      "OralGradeRequest": {
+        "properties": {
+          "answer": {
+            "maxLength": 4000,
+            "minLength": 1,
+            "title": "Answer",
+            "type": "string"
+          },
+          "key_points": {
+            "default": [],
+            "items": {
+              "maxLength": 300,
+              "type": "string"
+            },
+            "maxItems": 12,
+            "title": "Key Points",
+            "type": "array"
+          },
+          "model_answer": {
+            "maxLength": 4000,
+            "title": "Model Answer",
+            "type": "string"
+          },
+          "question": {
+            "maxLength": 1000,
+            "title": "Question",
+            "type": "string"
+          },
+          "source_ids": {
+            "items": {
+              "maxLength": 40,
+              "type": "string"
+            },
+            "maxItems": 12,
+            "title": "Source Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "question",
+          "model_answer",
+          "source_ids",
+          "answer"
+        ],
+        "title": "OralGradeRequest",
+        "type": "object"
+      },
+      "OralQuestion": {
+        "description": "One examiner's question (app.oral), its answer and key points, the\ncitations that survived the check, and the sources to grade from.\n`unsupported` where none did.",
+        "properties": {
+          "acs_code": {
+            "title": "Acs Code",
+            "type": "string"
+          },
+          "citations": {
+            "items": {
+              "$ref": "#/components/schemas/OralCitation"
+            },
+            "title": "Citations",
+            "type": "array"
+          },
+          "editions": {
+            "$ref": "#/components/schemas/OralEditions"
+          },
+          "key_points": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Key Points",
+            "type": "array"
+          },
+          "model_answer": {
+            "title": "Model Answer",
+            "type": "string"
+          },
+          "question": {
+            "title": "Question",
+            "type": "string"
+          },
+          "source_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Source Ids",
+            "type": "array"
+          },
+          "unsupported": {
+            "title": "Unsupported",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "question",
+          "acs_code",
+          "model_answer",
+          "key_points",
+          "citations",
+          "source_ids",
+          "unsupported",
+          "editions"
+        ],
+        "title": "OralQuestion",
+        "type": "object"
+      },
+      "OralQuestionRequest": {
+        "description": "The student's flight in a few lines (the page's own summary of its\nplan and briefing), the ACS elements to examine, and the questions\nalready asked.",
+        "properties": {
+          "asked": {
+            "default": [],
+            "items": {
+              "maxLength": 600,
+              "type": "string"
+            },
+            "maxItems": 20,
+            "title": "Asked",
+            "type": "array"
+          },
+          "focus": {
+            "items": {
+              "$ref": "#/components/schemas/OralFocus"
+            },
+            "maxItems": 12,
+            "minItems": 1,
+            "title": "Focus",
+            "type": "array"
+          },
+          "plan": {
+            "maxLength": 6000,
+            "title": "Plan",
+            "type": "string"
+          }
+        },
+        "required": [
+          "plan",
+          "focus"
+        ],
+        "title": "OralQuestionRequest",
+        "type": "object"
+      },
       "Pick": {
         "description": "A pilot's own mark on the chart. `rated` is derived from the\nrating, so a rated point can never describe itself as unrated.",
         "properties": {
@@ -8373,6 +8631,84 @@
           }
         },
         "summary": "Navlog Stream"
+      }
+    },
+    "/api/oral/grade": {
+      "post": {
+        "description": "The student's answer graded against the question's answer and the\nsources it was asked from (`source_ids`, as the question gave them).",
+        "operationId": "oral_grade_api_oral_grade_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OralGradeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OralGrade"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Oral Grade"
+      }
+    },
+    "/api/oral/question": {
+      "post": {
+        "description": "One question on one of the `focus` ACS elements, set in the flight\n`plan` describes, not one of those already `asked`; its answer from\nthe sources and the passages it quotes, each checked word for word.\nA 503 where the sources cannot be had, a 502 where the examiner\ncannot be reached.",
+        "operationId": "oral_question_api_oral_question_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OralQuestionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OralQuestion"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Oral Question"
       }
     },
     "/api/picks": {

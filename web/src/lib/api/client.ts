@@ -8,6 +8,7 @@ import type {
   AirspaceAt, ClassBResponse, NearestAirports, RouteProfile, Tfrs, DevServices, DevServiceStarted, Pilot, Rating, RetrainStarted, Role, SaveFlightRequest,
   SignInCapabilities, LogbookEntry, LogbookEntryRequest, Currency, CurrencyDatesRequest,
   Status, StreamMessage, Totals, WaypointsInView, Training, SavedTrack,
+  OralQuestion, OralQuestionRequest, OralGrade, OralGradeRequest,
 } from "./types";
 
 /**
@@ -357,6 +358,12 @@ export const api = {
   /** One airport's card: where it is, the airspace over it, its runways
    *  and radio, and the weather there now. Ahead of the chart's tiles,
    *  as the fields in view are (`priority`). */
+  /** The mock oral (the planner's app.oral): a question about this
+   *  flight, and an answer graded. The developer's, for now. */
+  oral: {
+    question: (body: OralQuestionRequest) => planner.POST("/api/oral/question", { body }).then(data<OralQuestion>),
+    grade: (body: OralGradeRequest) => planner.POST("/api/oral/grade", { body }).then(data<OralGrade>),
+  },
   airport: (ident: string) =>
     planner.GET("/api/airport/{ident}", { params: { path: { ident } }, priority: "high" }).then(data<AirportPlace>),
 

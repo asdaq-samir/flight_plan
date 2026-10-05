@@ -124,6 +124,10 @@ public class SecurityConfig {
                             .access(developer)
                             .requestMatchers(HttpMethod.POST, "/api/planner/picks").access(developer)
                             .requestMatchers(HttpMethod.DELETE, "/api/planner/picks").access(developer)
+                            // The mock oral: a billed Claude call a
+                            // question and an answer, and the developer's
+                            // until a CFI has reviewed what it says.
+                            .requestMatchers(HttpMethod.POST, "/api/planner/oral/**").access(developer)
                             .requestMatchers("/api/planner/status", "/api/planner/dev/**").access(developer);
                     // Reading from the planner: planning a route needs no
                     // account.

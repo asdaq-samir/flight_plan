@@ -1530,3 +1530,71 @@ class DevServiceStarted(BaseModel):
     service: str
     state: str
     started: bool
+
+
+class OralFocus(BaseModel):
+    """An ACS element the mock oral examines: its code and its words."""
+
+    code: str = Field(pattern=r"^[A-Z]{2}\.[IVX]+\.[A-Z]\.[KRS]\d+[a-z]?$")
+    text: str = Field(max_length=400)
+
+
+class OralQuestionRequest(BaseModel):
+    """The student's flight in a few lines (the page's own summary of its
+    plan and briefing), the ACS elements to examine, and the questions
+    already asked."""
+
+    plan: str = Field(max_length=6000)
+    focus: list[OralFocus] = Field(min_length=1, max_length=12)
+    asked: list[Annotated[str, Field(max_length=600)]] = Field(default=[], max_length=20)
+
+
+class OralCitation(BaseModel):
+    """A passage an answer rests on, quoted word for word (checked), with
+    its source's title and where to read it."""
+
+    source: str
+    title: str
+    url: str
+    quote: str
+
+
+class OralEditions(BaseModel):
+    """The editions the sources are: the eCFR's issue date and the day the
+    AIM was read."""
+
+    cfr_issued: str | None = None
+    aim_fetched: str | None = None
+
+
+class OralQuestion(BaseModel):
+    """One examiner's question (app.oral), its answer and key points, the
+    citations that survived the check, and the sources to grade from.
+    `unsupported` where none did."""
+
+    question: str
+    acs_code: str
+    model_answer: str
+    key_points: list[str]
+    citations: list[OralCitation]
+    source_ids: list[str]
+    unsupported: bool
+    editions: OralEditions
+
+
+class OralGradeRequest(BaseModel):
+    question: str = Field(max_length=1000)
+    model_answer: str = Field(max_length=4000)
+    key_points: list[Annotated[str, Field(max_length=300)]] = Field(default=[], max_length=12)
+    source_ids: list[Annotated[str, Field(max_length=40)]] = Field(max_length=12)
+    answer: str = Field(min_length=1, max_length=4000)
+
+
+class OralGrade(BaseModel):
+    """The student's answer graded: satisfactory, partial or unsatisfactory,
+    in a few sentences, the key points it missed, and the citations."""
+
+    verdict: Literal["satisfactory", "partial", "unsatisfactory"]
+    feedback: str
+    missed: list[str]
+    citations: list[OralCitation]

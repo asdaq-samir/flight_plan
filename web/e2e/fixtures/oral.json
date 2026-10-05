@@ -1,0 +1,83 @@
+{
+ "question": {
+  "question": "Your route crosses the VOLK EAST MOA. Is a MOA regulatory or nonregulatory special use airspace? Before departure, how would you find out when it's active, what altitudes it covers and who controls it? And how would you check for any temporary SUA along your route that isn't on the chart?",
+  "acs_code": "PA.I.E.K3",
+  "model_answer": "A MOA is nonregulatory special use airspace, the same as warning areas, alert areas, CFAs and NSAs. Prohibited and restricted areas are the regulatory SUA, set up under 14 CFR part 73. VOLK EAST is a permanent MOA, so it's shown on the sectional with its hours of operation, altitudes and controlling agency. I'd check that charted information against my planned 5,500 ft cruise. Temporary MOAs and temporary restricted areas aren't charted. To find them, I'd review the Domestic Notices on the FAA NOTAM Search website or the Air Traffic Plans and Publications website, check the FAA SUA website, and/or contact the overlying ATC facility to learn how any uncharted SUA affects my route. I'd also review the NOTAMs for each ARTCC area I'll fly through, because those can include SUA and TFR information.",
+  "key_points": [
+   "MOA is nonregulatory SUA",
+   "Prohibited/restricted areas are regulatory",
+   "Sectional shows hours, altitudes, controlling agency",
+   "Temporary MOAs/restricted areas not charted",
+   "Check Domestic Notices/NOTAMs, FAA SUA website, or overlying ATC",
+   "Review ARTCC NOTAMs for SUA/TFRs"
+  ],
+  "citations": [
+   {
+    "source": "AIM 3-4-1",
+    "title": "3-4-1. General",
+    "url": "https://www.faa.gov/air_traffic/publications/atpubs/aim_html/chap3_section_4.html#3-4-1",
+    "quote": "Warning areas, MOAs, alert areas, CFAs, and national security areas (NSA) are nonregulatory special use airspace."
+   },
+   {
+    "source": "AIM 3-4-1",
+    "title": "3-4-1. General",
+    "url": "https://www.faa.gov/air_traffic/publications/atpubs/aim_html/chap3_section_4.html#3-4-1",
+    "quote": "Prohibited and restricted areas are regulatory special use airspace and are established in 14 CFR part 73 through the rulemaking process."
+   },
+   {
+    "source": "AIM 3-4-1",
+    "title": "3-4-1. General",
+    "url": "https://www.faa.gov/air_traffic/publications/atpubs/aim_html/chap3_section_4.html#3-4-1",
+    "quote": "include the hours of operation, altitudes, and the controlling agency"
+   },
+   {
+    "source": "AIM 3-4-1",
+    "title": "3-4-1. General",
+    "url": "https://www.faa.gov/air_traffic/publications/atpubs/aim_html/chap3_section_4.html#3-4-1",
+    "quote": "contact the appropriate overlying ATC facility to determine the effect of non-depicted SUA areas along their routes of flight"
+   },
+   {
+    "source": "AIM 5-1-3",
+    "title": "5-1-3. Notice to Airmen (NOTAM) System",
+    "url": "https://www.faa.gov/air_traffic/publications/atpubs/aim_html/chap5_section_1.html#5-1-3",
+    "quote": "Pilots should also review NOTAMs for the ARTCC area"
+   }
+  ],
+  "source_ids": [
+   "AIM 3-1-1",
+   "AIM 3-4-1",
+   "AIM 3-5-7",
+   "AIM 7-1-5",
+   "AIM 5-1-3",
+   "AIM 3-5-8",
+   "AIM 7-1-9"
+  ],
+  "unsupported": false,
+  "editions": {
+   "cfr_issued": "2026-09-29",
+   "aim_fetched": "2026-10-05"
+  }
+ },
+ "grade": {
+  "verdict": "unsatisfactory",
+  "feedback": "A MOA is nonregulatory special use airspace, not restricted airspace; check its hours, altitudes and controlling agency on the chart, and the NOTAMs for temporary SUA before departure.",
+  "missed": [
+   "MOA is nonregulatory SUA",
+   "Temporary SUA is not charted"
+  ],
+  "citations": [
+   {
+    "source": "AIM 3-4-1",
+    "title": "3-4-1. General",
+    "url": "https://www.faa.gov/air_traffic/publications/atpubs/aim_html/chap3_section_4.html#3-4-1",
+    "quote": "Warning areas, MOAs, alert areas, CFAs, and national security areas (NSA) are nonregulatory special use airspace."
+   },
+   {
+    "source": "AIM 3-4-1",
+    "title": "3-4-1. General",
+    "url": "https://www.faa.gov/air_traffic/publications/atpubs/aim_html/chap3_section_4.html#3-4-1",
+    "quote": "Prohibited and restricted areas are regulatory special use airspace and are established in 14 CFR part 73 through the rulemaking process."
+   }
+  ]
+ }
+}

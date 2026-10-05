@@ -70,6 +70,12 @@ export type ChartInfo = Schemas["ChartInfo"];
 export type AirportSuggestion = Schemas["AirportSuggestion"];
 export type AirportSearch = Schemas["AirportSearch"];
 export type AirportPlace = Schemas["AirportPlace"];
+/** The mock oral's question, its answer graded, and what each is asked with. */
+export type OralQuestion = Schemas["OralQuestion"];
+export type OralQuestionRequest = Schemas["OralQuestionRequest"];
+export type OralGrade = Schemas["OralGrade"];
+export type OralGradeRequest = Schemas["OralGradeRequest"];
+export type OralCitation = Schemas["OralCitation"];
 export type AirportPin = Schemas["AirportPin"];
 export type AirportsInView = Schemas["AirportsInView"];
 export type WaypointPin = Schemas["WaypointPin"];

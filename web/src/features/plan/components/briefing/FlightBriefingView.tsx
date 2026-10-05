@@ -33,6 +33,8 @@ import { callSign } from "../../../../lib/radio";
 import { shortName } from "../../../../lib/aircraftChoice";
 import PatternRadio from "./PatternRadio";
 import RiskAssessment from "./RiskAssessment";
+import MockOral from "./MockOral";
+import { planFacts } from "../../../../lib/oral";
 import { assess, LEVEL_TONE, riskLine, useRisk } from "../../../../lib/frat";
 
 interface Props {
@@ -422,6 +424,24 @@ export default function FlightBriefingView({
     day: format(new Date(depart || opened), "yyyy-MM-dd"),
     ticked,
   }) : null;
+  // The flight in plain lines, for the mock oral's examiner (lib/oral):
+  // what the briefing already holds.
+  const planText = briefing ? planFacts({
+    route: landings.filter(i => briefing.airports[i]).map(i => {
+      const a = briefing.airports[i]!;
+      const inUse = runwayInUse(a.runways);
+      return { ident: i, name: a.name, airspaceClass: a.airspace_class, patternFt: a.pattern?.altitude_ft, runway: inUse?.byWind ? runwayNumber(inUse.end.ident) : null };
+    }),
+    aircraft: nav?.aircraft.type ?? nav?.aircraft.name, cruiseFt: nav?.altitude_ft,
+    distanceNm: totals?.distance_nm ?? course?.distance_nm, eteMin: totals?.ete_min, fuelGal: totals?.fuel_gal,
+    reserveMin: totals?.reserve_min, night: totals?.night,
+    depart: depart ? format(new Date(depart), "EEE d MMM, HH:mm") : null,
+    metars: landings.flatMap(i => (briefing.metars[i]?.raw ? [{ ident: i, raw: briefing.metars[i]!.raw! }] : [])),
+    destinationForecast: destStation ? ceilingAndVisibility(destStation.ceiling_ft, destStation.visibility_sm) : null,
+    hazards: [...briefing.hazards.map(h => h.hazard ?? h.type ?? "SIGMET"), ...briefing.gairmets.map(gairmetTitle)],
+    specialUse: specialUse.map(a => `${a.name} (${a.kind}), ${suaAltitudes(a)}`),
+    tfrs: briefing.tfrs.length,
+  }) : "";
   const assessmentKey = assessment ? `${assessment.level}:${assessment.score}:${assessment.factors.map(f => f.key).join(",")}` : "";
   useEffect(() => {
     setAssessment(assessment);
@@ -870,6 +890,16 @@ export default function FlightBriefingView({
           <RiskAssessment assessment={assessment} />
         )}
       </AccordionSection>
+
+      {/* The mock oral, the developer's until a CFI has reviewed its
+          answers; never on paper. */}
+      {pilot?.developer && briefing && (
+        <div className="print:hidden">
+          <AccordionSection title="Mock Oral" summary="Preview: an examiner’s questions about this flight">
+            <MockOral plan={planText} />
+          </AccordionSection>
+        </div>
+      )}
     </>
   );
 }

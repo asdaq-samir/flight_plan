@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from "react";
+import { useId, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { format, parseISO } from "date-fns";
 import { Check, Circle } from "lucide-react";
@@ -9,7 +9,8 @@ import { Input } from "../../components/ui/input";
 import { Textarea } from "../../components/ui/textarea";
 import { api } from "../../lib/api/client";
 import type { ExperienceItem, Training } from "../../lib/api/types";
-import { acsCodesIn, ENDORSEMENTS, endorsementUntil, lookUp, type AcsTable } from "../../lib/checkride";
+import { acsCodesIn, ENDORSEMENTS, endorsementUntil, lookUp } from "../../lib/checkride";
+import { useAcsTable } from "../../lib/useAcsTable";
 import { TEXT } from "../../lib/text";
 
 const day = (iso: string) => format(parseISO(iso), "d MMM yyyy");
@@ -18,18 +19,6 @@ function amount(item: ExperienceItem): string {
   if (item.unit === "h") return `${item.have.toFixed(1)} of ${item.need} h`;
   if (item.unit === "flights") return item.met ? "Done" : "Not yet";
   return `${item.have} of ${item.need}`;
-}
-
-/** The FAA's own words for each code (lib/acs.json, 150 KB), loaded
- *  with the page rather than with the app. */
-function useAcsTable(): AcsTable | null {
-  const [table, setTable] = useState<AcsTable | null>(null);
-  useEffect(() => {
-    let live = true;
-    void import("../../lib/acs.json").then(m => { if (live) setTable(m.default as AcsTable); });
-    return () => { live = false; };
-  }, []);
-  return table;
 }
 
 function KnowledgeTest({ codes, onSave, saving }: { codes: string[]; onSave: (codes: string[]) => void; saving: boolean }) {
