@@ -1,4 +1,5 @@
 import { test, expect, type Route } from "@playwright/test";
+import { library } from "./helpers";
 
 /**
  * The pilot console's Logbook: where the pilot stands first, then the
@@ -30,7 +31,7 @@ test("the logbook says where the pilot stands, and a flight logged is posted as 
   await page.goto("/app/plan");
   await page.getByTestId("settings-button").click();
   const console = page.getByTestId("console-sheet");
-  await console.getByRole("tab", { name: "Logbook" }).click();
+  await library(console, "Logbook");
 
   await expect(console.getByTestId("currency-day")).toHaveText(/^To /);
   await expect(console.getByTestId("currency-night")).toHaveText("Not current");

@@ -1,5 +1,5 @@
 import { test, expect, type Page, type Route } from "@playwright/test";
-import { openPanel } from "./helpers";
+import { library, openPanel } from "./helpers";
 
 /**
  * The pilot console's two saves, each answered only when the test lets
@@ -43,7 +43,7 @@ test("an add still saving when Edit is clicked says added, and leaves the aeropl
     }
   });
   const console = await openConsole(page);
-  await console.getByRole("tab", { name: "Aircraft" }).click();
+  await library(console, "Aircraft");
   // The form opens from the list's New aircraft row -- a popover, or
   // on a phone a sheet from the bottom -- on the page, not inside the
   // console's own element.
@@ -126,6 +126,7 @@ test.describe("the email sign-in link", () => {
     // Under the field it is about, not over the map.
     await expect(page.getByTestId("sign-in-error")).toContainText("Too many sign-in links");
   });
+
 });
 
 test("the aeroplane the nav log flies is ticked, and a tap on another flies that one", async ({ page }) => {
@@ -135,7 +136,7 @@ test("the aeroplane the nav log flies is ticked, and a tap on another flies that
     status: 200, contentType: "application/json", body: JSON.stringify([aircraft(1, "N1"), aircraft(2, "N2")]),
   }));
   const console = await openConsole(page);
-  await console.getByRole("tab", { name: "Aircraft" }).click();
+  await library(console, "Aircraft");
   // The row's own button, which says whether it is the one flown.
   const pick = (tail: string) => console.locator("[data-aircraft-row]", { hasText: tail }).locator("button[aria-pressed]");
   // A stock profile to start with: neither of these is ticked.

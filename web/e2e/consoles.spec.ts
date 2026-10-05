@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { settle, consoleSheet, expectDrawerClosed, expectDrawerOpen, closeSidebarWithTheStockKey, openSettings, beforeTheRoute } from "./helpers";
+import { settle, consoleSheet, expectDrawerClosed, expectDrawerOpen, closeSidebarWithTheStockKey, openSettings, beforeTheRoute, library } from "./helpers";
 
 /**
  * The consoles and the settings: fitting the screen, the pilot
@@ -51,10 +51,12 @@ test("plan page: the pilot console holds the account, aeroplanes and flights, an
   await expect(page.getByRole("menuitem", { name: "Sign out" })).toHaveCount(0);
   // The guide first, where someone new to the planner starts.
   await expect(pilot.getByRole("tab").first()).toHaveText("Guide");
-  await pilot.getByRole("tab", { name: "Aircraft" }).click();
+  // The three that need a sign-in, in one tab: the Library, a segment each.
+  await library(pilot, "Aircraft");
   await expect(pilot.getByRole("region", { name: "Aircraft", exact: true })).toBeVisible();
-  await pilot.getByRole("tab", { name: "Flights" }).click();
+  await library(pilot, "Flights");
   await expect(pilot.getByRole("region", { name: "Flights", exact: true })).toBeVisible();
+  await expect(pilot.getByRole("tab")).toHaveText(["Guide", "Library", "Settings"]);
 
   // The console is modal: Escape puts it away, and then the drawer
   // opens from the header, and Escape closes that too.
@@ -145,7 +147,7 @@ test("the console holds still as its tabs change: up from the bottom of a phone'
   }
   const tabRow = pilot.getByRole("tablist");
   const rowTop = (await tabRow.boundingBox())!.y;
-  for (const name of ["Aircraft", "Flights", "Guide"]) {
+  for (const name of ["Library", "Settings", "Guide"]) {
     await pilot.getByRole("tab", { name }).click();
     await expect(pilot.getByRole("tab", { name })).toHaveAttribute("aria-selected", "true");
     expect((await tabRow.boundingBox())!.y, `the tab row after ${name}`).toBe(rowTop);

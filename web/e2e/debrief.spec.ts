@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { library } from "./helpers";
 
 /**
  * A saved flight's debrief (FlightPage, lib/debrief, lib/track): its page
@@ -73,11 +74,13 @@ test("a saved flight's page, and its debrief from a GPX track: kept on the devic
   await signedIn(page, saved);
   await page.goto("/app/plan");
   await page.getByTestId("settings-button").click();
-  await page.getByRole("tab", { name: "Flights" }).click();
+  await library(page, "Flights");
   await page.getByRole("button", { name: /C81 → KUGN/ }).click();
 
   const flightPage = page.getByTestId("console-page");
   await expect(flightPage.getByRole("heading", { name: "C81 → KUGN" })).toBeVisible();
+  // The Library's sections step aside for the page, as a pushed page covers them.
+  await expect(page.getByTestId("library-section")).toBeHidden();
   await expect(flightPage).toContainText("Under 100 hours in your logbook");
   await expect(flightPage.getByTestId("flight-open")).toBeVisible();
 
@@ -96,6 +99,7 @@ test("a saved flight's page, and its debrief from a GPX track: kept on the devic
 
   // Kept on the device: back to the list and in again, it is still there.
   await page.getByRole("button", { name: "Flights", exact: true }).click();
+  await expect(page.getByTestId("library-section")).toBeVisible();
   await page.getByRole("button", { name: /C81 → KUGN/ }).click();
   await expect(flightPage.getByTestId("debrief-source")).toContainText("on this device");
 
@@ -113,7 +117,7 @@ test("Show on the map draws the flown track over its route, and the map's button
   await signedIn(page, []);
   await page.goto("/app/plan");
   await page.getByTestId("settings-button").click();
-  await page.getByRole("tab", { name: "Flights" }).click();
+  await library(page, "Flights");
   await page.getByRole("button", { name: /C81 → KUGN/ }).click();
   await page.getByTestId("debrief-file").setInputFiles({ name: "flight.gpx", mimeType: "application/gpx+xml", buffer: Buffer.from(gpx()) });
   await page.getByTestId("debrief-show").click();
@@ -132,7 +136,7 @@ test("a file that is not a track says so where it was imported", async ({ page }
   await signedIn(page, []);
   await page.goto("/app/plan");
   await page.getByTestId("settings-button").click();
-  await page.getByRole("tab", { name: "Flights" }).click();
+  await library(page, "Flights");
   await page.getByRole("button", { name: /C81 → KUGN/ }).click();
   await page.getByTestId("debrief-file").setInputFiles({ name: "notes.gpx", mimeType: "application/gpx+xml", buffer: Buffer.from("<gpx><trk/></gpx>") });
   await expect(page.getByTestId("debrief-problem")).toContainText("There is no track in this file.");

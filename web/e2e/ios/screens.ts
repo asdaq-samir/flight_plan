@@ -85,6 +85,17 @@ export const SCREENS: Screen[] = [
       await expect(page.getByRole("heading", { name: "Plan a flight" })).toBeVisible();
     },
   },
+  {
+    // Aircraft, Flights and Logbook, one tab: its segmented control and
+    // the section it opens on.
+    name: "pilot console, Library tab",
+    ready: async page => {
+      await page.goto("/app/plan");
+      await page.getByTestId("settings-button").click();
+      await page.getByRole("tab", { name: "Library" }).click();
+      await expect(page.getByTestId("library-section")).toBeVisible();
+    },
+  },
   // The Guide's Practice pages: a drill's card with its answer shown, the
   // holding page's fields and drawing, the lost-comms page's segments.
   ...([

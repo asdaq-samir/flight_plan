@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { cn } from "cn";
 import { ToggleGroup, ToggleGroupItem } from "./ui/toggle-group";
 
 /** A segment: 28 tall in the track's 32, the words 13 to a finger, the
@@ -16,17 +17,20 @@ const SEGMENT = "h-7 rounded-md px-2.5 text-xs pointer-coarse:text-[0.8125rem] t
  *  finger (the unchosen ones were grey, 4.35:1 on the track). Always
  *  one of them: a tap on the one already chosen keeps it rather than
  *  clearing the setting. */
-export default function Segmented({ label, value, onChange, options, testId }: {
+export default function Segmented({ label, value, onChange, options, testId, className }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   options: { value: string; label: string; icon?: ReactNode }[];
   testId?: string;
+  /** Its width, where it is not its words': `w-full [&>*]:flex-1` spans
+   *  the column, the segments sharing it equally. */
+  className?: string;
 }) {
   return (
     <ToggleGroup
       type="single" value={value} onValueChange={v => { if (v) onChange(v); }}
-      aria-label={label} size="sm" spacing={0.5} className="rounded-lg bg-muted p-0.5" data-testid={testId}
+      aria-label={label} size="sm" spacing={0.5} className={cn("rounded-lg bg-muted p-0.5", className)} data-testid={testId}
     >
       {options.map(o => (
         <ToggleGroupItem key={o.value} value={o.value} className={SEGMENT}>

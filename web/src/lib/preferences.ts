@@ -66,6 +66,8 @@ interface Preferences {
   filters: Filters;
   devTab: string;
   pilotTab: string;
+  /** The Library tab's section: aircraft, flights or logbook. */
+  librarySection: string;
   /** The navigation bar's edge, once one has been picked; until then
    *  the bottom on a phone and the top from md up. */
   navBar: NavEdge | null;
@@ -88,6 +90,7 @@ interface Preferences {
   setFilter: (key: FilterKey, on: boolean) => void;
   setDevTab: (tab: string) => void;
   setPilotTab: (tab: string) => void;
+  setLibrarySection: (section: string) => void;
   setNavBar: (navBar: NavEdge) => void;
   addRecentAirport: (airport: RecentAirport) => void;
   setHomeAirport: (airport: RecentAirport | null) => void;
@@ -125,6 +128,7 @@ export const usePreferences = create<Preferences>()(
       filters: DEFAULT_FILTERS,
       devTab: "training",
       pilotTab: "guide",
+      librarySection: "aircraft",
       navBar: null,
       recentAirports: [],
       homeAirport: null,
@@ -141,6 +145,7 @@ export const usePreferences = create<Preferences>()(
       setFilter: (key, on) => set(s => ({ filters: { ...s.filters, [key]: on } })),
       setDevTab: devTab => set({ devTab }),
       setPilotTab: pilotTab => set({ pilotTab }),
+      setLibrarySection: librarySection => set({ librarySection }),
       setNavBar: navBar => set({ navBar }),
       addRecentAirport: airport => set(s => ({
         recentAirports: [airport, ...s.recentAirports.filter(a => a.ident !== airport.ident)].slice(0, RECENTS),
@@ -162,7 +167,7 @@ export const usePreferences = create<Preferences>()(
       name: "vfr.preferences",
       // The functions are not state; only the values are written.
       partialize: s => ({
-        base: s.base, tac: s.tac, waypoints: s.waypoints, classB: s.classB, tfrs: s.tfrs, minimums: s.minimums, loads: s.loads, keepOffline: s.keepOffline, aircraft: s.aircraft, filters: s.filters, devTab: s.devTab, pilotTab: s.pilotTab, navBar: s.navBar,
+        base: s.base, tac: s.tac, waypoints: s.waypoints, classB: s.classB, tfrs: s.tfrs, minimums: s.minimums, loads: s.loads, keepOffline: s.keepOffline, aircraft: s.aircraft, filters: s.filters, devTab: s.devTab, pilotTab: s.pilotTab, librarySection: s.librarySection, navBar: s.navBar,
         recentAirports: s.recentAirports, homeAirport: s.homeAirport, favoriteAirports: s.favoriteAirports,
       }),
     },

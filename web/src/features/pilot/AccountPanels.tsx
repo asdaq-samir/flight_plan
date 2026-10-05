@@ -4,7 +4,7 @@ import { useForm, type UseFormRegisterReturn } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
-import { Check, CircleMinus, Info, Plane, Plus, Route } from "lucide-react";
+import { Check, CircleMinus, Info, Plus, Route } from "lucide-react";
 import EmptyState from "../../components/EmptyState";
 import IconButton from "../../components/IconButton";
 import { cn } from "cn";
@@ -20,16 +20,12 @@ import { ConsolePages, PageRow } from "../../components/ConsolePages";
 import FlightPage from "./FlightPage";
 import { aircraftKey, choiceOf } from "../../lib/aircraftChoice";
 import { api } from "../../lib/api/client";
-import type { Aircraft, AircraftRequest, FlightSummary, Pilot } from "../../lib/api/types";
+import type { Aircraft, AircraftRequest, FlightSummary } from "../../lib/api/types";
 import { CRUISE_REFERENCE_FT } from "../../lib/performance";
 import { usePreferences } from "../../lib/preferences";
 import { TEXT } from "../../lib/text";
 import { altFt, feet } from "../../lib/units";
 import { LEVEL_TONE, riskLine, type RiskLevel } from "../../lib/frat";
-
-/** Who is signed in, or why nobody is: null signed out, "loading"
- *  while the check is in flight, "error" when it failed. */
-export type PilotState = Pilot | null | "loading" | "error";
 
 // Mirrors springboot-app's own AircraftRequest validation
 // (@NotBlank/@Positive in dto/AircraftRequest.java) so a bad value is
@@ -82,17 +78,11 @@ const EMPTY_AIRCRAFT_FORM: AircraftFormValues = {
  *  ticked, and a tap on another flies that one, as iOS lists Wi-Fi
  *  networks; the ⓘ at a row's end opens its figures to edit (the same
  *  form as a new one's), and delete. The picker under the route offers
- *  the same choice. Nothing here means anything while signed out, so
- *  the panel says that plainly rather than showing an empty list that
- *  looks broken. */
-export function AircraftPanel({ pilot }: { pilot: PilotState }) {
-  const signedIn = pilot !== null && pilot !== "loading" && pilot !== "error";
+ *  the same choice. The Library's (PilotPanel), shown only to someone
+ *  signed in: it says once, for all three, what signing in keeps. */
+export function AircraftPanel() {
   const queryClient = useQueryClient();
-  const { data: list, isLoading } = useQuery({
-    queryKey: ["aircraft"],
-    queryFn: api.aircraft.list,
-    enabled: signedIn,
-  });
+  const { data: list, isLoading } = useQuery({ queryKey: ["aircraft"], queryFn: api.aircraft.list });
   // Which the nav log flies, remembered per browser, and the stock
   // profiles a pilot's own rides on (PlanWorkspace asks the same).
   const flying = usePreferences(s => s.aircraft);
@@ -185,11 +175,7 @@ export function AircraftPanel({ pilot }: { pilot: PilotState }) {
   // group's own, as an iOS page under a segmented control has.
   return (
     <section aria-label="Aircraft">
-      {pilot === null || pilot === "error" ? (
-        <EmptyState icon={<Plane />} title={pilot === "error" ? "Sign-in Unknown" : "No Aircraft"}>
-          {pilot === "error" ? "Your sign-in status could not be checked." : "Sign in to keep your own aeroplanes; the nav log then flies them."}
-        </EmptyState>
-      ) : pilot === "loading" || isLoading ? (
+      {isLoading ? (
         <p role="status" className={cn("px-1 text-muted-foreground", TEXT.note)}>Fetching your aircraft…</p>
       ) : (
         // A grouped list at every width, as iOS lists things: a row per
@@ -381,16 +367,11 @@ function NumberRow({ id, title, unit, placeholder, name, field, error }: {
  *  the app's own sheet. It was an Open and a Delete at every row's
  *  end, and before that a card a flight on a phone and a six-column
  *  table from md up. */
-export function FlightsPanel({ pilot }: { pilot: PilotState }) {
-  const signedIn = pilot !== null && pilot !== "loading" && pilot !== "error";
+export function FlightsPanel() {
   const queryClient = useQueryClient();
   const [flightToDelete, setFlightToDelete] = useState<FlightSummary | null>(null);
   const [editing, setEditing] = useState(false);
-  const { data: list, isLoading, error } = useQuery({
-    queryKey: ["flights"],
-    queryFn: api.flights.list,
-    enabled: signedIn,
-  });
+  const { data: list, isLoading, error } = useQuery({ queryKey: ["flights"], queryFn: api.flights.list });
 
   const remove = useMutation({
     mutationFn: (id: number) => api.flights.remove(id),
@@ -425,11 +406,7 @@ export function FlightsPanel({ pilot }: { pilot: PilotState }) {
   return (
     <ConsolePages back="Flights" pages={pages}>
       <section aria-label="Flights">
-        {pilot === null || pilot === "error" ? (
-          <EmptyState icon={<Route />} title={pilot === "error" ? "Sign-in Unknown" : "No Flights"}>
-            {pilot === "error" ? "Your sign-in status could not be checked." : "Sign in to keep the flights you plan."}
-          </EmptyState>
-        ) : pilot === "loading" || isLoading ? (
+        {isLoading ? (
           <p role="status" className={cn("px-1 text-muted-foreground", TEXT.note)}>Fetching your flights…</p>
         ) : error ? null : list?.length === 0 ? (
           <EmptyState icon={<Route />} title="No Flights">

@@ -119,6 +119,13 @@ export async function closeConsole(page: Page) {
  *  the bottom edge on a phone (shadcn's Drawer). */
 export const consoleSheet = (page: Page) => page.getByTestId("console-sheet");
 
+/** The pilot console's Library, on one of its three: the tab, then the
+ *  segment. */
+export async function library(scope: Page | Locator, section: "Aircraft" | "Flights" | "Logbook") {
+  await scope.getByRole("tab", { name: "Library" }).click();
+  await scope.getByTestId("library-section").getByRole("radio", { name: section }).click();
+}
+
 /** At rest: only its head in sight. */
 export async function expectDrawerClosed(page: Page) {
   await expect(sideDrawer(page)).toHaveAttribute("data-panel", "peek");

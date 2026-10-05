@@ -40,7 +40,7 @@ export function ConsolePages({ back, pages, children }: {
   return (
     <div ref={top}>
       {page ? (
-        <div key={open} className="space-y-4 duration-200 animate-in fade-in slide-in-from-right-4" data-testid="console-page">
+        <div key={open} className="space-y-4 duration-200 animate-in fade-in slide-in-from-right-4" data-slot="console-page" data-testid="console-page">
           <Button type="button" variant="ghost" size="sm" className="-ml-2 gap-0.5 px-1.5" onClick={() => setOpen(null)}>
             <ChevronLeft className="size-5" />
             {back}

@@ -1,11 +1,10 @@
 import { useId, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format, parseISO } from "date-fns";
-import { BookOpen, CircleMinus, GraduationCap, Plus } from "lucide-react";
+import { CircleMinus, GraduationCap, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "cn";
 import { ConsolePages, PageRow } from "../../components/ConsolePages";
-import EmptyState from "../../components/EmptyState";
 import IconButton from "../../components/IconButton";
 import { ListGroup, ListRow } from "../../components/GroupedList";
 import { ResponsivePopover, ResponsivePopoverAnchor, ResponsivePopoverContent, ResponsivePopoverTrigger } from "../../components/ResponsivePopover";
@@ -15,7 +14,6 @@ import { useConfirm } from "../../components/useConfirm";
 import { api } from "../../lib/api/client";
 import type { Currency, LogbookEntry, LogbookEntryRequest } from "../../lib/api/types";
 import { TEXT } from "../../lib/text";
-import type { PilotState } from "./AccountPanels";
 import CheckridePage from "./CheckridePage";
 
 const day = (iso: string) => format(parseISO(iso), "d MMM yyyy");
@@ -91,7 +89,7 @@ function EntryForm({ initial, onSave, saving }: { initial: LogbookEntryRequest; 
 }
 
 /**
- * The pilot's logbook and their currency, the console's Logbook tab:
+ * The pilot's logbook and their currency, the Library's Logbook:
  * where they stand first -- passengers by day and at night (14 CFR
  * 61.57), the flight review (61.56) and the medical, with the two dates
  * they give -- then the totals and the flights, newest first. Add opens
@@ -99,16 +97,15 @@ function EntryForm({ initial, onSave, saving }: { initial: LogbookEntryRequest; 
  * filled in with the aeroplane picked for planning; a row opens it to
  * change; Edit takes one out.
  */
-export function LogbookPanel({ pilot, aircraft }: { pilot: PilotState; aircraft?: string }) {
-  const signedIn = pilot !== null && pilot !== "loading" && pilot !== "error";
+export function LogbookPanel({ aircraft }: { aircraft?: string }) {
   const queryClient = useQueryClient();
   const [adding, setAdding] = useState(false);
   const [changing, setChanging] = useState<LogbookEntry | null>(null);
   const [editing, setEditing] = useState(false);
   const [toDelete, setToDelete] = useState<LogbookEntry | null>(null);
-  const { data: entries, isLoading } = useQuery({ queryKey: ["logbook"], queryFn: api.logbook.list, enabled: signedIn });
-  const { data: currency } = useQuery({ queryKey: ["currency"], queryFn: api.logbook.currency, enabled: signedIn });
-  const { data: training } = useQuery({ queryKey: ["training"], queryFn: api.training.get, enabled: signedIn });
+  const { data: entries, isLoading } = useQuery({ queryKey: ["logbook"], queryFn: api.logbook.list });
+  const { data: currency } = useQuery({ queryKey: ["currency"], queryFn: api.logbook.currency });
+  const { data: training } = useQuery({ queryKey: ["training"], queryFn: api.training.get });
   const refresh = () => {
     void queryClient.invalidateQueries({ queryKey: ["logbook"] });
     void queryClient.invalidateQueries({ queryKey: ["currency"] });
@@ -128,13 +125,6 @@ export function LogbookPanel({ pilot, aircraft }: { pilot: PilotState; aircraft?
     confirmLabel: "Delete", destructive: true, onConfirm: () => { if (toDelete) remove.mutate(toDelete.id); },
   });
 
-  if (!signedIn) {
-    return (
-      <EmptyState icon={<BookOpen />} title={pilot === "error" ? "Sign-in Unknown" : "No Logbook"}>
-        {pilot === "loading" ? "Checking your sign-in…" : "Sign in to keep a logbook and see your currency."}
-      </EmptyState>
-    );
-  }
   const reviewOn = currency?.flightReviewOn ?? null;
   const medicalOn = currency?.medicalExpiresOn ?? null;
   const met = training?.experience.filter(i => i.met).length ?? 0;

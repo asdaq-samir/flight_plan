@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { consoleSheet, openPanel, openSettings } from "./helpers";
+import { consoleSheet, library, openPanel, openSettings } from "./helpers";
 
 /**
  * "Save this flight", at the head of the briefing drawer's sections, for
@@ -83,7 +83,7 @@ test("opening a saved flight puts its route in the header, and Load plans that r
   await page.getByTestId("sidebar-trigger-button").click();
   await page.getByTestId("clear-route").click();
   await page.getByTestId("settings-button").click();
-  await page.getByRole("tab", { name: "Flights" }).click();
+  await library(page, "Flights");
   // The row opens the flight's page; Open on the map is the way in, and
   // it puts the console away.
   await page.getByRole("button", { name: /KMSP → KDLH/ }).click();
@@ -110,7 +110,7 @@ test("Edit over the saved flights puts a minus before each, and the minus delete
   });
   await page.goto("/app/plan");
   await page.getByTestId("settings-button").click();
-  await page.getByRole("tab", { name: "Flights" }).click();
+  await library(page, "Flights");
   // Out of Edit, the row opens the flight's page and there is nothing to
   // delete.
   await expect(page.getByRole("button", { name: /^Delete/ })).toHaveCount(0);

@@ -2,7 +2,7 @@ import type { Aircraft, AircraftChoice, AircraftProfileSummary } from "./api/typ
 import { DEFAULT_AIRCRAFT } from "./preferences";
 
 /** One value per choice: a pilot's own by id, a stock profile by name.
- *  The nav log's picker keys its options on it, and the Aircraft tab
+ *  The nav log's picker keys its options on it, and the Library's Aircraft
  *  ticks the one it matches. */
 export function aircraftKey(a: AircraftChoice): string {
   return a.aircraftId != null ? `mine:${a.aircraftId}` : `profile:${a.profile}`;
@@ -18,7 +18,7 @@ function baseProfile(typeDesignator: string, profiles: AircraftProfileSummary[])
 
 /** A pilot's own aeroplane as the nav log flies it: its figures, on the
  *  stock profile of its type. One place for the picker under the route
- *  and the Aircraft tab, which both choose it. */
+ *  and the Library's Aircraft, which both choose it. */
 export function choiceOf(a: Aircraft, profiles: AircraftProfileSummary[]): AircraftChoice {
   return {
     profile: baseProfile(a.typeDesignator, profiles), label: `${a.tailNumber} · ${a.typeDesignator}`,
