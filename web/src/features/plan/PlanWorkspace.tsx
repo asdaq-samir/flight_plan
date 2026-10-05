@@ -34,6 +34,7 @@ import { Button } from "../../components/ui/button";
 import { RouteCapsule, SearchField, SearchResults } from "../../components/PanelCapsule";
 import RouteProblem from "./components/RouteProblem";
 import { Favorites, FavoritesList } from "../../components/Favorites";
+import Kneeboard from "./components/Kneeboard";
 import FlightBriefingView, { BriefingNotices, PlanningAidNote, SaveFlightButton } from "./components/briefing/FlightBriefingView";
 import FlightInputs from "./components/navlog/FlightInputs";
 import AirspaceCard from "./components/AirspaceCard";
@@ -541,6 +542,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       + `${over > 0 ? `${over} ft over` : "right at"} the obstacle minimum.`;
   })() : null;
 
+  const landedStops = (course?.stops ?? []).filter(stop => stop.kind !== "fix").map(stop => stop.ident);
   const navLog = (
     <NavLogView
       totals={s.totals} nav={s.nav} legs={s.legs}
@@ -604,9 +606,15 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
         nav={s.nav} legs={s.legs}
         dep={planned.dep} dest={planned.dest}
         // The airports landed at: a waypoint has no weather of its own.
-        stops={(course?.stops ?? []).filter(stop => stop.kind !== "fix").map(stop => stop.ident)}
+        stops={landedStops}
         briefing={s.briefing} course={course} totals={s.totals} depart={depart}
         langgraphNarrative={s.langgraphNarrative} crewaiNarrative={s.crewaiNarrative}
+      />
+      {/* Off screen, for Print's Kneeboard card (a portal to the page's body). */}
+      <Kneeboard
+        course={course} selected={selected} legs={s.legs} totals={s.totals} nav={s.nav}
+        briefing={s.briefing.state === "ready" ? s.briefing.data : null} depart={depart}
+        aircraftLabel={aircraft.label} landings={[...new Set([planned.dep, ...landedStops, planned.dest])]}
       />
     </NavLogView>
   );

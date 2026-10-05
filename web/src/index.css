@@ -359,6 +359,21 @@ body:has([data-slot="map-panel"]:not([data-panel="peek"]), [role="dialog"][data-
   }
 }
 
+/* The kneeboard card (Kneeboard): never on screen, and on paper alone,
+   in the briefing's place, when it is what was asked to print
+   (printKneeboard). */
+.kneeboard {
+  display: none;
+}
+@media print {
+  html.print-kneeboard body > *:not(.kneeboard) {
+    display: none !important;
+  }
+  html.print-kneeboard .kneeboard {
+    display: block !important;
+  }
+}
+
 /* A tower's light gun, as the drills show it (DrillPage): flashing is
    on and off, alternating is red then green. Still, with its words, where
    the reader has asked for less motion. */

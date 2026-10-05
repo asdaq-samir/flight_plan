@@ -3,6 +3,8 @@ import { useState } from "react";
 import { cn } from "cn";
 import { ResponsivePopover, ResponsivePopoverContent, ResponsivePopoverTrigger } from "../../../../components/ResponsivePopover";
 import ToolbarButton from "../../../../components/ToolbarButton";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../../../../components/ui/dropdown-menu";
+import { printKneeboard } from "../../../../lib/printKneeboard";
 import { ScrollArea } from "../../../../components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../../../components/ui/tabs";
 import { TEXT } from "../../../../lib/text";
@@ -121,10 +123,18 @@ export default function NavLogActions({ onGenerateNarrative, langgraphNarrative,
           </Tabs>
         </ResponsivePopoverContent>
       </ResponsivePopover>
-      <ToolbarButton
-        text="Print" label="Print the nav log" icon={<Printer />} onClick={() => window.print()}
-        className="print:hidden" data-testid="print-button"
-      />
+      {/* The whole briefing, or the kneeboard card: the nav log, radio
+          and patterns on one half-letter page to fly with. Printed once
+          the menu has gone, so it is not on the paper. */}
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <ToolbarButton text="Print" label="Print the nav log" icon={<Printer />} className="print:hidden" data-testid="print-button" />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="print:hidden">
+          <DropdownMenuItem onSelect={() => setTimeout(() => window.print(), 150)} data-testid="print-briefing">The briefing</DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => setTimeout(printKneeboard, 150)} data-testid="print-kneeboard">Kneeboard card</DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
   );
 }
