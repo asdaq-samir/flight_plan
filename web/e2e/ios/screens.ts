@@ -85,6 +85,29 @@ export const SCREENS: Screen[] = [
       await expect(page.getByRole("heading", { name: "Plan a flight" })).toBeVisible();
     },
   },
+  // The Guide's Practice pages: a drill's card with its answer shown, the
+  // holding page's fields and drawing, the lost-comms page's segments.
+  ...([
+    ["practice, a drill card", "Light gun signals", async (page: Page) => {
+      await page.getByTestId("drill-reveal").click();
+      await expect(page.getByTestId("drill-knew")).toBeVisible();
+    }],
+    ["practice, holding entries", "Holding entries", async (page: Page) => {
+      await expect(page.getByTestId("hold-diagram")).toBeVisible();
+    }],
+    ["practice, lost communications", "Lost communications", async (page: Page) => {
+      await expect(page.getByTestId("lost-segment").first()).toBeVisible();
+    }],
+  ] as const).map(([name, row, open]): Screen => ({
+    name,
+    ready: async page => {
+      await page.goto("/app/plan");
+      await page.getByTestId("settings-button").click();
+      await page.getByRole("tab", { name: "Guide" }).click();
+      await page.getByRole("button", { name: new RegExp(`^${row}`) }).click();
+      await open(page);
+    },
+  })),
   {
     name: "developer console, Guide tab",
     ready: async page => {

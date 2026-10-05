@@ -359,6 +359,18 @@ body:has([data-slot="map-panel"]:not([data-panel="peek"]), [role="dialog"][data-
   }
 }
 
+/* A tower's light gun, as the drills show it (DrillPage): flashing is
+   on and off, alternating is red then green. Still, with its words, where
+   the reader has asked for less motion. */
+@keyframes light-flash {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0.12; }
+}
+@keyframes light-alternate {
+  0%, 49% { background-color: var(--light-a); }
+  50%, 100% { background-color: var(--light-b); }
+}
+
 /* The toasts in the app's typeface: sonner sets its own system stack,
    so on an iPhone they read in San Francisco beside an app in Inter.
    The html selector outranks sonner's, which is injected after this. */
