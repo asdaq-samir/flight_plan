@@ -12,10 +12,10 @@
 # this service and its callers both need to agree on. Pinned to what
 # python:3.13-slim (this service's own base image) currently resolves.
 -r ../src/requirements-charts.txt   # vfr's own list, charts included: this service draws them
-fastapi==0.141.1
-uvicorn[standard]==0.53.0
-boto3==1.43.98      # vfr.charts' S3 publish, used only on AWS
-anthropic==1.6.0   # /api/checkpoint-notes: one Claude call per checkpoint
+fastapi==0.142.2
+uvicorn[standard]==0.54.0
+boto3==1.43.107      # vfr.charts' S3 publish, used only on AWS
+anthropic==1.11.0   # /api/checkpoint-notes: one Claude call per checkpoint
 # Traces to an OTLP collector, only where OTEL_EXPORTER_OTLP_ENDPOINT is
 # set (app.tracing; docker-compose's tracing profile).
 opentelemetry-sdk==1.45.0
