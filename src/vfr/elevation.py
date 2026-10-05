@@ -18,7 +18,6 @@ from pathlib import Path
 import numpy as np
 import requests
 from cachetools import LRUCache
-from PIL import Image
 
 from .geo import destination_point
 from .retry import with_retries
@@ -186,6 +185,13 @@ def _terrain_tile(z: int, x: int, y: int) -> np.ndarray:
         data = resp.content
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(data)
+    # Pillow only here, where a tile is decoded: the planner's airspace
+    # column is its one caller, and Pillow comes with the planner's chart
+    # requirements. vfr.pipeline imports this module for its elevation
+    # cache, in pipeline images that have no Pillow -- imported at the top,
+    # it took both down at build (2026-10-05).
+    from PIL import Image
+
     rgb = np.asarray(Image.open(io.BytesIO(data)).convert("RGB")).astype(np.float64)
     heights = rgb[:, :, 0] * 256 + rgb[:, :, 1] + rgb[:, :, 2] / 256 - 32768
     with _TERRAIN_LOCK:

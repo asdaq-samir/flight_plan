@@ -284,7 +284,11 @@ export function componentFindings(page: Page): Promise<ComponentFinding[]> {
       const svg = button.querySelector("svg");
       if (!svg || !on(button) || button.closest('header, .leaflet-marker-icon, [data-sonner-toaster], [data-slot="tabs-trigger"]')) continue;
       const words = [...button.querySelectorAll("*"), button].some(n => [...n.childNodes].some(c => c.nodeType === 3 && c.textContent!.trim() && !(n as Element).closest(".sr-only")));
-      if (words || button.getAttribute("role") === "combobox") continue;
+      // A button named by words laid over it -- a section's title over its
+      // row-wide accordion trigger (AccordionSection) -- has words: it is
+      // a row with a chevron, not an icon button.
+      const labelled = (button.getAttribute("aria-labelledby") ?? "").split(/\s+/).some(id => (id && document.getElementById(id)?.textContent?.trim()));
+      if (words || labelled || button.getAttribute("role") === "combobox") continue;
       const b = button.getBoundingClientRect(), g = svg.getBoundingClientRect();
       const hit = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2);
       if (!hit || !(hit === button || button.contains(hit))) continue;

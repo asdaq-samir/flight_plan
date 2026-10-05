@@ -251,11 +251,13 @@ body:has([data-slot="map-panel"][data-sheet][data-panel="full"]) [data-map-contr
   --popover-foreground: oklch(0.985 0 0);
   /* The dark theme's tint in two shades: a fill white words read on at
      4.7:1 (#0071E3), and for words and glyphs on the dark surfaces iOS's
-     brighter dark-mode blue (#409CFF), 5.3:1 and more on every grey
-     here, where its standard #0A84FF is 4.2:1 on the muted one. */
+     brighter dark-mode blue (#409CFF), a shade lighter still: 5.3:1 and
+     more on every grey here, and 4.5:1 on a selected row's lighter grey
+     over the panel's glass, where #409CFF itself was 4.47:1 (the nav
+     log's Show the work). Its standard #0A84FF is 4.2:1 on the muted one. */
   --primary: oklch(0.563 0.193 256.2);
   --primary-foreground: oklch(0.985 0 0);
-  --tint: oklch(0.685 0.170 253);
+  --tint: oklch(0.7 0.165 253);
   --secondary: oklch(0.269 0 0);
   --secondary-foreground: oklch(0.985 0 0);
   --muted: oklch(0.269 0 0);

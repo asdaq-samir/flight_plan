@@ -279,7 +279,10 @@ function LegLine({ leg, at }: { leg: Leg; at: { name: string; lat: number; lon: 
     ["Fuel", `${one(leg.fuel_gal)} gal`],
   ];
   return (
-    <div className="mb-1.5 space-y-1 print:hidden">
+    // mb-5: the links' 44-point hit areas (index.css) reach 11 below them,
+    // and the checkpoint's note's own tap band (DescriptionCell's label) 9
+    // above it -- 20 between them, so neither takes the other's taps.
+    <div className="mb-5 space-y-1 print:hidden">
       <dl className="grid grid-cols-[repeat(auto-fill,minmax(3.75rem,1fr))] gap-x-2 gap-y-1">
         {figures.map(([name, value]) => (
           <div key={name}>
