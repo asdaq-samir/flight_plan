@@ -7,6 +7,7 @@ import com.northflyers.vfr.dto.FlightDto;
 import com.northflyers.vfr.dto.FlightSummaryDto;
 import com.northflyers.vfr.dto.RiskAssessmentDto;
 import com.northflyers.vfr.dto.SaveFlightRequest;
+import com.northflyers.vfr.dto.TrackDto;
 import com.northflyers.vfr.service.FlightService;
 import com.northflyers.vfr.service.PilotService;
 import jakarta.validation.Valid;
@@ -17,6 +18,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -46,6 +48,33 @@ public class FlightController {
     public ResponseEntity<FlightDto> save(Authentication authentication, @Valid @RequestBody SaveFlightRequest request) {
         return PilotResponses.withPilot(pilots, authentication, pilot ->
                 ResponseEntity.ok(toDto(flightService.save(pilot, request))));
+    }
+
+    /** One of the pilot's flights, with its nav log: what its debrief
+     *  is read against. */
+    @GetMapping("/{id}")
+    public ResponseEntity<FlightDto> get(Authentication authentication, @PathVariable Long id) {
+        return PilotResponses.withPilot(pilots, authentication, pilot ->
+                flightService.get(pilot, id).map(f -> ResponseEntity.ok(toDto(f))).orElse(ResponseEntity.notFound().build()));
+    }
+
+    /** The flight's track, where the pilot saved one to their account. */
+    @GetMapping("/{id}/track")
+    public ResponseEntity<TrackDto> track(Authentication authentication, @PathVariable Long id) {
+        return PilotResponses.withPilot(pilots, authentication, pilot ->
+                flightService.track(pilot, id).map(ResponseEntity::ok).orElse(ResponseEntity.notFound().build()));
+    }
+
+    @PutMapping("/{id}/track")
+    public ResponseEntity<Void> saveTrack(Authentication authentication, @PathVariable Long id, @Valid @RequestBody TrackDto track) {
+        return PilotResponses.withPilot(pilots, authentication, pilot ->
+                flightService.saveTrack(pilot, id, track) ? ResponseEntity.noContent().build() : ResponseEntity.notFound().build());
+    }
+
+    @DeleteMapping("/{id}/track")
+    public ResponseEntity<Void> deleteTrack(Authentication authentication, @PathVariable Long id) {
+        return PilotResponses.withPilot(pilots, authentication, pilot ->
+                flightService.deleteTrack(pilot, id) ? ResponseEntity.noContent().build() : ResponseEntity.notFound().build());
     }
 
     @DeleteMapping("/{id}")

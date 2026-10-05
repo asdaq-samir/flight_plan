@@ -12,11 +12,12 @@ import { routeName } from "../../lib/identSchema";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { InputGroup, InputGroupAddon, InputGroupInput, InputGroupText } from "../../components/ui/input-group";
-import { SheetClose } from "../../components/ui/sheet";
 import { Spinner } from "../../components/ui/spinner";
 import { ListGroup, ListRow } from "../../components/GroupedList";
 import { ResponsivePopover, ResponsivePopoverContent, ResponsivePopoverTrigger } from "../../components/ResponsivePopover";
 import { useConfirm } from "../../components/useConfirm";
+import { ConsolePages, PageRow } from "../../components/ConsolePages";
+import FlightPage from "./FlightPage";
 import { aircraftKey, choiceOf } from "../../lib/aircraftChoice";
 import { api } from "../../lib/api/client";
 import type { Aircraft, AircraftRequest, FlightSummary, Pilot } from "../../lib/api/types";
@@ -415,68 +416,74 @@ export function FlightsPanel({ pilot }: { pilot: PilotState }) {
     ...(f.cruiseAltitudeFt != null ? { altitude_ft: String(f.cruiseAltitudeFt) } : {}),
   })}`;
 
+  // A page a flight (FlightPage), opened from its row.
+  const pages = Object.fromEntries((list ?? []).map(f => [`flight-${f.id}`, {
+    title: routeName(f.departureIdent, f.destinationIdent, f.stops),
+    content: <FlightPage summary={f} planHref={planHref(f)} />,
+  }]));
+
   return (
-    <section aria-label="Flights">
-      {pilot === null || pilot === "error" ? (
-        <EmptyState icon={<Route />} title={pilot === "error" ? "Sign-in Unknown" : "No Flights"}>
-          {pilot === "error" ? "Your sign-in status could not be checked." : "Sign in to keep the flights you plan."}
-        </EmptyState>
-      ) : pilot === "loading" || isLoading ? (
-        <p role="status" className={cn("px-1 text-muted-foreground", TEXT.note)}>Fetching your flights…</p>
-      ) : error ? null : list?.length === 0 ? (
-        <EmptyState icon={<Route />} title="No Flights">
-          Plan a route, then Save beside it, and the flight is kept here.
-        </EmptyState>
-      ) : (
-        <ListGroup
-          title="Saved flights"
-          action={(
-            <Button
-              type="button" variant="ghost" size="sm"
-              className={cn("-mr-1 h-auto px-1 py-0.5 font-normal text-tint", TEXT.row, editing && "font-semibold")}
-              onClick={() => setEditing(e => !e)} data-testid="flights-edit"
-            >
-              {editing ? "Done" : "Edit"}
-            </Button>
-          )}
-          footer={editing ? "Delete a flight with the minus before it." : "A flight opens on the map at its altitude."}
-        >
-          {(list ?? []).map(f => {
-            const name = routeName(f.departureIdent, f.destinationIdent, f.stops);
-            const row = {
-              title: <>
-                <span className="font-mono font-semibold">{name}</span>
-                {f.aircraftTailNumber && <span className="text-muted-foreground"> {f.aircraftTailNumber}</span>}
-              </>,
-              description: <span className="tabular-nums">
-                {feet(f.cruiseAltitudeFt)}{f.totalDistanceNm != null && ` · ${f.totalDistanceNm.toFixed(1)} nm`} · filed {new Date(f.createdAt).toLocaleDateString()}
-                {/* The risk assessment it was saved with (lib/frat). */}
-                {f.risk && <span className={cn("block", LEVEL_TONE[f.risk.level as RiskLevel])} data-testid="flight-risk">Risk {riskLine(f.risk).toLowerCase()}</span>}
-              </span>,
-            };
-            return editing ? (
-              <ListRow
-                key={f.id} {...row}
-                media={(
-                  <IconButton
-                    label={`Delete ${name}`} className="-ml-1.5 text-destructive"
-                    onClick={() => { setFlightToDelete(f); askDelete(); }} disabled={remove.isPending}
-                  >
-                    <CircleMinus className="size-5 fill-destructive text-white dark:text-background" />
-                  </IconButton>
-                )}
-              />
-            ) : (
-              // Opening it puts the console away, as a tap on a saved
-              // place in Maps closes the sheet onto the map.
-              <SheetClose key={f.id} asChild>
-                <ListRow {...row} to={planHref(f)} />
-              </SheetClose>
-            );
-          })}
-        </ListGroup>
-      )}
-      {deleteDialog}
-    </section>
+    <ConsolePages back="Flights" pages={pages}>
+      <section aria-label="Flights">
+        {pilot === null || pilot === "error" ? (
+          <EmptyState icon={<Route />} title={pilot === "error" ? "Sign-in Unknown" : "No Flights"}>
+            {pilot === "error" ? "Your sign-in status could not be checked." : "Sign in to keep the flights you plan."}
+          </EmptyState>
+        ) : pilot === "loading" || isLoading ? (
+          <p role="status" className={cn("px-1 text-muted-foreground", TEXT.note)}>Fetching your flights…</p>
+        ) : error ? null : list?.length === 0 ? (
+          <EmptyState icon={<Route />} title="No Flights">
+            Plan a route, then Save beside it, and the flight is kept here.
+          </EmptyState>
+        ) : (
+          <ListGroup
+            title="Saved flights"
+            action={(
+              <Button
+                type="button" variant="ghost" size="sm"
+                className={cn("-mr-1 h-auto px-1 py-0.5 font-normal text-tint", TEXT.row, editing && "font-semibold")}
+                onClick={() => setEditing(e => !e)} data-testid="flights-edit"
+              >
+                {editing ? "Done" : "Edit"}
+              </Button>
+            )}
+            footer={editing ? "Delete a flight with the minus before it." : "A flight opens with its nav log, on the map at its altitude, and its debrief from your track."}
+          >
+            {(list ?? []).map(f => {
+              const name = routeName(f.departureIdent, f.destinationIdent, f.stops);
+              const row = {
+                title: <>
+                  <span className="font-mono font-semibold">{name}</span>
+                  {f.aircraftTailNumber && <span className="text-muted-foreground"> {f.aircraftTailNumber}</span>}
+                </>,
+                description: <span className="tabular-nums">
+                  {feet(f.cruiseAltitudeFt)}{f.totalDistanceNm != null && ` · ${f.totalDistanceNm.toFixed(1)} nm`} · filed {new Date(f.createdAt).toLocaleDateString()}
+                  {/* The risk assessment it was saved with (lib/frat). */}
+                  {f.risk && <span className={cn("block", LEVEL_TONE[f.risk.level as RiskLevel])} data-testid="flight-risk">Risk {riskLine(f.risk).toLowerCase()}</span>}
+                </span>,
+              };
+              return editing ? (
+                <ListRow
+                  key={f.id} {...row}
+                  media={(
+                    <IconButton
+                      label={`Delete ${name}`} className="-ml-1.5 text-destructive"
+                      onClick={() => { setFlightToDelete(f); askDelete(); }} disabled={remove.isPending}
+                    >
+                      <CircleMinus className="size-5 fill-destructive text-white dark:text-background" />
+                    </IconButton>
+                  )}
+                />
+              ) : (
+                // Its own page: what was filed, the way back onto the map,
+                // and its debrief.
+                <PageRow key={f.id} page={`flight-${f.id}`} {...row} />
+              );
+            })}
+          </ListGroup>
+        )}
+        {deleteDialog}
+      </section>
+    </ConsolePages>
   );
 }

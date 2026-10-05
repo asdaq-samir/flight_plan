@@ -741,6 +741,51 @@
       "StreamingResponseBody" : {
         "type" : "object"
       },
+      "TrackDto" : {
+        "properties" : {
+          "points" : {
+            "items" : {
+              "$ref" : "#/components/schemas/TrackPointDto"
+            },
+            "maxItems" : 5000,
+            "minItems" : 2,
+            "type" : "array"
+          },
+          "source" : {
+            "maxLength" : 120,
+            "minLength" : 0,
+            "type" : "string"
+          }
+        },
+        "required" : [ "points", "source" ],
+        "type" : "object"
+      },
+      "TrackPointDto" : {
+        "properties" : {
+          "altFt" : {
+            "format" : "double",
+            "type" : [ "number", "null" ]
+          },
+          "lat" : {
+            "format" : "double",
+            "maximum" : 90,
+            "minimum" : -90,
+            "type" : "number"
+          },
+          "lon" : {
+            "format" : "double",
+            "maximum" : 180,
+            "minimum" : -180,
+            "type" : "number"
+          },
+          "t" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "altFt", "lat", "lon", "t" ],
+        "type" : "object"
+      },
       "TrainingDto" : {
         "properties" : {
           "endorsements" : {
@@ -1063,6 +1108,104 @@
             "type" : "integer"
           }
         } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "flight-controller" ]
+      },
+      "get" : {
+        "operationId" : "get_2",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/FlightDto"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "flight-controller" ]
+      }
+    },
+    "/api/flights/{id}/track" : {
+      "delete" : {
+        "operationId" : "deleteTrack",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "flight-controller" ]
+      },
+      "get" : {
+        "operationId" : "track",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TrackDto"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "flight-controller" ]
+      },
+      "put" : {
+        "operationId" : "saveTrack",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/TrackDto"
+              }
+            }
+          },
+          "required" : true
+        },
         "responses" : {
           "200" : {
             "description" : "OK"

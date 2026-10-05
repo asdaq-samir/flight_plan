@@ -84,8 +84,10 @@ test("opening a saved flight puts its route in the header, and Load plans that r
   await page.getByTestId("clear-route").click();
   await page.getByTestId("settings-button").click();
   await page.getByRole("tab", { name: "Flights" }).click();
-  // The row is the way in, and it puts the console away.
-  await page.getByRole("link", { name: /KMSP → KDLH/ }).click();
+  // The row opens the flight's page; Open on the map is the way in, and
+  // it puts the console away.
+  await page.getByRole("button", { name: /KMSP → KDLH/ }).click();
+  await page.getByTestId("flight-open").click();
   await expect(page).toHaveURL(/dep=KMSP/);
   await expect(consoleSheet(page)).toHaveCount(0);
 
@@ -109,7 +111,8 @@ test("Edit over the saved flights puts a minus before each, and the minus delete
   await page.goto("/app/plan");
   await page.getByTestId("settings-button").click();
   await page.getByRole("tab", { name: "Flights" }).click();
-  // Out of Edit, the row opens the flight and there is nothing to delete.
+  // Out of Edit, the row opens the flight's page and there is nothing to
+  // delete.
   await expect(page.getByRole("button", { name: /^Delete/ })).toHaveCount(0);
 
   await page.getByTestId("flights-edit").click();

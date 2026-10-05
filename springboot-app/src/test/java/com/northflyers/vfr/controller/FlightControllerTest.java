@@ -6,12 +6,15 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.oidcLogin;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.northflyers.vfr.domain.Flight;
 import com.northflyers.vfr.domain.FlightCheckpoint;
 import com.northflyers.vfr.domain.Pilot;
+import com.northflyers.vfr.dto.TrackDto;
+import com.northflyers.vfr.dto.TrackPointDto;
 import com.northflyers.vfr.service.FlightService;
 import com.northflyers.vfr.service.PilotService;
 import java.util.List;
@@ -128,6 +131,38 @@ class FlightControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].risk.score").value(9))
                 .andExpect(jsonPath("$[0].risk.factors[1]").value("Somewhere to be by a time"));
+    }
+
+    @Test
+    void oneFlightComesWithItsNavLog_andAnotherPilotsIsNotFound() throws Exception {
+        given(pilotService.current(any())).willReturn(Optional.of(samplePilot()));
+        given(flightService.get(any(), org.mockito.ArgumentMatchers.eq(7L))).willReturn(Optional.of(sampleFlight()));
+        given(flightService.get(any(), org.mockito.ArgumentMatchers.eq(8L))).willReturn(Optional.empty());
+
+        mockMvc.perform(get("/api/flights/7").with(oidcLogin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.checkpoints[0].name").value("C81"));
+        mockMvc.perform(get("/api/flights/8").with(oidcLogin())).andExpect(status().isNotFound());
+    }
+
+    @Test
+    void aTrackIsSavedRead_andOneWithAPointOffTheEarthRefused() throws Exception {
+        given(pilotService.current(any())).willReturn(Optional.of(samplePilot()));
+        given(flightService.saveTrack(any(), any(), any())).willReturn(true);
+        given(flightService.track(any(), any())).willReturn(Optional.of(new TrackDto("flight.gpx", List.of(
+                new TrackPointDto(1L, 42.0, -88.0, 900.0), new TrackPointDto(2L, 42.1, -88.0, null)))));
+        String body = "{\"source\":\"flight.gpx\",\"points\":[{\"t\":1,\"lat\":42,\"lon\":-88,\"altFt\":900},"
+                + "{\"t\":2,\"lat\":%s,\"lon\":-88,\"altFt\":null}]}";
+
+        mockMvc.perform(put("/api/flights/7/track").with(oidcLogin()).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON).content(body.formatted("42.1")))
+                .andExpect(status().isNoContent());
+        mockMvc.perform(put("/api/flights/7/track").with(oidcLogin()).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON).content(body.formatted("95")))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(get("/api/flights/7/track").with(oidcLogin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.points[1].altFt").isEmpty());
     }
 
     @Test

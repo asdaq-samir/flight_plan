@@ -192,6 +192,8 @@ export type AircraftRequest = Webapp["AircraftRequest"];
  *  filed nav log, fetched one flight at a time. */
 export type FlightSummary = Webapp["FlightSummaryDto"];
 export type Flight = Webapp["FlightDto"];
+/** A flight's flown track as saved to the account (lib/track). */
+export type SavedTrack = Webapp["TrackDto"];
 /** One checkpoint of a filed nav log. `altitudeFt` is the altitude of
  *  the leg arriving here -- a plan may step. */
 export type FlightCheckpointRequest = Webapp["SaveFlightCheckpointRequest"];

@@ -7,7 +7,7 @@ import type {
   Flight, FlightSummary, ModelComparison, NarrativeMessage, NarrativeRequest, NavLogMessage, PickDeleted, PickSaved,
   AirspaceAt, ClassBResponse, NearestAirports, RouteProfile, Tfrs, DevServices, DevServiceStarted, Pilot, Rating, RetrainStarted, Role, SaveFlightRequest,
   SignInCapabilities, LogbookEntry, LogbookEntryRequest, Currency, CurrencyDatesRequest,
-  Status, StreamMessage, Totals, WaypointsInView, Training,
+  Status, StreamMessage, Totals, WaypointsInView, Training, SavedTrack,
 } from "./types";
 
 /**
@@ -507,6 +507,20 @@ export const api = {
     save: (request: SaveFlightRequest) => webapp.POST("/api/flights", { body: request }).then(data<Flight>),
     remove: async (id: number): Promise<void> => {
       await webapp.DELETE("/api/flights/{id}", { params: { path: { id } } });
+    },
+    /** One flight with its nav log, for its debrief. */
+    get: (id: number) => webapp.GET("/api/flights/{id}", { params: { path: { id } } }).then(data<Flight>),
+    /** Its track as saved to the account, or null where none is. */
+    track: (id: number): Promise<SavedTrack | null> =>
+      webapp.GET("/api/flights/{id}/track", { params: { path: { id } } }).then(data<SavedTrack>).catch(err => {
+        if (err instanceof ApiError && err.status === 404) return null;
+        throw err;
+      }),
+    saveTrack: async (id: number, track: SavedTrack): Promise<void> => {
+      await webapp.PUT("/api/flights/{id}/track", { params: { path: { id } }, body: track });
+    },
+    deleteTrack: async (id: number): Promise<void> => {
+      await webapp.DELETE("/api/flights/{id}/track", { params: { path: { id } } });
     },
   },
 };

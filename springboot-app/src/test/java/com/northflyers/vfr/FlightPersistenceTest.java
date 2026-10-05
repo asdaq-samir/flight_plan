@@ -10,6 +10,9 @@ import com.northflyers.vfr.domain.Pilot;
 import com.northflyers.vfr.repository.AircraftRepository;
 import com.northflyers.vfr.repository.FlightRepository;
 import com.northflyers.vfr.repository.PilotRepository;
+import com.northflyers.vfr.dto.TrackDto;
+import com.northflyers.vfr.dto.TrackPointDto;
+import com.northflyers.vfr.service.FlightService;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -47,6 +50,9 @@ class FlightPersistenceTest {
 
     @Autowired
     private FlightRepository flights;
+
+    @Autowired
+    private FlightService flightService;
 
     private Pilot newPilot() {
         String unique = UUID.randomUUID().toString();
@@ -86,6 +92,29 @@ class FlightPersistenceTest {
 
         assertThat(found.getStops()).containsExactly("KMSN", "KEAU");
         assertThat(flights.save(new Flight(pilot, null, "C81", "KDLH")).getStops()).isEmpty();
+    }
+
+    @Test
+    void aSavedTrackComesBackWholeIsReplacedAndGoesWithItsFlight() {
+        Pilot pilot = newPilot();
+        Flight flight = flights.save(new Flight(pilot, null, "C81", "KDLH"));
+        List<TrackPointDto> points = List.of(
+                new TrackPointDto(1_790_000_000_000L, 42.3172, -88.0905, 912.0),
+                new TrackPointDto(1_790_000_005_000L, 42.3190, -88.0901, null));
+
+        assertThat(flightService.saveTrack(pilot, flight.getId(), new TrackDto("flight.gpx", points))).isTrue();
+        assertThat(flightService.track(pilot, flight.getId())).hasValueSatisfying(t -> {
+            assertThat(t.source()).isEqualTo("flight.gpx");
+            assertThat(t.points()).containsExactlyElementsOf(points);
+        });
+        flightService.saveTrack(pilot, flight.getId(), new TrackDto("again.kml", points.reversed()));
+        assertThat(flightService.track(pilot, flight.getId()).orElseThrow().source()).isEqualTo("again.kml");
+        // Another pilot's flight is not theirs to read or write.
+        assertThat(flightService.track(newPilot(), flight.getId())).isEmpty();
+        assertThat(flightService.saveTrack(newPilot(), flight.getId(), new TrackDto("x.gpx", points))).isFalse();
+
+        flights.delete(flights.findById(flight.getId()).orElseThrow());
+        assertThat(flightService.track(pilot, flight.getId())).isEmpty();
     }
 
     @Test
