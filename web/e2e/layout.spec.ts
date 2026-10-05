@@ -156,11 +156,15 @@ test.describe("/app/plan", () => {
     expect(departureBox.x - headerBox.x).toBeLessThan(40);
 
     // The grabber on the panel's far edge: the top of a phone's sheet,
-    // the bottom of a card at the top of the screen.
-    const panelBox = (await sideDrawer(page).boundingBox())!;
-    const grabber = (await page.getByTestId("sidebar-trigger-button").boundingBox())!;
-    if (phone) expect(Math.abs(grabber.y - panelBox.y)).toBeLessThan(2);
-    else expect(Math.abs(grabber.y + grabber.height - (panelBox.y + panelBox.height))).toBeLessThan(2);
+    // the bottom of a card at the top of the screen -- once the sheet has
+    // come to rest: measured once, a busy runner caught it moving, 7.6 px
+    // off, then 2.2 and 2.9 on its retries (main's run 37340767548).
+    await expect(async () => {
+      const panelBox = (await sideDrawer(page).boundingBox())!;
+      const grabber = (await page.getByTestId("sidebar-trigger-button").boundingBox())!;
+      if (phone) expect(Math.abs(grabber.y - panelBox.y)).toBeLessThan(2);
+      else expect(Math.abs(grabber.y + grabber.height - (panelBox.y + panelBox.height))).toBeLessThan(2);
+    }).toPass({ timeout: 10_000 });
     // A tap lowers it from half way, and the next opens it all the way.
     await page.getByTestId("sidebar-trigger-button").click();
     await expectDrawerClosed(page);
