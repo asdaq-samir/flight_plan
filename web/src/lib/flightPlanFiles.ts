@@ -88,8 +88,8 @@ export function gpxOf(points: PlanPoint[], name: string): string {
 
 /** A file to the share sheet where the browser can share one (Safari on
  *  an iPhone: "Open in ForeFlight"), otherwise downloaded. */
-export async function shareFile(fileName: string, type: string, text: string): Promise<void> {
-  const file = new File([text], fileName, { type });
+export async function shareFile(fileName: string, type: string, data: string | Uint8Array<ArrayBuffer>): Promise<void> {
+  const file = new File([data], fileName, { type });
   if (navigator.canShare?.({ files: [file] })) {
     await navigator.share({ files: [file], title: fileName });
     return;

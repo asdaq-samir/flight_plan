@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { FileDown, Link2, Printer, Share, TowerControl, X } from "lucide-react";
+import { FileArchive, FileDown, Link2, Printer, Share, TowerControl, X } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../../components/ui/dropdown-menu";
 import { fplOf, gpxOf, shareFile, type PlanPoint } from "../../lib/flightPlanFiles";
+import { contentPack } from "../../lib/foreflightPack";
 import { navLogRows } from "./components/navlog/rows";
 import { toast } from "sonner";
 import { showError } from "../../lib/problems";
@@ -450,6 +451,27 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     }
   }, [course, selected, planned.dep, planned.dest, planned.stops]);
 
+  // The checkpoints as a ForeFlight content pack (lib/foreflightPack):
+  // each a waypoint with its own page, and the course drawn on its map.
+  // The legs where the nav log has them, for the heading and time to each.
+  const exportPack = useCallback(async () => {
+    if (!course) return;
+    const checkpoints = navLogRows(course, selected, s.legs ?? []).flatMap(row => row.kind === "checkpoint" ? [{
+      name: row.cp.name || row.cp.category, category: row.cp.category, lat: row.cp.lat, lon: row.cp.lon,
+      score: row.cp.predicted_score, alongNm: row.cp.along_track_nm,
+      headingDeg: row.leg?.magnetic_heading_deg ?? null, altitudeFt: row.leg?.altitude_ft ?? null, minutesFlown: row.minutesFlown,
+    }] : []);
+    const file = routeName(planned.dep, planned.dest, planned.stops).replace(/[^A-Za-z0-9]+/g, "-").replace(/^-|-$/g, "");
+    try {
+      const pack = await contentPack({
+        dep: planned.dep, dest: planned.dest, stops: planned.stops, line: course.course_line as [number, number][], checkpoints,
+      });
+      await shareFile(`${file}-checkpoints.zip`, "application/zip", pack);
+    } catch (err) {
+      if ((err as Error).name !== "AbortError") showError("Could not make the ForeFlight pack", (err as Error).message);
+    }
+  }, [course, selected, s.legs, planned.dep, planned.dest, planned.stops]);
+
   // A different aeroplane means different legs: remembered, and the
   // nav log's own key changes with it.
   const changeAircraft = useCallback((value: string) => {
@@ -732,6 +754,9 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
               <DropdownMenuItem onSelect={() => void share()}><Link2 />Share link</DropdownMenuItem>
               <DropdownMenuItem onSelect={() => void exportPlan("fpl")} data-testid="export-fpl"><FileDown />Flight plan (.fpl)</DropdownMenuItem>
               <DropdownMenuItem onSelect={() => void exportPlan("gpx")} data-testid="export-gpx"><FileDown />GPX route (.gpx)</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => void exportPack()} disabled={selected.length === 0} data-testid="export-foreflight">
+                <FileArchive />Checkpoints for ForeFlight (.zip)
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         }
