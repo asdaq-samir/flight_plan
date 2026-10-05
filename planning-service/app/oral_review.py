@@ -4,7 +4,8 @@ Asks the examiner (app.oral) a question on each of a spread of the
 Private Pilot ACS's cross-country knowledge elements, about three planned
 flights, and writes each down -- the question, its answer, its key points
 and the passages it quotes, with a line for the instructor's mark -- as
-one Markdown file to read, mark and hand back. Until enough of them are
+one Markdown file to read, mark and hand back, and the same as JSON
+beside it for a page to show. Until enough of them are
 marked right, the mock oral stays the developer's.
 
     docker exec flight_plan-planning-service-1 sh -c \\
@@ -56,35 +57,47 @@ def elements() -> list[dict]:
     return out
 
 
-def sheet(count: int, seed: int = 0) -> str:
+def review(count: int, seed: int = 0) -> dict:
+    """The questions, each asked once: its element, the flight, and what
+    the examiner gave (or why it could not), with the sources' editions."""
     pool = elements()
-    rng = random.Random(seed)
-    picked = rng.sample(pool, min(count, len(pool)))
+    picked = random.Random(seed).sample(pool, min(count, len(pool)))
+    items = []
+    for n, focus in enumerate(picked, 1):
+        plan = PLANS[(n - 1) % len(PLANS)]
+        try:
+            items.append({"n": n, "focus": focus, "plan": plan, **oral.ask(plan, [focus], [])})
+        except oral.OralUnavailable as err:
+            items.append({"n": n, "focus": focus, "plan": plan, "error": str(err)})
+    return {
+        "model": oral.ORAL_MODEL, "made": time.strftime("%Y-%m-%d"), "editions": oral.editions(), "items": items,
+    }
+
+
+def sheet(made: dict) -> str:
+    """The review as Markdown, a question a section with a line for its mark."""
     lines = [
         "# Mock oral review",
         "",
-        f"{len(picked)} questions from the mock oral ({oral.ORAL_MODEL}), "
-        f"{time.strftime('%d %b %Y')}. Sources: {json.dumps(oral.editions())}.",
+        f"{len(made['items'])} questions from the mock oral ({made['model']}), {made['made']}. "
+        f"Sources: {json.dumps(made['editions'])}.",
         "",
         "For each: is the question one an examiner would ask, is the answer right and complete at the private "
         "pilot level, and do the quotes support it? Mark it, and note what is wrong.",
         "",
     ]
-    for n, focus in enumerate(picked, 1):
-        plan = PLANS[(n - 1) % len(PLANS)]
-        try:
-            q = oral.ask(plan, [focus], [])
-        except oral.OralUnavailable as err:
-            lines += [f"## {n}. {focus['code']}", "", f"Not asked: {err}", ""]
+    for q in made["items"]:
+        if "error" in q:
+            lines += [f"## {q['n']}. {q['focus']['code']}", "", f"Not asked: {q['error']}", ""]
             continue
         lines += [
-            f"## {n}. {q['acs_code']}", "",
-            f"**The flight.** {plan.splitlines()[0]}", "",
+            f"## {q['n']}. {q['acs_code']}", "",
+            f"**The flight.** {q['plan'].splitlines()[0]}", "",
             f"**Question.** {q['question']}", "",
             f"**Answer.** {q['model_answer']}", "",
             "**Key points.** " + "; ".join(q["key_points"]), "",
             "**Quoted.**" + (" none survived the check: unsupported" if q["unsupported"] else ""),
-            *[f"- {c['source']}: “{c['quote']}”" for c in q["citations"]], "",
+            *[f"- {c['source']}: \u201c{c['quote']}\u201d" for c in q["citations"]], "",
             "**Mark.** Right / Partly / Wrong. Notes:", "", "---", "",
         ]
     return "\n".join(lines)
@@ -94,10 +107,12 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--count", type=int, default=12)
     parser.add_argument("--seed", type=int, default=0)
-    parser.add_argument("--out", type=Path, required=True)
+    parser.add_argument("--out", type=Path, required=True, help="The Markdown sheet; its JSON beside it, as .json.")
     args = parser.parse_args()
-    args.out.write_text(sheet(args.count, args.seed))
-    print(f"wrote {args.out}")
+    made = review(args.count, args.seed)
+    args.out.write_text(sheet(made))
+    args.out.with_suffix(".json").write_text(json.dumps(made, indent=1))
+    print(f"wrote {args.out} and {args.out.with_suffix('.json')}")
 
 
 if __name__ == "__main__":
