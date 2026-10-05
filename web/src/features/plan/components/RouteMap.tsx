@@ -12,6 +12,7 @@ import { WaypointsLayer } from "../../../lib/map/WaypointsLayer";
 import { TfrLayer } from "../../../lib/map/TfrLayer";
 import { chipColourOf } from "../../../lib/map/flightCategory";
 import { CourseLine } from "../../../lib/map/CourseLine";
+import { FlownTrackLayer } from "../../../lib/map/FlownTrackLayer";
 import { Halo } from "../../../lib/map/Halo";
 import { airportIcon, dotIcon, legPointIcon, waypointIcon } from "../../../lib/map/icons";
 import { FocusOn } from "../../../lib/map/MapEffects";
@@ -320,6 +321,8 @@ export default function RouteMap({
             line={course.course_line as [number, number][]}
             tooltip={`${routeAirports(course, true).map(a => a.ident).join(" → ")} · ${course.distance_nm} nm`}
           />
+          {/* A saved flight's flown track over it, from its debrief. */}
+          <FlownTrackLayer course={course} />
           <Endpoints course={course} weather={airportWeather} onSelectPoint={onSelectPoint} onSelectPlace={onSelectPlace} />
           <LegPoints legs={legs} onSelectPoint={onSelectPoint} />
           <Checkpoints candidates={candidates} selected={selected} onSelectCandidate={onSelectCandidate} />

@@ -83,6 +83,10 @@ describe("a flight debriefed", () => {
     expect(d.legs[1]!.altitudeWithin).toBeGreaterThan(0.75);
     expect(d.legs[1]!.altitudeWithin).toBeLessThan(0.95);
     expect(d.legs[1]!.worstAltFt).toBe(300);
+    // On the map, the two minutes at 3,800 are the off part of the line.
+    const off = d.line.filter(pt => pt.off);
+    expect(off.length).toBeGreaterThan(10);
+    expect(off.every(pt => pt.lat > 42 + 40 / 60 && pt.lat < 42 + 44 / 60)).toBe(true);
   });
 
   test("each checkpoint when it was due and when it was passed, and the pattern", () => {

@@ -1,4 +1,5 @@
 import { cn } from "cn";
+import FlownTrackButton from "./FlownTrackButton";
 import FullscreenButton from "./FullscreenButton";
 import MyPositionButton from "./MyPositionButton";
 import NearestButton from "./NearestButton";
@@ -41,6 +42,8 @@ export default function MapControls({ onSelectPlace }: {
         <MyPositionButton />
         {/* Nearest, while own ship has a position, on the planner. */}
         {onSelectPlace && <NearestButton onSelectPlace={onSelectPlace} />}
+        {/* While a saved flight's flown track is on the chart. */}
+        <FlownTrackButton />
         {/* Draws itself only where full screen actually works: a desktop
             browser and an iPad, never an iPhone. */}
         <FullscreenButton />

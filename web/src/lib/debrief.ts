@@ -149,6 +149,10 @@ export interface Debrief {
    *  plan's, a step a leg. */
   profile: { alongNm: number; altFt: number }[];
   planned: { fromNm: number; toNm: number; altFt: number | null }[];
+  /** The flight as flown, for the map: each point, and whether it was
+   *  outside a tolerance there -- over 3 nm off the route, or over 200 ft
+   *  off the altitude in the cruise. */
+  line: { lat: number; lon: number; off: boolean }[];
   hasAltitude: boolean;
   /** What does not fit, in words: a track from somewhere else, takeoffs
    *  that do not match the stops. */
@@ -189,6 +193,7 @@ export function debrief(flight: Flight, points: TrackPoint[], patterns: Record<s
   const hasAltitude = points.some(p => p.altFt != null);
   const grades = segments.map(() => ({ altW: 0, altIn: 0, worstAlt: null as number | null, courseW: 0, courseIn: 0, worstOff: null as number | null }));
   const profile: Debrief["profile"] = [];
+  const line: Debrief["line"] = [];
   const passed = new Map<number, number>();
   const passes: CheckpointPass[] = [];
   const entries: PatternEntry[] = [];
@@ -247,12 +252,15 @@ export function debrief(flight: Flight, points: TrackPoint[], patterns: Record<s
       // Altitude: in the cruise, and not in a step to a new one.
       const planned = best.to.altitudeFt;
       const stepped = best.index > a && cps[best.index]!.altitudeFt !== planned && sinceLegStart < 3;
+      let off = Math.abs(where.right) > OFF_ROUTE_NM && fromField > 2 && toField > 2;
       if (p.altFt != null && planned != null && p.t >= cruiseFrom && p.t <= cruiseTo && !stepped) {
         const dev = p.altFt - planned;
         g.altW += weight;
         if (Math.abs(dev) <= ALTITUDE_FT) g.altIn += weight;
+        else off = true;
         if (g.worstAlt == null || Math.abs(dev) > Math.abs(g.worstAlt)) g.worstAlt = dev;
       }
+      line.push({ lat: p.lat, lon: p.lon, off });
       if (p.altFt != null) profile.push({ alongNm: along, altFt: p.altFt });
     }
 
@@ -301,13 +309,16 @@ export function debrief(flight: Flight, points: TrackPoint[], patterns: Record<s
   });
   const flownMs = flights.reduce((sum, [a, b], h) => (h > 0 && flights[h - 1]![0] === a ? sum : sum + points[b]!.t - points[a]!.t), 0);
   const plannedMin = cps.slice(1).reduce<number | null>((sum, c) => (sum == null || c.eteMin == null ? null : sum + c.eteMin), 0);
-  // At most 400 points on the profile: it is drawn, not read.
+  // At most 400 points on the profile and 1,500 on the map: they are
+  // drawn, not read. An off point is never thinned out of the map's.
   const stride = Math.max(1, Math.ceil(profile.length / 400));
+  const lineStride = Math.max(1, Math.ceil(line.length / 1500));
   return {
     takeoff: first.t, landing: last.t, flownMin: flownMs / 60_000, plannedMin,
     legs, passes, patterns: entries,
     profile: profile.filter((_, i) => i % stride === 0),
     planned: segments.map(s => ({ fromNm: s.from.alongTrackNm, toNm: s.to.alongTrackNm, altFt: s.to.altitudeFt ?? null })),
+    line: line.filter((pt, i) => pt.off || i % lineStride === 0 || i === line.length - 1),
     hasAltitude, notes,
   };
 }

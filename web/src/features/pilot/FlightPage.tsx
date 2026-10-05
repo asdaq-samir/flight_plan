@@ -13,6 +13,8 @@ import {
 import { LEVEL_TONE, riskLine, type RiskLevel } from "../../lib/frat";
 import { TEXT } from "../../lib/text";
 import { keepTrack, keptTrack, readTrack, thin, TrackError, type TrackPoint } from "../../lib/track";
+import { useFlownTrack } from "../../lib/map/flownTrack";
+import { routeName } from "../../lib/identSchema";
 import { altFt, feet } from "../../lib/units";
 
 /** Minutes as a nav log writes them: "0:18", "1:35". */
@@ -165,7 +167,7 @@ type Track = { source: string; points: TrackPoint[] };
  * on this device unless the pilot saves it to their account, and either
  * can be forgotten.
  */
-function DebriefSection({ flight }: { flight: Flight }) {
+function DebriefSection({ flight, planHref }: { flight: Flight; planHref: string }) {
   const inputId = useId();
   const input = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
@@ -214,6 +216,7 @@ function DebriefSection({ flight }: { flight: Flight }) {
     setLocal(null);
   };
 
+  const showTrack = useFlownTrack(s => s.show);
   const onAccount = !!saved.data;
   return (
     <div className="space-y-4" data-testid="debrief">
@@ -239,6 +242,19 @@ function DebriefSection({ flight }: { flight: Flight }) {
           <ListRow title="Remove from your account" onClick={() => unsave.mutate()} disabled={unsave.isPending} data-testid="debrief-unsave" />
         )}
         {local && <ListRow title="Forget it on this device" onClick={forget} data-testid="debrief-forget" />}
+        {result && (
+          // Onto the chart over its own route, red where it was outside a
+          // tolerance; the map's buttons have its key and Hide.
+          <SheetClose asChild>
+            <ListRow
+              title="Show on the map" to={planHref} data-testid="debrief-show"
+              onClick={() => showTrack({
+                flightId: flight.id, title: routeName(flight.departureIdent, flight.destinationIdent, flight.stops),
+                departure: flight.departureIdent, destination: flight.destinationIdent, line: result.line,
+              })}
+            />
+          </SheetClose>
+        )}
       </ListGroup>
       <input
         ref={input} id={inputId} type="file" className="hidden" accept=".gpx,.kml,application/gpx+xml,application/vnd.google-earth.kml+xml"
@@ -296,7 +312,7 @@ export default function FlightPage({ summary, planHref }: { summary: FlightSumma
       ) : error || !flight ? (
         <p className={cn("px-1 text-red-700 dark:text-red-400", TEXT.prose)}>Its nav log could not be fetched ({error?.message ?? "not found"}).</p>
       ) : (
-        <DebriefSection flight={flight} />
+        <DebriefSection flight={flight} planHref={planHref} />
       )}
     </div>
   );
