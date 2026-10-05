@@ -73,10 +73,12 @@ export default function Kneeboard({ course, selected, legs, totals, nav, briefin
   const route = [course.departure.ident, ...(course.stops ?? []).map(s => s.ident), course.destination.ident].join(" → ");
   return createPortal(
     <section className="kneeboard bg-white font-sans text-[8.5pt] leading-[1.25] text-black" aria-hidden data-testid="kneeboard">
-      <header className="mb-1.5 flex items-baseline justify-between border-b-2 border-black pb-1">
+      {/* A div, not a header: the page has one header, the panel's,
+          which the layout's tests find by its element. */}
+      <div className="mb-1.5 flex items-baseline justify-between border-b-2 border-black pb-1">
         <span className="text-[13pt] font-bold tracking-tight">{route}</span>
         <span>{depart ? format(new Date(depart), "EEE d MMM, HH:mm") : <Blank label="Date" />}</span>
-      </header>
+      </div>
       <p className="mb-1.5">
         {aircraftLabel}
         {altitudes(legs, nav?.altitude_ft) && ` · ${altitudes(legs, nav?.altitude_ft)}`}
