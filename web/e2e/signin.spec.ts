@@ -110,6 +110,10 @@ test("a developer's link lands in dev mode, and the dev console logs out to the 
   await page.waitForURL("**/app/dev**");
   await expect(await devSwitchInSettings(page)).toHaveAttribute("aria-checked", "true");
   await page.keyboard.press("Escape");
+  // Gone, not just closing: a tap on the trigger while the menu animates
+  // out is the closing menu's tap outside as well, and the menu opens and
+  // is dismissed at once -- every time on CI's runners, never here.
+  await expect(page.getByRole("menu")).toHaveCount(0);
   await expect(consoleSheet(page).getByTestId("pilot-address")).toHaveText(DEVELOPER);
   await consoleSheet(page).getByTestId("role-menu").click();
   await page.getByRole("menuitem", { name: "Sign out" }).click();
