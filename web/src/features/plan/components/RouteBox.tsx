@@ -234,7 +234,10 @@ function Pill({ id, ident, waypoint, index, role, removable, onChange, onRemove 
     // reordering (KeyboardSensor).
     <span
       ref={setNodeRef} {...attributes} {...listeners} role="group" aria-label={`${label} ${ident}`}
-      style={{ transform: CSS.Transform.toString(transform), transition }}
+      // Moved, never scaled: across lines the pills differ in width, and
+      // dnd-kit's rect strategy scales one to another's, stretching its ident
+      // and its cross while it is dragged.
+      style={{ transform: CSS.Translate.toString(transform), transition }}
       className={cn(
         // A swipe up or down scrolls the lines; a hold, then a move, drags.
         "inline-flex shrink-0 touch-pan-y items-center rounded-full bg-foreground/8 pr-0.5 select-none",
