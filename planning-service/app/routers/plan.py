@@ -452,26 +452,29 @@ def checkpoints(dep: str, dest: str, stops: str = "") -> Checkpoints:
 
 
 @router.get(
-    "/api/foreflight-pack",
+    "/api/foreflight-pack/{token}/{file}",
     response_class=Response,
     responses={200: {"content": {"application/zip": {}}, "description": "The pack, a ZIP"}},
 )
-def foreflight_pack(dep: str, dest: str, stops: str = "", cp: str = "") -> Response:
+def foreflight_pack(token: str, file: str) -> Response:
     """The route's checkpoints as a ForeFlight content pack (app.foreflight),
     for the web app's Open in ForeFlight link to hand ForeFlight, or to
-    download. `cp` is the checkpoints as the nav log has them, so the pack
-    is what the pilot saw: each ``lat,lon,kind,score,along_nm`` and the
-    leg flown to it, ``,heading,altitude_ft,minutes``, where the nav log
-    has worked one out; ``~`` between them. A 422 for one it cannot read."""
-    r = load_route(dep, dest, stops)
+    download. `token` is the route and its checkpoints as the nav log has
+    them, so the pack is what the pilot saw (foreflight.token: dep, dest,
+    stops and cp, each checkpoint ``lat,lon,kind,score,along_nm`` and the
+    leg flown to it, ``,heading,altitude_ft,minutes``, ``~`` between
+    them); `file`, the pack's name, which ForeFlight takes from the end of
+    the address. A 422 for a token or a checkpoint it cannot read."""
     try:
-        checkpoints = foreflight.parse_checkpoints(cp)
+        query = foreflight.read_token(token)
+        checkpoints = foreflight.parse_checkpoints(query["cp"])
     except ValueError as e:
-        raise HTTPException(422, f"The checkpoints in the address: {e}") from None
+        raise HTTPException(422, f"The pack's address: {e}") from None
+    r = load_route(query["dep"], query["dest"], query["stops"])
     files = foreflight.pack_files(list(r.idents), route_line(r), checkpoints, datetime.now(timezone.utc))
     return Response(
         foreflight.pack_zip(files), media_type="application/zip",
-        headers={"Content-Disposition": f'attachment; filename="{"-".join(r.idents)}-checkpoints.zip"'},
+        headers={"Content-Disposition": f'attachment; filename="{foreflight.file_name(list(r.idents))}"'},
     )
 
 

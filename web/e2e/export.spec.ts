@@ -35,8 +35,8 @@ test("the checkpoints go to ForeFlight: its own link to the planner's pack, and 
   const link = new URL((await page.getByTestId("open-foreflight").getAttribute("href"))!);
   expect(link.origin + link.pathname).toBe("https://foreflight.com/content");
   const packUrl = new URL(link.searchParams.get("downloadURL")!);
-  expect(packUrl.pathname).toBe("/api/planner/foreflight-pack");
-  expect(packUrl.searchParams.get("cp")!.split("~").length).toBeGreaterThan(0);
+  // Ending in the pack's name, which ForeFlight names the download by.
+  expect(packUrl.pathname).toMatch(/^\/api\/planner\/foreflight-pack\/[A-Za-z0-9_-]+\/C81-KDLH-checkpoints\.zip$/);
 
   const download = page.waitForEvent("download");
   await page.getByTestId("export-foreflight").click();

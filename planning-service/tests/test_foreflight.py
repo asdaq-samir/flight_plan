@@ -81,8 +81,22 @@ def test_a_checkpoint_it_cannot_read_is_refused(bad):
         foreflight.parse_checkpoints(bad)
 
 
+def _pack_url(cp=CHECKPOINTS):
+    return f"/api/foreflight-pack/{foreflight.token('C81', 'KDLH', '', cp)}/C81-KDLH-checkpoints.zip"
+
+
+def test_the_address_ends_in_the_packs_name_and_carries_the_route_in_a_token():
+    # ForeFlight names a download by the end of its address, query and all.
+    assert foreflight.read_token(foreflight.token("C81", "KDLH", "KRYV", CHECKPOINTS)) == {
+        "dep": "C81", "dest": "KDLH", "stops": "KRYV", "cp": CHECKPOINTS,
+    }
+    for bad in ("!!!", foreflight.token("", "KDLH", "", "")):
+        with pytest.raises(ValueError):
+            foreflight.read_token(bad)
+
+
 def test_the_link_downloads_the_zip_each_folder_an_entry_of_its_own():
-    resp = client.get("/api/foreflight-pack", params={"dep": "C81", "dest": "KDLH", "cp": CHECKPOINTS})
+    resp = client.get(_pack_url())
     assert resp.status_code == 200
     assert resp.headers["content-type"] == "application/zip"
     assert resp.headers["content-disposition"] == 'attachment; filename="C81-KDLH-checkpoints.zip"'
@@ -91,7 +105,8 @@ def test_the_link_downloads_the_zip_each_folder_an_entry_of_its_own():
     assert "Wingtip-C81-DLH/navdata/C81DLH01Checkpoint 1 of 3, Town.txt" in names
 
 
-def test_a_bad_checkpoint_in_the_link_is_a_422():
-    resp = client.get("/api/foreflight-pack", params={"dep": "C81", "dest": "KDLH", "cp": "42,-88,volcano,5,1"})
+def test_a_bad_checkpoint_or_token_in_the_link_is_a_422():
+    resp = client.get(_pack_url("42,-88,volcano,5,1"))
     assert resp.status_code == 422
     assert "volcano" in resp.json()["detail"]
+    assert client.get("/api/foreflight-pack/!!!/x.zip").status_code == 422

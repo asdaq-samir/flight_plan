@@ -3,7 +3,11 @@
 ForeFlight downloads itself from an "Open in ForeFlight" link
 (https://foreflight.com/content?downloadURL=...), or imports from Files.
 It is built here, not in the browser, because that link needs an address
-ForeFlight can fetch.
+ForeFlight can fetch -- one that ends in the pack's file name: ForeFlight
+names a download by the end of its address, query and all, and a pack
+asked for as ``foreflight-pack?dep=...`` came in under that name and was
+refused. So the route and its checkpoints ride in the path, as one token
+(``token``), ahead of the file name.
 
 - ``navdata/``: each checkpoint a waypoint, usable in ForeFlight's route
   editor and on its map, with a page of its own beside it -- what it is,
@@ -20,10 +24,12 @@ within Garmin's six characters.
 """
 from __future__ import annotations
 
+import base64
 import io
 import json
 import re
 import zipfile
+from urllib.parse import parse_qs, urlencode
 from dataclasses import dataclass
 from datetime import datetime
 from html import escape
@@ -89,6 +95,31 @@ def parse_checkpoints(text: str) -> list[PackCheckpoint]:
     if len(out) > MAX_CHECKPOINTS:
         raise ValueError(f"{len(out)} checkpoints, more than {MAX_CHECKPOINTS}")
     return out
+
+
+def token(dep: str, dest: str, stops: str, cp: str) -> str:
+    """The route and its checkpoints as one path segment: the query they
+    would make, base64url without its padding (the web app's packPath
+    writes the same)."""
+    query = urlencode({"dep": dep, "dest": dest, "stops": stops, "cp": cp})
+    return base64.urlsafe_b64encode(query.encode()).decode().rstrip("=")
+
+
+def read_token(text: str) -> dict[str, str]:
+    """`token` read back: dep, dest, stops and cp. A ValueError for one
+    that is not a token, or names no route."""
+    try:
+        query = base64.urlsafe_b64decode(text + "=" * (-len(text) % 4)).decode()
+    except (ValueError, UnicodeDecodeError):
+        raise ValueError("not a pack's address") from None
+    fields = {k: v[0] for k, v in parse_qs(query, keep_blank_values=True).items()}
+    if not fields.get("dep") or not fields.get("dest"):
+        raise ValueError("no route in the pack's address")
+    return {"dep": fields["dep"], "dest": fields["dest"], "stops": fields.get("stops", ""), "cp": fields.get("cp", "")}
+
+
+def file_name(idents: list[str]) -> str:
+    return f"{'-'.join(idents)}-checkpoints.zip"
 
 
 def short(ident: str) -> str:

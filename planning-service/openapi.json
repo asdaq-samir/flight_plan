@@ -8144,46 +8144,26 @@
         "summary": "Start Dev Service"
       }
     },
-    "/api/foreflight-pack": {
+    "/api/foreflight-pack/{token}/{file}": {
       "get": {
-        "description": "The route's checkpoints as a ForeFlight content pack (app.foreflight),\nfor the web app's Open in ForeFlight link to hand ForeFlight, or to\ndownload. `cp` is the checkpoints as the nav log has them, so the pack\nis what the pilot saw: each ``lat,lon,kind,score,along_nm`` and the\nleg flown to it, ``,heading,altitude_ft,minutes``, where the nav log\nhas worked one out; ``~`` between them. A 422 for one it cannot read.",
-        "operationId": "foreflight_pack_api_foreflight_pack_get",
+        "description": "The route's checkpoints as a ForeFlight content pack (app.foreflight),\nfor the web app's Open in ForeFlight link to hand ForeFlight, or to\ndownload. `token` is the route and its checkpoints as the nav log has\nthem, so the pack is what the pilot saw (foreflight.token: dep, dest,\nstops and cp, each checkpoint ``lat,lon,kind,score,along_nm`` and the\nleg flown to it, ``,heading,altitude_ft,minutes``, ``~`` between\nthem); `file`, the pack's name, which ForeFlight takes from the end of\nthe address. A 422 for a token or a checkpoint it cannot read.",
+        "operationId": "foreflight_pack_api_foreflight_pack__token___file__get",
         "parameters": [
           {
-            "in": "query",
-            "name": "dep",
+            "in": "path",
+            "name": "token",
             "required": true,
             "schema": {
-              "title": "Dep",
+              "title": "Token",
               "type": "string"
             }
           },
           {
-            "in": "query",
-            "name": "dest",
+            "in": "path",
+            "name": "file",
             "required": true,
             "schema": {
-              "title": "Dest",
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "stops",
-            "required": false,
-            "schema": {
-              "default": "",
-              "title": "Stops",
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "cp",
-            "required": false,
-            "schema": {
-              "default": "",
-              "title": "Cp",
+              "title": "File",
               "type": "string"
             }
           }

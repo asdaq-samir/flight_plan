@@ -59,7 +59,7 @@ public class PlannerProxyController {
      *  upstream's Cache-Control -- see {@link #forward}. */
     private static final String TILE_PATH = "/api/chart-tile/";
     /** The ForeFlight pack: a file, its name in Content-Disposition. */
-    private static final String PACK_PATH = "/api/foreflight-pack";
+    private static final String PACK_PATH = "/api/foreflight-pack/";
 
     private record Route(String method, PathPattern pattern) {
         boolean matches(String method, PathContainer path) {
@@ -84,7 +84,7 @@ public class PlannerProxyController {
             route("GET", "/api/chart"),
             route("GET", "/api/course"),
             route("GET", "/api/checkpoints"),
-            route("GET", PACK_PATH),
+            route("GET", PACK_PATH + "{token}/{file}"),
             route("GET", "/api/navlog"),
             route("GET", "/api/local-flight"),
             route("GET", "/api/briefing"),
@@ -211,7 +211,7 @@ public class PlannerProxyController {
             }
             // The pack's file name, which a download (and ForeFlight's
             // list of packs) shows; nothing else here names a file.
-            if (path.equals(PACK_PATH)) {
+            if (path.startsWith(PACK_PATH)) {
                 response.headers().firstValue(HttpHeaders.CONTENT_DISPOSITION)
                         .ifPresent(value -> builder.header(HttpHeaders.CONTENT_DISPOSITION, value));
             }
