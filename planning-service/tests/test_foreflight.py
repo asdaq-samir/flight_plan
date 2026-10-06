@@ -11,8 +11,16 @@ from fastapi.testclient import TestClient
 
 from app import foreflight
 from app.main import app
+from vfr import places
 
 client = TestClient(app)
+
+
+@pytest.fixture(autouse=True)
+def _no_place_names(monkeypatch):
+    """Checkpoints by their kind and number, whether or not another test
+    loaded the place names; the names' own test sets a table of its own."""
+    monkeypatch.setattr(places, "_TABLE", None)
 
 CHECKPOINTS = "42.372,-88.0928,town,5,2.9,322,4500,2.4~42.9773,-88.6116,water,3.18,45.8~43.1313,-88.7558,road_or_rail,2.62,57,,,"
 
@@ -23,7 +31,7 @@ def _files():
 
 
 def test_waypoint_names_follow_foreflights_rules_and_name_the_route():
-    names = foreflight.waypoint_names("C81", "KDLH", 3)
+    names = foreflight.waypoint_names("C81", "KDLH", foreflight.parse_checkpoints(CHECKPOINTS))
     assert names == ["C81DLH01", "C81DLH02", "C81DLH03"]
     for name in names:
         # Capitals, one word, at least three characters, a letter among them.
@@ -139,3 +147,18 @@ def test_its_folders_can_be_opened_and_its_files_read_once_unzipped():
             assert mode == 0o40755 and info.external_attr & 0x10
         else:
             assert mode == 0o100644
+
+
+def test_a_named_place_is_the_waypoints_name_and_a_name_twice_gets_a_number(tmp_path, monkeypatch):
+    text = ("feature_id|feature_name|feature_class|prim_lat_dec|prim_long_dec\n"
+            "1|Village of Lake Zurich|Civil|42.372|-88.0928\n")
+    places.prepare(io.StringIO(text), tmp_path / "places.csv")
+    monkeypatch.setattr(places, "_TABLE", places._load(tmp_path / "places.csv"))
+    cps = foreflight.parse_checkpoints("42.372,-88.0928,town,5,2.9~42.3721,-88.0929,town,4,3.0~42.9773,-88.6116,water,3.18,45.8")
+    # The place's name, as ForeFlight then shows it on its map and in a
+    # flight plan; a lake the names do not know, the route and its number.
+    assert foreflight.waypoint_names("C81", "KDLH", cps) == ["LAKE_ZURICH", "LAKE_ZURICH_2", "C81DLH03"]
+    files = foreflight.pack_files(["C81", "KDLH"], [[42.32, -88.09], [46.84, -92.19]], cps)
+    page = files["C81-KDLH-checkpoints/navdata/LAKE_ZURICHCheckpoint 1 of 3, Lake Zurich.txt"]
+    assert "<h2 style=\"margin: 0 0 4px;\">Lake Zurich</h2>" in page
+    assert "<description>Town, 5.0/5, 3 nm</description>" in files["C81-KDLH-checkpoints/navdata/Checkpoints.kml"]

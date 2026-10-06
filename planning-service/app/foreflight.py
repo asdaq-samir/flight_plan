@@ -33,6 +33,8 @@ from urllib.parse import parse_qs, urlencode
 from dataclasses import dataclass
 from html import escape
 
+from vfr import places
+
 from .scoring import KIND_NAMES
 
 #: What to look for, by the chart's kind of thing.
@@ -64,8 +66,15 @@ class PackCheckpoint:
     minutes_flown: float | None = None
 
     @property
-    def name(self) -> str:
+    def kind(self) -> str:
+        """The chart's kind in words: "Town", "Lake"."""
         return KIND_NAMES.get(self.category, self.category)
+
+    @property
+    def name(self) -> str:
+        """As the planner names it (app.scoring): the place where the place
+        names know it, "Lake Zurich", else its kind."""
+        return places.checkpoint_name(self.category, self.lat, self.lon) or self.kind
 
 
 def parse_checkpoints(text: str) -> list[PackCheckpoint]:
@@ -128,16 +137,30 @@ def short(ident: str) -> str:
     return upper[1:] if len(upper) == 4 and upper.startswith("K") else upper
 
 
-def waypoint_names(dep: str, dest: str, count: int) -> list[str]:
-    """Each checkpoint's waypoint name, in order: C81DLH01, C81DLH02..."""
-    width = max(2, len(str(count)))
-    return [f"{short(dep)}{short(dest)}{i + 1:0{width}d}" for i in range(count)]
+def waypoint_names(dep: str, dest: str, cps: list[PackCheckpoint]) -> list[str]:
+    """Each checkpoint's waypoint name, in order, by ForeFlight's rules
+    (capitals, one word, three characters with a letter): its place's name
+    where it has one -- LAKE_ZURICH, RIVER_NEAR_SPRINGFIELD -- which is what
+    ForeFlight then shows on its map and in a flight plan naming it; else
+    the route's ends and its number, C81DLH03, as a bare "Lake" would be
+    the same name in every pack. A name twice in one route gets _2."""
+    width = max(2, len(str(len(cps))))
+    names: list[str] = []
+    for i, cp in enumerate(cps):
+        place = re.sub(r"[^A-Z0-9]+", "_", cp.name.upper()).strip("_") if cp.name != cp.kind else ""
+        name = place if len(place) >= 3 and re.search(r"[A-Z]", place) else f"{short(dep)}{short(dest)}{i + 1:0{width}d}"
+        base, n = name, 2
+        while name in names:
+            name, n = f"{base}_{n}", n + 1
+        names.append(name)
+    return names
 
 
 def description(cp: PackCheckpoint) -> str:
     """The line ForeFlight shows beside a waypoint, inside the 30 to 40
-    characters it shows: "Lake, 3.2/5, 46 nm"."""
-    return f"{cp.name}, {cp.score:.1f}/5, {round(cp.along_nm)} nm"
+    characters it shows -- its kind, as the name is the place's: "Lake,
+    3.2/5, 46 nm"."""
+    return f"{cp.kind}, {cp.score:.1f}/5, {round(cp.along_nm)} nm"
 
 
 def heading(deg: float) -> str:
@@ -212,7 +235,7 @@ def pack_files(idents: list[str], line: list, cps: list[PackCheckpoint]) -> dict
     Nothing in it is the time it was made: ForeFlight asks for one address
     several times over, and each answer must be the same bytes."""
     dep, dest = idents[0], idents[-1]
-    names = waypoint_names(dep, dest, len(cps))
+    names = waypoint_names(dep, dest, cps)
     folder = folder_name(idents)
     title = " → ".join(idents)
     files = {

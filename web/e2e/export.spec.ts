@@ -46,6 +46,7 @@ test("the route goes to ForeFlight: its own link with the checkpoints in the fli
   // waypoint, named for it, and the course layer.
   const bytes = await (await file.createReadStream()).toArray().then(chunks => Buffer.concat(chunks));
   expect(bytes.subarray(0, 2).toString()).toBe("PK");
-  expect(bytes.includes("C81-KDLH-checkpoints/navdata/C81DLH01Checkpoint 1 of ")).toBe(true);
+  // Named for its place where the place names know it, else the route and its number.
+  expect(bytes.toString("latin1")).toMatch(/C81-KDLH-checkpoints\/navdata\/[A-Z0-9_]{3,}Checkpoint 1 of /);
   expect(bytes.includes("C81-KDLH-checkpoints/layers/C81-DLH course.kml")).toBe(true);
 });
