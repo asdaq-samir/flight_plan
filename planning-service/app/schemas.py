@@ -117,6 +117,10 @@ class Candidate(BaseModel):
     selected: bool
     #: Which hop of a route with stops it is on, from 0 (app.common.Route).
     hop: int = 0
+    #: A selected checkpoint's waypoint name in the route's ForeFlight pack
+    #: (app.foreflight.waypoint_names: LAKE_ZURICH), for a flight plan to
+    #: name it by; None for a candidate not selected.
+    waypoint: str | None = None
 
 
 class Checkpoints(BaseModel):

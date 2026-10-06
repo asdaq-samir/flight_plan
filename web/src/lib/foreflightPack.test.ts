@@ -1,5 +1,5 @@
-import { describe, expect, test } from "vitest";
-import { openInForeFlight, packOrigin, packPath } from "./foreflightPack";
+import { describe, expect, test, vi } from "vitest";
+import { markPackSent, openInForeFlight, packOrigin, packPath, packSent } from "./foreflightPack";
 
 describe("the route's checkpoints for ForeFlight", () => {
   test("the pack's address is the route and the pack's name, short as ForeFlight needs it", () => {
@@ -17,5 +17,16 @@ describe("the route's checkpoints for ForeFlight", () => {
     const link = new URL(openInForeFlight("https://planner.example/api/planner/foreflight-pack/abc/C81-KDLH-checkpoints.zip"));
     expect(link.origin + link.pathname).toBe("https://foreflight.com/content");
     expect(link.searchParams.get("downloadURL")).toBe("https://planner.example/api/planner/foreflight-pack/abc/C81-KDLH-checkpoints.zip");
+  });
+
+  test("a route's pack, once sent, is remembered with its names; other names are another pack", () => {
+    const kept = new Map<string, string>();
+    vi.stubGlobal("localStorage", { getItem: (k: string) => kept.get(k) ?? null, setItem: (k: string, v: string) => kept.set(k, v) });
+    expect(packSent("C81-KDLH", ["LAKE_ZURICH"])).toBe(false);
+    markPackSent("C81-KDLH", ["LAKE_ZURICH"]);
+    expect(packSent("C81-KDLH", ["LAKE_ZURICH"])).toBe(true);
+    expect(packSent("C81-KDLH", ["LAKE_ZURICH", "JOHNSBURG"])).toBe(false);
+    expect(packSent("C81-KDLH", [])).toBe(false);
+    vi.unstubAllGlobals();
   });
 });

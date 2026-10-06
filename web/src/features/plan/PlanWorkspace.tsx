@@ -4,7 +4,7 @@ import { format } from "date-fns";
 import { FileArchive, FileDown, Link2, MapPinned, Printer, Send, Share, TowerControl, X } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../../components/ui/dropdown-menu";
 import { foreflightRoute, fplOf, gpxOf, shareFile, type PlanPoint } from "../../lib/flightPlanFiles";
-import { openInForeFlight, packOrigin, packPath } from "../../lib/foreflightPack";
+import { markPackSent, openInForeFlight, packOrigin, packPath, packSent } from "../../lib/foreflightPack";
 import { navLogRows } from "./components/navlog/rows";
 import { toast } from "sonner";
 import { showError } from "../../lib/problems";
@@ -436,7 +436,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // each checkpoint, stop and the destination, as the nav log lists them
   // (lib/flightPlanFiles).
   const points = useMemo((): PlanPoint[] => !course ? [] : navLogRows(course, selected, []).flatMap((row): PlanPoint[] => {
-    if (row.kind === "checkpoint") return [{ ident: "", name: row.cp.name || row.cp.category, kind: "checkpoint", lat: row.cp.lat, lon: row.cp.lon }];
+    if (row.kind === "checkpoint") return [{ ident: "", name: row.cp.name || row.cp.category, kind: "checkpoint", lat: row.cp.lat, lon: row.cp.lon, waypoint: row.cp.waypoint }];
     if (row.kind === "toc" || row.kind === "tod") return [];
     return [{ ident: row.airport.ident, name: row.airport.name ?? row.airport.ident, kind: row.airport.kind === "fix" ? "fix" : "airport", lat: row.airport.lat, lon: row.airport.lon }];
   }), [course, selected]);
@@ -457,6 +457,23 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // (lib/foreflightPack): each a waypoint with its own page, and the course
   // drawn on its map, for ForeFlight's own link or to download.
   const packHref = selected.length ? packPath(planned.dep, planned.dest, planned.stops) : null;
+  // Open in ForeFlight is one button for the two hand-offs ForeFlight
+  // needs: the pack first, the first time a route goes there from this
+  // device, then the route itself, its checkpoints by their names in the
+  // pack (CONTPACK@LAKE_ZURICH) -- ForeFlight takes no route and pack in
+  // one. The pilot asked for one step; it is one button, tapped twice the
+  // first time and once after.
+  const packRoute = [planned.dep, ...planned.stops, planned.dest].join("-");
+  const packNames = selected.map(c => c.waypoint ?? "");
+  const [, packChanged] = useState(0);
+  const sentPack = packHref !== null && packSent(packRoute, packNames);
+  const sendPack = () => {
+    markPackSent(packRoute, packNames);
+    // The button's own link changes after the tap has followed it: changed
+    // at once, the tap followed the new one, the route's.
+    window.setTimeout(() => packChanged(n => n + 1), 0);
+    toast.info("Sending the checkpoints to ForeFlight. When it has added them, tap Open in ForeFlight again for the route, the checkpoints by name.");
+  };
 
   // A different aeroplane means different legs: remembered, and the
   // nav log's own key changes with it.
@@ -742,14 +759,21 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
               <DropdownMenuItem onSelect={() => void exportPlan("gpx")} data-testid="export-gpx"><FileDown />GPX route (.gpx)</DropdownMenuItem>
               {/* Links, not handlers: ForeFlight opens from a tap on its
                   own link, and a download needs one too. */}
-              {points.length > 0 && (
+              {points.length > 0 && (packHref && !sentPack ? (
                 <DropdownMenuItem asChild data-testid="open-foreflight">
-                  <a href={foreflightRoute(points, s.nav?.altitude_ft)}><Send />Open in ForeFlight</a>
+                  <a href={openInForeFlight(new URL(packHref, packOrigin(window.location)).href)} onClick={sendPack}>
+                    <Send />Open in ForeFlight
+                  </a>
                 </DropdownMenuItem>
-              )}
-              {packHref && (
+              ) : (
+                <DropdownMenuItem asChild data-testid="open-foreflight">
+                  <a href={foreflightRoute(points, s.nav?.altitude_ft, sentPack)}><Send />Open in ForeFlight</a>
+                </DropdownMenuItem>
+              ))}
+              {/* Sent once and since deleted in ForeFlight: again. */}
+              {packHref && sentPack && (
                 <DropdownMenuItem asChild data-testid="foreflight-pack">
-                  <a href={openInForeFlight(new URL(packHref, packOrigin(window.location)).href)}><MapPinned />Add checkpoints to ForeFlight</a>
+                  <a href={openInForeFlight(new URL(packHref, packOrigin(window.location)).href)}><MapPinned />Send the checkpoints again</a>
                 </DropdownMenuItem>
               )}
               {packHref && (

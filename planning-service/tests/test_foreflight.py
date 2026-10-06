@@ -156,3 +156,12 @@ def test_a_named_place_is_the_waypoints_name_and_a_name_twice_gets_a_number(tmp_
     page = files["C81-KDLH-checkpoints/navdata/LAKE_ZURICHCheckpoint 1 of 3, Lake Zurich.txt"]
     assert "<h2 style=\"margin: 0 0 4px;\">Lake Zurich</h2>" in page
     assert "<description>Town, 5.0/5, 3 nm</description>" in files["C81-KDLH-checkpoints/navdata/Checkpoints.kml"]
+
+
+def test_the_checkpoints_carry_their_names_in_the_pack():
+    # The flight plan link names a checkpoint as the pack does.
+    selected = client.get("/api/checkpoints", params={"dep": "C81", "dest": "KDLH"}).json()["selected"]
+    names = foreflight.waypoint_names("C81", "KDLH", foreflight.from_candidates(selected))
+    assert [c["waypoint"] for c in selected] == names
+    pack = zipfile.ZipFile(io.BytesIO(client.get(PACK_URL).content)).read("C81-KDLH-checkpoints/navdata/Checkpoints.kml").decode()
+    assert all(f"<name>{name}</name>" in pack for name in names)

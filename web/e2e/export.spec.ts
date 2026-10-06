@@ -27,16 +27,25 @@ test("the route exports as a Garmin flight plan through its checkpoints", async 
   expect(text).toContain("<waypoint-identifier>CP01</waypoint-identifier>");
 });
 
-test("the route goes to ForeFlight: its own link with the checkpoints in the flight plan, and the checkpoints' pack to download", async ({ page }) => {
+test("the route goes to ForeFlight in one button: its checkpoints' pack the first time, then the route by their names", async ({ page }) => {
   await routeWithCheckpoints(page);
   await page.getByTestId("share-route").click();
-  // ForeFlight's maps link: the route in order, each checkpoint at its place.
-  const link = (await page.getByTestId("open-foreflight").getAttribute("href"))!;
-  expect(link).toMatch(/^foreflightmobile:\/\/maps\/search\?q=C81\+(-?\d+\.\d{4}\/-?\d+\.\d{4}\+)+KDLH(\+\d+ft)?$/);
-  // And ForeFlight's content-pack link, to the pack on this server.
-  const packLink = new URL((await page.getByTestId("foreflight-pack").getAttribute("href"))!);
+  // The first time, ForeFlight's content-pack link, to the pack on this server.
+  const open = page.getByTestId("open-foreflight");
+  const packLink = new URL((await open.getAttribute("href"))!);
   expect(packLink.origin + packLink.pathname).toBe("https://foreflight.com/content");
   expect(new URL(packLink.searchParams.get("downloadURL")!).pathname).toMatch(/\/C81-KDLH-checkpoints\.zip$/);
+  await page.route(url => url.hostname === "foreflight.com", route => route.fulfill({ status: 200, contentType: "text/html", body: "ForeFlight" }));
+  await open.click();
+  await expect(page).toHaveURL(/foreflight\.com\/content/);
+
+  // Back, and the same button opens the route, each checkpoint by its
+  // name in the pack.
+  await routeWithCheckpoints(page);
+  await page.getByTestId("share-route").click();
+  const routeLink = (await page.getByTestId("open-foreflight").getAttribute("href"))!;
+  expect(routeLink).toMatch(/^foreflightmobile:\/\/maps\/search\?q=C81\+(CONTPACK@[A-Z0-9_]{3,}\+)+KDLH(\+\d+ft)?$/);
+  await expect(page.getByTestId("foreflight-pack")).toHaveText("Send the checkpoints again");
 
   const download = page.waitForEvent("download");
   await page.getByTestId("export-foreflight").click();

@@ -28,6 +28,10 @@ describe("flight plan files", () => {
   it("ForeFlight's link: the route in order, a checkpoint at its place, and the altitude", () => {
     expect(foreflightRoute(points, 4500)).toBe("foreflightmobile://maps/search?q=C81+42.3700/-88.0800+VPBNG+KDLH+4500ft");
     expect(foreflightRoute(points, null)).toBe("foreflightmobile://maps/search?q=C81+42.3700/-88.0800+VPBNG+KDLH");
+    // By name, its pack's waypoint, once the pack is in ForeFlight.
+    const named = points.map(p => (p.kind === "checkpoint" ? { ...p, waypoint: "BANGS_LAKE" } : p));
+    expect(foreflightRoute(named, 4500, true)).toBe("foreflightmobile://maps/search?q=C81+CONTPACK@BANGS_LAKE+VPBNG+KDLH+4500ft");
+    expect(foreflightRoute(named, 4500)).toContain("+42.3700/-88.0800+");
   });
 
   it("a GPX route through the same points", () => {

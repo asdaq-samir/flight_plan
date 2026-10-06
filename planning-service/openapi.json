@@ -1514,6 +1514,17 @@
           "selected": {
             "title": "Selected",
             "type": "boolean"
+          },
+          "waypoint": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Waypoint"
           }
         },
         "required": [

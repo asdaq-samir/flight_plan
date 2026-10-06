@@ -439,6 +439,15 @@ def course(dep: str, dest: str, stops: str = "") -> Course:
     )
 
 
+def _name_waypoints(r: Route, selected: list) -> None:
+    """Each selected checkpoint's name in the route's ForeFlight pack, the
+    pack's own naming (app.foreflight), for the web app's flight plan link
+    to name them by (CONTPACK@LAKE_ZURICH)."""
+    names = foreflight.waypoint_names(r.dep_ident, r.dest_ident, foreflight.from_candidates(selected))
+    for c, name in zip(selected, names):
+        c["waypoint"] = name
+
+
 @router.get("/api/checkpoints")
 def checkpoints(dep: str, dest: str, stops: str = "") -> Checkpoints:
     """Scored candidates and the subset worth flying, hop by hop along
@@ -446,6 +455,7 @@ def checkpoints(dep: str, dest: str, stops: str = "") -> Checkpoints:
     seconds for its first time."""
     r = load_route(dep, dest, stops)
     scored, selected, _ = route_checkpoints(r)
+    _name_waypoints(r, selected)
     return Checkpoints(
         departure=r.departure, destination=r.destination, stops=r.stops, candidates=scored, selected=selected,
     )
@@ -531,6 +541,7 @@ def plan(q: Annotated[PlanQuery, Depends()]) -> Plan:
 
     def work():
         scored, selected, by_hop = route_checkpoints(r)
+        _name_waypoints(r, selected)
         runs.extend(hop_runs(r, by_hop, q.depart, profile))
         return scored, selected, join_outcomes(runs, [resolve_run(run, profile, q) for run in runs])
 

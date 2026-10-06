@@ -35,3 +35,30 @@ export function packOrigin(location: Pick<Location, "protocol" | "hostname" | "p
 export function openInForeFlight(packUrl: string): string {
   return `https://foreflight.com/content?downloadURL=${encodeURIComponent(packUrl)}`;
 }
+
+/** Where this device keeps which route's pack it sent ForeFlight, with
+ *  the names the pack carried. */
+const SENT_KEY = "wingtip.foreflightPacks";
+
+const sentPacks = (): Record<string, string> => {
+  try {
+    return JSON.parse(localStorage.getItem(SENT_KEY) ?? "{}") as Record<string, string>;
+  } catch {
+    return {};
+  }
+};
+
+/** Whether this device sent ForeFlight the route's pack with these
+ *  waypoint names: a new chart or another selection is another pack. */
+export function packSent(route: string, names: string[]): boolean {
+  return names.length > 0 && sentPacks()[route] === names.join(" ");
+}
+
+/** That it has, kept for the next time the route goes to ForeFlight. */
+export function markPackSent(route: string, names: string[]): void {
+  try {
+    localStorage.setItem(SENT_KEY, JSON.stringify({ ...sentPacks(), [route]: names.join(" ") }));
+  } catch {
+    // A private window: the pack goes again next time.
+  }
+}
