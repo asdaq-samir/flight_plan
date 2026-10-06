@@ -113,3 +113,10 @@ export const SHEET_INSET_RADIUS = 36;
 /** The margin a card keeps from the screen's edges, and a phone's sheet
  *  from the far one. */
 export const SHEET_MARGIN = 8;
+
+/** A round button on the panel -- the console's, the route's close -- as
+ *  iOS's are over content: a translucent pane, its glyph in the text's
+ *  colour, a lit hairline rim and a soft shadow (the pilot's pick, after
+ *  a dark disc and a blue gear read as two different kinds of thing). */
+export const ROUND_BUTTON =
+  "rounded-full bg-foreground/10 text-foreground shadow-[inset_0_0_0_0.5px_color-mix(in_oklab,var(--foreground)_30%,transparent),0_1px_4px_rgb(0_0_0/0.25)] hover:bg-foreground/15 hover:text-foreground";

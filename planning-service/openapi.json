@@ -213,6 +213,24 @@
       "AirportEnd": {
         "description": "A point of the route: an airport, or -- a stop only -- a named fix\nflown through (`kind` \"fix\": a VFR or GPS waypoint, its `name` the\nkind of fix it is, no elevation).",
         "properties": {
+          "airspace_class": {
+            "anyOf": [
+              {
+                "enum": [
+                  "B",
+                  "C",
+                  "D",
+                  "E",
+                  "G"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Airspace Class"
+          },
           "elevation_ft": {
             "anyOf": [
               {

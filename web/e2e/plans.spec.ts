@@ -192,9 +192,10 @@ test("plan page: no legal altitude is the route's own problem: its chip says so 
   }));
   await page.goto("/app/plan?dep=C81&dest=KDLH");
 
-  // At rest the route's chip says so, in red: nothing over the map.
+  // At rest the route says so, a red mark beside it on its one line:
+  // nothing over the map.
   const chip = page.getByTestId("capsule-detail");
-  await expect(chip).toHaveText("No legal altitude", { timeout: slow(30000) });
+  await expect(chip).toHaveAttribute("aria-label", /No legal altitude$/, { timeout: slow(30000) });
   await expect(chip).toHaveAttribute("data-tone", "destructive");
   await expect(page.locator("[data-problem-banner]")).toHaveCount(0);
   await expect(page.locator("[data-sonner-toast]", { hasText: "No legal" })).toHaveCount(0);
@@ -262,7 +263,7 @@ test("plan page: Class B in the way offers the waypoint round it, or accepting t
   });
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   const chip = page.getByTestId("capsule-detail");
-  await expect(chip).toHaveText("No legal altitude", { timeout: slow(30000) });
+  await expect(chip).toHaveAttribute("aria-label", /No legal altitude$/, { timeout: slow(30000) });
   await chip.click();
   const problem = page.getByTestId("route-problem");
   const mark = page.getByTestId("route-problem-title");
@@ -314,7 +315,7 @@ test("plan page: no legal altitude's own altitude field takes a tap", async ({ p
       reasons: ["The terrain and obstacles there need 10,600 ft."], advice: "Route around the high ground." }) + "\n",
   }));
   await page.goto("/app/plan?dep=C81&dest=KDLH");
-  await expect(page.getByTestId("capsule-detail")).toHaveText("No legal altitude", { timeout: slow(30000) });
+  await expect(page.getByTestId("capsule-detail")).toHaveAttribute("aria-label", /No legal altitude$/, { timeout: slow(30000) });
   await page.getByTestId("capsule-detail").click();
   await page.getByTestId("route-problem-title").click();
   const field = page.getByTestId("unflyable-altitude");

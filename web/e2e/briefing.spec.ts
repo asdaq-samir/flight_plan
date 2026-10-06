@@ -64,10 +64,10 @@ test("plan page: the flight planning drawer opens the way the Model Training dra
   await expect(drawer.locator('[data-slot="section-summary"]').first()).toContainText(/\d nm/, { timeout: slow(60000) });
   expect(await drawer.locator('[data-slot="accordion-content"][data-state="open"]').count()).toBe(1);
 
-  // The panel's head is still in sight: the route form. The console's
-  // button is the search bar's alone, and nowhere with a route on screen.
+  // The panel's head is still in sight: the route's box, and under the
+  // route's close the console's button.
   expect(await page.locator("header").getByLabel("Departure", { exact: true }).count()).toBe(1);
-  expect(await page.getByTestId("settings-button").count()).toBe(0);
+  await expect(page.locator("header").getByTestId("settings-button")).toBeVisible();
 
   // The briefing's actions are beside the route, in the panel's top
   // row: the AI button (LangGraph/CrewAI are tabs inside the popover it

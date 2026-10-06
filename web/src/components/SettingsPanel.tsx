@@ -1,4 +1,4 @@
-import { CloudSun, Download, Eye, EyeOff, Map as MapIcon, Monitor, Moon, PanelBottom, PanelTop, Sun } from "lucide-react";
+import { CloudSun, Download, Eye, EyeOff, Hexagon, Map as MapIcon, Monitor, Moon, PanelBottom, PanelTop, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
@@ -7,7 +7,7 @@ import Segmented from "./Segmented";
 import TogglePill from "./TogglePill";
 import { useNavEdge } from "../hooks/use-nav-edge";
 import { keepingAvailable } from "../lib/map/keepRoute";
-import { BASE_CHARTS, usePreferences, type BaseChart, type NavEdge } from "../lib/preferences";
+import { BASE_CHARTS, usePreferences, type BaseChart, type NavEdge, type RouteColours } from "../lib/preferences";
 import { chartQuery } from "../lib/queryClient";
 import { MINIMUM_CHOICES, type Minimums } from "../lib/minimums";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
@@ -164,6 +164,11 @@ const LAYOUTS = [
   { value: "bottom", label: "Bottom", icon: <PanelBottom /> },
 ];
 
+const ROUTE_COLOURS = [
+  { value: "airspace", label: "Airspace", icon: <Hexagon /> },
+  { value: "metar", label: "Weather", icon: <CloudSun /> },
+];
+
 /** The theme (next-themes keeps it, and follows the OS on System: a
  *  pilot planning at night wants the page as dim as the panel lights),
  *  and the layout -- the edge the route panel is on, which the sheets
@@ -174,6 +179,8 @@ function AppearanceGroup() {
   const { theme, setTheme } = useTheme();
   const edge = useNavEdge();
   const setNavBar = usePreferences(s => s.setNavBar);
+  const routeColours = usePreferences(s => s.routeColours);
+  const setRouteColours = usePreferences(s => s.setRouteColours);
   return (
     <ListGroup title="Appearance">
       <ListRow title="Theme">
@@ -181,6 +188,14 @@ function AppearanceGroup() {
       </ListRow>
       <ListRow title="Layout">
         <Segmented label="Layout" value={edge} onChange={v => setNavBar(v as NavEdge)} testId="nav-bar-select" options={LAYOUTS} />
+      </ListRow>
+      {/* The route box's airports by their airspace, as the sectional
+          draws it, or by the weather, as the map's chips are. */}
+      <ListRow title="Route">
+        <Segmented
+          label="Route colours" value={routeColours} onChange={v => setRouteColours(v as RouteColours)}
+          testId="route-colours-select" options={ROUTE_COLOURS}
+        />
       </ListRow>
     </ListGroup>
   );

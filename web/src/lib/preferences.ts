@@ -30,6 +30,9 @@ export const BASE_CHARTS: { kind: BaseChart; label: string }[] = [
  *  of (useNavEdge). */
 export type NavEdge = "top" | "bottom";
 
+/** The route's pills' colours: by airspace class, or by the METAR. */
+export type RouteColours = "airspace" | "metar";
+
 /** The stock C172 until a pilot picks one of their own. */
 export const DEFAULT_AIRCRAFT: AircraftChoice = { profile: "c172", label: "C172 · Cessna 172" };
 
@@ -71,6 +74,10 @@ interface Preferences {
   /** The navigation bar's edge, once one has been picked; until then
    *  the bottom on a phone and the top from md up. */
   navBar: NavEdge | null;
+  /** What the route's pills are coloured by (RouteBox): each airport's
+   *  airspace, as the sectional draws it, or its METAR's flight
+   *  category, as the map's chips are. */
+  routeColours: RouteColours;
   /** The airports last picked from the search bar, newest first: what
    *  it offers before anything is typed, as Maps' Recents. */
   recentAirports: RecentAirport[];
@@ -92,6 +99,7 @@ interface Preferences {
   setPilotTab: (tab: string) => void;
   setLibrarySection: (section: string) => void;
   setNavBar: (navBar: NavEdge) => void;
+  setRouteColours: (routeColours: RouteColours) => void;
   addRecentAirport: (airport: RecentAirport) => void;
   setHomeAirport: (airport: RecentAirport | null) => void;
   /** Kept if it was not, let go if it was. */
@@ -138,6 +146,7 @@ export const usePreferences = create<Preferences>()(
       pilotTab: "guide",
       librarySection: "aircraft",
       navBar: null,
+      routeColours: "airspace",
       recentAirports: [],
       homeAirport: null,
       favoriteAirports: [],
@@ -155,6 +164,7 @@ export const usePreferences = create<Preferences>()(
       setPilotTab: pilotTab => set({ pilotTab }),
       setLibrarySection: librarySection => set({ librarySection }),
       setNavBar: navBar => set({ navBar }),
+      setRouteColours: routeColours => set({ routeColours }),
       addRecentAirport: airport => set(s => ({
         recentAirports: [airport, ...s.recentAirports.filter(a => a.ident !== airport.ident)].slice(0, RECENTS),
       })),
@@ -179,7 +189,7 @@ export const usePreferences = create<Preferences>()(
       name: "vfr.preferences",
       // The functions are not state; only the values are written.
       partialize: s => ({
-        base: s.base, tac: s.tac, waypoints: s.waypoints, classB: s.classB, tfrs: s.tfrs, minimums: s.minimums, loads: s.loads, keepOffline: s.keepOffline, aircraft: s.aircraft, filters: s.filters, devTab: s.devTab, pilotTab: s.pilotTab, librarySection: s.librarySection, navBar: s.navBar,
+        base: s.base, tac: s.tac, waypoints: s.waypoints, classB: s.classB, tfrs: s.tfrs, minimums: s.minimums, loads: s.loads, keepOffline: s.keepOffline, aircraft: s.aircraft, filters: s.filters, devTab: s.devTab, pilotTab: s.pilotTab, librarySection: s.librarySection, navBar: s.navBar, routeColours: s.routeColours,
         recentAirports: s.recentAirports, homeAirport: s.homeAirport, favoriteAirports: s.favoriteAirports,
       }),
     },

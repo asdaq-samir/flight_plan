@@ -94,7 +94,7 @@ export default function AirportPicker({
           // in the monospaced face at 17 two took a phone's line, the pilot
           // asked for three.
           className={look === "pill"
-            ? cn("font-semibold uppercase tracking-wide text-foreground", TEXT.detail, className)
+            ? cn("font-semibold uppercase text-foreground", TEXT.detail, className)
             : cn("font-mono uppercase text-foreground", TEXT.row, !value && "text-muted-foreground", className)}
         >
           {value || placeholder}

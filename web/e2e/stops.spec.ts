@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { test, expect, type Page } from "@playwright/test";
-import { openPanel, settle, sideDrawer, slow } from "./helpers";
+import { beforeTheRoute, openPanel, settle, sideDrawer, slow } from "./helpers";
 
 /**
  * A route that lands on the way, as Maps' Add Stop: a stop added in the
@@ -155,7 +155,7 @@ test("a flight saved with a stop is filed with it, and its nav log lands there",
   expect(filed[0]!.checkpoints.filter(c => c.category === "stop").map(c => c.name)).toEqual(["KMSN"]);
 });
 
-test("the route's box is round at its ends with no plus beside it, and Enter takes the first airport offered for what is typed", async ({ page }) => {
+test("the route's box is round and two lines tall with no plus beside it, and Enter takes the first airport offered for what is typed", async ({ page }) => {
   await recordedStops(page);
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
@@ -163,8 +163,10 @@ test("the route's box is round at its ends with no plus beside it, and Enter tak
   const box = sideDrawer(page).getByTestId("route-box");
   await expect(box).toBeVisible();
   expect(await sideDrawer(page).getByTestId("add-stop").count()).toBe(0);
+  // Round as the search bar's field is, two lines tall.
   const shape = await box.evaluate(el => ({ radius: parseFloat(getComputedStyle(el).borderTopLeftRadius), height: el.getBoundingClientRect().height }));
-  expect(shape.radius).toBeGreaterThanOrEqual(shape.height / 2 - 1);
+  expect(shape.radius).toBeGreaterThanOrEqual(20);
+  expect(shape.height).toBeGreaterThanOrEqual(88);
 
   // A town's name at the arrow: its field offered first, and Enter takes
   // it, as a stop.
@@ -296,4 +298,21 @@ test("a VFR waypoint on the chart is a diamond, and its card adds it as a stop",
   await expect(add).toBeVisible();
   await add.click();
   await expect(page).toHaveURL(/[?&]stops=VPBNG/);
+});
+
+test("the route's airports are coloured by their airspace, or by the weather from the settings", async ({ page }) => {
+  await page.route(url => /\/(checkpoints|navlog)$/.test(url.pathname), route => route.abort());
+  const background = () => sideDrawer(page).getByRole("group", { name: "Destination KDLH" }).evaluate(el => getComputedStyle(el).backgroundColor);
+  // Duluth's Class D: a wash of the sectional's blue, inside a dashed line.
+  await page.goto("/app/plan?dep=C81&dest=KDLH");
+  await settle(page);
+  await openPanel(page);
+  await expect.poll(background, { timeout: slow(15000) }).toBe("rgba(36, 101, 184, 0.12)");
+
+  // By the weather instead: its METAR's colour, or the grey of none.
+  await beforeTheRoute(page, () => page.getByTestId("route-colours-select").getByRole("radio", { name: "Weather" }).click());
+  await page.goto("/app/plan?dep=C81&dest=KDLH");
+  await settle(page);
+  await openPanel(page);
+  await expect.poll(background, { timeout: slow(15000) }).toMatch(/^rgb\(/);
 });

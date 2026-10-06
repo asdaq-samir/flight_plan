@@ -1,6 +1,5 @@
 import { lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { format } from "date-fns";
 import { FileArchive, FileDown, Link2, MapPinned, Printer, Send, Share, TowerControl, X } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../../components/ui/dropdown-menu";
 import { foreflightRoute, fplOf, gpxOf, shareFile, type PlanPoint } from "../../lib/flightPlanFiles";
@@ -12,7 +11,7 @@ import { cn } from "cn";
 import { api } from "../../lib/api/client";
 import { pilotQuery, queryClient } from "../../lib/queryClient";
 import type { AircraftChoice, AirportPlace, AltitudeChoice, Candidate } from "../../lib/api/types";
-import { aircraftKey, choiceOf, shortName } from "../../lib/aircraftChoice";
+import { aircraftKey, choiceOf } from "../../lib/aircraftChoice";
 import { bestStopIndex, distanceNm } from "../../lib/geo";
 import { useKeepOffline } from "../../lib/map/keepStatus";
 import { locateOnOpen, useOwnShip } from "../../lib/map/ownShip";
@@ -28,10 +27,13 @@ import { useProgressToast } from "../../lib/useProgressToast";
 import { useSearchParamsNow } from "../../lib/useSearchParamsNow";
 import type { WorkspaceProps } from "../page/workspace";
 import IconButton from "../../components/IconButton";
+import { ConsoleButtonSlot } from "../../components/PanelCapsule";
+import { ROUND_BUTTON } from "../../components/mapChrome";
 import ToolbarButton from "../../components/ToolbarButton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/ui/select";
 import { Button } from "../../components/ui/button";
 import { RouteCapsule, SearchField, SearchResults } from "../../components/PanelCapsule";
+import { chipColourOf } from "../../lib/map/flightCategory";
 import RouteProblem from "./components/RouteProblem";
 import { Favorites, FavoritesList } from "../../components/Favorites";
 import Kneeboard from "./components/Kneeboard";
@@ -388,7 +390,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   };
   const searchField = (
     <SearchField
-      value={query} onChange={setQuery} open={panel === "full"} inputRef={searchInput}
+      value={query} onChange={setQuery} inputRef={searchInput}
       placeholder={picking === "home" ? "Search for your home airport" : picking === "favorite" ? "Search for an airport to keep" : "Search airports"}
       onFocus={() => { if (place) selectPlace(null); setFavoritesOpen(false); setPanel("full"); }}
       onCancel={() => { setQuery(""); setPicking("place"); setFavoritesOpen(false); if (place) selectPlace(null); setPanel("peek"); }}
@@ -665,8 +667,60 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   );
 
   // Saving the flight, the narrative and Print.
+  // The route's airports' airspace classes, as the course came with them:
+  // the pills coloured the moment it is in.
+  const airspaceOf = (ident: string) =>
+    [course?.departure, ...(course?.stops ?? []), course?.destination].find(a => a?.ident === ident)?.airspace_class ?? undefined;
+
+  // An airport's METAR colour, as its chip on the map: its flight category
+  // once the briefing has it, grey until then (the route's pills, coloured
+  // by the weather in the settings).
+  const metars = s.briefing.state === "ready" ? s.briefing.data.metars : null;
+  const metarColour = (ident: string) => {
+    const metar = metars?.[ident];
+    return chipColourOf({ status: metar ? "reported" : "no-report", category: metar?.flight_category ?? null });
+  };
+
   const routeActions = (
     <>
+      {/* Maps' share, and the route as a file for another app or the
+          panel's GPS: on an iPhone the share sheet's Open in ForeFlight.
+          In the panel with Save, Brief and Print -- the capsule at rest
+          carries the route and the console's button alone. */}
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <ToolbarButton text="Share" label="Share this route" icon={<Share />} data-testid="share-route" />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="min-w-56">
+          <DropdownMenuItem onSelect={() => void share()}><Link2 />Share link</DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => void exportPlan("fpl")} data-testid="export-fpl"><FileDown />Flight plan (.fpl)</DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => void exportPlan("gpx")} data-testid="export-gpx"><FileDown />GPX route (.gpx)</DropdownMenuItem>
+          {/* Links, not handlers: ForeFlight opens from a tap on its
+              own link, and a download needs one too. */}
+          {points.length > 0 && (packHref && !sentPack ? (
+            <DropdownMenuItem asChild data-testid="open-foreflight">
+              <a href={openInForeFlight(new URL(packHref, packOrigin(window.location)).href)} onClick={sendPack}>
+                <Send />Open in ForeFlight
+              </a>
+            </DropdownMenuItem>
+          ) : (
+            <DropdownMenuItem asChild data-testid="open-foreflight">
+              <a href={foreflightRoute(points, s.nav?.altitude_ft, sentPack)}><Send />Open in ForeFlight</a>
+            </DropdownMenuItem>
+          ))}
+          {/* Sent once and since deleted in ForeFlight: again. */}
+          {packHref && sentPack && (
+            <DropdownMenuItem asChild data-testid="foreflight-pack">
+              <a href={openInForeFlight(new URL(packHref, packOrigin(window.location)).href)}><MapPinned />Send the checkpoints again</a>
+            </DropdownMenuItem>
+          )}
+          {packHref && (
+            <DropdownMenuItem asChild data-testid="export-foreflight">
+              <a href={packHref} download><FileArchive />Checkpoints for ForeFlight (.zip)</a>
+            </DropdownMenuItem>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
       <SaveFlightButton
         course={course} totals={s.totals} nav={s.nav} legs={s.legs} selected={selected}
         aircraftId={aircraft.aircraftId ?? null} depart={depart}
@@ -763,48 +817,13 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     compact: routed ? (
       <RouteCapsule
         title={routeName(planned.dep, planned.dest, planned.stops)}
-        detail={s.unflyable ? "No legal altitude" : `${shortName(aircraft.label)} · ${depart ? format(new Date(depart), "EEE d MMM, HH:mm") : "Now"}`}
-        tone={s.unflyable ? "destructive" : "default"}
+        // One line, as the search bar is, and the console's button at its
+        // end alone, at the pilot's ask: the route, a tap on it the panel.
+        // What is wrong with it is a red mark beside it (the Nav Log's
+        // title says what); the aeroplane and the time, and the share
+        // menu, are in the panel.
+        warning={s.unflyable ? "No legal altitude" : undefined}
         onDetail={() => setPanel("half")}
-        leading={
-          // Maps' share, and the route as a file for another app or the
-          // panel's GPS: on an iPhone the share sheet's Open in ForeFlight.
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <IconButton label="Share this route" variant="secondary" className="rounded-full" data-testid="share-route"><Share /></IconButton>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="min-w-56">
-              <DropdownMenuItem onSelect={() => void share()}><Link2 />Share link</DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => void exportPlan("fpl")} data-testid="export-fpl"><FileDown />Flight plan (.fpl)</DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => void exportPlan("gpx")} data-testid="export-gpx"><FileDown />GPX route (.gpx)</DropdownMenuItem>
-              {/* Links, not handlers: ForeFlight opens from a tap on its
-                  own link, and a download needs one too. */}
-              {points.length > 0 && (packHref && !sentPack ? (
-                <DropdownMenuItem asChild data-testid="open-foreflight">
-                  <a href={openInForeFlight(new URL(packHref, packOrigin(window.location)).href)} onClick={sendPack}>
-                    <Send />Open in ForeFlight
-                  </a>
-                </DropdownMenuItem>
-              ) : (
-                <DropdownMenuItem asChild data-testid="open-foreflight">
-                  <a href={foreflightRoute(points, s.nav?.altitude_ft, sentPack)}><Send />Open in ForeFlight</a>
-                </DropdownMenuItem>
-              ))}
-              {/* Sent once and since deleted in ForeFlight: again. */}
-              {packHref && sentPack && (
-                <DropdownMenuItem asChild data-testid="foreflight-pack">
-                  <a href={openInForeFlight(new URL(packHref, packOrigin(window.location)).href)}><MapPinned />Send the checkpoints again</a>
-                </DropdownMenuItem>
-              )}
-              {packHref && (
-                <DropdownMenuItem asChild data-testid="export-foreflight">
-                  <a href={packHref} download><FileArchive />Checkpoints for ForeFlight (.zip)</a>
-                </DropdownMenuItem>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        }
-        trailing={<IconButton label="Close the route" variant="secondary" className="rounded-full" onClick={clearRoute} data-testid="clear-route"><X /></IconButton>}
       />
     ) : started ? undefined : searchField,
     // The route as one box of pills, in place of the two airport fields.
@@ -817,15 +836,22 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       <div className="flex items-start gap-2">
         <div className="min-w-0 flex-1">
           <RouteBox
-            dep={planned.dep} stops={planned.stops} dest={planned.dest} waypoints={waypointStops}
+            dep={planned.dep} stops={planned.stops} dest={planned.dest} waypoints={waypointStops} airspaceOf={airspaceOf} metarColourOf={metarColour}
             onChange={setRoute}
             adding={!!addingStop} onAddingChange={open => setAddingStop(open ? "stop" : false)}
             via={addingStop === "via" ? s.unflyable?.detours : undefined}
           />
         </div>
-        <IconButton label="Close the route" variant="secondary" className="rounded-full" onClick={clearRoute} data-testid="route-clear">
-          <X />
-        </IconButton>
+        {/* The route's close, and under it the console's button, as the
+            search bar has it beside its field: the box's two lines tall,
+            the two alike and a finger's size, as iOS's round buttons over
+            content (ROUND_BUTTON). */}
+        <div className="flex shrink-0 flex-col gap-1 [&_button]:size-11 [&_svg]:size-6">
+          <IconButton label="Close the route" variant="secondary" onClick={clearRoute} data-testid="route-clear" className={ROUND_BUTTON}>
+            <X strokeWidth={1.75} />
+          </IconButton>
+          <ConsoleButtonSlot />
+        </div>
       </div>
     ) : undefined,
     // The aeroplane and the departure time, under the route with the

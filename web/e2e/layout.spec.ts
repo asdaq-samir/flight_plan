@@ -216,9 +216,9 @@ for (const path of PAGES) {
       // search bar.
       await expect(sideDrawer(page).getByTestId("settings-button")).toBeVisible();
     } else {
-      // None with a route on screen; on the search bar once it is closed,
-      // as Maps' account is.
-      expect(await page.getByTestId("settings-button").count()).toBe(0);
+      // At the end of the route's capsule, as at the search bar's once
+      // the route is closed, as Maps' account is.
+      await expect(sideDrawer(page).getByTestId("settings-button")).toBeVisible();
       await page.goto(path);
       await settle(page);
       await expect(sideDrawer(page).getByTestId("settings-button")).toBeVisible();

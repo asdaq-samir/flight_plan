@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 import { Command as CommandPrimitive } from "cmdk";
-import { ArrowRight, Diamond, Trash2 } from "lucide-react";
+import { ArrowRight, Trash2 } from "lucide-react";
 import {
   DndContext, KeyboardSensor, MouseSensor, TouchSensor, closestCenter, useSensor, useSensors, type DragEndEvent,
 } from "@dnd-kit/core";
@@ -14,8 +14,10 @@ import { InputGroup } from "../../../components/ui/input-group";
 import { Popover, PopoverAnchor, PopoverContent } from "../../../components/ui/popover";
 import type { Detour } from "../../../lib/api/types";
 import { MAX_STOPS, identOf, stopOf } from "../../../lib/identSchema";
-import { usePreferences, type RecentAirport } from "../../../lib/preferences";
+import { usePreferences, type AirspaceClass, type RecentAirport } from "../../../lib/preferences";
 import { useAirportSearch } from "../../../lib/useAirportSearch";
+import { AIRSPACE, useAirspace } from "../../../lib/useAirspace";
+import { inkOn } from "../../../lib/scoreScale";
 
 /** The route as the box changes it: either end may be missing (half a
  *  route, the other end still to be typed), and neither means none. */
@@ -43,9 +45,13 @@ export interface RouteParts { dep: string; stops: string[]; dest: string }
  * The ends stay airports: a waypoint is flown through, never taken off
  * from or landed at, so a change that would put one at an end is undone.
  */
-export default function RouteBox({ dep, stops, dest, waypoints, onChange, adding, onAddingChange, via }: RouteParts & {
-  /** Which points are waypoints, flown through: a diamond on the pill. */
+export default function RouteBox({ dep, stops, dest, waypoints, airspaceOf, metarColourOf, onChange, adding, onAddingChange, via }: RouteParts & {
+  /** Which points are waypoints, flown through: in the sectional's magenta. */
   waypoints: Set<string>;
+  /** An airport's airspace class, as the course came with it. */
+  airspaceOf: (ident: string) => AirspaceClass | undefined;
+  /** An airport's METAR colour, for the pills coloured by the weather. */
+  metarColourOf: (ident: string) => string | undefined;
   onChange: (route: RouteParts) => void;
   /** A stop asked for from elsewhere -- a problem's Add a stop or Fly
    *  via: the box takes the typing where it goes in, with `via` offered. */
@@ -225,18 +231,18 @@ export default function RouteBox({ dep, stops, dest, waypoints, onChange, adding
   // arrow on either side of the field once it is open.
   const arrow = (before: number) => at === before ? (
     <Fragment key={`at-${before}`}>
-      {before > 0 && <ArrowRight className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />}
+      {before > 0 && <ArrowRight className="size-3 shrink-0 text-muted-foreground" aria-hidden="true" />}
       {typing}
-      <ArrowRight className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+      <ArrowRight className="size-3 shrink-0 text-muted-foreground" aria-hidden="true" />
     </Fragment>
   ) : (
     <button
       key={`arrow-${before}`} type="button" disabled={full && !(before === 0 && !hasDep)}
       onClick={() => typeAt(before)} data-testid="route-arrow"
       aria-label={before === 0 ? "Type the departure" : `Type a stop between ${points[before - 1]} and ${points[before]}`}
-      className="grid size-5 shrink-0 place-items-center rounded-full text-muted-foreground outline-none hover:text-tint focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-40"
+      className="grid h-5 w-4 shrink-0 place-items-center rounded-full text-muted-foreground outline-none hover:text-tint focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-40"
     >
-      <ArrowRight className="size-3.5" />
+      <ArrowRight className="size-3" />
     </button>
   );
   return (
@@ -257,11 +263,12 @@ export default function RouteBox({ dep, stops, dest, waypoints, onChange, adding
       <Popover open={open} onOpenChange={next => { if (!next) { setDismissed(typed); onAddingChange(false); } }}>
         <PopoverAnchor asChild>
           {/* The search bar's field, as Maps' is with no route: its grey,
-              no line round it, 41 tall, round at a line's ends -- a capsule
-              while the route fits one line, its corners as round once it
-              takes two -- the pills on it in the sheet's own colour. */}
+              no line round it, its corners round, the pills on it in the
+              sheet's own colour -- two lines tall however short the route,
+              room to type the next point, beside the route's close and the
+              console's button stacked (PlanWorkspace). */}
           <InputGroup
-            className="h-auto min-h-[2.5625rem] rounded-[20.5px] border-0 bg-foreground/8 py-0 pr-1.5 pl-1 shadow-none dark:bg-foreground/8 has-[[data-slot=input-group-control]:focus-visible]:ring-0"
+            className="h-auto min-h-[5.75rem] items-start rounded-[20.5px] border-0 bg-foreground/8 py-0 pr-1.5 pl-1 shadow-none dark:bg-foreground/8 has-[[data-slot=input-group-control]:focus-visible]:ring-0"
             data-testid="route-box"
           >
             {/* The pills wrap, two lines of them in sight and the top of a
@@ -276,7 +283,7 @@ export default function RouteBox({ dep, stops, dest, waypoints, onChange, adding
                 hit areas meet; room round them for the areas at the box's
                 edges. A swipe up or down in it scrolls it, not the sheet
                 (the root takes the presses). */}
-            <div className="flex max-h-[96px] min-w-0 flex-1 flex-wrap items-center gap-x-0.5 gap-y-2 overflow-x-hidden overflow-y-auto overscroll-contain py-1 pr-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" data-testid="route-slide">
+            <div className="flex max-h-[96px] min-w-0 flex-1 flex-wrap items-center gap-x-px gap-y-2 overflow-x-hidden overflow-y-auto overscroll-contain py-1 pr-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" data-testid="route-slide">
               {/* The box does not scroll itself under a drag: the pill dragged
                   is in the box it scrolls, so each step down carried it
                   further, and a pill held over the second line ran the box
@@ -290,7 +297,7 @@ export default function RouteBox({ dep, stops, dest, waypoints, onChange, adding
                           departure yet: the departure is typed there. */}
                       {(i > 0 || !hasDep) && arrow(i)}
                       <Pill
-                        id={ids[i]!} ident={point} waypoint={waypoints.has(point)} index={i}
+                        id={ids[i]!} ident={point} waypoint={waypoints.has(point)} index={i} airspaceOf={airspaceOf} metarColourOf={metarColourOf}
                         role={roleOf(i)} stopNumber={i + (hasDep ? 0 : 1)}
                         onChange={ident => change(points.map((p, j) => (j === i ? ident : p)))}
                         onRemove={() => remove(i)}
@@ -303,7 +310,7 @@ export default function RouteBox({ dep, stops, dest, waypoints, onChange, adding
                   With none yet, an arrow on to it. */}
               {at === null && (
                 <>
-                  {!hasDest && points.length > 0 && <ArrowRight className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />}
+                  {!hasDest && points.length > 0 && <ArrowRight className="size-3 shrink-0 text-muted-foreground" aria-hidden="true" />}
                   {typing}
                 </>
               )}
@@ -340,17 +347,34 @@ export default function RouteBox({ dep, stops, dest, waypoints, onChange, adding
   );
 }
 
-/** One point of the route: its ident, a diamond for a waypoint, a tap to
+/** One point of the route: its ident in its airspace's look, a tap to
  *  change it (the picker), and a drag to move it. Taken out from its own
  *  menu, as iOS takes things out -- a press and hold on a phone, a
  *  right-click with a mouse -- or Delete with it focused: a cross on every
  *  pill was a row of targets crowded between them, at the pilot's ask. Any
  *  of them, the ends too (RouteBox's `remove`). */
-function Pill({ id, ident, waypoint, index, role, stopNumber, onChange, onRemove }: {
+function Pill({ id, ident, waypoint, index, role, stopNumber, airspaceOf, metarColourOf, onChange, onRemove }: {
   id: string; ident: string; waypoint: boolean; index: number; role: "dep" | "stop" | "dest"; stopNumber: number;
+  airspaceOf: (ident: string) => AirspaceClass | undefined;
+  metarColourOf: (ident: string) => string | undefined;
   onChange: (ident: string) => void; onRemove: () => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+  // An airport as the sectional draws its airspace, as its Favorites tile
+  // is (lib/useAirspace): Class B and C solid blue and magenta, D and E
+  // dashed; G, and one not known yet, the sheet's own pill. A waypoint in
+  // the sectional's magenta letters, where it carried a diamond that cost
+  // a third pill its place on a phone's line.
+  // Or, as the setting has it, by the METAR's flight category, as the
+  // map's chips are (metarColourOf, PlanWorkspace's); grey without one.
+  const byWeather = usePreferences(s => s.routeColours) === "metar";
+  // The class the course came with, else the airport's card asked for.
+  const known = airspaceOf(ident);
+  const space = useAirspace({ ident, name: ident, airspace: known }, !waypoint && !byWeather && !known);
+  const metar = byWeather && !waypoint ? metarColourOf(ident) : undefined;
+  const look = waypoint ? undefined
+    : metar ? { backgroundColor: metar, color: inkOn(metar) }
+      : byWeather || space.name === AIRSPACE.G.name || !space.style ? undefined : space.style;
   // The fields' own names, as the two fields were: "Departure", "Stop 1".
   const label = role === "dep" ? "Departure" : role === "dest" ? "Destination" : `Stop ${stopNumber}`;
   const removeLabel = role === "stop" ? `Remove the stop at ${ident}` : `Remove ${ident}`;
@@ -365,7 +389,7 @@ function Pill({ id, ident, waypoint, index, role, stopNumber, onChange, onRemove
       // Moved, never scaled: across lines the pills differ in width, and
       // dnd-kit's rect strategy scales one to another's, stretching its
       // ident while it is dragged.
-      style={{ transform: CSS.Translate.toString(transform), transition }}
+      style={{ transform: CSS.Translate.toString(transform), transition, ...look }}
       className={cn(
         // A swipe up or down scrolls the lines; a hold, then a move, drags;
         // a hold alone, its menu. No callout of iOS's own over the hold.
@@ -374,10 +398,9 @@ function Pill({ id, ident, waypoint, index, role, stopNumber, onChange, onRemove
       )}
       data-testid={role === "stop" ? "stop" : `route-${role}`}
     >
-      {waypoint && <Diamond className="ml-2 size-3 fill-[#b02e7c] stroke-[#b02e7c] dark:fill-[#e070b0] dark:stroke-[#e070b0]" aria-hidden="true" />}
       <AirportPicker
-        value={ident} placeholder={label} ariaLabel={label} look="pill" fixes={role === "stop"}
-        className={cn("h-8 rounded-full", waypoint ? "pl-1 pr-2" : "px-2")} onChange={onChange}
+        value={ident} placeholder={label} ariaLabel={waypoint ? `${label}, a waypoint` : label} look="pill" fixes={role === "stop"}
+        className={cn("h-8 rounded-full px-1.5", look && "text-current", waypoint && "text-[#b02e7c] dark:text-[#ec8cc4]")} onChange={onChange}
       />
     </span>
   );

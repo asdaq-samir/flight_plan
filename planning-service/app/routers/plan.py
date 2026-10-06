@@ -428,10 +428,17 @@ def course(dep: str, dest: str, stops: str = "") -> Course:
     """
     r = load_route(dep, dest, stops)
     first = r.hops[0]
+    shp = airspace.ensure_class_airspace_shapefile(altitude.DEFAULT_FAA_CACHE_DIR)
+
+    def classed(end: dict) -> dict:
+        if end.get("kind", "airport") != "airport":
+            return end
+        return {**end, "airspace_class": airspace.surface_class_at(end["lat"], end["lon"], shp)}
+
     return Course(
-        departure=r.departure,
-        destination=r.destination,
-        stops=r.stops,
+        departure=classed(r.departure),
+        destination=classed(r.destination),
+        stops=[classed(s) for s in r.stops],
         distance_nm=round(r.distance_nm, 1),
         bearing_deg=round(geo.bearing_deg(*first.start, *first.end)),
         course_line=route_line(r),

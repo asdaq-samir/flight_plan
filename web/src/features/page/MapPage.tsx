@@ -4,7 +4,7 @@ import { useSearchParamsNow } from "../../lib/useSearchParamsNow";
 import DevGuard from "../../components/DevGuard";
 import ConsoleSheet, { type ConsoleDetent } from "../../components/ConsoleSheet";
 import MapPanel from "../../components/MapPanel";
-import { ConsoleButtonContext, ConsoleSettingsContext, useConsoleOpen, MapInsetsContext, NO_INSETS, type MapInsets, type PanelState } from "../../components/mapChrome";
+import { ConsoleButtonContext, ConsoleSettingsContext, ROUND_BUTTON, useConsoleOpen, MapInsetsContext, NO_INSETS, type MapInsets, type PanelState } from "../../components/mapChrome";
 import RouteForm from "../../components/RouteForm";
 import SettingsButton from "../../components/SettingsButton";
 import { Sheet, SheetContent } from "../../components/ui/sheet";
@@ -155,7 +155,7 @@ export default function MapPage({ mode }: { mode: Mode }) {
   // from under the finger that had just tapped it. It opens half way, at
   // iOS's medium detent, and stays at whichever as the tabs change: it
   // opened all the way every time, a screen of nothing under one
-  // aeroplane. On an iPad, iOS's form sheet instead: a card 540 by 620,
+  // aeroplane -- all the way, though, over a panel that is. On an iPad, iOS's form sheet instead: a card 540 by 620,
   // centred, as a sheet there is.
   const [consoleDetent, setConsoleDetent] = useState<ConsoleDetent>("medium");
   // Out or not, the app's (useConsoleOpen): a developer's Pilot and
@@ -168,9 +168,11 @@ export default function MapPage({ mode }: { mode: Mode }) {
   // from and given the focus back on closing.
   const consoleButton = useRef<HTMLButtonElement>(null);
   const openConsole = useCallback(() => {
-    setConsoleDetent("medium");
+    // All the way out when the panel under it is: opened half way over a
+    // sheet already at the top, it read as a step down.
+    setConsoleDetent(panel === "full" ? "large" : "medium");
     setConsoleOpen(true);
-  }, [setConsoleOpen]);
+  }, [setConsoleOpen, panel]);
   const backToButton = useCallback((event: Event) => {
     event.preventDefault();
     consoleButton.current?.focus();
@@ -180,8 +182,7 @@ export default function MapPage({ mode }: { mode: Mode }) {
   const settingsButton = (
     <SettingsButton
       ref={consoleButton} onClick={openConsole} aria-haspopup="dialog" aria-expanded={consoleOpen}
-      variant="secondary"
-      className="rounded-full bg-white/50 hover:bg-white/70 dark:bg-white/10 dark:hover:bg-white/15"
+      variant="secondary" className={ROUND_BUTTON}
     />
   );
   const consoleOf = (pieces: WorkspacePieces) => {
@@ -292,9 +293,9 @@ export default function MapPage({ mode }: { mode: Mode }) {
             </MapInsetsContext.Provider>
           </main>
           {consoleOf(pieces)}
-          {/* On the planner's search bar, and on the training page's route
-              capsule, which has no search: never with the planner's route. */}
-          <ConsoleButtonContext.Provider value={mode === "dev" || pieces.searching ? settingsButton : null}>
+          {/* On the planner's search bar, under the route's close with the
+              panel out, and at the end of either page's route capsule. */}
+          <ConsoleButtonContext.Provider value={settingsButton}>
           <MapPanel
             label={panelLabel} controls={pieces.alone ? undefined : pieces.controls}
             state={panel} onStateChange={setPanel} onInsetsChange={changeInsets}

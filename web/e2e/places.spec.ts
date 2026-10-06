@@ -209,11 +209,12 @@ test("with no route the panel is a search bar: Home is set from Favorites, an ai
   await expect(page).toHaveURL(/dest=KDLH/);
   await expect(page.getByLabel("Departure", { exact: true })).toContainText("C81");
 
-  // Lowered, the route is a capsule, and its close rests the panel on
-  // the search bar again.
+  // Lowered, the route is a capsule; the route's close, in the panel,
+  // rests it on the search bar again.
   await page.getByTestId("sidebar-trigger-button").click();
   await expect(page.getByTestId("capsule-title")).toHaveText("C81 → KDLH");
-  await page.getByTestId("clear-route").click();
+  await page.getByTestId("capsule-detail").click();
+  await sideDrawer(page).getByTestId("route-clear").click();
   await expect(search).toBeVisible();
   await expect(page).not.toHaveURL(/dep=/);
 
