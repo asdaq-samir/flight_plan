@@ -153,10 +153,13 @@ test("a route entered is fitted above the half sheet, to the whole screen at the
 
   await closeSidebarWithTheStockKey(page);
   await expectDrawerClosed(page);
-  const whole = await fittedClearOf(page, sideDrawer(page));
+  await fittedClearOf(page, sideDrawer(page));
   // Bigger on a phone, where the capsule leaves nearly twice the room the
-  // half sheet did (a desktop's card leaves about the same either way).
-  if (page.viewportSize()!.width < 768) expect(whole.height).toBeGreaterThan(half.height * 1.15);
+  // half sheet did (a desktop's card leaves about the same either way):
+  // once it has got there -- clear of the capsule it already was.
+  if (page.viewportSize()!.width < 768) {
+    await expect.poll(async () => (await courseBox(page)).height, { timeout: slow(10_000) }).toBeGreaterThan(half.height * 1.15);
+  }
 
   await openPanel(page);
   await fittedClearOf(page, sideDrawer(page));

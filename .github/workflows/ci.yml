@@ -788,7 +788,9 @@ jobs:
       - name: The planner's data, ready
         run: |
           mkdir -p data/raw
-          cp -n web/e2e/fixtures/elevation_cache.csv data/raw/elevation_cache.csv
+          # Not `cp -n`: Ubuntu 26.04's cp fails a copy -n skips, and a
+          # shard whose planner cache came back with the file stopped here.
+          [ -e data/raw/elevation_cache.csv ] || cp web/e2e/fixtures/elevation_cache.csv data/raw/elevation_cache.csv
           chmod -R a+rwX data
           echo "$(($(date +%s) - T0)) the planner's data" >> /tmp/e2e-out/timeline
           touch /tmp/e2e-out/data.ready
