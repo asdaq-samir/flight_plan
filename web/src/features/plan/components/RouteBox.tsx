@@ -139,13 +139,20 @@ export default function RouteBox({ points, waypoints, onChange, adding, onAdding
         <PopoverAnchor asChild>
           {/* Round at a line's ends -- a capsule while the route fits one
               line, its corners as round once it takes two. */}
-          <InputGroup className="h-auto min-h-10 rounded-[20px] py-1 pr-1.5 pl-1" data-testid="route-box">
-            {/* The pills wrap, two lines of them in sight and the rest a
-                scroll down, as ForeFlight's flight plan box does: one line
-                that slid sideways hid all but the first few of a long
-                route, at the pilot's ask. A swipe up or down in it scrolls
-                it, not the sheet (the root takes the presses). */}
-            <div className="flex max-h-[68px] min-w-0 flex-1 flex-wrap items-center gap-1 overflow-y-auto overscroll-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" data-testid="route-slide">
+          <InputGroup className="h-auto min-h-10 rounded-[20px] py-0 pr-1.5 pl-1" data-testid="route-box">
+            {/* The pills wrap, two lines of them in sight and the top of a
+                third -- so a point below them reads as there, the
+                destination most of all -- and the rest a scroll down, as
+                ForeFlight's flight plan box does: one line that slid
+                sideways hid all but the first few of a long route, at the
+                pilot's ask. Up and down only: a pill's cross, its 44-point
+                hit area (index.css) reaching past a line's end, let it
+                slide sideways by a few points (the iPhone audit's "no
+                sideways scroll in a panel"). Lines eight apart, as rows
+                are, so the hit areas meet; room round them for the areas
+                at the box's edges. A swipe up or down in it scrolls it, not
+                the sheet (the root takes the presses). */}
+            <div className="flex max-h-[96px] min-w-0 flex-1 flex-wrap items-center gap-x-1 gap-y-2 overflow-x-hidden overflow-y-auto overscroll-contain py-1 pr-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" data-testid="route-slide">
               <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
                 <SortableContext items={ids} strategy={rectSortingStrategy}>
                   {points.map((point, i) => (

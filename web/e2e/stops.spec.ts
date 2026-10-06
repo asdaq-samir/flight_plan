@@ -132,11 +132,27 @@ test("a long route's box wraps its points onto two lines and scrolls down to the
   }));
   expect(box.scrollWidth).toBeLessThanOrEqual(box.clientWidth + 1);
   expect(box.tops).toBeGreaterThanOrEqual(3);
-  // Two lines in sight, the rest a scroll down.
-  expect(box.clientHeight).toBeLessThanOrEqual(72);
+  // Two lines in sight and the top of a third, the rest a scroll down: the
+  // destination not whole in sight until then.
+  expect(box.clientHeight).toBeLessThanOrEqual(100);
   expect(box.scrollHeight).toBeGreaterThan(box.clientHeight);
+  const destination = sideDrawer(page).getByTestId("route-dest");
+  await expect(destination).not.toBeInViewport({ ratio: 1 });
   await lines.evaluate(el => el.scrollTo(0, el.scrollHeight));
-  await expect(sideDrawer(page).getByTestId("route-dest")).toBeInViewport();
+  await expect(destination).toBeInViewport({ ratio: 1 });
+
+  // A pill dragged from the first line onto the second: the route flown in
+  // the new order (a reorder that broke would fly it in the wrong one).
+  await lines.evaluate(el => el.scrollTo(0, 0));
+  const from = (await lines.getByRole("group", { name: "Stop 1 KRYV" }).boundingBox())!;
+  const to = (await lines.getByRole("group", { name: "Stop 6 KSTE" }).boundingBox())!;
+  expect(to.y).toBeGreaterThan(from.y + from.height / 2);
+  await page.mouse.move(from.x + 8, from.y + from.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(from.x + 20, from.y + from.height / 2, { steps: 4 });
+  await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 12 });
+  await page.mouse.up();
+  await expect(page).toHaveURL(/[?&]stops=KMSN%2CKEAU%2CKOSH%2CKCWA%2CKSTE%2CKRYV%2CKATW%2CKGRB(&|$)|[?&]stops=KMSN,KEAU,KOSH,KCWA,KSTE,KRYV,KATW,KGRB(&|$)/);
 });
 
 test("a stop may be a VFR waypoint, offered after the airports as it is typed and flown through", async ({ page }) => {
