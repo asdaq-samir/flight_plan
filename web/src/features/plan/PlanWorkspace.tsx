@@ -848,7 +848,10 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
             content (ROUND_BUTTON). */}
         <div className="flex shrink-0 flex-col gap-1 [&_button]:size-11 [&_svg]:size-6">
           <IconButton label="Close the route" variant="secondary" onClick={clearRoute} data-testid="route-clear" className={ROUND_BUTTON}>
-            <X strokeWidth={1.75} />
+            {/* Drawn as big as the gear beside it: lucide's cross spans half
+                its box where the gear spans most of it, so at the gear's size
+                it read as a small mark; its line as fine as the gear's. */}
+            <X className="size-8!" strokeWidth={1.35} />
           </IconButton>
           <ConsoleButtonSlot />
         </div>
