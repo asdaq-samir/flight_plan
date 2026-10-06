@@ -1,7 +1,9 @@
 """The obstacle table's Parquet cache beside DOF.DAT: a fresh process
 reads it back instead of re-parsing the national text file, and a new
 data cycle rebuilds it."""
+import io
 import os
+import zipfile
 
 import pandas as pd
 import pytest
@@ -74,7 +76,7 @@ def test_a_new_dof_cycle_rebuilds_the_cache(tmp_path, monkeypatch):
 def test_a_file_already_there_costs_no_download(tmp_path, monkeypatch):
     (tmp_path / "DOF.DAT").write_text("x")
     monkeypatch.setattr(faa_data, "find_current_cycle_page", lambda url: pytest.fail("scraped the NASR index"))
-    monkeypatch.setattr(faa_data, "download_and_extract", lambda url, dest: pytest.fail("downloaded"))
+    monkeypatch.setattr(faa_data, "download_and_extract", lambda url, dest, **_: pytest.fail("downloaded"))
 
     assert faa_data.ensure_nasr_file("DOF.DAT", tmp_path) == tmp_path / "DOF.DAT"
 
@@ -86,7 +88,7 @@ def test_an_evicted_airport_file_fails_only_the_airports(tmp_path, monkeypatch):
     (tmp_path / ".APT_BASE.csv.icloud").write_text("placeholder")
     monkeypatch.setattr(faa_data, "find_current_cycle_page", lambda url: "page")
     monkeypatch.setattr(faa_data, "find_download_link", lambda page, pattern: "https://example/APT_CSV.zip")
-    monkeypatch.setattr(faa_data, "download_and_extract", lambda url, dest: None)   # iCloud takes it straight back
+    monkeypatch.setattr(faa_data, "download_and_extract", lambda url, dest, **_: None)   # iCloud takes it straight back
 
     with pytest.raises(RuntimeError, match="iCloud evicted APT_BASE.csv"):
         faa_data.ensure_nasr_file("APT_BASE.csv", tmp_path)
@@ -127,3 +129,22 @@ def test_no_airport_file_is_the_1000_ft_pattern_not_a_failure(monkeypatch, tmp_p
         raise RuntimeError("the FAA is down")
     monkeypatch.setattr(faa_data, "ensure_nasr_file", unreachable)
     assert faa_data.pattern_agl_ft("C81", tmp_path) == 1000.0
+
+
+def test_an_archive_gives_up_only_the_files_the_planner_reads(tmp_path, monkeypatch):
+    """The DOF archive carries a file per state beside DOF.DAT, and the
+    NASR ones tables nothing reads: 190 MB of data/raw, for nothing."""
+    archive = io.BytesIO()
+    with zipfile.ZipFile(archive, "w") as zf:
+        for name in ("DOF.DAT", "17-IL.Dat", "CHG.DAT", "DOF_README.pdf"):
+            zf.writestr(name, "x")
+
+    class Answer:
+        content = archive.getvalue()
+
+        def raise_for_status(self):
+            pass
+
+    monkeypatch.setattr(faa_data.requests, "get", lambda *a, **k: Answer())
+    faa_data.download_and_extract("https://example/DOF.zip", tmp_path, only=["DOF.DAT", "APT_BASE.csv"])
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["DOF.DAT"]
