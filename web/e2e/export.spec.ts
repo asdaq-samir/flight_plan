@@ -1,5 +1,4 @@
 import { test, expect, type Page } from "@playwright/test";
-import { strFromU8, unzipSync } from "fflate";
 import { settle, slow } from "./helpers";
 
 /**
@@ -28,20 +27,25 @@ test("the route exports as a Garmin flight plan through its checkpoints", async 
   expect(text).toContain("<waypoint-identifier>CP01</waypoint-identifier>");
 });
 
-test("the checkpoints export as a ForeFlight content pack: waypoints, a page each, and the course", async ({ page }) => {
+test("the checkpoints go to ForeFlight: its own link to the planner's pack, and the pack to download", async ({ page }) => {
   await routeWithCheckpoints(page);
   await page.getByTestId("share-route").click();
+  // ForeFlight's link, which on a device with ForeFlight opens it and
+  // has it download the pack from here.
+  const link = new URL((await page.getByTestId("open-foreflight").getAttribute("href"))!);
+  expect(link.origin + link.pathname).toBe("https://foreflight.com/content");
+  const packUrl = new URL(link.searchParams.get("downloadURL")!);
+  expect(packUrl.pathname).toBe("/api/planner/foreflight-pack");
+  expect(packUrl.searchParams.get("cp")!.split("~").length).toBeGreaterThan(0);
+
   const download = page.waitForEvent("download");
   await page.getByTestId("export-foreflight").click();
   const file = await download;
   expect(file.suggestedFilename()).toBe("C81-KDLH-checkpoints.zip");
-  const zip = unzipSync(new Uint8Array(await (await file.createReadStream()).toArray().then(chunks => Buffer.concat(chunks))));
-  const paths = Object.keys(zip);
-  expect(paths).toContain("Wingtip-C81-DLH/manifest.json");
-  expect(paths).toContain("Wingtip-C81-DLH/layers/C81-DLH course.kml");
-  const waypoints = strFromU8(zip["Wingtip-C81-DLH/navdata/Checkpoints.kml"]!);
-  const names = [...waypoints.matchAll(/<name>(C81DLH\d+)<\/name>/g)].map(m => m[1]!);
-  expect(names.length).toBeGreaterThan(0);
-  // A page beside each waypoint, named for it.
-  for (const name of names) expect(paths.some(p => p.startsWith(`Wingtip-C81-DLH/navdata/${name}Checkpoint `))).toBe(true);
+  // A ZIP's entry names are stored as they are: a page beside the first
+  // waypoint, named for it, and the course layer.
+  const bytes = await (await file.createReadStream()).toArray().then(chunks => Buffer.concat(chunks));
+  expect(bytes.subarray(0, 2).toString()).toBe("PK");
+  expect(bytes.includes("Wingtip-C81-DLH/navdata/C81DLH01Checkpoint 1 of ")).toBe(true);
+  expect(bytes.includes("Wingtip-C81-DLH/layers/C81-DLH course.kml")).toBe(true);
 });

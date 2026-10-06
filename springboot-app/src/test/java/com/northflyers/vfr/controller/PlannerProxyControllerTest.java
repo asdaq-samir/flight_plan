@@ -175,6 +175,7 @@ class PlannerProxyControllerTest {
         assertThat(PlannerProxyController.isForwarded("GET", "/api/chart-tile/sectional/10/262/380.png")).isTrue();
         assertThat(PlannerProxyController.isForwarded("POST", "/api/dev/services/ml/start")).isTrue();
         assertThat(PlannerProxyController.isForwarded("GET", "/api/chart")).isTrue();
+        assertThat(PlannerProxyController.isForwarded("GET", "/api/foreflight-pack")).isTrue();
         assertThat(PlannerProxyController.isForwarded("POST", "/api/oral/question")).isTrue();
         assertThat(PlannerProxyController.isForwarded("GET", "/api/oral/question")).isFalse();
         // Gone with collecting a route: the checkpoints come off the chart.
@@ -235,6 +236,22 @@ class PlannerProxyControllerTest {
         // has, rather than round-tripping on every pan and zoom.
         mockMvc.perform(asyncDispatch(started))
                 .andExpect(header().string("Cache-Control", "public, max-age=604800"));
+    }
+
+    @Test
+    void theForeFlightPackKeepsItsFileNameAndNoOtherPathDoes() throws Exception {
+        responseHeaders.put("Content-Disposition", "attachment; filename=\"C81-KDLH-checkpoints.zip\"");
+        MvcResult pack = mockMvc.perform(get("/api/planner/foreflight-pack?dep=C81&dest=KDLH"))
+                .andExpect(request().asyncStarted())
+                .andReturn();
+        // What a download, and ForeFlight's list of packs, call the file.
+        mockMvc.perform(asyncDispatch(pack))
+                .andExpect(header().string("Content-Disposition", "attachment; filename=\"C81-KDLH-checkpoints.zip\""));
+
+        MvcResult course = mockMvc.perform(get("/api/planner/course?dep=C81&dest=KDLH"))
+                .andExpect(request().asyncStarted())
+                .andReturn();
+        mockMvc.perform(asyncDispatch(course)).andExpect(header().doesNotExist("Content-Disposition"));
     }
 
     @Test

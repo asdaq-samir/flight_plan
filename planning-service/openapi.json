@@ -8144,6 +8144,71 @@
         "summary": "Start Dev Service"
       }
     },
+    "/api/foreflight-pack": {
+      "get": {
+        "description": "The route's checkpoints as a ForeFlight content pack (app.foreflight),\nfor the web app's Open in ForeFlight link to hand ForeFlight, or to\ndownload. `cp` is the checkpoints as the nav log has them, so the pack\nis what the pilot saw: each ``lat,lon,kind,score,along_nm`` and the\nleg flown to it, ``,heading,altitude_ft,minutes``, where the nav log\nhas worked one out; ``~`` between them. A 422 for one it cannot read.",
+        "operationId": "foreflight_pack_api_foreflight_pack_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "dep",
+            "required": true,
+            "schema": {
+              "title": "Dep",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "dest",
+            "required": true,
+            "schema": {
+              "title": "Dest",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "stops",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Stops",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cp",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Cp",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/zip": {}
+            },
+            "description": "The pack, a ZIP"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Foreflight Pack"
+      }
+    },
     "/api/local-flight": {
       "get": {
         "description": "A flight that leaves and lands at the same airport -- the pattern,\npractice approaches, an hour's sightseeing: no course and no legs to\nplan, so its totals are the time aloft at the aeroplane's cruise burn,\nwith the fuel check a route's has (the start and taxi allowance, the\nVFR reserve by day or by night, the usable fuel). Night is judged at\nthe field at both ends of the time aloft. A 422 for a route that is\nnot one airport to itself.",

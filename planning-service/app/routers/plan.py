@@ -18,12 +18,13 @@ from datetime import datetime, timedelta, timezone
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response, StreamingResponse
 from vfr import airspace, altitude, charts, faa_data, fixes, geo, navlog, places, sun
 from vfr.profile import route_profile as side_view
 from vfr.config import DATA_DIR, VFR_SECTIONAL_MAX_ZOOM, VFR_SECTIONAL_MIN_ZOOM
 from vfr.weather import WeatherServiceError
 
+from .. import foreflight
 from ..common import DEFAULT_AIRCRAFT, Route, line, load_route, ndjson
 from ..planning import (
     COMPUTE_LIMIT_S, StillComputing, aircraft_profile, altitude_plans, altitude_waiting_on, class_b_detours,
@@ -447,6 +448,30 @@ def checkpoints(dep: str, dest: str, stops: str = "") -> Checkpoints:
     scored, selected, _ = route_checkpoints(r)
     return Checkpoints(
         departure=r.departure, destination=r.destination, stops=r.stops, candidates=scored, selected=selected,
+    )
+
+
+@router.get(
+    "/api/foreflight-pack",
+    response_class=Response,
+    responses={200: {"content": {"application/zip": {}}, "description": "The pack, a ZIP"}},
+)
+def foreflight_pack(dep: str, dest: str, stops: str = "", cp: str = "") -> Response:
+    """The route's checkpoints as a ForeFlight content pack (app.foreflight),
+    for the web app's Open in ForeFlight link to hand ForeFlight, or to
+    download. `cp` is the checkpoints as the nav log has them, so the pack
+    is what the pilot saw: each ``lat,lon,kind,score,along_nm`` and the
+    leg flown to it, ``,heading,altitude_ft,minutes``, where the nav log
+    has worked one out; ``~`` between them. A 422 for one it cannot read."""
+    r = load_route(dep, dest, stops)
+    try:
+        checkpoints = foreflight.parse_checkpoints(cp)
+    except ValueError as e:
+        raise HTTPException(422, f"The checkpoints in the address: {e}") from None
+    files = foreflight.pack_files(list(r.idents), route_line(r), checkpoints, datetime.now(timezone.utc))
+    return Response(
+        foreflight.pack_zip(files), media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{"-".join(r.idents)}-checkpoints.zip"'},
     )
 
 
