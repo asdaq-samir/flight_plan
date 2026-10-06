@@ -39,7 +39,7 @@ import FlightBriefingView, { BriefingNotices, PlanningAidNote, SaveFlightButton 
 import FlightInputs from "./components/navlog/FlightInputs";
 import AirspaceCard from "./components/AirspaceCard";
 import PlaceCard from "./components/PlaceCard";
-import RouteBox from "./components/RouteBox";
+import RouteBox, { type RouteParts } from "./components/RouteBox";
 import TitleNote from "./components/navlog/TitleNote";
 import NavLogActions from "./components/navlog/NavLogActions";
 import NavLogView from "./components/navlog/NavLogView";
@@ -276,19 +276,26 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // The route, changed in its box (RouteBox): in the address at once,
   // which re-plans, as the aeroplane and the time do -- the departure,
   // the stops, the destination.
-  const setRoute = useCallback((points: string[]) => {
+  // Either end may be missing -- taken out in the box, half a route with
+  // the other still to be typed -- and with neither, there is no route:
+  // the search, as Maps' close leaves it.
+  const setRoute = useCallback(({ dep, stops, dest }: RouteParts) => {
+    if (!dep && !dest) {
+      setSearchParams({}, { replace: true });
+      setPanel("peek");
+      return;
+    }
     setSearchParams(prev => {
       const next = new URLSearchParams(prev);
-      next.set("dep", points[0]!);
-      next.set("dest", points.at(-1)!);
-      const stops = points.slice(1, -1);
-      if (stops.length) next.set("stops", stops.join(","));
-      else next.delete("stops");
+      for (const [key, value] of [["dep", dep], ["dest", dest], ["stops", stops.join(",")]] as const) {
+        if (value) next.set(key, value);
+        else next.delete(key);
+      }
       return next;
     }, { replace: true });
-  }, [setSearchParams]);
+  }, [setSearchParams, setPanel]);
   const setStops = useCallback(
-    (stops: string[]) => setRoute([planned.dep, ...stops, planned.dest]), [setRoute, planned.dep, planned.dest]);
+    (stops: string[]) => setRoute({ dep: planned.dep, stops, dest: planned.dest }), [setRoute, planned.dep, planned.dest]);
   // Add Stop open: from its own button, or from no legal altitude's --
   // "via", its Fly via round a Class B, the ways round suggested.
   const [addingStop, setAddingStop] = useState<false | "stop" | "via">(false);
@@ -806,11 +813,11 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     // Shaped as the search bar is with no route, and where the search bar
     // has the console's button, the route's close, as its capsule has:
     // the route put away, the search back.
-    route: routed ? (
+    route: started ? (
       <div className="flex items-start gap-2">
         <div className="min-w-0 flex-1">
           <RouteBox
-            points={[planned.dep, ...planned.stops, planned.dest]} waypoints={waypointStops}
+            dep={planned.dep} stops={planned.stops} dest={planned.dest} waypoints={waypointStops}
             onChange={setRoute}
             adding={!!addingStop} onAddingChange={open => setAddingStop(open ? "stop" : false)}
             via={addingStop === "via" ? s.unflyable?.detours : undefined}
@@ -857,8 +864,6 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
         )}
       </>
     ),
-    // Beside the route form while there is no whole route yet.
-    actions: routed ? undefined : routeActions,
     console: <PilotPanel />,
     submit,
     loading: s.stage !== null,

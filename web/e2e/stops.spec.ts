@@ -38,7 +38,9 @@ test("a stop added in the panel lands the route there: the capsule, the nav log 
   await settle(page);
   await openPanel(page);
 
-  // Typed into the route's box, the airports that answer offered under it.
+  // Typed at the arrow between the two, the airports that answer offered
+  // under the box.
+  await sideDrawer(page).getByRole("button", { name: "Type a stop between C81 and KDLH" }).click();
   await sideDrawer(page).getByTestId("route-type").fill("KMSN");
   await page.getByTestId("route-suggestions").getByRole("option", { name: /KMSN/ }).first().click();
   await expect(page).toHaveURL(/[?&]stops=KMSN(&|$)/);
@@ -68,7 +70,7 @@ test("a stop added in the panel lands the route there: the capsule, the nav log 
   await expect(sideDrawer(page).getByTestId("stop")).toHaveCount(0);
 });
 
-test("the route's box reads departure, stops, the field to add one, an arrow, then the destination; a point comes out from a hold, a right-click or Delete", async ({ page }) => {
+test("the route's box reads its points with an arrow between each two, a tap on one a stop typed there, what is typed after the last the destination; any point comes out from a hold, a right-click or Delete", async ({ page }) => {
   await page.route(url => /\/(checkpoints|navlog|briefing)$/.test(url.pathname), route => route.abort());
   await page.goto("/app/plan?dep=C81&dest=KDLH&stops=KRYV,KMSN");
   await settle(page);
@@ -77,8 +79,15 @@ test("the route's box reads departure, stops, the field to add one, an arrow, th
   // In that order, and no cross on any pill.
   const order = await lines.evaluate(el => [...el.querySelectorAll("[role=group], [data-testid=route-type], [data-testid=route-arrow]")]
     .map(n => n.getAttribute("data-testid") ?? ""));
-  expect(order).toEqual(["route-dep", "stop", "stop", "route-type", "route-arrow", "route-dest"]);
+  expect(order).toEqual(["route-dep", "route-arrow", "stop", "route-arrow", "stop", "route-arrow", "route-dest", "route-type"]);
   expect(await lines.getByRole("button", { name: /^Remove/ }).count()).toBe(0);
+
+  // What is typed after the last point changes the destination.
+  const field = sideDrawer(page).getByTestId("route-type");
+  await field.fill("KMSP");
+  await field.press("Enter");
+  await expect(page).toHaveURL(/[?&]dest=KMSP(&|$)/);
+  await expect(page).toHaveURL(/[?&]stops=KRYV%2CKMSN(&|$)|[?&]stops=KRYV,KMSN(&|$)/);
 
   // A finger held on a pill: its menu.
   const kmsn = lines.getByRole("group", { name: "Stop 2 KMSN" });
@@ -90,14 +99,25 @@ test("the route's box reads departure, stops, the field to add one, an arrow, th
   await page.getByRole("menuitem", { name: "Remove the stop at KMSN" }).click();
   await expect(page).toHaveURL(/[?&]stops=KRYV(&|$)/);
 
-  // Delete on a focused pill, from the keyboard.
-  await lines.getByRole("group", { name: "Stop 1 KRYV" }).focus();
-  await page.keyboard.press("Delete");
+  // The departure taken out with a right-click: the next airport along is
+  // the departure.
+  await lines.getByRole("group", { name: "Departure C81" }).click({ button: "right" });
+  await page.getByRole("menuitem", { name: "Remove C81" }).click();
+  await expect(page).toHaveURL(/[?&]dep=KRYV(&|$)/);
   await expect(page).not.toHaveURL(/[?&]stops=/);
-  // Two points left: the ends stay.
-  await lines.getByRole("group", { name: "Destination KDLH" }).focus();
+
+  // Of two, Delete on the destination: half a route, the departure kept,
+  // the destination still to be typed.
+  await lines.getByRole("group", { name: "Destination KMSP" }).focus();
   await page.keyboard.press("Delete");
-  await expect(lines.getByRole("group")).toHaveCount(2);
+  await expect(page).not.toHaveURL(/[?&]dest=/);
+  await expect(page).toHaveURL(/[?&]dep=KRYV(&|$)/);
+  await expect(sideDrawer(page).getByTestId("route-type")).toHaveAttribute("placeholder", "Destination");
+  // And the last: no route, the search back.
+  await lines.getByRole("group", { name: "Departure KRYV" }).focus();
+  await page.keyboard.press("Delete");
+  await expect(page).not.toHaveURL(/[?&]dep=/);
+  await expect(page.getByTestId("search-airports")).toBeVisible();
 });
 
 test("a link with a stop opens on the route through it", async ({ page }) => {
@@ -141,14 +161,16 @@ test("the route's box is round at its ends with no plus beside it, and Enter tak
   const shape = await box.evaluate(el => ({ radius: parseFloat(getComputedStyle(el).borderTopLeftRadius), height: el.getBoundingClientRect().height }));
   expect(shape.radius).toBeGreaterThanOrEqual(shape.height / 2 - 1);
 
-  // A town's name: its field offered first, and Enter takes it.
+  // A town's name at the arrow: its field offered first, and Enter takes
+  // it, as a stop.
+  await sideDrawer(page).getByRole("button", { name: "Type a stop between C81 and KDLH" }).click();
   const field = sideDrawer(page).getByTestId("route-type");
   await field.fill("madison");
   const first = page.getByTestId("route-suggestions").getByRole("option").first();
   await expect(first).toContainText("KMSN", { timeout: slow(10000) });
   await field.press("Enter");
   await expect(page).toHaveURL(/[?&]stops=KMSN(&|$)/);
-  await expect(field).toHaveValue("");
+  await expect(page).toHaveURL(/[?&]dest=KDLH(&|$)/);
 });
 
 test("a long route's box wraps its points onto two lines and scrolls down to the rest, never sideways", async ({ page }) => {
@@ -181,10 +203,12 @@ test("a long route's box wraps its points onto two lines and scrolls down to the
   const from = (await lines.getByRole("group", { name: "Stop 1 KRYV" }).boundingBox())!;
   const to = (await lines.getByRole("group", { name: "Stop 6 KSTE" }).boundingBox())!;
   expect(to.y).toBeGreaterThan(from.y + from.height / 2);
-  await page.mouse.move(from.x + 8, from.y + from.height / 2);
+  await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
   await page.mouse.down();
-  await page.mouse.move(from.x + 20, from.y + from.height / 2, { steps: 4 });
-  await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 12 });
+  await page.mouse.move(from.x + from.width / 2 + 12, from.y + from.height / 2, { steps: 4 });
+  await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 20 });
+  // Held there a moment, as a finger is, for the pills to make room.
+  await page.waitForTimeout(300);
   await page.mouse.up();
   await expect(page).toHaveURL(/[?&]stops=KMSN%2CKEAU%2CKOSH%2CKCWA%2CKSTE%2CKRYV%2CKATW%2CKGRB(&|$)|[?&]stops=KMSN,KEAU,KOSH,KCWA,KSTE,KRYV,KATW,KGRB(&|$)/);
 });
@@ -198,6 +222,7 @@ test("a stop may be a VFR waypoint, offered after the airports as it is typed an
   await settle(page);
   await openPanel(page);
 
+  await sideDrawer(page).getByRole("button", { name: "Type a stop between C81 and KDLH" }).click();
   await sideDrawer(page).getByTestId("route-type").fill("VPBNG");
   const waypoint = page.getByTestId("route-suggestions").getByRole("option", { name: /VPBNG · VFR waypoint/ });
   await expect(waypoint).toBeVisible({ timeout: slow(10000) });
