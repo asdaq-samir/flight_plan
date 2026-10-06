@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { FileArchive, FileDown, Link2, Printer, Send, Share, TowerControl, X } from "lucide-react";
+import { FileArchive, FileDown, Link2, MapPinned, Printer, Send, Share, TowerControl, X } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../../components/ui/dropdown-menu";
 import { foreflightRoute, fplOf, gpxOf, shareFile, type PlanPoint } from "../../lib/flightPlanFiles";
-import { packPath } from "../../lib/foreflightPack";
+import { openInForeFlight, packOrigin, packPath } from "../../lib/foreflightPack";
 import { navLogRows } from "./components/navlog/rows";
 import { toast } from "sonner";
 import { showError } from "../../lib/problems";
@@ -752,6 +752,11 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
               {points.length > 0 && (
                 <DropdownMenuItem asChild data-testid="open-foreflight">
                   <a href={foreflightRoute(points, s.nav?.altitude_ft)}><Send />Open in ForeFlight</a>
+                </DropdownMenuItem>
+              )}
+              {packHref && (
+                <DropdownMenuItem asChild data-testid="foreflight-pack">
+                  <a href={openInForeFlight(new URL(packHref, packOrigin(window.location)).href)}><MapPinned />Add checkpoints to ForeFlight</a>
                 </DropdownMenuItem>
               )}
               {packHref && (

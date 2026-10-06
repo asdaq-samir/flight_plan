@@ -33,6 +33,10 @@ test("the route goes to ForeFlight: its own link with the checkpoints in the fli
   // ForeFlight's maps link: the route in order, each checkpoint at its place.
   const link = (await page.getByTestId("open-foreflight").getAttribute("href"))!;
   expect(link).toMatch(/^foreflightmobile:\/\/maps\/search\?q=C81\+(-?\d+\.\d{4}\/-?\d+\.\d{4}\+)+KDLH(\+\d+ft)?$/);
+  // And ForeFlight's content-pack link, to the pack on this server.
+  const packLink = new URL((await page.getByTestId("foreflight-pack").getAttribute("href"))!);
+  expect(packLink.origin + packLink.pathname).toBe("https://foreflight.com/content");
+  expect(new URL(packLink.searchParams.get("downloadURL")!).pathname).toMatch(/\/C81-KDLH-checkpoints\.zip$/);
 
   const download = page.waitForEvent("download");
   await page.getByTestId("export-foreflight").click();
@@ -42,6 +46,6 @@ test("the route goes to ForeFlight: its own link with the checkpoints in the fli
   // waypoint, named for it, and the course layer.
   const bytes = await (await file.createReadStream()).toArray().then(chunks => Buffer.concat(chunks));
   expect(bytes.subarray(0, 2).toString()).toBe("PK");
-  expect(bytes.includes("Wingtip-C81-DLH/navdata/C81DLH01Checkpoint 1 of ")).toBe(true);
-  expect(bytes.includes("Wingtip-C81-DLH/layers/C81-DLH course.kml")).toBe(true);
+  expect(bytes.includes("C81-KDLH-checkpoints/navdata/C81DLH01Checkpoint 1 of ")).toBe(true);
+  expect(bytes.includes("C81-KDLH-checkpoints/layers/C81-DLH course.kml")).toBe(true);
 });

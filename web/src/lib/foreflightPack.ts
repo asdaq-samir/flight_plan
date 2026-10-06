@@ -3,12 +3,12 @@
  * pack (planning-service app/foreflight.py) at an address that carries
  * the checkpoints as the nav log has them -- as a token in the path, the
  * address ending in the pack's file name, which ForeFlight names its
- * download by -- and a browser downloads it to Files, from where
- * ForeFlight imports it. It was built here, zipped in the browser and
- * handed to the share sheet, which does not offer ForeFlight for a ZIP.
- * ForeFlight's own link to the pack (content?downloadURL=) fetched it but
- * would not install it; the route itself goes by ForeFlight's maps link
- * (lib/flightPlanFiles foreflightRoute).
+ * download by -- so ForeFlight can fetch it itself from its own link
+ * (https://foreflight.com/support/content-packs/: content?downloadURL=),
+ * and a browser can download it to Files, from where ForeFlight imports
+ * it too. It was built here, zipped in the browser and handed to the
+ * share sheet, which does not offer ForeFlight for a ZIP. The route itself
+ * goes by ForeFlight's maps link (lib/flightPlanFiles foreflightRoute).
  */
 
 export interface PackCheckpoint {
@@ -40,4 +40,19 @@ export function packPath(dep: string, dest: string, stops: string[], checkpoints
   const query = new URLSearchParams({ dep, dest, stops: stops.join(","), cp }).toString();
   const token = btoa(query).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
   return `/api/planner/foreflight-pack/${token}/${[dep, ...stops, dest].join("-")}-checkpoints.zip`;
+}
+
+/** Where ForeFlight fetches the pack from: this page's own origin, but on
+ *  the local stack's HTTPS port (8443) the plain port beside it (8080).
+ *  That port's certificate is the Mac's own authority's, which ForeFlight
+ *  would not take: it came to the port in plain HTTP, which TLS refuses.
+ *  The planner leaves the pack on plain http for it (SecurityConfig). */
+export function packOrigin(location: Pick<Location, "protocol" | "hostname" | "port" | "origin">): string {
+  return location.protocol === "https:" && location.port === "8443" ? `http://${location.hostname}:8080` : location.origin;
+}
+
+/** ForeFlight's own link for a pack at `packUrl` (a whole address it can
+ *  reach): on a device with ForeFlight, it opens there and downloads it. */
+export function openInForeFlight(packUrl: string): string {
+  return `https://foreflight.com/content?downloadURL=${encodeURIComponent(packUrl)}`;
 }

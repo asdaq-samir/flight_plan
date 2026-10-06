@@ -39,29 +39,29 @@ def test_each_waypoints_line_fits_what_foreflight_shows():
 def test_one_folder_a_manifest_the_waypoints_a_page_each_named_for_it_and_the_course():
     files = _files()
     assert sorted(files) == [
-        "Wingtip-C81-DLH/layers/C81-DLH course.kml",
-        "Wingtip-C81-DLH/manifest.json",
-        "Wingtip-C81-DLH/navdata/C81DLH01Checkpoint 1 of 3, Town.txt",
-        "Wingtip-C81-DLH/navdata/C81DLH02Checkpoint 2 of 3, Lake.txt",
-        "Wingtip-C81-DLH/navdata/C81DLH03Checkpoint 3 of 3, Road or railway.txt",
-        "Wingtip-C81-DLH/navdata/Checkpoints.kml",
+        "C81-KDLH-checkpoints/layers/C81-DLH course.kml",
+        "C81-KDLH-checkpoints/manifest.json",
+        "C81-KDLH-checkpoints/navdata/C81DLH01Checkpoint 1 of 3, Town.txt",
+        "C81-KDLH-checkpoints/navdata/C81DLH02Checkpoint 2 of 3, Lake.txt",
+        "C81-KDLH-checkpoints/navdata/C81DLH03Checkpoint 3 of 3, Road or railway.txt",
+        "C81-KDLH-checkpoints/navdata/Checkpoints.kml",
     ]
-    manifest = json.loads(files["Wingtip-C81-DLH/manifest.json"])
+    manifest = json.loads(files["C81-KDLH-checkpoints/manifest.json"])
     assert manifest == {
         "name": "Wingtip checkpoints C81-KDLH", "abbreviation": "WT.C81DLH", "version": 1, "organizationName": "Wingtip Maps",
     }
     assert ("<Placemark><name>C81DLH02</name><description>Lake, 3.2/5, 46 nm</description>"
-            "<Point><coordinates>-88.611600,42.977300,0</coordinates></Point></Placemark>") in files["Wingtip-C81-DLH/navdata/Checkpoints.kml"]
-    assert "-88.090000,42.320000,0 -92.190000,46.840000,0" in files["Wingtip-C81-DLH/layers/C81-DLH course.kml"]
+            "<Point><coordinates>-88.611600,42.977300,0</coordinates></Point></Placemark>") in files["C81-KDLH-checkpoints/navdata/Checkpoints.kml"]
+    assert "-88.090000,42.320000,0 -92.190000,46.840000,0" in files["C81-KDLH-checkpoints/layers/C81-DLH course.kml"]
 
 
 def test_a_page_says_what_to_look_for_the_leg_flown_to_it_where_known_and_what_comes_next():
     files = _files()
-    first = files["Wingtip-C81-DLH/navdata/C81DLH01Checkpoint 1 of 3, Town.txt"]
+    first = files["C81-KDLH-checkpoints/navdata/C81DLH01Checkpoint 1 of 3, Town.txt"]
     for words in ("Checkpoint 1 of 3, C81 → KDLH", "the yellow of its built-up area", "5.0 of 5", "322°",
                   "4,500 ft", "0:02", "N42°22.3′ W088°05.6′", "Next: Lake, 42.9 nm on."):
         assert words in first
-    last = files["Wingtip-C81-DLH/navdata/C81DLH03Checkpoint 3 of 3, Road or railway.txt"]
+    last = files["C81-KDLH-checkpoints/navdata/C81DLH03Checkpoint 3 of 3, Road or railway.txt"]
     assert "Magnetic heading" not in last
     assert "The last checkpoint before KDLH." in last
 
@@ -98,8 +98,8 @@ def test_the_link_downloads_the_zip_each_folder_an_entry_of_its_own():
     assert resp.headers["content-type"] == "application/zip"
     assert resp.headers["content-disposition"] == 'attachment; filename="C81-KDLH-checkpoints.zip"'
     names = zipfile.ZipFile(io.BytesIO(resp.content)).namelist()
-    assert names[:3] == ["Wingtip-C81-DLH/", "Wingtip-C81-DLH/layers/", "Wingtip-C81-DLH/navdata/"]
-    assert "Wingtip-C81-DLH/navdata/C81DLH01Checkpoint 1 of 3, Town.txt" in names
+    assert names[:3] == ["C81-KDLH-checkpoints/", "C81-KDLH-checkpoints/layers/", "C81-KDLH-checkpoints/navdata/"]
+    assert "C81-KDLH-checkpoints/navdata/C81DLH01Checkpoint 1 of 3, Town.txt" in names
 
 
 def test_a_bad_checkpoint_or_token_in_the_link_is_a_422():

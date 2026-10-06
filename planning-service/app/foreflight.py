@@ -198,8 +198,12 @@ def _coordinates(lat: float, lon: float) -> str:
     return f"{lon:.6f},{lat:.6f},0"
 
 
-def folder_name(dep: str, dest: str) -> str:
-    return f"Wingtip-{short(dep)}-{short(dest)}"
+def folder_name(idents: list[str]) -> str:
+    """The pack's one folder: named as its file is, less the .zip, as
+    ForeFlight's sample pack is (foreflight_sample_content_pack.zip holds
+    foreflight_sample_content_pack/). A pack whose folder was named for
+    Wingtip installed from Files but not from ForeFlight's own link."""
+    return file_name(idents).removesuffix(".zip")
 
 
 def pack_files(idents: list[str], line: list, cps: list[PackCheckpoint]) -> dict[str, str]:
@@ -209,7 +213,7 @@ def pack_files(idents: list[str], line: list, cps: list[PackCheckpoint]) -> dict
     several times over, and each answer must be the same bytes."""
     dep, dest = idents[0], idents[-1]
     names = waypoint_names(dep, dest, len(cps))
-    folder = folder_name(dep, dest)
+    folder = folder_name(idents)
     title = " → ".join(idents)
     files = {
         f"{folder}/manifest.json": json.dumps({
