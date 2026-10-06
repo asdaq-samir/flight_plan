@@ -102,8 +102,11 @@ export default function MapPage({ mode }: { mode: Mode }) {
   }, [refused, setSearchParams]);
 
   // How far the panel is out. All the way, on the planner, is the
-  // address; half and resting are this page's own.
-  const [localPanel, setLocalPanel] = useState<PanelState>("peek");
+  // address; half and resting are this page's own. The planner opened on
+  // no route is Maps opened: half way up on the search bar, Favorites and
+  // Recents under it (a reload forgets the route: lib/freshLoad).
+  const [localPanel, setLocalPanel] = useState<PanelState>(
+    () => (mode === "pilot" && !addressDep && !addressDest ? "half" : "peek"));
   const briefingInAddress = searchParams.get("view") === "briefing";
   const panel: PanelState = mode === "pilot"
     ? (briefingInAddress ? "full" : localPanel === "full" ? "peek" : localPanel)

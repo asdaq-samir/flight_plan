@@ -368,7 +368,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   };
   const searchField = (
     <SearchField
-      value={query} onChange={setQuery} open={panel !== "peek"} inputRef={searchInput}
+      value={query} onChange={setQuery} open={panel === "full"} inputRef={searchInput}
       placeholder={picking === "home" ? "Search for your home airport" : picking === "favorite" ? "Search for an airport to keep" : "Search airports"}
       onFocus={() => { if (place) selectPlace(null); setFavoritesOpen(false); setPanel("full"); }}
       onCancel={() => { setQuery(""); setPicking("place"); setFavoritesOpen(false); if (place) selectPlace(null); setPanel("peek"); }}

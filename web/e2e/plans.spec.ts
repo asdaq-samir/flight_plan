@@ -163,9 +163,10 @@ test("plan page: the nav log is computed for an aeroplane the pilot picks in its
   await picker.click();
   await page.getByRole("option", { name: /PA28/ }).click();
   await expect(picker).toContainText("PA28");
-  // Remembered per browser: the same aeroplane after a reload -- on
-  // which the drawer is already open, since the address kept it.
-  await page.reload();
+  // Remembered per browser: the same aeroplane with the plan opened
+  // again from its address -- on which the drawer is already open, since
+  // the address kept it. (A reload forgets the route: lib/freshLoad.)
+  await page.goto(page.url());
   await settle(page);
   await expectDrawerOpen(page);
   await expect(page.getByTestId("aircraft-select")).toContainText("PA28");

@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { PAGES, consoleSheet, settle, roleMenu, openPanel } from "./helpers";
+import { PAGES, consoleSheet, settle, roleMenu, openPanel, closeSidebarWithTheStockKey, expectDrawerClosed } from "./helpers";
 
 /**
  * The two pages and the switch between them: the Dev-mode switch, the
@@ -34,6 +34,9 @@ test("the console's role menu flips to the dev page, the console staying out, an
 test("the panel's head looks the same on both pages: the console's role says which one this is", async ({ page }) => {
   await page.goto("/app/plan");
   await settle(page);
+  // At rest, as the dev page opens: the planner opens half way up.
+  await closeSidebarWithTheStockKey(page);
+  await expectDrawerClosed(page);
   const pilotBg = await page.locator("header").evaluate(el => getComputedStyle(el).backgroundColor);
   await expect(page.locator("[data-mode]")).toHaveAttribute("data-mode", "pilot");
   await expect((await roleMenu(page)).developer).toHaveAttribute("aria-checked", "false");

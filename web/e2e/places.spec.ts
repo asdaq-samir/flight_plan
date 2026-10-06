@@ -139,7 +139,8 @@ test("with no route the panel is a search bar: Home is set from Favorites, an ai
   await page.reload();
   await settle(page);
   const search = page.getByTestId("search-airports");
-  await expect(sideDrawer(page)).toHaveAttribute("data-capsule", "true");
+  // Half way up on the search, as a fresh load opens.
+  await expect(sideDrawer(page)).toHaveAttribute("data-panel", "half");
 
   // Focused, the sheet comes all the way up on Favorites, Home not set yet;
   // its Add asks the search bar for the field.
