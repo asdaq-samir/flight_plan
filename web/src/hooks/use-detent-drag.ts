@@ -21,17 +21,20 @@ const DRAG_SLOP = 10;
  * sheet keeps the height being dragged to (`setDragged`, null at rest);
  * `shown` is the height it is at now.
  */
-export function useDetentDrag<S extends string>({ detents, shown, fromBottom, onRelease, setDragged }: {
+export function useDetentDrag<S extends string>({ detents, shown, fromBottom, onRelease, setDragged, floor }: {
   detents: Record<S, number>;
   shown: number;
+  /** As low as it can be dragged, where that is under the lowest detent:
+   *  the map's capsule, shorter than the sheet it opens into. */
+  floor?: number;
   /** A sheet from the bottom opens upward; one from the top, downward. */
   fromBottom: boolean;
   onRelease: (detent: S) => void;
   setDragged: (height: number | null) => void;
 }) {
   const swallowClick = useRef(false);
-  const latest = useRef({ detents, shown, onRelease, fromBottom });
-  useEffect(() => { latest.current = { detents, shown, onRelease, fromBottom }; });
+  const latest = useRef({ detents, shown, onRelease, fromBottom, floor });
+  useEffect(() => { latest.current = { detents, shown, onRelease, fromBottom, floor }; });
 
   const startDrag = (start: ReactPointerEvent) => {
     if (start.button !== 0) return;
@@ -49,7 +52,12 @@ export function useDetentDrag<S extends string>({ detents, shown, fromBottom, on
       last = event.clientY;
       at = event.timeStamp;
       const heights = Object.values<number>(latest.current.detents);
-      to = Math.min(Math.max(...heights), Math.max(Math.min(...heights), from + sign * (event.clientY - start.clientY)));
+      // As low as the floor, or where it started, under the lowest detent:
+      // the map's capsule is shorter than the sheet it becomes the moment
+      // a drag starts -- held to the sheet's lowest, it jumped up under
+      // the finger.
+      const lowest = Math.min(...heights, from, latest.current.floor ?? Infinity);
+      to = Math.min(Math.max(...heights), Math.max(lowest, from + sign * (event.clientY - start.clientY)));
       if (!frame) frame = requestAnimationFrame(() => { frame = 0; setDragged(to); });
     };
     const end = (event: PointerEvent) => {

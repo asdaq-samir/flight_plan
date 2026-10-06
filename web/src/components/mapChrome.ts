@@ -77,12 +77,12 @@ export const GLASS_SHEET = "liquid-glass [--glass-fill:62%]";
  *  under a screenful of nav log. */
 export const GLASS_SHEET_FULL = "liquid-glass [--glass-fill:88%]";
 
-/** A sheet while a finger drags it: its fill nearly whole and no blur
- *  behind it. A blur re-drawn under a sheet changing height every frame
- *  cost a frame in two (measured: half the frames over 33 ms with the
- *  glass, one in thirty without), the drag stepping rather than
- *  following; the glass comes back as it settles. */
-export const SHEET_DRAGGING = "bg-background/95 shadow-lg dark:bg-popover/95";
+/** The glass's fill at each shape (GLASS, GLASS_SHEET, GLASS_SHEET_FULL),
+ *  for a sheet being dragged to follow from one to the next. A dragged
+ *  sheet was an opaque fill with no blur behind it, for the frames a blur
+ *  re-drawn every frame was measured to cost; the pilot found the glass
+ *  giving way under the finger, which Maps' never does. */
+export const GLASS_FILL = { capsule: 40, half: 62, full: 88 };
 
 /** iOS's sheet curve, the one vaul uses too: a sheet's height, and its
  *  way in from the screen's edges as it changes shape. */

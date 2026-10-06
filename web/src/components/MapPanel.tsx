@@ -5,7 +5,7 @@ import { useIsMobile } from "../hooks/use-mobile";
 import { useNavEdge } from "../hooks/use-nav-edge";
 import { useKeyboardInset, useSafeArea, useVisualHeight, useWindowHeight } from "../hooks/use-viewport";
 import {
-  GLASS, GLASS_SHEET, GLASS_SHEET_FULL, MATERIAL, PanelHalfContext, SHEET_DRAGGING, SHEET_INSET, SHEET_INSET_RADIUS, SHEET_MARGIN, SHEET_RESHAPE,
+  GLASS, GLASS_FILL, GLASS_SHEET, GLASS_SHEET_FULL, MATERIAL, PanelHalfContext, SHEET_INSET, SHEET_INSET_RADIUS, SHEET_MARGIN, SHEET_RESHAPE,
   SHEET_SETTLE, type MapInsets, type PanelState,
 } from "./mapChrome";
 
@@ -48,6 +48,13 @@ const GRABBER = 16;
 
 /** A card's width from `md` up: 24rem. */
 const CARD = 384;
+
+/** How far a drag from the capsule takes to turn it into the sheet: over
+ *  it, the way in from the screen's edges, the corners, the glass and the
+ *  head follow the finger from the capsule's to the sheet's. */
+const MORPH = 96;
+
+const between = (from: number, to: number, t: number) => from + (to - from) * t;
 
 /**
  * The page's one panel over the map, the way Maps on an iPhone has one:
@@ -124,9 +131,10 @@ export default function MapPanel({ label, top, controls, notices, compact, child
   // the home indicator (or eight points where there is none), so its
   // content sits clear of it -- or on to the keyboard, with it up.
   const edgeInset = onPhone && fromBottom && !keyboard ? Math.max(Math.round(safe.bottom), SHEET_MARGIN) : 0;
-  // A drag (below) that is under way; the capsule opens into the sheet
-  // as soon as one starts.
+  // A drag (below) that is under way, and the capsule's height when one
+  // last started from it: 41 points of field and nine round it, until then.
   const [dragged, setDragged] = useState<number | null>(null);
+  const [capsuleHeight, setCapsuleHeight] = useState(41 + 2 * CAPSULE_PAD);
   // At rest with a capsule to show, it floats clear of the screen's
   // edges as Maps' does: in from the sides, above the home indicator
   // (into its inset a little, as Maps sits) or under the status bar.
@@ -163,7 +171,36 @@ export default function MapPanel({ label, top, controls, notices, compact, child
       radius: fromBottom ? `${SHEET_INSET_RADIUS}px ${SHEET_INSET_RADIUS}px 0 0` : `0 0 ${SHEET_INSET_RADIUS}px ${SHEET_INSET_RADIUS}px`,
     },
   }[shape];
-  const { startDrag, swallow } = useDetentDrag({ detents, shown, fromBottom, onRelease: onStateChange, setDragged });
+  // A drag from the capsule turns it into the sheet as the finger goes
+  // (MORPH), as Maps' does: it jumped to the sheet's shape and head at a
+  // touch, the head too tall for the height the finger had it at, and its
+  // glass gave way to an opaque fill for as long as the finger was down.
+  // And back: a sheet dragged down to the capsule's height turns into it
+  // on the way, rather than at the release.
+  const morphing = !!compact && dragged !== null;
+  const morph = capsule ? 0 : morphing ? Math.min(1, Math.max(0, (dragged - capsuleHeight) / MORPH)) : 1;
+  if (morphing && morph < 1 && shape === "inset") {
+    geometry.side = between(CAPSULE_INSET, SHEET_INSET, morph);
+    geometry.gap = between(capsuleGap, SHEET_INSET, morph);
+    geometry.radius = `${between(capsuleHeight / 2, SHEET_INSET_RADIUS, morph)}px`;
+  }
+  // The glass the whole way, its fill following the height: the capsule's,
+  // the half sheet's, nearly whole all the way up (GLASS_FILL).
+  const fill = morph < 1 ? between(GLASS_FILL.capsule, GLASS_FILL.half, morph)
+    : between(GLASS_FILL.half, GLASS_FILL.full, Math.min(1, Math.max(0, (shown - detents.half) / Math.max(1, detents.full - detents.half))));
+  // While it turns, the capsule's own content fades out over the sheet's
+  // head as that fades in -- unless the two are one (the search bar).
+  const crossFade = morphing && morph < 1 && compact !== top;
+  const { startDrag: drag, swallow } = useDetentDrag({
+    detents, shown, fromBottom, onRelease: onStateChange, setDragged,
+    // Down to the capsule's own height, which is less than the sheet's
+    // lowest detent: its head alone, no controls.
+    floor: compact ? capsuleHeight : undefined,
+  });
+  const startDrag = (event: Parameters<typeof drag>[0]) => {
+    if (capsule) setCapsuleHeight(shown);
+    drag(event);
+  };
 
   // What it covers of the map at rest, for the map to fit a route clear
   // of it: the strip at its edge on a phone; from `md` up the column at
@@ -232,9 +269,11 @@ export default function MapPanel({ label, top, controls, notices, compact, child
       data-capsule={capsule || undefined}
       data-shape={onPhone ? shape : undefined}
       style={{
-        // The height follows a finger without lag; the shape eases in
-        // and out as a drag crosses into another.
-        height: shown, transition: !measured ? "none" : dragged === null ? SHEET_SETTLE : SHEET_RESHAPE,
+        // The height follows a finger without lag, and the capsule's turn
+        // into the sheet with it; the shape eases in and out as a drag
+        // crosses half way up, to the screen's edges and back.
+        height: shown, transition: !measured || (morphing && morph < 1) ? "none" : dragged === null ? SHEET_SETTLE : SHEET_RESHAPE,
+        ...(onPhone && dragged !== null ? { "--glass-fill": `${fill}%` } : {}),
         ...(onPhone ? {
           left: geometry.side, right: geometry.side,
           ...(fromBottom ? { bottom: keyboard && !capsule ? keyboard + geometry.gap : geometry.gap } : { top: geometry.gap }),
@@ -251,7 +290,7 @@ export default function MapPanel({ label, top, controls, notices, compact, child
         // for a nav log read on it, and all the way out nearly whole.
         capsule ? GLASS
           : !onPhone ? MATERIAL
-            : dragged !== null ? SHEET_DRAGGING : nearFull ? GLASS_SHEET_FULL : GLASS_SHEET,
+            : dragged !== null ? GLASS : nearFull ? GLASS_SHEET_FULL : GLASS_SHEET,
         !onPhone && cn(
           "left-[max(1rem,env(safe-area-inset-left))] w-[24rem]",
           !capsule && "rounded-[10px] shadow-[0_2px_10px_rgba(0,0,0,0.12)] ring-1 ring-black/5 dark:shadow-[0_2px_10px_rgba(0,0,0,0.45)] dark:ring-white/10",
@@ -262,8 +301,14 @@ export default function MapPanel({ label, top, controls, notices, compact, child
       {/* The head, dragged as the grabber is: the grabber first on a sheet
           from the bottom, the top row, any notice, the controls -- or, at
           rest, the capsule, its grabber on its far edge from the top. */}
+      {crossFade && (
+        <div aria-hidden="true" inert className="pointer-events-none absolute inset-x-0 top-0 z-10 p-[9px]" style={{ opacity: 1 - morph }}>
+          {compact}
+        </div>
+      )}
       <div ref={setHead} className="relative flex shrink-0 touch-none flex-col" onPointerDown={startDrag}>
         {fromBottom && grabber}
+        <div className="flex flex-col" style={crossFade ? { opacity: morph } : undefined}>
         {/* One header in both shapes, so what the capsule and the sheet
             both show -- the search bar -- stays the same element as the
             one turns into the other, focus and keyboard and all. From
@@ -296,6 +341,7 @@ export default function MapPanel({ label, top, controls, notices, compact, child
           // hit areas (index.css) meet rather than overlap.
           <div className={cn("flex flex-wrap items-center gap-x-2 gap-y-3 px-3 pt-3 print:hidden", fromBottom ? "pb-2.5" : "pb-5")}>{controls}</div>
         )}
+        </div>
         {capsule && !fromBottom && grabber}
       </div>
       {/* Over a grabber at the bottom, clear of its hit area. */}
