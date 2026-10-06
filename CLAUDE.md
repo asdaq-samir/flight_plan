@@ -13,6 +13,9 @@ It is headed for an iOS app. README.md has the services and the layout.
   moves, Sync merges it back into maps-layout.
 - Never push to `main`. Never force-push. Pull before pushing to
   maps-layout: Sync may have added a merge.
+- Every week the Audit workflow checks design, code and speed. It opens
+  `claude/audit-*` pull requests, plus issues labelled "audit" for what
+  the owner must decide.
 
 ## Never
 
