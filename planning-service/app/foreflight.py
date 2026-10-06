@@ -267,10 +267,23 @@ def pack_zip(files: dict[str, str]) -> bytes:
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as z:
         for folder in folders:
-            z.writestr(zipfile.ZipInfo(folder, _ZIP_TIME), "")
+            z.writestr(_entry(folder, _DIRECTORY), "")
         for path, text in files.items():
-            z.writestr(zipfile.ZipInfo(path, _ZIP_TIME), text, compress_type=zipfile.ZIP_DEFLATED)
+            z.writestr(_entry(path, _FILE), text, compress_type=zipfile.ZIP_DEFLATED)
     return buffer.getvalue()
+
+
+#: Each entry's Unix mode, and for a folder the MS-DOS flag too. A ZipInfo
+#: made by hand gets 0600 for a folder -- no way in -- and ForeFlight could
+#: not install a pack whose folders came out that way.
+_DIRECTORY = (0o40755 << 16) | 0x10
+_FILE = 0o100644 << 16
+
+
+def _entry(path: str, mode: int) -> zipfile.ZipInfo:
+    info = zipfile.ZipInfo(path, _ZIP_TIME)
+    info.external_attr = mode
+    return info
 
 
 def byte_range(header: str | None, size: int) -> tuple[int, int] | None:

@@ -128,3 +128,14 @@ def test_a_byte_range_is_a_206_of_just_those_bytes_and_one_past_the_end_a_416():
     assert client.get(_pack_url(), headers={"Range": f"bytes={len(whole)}-"}).status_code == 416
     # A form this does not serve is the whole file.
     assert client.get(_pack_url(), headers={"Range": "bytes=0-1,5-6"}).status_code == 200
+
+
+def test_its_folders_can_be_opened_and_its_files_read_once_unzipped():
+    # A folder stored as 0600 cannot be entered once unzipped: ForeFlight
+    # answered such a pack with "Installation Error".
+    for info in zipfile.ZipFile(io.BytesIO(client.get(_pack_url()).content)).infolist():
+        mode = info.external_attr >> 16
+        if info.is_dir():
+            assert mode == 0o40755 and info.external_attr & 0x10
+        else:
+            assert mode == 0o100644
