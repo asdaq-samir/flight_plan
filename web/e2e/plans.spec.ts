@@ -228,7 +228,7 @@ test("plan page: no legal altitude is the route's own problem: its chip says so 
   await problem.getByTestId("unflyable-fly").click();
   await expect(page).toHaveURL(/[?&]altitude_ft=12500/);
 
-  // Or a stop: the route's Add Stop open. Once planned again at that
+  // Or a stop: the route's box takes the typing. Once planned again at that
   // altitude: the mark goes and comes back as the plan is made, and a
   // tap on the one going opened nothing.
   await expect(page.getByTestId("navlog-progress")).toHaveCount(0, { timeout: slow(30000) });
@@ -237,7 +237,7 @@ test("plan page: no legal altitude is the route's own problem: its chip says so 
     await expect(problem.getByTestId("unflyable-add-stop")).toBeVisible({ timeout: 2000 });
   }).toPass({ timeout: slow(30000) });
   await problem.getByTestId("unflyable-add-stop").click();
-  await expect(page.getByPlaceholder(/Search/)).toBeVisible();
+  await expect(sideDrawer(page).getByTestId("route-type")).toBeFocused();
 });
 
 test("plan page: Class B in the way offers the waypoint round it, or accepting the Class B, which is said while it lasts", async ({ page }) => {
@@ -285,8 +285,8 @@ test("plan page: Class B in the way offers the waypoint round it, or accepting t
   await accepted.getByRole("button", { name: "Undo" }).click();
   await expect(page).not.toHaveURL(/class_b=/);
 
-  // Or round it: Fly via, the stop picker with the ways round at its
-  // top, and the one picked in the stops.
+  // Or round it: Fly via, the ways round offered under the route's box,
+  // and the one picked in the stops.
   // Once planned again without it: the mark goes and comes back as the
   // plan is made, and a tap on the one going opened nothing.
   await expect(async () => {

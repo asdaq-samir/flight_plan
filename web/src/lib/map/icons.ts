@@ -77,6 +77,32 @@ export function ownShipIcon(headingDeg: number | null, off = false) {
   });
 }
 
+/** How far a checkpoint's name sits from its point: clear of its numbered
+ *  dot (dotIcon's 24, and a margin). */
+export const CHECKPOINT_LABEL_GAP = 16;
+/** Its height, for the labels to be kept from one another (RouteMap). */
+export const CHECKPOINT_LABEL_HEIGHT = 20;
+/** A rough width per letter at its size, for the same. */
+export const CHECKPOINT_LABEL_EM = 7.4;
+
+/**
+ * A checkpoint's name beside its dot, as ForeFlight labels a flight
+ * plan's waypoints: the name the route's ForeFlight pack gives it (ROUND
+ * LAKE BEACH, ROAD WATERTOWN), so the map here and ForeFlight's read
+ * alike, on a dark label that holds on the chart's paper and its
+ * linework both, after the dot -- or before it where there is no room
+ * after (the screen's edge, another name). Not a target: a tap there is
+ * the dot's or the chart's.
+ */
+export function checkpointLabelIcon(name: string, side: "right" | "left" = "right") {
+  return L.divIcon({
+    className: "",
+    iconSize: [0, 0],
+    iconAnchor: [side === "right" ? -CHECKPOINT_LABEL_GAP : CHECKPOINT_LABEL_GAP, CHECKPOINT_LABEL_HEIGHT / 2],
+    html: `<span data-checkpoint-label="" class="pointer-events-none absolute ${side === "right" ? "left-0" : "right-0"} top-0 whitespace-nowrap rounded-md bg-[#1f2933]/85 px-1.5 text-[12px] font-bold uppercase leading-[20px] tracking-wide text-white shadow-[0_1px_3px_rgba(0,0,0,.4)]">${text(name)}</span>`,
+  });
+}
+
 /**
  * An airport: the ident on a chip coloured by what is known of its
  * weather (see `AirportCard`) -- grey where nothing is reported yet.

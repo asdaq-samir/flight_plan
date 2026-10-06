@@ -52,7 +52,19 @@ async function airportToTap(page: Page) {
   }).toPass({ timeout: slow(10_000) });
   const departure = page.locator(".leaflet-marker-icon", { hasText: "C81" }).first();
   await expect(departure).toBeVisible({ timeout: slow(30000) });
-  const box = (await departure.boundingBox())!;
+  // The departure to the middle of the map first: with the whole route
+  // fitted to a phone it sits just above the capsule, and the airports
+  // round it closer in were under the capsule and the route's markers.
+  const viewport = page.viewportSize()!;
+  let box = (await departure.boundingBox())!;
+  const middle = { x: viewport.width / 2, y: viewport.height * 0.4 };
+  const from = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+  await page.mouse.move(from.x, from.y);
+  await page.mouse.down();
+  await page.mouse.move(middle.x, middle.y, { steps: 10 });
+  await page.mouse.up();
+  await page.waitForTimeout(800);
+  box = (await departure.boundingBox())!;
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
   for (let i = 0; i < 4; i++) {
     await page.mouse.wheel(0, -60);
@@ -72,7 +84,9 @@ async function airportToTap(page: Page) {
     await page.waitForTimeout(500);
     expect(still).toBe(true);
   }).toPass({ timeout: slow(15_000) });
-  const at = await page.evaluate(selector => {
+  // One whose middle nothing else covers, asked again while the map is
+  // still drawing under a busy runner.
+  const find = () => page.evaluate(selector => {
     for (const el of document.querySelectorAll(selector)) {
       const r = el.getBoundingClientRect();
       const x = r.left + r.width / 2, y = r.top + r.height / 2;
@@ -81,6 +95,8 @@ async function airportToTap(page: Page) {
     }
     return null;
   }, AIRPORTS);
+  await expect.poll(find, { timeout: slow(10000), message: "an airport on the chart with nothing over it" }).not.toBeNull();
+  const at = await find();
   expect(at, "an airport on the chart with nothing over it").not.toBeNull();
   return at!;
 }

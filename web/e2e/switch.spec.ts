@@ -52,7 +52,8 @@ test("the route form leads the panel's head on both pages, signed in or out", as
   // Where the form starts in its row: the same on the planner and the dev
   // page, and for someone signed out, whose actions differ.
   const lead = (p: Page) => p.locator("header").evaluate(header => {
-    const form = header.querySelector("form")!.getBoundingClientRect();
+    // The planner's route box, the dev page's route form.
+    const form = header.querySelector("[data-testid=route-box], form")!.getBoundingClientRect();
     return Math.round(form.left - header.getBoundingClientRect().left);
   });
   const leads: number[] = [];

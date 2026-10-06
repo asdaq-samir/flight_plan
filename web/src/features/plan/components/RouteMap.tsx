@@ -1,6 +1,6 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import L from "leaflet";
-import { CircleMarker, Marker, useMapEvents } from "react-leaflet";
+import { CircleMarker, Marker, useMap, useMapEvents } from "react-leaflet";
 import { Badge } from "../../../components/ui/badge";
 import { useQuery } from "@tanstack/react-query";
 import { classBQuery } from "../../../lib/queryClient";
@@ -14,7 +14,9 @@ import { chipColourOf } from "../../../lib/map/flightCategory";
 import { CourseLine } from "../../../lib/map/CourseLine";
 import { FlownTrackLayer } from "../../../lib/map/FlownTrackLayer";
 import { Halo } from "../../../lib/map/Halo";
-import { airportIcon, dotIcon, legPointIcon, waypointIcon } from "../../../lib/map/icons";
+import {
+  CHECKPOINT_LABEL_EM, CHECKPOINT_LABEL_GAP, CHECKPOINT_LABEL_HEIGHT, airportIcon, checkpointLabelIcon, dotIcon, legPointIcon, waypointIcon,
+} from "../../../lib/map/icons";
 import { FocusOn } from "../../../lib/map/MapEffects";
 import { MapCard } from "../../../lib/map/MapCard";
 import { MapPopup } from "../../../lib/map/MapPopup";
@@ -202,6 +204,7 @@ function Endpoints({ course, weather, onSelectPoint, onSelectPlace }: {
 function Checkpoints({ candidates, selected, onSelectCandidate }: Pick<Props, "candidates" | "selected" | "onSelectCandidate">) {
   const show = usePreferences(s => s.waypoints);
   const { carded, cardEvents } = useCardedMarker<string>();
+  const labelled = useLabelled(selected);
   if (!show) return null;
   return (
     <>
@@ -232,8 +235,66 @@ function Checkpoints({ candidates, selected, onSelectCandidate }: Pick<Props, "c
           </Marker>
         );
       })}
+      {selected.map(c => {
+        const label = labelled.get(`${c.lat},${c.lon}`);
+        return label && (
+          <Marker
+            key={`label ${c.lat},${c.lon}`} position={[c.lat, c.lon]} icon={checkpointLabelIcon(label.name, label.side)}
+            interactive={false} keyboard={false}
+          />
+        );
+      })}
     </>
   );
+}
+
+/** A checkpoint's name as its label shows it: its ForeFlight waypoint's,
+ *  with spaces for the underscores ForeFlight needs, else its place's. */
+const labelOf = (c: Pick<Candidate, "waypoint" | "name">) => (c.waypoint ?? c.name ?? "").replaceAll("_", " ").trim();
+
+/**
+ * Which checkpoints' names fit beside their dots in the map as it is, and
+ * on which side, in route order: after the dot, or before it where the
+ * screen's edge or a name already placed is in the way; left out where
+ * neither fits -- over a name or another checkpoint's dot -- until the
+ * map is closer in, where ForeFlight piles them on one another along a
+ * whole route. Worked out again as the map settles after a move.
+ */
+function useLabelled(selected: Candidate[]): Map<string, { name: string; side: "right" | "left" }> {
+  const map = useMap();
+  const [view, setView] = useState(() => viewKey(map));
+  // Memoized handlers: see Leaflet handler churn (AirportsLayer).
+  useMapEvents(useMemo(() => ({ moveend: () => setView(viewKey(map)) }), [map]));
+  return useMemo(() => {
+    const width = Number(view.split(" ")[0]);
+    const at = selected.map(c => map.latLngToContainerPoint([c.lat, c.lon]));
+    const dots = at.map(p => L.bounds([p.x - 12, p.y - 12], [p.x + 12, p.y + 12]));
+    const placed: L.Bounds[] = [];
+    const kept = new Map<string, { name: string; side: "right" | "left" }>();
+    selected.forEach((c, i) => {
+      const name = labelOf(c);
+      if (!name) return;
+      const p = at[i]!;
+      const w = name.length * CHECKPOINT_LABEL_EM + 12;
+      const top = p.y - CHECKPOINT_LABEL_HEIGHT / 2, bottom = p.y + CHECKPOINT_LABEL_HEIGHT / 2;
+      const sides = [
+        { side: "right" as const, box: L.bounds([p.x + CHECKPOINT_LABEL_GAP, top], [p.x + CHECKPOINT_LABEL_GAP + w, bottom]) },
+        { side: "left" as const, box: L.bounds([p.x - CHECKPOINT_LABEL_GAP - w, top], [p.x - CHECKPOINT_LABEL_GAP, bottom]) },
+      ];
+      const fits = sides.find(({ box }) => box.min!.x >= 0 && box.max!.x <= width
+        && !placed.some(b => b.intersects(box)) && !dots.some((d, j) => j !== i && d.intersects(box)));
+      if (!fits) return;
+      placed.push(fits.box);
+      kept.set(`${c.lat},${c.lon}`, { name, side: fits.side });
+    });
+    return kept;
+  }, [selected, view, map]);
+}
+
+/** The map's width, zoom and centre: what decides where a label fits. */
+function viewKey(map: L.Map): string {
+  const centre = map.getCenter();
+  return `${map.getSize().x} ${map.getZoom()} ${centre.lat.toFixed(5)} ${centre.lng.toFixed(5)}`;
 }
 
 /** Each leg's top of climb and of descent, where the nav log has a row
