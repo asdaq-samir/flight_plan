@@ -303,7 +303,7 @@ export default function RouteMap({
   }, [course]);
 
   return (
-    <MapShell course={course} onSelectPlace={onSelectPlace}>
+    <MapShell course={course} onSelectPlace={onSelectPlace} held={!!focus || !!place || !!heldPoint}>
       {/* The chart's own airports with no route as well: a tap on a field
           opens its card, and Fly Here makes the route. */}
       <AirportsLayer selected={place} onSelect={onSelectPlace} exclude={chipped} route={routeBox} />

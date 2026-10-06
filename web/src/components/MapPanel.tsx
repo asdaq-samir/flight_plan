@@ -202,15 +202,22 @@ export default function MapPanel({ label, top, controls, notices, compact, child
     drag(event);
   };
 
-  // What it covers of the map at rest, for the map to fit a route clear
-  // of it: the strip at its edge on a phone; from `md` up the column at
-  // the left while it is out, or the corner it rests in while it is not.
+  // What it covers of the map where it has come to rest, for the map to
+  // fit a route clear of it, as Maps' route sits above its sheet: on a
+  // phone the capsule's strip at rest, and the half sheet out -- all the
+  // way up as well, where the map is hidden and what counts is what shows
+  // once it comes down; from `md` up the column at the left while it is
+  // out, or the corner it rests in while it is not. Not while dragged:
+  // the map refits once the panel settles (MapShell).
   const expanded = state !== "peek";
+  const coveredOnPhone = expanded ? detents.half + SHEET_INSET : peek + (capsule ? capsuleGap : 0);
   useEffect(() => {
-    const strip = peek + (capsule && onPhone ? capsuleGap : onPhone ? 0 : SHEET_MARGIN);
-    if (!onPhone && expanded) onInsetsChange({ top: 0, bottom: 0, left: 16 + CARD });
-    else onInsetsChange(fromBottom ? { top: 0, bottom: strip, left: 0 } : { top: strip, bottom: 0, left: 0 });
-  }, [peek, onPhone, expanded, fromBottom, capsule, capsuleGap, onInsetsChange]);
+    if (!onPhone && expanded) onInsetsChange({ top: 0, bottom: 0, left: 16 + CARD, out: true });
+    else {
+      const strip = onPhone ? coveredOnPhone : peek + SHEET_MARGIN;
+      onInsetsChange(fromBottom ? { top: 0, bottom: strip, left: 0, out: expanded } : { top: strip, bottom: 0, left: 0, out: expanded });
+    }
+  }, [peek, onPhone, expanded, fromBottom, coveredOnPhone, onInsetsChange]);
 
   // Escape lowers it, pressed anywhere in it -- but not in a menu or a
   // list it opened, which is a portal outside it and closes first.

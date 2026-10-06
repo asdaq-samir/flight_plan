@@ -33,12 +33,23 @@ test("an airport's card names the field, its airspace and tower, how far it is, 
   await expectDrawerClosed(page);
 });
 
-test("a tap on an airport on the chart opens its card, a tap elsewhere puts it away, and Fly Here makes it the destination", async ({ page }) => {
-  await page.goto("/app/plan?dep=C81&dest=KDLH");
-  await settle(page);
-  // Close in on the departure, where the chart's airports are drawn big
-  // enough to tap: the wheel over its marker, a level at a time
-  // (Leaflet zooms about the cursor, so C81 stays under it).
+/** Closer in over the departure, where the chart's airports are drawn big
+ *  enough to tap -- the wheel over its marker, a level at a time (Leaflet
+ *  zooms about the cursor, so C81 stays under it) -- and where one is
+ *  whose middle nothing else covers: not the route's own marker, not the
+ *  panel. */
+async function airportToTap(page: Page) {
+  // Once the map has stopped: the panel coming back to rest fits the route
+  // again (MapShell), and a wheel turned while it flies is lost to it.
+  let was = "";
+  await expect(async () => {
+    const now = await page.evaluate(() => [...document.querySelectorAll<HTMLElement>(".leaflet-map-pane, .leaflet-tile-container")]
+      .map(el => el.style.transform).join("|"));
+    const still = now === was;
+    was = now;
+    await page.waitForTimeout(300);
+    expect(still).toBe(true);
+  }).toPass({ timeout: slow(10_000) });
   const departure = page.locator(".leaflet-marker-icon", { hasText: "C81" }).first();
   await expect(departure).toBeVisible({ timeout: slow(30000) });
   const box = (await departure.boundingBox())!;
@@ -50,10 +61,17 @@ test("a tap on an airport on the chart opens its card, a tap elsewhere puts it a
   // Its chip, or this close in, its grey one for no report; further out
   // an invisible target where it reports nothing.
   const AIRPORTS = ".leaflet-airports-pane .leaflet-marker-icon, .leaflet-airports-pane path.leaflet-airport-target";
-  const targets = page.locator(AIRPORTS);
-  await expect.poll(() => targets.count(), { timeout: slow(20000) }).toBeGreaterThan(1);
-  // One whose middle nothing else covers -- not the route's own marker,
-  // not the panel.
+  await expect.poll(() => page.locator(AIRPORTS).count(), { timeout: slow(20000) }).toBeGreaterThan(1);
+  // And until they have all come: the view's own answer redraws them, and
+  // a tap as it does lands on the chart.
+  let drawn = -1;
+  await expect(async () => {
+    const now = await page.locator(AIRPORTS).count();
+    const still = now === drawn;
+    drawn = now;
+    await page.waitForTimeout(500);
+    expect(still).toBe(true);
+  }).toPass({ timeout: slow(15_000) });
   const at = await page.evaluate(selector => {
     for (const el of document.querySelectorAll(selector)) {
       const r = el.getBoundingClientRect();
@@ -64,27 +82,27 @@ test("a tap on an airport on the chart opens its card, a tap elsewhere puts it a
     return null;
   }, AIRPORTS);
   expect(at, "an airport on the chart with nothing over it").not.toBeNull();
-  await page.mouse.click(at!.x, at!.y);
+  return at!;
+}
+
+test("a tap on an airport on the chart opens its card, a tap elsewhere puts it away, and Fly Here makes it the destination", async ({ page }) => {
+  await page.goto("/app/plan?dep=C81&dest=KDLH");
+  await settle(page);
+  const at = await airportToTap(page);
+  await page.mouse.click(at.x, at.y);
   await expect(page).toHaveURL(/[?&]place=[A-Z0-9]+/);
   await expect(card(page).getByTestId("place-name")).not.toBeEmpty();
   await expectDrawerOpen(page);
 
-  // A tap on the chart elsewhere puts it away, as in Maps; the same
-  // airport tapped again brings it back.
+  // A tap on the chart elsewhere puts it away, as in Maps, and the panel
+  // back at its capsule brings the whole route back into sight
+  // (MapShell); an airport tapped again brings a card back.
   await tapTheChart(page);
   await expect(page).not.toHaveURL(/[?&]place=/);
   await expect(card(page)).toHaveCount(0);
-  // Where it is now: its card brought it to the middle of the chart.
-  const again = await page.evaluate(selector => {
-    for (const el of document.querySelectorAll(selector)) {
-      const r = el.getBoundingClientRect();
-      const x = r.left + r.width / 2, y = r.top + r.height / 2;
-      const hit = document.elementFromPoint(x, y);
-      if (hit && (hit === el || el.contains(hit))) return { x, y };
-    }
-    return null;
-  }, AIRPORTS);
-  await page.mouse.click(again!.x, again!.y);
+  await expectDrawerClosed(page);
+  const again = await airportToTap(page);
+  await page.mouse.click(again.x, again.y);
   await expect(card(page).getByTestId("place-name")).not.toBeEmpty();
 
   // Fly Here: the field becomes the destination, from the route's

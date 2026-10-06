@@ -136,7 +136,7 @@ export default function MapPage({ mode }: { mode: Mode }) {
   // render the page again.
   const [insets, setInsets] = useState<MapInsets>(NO_INSETS);
   const changeInsets = useCallback((next: MapInsets) => {
-    setInsets(prev => (prev.top === next.top && prev.bottom === next.bottom && prev.left === next.left ? prev : next));
+    setInsets(prev => (prev.top === next.top && prev.bottom === next.bottom && prev.left === next.left && prev.out === next.out ? prev : next));
   }, []);
 
   // The console: its button (Settings, a gear, on both pages) and the

@@ -15,7 +15,7 @@ import type { AircraftChoice, AirportPlace, AltitudeChoice, Candidate } from "..
 import { aircraftKey, choiceOf, shortName } from "../../lib/aircraftChoice";
 import { bestStopIndex, distanceNm } from "../../lib/geo";
 import { useKeepOffline } from "../../lib/map/keepStatus";
-import { useOwnShip } from "../../lib/map/ownShip";
+import { locateOnOpen, useOwnShip } from "../../lib/map/ownShip";
 import { pointOf } from "../../lib/airspace";
 import { identOf, routeName, routeOf, stopsOf } from "../../lib/identSchema";
 import { usePreferences, type RecentAirport } from "../../lib/preferences";
@@ -202,13 +202,16 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     setPanel("half");
   }, [setSearchParams, setPanel]);
   // Landed on with a card in the address, the panel comes up to show it
-  // -- once, on landing, and never again when the panel moves later.
+  // -- once, on landing, and never again when the panel moves later. Landed
+  // on nothing at all -- the planner opened fresh -- the map goes to the
+  // pilot's position, as Maps opens on yours (locateOnOpen).
   const landed = useRef(false);
   useEffect(() => {
     if (landed.current) return;
     landed.current = true;
     if (place || heldPoint) setPanel("half");
-  }, [place, heldPoint, setPanel]);
+    else if (!planned.dep && !planned.dest) void locateOnOpen();
+  }, [place, heldPoint, setPanel, planned.dep, planned.dest]);
   const { data: placeData } = useQuery({
     queryKey: ["airport", place], queryFn: () => api.airport(place!), enabled: !!place, staleTime: 5 * 60_000,
   });

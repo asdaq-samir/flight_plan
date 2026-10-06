@@ -46,6 +46,9 @@ export function ownShipAvailable(): boolean {
 }
 
 let watchId: number | null = null;
+// Started by the page itself (locateOnOpen) rather than by a tap: a
+// refusal then is no error to show, own ship just goes off again.
+let quiet = false;
 
 function stopWatching() {
   if (watchId !== null) {
@@ -58,6 +61,7 @@ function startWatching(set: (patch: Partial<OwnShip>) => void) {
   if (!ownShipAvailable() || watchId !== null) return;
   watchId = navigator.geolocation.watchPosition(
     position => {
+      quiet = false;
       const { latitude, longitude, accuracy, heading, speed, altitude } = position.coords;
       set({
         error: null,
@@ -71,6 +75,12 @@ function startWatching(set: (patch: Partial<OwnShip>) => void) {
       });
     },
     err => {
+      if (quiet) {
+        quiet = false;
+        stopWatching();
+        set({ enabled: false, fix: null, error: null });
+        return;
+      }
       set({
         error: err.code === err.PERMISSION_DENIED
           ? "Location access was refused; allow it for this site in the browser's settings."
@@ -95,8 +105,10 @@ export const useOwnShip = create<OwnShip>()(
           set({ enabled: true, error: null });
           startWatching(set);
         } else {
+          // The last position kept, drawn grey (OwnShipLayer); everything
+          // that measures from own ship reads it only while it is on.
           stopWatching();
-          set({ enabled: false, fix: null, error: null });
+          set({ enabled: false, error: null });
         }
       },
       setFollow: follow => set({ follow }),
@@ -118,3 +130,24 @@ export const useOwnShip = create<OwnShip>()(
     },
   ),
 );
+
+/**
+ * The planner opened fresh, on no route: the map on the pilot's position,
+ * as Maps opens on yours -- own ship on and the map brought to it
+ * (OwnShipLayer), the browser asking first if it has not been told. Not
+ * where this site has been refused the position, which is not asked
+ * again; and quietly: a refusal now leaves own ship off, the map on the
+ * country, with no error over it (a tap on the arrow still says why).
+ */
+export async function locateOnOpen() {
+  if (!ownShipAvailable()) return;
+  const permission = await navigator.permissions?.query({ name: "geolocation" })
+    .then(status => status.state).catch(() => "prompt" as const) ?? "prompt";
+  if (permission === "denied") return;
+  const { enabled, setEnabled, recentre } = useOwnShip.getState();
+  if (!enabled) {
+    quiet = true;
+    setEnabled(true);
+  }
+  recentre();
+}

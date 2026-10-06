@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { useMap } from "react-leaflet";
 import { centreClear } from "./clear";
+import { useClearOfPanel } from "./useClearOfPanel";
 
 /**
  * Small pieces every map on this app is built from, each a react-leaflet
@@ -25,7 +26,9 @@ export function ResizeAware() {
 
 /** Brings the map to `point` whenever it changes, zooming in to
  *  `zoom` at least -- the selection ring's own follow -- clear of the
- *  panel over the map. */
+ *  panel over the map; and keeps it there, in the sheet's own time, as
+ *  the panel settles at another height (MapShell leaves the route alone
+ *  while a point holds the map). */
 export function FocusOn({ point, zoom }: { point: { lat: number; lon: number } | null; zoom: number }) {
   const map = useMap();
   useEffect(() => {
@@ -33,5 +36,6 @@ export function FocusOn({ point, zoom }: { point: { lat: number; lon: number } |
     const to = Math.max(map.getZoom(), zoom);
     map.setView(centreClear(map, [point.lat, point.lon], to), to);
   }, [map, point, zoom]);
+  useClearOfPanel(point);
   return null;
 }

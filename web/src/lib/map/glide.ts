@@ -18,3 +18,8 @@ export function glideRangeNm(fix: Fix | null, groundFt: number | null | undefine
   if (agl < AIRBORNE_AGL_FT || (fix.speedKt ?? 0) < AIRBORNE_KT) return null;
   return (agl / 1000) * GLIDE_NM_PER_1000_FT;
 }
+
+/** Own ship moving at flying speed: in the air, or about to be. */
+export function underway(fix: Fix | null): boolean {
+  return (fix?.speedKt ?? 0) >= AIRBORNE_KT;
+}
