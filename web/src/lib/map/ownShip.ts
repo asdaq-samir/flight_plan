@@ -35,11 +35,25 @@ interface OwnShip {
   /** Bumped by a tap on the location arrow that starts following: the
    *  map flies to the position, closing in on it (OwnShipLayer). */
   recentred: number;
+  /** The zoom that recentre asked for, or null for the arrow's own close
+   *  in (OwnShipLayer's LOCAL_ZOOM). */
+  recentreZoom: number | null;
+  /** Where the position last was, to a few hundred feet, kept in this
+   *  browser: the planner opens there (MapShell), the region's chart
+   *  already drawn, rather than on the whole country until a fix comes
+   *  and then all over again where it is. */
+  lastFix: { lat: number; lon: number } | null;
   setEnabled: (enabled: boolean) => void;
   setFollow: (follow: boolean) => void;
-  /** Follow, and bring the map to the position at a local zoom. */
-  recentre: () => void;
+  /** Follow, and bring the map to the position: at `zoom`, or a local
+   *  one. */
+  recentre: (zoom?: number) => void;
 }
+
+/** Where the planner opens on the pilot's position: the region a flight
+ *  from here goes to, some 200 nm across a phone -- four levels out from
+ *  the location arrow's close-in view, the pilot found it too close. */
+export const OPEN_ZOOM = 7;
 
 export function ownShipAvailable(): boolean {
   return typeof navigator !== "undefined" && "geolocation" in navigator && window.isSecureContext;
@@ -64,6 +78,7 @@ function startWatching(set: (patch: Partial<OwnShip>) => void) {
       quiet = false;
       const { latitude, longitude, accuracy, heading, speed, altitude } = position.coords;
       set({
+        lastFix: { lat: Math.round(latitude * 1000) / 1000, lon: Math.round(longitude * 1000) / 1000 },
         error: null,
         fix: {
           lat: latitude, lon: longitude, accuracyM: accuracy,
@@ -99,6 +114,8 @@ export const useOwnShip = create<OwnShip>()(
       fix: null,
       error: null,
       recentred: 0,
+      recentreZoom: null,
+      lastFix: null,
       setEnabled: enabled => {
         if (enabled && !ownShipAvailable()) return;
         if (enabled) {
@@ -112,11 +129,11 @@ export const useOwnShip = create<OwnShip>()(
         }
       },
       setFollow: follow => set({ follow }),
-      recentre: () => set(s => ({ follow: true, recentred: s.recentred + 1 })),
+      recentre: zoom => set(s => ({ follow: true, recentred: s.recentred + 1, recentreZoom: zoom ?? null })),
     }),
     {
       name: "vfr.ownship",
-      partialize: s => ({ enabled: s.enabled, follow: s.follow }),
+      partialize: s => ({ enabled: s.enabled, follow: s.follow, lastFix: s.lastFix }),
       // Remembered on: watching starts with the page, so the position
       // is there when the map is, and the browser's own permission
       // prompt (if it still has one to show) comes up at once rather
@@ -149,5 +166,5 @@ export async function locateOnOpen() {
     quiet = true;
     setEnabled(true);
   }
-  recentre();
+  recentre(OPEN_ZOOM);
 }

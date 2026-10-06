@@ -89,8 +89,13 @@ export default function AirportPicker({
           aria-invalid={invalid}
           data-testid={testId}
           // A field, as a search box is: its ident in the text's colour
-          // (not a button's tint) at a row's size (TEXT).
-          className={cn("font-mono uppercase text-foreground", TEXT.row, !value && "text-muted-foreground", className)}
+          // (not a button's tint) at a row's size (TEXT). A route's pill
+          // in the system face, semibold, at a line under a row's (15):
+          // in the monospaced face at 17 two took a phone's line, the pilot
+          // asked for three.
+          className={look === "pill"
+            ? cn("font-semibold uppercase tracking-wide text-foreground", TEXT.detail, className)
+            : cn("font-mono uppercase text-foreground", TEXT.row, !value && "text-muted-foreground", className)}
         >
           {value || placeholder}
           {look === "field" && <ChevronsUpDown className="text-muted-foreground" />}

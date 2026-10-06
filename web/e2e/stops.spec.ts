@@ -70,7 +70,7 @@ test("a stop added in the panel lands the route there: the capsule, the nav log 
   await expect(sideDrawer(page).getByTestId("stop")).toHaveCount(0);
 });
 
-test("the route's box reads its points with an arrow between each two, a tap on one a stop typed there, what is typed after the last the destination; any point comes out from a hold, a right-click or Delete", async ({ page }) => {
+test("the route's box reads its points with an arrow between each two, a tap on one a stop typed there, what is typed after the last the new destination with the old a stop; any point comes out from a hold, a right-click or Delete", async ({ page }) => {
   await page.route(url => /\/(checkpoints|navlog|briefing)$/.test(url.pathname), route => route.abort());
   await page.goto("/app/plan?dep=C81&dest=KDLH&stops=KRYV,KMSN");
   await settle(page);
@@ -82,11 +82,16 @@ test("the route's box reads its points with an arrow between each two, a tap on 
   expect(order).toEqual(["route-dep", "route-arrow", "stop", "route-arrow", "stop", "route-arrow", "route-dest", "route-type"]);
   expect(await lines.getByRole("button", { name: /^Remove/ }).count()).toBe(0);
 
-  // What is typed after the last point changes the destination.
+  // What is typed after the last point is the new destination, the old
+  // one a stop on the way.
   const field = sideDrawer(page).getByTestId("route-type");
   await field.fill("KMSP");
   await field.press("Enter");
   await expect(page).toHaveURL(/[?&]dest=KMSP(&|$)/);
+  await expect(page).toHaveURL(/[?&]stops=KRYV%2CKMSN%2CKDLH(&|$)|[?&]stops=KRYV,KMSN,KDLH(&|$)/);
+  // Taken back out: the route as it was but for the new destination.
+  await lines.getByRole("group", { name: "Stop 3 KDLH" }).focus();
+  await page.keyboard.press("Delete");
   await expect(page).toHaveURL(/[?&]stops=KRYV%2CKMSN(&|$)|[?&]stops=KRYV,KMSN(&|$)/);
 
   // A finger held on a pill: its menu.
@@ -275,6 +280,17 @@ test("a VFR waypoint on the chart is a diamond, and its card adds it as a stop",
   }
   const diamond = page.locator(".leaflet-waypoints-pane .leaflet-marker-icon");
   await expect(diamond).toHaveCount(1, { timeout: slow(20000) });
+  // Once the map has stopped: a tap as the zoom eases in landed where the
+  // diamond had been.
+  let was = "";
+  await expect(async () => {
+    const now = await page.evaluate(() => [...document.querySelectorAll<HTMLElement>(".leaflet-map-pane, .leaflet-tile-container, .leaflet-waypoints-pane .leaflet-marker-icon")]
+      .map(el => el.style.transform).join("|"));
+    const still = now === was;
+    was = now;
+    await page.waitForTimeout(300);
+    expect(still).toBe(true);
+  }).toPass({ timeout: slow(10_000) });
   await diamond.click();
   const add = page.getByTestId("waypoint-add-stop");
   await expect(add).toBeVisible();

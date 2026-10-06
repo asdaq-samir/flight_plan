@@ -25,8 +25,9 @@ export interface RouteParts { dep: string; stops: string[]; dest: string }
  * The route as ForeFlight's is: one box, every point of it a pill in the
  * order flown -- the departure, the airports landed at and the waypoints
  * flown through, the destination -- an arrow between each two. A tap on an
- * arrow types a stop in there; what is typed after the destination
- * changes the destination (or, with none yet, names it); the airports and
+ * arrow types a stop in there; what is typed after the destination goes
+ * on to it, the old destination a stop on the way (or, with none yet,
+ * names it); the airports and
  * waypoints that answer what is typed are offered under the box as it is
  * typed (Enter takes the first, or what was typed, "VPBNG 06C"). A pill is
  * dragged into another order, tapped to change, and taken out from its
@@ -112,7 +113,10 @@ export default function RouteBox({ dep, stops, dest, waypoints, onChange, adding
   };
   // What was typed, put in where the field is: before a point, as stops
   // (the departure, with none, when it is an airport); after the last, the
-  // destination -- the last airport typed, any before it stops on the way.
+  // route goes on to it -- the last airport typed the destination, the old
+  // destination and anything typed before it stops on the way (a
+  // waypoint typed there is a stop before the destination: a flight does
+  // not end at one).
   const put = (idents: string[]) => {
     const fresh = idents.map(stopOf).filter(Boolean);
     if (!fresh.length) return;
@@ -123,12 +127,11 @@ export default function RouteBox({ dep, stops, dest, waypoints, onChange, adding
       setAt(where + fresh.length);
       return;
     }
-    const last = fresh.at(-1)!;
-    if (!isEnd(last)) {
+    if (!isEnd(fresh.at(-1)!)) {
       change([...points.slice(0, hasDest ? -1 : undefined), ...fresh, ...(hasDest ? [dest] : [])]);
       return;
     }
-    change([...points.slice(0, hasDest ? -1 : undefined), ...fresh], hasDep, true);
+    change([...points, ...fresh], hasDep, true);
   };
   const commitTyped = () => {
     put(typedNow.current.split(/[\s,]+/));
@@ -231,9 +234,9 @@ export default function RouteBox({ dep, stops, dest, waypoints, onChange, adding
       key={`arrow-${before}`} type="button" disabled={full && !(before === 0 && !hasDep)}
       onClick={() => typeAt(before)} data-testid="route-arrow"
       aria-label={before === 0 ? "Type the departure" : `Type a stop between ${points[before - 1]} and ${points[before]}`}
-      className="grid size-6 shrink-0 place-items-center rounded-full text-muted-foreground outline-none hover:text-tint focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-40"
+      className="grid size-5 shrink-0 place-items-center rounded-full text-muted-foreground outline-none hover:text-tint focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-40"
     >
-      <ArrowRight className="size-4" />
+      <ArrowRight className="size-3.5" />
     </button>
   );
   return (
@@ -273,7 +276,7 @@ export default function RouteBox({ dep, stops, dest, waypoints, onChange, adding
                 hit areas meet; room round them for the areas at the box's
                 edges. A swipe up or down in it scrolls it, not the sheet
                 (the root takes the presses). */}
-            <div className="flex max-h-[96px] min-w-0 flex-1 flex-wrap items-center gap-x-1 gap-y-2 overflow-x-hidden overflow-y-auto overscroll-contain py-1 pr-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" data-testid="route-slide">
+            <div className="flex max-h-[96px] min-w-0 flex-1 flex-wrap items-center gap-x-0.5 gap-y-2 overflow-x-hidden overflow-y-auto overscroll-contain py-1 pr-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" data-testid="route-slide">
               {/* The box does not scroll itself under a drag: the pill dragged
                   is in the box it scrolls, so each step down carried it
                   further, and a pill held over the second line ran the box
@@ -374,7 +377,7 @@ function Pill({ id, ident, waypoint, index, role, stopNumber, onChange, onRemove
       {waypoint && <Diamond className="ml-2 size-3 fill-[#b02e7c] stroke-[#b02e7c] dark:fill-[#e070b0] dark:stroke-[#e070b0]" aria-hidden="true" />}
       <AirportPicker
         value={ident} placeholder={label} ariaLabel={label} look="pill" fixes={role === "stop"}
-        className={cn("h-8 rounded-full", waypoint ? "pl-1 pr-2.5" : "px-2.5")} onChange={onChange}
+        className={cn("h-8 rounded-full", waypoint ? "pl-1 pr-2" : "px-2")} onChange={onChange}
       />
     </span>
   );

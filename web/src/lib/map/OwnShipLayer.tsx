@@ -27,10 +27,6 @@ const LOCAL_ZOOM = 11;
  *  further in: the country, not a place the pilot is looking at. */
 const COUNTRY_ZOOM = 5;
 
-/** Where the planner opens on the pilot's position: four levels out from
- *  LOCAL_ZOOM, some 200 nm across a phone -- the region a flight from
- *  here goes to, the pilot found, where LOCAL_ZOOM was too close in. */
-const OPEN_ZOOM = LOCAL_ZOOM - 4;
 
 export function OwnShipLayer() {
   const map = useMap();
@@ -39,6 +35,7 @@ export function OwnShipLayer() {
   const follow = useOwnShip(s => s.follow);
   const setFollow = useOwnShip(s => s.setFollow);
   const recentred = useOwnShip(s => s.recentred);
+  const recentreZoom = useOwnShip(s => s.recentreZoom);
   // Memoized handlers: see `AirportsLayer` -- a literal re-registers on
   // every commit and can miss an event fired during one. Only a pan
   // while own ship is on ends following: `follow` is remembered per
@@ -63,20 +60,20 @@ export function OwnShipLayer() {
     if (!enabled || !fix || !follow) return;
     if (flown.current !== recentred) {
       flown.current = recentred;
-      // From the whole country, as the planner opens before it knows where
-      // the pilot is, straight there, as Maps opens on the position -- a
-      // flight in from the country was a second of the chart streaming by
-      // -- and to the region round it (OPEN_ZOOM), not the fields next door.
+      // The zoom asked for -- the region round it on opening (locateOnOpen's
+      // OPEN_ZOOM) -- or the arrow's close in. From the whole country
+      // straight there, as Maps opens on the position: a flight in from the
+      // country was a second of the chart streaming by.
+      const zoom = recentreZoom ?? Math.min(map.getMaxZoom(), Math.max(map.getZoom(), LOCAL_ZOOM));
       if (map.getZoom() <= COUNTRY_ZOOM) {
-        map.setView(centreClear(map, [fix.lat, fix.lon], OPEN_ZOOM), OPEN_ZOOM, { animate: false });
+        map.setView(centreClear(map, [fix.lat, fix.lon], zoom), zoom, { animate: false });
         return;
       }
-      const zoom = Math.min(map.getMaxZoom(), Math.max(map.getZoom(), LOCAL_ZOOM));
       map.flyTo(centreClear(map, [fix.lat, fix.lon], zoom), zoom, { duration: 0.8 });
       return;
     }
     map.panTo(centreClear(map, [fix.lat, fix.lon], map.getZoom()), { animate: true, duration: 0.5 });
-  }, [map, enabled, fix, follow, recentred]);
+  }, [map, enabled, fix, follow, recentred, recentreZoom]);
   // The still-air glide from the GPS's altitude over the nearest field
   // (lib/map/glide), a dashed ring in the air, as an EFB's glide advisor
   // draws it; nothing on the ground.
