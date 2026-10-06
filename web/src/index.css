@@ -73,9 +73,11 @@ body .leaflet-container {
    the home indicator. */
 .leaflet-container .leaflet-bottom {
   bottom: max(var(--map-inset-bottom, 0px), env(safe-area-inset-bottom));
+  transition: bottom 0.5s cubic-bezier(0.32, 0.72, 0, 1);
 }
 .leaflet-container .leaflet-top {
   top: max(var(--map-inset-top, 0px), env(safe-area-inset-top));
+  transition: top 0.5s cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 /* With the phone's sheet all the way up, the map's buttons give way,

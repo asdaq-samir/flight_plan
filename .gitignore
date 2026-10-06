@@ -18,12 +18,23 @@ springboot-app/target/
 
 .env
 
-# Trained model artifacts. Regenerable from the committed labels and code
+# Trained model artifacts. Regenerable from the labels and code
 # (collect -> engineer-features -> retrain -> promote, all seeded on
 # RANDOM_STATE), and versions/ gains another copy on every promote, so
-# these accumulate rather than settle. The labels themselves ARE
-# committed -- those are hand judgment and cannot be regenerated.
+# these accumulate rather than settle.
 data/models/
+# The pilot's own ratings, made on this machine in the app (the chart
+# picks) or before it (the older spottability ratings, emptied for fresh
+# ones on 2026-10-01): hand judgment, kept on the machine and its iCloud
+# copy, not in the repository -- committed, every rating made showed as a
+# change, and the repository's copy was the old ratings the pilot had
+# cleared. The checkpoint notes stay committed. And what the pipeline
+# builds from a corridor's candidates: its features, and the map of them
+# the data-collection notebook draws.
+data/labels/chart_picks.csv
+data/labels/spottability_ratings.csv
+data/processed/features_*.parquet
+data/processed/candidates_map.html
 # The chart model's training table (vfr.chartmodel), which the planner
 # writes from the ratings when a retrain starts.
 data/processed/chart_training.parquet

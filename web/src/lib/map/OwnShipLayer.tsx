@@ -23,6 +23,15 @@ import { useOwnShip } from "./ownShip";
  *  a phone. */
 const LOCAL_ZOOM = 11;
 
+/** As far out as the map opens (MapShell's COUNTRY_ZOOM), and a little
+ *  further in: the country, not a place the pilot is looking at. */
+const COUNTRY_ZOOM = 5;
+
+/** Where the planner opens on the pilot's position: four levels out from
+ *  LOCAL_ZOOM, some 200 nm across a phone -- the region a flight from
+ *  here goes to, the pilot found, where LOCAL_ZOOM was too close in. */
+const OPEN_ZOOM = LOCAL_ZOOM - 4;
+
 export function OwnShipLayer() {
   const map = useMap();
   const enabled = useOwnShip(s => s.enabled);
@@ -54,6 +63,14 @@ export function OwnShipLayer() {
     if (!enabled || !fix || !follow) return;
     if (flown.current !== recentred) {
       flown.current = recentred;
+      // From the whole country, as the planner opens before it knows where
+      // the pilot is, straight there, as Maps opens on the position -- a
+      // flight in from the country was a second of the chart streaming by
+      // -- and to the region round it (OPEN_ZOOM), not the fields next door.
+      if (map.getZoom() <= COUNTRY_ZOOM) {
+        map.setView(centreClear(map, [fix.lat, fix.lon], OPEN_ZOOM), OPEN_ZOOM, { animate: false });
+        return;
+      }
       const zoom = Math.min(map.getMaxZoom(), Math.max(map.getZoom(), LOCAL_ZOOM));
       map.flyTo(centreClear(map, [fix.lat, fix.lon], zoom), zoom, { duration: 0.8 });
       return;
@@ -65,7 +82,9 @@ export function OwnShipLayer() {
   // draws it; nothing on the ground.
   const { data: nearest } = useQuery({ ...nearestQuery(fix?.lat ?? 0, fix?.lon ?? 0), enabled: enabled && !!fix });
   const glide = glideRangeNm(fix, nearest?.[0]?.elevation_ft);
-  if (!enabled || !fix) return null;
+  if (!fix) return null;
+  // Off: the last position alone, grey, with nothing round it.
+  if (!enabled) return <Marker position={[fix.lat, fix.lon]} icon={ownShipIcon(null, true)} interactive={false} zIndexOffset={1000} keyboard={false} />;
   return (
     <>
       {glide != null && (

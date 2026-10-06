@@ -1,16 +1,16 @@
 import { useQuery } from "@tanstack/react-query";
 import { ChevronLeft, ChevronRight, CircleMinus, GripVertical, House, Plane, Plus } from "lucide-react";
-import { useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
+import { useEffect, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { cn } from "cn";
 import { api } from "../lib/api/client";
 import { distanceNm, type LatLon } from "../lib/geo";
-import type { RecentAirport } from "../lib/preferences";
+import { usePreferences, type AirspaceClass, type RecentAirport } from "../lib/preferences";
 import { TEXT } from "../lib/text";
 import { Button } from "./ui/button";
 import { ListGroup, ListRow } from "./GroupedList";
 import IconButton from "./IconButton";
 
-type Space = "B" | "C" | "D" | "E" | "G";
+type Space = AirspaceClass;
 
 /** The sectional's blue and magenta, a shade lighter so a glyph in them
  *  reads on the panel's dark material too. */
@@ -32,13 +32,22 @@ const AIRSPACE: Record<Space, { name: string; style: CSSProperties }> = {
   G: { name: "Class G", style: { background: `radial-gradient(circle closest-side, ${MAGENTA}00 58%, ${MAGENTA}70 82%, ${MAGENTA}10 100%)`, color: MAGENTA } },
 };
 
-/** A kept airport's airspace class, from its card's own answer, asked
- *  for once and kept a while; G until it is known. */
-function useAirspace(ident: string): (typeof AIRSPACE)[Space] {
+/** A kept airport's airspace class: the one remembered with it, so the
+ *  tile is drawn right as the sheet opens, and its card's own answer,
+ *  asked for once and kept a while. Until either is known, a plain grey
+ *  tile: it was drawn as Class G, magenta, and turned blue a moment after
+ *  every fresh load where the field was Class B or D. The answer is
+ *  remembered with the airport for the next load. */
+function useAirspace(airport: RecentAirport): { name: string; style?: CSSProperties; className?: string } {
   const { data } = useQuery({
-    queryKey: ["airport", ident], queryFn: () => api.airport(ident), staleTime: 60 * 60_000, meta: { silent: true },
+    queryKey: ["airport", airport.ident], queryFn: () => api.airport(airport.ident), staleTime: 60 * 60_000, meta: { silent: true },
   });
-  return AIRSPACE[data?.airspace_class ?? "G"];
+  const answered = data?.airspace_class ?? undefined;
+  useEffect(() => {
+    if (answered && answered !== airport.airspace) usePreferences.getState().rememberAirspace(airport.ident, answered);
+  }, [answered, airport.ident, airport.airspace]);
+  const known = answered ?? airport.airspace;
+  return known ? AIRSPACE[known] : { name: "Airport", className: "bg-foreground/8 text-muted-foreground" };
 }
 
 /**
@@ -113,11 +122,11 @@ export function FavoriteTiles({ home, favorites, from, onOpen, onAddHome, traili
 }
 
 function AirspaceTile({ airport, detail, onClick }: { airport: RecentAirport; detail: string; onClick: () => void }) {
-  const space = useAirspace(airport.ident);
+  const space = useAirspace(airport);
   return (
     <PlaceTile
       icon={<Plane />} title={airport.ident} detail={detail} onClick={onClick}
-      label={`${airport.ident}, ${space.name}`} style={space.style}
+      label={`${airport.ident}, ${space.name}`} style={space.style} className={space.className}
     />
   );
 }
@@ -151,8 +160,9 @@ function Mark({ icon, className, style }: { icon: ReactNode; className?: string;
   return <span className={cn("grid size-8 place-items-center rounded-full [&_svg]:size-4", className)} style={style} aria-hidden="true">{icon}</span>;
 }
 
-function KeptMark({ ident }: { ident: string }) {
-  return <Mark icon={<Plane />} style={useAirspace(ident).style} />;
+function KeptMark({ airport }: { airport: RecentAirport }) {
+  const space = useAirspace(airport);
+  return <Mark icon={<Plane />} style={space.style} className={space.className} />;
 }
 
 /**
@@ -252,7 +262,7 @@ export function FavoritesList({ home, favorites, onBack, onOpen, onChangeHome, o
           </ListRow>
         ) : (
           <ListRow
-            key={a.ident} media={<KeptMark ident={a.ident} />} chevron
+            key={a.ident} media={<KeptMark airport={a} />} chevron
             title={<><span className="font-mono font-semibold">{a.ident}</span> · {a.name}</>}
             description={a.municipality ?? undefined} onClick={() => onOpen(a)}
           />

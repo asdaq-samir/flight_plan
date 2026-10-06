@@ -23,6 +23,9 @@ function useDebounced<T>(value: T, delayMs: number): T {
  * `answered` says whether they are the answer to what is in the box now,
  * which is when Enter may take the first of them.
  */
+/** One answer: an airport, or with `fixes` a waypoint (`kind` "fix"). */
+export type AirportSearchRow = Awaited<ReturnType<typeof api.airportSearch>>[number];
+
 export function useAirportSearch(text: string, enabled = true, fixes = false) {
   const typed = text.trim();
   const q = useDebounced(typed, 200);

@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { PAGES, settle, expectDrawerClosed, expectDrawerOpen, openSidebar, sideDrawer, openSettings, openPanel } from "./helpers";
+import { PAGES, settle, expectDrawerClosed, expectDrawerOpen, openSidebar, sideDrawer, openSettings, openPanel, closeSidebarWithTheStockKey } from "./helpers";
 
 /**
  * The regressions this file exists to catch (see playwright.config.ts
@@ -37,6 +37,7 @@ test.describe("/app/plan", () => {
   test("the panel rests on a search bar with no route, and on the route in a capsule whose chip opens its form", async ({ page }) => {
     await page.goto("/app/plan");
     await settle(page);
+    await closeSidebarWithTheStockKey(page);
     await expect(sideDrawer(page)).toHaveAttribute("data-capsule", "true");
     await expect(page.getByTestId("search-airports")).toBeVisible();
     await page.goto("/app/plan?dep=C81&dest=KDLH");
@@ -47,15 +48,36 @@ test.describe("/app/plan", () => {
     expect(await page.getByTestId("toolbar-trigger").count()).toBe(0);
   });
 
-  test("sidebar starts closed on load, every load", async ({ page }) => {
+  // Opened, the planner is Maps opened: no route, the sheet half way up
+  // on the search bar with the console's button beside it, Favorites
+  // under it. A route's link lands on the route, the panel at rest; a
+  // reload forgets it (lib/freshLoad).
+  test("a fresh load opens on the search half way up, a route's link on the route at rest, and a reload forgets the route", async ({ page }) => {
     await page.goto("/app/plan");
     await settle(page);
+    await expect(sideDrawer(page)).toHaveAttribute("data-panel", "half");
+    await expect(page.getByTestId("search-airports")).toBeVisible();
+    await expect(sideDrawer(page).getByTestId("settings-button")).toBeVisible();
+    await expect(page.getByTestId("search-close")).toHaveCount(0);
+    await expect(page.getByTestId("favorite-home")).toBeVisible();
+
+    await page.goto("/app/plan?dep=C81&dest=KDLH");
+    await settle(page);
+    await expect(page.getByTestId("capsule-title")).toHaveText("C81 → KDLH");
     await expectDrawerClosed(page);
+
+    await page.reload();
+    await settle(page);
+    await expect(page).not.toHaveURL(/[?&]dep=/);
+    await expect(sideDrawer(page)).toHaveAttribute("data-panel", "half");
+    await expect(page.getByTestId("search-airports")).toBeVisible();
   });
 
   test("sidebar opens from its own trigger, closes on Escape", { tag: "@smoke" }, async ({ page }) => {
     await page.goto("/app/plan");
     await settle(page);
+    await closeSidebarWithTheStockKey(page);
+    await expectDrawerClosed(page);
     await openSidebar(page);
   });
 });

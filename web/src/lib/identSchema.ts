@@ -1,30 +1,35 @@
-import { z } from "zod";
-
 /** An airport ident, normalized (trimmed, uppercased) and shape-checked
  *  -- the same 3-4 alphanumeric character rule springboot-app's own
  *  SaveFlightRequest already enforces server-side. Every dep/dest form
  *  in this app (Plan and Train) used to hand-copy
  *  its own trim/uppercase/empty-check; this is the one place that
- *  logic lives now. `.safeParse(raw).data` is `undefined` for anything
- *  that doesn't fit -- callers treat that the same way they treated an
- *  empty string before: don't submit.
+ *  logic lives now. "" for anything that doesn't fit -- callers treat
+ *  that the same way they treated an empty string before: don't submit.
+ *
+ *  A regular expression rather than a zod schema: this module is on the
+ *  first load (main.tsx reads the address with it), and zod was 75 KB
+ *  of the entry chunk for two patterns. The account forms keep zod, on
+ *  the console's own chunk.
  */
-export const identSchema = z.string().trim().toUpperCase().regex(/^[A-Z0-9]{3,4}$/, "must be a 3-4 character airport ident");
-
-/** A valid ident from an address parameter, or "" -- a workspace's
- *  queries run only on a route both ends of which are real. */
 export function identOf(value: string | null | undefined): string {
-  return identSchema.safeParse(value ?? "").data ?? "";
+  return normalized(value, /^[A-Z0-9]{3,4}$/);
 }
 
 /** A stop's ident: an airport's, or a named fix's -- a VFR waypoint
- *  (VPBNG), a GPS waypoint -- two to five letters and digits. */
-export const stopSchema = z.string().trim().toUpperCase().regex(/^[A-Z0-9]{2,5}$/, "must be a 2-5 character airport or waypoint ident");
+ *  (VPBNG), a GPS waypoint -- two to five letters and digits; or "". */
+export function stopOf(value: string | null | undefined): string {
+  return normalized(value, /^[A-Z0-9]{2,5}$/);
+}
+
+function normalized(value: string | null | undefined, shape: RegExp): string {
+  const ident = (value ?? "").trim().toUpperCase();
+  return shape.test(ident) ? ident : "";
+}
 
 /** The stops a route makes on the way, from the address's `stops`
  *  ("KDSM,VPBNG"): each a valid ident, in order. */
 export function stopsOf(value: string | null | undefined): string[] {
-  return (value ?? "").split(",").map(s => stopSchema.safeParse(s).data ?? "").filter(Boolean);
+  return (value ?? "").split(",").map(stopOf).filter(Boolean);
 }
 
 /** The most stops a route makes: the planner's own limit (MAX_STOPS). */

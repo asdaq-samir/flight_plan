@@ -15,7 +15,7 @@ import threading
 
 from cachetools import LRUCache
 from fastapi import HTTPException
-from vfr import chartlabels, charts, model_registry
+from vfr import chartlabels, charts, model_registry, places
 from vfr import checkpoints as checkpoint_selection
 
 from . import chart_model
@@ -89,8 +89,13 @@ def score(dep: str, dest: str) -> list:
 
 def scored_and_selected(dep: str, dest: str) -> tuple:
     """Every scored candidate, each flagged "selected" or not, and the
-    subset worth flying, in along-track order."""
+    subset worth flying, in along-track order. Each named as the chart
+    labels the place where the place names know it (vfr.places
+    checkpoint_name: "Lake Zurich", "River near Springfield") -- here, not
+    in the cached scores, as the names load after the service starts."""
     scored = score(dep, dest)
+    for c in scored:
+        c["name"] = places.checkpoint_name(c["category"], c["lat"], c["lon"]) or c["name"]
     selected = checkpoint_selection.select_checkpoints(scored)
     keys = {c["id"] for c in selected}
     for c in scored:

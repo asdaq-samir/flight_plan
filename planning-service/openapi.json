@@ -1514,6 +1514,17 @@
           "selected": {
             "title": "Selected",
             "type": "boolean"
+          },
+          "waypoint": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Waypoint"
           }
         },
         "required": [
@@ -8142,6 +8153,51 @@
           }
         },
         "summary": "Start Dev Service"
+      }
+    },
+    "/api/foreflight-pack/{route}/{file}": {
+      "get": {
+        "description": "The route's checkpoints as a ForeFlight content pack (app.foreflight),\nfor ForeFlight's own link to the pack, or to download. `route` is its\nidents dash-joined, KORD-KDLH or C81-KRYV-KDLH, and the checkpoints\nare the planner's own selection for it; `file`, the pack's name, which\nForeFlight takes from the end of the address. A 422 for a route it\ncannot read.\n\nForeFlight's downloader asks for the file several times over and\nwants its size: so the same address is always the same bytes, a Range\nis answered with a 206 of just those bytes, and the size goes with\nevery answer (a 416 for a range past the end).",
+        "operationId": "foreflight_pack_api_foreflight_pack__route___file__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "route",
+            "required": true,
+            "schema": {
+              "title": "Route",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "file",
+            "required": true,
+            "schema": {
+              "title": "File",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/zip": {}
+            },
+            "description": "The pack, a ZIP"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Foreflight Pack"
       }
     },
     "/api/local-flight": {

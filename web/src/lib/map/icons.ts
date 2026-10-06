@@ -60,17 +60,46 @@ export function dotIcon(fill: string, label?: string | number) {
 /** Own ship: an arrow the size of a checkpoint dot, blue with a white
  *  casing so it holds over any chart colour, turned to the GPS heading
  *  -- a plain dot while stationary, when there is none. */
-export function ownShipIcon(headingDeg: number | null) {
+export function ownShipIcon(headingDeg: number | null, off = false) {
+  // Grey where own ship is off: the last position, no longer watched, as
+  // Maps greys its dot when it stops knowing where you are.
+  const fill = off ? "#9ca3af" : "#2563eb";
   return L.divIcon({
     className: "",
     iconSize: [28, 28],
     iconAnchor: [14, 14],
-    html: headingDeg === null
-      ? `<div class="absolute left-1/2 top-1/2 size-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-[2.5px] border-white bg-blue-600 shadow-[0_1px_4px_rgba(0,0,0,.45)]"></div>`
-      : `<svg viewBox="0 0 28 28" width="28" height="28" aria-hidden="true"` +
+    html: headingDeg === null || off
+      ? `<div data-own-ship="${off ? "off" : "on"}" class="absolute left-1/2 top-1/2 size-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-[2.5px] border-white shadow-[0_1px_4px_rgba(0,0,0,.45)]" style="background:${fill}"></div>`
+      : `<svg viewBox="0 0 28 28" width="28" height="28" aria-hidden="true" data-own-ship="on"` +
         ` class="absolute left-0 top-0 drop-shadow-[0_1px_3px_rgba(0,0,0,.5)]"` +
         ` style="transform:rotate(${Number(headingDeg)}deg)">` +
-        `<path d="M14 3 L23 24 L14 19 L5 24 Z" fill="#2563eb" stroke="#ffffff" stroke-width="2.5" stroke-linejoin="round"/></svg>`,
+        `<path d="M14 3 L23 24 L14 19 L5 24 Z" fill="${fill}" stroke="#ffffff" stroke-width="2.5" stroke-linejoin="round"/></svg>`,
+  });
+}
+
+/** How far a checkpoint's name sits from its point: clear of its numbered
+ *  dot (dotIcon's 24, and a margin). */
+export const CHECKPOINT_LABEL_GAP = 16;
+/** Its height, for the labels to be kept from one another (RouteMap). */
+export const CHECKPOINT_LABEL_HEIGHT = 20;
+/** A rough width per letter at its size, for the same. */
+export const CHECKPOINT_LABEL_EM = 7.4;
+
+/**
+ * A checkpoint's name beside its dot, as ForeFlight labels a flight
+ * plan's waypoints: the name the route's ForeFlight pack gives it (ROUND
+ * LAKE BEACH, ROAD WATERTOWN), so the map here and ForeFlight's read
+ * alike, on a dark label that holds on the chart's paper and its
+ * linework both, after the dot -- or before it where there is no room
+ * after (the screen's edge, another name). Not a target: a tap there is
+ * the dot's or the chart's.
+ */
+export function checkpointLabelIcon(name: string, side: "right" | "left" = "right") {
+  return L.divIcon({
+    className: "",
+    iconSize: [0, 0],
+    iconAnchor: [side === "right" ? -CHECKPOINT_LABEL_GAP : CHECKPOINT_LABEL_GAP, CHECKPOINT_LABEL_HEIGHT / 2],
+    html: `<span data-checkpoint-label="" class="pointer-events-none absolute ${side === "right" ? "left-0" : "right-0"} top-0 whitespace-nowrap rounded-md bg-[#1f2933]/85 px-1.5 text-[12px] font-bold uppercase leading-[20px] tracking-wide text-white shadow-[0_1px_3px_rgba(0,0,0,.4)]">${text(name)}</span>`,
   });
 }
 

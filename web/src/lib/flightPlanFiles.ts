@@ -16,6 +16,8 @@ export interface PlanPoint {
   kind: "airport" | "fix" | "checkpoint";
   lat: number;
   lon: number;
+  /** A checkpoint's waypoint in the route's ForeFlight pack (LAKE_ZURICH). */
+  waypoint?: string | null;
 }
 
 function xml(text: string): string {
@@ -69,6 +71,19 @@ export function fplOf(points: PlanPoint[], name: string, created = new Date()): 
     `</flight-plan>`,
     "",
   ].join("\n");
+}
+
+/** ForeFlight's own link to the route (https://foreflight.com/support/app-urls/):
+ *  it opens ForeFlight on its map with the flight plan filled in, airports
+ *  and fixes by identifier, then the altitude where the plan has one. Each
+ *  checkpoint is its waypoint in the route's pack, by name, where `named`
+ *  (CONTPACK@LAKE_ZURICH: the pack must be in ForeFlight), else at its
+ *  place, as ForeFlight writes a position in a route (42.3700/-88.0800). */
+export function foreflightRoute(points: PlanPoint[], altitudeFt?: number | null, named = false): string {
+  const tokens = points.map(p => (p.kind !== "checkpoint" ? p.ident.toUpperCase()
+    : named && p.waypoint ? `CONTPACK@${p.waypoint}` : `${p.lat.toFixed(4)}/${p.lon.toFixed(4)}`));
+  if (altitudeFt) tokens.push(`${Math.round(altitudeFt)}ft`);
+  return `foreflightmobile://maps/search?q=${tokens.join("+")}`;
 }
 
 /** A GPX 1.1 route through the points, each named as in the .fpl. */

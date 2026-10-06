@@ -163,9 +163,10 @@ test("plan page: the nav log is computed for an aeroplane the pilot picks in its
   await picker.click();
   await page.getByRole("option", { name: /PA28/ }).click();
   await expect(picker).toContainText("PA28");
-  // Remembered per browser: the same aeroplane after a reload -- on
-  // which the drawer is already open, since the address kept it.
-  await page.reload();
+  // Remembered per browser: the same aeroplane with the plan opened
+  // again from its address -- on which the drawer is already open, since
+  // the address kept it. (A reload forgets the route: lib/freshLoad.)
+  await page.goto(page.url());
   await settle(page);
   await expectDrawerOpen(page);
   await expect(page.getByTestId("aircraft-select")).toContainText("PA28");
@@ -227,7 +228,7 @@ test("plan page: no legal altitude is the route's own problem: its chip says so 
   await problem.getByTestId("unflyable-fly").click();
   await expect(page).toHaveURL(/[?&]altitude_ft=12500/);
 
-  // Or a stop: the route's Add Stop open. Once planned again at that
+  // Or a stop: the route's box takes the typing. Once planned again at that
   // altitude: the mark goes and comes back as the plan is made, and a
   // tap on the one going opened nothing.
   await expect(page.getByTestId("navlog-progress")).toHaveCount(0, { timeout: slow(30000) });
@@ -236,7 +237,7 @@ test("plan page: no legal altitude is the route's own problem: its chip says so 
     await expect(problem.getByTestId("unflyable-add-stop")).toBeVisible({ timeout: 2000 });
   }).toPass({ timeout: slow(30000) });
   await problem.getByTestId("unflyable-add-stop").click();
-  await expect(page.getByPlaceholder(/Search/)).toBeVisible();
+  await expect(sideDrawer(page).getByTestId("route-type")).toBeFocused();
 });
 
 test("plan page: Class B in the way offers the waypoint round it, or accepting the Class B, which is said while it lasts", async ({ page }) => {
@@ -284,8 +285,8 @@ test("plan page: Class B in the way offers the waypoint round it, or accepting t
   await accepted.getByRole("button", { name: "Undo" }).click();
   await expect(page).not.toHaveURL(/class_b=/);
 
-  // Or round it: Fly via, the stop picker with the ways round at its
-  // top, and the one picked in the stops.
+  // Or round it: Fly via, the ways round offered under the route's box,
+  // and the one picked in the stops.
   // Once planned again without it: the mark goes and comes back as the
   // plan is made, and a tap on the one going opened nothing.
   await expect(async () => {

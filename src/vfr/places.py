@@ -22,6 +22,7 @@ from __future__ import annotations
 import csv
 import io
 import logging
+import re
 import tempfile
 import threading
 import zipfile
@@ -56,6 +57,22 @@ TOWN_NM = 20.0
 TOWN_PREFIXES = ("City of ", "Village of ", "Town of ", "Borough of ")
 
 _COMPASS = ("N", "NE", "E", "SE", "S", "SW", "W", "NW")
+
+#: A chart's town checkpoint is the town whose point is this close: the
+#: chart reader finds the yellow of its built-up area, whose middle lies
+#: near the town's own point.
+TOWN_NAME_NM = 2.5
+#: A lake checkpoint is the named water whose point is this close.
+WATER_NAME_NM = 1.5
+#: A river or a road crossing is named by the town this close to it.
+NEAR_NM = 5.0
+#: What names water, among the landmarks: a dam or an island by a lake
+#: does not name it.
+_WATER = re.compile(r"\b(Lake|Lakes|Reservoir|Pond|Millpond|Flowage)\b")
+#: GNIS's own numbering on a water body's name: "Nepco Lake 175".
+_GNIS_NUMBER = re.compile(r"\s+[\d.\-]+$")
+#: A river or a road, named by the town it is near.
+_NEAR_WORDS = {"river": "River", "road_or_rail": "Road or railway"}
 
 _LOCK = threading.Lock()
 _TABLE: dict | None = None
@@ -160,6 +177,43 @@ def _nearest(table: dict, kind: str, lat: float, lon: float) -> tuple[str, float
         return None
     chord, i = part["tree"].query(_unit_sphere(lat, lon)[0])
     return part["names"][i], float(_arc_nm(np.array(chord))), float(part["lat"][i]), float(part["lon"][i])
+
+
+def _nearest_few(table: dict, kind: str, lat: float, lon: float, k: int) -> list[tuple[str, float]]:
+    part = table[kind]
+    if part["tree"] is None:
+        return []
+    chords, indices = part["tree"].query(_unit_sphere(lat, lon)[0], k=min(k, len(part["names"])))
+    return [(part["names"][i], float(_arc_nm(np.array(c)))) for c, i in zip(np.atleast_1d(chords), np.atleast_1d(indices))]
+
+
+def checkpoint_name(kind: str, lat: float, lon: float, table: dict | None = None) -> str | None:
+    """A chart checkpoint's name where the place names know it, as the
+    chart labels the place: a town by its own name ("Lake Zurich"), a lake
+    by its own ("Lauderdale Lakes"), a river or a road by the town it is
+    near ("River near Springfield"). `kind` is the chart reader's (vfr
+    .chartvision: town, water, river, road_or_rail). None where nothing is
+    near enough, for any other kind, or before the places have loaded."""
+    table = table if table is not None else _TABLE
+    if table is None:
+        return None
+    if kind == "town":
+        town = _nearest(table, "town", lat, lon)
+        return town[0] if town and town[1] <= TOWN_NAME_NM else None
+    if kind == "water":
+        for name, nm in _nearest_few(table, "landmark", lat, lon, 12):
+            if nm > WATER_NAME_NM:
+                break
+            name = _GNIS_NUMBER.sub("", name)
+            # "0.985 Reservoir", "Lake 6-7 and 6-6c": a survey's number, not a name.
+            if _WATER.search(name) and not re.search(r"\d", name):
+                return name
+        return None
+    words = _NEAR_WORDS.get(kind)
+    if words:
+        town = _nearest(table, "town", lat, lon)
+        return f"{words} near {town[0]}" if town and town[1] <= NEAR_NM else None
+    return None
 
 
 def describe(lat: float, lon: float, table: dict | None = None) -> str | None:

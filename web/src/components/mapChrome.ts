@@ -15,11 +15,22 @@ import { create } from "zustand";
  */
 export type PanelState = "peek" | "half" | "full";
 
-/** What the panel covers of the map at rest, in pixels from each edge,
- *  so the map can fit a route clear of it and keep its chart credit in
- *  sight (MapShell, index.css). */
-export interface MapInsets { top: number; bottom: number; left: number }
-export const NO_INSETS: MapInsets = { top: 0, bottom: 0, left: 0 };
+/** What the panel covers of the map where it has settled -- the capsule
+ *  at rest, the half sheet out -- in pixels from each edge, so the map
+ *  can fit a route clear of it and keep its chart credit in sight
+ *  (MapShell, index.css). */
+export interface MapInsets {
+  top: number;
+  bottom: number;
+  left: number;
+  /** Where the panel has settled: at rest (its capsule, or a desktop's
+   *  corner) or out. The map follows a change of this (MapShell), not
+   *  every change of the size -- a notice under the route, the head
+   *  measured again -- which would take the map from under a pilot's
+   *  finger as the plan streams in. */
+  out: boolean;
+}
+export const NO_INSETS: MapInsets = { top: 0, bottom: 0, left: 0, out: false };
 export const MapInsetsContext = createContext<MapInsets>(NO_INSETS);
 
 /** The console's button (MapPage), for the panel's capsule to put at its
@@ -77,16 +88,19 @@ export const GLASS_SHEET = "liquid-glass [--glass-fill:62%]";
  *  under a screenful of nav log. */
 export const GLASS_SHEET_FULL = "liquid-glass [--glass-fill:88%]";
 
-/** A sheet while a finger drags it: its fill nearly whole and no blur
- *  behind it. A blur re-drawn under a sheet changing height every frame
- *  cost a frame in two (measured: half the frames over 33 ms with the
- *  glass, one in thirty without), the drag stepping rather than
- *  following; the glass comes back as it settles. */
-export const SHEET_DRAGGING = "bg-background/95 shadow-lg dark:bg-popover/95";
+/** The glass's fill at each shape (GLASS, GLASS_SHEET, GLASS_SHEET_FULL),
+ *  for a sheet being dragged to follow from one to the next. A dragged
+ *  sheet was an opaque fill with no blur behind it, for the frames a blur
+ *  re-drawn every frame was measured to cost; the pilot found the glass
+ *  giving way under the finger, which Maps' never does. */
+export const GLASS_FILL = { capsule: 40, half: 62, full: 88 };
 
 /** iOS's sheet curve, the one vaul uses too: a sheet's height, and its
  *  way in from the screen's edges as it changes shape. */
 const SHEET_CURVE = "0.5s cubic-bezier(0.32, 0.72, 0, 1)";
+/** The map's own move to a route as the sheet settles (MapShell), in
+ *  seconds: the sheet's time, so the two arrive together. */
+export const SHEET_SECONDS = 0.5;
 export const SHEET_RESHAPE = ["left", "right", "top", "bottom", "border-radius"].map(p => `${p} ${SHEET_CURVE}`).join(", ");
 export const SHEET_SETTLE = `height ${SHEET_CURVE}, ${SHEET_RESHAPE}`;
 

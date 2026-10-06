@@ -1,6 +1,6 @@
-import { useRef, useState } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { Command as CommandPrimitive } from "cmdk";
-import { ChevronsUpDown, Diamond, History, Plus, Search, X } from "lucide-react";
+import { ChevronsUpDown, Diamond, History, Search, X } from "lucide-react";
 import { cn } from "cn";
 import { TEXT } from "../lib/text";
 import { Button } from "./ui/button";
@@ -10,7 +10,7 @@ import { FavoriteTiles } from "./Favorites";
 import { usePreferences, type RecentAirport } from "../lib/preferences";
 import { useOwnShip } from "../lib/map/ownShip";
 import { ResponsivePopover, ResponsivePopoverContent, ResponsivePopoverTrigger } from "./ResponsivePopover";
-import { useAirportSearch } from "../lib/useAirportSearch";
+import { useAirportSearch, type AirportSearchRow } from "../lib/useAirportSearch";
 import { useIsMobile } from "../hooks/use-mobile";
 import { useKeyboardInset } from "../hooks/use-viewport";
 
@@ -21,20 +21,12 @@ interface Props {
   ariaLabel: string;
   invalid?: boolean;
   className?: string;
-  /** "add": a plus and the placeholder in the tint, no chevrons -- a
-   *  point to add (RouteBox), not a field to change. "pill": the ident
-   *  alone, a point of a route in its box. */
-  look?: "field" | "add" | "pill";
-  /** Open from elsewhere: a problem's Add a stop or Fly via (PlanWorkspace). */
-  open?: boolean;
-  onOpenChange?: (open: boolean) => void;
+  /** "pill": the ident alone, a point of a route in its box (RouteBox). */
+  look?: "field" | "pill";
   testId?: string;
   /** A stop's: the VFR and GPS waypoints as well as the airports
    *  (useAirportSearch), a route flying through one. */
   fixes?: boolean;
-  /** Waypoints to offer first, before anything is typed: the ones round
-   *  the Class B a flight is stopped by (RouteBox's `via`). */
-  suggestions?: { ident: string; kind: string; detail: string }[];
 }
 
 /**
@@ -52,12 +44,9 @@ interface Props {
  * is, where it was a popover the keyboard covered half of.
  */
 export default function AirportPicker({
-  value, onChange, placeholder, ariaLabel, invalid, className, look = "field", open: openFrom, onOpenChange, testId,
-  fixes = false, suggestions,
+  value, onChange, placeholder, ariaLabel, invalid, className, look = "field", testId, fixes = false,
 }: Props) {
-  const [ownOpen, setOwnOpen] = useState(false);
-  const open = openFrom ?? ownOpen;
-  const setOpen = (next: boolean) => { setOwnOpen(next); onOpenChange?.(next); };
+  const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const input = useRef<HTMLInputElement>(null);
   const onPhone = useIsMobile();
@@ -67,9 +56,6 @@ export default function AirportPicker({
   // pause, then "LH" and a quick Enter set the field to the first "KD..."
   // airport rather than KDLH.
   const { typed, rows, answered } = useAirportSearch(query, open, fixes);
-  const fields = rows.filter(r => r.kind !== "fix");
-  const suggesting = !!suggestions?.length;
-  const waypoints = rows.filter(r => r.kind === "fix");
 
   const pick = (ident: string) => {
     onChange(ident.toUpperCase());
@@ -103,13 +89,9 @@ export default function AirportPicker({
           aria-invalid={invalid}
           data-testid={testId}
           // A field, as a search box is: its ident in the text's colour
-          // (not a button's tint) at a row's size (TEXT); a stop to add,
-          // the tint's.
-          className={look === "add"
-            ? cn("text-tint", TEXT.row, className)
-            : cn("font-mono uppercase text-foreground", TEXT.row, !value && "text-muted-foreground", className)}
+          // (not a button's tint) at a row's size (TEXT).
+          className={cn("font-mono uppercase text-foreground", TEXT.row, !value && "text-muted-foreground", className)}
         >
-          {look === "add" && <Plus />}
           {value || placeholder}
           {look === "field" && <ChevronsUpDown className="text-muted-foreground" />}
         </Button>
@@ -167,10 +149,8 @@ export default function AirportPicker({
             </IconButton>
           </div>
           {/* Its own height, not shrunk: with the keyboard up the sheet is
-              short, and the tiles were squeezed to a sliver of their tops.
-              Not with suggestions: Fly via asks for a way round, and Home
-              and the favorites are places to go, not ways past. */}
-          {!typed && !suggesting && (home || favorites.length > 0) && (
+              short, and the tiles were squeezed to a sliver of their tops. */}
+          {!typed && (home || favorites.length > 0) && (
             <div className="shrink-0">
               <FavoriteTiles home={home} favorites={favorites} from={fix} onOpen={choose} />
             </div>
@@ -178,46 +158,15 @@ export default function AirportPicker({
           {/* Dimmed while they answer something older than the box. */}
           <CommandList className={cn("max-h-none overflow-visible", typed && !answered && "opacity-60")} aria-busy={!answered}>
             {typed && <CommandEmpty>No {fixes ? "airport or waypoint" : "airport"} matches; Enter keeps what you typed.</CommandEmpty>}
-            {!typed && suggestions && suggestions.length > 0 && (
-              <CommandGroup heading="Suggested" className={GROUP}>
-                {suggestions.map(s => (
-                  <AirportRow
-                    key={s.ident} waypoint airport={{ ident: s.ident, name: s.kind, municipality: s.detail }}
-                    onSelect={() => pick(s.ident)} testId="picker-suggestion"
-                  />
-                ))}
-              </CommandGroup>
-            )}
-            {!typed && !suggesting && recents.length > 0 && (
-              <CommandGroup heading="Recents" className={GROUP}>
+            {!typed && recents.length > 0 && (
+              <PickerGroup heading="Recents">
                 {recents.map(a => <AirportRow key={a.ident} airport={a} recent onSelect={() => choose(a)} />)}
-              </CommandGroup>
+              </PickerGroup>
             )}
-            {!typed && !suggesting && recents.length === 0 && !home && favorites.length === 0 && (
+            {!typed && recents.length === 0 && !home && favorites.length === 0 && (
               <p className={cn("px-1 text-muted-foreground", TEXT.note)}>Search by an airport's ident, its name or its town.</p>
             )}
-            {fields.length > 0 && (
-              <CommandGroup heading="Airports" className={GROUP}>
-                {fields.map(r => (
-                  <AirportRow
-                    key={r.ident} airport={{ ident: r.ident, name: r.name, municipality: r.municipality }}
-                    onSelect={() => choose({ ident: r.ident, name: r.name, municipality: r.municipality })}
-                  />
-                ))}
-              </CommandGroup>
-            )}
-            {/* A stop's waypoints, after the airports: flown through, not
-                kept among the recent airports. */}
-            {waypoints.length > 0 && (
-              <CommandGroup heading="Waypoints" className={GROUP}>
-                {waypoints.map(r => (
-                  <AirportRow
-                    key={r.ident} waypoint airport={{ ident: r.ident, name: r.name, municipality: r.region }}
-                    onSelect={() => pick(r.ident)}
-                  />
-                ))}
-              </CommandGroup>
-            )}
+            <SearchRows rows={rows} onAirport={choose} onWaypoint={pick} />
           </CommandList>
         </Command>
       </ResponsivePopoverContent>
@@ -227,12 +176,52 @@ export default function AirportPicker({
 
 /** A group's heading as a grouped list's is (GroupedList): 13, semibold,
  *  in small capitals. */
+export function PickerGroup({ heading, children }: { heading: string; children: ReactNode }) {
+  return <CommandGroup heading={heading} className={GROUP}>{children}</CommandGroup>;
+}
+
 const GROUP = "p-0 **:[[cmdk-group-heading]]:px-1 **:[[cmdk-group-heading]]:pb-1.5 **:[[cmdk-group-heading]]:font-semibold **:[[cmdk-group-heading]]:uppercase **:[[cmdk-group-heading]]:tracking-wide **:[[cmdk-group-heading]]:text-xs pointer-coarse:**:[[cmdk-group-heading]]:text-[0.8125rem]";
+
+/** What a search answers, as the picker lists it and the route box's
+ *  suggestions do: the airports, then a stop's waypoints -- flown
+ *  through, not kept among the recent airports. */
+export function SearchRows({ rows, onAirport, onWaypoint }: {
+  rows: AirportSearchRow[];
+  onAirport: (airport: RecentAirport) => void;
+  onWaypoint: (ident: string) => void;
+}) {
+  const fields = rows.filter(r => r.kind !== "fix");
+  const waypoints = rows.filter(r => r.kind === "fix");
+  return (
+    <>
+      {fields.length > 0 && (
+        <PickerGroup heading="Airports">
+          {fields.map(r => (
+            <AirportRow
+              key={r.ident} airport={{ ident: r.ident, name: r.name, municipality: r.municipality }}
+              onSelect={() => onAirport({ ident: r.ident, name: r.name, municipality: r.municipality })}
+            />
+          ))}
+        </PickerGroup>
+      )}
+      {waypoints.length > 0 && (
+        <PickerGroup heading="Waypoints">
+          {waypoints.map(r => (
+            <AirportRow
+              key={r.ident} waypoint airport={{ ident: r.ident, name: r.name, municipality: r.region }}
+              onSelect={() => onWaypoint(r.ident)}
+            />
+          ))}
+        </PickerGroup>
+      )}
+    </>
+  );
+}
 
 /** One airport in the picker's list, as a row of the search bar's: its
  *  ident and name, its town under them -- or a waypoint, with the
  *  magenta diamond the map marks one with, its kind and its state. */
-function AirportRow({ airport, recent = false, waypoint = false, onSelect, testId }: {
+export function AirportRow({ airport, recent = false, waypoint = false, onSelect, testId }: {
   airport: RecentAirport; recent?: boolean; waypoint?: boolean; onSelect: () => void; testId?: string;
 }) {
   return (

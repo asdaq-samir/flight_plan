@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { PAGES, consoleSheet, settle, roleMenu, openPanel } from "./helpers";
+import { PAGES, consoleSheet, settle, roleMenu, openPanel, closeSidebarWithTheStockKey, expectDrawerClosed } from "./helpers";
 
 /**
  * The two pages and the switch between them: the Dev-mode switch, the
@@ -34,6 +34,9 @@ test("the console's role menu flips to the dev page, the console staying out, an
 test("the panel's head looks the same on both pages: the console's role says which one this is", async ({ page }) => {
   await page.goto("/app/plan");
   await settle(page);
+  // At rest, as the dev page opens: the planner opens half way up.
+  await closeSidebarWithTheStockKey(page);
+  await expectDrawerClosed(page);
   const pilotBg = await page.locator("header").evaluate(el => getComputedStyle(el).backgroundColor);
   await expect(page.locator("[data-mode]")).toHaveAttribute("data-mode", "pilot");
   await expect((await roleMenu(page)).developer).toHaveAttribute("aria-checked", "false");
@@ -49,7 +52,8 @@ test("the route form leads the panel's head on both pages, signed in or out", as
   // Where the form starts in its row: the same on the planner and the dev
   // page, and for someone signed out, whose actions differ.
   const lead = (p: Page) => p.locator("header").evaluate(header => {
-    const form = header.querySelector("form")!.getBoundingClientRect();
+    // The planner's route box, the dev page's route form.
+    const form = header.querySelector("[data-testid=route-box], form")!.getBoundingClientRect();
     return Math.round(form.left - header.getBoundingClientRect().left);
   });
   const leads: number[] = [];

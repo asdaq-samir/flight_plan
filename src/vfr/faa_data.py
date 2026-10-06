@@ -15,6 +15,7 @@ import logging
 import re
 import threading
 import zipfile
+from collections.abc import Iterable
 from functools import lru_cache
 from pathlib import Path
 from urllib.parse import urljoin
@@ -84,17 +85,24 @@ def find_download_link(page_url: str, href_pattern: str) -> str:
     return m.group(1)
 
 
-def download_and_extract(url: str, dest_dir: Path, retries: int = 3) -> None:
+def download_and_extract(url: str, dest_dir: Path, retries: int = 3, only: Iterable[str] | None = None) -> None:
     """Downloads the zip at url and extracts it into dest_dir, retrying
     on transient failures -- the FAA's NASR/DOF archives are large enough
-    that a single flaky connection isn't unusual."""
+    that a single flaky connection isn't unusual.
+
+    With `only`, just the members of those names: the DOF archive carries
+    a file per state beside the whole country's DOF.DAT, and the NASR
+    ones a dozen tables and their layouts the planner never reads -- 190
+    MB of the 950 under data/raw/faa_nasr, extracted for nothing."""
     dest_dir.mkdir(parents=True, exist_ok=True)
+    wanted = set(only) if only is not None else None
 
     def attempt() -> None:
         resp = requests.get(url, headers=FAA_HEADERS, timeout=180)
         resp.raise_for_status()
         with zipfile.ZipFile(io.BytesIO(resp.content)) as zf:
-            zf.extractall(dest_dir)
+            members = zf.namelist() if wanted is None else [m for m in zf.namelist() if Path(m).name in wanted]
+            zf.extractall(dest_dir, members=members)
 
     with_retries(
         attempt, describe=f"Download of {url}", retries=retries,
@@ -156,7 +164,7 @@ def ensure_nasr_file(name: str, cache_dir) -> Path:
     cache_dir = Path(cache_dir)
     path = cache_dir / name
     if not path.exists():
-        download_and_extract(_NASR_FILES[name](), cache_dir)
+        download_and_extract(_NASR_FILES[name](), cache_dir, only=_NASR_FILES)
     if path.exists():
         return path
     if _is_icloud_evicted(path):

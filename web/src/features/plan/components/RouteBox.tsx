@@ -1,4 +1,5 @@
-import { useState, type KeyboardEvent } from "react";
+import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
+import { Command as CommandPrimitive } from "cmdk";
 import { Diamond, X } from "lucide-react";
 import {
   DndContext, KeyboardSensor, MouseSensor, TouchSensor, closestCenter, useSensor, useSensors, type DragEndEvent,
@@ -6,22 +7,31 @@ import {
 import { SortableContext, arrayMove, horizontalListSortingStrategy, sortableKeyboardCoordinates, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { cn } from "cn";
-import AirportPicker from "../../../components/AirportPicker";
-import { InputGroup, InputGroupAddon } from "../../../components/ui/input-group";
+import AirportPicker, { AirportRow, PickerGroup, SearchRows } from "../../../components/AirportPicker";
+import { CommandList } from "../../../components/ui/command";
+import { InputGroup } from "../../../components/ui/input-group";
+import { Popover, PopoverAnchor, PopoverContent } from "../../../components/ui/popover";
 import type { Detour } from "../../../lib/api/types";
-import { MAX_STOPS, identSchema, stopSchema } from "../../../lib/identSchema";
+import { MAX_STOPS, identOf, stopOf } from "../../../lib/identSchema";
+import { usePreferences, type RecentAirport } from "../../../lib/preferences";
+import { useAirportSearch } from "../../../lib/useAirportSearch";
 
 /**
  * The route as ForeFlight's is: one box, every point of it a pill in the
  * order flown -- the departure, the airports landed at and the waypoints
  * flown through, the destination -- dragged into another order, tapped to
- * change, crossed out, and more typed after them ("VPBNG 06C", Enter) or
- * found with the plus. A point added goes in before the destination, as
- * a stop; from Fly via, on the flight the Class B stops (`via`), its
- * suggestions at the top of the picker. Every change re-plans at once,
- * so there is no Load button: the plus has its place at the box's end.
- * It was two airport fields and a Load button, with the stops as chips
- * in the row under them.
+ * change, crossed out, and more typed after them, the airports and
+ * waypoints that answer what is typed offered under the box as it is
+ * typed (Enter takes the first, or what was typed, "VPBNG 06C"). A point
+ * added goes in before the destination, as a stop; from Fly via, on the
+ * flight the Class B stops (`via`), the ways round offered before
+ * anything is typed. Every change re-plans at once, so there is no Load
+ * button. It was two airport fields and a Load button, then a plus at the
+ * box's end that opened a picker of its own: the field it stood beside
+ * does the same as it is typed in.
+ *
+ * Round at its ends, as Maps' fields are, to sit in the sheet's round
+ * corners.
  *
  * The ends stay airports: a waypoint is flown through, never taken off
  * from or landed at, so a drag that would put one at an end is undone,
@@ -33,13 +43,18 @@ export default function RouteBox({ points, waypoints, onChange, adding, onAdding
   /** Which of them are waypoints, flown through: a diamond on the pill. */
   waypoints: Set<string>;
   onChange: (points: string[]) => void;
-  /** The plus's picker open, from here or a problem's Add a stop. */
+  /** A stop asked for from elsewhere -- a problem's Add a stop or Fly
+   *  via: the box takes the typing, with `via` offered. */
   adding: boolean;
   onAddingChange: (adding: boolean) => void;
   /** Fly via's waypoints round the Class B, best first. */
   via?: Detour[];
 }) {
   const [typed, setTyped] = useState("");
+  const typedNow = useRef(typed);
+  useEffect(() => { typedNow.current = typed; }, [typed]);
+  const field = useRef<HTMLInputElement>(null);
+  const listId = useId();
   // Each point's key is its place in the order and its ident: the same
   // airport twice is two points.
   const ids = points.map((p, i) => `${i}:${p}`);
@@ -50,7 +65,7 @@ export default function RouteBox({ points, waypoints, onChange, adding, onAdding
     useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 6 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
-  const isEnd = (ident: string) => identSchema.safeParse(ident).success && !waypoints.has(ident);
+  const isEnd = (ident: string) => !!identOf(ident) && !waypoints.has(ident);
   // No point straight after itself (KDLH, KDLH, KMDW) -- but a route
   // left as one airport twice is let through, to be said (PlanWorkspace's
   // notice) and changed in this box: taking the stop out of a round trip
@@ -59,21 +74,49 @@ export default function RouteBox({ points, waypoints, onChange, adding, onAdding
   const valid = (next: string[]) => next.length >= 2 && isEnd(next[0]!) && isEnd(next.at(-1)!) && next.length - 2 <= MAX_STOPS
     && (!repeats(next) || next.length === 2);
   const change = (next: string[]) => { if (valid(next)) onChange(next); };
+  const full = points.length - 2 >= MAX_STOPS;
 
   // Where a new point goes: before the destination, as a stop -- or, from
   // Fly via, on the flight it is for.
   const at = via?.length ? via[0]!.stop_index + 1 : Math.max(points.length - 1, 0);
   const insert = (idents: string[]) => {
-    const fresh = idents.map(i => stopSchema.safeParse(i).data).filter((i): i is string => !!i);
+    const fresh = idents.map(stopOf).filter(Boolean);
     if (!fresh.length) return;
     change([...points.slice(0, at), ...fresh, ...points.slice(at)]);
   };
   const commitTyped = () => {
-    insert(typed.split(/[\s,]+/));
+    insert(typedNow.current.split(/[\s,]+/));
     setTyped("");
   };
+  // One picked from the suggestions: in, the box empty for the next, the
+  // typing kept in it; an airport among the recents, as the search bar's.
+  const pick = (ident: string, airport?: RecentAirport) => {
+    if (airport) usePreferences.getState().addRecentAirport(airport);
+    insert([ident]);
+    setTyped("");
+    onAddingChange(false);
+    field.current?.focus();
+  };
+
+  // The airports and waypoints that answer what is typed, under the box;
+  // before anything is typed, Fly via's ways round. Put away with Escape
+  // or a tap elsewhere, until the next thing typed.
+  const { rows, answered } = useAirportSearch(typed, !!typed.trim(), true);
+  const [dismissed, setDismissed] = useState<string | null>(null);
+  const offering = typed.trim() ? rows.length > 0 : adding && !!via?.length;
+  const open = offering && dismissed !== typed && !full;
+  // Asked for from a problem: the box takes the typing.
+  useEffect(() => { if (adding) field.current?.focus(); }, [adding]);
+
   const onKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter" || e.key === " " || e.key === ",") {
+    if (e.key === "Enter") {
+      // The first suggestion, once they answer what is typed (cmdk's own
+      // Enter, on its highlighted row); else what was typed.
+      if (open && answered && rows.length > 0) return;
+      e.preventDefault();
+      e.stopPropagation();
+      if (typed.trim()) commitTyped();
+    } else if (e.key === " " || e.key === ",") {
       if (!typed.trim()) return;
       e.preventDefault();
       commitTyped();
@@ -88,59 +131,77 @@ export default function RouteBox({ points, waypoints, onChange, adding, onAdding
   };
 
   return (
-    // The box's own presses are its pills', not the panel's drag.
-    <form
-      className="min-w-0" autoComplete="off" onPointerDown={e => e.stopPropagation()}
-      onSubmit={e => { e.preventDefault(); if (typed.trim()) commitTyped(); }}
-    >
-      <InputGroup className="h-auto min-h-9 py-1 pl-1" data-testid="route-box">
-        {/* One line that slides sideways under a finger, as ForeFlight's
-            route does, where the pills wrapped onto a second and a third;
-            the plus and the arrow stay put at its end. */}
-        <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" data-testid="route-slide" data-slides="">
-        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
-          <SortableContext items={ids} strategy={horizontalListSortingStrategy}>
-            {points.map((point, i) => (
-              <Pill
-                key={ids[i]} id={ids[i]!} ident={point} waypoint={waypoints.has(point)} index={i}
-                role={i === 0 ? "dep" : i === points.length - 1 ? "dest" : "stop"}
-                removable={points.length > 2}
-                onChange={ident => change(points.map((p, j) => (j === i ? ident : p)))}
-                onRemove={() => change(points.filter((_, j) => j !== i))}
+    // The box's own presses are its pills', not the panel's drag. cmdk's
+    // root round the box and its suggestions: the field moves the
+    // highlight with the arrows and takes it with Enter.
+    <CommandPrimitive shouldFilter={false} loop className="min-w-0" onPointerDown={e => e.stopPropagation()}>
+      <Popover open={open} onOpenChange={next => { if (!next) { setDismissed(typed); onAddingChange(false); } }}>
+        <PopoverAnchor asChild>
+          <InputGroup className="h-auto min-h-10 rounded-full py-1 pr-1.5 pl-1" data-testid="route-box">
+            {/* One line that slides sideways under a finger, as ForeFlight's
+                route does, where the pills wrapped onto a second and a third. */}
+            <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" data-testid="route-slide" data-slides="">
+              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+                <SortableContext items={ids} strategy={horizontalListSortingStrategy}>
+                  {points.map((point, i) => (
+                    <Pill
+                      key={ids[i]} id={ids[i]!} ident={point} waypoint={waypoints.has(point)} index={i}
+                      role={i === 0 ? "dep" : i === points.length - 1 ? "dest" : "stop"}
+                      removable={points.length > 2}
+                      onChange={ident => change(points.map((p, j) => (j === i ? ident : p)))}
+                      onRemove={() => change(points.filter((_, j) => j !== i))}
+                    />
+                  ))}
+                </SortableContext>
+              </DndContext>
+              {/* A plain field in cmdk's root, which takes its arrows and
+                  Enter as they bubble: cmdk's own field names a list that is
+                  not in the page while the suggestions are put away. */}
+              <input
+                ref={field} value={typed} onChange={e => setTyped(e.target.value.toUpperCase())} onKeyDown={onKeyDown}
+                role="combobox" aria-expanded={open} aria-controls={listId} aria-autocomplete="list"
+                // What was typed goes in when the box is left -- unless a
+                // suggestion took the tap, which empties it first.
+                onBlur={() => window.setTimeout(() => {
+                  if (typedNow.current.trim() && document.activeElement !== field.current) commitTyped();
+                }, 200)}
+                placeholder={full ? "" : "Add a stop"} aria-label="Add to the route" disabled={full}
+                enterKeyHint="done" autoCapitalize="characters" autoCorrect="off" spellCheck={false}
+                // 16 at the least, as every field is: under 16 iOS zooms the
+                // page in on it.
+                className="w-24 min-w-24 flex-1 bg-transparent font-mono text-base uppercase outline-none placeholder:font-sans placeholder:normal-case placeholder:text-muted-foreground md:text-sm pointer-coarse:text-[1.0625rem]"
+                data-testid="route-type"
               />
-            ))}
-          </SortableContext>
-        </DndContext>
-        <input
-          value={typed} onChange={e => setTyped(e.target.value.toUpperCase())} onKeyDown={onKeyDown}
-          onBlur={() => typed.trim() && commitTyped()}
-          placeholder={points.length ? "" : "Route"} aria-label="Add to the route"
-          enterKeyHint="done" autoCapitalize="characters" autoCorrect="off" spellCheck={false}
-          // 16 at the least, as every field is: under 16 iOS zooms the
-          // page in on it.
-          className="w-16 min-w-16 flex-1 bg-transparent font-mono text-base uppercase outline-none md:text-sm pointer-coarse:text-[1.0625rem]"
-          data-testid="route-type"
-        />
-        </div>
-        {/* Inside the box's border: the stock addon pulls a button half
-            out past it. */}
-        <InputGroupAddon align="inline-end" className="mr-0 gap-1 pr-1.5 has-[>button]:mr-0">
-          {points.length - 2 < MAX_STOPS && (
-            <AirportPicker
-              value="" placeholder="" ariaLabel="Add a stop" look="add" fixes
-              // Where the Load button was, filled as it was.
-              className="size-8 rounded-md bg-primary p-0 text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground"
-              open={adding} onOpenChange={onAddingChange} testId="add-stop"
-              onChange={ident => insert([ident])}
-              suggestions={via?.map(d => ({
-                ident: d.ident, kind: d.kind,
-                detail: [`+${Math.round(d.added_nm)} nm`, d.description].filter(Boolean).join(" · "),
-              }))}
-            />
-          )}
-        </InputGroupAddon>
-      </InputGroup>
-    </form>
+            </div>
+          </InputGroup>
+        </PopoverAnchor>
+        <PopoverContent
+          align="start" sideOffset={6}
+          className="w-(--radix-popper-anchor-width) max-w-[calc(100vw-16px)] p-2"
+          // The typing stays in the box.
+          onOpenAutoFocus={e => e.preventDefault()}
+          onInteractOutside={e => { if (field.current?.closest("[data-slot=input-group]")?.contains(e.target as Node)) e.preventDefault(); }}
+          data-testid="route-suggestions"
+        >
+          <CommandList className="max-h-72" id={listId}>
+            {!typed.trim() && via && via.length > 0 && (
+              <PickerGroup heading="Suggested">
+                {via.map(d => (
+                  <AirportRow
+                    key={d.ident} waypoint testId="picker-suggestion" onSelect={() => pick(d.ident)}
+                    airport={{
+                      ident: d.ident, name: d.kind,
+                      municipality: [`+${Math.round(d.added_nm)} nm`, d.description].filter(Boolean).join(" · "),
+                    }}
+                  />
+                ))}
+              </PickerGroup>
+            )}
+            {typed.trim() && <SearchRows rows={rows} onAirport={airport => pick(airport.ident, airport)} onWaypoint={ident => pick(ident)} />}
+          </CommandList>
+        </PopoverContent>
+      </Popover>
+    </CommandPrimitive>
   );
 }
 

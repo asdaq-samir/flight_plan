@@ -1,0 +1,56 @@
+name: Auto-merge
+
+# A push to maps-layout goes to main by itself once CI passes: this opens
+# the pull request from maps-layout to main if none is open, and turns on
+# GitHub's auto-merge for it, as a merge commit -- maps-layout lives on,
+# and a rebase or a squash would give main other commits than the
+# branch's. Main's ruleset requires the "CI passed" check (ci.yml), so the
+# merge waits on CI, and a failed run holds it until a later push passes.
+#
+# It needs three settings outside this file: Allow auto-merge (Settings,
+# General, Pull Requests); Allow GitHub Actions to create and approve
+# pull requests (Settings, Actions, General); and a ruleset on main
+# requiring "CI passed", with no approvals asked for.
+
+on:
+  push:
+    branches: [maps-layout]
+
+permissions:
+  contents: write
+  pull-requests: write
+  # To start CI on the branch: see below.
+  actions: write
+
+# One at a time, so two pushes in a row never open two pull requests.
+concurrency:
+  group: auto-merge
+  cancel-in-progress: false
+
+jobs:
+  pull-request:
+    runs-on: ubuntu-26.04
+    steps:
+      - name: The pull request to main, merged once CI passes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          number=$(gh pr list --head maps-layout --base main --state open --json number --jq '.[0].number // empty')
+          if [ -z "$number" ]; then
+            if [ "$(gh api "repos/$GH_REPO/compare/main...maps-layout" --jq .ahead_by)" = 0 ]; then
+              echo "maps-layout has nothing main has not"
+              exit 0
+            fi
+            url=$(gh pr create --head maps-layout --base main --title "maps-layout into main" \
+              --body "Opened by the Auto-merge workflow on a push to maps-layout. It merges into main once CI passes.")
+            number=${url##*/}
+            # A pull request this workflow's token opens starts no workflow,
+            # CI included. Started here on the branch, its checks land on
+            # the commit the pull request waits on; later pushes to the
+            # branch start CI on the pull request themselves.
+            gh workflow run ci.yml --ref maps-layout
+          fi
+          gh pr merge "$number" --auto --merge
+          echo "Pull request #$number merges into main once CI passes."

@@ -4,7 +4,7 @@ import { cn } from "cn";
 import { useDetentDrag } from "../hooks/use-detent-drag";
 import { useKeyboardInset, useSafeArea, useVisualHeight, useWindowHeight } from "../hooks/use-viewport";
 import { DialogOverlay, DialogPortal } from "./ui/dialog";
-import { GLASS_SHEET, GLASS_SHEET_FULL, SHEET_DRAGGING, SHEET_INSET, SHEET_INSET_RADIUS, SHEET_MARGIN, SHEET_RESHAPE, SHEET_SETTLE } from "./mapChrome";
+import { GLASS_SHEET, GLASS_SHEET_FULL, SHEET_INSET, SHEET_INSET_RADIUS, SHEET_MARGIN, SHEET_RESHAPE, SHEET_SETTLE } from "./mapChrome";
 
 export type ConsoleDetent = "medium" | "large";
 
@@ -105,7 +105,8 @@ export default function ConsoleSheet({
           }}
           className={cn(
             "fixed z-50 flex flex-col overflow-clip text-card-foreground outline-none",
-            dragged !== null ? SHEET_DRAGGING : nearFull ? GLASS_SHEET_FULL : GLASS_SHEET,
+            // The glass under the finger too, as Maps' is (GLASS_FILL).
+            nearFull ? GLASS_SHEET_FULL : GLASS_SHEET,
             "duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] data-[state=open]:animate-in data-[state=closed]:animate-out",
             fromBottom
               ? "data-[state=open]:slide-in-from-bottom data-[state=closed]:slide-out-to-bottom"

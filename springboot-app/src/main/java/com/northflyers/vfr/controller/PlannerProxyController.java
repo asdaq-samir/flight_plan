@@ -58,6 +58,8 @@ public class PlannerProxyController {
     /** The chart tiles, every kind under one path. Only these carry their
      *  upstream's Cache-Control -- see {@link #forward}. */
     private static final String TILE_PATH = "/api/chart-tile/";
+    /** The ForeFlight pack: a file, its name in Content-Disposition. */
+    private static final String PACK_PATH = "/api/foreflight-pack/";
 
     private record Route(String method, PathPattern pattern) {
         boolean matches(String method, PathContainer path) {
@@ -82,6 +84,7 @@ public class PlannerProxyController {
             route("GET", "/api/chart"),
             route("GET", "/api/course"),
             route("GET", "/api/checkpoints"),
+            route("GET", PACK_PATH + "{route}/{file}"),
             route("GET", "/api/navlog"),
             route("GET", "/api/local-flight"),
             route("GET", "/api/briefing"),
@@ -187,6 +190,11 @@ public class PlannerProxyController {
             pilots.current(SecurityContextHolder.getContext().getAuthentication())
                     .ifPresent(pilot -> upstreamBuilder.header(PILOT_HEADER, String.valueOf(pilot.getId())));
         }
+        // ForeFlight's downloader asks for the pack in byte ranges.
+        String range = request.getHeader(HttpHeaders.RANGE);
+        if (path.startsWith(PACK_PATH) && range != null) {
+            upstreamBuilder.header(HttpHeaders.RANGE, range);
+        }
         HttpRequest upstream = upstreamBuilder.build();
 
         return proxy.exchange(PLANNER, upstream, response -> {
@@ -205,6 +213,16 @@ public class PlannerProxyController {
             if (path.startsWith(TILE_PATH)) {
                 response.headers().firstValue(HttpHeaders.CACHE_CONTROL)
                         .ifPresent(value -> builder.header(HttpHeaders.CACHE_CONTROL, value));
+            }
+            // The pack's file name, which a download (and ForeFlight's
+            // list of packs) shows, and what a download manager needs to
+            // fetch it in pieces: its size, and the range each answer is.
+            // ForeFlight would not install a pack sent without its size.
+            if (path.startsWith(PACK_PATH)) {
+                for (String name : new String[] {HttpHeaders.CONTENT_DISPOSITION, HttpHeaders.CONTENT_LENGTH,
+                        HttpHeaders.CONTENT_RANGE, HttpHeaders.ACCEPT_RANGES}) {
+                    response.headers().firstValue(name).ifPresent(value -> builder.header(name, value));
+                }
             }
             return builder.body(StreamingProxy.pipe(response.body()));
         });

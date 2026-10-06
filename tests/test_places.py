@@ -40,3 +40,27 @@ def test_far_from_everything_or_before_the_names_load_a_point_is_undescribed(tmp
     assert places.describe(45.0, -95.0, table) is None
     monkeypatch.setattr(places, "_TABLE", None)
     assert places.describe(42.07, -87.86) is None
+
+
+def test_a_chart_checkpoint_is_named_as_the_chart_labels_the_place(tmp_path):
+    table = _table(
+        tmp_path,
+        ("Village of Lake Zurich", "Civil", 42.1967, -88.0934),
+        ("Village of Johnsburg", "Civil", 42.3800, -88.2420),
+        ("Lauderdale Lakes", "Lake", 42.7686, -88.5710),
+        ("Pleasant Island", "Island", 42.7690, -88.5704),
+        ("Nepco Lake 175", "Lake", 44.3500, -89.8100),
+        ("0.985 Reservoir", "Reservoir", 43.4300, -89.1000),
+    )
+    # A town: the town it is in. A lake: the water there, not the island
+    # beside it, and without GNIS's own number on the name.
+    assert places.checkpoint_name("town", 42.2044, -88.0668, table) == "Lake Zurich"
+    assert places.checkpoint_name("water", 42.7687, -88.5704, table) == "Lauderdale Lakes"
+    assert places.checkpoint_name("water", 44.3510, -89.8090, table) == "Nepco Lake"
+    # A river or a road: the town it is near.
+    assert places.checkpoint_name("river", 42.3900, -88.2600, table) == "River near Johnsburg"
+    assert places.checkpoint_name("road_or_rail", 42.3900, -88.2600, table) == "Road or railway near Johnsburg"
+    # Nothing near enough, a survey's number for a name, or another kind: no name.
+    assert places.checkpoint_name("town", 45.0, -95.0, table) is None
+    assert places.checkpoint_name("water", 43.4300, -89.1000, table) is None
+    assert places.checkpoint_name("airport", 42.2044, -88.0668, table) is None

@@ -10,6 +10,7 @@ import ErrorAlert from "./components/ErrorAlert";
 import { TooltipProvider } from "./components/ui/tooltip";
 import { registerSW } from "virtual:pwa-register";
 import { followDynamicType } from "./lib/dynamicType";
+import { keepAddressThroughReload, startFresh } from "./lib/freshLoad";
 import "./index.css";
 
 // The reader's text size from the iPhone's Settings, before the first
@@ -23,13 +24,19 @@ followDynamicType();
 // page reloads itself the moment the new worker has installed. The
 // browser checks for a new worker on its own only on a navigation, so
 // a page kept open -- the phone, all day -- asks every minute; the
-// check is one small request for sw.js.
+// check is one small request for sw.js. That reload keeps the route on
+// screen; a person's starts clean (lib/freshLoad).
 registerSW({
   immediate: true,
   onRegisteredSW(_url, registration) {
     if (registration) window.setInterval(() => void registration.update(), 60_000);
   },
+  onNeedReload() {
+    keepAddressThroughReload();
+    window.location.reload();
+  },
 });
+startFresh();
 
 // Three views, one app -- which is the point of the port. As separate
 // HTML files they drifted: one grew a basemap fix the other never

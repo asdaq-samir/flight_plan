@@ -98,16 +98,24 @@ interface Preferences {
   toggleFavoriteAirport: (airport: RecentAirport) => void;
   /** A kept one moved from one place in the list to another. */
   moveFavoriteAirport: (from: number, to: number) => void;
+  /** An airport's airspace, as the planner answered it, kept with Home
+   *  and the favorites that are that airport. */
+  rememberAirspace: (ident: string, airspace: AirspaceClass) => void;
 }
 
+/** The airspace at an airport's surface, as the sectional draws it. */
+export type AirspaceClass = "B" | "C" | "D" | "E" | "G";
+
 /** An airport as the search bar and Favorites remember it: where it is too
- *  once it is known, for how far it is from own ship. */
+ *  once it is known, for how far it is from own ship, and its airspace,
+ *  for its tile to be drawn right before the planner answers. */
 export interface RecentAirport {
   ident: string;
   name: string;
   municipality?: string | null;
   lat?: number;
   lon?: number;
+  airspace?: AirspaceClass;
 }
 
 /** How many the search bar remembers. */
@@ -157,6 +165,10 @@ export const usePreferences = create<Preferences>()(
         if (moved) favoriteAirports.splice(to, 0, moved);
         return { favoriteAirports };
       }),
+      rememberAirspace: (ident, airspace) => set(s => ({
+        homeAirport: s.homeAirport?.ident === ident ? { ...s.homeAirport, airspace } : s.homeAirport,
+        favoriteAirports: s.favoriteAirports.map(a => (a.ident === ident ? { ...a, airspace } : a)),
+      })),
       toggleFavoriteAirport: airport => set(s => ({
         favoriteAirports: s.favoriteAirports.some(a => a.ident === airport.ident)
           ? s.favoriteAirports.filter(a => a.ident !== airport.ident)

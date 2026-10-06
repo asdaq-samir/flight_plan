@@ -70,8 +70,9 @@ export function RouteCapsule({ title, detail, tone = "default", onDetail, leadin
  * element in both (MapPanel keeps it in place), so a tap that opens
  * the sheet leaves the keyboard up and the field taking what is typed.
  * Focused, the sheet comes all the way up (`onFocus`); the close beside
- * it, while the sheet is out or something is typed, empties it and puts
- * the sheet away; otherwise the console's button is there
+ * it, while the sheet is all the way out or something is typed, empties
+ * it and puts the sheet away; otherwise -- on the capsule, and half way
+ * up as a fresh load opens it -- the console's button is there
  * (ConsoleButtonContext), as Maps keeps the account beside
  * its search bar. Enter picks the first airport that answers, or the
  * ident typed.
@@ -82,7 +83,7 @@ export function SearchField({ value, onChange, onFocus, onCancel, onSubmit, open
   onFocus: () => void;
   onCancel: () => void;
   onSubmit: () => void;
-  /** The sheet is out: the close shows. */
+  /** The sheet is all the way out: the close shows. */
   open: boolean;
   /** What it asks for: an airport to open, or the one to keep as Home. */
   placeholder?: string;

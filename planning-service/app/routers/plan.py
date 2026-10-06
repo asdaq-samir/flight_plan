@@ -17,13 +17,14 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query
-from fastapi.responses import StreamingResponse
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi.responses import Response, StreamingResponse
 from vfr import airspace, altitude, charts, faa_data, fixes, geo, navlog, places, sun
 from vfr.profile import route_profile as side_view
 from vfr.config import DATA_DIR, VFR_SECTIONAL_MAX_ZOOM, VFR_SECTIONAL_MIN_ZOOM
 from vfr.weather import WeatherServiceError
 
+from .. import foreflight
 from ..common import DEFAULT_AIRCRAFT, Route, line, load_route, ndjson
 from ..planning import (
     COMPUTE_LIMIT_S, StillComputing, aircraft_profile, altitude_plans, altitude_waiting_on, class_b_detours,
@@ -438,6 +439,15 @@ def course(dep: str, dest: str, stops: str = "") -> Course:
     )
 
 
+def _name_waypoints(r: Route, selected: list) -> None:
+    """Each selected checkpoint's name in the route's ForeFlight pack, the
+    pack's own naming (app.foreflight), for the web app's flight plan link
+    to name them by (CONTPACK@LAKE_ZURICH)."""
+    names = foreflight.waypoint_names(r.dep_ident, r.dest_ident, foreflight.from_candidates(selected))
+    for c, name in zip(selected, names):
+        c["waypoint"] = name
+
+
 @router.get("/api/checkpoints")
 def checkpoints(dep: str, dest: str, stops: str = "") -> Checkpoints:
     """Scored candidates and the subset worth flying, hop by hop along
@@ -445,8 +455,51 @@ def checkpoints(dep: str, dest: str, stops: str = "") -> Checkpoints:
     seconds for its first time."""
     r = load_route(dep, dest, stops)
     scored, selected, _ = route_checkpoints(r)
+    _name_waypoints(r, selected)
     return Checkpoints(
         departure=r.departure, destination=r.destination, stops=r.stops, candidates=scored, selected=selected,
+    )
+
+
+@router.get(
+    "/api/foreflight-pack/{route}/{file}",
+    response_class=Response,
+    responses={200: {"content": {"application/zip": {}}, "description": "The pack, a ZIP"}},
+)
+def foreflight_pack(route: str, file: str, request: Request) -> Response:
+    """The route's checkpoints as a ForeFlight content pack (app.foreflight),
+    for ForeFlight's own link to the pack, or to download. `route` is its
+    idents dash-joined, KORD-KDLH or C81-KRYV-KDLH, and the checkpoints
+    are the planner's own selection for it; `file`, the pack's name, which
+    ForeFlight takes from the end of the address. A 422 for a route it
+    cannot read.
+
+    ForeFlight's downloader asks for the file several times over and
+    wants its size: so the same address is always the same bytes, a Range
+    is answered with a 206 of just those bytes, and the size goes with
+    every answer (a 416 for a range past the end)."""
+    try:
+        idents = foreflight.route_idents(route)
+    except ValueError as e:
+        raise HTTPException(422, f"The pack's address: {e}") from None
+    r = load_route(idents[0], idents[-1], ",".join(idents[1:-1]))
+    _, selected, _ = route_checkpoints(r)
+    version = foreflight.version_at(datetime.now(timezone.utc))
+    body = foreflight.pack_zip(foreflight.pack_files(list(r.idents), route_line(r), foreflight.from_candidates(selected), version))
+    headers = {
+        "Content-Disposition": f'attachment; filename="{foreflight.file_name(list(r.idents))}"',
+        "Accept-Ranges": "bytes",
+    }
+    try:
+        wanted = foreflight.byte_range(request.headers.get("range"), len(body))
+    except ValueError:
+        return Response(status_code=416, headers={**headers, "Content-Range": f"bytes */{len(body)}"})
+    if wanted is None:
+        return Response(body, media_type="application/zip", headers=headers)
+    start, end = wanted
+    return Response(
+        body[start:end + 1], status_code=206, media_type="application/zip",
+        headers={**headers, "Content-Range": f"bytes {start}-{end}/{len(body)}"},
     )
 
 
@@ -489,6 +542,7 @@ def plan(q: Annotated[PlanQuery, Depends()]) -> Plan:
 
     def work():
         scored, selected, by_hop = route_checkpoints(r)
+        _name_waypoints(r, selected)
         runs.extend(hop_runs(r, by_hop, q.depart, profile))
         return scored, selected, join_outcomes(runs, [resolve_run(run, profile, q) for run in runs])
 

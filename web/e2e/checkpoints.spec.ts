@@ -194,3 +194,25 @@ test("plan page: iOS never zooms the page in on a phone's field: the viewport fo
       .filter(f => f.px < 16));
   expect(small).toEqual([]);
 });
+
+test("plan page: the checkpoints are named on the map beside their dots, as ForeFlight names them, none over another and none off the screen", async ({ page }) => {
+  await page.goto("/app/plan?dep=C81&dest=KDLH");
+  await settle(page);
+  const labels = page.locator("[data-checkpoint-label]");
+  await expect.poll(() => labels.count(), { timeout: slow(30000) }).toBeGreaterThan(3);
+  // The names the route's ForeFlight pack gives them, spaced.
+  for (const text of await labels.allInnerTexts()) expect(text).toMatch(/^[A-Z0-9 ]+$/);
+  const viewport = page.viewportSize()!;
+  const boxes = (await labels.evaluateAll(els => els.map(el => {
+    const r = el.getBoundingClientRect();
+    return { left: r.left, right: r.right, top: r.top, bottom: r.bottom };
+  })));
+  for (const [i, a] of boxes.entries()) {
+    expect(a.left).toBeGreaterThanOrEqual(-1);
+    expect(a.right).toBeLessThanOrEqual(viewport.width + 1);
+    for (const b of boxes.slice(i + 1)) {
+      const apart = a.right <= b.left + 1 || b.right <= a.left + 1 || a.bottom <= b.top + 1 || b.bottom <= a.top + 1;
+      expect(apart, `${JSON.stringify(a)} over ${JSON.stringify(b)}`).toBe(true);
+    }
+  }
+});

@@ -31,7 +31,8 @@ test("signed in, each console fits the screen's width: nothing but a table's own
 test("plan page: the pilot console holds the account, aeroplanes and flights, and the drawer opens once it is closed", { tag: "@smoke" }, async ({ page }) => {
   await page.goto("/app/plan");
   await settle(page);
-  await expectDrawerClosed(page);
+  // Opened as Maps opens: the search half way up (lib/freshLoad).
+  await expect(page.locator('[data-slot="map-panel"]')).toHaveAttribute("data-panel", "half");
   expect(await consoleSheet(page).count()).toBe(0);
 
   await page.getByTestId("settings-button").click();
@@ -58,14 +59,14 @@ test("plan page: the pilot console holds the account, aeroplanes and flights, an
   await expect(pilot.getByRole("region", { name: "Flights", exact: true })).toBeVisible();
   await expect(pilot.getByRole("tab")).toHaveText(["Guide", "Library", "Settings"]);
 
-  // The console is modal: Escape puts it away, and then the drawer
-  // opens from the header, and Escape closes that too.
+  // The console is modal: Escape puts it away, and then Escape lowers
+  // the panel too, and its grabber opens it again.
   await page.keyboard.press("Escape");
   await expect(pilot).toHaveCount(0);
-  await page.getByTestId("sidebar-trigger-button").click();
-  await expectDrawerOpen(page);
   await closeSidebarWithTheStockKey(page);
   await expectDrawerClosed(page);
+  await page.getByTestId("sidebar-trigger-button").click();
+  await expectDrawerOpen(page);
 });
 
 test("the navigation bar's edge is a setting: the panel moves to it, the map's buttons take the other, the console comes from it, and it is remembered", async ({ page }) => {
@@ -111,8 +112,9 @@ test("the navigation bar's edge is a setting: the panel moves to it, the map's b
   await settle(page);
   await expect(pilot).toHaveCount(0);
 
-  // Remembered per browser.
-  await page.reload();
+  // Remembered per browser: the route opened again (a reload would
+  // forget it, lib/freshLoad).
+  await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
   // To the pixel, once the panel has settled: it measures its head and
   // eases to its height after a load.

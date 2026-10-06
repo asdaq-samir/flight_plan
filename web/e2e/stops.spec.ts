@@ -38,10 +38,9 @@ test("a stop added in the panel lands the route there: the capsule, the nav log 
   await settle(page);
   await openPanel(page);
 
-  // Add Stop, beside the aeroplane and the time: the airport picker.
-  await sideDrawer(page).getByTestId("add-stop").click();
-  await page.getByPlaceholder(/Search/).fill("KMSN");
-  await page.getByRole("option", { name: /KMSN/ }).first().click();
+  // Typed into the route's box, the airports that answer offered under it.
+  await sideDrawer(page).getByTestId("route-type").fill("KMSN");
+  await page.getByTestId("route-suggestions").getByRole("option", { name: /KMSN/ }).first().click();
   await expect(page).toHaveURL(/[?&]stops=KMSN(&|$)/);
   const stop = sideDrawer(page).getByTestId("stop");
   await expect(stop).toHaveCount(1);
@@ -97,7 +96,28 @@ test("a flight saved with a stop is filed with it, and its nav log lands there",
   expect(filed[0]!.checkpoints.filter(c => c.category === "stop").map(c => c.name)).toEqual(["KMSN"]);
 });
 
-test("a stop may be a VFR waypoint, found in the picker after the airports and flown through", async ({ page }) => {
+test("the route's box is round at its ends with no plus beside it, and Enter takes the first airport offered for what is typed", async ({ page }) => {
+  await recordedStops(page);
+  await page.goto("/app/plan?dep=C81&dest=KDLH");
+  await settle(page);
+  await openPanel(page);
+  const box = sideDrawer(page).getByTestId("route-box");
+  await expect(box).toBeVisible();
+  expect(await sideDrawer(page).getByTestId("add-stop").count()).toBe(0);
+  const shape = await box.evaluate(el => ({ radius: parseFloat(getComputedStyle(el).borderTopLeftRadius), height: el.getBoundingClientRect().height }));
+  expect(shape.radius).toBeGreaterThanOrEqual(shape.height / 2 - 1);
+
+  // A town's name: its field offered first, and Enter takes it.
+  const field = sideDrawer(page).getByTestId("route-type");
+  await field.fill("madison");
+  const first = page.getByTestId("route-suggestions").getByRole("option").first();
+  await expect(first).toContainText("KMSN", { timeout: slow(10000) });
+  await field.press("Enter");
+  await expect(page).toHaveURL(/[?&]stops=KMSN(&|$)/);
+  await expect(field).toHaveValue("");
+});
+
+test("a stop may be a VFR waypoint, offered after the airports as it is typed and flown through", async ({ page }) => {
   // Nothing of the route through it is asked of the planner past its
   // course: its two hops' chart would be read on CI's runner.
   await page.route(url => /\/(checkpoints|navlog|briefing)$/.test(url.pathname) && url.searchParams.get("stops") === "VPBNG",
@@ -106,9 +126,8 @@ test("a stop may be a VFR waypoint, found in the picker after the airports and f
   await settle(page);
   await openPanel(page);
 
-  await sideDrawer(page).getByTestId("add-stop").click();
-  await page.getByPlaceholder("Search", { exact: true }).fill("VPBNG");
-  const waypoint = page.getByRole("option", { name: /VPBNG · VFR waypoint/ });
+  await sideDrawer(page).getByTestId("route-type").fill("VPBNG");
+  const waypoint = page.getByTestId("route-suggestions").getByRole("option", { name: /VPBNG · VFR waypoint/ });
   await expect(waypoint).toBeVisible({ timeout: slow(10000) });
   await waypoint.click();
   await expect(page).toHaveURL(/[?&]stops=VPBNG(&|$)/);

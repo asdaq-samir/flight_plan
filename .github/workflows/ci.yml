@@ -34,8 +34,15 @@ on:
   # Startable by hand. A run can fail for reasons that have nothing to
   # do with the commit under it -- a runner that never started, an
   # account limit -- and without this the only way to ask again is an
-  # empty commit on main.
+  # empty commit on main. The Auto-merge and Sync workflows start it too,
+  # on a branch their own token moved, which starts no workflow itself.
   workflow_dispatch:
+  # Every night on main, everything: what changes without a commit -- the
+  # FAA's data, the weather services, a runner image -- breaks a run here
+  # before it breaks a pilot's plan. A scheduled run promotes nothing
+  # (promote.yml takes pushes only).
+  schedule:
+    - cron: "17 9 * * *"
 
 # A new push to an open PR should replace the run already queued for its
 # previous commit, not queue behind it -- otherwise every fixup push pays
@@ -781,7 +788,9 @@ jobs:
       - name: The planner's data, ready
         run: |
           mkdir -p data/raw
-          cp -n web/e2e/fixtures/elevation_cache.csv data/raw/elevation_cache.csv
+          # Not `cp -n`: Ubuntu 26.04's cp fails a copy -n skips, and a
+          # shard whose planner cache came back with the file stopped here.
+          [ -e data/raw/elevation_cache.csv ] || cp web/e2e/fixtures/elevation_cache.csv data/raw/elevation_cache.csv
           chmod -R a+rwX data
           echo "$(($(date +%s) - T0)) the planner's data" >> /tmp/e2e-out/timeline
           touch /tmp/e2e-out/data.ready
@@ -1300,3 +1309,20 @@ jobs:
           path: |
             springboot-app/target/reports/apidocs
             /tmp/godoc-retrain-trigger.txt
+
+  # The one check main requires (its ruleset), so the rule holds as jobs
+  # come and go: every job above passed, or was not needed -- a job its
+  # paths did not touch is skipped, which counts as passing. The
+  # Auto-merge workflow merges maps-layout's pull request on it.
+  passed:
+    name: CI passed
+    runs-on: ubuntu-26.04
+    needs: [changes, test, test-web, test-webapp, test-planning-service, test-model-service, test-nav-log-agent, test-crewai-agent, e2e, e2e-images, build-images, docs]
+    if: always()
+    steps:
+      - name: Every job passed or was not needed
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          echo "$RESULTS" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
+          ! echo "$RESULTS" | jq -e 'any(.[]; .result == "failure" or .result == "cancelled")' > /dev/null

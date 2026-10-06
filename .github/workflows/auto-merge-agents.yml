@@ -1,0 +1,44 @@
+name: Auto-merge agents
+
+# The pull requests an agent opens merge into main by themselves once CI
+# passes, as maps-layout's do (auto-merge.yml): Claude's, from a claude/
+# branch (claude.yml, ci-autofix.yml), and Dependabot's for a minor or a
+# patch version -- a major one waits for someone to read its notes. Main's
+# ruleset requires the "CI passed" check (ci.yml), so nothing merges red.
+
+on:
+  pull_request:
+    types: [opened, reopened, ready_for_review]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  claude:
+    if: startsWith(github.head_ref, 'claude/') && github.event.pull_request.head.repo.full_name == github.repository && !github.event.pull_request.draft
+    runs-on: ubuntu-26.04
+    steps:
+      - name: Merge once CI passes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+        run: gh pr merge "$PR" --auto --merge
+
+  dependabot:
+    if: github.event.pull_request.user.login == 'dependabot[bot]'
+    runs-on: ubuntu-26.04
+    steps:
+      - name: What it updates
+        id: metadata
+        uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98  # v3.1.0
+        with:
+          github-token: ${{ github.token }}
+      - name: Merge a minor or a patch update once CI passes
+        if: steps.metadata.outputs.update-type != 'version-update:semver-major'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+        run: gh pr merge "$PR" --auto --merge
