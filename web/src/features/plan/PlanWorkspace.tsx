@@ -3,8 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { FileArchive, FileDown, Link2, Printer, Send, Share, TowerControl, X } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../../components/ui/dropdown-menu";
-import { fplOf, gpxOf, shareFile, type PlanPoint } from "../../lib/flightPlanFiles";
-import { openInForeFlight, packOrigin, packPath } from "../../lib/foreflightPack";
+import { foreflightRoute, fplOf, gpxOf, shareFile, type PlanPoint } from "../../lib/flightPlanFiles";
+import { packPath } from "../../lib/foreflightPack";
 import { navLogRows } from "./components/navlog/rows";
 import { toast } from "sonner";
 import { showError } from "../../lib/problems";
@@ -432,15 +432,17 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     }
   }, [planned.dep, planned.dest, planned.stops]);
 
-  // The route as a file: the departure, each checkpoint, stop and the
-  // destination, as the nav log lists them (lib/flightPlanFiles).
+  // The route as the files and ForeFlight's link take it: the departure,
+  // each checkpoint, stop and the destination, as the nav log lists them
+  // (lib/flightPlanFiles).
+  const points = useMemo((): PlanPoint[] => !course ? [] : navLogRows(course, selected, []).flatMap((row): PlanPoint[] => {
+    if (row.kind === "checkpoint") return [{ ident: "", name: row.cp.name || row.cp.category, kind: "checkpoint", lat: row.cp.lat, lon: row.cp.lon }];
+    if (row.kind === "toc" || row.kind === "tod") return [];
+    return [{ ident: row.airport.ident, name: row.airport.name ?? row.airport.ident, kind: row.airport.kind === "fix" ? "fix" : "airport", lat: row.airport.lat, lon: row.airport.lon }];
+  }), [course, selected]);
+
   const exportPlan = useCallback(async (kind: "fpl" | "gpx") => {
-    if (!course) return;
-    const points: PlanPoint[] = navLogRows(course, selected, []).flatMap((row): PlanPoint[] => {
-      if (row.kind === "checkpoint") return [{ ident: "", name: row.cp.name || row.cp.category, kind: "checkpoint", lat: row.cp.lat, lon: row.cp.lon }];
-      if (row.kind === "toc" || row.kind === "tod") return [];
-      return [{ ident: row.airport.ident, name: row.airport.name ?? row.airport.ident, kind: row.airport.kind === "fix" ? "fix" : "airport", lat: row.airport.lat, lon: row.airport.lon }];
-    });
+    if (!points.length) return;
     const name = routeName(planned.dep, planned.dest, planned.stops);
     const file = name.replace(/[^A-Za-z0-9]+/g, "-").replace(/^-|-$/g, "");
     try {
@@ -449,20 +451,18 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     } catch (err) {
       if ((err as Error).name !== "AbortError") showError("Could not export the route", (err as Error).message);
     }
-  }, [course, selected, planned.dep, planned.dest, planned.stops]);
+  }, [points, planned.dep, planned.dest, planned.stops]);
 
-  // The checkpoints as a ForeFlight content pack, built by the planner at
-  // an address ForeFlight can fetch (lib/foreflightPack): each a waypoint
-  // with its own page, and the course drawn on its map. The legs where the
-  // nav log has them, for the heading and time to each.
-  const pack = useMemo(() => {
+  // The checkpoints as a ForeFlight content pack, built by the planner
+  // (lib/foreflightPack): each a waypoint with its own page, and the course
+  // drawn on its map, to download and open in ForeFlight from Files. The
+  // legs where the nav log has them, for the heading and time to each.
+  const packHref = useMemo(() => {
     const checkpoints = course ? navLogRows(course, selected, s.legs ?? []).flatMap(row => row.kind === "checkpoint" ? [{
       category: row.cp.category, lat: row.cp.lat, lon: row.cp.lon, score: row.cp.predicted_score, alongNm: row.cp.along_track_nm,
       headingDeg: row.leg?.magnetic_heading_deg ?? null, altitudeFt: row.leg?.altitude_ft ?? null, minutesFlown: row.minutesFlown,
     }] : []) : [];
-    if (!checkpoints.length) return null;
-    const path = packPath(planned.dep, planned.dest, planned.stops, checkpoints);
-    return { path, foreflight: openInForeFlight(new URL(path, packOrigin(window.location)).href) };
+    return checkpoints.length ? packPath(planned.dep, planned.dest, planned.stops, checkpoints) : null;
   }, [course, selected, s.legs, planned.dep, planned.dest, planned.stops]);
 
   // A different aeroplane means different legs: remembered, and the
@@ -749,14 +749,14 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
               <DropdownMenuItem onSelect={() => void exportPlan("gpx")} data-testid="export-gpx"><FileDown />GPX route (.gpx)</DropdownMenuItem>
               {/* Links, not handlers: ForeFlight opens from a tap on its
                   own link, and a download needs one too. */}
-              {pack && (
+              {points.length > 0 && (
                 <DropdownMenuItem asChild data-testid="open-foreflight">
-                  <a href={pack.foreflight} target="_blank" rel="noopener noreferrer"><Send />Open in ForeFlight</a>
+                  <a href={foreflightRoute(points, s.nav?.altitude_ft)}><Send />Open in ForeFlight</a>
                 </DropdownMenuItem>
               )}
-              {pack && (
+              {packHref && (
                 <DropdownMenuItem asChild data-testid="export-foreflight">
-                  <a href={pack.path} download><FileArchive />Checkpoints for ForeFlight (.zip)</a>
+                  <a href={packHref} download><FileArchive />Checkpoints for ForeFlight (.zip)</a>
                 </DropdownMenuItem>
               )}
             </DropdownMenuContent>

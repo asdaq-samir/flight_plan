@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fplOf, gpxOf, type PlanPoint } from "./flightPlanFiles";
+import { foreflightRoute, fplOf, gpxOf, type PlanPoint } from "./flightPlanFiles";
 
 const points: PlanPoint[] = [
   { ident: "C81", name: "Campbell Airport", kind: "airport", lat: 42.3246, lon: -88.0741 },
@@ -23,6 +23,11 @@ describe("flight plan files", () => {
     const fpl = fplOf([points[0]!, points[1]!, points[0]!], "C81 local");
     expect(fpl.match(/<waypoint>/g)).toHaveLength(2);
     expect(fpl.match(/<route-point>/g)).toHaveLength(3);
+  });
+
+  it("ForeFlight's link: the route in order, a checkpoint at its place, and the altitude", () => {
+    expect(foreflightRoute(points, 4500)).toBe("foreflightmobile://maps/search?q=C81+42.3700/-88.0800+VPBNG+KDLH+4500ft");
+    expect(foreflightRoute(points, null)).toBe("foreflightmobile://maps/search?q=C81+42.3700/-88.0800+VPBNG+KDLH");
   });
 
   it("a GPX route through the same points", () => {

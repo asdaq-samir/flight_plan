@@ -27,16 +27,12 @@ test("the route exports as a Garmin flight plan through its checkpoints", async 
   expect(text).toContain("<waypoint-identifier>CP01</waypoint-identifier>");
 });
 
-test("the checkpoints go to ForeFlight: its own link to the planner's pack, and the pack to download", async ({ page }) => {
+test("the route goes to ForeFlight: its own link with the checkpoints in the flight plan, and the checkpoints' pack to download", async ({ page }) => {
   await routeWithCheckpoints(page);
   await page.getByTestId("share-route").click();
-  // ForeFlight's link, which on a device with ForeFlight opens it and
-  // has it download the pack from here.
-  const link = new URL((await page.getByTestId("open-foreflight").getAttribute("href"))!);
-  expect(link.origin + link.pathname).toBe("https://foreflight.com/content");
-  const packUrl = new URL(link.searchParams.get("downloadURL")!);
-  // Ending in the pack's name, which ForeFlight names the download by.
-  expect(packUrl.pathname).toMatch(/^\/api\/planner\/foreflight-pack\/[A-Za-z0-9_-]+\/C81-KDLH-checkpoints\.zip$/);
+  // ForeFlight's maps link: the route in order, each checkpoint at its place.
+  const link = (await page.getByTestId("open-foreflight").getAttribute("href"))!;
+  expect(link).toMatch(/^foreflightmobile:\/\/maps\/search\?q=C81\+(-?\d+\.\d{4}\/-?\d+\.\d{4}\+)+KDLH(\+\d+ft)?$/);
 
   const download = page.waitForEvent("download");
   await page.getByTestId("export-foreflight").click();
