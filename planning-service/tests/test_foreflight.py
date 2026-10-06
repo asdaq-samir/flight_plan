@@ -61,8 +61,9 @@ def test_one_folder_a_manifest_the_waypoints_a_page_each_named_for_it_and_the_co
     assert manifest == {
         "name": "Wingtip checkpoints C81-KDLH", "abbreviation": "WT.C81DLH", "version": 1.0, "organizationName": "Wingtip Maps",
     }
+    waypoints = files["C81-KDLH-checkpoints/navdata/Checkpoints.kml"]
     assert ("<Placemark><name>C81DLH02</name><description>Lake, 3.2/5, 46 nm</description>"
-            "<Point><coordinates>-88.611600,42.977300,0</coordinates></Point></Placemark>") in files["C81-KDLH-checkpoints/navdata/Checkpoints.kml"]
+            "<Point><coordinates>-88.611600,42.977300,0</coordinates></Point></Placemark>") in waypoints
     assert "-88.090000,42.320000,0 -92.190000,46.840000,0" in files["C81-KDLH-checkpoints/layers/C81-DLH course.kml"]
 
 
