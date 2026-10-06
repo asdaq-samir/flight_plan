@@ -268,7 +268,7 @@ export default function RouteBox({ dep, stops, dest, waypoints, airspaceOf, meta
               room to type the next point, beside the route's close and the
               console's button stacked (PlanWorkspace). */}
           <InputGroup
-            className="h-auto min-h-[5.75rem] items-start rounded-[20.5px] border-0 bg-foreground/8 py-0 pr-1.5 pl-1 shadow-none dark:bg-foreground/8 has-[[data-slot=input-group-control]:focus-visible]:ring-0"
+            className="h-auto min-h-[5.25rem] items-start rounded-[20.5px] border-0 bg-foreground/8 py-0 pr-1.5 pl-1 shadow-none dark:bg-foreground/8 has-[[data-slot=input-group-control]:focus-visible]:ring-0"
             data-testid="route-box"
           >
             {/* The pills wrap, two lines of them in sight and the top of a

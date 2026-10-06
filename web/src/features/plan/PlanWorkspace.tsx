@@ -844,14 +844,14 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
         </div>
         {/* The route's close, and under it the console's button, as the
             search bar has it beside its field: the box's two lines tall,
-            the two alike and a finger's size, as iOS's round buttons over
-            content (ROUND_BUTTON). */}
-        <div className="flex shrink-0 flex-col gap-1 [&_button]:size-11 [&_svg]:size-6">
+            the two alike, 40 points with a finger's 44 round them
+            (index.css), as iOS's round buttons over content (ROUND_BUTTON). */}
+        <div className="flex shrink-0 flex-col gap-1 [&_button]:size-10 [&_svg]:size-5">
           <IconButton label="Close the route" variant="secondary" onClick={clearRoute} data-testid="route-clear" className={ROUND_BUTTON}>
             {/* Drawn as big as the gear beside it: lucide's cross spans half
                 its box where the gear spans most of it, so at the gear's size
                 it read as a small mark; its line as fine as the gear's. */}
-            <X className="size-8!" strokeWidth={1.35} />
+            <X className="size-7!" strokeWidth={1.25} />
           </IconButton>
           <ConsoleButtonSlot />
         </div>

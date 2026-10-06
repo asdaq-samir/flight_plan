@@ -166,7 +166,7 @@ test("the route's box is round and two lines tall with no plus beside it, and En
   // Round as the search bar's field is, two lines tall.
   const shape = await box.evaluate(el => ({ radius: parseFloat(getComputedStyle(el).borderTopLeftRadius), height: el.getBoundingClientRect().height }));
   expect(shape.radius).toBeGreaterThanOrEqual(20);
-  expect(shape.height).toBeGreaterThanOrEqual(88);
+  expect(shape.height).toBeGreaterThanOrEqual(80);
 
   // A town's name at the arrow: its field offered first, and Enter takes
   // it, as a stop.
