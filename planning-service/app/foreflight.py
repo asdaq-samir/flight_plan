@@ -34,6 +34,7 @@ import json
 import re
 import zipfile
 from dataclasses import dataclass
+from datetime import datetime
 from html import escape
 
 from vfr import places
@@ -113,7 +114,7 @@ def waypoint_names(dep: str, dest: str, cps: list[PackCheckpoint]) -> list[str]:
     width = max(2, len(str(len(cps))))
     names: list[str] = []
     for i, cp in enumerate(cps):
-        place = re.sub(r"[^A-Z0-9]+", "_", cp.name.upper()).strip("_") if cp.name != cp.kind else ""
+        place = _waypoint_word(cp.name) if cp.name != cp.kind else ""
         name = place if len(place) >= 3 and re.search(r"[A-Z]", place) else f"{short(dep)}{short(dest)}{i + 1:0{width}d}"
         base, n = name, 2
         while name in names:
@@ -195,11 +196,35 @@ def folder_name(idents: list[str]) -> str:
     return file_name(idents).removesuffix(".zip")
 
 
-def pack_files(idents: list[str], line: list, cps: list[PackCheckpoint]) -> dict[str, str]:
+#: A river or a road named by the town it is near, short in a waypoint's
+#: name: RIVER_SCOTT, ROAD_WATERTOWN (ROAD_OR_RAILWAY_NEAR_WATERTOWN was
+#: thirty letters).
+_NEAR = re.compile(r"^(River|Road or railway) near (.+)$")
+_NEAR_WORD = {"River": "RIVER", "Road or railway": "ROAD"}
+
+
+def _waypoint_word(name: str) -> str:
+    near = _NEAR.match(name)
+    if near:
+        name = f"{_NEAR_WORD[near.group(1)]} {near.group(2)}"
+    return re.sub(r"[^A-Z0-9]+", "_", name.upper()).strip("_")
+
+
+def version_at(made: datetime) -> float:
+    """The pack's version: the minute it was made, 20261006.1438. ForeFlight
+    takes a pack over one of the same name only at a higher version -- at
+    a fixed 1, a pack made again for a route was never fetched, and the
+    flight plan named waypoints the old pack did not have. The same minute
+    is the same bytes, for the several times ForeFlight asks."""
+    return float(made.strftime("%Y%m%d.%H%M"))
+
+
+def pack_files(idents: list[str], line: list, cps: list[PackCheckpoint], version: float = 1.0) -> dict[str, str]:
     """Every file in the pack, by its path inside the ZIP. `idents` are
-    the route's, departure first; `line` its course, (lat, lon) pairs.
-    Nothing in it is the time it was made: ForeFlight asks for one address
-    several times over, and each answer must be the same bytes."""
+    the route's, departure first; `line` its course, (lat, lon) pairs;
+    `version`, the manifest's (version_at). Nothing else in it is the
+    time it was made: ForeFlight asks for one address several times
+    over, and each answer must be the same bytes."""
     dep, dest = idents[0], idents[-1]
     names = waypoint_names(dep, dest, cps)
     folder = folder_name(idents)
@@ -208,9 +233,7 @@ def pack_files(idents: list[str], line: list, cps: list[PackCheckpoint]) -> dict
         f"{folder}/manifest.json": json.dumps({
             "name": f"Wingtip checkpoints {dep}-{dest}",
             "abbreviation": f"WT.{short(dep)}{short(dest)}",
-            # ForeFlight shows it as a plain number (a date came out as
-            # "20,261,006.032"); a pack made again goes over by its name.
-            "version": 1,
+            "version": version,
             "organizationName": "Wingtip Maps",
         }, indent=2),
         f"{folder}/navdata/Checkpoints.kml": "\n".join([

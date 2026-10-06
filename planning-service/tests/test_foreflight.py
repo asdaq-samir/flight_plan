@@ -59,7 +59,7 @@ def test_one_folder_a_manifest_the_waypoints_a_page_each_named_for_it_and_the_co
     ]
     manifest = json.loads(files["C81-KDLH-checkpoints/manifest.json"])
     assert manifest == {
-        "name": "Wingtip checkpoints C81-KDLH", "abbreviation": "WT.C81DLH", "version": 1, "organizationName": "Wingtip Maps",
+        "name": "Wingtip checkpoints C81-KDLH", "abbreviation": "WT.C81DLH", "version": 1.0, "organizationName": "Wingtip Maps",
     }
     assert ("<Placemark><name>C81DLH02</name><description>Lake, 3.2/5, 46 nm</description>"
             "<Point><coordinates>-88.611600,42.977300,0</coordinates></Point></Placemark>") in files["C81-KDLH-checkpoints/navdata/Checkpoints.kml"]
@@ -111,7 +111,8 @@ def test_a_route_it_cannot_read_is_a_422():
     assert "no route" in resp.json()["detail"]
 
 
-def test_the_same_address_is_the_same_bytes_every_time():
+def test_the_same_address_is_the_same_bytes_every_time(monkeypatch):
+    monkeypatch.setattr(foreflight, "version_at", lambda made: 20261006.1438)  # one minute throughout
     # ForeFlight asks several times at once; answers that differed (each
     # stamped with when it was made) came together as no pack at all.
     first, second = client.get(PACK_URL), client.get(PACK_URL)
@@ -120,7 +121,8 @@ def test_the_same_address_is_the_same_bytes_every_time():
     assert first.headers["accept-ranges"] == "bytes"
 
 
-def test_a_byte_range_is_a_206_of_just_those_bytes_and_one_past_the_end_a_416():
+def test_a_byte_range_is_a_206_of_just_those_bytes_and_one_past_the_end_a_416(monkeypatch):
+    monkeypatch.setattr(foreflight, "version_at", lambda made: 20261006.1438)  # one minute throughout
     whole = client.get(PACK_URL).content
     part = client.get(PACK_URL, headers={"Range": "bytes=10-99"})
     assert part.status_code == 206
@@ -165,3 +167,13 @@ def test_the_checkpoints_carry_their_names_in_the_pack():
     assert [c["waypoint"] for c in selected] == names
     pack = zipfile.ZipFile(io.BytesIO(client.get(PACK_URL).content)).read("C81-KDLH-checkpoints/navdata/Checkpoints.kml").decode()
     assert all(f"<name>{name}</name>" in pack for name in names)
+
+
+def test_a_pack_made_later_has_a_higher_version_and_a_near_name_is_short():
+    # ForeFlight takes a pack over one of the same name only at a higher version.
+    from datetime import datetime, timezone
+    assert foreflight.version_at(datetime(2026, 10, 6, 14, 38, tzinfo=timezone.utc)) == 20261006.1438
+    assert foreflight.version_at(datetime(2026, 10, 6, 14, 39, tzinfo=timezone.utc)) > 20261006.1438
+    assert foreflight._waypoint_word("Road or railway near Watertown") == "ROAD_WATERTOWN"
+    assert foreflight._waypoint_word("River near Scott") == "RIVER_SCOTT"
+    assert foreflight._waypoint_word("Round Lake Beach") == "ROUND_LAKE_BEACH"

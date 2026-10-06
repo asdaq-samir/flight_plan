@@ -484,7 +484,8 @@ def foreflight_pack(route: str, file: str, request: Request) -> Response:
         raise HTTPException(422, f"The pack's address: {e}") from None
     r = load_route(idents[0], idents[-1], ",".join(idents[1:-1]))
     _, selected, _ = route_checkpoints(r)
-    body = foreflight.pack_zip(foreflight.pack_files(list(r.idents), route_line(r), foreflight.from_candidates(selected)))
+    version = foreflight.version_at(datetime.now(timezone.utc))
+    body = foreflight.pack_zip(foreflight.pack_files(list(r.idents), route_line(r), foreflight.from_candidates(selected), version))
     headers = {
         "Content-Disposition": f'attachment; filename="{foreflight.file_name(list(r.idents))}"',
         "Accept-Ranges": "bytes",
