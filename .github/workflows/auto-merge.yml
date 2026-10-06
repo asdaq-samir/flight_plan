@@ -11,6 +11,13 @@ name: Auto-merge
 # General, Pull Requests); Allow GitHub Actions to create and approve
 # pull requests (Settings, Actions, General); and a ruleset on main
 # requiring "CI passed", with no approvals asked for.
+#
+# And a MERGE_TOKEN secret, a token of the owner's (fine-grained, this
+# repository: contents, pull requests and workflows, read and write). A
+# merge this workflow's own token turned on is that token's, and a push
+# it makes starts no workflow: #59 merged on 2026-10-06 and main ran
+# nothing after it -- not CI, not Promote, not Sync. Without the secret
+# it falls back to that token, which merges all the same.
 
 on:
   push:
@@ -33,7 +40,8 @@ jobs:
     steps:
       - name: The pull request to main, merged once CI passes
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.MERGE_TOKEN || github.token }}
+          OWNERS: ${{ secrets.MERGE_TOKEN != '' }}
           GH_REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
@@ -46,11 +54,12 @@ jobs:
             url=$(gh pr create --head maps-layout --base main --title "maps-layout into main" \
               --body "Opened by the Auto-merge workflow on a push to maps-layout. It merges into main once CI passes.")
             number=${url##*/}
-            # A pull request this workflow's token opens starts no workflow,
-            # CI included. Started here on the branch, its checks land on
-            # the commit the pull request waits on; later pushes to the
-            # branch start CI on the pull request themselves.
-            gh workflow run ci.yml --ref maps-layout
+            # A pull request this workflow's own token opens starts no
+            # workflow, CI included (the owner's does, as a person's would).
+            # Started here on the branch, its checks land on the commit the
+            # pull request waits on; later pushes to the branch start CI on
+            # the pull request themselves.
+            if [ "$OWNERS" != true ]; then gh workflow run ci.yml --ref maps-layout; fi
           fi
           gh pr merge "$number" --auto --merge
           echo "Pull request #$number merges into main once CI passes."
