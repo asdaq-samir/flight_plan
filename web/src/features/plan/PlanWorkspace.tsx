@@ -455,15 +455,8 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
 
   // The checkpoints as a ForeFlight content pack, built by the planner
   // (lib/foreflightPack): each a waypoint with its own page, and the course
-  // drawn on its map, to download and open in ForeFlight from Files. The
-  // legs where the nav log has them, for the heading and time to each.
-  const packHref = useMemo(() => {
-    const checkpoints = course ? navLogRows(course, selected, s.legs ?? []).flatMap(row => row.kind === "checkpoint" ? [{
-      category: row.cp.category, lat: row.cp.lat, lon: row.cp.lon, score: row.cp.predicted_score, alongNm: row.cp.along_track_nm,
-      headingDeg: row.leg?.magnetic_heading_deg ?? null, altitudeFt: row.leg?.altitude_ft ?? null, minutesFlown: row.minutesFlown,
-    }] : []) : [];
-    return checkpoints.length ? packPath(planned.dep, planned.dest, planned.stops, checkpoints) : null;
-  }, [course, selected, s.legs, planned.dep, planned.dest, planned.stops]);
+  // drawn on its map, for ForeFlight's own link or to download.
+  const packHref = selected.length ? packPath(planned.dep, planned.dest, planned.stops) : null;
 
   // A different aeroplane means different legs: remembered, and the
   // nav log's own key changes with it.

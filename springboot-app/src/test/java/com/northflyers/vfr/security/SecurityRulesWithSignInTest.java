@@ -69,7 +69,7 @@ class SecurityRulesWithSignInTest {
      *  no session; the rest of the planner takes no HEAD. */
     @Test
     void theForeFlightPackAnswersAHeadToo() throws Exception {
-        mockMvc.perform(head("/api/planner/foreflight-pack/ZGVwPUM4MQ/C81-KDLH-checkpoints.zip"))
+        mockMvc.perform(head("/api/planner/foreflight-pack/C81-KDLH/C81-KDLH-checkpoints.zip"))
                 .andExpect(result -> assertThat(result.getResponse().getStatus()).isNotEqualTo(401));
         mockMvc.perform(head("/api/planner/course")).andExpect(status().isUnauthorized());
     }

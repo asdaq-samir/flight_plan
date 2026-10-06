@@ -41,7 +41,7 @@ class HttpsRedirectTest {
 
     @Test
     void theForeFlightPackStaysOnHttpForForeFlightToFetch() throws Exception {
-        mockMvc.perform(get("http://10.0.0.218:8080/api/planner/foreflight-pack/ZGVwPUM4MQ/C81-KDLH-checkpoints.zip"))
+        mockMvc.perform(get("http://10.0.0.218:8080/api/planner/foreflight-pack/C81-KDLH/C81-KDLH-checkpoints.zip"))
                 .andExpect(result -> assertThat(result.getResponse().getStatus()).isNotIn(301, 302, 307, 308));
     }
 

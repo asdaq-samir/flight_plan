@@ -84,7 +84,7 @@ public class PlannerProxyController {
             route("GET", "/api/chart"),
             route("GET", "/api/course"),
             route("GET", "/api/checkpoints"),
-            route("GET", PACK_PATH + "{token}/{file}"),
+            route("GET", PACK_PATH + "{route}/{file}"),
             route("GET", "/api/navlog"),
             route("GET", "/api/local-flight"),
             route("GET", "/api/briefing"),

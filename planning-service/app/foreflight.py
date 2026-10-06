@@ -1,35 +1,38 @@
 """The route's checkpoints as a ForeFlight content pack
 (https://foreflight.com/support/content-packs/): a ZIP of one folder that
-ForeFlight downloads itself from an "Open in ForeFlight" link
+ForeFlight downloads itself from its own link
 (https://foreflight.com/content?downloadURL=...), or imports from Files.
 It is built here, not in the browser, because that link needs an address
-ForeFlight can fetch -- one that ends in the pack's file name: ForeFlight
-names a download by the end of its address, query and all, and a pack
-asked for as ``foreflight-pack?dep=...`` came in under that name and was
-refused. So the route and its checkpoints ride in the path, as one token
-(``token``), ahead of the file name.
+ForeFlight can fetch.
+
+The address is short, and its last part the pack's file name:
+``foreflight-pack/KORD-KDLH/KORD-KDLH-checkpoints.zip``. ForeFlight names
+the download by the address, and would not install a pack from one that
+carried the checkpoints themselves (about 2,000 characters): the same
+file installed from a short address, and failed from a long one -- of
+the same pack served both ways, only the long address failed. So the
+route is all the address carries, and the checkpoints are the planner's
+own selection for it (app.scoring), with no leg figures.
 
 - ``navdata/``: each checkpoint a waypoint, usable in ForeFlight's route
   editor and on its map, with a page of its own beside it -- what it is,
-  how easy it is to spot, the leg flown to it. ForeFlight ties a page to
-  a waypoint by its file name: the waypoint's name, then the page's title.
-- ``layers/``: the course line, and each checkpoint's kind and score as a
+  how easy it is to spot, where it is.
+  ForeFlight ties a page to a waypoint by its file name: the waypoint's
+  name, then the page's title.
+- ``layers/``: the course line, and each checkpoint's name and score as a
   label on the map.
 
 Waypoint names follow ForeFlight's rules: capitals, one word, at least
-three characters with a letter. Each is the route's ends and its number
--- C81DLH01 -- so the packs of two routes never share a name. The web
-app's .fpl export (lib/flightPlanFiles) names the same points CP01 on,
-within Garmin's six characters.
+three characters with a letter (waypoint_names). The web app's .fpl
+export (lib/flightPlanFiles) names the same points CP01 on, within
+Garmin's six characters.
 """
 from __future__ import annotations
 
-import base64
 import io
 import json
 import re
 import zipfile
-from urllib.parse import parse_qs, urlencode
 from dataclasses import dataclass
 from html import escape
 
@@ -45,10 +48,6 @@ LOOK_FOR = {
     "road_or_rail": "A road or railway: on the sectional, a line across the course. Note the angle it crosses at.",
     "airport": "An airport: look for its runways.",
 }
-
-#: The most checkpoints a pack takes: far more than any route selects.
-MAX_CHECKPOINTS = 200
-
 
 @dataclass(frozen=True)
 class PackCheckpoint:
@@ -77,53 +76,20 @@ class PackCheckpoint:
         return places.checkpoint_name(self.category, self.lat, self.lon) or self.kind
 
 
-def parse_checkpoints(text: str) -> list[PackCheckpoint]:
-    """The checkpoints as the web app writes them into the pack's address:
-    ``lat,lon,kind,score,along[,heading,altitude,minutes]``, each one
-    ``~``-separated, a leg's figure left empty where the nav log has none.
-    A ValueError says what is wrong."""
-    out = []
-    for i, entry in enumerate(filter(None, text.split("~"))):
-        fields = entry.split(",")
-        if not 5 <= len(fields) <= 8:
-            raise ValueError(f"checkpoint {i + 1}: {len(fields)} fields, not 5 to 8")
-        lat, lon, category, score, along, *leg = fields
-        number = lambda v: float(v) if v != "" else None  # noqa: E731
-        cp = PackCheckpoint(
-            lat=float(lat), lon=float(lon), category=category, score=float(score), along_nm=float(along),
-            heading_deg=number(leg[0]) if len(leg) > 0 else None,
-            altitude_ft=number(leg[1]) if len(leg) > 1 else None,
-            minutes_flown=number(leg[2]) if len(leg) > 2 else None,
-        )
-        if not (-90 <= cp.lat <= 90 and -180 <= cp.lon <= 180):
-            raise ValueError(f"checkpoint {i + 1}: no such position")
-        if cp.category not in KIND_NAMES:
-            raise ValueError(f"checkpoint {i + 1}: no such kind {cp.category!r}")
-        out.append(cp)
-    if len(out) > MAX_CHECKPOINTS:
-        raise ValueError(f"{len(out)} checkpoints, more than {MAX_CHECKPOINTS}")
-    return out
+def from_candidates(selected: list[dict]) -> list[PackCheckpoint]:
+    """The planner's selected checkpoints (app.scoring.route_checkpoints)
+    as the pack takes them."""
+    return [PackCheckpoint(lat=c["lat"], lon=c["lon"], category=c["category"], score=c["predicted_score"],
+                           along_nm=c["along_track_nm"]) for c in selected]
 
 
-def token(dep: str, dest: str, stops: str, cp: str) -> str:
-    """The route and its checkpoints as one path segment: the query they
-    would make, base64url without its padding (the web app's packPath
-    writes the same)."""
-    query = urlencode({"dep": dep, "dest": dest, "stops": stops, "cp": cp})
-    return base64.urlsafe_b64encode(query.encode()).decode().rstrip("=")
-
-
-def read_token(text: str) -> dict[str, str]:
-    """`token` read back: dep, dest, stops and cp. A ValueError for one
-    that is not a token, or names no route."""
-    try:
-        query = base64.urlsafe_b64decode(text + "=" * (-len(text) % 4)).decode()
-    except (ValueError, UnicodeDecodeError):
-        raise ValueError("not a pack's address") from None
-    fields = {k: v[0] for k, v in parse_qs(query, keep_blank_values=True).items()}
-    if not fields.get("dep") or not fields.get("dest"):
-        raise ValueError("no route in the pack's address")
-    return {"dep": fields["dep"], "dest": fields["dest"], "stops": fields.get("stops", ""), "cp": fields.get("cp", "")}
+def route_idents(route: str) -> list[str]:
+    """The route in a pack's address, its idents dash-joined
+    (KORD-KRYV-KDLH), as a list. A ValueError for fewer than two."""
+    idents = [i for i in route.upper().split("-") if i]
+    if len(idents) < 2 or not all(re.fullmatch(r"[A-Z0-9]{2,7}", i) for i in idents):
+        raise ValueError(f"no route in {route!r}")
+    return idents
 
 
 def file_name(idents: list[str]) -> str:

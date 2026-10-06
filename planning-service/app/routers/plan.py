@@ -452,31 +452,29 @@ def checkpoints(dep: str, dest: str, stops: str = "") -> Checkpoints:
 
 
 @router.get(
-    "/api/foreflight-pack/{token}/{file}",
+    "/api/foreflight-pack/{route}/{file}",
     response_class=Response,
     responses={200: {"content": {"application/zip": {}}, "description": "The pack, a ZIP"}},
 )
-def foreflight_pack(token: str, file: str, request: Request) -> Response:
+def foreflight_pack(route: str, file: str, request: Request) -> Response:
     """The route's checkpoints as a ForeFlight content pack (app.foreflight),
-    for the web app's Open in ForeFlight link to hand ForeFlight, or to
-    download. `token` is the route and its checkpoints as the nav log has
-    them, so the pack is what the pilot saw (foreflight.token: dep, dest,
-    stops and cp, each checkpoint ``lat,lon,kind,score,along_nm`` and the
-    leg flown to it, ``,heading,altitude_ft,minutes``, ``~`` between
-    them); `file`, the pack's name, which ForeFlight takes from the end of
-    the address. A 422 for a token or a checkpoint it cannot read.
+    for ForeFlight's own link to the pack, or to download. `route` is its
+    idents dash-joined, KORD-KDLH or C81-KRYV-KDLH, and the checkpoints
+    are the planner's own selection for it; `file`, the pack's name, which
+    ForeFlight takes from the end of the address. A 422 for a route it
+    cannot read.
 
-    ForeFlight's downloader asks for the file several times at once, in
-    byte ranges, and wants its size: so the same address is always the
-    same bytes, a Range is answered with a 206 of just those bytes, and
-    the size goes with every answer (a 416 for a range past the end)."""
+    ForeFlight's downloader asks for the file several times over and
+    wants its size: so the same address is always the same bytes, a Range
+    is answered with a 206 of just those bytes, and the size goes with
+    every answer (a 416 for a range past the end)."""
     try:
-        query = foreflight.read_token(token)
-        checkpoints = foreflight.parse_checkpoints(query["cp"])
+        idents = foreflight.route_idents(route)
     except ValueError as e:
         raise HTTPException(422, f"The pack's address: {e}") from None
-    r = load_route(query["dep"], query["dest"], query["stops"])
-    body = foreflight.pack_zip(foreflight.pack_files(list(r.idents), route_line(r), checkpoints))
+    r = load_route(idents[0], idents[-1], ",".join(idents[1:-1]))
+    _, selected, _ = route_checkpoints(r)
+    body = foreflight.pack_zip(foreflight.pack_files(list(r.idents), route_line(r), foreflight.from_candidates(selected)))
     headers = {
         "Content-Disposition": f'attachment; filename="{foreflight.file_name(list(r.idents))}"',
         "Accept-Ranges": "bytes",
