@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import Response, StreamingResponse
 from vfr import airspace, altitude, charts, faa_data, fixes, geo, navlog, places, sun
 from vfr.profile import route_profile as side_view
@@ -456,7 +456,7 @@ def checkpoints(dep: str, dest: str, stops: str = "") -> Checkpoints:
     response_class=Response,
     responses={200: {"content": {"application/zip": {}}, "description": "The pack, a ZIP"}},
 )
-def foreflight_pack(token: str, file: str) -> Response:
+def foreflight_pack(token: str, file: str, request: Request) -> Response:
     """The route's checkpoints as a ForeFlight content pack (app.foreflight),
     for the web app's Open in ForeFlight link to hand ForeFlight, or to
     download. `token` is the route and its checkpoints as the nav log has
@@ -464,17 +464,33 @@ def foreflight_pack(token: str, file: str) -> Response:
     stops and cp, each checkpoint ``lat,lon,kind,score,along_nm`` and the
     leg flown to it, ``,heading,altitude_ft,minutes``, ``~`` between
     them); `file`, the pack's name, which ForeFlight takes from the end of
-    the address. A 422 for a token or a checkpoint it cannot read."""
+    the address. A 422 for a token or a checkpoint it cannot read.
+
+    ForeFlight's downloader asks for the file several times at once, in
+    byte ranges, and wants its size: so the same address is always the
+    same bytes, a Range is answered with a 206 of just those bytes, and
+    the size goes with every answer (a 416 for a range past the end)."""
     try:
         query = foreflight.read_token(token)
         checkpoints = foreflight.parse_checkpoints(query["cp"])
     except ValueError as e:
         raise HTTPException(422, f"The pack's address: {e}") from None
     r = load_route(query["dep"], query["dest"], query["stops"])
-    files = foreflight.pack_files(list(r.idents), route_line(r), checkpoints, datetime.now(timezone.utc))
+    body = foreflight.pack_zip(foreflight.pack_files(list(r.idents), route_line(r), checkpoints))
+    headers = {
+        "Content-Disposition": f'attachment; filename="{foreflight.file_name(list(r.idents))}"',
+        "Accept-Ranges": "bytes",
+    }
+    try:
+        wanted = foreflight.byte_range(request.headers.get("range"), len(body))
+    except ValueError:
+        return Response(status_code=416, headers={**headers, "Content-Range": f"bytes */{len(body)}"})
+    if wanted is None:
+        return Response(body, media_type="application/zip", headers=headers)
+    start, end = wanted
     return Response(
-        foreflight.pack_zip(files), media_type="application/zip",
-        headers={"Content-Disposition": f'attachment; filename="{foreflight.file_name(list(r.idents))}"'},
+        body[start:end + 1], status_code=206, media_type="application/zip",
+        headers={**headers, "Content-Range": f"bytes {start}-{end}/{len(body)}"},
     )
 
 

@@ -5,7 +5,6 @@ import io
 import json
 import re
 import zipfile
-from datetime import datetime, timezone
 
 import pytest
 from fastapi.testclient import TestClient
@@ -16,12 +15,11 @@ from app.main import app
 client = TestClient(app)
 
 CHECKPOINTS = "42.372,-88.0928,town,5,2.9,322,4500,2.4~42.9773,-88.6116,water,3.18,45.8~43.1313,-88.7558,road_or_rail,2.62,57,,,"
-CREATED = datetime(2026, 10, 5, 19, 45, tzinfo=timezone.utc)
 
 
 def _files():
     cps = foreflight.parse_checkpoints(CHECKPOINTS)
-    return foreflight.pack_files(["C81", "KDLH"], [[42.32, -88.09], [46.84, -92.19]], cps, CREATED)
+    return foreflight.pack_files(["C81", "KDLH"], [[42.32, -88.09], [46.84, -92.19]], cps)
 
 
 def test_waypoint_names_follow_foreflights_rules_and_name_the_route():
@@ -50,8 +48,7 @@ def test_one_folder_a_manifest_the_waypoints_a_page_each_named_for_it_and_the_co
     ]
     manifest = json.loads(files["Wingtip-C81-DLH/manifest.json"])
     assert manifest == {
-        "name": "Wingtip checkpoints C81-KDLH", "abbreviation": "WT.C81DLH", "version": 1,
-        "effectiveDate": "20261005T19:45:00Z", "organizationName": "Wingtip Maps",
+        "name": "Wingtip checkpoints C81-KDLH", "abbreviation": "WT.C81DLH", "version": 1, "organizationName": "Wingtip Maps",
     }
     assert ("<Placemark><name>C81DLH02</name><description>Lake, 3.2/5, 46 nm</description>"
             "<Point><coordinates>-88.611600,42.977300,0</coordinates></Point></Placemark>") in files["Wingtip-C81-DLH/navdata/Checkpoints.kml"]
@@ -110,3 +107,24 @@ def test_a_bad_checkpoint_or_token_in_the_link_is_a_422():
     assert resp.status_code == 422
     assert "volcano" in resp.json()["detail"]
     assert client.get("/api/foreflight-pack/!!!/x.zip").status_code == 422
+
+
+def test_the_same_address_is_the_same_bytes_every_time():
+    # ForeFlight asks several times at once; answers that differed (each
+    # stamped with when it was made) came together as no pack at all.
+    first, second = client.get(_pack_url()), client.get(_pack_url())
+    assert first.content == second.content
+    assert first.headers["content-length"] == str(len(first.content))
+    assert first.headers["accept-ranges"] == "bytes"
+
+
+def test_a_byte_range_is_a_206_of_just_those_bytes_and_one_past_the_end_a_416():
+    whole = client.get(_pack_url()).content
+    part = client.get(_pack_url(), headers={"Range": "bytes=10-99"})
+    assert part.status_code == 206
+    assert part.content == whole[10:100]
+    assert part.headers["content-range"] == f"bytes 10-99/{len(whole)}"
+    assert client.get(_pack_url(), headers={"Range": "bytes=-20"}).content == whole[-20:]
+    assert client.get(_pack_url(), headers={"Range": f"bytes={len(whole)}-"}).status_code == 416
+    # A form this does not serve is the whole file.
+    assert client.get(_pack_url(), headers={"Range": "bytes=0-1,5-6"}).status_code == 200

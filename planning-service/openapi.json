@@ -8146,7 +8146,7 @@
     },
     "/api/foreflight-pack/{token}/{file}": {
       "get": {
-        "description": "The route's checkpoints as a ForeFlight content pack (app.foreflight),\nfor the web app's Open in ForeFlight link to hand ForeFlight, or to\ndownload. `token` is the route and its checkpoints as the nav log has\nthem, so the pack is what the pilot saw (foreflight.token: dep, dest,\nstops and cp, each checkpoint ``lat,lon,kind,score,along_nm`` and the\nleg flown to it, ``,heading,altitude_ft,minutes``, ``~`` between\nthem); `file`, the pack's name, which ForeFlight takes from the end of\nthe address. A 422 for a token or a checkpoint it cannot read.",
+        "description": "The route's checkpoints as a ForeFlight content pack (app.foreflight),\nfor the web app's Open in ForeFlight link to hand ForeFlight, or to\ndownload. `token` is the route and its checkpoints as the nav log has\nthem, so the pack is what the pilot saw (foreflight.token: dep, dest,\nstops and cp, each checkpoint ``lat,lon,kind,score,along_nm`` and the\nleg flown to it, ``,heading,altitude_ft,minutes``, ``~`` between\nthem); `file`, the pack's name, which ForeFlight takes from the end of\nthe address. A 422 for a token or a checkpoint it cannot read.\n\nForeFlight's downloader asks for the file several times at once, in\nbyte ranges, and wants its size: so the same address is always the\nsame bytes, a Range is answered with a 206 of just those bytes, and\nthe size goes with every answer (a 416 for a range past the end).",
         "operationId": "foreflight_pack_api_foreflight_pack__token___file__get",
         "parameters": [
           {

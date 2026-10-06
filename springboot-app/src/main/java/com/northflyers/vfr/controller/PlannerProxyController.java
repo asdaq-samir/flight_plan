@@ -190,6 +190,11 @@ public class PlannerProxyController {
             pilots.current(SecurityContextHolder.getContext().getAuthentication())
                     .ifPresent(pilot -> upstreamBuilder.header(PILOT_HEADER, String.valueOf(pilot.getId())));
         }
+        // ForeFlight's downloader asks for the pack in byte ranges.
+        String range = request.getHeader(HttpHeaders.RANGE);
+        if (path.startsWith(PACK_PATH) && range != null) {
+            upstreamBuilder.header(HttpHeaders.RANGE, range);
+        }
         HttpRequest upstream = upstreamBuilder.build();
 
         return proxy.exchange(PLANNER, upstream, response -> {
@@ -210,10 +215,14 @@ public class PlannerProxyController {
                         .ifPresent(value -> builder.header(HttpHeaders.CACHE_CONTROL, value));
             }
             // The pack's file name, which a download (and ForeFlight's
-            // list of packs) shows; nothing else here names a file.
+            // list of packs) shows, and what a download manager needs to
+            // fetch it in pieces: its size, and the range each answer is.
+            // ForeFlight would not install a pack sent without its size.
             if (path.startsWith(PACK_PATH)) {
-                response.headers().firstValue(HttpHeaders.CONTENT_DISPOSITION)
-                        .ifPresent(value -> builder.header(HttpHeaders.CONTENT_DISPOSITION, value));
+                for (String name : new String[] {HttpHeaders.CONTENT_DISPOSITION, HttpHeaders.CONTENT_LENGTH,
+                        HttpHeaders.CONTENT_RANGE, HttpHeaders.ACCEPT_RANGES}) {
+                    response.headers().firstValue(name).ifPresent(value -> builder.header(name, value));
+                }
             }
             return builder.body(StreamingProxy.pipe(response.body()));
         });

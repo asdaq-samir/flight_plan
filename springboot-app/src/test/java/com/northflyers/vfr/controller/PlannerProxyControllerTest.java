@@ -87,6 +87,10 @@ class PlannerProxyControllerTest {
             if (pilotHeader != null) {
                 received.add("pilot=" + pilotHeader);
             }
+            String rangeHeader = exchange.getRequestHeaders().getFirst("Range");
+            if (rangeHeader != null) {
+                received.add("range=" + rangeHeader);
+            }
 
             responseHeaders.forEach((name, value) -> exchange.getResponseHeaders().add(name, value));
             byte[] body = responseBody.getOrDefault("body", "{}").getBytes(StandardCharsets.UTF_8);
@@ -240,14 +244,23 @@ class PlannerProxyControllerTest {
     }
 
     @Test
-    void theForeFlightPackKeepsItsFileNameAndNoOtherPathDoes() throws Exception {
+    void theForeFlightPackKeepsItsFileNameSizeAndRangeAndNoOtherPathDoes() throws Exception {
         responseHeaders.put("Content-Disposition", "attachment; filename=\"C81-KDLH-checkpoints.zip\"");
-        MvcResult pack = mockMvc.perform(get("/api/planner/foreflight-pack/ZGVwPUM4MQ/C81-KDLH-checkpoints.zip"))
+        responseHeaders.put("Content-Range", "bytes 0-1/2");
+        responseHeaders.put("Accept-Ranges", "bytes");
+        MvcResult pack = mockMvc.perform(get("/api/planner/foreflight-pack/ZGVwPUM4MQ/C81-KDLH-checkpoints.zip")
+                        .header("Range", "bytes=0-1"))
                 .andExpect(request().asyncStarted())
                 .andReturn();
-        // What a download, and ForeFlight's list of packs, call the file.
+        // What a download, and ForeFlight's list of packs, call the file,
+        // and what its downloader needs to fetch it in pieces: the range
+        // asked for went to the planner, and its size and range came back.
         mockMvc.perform(asyncDispatch(pack))
-                .andExpect(header().string("Content-Disposition", "attachment; filename=\"C81-KDLH-checkpoints.zip\""));
+                .andExpect(header().string("Content-Disposition", "attachment; filename=\"C81-KDLH-checkpoints.zip\""))
+                .andExpect(header().string("Content-Length", "2"))
+                .andExpect(header().string("Content-Range", "bytes 0-1/2"))
+                .andExpect(header().string("Accept-Ranges", "bytes"));
+        assertThat(received).contains("range=bytes=0-1");
 
         MvcResult course = mockMvc.perform(get("/api/planner/course?dep=C81&dest=KDLH"))
                 .andExpect(request().asyncStarted())

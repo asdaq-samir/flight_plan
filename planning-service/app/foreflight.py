@@ -31,7 +31,6 @@ import re
 import zipfile
 from urllib.parse import parse_qs, urlencode
 from dataclasses import dataclass
-from datetime import datetime
 from html import escape
 
 from .scoring import KIND_NAMES
@@ -203,9 +202,11 @@ def folder_name(dep: str, dest: str) -> str:
     return f"Wingtip-{short(dep)}-{short(dest)}"
 
 
-def pack_files(idents: list[str], line: list, cps: list[PackCheckpoint], created: datetime) -> dict[str, str]:
+def pack_files(idents: list[str], line: list, cps: list[PackCheckpoint]) -> dict[str, str]:
     """Every file in the pack, by its path inside the ZIP. `idents` are
-    the route's, departure first; `line` its course, (lat, lon) pairs."""
+    the route's, departure first; `line` its course, (lat, lon) pairs.
+    Nothing in it is the time it was made: ForeFlight asks for one address
+    several times over, and each answer must be the same bytes."""
     dep, dest = idents[0], idents[-1]
     names = waypoint_names(dep, dest, len(cps))
     folder = folder_name(dep, dest)
@@ -217,7 +218,6 @@ def pack_files(idents: list[str], line: list, cps: list[PackCheckpoint], created
             # ForeFlight shows it as a plain number (a date came out as
             # "20,261,006.032"); a pack made again goes over by its name.
             "version": 1,
-            "effectiveDate": created.strftime("%Y%m%dT%H:%M:%SZ"),
             "organizationName": "Wingtip Maps",
         }, indent=2),
         f"{folder}/navdata/Checkpoints.kml": "\n".join([
@@ -255,6 +255,11 @@ def pack_files(idents: list[str], line: list, cps: list[PackCheckpoint], created
     return files
 
 
+#: Every entry's time in the ZIP: one fixed time, so the same pack is the
+#: same bytes (a ZIP otherwise stamps each entry with when it was written).
+_ZIP_TIME = (2026, 1, 1, 0, 0, 0)
+
+
 def pack_zip(files: dict[str, str]) -> bytes:
     """The files zipped, each folder an entry of its own ahead of them, as
     ForeFlight's sample pack has."""
@@ -262,7 +267,25 @@ def pack_zip(files: dict[str, str]) -> bytes:
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as z:
         for folder in folders:
-            z.writestr(folder, "")
+            z.writestr(zipfile.ZipInfo(folder, _ZIP_TIME), "")
         for path, text in files.items():
-            z.writestr(path, text)
+            z.writestr(zipfile.ZipInfo(path, _ZIP_TIME), text, compress_type=zipfile.ZIP_DEFLATED)
     return buffer.getvalue()
+
+
+def byte_range(header: str | None, size: int) -> tuple[int, int] | None:
+    """The one byte range a Range header asks for, first and last byte
+    inclusive -- as a download manager asks, ForeFlight's among them --
+    or None for the whole file (no header, or one this does not serve:
+    several ranges, another unit). A ValueError for a range past the end."""
+    match = re.fullmatch(r"bytes=(\d*)-(\d*)", (header or "").strip())
+    if not match or match.group(1) == match.group(2) == "":
+        return None
+    first, last = match.groups()
+    if first == "":
+        start, end = max(0, size - int(last)), size - 1
+    else:
+        start, end = int(first), min(size - 1, int(last)) if last else size - 1
+    if start > end or start >= size:
+        raise ValueError(f"bytes {header} of {size}")
+    return start, end
