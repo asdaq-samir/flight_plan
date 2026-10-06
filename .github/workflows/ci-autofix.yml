@@ -1,0 +1,134 @@
+name: CI autofix
+
+# What happens when CI fails:
+#
+# - A job GitHub never ran ("not acquired by Runner", as main's run
+#   37366678665 had four) is the runner's fault, not the code's: the
+#   failed jobs run again, once.
+# - On a pull request from Claude's own claude/ branch, Claude reads the
+#   failed jobs' logs, fixes the cause on the branch and pushes ("Fix CI:
+#   ..."), at most twice a branch; after that it only comments.
+# - On anyone else's pull request -- maps-layout's, Dependabot's -- it
+#   changes nothing and comments the cause and the fix it would make.
+# - On main's nightly run, a cause in the code is fixed on a new claude/
+#   branch, in a pull request that merges like any of Claude's; a cause
+#   outside it (the FAA's data, a weather service) is an issue.
+#
+# Claude's pushes and pull requests are the Claude GitHub App's, which
+# start CI as a person's would. It runs the branch's code with write
+# access, as CI does: fine on a repository only its owner pushes to,
+# which this one is (forks' pull requests are left out). Needs what
+# claude.yml needs; without a key it still runs a runner's failure again.
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  actions: write
+  id-token: write
+
+concurrency:
+  group: ci-autofix-${{ github.event.workflow_run.head_branch }}
+  cancel-in-progress: false
+
+jobs:
+  autofix:
+    if: >-
+      github.event.workflow_run.conclusion == 'failure' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: ubuntu-26.04
+    timeout-minutes: 90
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      BRANCH: ${{ github.event.workflow_run.head_branch }}
+      EVENT: ${{ github.event.workflow_run.event }}
+      RUN_ID: ${{ github.event.workflow_run.id }}
+      ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
+      HAS_KEY: ${{ secrets.ANTHROPIC_API_KEY != '' || secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}
+    steps:
+      - name: The runner's failure, or the code's
+        id: cause
+        run: |
+          set -euo pipefail
+          runner=false
+          for job in $(gh api "repos/$GH_REPO/actions/runs/$RUN_ID/jobs" --jq '.jobs[] | select(.conclusion == "failure" or .conclusion == "cancelled") | .id'); do
+            if gh api "repos/$GH_REPO/check-runs/$job/annotations" --jq '.[].message' | grep -q "not acquired by Runner"; then runner=true; fi
+          done
+          echo "runner=$runner" >> "$GITHUB_OUTPUT"
+      - name: The runner's -- run the failed jobs again, once
+        if: steps.cause.outputs.runner == 'true' && env.ATTEMPT == '1'
+        run: gh run rerun "$RUN_ID" --failed
+      - name: No key, nothing more
+        if: steps.cause.outputs.runner != 'true' && env.HAS_KEY != 'true'
+        run: echo "::notice::No ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN secret, so no fix or diagnosis."
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
+        if: steps.cause.outputs.runner != 'true' && env.HAS_KEY == 'true'
+        with:
+          ref: ${{ github.event.workflow_run.head_branch }}
+          fetch-depth: 0
+      # The pull request is looked up by its branch: a run the Auto-merge
+      # or Sync workflow started by hand carries none in the event.
+      - name: Fix, diagnose or report
+        id: mode
+        if: steps.cause.outputs.runner != 'true' && env.HAS_KEY == 'true'
+        run: |
+          set -euo pipefail
+          pr=$(gh pr list --head "$BRANCH" --base main --state open --json number --jq '.[0].number // empty')
+          fixes=$(git log --oneline origin/main..HEAD --grep '^Fix CI' | wc -l)
+          if [ "$BRANCH" = main ] && [ "$EVENT" = schedule ]; then mode=nightly
+          elif [ -z "$pr" ]; then mode=
+          elif [[ "$BRANCH" == claude/* ]] && [ "$fixes" -lt 2 ]; then mode=fix
+          else mode=diagnose; fi
+          case "$mode" in
+            fix) task="Fix the cause on this branch, run the checks CLAUDE.md names for what you changed, commit with a message that starts \"Fix CI:\" and says what broke and why, and push to this branch. If the cause is not in the code (a flaky test, an outside service), change nothing and say so in a comment on the pull request." ;;
+            diagnose) task="Change no code. Comment on the pull request with the cause, the failing test or step, and the fix you would make; say plainly if it is not the code (a flaky test, an outside service)." ;;
+            nightly) task="This is main's nightly run. If the cause is in the code, fix it on a new branch claude/nightly-$(date -u +%F), run the checks CLAUDE.md names for what you changed, commit (\"Fix CI: ...\"), push, and open a pull request to main. If the cause is outside the code (the FAA's data, a weather service, a runner), change nothing and open an issue with the cause and what to do -- or comment on an open issue about the same cause rather than opening another." ;;
+            *) task= ;;
+          esac
+          { echo "mode=$mode"; echo "pr=$pr"; echo "task=$task"; } >> "$GITHUB_OUTPUT"
+          echo "${mode:-nothing} (pull request ${pr:-none}, $fixes fixes on $BRANCH so far)"
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7
+        if: steps.mode.outputs.mode == 'fix' || steps.mode.outputs.mode == 'nightly'
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7
+        if: steps.mode.outputs.mode == 'fix' || steps.mode.outputs.mode == 'nightly'
+        with:
+          python-version: "3.13"
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6  # v6
+        if: steps.mode.outputs.mode == 'fix' || steps.mode.outputs.mode == 'nightly'
+        with:
+          distribution: temurin
+          java-version: "25"
+          cache: maven
+      - name: The web app's packages
+        if: steps.mode.outputs.mode == 'fix' || steps.mode.outputs.mode == 'nightly'
+        working-directory: web
+        run: npm ci
+      - uses: anthropics/claude-code-action@86d88e619d8e6caf07b5c3944dd14f441c533718  # v1.0.243
+        if: steps.mode.outputs.mode != ''
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          additional_permissions: |
+            actions: read
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ steps.mode.outputs.pr }}
+            CI failed on ${{ github.event.workflow_run.head_branch }}: ${{ github.event.workflow_run.html_url }}
+
+            Read the failed jobs' logs (`gh run view ${{ github.event.workflow_run.id }} --log-failed`)
+            and their annotations, and find the cause. CLAUDE.md has the project's rules.
+
+            ${{ steps.mode.outputs.task }}
+          claude_args: |
+            --allowedTools "Edit,MultiEdit,Write,Read,Glob,Grep,LS,Bash(git:*),Bash(gh:*),Bash(npm:*),Bash(npx:*),Bash(python:*),Bash(python3:*),Bash(pip:*),Bash(mvn:*)"

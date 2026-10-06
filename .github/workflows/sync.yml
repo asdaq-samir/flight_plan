@@ -1,0 +1,51 @@
+name: Sync
+
+# Main back into maps-layout after anything lands on main -- a merge of
+# maps-layout itself, Claude's or Dependabot's pull requests -- so the
+# branch the work goes on never falls behind what it merges into. A
+# fast-forward where maps-layout has nothing of its own, a merge commit
+# where it has. A conflict fails this run, for a person to settle.
+#
+# The push is this workflow's token's, which starts no workflow: where
+# maps-layout's pull request to main is open, it starts CI on the branch
+# itself, or the pull request would wait on a check that never comes.
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: read
+  actions: write
+
+concurrency:
+  group: sync
+  cancel-in-progress: false
+
+jobs:
+  maps-layout:
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
+        with:
+          ref: maps-layout
+          fetch-depth: 0
+      - name: Main into maps-layout
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin main
+          if git merge-base --is-ancestor origin/main HEAD; then
+            echo "maps-layout has all of main"
+            exit 0
+          fi
+          git merge --no-edit -m "Main into maps-layout (the Sync workflow)" origin/main
+          git push origin HEAD:maps-layout
+          if [ -n "$(gh pr list --head maps-layout --base main --state open --json number --jq '.[0].number // empty')" ]; then
+            gh workflow run ci.yml --ref maps-layout
+          fi

@@ -1,0 +1,72 @@
+name: Claude
+
+# Claude Code on GitHub (anthropics/claude-code-action): "@claude" in an
+# issue, a pull request, a review or a comment on either, or the "claude"
+# label on an issue, and Claude works on it here -- answers, plans a
+# design, or writes the change and its tests on a claude/ branch and opens
+# a pull request to main, which merges once CI passes (auto-merge-agents
+# .yml). The project's own rules for it are CLAUDE.md. Only someone who
+# can write to this repository can start it (the action's own check): on
+# a public repository, a visitor's "@claude" does nothing.
+#
+# Needs, outside this file: the Claude GitHub App on the repository
+# (https://github.com/apps/claude, or /install-github-app in Claude Code),
+# and one secret -- ANTHROPIC_API_KEY, billed to an API account, or
+# CLAUDE_CODE_OAUTH_TOKEN (`claude setup-token`), a Claude subscription's.
+
+on:
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+  pull_request_review:
+    types: [submitted]
+  issues:
+    types: [opened, labeled]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  id-token: write
+  actions: read
+
+jobs:
+  claude:
+    if: |
+      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude')) ||
+      (github.event_name == 'issues' && github.event.action == 'opened' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude'))) ||
+      (github.event_name == 'issues' && github.event.action == 'labeled' && github.event.label.name == 'claude')
+    runs-on: ubuntu-26.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
+        with:
+          fetch-depth: 1
+      # The tools its checks need, as CI sets them up (CLAUDE.md says which
+      # to run): the web app's, the Python suites', the gateway's.
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7
+        with:
+          python-version: "3.13"
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6  # v6
+        with:
+          distribution: temurin
+          java-version: "25"
+          cache: maven
+      - name: The web app's packages
+        working-directory: web
+        run: npm ci
+      - uses: anthropics/claude-code-action@86d88e619d8e6caf07b5c3944dd14f441c533718  # v1.0.243
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          label_trigger: claude
+          claude_args: |
+            --allowedTools "Edit,MultiEdit,Write,Read,Glob,Grep,LS,Bash(git:*),Bash(gh:*),Bash(npm:*),Bash(npx:*),Bash(python:*),Bash(python3:*),Bash(pip:*),Bash(mvn:*)"
