@@ -9,7 +9,7 @@ import { cn } from "cn";
 import AirportPicker from "../../../components/AirportPicker";
 import { InputGroup, InputGroupAddon } from "../../../components/ui/input-group";
 import type { Detour } from "../../../lib/api/types";
-import { MAX_STOPS, identSchema, stopSchema } from "../../../lib/identSchema";
+import { MAX_STOPS, identOf, stopOf } from "../../../lib/identSchema";
 
 /**
  * The route as ForeFlight's is: one box, every point of it a pill in the
@@ -50,7 +50,7 @@ export default function RouteBox({ points, waypoints, onChange, adding, onAdding
     useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 6 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
-  const isEnd = (ident: string) => identSchema.safeParse(ident).success && !waypoints.has(ident);
+  const isEnd = (ident: string) => !!identOf(ident) && !waypoints.has(ident);
   // No point straight after itself (KDLH, KDLH, KMDW) -- but a route
   // left as one airport twice is let through, to be said (PlanWorkspace's
   // notice) and changed in this box: taking the stop out of a round trip
@@ -64,7 +64,7 @@ export default function RouteBox({ points, waypoints, onChange, adding, onAdding
   // Fly via, on the flight it is for.
   const at = via?.length ? via[0]!.stop_index + 1 : Math.max(points.length - 1, 0);
   const insert = (idents: string[]) => {
-    const fresh = idents.map(i => stopSchema.safeParse(i).data).filter((i): i is string => !!i);
+    const fresh = idents.map(stopOf).filter(Boolean);
     if (!fresh.length) return;
     change([...points.slice(0, at), ...fresh, ...points.slice(at)]);
   };

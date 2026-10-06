@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { FileArchive, FileDown, Link2, MapPinned, Printer, Send, Share, TowerControl, X } from "lucide-react";
@@ -27,7 +27,6 @@ import "leaflet/dist/leaflet.css";
 import { useProgressToast } from "../../lib/useProgressToast";
 import { useSearchParamsNow } from "../../lib/useSearchParamsNow";
 import type { WorkspaceProps } from "../page/workspace";
-import { PilotPanel } from "../pilot/PilotPanel";
 import IconButton from "../../components/IconButton";
 import ToolbarButton from "../../components/ToolbarButton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/ui/select";
@@ -57,6 +56,13 @@ const hoursOf = (minutes: number) => (minutes < 60 ? `${minutes} min` : `${minut
 /** Which of the four altitude plans the log flies -- the fastest for
  *  the winds unless the URL says otherwise, the plan a pilot with the
  *  winds in hand picks; it was the lowest, as the predictable one. */
+// The pilot console on a chunk of its own: the account forms (react-hook-
+// form, zod), the flights, the logbook and the guide are no part of a
+// first load. Asked for once the page has drawn (below), so the gear
+// opens it at once; MapPage's AfterTheSheet holds its place meanwhile.
+const loadPilotPanel = () => import("../pilot/PilotPanel");
+const PilotPanel = lazy(() => loadPilotPanel().then(m => ({ default: m.PilotPanel })));
+
 function altitudeChoiceOf(value: string | null): AltitudeChoice {
   return value === "lowest" || value === "highest" || value === "economical" ? value : "fastest";
 }
@@ -75,6 +81,10 @@ function altitudeChoiceOf(value: string | null): AltitudeChoice {
  * nothing kept in step by hand.
  */
 export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: WorkspaceProps) {
+  useEffect(() => {
+    const later = window.setTimeout(() => void loadPilotPanel(), 2000);
+    return () => window.clearTimeout(later);
+  }, []);
   // The panel out at all: the nav log is in sight, and a checkpoint
   // picked on the map opens its section.
   const panelOpen = panel !== "peek";

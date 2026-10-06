@@ -7,7 +7,6 @@ import MapPanel from "../../components/MapPanel";
 import { ConsoleButtonContext, ConsoleSettingsContext, useConsoleOpen, MapInsetsContext, NO_INSETS, type MapInsets, type PanelState } from "../../components/mapChrome";
 import RouteForm from "../../components/RouteForm";
 import SettingsButton from "../../components/SettingsButton";
-import SettingsPanel from "../../components/SettingsPanel";
 import { Sheet, SheetContent } from "../../components/ui/sheet";
 import { Dialog, DialogContent } from "../../components/ui/dialog";
 import { useIsMobile } from "../../hooks/use-mobile";
@@ -28,6 +27,10 @@ import type { WorkspacePieces } from "./workspace";
  * empty shell.
  */
 const TrainWorkspace = lazy(() => import("../train/TrainWorkspace"));
+
+/** The settings, the console's last tab, on their own chunk for the same
+ *  reason: nothing on the map needs them until the console opens. */
+const SettingsPanel = lazy(() => import("../../components/SettingsPanel"));
 
 export type Mode = "pilot" | "dev";
 
@@ -330,5 +333,8 @@ export default function MapPage({ mode }: { mode: Mode }) {
  */
 function AfterTheSheet({ children }: { children: ReactNode }) {
   const drawn = useDeferredValue(true, false);
-  return drawn ? children : <div className="h-40" />;
+  const placeholder = <div className="h-40" />;
+  // The consoles' panels are lazy (PlanWorkspace's PilotPanel, the
+  // settings): the same place held while one arrives.
+  return drawn ? <Suspense fallback={placeholder}>{children}</Suspense> : placeholder;
 }
