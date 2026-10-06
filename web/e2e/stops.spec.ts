@@ -117,6 +117,28 @@ test("the route's box is round at its ends with no plus beside it, and Enter tak
   await expect(field).toHaveValue("");
 });
 
+test("a long route's box wraps its points onto two lines and scrolls down to the rest, never sideways", async ({ page }) => {
+  // Nothing past the course asked of the planner: the box is the claim.
+  await page.route(url => /\/(checkpoints|navlog|briefing)$/.test(url.pathname), route => route.abort());
+  // The most stops a route takes (MAX_STOPS): ten points.
+  await page.goto("/app/plan?dep=C81&dest=KDLH&stops=KRYV,KMSN,KEAU,KOSH,KCWA,KSTE,KATW,KGRB");
+  await settle(page);
+  await openPanel(page);
+  const lines = sideDrawer(page).getByTestId("route-slide");
+  await expect(lines.locator("[role=group]")).toHaveCount(10);
+  const box = await lines.evaluate(el => ({
+    clientHeight: el.clientHeight, scrollHeight: el.scrollHeight, clientWidth: el.clientWidth, scrollWidth: el.scrollWidth,
+    tops: [...new Set([...el.querySelectorAll("[role=group]")].map(g => Math.round(g.getBoundingClientRect().top)))].length,
+  }));
+  expect(box.scrollWidth).toBeLessThanOrEqual(box.clientWidth + 1);
+  expect(box.tops).toBeGreaterThanOrEqual(3);
+  // Two lines in sight, the rest a scroll down.
+  expect(box.clientHeight).toBeLessThanOrEqual(72);
+  expect(box.scrollHeight).toBeGreaterThan(box.clientHeight);
+  await lines.evaluate(el => el.scrollTo(0, el.scrollHeight));
+  await expect(sideDrawer(page).getByTestId("route-dest")).toBeInViewport();
+});
+
 test("a stop may be a VFR waypoint, offered after the airports as it is typed and flown through", async ({ page }) => {
   // Nothing of the route through it is asked of the planner past its
   // course: its two hops' chart would be read on CI's runner.

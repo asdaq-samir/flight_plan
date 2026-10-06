@@ -4,7 +4,7 @@ import { Diamond, X } from "lucide-react";
 import {
   DndContext, KeyboardSensor, MouseSensor, TouchSensor, closestCenter, useSensor, useSensors, type DragEndEvent,
 } from "@dnd-kit/core";
-import { SortableContext, arrayMove, horizontalListSortingStrategy, sortableKeyboardCoordinates, useSortable } from "@dnd-kit/sortable";
+import { SortableContext, arrayMove, rectSortingStrategy, sortableKeyboardCoordinates, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { cn } from "cn";
 import AirportPicker, { AirportRow, PickerGroup, SearchRows } from "../../../components/AirportPicker";
@@ -137,12 +137,17 @@ export default function RouteBox({ points, waypoints, onChange, adding, onAdding
     <CommandPrimitive shouldFilter={false} loop className="min-w-0" onPointerDown={e => e.stopPropagation()}>
       <Popover open={open} onOpenChange={next => { if (!next) { setDismissed(typed); onAddingChange(false); } }}>
         <PopoverAnchor asChild>
-          <InputGroup className="h-auto min-h-10 rounded-full py-1 pr-1.5 pl-1" data-testid="route-box">
-            {/* One line that slides sideways under a finger, as ForeFlight's
-                route does, where the pills wrapped onto a second and a third. */}
-            <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" data-testid="route-slide" data-slides="">
+          {/* Round at a line's ends -- a capsule while the route fits one
+              line, its corners as round once it takes two. */}
+          <InputGroup className="h-auto min-h-10 rounded-[20px] py-1 pr-1.5 pl-1" data-testid="route-box">
+            {/* The pills wrap, two lines of them in sight and the rest a
+                scroll down, as ForeFlight's flight plan box does: one line
+                that slid sideways hid all but the first few of a long
+                route, at the pilot's ask. A swipe up or down in it scrolls
+                it, not the sheet (the root takes the presses). */}
+            <div className="flex max-h-[68px] min-w-0 flex-1 flex-wrap items-center gap-1 overflow-y-auto overscroll-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" data-testid="route-slide">
               <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
-                <SortableContext items={ids} strategy={horizontalListSortingStrategy}>
+                <SortableContext items={ids} strategy={rectSortingStrategy}>
                   {points.map((point, i) => (
                     <Pill
                       key={ids[i]} id={ids[i]!} ident={point} waypoint={waypoints.has(point)} index={i}
@@ -224,8 +229,8 @@ function Pill({ id, ident, waypoint, index, role, removable, onChange, onRemove 
       ref={setNodeRef} {...attributes} {...listeners} role="group" aria-label={`${label} ${ident}`}
       style={{ transform: CSS.Transform.toString(transform), transition }}
       className={cn(
-        // A sideways swipe slides the line; a hold, then a move, drags.
-        "inline-flex shrink-0 touch-pan-x items-center rounded-full bg-foreground/8 pr-0.5 select-none",
+        // A swipe up or down scrolls the lines; a hold, then a move, drags.
+        "inline-flex shrink-0 touch-pan-y items-center rounded-full bg-foreground/8 pr-0.5 select-none",
         isDragging && "z-10 shadow-md ring-2 ring-tint",
       )}
       data-testid={role === "stop" ? "stop" : `route-${role}`}
