@@ -207,6 +207,17 @@ test("plan page: the checkpoints are named on the map beside their dots, as Fore
     const r = el.getBoundingClientRect();
     return { left: r.left, right: r.right, top: r.top, bottom: r.bottom };
   })));
+  // Nor over the route's own airports' chips.
+  const chips = await page.locator(".leaflet-marker-icon", { hasText: /^(C81|KDLH)$/ }).evaluateAll(els => els.map(el => {
+    const r = el.firstElementChild!.getBoundingClientRect();
+    return { left: r.left, right: r.right, top: r.top, bottom: r.bottom };
+  }));
+  for (const a of boxes) {
+    for (const c of chips) {
+      const apart = a.right <= c.left + 1 || c.right <= a.left + 1 || a.bottom <= c.top + 1 || c.bottom <= a.top + 1;
+      expect(apart, `${JSON.stringify(a)} over the chip ${JSON.stringify(c)}`).toBe(true);
+    }
+  }
   for (const [i, a] of boxes.entries()) {
     expect(a.left).toBeGreaterThanOrEqual(-1);
     expect(a.right).toBeLessThanOrEqual(viewport.width + 1);

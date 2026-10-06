@@ -82,8 +82,22 @@ export function ownShipIcon(headingDeg: number | null, off = false) {
 export const CHECKPOINT_LABEL_GAP = 16;
 /** Its height, for the labels to be kept from one another (RouteMap). */
 export const CHECKPOINT_LABEL_HEIGHT = 20;
-/** A rough width per letter at its size, for the same. */
-export const CHECKPOINT_LABEL_EM = 7.4;
+let measure: CanvasRenderingContext2D | null | undefined;
+
+/** A checkpoint label's width as drawn (checkpointLabelIcon): its name in
+ *  the page's own bold 12, the tracking's 0.3 a letter, 6 either side --
+ *  for the labels to be kept from one another and the screen's edge
+ *  (RouteMap). A width per letter guessed short: FOREST VIEW, its bold
+ *  capitals wider than the guess, ran off a phone's screen. */
+export function checkpointLabelWidth(name: string): number {
+  measure ??= typeof document === "undefined" ? null : document.createElement("canvas").getContext("2d");
+  if (!measure) return name.length * 9 + 12;
+  measure.font = `700 12px ${getComputedStyle(document.body).fontFamily}`;
+  return Math.ceil(measure.measureText(name).width + name.length * 0.3 + 12);
+}
+
+/** An airport chip's width (airportIcon), for a label to keep off it. */
+export const airportChipWidth = (ident: string) => Math.max(40, Math.ceil(ident.length * 7.5) + 22);
 
 /**
  * A checkpoint's name beside its dot, as ForeFlight labels a flight
@@ -166,7 +180,7 @@ export function legPointIcon(label: "TOC" | "TOD") {
 }
 
 export function airportIcon(colour: string, ident: string, { classB = false, unchecked = false } = {}) {
-  const width = Math.max(40, Math.ceil(ident.length * 7.5) + 22);
+  const width = airportChipWidth(ident);
   // A Class B field's pill is round-ended and coloured by its flight
   // category (the category in words was tried above the ident and
   // read as clutter; the colour, with the card a tap opens, is

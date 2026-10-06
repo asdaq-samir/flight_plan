@@ -59,11 +59,45 @@ test("a stop added in the panel lands the route there: the capsule, the nav log 
   await page.getByTestId("sidebar-trigger-button").click();
   await expect(page.getByTestId("capsule-title")).toHaveText("C81 → KMSN → KDLH");
 
-  // Taken off again: the route as it was.
+  // Taken off again from its menu -- a right-click with a mouse, a press
+  // and hold on a phone: the route as it was.
   await openPanel(page);
-  await stop.getByRole("button", { name: "Remove the stop at KMSN" }).click();
+  await stop.click({ button: "right" });
+  await page.getByRole("menuitem", { name: "Remove the stop at KMSN" }).click();
   await expect(page).not.toHaveURL(/[?&]stops=/);
   await expect(sideDrawer(page).getByTestId("stop")).toHaveCount(0);
+});
+
+test("the route's box reads departure, stops, the field to add one, an arrow, then the destination; a point comes out from a hold, a right-click or Delete", async ({ page }) => {
+  await page.route(url => /\/(checkpoints|navlog|briefing)$/.test(url.pathname), route => route.abort());
+  await page.goto("/app/plan?dep=C81&dest=KDLH&stops=KRYV,KMSN");
+  await settle(page);
+  await openPanel(page);
+  const lines = sideDrawer(page).getByTestId("route-slide");
+  // In that order, and no cross on any pill.
+  const order = await lines.evaluate(el => [...el.querySelectorAll("[role=group], [data-testid=route-type], [data-testid=route-arrow]")]
+    .map(n => n.getAttribute("data-testid") ?? ""));
+  expect(order).toEqual(["route-dep", "stop", "stop", "route-type", "route-arrow", "route-dest"]);
+  expect(await lines.getByRole("button", { name: /^Remove/ }).count()).toBe(0);
+
+  // A finger held on a pill: its menu.
+  const kmsn = lines.getByRole("group", { name: "Stop 2 KMSN" });
+  const box = (await kmsn.boundingBox())!;
+  const at = { clientX: box.x + 12, clientY: box.y + box.height / 2, pointerType: "touch", pointerId: 7, isPrimary: true, bubbles: true };
+  await kmsn.dispatchEvent("pointerdown", at);
+  // Its menu after the hold (the page under it is then hidden from a
+  // reader, the pill with it, so the finger is not lifted here).
+  await page.getByRole("menuitem", { name: "Remove the stop at KMSN" }).click();
+  await expect(page).toHaveURL(/[?&]stops=KRYV(&|$)/);
+
+  // Delete on a focused pill, from the keyboard.
+  await lines.getByRole("group", { name: "Stop 1 KRYV" }).focus();
+  await page.keyboard.press("Delete");
+  await expect(page).not.toHaveURL(/[?&]stops=/);
+  // Two points left: the ends stay.
+  await lines.getByRole("group", { name: "Destination KDLH" }).focus();
+  await page.keyboard.press("Delete");
+  await expect(lines.getByRole("group")).toHaveCount(2);
 });
 
 test("a link with a stop opens on the route through it", async ({ page }) => {

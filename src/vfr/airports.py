@@ -2,6 +2,7 @@
 data -- all backed by OurAirports' free, no-API-key-required dataset
 (three sibling CSVs from the same host).
 """
+import bisect
 import os
 from functools import lru_cache
 from pathlib import Path
@@ -168,11 +169,22 @@ def search_airports(query: str, limit: int = 8, cache_path: Path = DEFAULT_CACHE
     if not query:
         return []
     df = _us_airports(cache_path)
+    if " " not in query:
+        # One word -- every keystroke of an ident or a town -- from the index
+        # (_search_index_of), not a scan of 20,000 rows' strings per letter.
+        path = _ensure_cached(OURAIRPORTS_URL, cache_path)
+        return _rows(df, _indexed_matches(_search_index_of(str(path), path.stat().st_mtime), query, limit))
     exact = (df["_ident_upper"] == query) | (df["_local_upper"] == query) | (df["_display_ident"] == query)
     ident_hit = ~exact & (df["_ident_upper"].str.startswith(query) | df["_local_upper"].str.startswith(query))
     word_hit = ~exact & ~ident_hit & df["_words_upper"].str.contains(" " + query, regex=False)
     matches = pd.concat([df[exact].assign(_rank=0), df[ident_hit].assign(_rank=1), df[word_hit].assign(_rank=2)])
     matches = matches.sort_values(["_rank", "_size_rank", "_display_ident"]).head(limit)
+    return _rows(df, [df.index.get_loc(i) for i in matches.index])
+
+
+def _rows(df: pd.DataFrame, positions: list[int]) -> list[dict]:
+    """The search's answers, in order, from the US table's rows."""
+    rows = df.iloc[positions]
     return [
         {
             "ident": row["_display_ident"],
@@ -180,8 +192,57 @@ def search_airports(query: str, limit: int = 8, cache_path: Path = DEFAULT_CACHE
             "municipality": row["municipality"] if pd.notna(row.get("municipality")) else None,
             "region": row["iso_region"] if pd.notna(row.get("iso_region")) else None,
         }
-        for _, row in matches.iterrows()
+        for _, row in rows.iterrows()
     ]
+
+
+@lru_cache(maxsize=2)
+def _search_index_of(path: str, _mtime: float) -> dict:
+    """The US table's idents and words, sorted, for `search_airports` to
+    find a prefix by bisection: an ident or local code whole (`exact`),
+    every ident and local code, and every word of a name and its town,
+    each with its row. Built once per file, as the table is. The scan it
+    replaced -- three string columns' startswith and contains over 20,000
+    rows -- was 50 to 100 ms of every keystroke's answer."""
+    us = _us_airports_of(path, _mtime)
+    exact: dict[str, set[int]] = {}
+    idents: list[tuple[str, int]] = []
+    words: list[tuple[str, int]] = []
+    columns = zip(us["_ident_upper"], us["_local_upper"], us["_display_ident"].astype(str), us["_words_upper"])
+    # A missing local code is a missing value, not a string (pandas keeps
+    # it one through astype(str)): nothing to find it by.
+    known = lambda *keys: {key for key in keys if isinstance(key, str)}  # noqa: E731
+    for row, (ident, local, display, text) in enumerate(columns):
+        for key in known(ident, local, display):
+            exact.setdefault(key, set()).add(row)
+        idents.extend((key, row) for key in known(ident, local))
+        words.extend((word, row) for word in set(text.split()) if isinstance(text, str))
+    idents.sort()
+    words.sort()
+    return {
+        "exact": exact, "idents": idents, "words": words,
+        "size": us["_size_rank"].tolist(), "display": us["_display_ident"].astype(str).tolist(),
+    }
+
+
+def _indexed_matches(index: dict, query: str, limit: int) -> list[int]:
+    """The rows `search_airports` answers a one-word query with, in its
+    order: the ident whole, then idents that start with it, then names and
+    towns with a word that does; the bigger fields first in each, then by
+    ident."""
+    def prefixed(keys: list[tuple[str, int]]) -> set[int]:
+        found, at = set(), bisect.bisect_left(keys, (query,))
+        while at < len(keys) and keys[at][0].startswith(query):
+            found.add(keys[at][1])
+            at += 1
+        return found
+
+    exact = index["exact"].get(query, set())
+    ident = prefixed(index["idents"]) - exact
+    word = prefixed(index["words"]) - exact - ident
+    ranked = [(rank, index["size"][row], index["display"][row], row)
+              for rank, rows in enumerate((exact, ident, word)) for row in rows]
+    return [row for *_, row in sorted(ranked)[:limit]]
 
 
 # The airports a map draws a place for: fields a pilot can land at. No

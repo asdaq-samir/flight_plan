@@ -1,6 +1,6 @@
-import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
+import { Fragment, useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 import { Command as CommandPrimitive } from "cmdk";
-import { Diamond, X } from "lucide-react";
+import { ArrowRight, Diamond, Trash2 } from "lucide-react";
 import {
   DndContext, KeyboardSensor, MouseSensor, TouchSensor, closestCenter, useSensor, useSensors, type DragEndEvent,
 } from "@dnd-kit/core";
@@ -9,6 +9,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { cn } from "cn";
 import AirportPicker, { AirportRow, PickerGroup, SearchRows } from "../../../components/AirportPicker";
 import { CommandList } from "../../../components/ui/command";
+import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from "../../../components/ui/context-menu";
 import { InputGroup } from "../../../components/ui/input-group";
 import { Popover, PopoverAnchor, PopoverContent } from "../../../components/ui/popover";
 import type { Detour } from "../../../lib/api/types";
@@ -130,60 +131,93 @@ export default function RouteBox({ points, waypoints, onChange, adding, onAdding
     change(arrayMove(points, ids.indexOf(String(active.id)), ids.indexOf(String(over.id))));
   };
 
+  // A plain field in cmdk's root, which takes its arrows and Enter as they
+  // bubble: cmdk's own field names a list that is not in the page while
+  // the suggestions are put away.
+  const addField = (
+    <input
+      ref={field} value={typed} onChange={e => setTyped(e.target.value.toUpperCase())} onKeyDown={onKeyDown}
+      role="combobox" aria-expanded={open} aria-controls={listId} aria-autocomplete="list"
+      // What was typed goes in when the box is left -- unless a
+      // suggestion took the tap, which empties it first.
+      onBlur={() => window.setTimeout(() => {
+        if (typedNow.current.trim() && document.activeElement !== field.current) commitTyped();
+      }, 200)}
+      placeholder={full ? "" : "Add a stop"} aria-label="Add to the route" disabled={full}
+      enterKeyHint="done" autoCapitalize="characters" autoCorrect="off" spellCheck={false}
+      // 16 at the least, as every field is: under 16 iOS zooms the
+      // page in on it.
+      className="w-28 min-w-0 shrink bg-transparent font-mono text-base uppercase outline-none placeholder:font-sans placeholder:normal-case placeholder:text-muted-foreground md:text-sm pointer-coarse:text-[1.0625rem]"
+      data-testid="route-type"
+    />
+  );
+
   return (
     // The box's own presses are its pills', not the panel's drag. cmdk's
     // root round the box and its suggestions: the field moves the
     // highlight with the arrows and takes it with Enter.
-    <CommandPrimitive shouldFilter={false} loop className="min-w-0" onPointerDown={e => e.stopPropagation()}>
+    <CommandPrimitive
+      shouldFilter={false} loop className="min-w-0" onPointerDown={e => e.stopPropagation()}
+      // Delete (or Backspace) on a focused pill takes it out, as its menu
+      // does (Pill).
+      onKeyDown={event => {
+        const at = (event.target as HTMLElement).dataset.point;
+        if (at === undefined || (event.key !== "Delete" && event.key !== "Backspace") || points.length <= 2) return;
+        event.preventDefault();
+        change(points.filter((_, j) => j !== Number(at)));
+      }}
+    >
       <Popover open={open} onOpenChange={next => { if (!next) { setDismissed(typed); onAddingChange(false); } }}>
         <PopoverAnchor asChild>
-          {/* Round at a line's ends -- a capsule while the route fits one
-              line, its corners as round once it takes two. */}
-          <InputGroup className="h-auto min-h-10 rounded-[20px] py-0 pr-1.5 pl-1" data-testid="route-box">
+          {/* The search bar's field, as Maps' is with no route: its grey,
+              no line round it, 41 tall, round at a line's ends -- a capsule
+              while the route fits one line, its corners as round once it
+              takes two -- the pills on it in the sheet's own colour. */}
+          <InputGroup
+            className="h-auto min-h-[2.5625rem] rounded-[20.5px] border-0 bg-foreground/8 py-0 pr-1.5 pl-1 shadow-none dark:bg-foreground/8 has-[[data-slot=input-group-control]:focus-visible]:ring-0"
+            data-testid="route-box"
+          >
             {/* The pills wrap, two lines of them in sight and the top of a
                 third -- so a point below them reads as there, the
                 destination most of all -- and the rest a scroll down, as
                 ForeFlight's flight plan box does: one line that slid
                 sideways hid all but the first few of a long route, at the
-                pilot's ask. Up and down only: a pill's cross, its 44-point
-                hit area (index.css) reaching past a line's end, let it
-                slide sideways by a few points (the iPhone audit's "no
-                sideways scroll in a panel"). Lines eight apart, as rows
+                pilot's ask. Up and down only: a pill's 44-point hit areas
+                (index.css) reaching past a line's end let it slide
+                sideways by a few points (the iPhone audit's "no sideways
+                scroll in a panel"). Lines eight apart, as rows
                 are, so the hit areas meet; room round them for the areas
                 at the box's edges. A swipe up or down in it scrolls it, not
                 the sheet (the root takes the presses). */}
             <div className="flex max-h-[96px] min-w-0 flex-1 flex-wrap items-center gap-x-1 gap-y-2 overflow-x-hidden overflow-y-auto overscroll-contain py-1 pr-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" data-testid="route-slide">
               <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
                 <SortableContext items={ids} strategy={rectSortingStrategy}>
-                  {points.map((point, i) => (
-                    <Pill
-                      key={ids[i]} id={ids[i]!} ident={point} waypoint={waypoints.has(point)} index={i}
-                      role={i === 0 ? "dep" : i === points.length - 1 ? "dest" : "stop"}
-                      removable={points.length > 2}
-                      onChange={ident => change(points.map((p, j) => (j === i ? ident : p)))}
-                      onRemove={() => change(points.filter((_, j) => j !== i))}
-                    />
-                  ))}
+                  {points.map((point, i) => {
+                    const last = i === points.length - 1;
+                    const pill = (
+                      <Pill
+                        key={ids[i]} id={ids[i]!} ident={point} waypoint={waypoints.has(point)} index={i}
+                        role={i === 0 ? "dep" : last ? "dest" : "stop"}
+                        removable={points.length > 2}
+                        onChange={ident => change(points.map((p, j) => (j === i ? ident : p)))}
+                        onRemove={() => change(points.filter((_, j) => j !== i))}
+                      />
+                    );
+                    if (!last) return pill;
+                    // Before the destination, where a stop goes in, the
+                    // field to type it, and the arrow on to where the
+                    // flight ends, as the route reads: KMDW, Add a stop,
+                    // then KDLH.
+                    return (
+                      <Fragment key={ids[i]}>
+                        {addField}
+                        <ArrowRight className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" data-testid="route-arrow" />
+                        {pill}
+                      </Fragment>
+                    );
+                  })}
                 </SortableContext>
               </DndContext>
-              {/* A plain field in cmdk's root, which takes its arrows and
-                  Enter as they bubble: cmdk's own field names a list that is
-                  not in the page while the suggestions are put away. */}
-              <input
-                ref={field} value={typed} onChange={e => setTyped(e.target.value.toUpperCase())} onKeyDown={onKeyDown}
-                role="combobox" aria-expanded={open} aria-controls={listId} aria-autocomplete="list"
-                // What was typed goes in when the box is left -- unless a
-                // suggestion took the tap, which empties it first.
-                onBlur={() => window.setTimeout(() => {
-                  if (typedNow.current.trim() && document.activeElement !== field.current) commitTyped();
-                }, 200)}
-                placeholder={full ? "" : "Add a stop"} aria-label="Add to the route" disabled={full}
-                enterKeyHint="done" autoCapitalize="characters" autoCorrect="off" spellCheck={false}
-                // 16 at the least, as every field is: under 16 iOS zooms the
-                // page in on it.
-                className="w-24 min-w-24 flex-1 bg-transparent font-mono text-base uppercase outline-none placeholder:font-sans placeholder:normal-case placeholder:text-muted-foreground md:text-sm pointer-coarse:text-[1.0625rem]"
-                data-testid="route-type"
-              />
             </div>
           </InputGroup>
         </PopoverAnchor>
@@ -218,8 +252,11 @@ export default function RouteBox({ points, waypoints, onChange, adding, onAdding
 }
 
 /** One point of the route: its ident, a diamond for a waypoint, a tap to
- *  change it (the picker), a cross to take it out while more than two
- *  are left, and a drag to move it. */
+ *  change it (the picker), and a drag to move it. Taken out from its own
+ *  menu, as iOS takes things out -- a press and hold on a phone, a
+ *  right-click with a mouse -- or Delete with it focused, while more than
+ *  two are left: a cross on every pill was a row of targets crowded
+ *  between them, at the pilot's ask. */
 function Pill({ id, ident, waypoint, index, role, removable, onChange, onRemove }: {
   id: string; ident: string; waypoint: boolean; index: number; role: "dep" | "stop" | "dest"; removable: boolean;
   onChange: (ident: string) => void; onRemove: () => void;
@@ -227,20 +264,23 @@ function Pill({ id, ident, waypoint, index, role, removable, onChange, onRemove 
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
   // The fields' own names, as the two fields were: "Departure", "Stop 1".
   const label = role === "dep" ? "Departure" : role === "dest" ? "Destination" : `Stop ${index}`;
-  return (
-    // A group, not dnd-kit's button: the picker and the cross inside it
-    // are the buttons, and a button in a button is nothing a reader can
-    // use (axe's nested-interactive). Still focusable, for the keyboard's
-    // reordering (KeyboardSensor).
+  const removeLabel = role === "stop" ? `Remove the stop at ${ident}` : `Remove ${ident}`;
+  const pill = (
+    // A group, not dnd-kit's button: the picker inside it is the button,
+    // and a button in a button is nothing a reader can use (axe's
+    // nested-interactive). Still focusable, for the keyboard's reordering
+    // (KeyboardSensor) and its Delete.
     <span
       ref={setNodeRef} {...attributes} {...listeners} role="group" aria-label={`${label} ${ident}`}
+      aria-keyshortcuts={removable ? "Delete" : undefined} data-point={index}
       // Moved, never scaled: across lines the pills differ in width, and
-      // dnd-kit's rect strategy scales one to another's, stretching its ident
-      // and its cross while it is dragged.
+      // dnd-kit's rect strategy scales one to another's, stretching its
+      // ident while it is dragged.
       style={{ transform: CSS.Translate.toString(transform), transition }}
       className={cn(
-        // A swipe up or down scrolls the lines; a hold, then a move, drags.
-        "inline-flex shrink-0 touch-pan-y items-center rounded-full bg-foreground/8 pr-0.5 select-none",
+        // A swipe up or down scrolls the lines; a hold, then a move, drags;
+        // a hold alone, its menu. No callout of iOS's own over the hold.
+        "inline-flex shrink-0 touch-pan-y items-center rounded-full bg-background/80 shadow-xs select-none [-webkit-touch-callout:none] dark:bg-background/50",
         isDragging && "z-10 shadow-md ring-2 ring-tint",
       )}
       data-testid={role === "stop" ? "stop" : `route-${role}`}
@@ -248,16 +288,19 @@ function Pill({ id, ident, waypoint, index, role, removable, onChange, onRemove 
       {waypoint && <Diamond className="ml-2 size-3 fill-[#b02e7c] stroke-[#b02e7c] dark:fill-[#e070b0] dark:stroke-[#e070b0]" aria-hidden="true" />}
       <AirportPicker
         value={ident} placeholder={label} ariaLabel={label} look="pill" fixes={role === "stop"}
-        className={cn("h-8 rounded-full", waypoint ? "pl-1 pr-1.5" : "px-2")} onChange={onChange}
+        className={cn("h-8 rounded-full", waypoint ? "pl-1 pr-2.5" : "px-2.5")} onChange={onChange}
       />
-      {removable && (
-        <button
-          type="button" onClick={onRemove} aria-label={role === "stop" ? `Remove the stop at ${ident}` : `Remove ${ident}`}
-          className="grid size-6 place-items-center rounded-full text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          <X className="size-3.5" />
-        </button>
-      )}
     </span>
+  );
+  if (!removable) return pill;
+  return (
+    <ContextMenu>
+      <ContextMenuTrigger asChild>{pill}</ContextMenuTrigger>
+      <ContextMenuContent>
+        <ContextMenuItem variant="destructive" onSelect={onRemove} data-testid="remove-point">
+          <Trash2 />{removeLabel}
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
   );
 }

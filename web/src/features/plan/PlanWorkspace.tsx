@@ -803,13 +803,23 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     // The route as one box of pills, in place of the two airport fields.
     // An airport twice (a round trip with its stop taken out) keeps the
     // box, its notice saying what to change.
+    // Shaped as the search bar is with no route, and where the search bar
+    // has the console's button, the route's close, as its capsule has:
+    // the route put away, the search back.
     route: routed ? (
-      <RouteBox
-        points={[planned.dep, ...planned.stops, planned.dest]} waypoints={waypointStops}
-        onChange={setRoute}
-        adding={!!addingStop} onAddingChange={open => setAddingStop(open ? "stop" : false)}
-        via={addingStop === "via" ? s.unflyable?.detours : undefined}
-      />
+      <div className="flex items-start gap-2">
+        <div className="min-w-0 flex-1">
+          <RouteBox
+            points={[planned.dep, ...planned.stops, planned.dest]} waypoints={waypointStops}
+            onChange={setRoute}
+            adding={!!addingStop} onAddingChange={open => setAddingStop(open ? "stop" : false)}
+            via={addingStop === "via" ? s.unflyable?.detours : undefined}
+          />
+        </div>
+        <IconButton label="Close the route" variant="secondary" className="rounded-full" onClick={clearRoute} data-testid="route-clear">
+          <X />
+        </IconButton>
+      </div>
     ) : undefined,
     // The aeroplane and the departure time, under the route with the
     // panel out, and beside them saving the flight, the narrative and
