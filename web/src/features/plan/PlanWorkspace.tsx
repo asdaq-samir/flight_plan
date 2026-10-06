@@ -4,7 +4,7 @@ import { format } from "date-fns";
 import { FileArchive, FileDown, Link2, Printer, Send, Share, TowerControl, X } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../../components/ui/dropdown-menu";
 import { fplOf, gpxOf, shareFile, type PlanPoint } from "../../lib/flightPlanFiles";
-import { openInForeFlight, packPath } from "../../lib/foreflightPack";
+import { openInForeFlight, packOrigin, packPath } from "../../lib/foreflightPack";
 import { navLogRows } from "./components/navlog/rows";
 import { toast } from "sonner";
 import { showError } from "../../lib/problems";
@@ -462,7 +462,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     }] : []) : [];
     if (!checkpoints.length) return null;
     const path = packPath(planned.dep, planned.dest, planned.stops, checkpoints);
-    return { path, foreflight: openInForeFlight(new URL(path, window.location.origin).href) };
+    return { path, foreflight: openInForeFlight(new URL(path, packOrigin(window.location)).href) };
   }, [course, selected, s.legs, planned.dep, planned.dest, planned.stops]);
 
   // A different aeroplane means different legs: remembered, and the

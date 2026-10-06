@@ -7,6 +7,7 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.oidcLogin;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.head;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -62,6 +63,15 @@ class SecurityRulesWithSignInTest {
     void readingFromThePlannerStaysPublic() throws Exception {
         mockMvc.perform(get("/api/planner/course"))
                 .andExpect(result -> assertThat(result.getResponse().getStatus()).isNotEqualTo(401));
+    }
+
+    /** ForeFlight's download manager asks for the pack's size first, with
+     *  no session; the rest of the planner takes no HEAD. */
+    @Test
+    void theForeFlightPackAnswersAHeadToo() throws Exception {
+        mockMvc.perform(head("/api/planner/foreflight-pack/ZGVwPUM4MQ/C81-KDLH-checkpoints.zip"))
+                .andExpect(result -> assertThat(result.getResponse().getStatus()).isNotEqualTo(401));
+        mockMvc.perform(head("/api/planner/course")).andExpect(status().isUnauthorized());
     }
 
     @Test

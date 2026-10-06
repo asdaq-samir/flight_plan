@@ -42,6 +42,15 @@ export function packPath(dep: string, dest: string, stops: string[], checkpoints
   return `/api/planner/foreflight-pack/${token}/${[dep, ...stops, dest].join("-")}-checkpoints.zip`;
 }
 
+/** Where ForeFlight fetches the pack from: this page's own origin, but on
+ *  the local stack's HTTPS port (8443) the plain port beside it (8080).
+ *  That port's certificate is the Mac's own authority's, which ForeFlight
+ *  would not take: it came to the port in plain HTTP, which TLS refuses.
+ *  The planner leaves the pack on plain http for it (SecurityConfig). */
+export function packOrigin(location: Pick<Location, "protocol" | "hostname" | "port" | "origin">): string {
+  return location.protocol === "https:" && location.port === "8443" ? `http://${location.hostname}:8080` : location.origin;
+}
+
 /** ForeFlight's own link for a pack at `packUrl` (a whole address it can
  *  reach): on a device with ForeFlight, it opens there and downloads it. */
 export function openInForeFlight(packUrl: string): string {

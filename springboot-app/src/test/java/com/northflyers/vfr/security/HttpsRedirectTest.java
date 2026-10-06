@@ -1,5 +1,6 @@
 package com.northflyers.vfr.security;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -36,6 +37,12 @@ class HttpsRedirectTest {
         mockMvc.perform(get("http://10.0.0.218:8080/api/auth/capabilities"))
                 .andExpect(status().is3xxRedirection())
                 .andExpect(redirectedUrl("https://10.0.0.218:8443/api/auth/capabilities"));
+    }
+
+    @Test
+    void theForeFlightPackStaysOnHttpForForeFlightToFetch() throws Exception {
+        mockMvc.perform(get("http://10.0.0.218:8080/api/planner/foreflight-pack/ZGVwPUM4MQ/C81-KDLH-checkpoints.zip"))
+                .andExpect(result -> assertThat(result.getResponse().getStatus()).isNotIn(301, 302, 307, 308));
     }
 
     @Test

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { openInForeFlight, packPath } from "./foreflightPack";
+import { openInForeFlight, packOrigin, packPath } from "./foreflightPack";
 
 describe("the route's checkpoints for ForeFlight", () => {
   /** The query a pack's address carries, read back as the planner reads it. */
@@ -25,6 +25,12 @@ describe("the route's checkpoints for ForeFlight", () => {
     const path = packPath("C81", "KDLH", ["KRYV", "KEAU"], []);
     expect(queryOf(path).get("stops")).toBe("KRYV,KEAU");
     expect(path).toMatch(/\/C81-KRYV-KEAU-KDLH-checkpoints\.zip$/);
+  });
+
+  test("ForeFlight fetches from this origin, but from the plain port beside the local stack's HTTPS one", () => {
+    expect(packOrigin(new URL("https://planner.example/app/plan"))).toBe("https://planner.example");
+    expect(packOrigin(new URL("https://10.0.0.218:8443/app/plan"))).toBe("http://10.0.0.218:8080");
+    expect(packOrigin(new URL("http://localhost:8080/app/plan"))).toBe("http://localhost:8080");
   });
 
   test("ForeFlight's link hands it the whole address", () => {

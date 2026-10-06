@@ -147,6 +147,9 @@ public class SecurityConfig {
                     // Reading from the planner: planning a route needs no
                     // account.
                     auth.requestMatchers(HttpMethod.GET, "/api/planner/**").permitAll();
+                    // A download manager asks for a file's size first:
+                    // ForeFlight's, for the checkpoints' pack.
+                    auth.requestMatchers(HttpMethod.HEAD, "/api/planner/foreflight-pack/**").permitAll();
                     // Writing through the planner -- a checkpoint note, a
                     // corridor build (minutes of Overpass and FAA I/O per
                     // call) -- and the flight planning drawer's narrative
@@ -283,8 +286,14 @@ public class SecurityConfig {
             // asking for a sign-in link included -- failed CSRF. Anything
             // else (localhost, host.docker.internal, the tests) is left on
             // http; behind the load balancer a request is already secure.
+            // The ForeFlight pack stays on plain http: ForeFlight fetches it
+            // itself, and on the phone's LAN address would not take the https
+            // port's certificate (the Mac's own authority) -- it came to that
+            // port in plain HTTP, which a TLS port refuses. The pack holds a
+            // route and its checkpoints, nothing of the pilot's.
             http.redirectToHttps(https -> https.requestMatchers(
-                    request -> httpsHost.equalsIgnoreCase(request.getServerName())));
+                    request -> httpsHost.equalsIgnoreCase(request.getServerName())
+                            && !request.getRequestURI().startsWith("/api/planner/foreflight-pack/")));
         }
         if (oauthConfigured) {
             // The pilot is resolved at sign-in (PilotOidcUserService), and
