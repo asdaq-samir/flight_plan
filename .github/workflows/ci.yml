@@ -1300,3 +1300,20 @@ jobs:
           path: |
             springboot-app/target/reports/apidocs
             /tmp/godoc-retrain-trigger.txt
+
+  # The one check main requires (its ruleset), so the rule holds as jobs
+  # come and go: every job above passed, or was not needed -- a job its
+  # paths did not touch is skipped, which counts as passing. The
+  # Auto-merge workflow merges maps-layout's pull request on it.
+  passed:
+    name: CI passed
+    runs-on: ubuntu-26.04
+    needs: [changes, test, test-web, test-webapp, test-planning-service, test-model-service, test-nav-log-agent, test-crewai-agent, e2e, e2e-images, build-images, docs]
+    if: always()
+    steps:
+      - name: Every job passed or was not needed
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          echo "$RESULTS" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
+          ! echo "$RESULTS" | jq -e 'any(.[]; .result == "failure" or .result == "cancelled")' > /dev/null
