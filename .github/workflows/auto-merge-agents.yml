@@ -21,7 +21,9 @@ jobs:
     steps:
       - name: Merge once CI passes
         env:
-          GH_TOKEN: ${{ github.token }}
+          # The owner's token where there is one (auto-merge.yml): the
+          # merge then starts main's workflows.
+          GH_TOKEN: ${{ secrets.MERGE_TOKEN || github.token }}
           GH_REPO: ${{ github.repository }}
           PR: ${{ github.event.pull_request.number }}
         run: gh pr merge "$PR" --auto --merge
@@ -38,7 +40,9 @@ jobs:
       - name: Merge a minor or a patch update once CI passes
         if: steps.metadata.outputs.update-type != 'version-update:semver-major'
         env:
-          GH_TOKEN: ${{ github.token }}
+          # The owner's token where there is one (auto-merge.yml): the
+          # merge then starts main's workflows.
+          GH_TOKEN: ${{ secrets.MERGE_TOKEN || github.token }}
           GH_REPO: ${{ github.repository }}
           PR: ${{ github.event.pull_request.number }}
         run: gh pr merge "$PR" --auto --merge

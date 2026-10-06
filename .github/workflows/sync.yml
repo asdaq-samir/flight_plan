@@ -13,6 +13,9 @@ name: Sync
 on:
   push:
     branches: [main]
+  # By hand, for a main that moved with no workflow told (a merge by a
+  # token that starts none).
+  workflow_dispatch:
 
 permissions:
   contents: write
