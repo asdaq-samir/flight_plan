@@ -69,6 +69,15 @@ export function ListGroup({ title, badge, action, footer, children, className }:
  * or radio, or `aria-pressed`) -- has its name in the tint, as an iOS
  * row does; it read as one more line of text.
  */
+// A row's classes merged once, not in every row's every render: tailwind-
+// merge was the Airports tab's largest piece of script on first opening
+// (39 ms of 60, measured), a frequency list being many rows.
+const TITLE = cn("line-clamp-none font-normal", TEXT.row);
+const TITLE_ACTION = cn(TITLE, "text-tint");
+const LABEL = cn("font-normal", TEXT.row);
+const DESCRIPTION = cn("line-clamp-none", TEXT.detail);
+const VALUE = cn("text-muted-foreground tabular-nums", TEXT.row);
+
 export function ListRow({ id, media, title, description, value, href, to, chevron, children, ...buttonProps }: {
   id?: string;
   media?: ReactNode;
@@ -90,14 +99,14 @@ export function ListRow({ id, media, title, description, value, href, to, chevro
     <>
       {media && <ItemMedia className={cn(action && "text-tint")}>{media}</ItemMedia>}
       <ItemContent className="min-w-0 gap-0.5">
-        <ItemTitle className={cn("line-clamp-none font-normal", TEXT.row, action && "text-tint")}>
-          {id ? <Label htmlFor={id} className={cn("font-normal", TEXT.row)}>{title}</Label> : title}
+        <ItemTitle className={action ? TITLE_ACTION : TITLE}>
+          {id ? <Label htmlFor={id} className={LABEL}>{title}</Label> : title}
         </ItemTitle>
-        {description && <ItemDescription className={cn("line-clamp-none", TEXT.detail)}>{description}</ItemDescription>}
+        {description && <ItemDescription className={DESCRIPTION}>{description}</ItemDescription>}
       </ItemContent>
       {(value !== undefined || children || href || opens) && (
         <ItemActions className="ml-auto">
-          {value !== undefined && <span className={cn("text-muted-foreground tabular-nums", TEXT.row)}>{value}</span>}
+          {value !== undefined && <span className={VALUE}>{value}</span>}
           {children}
           {href && <ExternalLink className="size-4 text-tint" aria-hidden />}
           {opens && <ChevronRight className="size-4 text-muted-foreground" aria-hidden />}

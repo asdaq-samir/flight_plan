@@ -648,6 +648,13 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       progress={panelOpen ? progress : null}
       problem={s.unflyable?.brief}
     >
+      {/* Out of the tabs, drawing nothing: the risk assessment published
+          once, for Save and the Brief tab's mark. */}
+      <FlightBriefingView
+        part={null} publish nav={s.nav} legs={s.legs} dep={planned.dep} dest={planned.dest} stops={landedStops}
+        briefing={s.briefing} course={course} totals={s.totals} depart={depart}
+        langgraphNarrative={s.langgraphNarrative} crewaiNarrative={s.crewaiNarrative}
+      />
       {/* Off screen, for Print's Kneeboard card (a portal to the page's body). */}
       <Kneeboard
         course={course} selected={selected} legs={s.legs} totals={s.totals} nav={s.nav}

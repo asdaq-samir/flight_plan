@@ -42,7 +42,13 @@ export default function AccordionSection({ title, description, aside, summary, c
   const laidOpen = useContext(SectionsOpen);
   if (laidOpen) {
     return (
-      <section aria-labelledby={titleId} className={cn("border-b py-4 last:border-b-0", TEXT.prose)} data-slot="open-section" data-title={title}>
+      // Laid out and painted only near the screen (content-visibility): a
+      // tab of them -- the weather's five, the airports' lists -- drew all
+      // of its length on opening.
+      <section
+        aria-labelledby={titleId} data-slot="open-section" data-title={title}
+        className={cn("border-b py-4 [contain-intrinsic-size:auto_24rem] [content-visibility:auto] last:border-b-0 print:[content-visibility:visible]", TEXT.prose)}
+      >
         <h3 className={cn("mb-2 flex flex-wrap items-center gap-x-2 gap-y-1 font-semibold", TEXT.row)}>
           <span id={titleId}>{title}</span>
           {aside}

@@ -1,4 +1,4 @@
-import { Suspense, lazy } from "react";
+import { Suspense, lazy, useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import AccordionSection from "../../../../components/AccordionSection";
 import { ListGroup, ListRow } from "../../../../components/GroupedList";
@@ -16,17 +16,31 @@ const titled = (name: string) => name.toLowerCase().replace(/\b\w/g, c => c.toUp
 
 /**
  * The route from the side (ProfileChart): the ground, the controlled
- * airspace it passes through and the plan's altitudes over them, asked
- * of the planner only once the section is opened (or printed), and the
- * airspace as rows under it -- what the picture shows, in words.
+ * airspace it passes through and the plan's altitudes over them, and the
+ * airspace as rows under it -- what the picture shows, in words. Asked
+ * for, and drawn, once it comes within a screen of sight under the nav
+ * log (or is printed): its terrain read and its chart were most of the
+ * Nav Log tab's first draw, for a picture below the fold.
  */
-export default function RouteProfileSection({ ends, rows, wanted }: { ends: RouteEnds; rows: NavLogRow[]; wanted: boolean }) {
+export default function RouteProfileSection({ ends, rows, wanted, eager = false }: {
+  ends: RouteEnds; rows: NavLogRow[]; wanted: boolean;
+  /** Now, wherever it is: for the printer. */
+  eager?: boolean;
+}) {
   const dep = ends.departure.ident, dest = ends.destination.ident;
   const stops = (ends.stops ?? []).map(s => s.ident);
+  const [spot, setSpot] = useState<HTMLDivElement | null>(null);
+  const [near, setNear] = useState(false);
+  useEffect(() => {
+    if (!spot || near) return;
+    const observer = new IntersectionObserver(entries => { if (entries.some(e => e.isIntersecting)) setNear(true); }, { rootMargin: "100% 0px" });
+    observer.observe(spot);
+    return () => observer.disconnect();
+  }, [spot, near]);
   const { data: profile, isError } = useQuery({
     queryKey: ["route-profile", dep, ...stops, dest],
     queryFn: () => api.routeProfile(dep, dest, stops),
-    enabled: wanted, staleTime: Infinity, meta: { silent: true },
+    enabled: wanted && (near || eager), staleTime: Infinity, meta: { silent: true },
   });
   const plan = planProfile(rows);
   const highest = profile ? Math.max(...profile.terrain.map(t => t.ground_ft)) : null;
@@ -43,6 +57,7 @@ export default function RouteProfileSection({ ends, rows, wanted }: { ends: Rout
   const crossed = [...joined.values()];
   return (
     <AccordionSection title="Profile" summary={summary}>
+      <div ref={setSpot} />
       {profile && (
         <>
           <Suspense fallback={<div className="h-48" />}>

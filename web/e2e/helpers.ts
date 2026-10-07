@@ -213,6 +213,15 @@ export async function openTab(page: Page, name: "Brief" | "Nav Log" | "Local" | 
  *  a popup, the panel over the map or its buttons -- found by asking the
  *  browser what is under each candidate point. */
 export async function tapTheChart(page: Page) {
+  // Once the map has stopped moving: a card closing or opening moves it
+  // to keep the route clear of the panel, and a spot found empty in the
+  // move had a field's chip slide under it before the tap (KCWI, on CI's
+  // desktop).
+  await expect.poll(() => page.locator(".leaflet-map-pane").evaluate(async pane => {
+    const before = (pane as HTMLElement).style.transform;
+    await new Promise(r => setTimeout(r, 300));
+    return before === (pane as HTMLElement).style.transform && !pane.closest(".leaflet-zoom-anim");
+  }), { timeout: 10000 }).toBe(true);
   const at = await page.locator(".leaflet-container").evaluate(map => {
     const r = map.getBoundingClientRect();
     for (let fy = 0.85; fy > 0.1; fy -= 0.1) {

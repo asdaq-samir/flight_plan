@@ -200,6 +200,16 @@ def test_metar_for_idents_wraps_a_network_failure(mock_get, mock_sleep):
 
 @patch("vfr.weather.time.time", return_value=T0200Z)
 @patch("vfr.weather.requests.get", return_value=TAFS)
+def test_the_forecast_along_the_route_reads_the_held_taf_set_not_a_fresh_download(mock_get, mock_time):
+    # Twice: one download. It downloaded and parsed the whole set on every
+    # call, its parser passed where `force` goes -- 0.9 s of each briefing.
+    ceiling_visibility_along_route(C81, KDLH)
+    ceiling_visibility_along_route(C81, KDLH)
+    assert mock_get.call_count == 1
+
+
+@patch("vfr.weather.time.time", return_value=T0200Z)
+@patch("vfr.weather.requests.get", return_value=TAFS)
 def test_forecast_along_the_route_reads_each_nearby_stations_current_period(mock_get, mock_time):
     forecast = ceiling_visibility_along_route(C81, KDLH)
 
