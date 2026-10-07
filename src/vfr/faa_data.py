@@ -4,15 +4,19 @@ since the FAA is the ground truth for both (and this project already
 treats the FAA sectional chart, not OSM/satellite imagery, as the
 reference for what a pilot would see -- see vfr.chartvision).
 
-Both are published on a 28-day cycle as a full national dump (not
-queryable by bbox server-side, unlike Overpass), so they're downloaded
-once and cached under data/raw/ rather than re-fetched every notebook
-run -- ensure_nasr_data() only downloads if the cache is empty.
+Both are published as a full national dump (not queryable by bbox
+server-side, unlike Overpass) -- NASR on a 28-day cycle, the obstacles
+every 56 days -- so they're downloaded and cached under data/raw/ rather
+than re-fetched every notebook run: ensure_nasr_file() downloads a file
+that is missing, and refresh_editions() a newer edition of one there.
 """
+import csv
 import io
 import json
 import logging
+import os
 import re
+import tempfile
 import threading
 import zipfile
 from collections.abc import Iterable
@@ -175,6 +179,89 @@ def ensure_nasr_file(name: str, cache_dir) -> Path:
             "the project outside Desktop/Documents)."
         )
     raise RuntimeError(f"Missing after download: {name} in {cache_dir}.")
+
+
+# The zips the files above come in, for a new edition of each (refresh):
+# its files, the page its link is on (None: the current NASR cycle's), and
+# the link. A zip's files are refreshed together -- APT_BASE was a cycle
+# behind APT_RMK and APT_RWY_END from the same zip, each fetched when it
+# went missing (2026-10-07).
+_EDITIONS = {
+    "NAV_CSV": (("NAV_BASE.csv",), None, r'href="([^"]*NAV_CSV\.zip)"'),
+    "APT_CSV": (("APT_BASE.csv", "APT_RMK.csv", "APT_RWY_END.csv"), None, r'href="([^"]*APT_CSV\.zip)"'),
+    "FIX_CSV": (("FIX_BASE.csv",), None, r'href="([^"]*FIX_CSV\.zip)"'),
+    # The Class B, C and D shapes (vfr.airspace), from the same cycle.
+    "Class_Airspace": (
+        # The .shp last, which vfr.airspace keys its parse on: its
+        # companions are in place before it.
+        ("Shape_Files/Class_Airspace.shx", "Shape_Files/Class_Airspace.dbf", "Shape_Files/Class_Airspace.shp"),
+        None, r'href="([^"]*class_airspace_shape_files\.zip)"',
+    ),
+    # The obstacles, on their own 56-day edition and page.
+    "DOF": (("DOF.DAT",), DOF_INDEX_URL, r'href="(https://aeronav\.faa\.gov/Obst_Data/DOF_\d+\.zip)"'),
+}
+# Which edition each file on disk is, by the link it came from (the
+# FAA's links name their cycle: ".../01_Oct_2026_NAV_CSV.zip").
+_EDITIONS_FILE = "editions.json"
+
+
+def _editions_on_disk(cache_dir: Path) -> dict:
+    try:
+        return json.loads((cache_dir / _EDITIONS_FILE).read_text())
+    except (OSError, ValueError):
+        return {}
+
+
+def _effective_date(path: Path) -> str | None:
+    """A NASR CSV's own cycle, its first row's EFF_DATE ("2026/10/01")."""
+    try:
+        with open(path, newline="", encoding="utf-8", errors="replace") as f:
+            return next(csv.DictReader(f)).get("EFF_DATE")
+    except (OSError, StopIteration):
+        return None
+
+
+def refresh_editions(cache_dir) -> list[str]:
+    """Each of the planner's FAA zips fetched again where the FAA has a
+    newer edition than the one on disk -- a NASR cycle every 28 days, the
+    obstacle file every 56 -- its files put in place whole, one by one,
+    and the names refreshed. They were fetched only when missing, and
+    went on being read cycles old: the navaids two cycles, the airports
+    one (2026-10-07). Every reader of them keys its cache by the file's
+    mtime (vfr.fixes, vfr.airspace, vfr.remarks, vfr.pattern and this
+    module's), so a refreshed file is read again where it is next asked
+    for. A zip whose download fails is left as it was, for the next
+    check. A file on disk with no record of its edition is taken as the
+    current one where its own EFF_DATE says so, rather than fetched again."""
+    cache_dir = Path(cache_dir)
+    on_disk = _editions_on_disk(cache_dir)
+    cycle_page = find_current_cycle_page(NASR_INDEX_URL)
+    cycle = cycle_page.rstrip("/").rsplit("/", 1)[-1].replace("-", "/")
+    refreshed = []
+    for key, (names, page, pattern) in _EDITIONS.items():
+        try:
+            url = find_download_link(page or cycle_page, pattern)
+            paths = [cache_dir / name for name in names]
+            if on_disk.get(key) == url and all(p.exists() for p in paths):
+                continue
+            if page is None and key != "Class_Airspace" and all(_effective_date(p) == cycle for p in paths):
+                on_disk[key] = url
+                continue
+            with tempfile.TemporaryDirectory(dir=cache_dir, prefix=".edition-") as staging:
+                download_and_extract(url, Path(staging), only={Path(name).name for name in names})
+                for name in names:
+                    fresh = next(Path(staging).rglob(Path(name).name), None)
+                    if fresh is None:
+                        raise RuntimeError(f"{name} is not in {url}")
+                    (cache_dir / name).parent.mkdir(parents=True, exist_ok=True)
+                    os.replace(fresh, cache_dir / name)
+            on_disk[key] = url
+            refreshed.extend(names)
+            log.info("FAA %s refreshed from %s", key, url)
+        except Exception:  # noqa: BLE001 -- one edition failing leaves the rest to refresh, and itself to the next check
+            log.warning("FAA %s not refreshed", key, exc_info=True)
+    (cache_dir / _EDITIONS_FILE).write_text(json.dumps(on_disk, indent=1, sort_keys=True))
+    return refreshed
 
 
 def ensure_nasr_data(cache_dir) -> tuple:

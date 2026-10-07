@@ -1,5 +1,7 @@
 """vfr.fixes reads NASR's FIX_BASE.csv: which fixes are VFR waypoints a
 pilot has on a chart, and what the rest are."""
+import os
+
 import pytest
 from vfr import fixes
 
@@ -98,3 +100,14 @@ def test_a_box_finds_its_fixes_across_cells_and_both_of_an_idents_navaids(two_ab
     # Each "AB" where it is.
     assert [f["kind"] for f in fixes.within(30.0, -85.0, 35.0, -80.0)] == ["NDB"]
     assert [f["kind"] for f in fixes.within(40.0, -92.0, 42.0, -90.0)] == ["VORTAC"]
+
+
+def test_a_new_edition_on_disk_is_read_again_where_next_asked_for(monkeypatch, tmp_path):
+    (tmp_path / "FIX_BASE.csv").write_text(HEADER + '"VPBNG","IL",42.27,-88.13,"VFR  ","SECTIONAL"\n')
+    (tmp_path / "NAV_BASE.csv").write_text(NAV_HEADER)
+    monkeypatch.setattr(fixes.faa_data, "ensure_nasr_file", lambda name, cache_dir: tmp_path / name)
+    monkeypatch.setattr(fixes, "_TABLE", None)
+    assert fixes.find_navaid("RFD") is None
+    (tmp_path / "NAV_BASE.csv").write_text(NAV_HEADER + '"RFD","DME","ROCKFORD","IL","OPERATIONAL IFR",42.2256,-89.1993,"110.8"\n')
+    os.utime(tmp_path / "NAV_BASE.csv", (1, 1))
+    assert fixes.find_navaid("RFD")["name"] == "Rockford"

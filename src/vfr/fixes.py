@@ -128,7 +128,10 @@ class _Table:
     2026-10-07), and a degree's cells, for a box's fixes without a scan
     of them all at every pan of the map (13 ms)."""
 
-    def __init__(self, fixes: dict[str, dict], navaids: dict[str, list[dict]]):
+    def __init__(self, fixes: dict[str, dict], navaids: dict[str, list[dict]], source: tuple = ()):
+        # The files read and their mtimes: a new FAA edition (vfr.faa_data.
+        # refresh_editions) is read again where it is next asked for.
+        self.source = source
         self.by_ident = dict(fixes)
         # A navaid's two or three letters never are a fix's five.
         for ident, found in navaids.items():
@@ -141,13 +144,22 @@ class _Table:
             self.cells.setdefault(_cell(fix["lat"], fix["lon"]), []).append(fix)
 
 
+def _current(table: _Table | None) -> bool:
+    try:
+        return table is not None and all(path.stat().st_mtime == mtime for path, mtime in table.source)
+    except OSError:
+        return False
+
+
 def _table(cache_dir=FAA_CACHE_DIR) -> _Table:
     global _TABLE
     with _LOCK:
-        if _TABLE is None:
+        if not _current(_TABLE):
+            fix_path = faa_data.ensure_nasr_file("FIX_BASE.csv", cache_dir)
+            nav_path = faa_data.ensure_nasr_file("NAV_BASE.csv", cache_dir)
             _TABLE = _Table(
-                _read(faa_data.ensure_nasr_file("FIX_BASE.csv", cache_dir)),
-                _read_navaids(faa_data.ensure_nasr_file("NAV_BASE.csv", cache_dir)),
+                _read(fix_path), _read_navaids(nav_path),
+                source=tuple((path, path.stat().st_mtime) for path in (fix_path, nav_path)),
             )
         return _TABLE
 
