@@ -47,13 +47,11 @@ export type TopOfClimb = Schemas["TopOfClimb"];
 export type TopOfDescent = Schemas["TopOfDescent"];
 export type Totals = Schemas["Totals"];
 export type Hazard = Schemas["Hazard"];
-export type AirspaceTransit = Schemas["AirspaceTransit"];
 export type AltitudeBreakdown = Schemas["AltitudeBreakdown"];
 export type AltitudeSegment = Schemas["AltitudeSegment"];
 /** One of the four plans: lowest, highest, fastest for the winds, and
  *  economical, the least fuel, climb and cruise. */
 export type AltitudeOption = Schemas["AltitudeOption"];
-export type AltitudeStep = Schemas["AltitudeStep"];
 export type AltitudeChoice = AltitudeOption["kind"];
 export type AircraftProfile = Schemas["AircraftProfile"];
 /** How an airplane is loaded: its POH's stations, limits and envelope. */
@@ -65,12 +63,10 @@ export type ShortField = Schemas["ShortField"];
  *  with the totals; "error" for an unflyable route. */
 export type NavLogMessage = Schemas["NavLogMessage"];
 export type Forecast = Schemas["Forecast"];
-export type Metar = Schemas["Metar"];
 export type Runway = Schemas["Runway"];
 export type Frequency = Schemas["Frequency"];
 export type Briefing = Schemas["Briefing"];
 export type ChartInfo = Schemas["ChartInfo"];
-export type AirportSuggestion = Schemas["AirportSuggestion"];
 export type AirportSearch = Schemas["AirportSearch"];
 export type AirportPlace = Schemas["AirportPlace"];
 /** The mock oral's question, its answer graded, and what each is asked with. */
@@ -81,12 +77,10 @@ export type OralGradeRequest = Schemas["OralGradeRequest"];
 export type OralCitation = Schemas["OralCitation"];
 export type AirportPin = Schemas["AirportPin"];
 export type AirportsInView = Schemas["AirportsInView"];
-export type WaypointPin = Schemas["WaypointPin"];
 export type WaypointsInView = Schemas["WaypointsInView"];
 export type ModelComparisonEntry = Schemas["ModelComparisonEntry"];
 export type ModelComparison = Schemas["ModelComparison"];
 export type Status = Schemas["Status"];
-export type CorridorStatus = Schemas["CorridorStatus"];
 export type RetrainStarted = Schemas["RetrainStarted"];
 export type ChartRefreshStarted = Schemas["ChartRefreshStarted"];
 export type AircraftProfileSummary = Schemas["AircraftProfileSummary"];
@@ -102,16 +96,11 @@ export type Tfr = Schemas["Tfr"];
 export type Tfrs = Schemas["Tfrs"];
 /** The fields nearest a position: how far, which way, the longest runway. */
 export type NearestAirports = Schemas["NearestAirports"];
-export type NearestAirport = Schemas["NearestAirport"];
 /** The route from the side: the ground and the controlled airspace. */
 export type RouteProfile = Schemas["RouteProfile"];
 export type AirspaceAt = Schemas["AirspaceAt"];
 export type AirspaceBand = Schemas["AirspaceBand"];
 export type VfrMinimums = Schemas["VfrMinimums"];
-/** One service the developer console links to, and whether it is up.
- *  `state` is Docker's own word -- running, exited, created -- or
- *  "absent" where compose has never created the container. */
-export type DevService = Schemas["DevService"];
 /** `available` is false where the planner has no Docker API to talk
  *  to, which is every deployment that is not the local stack. */
 export type DevServices = Schemas["DevServices"];
@@ -149,7 +138,6 @@ export type NavLogAltitude = Omit<Schemas["NavLogAltitude"], "type">;
 export type Detection = Schemas["Detection"];
 /** A pick no detection claimed: a miss, or one whose detection has moved. */
 export type LoosePick = Schemas["Pick"];
-export type PickSummary = Schemas["PickSummary"];
 export type PickSaved = Schemas["PickSaved"];
 export type PickDeleted = Schemas["PickDeleted"];
 export type Classification = Schemas["Classification"];
@@ -203,9 +191,6 @@ export type FlightSummary = Webapp["FlightSummaryDto"];
 export type Flight = Webapp["FlightDto"];
 /** A flight's flown track as saved to the account (lib/track). */
 export type SavedTrack = Webapp["TrackDto"];
-/** One checkpoint of a filed nav log. `altitudeFt` is the altitude of
- *  the leg arriving here -- a plan may step. */
-export type FlightCheckpointRequest = Webapp["SaveFlightCheckpointRequest"];
 /** POST /api/flights body -- files (replacing any previous one) a nav
  *  log for a route this pilot planned. */
 export type SaveFlightRequest = Webapp["SaveFlightRequest"];
