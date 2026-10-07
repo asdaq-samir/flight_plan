@@ -32,7 +32,7 @@ describe("weight and balance, the 172S's", () => {
     expect(inEnvelope(envelope, 47.5, 2000)).toBe(false);
   });
 
-  it("the default load is the sample aeroplane and a pilot", () => {
+  it("the default load is the sample airplane and a pilot", () => {
     expect(defaultLoad(loading, 40)).toEqual({ emptyWeightLb: 1642, emptyArmIn: 38.12, stationsLb: [170, 0, 0, 0], fuelGal: 40 });
   });
 });

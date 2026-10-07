@@ -74,7 +74,7 @@ function CustomAltitude({ alt, onAltChange, onSubmit, pressed }: {
 }
 
 /**
- * The cruising altitude, a chip beside the aeroplane's, as the pilot
+ * The cruising altitude, a chip beside the airplane's, as the pilot
  * asked: the figure flown, which opens how it was chosen -- the four
  * plans, each with its time and fuel, the pilot's own, and why. It was
  * the nav log's Alt heading, out of sight with the panel down. Always

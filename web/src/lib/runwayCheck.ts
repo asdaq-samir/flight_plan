@@ -24,7 +24,7 @@ const DENSITY_EXP = PRESSURE_EXP - 1;
  * as thin as the field's, from its pressure altitude and temperature --
  * worked out from the atmosphere itself rather than the 120 ft a degree
  * rule of thumb, which it agrees with to a few per cent near the ground.
- * What an aeroplane performs as if it were at (FAA-H-8083-25C, chapter 11).
+ * What an airplane performs as if it were at (FAA-H-8083-25C, chapter 11).
  */
 export function densityAltitudeFt(pressureAltFt: number, tempC: number): number {
   const pressure = (1 - (LAPSE_K_PER_FT * pressureAltFt) / T0_K) ** PRESSURE_EXP;

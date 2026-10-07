@@ -14,7 +14,7 @@ export interface WorkspacePieces {
   map: ReactNode;
   /** The panel's body: the nav log and the briefing, the training list. */
   sidebar: ReactNode;
-  /** The panel's second row, in sight at rest: the aeroplane and the
+  /** The panel's second row, in sight at rest: the airplane and the
    *  departure time, the rating's progress. */
   controls?: ReactNode;
   /** Beside the route form, in sight at rest: the workspace's own few

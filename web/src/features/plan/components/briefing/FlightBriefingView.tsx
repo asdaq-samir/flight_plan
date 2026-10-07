@@ -24,7 +24,7 @@ import { useLoad } from "../../hooks/useLoad";
 import { TakeoffLandingSection, WeightBalanceSection } from "./PreflightSections";
 import { underMinimums } from "../../../../lib/minimums";
 import { usePreferences } from "../../../../lib/preferences";
-import { gairmetAltitudes, gairmetTitle, suaAltitudes, tfrAltitudes, tfrTimes } from "../../../../lib/advisories";
+import { faaWords, gairmetAltitudes, gairmetTitle, sigmetHazard, suaAltitudes, tfrAltitudes, tfrTimes } from "../../../../lib/advisories";
 import { passLine, passTime, suaWhen, tfrWhen, type SuaWhen, type TfrWhen } from "../../../../lib/passTimes";
 import { runwayInUse, runwayNumber } from "../../../../lib/pattern";
 import { runwayChecks } from "../../../../lib/runwayCheck";
@@ -168,11 +168,11 @@ const PLAN_LABEL: Record<string, string> = { lowest: "Lowest", highest: "Highest
 
 /** What sets the whole route's ceiling: the clouds (14 CFR 91.155's
  *  distance under the lowest one forecast near a leg), a Class B shelf,
- *  or the aeroplane. */
+ *  or the airplane. */
 function ceilingReason(s: NavLogAltitude["altitude_selection"]): string {
   if (s.cloud_ceiling_ft != null && s.cloud_ceiling_ft === s.band_ceiling_ft) return `Under the clouds near ${s.cloud_station}`;
   if (s.airspace_ceiling_ft != null && s.airspace_ceiling_ft === s.band_ceiling_ft) return "The Class B shelf";
-  return "The aeroplane's service ceiling";
+  return "The airplane's service ceiling";
 }
 
 /** The altitudes a plan flies as the nav log's header gives them: one
@@ -199,8 +199,8 @@ function altitudeRange(nav: NavLogAltitude): string {
  * A round button at the end of the panel's row, beside Share and Print
  * (PlanWorkspace puts it there), its state its glyph and its name: Save,
  * Saving…, Saved. It was a line of its own at the head of the
- * sections, with the aeroplane the flight would be filed in spelled
- * out beside it; that aeroplane is the header's own picker, a line
+ * sections, with the airplane the flight would be filed in spelled
+ * out beside it; that airplane is the header's own picker, a line
  * above.
  */
 export function SaveFlightButton({
@@ -211,7 +211,7 @@ export function SaveFlightButton({
   nav: NavLogAltitude | null;
   legs: Leg[];
   selected: Candidate[];
-  /** The aeroplane the nav log was computed for: a pilot's own, or
+  /** The airplane the nav log was computed for: a pilot's own, or
    *  null for a stock profile. */
   aircraftId: number | null;
   /** The departure time as an ISO instant, or "" -- what the saved
@@ -260,7 +260,7 @@ export function SaveFlightButton({
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["flights"] }),
   });
   // "Saved" belongs to the plan that was saved: another route, time,
-  // aeroplane or altitude is a new request, and Save is offered again.
+  // airplane or altitude is a new request, and Save is offered again.
   // It used to stay "Saved" for the session, and a click filed a
   // duplicate of whatever was on screen by then.
   const saved = save.isSuccess && save.variables === request;
@@ -399,7 +399,7 @@ export default function FlightBriefingView({
     const pass = passAt(area.along_track_nm);
     return { area, pass, when: pass ? suaWhen(area.times_of_use, pass) : "unknown" as SuaWhen };
   });
-  // The call sign the radio calls use: the pilot's own aeroplane's
+  // The call sign the radio calls use: the pilot's own airplane's
   // registration where they fly one, and its make from its profile.
   const flying = usePreferences(s => s.aircraft);
   const make = nav?.aircraft.type?.split(" ")[0] || "Aircraft";
@@ -413,7 +413,7 @@ export default function FlightBriefingView({
   const setAssessment = useRisk(s => s.setAssessment);
   const margins = [totals?.fuel_margin_gal, ...(totals?.hops ?? []).map(h => h.totals.fuel_margin_gal)]
     .filter((n): n is number => n != null);
-  const hazardNames = briefing ? [...briefing.hazards.map(h => h.hazard ?? h.type ?? "SIGMET"), ...briefing.gairmets.map(gairmetTitle)] : [];
+  const hazardNames = briefing ? [...briefing.hazards.map(h => sigmetHazard(h.hazard, h.type ?? "SIGMET")), ...briefing.gairmets.map(gairmetTitle)] : [];
   const assessment = briefing ? assess({
     vfrNotRecommended: vnrReasons.length > 0,
     underMinimums: underMine,
@@ -577,7 +577,7 @@ export default function FlightBriefingView({
                             <>
                               {[tfrAltitudes(t), tfrTimes(t)].filter(Boolean).map(line => <span key={line} className="block">{line}</span>)}
                               <PassNote when={pass && { pass, state: tfrWhen(t, pass) }} />
-                              {(t.purpose ?? t.rule) && <span className="block">{t.purpose ?? t.rule}</span>}
+                              {(t.purpose ?? t.rule) && <span className="block">{faaWords(t.purpose ?? t.rule)}</span>}
                             </>
                           }
                           value={t.crosses ? "On the route" : `${Math.round(t.along_track_nm)} nm along`}
@@ -603,7 +603,7 @@ export default function FlightBriefingView({
                           description={
                             <>
                               <span className="block">{`${suaAltitudes(area)} · ${Math.round(area.along_track_nm)} nm along`}</span>
-                              {area.times_of_use && <span className="block">In use {area.times_of_use}</span>}
+                              {area.times_of_use && <span className="block">In use: {faaWords(area.times_of_use)}</span>}
                               {pass && <span className="block" data-testid="sua-pass">{`You pass about ${passLine(pass)}: ${SUA_WORDS[when]}`}</span>}
                             </>
                           }
@@ -725,7 +725,7 @@ export default function FlightBriefingView({
                     <ListRow
                       key={`s${i}`}
                       media={<FindingIcon finding="caution" />}
-                      title={`${h.hazard ?? h.type ?? "Hazard"}${hazardAltitudeRange(h.altitude_low_ft, h.altitude_high_ft)
+                      title={`${sigmetHazard(h.hazard, h.type)}${hazardAltitudeRange(h.altitude_low_ft, h.altitude_high_ft)
                         ? ` — ${hazardAltitudeRange(h.altitude_low_ft, h.altitude_high_ft)}` : ""}`}
                       description={h.raw && <span className="font-mono whitespace-pre-wrap">{h.raw}</span>}
                     />
@@ -735,7 +735,7 @@ export default function FlightBriefingView({
                       key={`g${i}`}
                       media={<FindingIcon finding="caution" />}
                       title={gairmetTitle(g)}
-                      description={[gairmetAltitudes(g), g.due_to, g.valid_at && `G-AIRMET for ${clockTime(new Date(g.valid_at))}`]
+                      description={[gairmetAltitudes(g), faaWords(g.due_to), g.valid_at && `G-AIRMET for ${clockTime(new Date(g.valid_at))}`]
                         .filter(Boolean).join(" · ")}
                       data-testid="gairmet"
                     />

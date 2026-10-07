@@ -79,7 +79,7 @@ function altitudeChoiceOf(value: string | null): AltitudeChoice {
  * The address is the plan: the route, the altitude, the plan chosen
  * and the departure time are its query parameters, and every stage
  * (usePlan) is a query keyed on the ones it depends on. Loading a
- * route writes the address; a new aeroplane or departure time changes
+ * route writes the address; a new airplane or departure time changes
  * a key; and the screen is derived from the queries on each render,
  * nothing kept in step by hand.
  */
@@ -122,14 +122,14 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   const setAlt = useCallback((value: string) => setAltDraft({ of: altKey, value }), [altKey]);
   // Load pressed again for the same route: a fresh nav log, fresh winds.
   const [load, setLoad] = useState(0);
-  // The aeroplane the nav log is computed for: remembered per browser
+  // The airplane the nav log is computed for: remembered per browser
   // (the preferences store), since a pilot flies the same one for a
   // while; a stock profile until they pick one of their own.
   const remembered = usePreferences(p => p.aircraft);
   const showWaypoints = usePreferences(p => p.waypoints);
   const setAircraft = usePreferences(p => p.setAircraft);
 
-  // The stock profiles, plus a signed-in pilot's own aeroplanes on top
+  // The stock profiles, plus a signed-in pilot's own airplanes on top
   // of them -- the same ["pilot"]/["aircraft"] queries the pilot
   // console keeps.
   const { data: profiles } = useQuery({ queryKey: ["aircraftProfiles"], queryFn: api.aircraftProfiles, staleTime: Infinity });
@@ -141,11 +141,11 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       ...(myAircraft ?? []).map(a => choiceOf(a, profiles ?? [])),
     ];
     // The remembered choice stays selectable while the lists load, and
-    // an aeroplane deleted since is still what this plan was flown in.
+    // an airplane deleted since is still what this plan was flown in.
     return options.some(o => aircraftKey(o) === aircraftKey(remembered)) ? options : [remembered, ...options];
   }, [profiles, myAircraft, remembered]);
   // Flown with its numbers as they are now, not as they were when it
-  // was picked: the remembered choice is which aeroplane, and an edit
+  // was picked: the remembered choice is which airplane, and an edit
   // in the pilot console (a climb burn added, say) re-plans. It used to
   // fly the copy remembered at the pick until it was picked again.
   const aircraft = aircraftOptions.find(o => aircraftKey(o) === aircraftKey(remembered)) ?? remembered;
@@ -286,7 +286,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   }, [dep, dest, planned.dep, planned.dest, planned.stops, via, alt, altitudeChoice, altitudes, depart, classBClearance, panel, setSearchParams]);
 
   // The route, changed in its box (RouteBox): in the address at once,
-  // which re-plans, as the aeroplane and the time do -- the departure,
+  // which re-plans, as the airplane and the time do -- the departure,
   // the stops, the destination.
   // Either end may be missing -- taken out in the box, half a route with
   // the other still to be typed -- and with neither, there is no route:
@@ -507,7 +507,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     toast.info("Sending the checkpoints to ForeFlight. When it has added them, tap Open in ForeFlight again for the route, the checkpoints by name.");
   };
 
-  // A different aeroplane means different legs: remembered, and the
+  // A different airplane means different legs: remembered, and the
   // nav log's own key changes with it.
   const changeAircraft = useCallback((value: string) => {
     const next = aircraftOptions.find(o => aircraftKey(o) === value);
@@ -828,7 +828,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     alone: !!place || !!heldPoint,
     searching: !started,
     // At rest, Maps' capsule: the route with share and close either side
-    // and the aeroplane and time under it, which opens the panel to them;
+    // and the airplane and time under it, which opens the panel to them;
     // with no route, the search bar.
     // Half a route, or one from an airport to itself, rests on its form
     // and the notice saying so: something is asked of the pilot there.
@@ -838,7 +838,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
         // One line, as the search bar is, at the pilot's ask: Share at its
         // start, as it was, the route, a tap on it the panel, and the
         // console's button at its end. What is wrong with it is a red mark
-        // beside it (the cruising altitude's chip says what); the aeroplane
+        // beside it (the cruising altitude's chip says what); the airplane
         // and the time are in the panel, the sharing too, under More.
         warning={s.unflyable ? "No legal altitude" : undefined}
         onDetail={() => setPanel("half")}
@@ -877,12 +877,12 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
         </div>
       </div>
     ) : undefined,
-    // The aeroplane and the departure time, under the route with the
+    // The airplane and the departure time, under the route with the
     // panel out, and beside them saving the flight, the narrative and
     // Print: the route's box has the top row to itself.
     // A local flight: how long aloft in place of the narrative, which is
     // written from legs it has none of.
-    // On one line, at the pilot's ask: the aeroplane, the altitude and the
+    // On one line, at the pilot's ask: the airplane, the altitude and the
     // time, chips at a note's 13 (as Maps' route options are) four apart,
     // and Save, Share and Print at the end -- at the reader's own text
     // size, which on the pilot's phone is a step up from iOS's default.

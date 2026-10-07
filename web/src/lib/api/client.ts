@@ -251,7 +251,7 @@ export const api = {
 
   /** The stock performance profiles the nav log can be computed for. */
   /** A flight from one airport back to it, with no stops -- the pattern,
-   *  practice approaches: its time aloft at the aeroplane's burn, and the
+   *  practice approaches: its time aloft at the airplane's burn, and the
    *  fuel check. */
   localFlight: (ident: string, durationMin: number, aircraft?: AircraftChoice, depart?: string) =>
     planner.GET("/api/local-flight", {
@@ -475,7 +475,7 @@ export const api = {
     yield* ndjson<NarrativeMessage>(res.body ?? undefined);
   },
 
-  /** A signed-in pilot's own aeroplanes -- also a Spring Boot call,
+  /** A signed-in pilot's own airplanes -- also a Spring Boot call,
    *  like `me()`: nothing here is planning-service's concern. */
   aircraft: {
     list: () => webapp.GET("/api/aircraft").then(data<Aircraft[]>),

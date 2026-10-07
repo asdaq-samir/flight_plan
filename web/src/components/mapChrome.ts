@@ -126,7 +126,7 @@ export const GLASS_BUTTON =
   "border-0 bg-background/75 text-foreground shadow-[inset_0_1px_1px_rgb(255_255_255/0.95),inset_0_0_0_0.5px_rgb(255_255_255/0.7),0_0_0_0.5px_rgb(0_0_0/0.08),0_2px_8px_rgb(0_0_0/0.12)] hover:bg-background hover:text-foreground aria-expanded:bg-background " +
   "dark:bg-foreground/12 dark:shadow-[inset_0_1px_1px_rgb(255_255_255/0.18),inset_0_0_0_0.5px_rgb(255_255_255/0.1),0_0_0_0.5px_rgb(0_0_0/0.5),0_2px_8px_rgb(0_0_0/0.35)] dark:hover:bg-foreground/18 dark:aria-expanded:bg-foreground/18";
 
-/** A chip's words on the panel's row (the aeroplane, the cruising altitude,
+/** A chip's words on the panel's row (the airplane, the cruising altitude,
  *  the time): a note's 13 to a finger, as Maps' route options are, growing
  *  with the reader's text size only to 14, so the row stays one line at
  *  the pilot's, a step up from iOS's default. */

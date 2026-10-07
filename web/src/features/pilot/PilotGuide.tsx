@@ -30,7 +30,7 @@ function Reading({ children }: { children: ReactNode }) {
  * (the last points to Print beside the route, NavLogActions, and to
  * keeping the charts for the air, a setting); what the checkpoints'
  * colours mean; the longer reading -- how the nav log flies the
- * aeroplane, the map's buttons, the app on a phone -- a row each that
+ * airplane, the map's buttons, the app on a phone -- a row each that
  * opens a page of its own (ConsolePages). It was a column of headings over
  * paragraphs, a screen and a half of reading on a phone before the
  * colours, and still told the pilot about the header and its drawer
@@ -45,12 +45,12 @@ export default function PilotGuide() {
         "vfr-minimums": { title: "VFR weather minimums", content: <DrillPage deck="vfr-minimums" /> },
         holding: { title: "Holding entries", content: <HoldingPage /> },
         "lost-comms": { title: "Lost communications", content: <LostCommsPage /> },
-        aeroplane: {
-          title: "Your aeroplane in the day's air",
+        airplane: {
+          title: "Your airplane in the day's air",
           content: (
             <Reading>
               <p>
-                Your aeroplane's cruise speed and fuel burn are taken as its figures at its cruise power
+                Your airplane's cruise speed and fuel burn are taken as its figures at its cruise power
                 at {altFt(CRUISE_REFERENCE_FT)} ft on a standard day, a row of its handbook's cruise table.
               </p>
               <p>
@@ -131,7 +131,7 @@ export default function PilotGuide() {
         </ListGroup>
 
         <ListGroup title="More">
-          <PageRow page="aeroplane" title="Your aeroplane in the day's air" />
+          <PageRow page="airplane" title="Your airplane in the day's air" />
           <PageRow page="map" title="The map and its buttons" />
           <PageRow page="phone" title="On your phone" />
         </ListGroup>

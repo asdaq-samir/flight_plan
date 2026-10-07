@@ -65,7 +65,7 @@ function BandRow({ band, ground }: { band: AirspaceBand; ground: number | null }
  * The airspace over a point the pilot held a finger on, or right-clicked:
  * the chart's own question in the oral exam. From the ground up, each
  * class's altitudes (feet MSL), its VFR weather minimums by day and night
- * (91.155), what it takes to go in, what the aeroplane must carry and the
+ * (91.155), what it takes to go in, what the airplane must carry and the
  * speed limit; then the Class B veil, the special-use areas and the TFRs
  * over it. Held in the address (`?at=42.3172,-88.0905`), as an airport's
  * card is (`?place=`).

@@ -70,5 +70,8 @@ comment. A wrong one is a safety problem, not a style one.
 ## Writing
 
 - Comments say why, in plain sentences, as the code around them does.
+- The app's words say "airplane", the FAA's word, and set the FAA's own
+  capitalised text in sentence case with its codes kept
+  (`lib/advisories` `faaWords`); raw reports stay as sent.
 - A commit message is a paragraph: what changed for the pilot or the
   developer, and why, with the evidence (a test, a measurement).

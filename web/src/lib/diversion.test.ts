@@ -16,7 +16,7 @@ describe("a diversion worked out", () => {
     expect(north.wca).toBeCloseTo(-10.48, 1);
     expect(north.th).toBeCloseTo(349.52, 1);
     expect(north.gs).toBeCloseTo(108.2, 1);
-    // A wind faster than the aeroplane across the course holds no heading.
+    // A wind faster than the airplane across the course holds no heading.
     expect(windTriangle(360, 50, 270, 60)).toBeNull();
   });
 

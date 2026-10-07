@@ -77,7 +77,7 @@ export function readTrack(text: string): TrackPoint[] {
 /** A track thinned to at most `most` points, the first and the last
  *  kept: for keeping it, where a second-by-second log of two hours is
  *  seven thousand. Even steps through it, which keep its shape at a
- *  light aeroplane's speeds. */
+ *  light airplane's speeds. */
 export function thin(points: TrackPoint[], most = 4000): TrackPoint[] {
   if (points.length <= most) return points;
   const step = (points.length - 1) / (most - 1);

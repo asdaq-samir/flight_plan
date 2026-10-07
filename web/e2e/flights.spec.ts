@@ -4,7 +4,7 @@ import { consoleSheet, library, openPanel, openSettings } from "./helpers";
 /**
  * "Save this flight", at the head of the briefing drawer's sections, for
  * a signed-in pilot. Spring's own endpoints are mocked, so the pilot is
- * one with no aeroplanes and a known list of flights; the planner and
+ * one with no airplanes and a known list of flights; the planner and
  * its nav log are real.
  */
 

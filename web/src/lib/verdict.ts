@@ -73,7 +73,7 @@ export interface VerdictInput {
   };
   runways: {
     pending: boolean;
-    /** Not worked out: no POH tables for this aeroplane. */
+    /** Not worked out: no POH tables for this airplane. */
     worked: boolean;
     short: string[];
     crosswind: string[];
@@ -145,7 +145,7 @@ export function verdictItems(input: VerdictInput): VerdictItem[] {
 
   items.push({
     key: "runways", label: "Runways", tab: "performance", section: "Takeoff & Landing",
-    ...(!runways.worked ? { finding: "unknown", detail: "Not worked out for this aeroplane" }
+    ...(!runways.worked ? { finding: "unknown", detail: "Not worked out for this airplane" }
       : runways.pending ? { finding: "pending", detail: "Waiting on the runways and the weather…" }
         : runways.short.length ? { finding: "stop", detail: `Too short at ${runways.short.join(", ")}` }
           : runways.crosswind.length ? { finding: "caution", detail: `Crosswind past the POH's demonstrated at ${runways.crosswind.join(", ")}` }
@@ -154,8 +154,8 @@ export function verdictItems(input: VerdictInput): VerdictItem[] {
 
   items.push({
     key: "balance", label: "Weight & balance", tab: "performance", section: "Weight & Balance",
-    ...(balance.pending ? { finding: "pending", detail: "Waiting on the aeroplane's profile…" }
-      : !balance.worked ? { finding: "unknown", detail: "Not worked out for this aeroplane" }
+    ...(balance.pending ? { finding: "pending", detail: "Waiting on the airplane's profile…" }
+      : !balance.worked ? { finding: "unknown", detail: "Not worked out for this airplane" }
       : balance.problems.length ? { finding: "stop", detail: balance.problems[0]! }
         : { finding: "ok", detail: balance.takeoff ? `${balance.takeoff}, within limits` : "Within limits" }),
   });

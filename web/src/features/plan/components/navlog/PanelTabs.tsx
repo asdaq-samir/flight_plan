@@ -8,7 +8,7 @@ import { GoToTab, type PanelTab } from "./panelTab";
 
 /** The panel's tabs, in the pilot's order: the Nav Log (the route's
  *  profile under it: the same legs from the side), the Brief, the Weather,
- *  the aeroplane's Performance and the Airports -- each an icon over its
+ *  the airplane's Performance and the Airports -- each an icon over its
  *  word, as iOS's tab bar draws one, so all five fit a phone's line at any
  *  text size, where six words did not at the pilot's. */
 const TABS: { value: PanelTab; label: string; icon: ReactNode }[] = [

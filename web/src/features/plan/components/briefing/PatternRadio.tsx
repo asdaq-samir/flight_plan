@@ -132,7 +132,7 @@ function PatternRows({ phase, facilities, courseDeg }: { phase: RadioPhase; faci
           title="Pattern altitude"
           description={pattern.published
             ? `${altFt(pattern.agl_ft)} ft above the field, as the FAA publishes it`
-            : `${altFt(pattern.agl_ft)} ft above the field: none published, so AC 90-66C's for a propeller aeroplane`}
+            : `${altFt(pattern.agl_ft)} ft above the field: none published, so AC 90-66C's for a propeller airplane`}
           value={pattern.altitude_ft != null ? `${altFt(pattern.altitude_ft)} ft` : undefined}
           data-testid="pattern-altitude"
         />

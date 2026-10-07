@@ -40,11 +40,11 @@ function NumberField({ value, onChange, unit, label, testId }: {
 }
 
 /**
- * Weight and balance, as its POH's loading graph does it: the aeroplane's
+ * Weight and balance, as its POH's loading graph does it: the airplane's
  * empty weight and arm, each station's load and the fuel, and the
  * weight and centre of gravity at takeoff and at landing -- the trip's
  * fuel burned -- against the most it may weigh and its envelope. For an
- * aeroplane whose profile has its POH's loading (the 172S's).
+ * airplane whose profile has its POH's loading (the 172S's).
  */
 export function WeightBalanceSection({ aircraft, tripFuelGal }: { aircraft: AircraftProfile | null | undefined; tripFuelGal: number | null }) {
   const { loading, load, result, setLoad } = useLoad(aircraft, tripFuelGal);
@@ -62,11 +62,11 @@ export function WeightBalanceSection({ aircraft, tripFuelGal }: { aircraft: Airc
     >
       {!loading || !load || !result ? (
         <p className={cn("text-muted-foreground", TEXT.prose)}>
-          The weight and balance is worked out for an aeroplane whose loading is built in: the Cessna 172S, from its POH.
+          The weight and balance is worked out for an airplane whose loading is built in: the Cessna 172S, from its POH.
         </p>
       ) : (
         <div className="space-y-4" data-testid="weight-balance">
-          <ListGroup title="The aeroplane" footer="From its own weight and balance record; the POH's sample aeroplane until set.">
+          <ListGroup title="The airplane" footer="From its own weight and balance record; the POH's sample airplane until set.">
             <ListRow title="Empty weight">
               <NumberField value={load.emptyWeightLb} unit="lb" label="Empty weight" onChange={n => setLoad({ ...load, emptyWeightLb: n })} testId="wb-empty-weight" />
             </ListRow>
@@ -124,7 +124,7 @@ function RunwayBar({ distance, lengthFt }: { distance: RunwayDistance; lengthFt:
  * (lib/runwayCheck): the runway the wind favours, the POH's short-field
  * distances on it at the field's pressure altitude and temperature, the
  * weight from Weight & Balance and the reported wind -- drawn against the
- * runway's length -- then the density altitude the aeroplane performs at,
+ * runway's length -- then the density altitude the airplane performs at,
  * and the wind across the runway against the most the POH demonstrates.
  * First on the Performance tab: whether the runways will do is what is
  * read there first, and the loading under it is what changes the answer.
@@ -161,7 +161,7 @@ export function TakeoffLandingSection({ aircraft, briefing, course, landing: lan
       ) : undefined}
     >
       {!takeoffTable || !landingTable ? (
-        <p className={cn("text-muted-foreground", TEXT.prose)}>The takeoff and landing distances are worked out for an aeroplane whose POH tables are built in: the Cessna 172S.</p>
+        <p className={cn("text-muted-foreground", TEXT.prose)}>The takeoff and landing distances are worked out for an airplane whose POH tables are built in: the Cessna 172S.</p>
       ) : !briefing ? (
         <p className="text-muted-foreground" role="status">Waiting on the runways and the weather at each field…</p>
       ) : (

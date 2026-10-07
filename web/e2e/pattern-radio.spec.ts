@@ -36,7 +36,7 @@ test("each field's pattern for the runway into the wind, and its calls in order"
   // the north, so the way in is over the field.
   await expect(phases.nth(1).getByTestId("pattern-entry")).toContainText("cross midfield 500 ft above pattern altitude");
 
-  // A stock aeroplane has no registration: the call sign says so.
+  // A stock airplane has no registration: the call sign says so.
   const leaving = phases.nth(0).getByTestId("radio-call");
   await expect(leaving.filter({ hasText: "taxiing to runway" })).toContainText("[your registration]");
   await expect(phases.nth(1).getByTestId("radio-call").filter({ hasText: "Duluth Tower," })).toContainText("landing.");

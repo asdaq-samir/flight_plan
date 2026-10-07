@@ -2,7 +2,7 @@
  * When the flight passes a point along its route, and whether a TFR or a
  * special-use area is in force then (the roadmap's 4-D airspace check):
  * the briefing lists what is near the route at any time during the
- * flight, and this says whether it is at the time the aeroplane gets
+ * flight, and this says whether it is at the time the airplane gets
  * there.
  */
 import type { Leg } from "./api/types";

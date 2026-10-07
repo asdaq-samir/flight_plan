@@ -13,6 +13,48 @@ const INTENSITY: Record<string, string> = {
 };
 const intensity = (code: string) => INTENSITY[code.toUpperCase()] ?? code.toLowerCase();
 
+/** What the FAA's own capitalised text keeps in capitals once it is set
+ *  in sentence case: the codes a pilot reads as written -- the services
+ *  and the airspace, the references, and the weather contractions of a
+ *  G-AIRMET's or SIGMET's "due to" (CIG BLW 010 VIS BLW 3SM BR FG). */
+const CODES = new Set([
+  "NOTAM", "TFR", "MOA", "ATC", "ATCAA", "ARTCC", "FAA", "FSS", "DOD", "US", "USA",
+  "VFR", "IFR", "MVFR", "LIFR", "AGL", "MSL", "SFC", "UTC", "FL", "NM", "SM",
+  "AIRMET", "SIGMET", "PIREP", "METAR", "TAF", "LLWS", "ICG", "TURB",
+  "CIG", "BLW", "VIS", "BR", "FG", "HZ", "FU", "DU", "SA", "RA", "SN", "DZ", "TS", "PCPN", "MTN", "MTNS", "OBSC", "OBSCN",
+  "CLDS", "BKN", "OVC", "SCT", "FEW", "N", "S", "E", "W", "NE", "NW", "SE", "SW",
+]);
+const DAYS: Record<string, string> = { MON: "Mon", TUE: "Tue", WED: "Wed", THU: "Thu", FRI: "Fri", SAT: "Sat", SUN: "Sun" };
+
+/**
+ * The FAA's capitalised text -- a special-use area's times of use, a
+ * G-AIRMET's cause, a TFR's purpose -- in sentence case, its codes kept:
+ * "INTERMITTENT BY NOTAM 4 HOURS IN ADVANCE" reads "Intermittent by
+ * NOTAM 4 hours in advance". A word with a figure in it (20KTS, FL180,
+ * 0700) is a code too. Text with any lower case is someone's own writing
+ * and is left as it is, and so are raw reports, which pilots read as
+ * sent.
+ */
+export function faaWords(text: string | null | undefined): string {
+  if (!text) return "";
+  if (/[a-z]/.test(text)) return text;
+  const words = text.replace(/[A-Z0-9]+/g, word => {
+    if (/\d/.test(word) || CODES.has(word)) return word;
+    if (word === "NOTAMS") return "NOTAMs";
+    return DAYS[word] ?? word.toLowerCase();
+  });
+  // A sentence's first letter, and after a full stop.
+  return words.replace(/(^|[.!?]\s+)([a-z])/g, (_, before: string, letter: string) => before + letter.toUpperCase());
+}
+
+/** A SIGMET's hazard in words: "Convective", "Mountain obscuration". */
+const SIGMET_HAZARDS: Record<string, string> = {
+  CONVECTIVE: "Convective", TURB: "Turbulence", ICE: "Icing", IFR: "IFR", "MTN OBSCN": "Mountain obscuration",
+  ASH: "Volcanic ash", TS: "Thunderstorms", DS: "Dust storm", SS: "Sandstorm",
+};
+export const sigmetHazard = (hazard: string | null | undefined, kind?: string | null) =>
+  (hazard && (SIGMET_HAZARDS[hazard.toUpperCase()] ?? faaWords(hazard))) || kind || "Hazard";
+
 /** A G-AIRMET's hazard and how bad: "Icing, moderate". */
 export function gairmetTitle(g: GAirmet): string {
   return g.severity ? `${g.hazard}, ${intensity(g.severity)}` : g.hazard;

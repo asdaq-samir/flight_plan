@@ -42,7 +42,7 @@ export interface Workings {
 }
 
 /** A leg worked out, or null for one that cannot be (no wind is a calm
- *  leg; a wind faster than the aeroplane, no leg at all). */
+ *  leg; a wind faster than the airplane, no leg at all). */
 export function workingsOf(leg: Leg): Workings | null {
   if (leg.groundspeed_kt == null || leg.groundspeed_kt <= 0 || leg.ete_min == null || leg.fuel_gal == null) return null;
   const tc = leg.true_course_deg;

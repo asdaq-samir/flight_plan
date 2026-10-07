@@ -41,7 +41,7 @@ export const SELF_CHECKS: (RiskFactor & { group: string })[] = [
   { key: "eating", group: "You", label: "Hungry or thirsty", why: "IMSAFE: eating", points: 1 },
   { key: "pressure", group: "The day", label: "Somewhere to be by a time, or people counting on it", why: "PAVE: external pressures", points: 3 },
   { key: "unfamiliar", group: "The day", label: "A field or a route new to you", why: "PAVE: environment", points: 2 },
-  { key: "rusty", group: "The day", label: "Not flown this aeroplane in 30 days", why: "PAVE: aircraft", points: 3 },
+  { key: "rusty", group: "The day", label: "Not flown this airplane in 30 days", why: "PAVE: aircraft", points: 3 },
 ];
 
 /** At these points the assessment is amber, and at these red. */

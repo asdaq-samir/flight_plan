@@ -36,7 +36,7 @@ test("plan page: the flight planning drawer opens the way the Model Training dra
   else expect(Math.round(box!.width)).toBe(viewport.width);
 
   // The panel's controls are the two inputs the log is computed from
-  // -- the aeroplane and the departure time -- and nothing else of the
+  // -- the airplane and the departure time -- and nothing else of the
   // log's: neither is inside a section.
   await expect(drawer.getByTestId("aircraft-select")).toBeVisible();
   await expect(drawer.getByTestId("depart-date")).toBeVisible();
@@ -58,7 +58,7 @@ test("plan page: the flight planning drawer opens the way the Model Training dra
   await expect(drawer.getByRole("tab", { name: "Nav Log" })).toHaveAttribute("aria-selected", "true");
   await expect(drawer.getByRole("table", { name: /Navigation log from/i })).toBeVisible();
   await expect(drawer.locator('[role="tabpanel"] [data-testid="generate-descriptions-button"]')).toBeVisible();
-  // The altitude, its chip beside the aeroplane, once the log has
+  // The altitude, its chip beside the airplane, once the log has
   // streamed in.
   await expect(drawer.getByTestId("altitude-why")).toHaveAccessibleName(/FL\d{3}/, { timeout: slow(60000) });
   await expect(drawer.locator('[data-slot="section-summary"]').first()).toContainText(/\d nm/, { timeout: slow(60000) });
@@ -73,7 +73,7 @@ test("plan page: the flight planning drawer opens the way the Model Training dra
   await expect(page.locator("header").getByTestId("settings-button")).toBeVisible();
 
   // The panel's actions, Save, Share and Print, round buttons at the end
-  // of the aeroplane's, the altitude's and the time's line under the
+  // of the airplane's, the altitude's and the time's line under the
   // route: the route's box has the top row to itself.
   const [saveBox, shareBox, printBox] = await Promise.all(["save-flight-button", "share-route", "print-button"]
     .map(async id => (await drawer.getByTestId(id).boundingBox())!));
@@ -98,7 +98,7 @@ test("plan page: the briefing ends on its 'planning aid only' reminder, with the
 
   // One nav log, its tab up as the panel opens, and the briefing in the
   // other tabs. No "Flight Plan Summary": the nav log's line carries the
-  // totals, its chip beside the aeroplane the altitude.
+  // totals, its chip beside the airplane the altitude.
   const drawer = sideDrawer(page);
   const navLog = drawer.locator("table");
   await expect(drawer.getByRole("table", { name: /Navigation log from/i })).toBeVisible();

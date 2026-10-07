@@ -47,7 +47,7 @@ function Blank({ label, wide = false }: { label: string; wide?: boolean }) {
 
 /**
  * The kneeboard card (the roadmap's kneeboard PDF): the flight on one
- * half-letter page to fly with -- the route, the aeroplane and the totals;
+ * half-letter page to fly with -- the route, the airplane and the totals;
  * the nav log's legs, heading, distance, ground speed, time, fuel and ETA,
  * with ATA and fuel left to fill in; each field's radio and pattern, with
  * a line to copy its ATIS; and the special-use areas the route crosses.

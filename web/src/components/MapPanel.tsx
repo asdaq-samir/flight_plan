@@ -16,7 +16,7 @@ interface Props {
   /** The row over everything, always in sight: the route and the
    *  workspace's actions. */
   top: ReactNode;
-  /** The row under it, in sight at rest too: the aeroplane and the
+  /** The row under it, in sight at rest too: the airplane and the
    *  departure time, the rating's progress. */
   controls?: ReactNode;
   /** A notice about the route (not collected yet, an airport to
@@ -58,7 +58,7 @@ const between = (from: number, to: number, t: number) => from + (to - from) * t;
 
 /**
  * The page's one panel over the map, the way Maps on an iPhone has one:
- * the route and the workspace's actions always in sight, the aeroplane
+ * the route and the workspace's actions always in sight, the airplane
  * and the departure time (or the rating's progress) under them, and the
  * workspace's own content -- the nav log and the briefing, the training
  * list -- under those. It took the place of the header and the drawer at

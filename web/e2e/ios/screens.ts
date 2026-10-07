@@ -152,7 +152,7 @@ export const SCREENS: Screen[] = [
   },
   {
     // The route's box of pills -- an airport landed at and a waypoint
-    // flown through -- and the aeroplane, the time and the actions under it.
+    // flown through -- and the airplane, the time and the actions under it.
     name: "route box with stops",
     ready: async page => {
       await page.route(url => /\/(checkpoints|navlog|briefing)$/.test(url.pathname) && url.searchParams.get("stops") === "VPBNG,KMSN",

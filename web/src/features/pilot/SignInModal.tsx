@@ -67,7 +67,7 @@ export default function SignInModal() {
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Sign in to Wingtip Maps</DialogTitle>
-          <DialogDescription>Save your aeroplanes and filed flights to your own account.</DialogDescription>
+          <DialogDescription>Save your airplanes and filed flights to your own account.</DialogDescription>
         </DialogHeader>
         {providers.length > 0 && (
           <>

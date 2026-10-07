@@ -27,7 +27,7 @@ export interface Clearance {
   assignedFt: number | null;
   expectedFt: number | null;
   /** The segment the expected altitude applies from ("expect 6,000 ten
-   *  minutes after departure" is from where the aeroplane is then): its
+   *  minutes after departure" is from where the airplane is then): its
    *  index; before it, only the assigned and the minimum count. */
   expectedFrom: number;
 }

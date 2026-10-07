@@ -3,7 +3,7 @@ import { api } from "../../lib/api/client";
 import { pilotQuery } from "../../lib/queryClient";
 
 /** Logging out: the session ended on the server, then the pilot and
- *  everything that was theirs (their aeroplanes, their flights)
+ *  everything that was theirs (their airplanes, their flights)
  *  dropped from the cache, so the consoles read signed-out at once. */
 export function useLogout() {
   const queryClient = useQueryClient();

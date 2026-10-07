@@ -3,7 +3,7 @@ import { slow, settle, sideDrawer, expectDrawerOpen, openTab, openPanel } from "
 
 /**
  * What the nav log is computed from: the altitude plans and a pilot's
- * own altitude, a departure time's winds and ETAs, and the aeroplane
+ * own altitude, a departure time's winds and ETAs, and the airplane
  * picked in the drawer's header.
  */
 
@@ -18,7 +18,7 @@ test("plan page: the nav log's altitude opens the planner's own reasoning, and t
   // The sections start closed: the altitude is in the nav log's own.
   await openTab(page, "Nav Log");
   // The cruising altitude arrives with the nav log stream, after the
-  // checkpoints: its chip beside the aeroplane, named with the figure as a
+  // checkpoints: its chip beside the airplane, named with the figure as a
   // flight level. The figure alone: which plan it is shows as the pressed
   // row in the popover, not as a word after every altitude.
   const why = page.getByTestId("altitude-why");
@@ -151,7 +151,7 @@ test("plan page: a departure time gives every checkpoint an ETA, and the nav log
   expect(noteBox.y).toBeGreaterThanOrEqual(tableBox.y + tableBox.height);
 });
 
-test("plan page: the nav log is computed for an aeroplane the pilot picks in its own header", async ({ page }) => {
+test("plan page: the nav log is computed for an airplane the pilot picks in its own header", async ({ page }) => {
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
   await page.getByTestId("sidebar-trigger-button").click();
@@ -161,7 +161,7 @@ test("plan page: the nav log is computed for an aeroplane the pilot picks in its
   await picker.click();
   await page.getByRole("option", { name: /PA28/ }).click();
   await expect(picker).toContainText("PA28");
-  // Remembered per browser: the same aeroplane with the plan opened
+  // Remembered per browser: the same airplane with the plan opened
   // again from its address -- on which the drawer is already open, since
   // the address kept it. (A reload forgets the route: lib/freshLoad.)
   await page.goto(page.url());

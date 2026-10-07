@@ -1,6 +1,6 @@
 /**
  * Holding-pattern entries and wind (the roadmap's holding visualiser, ACS
- * IR.III.B), as AIM 5-3-8 gives them: the entry from the aeroplane's
+ * IR.III.B), as AIM 5-3-8 gives them: the entry from the airplane's
  * heading to the fix against the holding course -- direct from the 180°
  * sector, teardrop from the 70° one on the non-holding side beyond the
  * fix, parallel from the 110° one on the holding side -- the 70° line
@@ -22,7 +22,7 @@ const apart = (a: number, b: number) => {
 };
 
 /**
- * The entry for an aeroplane heading `headingDeg` to the fix of a hold on
+ * The entry for an airplane heading `headingDeg` to the fix of a hold on
  * `inboundDeg` with `turns`: by AIM 5-3-8's sectors, the heading against
  * the inbound course -- for right turns, direct within 110° right to 70°
  * left of it, teardrop beyond 110° right to the reciprocal, parallel
@@ -38,7 +38,7 @@ export function holdingEntry(inboundDeg: number, headingDeg: number, turns: Turn
   return { entry, either: near ? (near[1] === entry ? near[2] : near[1]) : null };
 }
 
-/** The bearing from the fix the aeroplane comes from, against the inbound
+/** The bearing from the fix the airplane comes from, against the inbound
  *  course, for drawing: where it is on the page round the fix. */
 export function approachRelative(inboundDeg: number, headingDeg: number): number {
   return norm(headingDeg + 180 - inboundDeg);
@@ -60,7 +60,7 @@ export interface HoldingWind {
 
 /** The legs flown in a wind from `windFromDeg` at `windKt` at `tasKt`, the
  *  courses and the wind in the same reference (magnetic, as a clearance
- *  gives the course). Null where the wind is stronger than the aeroplane. */
+ *  gives the course). Null where the wind is stronger than the airplane. */
 export function holdingWind(inboundDeg: number, tasKt: number, windFromDeg: number, windKt: number, altitudeFt: number): HoldingWind | null {
   const legMin = altitudeFt > 14_000 ? 1.5 : 1;
   const outboundDeg = norm(inboundDeg + 180);

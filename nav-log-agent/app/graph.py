@@ -41,9 +41,9 @@ class NavLogState(TypedDict, total=False):
     departure_ident: str
     destination_ident: str
     altitude_ft: float  # optional input override; the planner's own choice if omitted
-    aircraft_name: str  # optional; the planner's default aeroplane if omitted
+    aircraft_name: str  # optional; the planner's default airplane if omitted
     # Optional, what the pilot planned with (see vfr.planner_client.plan):
-    # the departure time, the plan flown, and their own aeroplane's numbers.
+    # the departure time, the plan flown, and their own airplane's numbers.
     depart: str
     altitude_choice: str
     cruise_tas_kt: float

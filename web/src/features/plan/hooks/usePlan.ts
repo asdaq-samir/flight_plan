@@ -17,7 +17,7 @@ import { useNarratives } from "./useNarratives";
  * are chart-reading and a model inference over a fixed corridor --
  * the same answer today as an hour ago -- and are kept for the
  * session; the nav log is live winds and streams in leg by leg, keyed
- * on the aeroplane, the altitude and the departure time as well. The
+ * on the airplane, the altitude and the departure time as well. The
  * briefing, the checkpoint descriptions and the two narratives are
  * asked for when a pilot opens or clicks for them. Every failure is
  * the query client's to report (queryClient.ts). A route had first to

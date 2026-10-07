@@ -33,7 +33,7 @@ function at(cx: number, cy: number, r: number, deg: number): [number, number] {
  * The hold drawn as a pilot pictures it: the inbound course up the page
  * to the fix, the racetrack on the holding side, the 70° line and the
  * holding course through the fix dividing the three sectors, the way the
- * aeroplane comes in, and the entry it flies, in the tint.
+ * airplane comes in, and the entry it flies, in the tint.
  */
 function HoldDiagram({ inbound, headingTo, turns, entry }: { inbound: number; headingTo: number; turns: Turns; entry: Entry }) {
   const side = turns === "right" ? 1 : -1;
@@ -106,7 +106,7 @@ function NumberRow({ id, title, value, onChange, unit, testId }: {
 
 /**
  * The holding page (ACS IR.III.B): a hold's inbound course and turns and
- * the heading the aeroplane arrives on, its entry by AIM 5-3-8 drawn and
+ * the heading the airplane arrives on, its entry by AIM 5-3-8 drawn and
  * said, and -- given a true airspeed and a wind -- the headings and the
  * outbound time that make the inbound leg a minute.
  */
@@ -166,7 +166,7 @@ export default function HoldingPage() {
           />
         </ListGroup>
       ) : (
-        <p className={cn("px-1 text-muted-foreground", TEXT.prose)}>A wind stronger than the aeroplane holds no heading.</p>
+        <p className={cn("px-1 text-muted-foreground", TEXT.prose)}>A wind stronger than the airplane holds no heading.</p>
       )}
     </div>
   );
