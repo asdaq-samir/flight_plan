@@ -73,12 +73,19 @@ def resolve(*idents: str) -> tuple:
 
 def resolve_stop(ident: str) -> dict:
     """A stop: an airport, landed at, or a named fix -- a VFR waypoint
-    (VPBNG), a GPS waypoint -- flown through (vfr.fixes); a 404 where
-    it is neither. A fix is in the shape an airport is, with no
-    elevation, and `fix` set. A present position (position_of) too."""
+    (VPBNG), a GPS waypoint, a navaid (RFD) -- flown through (vfr.fixes);
+    a 404 where it is neither. A fix is in the shape an airport is, with
+    no elevation, and `fix` set. A present position (position_of) too."""
     position = position_of(ident)
     if position is not None:
         return position
+    # A navaid before an airport of the same ident, as a flight plan reads
+    # one: "RFD" is the Rockford DME, flown over, and the airport is KRFD,
+    # written with its K. It was the airport, a hop of no length before
+    # KRFD where the pilot meant the DME 4.9 nm out (2026-10-07).
+    navaid = fixes.find_navaid(ident)
+    if navaid is not None:
+        return _fix_stop(navaid, fixes.title(navaid))
     try:
         return airports.get_airport(ident)
     except ValueError as err:
@@ -88,8 +95,11 @@ def resolve_stop(ident: str) -> dict:
         # Its kind and where it is: "VFR waypoint by Bangs Lake" -- a
         # stand-alone waypoint has no name of its own (vfr.places).
         where = places.describe(fix["lat"], fix["lon"])
-        return {"name": f"{fix['kind']} {where}" if where else fix["kind"], "lat": fix["lat"], "lon": fix["lon"],
-                "elevation_ft": None, "fix": True}
+        return _fix_stop(fix, f"{fix['kind']} {where}" if where else fix["kind"])
+
+
+def _fix_stop(fix: dict, name: str) -> dict:
+    return {"name": name, "lat": fix["lat"], "lon": fix["lon"], "elevation_ft": None, "fix": True}
 
 
 @dataclass(frozen=True)

@@ -3,7 +3,7 @@ flyable altitude selection and an NDJSON reader."""
 import json
 
 import pytest
-from vfr import airports, airspace, faa_data, model_client, pattern, publications, tfr, weather
+from vfr import airports, airspace, faa_data, fixes, model_client, pattern, publications, tfr, weather
 
 from app import chart_model, detection, planning, prefetch, scoring
 
@@ -45,6 +45,14 @@ def no_chart_model(monkeypatch):
     """No chart model promoted: model-service is not running here, and a
     test about the chart model's scores stubs this again itself."""
     monkeypatch.setattr(model_client, "score_detections", lambda rows: None)
+
+
+@pytest.fixture(autouse=True)
+def no_navaids(monkeypatch):
+    """No navaid by any ident, without NASR's NAV_BASE -- which a fresh
+    checkout does not have, and would download. A test about one stubs
+    find_navaid again itself."""
+    monkeypatch.setattr(fixes, "find_navaid", lambda ident: None)
 
 
 @pytest.fixture(autouse=True)

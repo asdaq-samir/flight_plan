@@ -7686,7 +7686,7 @@
     },
     "/api/airports/search": {
       "get": {
-        "description": "DEP/DEST's own autocomplete -- every airport whose ident or name\nstarts with `q`, for the route inputs to suggest as a pilot types.\nRuns against the same in-memory OurAirports table the real lookup\nuses, not a second data source that could drift from it. With\n`fixes`, a stop's: the named fixes whose ident starts with it too,\nafter the airports -- VFR waypoints first (vfr.fixes).",
+        "description": "DEP/DEST's own autocomplete -- every airport whose ident or name\nstarts with `q`, for the route inputs to suggest as a pilot types.\nRuns against the same in-memory OurAirports table the real lookup\nuses, not a second data source that could drift from it. With\n`fixes`, a stop's: the named fixes and navaids whose ident starts with\nit too, after the airports -- VFR waypoints first (vfr.fixes).",
         "operationId": "airport_search_api_airports_search_get",
         "parameters": [
           {

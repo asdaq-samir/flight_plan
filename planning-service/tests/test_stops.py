@@ -130,6 +130,33 @@ def test_a_stop_at_the_same_place_as_the_point_before_it_is_refused(monkeypatch)
     assert "MSN and KMSN are the same place" in response.json()["detail"]
 
 
+# The Rockford DME as NASR files it, and the airport RFD also names.
+RFD_DME = {"ident": "RFD", "lat": 42.2256, "lon": -89.1993, "kind": "DME", "vfr": False, "navaid": True,
+           "name": "Rockford", "freq": "110.8", "state": "IL"}
+
+
+@pytest.fixture
+def the_rockford_dme(monkeypatch):
+    """RFD both a navaid and an airport's own identifier, as Rockford's is."""
+    monkeypatch.setattr(fixes, "find_navaid", lambda ident: RFD_DME if ident.upper() == "RFD" else None)
+    monkeypatch.setattr(fixes, "search_fixes", lambda q, limit=5: [RFD_DME] if "RFD".startswith(q.upper()) else [])
+    monkeypatch.setattr(airports, "get_airport", lambda ident, **kw: airport({"RFD": "KMSN"}.get(ident.upper(), ident.upper())))
+
+
+def test_a_stop_named_for_a_navaid_flies_over_the_navaid_not_to_the_airport(the_rockford_dme):
+    course = client.get("/api/course", params={"dep": "C81", "dest": "KDLH", "stops": "RFD"}).json()
+    stop = course["stops"][0]
+    assert (stop["ident"], stop["kind"], stop["name"]) == ("RFD", "fix", "Rockford DME 110.8")
+    assert (stop["lat"], stop["lon"]) == (RFD_DME["lat"], RFD_DME["lon"])
+
+
+def test_a_stops_search_puts_the_navaid_typed_whole_first(the_rockford_dme, monkeypatch):
+    monkeypatch.setattr(airports, "search_airports", lambda q: [{**airport("KMSN"), "ident": "KRFD"}])
+    found = client.get("/api/airports/search", params={"q": "rfd", "fixes": True}).json()["airports"]
+    assert [(a["ident"], a.get("kind")) for a in found][:2] == [("RFD", "fix"), ("KRFD", "airport")]
+    assert found[0]["name"] == "Rockford DME 110.8"
+
+
 def test_no_checkpoint_is_kept_just_off_a_stop(monkeypatch):
     # The field is the fix there: a river a few cables past it is no use.
     near = {**CANDIDATES[0], "id": "river@near", "along_track_nm": 0.4, "predicted_score": 4.9}
