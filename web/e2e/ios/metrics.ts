@@ -414,6 +414,10 @@ export function contrastFindings(page: Page, scope = "body"): Promise<ContrastFi
       if (box.width < 2 || box.height < 2) continue;
       const cs = getComputedStyle(el);
       if (cs.visibility !== "visible") continue;
+      // Nor a word in a panel tab not up (PanelTabs' tab-away,
+      // content-visibility: hidden): it has a box, measured, but is not
+      // drawn, and its colours read as one -- 1:1, on CI's iPhone.
+      if (!el.checkVisibility()) continue;
       // Up to the first opaque background, every layer on the way, and
       // the opacity the word is drawn at.
       const layers: number[][] = [];
