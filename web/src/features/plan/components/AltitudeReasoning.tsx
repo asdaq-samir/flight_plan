@@ -215,7 +215,7 @@ export default function AltitudeReasoning({ nav, legs }: Props) {
       head: (
         <>
           Four plans
-          {nav.flown === "custom" ? `: flying ${altFt(nav.altitude_ft)} ft, your own` : nav.flown === null ? ": none flown" : chosen && `: flying the ${KIND_LABEL[chosen.kind].toLowerCase()}`}
+          {nav.flown === "custom" ? `: flying ${altFt(nav.altitude_ft)} ft, your own` : nav.flown === null ? ": none flown, the winds aloft could not be read" : chosen && `: flying the ${KIND_LABEL[chosen.kind].toLowerCase()}`}
         </>
       ),
       body: (
@@ -228,7 +228,6 @@ export default function AltitudeReasoning({ nav, legs }: Props) {
             + (o.tailwind_kt !== null ? `, ${Math.abs(Math.round(o.tailwind_kt))} kt ${o.tailwind_kt >= 0 ? "tailwind" : "headwind"} on average` : "")
             + "."
           )).join(" ")}
-          {nav.flown === null && " None is flown: the winds aloft could not be read."}
           {needOxygen.length > 0 && ` The ${join(needOxygen)} ${needOxygen.length === 1 ? "plan climbs" : "plans climb"} above the altitude where more than 30 minutes needs supplemental oxygen (14 CFR 91.211).`}
         </>
       ),
@@ -237,8 +236,10 @@ export default function AltitudeReasoning({ nav, legs }: Props) {
       // made: a route with no legal altitude on some leg ends in an error
       // instead, with no altitude message at all.
       key: "plans",
-      head: <>No plan</>,
-      body: <>The winds aloft could not be read, so no plan could be flown. Try again shortly.</>,
+      // Why, in the row itself: folded, the reason was the one thing a
+      // pilot had to open the step to learn.
+      head: <>No plan: the winds aloft could not be read</>,
+      body: <>No plan can be made or flown without them. Try again shortly.</>,
     },
     ...(cruiseInItsAir.length > 0 ? [{
       key: "performance",
