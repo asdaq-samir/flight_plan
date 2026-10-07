@@ -34,6 +34,8 @@ import { useNarratives } from "./useNarratives";
  *  route), its reasons, and what to do (app.planning.no_altitude). */
 export interface Unflyable {
   title: string;
+  /** All of it in a few words, for the one line under the route. */
+  brief: string;
   reasons: string[];
   advice: string | null;
   /** Class B airspace is what stops it: a clearance, or a waypoint to
@@ -153,7 +155,10 @@ export function usePlan(
   const unflyable = useMemo<Unflyable | null>(() => {
     const error = navlog.error;
     return error instanceof ApiError && error.advice !== null
-      ? { title: error.message, reasons: error.reasons, advice: error.advice, classB: error.classB, detours: error.detours } : null;
+      ? {
+        title: error.message, brief: error.brief ?? "No legal altitude", reasons: error.reasons, advice: error.advice,
+        classB: error.classB, detours: error.detours,
+      } : null;
   }, [navlog.error]);
   const stages = messages.filter(m => m.type === "stage");
   const navStage = navlog.isFetching ? (stages.at(-1) as { detail?: string } | undefined)?.detail ?? null : null;

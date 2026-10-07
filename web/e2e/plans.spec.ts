@@ -179,6 +179,7 @@ test("plan page: no legal altitude is the route's own problem: its chip says so 
       { type: "stage", detail: "Planning cruise altitudes…" },
       {
         type: "error", retry: false, detail: "No legal VFR cruising altitude 830-858 nm along the route",
+        brief: "Aircraft ceiling restricts mountainous flying",
         reasons: [
           "The terrain and obstacles there need 10,600 ft.",
           "The first westbound VFR altitude above that is 12,500 ft.",
@@ -201,6 +202,8 @@ test("plan page: no legal altitude is the route's own problem: its chip says so 
   // Its tap opens the panel: the cruising altitude's chip red, and no
   // line under the route.
   await chip.click();
+  // On the flight's line under the route, in a few words, in red.
+  await expect(sideDrawer(page).getByTestId("navlog-problem")).toHaveText("Aircraft ceiling restricts mountainous flying");
   const mark = page.getByTestId("altitude-why");
   await expect(mark).toHaveAccessibleName(/no legal altitude/);
   await expect(mark).toHaveText("FL---");

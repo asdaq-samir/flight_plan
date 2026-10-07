@@ -688,7 +688,7 @@ def navlog_stream(q: Annotated[PlanQuery, Depends()]) -> StreamingResponse:
 
     def lines():
         if q.checkpoints:
-            yield line(NavLogStage(detail="Reading the chart and choosing the checkpoints…"))
+            yield line(NavLogStage(detail="Choosing checkpoints…"))
             _, _, by_hop = route_checkpoints(r)
         else:
             by_hop = [[] for _ in r.hops]
@@ -696,7 +696,9 @@ def navlog_stream(q: Annotated[PlanQuery, Depends()]) -> StreamingResponse:
         profile = q.profile()
         runs = hop_runs(r, by_hop, q.depart, profile)
 
-        yield line(NavLogStage(detail="Planning cruise altitudes (airspace, obstacles, aircraft performance and winds)…"))
+        # Each stage's words short enough for the one line the panel gives
+        # them, at the pilot's ask: what is being worked on first.
+        yield line(NavLogStage(detail="Planning altitudes…"))
         # On side threads with a heartbeat, not inline: an uncached
         # selection on a bad aviationweather.gov day was observed
         # taking over two minutes, all of it silent -- and the webapp
@@ -718,7 +720,7 @@ def navlog_stream(q: Annotated[PlanQuery, Depends()]) -> StreamingResponse:
         try:
             futures = [altitude_pool.submit(resolve_run, run, profile, q) for run in runs]
             for run, future in zip(runs, futures):
-                where = f" {run.hop.dep_ident} → {run.hop.dest_ident}," if len(runs) > 1 else ""
+                where = f" {run.hop.dep_ident} → {run.hop.dest_ident}" if len(runs) > 1 else ""
                 waiting = _waited(future, HEARTBEAT_S, lambda run=run: _running_stages(run, q))
                 while True:
                     try:
@@ -728,10 +730,8 @@ def navlog_stream(q: Annotated[PlanQuery, Depends()]) -> StreamingResponse:
                         break
                     named = _waiting_on(run, q)
                     yield line(NavLogStage(detail=(
-                        f"Planning cruise altitudes ({where} {elapsed:.0f} s, waiting on {named})…".replace("( ", "(")
-                        if named
-                        else f"Planning cruise altitudes ({where} {elapsed:.0f} s, working out the winds for each plan)…"
-                        .replace("( ", "(")
+                        f"Altitudes{where}, {elapsed:.0f} s, waiting on {named}…" if named
+                        else f"Altitudes{where}, {elapsed:.0f} s, winds for each plan…"
                     )))
         finally:
             altitude_pool.shutdown(wait=False)
@@ -740,7 +740,7 @@ def navlog_stream(q: Annotated[PlanQuery, Depends()]) -> StreamingResponse:
         aircraft_line = {"name": q.aircraft, **profile}
         if isinstance(outcome, Unflyable):
             why, detours = unflyable_parts(outcome, runs)
-            yield line(NavLogError(detail=why["title"], reasons=why["reasons"], advice=why["advice"], retry=False,
+            yield line(NavLogError(detail=why["title"], brief=why["brief"], reasons=why["reasons"], advice=why["advice"], retry=False,
                                    class_b=why["class_b"], detours=detours))
             return
         if isinstance(outcome, NoWinds):

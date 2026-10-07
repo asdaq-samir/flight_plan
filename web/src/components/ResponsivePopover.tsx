@@ -53,7 +53,7 @@ export function ResponsivePopoverTrigger(props: ComponentProps<typeof PopoverTri
 }
 
 /** What the popover is placed against, where a trigger cannot be (a mark
- *  inside another button, TitleNote); a phone's sheet needs none. */
+ *  inside another button, the logbook's); a phone's sheet needs none. */
 export function ResponsivePopoverAnchor({ children, ...props }: ComponentProps<typeof PopoverAnchor>) {
   return useContext(OnPhone) ? <>{children}</> : <PopoverAnchor {...props}>{children}</PopoverAnchor>;
 }

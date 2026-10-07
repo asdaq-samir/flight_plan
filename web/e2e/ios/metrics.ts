@@ -95,6 +95,12 @@ export function hitAreaMisses(page: Page, scope = "body", size = 44): Promise<Hi
         for (let a = hit; a && a !== document.body; a = a.parentElement) if (getComputedStyle(a).position === "sticky") return !a.contains(el);
         return false;
       };
+      // A popover or a sheet open over the page covers what is under its
+      // edge, as iOS's do: a row half under it is covered, not crowded.
+      const over = (hit: Element | null) => {
+        const layer = hit?.closest('[data-slot="popover-content"], [data-slot="drawer-content"], [role="dialog"]');
+        return !!layer && !layer.contains(el);
+      };
       const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
       if (!own(document.elementFromPoint(cx, cy))) continue;
       let port = { l: 0, t: 0, r: innerWidth, b: innerHeight };
@@ -112,7 +118,7 @@ export function hitAreaMisses(page: Page, scope = "body", size = 44): Promise<Hi
       const takers: string[] = [];
       const lost = probes.filter(([dx, dy]) => {
         const hit = document.elementFromPoint(cx + dx * half, cy + dy * half);
-        const taken = !own(hit) && !toast(hit) && !pinned(hit);
+        const taken = !own(hit) && !toast(hit) && !pinned(hit) && !over(hit);
         if (taken && hit) takers.push(`${hit.tagName.toLowerCase()}${(hit as HTMLElement).dataset.testid ? `[${(hit as HTMLElement).dataset.testid}]` : ""} "${(hit.getAttribute("aria-label") ?? hit.textContent ?? "").trim().slice(0, 20)}"`);
         return taken;
       }).length;

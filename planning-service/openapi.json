@@ -4039,6 +4039,18 @@
             "default": null,
             "title": "Advice"
           },
+          "brief": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Brief"
+          },
           "class_b": {
             "default": false,
             "title": "Class B",

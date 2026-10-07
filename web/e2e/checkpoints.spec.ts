@@ -82,7 +82,9 @@ test("plan page: a checkpoint picked on the map is brought to the middle of the 
     return Math.abs((row.y + row.height / 2) - (view.y + view.height / 2)) / view.height;
   };
   // Within a quarter of the scroller's height of its middle.
-  await expect.poll(middle, { timeout: slow(5000) }).toBeLessThan(0.25);
+  // Once the drawer has come all the way up and stood still, which on a
+  // busy phone is more than a few seconds.
+  await expect.poll(middle, { timeout: slow(10000) }).toBeLessThan(0.25);
 
   // The row above it, in view beside it, clicked: selected, and
   // nothing moves. Clicked on its first cell, where a finger would: on

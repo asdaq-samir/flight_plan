@@ -1,6 +1,6 @@
 import { lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { FileArchive, FileDown, Link2, MapPinned, Printer, Send, Share, TowerControl, X } from "lucide-react";
+import { FileArchive, FileDown, Link2, MapPinned, Printer, Send, Share, X } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../../components/ui/dropdown-menu";
 import { foreflightRoute, fplOf, gpxOf, shareFile, type PlanPoint } from "../../lib/flightPlanFiles";
 import { markPackSent, openInForeFlight, packOrigin, packPath, packSent } from "../../lib/foreflightPack";
@@ -30,7 +30,6 @@ import IconButton from "../../components/IconButton";
 import { ConsoleButtonSlot } from "../../components/PanelCapsule";
 import { CHIP_TEXT, GLASS_BUTTON, ROUND_BUTTON } from "../../components/mapChrome";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/ui/select";
-import { Button } from "../../components/ui/button";
 import { RouteCapsule, SearchField, SearchResults } from "../../components/PanelCapsule";
 import { chipColourOf } from "../../lib/map/flightCategory";
 import RouteProblem from "./components/RouteProblem";
@@ -43,7 +42,6 @@ import AirspaceCard from "./components/AirspaceCard";
 import PlaceCard from "./components/PlaceCard";
 import RouteBox, { type RouteParts } from "./components/RouteBox";
 import type { PointAltitude } from "./components/PointAltitudeDialog";
-import TitleNote from "./components/navlog/TitleNote";
 import PrintMenu from "./components/navlog/PrintMenu";
 import BriefNarrative from "./components/briefing/BriefNarrative";
 import NavLogView from "./components/navlog/NavLogView";
@@ -585,8 +583,6 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // The flight planning drawer: the nav log as the first section, the
   // briefing's sections under it, the briefing's own actions in the
   // drawer's header.
-  const [tightOpen, setTightOpen] = useState(false);
-  const [classBOpen, setClassBOpen] = useState(false);
   // A leg where no 500 ft step fits and the planner flies the highest
   // whole hundred under its ceiling (vfr.altitude's tight altitude):
   // where, at what, and how little room there is either side.
@@ -650,40 +646,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       footer={<PlanningAidNote />}
       local={s.local}
       progress={panelOpen ? progress : null}
-      // No legal altitude is the cruising altitude's chip's, red
-      // (AltitudeButton): it was a mark here.
-      titleNote={s.unflyable ? undefined : (
-        <>
-          {tightLeg && (
-            <TitleNote
-              tone="warning" title="Tight altitude" open={tightOpen} onOpenChange={setTightOpen}
-              testId="tight-altitude-flag" contentTestId="tight-altitude"
-            >
-              {tightLeg}
-            </TitleNote>
-          )}
-          {/* Planned through Class B, at the pilot's word: a mark in the
-              tint that opens to what it means, and Undo. It was a line
-              across the panel under the route. */}
-          {classBClearance && (
-            <TitleNote
-              tone="info" icon={<TowerControl className="size-4 shrink-0" aria-hidden="true" />} label="Class B"
-              title="Planned through Class B" open={classBOpen} onOpenChange={setClassBOpen}
-              testId="class-b-accepted-flag" contentTestId="class-b-accepted"
-            >
-              <div className="space-y-3">
-                <p>Planned through Class B: you&apos;ll need a clearance to enter it.</p>
-                <Button
-                  type="button" size="sm" variant="outline"
-                  onClick={() => { setClassBOpen(false); acceptClassB(false); }}
-                >
-                  Undo
-                </Button>
-              </div>
-            </TitleNote>
-          )}
-        </>
-      )}
+      problem={s.unflyable?.brief}
     >
       {/* Off screen, for Print's Kneeboard card (a portal to the page's body). */}
       <Kneeboard
@@ -929,6 +892,11 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
                 />
               ) : undefined}
               ownAltitude={!s.unflyable?.classB}
+              // What the altitude was planned within, in its popover and
+              // marked on the chip, at the pilot's ask: they were marks beside
+              // the flight's line, where "Class B" took a line of its own.
+              tight={s.unflyable ? null : tightLeg}
+              classB={!s.unflyable && classBClearance ? () => acceptClassB(false) : null}
               alt={alt} onAltChange={setAlt} onSubmit={submit}
             />
           )}

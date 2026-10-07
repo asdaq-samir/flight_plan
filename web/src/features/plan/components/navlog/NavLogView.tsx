@@ -20,6 +20,8 @@ import {
 import type { Candidate, Leg, NavLogAltitude, Totals, TopOfClimb, TopOfDescent } from "../../../../lib/api/types";
 import { feet } from "../../../../lib/units";
 import { routeName } from "../../../../lib/identSchema";
+import { textWidth } from "../../../../lib/textWidth";
+import { useRoom } from "../../../../lib/useRoom";
 import { revealRow } from "../../../../lib/revealRow";
 import { TEXT } from "../../../../lib/text";
 import { type Description, descriptionKey } from "../../hooks/useCheckpointNotes";
@@ -120,9 +122,9 @@ interface Props {
   /** The drawer's last line, under every section (the planning-aid
    *  reminder). */
   footer?: ReactNode;
-  /** Beside the Nav Log's title, folded or open: a mark that opens to a
-   *  note (a tight altitude, no legal altitude: TitleNote). */
-  titleNote?: ReactNode;
+  /** What stops the plan, in a few words, said in red on the flight's line
+   *  in place of its figures (no legal altitude's brief). */
+  problem?: string | null;
   /** What is being worked on, with the panel out: said on the section's
    *  line, under its title, in place of the toast over the map. */
   progress?: string | null;
@@ -337,7 +339,7 @@ export default function NavLogView({
   totals, nav, depart,
   legs, dep, dest, ends,
   selected, descriptions, onSaveDescription,
-  onGenerateDescriptions, descriptionsLoading, tabContent, children, marks, notice, footer, titleNote, local = false, progress = null,
+  onGenerateDescriptions, descriptionsLoading, tabContent, children, marks, notice, footer, local = false, progress = null, problem = null,
   selectedPoint, onSelectPoint, onDeselectPoint, drawerOpen,
   aircraftLabel,
 }: Props) {
@@ -355,27 +357,30 @@ export default function NavLogView({
   // (3h 22m)", as the pilot asked -- from the departure time picked, or
   // from now while it is "Now", which is what the plan is flown for then.
   const arrival = totals?.ete_min != null ? etaAt(depart || new Date().toISOString(), totals.ete_min) : null;
-  const foldedSummary = parts && (
-    <span className="pointer-coarse:text-[0.8125rem] pointer-coarse:leading-[1.125rem]">
-      {(local ? [
-        ["Aloft", parts.time],
-        ["Back", arrival ?? "—"],
-        ["Fuel", parts.fuel],
-      ] as const : [
-        ["Dist", parts.distance],
-        ["ETA", arrival ? `${arrival} (${parts.time})` : parts.time],
-        ["Fuel", parts.fuel],
-      ] as const).map(([name, figure], i) => (
-        <Fragment key={name}>{i > 0 && " · "}<span className="whitespace-nowrap" data-testid={name === "ETA" ? "navlog-eta" : undefined}>{name} {figure}</span></Fragment>
-      ))}
-    </span>
-  );
+  // On one line, at the pilot's ask: the figures as they are while they
+  // fit, the distance and the fuel rounded to whole ones where they do not
+  // (a long trip's "2636.8 nm" and "187.9 gal"), and past that cut short.
+  const figures = (whole: boolean) => !parts || !totals ? null : (local ? [
+    ["Aloft", parts.time],
+    ["Back", arrival ?? "—"],
+    ["Fuel", whole && totals.fuel_gal !== null ? `${Math.round(totals.fuel_gal)} gal` : parts.fuel],
+  ] as const : [
+    ["Dist", whole ? `${Math.round(totals.distance_nm)} nm` : parts.distance],
+    ["ETA", arrival ? `${arrival} (${parts.time})` : parts.time],
+    ["Fuel", whole && totals.fuel_gal !== null ? `${Math.round(totals.fuel_gal)} gal` : parts.fuel],
+  ] as const);
+  const [summaryRoom, room] = useRoom<HTMLSpanElement>();
+  const exact = figures(false);
+  const whole = !!exact && !!room && (textWidth(exact.map(([n, f]) => `${n} ${f}`).join(" · "), room.font) ?? 0) > room.width;
+  const foldedSummary = exact && (figures(whole) ?? exact).map(([name, figure], i) => (
+    <Fragment key={name}>{i > 0 && " · "}<span data-testid={name === "ETA" ? "navlog-eta" : undefined}>{name} {figure}</span></Fragment>
+  ));
   // While something is worked on, the line says what, with a spinner:
   // the summary once it is done.
   const progressLine = progress && (
-    <span className="flex items-center gap-1.5 pointer-coarse:text-[0.8125rem] pointer-coarse:leading-[1.125rem]" role="status" data-testid="navlog-progress">
-      <Spinner className="size-3.5 shrink-0" role="presentation" aria-label={undefined} aria-hidden />
-      <span className="min-w-0">{progress}</span>
+    <span role="status" data-testid="navlog-progress">
+      <Spinner className="mr-1.5 inline size-3.5 align-[-0.125em]" role="presentation" aria-label={undefined} aria-hidden />
+      {progress}
     </span>
   );
   // Which tab is up: the nav log's to begin with -- the Brief's narrative
@@ -396,10 +401,10 @@ export default function NavLogView({
   // whole briefing whatever was up on screen: set in the browser's own
   // beforeprint event, flushed before it lays the page out, and put back
   // after.
-  // At half, the panel just tall enough for the tabs and the nav log's
-  // line under them (PanelHalfContext, exact), the chart above it, at the
-  // pilot's ask -- the rest a drag up. Measured, since the text size
-  // changes both; a line's height under the tabs on any other tab.
+  // At half, the panel just tall enough for the flight's line under the
+  // route (PanelHalfContext, exact), the chart above it, at the pilot's
+  // ask -- the tabs and the rest a drag up. Measured, since the text size
+  // changes it.
   const halfNeeds = useContext(PanelHalfContext);
   const [root, setRoot] = useState<HTMLDivElement | null>(null);
   useEffect(() => {
@@ -407,15 +412,10 @@ export default function NavLogView({
     const measure = () => {
       // Hidden under an airport's card (PlanWorkspace), the card says.
       if (!root.offsetParent) return;
-      const tabs = root.querySelector('[role="tablist"]');
-      const scroller = root.querySelector<HTMLElement>('[data-testid="navlog-scroller"]');
-      const line = root.querySelector('[data-half-line]');
-      if (!tabs || !scroller) return;
-      // The line's foot in the scroller's content, however far it is
-      // scrolled; on another tab, a line's height.
-      const below = line ? line.getBoundingClientRect().bottom - scroller.getBoundingClientRect().top + scroller.scrollTop
-        : 3 * parseFloat(getComputedStyle(document.documentElement).fontSize);
-      halfNeeds(Math.round(tabs.getBoundingClientRect().bottom - root.getBoundingClientRect().top + below), true);
+      // Down to the flight's line, the tabs and the log a drag up.
+      const line = root.querySelector("[data-half-line]");
+      if (!line) return;
+      halfNeeds(Math.round(line.getBoundingClientRect().bottom - root.getBoundingClientRect().top), true);
     };
     measure();
     const observer = new ResizeObserver(measure);
@@ -894,6 +894,18 @@ export default function NavLogView({
           {depart && ` · departing ${new Date(depart).toLocaleDateString([], { weekday: "short", day: "numeric", month: "short" })} ${clockTime(new Date(depart))}`}
         </div>
       </div>
+      {/* The flight in one line, over the tabs whichever is up, at the
+          pilot's ask: the distance, the arrival and the fuel (rounded to
+          fit, above), or what is being worked on, cut short past the
+          line's end. */}
+      <div className="flex shrink-0 items-center px-[max(1rem,env(safe-area-inset-left))] pb-2" data-half-line="">
+        <span
+          ref={summaryRoom} data-slot="section-summary"
+          className={cn(TEXT.prose, "min-w-0 flex-1 truncate text-muted-foreground pointer-coarse:text-[0.8125rem] pointer-coarse:leading-[1.125rem]")}
+        >
+          {progressLine ?? (problem ? <span className="text-red-700 dark:text-red-300" data-testid="navlog-problem">{problem}</span> : foldedSummary)}
+        </span>
+      </div>
       {/* The panel's tabs, at the pilot's ask: one thing at a time, where
           one accordion held every section, the nav log's first. The stock
           line tabs, as the consoles' (ConsoleTabs), over the scroller so
@@ -924,11 +936,8 @@ export default function NavLogView({
       <div
         // The bottom inset clears the home indicator on an installed
         // app, so the last section's content is not under it.
-        // `@container`: the summary line below keeps to one line from
-        // 18rem of this width -- a container query, so with the text
-        // set larger (the root font size up, the rem with it) the line
-        // wraps rather than running off the edge. `flight-briefing`:
-        // index.css's print rules lay every tab out on paper.
+        // `flight-briefing`: index.css's print rules lay every tab out on
+        // paper.
         className="flight-briefing @container min-h-0 flex-1 overflow-auto pr-4 pb-[env(safe-area-inset-bottom)] pl-[max(1rem,env(safe-area-inset-left))] print:h-auto print:overflow-visible print:pb-0"
         data-testid="navlog-scroller"
       >
@@ -938,14 +947,6 @@ export default function NavLogView({
             <TabsContent key={t} value={t} forceMount={printing || undefined} className="mt-0" data-testid={`panel-${t}`}>
               {t === "navlog" ? (
                 <section aria-label={local ? "Local Flight" : "Nav Log"} className={TEXT.prose}>
-                  {/* The section in one line, as its title's summary was: the
-                      distance, the arrival and the fuel, or what is being
-                      worked on; beside it a mark that opens to a note (a
-                      tight altitude, Class B accepted). */}
-                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1 py-3" data-half-line="">
-                    <span className={cn("text-muted-foreground", TEXT.prose)} data-slot="section-summary">{progressLine ?? foldedSummary}</span>
-                    {titleNote}
-                  </div>
                   {!local && summary}
                   {!local && navLogTable}
                   {fuelNote}

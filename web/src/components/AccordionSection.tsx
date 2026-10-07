@@ -18,7 +18,7 @@ import { SectionsOpen } from "./sectionLayout";
  *
  * The title, its aside and its summary are laid over the trigger, not
  * inside it (the trigger's `label`): an aside may be a control of its
- * own (the Nav Log's TitleNote), and inside the trigger it was a button
+ * own (a flag that opens a note), and inside the trigger it was a button
  * in a button, which a screen reader cannot reach. The trigger is still
  * the whole row's tap and is named by the title, the summary its
  * description.

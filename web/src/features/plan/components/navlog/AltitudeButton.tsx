@@ -80,7 +80,7 @@ function CustomAltitude({ alt, onAltChange, onSubmit, pressed }: {
  * open to the pilot's own: before the plans are in, and on a route with
  * no legal altitude (`unflyable`), an altitude typed is flown as typed.
  */
-export default function AltitudeButton({ nav, legs, problem, ownAltitude = true, onAltitudeChoiceChange, alt, onAltChange, onSubmit }: {
+export default function AltitudeButton({ nav, legs, problem, ownAltitude = true, tight = null, classB = null, onAltitudeChoiceChange, alt, onAltChange, onSubmit }: {
   nav: NavLogAltitude | null;
   legs: Leg[];
   /** No legal altitude on the route: where, why and the ways on
@@ -90,6 +90,12 @@ export default function AltitudeButton({ nav, legs, problem, ownAltitude = true,
   /** An altitude of the pilot's own is offered: not under a Class B to the
    *  ground, where there is none. */
   ownAltitude?: boolean;
+  /** A leg where no 500 ft step fits (vfr.altitude's tight altitude):
+   *  where, at what, and the room either side. An amber mark on the chip. */
+  tight?: string | null;
+  /** Planned through Class B at the pilot's word, and the way back: a
+   *  mark in the tint on the chip. */
+  classB?: (() => void) | null;
   /** Picks one of the four plans, which re-plans. */
   onAltitudeChoiceChange: (choice: AltitudeChoice) => void;
   /** The pilot's own cruise altitude, typed (the Custom row), and the
@@ -110,23 +116,37 @@ export default function AltitudeButton({ nav, legs, problem, ownAltitude = true,
         <Button
           variant="outline" size="sm"
           className={cn(
-            "rounded-full px-2.5 font-normal tabular-nums pointer-coarse:px-1.5", GLASS_BUTTON, CHIP_TEXT,
+            "gap-1 rounded-full px-2.5 font-normal tabular-nums pointer-coarse:px-1.5", GLASS_BUTTON, CHIP_TEXT,
             // Red with no legal altitude: the colour says it, where a mark
             // beside the figure cost the line its room -- a darker red in
             // the light and a lighter in the dark, 4.5:1 on the glass either
             // way. The dashes alone, with none yet.
             problem && "text-red-700 hover:text-red-700 dark:text-red-300 dark:hover:text-red-300",
           )}
-          aria-label={`Cruising altitude, ${why}: how it was chosen`}
+          aria-label={`Cruising altitude, ${why}${!problem && tight ? ", tight" : ""}${!problem && classB ? ", through Class B" : ""}: how it was chosen`}
           data-testid="altitude-why"
         >
           {flightLevel(problem ? null : cruise)}
+          {/* What the altitude was planned within, marked; its popover says. */}
+          {!problem && tight && <span className="size-1.5 rounded-full bg-amber-500" aria-hidden="true" data-testid="tight-altitude-flag" />}
+          {!problem && classB && <span className="size-1.5 rounded-full bg-tint" aria-hidden="true" data-testid="class-b-accepted-flag" />}
         </Button>
       </ResponsivePopoverTrigger>
       {/* On a phone a sheet from the header's edge: as a popover it was
           70% of the screen, scrolling inside. */}
       <ResponsivePopoverContent title={problem ? "No legal altitude" : "Cruising altitude"} align="start" className="w-80">
         {problem && <div className="mb-4">{problem(() => setOpen(false))}</div>}
+        {!problem && tight && (
+          <p className={cn("mb-3 rounded-lg bg-amber-500/12 p-2.5 text-amber-800 dark:text-amber-300", TEXT.detail)} data-testid="tight-altitude">
+            <span className="font-semibold">Tight altitude. </span>{tight}
+          </p>
+        )}
+        {!problem && classB && (
+          <div className={cn("mb-3 space-y-2 rounded-lg bg-tint/10 p-2.5", TEXT.detail)} data-testid="class-b-accepted">
+            <p>Planned through Class B: you&apos;ll need a clearance to enter it.</p>
+            <Button type="button" size="sm" variant="outline" onClick={() => { setOpen(false); classB(); }}>Undo</Button>
+          </div>
+        )}
         {/* The four plans first, each a button with its time and fuel: the
             pilot picks one and the log re-plans on it. Then why. */}
         {(nav?.options.length || ownAltitude) && (

@@ -1001,6 +1001,9 @@ class NavLogError(BaseModel):
     type: Literal["error"] = "error"
     detail: str
     retry: bool = True
+    #: The whole of it in a few words, for the one line under the route:
+    #: "Aircraft ceiling restricts mountainous flying".
+    brief: str | None = None
     reasons: list[str] = []
     advice: str | None = None
     #: Class B airspace is what leaves no altitude: the page offers to

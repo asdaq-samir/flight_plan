@@ -28,10 +28,10 @@ export class ApiError extends Error {
   /** `reasons` and `advice`: why, and what to do, where the server says
    *  (a nav log with no legal altitude), apart from the message;
    *  `classB`, Class B airspace is what stops it, and `detours` the
-   *  waypoints round it, best first. */
+   *  waypoints round it, best first; `brief`, all of it in a few words. */
   constructor(
     message: string, readonly status: number, readonly reasons: string[] = [], readonly advice: string | null = null,
-    readonly classB = false, readonly detours: Detour[] = [],
+    readonly classB = false, readonly detours: Detour[] = [], readonly brief: string | null = null,
   ) {
     super(message);
     this.name = "ApiError";
