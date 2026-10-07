@@ -449,3 +449,31 @@ def test_without_checkpoints_the_legs_run_point_to_point_and_nothing_is_scored(m
     assert [(leg["from"], leg["to"]) for leg in body["legs"]] == [("C81", "KDLH")]
     legs = [m for m in messages(client.get("/api/navlog", params=params)) if m["type"] == "leg"]
     assert [(leg["from"], leg["to"]) for leg in legs] == [("C81", "KDLH")]
+
+
+def test_an_altitude_the_pilot_set_is_checked_against_the_band_and_warned_not_refused():
+    """A pilot's own altitude is flown as set; what is wrong with it is
+    said, with the rule each breaks."""
+    from app import planning
+
+    band = {"floor_ft": 3200.0, "hemispheric_rule_from_ft": 3800.0, "eastbound": False, "airspace_ceiling_ft": 8000.0,
+            "service_ceiling_ft": 13000.0, "cloud_ceiling_ft": 7000.0}
+    selection = {"segments": [{**band, "from_nm": 0.0, "to_nm": 10.0}, {**band, "from_nm": 10.0, "to_nm": 20.0}]}
+    at = lambda ft: [{"altitude_ft": ft}, {"altitude_ft": ft}]  # noqa: E731
+
+    # Westbound at 4,500: even thousands plus 500, over the floor, under all.
+    assert planning.own_altitude_caution(selection, at(4500.0), ("C81", "VPBNG")) is None
+    # 5,500 westbound, above 3,000 ft over the ground: off the rule.
+    assert planning.own_altitude_caution(selection, at(5500.0), ("C81", "VPBNG")) == {
+        "from_ident": "C81", "to_ident": "VPBNG", "altitude_ft": 5500.0,
+        "reasons": ["Westbound above 3,800 ft flies even thousands plus 500 (14 CFR 91.159)"],
+    }
+    # Under the floor: under the rule too, so that alone.
+    assert planning.own_altitude_caution(selection, at(3000.0), ("C81", "VPBNG"))["reasons"] == [
+        "Under the 3,200 ft the terrain and obstacles need (14 CFR 91.119)",
+    ]
+    # Into the clouds' clearance and the Class B over it, each said once.
+    assert planning.own_altitude_caution(selection, at(8500.0), ("C81", "VPBNG"))["reasons"] == [
+        "Into Class B from 8,000 ft: it needs a clearance (14 CFR 91.131)",
+        "Inside the cloud clearance under 7,000 ft (14 CFR 91.155)",
+    ]

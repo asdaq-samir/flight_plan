@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from "react";
+import { TriangleAlert } from "lucide-react";
 import { cn } from "cn";
 import { Button } from "../../../../components/ui/button";
 import { Input } from "../../../../components/ui/input";
@@ -106,6 +107,7 @@ export default function AltitudeButton({ nav, legs, problem, ownAltitude = true,
 }) {
   const [open, setOpen] = useState(false);
   const cruise = cruiseOf(nav, legs);
+  const cautions = nav?.cautions ?? [];
   // When the winds could not be read, no altitude at all: it used to read
   // "0 ft · yours", with Custom pressed, for an altitude nobody typed.
   const why = problem ? "no legal altitude" : cruise !== null ? flightLevel(cruise)
@@ -123,12 +125,15 @@ export default function AltitudeButton({ nav, legs, problem, ownAltitude = true,
             // way. The dashes alone, with none yet.
             problem && "text-red-700 hover:text-red-700 dark:text-red-300 dark:hover:text-red-300",
           )}
-          aria-label={`Cruising altitude, ${why}${!problem && tight ? ", tight" : ""}${!problem && classB ? ", through Class B" : ""}: how it was chosen`}
+          aria-label={`Cruising altitude, ${why}${!problem && tight ? ", tight" : ""}${!problem && classB ? ", through Class B" : ""}${!problem && cautions.length ? ", your altitude has a caution" : ""}: how it was chosen`}
           data-testid="altitude-why"
         >
           {flightLevel(problem ? null : cruise)}
           {/* What the altitude was planned within, marked; its popover says. */}
           {!problem && tight && <span className="size-1.5 rounded-full bg-amber-500" aria-hidden="true" data-testid="tight-altitude-flag" />}
+          {!problem && cautions.length > 0 && (
+            <TriangleAlert className="size-3.5! text-amber-600 dark:text-amber-400" aria-hidden="true" data-testid="own-altitude-flag" />
+          )}
           {!problem && classB && <span className="size-1.5 rounded-full bg-tint" aria-hidden="true" data-testid="class-b-accepted-flag" />}
         </Button>
       </ResponsivePopoverTrigger>
@@ -136,6 +141,18 @@ export default function AltitudeButton({ nav, legs, problem, ownAltitude = true,
           70% of the screen, scrolling inside. */}
       <ResponsivePopoverContent title={problem ? "No legal altitude" : "Cruising altitude"} align="start" className="w-80">
         {problem && <div className="mb-4">{problem(() => setOpen(false))}</div>}
+        {/* An altitude the pilot set that the planner would not have flown,
+            and why, rule by rule: flown as set, never refused. */}
+        {!problem && cautions.length > 0 && (
+          <div className={cn("mb-3 space-y-1.5 rounded-lg bg-amber-500/12 p-2.5 text-amber-800 dark:text-amber-300", TEXT.detail)} data-testid="own-altitude-cautions">
+            {cautions.map(c => (
+              <div key={`${c.from_ident}-${c.to_ident}`}>
+                <p className="font-semibold">{flightLevel(c.altitude_ft)} {c.from_ident} → {c.to_ident}</p>
+                <ul className="list-disc pl-4">{c.reasons.map(r => <li key={r}>{r}</li>)}</ul>
+              </div>
+            ))}
+          </div>
+        )}
         {!problem && tight && (
           <p className={cn("mb-3 rounded-lg bg-amber-500/12 p-2.5 text-amber-800 dark:text-amber-300", TEXT.detail)} data-testid="tight-altitude">
             <span className="font-semibold">Tight altitude. </span>{tight}

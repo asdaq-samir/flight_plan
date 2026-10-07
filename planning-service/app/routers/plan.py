@@ -30,7 +30,7 @@ from ..common import DEFAULT_AIRCRAFT, Route, line, load_route, ndjson
 from ..planning import (
     COMPUTE_LIMIT_S, StillComputing, aircraft_profile, altitude_plans, altitude_waiting_on, class_b_detours,
     cruise_altitude, flight_totals, flight_window, forecast_hour_for, join_selections, no_altitude, no_altitude_detail,
-    route_line, route_totals,
+    own_altitude_caution, route_line, route_totals,
 )
 from ..schemas import (
     AltitudeChoice,
@@ -159,6 +159,9 @@ class Flown:
     altitude_ft: float
     legs: list
     by_hop: tuple = ()
+    #: For each hop flown at a pilot's own altitude, what is wrong with it
+    #: (own_altitude_caution).
+    cautions: tuple = ()
 
     @property
     def hop_legs(self) -> list:
@@ -212,7 +215,8 @@ def resolve_altitude(
             legs = navlog.with_climbs(navlog.legs(fix_list, altitude_ft, profile, fcst_hr), departure_elevation(r), profile)
         except WeatherServiceError as err:
             return NoWinds(selection, options, err)
-        return Flown(selection, options, None, altitude_ft, legs)
+        caution = own_altitude_caution(selection, legs, (r.dep_ident, r.dest_ident))
+        return Flown(selection, options, None, altitude_ft, legs, cautions=(caution,) if caution else ())
     if failure is not None:
         return NoWinds(selection, options, failure)
     if not plans:
@@ -325,6 +329,7 @@ def join_outcomes(runs: list[HopRun], outcomes: list) -> "Flown | Unflyable | No
     return Flown(
         selection, options, planned.choice, planned.altitude_ft,
         [leg for o in outcomes for leg in o.legs], tuple(o.legs for o in outcomes),
+        tuple(c for o in outcomes for c in o.cautions),
     )
 
 
@@ -640,6 +645,7 @@ def plan(q: Annotated[PlanQuery, Depends()]) -> Plan:
         altitude_selection=outcome.selection,
         altitude_options=outcome.options,
         altitude_choice=outcome.choice,
+        altitude_cautions=list(outcome.cautions),
         aircraft={"name": q.aircraft, **profile},
         **_chart_info(),
     )
@@ -781,6 +787,7 @@ def navlog_stream(q: Annotated[PlanQuery, Depends()]) -> StreamingResponse:
             altitude_selection=outcome.selection,
             options=outcome.options,
             aircraft=aircraft_line,
+            cautions=list(outcome.cautions),
         ))
         for leg in flown_legs(r, runs, outcome, own):
             yield line(NavLogLeg.model_validate(leg))

@@ -1142,6 +1142,38 @@
         "title": "AltitudeBreakdown",
         "type": "object"
       },
+      "AltitudeCaution": {
+        "description": "An altitude the pilot set for a hop (`from_ident` to `to_ident`) and\nwhat is wrong with it against the planner's band there\n(app.planning.own_altitude_caution): a warning, not a refusal.",
+        "properties": {
+          "altitude_ft": {
+            "title": "Altitude Ft",
+            "type": "number"
+          },
+          "from_ident": {
+            "title": "From Ident",
+            "type": "string"
+          },
+          "reasons": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Reasons",
+            "type": "array"
+          },
+          "to_ident": {
+            "title": "To Ident",
+            "type": "string"
+          }
+        },
+        "required": [
+          "from_ident",
+          "to_ident",
+          "altitude_ft",
+          "reasons"
+        ],
+        "title": "AltitudeCaution",
+        "type": "object"
+      },
       "AltitudeOption": {
         "description": "One of the four plans -- lowest, highest, fastest, economical --\nas its steps and what it costs. `ete_min` is the flying time with every climb\nflown (`climb_penalty_min` is how many of those minutes are climb),\nthe figure the plans are compared on; `tailwind_kt` the\ndistance-weighted wind component along the course, positive helping,\nover the legs that had wind data.",
         "properties": {
@@ -3961,6 +3993,14 @@
           "altitude_selection": {
             "$ref": "#/components/schemas/AltitudeBreakdown"
           },
+          "cautions": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/AltitudeCaution"
+            },
+            "title": "Cautions",
+            "type": "array"
+          },
           "flown": {
             "anyOf": [
               {
@@ -5281,6 +5321,14 @@
         "properties": {
           "aircraft": {
             "$ref": "#/components/schemas/AircraftProfile"
+          },
+          "altitude_cautions": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/AltitudeCaution"
+            },
+            "title": "Altitude Cautions",
+            "type": "array"
           },
           "altitude_choice": {
             "anyOf": [

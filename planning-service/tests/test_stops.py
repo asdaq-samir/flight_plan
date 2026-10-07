@@ -238,3 +238,15 @@ def test_a_points_altitude_that_is_not_one_is_refused(altitudes):
     params = {**VIA_MADISON, "altitudes": altitudes}
     assert client.get("/api/plan", params=params).status_code == 422
     assert client.get("/api/navlog", params=params).status_code == 422
+
+
+def test_a_waypoints_own_altitude_under_the_floor_is_flown_and_warned(a_vfr_waypoint):
+    # The stub's floor is 2,200 ft: 2,000 to VPBNG is under it.
+    body = client.get("/api/plan", params={"dep": "C81", "dest": "KDLH", "stops": "VPBNG", "altitudes": "VPBNG:2000"}).json()
+    assert {leg["altitude_ft"] for leg in body["legs"] if leg["to"] == "VPBNG"} == {2000.0}
+    assert body["altitude_cautions"] == [{
+        "from_ident": "C81", "to_ident": "VPBNG", "altitude_ft": 2000.0,
+        "reasons": ["Under the 2,200 ft the terrain and obstacles need (14 CFR 91.119)"],
+    }]
+    # The planner's own plans: nothing to say.
+    assert client.get("/api/plan", params={"dep": "C81", "dest": "KDLH", "stops": "VPBNG"}).json()["altitude_cautions"] == []

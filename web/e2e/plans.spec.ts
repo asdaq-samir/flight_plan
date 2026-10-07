@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { slow, settle, sideDrawer, expectDrawerOpen, openTab } from "./helpers";
+import { slow, settle, sideDrawer, expectDrawerOpen, openTab, openPanel } from "./helpers";
 
 /**
  * What the nav log is computed from: the altitude plans and a pilot's
@@ -327,4 +327,20 @@ test("plan page: no legal altitude's own altitude field takes a tap", async ({ p
   }, { timeout: 5000 }).toBe("custom-altitude");
   await field.click();
   await expect(field).toBeFocused();
+});
+
+test("plan page: an altitude of the pilot's own that breaks a rule is flown as set and warned, with the rule, on the FL chip", async ({ page }) => {
+  // C81 to KDLH is westbound: 5,500 ft, well over 3,000 ft above the
+  // ground, is an eastbound altitude (14 CFR 91.159).
+  await page.goto("/app/plan?dep=C81&dest=KDLH&altitude_ft=5500");
+  await settle(page);
+  await openPanel(page);
+  const chip = page.getByTestId("altitude-why");
+  await expect(chip).toHaveAccessibleName(/FL055.*caution/, { timeout: slow(60000) });
+  await expect(page.getByTestId("own-altitude-flag")).toBeVisible();
+  await chip.click();
+  const cautions = page.getByTestId("own-altitude-cautions");
+  await expect(cautions).toContainText("FL055 C81 → KDLH");
+  await expect(cautions).toContainText("Westbound above");
+  await expect(cautions).toContainText("(14 CFR 91.159)");
 });

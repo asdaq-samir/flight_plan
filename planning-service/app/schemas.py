@@ -349,6 +349,17 @@ class AltitudeSegment(BaseModel):
     tight: bool = False
 
 
+class AltitudeCaution(BaseModel):
+    """An altitude the pilot set for a hop (`from_ident` to `to_ident`) and
+    what is wrong with it against the planner's band there
+    (app.planning.own_altitude_caution): a warning, not a refusal."""
+
+    from_ident: str
+    to_ident: str
+    altitude_ft: float
+    reasons: list[str]
+
+
 class AltitudeBreakdown(BaseModel):
     """The full reasoning behind one recommended cruise altitude.
     `low_ceiling_or_visibility` is None, not False, when the forecast
@@ -542,6 +553,8 @@ class Plan(BaseModel):
     altitude_selection: AltitudeBreakdown | None
     altitude_options: list[AltitudeOption] = []
     altitude_choice: AltitudeChoice | None = None
+    #: As the nav log stream's (NavLogAltitude.cautions).
+    altitude_cautions: list[AltitudeCaution] = []
     aircraft: AircraftProfile
     max_zoom: int
     min_zoom: int
@@ -1033,6 +1046,9 @@ class NavLogAltitude(BaseModel):
     altitude_selection: AltitudeBreakdown
     options: list[AltitudeOption] = []
     aircraft: AircraftProfile
+    #: The altitudes the pilot set that the planner would not have flown,
+    #: and why (AltitudeCaution); none for the planner's own plans.
+    cautions: list[AltitudeCaution] = []
 
 
 class NavLogLeg(Leg):

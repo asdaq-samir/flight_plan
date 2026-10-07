@@ -675,7 +675,9 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   const ownAltitudes = altitudesOf(altitudes);
   const altitudeAt = (ident: string, waypoint: boolean): PointAltitude => {
     const planned = waypoint ? s.legs.find(leg => leg.to === ident)?.altitude_ft : routeAirport(ident)?.pattern_altitude_ft;
-    return { feet: ownAltitudes[ident] ?? planned ?? null, own: ident in ownAltitudes };
+    // A waypoint's own altitude, flown to it, as the planner found it.
+    const caution = waypoint ? s.nav?.cautions.find(c => c.to_ident === ident)?.reasons : undefined;
+    return { feet: ownAltitudes[ident] ?? planned ?? null, own: ident in ownAltitudes, caution };
   };
 
   // An airport's METAR colour, as its chip on the map: its flight category
