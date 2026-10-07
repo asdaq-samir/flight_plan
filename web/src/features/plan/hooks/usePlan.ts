@@ -221,7 +221,8 @@ export function usePlan(
   const eteMin = (local ? localMin : totals?.ete_min) ?? undefined;
   const briefing = useQuery({
     queryKey: ["briefing", dep, dest, via, depart, eteMin ?? null, load],
-    queryFn: () => api.briefing(dep, dest, depart || undefined, eteMin, stops),
+    // Given up when the route changes, as the checkpoints are (checkpointsQuery).
+    queryFn: ({ signal }) => api.briefing(dep, dest, depart || undefined, eteMin, stops, signal),
     // Not on the previous route's placeholder course once the route is
     // closed: asked for two empty idents, it toasted "Airport identifier
     // '' not found".

@@ -98,7 +98,7 @@ describe("useTraining", () => {
     const { result } = renderLabels();
     await loaded(result);
 
-    expect(mockCourse).toHaveBeenCalledWith("C81", "KDLH", []);
+    expect(mockCourse).toHaveBeenCalledWith("C81", "KDLH", [], expect.any(AbortSignal));
     expect(result.current.course?.departure.ident).toBe("C81");
     expect(result.current.endpoints).toHaveLength(2);
     expect(result.current.detections).toHaveLength(1);
