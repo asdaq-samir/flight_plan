@@ -1,7 +1,8 @@
-import { useId, type ComponentProps, type ReactNode } from "react";
+import { useContext, useId, type ComponentProps, type ReactNode } from "react";
 import { cn } from "cn";
 import { AccordionContent, AccordionItem, AccordionTrigger } from "./ui/accordion";
 import { TEXT } from "../lib/text";
+import { SectionsOpen } from "./sectionLayout";
 
 /**
  * One section of a folded list -- the flight planning drawer's, and
@@ -21,6 +22,10 @@ import { TEXT } from "../lib/text";
  * in a button, which a screen reader cannot reach. The trigger is still
  * the whole row's tap and is named by the title, the summary its
  * description.
+ *
+ * Inside the planning panel's tabs (SectionsOpen) a section is laid open
+ * instead -- its title, its aside and its content, no fold: a tab is one
+ * thing already, and a fold in it was a second tap to read it.
  */
 export default function AccordionSection({ title, description, aside, summary, children, ...props }: {
   title: string; description?: string;
@@ -34,6 +39,19 @@ export default function AccordionSection({ title, description, aside, summary, c
 } & Omit<ComponentProps<typeof AccordionItem>, "value" | "title">) {
   const titleId = useId();
   const summaryId = useId();
+  const laidOpen = useContext(SectionsOpen);
+  if (laidOpen) {
+    return (
+      <section aria-labelledby={titleId} className={cn("border-b py-4 last:border-b-0", TEXT.prose)} data-slot="open-section" data-title={title}>
+        <h3 className={cn("mb-2 flex flex-wrap items-center gap-x-2 gap-y-1 font-semibold", TEXT.row)}>
+          <span id={titleId}>{title}</span>
+          {aside}
+        </h3>
+        {description && <div className={cn("text-muted-foreground", TEXT.note)}>{description}</div>}
+        {children}
+      </section>
+    );
+  }
   return (
     <AccordionItem value={title} {...props}>
       {/* Bold, over the stock trigger's medium: a section title is what

@@ -29,7 +29,6 @@ import type { WorkspaceProps } from "../page/workspace";
 import IconButton from "../../components/IconButton";
 import { ConsoleButtonSlot } from "../../components/PanelCapsule";
 import { GLASS_BUTTON, ROUND_BUTTON } from "../../components/mapChrome";
-import ToolbarButton from "../../components/ToolbarButton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/ui/select";
 import { Button } from "../../components/ui/button";
 import { RouteCapsule, SearchField, SearchResults } from "../../components/PanelCapsule";
@@ -45,10 +44,12 @@ import PlaceCard from "./components/PlaceCard";
 import RouteBox, { type RouteParts } from "./components/RouteBox";
 import type { PointAltitude } from "./components/PointAltitudeDialog";
 import TitleNote from "./components/navlog/TitleNote";
-import NavLogActions from "./components/navlog/NavLogActions";
+import PrintMenu from "./components/navlog/PrintMenu";
+import BriefNarrative from "./components/briefing/BriefNarrative";
 import NavLogView from "./components/navlog/NavLogView";
 import RouteMap from "./components/RouteMap";
 import { usePlan } from "./hooks/usePlan";
+import { useRisk } from "../../lib/frat";
 
 /** A local flight's times aloft to choose from, in minutes: a menu, not a
  *  slider. */
@@ -597,6 +598,8 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   })() : null;
 
   const landedStops = (course?.stops ?? []).filter(stop => stop.kind !== "fix").map(stop => stop.ident);
+  const briefingData = s.briefing.state === "ready" ? s.briefing.data : null;
+  const riskLevel = useRisk(r => r.assessment?.level);
   const navLog = (
     <NavLogView
       totals={s.totals} nav={s.nav} legs={s.legs}
@@ -612,6 +615,33 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       onDeselectPoint={() => selectPoint(null)}
       drawerOpen={panelOpen}
       aircraftLabel={aircraft.label}
+      // A red mark on a tab whose part has a warning, as the sections'
+      // titles had when all were in one list: VFR not recommended (AIM
+      // 7-1-5) on the Weather, a TFR near the route or a raised risk on
+      // the Brief.
+      marks={{
+        weather: (briefingData?.vfr_not_recommended.length ?? 0) > 0,
+        brief: (briefingData?.tfrs.length ?? 0) > 0 || (!!riskLevel && riskLevel !== "low"),
+      }}
+      // Each tab's part of the briefing; the Brief's narrative first in its.
+      tabContent={part => (
+        <>
+          {part === "brief" && !s.local && (
+            <BriefNarrative
+              ready={!!s.totals} onGenerateNarrative={s.generateNarrative}
+              langgraphNarrative={s.langgraphNarrative} crewaiNarrative={s.crewaiNarrative}
+            />
+          )}
+          <FlightBriefingView
+            part={part} nav={s.nav} legs={s.legs}
+            dep={planned.dep} dest={planned.dest}
+            // The airports landed at: a waypoint has no weather of its own.
+            stops={landedStops}
+            briefing={s.briefing} course={course} totals={s.totals} depart={depart}
+            langgraphNarrative={s.langgraphNarrative} crewaiNarrative={s.crewaiNarrative}
+          />
+        </>
+      )}
       notice={<BriefingNotices briefing={s.briefing} />}
       footer={<PlanningAidNote />}
       local={s.local}
@@ -651,14 +681,6 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
         </>
       )}
     >
-      <FlightBriefingView
-        nav={s.nav} legs={s.legs}
-        dep={planned.dep} dest={planned.dest}
-        // The airports landed at: a waypoint has no weather of its own.
-        stops={landedStops}
-        briefing={s.briefing} course={course} totals={s.totals} depart={depart}
-        langgraphNarrative={s.langgraphNarrative} crewaiNarrative={s.crewaiNarrative}
-      />
       {/* Off screen, for Print's Kneeboard card (a portal to the page's body). */}
       <Kneeboard
         course={course} selected={selected} legs={s.legs} totals={s.totals} nav={s.nav}
@@ -725,18 +747,28 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     </>
   );
 
+  // Share, a round button of glass as the route's close and the
+  // console's are: at the capsule's start at rest, beside Save and Print
+  // with the panel out.
+  const shareMenu = (align: "start" | "end") => (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <IconButton label="Share this route" variant="secondary" className={`size-9 ${ROUND_BUTTON}`} data-testid="share-route">
+          <Share className="size-5" strokeWidth={2} />
+        </IconButton>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align={align} className="min-w-56">{shareItems}</DropdownMenuContent>
+    </DropdownMenu>
+  );
+
   const routeActions = (
     <>
       <SaveFlightButton
         course={course} totals={s.totals} nav={s.nav} legs={s.legs} selected={selected}
         aircraftId={aircraft.aircraftId ?? null} depart={depart}
       />
-      <NavLogActions
-        shareItems={shareItems}
-        onGenerateNarrative={s.generateNarrative}
-        langgraphNarrative={s.langgraphNarrative}
-        crewaiNarrative={s.crewaiNarrative}
-      />
+      {shareMenu("end")}
+      <PrintMenu />
     </>
   );
 
@@ -831,16 +863,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
         // and the time are in the panel, the sharing too, under More.
         warning={s.unflyable ? "No legal altitude" : undefined}
         onDetail={() => setPanel("half")}
-        leading={
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <IconButton label="Share this route" variant="secondary" className={ROUND_BUTTON} data-testid="share-route">
-                <Share className="size-5" strokeWidth={2} />
-              </IconButton>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="min-w-56">{shareItems}</DropdownMenuContent>
-          </DropdownMenu>
-        }
+        leading={shareMenu("start")}
       />
     ) : started ? undefined : searchField,
     // The route as one box of pills, in place of the two airport fields.
@@ -881,8 +904,8 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     // A local flight: how long aloft in place of the narrative, which is
     // written from legs it has none of.
     // On one line, at the pilot's ask: the aeroplane, the altitude and the
-    // time, four apart, and the actions at the end, their words' own width
-    // (each still a finger's 44 from index.css) -- at the reader's own text
+    // time, chips at a note's 13 (as Maps' route options are) four apart,
+    // and Save, Share and Print at the end -- at the reader's own text
     // size, which on the pilot's phone is a step up from iOS's default.
     // Narrower than that, the actions take a line of their own rather than
     // run off the screen.
@@ -910,21 +933,27 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
         {s.local ? (
           <>
             <Select value={String(localMin)} onValueChange={v => changeLocalMin(Number(v))}>
-              <SelectTrigger size="sm" aria-label="Time aloft" className={cn("rounded-full pointer-coarse:text-[0.9375rem] [&_svg]:text-foreground", GLASS_BUTTON)} data-testid="local-duration">
+              <SelectTrigger size="sm" aria-label="Time aloft" className={cn("rounded-full pointer-coarse:text-[0.8125rem] [&_svg]:text-foreground", GLASS_BUTTON)} data-testid="local-duration">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 {LOCAL_MINUTES.map(m => <SelectItem key={m} value={String(m)}>{hoursOf(m)}</SelectItem>)}
               </SelectContent>
             </Select>
-            <ToolbarButton
-              text="Print" label="Print the briefing" icon={<Printer />} onClick={() => window.print()}
-              className="print:hidden" data-testid="print-button"
-            />
+            <IconButton
+              label="Print the briefing" variant="secondary" onClick={() => window.print()}
+              className={`ml-auto size-9 print:hidden ${ROUND_BUTTON}`} data-testid="print-button"
+            >
+              <Printer className="size-5" strokeWidth={2} />
+            </IconButton>
           </>
         ) : (
-          // At the row's end, as Maps puts a card's actions.
-          <div className="ml-auto flex shrink-0 items-center pointer-coarse:[&_button]:min-w-0 pointer-coarse:[&_button]:px-0.5">{routeActions}</div>
+          // At the row's end, as Maps puts a card's actions: round buttons
+          // at a fixed 36 with a 20-point glyph -- as iOS's bar buttons stay
+          // their size at any text size -- four apart, their 44-point hit
+          // areas (index.css) sharing the four between them, so the line
+          // holds at the pilot's text size, a step up from iOS's default.
+          <div className="ml-auto flex shrink-0 items-center gap-1 [&_button]:size-[36px] [&_svg]:size-[20px]">{routeActions}</div>
         )}
       </div>
     ),

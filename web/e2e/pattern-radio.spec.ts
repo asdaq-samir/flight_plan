@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { settle, sideDrawer, slow } from "./helpers";
+import { settle, sideDrawer, slow, openTab } from "./helpers";
 
 /**
  * The briefing's Pattern & Radio (PatternRadio, lib/pattern, lib/radio):
@@ -23,7 +23,7 @@ test("each field's pattern for the runway into the wind, and its calls in order"
   await page.goto("/app/plan?dep=C81&dest=KDLH&view=briefing");
   await settle(page);
   await expect(page.getByTestId("navlog-eta")).toBeVisible({ timeout: slow(120000) });
-  await page.getByRole("button", { name: "Pattern & Radio", exact: true }).click();
+  await openTab(page, "Airports");
   const drawer = sideDrawer(page);
 
   const phases = drawer.getByTestId("radio-phase");

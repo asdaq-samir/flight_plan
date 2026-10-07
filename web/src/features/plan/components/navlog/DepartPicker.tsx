@@ -66,9 +66,9 @@ export default function DepartPicker({ value, onChange }: Props) {
       <ResponsivePopoverTrigger asChild>
         <Button
           // A chip of glass, as Maps' filter chips are: the time in the
-          // text's colour at a row's size (TEXT), not a button's tint.
-          // 15 to a finger, as the aeroplane beside it (FlightInputs).
-          variant="outline" size="sm" className={cn("rounded-full px-2.5 font-normal pointer-coarse:px-1.5", GLASS_BUTTON, TEXT.detail)}
+          // text's colour, not a button's tint, at a note's 13 (TEXT), as
+          // the aeroplane beside it (FlightInputs).
+          variant="outline" size="sm" className={cn("rounded-full px-2.5 font-normal pointer-coarse:px-1.5", GLASS_BUTTON, TEXT.note)}
           aria-label="Departure date" data-testid="depart-date"
         >
           {!date && <CalendarIcon className="text-muted-foreground" />}

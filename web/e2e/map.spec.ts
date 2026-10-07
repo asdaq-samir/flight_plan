@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { beforeTheRoute, openPanel, settle, slow, tapTheChart } from "./helpers";
+import { beforeTheRoute, openPanel, settle, sideDrawer, slow, tapTheChart } from "./helpers";
 
 /**
  * The map: its popups, its zoom toggle and the dev page's zoom button,
@@ -12,16 +12,16 @@ test("plan page: a route from an airport to itself is a local flight: the field'
   await page.goto("/app/plan?dep=C81&dest=C81");
   await expect(page.getByTestId("capsule-title")).toHaveText("C81 local", { timeout: slow(30000) });
   await openPanel(page);
-  const section = page.locator("[data-slot=accordion-header]").filter({ hasText: "Local Flight" });
-  await expect(section).toContainText(/Aloft 1h 00m/, { timeout: slow(30000) });
-  await section.getByRole("button", { name: "Local Flight", exact: true }).click();
+  // Its tab where the nav log's is, up as the panel opens.
+  await expect(sideDrawer(page).getByRole("tab", { name: "Local Flight" })).toHaveAttribute("aria-selected", "true");
+  await expect(sideDrawer(page).locator('[data-slot="section-summary"]').first()).toContainText(/Aloft 1h 00m/, { timeout: slow(30000) });
   await expect(page.getByTestId("fuel-check")).toContainText("Fuel required");
 
   // Longer aloft: in the address, and more fuel.
   await page.getByTestId("local-duration").click();
   await page.getByRole("option", { name: "2 h", exact: true }).click();
   await expect(page).toHaveURL(/[?&]local_min=120/);
-  await expect(section).toContainText(/Aloft 2h 00m/, { timeout: slow(30000) });
+  await expect(sideDrawer(page).locator('[data-slot="section-summary"]').first()).toContainText(/Aloft 2h 00m/, { timeout: slow(30000) });
 });
 
 test("plan page: every popup the map opens dismisses the same way", async ({ page }) => {

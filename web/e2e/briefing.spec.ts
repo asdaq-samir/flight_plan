@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { slow, settle, sideDrawer, expectDrawerClosed, expectDrawerOpen, closeSidebarWithTheStockKey, openedDrawerBox, openBriefing } from "./helpers";
+import { slow, settle, sideDrawer, expectDrawerClosed, expectDrawerOpen, closeSidebarWithTheStockKey, openedDrawerBox, openBriefing, openTab, openSettings, closeConsole } from "./helpers";
 
 /**
  * The flight planning panel: how it opens -- from its grabber, a pasted
@@ -40,50 +40,50 @@ test("plan page: the flight planning drawer opens the way the Model Training dra
   // log's: neither is inside a section.
   await expect(drawer.getByTestId("aircraft-select")).toBeVisible();
   await expect(drawer.getByTestId("depart-date")).toBeVisible();
-  // And, signed in, Save this flight beside the narrative and Print.
+  // And, signed in, Save this flight beside More.
   await expect(drawer.getByTestId("save-flight-button")).toBeVisible();
-  await expect(drawer.getByTestId("ai-narrative-button")).toBeVisible();
-  expect(await drawer.locator('[data-slot="accordion-content"] [data-testid="aircraft-select"]').count()).toBe(0);
-  expect(await drawer.locator('[data-slot="accordion-content"] [data-testid="depart-date"]').count()).toBe(0);
-  // Every section starts closed, the nav log's own first among them:
-  // the drawer opens as the list of what the briefing holds.
-  await expect(drawer.getByText("Nav Log", { exact: true })).toBeVisible();
-  await expect(drawer.getByText("Adverse Conditions")).toBeVisible();
-  await expect(drawer.getByText("Airport Information")).toBeVisible();
-  expect(await drawer.locator('[data-slot="accordion-content"][data-state="open"]').count()).toBe(0);
-  await expect(drawer.getByRole("table", { name: /Navigation log from/i })).toBeHidden();
-  // Opened, the nav log's section holds the totals and the
-  // descriptions button above the table -- inside the section, not
-  // the header.
-  await drawer.getByRole("button", { name: "Nav Log", exact: true }).click();
+  await expect(drawer.getByTestId("ai-narrative-button")).toHaveCount(0);
+  expect(await drawer.locator('[role="tabpanel"] [data-testid="aircraft-select"]').count()).toBe(0);
+  expect(await drawer.locator('[role="tabpanel"] [data-testid="depart-date"]').count()).toBe(0);
+  // The panel's tabs, in the pilot's order, the nav log's up: it holds
+  // the totals and the descriptions button above the table.
+  await expect(drawer.getByRole("tab")).toHaveText(["Nav Log", "Brief", "Weather", "Performance", "Airports"]);
+  // All five on the panel's line, none past its edge.
+  const tabsBox = (await drawer.getByRole("tablist").boundingBox())!;
+  for (const tab of await drawer.getByRole("tab").all()) {
+    const box = (await tab.boundingBox())!;
+    expect(box.x).toBeGreaterThanOrEqual(tabsBox.x - 1);
+    expect(box.x + box.width).toBeLessThanOrEqual(tabsBox.x + tabsBox.width + 1);
+  }
+  await expect(drawer.getByRole("tab", { name: "Nav Log" })).toHaveAttribute("aria-selected", "true");
   await expect(drawer.getByRole("table", { name: /Navigation log from/i })).toBeVisible();
-  await expect(drawer.locator('[data-slot="accordion-content"] [data-testid="generate-descriptions-button"]')).toBeVisible();
+  await expect(drawer.locator('[role="tabpanel"] [data-testid="generate-descriptions-button"]')).toBeVisible();
   // The altitude, its chip beside the aeroplane, once the log has
   // streamed in.
   await expect(drawer.getByTestId("altitude-why")).toHaveAccessibleName(/FL\d{3}/, { timeout: slow(60000) });
   await expect(drawer.locator('[data-slot="section-summary"]').first()).toContainText(/\d nm/, { timeout: slow(60000) });
-  expect(await drawer.locator('[data-slot="accordion-content"][data-state="open"]').count()).toBe(1);
+  // The weather in its own tab, laid open, the nav log out of the page.
+  await openTab(page, "Weather");
+  await expect(drawer.getByRole("heading", { name: "Adverse Conditions" })).toBeVisible();
+  await expect(drawer.getByRole("table", { name: /Navigation log from/i })).toHaveCount(0);
 
   // The panel's head is still in sight: the route's box, and under the
   // route's close the console's button.
   expect(await page.locator("header").getByLabel("Departure", { exact: true }).count()).toBe(1);
   await expect(page.locator("header").getByTestId("settings-button")).toBeVisible();
 
-  // The briefing's actions are beside the route, in the panel's top
-  // row: the AI button (LangGraph/CrewAI are tabs inside the popover it
-  // opens), then More (sharing and Print), left to right on one row.
-  const aiBox = await drawer.getByTestId("ai-narrative-button").boundingBox();
-  const moreBox = await drawer.getByTestId("more-actions").boundingBox();
-  expect(aiBox).not.toBeNull();
-  expect(moreBox).not.toBeNull();
-  expect(aiBox!.x).toBeLessThan(moreBox!.x);
-  expect(Math.abs(aiBox!.y - moreBox!.y)).toBeLessThan(10);
-  // Beside the aeroplane and the departure time, under the route: the
-  // route's box has the top row to itself.
-  expect(await page.locator("header").getByTestId("more-actions").count()).toBe(0);
+  // The panel's actions, Save, Share and Print, round buttons at the end
+  // of the aeroplane's, the altitude's and the time's line under the
+  // route: the route's box has the top row to itself.
+  const [saveBox, shareBox, printBox] = await Promise.all(["save-flight-button", "share-route", "print-button"]
+    .map(async id => (await drawer.getByTestId(id).boundingBox())!));
+  expect(saveBox.x).toBeLessThan(shareBox.x);
+  expect(shareBox.x).toBeLessThan(printBox.x);
+  expect(Math.abs(saveBox.y - printBox.y)).toBeLessThan(2);
+  expect(await page.locator("header").getByTestId("print-button").count()).toBe(0);
   const departure = (await drawer.getByTestId("depart-date").boundingBox())!;
-  expect(aiBox!.x).toBeGreaterThan(departure.x);
-  expect(Math.abs(aiBox!.y + aiBox!.height / 2 - (departure.y + departure.height / 2))).toBeLessThan(12);
+  expect(saveBox.x).toBeGreaterThan(departure.x);
+  expect(Math.abs(printBox.y + printBox.height / 2 - (departure.y + departure.height / 2))).toBeLessThan(12);
 });
 
 test("plan page: the briefing ends on its 'planning aid only' reminder, with the nav log and the summary on screen", async ({ page }) => {
@@ -96,42 +96,47 @@ test("plan page: the briefing ends on its 'planning aid only' reminder, with the
   await expect(sideDrawer(page).getByTestId("planning-aid-note")).toContainText("Planning aid only");
   await expect(page.locator("[data-sonner-toast]", { hasText: "Planning aid only" })).toHaveCount(0);
 
-  // One nav log, in a section of its own at the top, and every
-  // briefing section under it, every one closed. No "Flight Plan
-  // Summary" section: the nav log's own section carries the totals
-  // and the altitude, and the drawer's header the aeroplane.
+  // One nav log, its tab up as the panel opens, and the briefing in the
+  // other tabs. No "Flight Plan Summary": the nav log's line carries the
+  // totals, its chip beside the aeroplane the altitude.
   const drawer = sideDrawer(page);
   const navLog = drawer.locator("table");
-  // A closed accordion section has no content in the page at all.
-  await expect(navLog).toHaveCount(0);
-  await expect(drawer.getByText("Nav Log", { exact: true })).toBeVisible();
-  await expect(drawer.getByText("Flight Plan Summary")).toHaveCount(0);
-  await expect(drawer.getByText("Adverse Conditions")).toBeVisible();
-  await expect(drawer.getByText("Airport Information")).toBeVisible();
-  // A section unfolds on its title and folds again.
-  await drawer.getByRole("button", { name: "Nav Log", exact: true }).click();
   await expect(drawer.getByRole("table", { name: /Navigation log from/i })).toBeVisible();
-  await expect(navLog).toHaveCount(1);
-  await drawer.getByRole("button", { name: "Nav Log", exact: true }).click();
+  await expect(drawer.getByText("Flight Plan Summary")).toHaveCount(0);
+  // Another tab takes its place, and back.
+  await openTab(page, "Airports");
+  await expect(drawer.getByRole("heading", { name: "Airport Information" })).toBeVisible();
   await expect(navLog).toHaveCount(0);
+  await openTab(page, "Nav Log");
+  await expect(navLog).toHaveCount(1);
 });
 
-test("plan page: the briefing offers one AI button, not a named button per framework", async ({ page }) => {
+test("plan page: the Brief is a tab after the Nav Log, its narrative from LangGraph or CrewAI as the settings say", async ({ page }) => {
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
 
   await openBriefing(page);
 
   // LangGraph and CrewAI (nav-log-agent's and crewai-agent's own real,
-  // billed Claude calls) live as two tabs inside the popover this one
-  // button opens, not as their own separate triggers -- checked
-  // without opening it, the same restraint the old per-framework
-  // buttons' own test had around not actually triggering "generate".
-  const aiButton = page.getByTestId("ai-narrative-button");
-  await expect(aiButton).toBeVisible();
-  await expect(aiButton).toBeEnabled();
-  expect(await page.getByTestId("langgraph-narrative-button").count()).toBe(0);
-  expect(await page.getByTestId("crewai-narrative-button").count()).toBe(0);
+  // billed Claude calls) are a setting; the Brief tab asks for the one it
+  // names once it opens -- answered here by a line of the test's own,
+  // nothing billed.
+  const asked: string[] = [];
+  page.on("request", r => { if (r.url().includes("/api/comparison")) asked.push(new URL(r.url()).searchParams.get("framework") ?? ""); });
+  await expect(sideDrawer(page).getByRole("tab", { name: "Nav Log" })).toHaveAttribute("aria-selected", "true");
+  expect(asked).toEqual([]);
+  await openTab(page, "Brief");
+  const narrative = page.getByTestId("brief-narrative");
+  await expect(narrative).toContainText("A test narrative.", { timeout: slow(60000) });
+  await expect.poll(() => asked).toEqual(["langgraph"]);
+  // CrewAI's instead, from the settings: asked for as the console goes.
+  await page.goto("/app/plan");
+  await openSettings(page);
+  await page.getByTestId("narrative-framework").getByRole("radio", { name: "CrewAI" }).click();
+  await closeConsole(page);
+  await page.goto("/app/plan?dep=C81&dest=KDLH&view=briefing");
+  await openTab(page, "Brief");
+  await expect.poll(() => asked, { timeout: slow(60000) }).toEqual(["langgraph", "crewai"]);
 });
 
 test("plan page: the drawer closes the way the stock components close, and nothing else", async ({ page }) => {
@@ -145,7 +150,8 @@ test("plan page: the drawer closes the way the stock components close, and nothi
 
   await openBriefing(page);
   const drawer = sideDrawer(page);
-  await expect(drawer.getByText("Adverse Conditions")).toBeVisible();
+  await openTab(page, "Weather");
+  await expect(drawer.getByRole("heading", { name: "Adverse Conditions" })).toBeVisible();
   // No toggle to a narrower nav log: the drawer has the one width.
   expect(await drawer.getByTestId("sidebar-expand-toggle").count()).toBe(0);
 
@@ -159,7 +165,7 @@ test("plan page: a pasted briefing link opens the panel, and its grabber closes 
   await settle(page);
   const drawer = sideDrawer(page);
   await expect(drawer).toBeVisible();
-  await expect(drawer.getByTestId("more-actions")).toBeVisible();
+  await expect(drawer.getByTestId("print-button")).toBeVisible();
 
   // No letter shortcuts on this page any more: the arrows walk the
   // checkpoints and everything else has a button. `n` used to toggle
@@ -177,7 +183,7 @@ test("plan page: a pasted briefing link opens the panel, and its grabber closes 
   await page.getByTestId("sidebar-trigger-button").click();
   await page.waitForTimeout(300);
   await expect(page).toHaveURL(/[?&]view=briefing/);
-  await expect(drawer.getByTestId("more-actions")).toBeVisible();
+  await expect(drawer.getByTestId("print-button")).toBeVisible();
 });
 
 test("plan page: the panel's grabber raises and lowers it, a tap on the map beside it leaves it out, and Escape lowers it", async ({ page }) => {

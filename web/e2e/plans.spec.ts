@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { slow, settle, sideDrawer, expectDrawerOpen } from "./helpers";
+import { slow, settle, sideDrawer, expectDrawerOpen, openTab } from "./helpers";
 
 /**
  * What the nav log is computed from: the altitude plans and a pilot's
@@ -16,7 +16,7 @@ test("plan page: the nav log's altitude opens the planner's own reasoning, and t
   await settle(page);
   await page.getByTestId("sidebar-trigger-button").click();
   // The sections start closed: the altitude is in the nav log's own.
-  await sideDrawer(page).getByRole("button", { name: "Nav Log", exact: true }).click();
+  await openTab(page, "Nav Log");
   // The cruising altitude arrives with the nav log stream, after the
   // checkpoints: its chip beside the aeroplane, named with the figure as a
   // flight level. The figure alone: which plan it is shows as the pressed
@@ -88,12 +88,11 @@ test("plan page: the nav log's altitude opens the planner's own reasoning, and t
   await expect(popover).toHaveCount(0);
   await expectDrawerOpen(page);
 
-  // The briefing's Cruise Altitude section, closed like the rest until
-  // its title is clicked, carries the same steps.
+  // The briefing's Cruise Altitude section, under the nav log's side
+  // view, carries the same steps.
   const drawer = sideDrawer(page);
-  await expect(drawer.getByText("Cruise Altitude", { exact: true })).toBeVisible();
-  await expect(drawer.getByText("14 CFR 91.159")).toBeHidden();
-  await drawer.getByRole("button", { name: "Cruise Altitude", exact: true }).click();
+  await openTab(page, "Nav Log");
+  await expect(drawer.getByRole("heading", { name: "Cruise Altitude" })).toBeVisible();
   await expect(drawer.getByText("14 CFR 91.159")).toBeVisible();
 });
 
@@ -101,7 +100,7 @@ test("plan page: a departure time gives every checkpoint an ETA, and the nav log
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
   await page.getByTestId("sidebar-trigger-button").click();
-  await sideDrawer(page).getByRole("button", { name: "Nav Log", exact: true }).click();
+  await openTab(page, "Nav Log");
   const table = page.getByRole("table", { name: /Navigation log from/i });
   await expect(table.locator("thead")).not.toContainText("ETA");
 
@@ -207,10 +206,9 @@ test("plan page: no legal altitude is the route's own problem: its chip says so 
   await expect(mark).toHaveText("FL---");
   const problem = page.getByTestId("route-problem");
   await expect(problem).toHaveCount(0);
-  // By its slot: on a phone the mark's sheet hides the page from the
+  // By its slot: on a phone the chip's sheet hides the page from the
   // accessibility tree, and a role lookup with it.
-  const section = page.locator("[data-slot=accordion-header]").filter({ hasText: "Nav Log" }).locator("[data-slot=accordion-trigger]");
-  const folded = await section.getAttribute("aria-expanded");
+  const navLogTab = page.getByTestId("panel-tab-navlog");
 
   // A tap on the mark: where, why as a list -- with no Try again, which
   // would only say the same -- and the section left as it was.
@@ -222,7 +220,7 @@ test("plan page: no legal altitude is the route's own problem: its chip says so 
     "The aircraft's service ceiling stops at 11,700 ft.",
   ]);
   await expect(problem.getByRole("button", { name: "Try again" })).toHaveCount(0);
-  await expect(section).toHaveAttribute("aria-expanded", folded ?? "false");
+  await expect(navLogTab).toHaveAttribute("aria-selected", "true");
 
   // An altitude of the pilot's own, as a flight level: planned anyway, at it.
   await page.getByTestId("custom-altitude").fill("125");

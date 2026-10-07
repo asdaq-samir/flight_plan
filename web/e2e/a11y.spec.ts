@@ -1,6 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { test, expect, type Page } from "@playwright/test";
-import { settle, slow } from "./helpers";
+import { settle, slow, openTab } from "./helpers";
 
 /**
  * Accessibility by axe-core, beside the iOS audit's measured rules
@@ -43,15 +43,15 @@ test("the search bar, with no route", async ({ page }) => {
   expect(await violations(page)).toEqual([]);
 });
 
-test("a route's panel out, its sections open", async ({ page }) => {
+test("a route's panel out, each of its tabs", async ({ page }) => {
   await page.goto("/app/plan?dep=C81&dest=KDLH&view=briefing");
   await settle(page);
   await expect(page.getByTestId("navlog-eta")).toBeVisible({ timeout: slow(120000) });
-  for (const title of ["Nav Log", "Current Conditions", "Check before you fly", "Weight & Balance"]) {
-    await page.getByRole("button", { name: new RegExp(`^${title}`) }).click();
+  for (const tab of ["Nav Log", "Weather", "Brief", "Performance", "Airports"] as const) {
+    await openTab(page, tab);
+    await page.waitForTimeout(600);
+    expect(await violations(page), tab).toEqual([]);
   }
-  await page.waitForTimeout(1000);
-  expect(await violations(page)).toEqual([]);
 });
 
 test("the console's Settings", async ({ page }) => {

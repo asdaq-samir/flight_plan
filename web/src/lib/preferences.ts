@@ -32,6 +32,9 @@ export type NavEdge = "top" | "bottom";
 
 /** The route's pills' colours: by airspace class, or by the METAR. */
 export type RouteColours = "airspace" | "metar";
+/** Which agent writes the Brief's narrative: nav-log-agent (LangGraph) or
+ *  crewai-agent (CrewAI). */
+export type NarrativeFramework = "langgraph" | "crewai";
 
 /** The stock C172 until a pilot picks one of their own. */
 export const DEFAULT_AIRCRAFT: AircraftChoice = { profile: "c172", label: "C172 · Cessna 172" };
@@ -78,6 +81,9 @@ interface Preferences {
    *  airspace, as the sectional draws it, or its METAR's flight
    *  category, as the map's chips are. */
   routeColours: RouteColours;
+  /** Which writes the Brief tab's narrative (BriefNarrative), from the
+   *  settings: it was a switch over the narrative itself. */
+  narrative: NarrativeFramework;
   /** The airports last picked from the search bar, newest first: what
    *  it offers before anything is typed, as Maps' Recents. */
   recentAirports: RecentAirport[];
@@ -100,6 +106,7 @@ interface Preferences {
   setLibrarySection: (section: string) => void;
   setNavBar: (navBar: NavEdge) => void;
   setRouteColours: (routeColours: RouteColours) => void;
+  setNarrative: (narrative: NarrativeFramework) => void;
   addRecentAirport: (airport: RecentAirport) => void;
   setHomeAirport: (airport: RecentAirport | null) => void;
   /** Kept if it was not, let go if it was. */
@@ -147,6 +154,7 @@ export const usePreferences = create<Preferences>()(
       librarySection: "aircraft",
       navBar: null,
       routeColours: "airspace",
+      narrative: "langgraph",
       recentAirports: [],
       homeAirport: null,
       favoriteAirports: [],
@@ -165,6 +173,7 @@ export const usePreferences = create<Preferences>()(
       setLibrarySection: librarySection => set({ librarySection }),
       setNavBar: navBar => set({ navBar }),
       setRouteColours: routeColours => set({ routeColours }),
+      setNarrative: narrative => set({ narrative }),
       addRecentAirport: airport => set(s => ({
         recentAirports: [airport, ...s.recentAirports.filter(a => a.ident !== airport.ident)].slice(0, RECENTS),
       })),
@@ -189,7 +198,7 @@ export const usePreferences = create<Preferences>()(
       name: "vfr.preferences",
       // The functions are not state; only the values are written.
       partialize: s => ({
-        base: s.base, tac: s.tac, waypoints: s.waypoints, classB: s.classB, tfrs: s.tfrs, minimums: s.minimums, loads: s.loads, keepOffline: s.keepOffline, aircraft: s.aircraft, filters: s.filters, devTab: s.devTab, pilotTab: s.pilotTab, librarySection: s.librarySection, navBar: s.navBar, routeColours: s.routeColours,
+        base: s.base, tac: s.tac, waypoints: s.waypoints, classB: s.classB, tfrs: s.tfrs, minimums: s.minimums, loads: s.loads, keepOffline: s.keepOffline, aircraft: s.aircraft, filters: s.filters, devTab: s.devTab, pilotTab: s.pilotTab, librarySection: s.librarySection, navBar: s.navBar, routeColours: s.routeColours, narrative: s.narrative,
         recentAirports: s.recentAirports, homeAirport: s.homeAirport, favoriteAirports: s.favoriteAirports,
       }),
     },

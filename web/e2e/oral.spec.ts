@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { test, expect } from "@playwright/test";
-import { settle, sideDrawer, slow } from "./helpers";
+import { settle, sideDrawer, slow, openTab } from "./helpers";
 
 /**
  * The briefing's Mock Oral (MockOral, the planner's app.oral): the
@@ -26,7 +26,7 @@ test("a developer is asked about this flight, answers, and is graded against quo
   await settle(page);
   await expect(page.getByTestId("navlog-eta")).toBeVisible({ timeout: slow(120000) });
   const drawer = sideDrawer(page);
-  await drawer.getByRole("button", { name: "Mock Oral", exact: true }).click();
+  await openTab(page, "Brief");
   await drawer.getByTestId("oral-ask").click();
 
   await expect(drawer.getByTestId("oral-question")).toContainText("VOLK EAST MOA");
@@ -52,6 +52,7 @@ test("a pilot who is not the developer has no mock oral yet", async ({ page }) =
   await page.goto("/app/plan?dep=C81&dest=KDLH&view=briefing");
   await settle(page);
   await expect(page.getByTestId("navlog-eta")).toBeVisible({ timeout: slow(120000) });
-  await expect(sideDrawer(page).getByRole("button", { name: "Risk Assessment", exact: true })).toBeVisible();
-  await expect(sideDrawer(page).getByRole("button", { name: "Mock Oral", exact: true })).toHaveCount(0);
+  await openTab(page, "Brief");
+  await expect(sideDrawer(page).getByRole("heading", { name: "Risk Assessment", exact: true })).toBeVisible();
+  await expect(sideDrawer(page).getByRole("heading", { name: "Mock Oral", exact: true })).toHaveCount(0);
 });

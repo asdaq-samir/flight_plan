@@ -110,7 +110,7 @@ export default function AltitudeButton({ nav, legs, problem, ownAltitude = true,
         <Button
           variant="outline" size="sm"
           className={cn(
-            "rounded-full px-2.5 font-normal tabular-nums pointer-coarse:px-1.5", GLASS_BUTTON, TEXT.detail,
+            "rounded-full px-2.5 font-normal tabular-nums pointer-coarse:px-1.5", GLASS_BUTTON, TEXT.note,
             // Red with no legal altitude: the colour says it, where a mark
             // beside the figure cost the line its room.
             problem ? "text-destructive hover:text-destructive" : cruise === null && "text-muted-foreground",

@@ -7,7 +7,7 @@ import Segmented from "./Segmented";
 import TogglePill from "./TogglePill";
 import { useNavEdge } from "../hooks/use-nav-edge";
 import { keepingAvailable } from "../lib/map/keepRoute";
-import { BASE_CHARTS, usePreferences, type BaseChart, type NavEdge, type RouteColours } from "../lib/preferences";
+import { BASE_CHARTS, usePreferences, type BaseChart, type NarrativeFramework, type NavEdge, type RouteColours } from "../lib/preferences";
 import { chartQuery } from "../lib/queryClient";
 import { MINIMUM_CHOICES, type Minimums } from "../lib/minimums";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
@@ -47,6 +47,7 @@ export default function SettingsPanel() {
       <AppearanceGroup />
       <MapGroup />
       <MinimumsGroup />
+      <BriefGroup />
     </div>
   );
 }
@@ -168,6 +169,28 @@ const ROUTE_COLOURS = [
   { value: "airspace", label: "Airspace", icon: <Hexagon /> },
   { value: "metar", label: "Weather", icon: <CloudSun /> },
 ];
+
+const NARRATIVES = [
+  { value: "langgraph", label: "LangGraph" },
+  { value: "crewai", label: "CrewAI" },
+];
+
+/** Which agent writes the Brief tab's narrative, at the pilot's ask: it
+ *  was a switch over the narrative, in the way of reading it. */
+function BriefGroup() {
+  const narrative = usePreferences(s => s.narrative);
+  const setNarrative = usePreferences(s => s.setNarrative);
+  return (
+    <ListGroup title="Brief" footer="Each narrative is a Claude call, made when the Brief tab opens.">
+      <ListRow title="Narrative">
+        <Segmented
+          label="Narrative from" value={narrative} onChange={v => setNarrative(v as NarrativeFramework)}
+          testId="narrative-framework" options={NARRATIVES}
+        />
+      </ListRow>
+    </ListGroup>
+  );
+}
 
 /** The theme (next-themes keeps it, and follows the OS on System: a
  *  pilot planning at night wants the page as dim as the panel lights),

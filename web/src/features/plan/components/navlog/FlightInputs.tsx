@@ -29,16 +29,15 @@ export default function FlightInputs({ aircraftValue, aircraftOptions, onAircraf
   return (
     <>
       <Select value={aircraftValue} onValueChange={onAircraftChange}>
-        {/* 15 to a finger, as Maps' route options are, where a row's name
-            is 17: the aeroplane, the time and Save, Brief and Print on one
-            line of a phone, where at 17 the buttons went to a line of
-            their own. */}
-        {/* No chevron to a finger: its words in the tint, in a field's
-            border, say it is a menu, and the twenty points it took put
-            Save, Brief and Print on a line of their own on a phone. */}
+        {/* 13 to a finger, a note's size, as Maps' route options are: the
+            aeroplane, the altitude, the time and Save, Share and Print on
+            one line of a phone at the pilot's text size, a step up from
+            iOS's default, where at 15 the buttons went to a line of their
+            own. No chevron to a finger: a chip of glass says it is a menu,
+            and the twenty points it took cost the line its room. */}
         <SelectTrigger
           size="sm" aria-label="Aircraft" data-testid="aircraft-select"
-          className={cn("rounded-full pointer-coarse:px-1.5 pointer-coarse:text-[0.9375rem] [&_svg]:text-foreground pointer-coarse:[&_svg]:hidden", GLASS_BUTTON)}
+          className={cn("rounded-full pointer-coarse:px-1.5 pointer-coarse:text-[0.8125rem] [&_svg]:text-foreground pointer-coarse:[&_svg]:hidden", GLASS_BUTTON)}
         >
           {/* Its short name -- C172, N12345 -- so a departure time picked
               beside it stays on the same line; the list has them whole. */}

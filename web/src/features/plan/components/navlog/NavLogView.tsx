@@ -1,13 +1,16 @@
-import { Fragment, useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { Fragment, useCallback, useContext, useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { flushSync } from "react-dom";
 import { cn } from "cn";
-import { Loader2, WandSparkles } from "lucide-react";
+import { CloudSun, Gauge, ListOrdered, Loader2, Sparkles, TowerControl, WandSparkles } from "lucide-react";
 import {
   type CellData, type ColumnDef, type RowData, type TableFeatures,
   flexRender, tableFeatures, useTable,
 } from "@tanstack/react-table";
 import { NoteRow, SelectableRow } from "../../../../components/SelectableRows";
-import { Accordion } from "../../../../components/ui/accordion";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../../../components/ui/tabs";
+import { SectionsOpen } from "../../../../components/sectionLayout";
+import { PanelHalfContext } from "../../../../components/mapChrome";
+import { LINE_TAB } from "../../../../components/lineTabs";
 import { ListGroup, ListRow } from "../../../../components/GroupedList";
 import IconButton from "../../../../components/IconButton";
 import { Textarea } from "../../../../components/ui/textarea";
@@ -21,17 +24,29 @@ import { revealRow } from "../../../../lib/revealRow";
 import { TEXT } from "../../../../lib/text";
 import { type Description, descriptionKey } from "../../hooks/useCheckpointNotes";
 import { altFt, clockTime, deg, etaAt, one, signed, totalsParts } from "../../format";
-import AccordionSection from "../../../../components/AccordionSection";
 import { Spinner } from "../../../../components/ui/spinner";
-import { BRIEFING_SECTIONS } from "../briefing/sections";
+import type { BriefingPart } from "../briefing/sections";
 import { isLegPoint, legOf, navLogRows, rowPoint, type NavLogRow, type RouteEnds } from "./rows";
 import LegWorkings from "./LegWorkings";
 import DiversionDrill from "./DiversionDrill";
 import RouteProfileSection from "./RouteProfileSection";
 
-/** Every section of the drawer, the nav log's own first: what the
- *  printer gets, whatever is open on screen. */
-const ALL_SECTIONS = ["Nav Log", "Local Flight", "Profile", ...BRIEFING_SECTIONS];
+/** The panel's tabs, in the pilot's order: the Nav Log (the route's
+ *  profile under it: the same legs from the side), the Brief, the Weather,
+ *  the aeroplane's Performance and the Airports -- each an icon over its
+ *  word, as iOS's tab bar draws one, so all five fit a phone's line at any
+ *  text size, where six words did not at the pilot's. */
+type PanelTab = Exclude<BriefingPart, "profile"> | "navlog";
+const TABS: { value: PanelTab; label: string; icon: ReactNode }[] = [
+  { value: "navlog", label: "Nav Log", icon: <ListOrdered /> },
+  { value: "brief", label: "Brief", icon: <Sparkles /> },
+  { value: "weather", label: "Weather", icon: <CloudSun /> },
+  { value: "performance", label: "Performance", icon: <Gauge /> },
+  { value: "airports", label: "Airports", icon: <TowerControl /> },
+];
+/** On paper every tab, one after another: the nav log first, as a
+ *  pilot flies from it. */
+const PRINTED: PanelTab[] = ["navlog", "weather", "airports", "performance", "brief"];
 
 // TanStack Table's own extension point for arbitrary per-column data --
 // used below to carry each numeric column's shared className (bordered,
@@ -92,9 +107,13 @@ interface Props {
    *  been clicked. */
   onGenerateDescriptions: () => void;
   descriptionsLoading: boolean;
-  /** The briefing's sections, rendered under the nav log's own
-   *  section in the same scroller. */
+  /** The briefing's sections for each tab but the nav log's own
+   *  (FlightBriefingView's parts, and the Brief's narrative). */
+  tabContent: (part: BriefingPart) => ReactNode;
+  /** Beside the tabs, out of sight: Print's kneeboard card. */
   children?: ReactNode;
+  /** Tabs whose part has a warning, a red mark on each. */
+  marks?: Partial<Record<PanelTab, boolean>>;
   /** What must be seen on opening the drawer, above every section
    *  (the briefing's warnings). */
   notice?: ReactNode;
@@ -217,10 +236,10 @@ export function DescriptionCell({
  * a point on the map (or another row) scrolls this one into view --
  * the same two-way link the old checkpoint list had.
  *
- * This panel is the briefing: PlanWorkspace passes the briefing's sections
- * as `children` (its actions are beside the route, MapPage), and the nav
- * log is the first section of it, with the totals, the altitude and the fuel
- * check above the table. The two inputs the log is computed from, the
+ * This panel is the briefing, in tabs: the nav log's own first -- the
+ * totals above the table, the fuel check and the route's profile under
+ * it -- and the briefing's parts in the others, from PlanWorkspace
+ * (`tabContent`: FlightBriefingView's parts and the Brief's narrative). The two inputs the log is computed from, the
  * aeroplane and the departure time, are the panel's controls
  * (FlightInputs). The briefing
  * used to draw its own read-only copy of the table, and the two
@@ -318,7 +337,7 @@ export default function NavLogView({
   totals, nav, depart,
   legs, dep, dest, ends,
   selected, descriptions, onSaveDescription,
-  onGenerateDescriptions, descriptionsLoading, children, notice, footer, titleNote, local = false, progress = null,
+  onGenerateDescriptions, descriptionsLoading, tabContent, children, marks, notice, footer, titleNote, local = false, progress = null,
   selectedPoint, onSelectPoint, onDeselectPoint, drawerOpen,
   aircraftLabel,
 }: Props) {
@@ -359,25 +378,50 @@ export default function NavLogView({
       <span className="min-w-0">{progress}</span>
     </span>
   );
-  // Which sections are open: none to begin with (a pilot skims the
-  // titles and opens what applies), and for the printer every one --
-  // the paper is the whole briefing whatever was open on screen.
-  // Opened in the browser's own beforeprint event, flushed before it
-  // lays the page out, and put back after.
-  const [open, setOpen] = useState<string[]>([]);
-  // Except the nav log's own, when the drawer opens with a checkpoint
-  // picked on the map, or one is picked with the drawer open: that is
-  // what the pilot opened it to see, and it used to sit behind a
-  // closed title. Once per such pick -- a section the pilot then
-  // closes stays closed until the next pick or the next opening. State
-  // adjusted during render, React's own pattern for a change of props,
-  // rather than an effect that would render the drawer twice.
+  // Which tab is up: the nav log's to begin with -- the Brief's narrative
+  // is a billed call, asked for when its tab is opened -- and the nav
+  // log's again when the drawer opens with a checkpoint picked on the map,
+  // or one is picked with it open: that is what the pilot opened it to
+  // see. Once per such pick; state adjusted during render, React's own
+  // pattern for a change of props, rather than an effect that would
+  // render the drawer twice.
+  const [tab, setTab] = useState<PanelTab>("navlog");
   const pick = drawerOpen && selectedPoint ? descriptionKey(selectedPoint.lat, selectedPoint.lon) : null;
   const [openedFor, setOpenedFor] = useState<string | null>(null);
   if (pick !== openedFor) {
     setOpenedFor(pick);
-    if (pick && !open.includes("Nav Log")) setOpen([...open, "Nav Log"]);
+    if (pick && tab !== "navlog") setTab("navlog");
   }
+  // For the printer every tab, one after another -- the paper is the
+  // whole briefing whatever was up on screen: set in the browser's own
+  // beforeprint event, flushed before it lays the page out, and put back
+  // after.
+  // At half, the panel just tall enough for the tabs and the nav log's
+  // line under them (PanelHalfContext, exact), the chart above it, at the
+  // pilot's ask -- the rest a drag up. Measured, since the text size
+  // changes both; a line's height under the tabs on any other tab.
+  const halfNeeds = useContext(PanelHalfContext);
+  const [root, setRoot] = useState<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!root || !halfNeeds) return;
+    const measure = () => {
+      // Hidden under an airport's card (PlanWorkspace), the card says.
+      if (!root.offsetParent) return;
+      const tabs = root.querySelector('[role="tablist"]');
+      const scroller = root.querySelector<HTMLElement>('[data-testid="navlog-scroller"]');
+      const line = root.querySelector('[data-half-line]');
+      if (!tabs || !scroller) return;
+      // The line's foot in the scroller's content, however far it is
+      // scrolled; on another tab, a line's height.
+      const below = line ? line.getBoundingClientRect().bottom - scroller.getBoundingClientRect().top + scroller.scrollTop
+        : 3 * parseFloat(getComputedStyle(document.documentElement).fontSize);
+      halfNeeds(Math.round(tabs.getBoundingClientRect().bottom - root.getBoundingClientRect().top + below), true);
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(root);
+    return () => { observer.disconnect(); halfNeeds(null); };
+  }, [root, halfNeeds, tab]);
   const [printing, setPrinting] = useState(false);
   useEffect(() => {
     const before = () => flushSync(() => setPrinting(true));
@@ -613,8 +657,9 @@ export default function NavLogView({
   // NOTAMs further down used to scroll the drawer back up to the
   // selected row. And on the drawer opening: beside a desktop map the
   // view is mounted, and its rows laid out, while the drawer is
-  // closed, so a row revealed then was revealed off screen.
-  const navLogOpen = open.includes("Nav Log");
+  // closed, so a row revealed then was revealed off screen. (Its tab
+  // now, where it was its section.)
+  const navLogOpen = tab === "navlog";
   useEffect(() => revealRow(selectedRef.current), [selectedPoint, navLogOpen, drawerOpen]);
   const isSelected = (lat: number, lon: number) =>
     !!selectedPoint && descriptionKey(lat, lon) === descriptionKey(selectedPoint.lat, selectedPoint.lon);
@@ -832,7 +877,7 @@ export default function NavLogView({
     // is no viewport to clip to, and a route long enough to scroll
     // would otherwise print only whatever page's worth happened to be
     // visible.
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden print:h-auto print:overflow-visible">
+    <Tabs ref={setRoot} value={tab} onValueChange={value => setTab(value as PanelTab)} className="flex min-h-0 flex-1 flex-col gap-0 overflow-hidden print:h-auto print:overflow-visible">
       {/* Printed, this header is the briefing's title: the panel's own
           head (the route form, the aeroplane and the departure time) is
           print:hidden, so they are named here instead, as a line of
@@ -849,44 +894,74 @@ export default function NavLogView({
           {depart && ` · departing ${new Date(depart).toLocaleDateString([], { weekday: "short", day: "numeric", month: "short" })} ${clockTime(new Date(depart))}`}
         </div>
       </div>
-      {/* One stock accordion for the whole drawer: the nav log's own
-          section first (the summary, the table, the fuel check under
-          it), the briefing's
-          sections after it (`children`). Every section starts closed:
-          the drawer opens as the list of what the briefing holds, and
-          a pilot opens what they want on its title, rather than
-          landing in twenty rows of numbers with the weather somewhere
-          below. `flight-briefing`: index.css's print rules keep the
-          opened sections laid out on paper. */}
+      {/* The panel's tabs, at the pilot's ask: one thing at a time, where
+          one accordion held every section, the nav log's first. The stock
+          line tabs, as the consoles' (ConsoleTabs), over the scroller so
+          they stay as it scrolls: an icon over its word, the word at iOS
+          tab bar's own fixed size (it does not grow with the text, as
+          iOS's does not), so the five share the line evenly. A tab whose
+          part has a warning -- VFR not recommended, a TFR on the route, a
+          raised risk -- carries a red mark, as the sections' titles did. */}
+      <TabsList
+        variant="line"
+        className="h-auto w-full shrink-0 gap-0 border-b border-border px-[max(0.25rem,env(safe-area-inset-left))] group-data-[orientation=horizontal]/tabs:h-auto pointer-coarse:group-data-[orientation=horizontal]/tabs:h-auto print:hidden"
+      >
+        {TABS.map(t => (
+          <TabsTrigger
+            key={t.value} value={t.value} data-testid={`panel-tab-${t.value}`}
+            className={cn(LINE_TAB, "min-w-0 flex-1 flex-col gap-0.5 px-0.5 py-1.5 text-[11px] leading-tight pointer-coarse:text-[11px] pointer-coarse:max-[374px]:text-[11px] max-[374px]:px-0 [&_svg]:size-5")}
+          >
+            <span className="relative">
+              {t.icon}
+              {marks?.[t.value] && <span className="absolute -top-0.5 -right-1 size-2 rounded-full bg-destructive" data-testid={`panel-tab-mark-${t.value}`} />}
+            </span>
+            <span className="truncate">{t.value === "navlog" && local ? "Local Flight" : t.label}</span>
+          </TabsTrigger>
+        ))}
+      </TabsList>
       <div
         // The bottom inset clears the home indicator on an installed
         // app, so the last section's content is not under it.
         // `@container`: the summary line below keeps to one line from
         // 18rem of this width -- a container query, so with the text
         // set larger (the root font size up, the rem with it) the line
-        // wraps rather than running off the edge.
+        // wraps rather than running off the edge. `flight-briefing`:
+        // index.css's print rules lay every tab out on paper.
         className="flight-briefing @container min-h-0 flex-1 overflow-auto pr-4 pb-[env(safe-area-inset-bottom)] pl-[max(1rem,env(safe-area-inset-left))] print:h-auto print:overflow-visible print:pb-0"
         data-testid="navlog-scroller"
       >
         {notice}
-        <Accordion type="multiple" value={printing ? ALL_SECTIONS : open} onValueChange={setOpen}>
-          {local ? (
-            <AccordionSection title="Local Flight" summary={progressLine ?? foldedSummary}>
-              {fuelNote}
-            </AccordionSection>
-          ) : (
-            <AccordionSection title="Nav Log" summary={progressLine ?? foldedSummary} aside={titleNote}>
-              {summary}
-              {navLogTable}
-              {fuelNote}
-              {hopsNote}
-            </AccordionSection>
-          )}
-          {!local && ends && <RouteProfileSection ends={ends} rows={data} wanted={printing || open.includes("Profile")} />}
-          {children}
-        </Accordion>
+        <SectionsOpen.Provider value>
+          {(printing ? PRINTED : [tab]).map(t => (
+            <TabsContent key={t} value={t} forceMount={printing || undefined} className="mt-0" data-testid={`panel-${t}`}>
+              {t === "navlog" ? (
+                <section aria-label={local ? "Local Flight" : "Nav Log"} className={TEXT.prose}>
+                  {/* The section in one line, as its title's summary was: the
+                      distance, the arrival and the fuel, or what is being
+                      worked on; beside it a mark that opens to a note (a
+                      tight altitude, Class B accepted). */}
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1 py-3" data-half-line="">
+                    <span className={cn("text-muted-foreground", TEXT.prose)} data-slot="section-summary">{progressLine ?? foldedSummary}</span>
+                    {titleNote}
+                  </div>
+                  {!local && summary}
+                  {!local && navLogTable}
+                  {fuelNote}
+                  {!local && hopsNote}
+                  {/* The same legs from the side, and the figures the
+                      altitude was chosen within: asked for once the log is
+                      whole, so its terrain read does not hold up the legs'
+                      (the planner is one process). */}
+                  {!local && ends && <RouteProfileSection ends={ends} rows={data} wanted={!!totals || printing} />}
+                  {!local && tabContent("profile")}
+                </section>
+              ) : tabContent(t)}
+            </TabsContent>
+          ))}
+        </SectionsOpen.Provider>
         {footer}
       </div>
-    </div>
+      {children}
+    </Tabs>
   );
 }

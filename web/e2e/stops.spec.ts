@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { test, expect, type Locator, type Page } from "@playwright/test";
-import { beforeTheRoute, openPanel, settle, sideDrawer, slow } from "./helpers";
+import { beforeTheRoute, openPanel, settle, sideDrawer, slow, openTab } from "./helpers";
 
 /**
  * A route that lands on the way, as Maps' Add Stop: a stop added in the
@@ -50,7 +50,7 @@ test("a stop added in the panel lands the route there: the capsule, the nav log 
 
   // The nav log lands at it, at the field's elevation, and the fuel is
   // checked flight by flight.
-  await sideDrawer(page).getByRole("button", { name: "Nav Log", exact: true }).click();
+  await openTab(page, "Nav Log");
   const landing = sideDrawer(page).locator("tr", { hasText: "KMSN" });
   await expect(landing).toBeVisible({ timeout: slow(30000) });
   const fuel = sideDrawer(page).getByTestId("fuel-check");

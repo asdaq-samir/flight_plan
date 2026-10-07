@@ -194,9 +194,7 @@ export const SCREENS: Screen[] = [
     name: "local flight",
     ready: async page => {
       await page.goto("/app/plan?dep=C81&dest=C81&view=briefing");
-      const section = page.locator("[data-slot=accordion-header]").filter({ hasText: "Local Flight" });
-      await expect(section).toContainText("Aloft", { timeout: slow(30000) });
-      await section.getByRole("button", { name: "Local Flight", exact: true }).click();
+      await expect(page.locator('[data-slot="section-summary"]').first()).toContainText("Aloft", { timeout: slow(30000) });
       await expect(page.getByTestId("fuel-check")).toBeVisible();
     },
   },

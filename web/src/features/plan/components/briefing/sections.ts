@@ -7,3 +7,9 @@ export const BRIEFING_SECTIONS = [
   "Winds Aloft", "Check before you fly", "Airport Information", "Pattern & Radio", "Weight & Balance",
   "Takeoff & Landing", "Risk Assessment",
 ];
+
+/** The planning panel's tabs that hold the briefing's sections, each a
+ *  part of FlightBriefingView: the Brief (the narrative, the risk and what
+ *  to check), under the Profile its Cruise Altitude, the Weather, the
+ *  aeroplane's Performance and the Airports. */
+export type BriefingPart = "brief" | "profile" | "weather" | "performance" | "airports";
