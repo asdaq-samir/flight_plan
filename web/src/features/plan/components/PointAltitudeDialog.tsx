@@ -10,7 +10,12 @@ import { flightLevel } from "../../../lib/units";
 /** The altitude at a point of the route: the pilot's own (`own`), else
  *  the plan's -- a waypoint's cruise there, an airport's pattern -- in
  *  feet; null before the planner has said. */
-export interface PointAltitude { feet: number | null; own: boolean }
+export interface PointAltitude {
+  feet: number | null; own: boolean;
+  /** What is wrong with the pilot's own, as the planner checked it against
+   *  the band it worked out there (14 CFR 91.119, 91.159, 91.131, 91.155). */
+  caution?: string[];
+}
 
 /** The point whose altitude is being set, from its menu (RouteBox). */
 export interface EditedPoint { ident: string; waypoint: boolean; altitude: PointAltitude }
@@ -61,6 +66,11 @@ function AltitudeForm({ point, onSet }: { point: EditedPoint; onSet: (ident: str
             : "Where a flight landing here comes down to, in feet above sea level."}
         </AlertDialogDescription>
       </AlertDialogHeader>
+      {altitude.caution && altitude.caution.length > 0 && (
+        <ul className="list-disc space-y-0.5 rounded-lg bg-amber-500/12 py-2 pr-2.5 pl-6 text-sm text-amber-800 dark:text-amber-300" data-testid="point-altitude-caution">
+          {altitude.caution.map(reason => <li key={reason}>{reason}</li>)}
+        </ul>
+      )}
       <div className="flex h-10 items-center gap-1 rounded-md border border-input bg-background px-3 font-mono">
         {waypoint && "FL"}
         <Input

@@ -1,17 +1,16 @@
-import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { CloudSun, Gauge, ListOrdered, Sparkles, TowerControl } from "lucide-react";
 import { cn } from "cn";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../../../components/ui/tabs";
 import { SectionsOpen } from "../../../../components/sectionLayout";
 import { LINE_TAB } from "../../../../components/lineTabs";
-import type { BriefingPart } from "../briefing/sections";
+import { GoToTab, type PanelTab } from "./panelTab";
 
 /** The panel's tabs, in the pilot's order: the Nav Log (the route's
  *  profile under it: the same legs from the side), the Brief, the Weather,
  *  the aeroplane's Performance and the Airports -- each an icon over its
  *  word, as iOS's tab bar draws one, so all five fit a phone's line at any
  *  text size, where six words did not at the pilot's. */
-export type PanelTab = Exclude<BriefingPart, "profile"> | "navlog";
 const TABS: { value: PanelTab; label: string; icon: ReactNode }[] = [
   { value: "navlog", label: "Nav Log", icon: <ListOrdered /> },
   { value: "brief", label: "Brief", icon: <Sparkles /> },
@@ -47,7 +46,9 @@ export default function PanelTabs({ rootRef, before, contents, notice, footer, c
   children?: ReactNode;
   printing: boolean;
   local: boolean;
-  marks?: Partial<Record<PanelTab, boolean>>;
+  /** A tab whose findings (lib/verdict) have something to fix, or to
+   *  look at. */
+  marks?: Partial<Record<PanelTab, "stop" | "caution">>;
   /** A checkpoint picked on the map with the panel out, by its key. */
   pick: string | null;
 }) {
@@ -63,13 +64,38 @@ export default function PanelTabs({ rootRef, before, contents, notice, footer, c
   }
   const scroller = useRef<HTMLDivElement>(null);
   const scrolls = useRef<Partial<Record<PanelTab, number>>>({});
-  const choose = (next: string) => {
+  // The section a row in another tab asked for (GoToTab), scrolled to
+  // once its tab is drawn.
+  const wanted = useRef<string | null>(null);
+  const [asked, setAsked] = useState(0);
+  const choose = useCallback((next: string) => {
     if (scroller.current) scrolls.current[tab] = scroller.current.scrollTop;
     setTab(next as PanelTab);
-  };
-  useLayoutEffect(() => {
-    if (scroller.current) scroller.current.scrollTop = scrolls.current[tab] ?? 0;
   }, [tab]);
+  const goTo = useCallback((next: PanelTab, section?: string) => {
+    wanted.current = section ?? null;
+    if (section) scrolls.current[next] = 0;
+    choose(next);
+    setAsked(n => n + 1);
+  }, [choose]);
+  useLayoutEffect(() => {
+    const box = scroller.current;
+    if (!box) return;
+    box.scrollTop = scrolls.current[tab] ?? 0;
+    const section = wanted.current;
+    wanted.current = null;
+    if (!section) return;
+    // To the section's top, under the tabs; twice, the second after a
+    // frame, as the sections above it are laid out only near the screen
+    // (content-visibility) and the first move is on their estimates.
+    const to = () => {
+      const target = box.querySelector(`[data-tab="${tab}"] [data-title="${CSS.escape(section)}"]`);
+      if (target) box.scrollTop += target.getBoundingClientRect().top - box.getBoundingClientRect().top;
+    };
+    to();
+    const frame = requestAnimationFrame(to);
+    return () => cancelAnimationFrame(frame);
+  }, [tab, asked]);
   return (
     // print:h-auto print:overflow-visible: on screen this fills a fixed
     // viewport height and clips to it, deliberately -- on paper there
@@ -82,9 +108,9 @@ export default function PanelTabs({ rootRef, before, contents, notice, footer, c
           scroller so they stay as it scrolls: an icon over its word, the
           word at iOS tab bar's own fixed size (it does not grow with the
           text, as iOS's does not), so the five share the line evenly. A
-          tab whose part has a warning -- VFR not recommended, a TFR on the
-          route, a raised risk -- carries a red mark, as the sections'
-          titles did. */}
+          tab whose findings (lib/verdict) have something to fix carries a
+          red mark, something to look at an amber one, as its sections'
+          titles do. */}
       <TabsList
         variant="line"
         className="h-auto w-full shrink-0 gap-0 border-b border-border px-[max(0.25rem,env(safe-area-inset-left))] group-data-[orientation=horizontal]/tabs:h-auto pointer-coarse:group-data-[orientation=horizontal]/tabs:h-auto print:hidden"
@@ -96,7 +122,12 @@ export default function PanelTabs({ rootRef, before, contents, notice, footer, c
           >
             <span className="relative">
               {t.icon}
-              {marks?.[t.value] && <span className="absolute -top-0.5 -right-1 size-2 rounded-full bg-destructive" data-testid={`panel-tab-mark-${t.value}`} />}
+              {marks?.[t.value] && (
+                <span
+                  className={cn("absolute -top-0.5 -right-1 size-2 rounded-full", marks[t.value] === "stop" ? "bg-destructive" : "bg-amber-500")}
+                  data-testid={`panel-tab-mark-${t.value}`} data-finding={marks[t.value]}
+                />
+              )}
             </span>
             {/* "Local" for one airport to itself: "Local Flight" came
                 within 16 points of the panel's side. */}
@@ -115,11 +146,13 @@ export default function PanelTabs({ rootRef, before, contents, notice, footer, c
       >
         {notice}
         <SectionsOpen.Provider value>
-          {(printing ? PRINTED : TABS.map(t => t.value).filter(t => opened.includes(t))).map(t => (
-            <TabsContent key={t} value={t} forceMount className="mt-0" data-testid={`panel-${t}`} hidden={!printing && t !== tab}>
-              {contents[t]}
-            </TabsContent>
-          ))}
+          <GoToTab.Provider value={goTo}>
+            {(printing ? PRINTED : TABS.map(t => t.value).filter(t => opened.includes(t))).map(t => (
+              <TabsContent key={t} value={t} forceMount className="mt-0" data-testid={`panel-${t}`} data-tab={t} hidden={!printing && t !== tab}>
+                {contents[t]}
+              </TabsContent>
+            ))}
+          </GoToTab.Provider>
         </SectionsOpen.Provider>
         {footer}
       </div>

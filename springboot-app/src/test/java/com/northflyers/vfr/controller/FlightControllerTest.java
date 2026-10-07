@@ -104,6 +104,26 @@ class FlightControllerTest {
     }
 
     @Test
+    void save_returns400_whenTheAltitudesAreNotIdentFeetPairs() throws Exception {
+        given(pilotService.current(any())).willReturn(Optional.of(samplePilot()));
+
+        mockMvc.perform(post("/api/flights").with(oidcLogin()).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"departureIdent\":\"C81\",\"destinationIdent\":\"KDLH\",\"altitudes\":\"VPBNG=4500\"}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void list_carriesTheAltitudesThePilotSet() throws Exception {
+        given(pilotService.current(any())).willReturn(Optional.of(samplePilot()));
+        given(flightService.list(any())).willReturn(List.of(sampleFlight().withOwnAltitudes("VPBNG:4500")));
+
+        mockMvc.perform(get("/api/flights").with(oidcLogin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].altitudes").value("VPBNG:4500"));
+    }
+
+    @Test
     void save_returns400_whenTheRiskLevelIsNotOneOfTheThree() throws Exception {
         given(pilotService.current(any())).willReturn(Optional.of(samplePilot()));
 

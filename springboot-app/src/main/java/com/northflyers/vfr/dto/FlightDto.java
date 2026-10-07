@@ -23,5 +23,8 @@ public record FlightDto(
         Instant createdAt,
         /** The pilot's risk assessment, as saved with it; null without one. */
         @Nullable RiskAssessmentDto risk,
-        List<FlightCheckpointDto> checkpoints) {
+        List<FlightCheckpointDto> checkpoints,
+        /** The altitudes the pilot set at its points ("VPBNG:4500"); null
+         *  where the planner's own were flown. */
+        @Nullable String altitudes) {
 }

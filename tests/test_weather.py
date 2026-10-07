@@ -568,3 +568,15 @@ def test_the_g_airmets_the_route_crosses_are_one_per_hazard_the_snapshot_nearest
         "hazard": "Icing", "severity": "MOD", "due_to": "ICE", "valid_at": "2026-10-04T15:00:00.000Z",
         "altitude_low_ft": None, "from_freezing_level": True, "altitude_high_ft": 16000.0,
     }]
+
+
+@patch("vfr.weather.requests.get", return_value=FOG_IN_A_TEMPO)
+def test_a_station_is_read_for_when_the_flight_is_there(mock_get):
+    """The fog in the TEMPO at 04-06Z is what a pilot arriving at 05Z is
+    told, and not one arriving at 01Z: each place over its own hour."""
+    assert weather.tafs_over({"KDLH": (_at(4), _at(6))}) == {
+        "KDLH": {"ceiling_ft": 200, "visibility_sm": 0.5, "raw": "TAF KDLH ..."}}
+    assert weather.tafs_over({"KDLH": (_at(0), _at(2))})["KDLH"]["visibility_sm"] == 6.0
+    # One with no TAF held is left out; asked for none, nothing is read.
+    assert weather.tafs_over({"KXXX": (_at(0), _at(2))}) == {}
+    assert weather.tafs_over({}) == {} and mock_get.call_count == 1

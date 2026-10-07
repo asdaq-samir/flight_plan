@@ -154,11 +154,13 @@ test("a route entered is fitted above the half sheet, to the whole screen at the
   await closeSidebarWithTheStockKey(page);
   await expectDrawerClosed(page);
   await fittedClearOf(page, sideDrawer(page));
-  // Bigger on a phone, where the capsule leaves nearly twice the room the
-  // half sheet did (a desktop's card leaves about the same either way):
-  // once it has got there -- clear of the capsule it already was.
+  // No smaller on a phone, once it has got there -- clear of the capsule
+  // it already was. It was bigger by a sixth: the half sheet then covered
+  // half the screen, and now a phone's ends at the flight's line (exact
+  // half), where a route like this one is as wide as the screen either
+  // way and its width, not the sheet, sets its size.
   if (page.viewportSize()!.width < 768) {
-    await expect.poll(async () => (await courseBox(page)).height, { timeout: slow(10_000) }).toBeGreaterThan(half.height * 1.15);
+    await expect.poll(async () => (await courseBox(page)).height, { timeout: slow(10_000) }).toBeGreaterThanOrEqual(half.height - 1);
   }
 
   await openPanel(page);

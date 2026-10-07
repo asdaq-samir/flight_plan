@@ -131,9 +131,13 @@ test("the route's box reads its points with an arrow between each two, a tap on 
 // change: a menu out hides the page from the role queries.
 async function touchHold(page: Page, from: Locator, to: Locator) {
   const middle = async (pill: Locator) => {
-    await expect.poll(() => pill.boundingBox()).not.toBeNull();
-    const box = (await pill.boundingBox())!;
-    return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+    // The box the poll found, not a second measure after it: the pill
+    // drawn again between the two (the address just changed) measured
+    // null the second time, now and then.
+    let box: { x: number; y: number; width: number; height: number } | null = null;
+    await expect.poll(async () => (box = await pill.boundingBox())).not.toBeNull();
+    const { x, y, width, height } = box!;
+    return { x: x + width / 2, y: y + height / 2 };
   };
   const [start, end] = [await middle(from), await middle(to)];
   const cdp = await page.context().newCDPSession(page);
@@ -199,9 +203,9 @@ test("a link with a stop opens on the route through it", async ({ page }) => {
   await expect(page.locator(".leaflet-marker-icon", { hasText: "KMSN" }).first()).toBeVisible({ timeout: slow(15000) });
 });
 
-test("a flight saved with a stop is filed with it, and its nav log lands there", async ({ page }) => {
+test("a flight saved with a stop is filed with it and the altitude set there, and its nav log lands there", async ({ page }) => {
   await recordedStops(page);
-  const filed: { stops?: string[]; checkpoints: { category: string; name: string }[] }[] = [];
+  const filed: { stops?: string[]; altitudes?: string | null; checkpoints: { category: string; name: string }[] }[] = [];
   await page.route("**/api/me", route => route.fulfill({
     json: { id: 1, email: "pilot@example.com", displayName: "A Pilot", developer: false },
   }));
@@ -211,13 +215,15 @@ test("a flight saved with a stop is filed with it, and its nav log lands there",
     filed.push(route.request().postDataJSON());
     return route.fulfill({ status: 201, json: { id: 1 } });
   });
-  await page.goto("/app/plan?dep=C81&dest=KDLH&stops=KMSN&view=briefing");
+  await page.goto("/app/plan?dep=C81&dest=KDLH&stops=KMSN&altitudes=KMSN:2400&view=briefing");
   const save = page.getByRole("button", { name: "Save this flight" });
   await expect(save).toBeEnabled({ timeout: slow(30000) });
   await save.click();
 
   await expect.poll(() => filed.length).toBe(1);
   expect(filed[0]!.stops).toEqual(["KMSN"]);
+  // With the altitude the pilot set there, to be planned at again.
+  expect(filed[0]!.altitudes).toBe("KMSN:2400");
   expect(filed[0]!.checkpoints.filter(c => c.category === "stop").map(c => c.name)).toEqual(["KMSN"]);
 });
 
@@ -402,9 +408,14 @@ test("a VFR waypoint on the chart is a diamond, and its card adds it as a stop",
     await page.waitForTimeout(300);
     expect(still).toBe(true);
   }).toPass({ timeout: slow(10_000) });
-  await diamond.click();
+  // Tapped again until its card is up: on CI's runner the plan's stream
+  // finishing could move the map under the first tap (its card never
+  // came, now and then, on the phone's shard).
   const add = page.getByTestId("waypoint-add-stop");
-  await expect(add).toBeVisible();
+  await expect(async () => {
+    await diamond.click({ timeout: 2000 });
+    await expect(add).toBeVisible({ timeout: 2000 });
+  }).toPass({ timeout: slow(15000) });
   await add.click();
   await expect(page).toHaveURL(/[?&]stops=VPBNG/);
 });

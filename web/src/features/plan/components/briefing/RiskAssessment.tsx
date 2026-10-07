@@ -1,4 +1,5 @@
-import { Check, TriangleAlert } from "lucide-react";
+import TickBox from "../../../../components/TickBox";
+import FindingIcon from "../../../../components/FindingIcon";
 import { cn } from "cn";
 import { ListGroup, ListRow } from "../../../../components/GroupedList";
 import {
@@ -30,7 +31,7 @@ export default function RiskAssessment({ assessment }: { assessment: Assessment 
         ) : raised.map(f => (
           <ListRow
             key={f.key}
-            media={<TriangleAlert className={cn("size-4", f.stop || f.points >= HIGH_FROM ? LEVEL_TONE.high : LEVEL_TONE.caution)} aria-hidden />}
+            media={<FindingIcon finding={f.stop || f.points >= HIGH_FROM ? "stop" : "caution"} />}
             title={f.label} description={f.why} value={f.stop ? "No-go" : `+${f.points}`}
             data-testid="risk-found"
           />
@@ -42,11 +43,7 @@ export default function RiskAssessment({ assessment }: { assessment: Assessment 
             <ListRow
               key={c.key} role="checkbox" aria-checked={!!ticked[c.key]}
               onClick={() => tick(c.key, !ticked[c.key])}
-              media={(
-                <span className={cn("flex size-5 items-center justify-center rounded-md border", ticked[c.key] ? "border-primary bg-primary text-primary-foreground" : "border-input")}>
-                  {ticked[c.key] && <Check className="size-3.5" aria-hidden />}
-                </span>
-              )}
+              media={<TickBox on={!!ticked[c.key]} />}
               title={c.label} description={c.why} value={c.stop ? "No-go" : `+${c.points}`}
               data-testid={`risk-check-${c.key}`}
             />

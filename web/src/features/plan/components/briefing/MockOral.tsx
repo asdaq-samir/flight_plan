@@ -73,7 +73,7 @@ export default function MockOral({ plan }: { plan: string }) {
 
   return (
     <div className="space-y-4" data-testid="mock-oral">
-      <p className={cn("text-muted-foreground", TEXT.prose)}>
+      <p className={TEXT.prose}>
         An examiner’s questions about this flight, from the ACS{training?.knowledgeTestCodes.length ? ", your knowledge test’s codes first" : ""},
         and your answers checked against 14 CFR and the AIM, quoted word for word. A study aid in preview: its answers
         have not yet been reviewed by an instructor.

@@ -47,7 +47,7 @@ class FlightServiceTest {
     }
 
     private static SaveFlightRequest request(Long aircraftId) {
-        return new SaveFlightRequest(aircraftId, "C81", "KDLH", null, null, null, null, null, List.of(), null, null);
+        return new SaveFlightRequest(aircraftId, "C81", "KDLH", null, null, null, null, null, List.of(), null, null, null);
     }
 
     @Test

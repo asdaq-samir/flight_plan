@@ -6,5 +6,9 @@
   "fuel_burn_gph": 9.5,
   "cruise_power_pct": 75,
   "climb_tas_kt": 76,
-  "usable_fuel_gal": 48
+  "usable_fuel_gal": 48,
+  "crosswind": {
+    "demonstrated_kt": 17,
+    "source": "Piper PA-28-181 Archer POH, section 4: maximum demonstrated crosswind velocity"
+  }
 }

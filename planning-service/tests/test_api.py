@@ -196,6 +196,33 @@ def test_the_briefing_forecast_is_read_over_the_flight(monkeypatch):
     assert windows == [(start, start + 150 * 60 + 3600)]
 
 
+def test_each_taf_station_is_placed_along_the_route_and_read_for_when_the_flight_is_there(monkeypatch):
+    """For the Weather tab's places: the destination's TAF is read for the
+    arrival, an hour either side, not over the whole flight."""
+    monkeypatch.setattr(weather, "hazards_along_route", lambda start, end: [])
+    monkeypatch.setattr(weather, "ceiling_visibility_along_route", lambda start, end, window=None: {
+        "min_ceiling_ft": 900.0, "min_visibility_sm": 4.0, "stations": [
+            {"icaoId": "KDLH", "lat": 46.8421, "lon": -92.1936, "elevation_ft": 1424, "ceiling_ft": 900.0, "visibility_sm": 4.0}]})
+    monkeypatch.setattr(weather, "metar_for_idents", lambda idents: {ident: None for ident in idents})
+    monkeypatch.setattr(airports, "get_runways", lambda ident: [])
+    monkeypatch.setattr(airports, "get_frequencies", lambda ident: [])
+    windows = {}
+    monkeypatch.setattr(weather, "tafs_over", lambda asked: windows.update(asked) or {
+        "KDLH": {"ceiling_ft": 3000.0, "visibility_sm": 6.0, "raw": "TAF KDLH 251720Z ..."}})
+
+    body = client.get("/api/briefing", params={
+        "dep": "C81", "dest": "KDLH", "depart": "2026-09-25T13:00:00Z", "ete_min": 150}).json()
+
+    station = body["forecast"]["stations"][0]
+    arrival = 1790341200.0 + 150 * 60
+    assert windows == {"KDLH": (arrival - 3600, arrival + 3600)}
+    assert station["eta"] == "2026-09-25T15:30:00Z" and station["along_track_nm"] > 250
+    assert (station["eta_ceiling_ft"], station["eta_visibility_sm"]) == (3000.0, 6.0)
+    # The whole flight's worst stays the go/no-go read.
+    assert (station["ceiling_ft"], body["forecast"]["min_ceiling_ft"]) == (900.0, 900.0)
+    assert station["raw"].startswith("TAF KDLH")
+
+
 def test_the_briefing_tells_the_tfrs_pilot_reports_and_g_airmets_on_the_route(monkeypatch):
     monkeypatch.setattr(weather, "hazards_along_route", lambda start, end: [])
     monkeypatch.setattr(weather, "ceiling_visibility_along_route", lambda start, end, window=None: (

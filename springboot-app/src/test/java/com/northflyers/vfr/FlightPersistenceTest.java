@@ -95,6 +95,16 @@ class FlightPersistenceTest {
     }
 
     @Test
+    void theAltitudesThePilotSetRoundTrip() {
+        Pilot pilot = newPilot();
+        Flight saved = flights.save(new Flight(pilot, null, "C81", "KDLH")
+                .withStops(List.of("VPBNG")).withOwnAltitudes("VPBNG:4500,KDLH:2400"));
+
+        assertThat(flights.findById(saved.getId()).orElseThrow().getOwnAltitudes()).isEqualTo("VPBNG:4500,KDLH:2400");
+        assertThat(flights.save(new Flight(pilot, null, "C81", "KDLH").withOwnAltitudes("")).getOwnAltitudes()).isNull();
+    }
+
+    @Test
     void aSavedTrackComesBackWholeIsReplacedAndGoesWithItsFlight() {
         Pilot pilot = newPilot();
         Flight flight = flights.save(new Flight(pilot, null, "C81", "KDLH"));

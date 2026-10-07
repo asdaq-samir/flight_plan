@@ -362,6 +362,45 @@ def forecast_hour_for(depart: datetime | None) -> str:
     return weather.forecast_hour((depart - datetime.now(timezone.utc)).total_seconds() / 3600)
 
 
+def own_altitude_caution(selection: dict, legs: list, between: tuple[str, str]) -> dict | None:
+    """What is wrong with an altitude the pilot set for a hop -- the whole
+    route's Custom one, or a waypoint's own -- against the band the planner
+    worked out for each of its legs, which the pilot's altitude is flown
+    over unchecked: under the terrain and obstacles' floor (14 CFR 91.119's
+    minimum safe altitudes, with the planner's margin), off the hemispheric
+    rule more than 3,000 ft above the ground (14 CFR 91.159), into Class B
+    without the clearance planned for (14 CFR 91.131), over the aircraft's
+    service ceiling, or inside the cloud clearance under a forecast base
+    (14 CFR 91.155). A warning, never a refusal: the pilot may have reasons
+    the planner cannot see, and it says why rather than stopping them. None
+    when nothing is."""
+    reasons: list[str] = []
+    altitude = None
+    for leg, segment in zip(legs, selection.get("segments", [])):
+        altitude = leg["altitude_ft"]
+        floor, rule_from = segment.get("floor_ft"), segment.get("hemispheric_rule_from_ft")
+        shelf, ceiling = segment.get("airspace_ceiling_ft"), segment.get("service_ceiling_ft")
+        clouds = segment.get("cloud_ceiling_ft")
+        found = []
+        if floor is not None and altitude < floor:
+            found.append(f"Under the {floor:,.0f} ft the terrain and obstacles need (14 CFR 91.119)")
+        if rule_from is not None and altitude > rule_from and segment.get("eastbound") is not None:
+            east = segment["eastbound"]
+            if (altitude - (1500 if east else 500)) % 2000:
+                found.append(f"{'Eastbound' if east else 'Westbound'} above {rule_from:,.0f} ft flies "
+                             f"{'odd' if east else 'even'} thousands plus 500 (14 CFR 91.159)")
+        if shelf is not None and altitude >= shelf:
+            found.append(f"Into Class B from {max(shelf, 0):,.0f} ft: it needs a clearance (14 CFR 91.131)")
+        if ceiling is not None and altitude > ceiling:
+            found.append(f"Over the aircraft's {ceiling:,.0f} ft service ceiling")
+        if clouds is not None and altitude > clouds:
+            found.append(f"Inside the cloud clearance under {clouds:,.0f} ft (14 CFR 91.155)")
+        reasons += [r for r in found if r not in reasons]
+    if not reasons or altitude is None:
+        return None
+    return {"from_ident": between[0], "to_ident": between[1], "altitude_ft": altitude, "reasons": reasons}
+
+
 def no_altitude(
     selection: dict, between: tuple[str, str] | None = None, via: dict | None = None, where: str | None = None,
 ) -> dict:

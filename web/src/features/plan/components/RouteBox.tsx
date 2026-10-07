@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useId, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
 import { Command as CommandPrimitive } from "cmdk";
-import { ArrowRight, MoveVertical, Trash2 } from "lucide-react";
+import { ArrowRight, MoveVertical, Trash2, TriangleAlert } from "lucide-react";
 import {
   DndContext, KeyboardSensor, MouseSensor, TouchSensor, closestCenter, useDndMonitor, useSensor, useSensors, type DragEndEvent,
 } from "@dnd-kit/core";
@@ -466,7 +466,8 @@ function Pill({ id, ident, waypoint, index, role, stopNumber, airspaceOf, metarC
         <ContextMenuItem onSelect={() => window.setTimeout(onEditAltitude)} data-testid="point-altitude">
           <MoveVertical />
           {waypoint ? "Altitude" : "Pattern altitude"}
-          <ContextMenuShortcut className="tracking-normal tabular-nums">
+          <ContextMenuShortcut className={cn("flex items-center gap-1 tracking-normal tabular-nums", altitude.caution?.length && "text-amber-600 dark:text-amber-400")}>
+            {altitude.caution?.length ? <TriangleAlert className="size-3.5" aria-label="With a caution" /> : null}
             {waypoint ? flightLevel(altitude.feet) : altitude.feet === null ? "—" : `${altFt(altitude.feet)} ft`}
           </ContextMenuShortcut>
         </ContextMenuItem>

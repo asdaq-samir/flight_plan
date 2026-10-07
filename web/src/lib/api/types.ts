@@ -25,6 +25,9 @@ export type Airport = Schemas["AirportEnd"];
 export type Course = Schemas["Course"];
 /** A waypoint that keeps a route out of the Class B that stops it. */
 export type Detour = Schemas["Detour"];
+/** An altitude the pilot set for a hop and what is wrong with it (the
+ *  planner's own_altitude_caution): a warning, not a refusal. */
+export type AltitudeCaution = Schemas["AltitudeCaution"];
 /** One chart kind the map may draw, with its zooms -- and, for an
  *  overlay, its sheets and where each is. */
 export type ChartLayer = Schemas["ChartLayer"];

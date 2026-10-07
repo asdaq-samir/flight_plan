@@ -41,6 +41,17 @@
             "default": null,
             "title": "Climb Tas Kt"
           },
+          "crosswind": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DemonstratedCrosswind"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
           "cruise_power_pct": {
             "anyOf": [
               {
@@ -1140,6 +1151,38 @@
           "low_ceiling_or_visibility"
         ],
         "title": "AltitudeBreakdown",
+        "type": "object"
+      },
+      "AltitudeCaution": {
+        "description": "An altitude the pilot set for a hop (`from_ident` to `to_ident`) and\nwhat is wrong with it against the planner's band there\n(app.planning.own_altitude_caution): a warning, not a refusal.",
+        "properties": {
+          "altitude_ft": {
+            "title": "Altitude Ft",
+            "type": "number"
+          },
+          "from_ident": {
+            "title": "From Ident",
+            "type": "string"
+          },
+          "reasons": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Reasons",
+            "type": "array"
+          },
+          "to_ident": {
+            "title": "To Ident",
+            "type": "string"
+          }
+        },
+        "required": [
+          "from_ident",
+          "to_ident",
+          "altitude_ft",
+          "reasons"
+        ],
+        "title": "AltitudeCaution",
         "type": "object"
       },
       "AltitudeOption": {
@@ -2475,6 +2518,25 @@
         "title": "DayNightMinimums",
         "type": "object"
       },
+      "DemonstratedCrosswind": {
+        "description": "The strongest crosswind the POH says the aeroplane was shown to\ntake off and land in: not a limitation, but past it the pilot is\nbeyond what was tested.",
+        "properties": {
+          "demonstrated_kt": {
+            "title": "Demonstrated Kt",
+            "type": "number"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "demonstrated_kt",
+          "source"
+        ],
+        "title": "DemonstratedCrosswind",
+        "type": "object"
+      },
       "DetectBlock": {
         "properties": {
           "block": {
@@ -2917,7 +2979,19 @@
         "type": "object"
       },
       "ForecastStation": {
+        "description": "A TAF station near the route: the worst it forecasts over the\nwhole flight (`ceiling_ft`, `visibility_sm`, the go/no-go read), and\n-- placed along the route -- when the flight gets there and the worst\nit forecasts within an hour of then, with the TAF as issued.",
         "properties": {
+          "along_track_nm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Along Track Nm"
+          },
           "ceiling_ft": {
             "anyOf": [
               {
@@ -2929,9 +3003,75 @@
             ],
             "title": "Ceiling Ft"
           },
+          "eta": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Eta"
+          },
+          "eta_ceiling_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Eta Ceiling Ft"
+          },
+          "eta_visibility_sm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Eta Visibility Sm"
+          },
           "icaoId": {
             "title": "Icaoid",
             "type": "string"
+          },
+          "lat": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lat"
+          },
+          "lon": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lon"
+          },
+          "raw": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Raw"
           },
           "visibility_sm": {
             "anyOf": [
@@ -3960,6 +4100,14 @@
           },
           "altitude_selection": {
             "$ref": "#/components/schemas/AltitudeBreakdown"
+          },
+          "cautions": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/AltitudeCaution"
+            },
+            "title": "Cautions",
+            "type": "array"
           },
           "flown": {
             "anyOf": [
@@ -5281,6 +5429,14 @@
         "properties": {
           "aircraft": {
             "$ref": "#/components/schemas/AircraftProfile"
+          },
+          "altitude_cautions": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/AltitudeCaution"
+            },
+            "title": "Altitude Cautions",
+            "type": "array"
           },
           "altitude_choice": {
             "anyOf": [

@@ -280,6 +280,9 @@
           "aircraftTailNumber" : {
             "type" : [ "string", "null" ]
           },
+          "altitudes" : {
+            "type" : [ "string", "null" ]
+          },
           "checkpoints" : {
             "items" : {
               "$ref" : "#/components/schemas/FlightCheckpointDto"
@@ -334,12 +337,15 @@
             "type" : [ "number", "null" ]
           }
         },
-        "required" : [ "aircraftTailNumber", "checkpoints", "createdAt", "cruiseAltitudeFt", "departureIdent", "destinationIdent", "id", "plannedFor", "risk", "stops", "totalDistanceNm", "totalEteMin", "totalFuelGal" ],
+        "required" : [ "aircraftTailNumber", "altitudes", "checkpoints", "createdAt", "cruiseAltitudeFt", "departureIdent", "destinationIdent", "id", "plannedFor", "risk", "stops", "totalDistanceNm", "totalEteMin", "totalFuelGal" ],
         "type" : "object"
       },
       "FlightSummaryDto" : {
         "properties" : {
           "aircraftTailNumber" : {
+            "type" : [ "string", "null" ]
+          },
+          "altitudes" : {
             "type" : [ "string", "null" ]
           },
           "createdAt" : {
@@ -390,7 +396,7 @@
             "type" : [ "number", "null" ]
           }
         },
-        "required" : [ "aircraftTailNumber", "createdAt", "cruiseAltitudeFt", "departureIdent", "destinationIdent", "id", "plannedFor", "risk", "stops", "totalDistanceNm", "totalEteMin", "totalFuelGal" ],
+        "required" : [ "aircraftTailNumber", "altitudes", "createdAt", "cruiseAltitudeFt", "departureIdent", "destinationIdent", "id", "plannedFor", "risk", "stops", "totalDistanceNm", "totalEteMin", "totalFuelGal" ],
         "type" : "object"
       },
       "KnowledgeTestRequest" : {
@@ -685,6 +691,10 @@
             "format" : "int64",
             "type" : [ "integer", "null" ]
           },
+          "altitudes" : {
+            "pattern" : "^$|[A-Za-z0-9]{2,5}:\\d{1,5}(,[A-Za-z0-9]{2,5}:\\d{1,5}){0,9}",
+            "type" : [ "string", "null" ]
+          },
           "checkpoints" : {
             "items" : {
               "$ref" : "#/components/schemas/SaveFlightCheckpointRequest"
@@ -738,7 +748,7 @@
             "type" : [ "number", "null" ]
           }
         },
-        "required" : [ "aircraftId", "checkpoints", "cruiseAltitudeFt", "departureIdent", "destinationIdent", "plannedFor", "risk", "stops", "totalDistanceNm", "totalEteMin", "totalFuelGal" ],
+        "required" : [ "aircraftId", "altitudes", "checkpoints", "cruiseAltitudeFt", "departureIdent", "destinationIdent", "plannedFor", "risk", "stops", "totalDistanceNm", "totalEteMin", "totalFuelGal" ],
         "type" : "object"
       },
       "StreamingResponseBody" : {

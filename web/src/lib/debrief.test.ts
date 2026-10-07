@@ -8,7 +8,7 @@ import { readTrack, thin, TrackError, type TrackPoint } from "./track";
  *  past it, 18 minutes a leg at 3,500 ft. */
 const FLIGHT = {
   id: 1, departureIdent: "A", destinationIdent: "B", stops: [], aircraftTailNumber: null, cruiseAltitudeFt: 3500,
-  totalDistanceNm: 60, totalEteMin: 36, totalFuelGal: 6, plannedFor: null, createdAt: "2026-10-01T12:00:00Z", risk: null,
+  totalDistanceNm: 60, totalEteMin: 36, totalFuelGal: 6, plannedFor: null, createdAt: "2026-10-01T12:00:00Z", risk: null, altitudes: null,
   checkpoints: [
     { sequenceNo: 0, name: "A", category: "departure", lat: 42, lon: -88, alongTrackNm: 0, legDistanceNm: null, trueCourseDeg: null, magneticHeadingDeg: null, groundspeedKt: null, eteMin: null, fuelGal: null, altitudeFt: null },
     { sequenceNo: 1, name: "Lake", category: "lake", lat: 42.5, lon: -88, alongTrackNm: 30, legDistanceNm: 30, trueCourseDeg: 0, magneticHeadingDeg: 3, groundspeedKt: 100, eteMin: 18, fuelGal: 3, altitudeFt: 3500 },

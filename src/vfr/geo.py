@@ -150,6 +150,24 @@ def track_distances_nm(lat, lon, route_start: tuple, route_end: tuple):
     return _track(lat, lon, route_start, route_end)
 
 
+def along_path_nm(lat: float, lon: float, path: list) -> float:
+    """How far along the route flown through `path` [(lat, lon), ...] the
+    nearest point of it to (lat, lon) is: the leg the point is closest
+    to, and how far along that leg, held to its ends. A route with stops
+    is not one great circle, so along its first and last points alone a
+    place beside the second leg read as somewhere off the first."""
+    best, nearest, offset = 0.0, float("inf"), 0.0
+    for a, b in zip(path, path[1:]):
+        leg = distance_nm(*a, *b)
+        cross, along = _track(lat, lon, a, b)
+        held = min(max(along, 0.0), leg)
+        off = float(np.hypot(cross, along - held))
+        if off < nearest:
+            best, nearest = offset + held, off
+        offset += leg
+    return best
+
+
 def destination_point(lat: float, lon: float, bearing: float, distance_nm_: float) -> tuple:
     """Point reached from (lat, lon) travelling `bearing` degrees for
     `distance_nm_` nautical miles along a great circle.
