@@ -204,6 +204,7 @@ export const api = {
   async *navlog(
     dep: string, dest: string, altitudeFt?: string, aircraft?: AircraftChoice, altitudeChoice?: AltitudeChoice,
     depart?: string, signal?: AbortSignal, stops?: string[], classBClearance?: boolean, altitudes?: string,
+    checkpoints = true,
   ): AsyncGenerator<NavLogMessage> {
     const result = await planner.GET("/api/navlog", {
       params: {
@@ -221,6 +222,7 @@ export const api = {
           depart: depart || undefined,
           class_b_clearance: classBClearance || undefined,
           altitudes: altitudes || undefined,
+          checkpoints: checkpoints ? undefined : false,
         },
       },
       parseAs: "stream", signal,

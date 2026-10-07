@@ -128,6 +128,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // (the preferences store), since a pilot flies the same one for a
   // while; a stock profile until they pick one of their own.
   const remembered = usePreferences(p => p.aircraft);
+  const showWaypoints = usePreferences(p => p.waypoints);
   const setAircraft = usePreferences(p => p.setAircraft);
 
   // The stock profiles, plus a signed-in pilot's own aeroplanes on top
@@ -153,6 +154,9 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   const s = usePlan({
     dep: planned.dep, dest: planned.dest, stops: planned.stops, altitudeFt, altitudeChoice, depart, aircraft, load, classBClearance,
     altitudes, localMin,
+    // Checkpoints as the map shows them: the settings' Waypoints off, the
+    // nav log runs from point to point, at the pilot's ask.
+    checkpoints: showWaypoints,
   });
   const changeLocalMin = useCallback((minutes: number) => {
     setSearchParams(prev => {

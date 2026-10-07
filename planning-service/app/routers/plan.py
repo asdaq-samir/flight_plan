@@ -91,6 +91,11 @@ class PlanQuery:
     #: a pilot crosses it); an airport's is its pattern, which a flight
     #: landing there comes down to. The rest of the route as planned.
     altitudes: str = ""
+    #: Checkpoints between the route's own points, as the planner picks
+    #: them off the chart. False, the legs run from point to point alone
+    #: -- the departure, the stops, the destination -- as a pilot whose
+    #: map shows no waypoints flies it; and nothing is scored for them.
+    checkpoints: bool = True
 
     def profile(self) -> dict:
         return aircraft_profile(
@@ -587,7 +592,7 @@ def plan(q: Annotated[PlanQuery, Depends()]) -> Plan:
     runs: list[HopRun] = []
 
     def work():
-        scored, selected, by_hop = route_checkpoints(r)
+        scored, selected, by_hop = route_checkpoints(r) if q.checkpoints else ([], [], [[] for _ in r.hops])
         _name_waypoints(r, selected)
         runs.extend(hop_runs(r, by_hop, q.depart, profile))
         return scored, selected, join_outcomes(runs, [resolve_run(run, profile, q) for run in runs])
@@ -682,8 +687,11 @@ def navlog_stream(q: Annotated[PlanQuery, Depends()]) -> StreamingResponse:
     own = q.own_altitudes()
 
     def lines():
-        yield line(NavLogStage(detail="Reading the chart and choosing the checkpoints…"))
-        _, _, by_hop = route_checkpoints(r)
+        if q.checkpoints:
+            yield line(NavLogStage(detail="Reading the chart and choosing the checkpoints…"))
+            _, _, by_hop = route_checkpoints(r)
+        else:
+            by_hop = [[] for _ in r.hops]
 
         profile = q.profile()
         runs = hop_runs(r, by_hop, q.depart, profile)

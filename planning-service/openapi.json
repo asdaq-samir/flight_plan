@@ -8454,6 +8454,16 @@
               "title": "Altitudes",
               "type": "string"
             }
+          },
+          {
+            "in": "query",
+            "name": "checkpoints",
+            "required": false,
+            "schema": {
+              "default": true,
+              "title": "Checkpoints",
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -8712,6 +8722,16 @@
               "default": "",
               "title": "Altitudes",
               "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "checkpoints",
+            "required": false,
+            "schema": {
+              "default": true,
+              "title": "Checkpoints",
+              "type": "boolean"
             }
           }
         ],
@@ -9130,6 +9150,16 @@
               "default": "",
               "title": "Altitudes",
               "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "checkpoints",
+            "required": false,
+            "schema": {
+              "default": true,
+              "title": "Checkpoints",
+              "type": "boolean"
             }
           }
         ],

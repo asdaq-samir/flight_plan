@@ -431,3 +431,16 @@ def test_a_local_flight_is_its_time_aloft_at_cruise_burn_with_the_fuel_check():
 
 def test_a_local_flight_is_one_airport_to_itself():
     assert client.get("/api/local-flight", params={"dep": "C81", "dest": "KDLH"}).status_code == 422
+
+
+def test_without_checkpoints_the_legs_run_point_to_point_and_nothing_is_scored(monkeypatch, messages):
+    def no_scoring(*args, **kwargs):
+        raise AssertionError("scored with no checkpoints asked for")
+
+    monkeypatch.setattr(scoring, "score", no_scoring)
+    params = {"dep": "C81", "dest": "KDLH", "checkpoints": False}
+    body = client.get("/api/plan", params=params).json()
+    assert body["selected"] == []
+    assert [(leg["from"], leg["to"]) for leg in body["legs"]] == [("C81", "KDLH")]
+    legs = [m for m in messages(client.get("/api/navlog", params=params)) if m["type"] == "leg"]
+    assert [(leg["from"], leg["to"]) for leg in legs] == [("C81", "KDLH")]

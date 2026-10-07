@@ -134,17 +134,27 @@ test("plan page: Waypoints draws the route's checkpoints and the landmarks they 
   const landmarks = page.locator('path.leaflet-interactive[stroke="#5b6b76"]');
   await expect(landmarks.first()).toBeAttached();
 
-  // Off, from the search bar's settings, and the route again.
+  // Off, from the search bar's settings, and the route again: no
+  // checkpoints on the map, none asked for, and the nav log from the
+  // departure to the destination alone, as the pilot asked.
   await beforeTheRoute(page, async () => {
     const toggle = page.getByTestId("waypoints-toggle");
     await expect(toggle).toHaveAttribute("aria-pressed", "true");
     await toggle.click();
   });
+  const asked: string[] = [];
+  page.on("request", r => { if (/\/(checkpoints|navlog)\?/.test(r.url())) asked.push(new URL(r.url()).pathname.split("/").pop()!); });
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
   await expect(page.locator(".leaflet-marker-icon", { hasText: "KDLH" }).first()).toBeVisible({ timeout: slow(30000) });
   await expect(numbered).toHaveCount(0);
   await expect(landmarks).toHaveCount(0);
+  await openPanel(page);
+  const rows = sideDrawer(page).locator("table tbody tr[data-kind]");
+  await expect(page.getByTestId("navlog-eta")).toBeAttached({ timeout: slow(60000) });
+  await expect(sideDrawer(page).locator('table tbody tr[data-kind="checkpoint"]')).toHaveCount(0);
+  expect(await rows.count()).toBeGreaterThan(0);
+  expect(asked).not.toContain("checkpoints");
 });
 
 test("my position is the location arrow among the map's buttons, on both pages, and over plain http it says why there is none", async ({ page }) => {
