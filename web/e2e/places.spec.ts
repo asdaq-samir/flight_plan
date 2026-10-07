@@ -150,18 +150,22 @@ test("closer in, the airports that report wear their weather's colour, and a tap
   // The route's own airports keep their own chips: none drawn twice.
   expect(await chips.filter({ hasText: /^C81$/ }).count()).toBe(0);
 
-  // One whose middle nothing else covers.
-  const at = await chips.evaluateAll(els => {
-    for (const el of els) {
-      const r = el.getBoundingClientRect();
-      const x = r.left + r.width / 2, y = r.top + r.height / 2;
-      if (el.contains(document.elementFromPoint(x, y))) return { x, y, ident: el.textContent?.trim() ?? "" };
-    }
-    return null;
-  });
-  expect(at, "a chip with nothing over it").not.toBeNull();
-  await page.mouse.click(at!.x, at!.y);
-  await expect(page).toHaveURL(new RegExp(`[?&]place=${at!.ident}`));
+  // One whose middle nothing else covers, found and tapped again while
+  // the map is still settling from the zoom (a CI runner's last frames
+  // moved the chip from under the tap).
+  await expect(async () => {
+    const at = await chips.evaluateAll(els => {
+      for (const el of els) {
+        const r = el.getBoundingClientRect();
+        const x = r.left + r.width / 2, y = r.top + r.height / 2;
+        if (el.contains(document.elementFromPoint(x, y))) return { x, y, ident: el.textContent?.trim() ?? "" };
+      }
+      return null;
+    });
+    expect(at, "a chip with nothing over it").not.toBeNull();
+    await page.mouse.click(at!.x, at!.y);
+    await expect(page).toHaveURL(new RegExp(`[?&]place=${at!.ident}`), { timeout: 2000 });
+  }).toPass({ timeout: slow(20000) });
   await expect(card(page).getByTestId("fly-here")).toBeVisible({ timeout: slow(15000) });
 });
 

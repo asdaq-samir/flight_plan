@@ -141,15 +141,21 @@ async function touchHold(page: Page, from: Locator, to: Locator) {
     cdp.send("Input.dispatchTouchEvent", { type, touchPoints: p ? [{ ...p, id: 1 }] : [] });
   await touch("touchStart", start);
   return async function moveOn() {
-    for (let i = 1; i <= 20; i++) await touch("touchMove", { x: start.x + (end.x - start.x) * i / 20, y: start.y + (end.y - start.y) * i / 20 });
+    // A frame apart, as a finger's moves come.
+    for (let i = 1; i <= 20; i++) {
+      await touch("touchMove", { x: start.x + (end.x - start.x) * i / 20, y: start.y + (end.y - start.y) * i / 20 });
+      await page.waitForTimeout(16);
+    }
     await page.waitForTimeout(300);
     await touch("touchEnd");
   };
 }
 
+// Held past the drag's quarter second and well short of the menu's half,
+// a slow runner's lag included.
 async function touchDrag(page: Page, from: Locator, to: Locator) {
   const moveOn = await touchHold(page, from, to);
-  await page.waitForTimeout(400);
+  await page.waitForTimeout(320);
   await moveOn();
 }
 
