@@ -100,7 +100,8 @@ class PlanQuery:
 
     def own_altitudes(self) -> dict[str, float]:
         """`altitudes` by ident; a 422 for one that is not "IDENT:FEET",
-        or not a VFR altitude (under 18,000 ft, Class A's floor)."""
+        or not a VFR altitude: under 18,000 ft MSL, the floor of Class A
+        (14 CFR 71.33), where no flight is VFR (14 CFR 91.135)."""
         out = {}
         for part in filter(None, (p.strip() for p in self.altitudes.split(","))):
             ident, _, feet = part.partition(":")
