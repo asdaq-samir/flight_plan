@@ -41,6 +41,17 @@
             "default": null,
             "title": "Climb Tas Kt"
           },
+          "crosswind": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DemonstratedCrosswind"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
           "cruise_power_pct": {
             "anyOf": [
               {
@@ -2507,6 +2518,25 @@
         "title": "DayNightMinimums",
         "type": "object"
       },
+      "DemonstratedCrosswind": {
+        "description": "The strongest crosswind the POH says the aeroplane was shown to\ntake off and land in: not a limitation, but past it the pilot is\nbeyond what was tested.",
+        "properties": {
+          "demonstrated_kt": {
+            "title": "Demonstrated Kt",
+            "type": "number"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "demonstrated_kt",
+          "source"
+        ],
+        "title": "DemonstratedCrosswind",
+        "type": "object"
+      },
       "DetectBlock": {
         "properties": {
           "block": {
@@ -2949,7 +2979,19 @@
         "type": "object"
       },
       "ForecastStation": {
+        "description": "A TAF station near the route: the worst it forecasts over the\nwhole flight (`ceiling_ft`, `visibility_sm`, the go/no-go read), and\n-- placed along the route -- when the flight gets there and the worst\nit forecasts within an hour of then, with the TAF as issued.",
         "properties": {
+          "along_track_nm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Along Track Nm"
+          },
           "ceiling_ft": {
             "anyOf": [
               {
@@ -2961,9 +3003,75 @@
             ],
             "title": "Ceiling Ft"
           },
+          "eta": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Eta"
+          },
+          "eta_ceiling_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Eta Ceiling Ft"
+          },
+          "eta_visibility_sm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Eta Visibility Sm"
+          },
           "icaoId": {
             "title": "Icaoid",
             "type": "string"
+          },
+          "lat": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lat"
+          },
+          "lon": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lon"
+          },
+          "raw": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Raw"
           },
           "visibility_sm": {
             "anyOf": [

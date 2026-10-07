@@ -1,5 +1,5 @@
 import { expect, type Page } from "@playwright/test";
-import { openSettings, settle, sideDrawer, slow } from "../helpers";
+import { openSettings, openTab, settle, sideDrawer, slow } from "../helpers";
 
 /** One state of the app as a pilot sees it, reached from a fresh page. */
 export type Screen = { name: string; ready: (page: Page) => Promise<void> };
@@ -8,7 +8,7 @@ const ROUTE = "dep=C81&dest=KDLH";
 
 /**
  * The screens the iOS audit measures: the planner's map, its panel and
- * the nav log with a leg open, an airport's card, the training drawer with a waypoint open,
+ * the nav log with a leg open, the panel's other four tabs, an airport's card, the training drawer with a waypoint open,
  * both consoles and the settings. Nothing is written: a row is selected,
  * never rated, and no note is typed.
  */
@@ -48,6 +48,20 @@ export const SCREENS: Screen[] = [
       await expect(page.locator("tbody textarea").first()).toBeVisible();
     },
   },
+  // The panel's other tabs, each laid out once its briefing is in: the
+  // Brief's narrative answered by a line of the test's own (openTab), not
+  // a billed call.
+  ...([
+    ["Brief", "verdict"], ["Weather", "weather-places"], ["Performance", "takeoff-landing"], ["Airports", "airport-section"],
+  ] as const).map(([tab, shown]): Screen => ({
+    name: `panel, ${tab} tab`,
+    ready: async page => {
+      await page.goto(`/app/plan?${ROUTE}&view=briefing`);
+      await page.getByTestId("navlog-eta").waitFor({ timeout: slow(120000) });
+      await openTab(page, tab);
+      await expect(sideDrawer(page).getByTestId(shown).first()).toBeVisible({ timeout: slow(30000) });
+    },
+  })),
   {
     name: "airport card",
     ready: async page => {

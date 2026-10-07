@@ -7,6 +7,10 @@
   "cruise_power_pct": 65,
   "climb_tas_kt": 74,
   "usable_fuel_gal": 40,
+  "crosswind": {
+    "demonstrated_kt": 15,
+    "source": "Cessna 172S POH (1998), section 4: maximum demonstrated crosswind velocity, takeoff or landing"
+  },
   "taxi_fuel_gal": 1.4,
   "loading": {
     "source": "Cessna 172S POH (1998), sections 2 and 6: the normal category",

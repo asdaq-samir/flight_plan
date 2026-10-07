@@ -105,7 +105,7 @@ test("plan page: the briefing ends on its 'planning aid only' reminder, with the
   await expect(drawer.getByText("Flight Plan Summary")).toHaveCount(0);
   // Another tab takes its place, and back.
   await openTab(page, "Airports");
-  await expect(drawer.getByRole("heading", { name: "Airport Information" })).toBeVisible();
+  await expect(drawer.getByRole("heading", { name: "C81 · Departure" })).toBeVisible();
   // Kept, hidden, for the way back (Activity).
   await expect(navLog).toBeHidden();
   await openTab(page, "Nav Log");

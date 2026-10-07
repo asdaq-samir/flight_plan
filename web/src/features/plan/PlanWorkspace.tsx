@@ -47,7 +47,7 @@ import BriefNarrative from "./components/briefing/BriefNarrative";
 import NavLogView from "./components/navlog/NavLogView";
 import RouteMap from "./components/RouteMap";
 import { usePlan } from "./hooks/usePlan";
-import { useRisk } from "../../lib/frat";
+import { useVerdict, type VerdictItem } from "../../lib/verdict";
 
 /** A local flight's times aloft to choose from, in minutes: a menu, not a
  *  slider. */
@@ -598,8 +598,17 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   })() : null;
 
   const landedStops = (course?.stops ?? []).filter(stop => stop.kind !== "fix").map(stop => stop.ident);
-  const briefingData = s.briefing.state === "ready" ? s.briefing.data : null;
-  const riskLevel = useRisk(r => r.assessment?.level);
+  // Each tab's mark: the worst of its findings on the Brief's Go / No-Go
+  // (lib/verdict), red for something to fix, amber for something to look at.
+  const verdict = useVerdict(v => v.items);
+  const marks = useMemo(() => {
+    const found: Partial<Record<VerdictItem["tab"], "stop" | "caution">> = {};
+    for (const item of verdict) {
+      if (item.finding === "stop") found[item.tab] = "stop";
+      else if (item.finding === "caution" && !found[item.tab]) found[item.tab] = "caution";
+    }
+    return found;
+  }, [verdict]);
   const navLog = (
     <NavLogView
       totals={s.totals} nav={s.nav} legs={s.legs}
@@ -615,32 +624,25 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       onDeselectPoint={() => selectPoint(null)}
       drawerOpen={panelOpen}
       aircraftLabel={aircraft.label}
-      // A red mark on a tab whose part has a warning, as the sections'
-      // titles had when all were in one list: VFR not recommended (AIM
-      // 7-1-5) on the Weather, a TFR near the route or a raised risk on
-      // the Brief.
-      marks={{
-        weather: (briefingData?.vfr_not_recommended.length ?? 0) > 0,
-        brief: (briefingData?.tfrs.length ?? 0) > 0 || (!!riskLevel && riskLevel !== "low"),
-      }}
-      // Each tab's part of the briefing; the Brief's narrative first in its.
+      marks={marks}
+      // Each tab's part of the briefing; the Brief's narrative under its
+      // Go / No-Go.
       tabContent={part => (
-        <>
-          {part === "brief" && !s.local && (
+        <FlightBriefingView
+          part={part} nav={s.nav} legs={s.legs}
+          dep={planned.dep} dest={planned.dest}
+          // The airports landed at: a waypoint has no weather of its own.
+          stops={landedStops}
+          briefing={s.briefing} course={course} totals={s.totals} depart={depart}
+          langgraphNarrative={s.langgraphNarrative} crewaiNarrative={s.crewaiNarrative}
+          problem={s.unflyable?.brief}
+          narrative={part === "brief" && !s.local && (
             <BriefNarrative
               ready={!!s.totals} onGenerateNarrative={s.generateNarrative}
               langgraphNarrative={s.langgraphNarrative} crewaiNarrative={s.crewaiNarrative}
             />
           )}
-          <FlightBriefingView
-            part={part} nav={s.nav} legs={s.legs}
-            dep={planned.dep} dest={planned.dest}
-            // The airports landed at: a waypoint has no weather of its own.
-            stops={landedStops}
-            briefing={s.briefing} course={course} totals={s.totals} depart={depart}
-            langgraphNarrative={s.langgraphNarrative} crewaiNarrative={s.crewaiNarrative}
-          />
-        </>
+        />
       )}
       notice={<BriefingNotices briefing={s.briefing} />}
       footer={<PlanningAidNote />}
@@ -648,12 +650,12 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       progress={panelOpen ? progress : null}
       problem={s.unflyable?.brief}
     >
-      {/* Out of the tabs, drawing nothing: the risk assessment published
-          once, for Save and the Brief tab's mark. */}
+      {/* Out of the tabs, drawing nothing: the risk assessment and the
+          Go / No-Go's findings published once, for Save and the tabs' marks. */}
       <FlightBriefingView
         part={null} publish nav={s.nav} legs={s.legs} dep={planned.dep} dest={planned.dest} stops={landedStops}
         briefing={s.briefing} course={course} totals={s.totals} depart={depart}
-        langgraphNarrative={s.langgraphNarrative} crewaiNarrative={s.crewaiNarrative}
+        langgraphNarrative={s.langgraphNarrative} crewaiNarrative={s.crewaiNarrative} problem={s.unflyable?.brief}
       />
       {/* Off screen, for Print's Kneeboard card (a portal to the page's body). */}
       <Kneeboard
@@ -741,7 +743,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     <>
       <SaveFlightButton
         course={course} totals={s.totals} nav={s.nav} legs={s.legs} selected={selected}
-        aircraftId={aircraft.aircraftId ?? null} depart={depart}
+        aircraftId={aircraft.aircraftId ?? null} depart={depart} altitudes={altitudes}
       />
       {shareMenu("end")}
       <PrintMenu />

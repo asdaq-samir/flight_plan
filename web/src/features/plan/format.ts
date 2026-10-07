@@ -135,6 +135,8 @@ export function elapsed(ms: number): string {
 const SURFACE_NAMES: Record<string, string> = {
   ASP: "asphalt", ASPH: "asphalt", CON: "concrete", CONC: "concrete", TURF: "turf", GRS: "grass", GRASS: "grass",
   GRVL: "gravel", GRAVEL: "gravel", DIRT: "dirt", WATER: "water", SNOW: "snow",
+  // Composite, as OurAirports codes it: "cop" on Campbell's 06/24 read as a word.
+  COP: "composite", COM: "composite",
 };
 
 /** A runway's surface in words: OurAirports' "ASPH-G" is asphalt. */
@@ -154,4 +156,9 @@ export function runwayWind(wind: NonNullable<Runway["wind"]>): string {
   const gusts = wind.gust_crosswind_kt != null && Math.abs(wind.gust_crosswind_kt) !== Math.abs(wind.crosswind_kt)
     ? `, ${Math.abs(wind.gust_crosswind_kt)} in the gusts` : "";
   return `Favors ${wind.end}: ${along}, ${Math.abs(wind.crosswind_kt)} kt crosswind${side}${gusts}`;
+}
+
+/** Ceiling and visibility the way a briefer says them. */
+export function ceilingAndVisibility(ceilingFt: number | null | undefined, visibilitySm: number | null | undefined): string {
+  return `${ceilingFt == null ? "no ceiling" : `${altFt(ceilingFt)} ft`} · ${visibilitySm == null ? "—" : `${visibilitySm} sm`}`;
 }

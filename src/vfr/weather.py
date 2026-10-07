@@ -759,6 +759,28 @@ def ceiling_visibility_along_route(
     }
 
 
+def tafs_over(windows: dict) -> dict:
+    """Each station's TAF read over a window of its own -- {icaoId:
+    (start, end)} in unix seconds, around when the flight gets there --
+    as {icaoId: {"ceiling_ft", "visibility_sm", "raw"}}: the worst it
+    forecasts then (TEMPO and PROB groups included, as _worst_in_window
+    reads them) and the forecast as issued. The route's forecast reads
+    every station over the whole flight, the right read for go/no-go; a
+    pilot reading one place wants it for when they are there. Figures
+    None where the TAF says nothing about its window; a station with no
+    TAF held is left out."""
+    if not windows:
+        return {}
+    found = {}
+    for station in _dataset("tafs"):
+        window = windows.get(station["icaoId"])
+        if window is None:
+            continue
+        worst = _worst_in_window(station["fcsts"], *window) or {"ceiling_ft": None, "visibility_sm": None}
+        found[station["icaoId"]] = {**worst, "raw": station.get("raw")}
+    return found
+
+
 # --- Go/no-go: the basic VFR weather minimums ---
 
 # 14 CFR 91.155: below a 1,000 ft ceiling or 3 statute miles' visibility,

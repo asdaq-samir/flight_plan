@@ -8,7 +8,8 @@ import {
 } from "@tanstack/react-table";
 import { NoteRow, SelectableRow } from "../../../../components/SelectableRows";
 import { PanelHalfContext } from "../../../../components/mapChrome";
-import PanelTabs, { type PanelTab } from "./PanelTabs";
+import PanelTabs from "./PanelTabs";
+import type { PanelTab } from "./panelTab";
 import { ListGroup, ListRow } from "../../../../components/GroupedList";
 import IconButton from "../../../../components/IconButton";
 import { Textarea } from "../../../../components/ui/textarea";
@@ -97,7 +98,7 @@ interface Props {
   /** Beside the tabs, out of sight: Print's kneeboard card. */
   children?: ReactNode;
   /** Tabs whose part has a warning, a red mark on each. */
-  marks?: Partial<Record<PanelTab, boolean>>;
+  marks?: Partial<Record<PanelTab, "stop" | "caution">>;
   /** What must be seen on opening the drawer, above every section
    *  (the briefing's warnings). */
   notice?: ReactNode;

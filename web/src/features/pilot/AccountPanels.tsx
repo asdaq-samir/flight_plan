@@ -390,11 +390,12 @@ export function FlightsPanel() {
   });
 
   /** Back to the planner on this flight's route, through its stops, at
-   *  its altitude. */
+   *  its altitude and the ones the pilot set at its points. */
   const planHref = (f: FlightSummary) => `/plan?${new URLSearchParams({
     dep: f.departureIdent, dest: f.destinationIdent,
     ...(f.stops.length ? { stops: f.stops.join(",") } : {}),
     ...(f.cruiseAltitudeFt != null ? { altitude_ft: String(f.cruiseAltitudeFt) } : {}),
+    ...(f.altitudes ? { altitudes: f.altitudes } : {}),
   })}`;
 
   // A page a flight (FlightPage), opened from its row.

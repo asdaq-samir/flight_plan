@@ -59,6 +59,12 @@ public class Flight {
     @Column(length = 80)
     private String stopIdents;
 
+    /** The altitudes the pilot set at points of the route, as the
+     *  planner's `altitudes` parameter writes them ("VPBNG:4500"); null
+     *  where the planner's own were flown. */
+    @Column(length = 200)
+    private String ownAltitudes;
+
     private Integer cruiseAltitudeFt;
     private Double totalDistanceNm;
     private Double totalEteMin;
@@ -133,6 +139,17 @@ public class Flight {
     /** What raised the assessment, in the order the planner gave them. */
     public List<String> getRiskFactors() {
         return riskFactors == null || riskFactors.isBlank() ? List.of() : List.of(riskFactors.split("\n"));
+    }
+
+    /** The altitudes the pilot set at its points, "IDENT:feet" joined by
+     *  commas; null or blank for none. */
+    public Flight withOwnAltitudes(String altitudes) {
+        this.ownAltitudes = altitudes == null || altitudes.isBlank() ? null : altitudes;
+        return this;
+    }
+
+    public String getOwnAltitudes() {
+        return ownAltitudes;
     }
 
     /** The airports it lands at on the way, in order. */

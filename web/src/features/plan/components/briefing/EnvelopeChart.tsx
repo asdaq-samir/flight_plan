@@ -45,9 +45,9 @@ export default function EnvelopeChart({ envelope, takeoff, landing }: {
           dataKey="loaded" type="linear" dot={false} isAnimationActive={false} stroke="var(--color-loaded)" strokeWidth={2}
         />
         <ReferenceDot x={takeoff.armIn} y={takeoff.weightLb} r={4.5} fill="var(--color-loaded)" stroke="white"
-          label={{ value: "Takeoff", position: "top", fontSize: 11, fill: "currentColor" }} />
+          label={{ value: "Takeoff", position: "top", className: "text-xs", fill: "currentColor" }} />
         <ReferenceDot x={landing.armIn} y={landing.weightLb} r={4.5} fill="var(--color-loaded)" stroke="white"
-          label={{ value: "Landing", position: "bottom", fontSize: 11, fill: "currentColor" }} />
+          label={{ value: "Landing", position: "bottom", className: "text-xs", fill: "currentColor" }} />
       </ComposedChart>
     </ChartContainer>
   );

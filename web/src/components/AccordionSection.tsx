@@ -49,10 +49,12 @@ export default function AccordionSection({ title, description, aside, summary, c
         aria-labelledby={titleId} data-slot="open-section" data-title={title}
         className={cn("border-b py-4 [contain-intrinsic-size:auto_24rem] [content-visibility:auto] last:border-b-0 print:[content-visibility:visible]", TEXT.prose)}
       >
-        <h3 className={cn("mb-2 flex flex-wrap items-center gap-x-2 gap-y-1 font-semibold", TEXT.row)}>
-          <span id={titleId}>{title}</span>
+        {/* The heading its title alone, the flag beside it: inside it, a
+            flag's words ("Risk raised") became part of the heading's name. */}
+        <div className={cn("mb-2 flex flex-wrap items-center gap-x-2 gap-y-1", TEXT.row)}>
+          <h3 id={titleId} className="font-semibold">{title}</h3>
           {aside}
-        </h3>
+        </div>
         {description && <div className={cn("text-muted-foreground", TEXT.note)}>{description}</div>}
         {children}
       </section>

@@ -21,5 +21,8 @@ public record FlightSummaryDto(
         @Nullable Instant plannedFor,
         Instant createdAt,
         /** The pilot's risk assessment, as saved with it; null without one. */
-        @Nullable RiskAssessmentDto risk) {
+        @Nullable RiskAssessmentDto risk,
+        /** The altitudes the pilot set at its points ("VPBNG:4500"); null
+         *  where the planner's own were flown. */
+        @Nullable String altitudes) {
 }

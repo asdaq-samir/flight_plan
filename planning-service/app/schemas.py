@@ -506,6 +506,15 @@ class ShortField(BaseModel):
     grass_ground_roll_pct: float
 
 
+class DemonstratedCrosswind(BaseModel):
+    """The strongest crosswind the POH says the aeroplane was shown to
+    take off and land in: not a limitation, but past it the pilot is
+    beyond what was tested."""
+
+    demonstrated_kt: float
+    source: str
+
+
 class AircraftProfile(BaseModel):
     """The aircraft's name plus its performance profile -- every field a
     data/aircraft/*.json file carries, declared, so a page reads them as
@@ -537,6 +546,7 @@ class AircraftProfile(BaseModel):
     loading: Loading | None = None
     takeoff: ShortField | None = None
     landing: ShortField | None = None
+    crosswind: DemonstratedCrosswind | None = None
 
 
 class Plan(BaseModel):
@@ -568,9 +578,23 @@ class Plan(BaseModel):
 
 
 class ForecastStation(BaseModel):
+    """A TAF station near the route: the worst it forecasts over the
+    whole flight (`ceiling_ft`, `visibility_sm`, the go/no-go read), and
+    -- placed along the route -- when the flight gets there and the worst
+    it forecasts within an hour of then, with the TAF as issued."""
+
     icaoId: str
     ceiling_ft: float | None
     visibility_sm: float | None
+    lat: float | None = None
+    lon: float | None = None
+    along_track_nm: float | None = None
+    #: When the flight gets there, ISO 8601 UTC: the flight's share of its
+    #: time at that distance along.
+    eta: str | None = None
+    eta_ceiling_ft: float | None = None
+    eta_visibility_sm: float | None = None
+    raw: str | None = None
 
 
 class Forecast(BaseModel):

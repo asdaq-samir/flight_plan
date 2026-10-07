@@ -87,7 +87,7 @@ public class FlightController {
         return new FlightSummaryDto(f.getId(), f.getDepartureIdent(), f.getDestinationIdent(), f.getStops(),
                 f.getAircraft() == null ? null : f.getAircraft().getTailNumber(),
                 f.getCruiseAltitudeFt(), f.getTotalDistanceNm(), f.getTotalEteMin(), f.getTotalFuelGal(),
-                f.getPlannedFor(), f.getCreatedAt(), riskOf(f));
+                f.getPlannedFor(), f.getCreatedAt(), riskOf(f), f.getOwnAltitudes());
     }
 
     private static RiskAssessmentDto riskOf(Flight f) {
@@ -101,7 +101,7 @@ public class FlightController {
         return new FlightDto(f.getId(), f.getDepartureIdent(), f.getDestinationIdent(), f.getStops(),
                 f.getAircraft() == null ? null : f.getAircraft().getTailNumber(),
                 f.getCruiseAltitudeFt(), f.getTotalDistanceNm(), f.getTotalEteMin(), f.getTotalFuelGal(),
-                f.getPlannedFor(), f.getCreatedAt(), riskOf(f), checkpoints);
+                f.getPlannedFor(), f.getCreatedAt(), riskOf(f), checkpoints, f.getOwnAltitudes());
     }
 
     private static FlightCheckpointDto toCheckpointDto(FlightCheckpoint c) {

@@ -19,7 +19,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException
-from vfr import airports, airspace, altitude, pattern, publications, runway_wind, tfr, weather
+from vfr import airports, airspace, altitude, geo, pattern, publications, runway_wind, tfr, weather
 
 from ..common import load_route
 from ..schemas import Briefing, Tfrs
@@ -28,6 +28,11 @@ from ..schemas import Briefing, Tfrs
 #: assumed when the caller does not say how long it is.
 MARGIN_S = 3600
 DEFAULT_ETE_MIN = 120
+#: How far either side of the time the flight gets to a TAF station its
+#: forecast for that place is read over: a TAF's periods start on the
+#: hour, and an estimate of when a place is reached is no closer than
+#: that. The planner's own choice, as MARGIN_S is, not a rule's.
+ETA_MARGIN_S = 3600
 
 router = APIRouter()
 
@@ -52,6 +57,33 @@ def _joined_forecast(forecasts: list[dict]) -> dict:
         "min_visibility_sm": _least(f["min_visibility_sm"] for f in forecasts),
         "stations": list({s["icaoId"]: s for f in forecasts for s in f["stations"]}.values()),
     }
+
+
+def _at_each_place(forecast: dict, path: list, start: float, ete_s: float) -> dict:
+    """The route's forecast with each station placed along it: how far
+    along (`along_track_nm`), when the flight gets there (`eta`, ISO
+    UTC), and its TAF read for then (`eta_ceiling_ft`,
+    `eta_visibility_sm`) with the forecast as issued (`raw`) -- for the
+    Weather tab, which lays the route out place by place. The time is
+    the flight's share of its ETE at that distance: the briefing is
+    asked with the whole flight's time, not each leg's, and an hour
+    either side (ETA_MARGIN_S) is wider than a climb's difference."""
+    total = sum(geo.distance_nm(*a, *b) for a, b in zip(path, path[1:]))
+    stations = []
+    for station in forecast["stations"]:
+        along = geo.along_path_nm(station["lat"], station["lon"], path) if len(path) > 1 else 0.0
+        eta = start + (ete_s * along / total if total else 0.0)
+        stations.append({**station, "along_track_nm": round(along, 1), "eta_s": eta})
+    read = weather.tafs_over({s["icaoId"]: (s["eta_s"] - ETA_MARGIN_S, s["eta_s"] + ETA_MARGIN_S) for s in stations})
+    placed = []
+    for station in sorted(stations, key=lambda s: s["along_track_nm"]):
+        at = read.get(station["icaoId"]) or {}
+        placed.append({
+            **{k: v for k, v in station.items() if k != "eta_s"},
+            "eta": datetime.fromtimestamp(round(station["eta_s"]), timezone.utc).isoformat().replace("+00:00", "Z"),
+            "eta_ceiling_ft": at.get("ceiling_ft"), "eta_visibility_sm": at.get("visibility_sm"), "raw": at.get("raw"),
+        })
+    return {**forecast, "stations": placed}
 
 
 def _metars_by_route_ident(idents: tuple, source: dict) -> dict:
@@ -98,7 +130,8 @@ def briefing(dep: str, dest: str, stops: str = "", depart: datetime | None = Non
     # it had no runways or frequencies.
     source = {i: a.get("ident") or i for i, a in zip(r.idents, r.airports)}
     start = time.time() if depart is None else (depart if depart.tzinfo else depart.replace(tzinfo=timezone.utc)).timestamp()
-    window = (start, start + (ete_min if ete_min is not None else DEFAULT_ETE_MIN) * 60 + MARGIN_S)
+    ete_s = (ete_min if ete_min is not None else DEFAULT_ETE_MIN) * 60
+    window = (start, start + ete_s + MARGIN_S)
 
     # Runways/frequencies are in this pool too, not just the three
     # weather calls -- on a freshly started container (an empty
@@ -135,7 +168,7 @@ def briefing(dep: str, dest: str, stops: str = "", depart: datetime | None = Non
             hazards = []
             weather_unavailable.append("hazards")
         try:
-            forecast = _joined_forecast(forecast_future.result())
+            forecast = _at_each_place(_joined_forecast(forecast_future.result()), path, start, ete_s)
         except weather.WeatherServiceError:
             forecast = {"min_ceiling_ft": None, "min_visibility_sm": None, "stations": []}
             weather_unavailable.append("forecast")

@@ -1,14 +1,13 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { format } from "date-fns";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { cn } from "cn";
-import { Check, CloudOff, Loader2, Save, TriangleAlert } from "lucide-react";
+import { Check, CloudOff, Loader2, OctagonAlert, Save, TriangleAlert } from "lucide-react";
 import IconButton from "../../../../components/IconButton";
 import { ROUND_BUTTON } from "../../../../components/mapChrome";
 import { Alert, AlertDescription, AlertTitle } from "../../../../components/ui/alert";
 import AccordionSection from "../../../../components/AccordionSection";
 import { ListGroup, ListRow } from "../../../../components/GroupedList";
-import StatusBadge from "../../../../components/StatusBadge";
 import { TEXT } from "../../../../lib/text";
 import { api } from "../../../../lib/api/client";
 import { pilotQuery } from "../../../../lib/queryClient";
@@ -18,26 +17,30 @@ import type {
 } from "../../../../lib/api/types";
 import type { FrameworkNarrative } from "../../hooks/useNarratives";
 import type { BriefingState } from "../../hooks/usePlan";
-import { altFt, clockTime, deg, describeFuel, describeSteps, describeTime } from "../../format";
+import { altFt, ceilingAndVisibility, clockTime, deg, describeFuel, describeSteps, describeTime } from "../../format";
 import { flightLevel } from "../../../../lib/units";
 import { navLogRows, savedCheckpoints } from "../navlog/rows";
-import { RunwayRow } from "../RunwayRow";
 import { useLoad } from "../../hooks/useLoad";
 import { TakeoffLandingSection, WeightBalanceSection } from "./PreflightSections";
 import { underMinimums } from "../../../../lib/minimums";
 import { usePreferences } from "../../../../lib/preferences";
-import { PublicationRows } from "../PublicationRows";
-import { gairmetAltitudes, gairmetTitle, pirepConditions, suaAltitudes, tfrAltitudes, tfrTimes } from "../../../../lib/advisories";
-import { CATEGORY_RANK, categoryOf, colourOf } from "../../../../lib/map/flightCategory";
+import { gairmetAltitudes, gairmetTitle, suaAltitudes, tfrAltitudes, tfrTimes } from "../../../../lib/advisories";
 import { passLine, passTime, suaWhen, tfrWhen, type SuaWhen, type TfrWhen } from "../../../../lib/passTimes";
 import { runwayInUse, runwayNumber } from "../../../../lib/pattern";
+import { runwayChecks } from "../../../../lib/runwayCheck";
+import { FINDING_TONE, type Finding } from "../../../../lib/status";
+import { useVerdict, verdictItems, type VerdictItem } from "../../../../lib/verdict";
 import { callSign } from "../../../../lib/radio";
 import { shortName } from "../../../../lib/aircraftChoice";
-import PatternRadio from "./PatternRadio";
+import AirportSections from "./AirportSections";
+import BriefVerdict from "./BriefVerdict";
+import PreflightAction from "./PreflightAction";
+import WeatherAlongRoute from "./WeatherAlongRoute";
 import RiskAssessment from "./RiskAssessment";
+import FindingIcon from "../../../../components/FindingIcon";
 import MockOral from "./MockOral";
 import { planFacts } from "../../../../lib/oral";
-import { assess, LEVEL_TONE, riskLine, useRisk } from "../../../../lib/frat";
+import { assess, riskLine, useRisk } from "../../../../lib/frat";
 import type { BriefingPart } from "./sections";
 
 interface Props {
@@ -73,6 +76,10 @@ interface Props {
    *  tab's (BriefNarrative), not this component's. */
   langgraphNarrative: FrameworkNarrative;
   crewaiNarrative: FrameworkNarrative;
+  /** The Brief's narrative (BriefNarrative), under its Go / No-Go. */
+  narrative?: ReactNode;
+  /** No VFR altitude fits the route, in a line (usePlan's Unflyable). */
+  problem?: string | null;
 }
 
 /**
@@ -157,47 +164,6 @@ function windStretches(legs: Leg[]): Stretch[] {
   return stretches;
 }
 
-/** Ceiling and visibility the way a briefer says them. */
-function ceilingAndVisibility(ceilingFt: number | null | undefined, visibilitySm: number | null | undefined): string {
-  return `${ceilingFt == null ? "no ceiling" : `${altFt(ceilingFt)} ft`} · ${visibilitySm == null ? "—" : `${visibilitySm} sm`}`;
-}
-
-/** A flight category as the app's status badge, its dot in the
- *  category's own colour. It was a badge filled in the colour with white
- *  letters, LIFR's magenta 3.2:1 under them. */
-function CategoryBadge({ category }: { category: string | null | undefined }) {
-  if (!category) return null;
-  return <StatusBadge color={colourOf(category)}>{category}</StatusBadge>;
-}
-
-/** Frequency types by what a pilot calls them. The FAA's own
- *  description beside each is often the type again ("TWR (TWR)"), and
- *  is shown only when it adds something. */
-const FREQUENCY_NAMES: Record<string, string> = {
-  TWR: "Tower", GND: "Ground", ATIS: "ATIS", UNIC: "UNICOM", UNICOM: "UNICOM", CTAF: "CTAF",
-  APP: "Approach", APCH: "Approach", DEP: "Departure", "A/D": "Approach and departure",
-  CLD: "Clearance delivery", CD: "Clearance delivery", AWOS: "AWOS", ASOS: "ASOS", AFIS: "AFIS",
-  FSS: "Flight service", MULT: "MULTICOM", MULTICOM: "MULTICOM", RDO: "Radio",
-};
-
-function frequencyName(type: string | null | undefined, description: string | null | undefined): { name: string; detail: string | null } {
-  const code = (type ?? "").trim().toUpperCase();
-  const name = FREQUENCY_NAMES[code] ?? type ?? description ?? "Frequency";
-  const detail = description?.trim() ?? "";
-  const redundant = !detail || [code, name.toUpperCase()].includes(detail.toUpperCase());
-  return { name, detail: redundant ? null : detail };
-}
-
-/** The frequency a pilot calls first there: the tower, else the CTAF,
- *  else UNICOM. */
-function primaryFrequency(frequencies: { type?: string | null; frequency_mhz?: number | null }[]): string | null {
-  for (const code of ["TWR", "CTAF", "UNIC"]) {
-    const f = frequencies.find(x => (x.type ?? "").toUpperCase() === code && x.frequency_mhz != null);
-    if (f) return `${FREQUENCY_NAMES[code]} ${f.frequency_mhz}`;
-  }
-  return null;
-}
-
 const PLAN_LABEL: Record<string, string> = { lowest: "Lowest", highest: "Highest", fastest: "Fastest", economical: "Economical" };
 
 /** What sets the whole route's ceiling: the clouds (14 CFR 91.155's
@@ -238,7 +204,7 @@ function altitudeRange(nav: NavLogAltitude): string {
  * above.
  */
 export function SaveFlightButton({
-  course, totals, nav, legs, selected, aircraftId, depart,
+  course, totals, nav, legs, selected, aircraftId, depart, altitudes = "",
 }: {
   course: Course | null;
   totals: Totals | null;
@@ -251,6 +217,10 @@ export function SaveFlightButton({
   /** The departure time as an ISO instant, or "" -- what the saved
    *  flight is planned for. */
   depart: string;
+  /** The altitudes the pilot set at points of the route, as the URL's
+   *  `altitudes` writes them ("VPBNG:4500"), or "": filed with the
+   *  flight, so opened again it is planned at them. */
+  altitudes?: string;
 }) {
   const queryClient = useQueryClient();
   // The one ["pilot"] query the console and the header share: signed out
@@ -280,8 +250,9 @@ export function SaveFlightButton({
       // The nav log's own rows (navLogRows), as the checkpoints Spring files.
       checkpoints: savedCheckpoints(navLogRows(course, selected, legs), course.distance_nm),
       risk: risk ? { score: risk.score, level: risk.level, factors: risk.factors.map(f => f.label) } : null,
+      altitudes: altitudes || null,
     };
-  }, [course, nav, totals, aircraftId, depart, selected, legs, risk]);
+  }, [course, nav, totals, aircraftId, depart, selected, legs, risk, altitudes]);
 
   const save = useMutation({
     mutationFn: api.flights.save,
@@ -311,22 +282,6 @@ export function SaveFlightButton({
   );
 }
 
-/**
- * The briefing's sections: the FAA's own standard-briefing sequence
- * (AIM 7-1-5) -- VFR-not-recommended, adverse conditions, current
- * conditions, destination and en route forecast, winds aloft, NOTAMs,
- * ATC delays, airport information -- rendered under the nav log table
- * inside the nav log drawer once it is opened wide (see `NavLogView`'s
- * `children`), and laid out to print cleanly with it. Not a page or a
- * scroller of its own: the drawer scrolls the table and these sections
- * together. One element of that sequence is genuinely absent rather
- * than faked: a synoptic narrative (needs real meteorological
- * analysis, not a data fetch). NOTAMs and ATC delays are both named
- * but not embedded -- the official NOTAM API and ATC flow-control data
- * are both gated to certain commercial/public operators, so each
- * section says so and links out to a real briefing service instead of
- * silently disappearing the way an unnamed gap would.
- */
 /** What a special-use area's times of use say for the pass (lib/passTimes). */
 const SUA_WORDS: Record<SuaWhen, string> = {
   "active": "scheduled in use then",
@@ -334,11 +289,11 @@ const SUA_WORDS: Record<SuaWhen, string> = {
   "not-scheduled": "not scheduled then",
   "unknown": "read its times against yours",
 };
-const SUA_TONE: Record<SuaWhen, string> = {
-  "active": "text-red-600 dark:text-red-400",
-  "by-notam": "text-amber-600 dark:text-amber-400",
-  "not-scheduled": "text-muted-foreground",
-  "unknown": "text-amber-600 dark:text-amber-400",
+const SUA_FINDING: Record<SuaWhen, Finding> = {
+  "active": "stop",
+  "by-notam": "caution",
+  "not-scheduled": "ok",
+  "unknown": "caution",
 };
 const TFR_WORDS: Record<TfrWhen, string> = {
   "in-force": "in force then",
@@ -351,19 +306,61 @@ const TFR_WORDS: Record<TfrWhen, string> = {
 function PassNote({ when }: { when: { pass: Date; state: TfrWhen } | null }) {
   if (!when) return null;
   return (
-    <span className={cn("block", when.state === "in-force" && "font-semibold text-red-700 dark:text-red-400")} data-testid="tfr-pass">
+    <span className={cn("block", when.state === "in-force" && cn("font-semibold", FINDING_TONE.stop))} data-testid="tfr-pass">
       {`You pass about ${passLine(when.pass)}, ${TFR_WORDS[when.state]}`}
     </span>
   );
 }
 
+/** A warning on a section's title, seen before its content: in red for
+ *  what stops the flight as planned, amber for what to look at. */
+function Flag({ finding, testId, children }: { finding: "stop" | "caution"; testId: string; children: ReactNode }) {
+  const Icon = finding === "stop" ? OctagonAlert : TriangleAlert;
+  return (
+    <span className={cn("inline-flex items-center gap-1 font-semibold", FINDING_TONE[finding], TEXT.note)} data-testid={testId}>
+      <Icon className="size-3.5" aria-hidden />
+      {children}
+    </span>
+  );
+}
+
+/** A section's line while what it shows is still coming, or failed. */
+function Pending({ children }: { children: ReactNode }) {
+  return <p className="text-muted-foreground" role="status">{children}</p>;
+}
+
+/**
+ * The planning panel's tabs' briefing, one part to a tab (`part`), each
+ * opening with its conclusion and then going place by place or check by
+ * check -- the same marks (lib/status) and the same warnings on the
+ * sections' titles in every tab:
+ *
+ * - The Brief: the Go / No-Go over every tab's findings (lib/verdict),
+ *   the narrative, the TFRs and special-use airspace the route meets
+ *   when it meets them, the risk assessment, and preflight action (14
+ *   CFR 91.103) to tick off, with what is not fetched here -- NOTAMs, ATC
+ *   delays -- as links to where a pilot gets them.
+ * - The Weather: adverse conditions first, as a briefer gives them (AIM
+ *   7-1-5) with VFR not recommended and the pilot's own minimums; then
+ *   the route place by place, each forecast read for when the flight is
+ *   there; then the winds aloft.
+ * - The Performance: the runway check at each field, then the weight
+ *   and balance that changes it.
+ * - The Airports: a section for each field, in the order flown.
+ * - Under the Nav Log's profile, its Cruise Altitude.
+ *
+ * Not a page or a scroller of its own: the panel scrolls each tab, and
+ * on paper every part is laid out one after another. A synoptic
+ * narrative, the one element of a standard briefing not here, needs a
+ * meteorologist's analysis, not a data fetch.
+ */
 export default function FlightBriefingView({
   part, publish = false, nav, legs, dep, dest, stops = [], course = null, totals = null, depart = "",
   briefing: briefingState,
-  langgraphNarrative, crewaiNarrative,
+  langgraphNarrative, crewaiNarrative, narrative, problem = null,
 }: Props) {
   // The load's weights, for the takeoff and landing distances.
-  const { result: loaded } = useLoad(nav?.aircraft, totals?.fuel_gal ?? null);
+  const { loading, result: loaded } = useLoad(nav?.aircraft, totals?.fuel_gal ?? null);
   // Every airport the flight lands at, each once: a round trip's
   // departure is its destination.
   const landings = [...new Set([dep, ...stops, dest])];
@@ -372,26 +369,15 @@ export default function FlightBriefingView({
   // planner's call (vfr.weather), made against 14 CFR 91.155's minimums
   // in one place; this page states them.
   const briefing = briefingState.state === "ready" ? briefingState.data : null;
+  const failed = briefingState.state === "failed" ? briefingState.detail : null;
   const vnrReasons = briefing?.vfr_not_recommended ?? [];
   const briefingPendingMessage =
     briefingState.state === "waiting" ? "The briefing follows once the route's course is drawn."
-      : briefingState.state === "failed" ? `Briefing data is unavailable (${briefingState.detail}).`
+      : failed ? `Briefing data is unavailable (${failed}).`
         : "Fetching METARs, forecasts, hazards, runways and frequencies…";
   const unchecked = (source: Briefing["weather_unavailable"][number]) => briefing?.weather_unavailable.includes(source) ?? false;
 
-  // Each section in one line, under its title, so the drawer reads
-  // without opening all of them: what the briefing found there, or
-  // nothing while it is still coming.
-  const destStation = briefing?.forecast.stations.find(st => st.icaoId === dest);
-  const enRoute = (briefing?.forecast.stations ?? [])
-    .filter(st => st.icaoId !== dest)
-    .map(st => ({ ...st, category: categoryOf(st.ceiling_ft, st.visibility_sm) }))
-    .sort((a, b) =>
-      (CATEGORY_RANK[b.category ?? ""] ?? -1) - (CATEGORY_RANK[a.category ?? ""] ?? -1)
-      || (a.ceiling_ft ?? Infinity) - (b.ceiling_ft ?? Infinity)
-      || (a.visibility_sm ?? Infinity) - (b.visibility_sm ?? Infinity));
   const chosen = nav?.options.find(o => o.kind === nav.flown);
-  const destFrequency = briefing ? primaryFrequency(briefing.airports[dest]?.frequencies ?? []) : null;
   // Where the weather is under the pilot's own minimums (lib/minimums).
   const minimums = usePreferences(s => s.minimums);
   const underMine = briefing ? underMinimums(minimums, briefing, landings, dest) : [];
@@ -407,14 +393,17 @@ export default function FlightBriefingView({
     const pass = passAt(t.along_track_nm);
     return !pass || tfrWhen(t, pass) === "in-force";
   }) ?? [];
-  // The special-use areas the legs cross (vfr.sua, with the altitudes).
-  const specialUse = nav?.altitude_selection.special_use ?? [];
+  // The special-use areas the legs cross (vfr.sua, with the altitudes),
+  // and their times of use read for when the flight passes each.
+  const specialUse = (nav?.altitude_selection.special_use ?? []).map(area => {
+    const pass = passAt(area.along_track_nm);
+    return { area, pass, when: pass ? suaWhen(area.times_of_use, pass) : "unknown" as SuaWhen };
+  });
   // The call sign the radio calls use: the pilot's own aeroplane's
   // registration where they fly one, and its make from its profile.
   const flying = usePreferences(s => s.aircraft);
   const make = nav?.aircraft.type?.split(" ")[0] || "Aircraft";
   const ownCallSign = callSign(make, flying.aircraftId != null ? shortName(flying.label) : null);
-  const destFacilities = briefing?.airports[dest];
   // The risk assessment (lib/frat): the briefing's, the nav log's and the
   // logbook's factors, and what the pilot ticks. Published for the Save
   // button, which files it with the flight.
@@ -424,17 +413,19 @@ export default function FlightBriefingView({
   const setAssessment = useRisk(s => s.setAssessment);
   const margins = [totals?.fuel_margin_gal, ...(totals?.hops ?? []).map(h => h.totals.fuel_margin_gal)]
     .filter((n): n is number => n != null);
+  const hazardNames = briefing ? [...briefing.hazards.map(h => h.hazard ?? h.type ?? "SIGMET"), ...briefing.gairmets.map(gairmetTitle)] : [];
   const assessment = briefing ? assess({
     vfrNotRecommended: vnrReasons.length > 0,
     underMinimums: underMine,
     tfrOnRoute: tfrsCrossed.length > 0,
-    hazards: unchecked("hazards") && unchecked("gairmets") ? 0 : briefing.hazards.length + briefing.gairmets.length,
+    hazards: unchecked("hazards") && unchecked("gairmets") ? 0 : hazardNames.length,
     night: totals?.night === true,
     fuelMarginGal: margins.length ? Math.min(...margins) : null,
     currency: currency ?? null,
     day: format(new Date(depart || opened), "yyyy-MM-dd"),
     ticked,
   }) : null;
+  const destStation = briefing?.forecast.stations.find(st => st.icaoId === dest);
   // The flight in plain lines, for the mock oral's examiner (lib/oral):
   // what the briefing already holds.
   const planText = briefing ? planFacts({
@@ -449,8 +440,8 @@ export default function FlightBriefingView({
     depart: depart ? format(new Date(depart), "EEE d MMM, HH:mm") : null,
     metars: landings.flatMap(i => (briefing.metars[i]?.raw ? [{ ident: i, raw: briefing.metars[i]!.raw! }] : [])),
     destinationForecast: destStation ? ceilingAndVisibility(destStation.ceiling_ft, destStation.visibility_sm) : null,
-    hazards: [...briefing.hazards.map(h => h.hazard ?? h.type ?? "SIGMET"), ...briefing.gairmets.map(gairmetTitle)],
-    specialUse: specialUse.map(a => `${a.name} (${a.kind}), ${suaAltitudes(a)}`),
+    hazards: hazardNames,
+    specialUse: specialUse.map(({ area }) => `${area.name} (${area.kind}), ${suaAltitudes(area)}`),
     tfrs: briefing.tfrs.length,
   }) : "";
   const assessmentKey = assessment ? `${assessment.level}:${assessment.score}:${assessment.factors.map(f => f.key).join(",")}` : "";
@@ -460,42 +451,76 @@ export default function FlightBriefingView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [assessmentKey, setAssessment, publish]);
   useEffect(() => () => { if (publish) setAssessment(null); }, [setAssessment, publish]);
-  const destInUse = destFacilities ? runwayInUse(destFacilities.runways) : null;
-  const summaries = {
-    adverse: !briefing ? undefined
-      : unchecked("hazards") && unchecked("gairmets") ? "Not checked"
-        : briefing.hazards.length + briefing.gairmets.length === 0 ? "None along the route"
-          : [
-            briefing.hazards.length && `${briefing.hazards.length} SIGMET${briefing.hazards.length === 1 ? "" : "s"}`,
-            briefing.gairmets.length && briefing.gairmets.map(g => g.hazard).join(", "),
-          ].filter(Boolean).join(" · "),
-    current: !briefing ? undefined
-      : unchecked("metars") ? "Not checked"
-        : landings.map(ident => `${ident} ${briefing.metars[ident]?.flight_category ?? "no report"}`).join(" · "),
-    destination: !briefing ? undefined
-      : unchecked("forecast") ? "Not checked"
-        : destStation ? `${dest} ${ceilingAndVisibility(destStation.ceiling_ft, destStation.visibility_sm)}` : `No TAF for ${dest}`,
-    enRoute: !briefing ? undefined
-      : unchecked("forecast") ? "Not checked"
-        : `Worst ${ceilingAndVisibility(briefing.forecast.min_ceiling_ft, briefing.forecast.min_visibility_sm)}`,
-    cruise: !nav ? undefined
-      : nav.flown === "custom" ? `${altFt(nav.altitude_ft)} ft, your own`
-        : `${altitudeRange(nav)}${chosen ? ` · ${PLAN_LABEL[chosen.kind]}` : ""}`,
-    winds: chosen?.tailwind_kt != null
-      ? `${Math.abs(Math.round(chosen.tailwind_kt))} kt ${chosen.tailwind_kt >= 0 ? "tailwind" : "headwind"} on average`
-      : stretches.some(st => st.wind) ? `${stretches.filter(st => st.wind).length} stretches of wind` : undefined,
-    airports: !briefing ? undefined : destFrequency ? `${dest} ${destFrequency}` : `${dep} · ${dest}`,
-    risk: assessment ? riskLine(assessment) : undefined,
-    pattern: !destFacilities ? undefined
-      : [destFacilities.pattern?.altitude_ft != null && `${dest} pattern ${altFt(destFacilities.pattern.altitude_ft)} ft`,
-        destInUse && `runway ${runwayNumber(destInUse.end.ident)} ${destInUse.end.traffic} traffic`].filter(Boolean).join(" · "),
-    check: !briefing ? "TFRs, NOTAMs and ATC delays"
-      : unchecked("tfrs") ? "TFRs not checked · NOTAMs and ATC delays"
-        : briefing.tfrs.length === 0 ? "No TFRs on the route · NOTAMs and ATC delays"
-          : `${briefing.tfrs.length} TFR${briefing.tfrs.length === 1 ? "" : "s"} near the route · NOTAMs and ATC delays`,
-  };
+
+  // The runway check at each field (lib/runwayCheck), for the
+  // Performance tab and the Go / No-Go.
+  const checks = runwayChecks(nav?.aircraft, briefing, course, loaded?.takeoff.weightLb ?? null, loaded?.landing.weightLb ?? null);
+  const hops = totals?.hops ?? [];
+  const items: VerdictItem[] = verdictItems({
+    weather: {
+      pending: !briefing && !failed, failed,
+      vfrNotRecommended: vnrReasons, underMinimums: underMine, hazards: hazardNames,
+      unchecked: (briefing?.weather_unavailable ?? []).filter(w => w !== "tfrs").map(w => WEATHER_SOURCE_LABEL[w]),
+      worst: briefing && (briefing.forecast.min_ceiling_ft != null || briefing.forecast.min_visibility_sm != null)
+        ? ceilingAndVisibility(briefing.forecast.min_ceiling_ft, briefing.forecast.min_visibility_sm) : null,
+    },
+    airspace: {
+      pending: !briefing && !failed, unchecked: !!failed || unchecked("tfrs"),
+      inForce: tfrsCrossed.map(t => t.notam_id), near: (briefing?.tfrs.length ?? 0) - tfrsCrossed.length,
+      specialUse: specialUse.map(({ area, when }) => ({ name: area.name, when })),
+    },
+    altitude: {
+      pending: !nav, problem,
+      cautions: nav?.cautions.flatMap(c => c.reasons) ?? [],
+      flown: !nav ? null : nav.flown === "custom" ? `${flightLevel(nav.altitude_ft)}, your own` : `${altitudeRange(nav)}${chosen ? ` · ${PLAN_LABEL[chosen.kind]} plan` : ""}`,
+    },
+    fuel: {
+      pending: !totals,
+      marginGal: margins.length ? Math.min(...margins) : null,
+      requiredGal: totals?.fuel_required_gal ?? (hops.length ? Math.max(...hops.map(h => h.totals.fuel_required_gal ?? 0)) : null),
+      reserveMin: totals?.reserve_min ?? hops[0]?.totals.reserve_min ?? null,
+    },
+    runways: {
+      pending: !nav || !briefing, worked: !nav || (!!nav.aircraft.takeoff && !!nav.aircraft.landing),
+      short: [...new Set(checks.filter(c => c.distances.some(d => d.over)).map(c => c.field.ident))],
+      crosswind: [...new Set(checks.filter(c => c.crosswindOver).map(c => c.field.ident))],
+    },
+    balance: {
+      pending: !nav, worked: !!loading && !!loaded,
+      problems: loaded?.problems ?? [],
+      takeoff: loaded ? `${Math.round(loaded.takeoff.weightLb).toLocaleString("en-US")} lb at ${loaded.takeoff.armIn.toFixed(1)} in` : null,
+    },
+    risk: assessment ? { level: assessment.level, line: riskLine(assessment) } : null,
+  });
+  // Published once, for the tabs' marks (PlanWorkspace), as the risk is.
+  const setItems = useVerdict(v => v.setItems);
+  const itemsKey = items.map(i => `${i.key}:${i.finding}:${i.detail}`).join("|");
+  useEffect(() => {
+    if (publish) setItems(items);
+    // Keyed on what they say, not the array made each render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [itemsKey, setItems, publish]);
+  useEffect(() => () => { if (publish) setItems([]); }, [setItems, publish]);
 
   if (part === null) return null;
+
+  // Preflight action (14 CFR 91.103): what the planner found for each.
+  const finding = (key: VerdictItem["key"]) => {
+    const item = items.find(i => i.key === key)!;
+    return { finding: item.finding, detail: item.detail };
+  };
+  const longest = (ident: string) => Math.max(0, ...(briefing?.airports[ident]?.runways ?? []).filter(r => !r.closed).map(r => r.length_ft ?? 0));
+  const found: Record<string, { finding?: Finding; detail: string }> = {
+    notams: { detail: "Not fetched here: read them at 1800wxbrief.com, below" },
+    weather: finding("weather"),
+    delays: { detail: "Not fetched here: fly.faa.gov, below" },
+    runways: !briefing ? { finding: "pending", detail: "Fetching the runways…" }
+      : { finding: "ok", detail: landings.map(i => `${i} ${longest(i) ? `${altFt(longest(i))} ft` : "no length published"}`).join(" · ") },
+    alternatives: { detail: "Airports near the route are on the chart; a leg's Divert works one out from there" },
+    fuel: finding("fuel"),
+    distances: finding("runways"),
+  };
+
   return (
     // No header, title or scroller of its own: the planning panel's tabs
     // (NavLogView) hold the nav log's own and these, one part to a tab --
@@ -511,119 +536,107 @@ export default function FlightBriefingView({
         </p>
       )}
 
-      {/* Brief: the narrative's printed copy, the go/no-go reckoning and what to check before the flight. */}
       {part === "brief" && (
         <>
-          {/* The narrative, printed only: on screen it is the drawer
-              header's popover, which prints nothing. */}
+          {/* The narrative, printed only: on screen it is the tab's own
+              section (BriefNarrative), whose framework is a setting. */}
           <BriefingNarrativePrintBlock langgraph={langgraphNarrative.text} crewai={crewaiNarrative.text} />
 
-          {/* Everything above in one go/no-go reckoning, with what only the
-              pilot can say (lib/frat): last, as the decision is. */}
+          <BriefVerdict items={items} />
+          {narrative}
+
+          {/* The TFRs within five miles of the route during the flight,
+              from tfr.faa.gov -- one the route goes through when it is in
+              force in red -- and the special-use areas the legs cross,
+              with when the flight gets to each against its times of use. */}
           <AccordionSection
-            title="Risk Assessment" summary={summaries.risk}
-            aside={assessment && assessment.level !== "low" ? (
-              <span className={cn("inline-flex items-center gap-1 font-semibold", TEXT.note, LEVEL_TONE[assessment.level])} data-testid="risk-flag">
-                <TriangleAlert className="size-3.5" aria-hidden />
-                {assessment.level === "high" ? "High risk" : "Risk raised"}
-              </span>
-            ) : undefined}
+            title="TFRs & Special Use"
+            aside={tfrsCrossed.length > 0 ? <Flag finding="stop" testId="tfr-flag">TFR on the route</Flag>
+              : specialUse.some(s => s.when === "active") ? <Flag finding="caution" testId="sua-flag">Area in use</Flag> : undefined}
           >
-            {!assessment ? (
-              <p className="text-muted-foreground" role="status">{briefingPendingMessage}</p>
-            ) : (
-              <RiskAssessment assessment={assessment} />
+            {!briefing ? <Pending>{briefingPendingMessage}</Pending> : (
+              <div className="space-y-4">
+                <div data-testid="tfrs">
+                  <ListGroup title="Temporary flight restrictions">
+                    {unchecked("tfrs") ? (
+                      <ListRow
+                        media={<FindingIcon finding="caution" />}
+                        title={<span className={FINDING_TONE.caution}>tfr.faa.gov did not answer — check it before flight</span>} href="https://tfr.faa.gov"
+                      />
+                    ) : briefing.tfrs.length === 0 ? (
+                      <ListRow media={<FindingIcon finding="ok" />} title="None within 5 nm of the route during the flight" />
+                    ) : briefing.tfrs.map(t => {
+                      const pass = passAt(t.along_track_nm);
+                      const inForce = t.crosses && (!pass || tfrWhen(t, pass) === "in-force");
+                      return (
+                        <ListRow
+                          key={t.notam_id}
+                          media={<FindingIcon finding={inForce ? "stop" : "caution"} />}
+                          title={<span className={cn(inForce && cn("font-semibold", FINDING_TONE.stop))}>{`TFR ${t.notam_id}${t.kind ? ` · ${t.kind}` : ""}`}</span>}
+                          description={
+                            <>
+                              {[tfrAltitudes(t), tfrTimes(t)].filter(Boolean).map(line => <span key={line} className="block">{line}</span>)}
+                              <PassNote when={pass && { pass, state: tfrWhen(t, pass) }} />
+                              {(t.purpose ?? t.rule) && <span className="block">{t.purpose ?? t.rule}</span>}
+                            </>
+                          }
+                          value={t.crosses ? "On the route" : `${Math.round(t.along_track_nm)} nm along`}
+                          href={`https://tfr.faa.gov/tfr3/?page=detail_${t.notam_id.replace("/", "_")}`}
+                        />
+                      );
+                    })}
+                  </ListGroup>
+                </div>
+                {specialUse.length > 0 && (
+                  <div data-testid="special-use">
+                    <ListGroup
+                      title="Special-use airspace"
+                      footer="Times of use as the FAA publishes them; LOCAL read as this device's time. Ask flight service or the controlling agency whether each is active."
+                    >
+                      {specialUse.map(({ area, pass, when }) => (
+                        <ListRow
+                          key={area.name}
+                          media={<FindingIcon finding={SUA_FINDING[when] === "stop" ? "caution" : SUA_FINDING[when]} />}
+                          title={`${area.name} · ${area.kind}`}
+                          // How far along with the altitudes, not at the row's end:
+                          // there it left the FAA's times of use three words a line.
+                          description={
+                            <>
+                              <span className="block">{`${suaAltitudes(area)} · ${Math.round(area.along_track_nm)} nm along`}</span>
+                              {area.times_of_use && <span className="block">In use {area.times_of_use}</span>}
+                              {pass && <span className="block" data-testid="sua-pass">{`You pass about ${passLine(pass)}: ${SUA_WORDS[when]}`}</span>}
+                            </>
+                          }
+                          data-testid="special-use-area"
+                        />
+                      ))}
+                    </ListGroup>
+                  </div>
+                )}
+              </div>
             )}
           </AccordionSection>
 
-          {/* The standard elements this app can name but not fetch -- the
-              official NOTAM API and ATC flow-control data are gated to
-              certain operators -- in one place, each a link to where a pilot
-              gets it. They were two sections that could only ever say "Not
-              fetched here". */}
+          {/* What the briefing raised, and what only the pilot can say
+              (lib/frat). */}
           <AccordionSection
-            title="Check before you fly"
-            summary={summaries.check}
-            // A TFR the route goes through while it is in force is said on the
-            // section's title, as VFR not recommended is.
-            aside={tfrsCrossed.length > 0 ? (
-              <span className={cn("inline-flex items-center gap-1 font-semibold text-red-700 dark:text-red-400", TEXT.note)} data-testid="tfr-flag">
-                <TriangleAlert className="size-3.5" aria-hidden />
-                TFR on the route
-              </span>
+            title="Risk Assessment"
+            aside={assessment && assessment.level !== "low" ? (
+              <Flag finding={assessment.level === "high" ? "stop" : "caution"} testId="risk-flag">
+                {assessment.level === "high" ? "High risk" : "Risk raised"}
+              </Flag>
             ) : undefined}
           >
-            {/* The TFRs within five miles of the route during the flight,
-                from tfr.faa.gov: one the route goes through in red. */}
-            {briefing && (
-              <div className="pb-3" data-testid="tfrs">
-                <ListGroup title="Temporary flight restrictions">
-                  {unchecked("tfrs") ? (
-                    <ListRow title={<span className="text-amber-700 dark:text-amber-300">tfr.faa.gov did not answer — check it before flight</span>} href="https://tfr.faa.gov" />
-                  ) : briefing.tfrs.length === 0 ? (
-                    <ListRow title={<span className="text-muted-foreground">None within 5 nm of the route during the flight</span>} />
-                  ) : briefing.tfrs.map(t => (
-                    <ListRow
-                      key={t.notam_id}
-                      media={<TriangleAlert className={cn("size-4", t.crosses ? "text-red-600 dark:text-red-400" : "text-amber-600 dark:text-amber-400")} aria-hidden />}
-                      title={<span className={cn(t.crosses && "font-semibold text-red-700 dark:text-red-400")}>{`TFR ${t.notam_id}${t.kind ? ` · ${t.kind}` : ""}`}</span>}
-                      description={
-                        <>
-                          {[tfrAltitudes(t), tfrTimes(t)].filter(Boolean).map(line => <span key={line} className="block">{line}</span>)}
-                          <PassNote when={(() => { const pass = passAt(t.along_track_nm); return pass && { pass, state: tfrWhen(t, pass) }; })()} />
-                          {(t.purpose ?? t.rule) && <span className="block">{t.purpose ?? t.rule}</span>}
-                        </>
-                      }
-                      value={t.crosses ? "On the route" : `${Math.round(t.along_track_nm)} nm along`}
-                      href={`https://tfr.faa.gov/tfr3/?page=detail_${t.notam_id.replace("/", "_")}`}
-                    />
-                  ))}
-                </ListGroup>
-              </div>
-            )}
-            {/* The special-use areas the legs cross, with when the flight
-                gets to each against its published times of use. */}
-            {specialUse.length > 0 && (
-              <div className="pb-3" data-testid="special-use">
-                <ListGroup
-                  title="Special-use airspace"
-                  footer="Times of use as the FAA publishes them; LOCAL read as this device's time. Ask flight service or the controlling agency whether each is active."
-                >
-                  {specialUse.map(area => {
-                    const pass = passAt(area.along_track_nm);
-                    const state = pass ? suaWhen(area.times_of_use, pass) : null;
-                    return (
-                      <ListRow
-                        key={area.name}
-                        media={<TriangleAlert className={cn("size-4", SUA_TONE[state ?? "unknown"])} aria-hidden />}
-                        title={`${area.name} · ${area.kind}`}
-                        description={
-                          <>
-                            <span className="block">{suaAltitudes(area)}</span>
-                            {area.times_of_use && <span className="block">In use {area.times_of_use}</span>}
-                            {pass && state && <span className="block" data-testid="sua-pass">{`You pass about ${passLine(pass)}: ${SUA_WORDS[state]}`}</span>}
-                          </>
-                        }
-                        value={`${Math.round(area.along_track_nm)} nm along`}
-                        data-testid="special-use-area"
-                      />
-                    );
-                  })}
-                </ListGroup>
-              </div>
-            )}
-            <ListGroup footer="The FAA's NOTAM and flow-control feeds need operator credentials, so these are not fetched here.">
-              <ListRow title="NOTAMs" description="1800wxbrief.com" href="https://www.1800wxbrief.com" />
-              <ListRow title="NOTAM search" description="notams.aim.faa.gov" href="https://notams.aim.faa.gov/notamSearch/" />
-              <ListRow title="ATC delays" description="fly.faa.gov" href="https://www.fly.faa.gov" />
-            </ListGroup>
+            {!assessment ? <Pending>{briefingPendingMessage}</Pending> : <RiskAssessment assessment={assessment} />}
           </AccordionSection>
+
+          <PreflightAction flight={`${landings.join("-")}|${depart}`} found={found} />
 
           {/* The mock oral, the developer's until a CFI has reviewed its
               answers; never on paper. */}
           {pilot?.developer && briefing && (
             <div className="print:hidden">
-              <AccordionSection title="Mock Oral" summary="Preview: an examiner’s questions about this flight">
+              <AccordionSection title="Mock Oral">
                 <MockOral plan={planText} />
               </AccordionSection>
             </div>
@@ -633,238 +646,124 @@ export default function FlightBriefingView({
 
       {/* Under the side view: the altitude it shows, and the figures it was chosen within. */}
       {part === "profile" && (
-        <>
-          {/* The plan being flown and the figures it was made within, first;
-              then how the planner got there, step by step -- the same steps
-              the nav log header's "why" popover shows, here for the paper
-              (a popover prints nothing) and for a pilot reading the
-              briefing top to bottom. From `nav.altitude_selection`, which
-              arrives with the nav log, not with the briefing. */}
-          <AccordionSection title="Cruise Altitude" summary={summaries.cruise}>
-            {!nav ? (
-              <p className="text-muted-foreground" role="status">Waiting on the nav log's altitude…</p>
-            ) : (
-              <div className="space-y-3">
-                <ListGroup>
-                  <ListRow
-                    title={nav.flown === "custom" ? "Your own" : chosen ? `${PLAN_LABEL[chosen.kind]} plan` : "No plan"}
-                    description={nav.flown === "custom" ? `${flightLevel(nav.altitude_ft)} all the way` : chosen ? describeSteps(chosen) : "The winds aloft could not be read."}
-                    value={chosen ? `${describeTime(chosen)} · ${describeFuel(chosen)}` : undefined}
-                  />
-                  <ListRow title="Floor" description="Terrain and obstacles, with margin" value={`${altFt(nav.altitude_selection.floor_ft)} ft`} />
-                  <ListRow
-                    title="Ceiling"
-                    description={ceilingReason(nav.altitude_selection)}
-                    value={nav.altitude_selection.band_ceiling_ft == null ? "none" : `${altFt(nav.altitude_selection.band_ceiling_ft)} ft`}
-                  />
-                </ListGroup>
-                <div>
-                  <h3 className={cn("px-1 pb-1.5 font-semibold tracking-wide text-muted-foreground uppercase", TEXT.note)}>How it was chosen</h3>
-                  <AltitudeReasoning nav={nav} legs={legs} />
-                </div>
+        // The plan being flown and the figures it was made within, first;
+        // then how the planner got there, step by step -- the same steps
+        // the FL chip's popover shows, here for the paper (a popover
+        // prints nothing) and for a pilot reading top to bottom. From
+        // `nav.altitude_selection`, which arrives with the nav log.
+        <AccordionSection title="Cruise Altitude">
+          {!nav ? <Pending>Waiting on the nav log&apos;s altitude…</Pending> : (
+            <div className="space-y-3">
+              <ListGroup>
+                <ListRow
+                  title={nav.flown === "custom" ? "Your own" : chosen ? `${PLAN_LABEL[chosen.kind]} plan` : "No plan"}
+                  description={nav.flown === "custom" ? `${flightLevel(nav.altitude_ft)} all the way` : chosen ? describeSteps(chosen) : "The winds aloft could not be read."}
+                  value={chosen ? `${describeTime(chosen)} · ${describeFuel(chosen)}` : undefined}
+                />
+                <ListRow title="Floor" description="Terrain and obstacles, with margin" value={`${altFt(nav.altitude_selection.floor_ft)} ft`} />
+                <ListRow
+                  title="Ceiling"
+                  description={ceilingReason(nav.altitude_selection)}
+                  value={nav.altitude_selection.band_ceiling_ft == null ? "none" : `${altFt(nav.altitude_selection.band_ceiling_ft)} ft`}
+                />
+              </ListGroup>
+              <div>
+                <h3 className={cn("px-1 pb-1.5 font-semibold tracking-wide text-muted-foreground uppercase", TEXT.note)}>How it was chosen</h3>
+                <AltitudeReasoning nav={nav} legs={legs} />
               </div>
-            )}
-          </AccordionSection>
-        </>
+            </div>
+          )}
+        </AccordionSection>
       )}
 
-      {/* Weather, in the AIM's order (7-1-5): adverse conditions first. */}
+      {/* Weather: adverse conditions first (AIM 7-1-5), then place by place, then the winds. */}
       {part === "weather" && (
         <>
-          <AccordionSection title="Adverse Conditions" summary={summaries.adverse}>
-            {!briefing ? (
-              <p className="text-muted-foreground" role="status">{briefingPendingMessage}</p>
-            ) : unchecked("hazards") && unchecked("gairmets") ? (
-              <p className="text-amber-700 dark:text-amber-300">
-                SIGMET and G-AIRMET data could not be checked — aviationweather.gov didn’t respond. Verify separately before flight.
-              </p>
-            ) : briefing.hazards.length + briefing.gairmets.length === 0 ? (
-              <p className="text-muted-foreground">No SIGMETs or G-AIRMETs along this route during the flight.</p>
-            ) : (
-              // A row a SIGMET or G-AIRMET, as the rest of the briefing's
-              // lists are, marked with the warning triangle: it was an amber
-              // card each. The G-AIRMETs replaced the text AIRMETs in 2025:
-              // the snapshot nearest the departure, one per hazard.
-              <ListGroup>
-                {briefing.hazards.map((h, i) => (
-                  <ListRow
-                    key={`s${i}`}
-                    media={<TriangleAlert className="size-4 text-amber-600 dark:text-amber-400" aria-hidden />}
-                    title={`${h.hazard ?? h.type ?? "Hazard"}${hazardAltitudeRange(h.altitude_low_ft, h.altitude_high_ft)
-                      ? ` — ${hazardAltitudeRange(h.altitude_low_ft, h.altitude_high_ft)}` : ""}`}
-                    description={h.raw && <span className="font-mono whitespace-pre-wrap">{h.raw}</span>}
-                  />
-                ))}
-                {briefing.gairmets.map((g, i) => (
-                  <ListRow
-                    key={`g${i}`}
-                    media={<TriangleAlert className="size-4 text-amber-600 dark:text-amber-400" aria-hidden />}
-                    title={gairmetTitle(g)}
-                    description={[gairmetAltitudes(g), g.due_to, g.valid_at && `G-AIRMET for ${clockTime(new Date(g.valid_at))}`]
-                      .filter(Boolean).join(" · ")}
-                    data-testid="gairmet"
-                  />
-                ))}
-              </ListGroup>
+          <AccordionSection
+            title="Adverse Conditions"
+            // On the title, seen before anything under it: VFR not
+            // recommended, or short of that, under the pilot's own minimums.
+            aside={vnrReasons.length > 0 ? <Flag finding="stop" testId="vnr-flag">VFR not recommended</Flag>
+              : underMine.length > 0 ? <Flag finding="stop" testId="minimums-flag">Under your minimums</Flag>
+                : hazardNames.length > 0 ? <Flag finding="caution" testId="hazards-flag">{hazardNames.length === 1 ? "A hazard" : `${hazardNames.length} hazards`}</Flag> : undefined}
+          >
+            {/* Its own standard element (AIM 7-1-5(b)), stated first, the
+                way a live briefer states it before the detail that
+                justifies it. Red on pale red at 7:1, in both themes. */}
+            {vnrReasons.length > 0 && (
+              <Alert className={cn("mb-2 border-red-200 bg-red-50 text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200", TEXT.prose)}>
+                <OctagonAlert />
+                <AlertTitle>VFR flight not recommended</AlertTitle>
+                <ul className="col-start-2 list-disc space-y-0.5 pl-4 [&>li]:first-letter:uppercase">
+                  {vnrReasons.map(reason => <li key={reason}>{reason}</li>)}
+                </ul>
+              </Alert>
             )}
-            {unchecked("hazards") !== unchecked("gairmets") && (
+            {underMine.length > 0 && (
+              <Alert className={cn("mb-2 border-red-200 bg-red-50 text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200", TEXT.prose)} data-testid="minimums-alert">
+                <OctagonAlert />
+                <AlertTitle>Under your personal minimums</AlertTitle>
+                <ul className="col-start-2 list-disc space-y-0.5 pl-4 [&>li]:first-letter:uppercase">
+                  {underMine.map(reason => <li key={reason}>{reason}</li>)}
+                </ul>
+              </Alert>
+            )}
+            {!briefing ? <Pending>{briefingPendingMessage}</Pending>
+              : unchecked("hazards") && unchecked("gairmets") ? (
+                <p className="text-amber-700 dark:text-amber-300">
+                  SIGMET and G-AIRMET data could not be checked — aviationweather.gov didn’t respond. Verify separately before flight.
+                </p>
+              ) : (
+                // A row a SIGMET or G-AIRMET, marked with the warning
+                // triangle. The G-AIRMETs replaced the text AIRMETs in 2025:
+                // the snapshot nearest the departure, one per hazard.
+                <ListGroup>
+                  {briefing.hazards.length + briefing.gairmets.length === 0 && (
+                    <ListRow media={<FindingIcon finding="ok" />} title="No SIGMETs or G-AIRMETs along the route during the flight" />
+                  )}
+                  {briefing.hazards.map((h, i) => (
+                    <ListRow
+                      key={`s${i}`}
+                      media={<FindingIcon finding="caution" />}
+                      title={`${h.hazard ?? h.type ?? "Hazard"}${hazardAltitudeRange(h.altitude_low_ft, h.altitude_high_ft)
+                        ? ` — ${hazardAltitudeRange(h.altitude_low_ft, h.altitude_high_ft)}` : ""}`}
+                      description={h.raw && <span className="font-mono whitespace-pre-wrap">{h.raw}</span>}
+                    />
+                  ))}
+                  {briefing.gairmets.map((g, i) => (
+                    <ListRow
+                      key={`g${i}`}
+                      media={<FindingIcon finding="caution" />}
+                      title={gairmetTitle(g)}
+                      description={[gairmetAltitudes(g), g.due_to, g.valid_at && `G-AIRMET for ${clockTime(new Date(g.valid_at))}`]
+                        .filter(Boolean).join(" · ")}
+                      data-testid="gairmet"
+                    />
+                  ))}
+                </ListGroup>
+              )}
+            {briefing && unchecked("hazards") !== unchecked("gairmets") && (
               <p className={cn("pt-2 text-amber-700 dark:text-amber-300", TEXT.detail)}>
                 {unchecked("hazards") ? "SIGMETs" : "G-AIRMETs"} could not be checked — verify separately before flight.
               </p>
             )}
           </AccordionSection>
 
-          <AccordionSection
-            title="Current Conditions"
-            summary={summaries.current}
-            // Seen with the section folded: the reasons are inside it, but
-            // that VFR is not recommended is on its title, not behind a tap --
-            // or, short of that, that it is under the pilot's own minimums.
-            aside={vnrReasons.length > 0 ? (
-              <span className={cn("inline-flex items-center gap-1 font-semibold text-red-700 dark:text-red-400", TEXT.note)} data-testid="vnr-flag">
-                <TriangleAlert className="size-3.5" aria-hidden />
-                VFR not recommended
-              </span>
-            ) : underMine.length > 0 ? (
-              <span className={cn("inline-flex items-center gap-1 font-semibold text-amber-700 dark:text-amber-400", TEXT.note)} data-testid="minimums-flag">
-                <TriangleAlert className="size-3.5" aria-hidden />
-                Under your minimums
-              </span>
-            ) : undefined}
-          >
-            {/* Its own standard element (AIM 7-1-5(b)), stated first inside
-                the section it is drawn from -- current METAR categories and
-                the route's own forecast minimums -- the way a live briefer
-                states it before the detail that justifies it. Red on pale
-                red at 7:1, in both themes. */}
-            {vnrReasons.length > 0 && (
-              <Alert className={cn("mb-2 border-red-200 bg-red-50 text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200", TEXT.prose)}>
-                <TriangleAlert />
-                <AlertTitle>VFR flight not recommended</AlertTitle>
-                <ul className="col-start-2 list-disc space-y-0.5 pl-4">
-                  {vnrReasons.map(reason => <li key={reason}>{reason}</li>)}
-                </ul>
-              </Alert>
-            )}
-            {underMine.length > 0 && (
-              <Alert className={cn("mb-2 border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-100", TEXT.prose)} data-testid="minimums-alert">
-                <TriangleAlert />
-                <AlertTitle>Under your personal minimums</AlertTitle>
-                <ul className="col-start-2 list-disc space-y-0.5 pl-4">
-                  {underMine.map(reason => <li key={reason}>{reason}</li>)}
-                </ul>
-              </Alert>
-            )}
-            {!briefing ? (
-              <p className="text-muted-foreground" role="status">{briefingPendingMessage}</p>
-            ) : unchecked("metars") ? (
-              <p className="text-amber-700 dark:text-amber-300">
-                Current conditions could not be checked — aviationweather.gov didn’t respond. Verify separately before flight.
-              </p>
-            ) : (
-              // The departure's and the destination's METARs, a row each
-              // with the category at its end: they were two bordered boxes.
-              <ListGroup>
-                {landings.map(ident => {
-                  const metar = briefing.metars[ident];
-                  return (
-                    <ListRow
-                      key={ident} title={ident}
-                      description={metar?.raw ? <span className="font-mono whitespace-pre-wrap">{metar.raw}</span> : "No current report available."}
-                    >
-                      <CategoryBadge category={metar?.flight_category} />
-                    </ListRow>
-                  );
-                })}
-              </ListGroup>
-            )}
-            {/* The pilot reports near the route (AIM 7-1-5(d) puts them with
-                the current conditions): the last hour and a half's, at a light
-                aeroplane's altitudes, an urgent one first and in red. */}
-            {briefing && !unchecked("pireps") && (
-              <div className="pt-3" data-testid="pireps">
-                <ListGroup title="Pilot reports">
-                  {briefing.pireps.length === 0 ? (
-                    <ListRow title={<span className="text-muted-foreground">None near the route in the last 90 minutes</span>} />
-                  ) : briefing.pireps.map((p, i) => (
-                    <ListRow
-                      key={i}
-                      title={
-                        <span className={cn(p.urgent && "font-semibold text-red-700 dark:text-red-400")}>
-                          {[p.urgent ? "Urgent PIREP" : "PIREP", p.altitude_ft != null && `${altFt(p.altitude_ft)} ft`, p.aircraft].filter(Boolean).join(" · ")}
-                        </span>
-                      }
-                      description={
-                        <>
-                          {pirepConditions(p) && <span className="block">{pirepConditions(p)}</span>}
-                          {p.raw && <span className="block font-mono whitespace-pre-wrap">{p.raw}</span>}
-                        </>
-                      }
-                      value={`${Math.round(p.along_track_nm)} nm`}
-                    />
-                  ))}
-                </ListGroup>
-              </div>
-            )}
-          </AccordionSection>
-
-          {/* Split into its own two standard elements (AIM 7-1-5(e)/(f))
-              rather than one blended list -- a briefer states the
-              destination's own forecast as its own line, since it is the
-              one that decides go/no-go on arrival. */}
-          <AccordionSection title="Destination Forecast" summary={summaries.destination}>
-            {!briefing ? (
-              <p className="text-muted-foreground" role="status">{briefingPendingMessage}</p>
-            ) : unchecked("forecast") ? (
-              <p className="text-amber-700 dark:text-amber-300">
-                Forecast data could not be checked — aviationweather.gov didn’t respond. Verify separately before flight.
-              </p>
-            ) : destStation ? (
-              <ListGroup footer="The worst forecast period of its TAF.">
-                <ListRow title="Ceiling" value={destStation.ceiling_ft == null ? "none" : `${altFt(destStation.ceiling_ft)} ft`} />
-                <ListRow title="Visibility" value={destStation.visibility_sm == null ? "—" : `${destStation.visibility_sm} sm`} />
-                <ListRow title="Category"><CategoryBadge category={categoryOf(destStation.ceiling_ft, destStation.visibility_sm)} /></ListRow>
-              </ListGroup>
-            ) : (
-              <p className="text-muted-foreground">No TAF published for {dest}.</p>
-            )}
-          </AccordionSection>
-
-          {/* Every station with a TAF near the route, the worst first: its
-              ceiling and visibility at the end of its row, and the category
-              they make as a badge, which is what is read at a glance. It was
-              a line of prose per station. */}
-          <AccordionSection title="En Route Forecast" summary={summaries.enRoute}>
-            {!briefing ? (
-              <p className="text-muted-foreground" role="status">{briefingPendingMessage}</p>
-            ) : unchecked("forecast") ? (
-              <p className="text-amber-700 dark:text-amber-300">
-                Forecast data could not be checked — aviationweather.gov didn’t respond. Verify separately before flight.
-              </p>
-            ) : enRoute.length === 0 ? (
-              <p className="text-muted-foreground">No TAF published near the route.</p>
-            ) : (
-              <ListGroup footer="The worst forecast period of each TAF near the route, worst first." >
-                {enRoute.map(st => (
-                  <ListRow key={st.icaoId} title={st.icaoId} value={ceilingAndVisibility(st.ceiling_ft, st.visibility_sm)}>
-                    <CategoryBadge category={st.category} />
-                  </ListRow>
-                ))}
-              </ListGroup>
-            )}
-          </AccordionSection>
+          {briefing && course ? (
+            <WeatherAlongRoute briefing={briefing} course={course} legs={legs} departIso={depart || opened} unchecked={unchecked} />
+          ) : (
+            <AccordionSection title="Along the Route"><Pending>{briefingPendingMessage}</Pending></AccordionSection>
+          )}
 
           {/* The route's winds and temperatures by stretch: consecutive legs
               that fly in the same forecast at the same altitude, one row
-              each. It was a list of directions and speeds with no way to
-              tell where each blew. The temperature is what the legs' true
-              airspeeds are worked out from (the Cruise Altitude section's
-              performance step). */}
-          <AccordionSection title="Winds Aloft" summary={summaries.winds}>
+              each. The temperature is what the legs' true airspeeds are
+              worked out from. */}
+          <AccordionSection title="Winds Aloft">
             {!stretches.some(st => st.wind) ? (
-              <p className="text-muted-foreground">No winds-aloft data available for this route.</p>
+              <p className="text-muted-foreground">{legs.length ? "No winds-aloft data available for this route." : "Waiting on the nav log's legs…"}</p>
             ) : (
-              <ListGroup>
+              <ListGroup footer="The forecast winds and temperatures each stretch of legs is flown in, from the nearest winds-aloft station.">
                 {stretches.map((st, i) => (
                   <ListRow
                     key={i}
@@ -879,61 +778,21 @@ export default function FlightBriefingView({
         </>
       )}
 
-      {/* Performance: the aeroplane's own. */}
+      {/* Performance: whether the runways will do, then the loading that changes it. */}
       {part === "performance" && (
         <>
-          {/* Before the flight, the aeroplane's own: its weight and balance,
-              and the runway it needs at each end. */}
-          <WeightBalanceSection aircraft={nav?.aircraft} tripFuelGal={totals?.fuel_gal ?? null} />
           <TakeoffLandingSection
             aircraft={nav?.aircraft} briefing={briefing} course={course}
             takeoff={loaded?.takeoff.weightLb ?? null} landing={loaded?.landing.weightLb ?? null}
           />
+          <WeightBalanceSection aircraft={nav?.aircraft} tripFuelGal={totals?.fuel_gal ?? null} />
         </>
       )}
 
-      {/* Each airport landed at: its frequencies and runways, its pattern and the calls. */}
+      {/* Each airport, in the order flown. */}
       {part === "airports" && (
-        <>
-          {/* Each airport's frequencies by what a pilot calls them, and its
-              runways, a row each. They were "TWR (TWR): 118.3" lines. */}
-          <AccordionSection title="Airport Information" summary={summaries.airports}>
-            {!briefing ? (
-              <p className="text-muted-foreground" role="status">{briefingPendingMessage}</p>
-            ) : (
-              <div className="grid gap-3 sm:grid-cols-2">
-                {landings.map(ident => {
-                  const info = briefing.airports[ident];
-                  return (
-                    <ListGroup key={ident} title={ident}>
-                      {info?.frequencies.length
-                        ? info.frequencies.map((f, i) => {
-                          const { name, detail } = frequencyName(f.type, f.description);
-                          return <ListRow key={`f${i}`} title={name} description={detail ?? undefined} value={f.frequency_mhz ?? "—"} />;
-                        })
-                        : <ListRow title={<span className="text-muted-foreground">No published frequencies</span>} />}
-                      {info?.runways.length
-                        ? info.runways.map((r, i) => <RunwayRow key={`r${i}`} runway={r} />)
-                        : <ListRow title={<span className="text-muted-foreground">No published runway data</span>} />}
-                      <PublicationRows diagram={info?.airport_diagram_url} supplement={info?.chart_supplement_url} />
-                    </ListGroup>
-                  );
-                })}
-              </div>
-            )}
-          </AccordionSection>
-
-          {/* Each field's pattern drawn for the runway the wind favours, and
-              the radio calls in the order they are made, worded as the AIM
-              words them. */}
-          <AccordionSection title="Pattern & Radio" summary={summaries.pattern}>
-            {!briefing ? (
-              <p className="text-muted-foreground" role="status">{briefingPendingMessage}</p>
-            ) : (
-              <PatternRadio briefing={briefing} landings={landings} legs={legs} callSign={ownCallSign} />
-            )}
-          </AccordionSection>
-        </>
+        briefing ? <AirportSections briefing={briefing} landings={landings} legs={legs} callSign={ownCallSign} />
+          : <AccordionSection title="Airports"><Pending>{briefingPendingMessage}</Pending></AccordionSection>
       )}
     </>
   );

@@ -6,6 +6,7 @@ import pytest
 
 from vfr.geo import (
     EARTH_RADIUS_NM,
+    along_path_nm,
     along_track_distance_nm,
     bearing_deg,
     cluster_points,
@@ -86,6 +87,17 @@ def test_along_track_distance_behind_the_start_is_negative():
     behind = along_track_distance_nm(0, -2, route_start, route_end)
     assert behind < 0
     assert behind == pytest.approx(-distance_nm(0, 0, 0, 2), rel=1e-6)
+
+
+def test_along_a_path_is_measured_on_the_leg_the_point_is_beside():
+    # East along the equator, then north: a point beside the second leg
+    # is the first leg's length plus how far up the second it is, and one
+    # behind the start is held to the start.
+    path = [(0, 0), (0, 2), (2, 2)]
+    first = distance_nm(0, 0, 0, 2)
+    assert along_path_nm(1, 2.1, path) == pytest.approx(first + distance_nm(0, 2, 1, 2), rel=1e-3)
+    assert along_path_nm(0.1, 1, path) == pytest.approx(first / 2, rel=1e-3)
+    assert along_path_nm(0, -1, path) == 0.0
 
 
 def test_coincident_points_give_zero_distance_and_no_error():

@@ -32,7 +32,7 @@ function PatternDiagram({ end, opposite, fromDeg }: { end: RunwayEnd; opposite: 
   const label = `${end.traffic === "right" ? "Right" : "Left"} traffic for runway ${runwayNumber(end.ident)}: the downwind ${compassWord(patternSideDeg(end))} of the runway, joined on the 45 abeam midfield.`;
   return (
     <svg viewBox="0 0 240 240" className="mx-auto h-auto w-full max-w-60 text-foreground" role="img" aria-label={label} data-testid="pattern-diagram">
-      <g className="text-muted-foreground" fill="currentColor" fontSize={10} textAnchor="middle">
+      <g className="text-xs text-muted-foreground" fill="currentColor" textAnchor="middle">
         <text x={xd + side * 12} y={150} transform={`rotate(${-90 * side} ${xd + side * 12} 150)`}>Downwind</text>
         <text x={across} y={214}>Base</text>
         <text x={120 - side * 8} y={190} textAnchor={right ? "end" : "start"}>Final</text>
@@ -48,19 +48,19 @@ function PatternDiagram({ end, opposite, fromDeg }: { end: RunwayEnd; opposite: 
       {/* The runway with its numbers painted at its ends, as it is:
           each read from its own approach. */}
       <rect x={110} y={80} width={20} height={80} rx={1.5} fill="currentColor" />
-      <g className="fill-background" fontSize={10} fontWeight={700} textAnchor="middle">
+      <g className="fill-background text-xs" fontWeight={700} textAnchor="middle">
         <text x={120} y={155}>{runwayNumber(end.ident)}</text>
         {opposite && <text x={120} y={155} transform="rotate(180 120 120)">{runwayNumber(opposite)}</text>}
       </g>
       <g className="text-tint">
         <path d={`M${xd + side * 50} 70 L${xd} 120`} stroke="currentColor" strokeWidth={2} fill="none" />
         <Chevron x={xd + side * 6} y={114} deg={right ? 225 : 135} />
-        <text x={right ? 236 : 4} y={62} fontSize={10} textAnchor={right ? "end" : "start"} fill="currentColor">45° entry</text>
+        <text x={right ? 236 : 4} y={62} className="text-xs" textAnchor={right ? "end" : "start"} fill="currentColor">45° entry</text>
       </g>
       {/* North, turned to the runway: the page's up is its heading. */}
       <g transform={`translate(${120 - side * 96} 26) rotate(${-heading})`} className="text-muted-foreground">
         <path d="M0 -11 L4 5 L0 2 L-4 5 Z" fill="currentColor" />
-        <text y={-14} fontSize={9} textAnchor="middle" fill="currentColor" transform={`rotate(${heading} 0 -17)`}>N</text>
+        <text y={-14} className="text-xs" textAnchor="middle" fill="currentColor" transform={`rotate(${heading} 0 -17)`}>N</text>
       </g>
       {rel != null && (
         <g className="text-tint" data-testid="pattern-arrival">
@@ -71,7 +71,7 @@ function PatternDiagram({ end, opposite, fromDeg }: { end: RunwayEnd; opposite: 
           <Chevron x={120 + 98 * Math.sin(rel)} y={120 - 98 * Math.cos(rel)} deg={(rel * 180) / Math.PI + 180} />
           <text
             x={120 + 107 * Math.sin(rel) + 12 * Math.cos(rel)} y={120 - 107 * Math.cos(rel) + 12 * Math.sin(rel) + 3}
-            fontSize={10} textAnchor="middle" fill="currentColor"
+            className="text-xs" textAnchor="middle" fill="currentColor"
           >
             You
           </text>
@@ -156,26 +156,31 @@ function PatternRows({ phase, facilities, courseDeg }: { phase: RadioPhase; faci
 }
 
 /**
- * The briefing's Pattern & Radio section (the roadmap's pattern card and
- * radio scripts, ACS PA.III.A and B): at each field the flight leaves or
- * lands at, its pattern drawn for the runway the wind favours, then the
- * calls in the order they are made (lib/radio).
+ * The pattern and the radio calls at one field (the roadmap's pattern
+ * card and radio scripts, ACS PA.III.A and B), in the Airports tab's
+ * section for it: leaving it or arriving -- both at a stop -- its pattern
+ * drawn for the runway the wind favours, then the calls in the order they
+ * are made (lib/radio), worked out over the whole route so each field's
+ * calls know the next. Nothing for a local flight: there is no route to
+ * call along.
  */
-export default function PatternRadio({ briefing, landings, legs, callSign }: {
+export default function PatternRadio({ briefing, landings, legs, callSign, at }: {
   briefing: Briefing;
   landings: string[];
   legs: Leg[];
   callSign: string;
+  /** The field whose calls these are. */
+  at: string;
 }) {
   const airports = landings.filter(ident => briefing.airports[ident]).map(ident => ({ ident, facilities: briefing.airports[ident]! }));
-  if (airports.length < 2) return <p className="text-muted-foreground">No airports to call.</p>;
-  const phases = radioScript({ callSign, airports, legs });
+  if (airports.length < 2) return null;
+  const phases = radioScript({ callSign, airports, legs }).filter(phase => phase.ident === at);
   const courseInto = (ident: string) => {
     const into = legs.filter(l => l.to === ident);
     return into.length ? into[into.length - 1]!.true_course_deg : null;
   };
   return (
-    <div className="space-y-5">
+    <>
       {phases.map((phase, i) => (
         <div key={`${phase.kind}${i}`} className="space-y-2" data-testid="radio-phase">
           <PatternRows phase={phase} facilities={briefing.airports[phase.ident]!} courseDeg={phase.kind === "arrival" ? courseInto(phase.ident) : null} />
@@ -184,10 +189,16 @@ export default function PatternRadio({ briefing, landings, legs, callSign }: {
           </ListGroup>
         </div>
       ))}
-      <p className={cn("px-1 text-muted-foreground", TEXT.note)}>
-        Worded as the AIM (4-1-9, 4-2) and AC 90-66C word them, figures as they are spoken. The words in brackets
-        are yours to fill in, and a controller may ask for something else: say what they ask.
-      </p>
-    </div>
+    </>
+  );
+}
+
+/** Where the calls' words come from, once under every field's. */
+export function RadioNote() {
+  return (
+    <p className={cn("py-3 text-muted-foreground", TEXT.note)}>
+      The calls are worded as the AIM (4-1-9, 4-2) and AC 90-66C word them, figures as they are spoken. The words in brackets
+      are yours to fill in, and a controller may ask for something else: say what they ask.
+    </p>
   );
 }
