@@ -431,8 +431,11 @@ export function contrastFindings(page: Page, scope = "body"): Promise<ContrastFi
         if (bg[3] > 0) layers.push(bg);
       }
       // A toast fading in or out is between two states, neither of them its
-      // own; at rest it is measured.
-      if (unknown || (opacity < 0.99 && el.closest("[data-sonner-toaster]"))) continue;
+      // own; at rest it is measured. So is a map's tooltip or card: Leaflet
+      // fades one out over 0.2 s before it takes it away, and the course
+      // line's, at no opacity under a pointer the map had moved from, read
+      // 1:1 on CI's phones.
+      if (unknown || (opacity < 0.99 && el.closest("[data-sonner-toaster], .leaflet-tooltip, .leaflet-popup"))) continue;
       let bg = base ?? [255, 255, 255, 1];
       for (const layer of layers.reverse()) bg = over(layer, bg);
       const fill = el instanceof SVGElement && cs.fill.startsWith("rgb") ? cs.fill : cs.color;
