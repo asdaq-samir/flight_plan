@@ -55,7 +55,7 @@ export default function FullscreenButton() {
         // leave one that does nothing.
         void document.documentElement.requestFullscreen().catch(() => setWorks(false));
       }}
-      data-testid="fullscreen-button"
+      data-testid="fullscreen-button" className="text-foreground"
     >
       {on ? <Minimize className="size-5" /> : <Maximize className="size-5" />}
     </IconButton>

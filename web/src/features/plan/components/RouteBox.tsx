@@ -1,15 +1,15 @@
-import { Fragment, useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
+import { Fragment, useEffect, useId, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
 import { Command as CommandPrimitive } from "cmdk";
-import { ArrowRight, Trash2 } from "lucide-react";
+import { ArrowRight, MoveVertical, Trash2 } from "lucide-react";
 import {
-  DndContext, KeyboardSensor, MouseSensor, TouchSensor, closestCenter, useSensor, useSensors, type DragEndEvent,
+  DndContext, KeyboardSensor, MouseSensor, TouchSensor, closestCenter, useDndMonitor, useSensor, useSensors, type DragEndEvent,
 } from "@dnd-kit/core";
 import { SortableContext, arrayMove, rectSortingStrategy, sortableKeyboardCoordinates, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { cn } from "cn";
 import AirportPicker, { AirportRow, PickerGroup, SearchRows } from "../../../components/AirportPicker";
 import { CommandList } from "../../../components/ui/command";
-import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from "../../../components/ui/context-menu";
+import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuShortcut, ContextMenuTrigger } from "../../../components/ui/context-menu";
 import { InputGroup } from "../../../components/ui/input-group";
 import { Popover, PopoverAnchor, PopoverContent } from "../../../components/ui/popover";
 import type { Detour } from "../../../lib/api/types";
@@ -18,6 +18,8 @@ import { usePreferences, type AirspaceClass, type RecentAirport } from "../../..
 import { useAirportSearch } from "../../../lib/useAirportSearch";
 import { AIRSPACE, useAirspace } from "../../../lib/useAirspace";
 import { inkOn } from "../../../lib/scoreScale";
+import { altFt, flightLevel } from "../../../lib/units";
+import PointAltitudeDialog, { type EditedPoint, type PointAltitude } from "./PointAltitudeDialog";
 
 /** The route as the box changes it: either end may be missing (half a
  *  route, the other end still to be typed), and neither means none. */
@@ -45,13 +47,20 @@ export interface RouteParts { dep: string; stops: string[]; dest: string }
  * The ends stay airports: a waypoint is flown through, never taken off
  * from or landed at, so a change that would put one at an end is undone.
  */
-export default function RouteBox({ dep, stops, dest, waypoints, airspaceOf, metarColourOf, onChange, adding, onAddingChange, via }: RouteParts & {
+export default function RouteBox({
+  dep, stops, dest, waypoints, airspaceOf, metarColourOf, altitudeAt, onAltitudeChange, onChange, adding, onAddingChange, via,
+}: RouteParts & {
   /** Which points are waypoints, flown through: in the sectional's magenta. */
   waypoints: Set<string>;
   /** An airport's airspace class, as the course came with it. */
   airspaceOf: (ident: string) => AirspaceClass | undefined;
   /** An airport's METAR colour, for the pills coloured by the weather. */
   metarColourOf: (ident: string) => string | undefined;
+  /** The altitude at a point, which its menu offers to change: a
+   *  waypoint's cruise there, an airport's pattern. */
+  altitudeAt: (ident: string, waypoint: boolean) => PointAltitude;
+  /** A point's own altitude set, or (null) given back to the plan. */
+  onAltitudeChange: (ident: string, feet: number | null) => void;
   onChange: (route: RouteParts) => void;
   /** A stop asked for from elsewhere -- a problem's Add a stop or Fly
    *  via: the box takes the typing where it goes in, with `via` offered. */
@@ -72,6 +81,8 @@ export default function RouteBox({ dep, stops, dest, waypoints, airspaceOf, meta
   // with no departure, the departure), or null -- after the last point,
   // where what is typed is the destination.
   const [chosen, setAt] = useState<number | null>(null);
+  // The point whose altitude is being set, from its menu.
+  const [editing, setEditing] = useState<EditedPoint | null>(null);
   // Asked for from a problem: the field where the stop goes -- on the
   // flight the Class B stops, or before the destination.
   const asked = via?.length ? via[0]!.stop_index + 1 : Math.max(points.length - 1, 0);
@@ -300,6 +311,8 @@ export default function RouteBox({ dep, stops, dest, waypoints, airspaceOf, meta
                         id={ids[i]!} ident={point} waypoint={waypoints.has(point)} index={i} airspaceOf={airspaceOf} metarColourOf={metarColourOf}
                         role={roleOf(i)} stopNumber={i + (hasDep ? 0 : 1)}
                         onChange={ident => change(points.map((p, j) => (j === i ? ident : p)))}
+                        altitude={altitudeAt(point, waypoints.has(point))}
+                        onEditAltitude={() => setEditing({ ident: point, waypoint: waypoints.has(point), altitude: altitudeAt(point, waypoints.has(point)) })}
                         onRemove={() => remove(i)}
                       />
                     </Fragment>
@@ -343,6 +356,10 @@ export default function RouteBox({ dep, stops, dest, waypoints, airspaceOf, meta
           </CommandList>
         </PopoverContent>
       </Popover>
+      <PointAltitudeDialog
+        point={editing} onClose={() => setEditing(null)}
+        onSet={(ident, feet) => { onAltitudeChange(ident, feet); setEditing(null); }}
+      />
     </CommandPrimitive>
   );
 }
@@ -353,13 +370,47 @@ export default function RouteBox({ dep, stops, dest, waypoints, airspaceOf, meta
  *  right-click with a mouse -- or Delete with it focused: a cross on every
  *  pill was a row of targets crowded between them, at the pilot's ask. Any
  *  of them, the ends too (RouteBox's `remove`). */
-function Pill({ id, ident, waypoint, index, role, stopNumber, airspaceOf, metarColourOf, onChange, onRemove }: {
+function Pill({ id, ident, waypoint, index, role, stopNumber, airspaceOf, metarColourOf, altitude, onChange, onEditAltitude, onRemove }: {
   id: string; ident: string; waypoint: boolean; index: number; role: "dep" | "stop" | "dest"; stopNumber: number;
   airspaceOf: (ident: string) => AirspaceClass | undefined;
   metarColourOf: (ident: string) => string | undefined;
-  onChange: (ident: string) => void; onRemove: () => void;
+  altitude: PointAltitude;
+  onChange: (ident: string) => void; onEditAltitude: () => void; onRemove: () => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+  // A finger's hold, as iOS's: the pill lifts at a quarter second (the
+  // drag's, RouteBox's sensors), its menu at half -- unless it has moved
+  // first, which makes it a drag; moved with the menu out, the menu goes
+  // and the drag goes on. Radix's own hold (700 ms) is put off by any
+  // move at all, and a finger is never quite still: this one allows it
+  // eight points, and opens where Radix's would.
+  const hold = useRef<{ timer: number; x: number; y: number } | null>(null);
+  const menuOut = useRef(false);
+  const letGo = () => {
+    if (hold.current) window.clearTimeout(hold.current.timer);
+    hold.current = null;
+  };
+  const press = (event: PointerEvent<HTMLSpanElement>) => {
+    if (event.pointerType === "mouse") return;
+    letGo();
+    const pill = event.currentTarget, { clientX, clientY } = event;
+    hold.current = {
+      x: clientX, y: clientY,
+      timer: window.setTimeout(() => pill.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX, clientY })), 500),
+    };
+  };
+  const slide = (event: PointerEvent<HTMLSpanElement>) => {
+    if (hold.current && Math.hypot(event.clientX - hold.current.x, event.clientY - hold.current.y) > 8) letGo();
+  };
+  useDndMonitor({
+    onDragMove: ({ active, delta }) => {
+      if (active.id !== id || Math.hypot(delta.x, delta.y) <= 8) return;
+      letGo();
+      // Radix closes its menu on Escape's key; dnd-kit cancels a drag on
+      // Escape's code, which this has none of.
+      if (menuOut.current) document.dispatchEvent(new globalThis.KeyboardEvent("keydown", { key: "Escape" }));
+    },
+  });
   // An airport as the sectional draws its airspace, as its Favorites tile
   // is (lib/useAirspace): Class B and C solid blue and magenta, D and E
   // dashed; G, and one not known yet, the sheet's own pill. A waypoint in
@@ -377,7 +428,6 @@ function Pill({ id, ident, waypoint, index, role, stopNumber, airspaceOf, metarC
       : byWeather || space.name === AIRSPACE.G.name || !space.style ? undefined : space.style;
   // The fields' own names, as the two fields were: "Departure", "Stop 1".
   const label = role === "dep" ? "Departure" : role === "dest" ? "Destination" : `Stop ${stopNumber}`;
-  const removeLabel = role === "stop" ? `Remove the stop at ${ident}` : `Remove ${ident}`;
   const pill = (
     // A group, not dnd-kit's button: the picker inside it is the button,
     // and a button in a button is nothing a reader can use (axe's
@@ -386,6 +436,7 @@ function Pill({ id, ident, waypoint, index, role, stopNumber, airspaceOf, metarC
     <span
       ref={setNodeRef} {...attributes} {...listeners} role="group" aria-label={`${label} ${ident}`}
       aria-keyshortcuts="Delete" data-point={index}
+      onPointerDown={press} onPointerMove={slide} onPointerUp={letGo} onPointerCancel={letGo}
       // Moved, never scaled: across lines the pills differ in width, and
       // dnd-kit's rect strategy scales one to another's, stretching its
       // ident while it is dragged.
@@ -405,11 +456,23 @@ function Pill({ id, ident, waypoint, index, role, stopNumber, airspaceOf, metarC
     </span>
   );
   return (
-    <ContextMenu>
+    <ContextMenu onOpenChange={open => { menuOut.current = open; }}>
       <ContextMenuTrigger asChild>{pill}</ContextMenuTrigger>
       <ContextMenuContent>
+        {/* The altitude there, before Remove, at the pilot's ask: a
+            waypoint's cruise, as a flight level, an airport's pattern, in
+            feet -- the plan's until the pilot sets their own. Asked once
+            the menu has gone, so the dialog takes the focus it hands back. */}
+        <ContextMenuItem onSelect={() => window.setTimeout(onEditAltitude)} data-testid="point-altitude">
+          <MoveVertical />
+          {waypoint ? "Altitude" : "Pattern altitude"}
+          <ContextMenuShortcut className="tracking-normal tabular-nums">
+            {waypoint ? flightLevel(altitude.feet) : altitude.feet === null ? "—" : `${altFt(altitude.feet)} ft`}
+          </ContextMenuShortcut>
+        </ContextMenuItem>
         <ContextMenuItem variant="destructive" onSelect={onRemove} data-testid="remove-point">
-          <Trash2 />{removeLabel}
+          {/* The one word, at the pilot's ask: the menu is the pill's. */}
+          <Trash2 />Remove
         </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>

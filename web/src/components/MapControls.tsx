@@ -16,7 +16,8 @@ import { GLASS } from "./mapChrome";
  *
  * Ghost buttons on the group's glass, eight apart inside it, so
  * each one's 44-point hit area (index.css) meets the next one's rather
- * than overlapping it.
+ * than overlapping it. Only the location arrow in the tint, as Maps'
+ * is; the others' glyphs in the text's colour.
  */
 export default function MapControls({ onSelectPlace }: {
   /** Opens a field's card: on the planner, where Nearest is offered. */

@@ -1,7 +1,9 @@
 import { CircleAlert, History, Search, X } from "lucide-react";
-import { useContext, useRef, type ReactNode, type RefObject } from "react";
+import { useCallback, useContext, useRef, useState, type ReactNode, type RefObject } from "react";
 import { cn } from "cn";
+import { routeNameWithin } from "../lib/identSchema";
 import { TEXT } from "../lib/text";
+import { textWidth } from "../lib/textWidth";
 import { useAirportSearch } from "../lib/useAirportSearch";
 import { usePreferences, type RecentAirport } from "../lib/preferences";
 import { ListGroup, ListRow } from "./GroupedList";
@@ -10,9 +12,10 @@ import { ConsoleButtonContext } from "./mapChrome";
 /**
  * The panel at rest, as Maps' is on an iPhone: a capsule floating over
  * the chart (MapPanel's `compact`). The planner's is one line, as the
- * search bar is: the route, a tap on it opening the panel, and the
- * console's button at its end (ConsoleButtonContext) -- what is wrong with
- * the route a red mark beside it. The training page's has a chip under
+ * search bar is: Share at its start (`leading`), the route, a tap on it
+ * opening the panel, and the console's button at its end
+ * (ConsoleButtonContext) -- what is wrong with the route a red mark
+ * beside it. The training page's has a chip under
  * the route that opens the panel to what it stands for (the rating's
  * progress), as Maps' Options does, and a button either side. Drag it or
  * its grabber and it opens into the sheet.
@@ -33,15 +36,16 @@ export function RouteCapsule({ title, detail, tone = "default", warning, onDetai
   if (!detail) {
     return (
       <div className="flex w-full items-center gap-2">
+        {leading && <div className="flex shrink-0">{leading}</div>}
         {/* The route, a tap on it the panel: no sideways slide -- cut
-            short, the panel shows it whole. */}
+            in its middle, the panel shows it whole. */}
         <button
           type="button" onClick={onDetail} data-testid="capsule-detail" data-tone={warning ? "destructive" : "default"}
           aria-label={warning ? `${title}, ${warning}` : title}
           className="flex h-[2.5625rem] min-w-0 flex-1 items-center justify-center gap-1.5 rounded-full px-3 outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           {warning && <CircleAlert className="size-4 shrink-0 text-destructive" aria-hidden="true" />}
-          <span className={cn("truncate font-semibold", TEXT.row, warning && "text-destructive")} data-testid="capsule-title">{title}</span>
+          <FittedRoute title={title} marked={!!warning} />
         </button>
         <div className="flex shrink-0 justify-end">{trailing ?? consoleButton}</div>
       </div>
@@ -77,6 +81,44 @@ export function RouteCapsule({ title, detail, tone = "default", warning, onDetai
       </div>
       <div className="flex w-9 shrink-0 justify-end">{trailing ?? consoleButton}</div>
     </div>
+  );
+}
+
+/**
+ * The one-line capsule's route, cut in its middle to fit (routeNameWithin)
+ * so the destination is always at its end: measured in the title's own
+ * font against the room its button has, less the warning's mark (a rem
+ * and its gap), again whenever the button's width changes and once the
+ * font has loaded. The button's label says the route whole.
+ */
+function FittedRoute({ title, marked }: { title: string; marked: boolean }) {
+  const [room, setRoom] = useState<{ width: number; font: string; rem: number } | null>(null);
+  // At commit, so the first frame drawn is already cut to fit.
+  const watch = useCallback((span: HTMLSpanElement | null) => {
+    const button = span?.parentElement;
+    if (!span || !button) return;
+    let live = true;
+    const measure = () => {
+      if (!live) return;
+      const box = getComputedStyle(button), text = getComputedStyle(span);
+      const next = {
+        width: button.clientWidth - parseFloat(box.paddingLeft) - parseFloat(box.paddingRight),
+        font: `${text.fontWeight} ${text.fontSize} ${text.fontFamily}`,
+        rem: parseFloat(getComputedStyle(document.documentElement).fontSize),
+      };
+      setRoom(was => was && was.width === next.width && was.font === next.font && was.rem === next.rem ? was : next);
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(button);
+    void document.fonts?.ready.then(measure);
+    return () => { live = false; observer.disconnect(); };
+  }, []);
+  const shown = room
+    ? routeNameWithin(title, name => (textWidth(name, room.font) ?? 0) <= room.width - (marked ? room.rem * 1.375 : 0) - 1)
+    : title;
+  return (
+    <span ref={watch} className={cn("truncate font-semibold", TEXT.row, marked && "text-destructive")} data-testid="capsule-title">{shown}</span>
   );
 }
 

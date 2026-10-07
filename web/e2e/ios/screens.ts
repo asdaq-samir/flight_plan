@@ -163,7 +163,7 @@ export const SCREENS: Screen[] = [
         }) + "\n",
       }));
       await page.goto(`/app/plan?${ROUTE}&view=briefing`);
-      await page.getByTestId("route-problem-title").click({ timeout: slow(30000) });
+      await page.getByTestId("altitude-why").click({ timeout: slow(30000) });
       await expect(page.getByTestId("unflyable-fly-via")).toBeVisible();
     },
   },

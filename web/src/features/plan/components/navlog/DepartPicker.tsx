@@ -11,6 +11,7 @@ import { Input } from "../../../../components/ui/input";
 import { ResponsivePopover, ResponsivePopoverContent, ResponsivePopoverTrigger } from "../../../../components/ResponsivePopover";
 import { cn } from "cn";
 import { TEXT } from "../../../../lib/text";
+import { GLASS_BUTTON } from "../../../../components/mapChrome";
 
 interface Props {
   /** The departure as an ISO instant, or "" for about now. */
@@ -64,10 +65,10 @@ export default function DepartPicker({ value, onChange }: Props) {
     <ResponsivePopover open={open} onOpenChange={setOpen}>
       <ResponsivePopoverTrigger asChild>
         <Button
-          // A field, as iOS's compact date picker is: the time in the
+          // A chip of glass, as Maps' filter chips are: the time in the
           // text's colour at a row's size (TEXT), not a button's tint.
           // 15 to a finger, as the aeroplane beside it (FlightInputs).
-          variant="outline" size="sm" className={cn("px-2.5 font-normal text-foreground", TEXT.detail)}
+          variant="outline" size="sm" className={cn("rounded-full px-2.5 font-normal pointer-coarse:px-1.5", GLASS_BUTTON, TEXT.detail)}
           aria-label="Departure date" data-testid="depart-date"
         >
           {!date && <CalendarIcon className="text-muted-foreground" />}

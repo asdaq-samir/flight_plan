@@ -20,13 +20,16 @@ export const MAGENTA = "#b02e7c";
  * solid blue line, C solid magenta, D dashed blue, an E surface area
  * dashed magenta, and G no line at all -- the field under the shaded
  * magenta edge of the Class E above it, here a ring of the same shading.
- * Solid as a fill, dashed as a dashed ring on a wash of the colour.
+ * Solid as a fill, dashed as a dashed ring on a wash of the colour --
+ * an outline drawn inside the edge, not a border, so a dashed pill is no
+ * bigger than a solid one beside it (the route's box had KDLH's dashed
+ * pill five points taller than KMDW's).
  */
 export const AIRSPACE: Record<Space, { name: string; style: CSSProperties }> = {
   B: { name: "Class B", style: { backgroundColor: BLUE, color: "#ffffff" } },
   C: { name: "Class C", style: { backgroundColor: MAGENTA, color: "#ffffff" } },
-  D: { name: "Class D", style: { border: `2.5px dashed ${BLUE}`, backgroundColor: `${BLUE}1f`, color: BLUE } },
-  E: { name: "Class E", style: { border: `2.5px dashed ${MAGENTA}`, backgroundColor: `${MAGENTA}1f`, color: MAGENTA } },
+  D: { name: "Class D", style: { outline: `2.5px dashed ${BLUE}`, outlineOffset: -2.5, backgroundColor: `${BLUE}1f`, color: BLUE } },
+  E: { name: "Class E", style: { outline: `2.5px dashed ${MAGENTA}`, outlineOffset: -2.5, backgroundColor: `${MAGENTA}1f`, color: MAGENTA } },
   G: { name: "Class G", style: { background: `radial-gradient(circle closest-side, ${MAGENTA}00 58%, ${MAGENTA}70 82%, ${MAGENTA}10 100%)`, color: MAGENTA } },
 };
 

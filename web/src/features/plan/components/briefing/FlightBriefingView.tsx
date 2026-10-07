@@ -18,6 +18,7 @@ import type {
 import type { FrameworkNarrative } from "../../hooks/useNarratives";
 import type { BriefingState } from "../../hooks/usePlan";
 import { altFt, clockTime, deg, describeFuel, describeSteps, describeTime } from "../../format";
+import { flightLevel } from "../../../../lib/units";
 import { navLogRows, savedCheckpoints } from "../navlog/rows";
 import { RunwayRow } from "../RunwayRow";
 import { useLoad } from "../../hooks/useLoad";
@@ -702,7 +703,7 @@ export default function FlightBriefingView({
             <ListGroup>
               <ListRow
                 title={nav.flown === "custom" ? "Your own" : chosen ? `${PLAN_LABEL[chosen.kind]} plan` : "No plan"}
-                description={nav.flown === "custom" ? `${altFt(nav.altitude_ft)} ft all the way` : chosen ? describeSteps(chosen) : "The winds aloft could not be read."}
+                description={nav.flown === "custom" ? `${flightLevel(nav.altitude_ft)} all the way` : chosen ? describeSteps(chosen) : "The winds aloft could not be read."}
                 value={chosen ? `${describeTime(chosen)} · ${describeFuel(chosen)}` : undefined}
               />
               <ListRow title="Floor" description="Terrain and obstacles, with margin" value={`${altFt(nav.altitude_selection.floor_ft)} ft`} />

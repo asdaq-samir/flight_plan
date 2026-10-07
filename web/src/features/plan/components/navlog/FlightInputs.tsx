@@ -1,5 +1,8 @@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../../../components/ui/select";
 import { shortName } from "../../../../lib/aircraftChoice";
+import type { ReactNode } from "react";
+import { cn } from "cn";
+import { GLASS_BUTTON } from "../../../../components/mapChrome";
 import DepartPicker from "./DepartPicker";
 
 /**
@@ -9,12 +12,16 @@ import DepartPicker from "./DepartPicker";
  * times and fuel come from) and when the flight leaves, which gives
  * every row an ETA, is what a saved flight is planned for, and picks the
  * winds forecast period -- shadcn's date picker with a time box
- * (DepartPicker), empty for about now. Changing either re-plans.
+ * (DepartPicker), empty for about now. Changing either re-plans. Chips
+ * of glass, the aeroplane's name in the text's colour, as Maps' filter
+ * chips are (GLASS_BUTTON).
  */
-export default function FlightInputs({ aircraftValue, aircraftOptions, onAircraftChange, depart, onDepartChange }: {
+export default function FlightInputs({ aircraftValue, aircraftOptions, onAircraftChange, altitude, depart, onDepartChange }: {
   aircraftValue: string;
   aircraftOptions: { value: string; label: string }[];
   onAircraftChange: (value: string) => void;
+  /** Beside the aeroplane: the altitude it flies (AltitudeButton). */
+  altitude?: ReactNode;
   /** An ISO instant, or "" for about now. */
   depart: string;
   onDepartChange: (iso: string) => void;
@@ -31,7 +38,7 @@ export default function FlightInputs({ aircraftValue, aircraftOptions, onAircraf
             Save, Brief and Print on a line of their own on a phone. */}
         <SelectTrigger
           size="sm" aria-label="Aircraft" data-testid="aircraft-select"
-          className="pointer-coarse:pr-2.5 pointer-coarse:text-[0.9375rem] pointer-coarse:[&_svg]:hidden"
+          className={cn("rounded-full pointer-coarse:px-1.5 pointer-coarse:text-[0.9375rem] [&_svg]:text-foreground pointer-coarse:[&_svg]:hidden", GLASS_BUTTON)}
         >
           {/* Its short name -- C172, N12345 -- so a departure time picked
               beside it stays on the same line; the list has them whole. */}
@@ -41,6 +48,7 @@ export default function FlightInputs({ aircraftValue, aircraftOptions, onAircraf
           {aircraftOptions.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
         </SelectContent>
       </Select>
+      {altitude}
       <DepartPicker value={depart} onChange={onDepartChange} />
     </>
   );

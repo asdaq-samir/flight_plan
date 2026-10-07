@@ -50,9 +50,44 @@ export function routeOf(
   return idents.every((ident, i) => i === 0 || ident !== idents[i - 1]) ? { dep: d, dest: a } : null;
 }
 
+const ARROW = " → ";
+
 /** "C81 → KMSN → KDLH": a route's airports in order, as the capsule and a
  *  saved flight name it. */
 export const routeName = (dep: string, dest: string, stops: string[] = []) =>
   // A local flight, one airport to itself: "KDLH local".
-  dep && dep === dest && stops.length === 0 ? `${dep} local` : [dep, ...stops, dest].join(" → ");
+  dep && dep === dest && stops.length === 0 ? `${dep} local` : [dep, ...stops, dest].join(ARROW);
 
+/** A route's name (routeName) cut short in its middle where it is too long
+ *  for its line: the departure, as many stops as `fits`, then "…" and the
+ *  destination -- "C81 → KHIB → … → KMSN" -- where a cut at the end left
+ *  the destination off ("C81 → KHIB → JIXAB → ..."). Whole idents, never
+ *  part of one; with no room even for "C81 → … → KMSN", that. */
+export function routeNameWithin(name: string, fits: (shown: string) => boolean): string {
+  const points = name.split(ARROW);
+  if (points.length < 3 || fits(name)) return name;
+  const [dep, dest] = [points[0], points[points.length - 1]];
+  for (let kept = points.length - 3; kept > 0; kept--) {
+    const shown = [dep, ...points.slice(1, 1 + kept), "…", dest].join(ARROW);
+    if (fits(shown)) return shown;
+  }
+  return [dep, "…", dest].join(ARROW);
+}
+
+
+/** Points' own altitudes from the address, feet by ident -- "VPBNG:4500,
+ *  KMSN:1900": a waypoint's flown to it, an airport's its pattern (the
+ *  planner's `altitudes`). What is not one is left out. */
+export function altitudesOf(value: string | null | undefined): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const part of (value ?? "").split(",")) {
+    const [ident, feet] = part.split(":");
+    const point = stopOf(ident), ft = Number(feet);
+    if (point && Number.isInteger(ft) && ft > 0 && ft < 18_000) out[point] = ft;
+  }
+  return out;
+}
+
+/** And back, for the address: "" with none. */
+export const altitudesParam = (altitudes: Record<string, number>) =>
+  Object.entries(altitudes).map(([ident, ft]) => `${ident}:${ft}`).join(",");

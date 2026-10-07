@@ -58,6 +58,9 @@ export interface PlanParams {
   load: number;
   /** The pilot will have a Class B clearance: planned through it. */
   classBClearance?: boolean;
+  /** Points' own altitudes, as the address has them ("VPBNG:4500,KMSN:1900"):
+   *  a waypoint's flown to it, an airport's its pattern (RouteBox). */
+  altitudes?: string;
   /** A local flight's time aloft, in minutes (one airport to itself). */
   localMin?: number;
 }
@@ -78,7 +81,7 @@ export type BriefingState =
   | { state: "failed"; detail: string };
 
 export function usePlan(
-  { dep, dest, stops, altitudeFt, altitudeChoice, depart, aircraft, load, classBClearance = false, localMin = 60 }: PlanParams,
+  { dep, dest, stops, altitudeFt, altitudeChoice, depart, aircraft, load, classBClearance = false, altitudes = "", localMin = 60 }: PlanParams,
 ) {
   const routeKnown = routeOf(dep, dest, stops) !== null;
   // An airport to itself with no stop between: a local flight -- the
@@ -108,7 +111,7 @@ export function usePlan(
   // Everything the nav log is computed from -- the narratives below are
   // keyed on the same, so a narrative is always about the log on screen.
   const planKey = [
-    dep, dest, via, altitudeFt, altitudeChoice, depart, load, classBClearance,
+    dep, dest, via, altitudeFt, altitudeChoice, depart, load, classBClearance, altitudes,
     aircraft.profile, aircraft.cruiseTasKt ?? null, aircraft.fuelBurnGph ?? null, aircraft.usableFuelGal ?? null,
     aircraft.climbTasKt ?? null, aircraft.climbFuelBurnGph ?? null, aircraft.cruisePowerPct ?? null,
   ];
@@ -116,7 +119,7 @@ export function usePlan(
     queryKey: ["navlog", ...planKey],
     queryFn: streamedQuery({
       streamFn: ({ signal }) => ended(
-        api.navlog(dep, dest, altitudeFt || undefined, aircraft, altitudeChoice, depart || undefined, signal, stops, classBClearance),
+        api.navlog(dep, dest, altitudeFt || undefined, aircraft, altitudeChoice, depart || undefined, signal, stops, classBClearance, altitudes),
         "nav log",
       ),
     }),

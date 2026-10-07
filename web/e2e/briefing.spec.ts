@@ -58,9 +58,9 @@ test("plan page: the flight planning drawer opens the way the Model Training dra
   await drawer.getByRole("button", { name: "Nav Log", exact: true }).click();
   await expect(drawer.getByRole("table", { name: /Navigation log from/i })).toBeVisible();
   await expect(drawer.locator('[data-slot="accordion-content"] [data-testid="generate-descriptions-button"]')).toBeVisible();
-  // The altitude, the Alt column's own heading, once the log has
+  // The altitude, its chip beside the aeroplane, once the log has
   // streamed in.
-  await expect(drawer.locator('[data-slot="accordion-content"] [data-testid="altitude-why"]')).toBeVisible({ timeout: slow(60000) });
+  await expect(drawer.getByTestId("altitude-why")).toHaveAccessibleName(/FL\d{3}/, { timeout: slow(60000) });
   await expect(drawer.locator('[data-slot="section-summary"]').first()).toContainText(/\d nm/, { timeout: slow(60000) });
   expect(await drawer.locator('[data-slot="accordion-content"][data-state="open"]').count()).toBe(1);
 
@@ -71,16 +71,16 @@ test("plan page: the flight planning drawer opens the way the Model Training dra
 
   // The briefing's actions are beside the route, in the panel's top
   // row: the AI button (LangGraph/CrewAI are tabs inside the popover it
-  // opens), then Print, left to right on one row.
+  // opens), then More (sharing and Print), left to right on one row.
   const aiBox = await drawer.getByTestId("ai-narrative-button").boundingBox();
-  const moreBox = await drawer.getByTestId("print-button").boundingBox();
+  const moreBox = await drawer.getByTestId("more-actions").boundingBox();
   expect(aiBox).not.toBeNull();
   expect(moreBox).not.toBeNull();
   expect(aiBox!.x).toBeLessThan(moreBox!.x);
   expect(Math.abs(aiBox!.y - moreBox!.y)).toBeLessThan(10);
   // Beside the aeroplane and the departure time, under the route: the
   // route's box has the top row to itself.
-  expect(await page.locator("header").getByTestId("print-button").count()).toBe(0);
+  expect(await page.locator("header").getByTestId("more-actions").count()).toBe(0);
   const departure = (await drawer.getByTestId("depart-date").boundingBox())!;
   expect(aiBox!.x).toBeGreaterThan(departure.x);
   expect(Math.abs(aiBox!.y + aiBox!.height / 2 - (departure.y + departure.height / 2))).toBeLessThan(12);
@@ -159,7 +159,7 @@ test("plan page: a pasted briefing link opens the panel, and its grabber closes 
   await settle(page);
   const drawer = sideDrawer(page);
   await expect(drawer).toBeVisible();
-  await expect(drawer.getByTestId("print-button")).toBeVisible();
+  await expect(drawer.getByTestId("more-actions")).toBeVisible();
 
   // No letter shortcuts on this page any more: the arrows walk the
   // checkpoints and everything else has a button. `n` used to toggle
@@ -177,7 +177,7 @@ test("plan page: a pasted briefing link opens the panel, and its grabber closes 
   await page.getByTestId("sidebar-trigger-button").click();
   await page.waitForTimeout(300);
   await expect(page).toHaveURL(/[?&]view=briefing/);
-  await expect(drawer.getByTestId("print-button")).toBeVisible();
+  await expect(drawer.getByTestId("more-actions")).toBeVisible();
 });
 
 test("plan page: the panel's grabber raises and lowers it, a tap on the map beside it leaves it out, and Escape lowers it", async ({ page }) => {

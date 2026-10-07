@@ -1,9 +1,9 @@
-import { Loader2, Printer, Sparkles } from "lucide-react";
-import { useState } from "react";
+import { Ellipsis, Loader2, Printer, Sparkles } from "lucide-react";
+import { useState, type ReactNode } from "react";
 import { cn } from "cn";
 import { ResponsivePopover, ResponsivePopoverContent, ResponsivePopoverTrigger } from "../../../../components/ResponsivePopover";
 import ToolbarButton from "../../../../components/ToolbarButton";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../../../../components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "../../../../components/ui/dropdown-menu";
 import { printKneeboard } from "../../../../lib/printKneeboard";
 import { ScrollArea } from "../../../../components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../../../components/ui/tabs";
@@ -36,17 +36,19 @@ function NarrativeTabBody({ framework, narrative }: { framework: Framework; narr
 }
 
 interface Props {
+  /** The route's sharing (PlanWorkspace's): the More menu's first items. */
+  shareItems: ReactNode;
   onGenerateNarrative: (framework: Framework) => void;
   langgraphNarrative: FrameworkNarrative;
   crewaiNarrative: FrameworkNarrative;
 }
 
 /**
- * The plan's own actions beside the route, after Save -- the narrative
- * and Print -- each a toolbar button with its word under its icon:
- * "Brief", "Print". Print was in a More menu with Keep charts offline;
- * that is a setting under Map now (SettingsPanel), on for every route,
- * and a menu of one item is a button.
+ * The plan's own actions beside the route, after Save -- the narrative,
+ * then More -- each a toolbar button with its word under its icon:
+ * "Brief", "More". More, an iOS "…", holds the route's sharing and Print,
+ * at the pilot's ask: three buttons in a row beside the aeroplane and the
+ * time were one too many on a phone's line.
  *
  * One AI button next to Print, not two named ones -- LangGraph and
  * CrewAI live as two tabs inside the single popover it opens instead
@@ -65,7 +67,7 @@ interface Props {
  * generated, for a printed copy, which needs the text sitting in the
  * page rather than behind a click a piece of paper can't make.
  */
-export default function NavLogActions({ onGenerateNarrative, langgraphNarrative, crewaiNarrative }: Props) {
+export default function NavLogActions({ shareItems, onGenerateNarrative, langgraphNarrative, crewaiNarrative }: Props) {
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<Framework>("langgraph");
   const narratives: Record<Framework, FrameworkNarrative> = {
@@ -96,8 +98,11 @@ export default function NavLogActions({ onGenerateNarrative, langgraphNarrative,
         }}
       >
         <ResponsivePopoverTrigger asChild>
+          {/* The panel's main action, washed in the tint as Maps' Directions
+              is beside its plain buttons; More stays plain. */}
           <ToolbarButton
             text="Brief" label="Briefing narrative" data-testid="ai-narrative-button"
+            className="rounded-xl bg-tint/12 hover:bg-tint/18 aria-expanded:bg-tint/18 dark:hover:bg-tint/22 pointer-coarse:px-1!"
             icon={activeNarrative.loading ? <Loader2 className="animate-spin" /> : <Sparkles />}
           />
         </ResponsivePopoverTrigger>
@@ -123,16 +128,18 @@ export default function NavLogActions({ onGenerateNarrative, langgraphNarrative,
           </Tabs>
         </ResponsivePopoverContent>
       </ResponsivePopover>
-      {/* The whole briefing, or the kneeboard card: the nav log, radio
-          and patterns on one half-letter page to fly with. Printed once
-          the menu has gone, so it is not on the paper. */}
+      {/* Sharing, then Print: the whole briefing, or the kneeboard card --
+          the nav log, radio and patterns on one half-letter page to fly
+          with. Printed once the menu has gone, so it is not on the paper. */}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <ToolbarButton text="Print" label="Print the nav log" icon={<Printer />} className="print:hidden" data-testid="print-button" />
+          <ToolbarButton text="More" label="Share or print" icon={<Ellipsis />} className="print:hidden" data-testid="more-actions" />
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="print:hidden">
-          <DropdownMenuItem onSelect={() => setTimeout(() => window.print(), 150)} data-testid="print-briefing">The briefing</DropdownMenuItem>
-          <DropdownMenuItem onSelect={() => setTimeout(printKneeboard, 150)} data-testid="print-kneeboard">Kneeboard card</DropdownMenuItem>
+        <DropdownMenuContent align="end" className="min-w-56 print:hidden">
+          {shareItems}
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onSelect={() => setTimeout(() => window.print(), 150)} data-testid="print-briefing"><Printer />Print the briefing</DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => setTimeout(printKneeboard, 150)} data-testid="print-kneeboard"><Printer />Print a kneeboard card</DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
     </div>

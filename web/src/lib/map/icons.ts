@@ -1,5 +1,6 @@
 import L from "leaflet";
 import { inkOn } from "../scoreScale";
+import { textWidth } from "../textWidth";
 
 /**
  * Leaflet's div icons take HTML, so these are HTML -- the same Tailwind
@@ -82,18 +83,14 @@ export function ownShipIcon(headingDeg: number | null, off = false) {
 export const CHECKPOINT_LABEL_GAP = 16;
 /** Its height, for the labels to be kept from one another (RouteMap). */
 export const CHECKPOINT_LABEL_HEIGHT = 20;
-let measure: CanvasRenderingContext2D | null | undefined;
-
 /** A checkpoint label's width as drawn (checkpointLabelIcon): its name in
  *  the page's own bold 12, the tracking's 0.3 a letter, 6 either side --
  *  for the labels to be kept from one another and the screen's edge
  *  (RouteMap). A width per letter guessed short: FOREST VIEW, its bold
  *  capitals wider than the guess, ran off a phone's screen. */
 export function checkpointLabelWidth(name: string): number {
-  measure ??= typeof document === "undefined" ? null : document.createElement("canvas").getContext("2d");
-  if (!measure) return name.length * 9 + 12;
-  measure.font = `700 12px ${getComputedStyle(document.body).fontFamily}`;
-  return Math.ceil(measure.measureText(name).width + name.length * 0.3 + 12);
+  const width = typeof document === "undefined" ? null : textWidth(name, `700 12px ${getComputedStyle(document.body).fontFamily}`);
+  return width == null ? name.length * 9 + 12 : Math.ceil(width + name.length * 0.3 + 12);
 }
 
 /** An airport chip's width (airportIcon), for a label to keep off it. */

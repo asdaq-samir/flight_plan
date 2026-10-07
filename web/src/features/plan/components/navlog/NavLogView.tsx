@@ -1,7 +1,7 @@
-import { Fragment, createContext, useCallback, useContext, useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { Fragment, useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { flushSync } from "react-dom";
 import { cn } from "cn";
-import { CircleHelp, Loader2, WandSparkles } from "lucide-react";
+import { Loader2, WandSparkles } from "lucide-react";
 import {
   type CellData, type ColumnDef, type RowData, type TableFeatures,
   flexRender, tableFeatures, useTable,
@@ -10,21 +10,17 @@ import { NoteRow, SelectableRow } from "../../../../components/SelectableRows";
 import { Accordion } from "../../../../components/ui/accordion";
 import { ListGroup, ListRow } from "../../../../components/GroupedList";
 import IconButton from "../../../../components/IconButton";
-import { Button } from "../../../../components/ui/button";
-import { Input } from "../../../../components/ui/input";
-import { ResponsivePopover, ResponsivePopoverContent, ResponsivePopoverTrigger } from "../../../../components/ResponsivePopover";
 import { Textarea } from "../../../../components/ui/textarea";
-import AltitudeReasoning from "../AltitudeReasoning";
 import {
   Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow,
 } from "../../../../components/ui/table";
-import type { AltitudeChoice, Candidate, Leg, NavLogAltitude, Totals, TopOfClimb, TopOfDescent } from "../../../../lib/api/types";
+import type { Candidate, Leg, NavLogAltitude, Totals, TopOfClimb, TopOfDescent } from "../../../../lib/api/types";
 import { feet } from "../../../../lib/units";
 import { routeName } from "../../../../lib/identSchema";
 import { revealRow } from "../../../../lib/revealRow";
 import { TEXT } from "../../../../lib/text";
 import { type Description, descriptionKey } from "../../hooks/useCheckpointNotes";
-import { altFt, clockTime, deg, describeFuel, describeSteps, describeTime, etaAt, one, signed, totalsParts } from "../../format";
+import { altFt, clockTime, deg, etaAt, one, signed, totalsParts } from "../../format";
 import AccordionSection from "../../../../components/AccordionSection";
 import { Spinner } from "../../../../components/ui/spinner";
 import { BRIEFING_SECTIONS } from "../briefing/sections";
@@ -59,23 +55,10 @@ const navLogTableFeatures = tableFeatures({});
 interface Props {
   totals: Totals | null;
   nav: NavLogAltitude | null;
-  /** Picks one of the four plans (lowest, highest, fastest, economical) in the
-   *  altitude's own popover, which re-plans; which one is flown is the
-   *  nav log's own `choice`. */
-  onAltitudeChoiceChange: (choice: AltitudeChoice) => void;
   /** The departure time as an ISO instant, or "" for about now --
    *  set here, where its ETAs show; changing it re-plans, since the
    *  winds forecast period follows it. */
   depart: string;
-  /** The pilot's own cruise-altitude override -- lives here, not the
-   *  map header's route form, since this is where the *result*
-   *  (`nav.altitude_ft`/`nav.altitude_selection`) already shows: typing
-   *  a new one and seeing what it changes is one place, not two. Wired
-   *  to the same `onSubmit` PlanWorkspace's own "Load" button calls, so
-   *  Enter here re-plans the exact same way that button does. */
-  alt: string;
-  onAltChange: (v: string) => void;
-  onSubmit: () => void;
   /** The aeroplane the log is computed for, by name -- chosen in the
    *  panel's controls (FlightInputs), named here on paper. */
   aircraftLabel: string;
@@ -323,86 +306,6 @@ function Heading({ name, unit, spoken }: { name: string; unit?: string; spoken: 
   );
 }
 
-/** The pilot's own altitude, one number for the whole route: a row under
- *  the four plans, pressed while it is what the log flies. Enter or Fly
- *  re-plans at it; the stock Input's 16px below md keeps a phone from
- *  zooming. */
-function CustomAltitude({ alt, onAltChange, onSubmit, pressed }: {
-  alt: string;
-  onAltChange: (v: string) => void;
-  onSubmit: () => void;
-  pressed: boolean;
-}) {
-  return (
-    <form
-      className={cn(
-        "flex items-center gap-2 rounded-md border px-2 py-1.5",
-        pressed ? "border-primary bg-primary text-primary-foreground" : "border-input",
-      )}
-      onSubmit={e => { e.preventDefault(); onSubmit(); }}
-      aria-label="Custom altitude"
-    >
-      <span className={cn("font-semibold", TEXT.row)}>Custom</span>
-      <Input
-        value={alt}
-        onChange={e => onAltChange(e.target.value)}
-        placeholder="ft"
-        inputMode="numeric"
-        spellCheck={false}
-        aria-label="Cruise altitude, feet"
-        className="ml-auto h-8 w-24 bg-background text-right text-foreground"
-        data-testid="custom-altitude"
-      />
-      <Button
-        type="submit" size="sm" variant={pressed ? "secondary" : "outline"}
-        disabled={!alt.trim()} data-testid="custom-altitude-fly"
-      >
-        Fly
-      </Button>
-    </form>
-  );
-}
-
-/** What the Alt column's heading opens (NavLogView's altitudePlans) and
- *  the altitude it is named with, handed down to a heading of a fixed
- *  identity: a heading made in each render is a new component to React
- *  each time, so the sheet it held closed whenever the log re-rendered
- *  -- a leg streaming in, a note saved. */
-const AltPlans = createContext<{ plans: ReactNode; label: string | null }>({ plans: null, label: null });
-
-/** The Alt column's heading: the button that opens how the altitude was
- *  chosen -- the four plans, the pilot's own, and why -- in the tint with
- *  the question mark the row over the table had ("Altitude 3,000 ft ⓘ"),
- *  as the pilot asked, and named with the figure. Before the log has an
- *  altitude, and on paper, the plain heading; the column under it says
- *  each leg's. */
-function AltHeading() {
-  const { plans, label } = useContext(AltPlans);
-  return (
-    <>
-      {plans && (
-        <ResponsivePopover>
-          <ResponsivePopoverTrigger asChild>
-            <Button
-              variant="ghost" size="xs"
-              className={cn("-mr-1 h-auto flex-col items-end gap-0 px-1 py-0.5 leading-tight print:hidden", HEADING)}
-              aria-label={`Altitude${label ? `, ${label}` : ""}: how it was chosen`}
-              data-testid="altitude-why"
-            >
-              <span className="inline-flex items-center gap-1">Alt<CircleHelp className="size-[1em]" /></span>
-              <span className={UNIT}>ft</span>
-            </Button>
-          </ResponsivePopoverTrigger>
-          {plans}
-        </ResponsivePopover>
-      )}
-      <span className={plans ? "hidden print:inline" : undefined}>
-        <Heading name="Alt" unit="ft" spoken="Altitude, feet" />
-      </span>
-    </>
-  );
-}
-
 /** The leg's true airspeed, in its own air (the planner's
  *  vfr.performance): it varies with the altitude and the forecast
  *  temperature, so each leg has its own. A dash from a planner that did
@@ -412,28 +315,14 @@ function tas(leg: Leg): string {
 }
 
 export default function NavLogView({
-  totals, nav, onAltitudeChoiceChange, depart,
+  totals, nav, depart,
   legs, dep, dest, ends,
   selected, descriptions, onSaveDescription,
   onGenerateDescriptions, descriptionsLoading, children, notice, footer, titleNote, local = false, progress = null,
-  selectedPoint, onSelectPoint, onDeselectPoint, drawerOpen, alt, onAltChange, onSubmit,
+  selectedPoint, onSelectPoint, onDeselectPoint, drawerOpen,
   aircraftLabel,
 }: Props) {
   const parts = totals ? totalsParts(totals) : null;
-  // The altitude the log flies: "2,500 ft", or "2,500–6,500 ft" for a
-  // plan that steps; and, when the winds could not be read, no altitude
-  // at all -- that used to read "0 ft · yours", with Custom pressed, for
-  // an altitude nobody typed. The figure alone: which plan it is, or
-  // that it is the pilot's own, is the pressed row in the popover it
-  // opens, and "· fastest" after every altitude was a word in the way.
-  const flownPlan = nav?.options.find(o => o.kind === nav.flown);
-  const flownAltitudes = !nav ? [] : flownPlan ? flownPlan.steps.map(st => st.altitude_ft) : nav.altitude_ft !== null ? [nav.altitude_ft] : [];
-  const altitudeRange = flownAltitudes.length === 0
-    ? null
-    : flownAltitudes.length > 1 && Math.min(...flownAltitudes) !== Math.max(...flownAltitudes)
-      ? `${altFt(Math.min(...flownAltitudes))}–${altFt(Math.max(...flownAltitudes))} ft`
-      : `${altFt(flownAltitudes[0])} ft`;
-  const altitudeLabel = nav?.flown === null ? "No altitude: no winds" : altitudeRange;
   // The nav log's section in one line under its title, folded or open,
   // as every section's is: the distance, the arrival and the fuel. Inside,
   // it is not said again; the altitude is the first row there (and the
@@ -518,46 +407,6 @@ export default function NavLogView({
   // ceiling, the rule, the weather checked) rather than a bare "(auto)".
   // The briefing's Cruise Altitude section carries the same steps onto
   // the paper.
-  const altitudePlans = nav && (
-    // On a phone a sheet from the header's edge: as a popover it was
-    // 70% of the screen, scrolling inside.
-    <ResponsivePopoverContent title="How the altitude was chosen" align="start" className="w-80">
-      {/* The four plans first, each a button with its time
-          and fuel: the pilot picks one and the log re-plans
-          on it. Then why. */}
-      <div className="mb-3 space-y-1.5" role="group" aria-label="Cruise altitude plans">
-        <div className={cn("font-semibold uppercase tracking-wide text-muted-foreground", TEXT.note)}>Four plans, or your own</div>
-        {nav.options.map(o => (
-          <Button
-            key={o.kind} type="button" size="sm"
-            variant={o.kind === nav.flown ? "default" : "outline"}
-            aria-pressed={o.kind === nav.flown}
-            // A choice in a list, as iOS draws one: its words
-            // in the text's colour, the one flown filled in
-            // the tint -- not four outlined buttons in blue --
-            // and its words whole on the fill (white at 80%
-            // on the blue was 4.1:1).
-            className={cn("h-auto w-full justify-between gap-3 whitespace-normal py-1.5 text-left", o.kind !== nav.flown && "text-foreground")}
-            onClick={() => onAltitudeChoiceChange(o.kind)}
-            data-testid={`altitude-plan-${o.kind}`}
-          >
-            <span>
-              <span className={cn("font-semibold capitalize", TEXT.row)}>{o.kind}</span>
-              <span className={cn("block font-normal", TEXT.detail, o.kind !== nav.flown && "opacity-80")}>{describeSteps(o)}</span>
-            </span>
-            <span className={cn("shrink-0 text-right tabular-nums", TEXT.detail)}>
-              {describeTime(o)}
-              <span className={cn("block", o.kind !== nav.flown && "opacity-80")}>{describeFuel(o)}</span>
-            </span>
-          </Button>
-        ))}
-        <CustomAltitude alt={alt} onAltChange={onAltChange} onSubmit={onSubmit} pressed={nav.flown === "custom"} />
-      </div>
-      <div className={cn("mb-2 font-semibold uppercase tracking-wide text-muted-foreground", TEXT.note)}>How the altitude was chosen</div>
-      <AltitudeReasoning nav={nav} legs={legs} />
-    </ResponsivePopoverContent>
-  );
-
   // On screen the table keeps five columns -- the waypoint, altitude,
   // distance, magnetic heading and ETE (and the ETA with a departure
   // time) -- and the others, which had it fourteen wide and scrolling
@@ -611,9 +460,10 @@ export default function NavLogView({
     },
     {
       id: "alt",
-      // How its altitudes were chosen opens from the column's own head
-      // (AltHeading).
-      header: AltHeading,
+      // How its altitudes were chosen opens from the altitude's own chip
+      // beside the aeroplane (AltitudeButton), at the pilot's ask: it was
+      // this column's head, out of sight with the panel down.
+      header: () => <Heading name="Alt" unit="ft" spoken="Altitude, feet" />,
       // The last row lands at the destination -- shows its field
       // elevation, known immediately, rather than a cruise altitude.
       // A checkpoint's row shows the altitude of the leg that arrives
@@ -779,7 +629,6 @@ export default function NavLogView({
   // nothing scrolls: every column is laid out for the browser to
   // paginate.
   const navLogTable = (
-    <AltPlans.Provider value={{ plans: altitudePlans, label: altitudeLabel }}>
     <div ref={watchFit}>
     <Table
       containerClassName={cn(fits ? "overflow-x-visible" : "overflow-x-auto", "print:overflow-visible")}
@@ -901,7 +750,6 @@ export default function NavLogView({
       </TableBody>
     </Table>
     </div>
-    </AltPlans.Provider>
   );
 
   // What has to be said over the table, as rows: legs flown without wind,

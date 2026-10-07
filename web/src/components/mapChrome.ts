@@ -114,9 +114,17 @@ export const SHEET_INSET_RADIUS = 36;
  *  from the far one. */
 export const SHEET_MARGIN = 8;
 
+/** A control's own pane of the glass, as iOS 26 draws its buttons and
+ *  chips over content (Maps' close, its filter chips): whiter than the
+ *  sheet under it, a lit rim and a shadow a button's size, the words and
+ *  glyph in the text's colour. Theme utilities rather than one of
+ *  index.css's own, so `cn` drops a variant's fill, border and shadow for
+ *  these (the Select's outline, a Button's). */
+export const GLASS_BUTTON =
+  "border-0 bg-background/75 text-foreground shadow-[inset_0_1px_1px_rgb(255_255_255/0.95),inset_0_0_0_0.5px_rgb(255_255_255/0.7),0_0_0_0.5px_rgb(0_0_0/0.08),0_2px_8px_rgb(0_0_0/0.12)] hover:bg-background hover:text-foreground aria-expanded:bg-background " +
+  "dark:bg-foreground/12 dark:shadow-[inset_0_1px_1px_rgb(255_255_255/0.18),inset_0_0_0_0.5px_rgb(255_255_255/0.1),0_0_0_0.5px_rgb(0_0_0/0.5),0_2px_8px_rgb(0_0_0/0.35)] dark:hover:bg-foreground/18 dark:aria-expanded:bg-foreground/18";
+
 /** A round button on the panel -- the console's, the route's close -- as
- *  iOS's are over content: a translucent pane, its glyph in the text's
- *  colour, a lit hairline rim and a soft shadow (the pilot's pick, after
- *  a dark disc and a blue gear read as two different kinds of thing). */
-export const ROUND_BUTTON =
-  "rounded-full bg-foreground/10 text-foreground shadow-[inset_0_0_0_0.5px_color-mix(in_oklab,var(--foreground)_30%,transparent),0_1px_4px_rgb(0_0_0/0.25)] hover:bg-foreground/15 hover:text-foreground";
+ *  Maps' are on iOS 26: a circle of that glass, its glyph bold in the
+ *  text's colour (the pilot's pick, after a grey disc). */
+export const ROUND_BUTTON = `rounded-full ${GLASS_BUTTON}`;
