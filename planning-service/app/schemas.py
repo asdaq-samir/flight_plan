@@ -36,6 +36,10 @@ class AirportEnd(BaseModel):
     #: where each was a card's whole lookup (its METAR among it) behind
     #: the plan being made.
     airspace_class: Literal["B", "C", "D", "E", "G"] | None = None
+    #: An airport's traffic pattern altitude above sea level, to the nearest
+    #: hundred feet (the TPA the FAA publishes, else 1,000 ft over the
+    #: field): what the route's box offers as the altitude there.
+    pattern_altitude_ft: float | None = None
 
 
 class ChartSheet(BaseModel):

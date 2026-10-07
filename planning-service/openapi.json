@@ -266,6 +266,17 @@
           "name": {
             "title": "Name",
             "type": "string"
+          },
+          "pattern_altitude_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pattern Altitude Ft"
           }
         },
         "required": [
@@ -8433,6 +8444,16 @@
               "title": "Class B Clearance",
               "type": "boolean"
             }
+          },
+          {
+            "in": "query",
+            "name": "altitudes",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Altitudes",
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -8681,6 +8702,16 @@
               "default": false,
               "title": "Class B Clearance",
               "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "altitudes",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Altitudes",
+              "type": "string"
             }
           }
         ],
@@ -9089,6 +9120,16 @@
               "default": false,
               "title": "Class B Clearance",
               "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "altitudes",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Altitudes",
+              "type": "string"
             }
           }
         ],

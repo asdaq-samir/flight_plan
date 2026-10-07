@@ -10,6 +10,7 @@ A route may land at stops on the way (`stops`, "KDSM,KLNK"): each flight
 between two landings -- a hop -- is planned as a route of its own, with
 its own chart read, altitude plan, climb from the field and fuel check,
 the hops planned at once, and the nav log runs on through each stop."""
+import re
 import time
 from concurrent.futures import Future, ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FuturesTimeoutError
@@ -85,12 +86,31 @@ class PlanQuery:
     #: The pilot will have a Class B clearance: its shelves are no
     #: ceiling, and the route is planned through it (vfr.altitude).
     class_b_clearance: bool = False
+    #: Points' own altitudes, feet above sea level: "VPBNG:4500,KMSN:1900".
+    #: A waypoint's is flown to it, the hop into it at that altitude (where
+    #: a pilot crosses it); an airport's is its pattern, which a flight
+    #: landing there comes down to. The rest of the route as planned.
+    altitudes: str = ""
 
     def profile(self) -> dict:
         return aircraft_profile(
             self.aircraft, self.cruise_tas_kt, self.fuel_burn_gph, self.usable_fuel_gal,
             self.climb_tas_kt, self.climb_fuel_burn_gph, self.cruise_power_pct,
         )
+
+    def own_altitudes(self) -> dict[str, float]:
+        """`altitudes` by ident; a 422 for one that is not "IDENT:FEET",
+        or not a VFR altitude (under 18,000 ft, Class A's floor)."""
+        out = {}
+        for part in filter(None, (p.strip() for p in self.altitudes.split(","))):
+            ident, _, feet = part.partition(":")
+            if not POINT_ALTITUDE.fullmatch(part) or not 0 < float(feet) < 18_000:
+                raise HTTPException(422, f"{part!r} is not a point's altitude: an ident and feet, as VPBNG:4500.")
+            out[ident.upper()] = float(feet)
+        return out
+
+
+POINT_ALTITUDE = re.compile(r"[A-Za-z0-9]{2,5}:\d{1,5}")
 
 # How often the nav log stream says it is still working while the
 # altitude plans are being made.
@@ -237,9 +257,11 @@ def hop_runs(r: Route, by_hop: list, depart: datetime | None, profile: dict) -> 
 
 
 def resolve_run(run: HopRun, profile: dict, q: "PlanQuery") -> "Flown | Unflyable | NoWinds":
+    # The hop into a waypoint with an altitude of its own is flown at it.
+    own = None if run.hop.lands else q.own_altitudes().get(run.hop.dest_ident)
     return resolve_altitude(
-        run.hop, run.fixes, profile, q.aircraft, q.altitude_ft, q.altitude_choice, run.fcst_hr, run.window,
-        q.class_b_clearance,
+        run.hop, run.fixes, profile, q.aircraft, q.altitude_ft if own is None else own, q.altitude_choice,
+        run.fcst_hr, run.window, q.class_b_clearance,
     )
 
 
@@ -291,9 +313,11 @@ def join_outcomes(runs: list[HopRun], outcomes: list) -> "Flown | Unflyable | No
     for outcome in outcomes:
         if isinstance(outcome, NoWinds):
             return NoWinds(selection, options, outcome.error)
-    first = outcomes[0]
+    # The plan the route flies is the one its hops are flown on, a hop
+    # into a waypoint at its own altitude (resolve_run) or not.
+    planned = next((o for o in outcomes if o.choice is not None), outcomes[0])
     return Flown(
-        selection, options, first.choice, first.altitude_ft,
+        selection, options, planned.choice, planned.altitude_ft,
         [leg for o in outcomes for leg in o.legs], tuple(o.legs for o in outcomes),
     )
 
@@ -310,27 +334,39 @@ def unflyable_parts(outcome: Unflyable, runs: list[HopRun]) -> tuple[dict, list[
     return why, [{**way, "stop_index": at, "description": _where(way["ident"])} for way in ways]
 
 
-def pattern_altitude(flight: Route) -> float | None:
-    """The altitude a flight comes down to: the traffic pattern's at the
-    field it lands at (vfr.faa_data.pattern_agl_ft), to the nearest
-    hundred feet, as a pilot flies it. None where it ends in the air, or
-    the field's elevation is not known."""
-    elevation = flight.dest_airport.get("elevation_ft")
-    if not flight.lands or elevation is None:
+def field_pattern_ft(ident: str, airport: dict) -> float | None:
+    """A field's traffic pattern altitude above sea level
+    (vfr.faa_data.pattern_agl_ft), to the nearest hundred feet, as a pilot
+    flies it; None where its elevation is not known."""
+    elevation = airport.get("elevation_ft")
+    if elevation is None:
         return None
-    return round((elevation + faa_data.pattern_agl_ft(flight.dest_ident, DATA_DIR / "raw" / "faa_nasr")) / 100) * 100
+    return round((elevation + faa_data.pattern_agl_ft(ident, DATA_DIR / "raw" / "faa_nasr")) / 100) * 100
 
 
-def flown_legs(r: Route, runs: list[HopRun], outcome: Flown) -> list:
+def pattern_altitude(flight: Route, own: dict[str, float] | None = None) -> float | None:
+    """The altitude a flight comes down to: the traffic pattern's at the
+    field it lands at -- the pilot's own for it (PlanQuery.altitudes), else
+    field_pattern_ft. None where it ends in the air, or the field's
+    elevation is not known."""
+    if not flight.lands:
+        return None
+    if own and flight.dest_ident in own:
+        return own[flight.dest_ident]
+    return field_pattern_ft(flight.dest_ident, flight.dest_airport)
+
+
+def flown_legs(r: Route, runs: list[HopRun], outcome: Flown, own: dict[str, float] | None = None) -> list:
     """The legs a pilot flies, with each flight's tops of climb and
     descent placed (navlog.with_descents): from one landing to the next,
-    through any waypoints, down to the pattern at the end of each."""
+    through any waypoints, down to the pattern at the end of each --
+    `own`, a pilot's own patterns by ident."""
     out, at = [], 0
     for flight in r.flights:
         hops = len(flight.idents) - 1
         legs = [leg for legs in outcome.hop_legs[at:at + hops] for leg in legs]
         fix_list = [fix for k, run in enumerate(runs[at:at + hops]) for fix in (run.fixes if k == 0 else run.fixes[1:])]
-        out.extend(navlog.with_descents(legs, fix_list, pattern_altitude(flight)))
+        out.extend(navlog.with_descents(legs, fix_list, pattern_altitude(flight, own)))
         at += hops
     return out
 
@@ -433,7 +469,8 @@ def course(dep: str, dest: str, stops: str = "") -> Course:
     def classed(end: dict) -> dict:
         if end.get("kind", "airport") != "airport":
             return end
-        return {**end, "airspace_class": airspace.surface_class_at(end["lat"], end["lon"], shp)}
+        return {**end, "airspace_class": airspace.surface_class_at(end["lat"], end["lon"], shp),
+                "pattern_altitude_ft": field_pattern_ft(end["ident"], end)}
 
     return Course(
         departure=classed(r.departure),
@@ -541,6 +578,7 @@ def plan(q: Annotated[PlanQuery, Depends()]) -> Plan:
     fuel reserve is the day or the night one.
     """
     r = load_route(q.dep, q.dest, q.stops)
+    own = q.own_altitudes()
     profile = q.profile()
 
     # Everything slow inside the one bound, scoring included: the agents'
@@ -566,7 +604,7 @@ def plan(q: Annotated[PlanQuery, Depends()]) -> Plan:
     if isinstance(outcome, Unflyable):
         _, ways = unflyable_parts(outcome, runs)
         raise HTTPException(422, no_altitude_detail(outcome.selection, outcome.between, ways[0] if ways else None))
-    leg_list = flown_legs(r, runs, outcome)
+    leg_list = flown_legs(r, runs, outcome, own)
 
     return Plan(
         departure=r.departure,
@@ -640,6 +678,7 @@ def navlog_stream(q: Annotated[PlanQuery, Depends()]) -> StreamingResponse:
     out, and an HTTP status can't change after that.
     """
     r = load_route(q.dep, q.dest, q.stops)
+    own = q.own_altitudes()
 
     def lines():
         yield line(NavLogStage(detail="Reading the chart and choosing the checkpoints…"))
@@ -719,7 +758,7 @@ def navlog_stream(q: Annotated[PlanQuery, Depends()]) -> StreamingResponse:
             options=outcome.options,
             aircraft=aircraft_line,
         ))
-        for leg in flown_legs(r, runs, outcome):
+        for leg in flown_legs(r, runs, outcome, own):
             yield line(NavLogLeg.model_validate(leg))
 
         yield line(NavLogDone(totals=totals_of(r, runs, outcome, profile)))

@@ -209,3 +209,32 @@ def test_a_stops_search_finds_the_waypoints_after_the_airports(a_vfr_waypoint, m
     found = client.get("/api/airports/search", params={"q": "VPB", "fixes": True}).json()["airports"]
     assert found == [{"ident": "VPBNG", "name": "VFR waypoint", "municipality": None, "region": "IL", "kind": "fix"}]
     assert client.get("/api/airports/search", params={"q": "VPB"}).json()["airports"] == []
+
+
+def test_a_waypoints_own_altitude_flies_the_hop_into_it_and_the_rest_as_planned(a_vfr_waypoint):
+    body = client.get("/api/plan", params={"dep": "C81", "dest": "KDLH", "stops": "VPBNG", "altitudes": "VPBNG:6500"}).json()
+    legs = body["legs"]
+    into = next(i for i, leg in enumerate(legs) if leg["to"] == "VPBNG")
+    assert {leg["altitude_ft"] for leg in legs[:into + 1]} == {6500.0}
+    # Down to the plan's 4,500 on the way out of it, the plan still the one flown.
+    assert {leg["altitude_ft"] for leg in legs[into + 1:]} == {4500.0}
+    assert body["altitude_choice"] == "fastest"
+
+
+def test_an_airports_own_pattern_is_the_one_a_flight_comes_down_to():
+    legs = client.get("/api/plan", params={**VIA_MADISON, "altitudes": "KMSN:2400"}).json()["legs"]
+    tods = {leg["to"]: leg["tod"]["to_ft"] for leg in legs if leg["tod"]}
+    assert tods == {"KMSN": 2400.0, "KDLH": 1900.0}
+
+
+def test_the_course_says_each_airports_pattern_and_no_waypoints(a_vfr_waypoint):
+    course = client.get("/api/course", params={"dep": "C81", "dest": "KDLH", "stops": "VPBNG"}).json()
+    assert course["departure"]["pattern_altitude_ft"] == course["destination"]["pattern_altitude_ft"] == 1900.0
+    assert course["stops"][0].get("pattern_altitude_ft") is None
+
+
+@pytest.mark.parametrize("altitudes", ["VPBNG", "VPBNG:", "VPBNG:18000", "VPBNG:0", "V:4500", "VPBNG:4500;KMSN:1900"])
+def test_a_points_altitude_that_is_not_one_is_refused(altitudes):
+    params = {**VIA_MADISON, "altitudes": altitudes}
+    assert client.get("/api/plan", params=params).status_code == 422
+    assert client.get("/api/navlog", params=params).status_code == 422
