@@ -19,13 +19,10 @@ import {
 import type { Candidate, Leg, NavLogAltitude, Totals, TopOfClimb, TopOfDescent } from "../../../../lib/api/types";
 import { feet } from "../../../../lib/units";
 import { routeName } from "../../../../lib/identSchema";
-import { textWidth } from "../../../../lib/textWidth";
-import { useRoom } from "../../../../lib/useRoom";
 import { revealRow } from "../../../../lib/revealRow";
 import { TEXT } from "../../../../lib/text";
 import { type Description, descriptionKey } from "../../hooks/useCheckpointNotes";
 import { altFt, clockTime, deg, etaAt, one, signed, totalsParts } from "../../format";
-import { Spinner } from "../../../../components/ui/spinner";
 import type { BriefingPart } from "../briefing/sections";
 import { isLegPoint, legOf, navLogRows, rowPoint, type NavLogRow, type RouteEnds } from "./rows";
 import LegWorkings from "./LegWorkings";
@@ -105,12 +102,6 @@ interface Props {
   /** The drawer's last line, under every section (the planning-aid
    *  reminder). */
   footer?: ReactNode;
-  /** What stops the plan, in a few words, said in red on the flight's line
-   *  in place of its figures (no legal altitude's brief). */
-  problem?: string | null;
-  /** What is being worked on, with the panel out: said on the section's
-   *  line, under its title, in place of the toast over the map. */
-  progress?: string | null;
   /** A local flight, one airport to itself: no legs, so the section is
    *  "Local Flight" -- the time aloft, the time back and the fuel, and
    *  the fuel check -- in place of the nav log. */
@@ -322,50 +313,11 @@ export default function NavLogView({
   totals, nav, depart,
   legs, dep, dest, ends,
   selected, descriptions, onSaveDescription,
-  onGenerateDescriptions, descriptionsLoading, tabContent, children, marks, notice, footer, local = false, progress = null, problem = null,
+  onGenerateDescriptions, descriptionsLoading, tabContent, children, marks, notice, footer, local = false,
   selectedPoint, onSelectPoint, onDeselectPoint, drawerOpen,
   aircraftLabel,
 }: Props) {
   const parts = totals ? totalsParts(totals) : null;
-  // The nav log's section in one line under its title, folded or open,
-  // as every section's is: the distance, the arrival and the fuel. Inside,
-  // it is not said again; the altitude is the first row there (and the
-  // Cruise Altitude section's line).
-  // Each figure named, in the table's own shorthand, as the pilot
-  // asked: "3h 14m" alone did not say it was the time. On one line, as
-  // they asked too: to a finger at a note's 13, since at a summary's 15
-  // the three ran to 293 points in a phone drawer's 277. Each figure
-  // whole: a longer route breaks the line between them, not inside one.
-  // The time as the arrival, the time en route after it: "ETA 18:24
-  // (3h 22m)", as the pilot asked -- from the departure time picked, or
-  // from now while it is "Now", which is what the plan is flown for then.
-  const arrival = totals?.ete_min != null ? etaAt(depart || new Date().toISOString(), totals.ete_min) : null;
-  // On one line, at the pilot's ask: the figures as they are while they
-  // fit, the distance and the fuel rounded to whole ones where they do not
-  // (a long trip's "2636.8 nm" and "187.9 gal"), and past that cut short.
-  const figures = (whole: boolean) => !parts || !totals ? null : (local ? [
-    ["Aloft", parts.time],
-    ["Back", arrival ?? "—"],
-    ["Fuel", whole && totals.fuel_gal !== null ? `${Math.round(totals.fuel_gal)} gal` : parts.fuel],
-  ] as const : [
-    ["Dist", whole ? `${Math.round(totals.distance_nm)} nm` : parts.distance],
-    ["ETA", arrival ? `${arrival} (${parts.time})` : parts.time],
-    ["Fuel", whole && totals.fuel_gal !== null ? `${Math.round(totals.fuel_gal)} gal` : parts.fuel],
-  ] as const);
-  const [summaryRoom, room] = useRoom<HTMLSpanElement>();
-  const exact = figures(false);
-  const whole = !!exact && !!room && (textWidth(exact.map(([n, f]) => `${n} ${f}`).join(" · "), room.font) ?? 0) > room.width;
-  const foldedSummary = exact && (figures(whole) ?? exact).map(([name, figure], i) => (
-    <Fragment key={name}>{i > 0 && " · "}<span data-testid={name === "ETA" ? "navlog-eta" : undefined}>{name} {figure}</span></Fragment>
-  ));
-  // While something is worked on, the line says what, with a spinner:
-  // the summary once it is done.
-  const progressLine = progress && (
-    <span role="status" data-testid="navlog-progress">
-      <Spinner className="mr-1.5 inline size-3.5 align-[-0.125em]" role="presentation" aria-label={undefined} aria-hidden />
-      {progress}
-    </span>
-  );
   // The other tabs' code fetched while nothing else is, once the log is
   // in, so the first opening of each draws rather than downloads: the
   // weight and balance envelope was 0.4 s of the Performance tab's first.
@@ -382,21 +334,17 @@ export default function NavLogView({
   // A checkpoint picked on the map with the drawer out: the nav log's tab
   // comes up for it (PanelTabs).
   const pick = drawerOpen && selectedPoint ? descriptionKey(selectedPoint.lat, selectedPoint.lon) : null;
-  // At half, the panel just tall enough for the flight's line under the
-  // route (PanelHalfContext, exact), the chart above it, at the pilot's
-  // ask -- the tabs and the rest a drag up. Measured, since the text size
-  // changes it.
+  // At half, the panel its head alone -- the route's box with the
+  // flight's line in it, and the controls under it -- at the pilot's ask:
+  // the quick figures with the route, the tabs a drag up past the
+  // separator (PanelHalfContext, exact: nothing of the body).
   const halfNeeds = useContext(PanelHalfContext);
   const [root, setRoot] = useState<HTMLDivElement | null>(null);
   useEffect(() => {
     if (!root || !halfNeeds) return;
     const measure = () => {
       // Hidden under an airport's card (PlanWorkspace), the card says.
-      if (!root.offsetParent) return;
-      // Down to the flight's line, the tabs and the log a drag up.
-      const line = root.querySelector("[data-half-line]");
-      if (!line) return;
-      halfNeeds(Math.round(line.getBoundingClientRect().bottom - root.getBoundingClientRect().top), true);
+      if (root.offsetParent) halfNeeds(0, true);
     };
     measure();
     const observer = new ResizeObserver(measure);
@@ -864,18 +812,6 @@ export default function NavLogView({
               {aircraftLabel}
               {depart && ` · departing ${new Date(depart).toLocaleDateString([], { weekday: "short", day: "numeric", month: "short" })} ${clockTime(new Date(depart))}`}
             </div>
-          </div>
-          {/* The flight in one line, over the tabs whichever is up, at the
-              pilot's ask: the distance, the arrival and the fuel (rounded to
-              fit, above), or what is being worked on, cut short past the
-              line's end. */}
-          <div className="flex shrink-0 items-center px-[max(1rem,env(safe-area-inset-left))] pb-2" data-half-line="">
-            <span
-              ref={summaryRoom} data-slot="section-summary"
-              className={cn(TEXT.prose, "min-w-0 flex-1 truncate text-muted-foreground pointer-coarse:text-[0.8125rem] pointer-coarse:leading-[1.125rem]")}
-            >
-              {progressLine ?? (problem ? <span className="text-red-700 dark:text-red-300" data-testid="navlog-problem">{problem}</span> : foldedSummary)}
-            </span>
           </div>
         </>
       )}

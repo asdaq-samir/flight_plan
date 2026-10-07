@@ -9,12 +9,12 @@ import { toast } from "sonner";
 import { showError } from "../../lib/problems";
 import { cn } from "cn";
 import { api } from "../../lib/api/client";
-import { pilotQuery, queryClient } from "../../lib/queryClient";
+import { nearestQuery, pilotQuery, queryClient } from "../../lib/queryClient";
 import type { AircraftChoice, AirportPlace, AltitudeChoice, Candidate } from "../../lib/api/types";
 import { aircraftKey, choiceOf } from "../../lib/aircraftChoice";
 import { bestStopIndex, distanceNm } from "../../lib/geo";
 import { useKeepOffline } from "../../lib/map/keepStatus";
-import { locateOnOpen, useOwnShip } from "../../lib/map/ownShip";
+import { locateOnOpen, positionNow, useOwnShip } from "../../lib/map/ownShip";
 import { pointOf } from "../../lib/airspace";
 import { altitudesOf, altitudesParam, identOf, routeName, routeOf, stopsOf } from "../../lib/identSchema";
 import { usePreferences, type RecentAirport } from "../../lib/preferences";
@@ -27,7 +27,8 @@ import { useProgressToast } from "../../lib/useProgressToast";
 import { useSearchParamsNow } from "../../lib/useSearchParamsNow";
 import type { WorkspaceProps } from "../page/workspace";
 import IconButton from "../../components/IconButton";
-import { ConsoleButtonSlot } from "../../components/PanelCapsule";
+import NearestButton from "../../components/NearestButton";
+import TipHost from "../../components/TipHost";
 import { CHIP_TEXT, GLASS_BUTTON, ROUND_BUTTON } from "../../components/mapChrome";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/ui/select";
 import { RouteCapsule, SearchField, SearchResults } from "../../components/PanelCapsule";
@@ -37,6 +38,7 @@ import { Favorites, FavoritesList } from "../../components/Favorites";
 import Kneeboard from "./components/Kneeboard";
 import FlightBriefingView, { BriefingNotices, PlanningAidNote, SaveFlightButton } from "./components/briefing/FlightBriefingView";
 import AltitudeButton from "./components/navlog/AltitudeButton";
+import FlightLine from "./components/FlightLine";
 import FlightInputs from "./components/navlog/FlightInputs";
 import AirspaceCard from "./components/AirspaceCard";
 import PlaceCard from "./components/PlaceCard";
@@ -237,28 +239,27 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   const measuredFrom = fix
     ? { point: { lat: fix.lat, lon: fix.lon }, name: null }
     : course ? { point: course.departure, name: course.departure.ident } : null;
-  // Fly Here: the card's airport as the destination, from Home when one
-  // is set (Favorites), else from the airport own ship is nearest when its
-  // position is known, else from the route's departure (or, when that is
-  // this airport, its destination) -- the last place the pilot planned
-  // from. The plan loads at once, with
-  // the card put away and the panel half up on it.
+  // Fly Here, as an EFB's Direct-To, at the pilot's ask: the card's
+  // airport as the destination, from where the pilot is now -- the field
+  // nearest own ship's position, at once where there is one (positionNow;
+  // off, it is turned on for the next) -- else from Home (Favorites), else from the route's
+  // departure (or, when that is this airport, its destination), the last
+  // place planned from. A departure is an airport the planner climbs out
+  // of, so present position is the field nearest it. The plan loads at
+  // once, with the card put away and the panel half up on it.
   const flyHere = useCallback(async (to: AirportPlace) => {
-    // From Home by default, the field a pilot flies from most (Favorites);
-    // then the one own ship is nearest; then the route's last.
-    const homeIdent = usePreferences.getState().homeAirport?.ident;
-    let from: string | null = homeIdent && homeIdent !== to.ident ? homeIdent : null;
-    const here = useOwnShip.getState();
-    if (!from && here.enabled && here.fix) {
-      const { lat, lon } = here.fix;
-      const near = await queryClient.fetchQuery({
-        queryKey: ["airportsNear", lat.toFixed(2), lon.toFixed(2)],
-        queryFn: () => api.airportsInView({ south: lat - 0.5, west: lon - 0.5, north: lat + 0.5, east: lon + 0.5, limit: 1000 }),
-        staleTime: 10 * 60_000,
-      }).catch(() => []);
+    let from: string | null = null;
+    const fixNow = await positionNow();
+    if (fixNow) {
+      // The planner's nearest fields round the position (often in hand
+      // already: Nearest asks for the same), nearest first from the
+      // position itself.
+      const near = await queryClient.fetchQuery(nearestQuery(fixNow.lat, fixNow.lon)).catch(() => []);
       from = near.filter(a => a.ident !== to.ident && a.kind !== "other")
-        .sort((a, b) => distanceNm(here.fix!, a) - distanceNm(here.fix!, b))[0]?.ident ?? null;
+        .sort((a, b) => distanceNm(fixNow, a) - distanceNm(fixNow, b))[0]?.ident ?? null;
     }
+    const homeIdent = usePreferences.getState().homeAirport?.ident;
+    from ??= homeIdent && homeIdent !== to.ident ? homeIdent : null;
     from ??= planned.dep && planned.dep !== to.ident ? planned.dep
       : planned.dest && planned.dest !== to.ident ? planned.dest : null;
     const next: Record<string, string> = { dest: to.ident };
@@ -363,7 +364,11 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // for each, and before it answers, any ident too long for an airport.
   const waypointStops = useMemo(() => new Set(planned.stops.filter(stop =>
     course?.stops?.some(a => a.ident === stop && a.kind === "fix") || !identOf(stop))), [planned.stops, course]);
-  const started = routed || !!planned.dep || !!planned.dest;
+  // A route cleared from its close with the panel out keeps its empty box
+  // to type another in (clearRoute); the panel lowered, the search again.
+  const [emptied, setEmptied] = useState(false);
+  if (emptied && !panelOpen) setEmptied(false);
+  const started = routed || !!planned.dep || !!planned.dest || emptied;
   const [query, setQuery] = useState("");
   const [picking, setPicking] = useState<"place" | "home" | "favorite">("place");
   // Favorites in full (FavoritesList), in place of the recents.
@@ -441,12 +446,20 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     })();
   }, [searchParams, setSearchParams]);
 
-  // The route put away, as Maps' close does: the address keeps nothing of
-  // it, and the panel rests on the search bar.
+  // The route's close, at the pilot's ask: first it clears the route --
+  // the address keeps nothing of it, and its box stays out, empty, for
+  // another -- and pressed again, with nothing left to clear, the panel
+  // goes down to its pill, resting on the search bar.
+  const hasPoints = !!planned.dep || !!planned.dest || planned.stops.length > 0;
   const clearRoute = useCallback(() => {
-    setSearchParams({}, { replace: true });
+    if (hasPoints) {
+      setSearchParams({}, { replace: true });
+      setEmptied(true);
+      return;
+    }
+    setEmptied(false);
     setPanel("peek");
-  }, [setSearchParams, setPanel]);
+  }, [hasPoints, setSearchParams, setPanel]);
 
   // The plan's own address, to another device or person: the share
   // sheet where the browser has one (Safari on an iPhone), otherwise
@@ -647,8 +660,6 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       notice={<BriefingNotices briefing={s.briefing} />}
       footer={<PlanningAidNote />}
       local={s.local}
-      progress={panelOpen ? progress : null}
-      problem={s.unflyable?.brief}
     >
       {/* Out of the tabs, drawing nothing: the risk assessment and the
           Go / No-Go's findings published once, for Save and the tabs' marks. */}
@@ -770,6 +781,8 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           heldPoint={heldPoint}
           onHoldPoint={holdPoint}
         />
+        {/* What to look for, a tip at a time, the first times (lib/tips). */}
+        <TipHost />
       </div>
     ),
     // The open airport's card over the nav log, which stays mounted
@@ -862,18 +875,20 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
             via={addingStop === "via" ? s.unflyable?.detours : undefined}
           />
         </div>
-        {/* The route's close, and under it the console's button, as the
-            search bar has it beside its field: the box's two lines tall,
-            the two alike, 40 points with a finger's 44 round them
+        {/* The route's close, and under it Nearest: the box's two lines
+            tall, the two alike, 40 points with a finger's 44 round them
             (index.css), as iOS's round buttons over content (ROUND_BUTTON). */}
         <div className="flex shrink-0 flex-col gap-1 [&_button]:size-10 [&_svg]:size-5">
-          <IconButton label="Close the route" variant="secondary" onClick={clearRoute} data-testid="route-clear" className={ROUND_BUTTON}>
-            {/* Drawn as big as the gear beside it: lucide's cross spans half
-                its box where the gear spans most of it, so at the gear's size
-                it read as a small mark; its line as bold as the gear's. */}
+          <IconButton label={hasPoints ? "Clear the route" : "Close"} variant="secondary" onClick={clearRoute} data-testid="route-clear" className={ROUND_BUTTON}>
+            {/* Drawn large: lucide's cross spans half its box where the
+                glyph under it spans most of its, so at their size it read as
+                a small mark; its line as bold as theirs. */}
             <X className="size-7!" strokeWidth={1.5} />
           </IconButton>
-          <ConsoleButtonSlot />
+          {/* Nearest under it, where the console's button was, at the
+              pilot's ask: the console's is at the capsule's end, the route
+              lowered, and on the search bar. */}
+          <NearestButton onSelectPlace={ident => selectPlace(ident)} className={ROUND_BUTTON} />
         </div>
       </div>
     ) : undefined,
@@ -939,6 +954,15 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           // hit areas (index.css) meet.
           <div className="ml-auto flex shrink-0 items-center gap-2 [&_button]:size-[36px] [&_svg]:size-[20px]">{routeActions}</div>
         )}
+        {/* The flight in one line, the last of the route's panel, just over
+            the separator and the tabs, at the pilot's ask: the quick figures
+            read with the route, the detail under the tabs. */}
+        <div className="w-full basis-full px-1" data-testid="flight-line">
+          <FlightLine
+            totals={s.totals} depart={depart} local={s.local}
+            progress={panelOpen ? progress : null} problem={s.unflyable?.brief}
+          />
+        </div>
       </div>
     ),
     console: <PilotPanel />,

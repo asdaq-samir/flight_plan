@@ -1,5 +1,5 @@
 import { test, expect, type Page, type Route } from "@playwright/test";
-import { openSettings, beforeTheRoute } from "./helpers";
+import { beforeTheRoute, openMapSettings } from "./helpers";
 
 /**
  * The Class B airports on the map.
@@ -58,7 +58,7 @@ async function mockClassB(page: Page) {
 }
 
 async function showClassB(page: Page) {
-  await openSettings(page);
+  await openMapSettings(page);
   await page.getByTestId("class-b-toggle").click();
   await page.keyboard.press("Escape");
 }
@@ -153,7 +153,7 @@ test("on an IFR base, the settings' TAC draws the IFR area chart at a Class B fi
   page.on("request", r => { if (r.url().includes("/chart-tile/ifr_area/")) areaTiles.push(r.url()); });
   await mockClassB(page);
   await page.goto("/app/dev?dep=C81&dest=KDLH");
-  await openSettings(page);
+  await openMapSettings(page);
   await page.getByTestId("base-chart-select").getByRole("radio", { name: "IFR low" }).click();
   await page.getByTestId("class-b-toggle").click();
   await expect(page.getByTestId("tac-toggle")).toHaveText("Area");

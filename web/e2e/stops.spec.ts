@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { test, expect, type Locator, type Page } from "@playwright/test";
-import { beforeTheRoute, openPanel, settle, sideDrawer, slow, openTab } from "./helpers";
+import { openPanel, settle, sideDrawer, slow, openTab, openSettings, closeConsole } from "./helpers";
 
 /**
  * A route that lands on the way, as Maps' Add Stop: a stop added in the
@@ -430,7 +430,10 @@ test("the route's airports are coloured by their airspace, or by the weather fro
   await expect.poll(background, { timeout: slow(15000) }).toBe("rgba(36, 101, 184, 0.12)");
 
   // By the weather instead: its METAR's colour, or the grey of none.
-  await beforeTheRoute(page, () => page.getByTestId("route-colours-select").getByRole("radio", { name: "Weather" }).click());
+  await page.goto("/app/plan");
+  await openSettings(page);
+  await page.getByTestId("route-colours-select").getByRole("radio", { name: "Weather" }).click();
+  await closeConsole(page);
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
   await openPanel(page);

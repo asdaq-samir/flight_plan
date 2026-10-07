@@ -13,26 +13,37 @@ import { TEXT } from "../lib/text";
 import { altFt } from "../lib/units";
 
 /**
- * Nearest, among the map's buttons while own ship has a position, as an
- * EFB's: the ten fields nearest it, how far and which way, the longest
- * runway, and -- in the air, with the GPS's altitude -- which are within
- * a still-air glide (lib/map/glide), the ring the map draws round own
- * ship. A tap on one opens its card, its Fly Here and its weather.
+ * Nearest, as an EFB's: the ten fields nearest own ship, how far and
+ * which way, the longest runway, and -- in the air, with the GPS's
+ * altitude -- which are within a still-air glide (lib/map/glide), the
+ * ring the map draws round own ship. A tap on one opens its card, its Fly
+ * Here and its weather. On the open route's head under its close, where
+ * the console's button was, at the pilot's ask (the map's buttons hold
+ * the map's settings in its place); with no position yet, it offers to
+ * show it.
  */
-export default function NearestButton({ onSelectPlace }: { onSelectPlace: (ident: string) => void }) {
+export default function NearestButton({ onSelectPlace, className }: { onSelectPlace: (ident: string) => void; className?: string }) {
+  const enabled = useOwnShip(s => s.enabled);
+  const setEnabled = useOwnShip(s => s.setEnabled);
   const fix = useOwnShip(s => (s.enabled ? s.fix : null));
   const [open, setOpen] = useState(false);
   const { data } = useQuery({ ...nearestQuery(fix?.lat ?? 0, fix?.lon ?? 0), enabled: !!fix });
-  if (!fix) return null;
-  const glide = glideRangeNm(fix, data?.[0]?.elevation_ft);
+  const glide = fix ? glideRangeNm(fix, data?.[0]?.elevation_ft) : null;
   return (
     <ResponsivePopover open={open} onOpenChange={setOpen}>
       <ResponsivePopoverTrigger asChild>
-        <IconButton label="Nearest airports" className="text-foreground" data-testid="nearest-button">
+        <IconButton label="Nearest airports" variant="secondary" className={className} data-testid="nearest-button">
           <PlaneLanding strokeWidth={1.5} className="size-5" />
         </IconButton>
       </ResponsivePopoverTrigger>
-      <ResponsivePopoverContent title="Nearest airports" className="w-80 p-3" align="end" side="left">
+      <ResponsivePopoverContent title="Nearest airports" className="w-80 p-3" align="end" side="bottom">
+        {!fix ? (
+          <ListGroup footer="The nearest fields are found from your position, which stays on this device.">
+            {enabled
+              ? <ListRow title={<span className="text-muted-foreground">Finding your position…</span>} />
+              : <ListRow title="Show my position" onClick={() => setEnabled(true)} data-testid="nearest-show-position" />}
+          </ListGroup>
+        ) : (
         <ListGroup
           footer={glide != null
             ? `Within a still-air glide: about ${Math.round(glide)} nm from here, at 1.5 nm for every 1,000 ft over the nearest field -- the dashed ring.`
@@ -58,6 +69,7 @@ export default function NearestButton({ onSelectPlace }: { onSelectPlace: (ident
           })}
           {!data && <ListRow title={<span className={cn("text-muted-foreground", TEXT.detail)}>Looking…</span>} />}
         </ListGroup>
+        )}
       </ResponsivePopoverContent>
     </ResponsivePopover>
   );

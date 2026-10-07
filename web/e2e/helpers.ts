@@ -9,6 +9,13 @@ import { expect, type Locator, type Page } from "@playwright/test";
 
 export const PAGES = ["/app/plan", "/app/dev"] as const;
 
+/** The first-run tips (lib/tips) marked seen, every one, in the page's
+ *  storage: for page.evaluate, or page.addInitScript where a spec starts
+ *  with none of the suite's saved session. */
+export function noTips() {
+  localStorage.setItem("vfr.tips", JSON.stringify({ state: { seen: ["*"] }, version: 0 }));
+}
+
 /** An explicit wait, doubled in CI: playwright.config.ts doubles the
  *  default waits there, and a wait written out here would otherwise
  *  stay at its local figure -- which on a runner carrying the stack,
@@ -42,6 +49,35 @@ export async function openPanel(page: Page) {
   await expect(panel).toHaveAttribute("data-panel", "half");
 }
 
+/** The panel all the way out, as a finger takes it: a drag on its
+ *  grabber to the screen's far edge. At half it ends at the flight's
+ *  line, the tabs past it; a tap on the grabber there lowers it. */
+async function panelFull(page: Page) {
+  const panel = sideDrawer(page);
+  await panel.waitFor();
+  if ((await panel.getAttribute("data-panel")) === "full") return;
+  if ((await panel.getAttribute("data-panel")) === "peek") {
+    await page.getByTestId("sidebar-trigger-button").click();
+    await expect(panel).toHaveAttribute("data-panel", "full");
+    return;
+  }
+  await settled(panel);
+  const box = (await panel.boundingBox())!;
+  const grab = (await page.getByTestId("sidebar-trigger-button").boundingBox())!;
+  const x = grab.x + grab.width / 2, y = grab.y + grab.height / 2;
+  // From the bottom of a phone the grabber is the sheet's top: up. From
+  // the top, its foot: down.
+  const up = Math.abs(y - box.y) < Math.abs(y - (box.y + box.height));
+  const viewport = page.viewportSize()!;
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await page.mouse.move(x, up ? y - 40 : y + 40, { steps: 4 });
+  await page.mouse.move(x, up ? 8 : viewport.height - 8, { steps: 10 });
+  await page.mouse.up();
+  await expect(panel).toHaveAttribute("data-panel", "full");
+  await settled(panel);
+}
+
 /** The settings: the console's last tab, the console opened from its
  *  button -- on the planner's search bar, on the training page among the
  *  map's -- and all the way out. Escape closes the console again. */
@@ -52,15 +88,23 @@ export async function openSettings(page: Page) {
   await expandConsole(page);
 }
 
-/** A setting changed on the planner before a route is loaded: its
- *  console's button is on the search bar alone (MapPage), which a route
- *  takes the place of, so a setting a route's map should show is set
- *  first -- remembered per browser -- and the route loaded after. */
+/** The map's settings: the sheet of the map's own button, first among
+ *  the map's buttons (MapSettingsButton), as Maps' map button holds its
+ *  map's. Escape puts it away. */
+export async function openMapSettings(page: Page) {
+  await page.locator("[data-map-controls]").getByTestId("map-settings-button").click();
+  await expect(page.getByTestId("map-settings")).toBeVisible();
+}
+
+/** A map setting changed on the planner before a route is loaded --
+ *  remembered per browser -- and the route loaded after, for a route's
+ *  map that should show it. */
 export async function beforeTheRoute(page: Page, change: () => Promise<void>) {
   await page.goto("/app/plan");
-  await openSettings(page);
+  await openMapSettings(page);
   await change();
-  await closeConsole(page);
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("map-settings")).toHaveCount(0);
 }
 
 /** The console all the way out. On a phone it opens half way, at iOS's
@@ -119,10 +163,10 @@ export async function closeConsole(page: Page) {
  *  the bottom edge on a phone (shadcn's Drawer). */
 export const consoleSheet = (page: Page) => page.getByTestId("console-sheet");
 
-/** The pilot console's Library, on one of its three: the tab, then the
- *  segment. */
-export async function library(scope: Page | Locator, section: "Aircraft" | "Flights" | "Logbook") {
-  await scope.getByRole("tab", { name: "Library" }).click();
+/** The pilot console's Personal tab (it was Library), on one of its
+ *  four: the tab, then the segment. */
+export async function library(scope: Page | Locator, section: "Aircraft" | "Flights" | "Logbook" | "Minimums") {
+  await scope.getByRole("tab", { name: "Personal" }).click();
   await scope.getByTestId("library-section").getByRole("radio", { name: section }).click();
 }
 
@@ -199,6 +243,9 @@ export async function openBriefing(page: Page) {
  *  narrative as it opens -- a real, billed Claude call -- so here it is
  *  answered with a line of its own. */
 export async function openTab(page: Page, name: "Brief" | "Nav Log" | "Local" | "Weather" | "Performance" | "Airports") {
+  // The tabs are past the half panel's foot, which ends at the flight's
+  // line: all the way out, as a finger drags it, to reach them.
+  await panelFull(page);
   if (name === "Brief") {
     await page.route(url => url.pathname.endsWith("/api/comparison"), route => route.fulfill({
       status: 200, contentType: "application/x-ndjson",

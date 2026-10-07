@@ -112,6 +112,7 @@ export default function PanelTabs({ rootRef, before, contents, notice, footer, c
           red mark, something to look at an amber one, as its sections'
           titles do. */}
       <TabsList
+        data-tip="tabs"
         variant="line"
         className="h-auto w-full shrink-0 gap-0 border-b border-border px-[max(0.25rem,env(safe-area-inset-left))] group-data-[orientation=horizontal]/tabs:h-auto pointer-coarse:group-data-[orientation=horizontal]/tabs:h-auto print:hidden"
       >

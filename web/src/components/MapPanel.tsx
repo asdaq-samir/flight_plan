@@ -45,6 +45,18 @@ const CAPSULE_INSET = 28;
 const CAPSULE_PAD = 9;
 /** The grabber's button: 16 tall, its pill five in from the panel's edge. */
 const GRABBER = 16;
+/** Where the route's half height is kept on this device (MapPanel). */
+const ROUTE_HALF_KEY = "vfr.panel.routeHalf";
+/** Where an airport card's half height is kept on this device. */
+const CARD_HALF_KEY = "vfr.panel.cardHalf";
+/** The route's head -- its box, the controls, the flight's line -- in
+ *  rem: 170 points at iOS's default text size. */
+const ROUTE_HEAD_REM = 10.625;
+/** An airport card's name, on two lines, and its actions, in rem: 190
+ *  points at iOS's default text size. */
+const CARD_REM = 11.875;
+/** The root's font size, which the text size the reader has set moves. */
+const rootPx = () => parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
 
 /** A card's width from `md` up: 24rem. */
 const CARD = 384;
@@ -146,19 +158,76 @@ export default function MapPanel({ label, top, controls, notices, compact, child
   // at half (PanelHalfContext): an airport's card had its actions cut
   // off by the screen's edge, its name on two lines, in Safari with its
   // toolbar taking a share of the screen.
-  // Or, on a phone, just what it must show, where it says so (`exact`):
-  // the route's panel opens on its tabs and the nav log's line, the chart
-  // above. A card beside a desktop's map keeps its half: there is room.
+  // Or just what it must show, where it says so (`exact`): the route's
+  // panel opens to its separator -- the route, the controls and the
+  // flight's line -- the chart above, on a phone's sheet and a desktop's
+  // card alike, at the pilot's ask; the tabs are the way on up.
   const [bodyNeeds, setBodyNeedsState] = useState<{ px: number; exact: boolean } | null>(null);
   const setBodyNeeds = useCallback((px: number | null, exact = false) => {
     setBodyNeedsState(was => (px === null ? null : was && was.px === px && was.exact === exact ? was : { px, exact }));
   }, []);
+  // The capsule's height, kept while it rests, for the lowest detent once
+  // it is the sheet: dragged, the sheet's head is measured where the
+  // capsule's was, and the lowest detent came out as tall as the half
+  // that ends at the head -- so a drag let go at the separator went back
+  // down to the capsule, the two being one height and the lowest first.
+  if (capsule && capsuleHeight !== headHeight) setCapsuleHeight(headHeight);
+  // The half panels one height, at the pilot's ask: the route's half --
+  // its box, the controls and the flight's line -- measured and kept on
+  // this device, an airport's card at it too (its name and actions whole
+  // if they need more), and the search's at the card's. Before any route
+  // has been out, the route's head at the text size in use, as it
+  // measures at iOS's default: 170 points.
+  const exactHalf = bodyNeeds?.exact ? Math.max(peek, peek + bodyNeeds.px) : null;
+  const [routeHalf, setRouteHalf] = useState<number | null>(() => {
+    try {
+      const kept = Number(localStorage.getItem(ROUTE_HALF_KEY));
+      return kept > 0 ? kept : null;
+    } catch {
+      return null;
+    }
+  });
+  // Kept only from the route's own half, its controls and flight's line
+  // in it: a route still being typed has its box alone, and that height
+  // kept made the search's half too short to show its Favorites.
+  if (exactHalf !== null && state === "half" && !!controls && dragged === null && measured && exactHalf !== routeHalf) setRouteHalf(exactHalf);
+  useEffect(() => {
+    try {
+      if (routeHalf) localStorage.setItem(ROUTE_HALF_KEY, String(routeHalf));
+    } catch {
+      // Not kept: the estimate serves the next load.
+    }
+  }, [routeHalf]);
+  const routeSized = routeHalf ?? Math.round(ROUTE_HEAD_REM * rootPx()) + (fromBottom ? edgeInset : GRABBER);
+  // An airport's card at the route's size, its name and actions whole;
+  // and the search's half -- the planner's first menu -- the size the
+  // card last was, at the pilot's ask, so the two are one height.
+  // Before any card has been out, a card's name on two lines and its
+  // actions, at the text size in use: 190 points at iOS's default.
+  const cardSized = Math.max(routeSized, Math.round(CARD_REM * rootPx()) + (fromBottom ? edgeInset : GRABBER));
+  const cardHalf = bodyNeeds && !bodyNeeds.exact ? Math.max(peek, cardSized, peek + bodyNeeds.px) : null;
+  const [keptCardHalf, setKeptCardHalf] = useState<number | null>(() => {
+    try {
+      const kept = Number(localStorage.getItem(CARD_HALF_KEY));
+      return kept > 0 ? kept : null;
+    } catch {
+      return null;
+    }
+  });
+  if (cardHalf !== null && state === "half" && dragged === null && measured && cardHalf !== keptCardHalf) setKeptCardHalf(cardHalf);
+  useEffect(() => {
+    try {
+      if (keptCardHalf) localStorage.setItem(CARD_HALF_KEY, String(keptCardHalf));
+    } catch {
+      // Not kept: the route's size serves the next load.
+    }
+  }, [keptCardHalf]);
   const detents = useMemo<Record<PanelState, number>>(() => {
     const full = Math.max(peek, room);
-    const half = bodyNeeds?.exact && onPhone ? Math.max(peek, peek + bodyNeeds.px)
-      : Math.max(peek, Math.round(room / 2), bodyNeeds === null ? 0 : peek + bodyNeeds.px);
-    return { peek, half: Math.min(half, full), full };
-  }, [peek, room, bodyNeeds, onPhone]);
+    const half = exactHalf ?? cardHalf ?? Math.max(peek, keptCardHalf ?? cardSized);
+    const lowest = compact && !capsule ? Math.min(capsuleHeight, peek) : peek;
+    return { peek: lowest, half: Math.min(half, full), full };
+  }, [peek, room, exactHalf, cardHalf, keptCardHalf, cardSized, compact, capsule, capsuleHeight]);
 
   // A drag on the grabber or the head follows the finger, and lets go to
   // the detent it was heading for (useDetentDrag).
@@ -258,7 +327,9 @@ export default function MapPanel({ label, top, controls, notices, compact, child
       onClick={() => onStateChange(expanded ? "peek" : "full")}
       // Inside the head (from the bottom) the head follows the drag already.
       onPointerDown={event => { event.stopPropagation(); startDrag(event); }}
-      style={{ height: capsule ? CAPSULE_PAD : GRABBER }}
+      // On the capsule two short of its padding: the route chip's 44-point
+      // hit area reaches a point and a half past the chip, into it.
+      style={{ height: capsule ? CAPSULE_PAD - 2 : GRABBER }}
       className={cn(
         "mx-auto flex w-24 shrink-0 touch-none justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset print:hidden",
         // In the capsule's thin padding, two points from its edge; on the
@@ -331,13 +402,13 @@ export default function MapPanel({ label, top, controls, notices, compact, child
         <header
           className={cn(
             "@container flex items-center gap-2 print:hidden",
-            // The same glass all round from either edge. From the top, a
-            // route's chip keeps its hit area (index.css), eleven under it,
-            // clear of the grabber in the padding under it.
-            // With a route's chip, twelve under it from the bottom: its
-            // 44-point hit area (index.css) reaches that far down, and the
-            // capsule clips what is past its edge.
-            capsule ? cn("p-[9px]", fromBottom ? "has-[[data-testid=capsule-detail]]:pb-3" : "has-[[data-testid=capsule-detail]]:pb-6")
+            // The same glass all round from either edge, and the same size,
+            // at the pilot's ask: from the top it was twelve points taller.
+            // With a route's chip, twelve on the side away from the grabber
+            // and nine on the grabber's -- mirrored, from the top -- so the
+            // chip's 44-point hit area (index.css) stays in the capsule,
+            // which clips what is past its edge.
+            capsule ? cn("p-[9px]", fromBottom ? "has-[[data-testid=capsule-detail]]:pb-3" : "has-[[data-testid=capsule-detail]]:pt-3")
               // No top row (a place's card alone): only the room the status
               // bar takes from the top of a phone's screen.
               : top == null ? (!fromBottom && onPhone ? "pt-[env(safe-area-inset-top)]" : undefined)
@@ -359,7 +430,10 @@ export default function MapPanel({ label, top, controls, notices, compact, child
         {capsule && !fromBottom && grabber}
       </div>
       {/* Over a grabber at the bottom, clear of its hit area. */}
-      <div className={cn("flex min-h-0 flex-1 flex-col border-border/60", expanded && "border-t", !fromBottom && expanded && "pb-4")} data-panel-body="">
+      {/* The separator over the body, and its room over a grabber at its
+          foot, only once there is body to see, at the pilot's ask: at half
+          the panel ends at the flight's line, with no line under it. */}
+      <div className={cn("flex min-h-0 flex-1 flex-col border-border/60", expanded && shown > detents.half + 1 && cn("border-t", !fromBottom && "pb-4"))} data-panel-body="">
         <PanelHalfContext.Provider value={setBodyNeeds}>{children}</PanelHalfContext.Provider>
       </div>
       {/* The grabber last on a sheet from the top. */}

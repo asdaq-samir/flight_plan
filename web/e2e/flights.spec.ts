@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { consoleSheet, library, openPanel, openSettings } from "./helpers";
+import { consoleSheet, library, openPanel, openMapSettings } from "./helpers";
 
 /**
  * "Save this flight", at the head of the briefing drawer's sections, for
@@ -136,7 +136,7 @@ test("Print is a round button beside Share; Keep Charts Offline is a setting und
 
   // From the search bar, the route closed.
   await page.goto("/app/plan");
-  await openSettings(page);
+  await openMapSettings(page);
   const keep = page.getByTestId("keep-offline-toggle");
   await expect(keep).toBeVisible();
   // The suite's stack is plain http, where the service worker that keeps

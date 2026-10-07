@@ -280,7 +280,7 @@ export default function RouteBox({
               console's button stacked (PlanWorkspace). */}
           <InputGroup
             className="h-auto min-h-[5.25rem] items-start rounded-[20.5px] border-0 bg-foreground/8 py-0 pr-1.5 pl-1 shadow-none dark:bg-foreground/8 has-[[data-slot=input-group-control]:focus-visible]:ring-0"
-            data-testid="route-box"
+            data-testid="route-box" data-tip="route"
           >
             {/* The pills wrap, two lines of them in sight and the top of a
                 third -- so a point below them reads as there, the

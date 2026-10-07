@@ -246,9 +246,3 @@ export function SearchResults({ query, onPick, places }: {
     </ListGroup>
   );
 }
-
-/** The console's button where a panel's head puts it (ConsoleButtonContext):
- *  under the route's close, as the search bar has it beside its field. */
-export function ConsoleButtonSlot() {
-  return <>{useContext(ConsoleButtonContext)}</>;
-}

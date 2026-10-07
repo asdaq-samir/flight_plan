@@ -110,11 +110,11 @@ export const SCREENS: Screen[] = [
   {
     // Aircraft, Flights and Logbook, one tab: its segmented control and
     // the section it opens on.
-    name: "pilot console, Library tab",
+    name: "pilot console, Personal tab",
     ready: async page => {
       await page.goto("/app/plan");
       await page.getByTestId("settings-button").click();
-      await page.getByRole("tab", { name: "Library" }).click();
+      await page.getByRole("tab", { name: "Personal" }).click();
       await expect(page.getByTestId("library-section")).toBeVisible();
     },
   },

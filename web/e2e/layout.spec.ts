@@ -218,8 +218,15 @@ for (const path of PAGES) {
     expect(viewport.width - (firstBox.x + firstBox.width)).toBeLessThan(20);
     if (viewport.width < 768) expect(firstBox.y).toBeLessThan(viewport.height / 2);
     else expect(firstBox.y).toBeGreaterThan(viewport.height / 2);
-    // Never among the map's buttons, on either page.
+    // Never among the map's buttons, on either page: their first is the
+    // map's own, its sheet the map's settings, as Maps' is.
     expect(await page.locator("[data-map-controls]").getByTestId("settings-button").count()).toBe(0);
+    await expect(first).toHaveAttribute("data-testid", "map-settings-button");
+    await first.click();
+    await expect(page.getByTestId("map-settings").getByTestId("base-chart-select")).toBeVisible();
+    await expect(page.getByTestId("map-settings").getByTestId("waypoints-toggle")).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(page.getByTestId("map-settings")).toHaveCount(0);
     if (path === "/app/dev") {
       // At the end of the training page's route capsule, which has no
       // search bar.
@@ -234,10 +241,11 @@ for (const path of PAGES) {
       expect(await page.locator("[data-map-controls]").getByTestId("settings-button").count()).toBe(0);
     }
 
-    // The settings, the console's last tab, hold the chart controls.
+    // The settings, the console's last tab, no longer hold the map's:
+    // they are the map button's.
     await openSettings(page);
-    await expect(page.getByTestId("base-chart-select")).toBeVisible();
-    await expect(page.getByTestId("tac-toggle")).toBeVisible();
+    await expect(page.getByTestId("settings-panel")).toBeVisible();
+    expect(await page.getByTestId("base-chart-select").count()).toBe(0);
     await page.keyboard.press("Escape");
   });
 

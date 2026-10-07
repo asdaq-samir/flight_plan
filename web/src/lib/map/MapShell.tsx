@@ -232,7 +232,7 @@ export function MapShell({ course, onReady, children, onSelectPlace, held = fals
         <div className="h-full w-full bg-slate-100 dark:bg-slate-900" />
       )}
       <ProblemBanner />
-      <MapControls onSelectPlace={onSelectPlace ? ident => onSelectPlace(ident) : undefined} />
+      <MapControls />
     </div>
   );
 }

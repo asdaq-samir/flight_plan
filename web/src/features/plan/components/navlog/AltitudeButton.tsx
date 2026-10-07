@@ -126,7 +126,7 @@ export default function AltitudeButton({ nav, legs, problem, ownAltitude = true,
             problem && "text-red-700 hover:text-red-700 dark:text-red-300 dark:hover:text-red-300",
           )}
           aria-label={`Cruising altitude, ${why}${!problem && tight ? ", tight" : ""}${!problem && classB ? ", through Class B" : ""}${!problem && cautions.length ? ", your altitude has a caution" : ""}: how it was chosen`}
-          data-testid="altitude-why"
+          data-testid="altitude-why" data-tip="altitude"
         >
           {flightLevel(problem ? null : cruise)}
           {/* What the altitude was planned within, marked; its popover says. */}
