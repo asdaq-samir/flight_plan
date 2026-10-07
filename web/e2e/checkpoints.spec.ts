@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { slow, settle, sideDrawer, openBriefing } from "./helpers";
+import { slow, settle, sideDrawer, openBriefing, openTab } from "./helpers";
 
 /**
  * The nav log's checkpoints: selected by a click, by Enter or by a pick
@@ -12,7 +12,7 @@ test("plan page: a click or Enter selects a nav log checkpoint, with the briefin
   await settle(page);
   await page.getByTestId("sidebar-trigger-button").click();
   // The sections start closed: open the nav log's to walk its rows.
-  await sideDrawer(page).getByRole("button", { name: "Nav Log", exact: true }).click();
+  await openTab(page, "Nav Log");
   const table = page.getByRole("table", { name: /Navigation log from/i });
   // The rows arrive with the scored checkpoints; wait for more than
   // the departure and the destination.
@@ -42,12 +42,12 @@ test("plan page: a click or Enter selects a nav log checkpoint, with the briefin
   await expect(rows.nth(1)).toHaveAttribute("data-selected");
   await expect(selectedRow).toHaveCount(1);
 
-  // The section titles get the stock accordion's own Up and Down back:
-  // the trigger used to swallow them for the walk that is now gone.
-  const titles = sideDrawer(page).locator('[data-slot="accordion-trigger"]');
-  await titles.first().focus();
-  await page.keyboard.press("ArrowDown");
-  await expect(titles.nth(1)).toBeFocused();
+  // The panel's tabs take the stock tabs' own arrows, Right to the next:
+  // the Brief, after the Nav Log.
+  const tabs = sideDrawer(page).getByRole("tab");
+  await sideDrawer(page).getByRole("tab", { name: "Nav Log" }).focus();
+  await page.keyboard.press("ArrowRight");
+  await expect(tabs.filter({ hasText: "Brief" })).toBeFocused();
 });
 
 test("plan page: a checkpoint picked on the map is brought to the middle of the nav log, and a row clicked in view stays put", { tag: "@smoke" }, async ({ page }) => {
@@ -82,7 +82,9 @@ test("plan page: a checkpoint picked on the map is brought to the middle of the 
     return Math.abs((row.y + row.height / 2) - (view.y + view.height / 2)) / view.height;
   };
   // Within a quarter of the scroller's height of its middle.
-  await expect.poll(middle, { timeout: slow(5000) }).toBeLessThan(0.25);
+  // Once the drawer has come all the way up and stood still, which on a
+  // busy phone is more than a few seconds.
+  await expect.poll(middle, { timeout: slow(10000) }).toBeLessThan(0.25);
 
   // The row above it, in view beside it, clicked: selected, and
   // nothing moves. Clicked on its first cell, where a finger would: on
@@ -94,8 +96,9 @@ test("plan page: a checkpoint picked on the map is brought to the middle of the 
   const neighbour = rows.nth(index - 1);
   // In view whole first, as the claim is about: centred to within a
   // quarter of the middle, the row above can sit half under the top
-  // edge on a phone, and a row half out of view is rightly brought in.
-  await neighbour.scrollIntoViewIfNeeded();
+  // edge on a phone -- or under the table's sticky heading, below the
+  // tabs -- and a row half out of view is rightly brought in.
+  await neighbour.evaluate(row => row.scrollIntoView({ block: "center" }));
   await page.waitForTimeout(200);
   // Where the row is on the screen, which is the claim: not the
   // scroller's offset, which the browser moves itself to keep what is
@@ -108,23 +111,11 @@ test("plan page: a checkpoint picked on the map is brought to the middle of the 
   await page.waitForTimeout(400);
   expect(Math.abs((await onScreen()) - before)).toBeLessThan(2);
 
-  // Another section opened, with the drawer scrolled elsewhere: the
-  // drawer stays where it is. (Every section's opening used to reveal
-  // the selected row again, scrolling back up to it.)
-  // To the end, and then just enough back that the section's title is
-  // on screen: at the very end it can sit above the visible band (the
-  // planning-aid line is the drawer's last), and Playwright would scroll
-  // it into view to click it -- a move of the test's, not the drawer's.
-  const cruise = sideDrawer(page).getByRole("button", { name: "Cruise Altitude" });
-  await scroller.evaluate(el => el.scrollTo(0, el.scrollHeight));
-  await cruise.scrollIntoViewIfNeeded();
-  await page.waitForTimeout(300);
-  // The section's title, where it is on the screen (as the row above).
-  const elsewhere = (await cruise.boundingBox())!.y;
-  await cruise.click();
-  await page.waitForTimeout(600);
-  expect(Math.abs((await cruise.boundingBox())!.y - elsewhere)).toBeLessThan(2);
-  await sideDrawer(page).getByRole("button", { name: "Cruise Altitude" }).click();
+  // Another tab and back: the selection kept, its row brought into view.
+  await openTab(page, "Weather");
+  await expect(sideDrawer(page).getByRole("heading", { name: "Adverse Conditions" })).toBeVisible();
+  await openTab(page, "Nav Log");
+  await expect(selectedRow).toBeInViewport();
   await neighbour.scrollIntoViewIfNeeded();
 
   // The selected row clicked again: deselected, and its note closed.
@@ -179,7 +170,7 @@ test("plan page: iOS never zooms the page in on a phone's field: the viewport fo
   // The description boxes are in the nav log's section, closed until
   // its title is clicked, and each under its own row, closed until
   // that row is selected.
-  await sideDrawer(page).getByRole("button", { name: "Nav Log", exact: true }).click();
+  await openTab(page, "Nav Log");
   const rows = sideDrawer(page).locator("table tbody tr[data-kind='checkpoint']");
   await expect.poll(() => rows.count(), { timeout: slow(15000) }).toBeGreaterThan(0);
   await rows.first().click();
@@ -207,6 +198,17 @@ test("plan page: the checkpoints are named on the map beside their dots, as Fore
     const r = el.getBoundingClientRect();
     return { left: r.left, right: r.right, top: r.top, bottom: r.bottom };
   })));
+  // Nor over the route's own airports' chips.
+  const chips = await page.locator(".leaflet-marker-icon", { hasText: /^(C81|KDLH)$/ }).evaluateAll(els => els.map(el => {
+    const r = el.firstElementChild!.getBoundingClientRect();
+    return { left: r.left, right: r.right, top: r.top, bottom: r.bottom };
+  }));
+  for (const a of boxes) {
+    for (const c of chips) {
+      const apart = a.right <= c.left + 1 || c.right <= a.left + 1 || a.bottom <= c.top + 1 || c.bottom <= a.top + 1;
+      expect(apart, `${JSON.stringify(a)} over the chip ${JSON.stringify(c)}`).toBe(true);
+    }
+  }
   for (const [i, a] of boxes.entries()) {
     expect(a.left).toBeGreaterThanOrEqual(-1);
     expect(a.right).toBeLessThanOrEqual(viewport.width + 1);

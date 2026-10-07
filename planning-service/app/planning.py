@@ -362,7 +362,9 @@ def forecast_hour_for(depart: datetime | None) -> str:
     return weather.forecast_hour((depart - datetime.now(timezone.utc)).total_seconds() / 3600)
 
 
-def no_altitude(selection: dict, between: tuple[str, str] | None = None, via: dict | None = None) -> dict:
+def no_altitude(
+    selection: dict, between: tuple[str, str] | None = None, via: dict | None = None, where: str | None = None,
+) -> dict:
     """Why no plan has an altitude, in a pilot's words, in three parts: a
     headline saying where along the route it fails, the reasons there as
     short sentences -- the terrain's floor, the first VFR altitude above
@@ -374,13 +376,17 @@ def no_altitude(selection: dict, between: tuple[str, str] | None = None, via: di
     Las Vegas: the Rockies' floor beside the Chicago Class B shelf, a
     thousand miles apart) and asked for a query parameter. `between`, the
     hop of a route with stops it fails on: the distances are from its
-    start, and the headline names it. `class_b` says Class B airspace is
+    start, and the headline names it. `brief`, all of it in a few words
+    for the one line under the route, the numbers that bind first and
+    `where` the place it binds by the route's own points ("540 nm past
+    KDLH"), else how far along. `class_b` says Class B airspace is
     what stops it, for the page to offer a clearance or a way round:
     `via`, the best waypoint round it (class_b_detours), when there is one."""
     prohibited = [a["name"] for a in selection.get("special_use", []) if a.get("type") == "P"]
     if prohibited:
         return {
             "title": "The route crosses prohibited airspace",
+            "brief": f"{prohibited[0]} is prohibited airspace",
             "reasons": [f"{name} is closed to every VFR altitude." for name in prohibited],
             "advice": "Plan around it.",
             "class_b": False,
@@ -392,6 +398,7 @@ def no_altitude(selection: dict, between: tuple[str, str] | None = None, via: di
         return {
             "title": (f"No legal VFR cruising altitude fits {between[0]} to {between[1]} in this aircraft" if between
                       else "No legal VFR cruising altitude fits this route in this aircraft"),
+            "brief": "No VFR altitude fits this aircraft",
             "reasons": [],
             "advice": "Set a cruise altitude of your own to plan it anyway.",
             "class_b": False,
@@ -410,14 +417,24 @@ def no_altitude(selection: dict, between: tuple[str, str] | None = None, via: di
                   else f"The first {heading} VFR altitude above that is {first:,.0f} ft.")
     advice = "Route around the high ground, or set a cruise altitude of your own to plan it anyway."
     class_b = False
+    # And the whole of it in a few words, for the one line under the route:
+    # what stops the climb, at what, and the terrain where it does and the
+    # altitude it needs ("Ceiling 11,700 ft: terrain 540 nm past KDLH needs
+    # 12,500"), as the pilot asked -- "over the terrain" said nothing of
+    # which.
+    place = where or f"{(stuck['from_nm'] + stuck['to_nm']) / 2:,.0f} nm along"
+    need = f"terrain {place} needs {first:,.0f}"
+    brief = f"Clouds at {top:,.0f} ft: {need}"
     if top == stuck.get("service_ceiling_ft"):
         stops = f"The aircraft's service ceiling stops at {top:,.0f} ft."
+        brief = f"Ceiling {top:,.0f} ft: {need}"
     elif top == stuck.get("airspace_ceiling_ft"):
         # The Class B by name, and what it takes: "The airspace over it
         # stops at 0 ft" was Midway to Duluth's straight line over O'Hare.
         bravo = f"The {_class_b_over(selection, stuck)}"
         stops = (f"{bravo} reaches the ground there; going through it needs a clearance." if top <= 0
                  else f"{bravo} over it starts at {top:,.0f} ft; going into it needs a clearance.")
+        brief = f"Class B to the ground {place}" if top <= 0 else f"Class B at {top:,.0f} ft: {need}"
         class_b = True
         advice = (f"Fly via {via['ident']} ({via['added_nm']:.0f} nm further) to stay out of it" if via
                   else "Add a stop to route around it") + ", or plan it with a Class B clearance."
@@ -428,9 +445,10 @@ def no_altitude(selection: dict, between: tuple[str, str] | None = None, via: di
     if top <= 0:
         # Airspace from the ground up leaves no altitude whatever the
         # terrain: the floor and the first altitude over it were noise.
-        return {"title": title, "reasons": [stops], "advice": advice, "class_b": class_b}
+        return {"title": title, "brief": brief, "reasons": [stops], "advice": advice, "class_b": class_b}
     return {
         "title": title,
+        "brief": brief,
         "reasons": [f"The terrain and obstacles there need {floor:,.0f} ft.", first_line, stops],
         "advice": advice,
         "class_b": class_b,

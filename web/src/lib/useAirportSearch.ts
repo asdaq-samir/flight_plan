@@ -2,9 +2,11 @@ import { useEffect, useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { api } from "./api/client";
 
-/** 200ms, not on every keystroke -- a lookup this app already treats
- *  as cheap server-side (an in-memory prefix filter) still isn't worth
- *  a request per character while someone's still mid-word. */
+/** 100ms, not on every keystroke -- a lookup this app already treats
+ *  as cheap server-side (an index of idents and words) still isn't worth
+ *  a request per character while someone's still mid-word. It was 200,
+ *  which with the answer's own time read as the suggestions lagging the
+ *  typing. */
 function useDebounced<T>(value: T, delayMs: number): T {
   const [debounced, setDebounced] = useState(value);
   useEffect(() => {
@@ -28,7 +30,7 @@ export type AirportSearchRow = Awaited<ReturnType<typeof api.airportSearch>>[num
 
 export function useAirportSearch(text: string, enabled = true, fixes = false) {
   const typed = text.trim();
-  const q = useDebounced(typed, 200);
+  const q = useDebounced(typed, 100);
   const { data, isPlaceholderData } = useQuery({
     queryKey: ["airportSearch", q, fixes],
     queryFn: () => api.airportSearch(q, fixes),

@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { beforeTheRoute, openPanel, settle, slow, tapTheChart } from "./helpers";
+import { beforeTheRoute, openPanel, settle, sideDrawer, slow, tapTheChart } from "./helpers";
 
 /**
  * The map: its popups, its zoom toggle and the dev page's zoom button,
@@ -12,16 +12,16 @@ test("plan page: a route from an airport to itself is a local flight: the field'
   await page.goto("/app/plan?dep=C81&dest=C81");
   await expect(page.getByTestId("capsule-title")).toHaveText("C81 local", { timeout: slow(30000) });
   await openPanel(page);
-  const section = page.locator("[data-slot=accordion-header]").filter({ hasText: "Local Flight" });
-  await expect(section).toContainText(/Aloft 1h 00m/, { timeout: slow(30000) });
-  await section.getByRole("button", { name: "Local Flight", exact: true }).click();
+  // Its tab where the nav log's is, up as the panel opens.
+  await expect(sideDrawer(page).getByRole("tab", { name: "Local" })).toHaveAttribute("aria-selected", "true");
+  await expect(sideDrawer(page).locator('[data-slot="section-summary"]').first()).toContainText(/Aloft 1h 00m/, { timeout: slow(30000) });
   await expect(page.getByTestId("fuel-check")).toContainText("Fuel required");
 
   // Longer aloft: in the address, and more fuel.
   await page.getByTestId("local-duration").click();
   await page.getByRole("option", { name: "2 h", exact: true }).click();
   await expect(page).toHaveURL(/[?&]local_min=120/);
-  await expect(section).toContainText(/Aloft 2h 00m/, { timeout: slow(30000) });
+  await expect(sideDrawer(page).locator('[data-slot="section-summary"]').first()).toContainText(/Aloft 2h 00m/, { timeout: slow(30000) });
 });
 
 test("plan page: every popup the map opens dismisses the same way", async ({ page }) => {
@@ -134,17 +134,27 @@ test("plan page: Waypoints draws the route's checkpoints and the landmarks they 
   const landmarks = page.locator('path.leaflet-interactive[stroke="#5b6b76"]');
   await expect(landmarks.first()).toBeAttached();
 
-  // Off, from the search bar's settings, and the route again.
+  // Off, from the search bar's settings, and the route again: no
+  // checkpoints on the map, none asked for, and the nav log from the
+  // departure to the destination alone, as the pilot asked.
   await beforeTheRoute(page, async () => {
     const toggle = page.getByTestId("waypoints-toggle");
     await expect(toggle).toHaveAttribute("aria-pressed", "true");
     await toggle.click();
   });
+  const asked: string[] = [];
+  page.on("request", r => { if (/\/(checkpoints|navlog)\?/.test(r.url())) asked.push(new URL(r.url()).pathname.split("/").pop()!); });
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
   await expect(page.locator(".leaflet-marker-icon", { hasText: "KDLH" }).first()).toBeVisible({ timeout: slow(30000) });
   await expect(numbered).toHaveCount(0);
   await expect(landmarks).toHaveCount(0);
+  await openPanel(page);
+  const rows = sideDrawer(page).locator("table tbody tr[data-kind]");
+  await expect(page.getByTestId("navlog-eta")).toBeAttached({ timeout: slow(60000) });
+  await expect(sideDrawer(page).locator('table tbody tr[data-kind="checkpoint"]')).toHaveCount(0);
+  expect(await rows.count()).toBeGreaterThan(0);
+  expect(asked).not.toContain("checkpoints");
 });
 
 test("my position is the location arrow among the map's buttons, on both pages, and over plain http it says why there is none", async ({ page }) => {

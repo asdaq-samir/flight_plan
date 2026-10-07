@@ -47,8 +47,10 @@ export const ConsoleSettingsContext = createContext<ReactNode>(null);
 /** What the map panel's body must show whole at the half height, in
  *  pixels from the body's top -- a place card's name and its actions,
  *  as Maps' medium detent always shows them -- or null: the half detent
- *  grows to fit it, as far as the whole height (MapPanel). */
-export const PanelHalfContext = createContext<((px: number | null) => void) | null>(null);
+ *  grows to fit it, as far as the whole height (MapPanel). `exact`: the
+ *  half is that and no more, even under half the screen -- the route's
+ *  panel, its tabs and the nav log's line, at the pilot's ask. */
+export const PanelHalfContext = createContext<((px: number | null, exact?: boolean) => void) | null>(null);
 
 /** Whether the console is out, the app's rather than a page's: the two
  *  pages are drawn anew as a developer's Pilot and Developer in its
@@ -113,3 +115,24 @@ export const SHEET_INSET_RADIUS = 36;
 /** The margin a card keeps from the screen's edges, and a phone's sheet
  *  from the far one. */
 export const SHEET_MARGIN = 8;
+
+/** A control's own pane of the glass, as iOS 26 draws its buttons and
+ *  chips over content (Maps' close, its filter chips): whiter than the
+ *  sheet under it, a lit rim and a shadow a button's size, the words and
+ *  glyph in the text's colour. Theme utilities rather than one of
+ *  index.css's own, so `cn` drops a variant's fill, border and shadow for
+ *  these (the Select's outline, a Button's). */
+export const GLASS_BUTTON =
+  "border-0 bg-background/75 text-foreground shadow-[inset_0_1px_1px_rgb(255_255_255/0.95),inset_0_0_0_0.5px_rgb(255_255_255/0.7),0_0_0_0.5px_rgb(0_0_0/0.08),0_2px_8px_rgb(0_0_0/0.12)] hover:bg-background hover:text-foreground aria-expanded:bg-background " +
+  "dark:bg-foreground/12 dark:shadow-[inset_0_1px_1px_rgb(255_255_255/0.18),inset_0_0_0_0.5px_rgb(255_255_255/0.1),0_0_0_0.5px_rgb(0_0_0/0.5),0_2px_8px_rgb(0_0_0/0.35)] dark:hover:bg-foreground/18 dark:aria-expanded:bg-foreground/18";
+
+/** A chip's words on the panel's row (the aeroplane, the cruising altitude,
+ *  the time): a note's 13 to a finger, as Maps' route options are, growing
+ *  with the reader's text size only to 14, so the row stays one line at
+ *  the pilot's, a step up from iOS's default. */
+export const CHIP_TEXT = "text-xs pointer-coarse:text-[min(0.8125rem,14px)]";
+
+/** A round button on the panel -- the console's, the route's close -- as
+ *  Maps' are on iOS 26: a circle of that glass, its glyph bold in the
+ *  text's colour (the pilot's pick, after a grey disc). */
+export const ROUND_BUTTON = `rounded-full ${GLASS_BUTTON}`;

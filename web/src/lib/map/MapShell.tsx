@@ -4,7 +4,7 @@ import { useCallback, useContext, useEffect, useMemo, useRef, useState, type Rea
 import { MapContainer } from "react-leaflet";
 import MapControls from "../../components/MapControls";
 import ProblemBanner from "../../components/ProblemBanner";
-import { MapInsetsContext, SHEET_SECONDS } from "../../components/mapChrome";
+import { MapInsetsContext, NO_INSETS, SHEET_SECONDS } from "../../components/mapChrome";
 import type { Course } from "../api/types";
 import { chartQuery } from "../queryClient";
 import { ChartTiles } from "./ChartTiles";
@@ -12,7 +12,7 @@ import { ClassBLayer } from "./ClassBLayer";
 import { ResizeAware } from "./MapEffects";
 import { centreClear } from "./clear";
 import { OwnShipLayer } from "./OwnShipLayer";
-import { useOwnShip } from "./ownShip";
+import { OPEN_ZOOM, useOwnShip } from "./ownShip";
 import { underway } from "./glide";
 
 interface Props {
@@ -48,6 +48,14 @@ const COUNTRY_ZOOM = 4;
 const MIN_FIT_M = 18_520;
 
 export function MapShell({ course, onReady, children, onSelectPlace, held = false }: Props) {
+  // With no route, where the pilot's position last was, at the zoom the
+  // planner opens on it (ownShip's OPEN_ZOOM) -- that region's chart drawn
+  // while the GPS finds the position, and only a short pan once it has --
+  // else the whole country. Read once, as the map is made.
+  const [opening] = useState(() => {
+    const last = useOwnShip.getState().lastFix;
+    return last ? { center: [last.lat, last.lon] as [number, number], zoom: OPEN_ZOOM } : { center: COUNTRY, zoom: COUNTRY_ZOOM };
+  });
   const [map, setMap] = useState<L.Map | null>(null);
   // The chart alone while there is no route: the planner opens on a
   // search bar over the chart, where it waited on a route to draw any.
@@ -144,6 +152,24 @@ export function MapShell({ course, onReady, children, onSelectPlace, held = fals
   // pilot's finger.
   const settledInsets = useRef(insets);
   const following = useRef<{ until: number; what: "route" | "ship" } | null>(null);
+  // The map is made before the panel has measured what it covers, its
+  // opening view the whole screen's: once the panel has, the view is put
+  // right at once -- the route fitted clear of it, or what was in the
+  // middle of the screen in the middle of what the panel leaves. On a
+  // reload the position opened in the screen's middle, under the half
+  // sheet's edge, and the map slid up as the GPS answered.
+  const placedFor = useRef<L.Map | null>(null);
+  useEffect(() => {
+    if (!map || placedFor.current === map || (!insets.top && !insets.bottom && !insets.left)) return;
+    placedFor.current = map;
+    if (bounds && fitted.current === routeKey) {
+      fit(false);
+      return;
+    }
+    const size = map.getSize();
+    const middle = (i: { top: number; bottom: number; left: number }) => L.point((i.left + size.x) / 2, (i.top + size.y - i.bottom) / 2);
+    map.panBy(middle(NO_INSETS).subtract(middle(insets)), { animate: false });
+  }, [insets, map, bounds, routeKey, fit]);
   useEffect(() => {
     const was = settledInsets.current;
     settledInsets.current = insets;
@@ -181,7 +207,7 @@ export function MapShell({ course, onReady, children, onSelectPlace, held = fals
       {chart ? (
         <MapContainer
           ref={setMap}
-          {...(bounds ? { bounds, boundsOptions: { padding: [30, 30] } } : { center: COUNTRY, zoom: COUNTRY_ZOOM })}
+          {...(bounds ? { bounds, boundsOptions: { padding: [30, 30] } } : opening)}
           // zoomControl off drops the +/- buttons, not zooming itself;
           // minZoom 3 is where the whole country fits a phone screen,
           // and as far out as the chart layer has tiles.

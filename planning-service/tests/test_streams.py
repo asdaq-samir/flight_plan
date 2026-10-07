@@ -34,7 +34,8 @@ def test_a_weather_failure_mid_navlog_is_the_streams_last_line(monkeypatch, alti
     altitude = next(m for m in lines if m["type"] == "altitude")
     assert altitude["flown"] is None and altitude["altitude_ft"] is None and altitude["altitude_selection"]
     assert lines[-1] == {
-        "type": "error", "detail": "aviationweather.gov request failed: timed out", "retry": True, "reasons": [], "advice": None,
+        "type": "error", "detail": "aviationweather.gov request failed: timed out", "retry": True, "brief": None,
+        "reasons": [], "advice": None,
         "class_b": False, "detours": [],
     }
 
@@ -49,7 +50,7 @@ def test_a_chart_that_would_not_read_is_reported_inside_the_navlog_stream(monkey
 
     assert resp.status_code == 200
     detail = "the chart along C81->KDLH could not be read: tile fetch failed"
-    assert messages(resp)[-1] == {"type": "error", "detail": detail, "retry": True, "reasons": [], "advice": None,
+    assert messages(resp)[-1] == {"type": "error", "detail": detail, "retry": True, "brief": None, "reasons": [], "advice": None,
                                      "class_b": False, "detours": []}
 
 

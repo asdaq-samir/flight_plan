@@ -36,6 +36,7 @@ from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse
 from pydantic import TypeAdapter
 from vfr import airspace, altitude, charts, faa_data, fixes, places, publications, remarks, weather
+from vfr import airports as airport_table
 
 from . import chart_refresh, errors, tracing
 from .common import PROCESSED_DIR
@@ -104,6 +105,10 @@ def _warm_reference_data() -> None:
         ("obstacles", lambda: faa_data.preload_obstacles(altitude.DEFAULT_FAA_CACHE_DIR)),
         ("weather", weather.preload),
         ("remarks", remarks.preload),
+        # The airport search's table and index (vfr.airports): the first
+        # search after a restart built them, three seconds before the
+        # first suggestion.
+        ("airport search", lambda: airport_table.search_airports("K")),
         ("fixes", fixes.preload),
         ("charts", _prepare_corridor_charts),
     ):

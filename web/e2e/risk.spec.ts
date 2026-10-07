@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { settle, sideDrawer, slow } from "./helpers";
+import { settle, sideDrawer, slow, openTab } from "./helpers";
 
 /**
  * The briefing's Risk Assessment (lib/frat): what the briefing raises
@@ -40,7 +40,7 @@ test("a quiet day is low, what the pilot ticks raises it, and Save files it with
   await settle(page);
   await expect(page.getByTestId("navlog-eta")).toBeVisible({ timeout: slow(120000) });
   const drawer = sideDrawer(page);
-  await drawer.getByRole("button", { name: "Risk Assessment", exact: true }).click();
+  await openTab(page, "Brief");
   await expect(drawer.getByTestId("risk-level")).toContainText(/^Low · \d+ points?/);
   const base = Number((await drawer.getByTestId("risk-level").innerText()).match(/· (\d+) point/)![1]);
 

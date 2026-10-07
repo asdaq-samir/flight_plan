@@ -17,7 +17,7 @@ export default function FlownTrackButton() {
   return (
     <ResponsivePopover open={open} onOpenChange={setOpen}>
       <ResponsivePopoverTrigger asChild>
-        <IconButton label="Flown track" className="text-tint" data-testid="flown-track-button">
+        <IconButton label="Flown track" className="text-foreground" data-testid="flown-track-button">
           <Route strokeWidth={1.5} className="size-5" />
         </IconButton>
       </ResponsivePopoverTrigger>

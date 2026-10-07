@@ -1,5 +1,6 @@
 import { MutationCache, QueryCache, QueryClient, queryOptions } from "@tanstack/react-query";
 import { ApiError, api, describeError } from "./api/client";
+import type { ChartInfo } from "./api/types";
 import { clearProblem, raiseProblem, showError } from "./problems";
 
 declare module "@tanstack/react-query" {
@@ -135,9 +136,35 @@ export const courseQuery = (dep: string, dest: string, stops: string[] = []) => 
  *  the planner holds the weather for minutes, so refetching per pan
  *  would ask the same cache the same question; and quiet, because the
  *  layer and the chips show what they have in place. */
-/** The chart alone, for a map with no route on it yet. */
+/** The chart alone, for a map with no route on it yet. The map draws
+ *  nothing until it has it -- the empty frame, blue in the dark, that the
+ *  pilot saw on every load while it was asked for -- so the last answer
+ *  is kept in this browser and the map drawn from it at once, asked for
+ *  again behind it when it is an hour old (the charts change every 56
+ *  days). */
+const CHART_KEY = "wingtip.chart";
+type Kept = { at: number; chart: ChartInfo };
+function keptChart(): Kept | undefined {
+  try {
+    return JSON.parse(localStorage.getItem(CHART_KEY) ?? "null") ?? undefined;
+  } catch {
+    return undefined;
+  }
+}
 export const chartQuery = queryOptions({
-  queryKey: ["chart"], queryFn: () => api.chart(), staleTime: 60 * 60_000,
+  queryKey: ["chart"],
+  queryFn: async () => {
+    const chart = await api.chart();
+    try {
+      localStorage.setItem(CHART_KEY, JSON.stringify({ at: Date.now(), chart } satisfies Kept));
+    } catch {
+      // No storage: the next load asks again, as it always did.
+    }
+    return chart;
+  },
+  staleTime: 60 * 60_000,
+  initialData: () => keptChart()?.chart,
+  initialDataUpdatedAt: () => keptChart()?.at,
 });
 
 /** Every TFR, for the map: held five minutes, as the FAA's site updates

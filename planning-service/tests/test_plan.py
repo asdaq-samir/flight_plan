@@ -367,6 +367,11 @@ def test_no_altitude_says_where_and_why_in_a_pilots_words():
         "The first westbound VFR altitude above that is 14,500 ft.",
         "The aircraft's service ceiling stops at 14,000 ft.",
     ]
+    # In a few words, for the one line under the route: the ceiling, and
+    # the terrain where it binds -- by the route's own points, else how far
+    # along -- with the altitude it needs.
+    assert why["brief"] == "Ceiling 14,000 ft: terrain 1,010 nm along needs 14,500"
+    assert planning.no_altitude(selection, where="540 nm past KDLH")["brief"] == "Ceiling 14,000 ft: terrain 540 nm past KDLH needs 14,500"
     # One message for /api/plan's 422, which the agents read.
     detail = planning.no_altitude_detail(selection)
     assert detail.startswith("No legal VFR cruising altitude 980-1040 nm along the route. The terrain")
@@ -431,3 +436,16 @@ def test_a_local_flight_is_its_time_aloft_at_cruise_burn_with_the_fuel_check():
 
 def test_a_local_flight_is_one_airport_to_itself():
     assert client.get("/api/local-flight", params={"dep": "C81", "dest": "KDLH"}).status_code == 422
+
+
+def test_without_checkpoints_the_legs_run_point_to_point_and_nothing_is_scored(monkeypatch, messages):
+    def no_scoring(*args, **kwargs):
+        raise AssertionError("scored with no checkpoints asked for")
+
+    monkeypatch.setattr(scoring, "score", no_scoring)
+    params = {"dep": "C81", "dest": "KDLH", "checkpoints": False}
+    body = client.get("/api/plan", params=params).json()
+    assert body["selected"] == []
+    assert [(leg["from"], leg["to"]) for leg in body["legs"]] == [("C81", "KDLH")]
+    legs = [m for m in messages(client.get("/api/navlog", params=params)) if m["type"] == "leg"]
+    assert [(leg["from"], leg["to"]) for leg in legs] == [("C81", "KDLH")]

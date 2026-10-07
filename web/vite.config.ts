@@ -110,6 +110,16 @@ export default defineConfig({
             handler: "NetworkOnly",
           },
           {
+            // The airport search as it is typed, never through the cache:
+            // an answer kept for every letter typed was a cache write and
+            // its expiry's bookkeeping in the worker before the answer
+            // reached the page -- the suggestions lagged the typing on a
+            // phone -- and pushed the plans this cache keeps for the air
+            // out of its 300.
+            urlPattern: ({ url }) => url.pathname === "/api/planner/airports/search",
+            handler: "NetworkOnly",
+          },
+          {
             // The planner's answers: the network when there is one
             // (the winds change), the last answer when there is not.
             urlPattern: ({ url, request }) =>

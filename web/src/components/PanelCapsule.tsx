@@ -1,34 +1,59 @@
-import { History, Search, X } from "lucide-react";
-import { useContext, useRef, type ReactNode, type RefObject } from "react";
+import { CircleAlert, History, Search, X } from "lucide-react";
+import { useCallback, useContext, useRef, useState, type ReactNode, type RefObject } from "react";
 import { cn } from "cn";
+import { routeNameWithin } from "../lib/identSchema";
 import { TEXT } from "../lib/text";
+import { textWidth } from "../lib/textWidth";
 import { useAirportSearch } from "../lib/useAirportSearch";
 import { usePreferences, type RecentAirport } from "../lib/preferences";
 import { ListGroup, ListRow } from "./GroupedList";
-import IconButton from "./IconButton";
 import { ConsoleButtonContext } from "./mapChrome";
 
 /**
  * The panel at rest, as Maps' is on an iPhone: a capsule floating over
- * the chart (MapPanel's `compact`), the route in it and no more -- a
- * button either side, as Maps' Directions has its share and its close,
- * and under the route a chip that opens the panel to what it stands
- * for (the aeroplane and the time, the rating's progress), as Maps'
- * Options does. Drag it or its grabber and it opens into the sheet.
- * With no `trailing` of its own, the page's console button is there
- * (ConsoleButtonContext): the training page's.
+ * the chart (MapPanel's `compact`). The planner's is one line, as the
+ * search bar is: Share at its start (`leading`), the route, a tap on it
+ * opening the panel, and the console's button at its end
+ * (ConsoleButtonContext) -- what is wrong with the route a red mark
+ * beside it. The training page's has a chip under
+ * the route that opens the panel to what it stands for (the rating's
+ * progress), as Maps' Options does, and a button either side. Drag it or
+ * its grabber and it opens into the sheet.
  */
-export function RouteCapsule({ title, detail, tone = "default", onDetail, leading, trailing }: {
+export function RouteCapsule({ title, detail, tone = "default", warning, onDetail, leading, trailing }: {
   title: string;
-  /** The chip's words, and what a tap on it does. */
+  /** A chip's words under the route, and what a tap on it does. */
   detail?: string;
   /** Destructive: the chip says what is wrong with the route, in red. */
   tone?: "default" | "destructive";
+  /** One line's: what is wrong with the route, a red mark beside it. */
+  warning?: string;
   onDetail?: () => void;
   leading?: ReactNode;
   trailing?: ReactNode;
 }) {
   const consoleButton = useContext(ConsoleButtonContext);
+  if (!detail) {
+    return (
+      <div className="flex w-full items-center gap-2">
+        {leading && <div className="flex shrink-0">{leading}</div>}
+        {/* The route, a tap on it the panel: no sideways slide -- cut
+            in its middle, the panel shows it whole. */}
+        <button
+          type="button" onClick={onDetail} data-testid="capsule-detail" data-tone={warning ? "destructive" : "default"}
+          aria-label={warning ? `${title}, ${warning}` : title}
+          // Over the grabber's hit area (index.css), which reached down
+          // across its top: the route is what a tap there means, the
+          // grabber's own the drag.
+          className="z-10 flex h-[2.5625rem] min-w-0 flex-1 items-center justify-center gap-1.5 rounded-full px-3 outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          {warning && <CircleAlert className="size-4 shrink-0 text-destructive" aria-hidden="true" />}
+          <FittedRoute title={title} marked={!!warning} />
+        </button>
+        <div className="flex shrink-0 justify-end">{trailing ?? consoleButton}</div>
+      </div>
+    );
+  }
   return (
     // The two sides' buttons, or room as wide, so the route is centred.
     <div className="flex w-full items-center gap-3">
@@ -41,26 +66,62 @@ export function RouteCapsule({ title, detail, tone = "default", onDetail, leadin
         <div className="max-w-full touch-pan-x overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" data-testid="capsule-title-slide" data-slides="">
           <span className={cn("whitespace-nowrap font-semibold", TEXT.row)} data-testid="capsule-title">{title}</span>
         </div>
-        {detail && (
-          // The tint's own words on a wash of it, as Maps' Options chip.
-          <button
-            type="button" onClick={onDetail} data-testid="capsule-detail" data-tone={tone}
-            className={cn(
-              // A note's size, the capsule a line thinner, as Maps' Options;
-              // over the title, so its 44-point hit area (index.css) is its
-              // own where it reaches up across the route's line.
-              "relative z-10 max-w-full rounded-full px-2.5 py-px font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring", TEXT.note,
-              tone === "destructive" ? "bg-destructive/12 text-destructive" : "bg-tint/12 text-tint",
-            )}
-          >
-            {/* Cut short inside, not on the button: its overflow hidden
-                would clip its 44-point hit area (index.css) to its box. */}
-            <span className="block truncate">{detail}</span>
-          </button>
-        )}
+        {/* The tint's own words on a wash of it, as Maps' Options chip. */}
+        <button
+          type="button" onClick={onDetail} data-testid="capsule-detail" data-tone={tone}
+          className={cn(
+            // A note's size, the capsule a line thinner, as Maps' Options;
+            // over the title, so its 44-point hit area (index.css) is its
+            // own where it reaches up across the route's line.
+            "relative z-10 max-w-full rounded-full px-2.5 py-px font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring", TEXT.note,
+            tone === "destructive" ? "bg-destructive/12 text-destructive" : "bg-tint/12 text-tint",
+          )}
+        >
+          {/* Cut short inside, not on the button: its overflow hidden
+              would clip its 44-point hit area (index.css) to its box. */}
+          <span className="block truncate">{detail}</span>
+        </button>
       </div>
       <div className="flex w-9 shrink-0 justify-end">{trailing ?? consoleButton}</div>
     </div>
+  );
+}
+
+/**
+ * The one-line capsule's route, cut in its middle to fit (routeNameWithin)
+ * so the destination is always at its end: measured in the title's own
+ * font against the room its button has, less the warning's mark (a rem
+ * and its gap), again whenever the button's width changes and once the
+ * font has loaded. The button's label says the route whole.
+ */
+function FittedRoute({ title, marked }: { title: string; marked: boolean }) {
+  const [room, setRoom] = useState<{ width: number; font: string; rem: number } | null>(null);
+  // At commit, so the first frame drawn is already cut to fit.
+  const watch = useCallback((span: HTMLSpanElement | null) => {
+    const button = span?.parentElement;
+    if (!span || !button) return;
+    let live = true;
+    const measure = () => {
+      if (!live) return;
+      const box = getComputedStyle(button), text = getComputedStyle(span);
+      const next = {
+        width: button.clientWidth - parseFloat(box.paddingLeft) - parseFloat(box.paddingRight),
+        font: `${text.fontWeight} ${text.fontSize} ${text.fontFamily}`,
+        rem: parseFloat(getComputedStyle(document.documentElement).fontSize),
+      };
+      setRoom(was => was && was.width === next.width && was.font === next.font && was.rem === next.rem ? was : next);
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(button);
+    void document.fonts?.ready.then(measure);
+    return () => { live = false; observer.disconnect(); };
+  }, []);
+  const shown = room
+    ? routeNameWithin(title, name => (textWidth(name, room.font) ?? 0) <= room.width - (marked ? room.rem * 1.375 : 0) - 1)
+    : title;
+  return (
+    <span ref={watch} className={cn("truncate font-semibold", TEXT.row, marked && "text-destructive")} data-testid="capsule-title">{shown}</span>
   );
 }
 
@@ -77,14 +138,12 @@ export function RouteCapsule({ title, detail, tone = "default", onDetail, leadin
  * its search bar. Enter picks the first airport that answers, or the
  * ident typed.
  */
-export function SearchField({ value, onChange, onFocus, onCancel, onSubmit, open, placeholder = "Search airports", inputRef }: {
+export function SearchField({ value, onChange, onFocus, onCancel, onSubmit, placeholder = "Search airports", inputRef }: {
   value: string;
   onChange: (value: string) => void;
   onFocus: () => void;
   onCancel: () => void;
   onSubmit: () => void;
-  /** The sheet is all the way out: the close shows. */
-  open: boolean;
   /** What it asks for: an airport to open, or the one to keep as Home. */
   placeholder?: string;
   /** For a tap elsewhere (Favorites' Add) to focus it within the tap, which
@@ -111,18 +170,28 @@ export function SearchField({ value, onChange, onFocus, onCancel, onSubmit, open
         <input
           ref={input} type="search" enterKeyHint="search" autoComplete="off" autoCorrect="off" spellCheck={false}
           value={value} onChange={e => onChange(e.target.value)} onFocus={onFocus}
+          // Escape puts the search away, as the close beside it did.
+          onKeyDown={e => { if (e.key === "Escape") { input.current?.blur(); onCancel(); } }}
           placeholder={placeholder} aria-label={placeholder} data-testid="search-airports"
           className="min-w-0 flex-1 bg-transparent text-foreground outline-none placeholder:text-muted-foreground [&::-webkit-search-cancel-button]:hidden"
         />
+        {/* What is typed cleared inside the field, as iOS's search field
+            clears it. */}
+        {value && (
+          <button
+            type="button" aria-label="Clear the search" data-testid="search-clear"
+            onClick={() => { onChange(""); input.current?.focus(); }}
+            className="grid size-5 shrink-0 place-items-center rounded-full bg-muted-foreground/50 text-background outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <X className="size-3" strokeWidth={3} />
+          </button>
+        )}
       </label>
-      {open || value ? (
-        <IconButton
-          label="Close the search" variant="secondary" className="rounded-full"
-          onClick={() => { input.current?.blur(); onCancel(); }} data-testid="search-close"
-        >
-          <X />
-        </IconButton>
-      ) : accessory}
+      {/* The console's button beside it however far out the sheet is, as
+          Maps keeps the account's beside its search: it was a close with
+          the sheet out, at the pilot's ask the console's button. The sheet
+          comes down by its grabber, a drag, or Escape. */}
+      {accessory}
     </form>
   );
 }
@@ -176,4 +245,10 @@ export function SearchResults({ query, onPick, places }: {
       ))}
     </ListGroup>
   );
+}
+
+/** The console's button where a panel's head puts it (ConsoleButtonContext):
+ *  under the route's close, as the search bar has it beside its field. */
+export function ConsoleButtonSlot() {
+  return <>{useContext(ConsoleButtonContext)}</>;
 }

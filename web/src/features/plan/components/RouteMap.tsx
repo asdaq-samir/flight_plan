@@ -15,7 +15,8 @@ import { CourseLine } from "../../../lib/map/CourseLine";
 import { FlownTrackLayer } from "../../../lib/map/FlownTrackLayer";
 import { Halo } from "../../../lib/map/Halo";
 import {
-  CHECKPOINT_LABEL_EM, CHECKPOINT_LABEL_GAP, CHECKPOINT_LABEL_HEIGHT, airportIcon, checkpointLabelIcon, dotIcon, legPointIcon, waypointIcon,
+  CHECKPOINT_LABEL_GAP, CHECKPOINT_LABEL_HEIGHT, airportChipWidth, airportIcon, checkpointLabelIcon, checkpointLabelWidth, dotIcon, legPointIcon,
+  waypointIcon,
 } from "../../../lib/map/icons";
 import { FocusOn } from "../../../lib/map/MapEffects";
 import { MapCard } from "../../../lib/map/MapCard";
@@ -185,6 +186,10 @@ function Endpoints({ course, weather, onSelectPoint, onSelectPlace }: {
           <Marker
             key={a.ident} position={[a.lat, a.lon]}
             icon={airportIcon(chipColourOf(w), a.ident, { classB: !!field })}
+            // Over the checkpoints' dots: the field the route leaves from or
+            // lands at is the one thing on the chart it must not lose --
+            // KMDW's chip lay under checkpoint 1's dot.
+            zIndexOffset={500}
             eventHandlers={{ click: e => { L.DomEvent.stopPropagation(e); onSelectPlace(a.ident); } }}
           >
             {hovers && <MapTooltip>{a.ident} · {a.name} · {w.category ?? "no report"}</MapTooltip>}
@@ -201,10 +206,13 @@ function Endpoints({ course, weather, onSelectPoint, onSelectPlace }: {
  *  checkpoints alone. Hovering previews the same card a tap opens, the way
  *  Class B airports do -- `useCardedMarker` takes the preview away once
  *  that marker's own popup is open, so the two never draw at once. */
-function Checkpoints({ candidates, selected, onSelectCandidate }: Pick<Props, "candidates" | "selected" | "onSelectCandidate">) {
+function Checkpoints({ candidates, selected, onSelectCandidate, airports }: Pick<Props, "candidates" | "selected" | "onSelectCandidate"> & {
+  /** The route's own airports, whose chips a name keeps off. */
+  airports: { ident: string; lat: number; lon: number }[];
+}) {
   const show = usePreferences(s => s.waypoints);
   const { carded, cardEvents } = useCardedMarker<string>();
-  const labelled = useLabelled(selected);
+  const labelled = useLabelled(selected, airports);
   if (!show) return null;
   return (
     <>
@@ -256,11 +264,14 @@ const labelOf = (c: Pick<Candidate, "waypoint" | "name">) => (c.waypoint ?? c.na
  * Which checkpoints' names fit beside their dots in the map as it is, and
  * on which side, in route order: after the dot, or before it where the
  * screen's edge or a name already placed is in the way; left out where
- * neither fits -- over a name or another checkpoint's dot -- until the
- * map is closer in, where ForeFlight piles them on one another along a
- * whole route. Worked out again as the map settles after a move.
+ * neither fits -- over a name, another checkpoint's dot or one of the
+ * route's airports' chips (FOREST VIEW lay over KMDW's) -- until the map
+ * is closer in, where ForeFlight piles them on one another along a whole
+ * route. Worked out again as the map settles after a move.
  */
-function useLabelled(selected: Candidate[]): Map<string, { name: string; side: "right" | "left" }> {
+function useLabelled(
+  selected: Candidate[], airports: { ident: string; lat: number; lon: number }[],
+): Map<string, { name: string; side: "right" | "left" }> {
   const map = useMap();
   const [view, setView] = useState(() => viewKey(map));
   // Memoized handlers: see Leaflet handler churn (AirportsLayer).
@@ -269,26 +280,31 @@ function useLabelled(selected: Candidate[]): Map<string, { name: string; side: "
     const width = Number(view.split(" ")[0]);
     const at = selected.map(c => map.latLngToContainerPoint([c.lat, c.lon]));
     const dots = at.map(p => L.bounds([p.x - 12, p.y - 12], [p.x + 12, p.y + 12]));
+    const chips = airports.map(a => {
+      const p = map.latLngToContainerPoint([a.lat, a.lon]), half = airportChipWidth(a.ident) / 2;
+      return L.bounds([p.x - half, p.y - 12], [p.x + half, p.y + 12]);
+    });
     const placed: L.Bounds[] = [];
     const kept = new Map<string, { name: string; side: "right" | "left" }>();
     selected.forEach((c, i) => {
       const name = labelOf(c);
       if (!name) return;
       const p = at[i]!;
-      const w = name.length * CHECKPOINT_LABEL_EM + 12;
+      const w = checkpointLabelWidth(name);
       const top = p.y - CHECKPOINT_LABEL_HEIGHT / 2, bottom = p.y + CHECKPOINT_LABEL_HEIGHT / 2;
       const sides = [
         { side: "right" as const, box: L.bounds([p.x + CHECKPOINT_LABEL_GAP, top], [p.x + CHECKPOINT_LABEL_GAP + w, bottom]) },
         { side: "left" as const, box: L.bounds([p.x - CHECKPOINT_LABEL_GAP - w, top], [p.x - CHECKPOINT_LABEL_GAP, bottom]) },
       ];
       const fits = sides.find(({ box }) => box.min!.x >= 0 && box.max!.x <= width
-        && !placed.some(b => b.intersects(box)) && !dots.some((d, j) => j !== i && d.intersects(box)));
+        && !placed.some(b => b.intersects(box)) && !dots.some((d, j) => j !== i && d.intersects(box))
+        && !chips.some(c => c.intersects(box)));
       if (!fits) return;
       placed.push(fits.box);
       kept.set(`${c.lat},${c.lon}`, { name, side: fits.side });
     });
     return kept;
-  }, [selected, view, map]);
+  }, [selected, airports, view, map]);
 }
 
 /** The map's width, zoom and centre: what decides where a label fits. */
@@ -341,6 +357,9 @@ export default function RouteMap({
   airportWeather, place, onSelectPlace, onAddStop, legs, heldPoint, onHoldPoint,
 }: Props) {
   const focusZoom = course?.max_zoom ?? 12;
+  // The route's airports, one array while the course is the same answer:
+  // the checkpoints' names keep off their chips.
+  const airports = useMemo(() => (course ? routeAirports(course) : []), [course]);
   // The fields that wear a chip of their own already: the route's two,
   // and the Class B ones while they are on (ClassBLayer).
   const showClassB = usePreferences(s => s.classB);
@@ -386,7 +405,7 @@ export default function RouteMap({
           <FlownTrackLayer course={course} />
           <Endpoints course={course} weather={airportWeather} onSelectPoint={onSelectPoint} onSelectPlace={onSelectPlace} />
           <LegPoints legs={legs} onSelectPoint={onSelectPoint} />
-          <Checkpoints candidates={candidates} selected={selected} onSelectCandidate={onSelectCandidate} />
+          <Checkpoints candidates={candidates} selected={selected} onSelectCandidate={onSelectCandidate} airports={airports} />
           {focus && <Halo at={focus} />}
           <FocusOn point={focus} zoom={focusZoom} />
         </>

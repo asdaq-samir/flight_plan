@@ -107,16 +107,15 @@ body:has([data-slot="map-panel"][data-sheet][data-panel="full"]) [data-map-contr
   }
 }
 
-/* The flight planning drawer's sections are collapsed by default on
-   screen -- a pilot skims titles and opens what they need. A printed
-   page is the opposite: every section has to be there whether or not
-   a pilot happened to click it open first, so NavLogView opens every
-   one in the browser's beforeprint event. */
+/* The flight planning panel shows one tab at a time on screen -- the
+   nav log, the weather, the airports. A printed page is the opposite:
+   every tab has to be there whether or not a pilot opened it, so
+   NavLogView lays every one out in the browser's beforeprint event. */
 @media print {
-  /* The sections are a shadcn Accordion, which opens with a height
-     animation; a print snapshot taken at its first frame would show
-     the section at no height at all, so on paper there is no
-     animation and every open section is its own height. */
+  /* An accordion inside one (a shadcn Accordion opens with a height
+     animation; a print snapshot taken at its first frame would show it
+     at no height at all), so on paper there is no animation and every
+     open section is its own height. */
   .flight-briefing [data-slot="accordion-content"],
   .flight-briefing [data-slot="accordion-content"] > div {
     animation: none !important;
@@ -216,6 +215,10 @@ body:has([data-slot="map-panel"][data-sheet][data-panel="full"]) [data-map-contr
   --primary: oklch(0.522 0.177 255.8);
   --primary-foreground: oklch(0.985 0 0);
   --tint: oklch(0.522 0.177 255.8);
+  /* The words of a dashed Class D or E pill (useAirspace): the
+     sectional's blue and magenta a shade darker, 4.5:1 on their wash. */
+  --airspace-blue-ink: #1d559c;
+  --airspace-magenta-ink: #962568;
   --secondary: oklch(0.97 0 0);
   --secondary-foreground: oklch(0.205 0 0);
   --muted: oklch(0.97 0 0);
@@ -260,6 +263,8 @@ body:has([data-slot="map-panel"][data-sheet][data-panel="full"]) [data-map-contr
   --primary: oklch(0.563 0.193 256.2);
   --primary-foreground: oklch(0.985 0 0);
   --tint: oklch(0.7 0.165 253);
+  --airspace-blue-ink: #8cb8f2;
+  --airspace-magenta-ink: #f0a0cf;
   --secondary: oklch(0.269 0 0);
   --secondary-foreground: oklch(0.985 0 0);
   --muted: oklch(0.269 0 0);

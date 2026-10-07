@@ -29,7 +29,7 @@ export const SCREENS: Screen[] = [
     name: "flight planning drawer",
     ready: async page => {
       await page.goto(`/app/plan?${ROUTE}&view=briefing`);
-      await expect(page.getByRole("button", { name: /^Nav Log/ })).toBeVisible({ timeout: slow(30000) });
+      await expect(page.getByRole("tab", { name: "Nav Log" })).toBeVisible({ timeout: slow(30000) });
       // Save enabled, as on the map: not judged fading in.
       await expect(page.getByTestId("save-flight-button")).toBeEnabled({ timeout: slow(30000) });
     },
@@ -38,7 +38,7 @@ export const SCREENS: Screen[] = [
     name: "nav log, a leg open",
     ready: async page => {
       await page.goto(`/app/plan?${ROUTE}&view=briefing`);
-      await page.getByRole("button", { name: /^Nav Log/ }).click();
+      await page.getByRole("tab", { name: "Nav Log" }).click();
       await page.getByTestId("fuel-check").waitFor({ timeout: slow(120000) });
       // A tap's click, without Playwright's own scroll into view first:
       // where the table is wider than its drawer (every column, on a
@@ -163,7 +163,7 @@ export const SCREENS: Screen[] = [
         }) + "\n",
       }));
       await page.goto(`/app/plan?${ROUTE}&view=briefing`);
-      await page.getByTestId("route-problem-title").click({ timeout: slow(30000) });
+      await page.getByTestId("altitude-why").click({ timeout: slow(30000) });
       await expect(page.getByTestId("unflyable-fly-via")).toBeVisible();
     },
   },
@@ -194,9 +194,7 @@ export const SCREENS: Screen[] = [
     name: "local flight",
     ready: async page => {
       await page.goto("/app/plan?dep=C81&dest=C81&view=briefing");
-      const section = page.locator("[data-slot=accordion-header]").filter({ hasText: "Local Flight" });
-      await expect(section).toContainText("Aloft", { timeout: slow(30000) });
-      await section.getByRole("button", { name: "Local Flight", exact: true }).click();
+      await expect(page.locator('[data-slot="section-summary"]').first()).toContainText("Aloft", { timeout: slow(30000) });
       await expect(page.getByTestId("fuel-check")).toBeVisible();
     },
   },

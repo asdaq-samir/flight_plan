@@ -61,7 +61,7 @@ test("a flight is filed once, whole, and a new plan is offered for saving again"
 test("signed out, there is nothing to save", async ({ page }) => {
   await page.route("**/api/me", route => route.fulfill({ status: 401, body: "" }));
   await page.goto("/app/plan?dep=C81&dest=KDLH&view=briefing");
-  // Print showing means the page is not hidden behind a console: while
+  // More showing means the page is not hidden behind a console: while
   // one is up, the page under it is out of reach of the queries below.
   await expect(page.getByTestId("print-button")).toBeVisible({ timeout: 30_000 });
   await expect(page.getByRole("button", { name: /Save this flight/ })).toHaveCount(0);
@@ -79,9 +79,8 @@ test("opening a saved flight puts its route in the header, and Load plans that r
   await openPanel(page);
   await expect(page.getByLabel("Departure", { exact: true })).toContainText("C81", { timeout: 15_000 });
 
-  // The console is on the search bar: the route lowered and closed first.
+  // The console's button is at the end of the route's capsule, lowered.
   await page.getByTestId("sidebar-trigger-button").click();
-  await page.getByTestId("clear-route").click();
   await page.getByTestId("settings-button").click();
   await library(page, "Flights");
   // The row opens the flight's page; Open on the map is the way in, and
@@ -124,11 +123,13 @@ test("Edit over the saved flights puts a minus before each, and the minus delete
   expect(removed).toEqual(["DELETE"]);
 });
 
-test("Print is a button beside the route; Keep Charts Offline is a setting under Map, which cannot be on over plain http", async ({ page }) => {
+test("Print is a round button beside Share; Keep Charts Offline is a setting under Map, which cannot be on over plain http", async ({ page }) => {
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await openPanel(page);
-  await expect(page.getByRole("button", { name: "Print the nav log" })).toBeVisible();
-  await expect(page.getByTestId("plan-more-button")).toHaveCount(0);
+  await page.getByTestId("print-button").click();
+  await expect(page.getByTestId("print-briefing")).toBeVisible();
+  await expect(page.getByTestId("print-kneeboard")).toBeVisible();
+  await page.keyboard.press("Escape");
 
   // From the search bar, the route closed.
   await page.goto("/app/plan");

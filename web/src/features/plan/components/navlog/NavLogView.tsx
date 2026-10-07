@@ -1,41 +1,54 @@
-import { Fragment, createContext, useCallback, useContext, useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { Fragment, useCallback, useContext, useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { flushSync } from "react-dom";
 import { cn } from "cn";
-import { CircleHelp, Loader2, WandSparkles } from "lucide-react";
+import { CloudSun, Gauge, ListOrdered, Loader2, Sparkles, TowerControl, WandSparkles } from "lucide-react";
 import {
   type CellData, type ColumnDef, type RowData, type TableFeatures,
   flexRender, tableFeatures, useTable,
 } from "@tanstack/react-table";
 import { NoteRow, SelectableRow } from "../../../../components/SelectableRows";
-import { Accordion } from "../../../../components/ui/accordion";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../../../components/ui/tabs";
+import { SectionsOpen } from "../../../../components/sectionLayout";
+import { PanelHalfContext } from "../../../../components/mapChrome";
+import { LINE_TAB } from "../../../../components/lineTabs";
 import { ListGroup, ListRow } from "../../../../components/GroupedList";
 import IconButton from "../../../../components/IconButton";
-import { Button } from "../../../../components/ui/button";
-import { Input } from "../../../../components/ui/input";
-import { ResponsivePopover, ResponsivePopoverContent, ResponsivePopoverTrigger } from "../../../../components/ResponsivePopover";
 import { Textarea } from "../../../../components/ui/textarea";
-import AltitudeReasoning from "../AltitudeReasoning";
 import {
   Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow,
 } from "../../../../components/ui/table";
-import type { AltitudeChoice, Candidate, Leg, NavLogAltitude, Totals, TopOfClimb, TopOfDescent } from "../../../../lib/api/types";
+import type { Candidate, Leg, NavLogAltitude, Totals, TopOfClimb, TopOfDescent } from "../../../../lib/api/types";
 import { feet } from "../../../../lib/units";
 import { routeName } from "../../../../lib/identSchema";
+import { textWidth } from "../../../../lib/textWidth";
+import { useRoom } from "../../../../lib/useRoom";
 import { revealRow } from "../../../../lib/revealRow";
 import { TEXT } from "../../../../lib/text";
 import { type Description, descriptionKey } from "../../hooks/useCheckpointNotes";
-import { altFt, clockTime, deg, describeFuel, describeSteps, describeTime, etaAt, one, signed, totalsParts } from "../../format";
-import AccordionSection from "../../../../components/AccordionSection";
+import { altFt, clockTime, deg, etaAt, one, signed, totalsParts } from "../../format";
 import { Spinner } from "../../../../components/ui/spinner";
-import { BRIEFING_SECTIONS } from "../briefing/sections";
+import type { BriefingPart } from "../briefing/sections";
 import { isLegPoint, legOf, navLogRows, rowPoint, type NavLogRow, type RouteEnds } from "./rows";
 import LegWorkings from "./LegWorkings";
 import DiversionDrill from "./DiversionDrill";
 import RouteProfileSection from "./RouteProfileSection";
 
-/** Every section of the drawer, the nav log's own first: what the
- *  printer gets, whatever is open on screen. */
-const ALL_SECTIONS = ["Nav Log", "Local Flight", "Profile", ...BRIEFING_SECTIONS];
+/** The panel's tabs, in the pilot's order: the Nav Log (the route's
+ *  profile under it: the same legs from the side), the Brief, the Weather,
+ *  the aeroplane's Performance and the Airports -- each an icon over its
+ *  word, as iOS's tab bar draws one, so all five fit a phone's line at any
+ *  text size, where six words did not at the pilot's. */
+type PanelTab = Exclude<BriefingPart, "profile"> | "navlog";
+const TABS: { value: PanelTab; label: string; icon: ReactNode }[] = [
+  { value: "navlog", label: "Nav Log", icon: <ListOrdered /> },
+  { value: "brief", label: "Brief", icon: <Sparkles /> },
+  { value: "weather", label: "Weather", icon: <CloudSun /> },
+  { value: "performance", label: "Performance", icon: <Gauge /> },
+  { value: "airports", label: "Airports", icon: <TowerControl /> },
+];
+/** On paper every tab, one after another: the nav log first, as a
+ *  pilot flies from it. */
+const PRINTED: PanelTab[] = ["navlog", "weather", "airports", "performance", "brief"];
 
 // TanStack Table's own extension point for arbitrary per-column data --
 // used below to carry each numeric column's shared className (bordered,
@@ -59,23 +72,10 @@ const navLogTableFeatures = tableFeatures({});
 interface Props {
   totals: Totals | null;
   nav: NavLogAltitude | null;
-  /** Picks one of the four plans (lowest, highest, fastest, economical) in the
-   *  altitude's own popover, which re-plans; which one is flown is the
-   *  nav log's own `choice`. */
-  onAltitudeChoiceChange: (choice: AltitudeChoice) => void;
   /** The departure time as an ISO instant, or "" for about now --
    *  set here, where its ETAs show; changing it re-plans, since the
    *  winds forecast period follows it. */
   depart: string;
-  /** The pilot's own cruise-altitude override -- lives here, not the
-   *  map header's route form, since this is where the *result*
-   *  (`nav.altitude_ft`/`nav.altitude_selection`) already shows: typing
-   *  a new one and seeing what it changes is one place, not two. Wired
-   *  to the same `onSubmit` PlanWorkspace's own "Load" button calls, so
-   *  Enter here re-plans the exact same way that button does. */
-  alt: string;
-  onAltChange: (v: string) => void;
-  onSubmit: () => void;
   /** The aeroplane the log is computed for, by name -- chosen in the
    *  panel's controls (FlightInputs), named here on paper. */
   aircraftLabel: string;
@@ -109,18 +109,22 @@ interface Props {
    *  been clicked. */
   onGenerateDescriptions: () => void;
   descriptionsLoading: boolean;
-  /** The briefing's sections, rendered under the nav log's own
-   *  section in the same scroller. */
+  /** The briefing's sections for each tab but the nav log's own
+   *  (FlightBriefingView's parts, and the Brief's narrative). */
+  tabContent: (part: BriefingPart) => ReactNode;
+  /** Beside the tabs, out of sight: Print's kneeboard card. */
   children?: ReactNode;
+  /** Tabs whose part has a warning, a red mark on each. */
+  marks?: Partial<Record<PanelTab, boolean>>;
   /** What must be seen on opening the drawer, above every section
    *  (the briefing's warnings). */
   notice?: ReactNode;
   /** The drawer's last line, under every section (the planning-aid
    *  reminder). */
   footer?: ReactNode;
-  /** Beside the Nav Log's title, folded or open: a mark that opens to a
-   *  note (a tight altitude, no legal altitude: TitleNote). */
-  titleNote?: ReactNode;
+  /** What stops the plan, in a few words, said in red on the flight's line
+   *  in place of its figures (no legal altitude's brief). */
+  problem?: string | null;
   /** What is being worked on, with the panel out: said on the section's
    *  line, under its title, in place of the toast over the map. */
   progress?: string | null;
@@ -234,10 +238,10 @@ export function DescriptionCell({
  * a point on the map (or another row) scrolls this one into view --
  * the same two-way link the old checkpoint list had.
  *
- * This panel is the briefing: PlanWorkspace passes the briefing's sections
- * as `children` (its actions are beside the route, MapPage), and the nav
- * log is the first section of it, with the totals, the altitude and the fuel
- * check above the table. The two inputs the log is computed from, the
+ * This panel is the briefing, in tabs: the nav log's own first -- the
+ * totals above the table, the fuel check and the route's profile under
+ * it -- and the briefing's parts in the others, from PlanWorkspace
+ * (`tabContent`: FlightBriefingView's parts and the Brief's narrative). The two inputs the log is computed from, the
  * aeroplane and the departure time, are the panel's controls
  * (FlightInputs). The briefing
  * used to draw its own read-only copy of the table, and the two
@@ -323,86 +327,6 @@ function Heading({ name, unit, spoken }: { name: string; unit?: string; spoken: 
   );
 }
 
-/** The pilot's own altitude, one number for the whole route: a row under
- *  the four plans, pressed while it is what the log flies. Enter or Fly
- *  re-plans at it; the stock Input's 16px below md keeps a phone from
- *  zooming. */
-function CustomAltitude({ alt, onAltChange, onSubmit, pressed }: {
-  alt: string;
-  onAltChange: (v: string) => void;
-  onSubmit: () => void;
-  pressed: boolean;
-}) {
-  return (
-    <form
-      className={cn(
-        "flex items-center gap-2 rounded-md border px-2 py-1.5",
-        pressed ? "border-primary bg-primary text-primary-foreground" : "border-input",
-      )}
-      onSubmit={e => { e.preventDefault(); onSubmit(); }}
-      aria-label="Custom altitude"
-    >
-      <span className={cn("font-semibold", TEXT.row)}>Custom</span>
-      <Input
-        value={alt}
-        onChange={e => onAltChange(e.target.value)}
-        placeholder="ft"
-        inputMode="numeric"
-        spellCheck={false}
-        aria-label="Cruise altitude, feet"
-        className="ml-auto h-8 w-24 bg-background text-right text-foreground"
-        data-testid="custom-altitude"
-      />
-      <Button
-        type="submit" size="sm" variant={pressed ? "secondary" : "outline"}
-        disabled={!alt.trim()} data-testid="custom-altitude-fly"
-      >
-        Fly
-      </Button>
-    </form>
-  );
-}
-
-/** What the Alt column's heading opens (NavLogView's altitudePlans) and
- *  the altitude it is named with, handed down to a heading of a fixed
- *  identity: a heading made in each render is a new component to React
- *  each time, so the sheet it held closed whenever the log re-rendered
- *  -- a leg streaming in, a note saved. */
-const AltPlans = createContext<{ plans: ReactNode; label: string | null }>({ plans: null, label: null });
-
-/** The Alt column's heading: the button that opens how the altitude was
- *  chosen -- the four plans, the pilot's own, and why -- in the tint with
- *  the question mark the row over the table had ("Altitude 3,000 ft ⓘ"),
- *  as the pilot asked, and named with the figure. Before the log has an
- *  altitude, and on paper, the plain heading; the column under it says
- *  each leg's. */
-function AltHeading() {
-  const { plans, label } = useContext(AltPlans);
-  return (
-    <>
-      {plans && (
-        <ResponsivePopover>
-          <ResponsivePopoverTrigger asChild>
-            <Button
-              variant="ghost" size="xs"
-              className={cn("-mr-1 h-auto flex-col items-end gap-0 px-1 py-0.5 leading-tight print:hidden", HEADING)}
-              aria-label={`Altitude${label ? `, ${label}` : ""}: how it was chosen`}
-              data-testid="altitude-why"
-            >
-              <span className="inline-flex items-center gap-1">Alt<CircleHelp className="size-[1em]" /></span>
-              <span className={UNIT}>ft</span>
-            </Button>
-          </ResponsivePopoverTrigger>
-          {plans}
-        </ResponsivePopover>
-      )}
-      <span className={plans ? "hidden print:inline" : undefined}>
-        <Heading name="Alt" unit="ft" spoken="Altitude, feet" />
-      </span>
-    </>
-  );
-}
-
 /** The leg's true airspeed, in its own air (the planner's
  *  vfr.performance): it varies with the altitude and the forecast
  *  temperature, so each leg has its own. A dash from a planner that did
@@ -412,28 +336,14 @@ function tas(leg: Leg): string {
 }
 
 export default function NavLogView({
-  totals, nav, onAltitudeChoiceChange, depart,
+  totals, nav, depart,
   legs, dep, dest, ends,
   selected, descriptions, onSaveDescription,
-  onGenerateDescriptions, descriptionsLoading, children, notice, footer, titleNote, local = false, progress = null,
-  selectedPoint, onSelectPoint, onDeselectPoint, drawerOpen, alt, onAltChange, onSubmit,
+  onGenerateDescriptions, descriptionsLoading, tabContent, children, marks, notice, footer, local = false, progress = null, problem = null,
+  selectedPoint, onSelectPoint, onDeselectPoint, drawerOpen,
   aircraftLabel,
 }: Props) {
   const parts = totals ? totalsParts(totals) : null;
-  // The altitude the log flies: "2,500 ft", or "2,500–6,500 ft" for a
-  // plan that steps; and, when the winds could not be read, no altitude
-  // at all -- that used to read "0 ft · yours", with Custom pressed, for
-  // an altitude nobody typed. The figure alone: which plan it is, or
-  // that it is the pilot's own, is the pressed row in the popover it
-  // opens, and "· fastest" after every altitude was a word in the way.
-  const flownPlan = nav?.options.find(o => o.kind === nav.flown);
-  const flownAltitudes = !nav ? [] : flownPlan ? flownPlan.steps.map(st => st.altitude_ft) : nav.altitude_ft !== null ? [nav.altitude_ft] : [];
-  const altitudeRange = flownAltitudes.length === 0
-    ? null
-    : flownAltitudes.length > 1 && Math.min(...flownAltitudes) !== Math.max(...flownAltitudes)
-      ? `${altFt(Math.min(...flownAltitudes))}–${altFt(Math.max(...flownAltitudes))} ft`
-      : `${altFt(flownAltitudes[0])} ft`;
-  const altitudeLabel = nav?.flown === null ? "No altitude: no winds" : altitudeRange;
   // The nav log's section in one line under its title, folded or open,
   // as every section's is: the distance, the arrival and the fuel. Inside,
   // it is not said again; the altitude is the first row there (and the
@@ -447,48 +357,71 @@ export default function NavLogView({
   // (3h 22m)", as the pilot asked -- from the departure time picked, or
   // from now while it is "Now", which is what the plan is flown for then.
   const arrival = totals?.ete_min != null ? etaAt(depart || new Date().toISOString(), totals.ete_min) : null;
-  const foldedSummary = parts && (
-    <span className="pointer-coarse:text-[0.8125rem] pointer-coarse:leading-[1.125rem]">
-      {(local ? [
-        ["Aloft", parts.time],
-        ["Back", arrival ?? "—"],
-        ["Fuel", parts.fuel],
-      ] as const : [
-        ["Dist", parts.distance],
-        ["ETA", arrival ? `${arrival} (${parts.time})` : parts.time],
-        ["Fuel", parts.fuel],
-      ] as const).map(([name, figure], i) => (
-        <Fragment key={name}>{i > 0 && " · "}<span className="whitespace-nowrap" data-testid={name === "ETA" ? "navlog-eta" : undefined}>{name} {figure}</span></Fragment>
-      ))}
-    </span>
-  );
+  // On one line, at the pilot's ask: the figures as they are while they
+  // fit, the distance and the fuel rounded to whole ones where they do not
+  // (a long trip's "2636.8 nm" and "187.9 gal"), and past that cut short.
+  const figures = (whole: boolean) => !parts || !totals ? null : (local ? [
+    ["Aloft", parts.time],
+    ["Back", arrival ?? "—"],
+    ["Fuel", whole && totals.fuel_gal !== null ? `${Math.round(totals.fuel_gal)} gal` : parts.fuel],
+  ] as const : [
+    ["Dist", whole ? `${Math.round(totals.distance_nm)} nm` : parts.distance],
+    ["ETA", arrival ? `${arrival} (${parts.time})` : parts.time],
+    ["Fuel", whole && totals.fuel_gal !== null ? `${Math.round(totals.fuel_gal)} gal` : parts.fuel],
+  ] as const);
+  const [summaryRoom, room] = useRoom<HTMLSpanElement>();
+  const exact = figures(false);
+  const whole = !!exact && !!room && (textWidth(exact.map(([n, f]) => `${n} ${f}`).join(" · "), room.font) ?? 0) > room.width;
+  const foldedSummary = exact && (figures(whole) ?? exact).map(([name, figure], i) => (
+    <Fragment key={name}>{i > 0 && " · "}<span data-testid={name === "ETA" ? "navlog-eta" : undefined}>{name} {figure}</span></Fragment>
+  ));
   // While something is worked on, the line says what, with a spinner:
   // the summary once it is done.
   const progressLine = progress && (
-    <span className="flex items-center gap-1.5 pointer-coarse:text-[0.8125rem] pointer-coarse:leading-[1.125rem]" role="status" data-testid="navlog-progress">
-      <Spinner className="size-3.5 shrink-0" role="presentation" aria-label={undefined} aria-hidden />
-      <span className="min-w-0">{progress}</span>
+    <span role="status" data-testid="navlog-progress">
+      <Spinner className="mr-1.5 inline size-3.5 align-[-0.125em]" role="presentation" aria-label={undefined} aria-hidden />
+      {progress}
     </span>
   );
-  // Which sections are open: none to begin with (a pilot skims the
-  // titles and opens what applies), and for the printer every one --
-  // the paper is the whole briefing whatever was open on screen.
-  // Opened in the browser's own beforeprint event, flushed before it
-  // lays the page out, and put back after.
-  const [open, setOpen] = useState<string[]>([]);
-  // Except the nav log's own, when the drawer opens with a checkpoint
-  // picked on the map, or one is picked with the drawer open: that is
-  // what the pilot opened it to see, and it used to sit behind a
-  // closed title. Once per such pick -- a section the pilot then
-  // closes stays closed until the next pick or the next opening. State
-  // adjusted during render, React's own pattern for a change of props,
-  // rather than an effect that would render the drawer twice.
+  // Which tab is up: the nav log's to begin with -- the Brief's narrative
+  // is a billed call, asked for when its tab is opened -- and the nav
+  // log's again when the drawer opens with a checkpoint picked on the map,
+  // or one is picked with it open: that is what the pilot opened it to
+  // see. Once per such pick; state adjusted during render, React's own
+  // pattern for a change of props, rather than an effect that would
+  // render the drawer twice.
+  const [tab, setTab] = useState<PanelTab>("navlog");
   const pick = drawerOpen && selectedPoint ? descriptionKey(selectedPoint.lat, selectedPoint.lon) : null;
   const [openedFor, setOpenedFor] = useState<string | null>(null);
   if (pick !== openedFor) {
     setOpenedFor(pick);
-    if (pick && !open.includes("Nav Log")) setOpen([...open, "Nav Log"]);
+    if (pick && tab !== "navlog") setTab("navlog");
   }
+  // For the printer every tab, one after another -- the paper is the
+  // whole briefing whatever was up on screen: set in the browser's own
+  // beforeprint event, flushed before it lays the page out, and put back
+  // after.
+  // At half, the panel just tall enough for the flight's line under the
+  // route (PanelHalfContext, exact), the chart above it, at the pilot's
+  // ask -- the tabs and the rest a drag up. Measured, since the text size
+  // changes it.
+  const halfNeeds = useContext(PanelHalfContext);
+  const [root, setRoot] = useState<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!root || !halfNeeds) return;
+    const measure = () => {
+      // Hidden under an airport's card (PlanWorkspace), the card says.
+      if (!root.offsetParent) return;
+      // Down to the flight's line, the tabs and the log a drag up.
+      const line = root.querySelector("[data-half-line]");
+      if (!line) return;
+      halfNeeds(Math.round(line.getBoundingClientRect().bottom - root.getBoundingClientRect().top), true);
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(root);
+    return () => { observer.disconnect(); halfNeeds(null); };
+  }, [root, halfNeeds, tab]);
   const [printing, setPrinting] = useState(false);
   useEffect(() => {
     const before = () => flushSync(() => setPrinting(true));
@@ -518,46 +451,6 @@ export default function NavLogView({
   // ceiling, the rule, the weather checked) rather than a bare "(auto)".
   // The briefing's Cruise Altitude section carries the same steps onto
   // the paper.
-  const altitudePlans = nav && (
-    // On a phone a sheet from the header's edge: as a popover it was
-    // 70% of the screen, scrolling inside.
-    <ResponsivePopoverContent title="How the altitude was chosen" align="start" className="w-80">
-      {/* The four plans first, each a button with its time
-          and fuel: the pilot picks one and the log re-plans
-          on it. Then why. */}
-      <div className="mb-3 space-y-1.5" role="group" aria-label="Cruise altitude plans">
-        <div className={cn("font-semibold uppercase tracking-wide text-muted-foreground", TEXT.note)}>Four plans, or your own</div>
-        {nav.options.map(o => (
-          <Button
-            key={o.kind} type="button" size="sm"
-            variant={o.kind === nav.flown ? "default" : "outline"}
-            aria-pressed={o.kind === nav.flown}
-            // A choice in a list, as iOS draws one: its words
-            // in the text's colour, the one flown filled in
-            // the tint -- not four outlined buttons in blue --
-            // and its words whole on the fill (white at 80%
-            // on the blue was 4.1:1).
-            className={cn("h-auto w-full justify-between gap-3 whitespace-normal py-1.5 text-left", o.kind !== nav.flown && "text-foreground")}
-            onClick={() => onAltitudeChoiceChange(o.kind)}
-            data-testid={`altitude-plan-${o.kind}`}
-          >
-            <span>
-              <span className={cn("font-semibold capitalize", TEXT.row)}>{o.kind}</span>
-              <span className={cn("block font-normal", TEXT.detail, o.kind !== nav.flown && "opacity-80")}>{describeSteps(o)}</span>
-            </span>
-            <span className={cn("shrink-0 text-right tabular-nums", TEXT.detail)}>
-              {describeTime(o)}
-              <span className={cn("block", o.kind !== nav.flown && "opacity-80")}>{describeFuel(o)}</span>
-            </span>
-          </Button>
-        ))}
-        <CustomAltitude alt={alt} onAltChange={onAltChange} onSubmit={onSubmit} pressed={nav.flown === "custom"} />
-      </div>
-      <div className={cn("mb-2 font-semibold uppercase tracking-wide text-muted-foreground", TEXT.note)}>How the altitude was chosen</div>
-      <AltitudeReasoning nav={nav} legs={legs} />
-    </ResponsivePopoverContent>
-  );
-
   // On screen the table keeps five columns -- the waypoint, altitude,
   // distance, magnetic heading and ETE (and the ETA with a departure
   // time) -- and the others, which had it fourteen wide and scrolling
@@ -611,9 +504,10 @@ export default function NavLogView({
     },
     {
       id: "alt",
-      // How its altitudes were chosen opens from the column's own head
-      // (AltHeading).
-      header: AltHeading,
+      // How its altitudes were chosen opens from the altitude's own chip
+      // beside the aeroplane (AltitudeButton), at the pilot's ask: it was
+      // this column's head, out of sight with the panel down.
+      header: () => <Heading name="Alt" unit="ft" spoken="Altitude, feet" />,
       // The last row lands at the destination -- shows its field
       // elevation, known immediately, rather than a cruise altitude.
       // A checkpoint's row shows the altitude of the leg that arrives
@@ -763,8 +657,9 @@ export default function NavLogView({
   // NOTAMs further down used to scroll the drawer back up to the
   // selected row. And on the drawer opening: beside a desktop map the
   // view is mounted, and its rows laid out, while the drawer is
-  // closed, so a row revealed then was revealed off screen.
-  const navLogOpen = open.includes("Nav Log");
+  // closed, so a row revealed then was revealed off screen. (Its tab
+  // now, where it was its section.)
+  const navLogOpen = tab === "navlog";
   useEffect(() => revealRow(selectedRef.current), [selectedPoint, navLogOpen, drawerOpen]);
   const isSelected = (lat: number, lon: number) =>
     !!selectedPoint && descriptionKey(lat, lon) === descriptionKey(selectedPoint.lat, selectedPoint.lon);
@@ -779,7 +674,6 @@ export default function NavLogView({
   // nothing scrolls: every column is laid out for the browser to
   // paginate.
   const navLogTable = (
-    <AltPlans.Provider value={{ plans: altitudePlans, label: altitudeLabel }}>
     <div ref={watchFit}>
     <Table
       containerClassName={cn(fits ? "overflow-x-visible" : "overflow-x-auto", "print:overflow-visible")}
@@ -901,7 +795,6 @@ export default function NavLogView({
       </TableBody>
     </Table>
     </div>
-    </AltPlans.Provider>
   );
 
   // What has to be said over the table, as rows: legs flown without wind,
@@ -984,7 +877,7 @@ export default function NavLogView({
     // is no viewport to clip to, and a route long enough to scroll
     // would otherwise print only whatever page's worth happened to be
     // visible.
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden print:h-auto print:overflow-visible">
+    <Tabs ref={setRoot} value={tab} onValueChange={value => setTab(value as PanelTab)} className="flex min-h-0 flex-1 flex-col gap-0 overflow-hidden print:h-auto print:overflow-visible">
       {/* Printed, this header is the briefing's title: the panel's own
           head (the route form, the aeroplane and the departure time) is
           print:hidden, so they are named here instead, as a line of
@@ -1001,44 +894,77 @@ export default function NavLogView({
           {depart && ` · departing ${new Date(depart).toLocaleDateString([], { weekday: "short", day: "numeric", month: "short" })} ${clockTime(new Date(depart))}`}
         </div>
       </div>
-      {/* One stock accordion for the whole drawer: the nav log's own
-          section first (the summary, the table, the fuel check under
-          it), the briefing's
-          sections after it (`children`). Every section starts closed:
-          the drawer opens as the list of what the briefing holds, and
-          a pilot opens what they want on its title, rather than
-          landing in twenty rows of numbers with the weather somewhere
-          below. `flight-briefing`: index.css's print rules keep the
-          opened sections laid out on paper. */}
+      {/* The flight in one line, over the tabs whichever is up, at the
+          pilot's ask: the distance, the arrival and the fuel (rounded to
+          fit, above), or what is being worked on, cut short past the
+          line's end. */}
+      <div className="flex shrink-0 items-center px-[max(1rem,env(safe-area-inset-left))] pb-2" data-half-line="">
+        <span
+          ref={summaryRoom} data-slot="section-summary"
+          className={cn(TEXT.prose, "min-w-0 flex-1 truncate text-muted-foreground pointer-coarse:text-[0.8125rem] pointer-coarse:leading-[1.125rem]")}
+        >
+          {progressLine ?? (problem ? <span className="text-red-700 dark:text-red-300" data-testid="navlog-problem">{problem}</span> : foldedSummary)}
+        </span>
+      </div>
+      {/* The panel's tabs, at the pilot's ask: one thing at a time, where
+          one accordion held every section, the nav log's first. The stock
+          line tabs, as the consoles' (ConsoleTabs), over the scroller so
+          they stay as it scrolls: an icon over its word, the word at iOS
+          tab bar's own fixed size (it does not grow with the text, as
+          iOS's does not), so the five share the line evenly. A tab whose
+          part has a warning -- VFR not recommended, a TFR on the route, a
+          raised risk -- carries a red mark, as the sections' titles did. */}
+      <TabsList
+        variant="line"
+        className="h-auto w-full shrink-0 gap-0 border-b border-border px-[max(0.25rem,env(safe-area-inset-left))] group-data-[orientation=horizontal]/tabs:h-auto pointer-coarse:group-data-[orientation=horizontal]/tabs:h-auto print:hidden"
+      >
+        {TABS.map(t => (
+          <TabsTrigger
+            key={t.value} value={t.value} data-testid={`panel-tab-${t.value}`}
+            className={cn(LINE_TAB, "min-w-0 flex-1 flex-col gap-0.5 px-0.5 py-1.5 text-[11px] leading-tight pointer-coarse:text-[11px] pointer-coarse:max-[374px]:text-[11px] max-[374px]:px-0 [&_svg]:size-5")}
+          >
+            <span className="relative">
+              {t.icon}
+              {marks?.[t.value] && <span className="absolute -top-0.5 -right-1 size-2 rounded-full bg-destructive" data-testid={`panel-tab-mark-${t.value}`} />}
+            </span>
+            {/* "Local" for one airport to itself: "Local Flight" came
+                within 16 points of the panel's side. */}
+            <span className="truncate">{t.value === "navlog" && local ? "Local" : t.label}</span>
+          </TabsTrigger>
+        ))}
+      </TabsList>
       <div
         // The bottom inset clears the home indicator on an installed
         // app, so the last section's content is not under it.
-        // `@container`: the summary line below keeps to one line from
-        // 18rem of this width -- a container query, so with the text
-        // set larger (the root font size up, the rem with it) the line
-        // wraps rather than running off the edge.
+        // `flight-briefing`: index.css's print rules lay every tab out on
+        // paper.
         className="flight-briefing @container min-h-0 flex-1 overflow-auto pr-4 pb-[env(safe-area-inset-bottom)] pl-[max(1rem,env(safe-area-inset-left))] print:h-auto print:overflow-visible print:pb-0"
         data-testid="navlog-scroller"
       >
         {notice}
-        <Accordion type="multiple" value={printing ? ALL_SECTIONS : open} onValueChange={setOpen}>
-          {local ? (
-            <AccordionSection title="Local Flight" summary={progressLine ?? foldedSummary}>
-              {fuelNote}
-            </AccordionSection>
-          ) : (
-            <AccordionSection title="Nav Log" summary={progressLine ?? foldedSummary} aside={titleNote}>
-              {summary}
-              {navLogTable}
-              {fuelNote}
-              {hopsNote}
-            </AccordionSection>
-          )}
-          {!local && ends && <RouteProfileSection ends={ends} rows={data} wanted={printing || open.includes("Profile")} />}
-          {children}
-        </Accordion>
+        <SectionsOpen.Provider value>
+          {(printing ? PRINTED : [tab]).map(t => (
+            <TabsContent key={t} value={t} forceMount={printing || undefined} className="mt-0" data-testid={`panel-${t}`}>
+              {t === "navlog" ? (
+                <section aria-label={local ? "Local Flight" : "Nav Log"} className={TEXT.prose}>
+                  {!local && summary}
+                  {!local && navLogTable}
+                  {fuelNote}
+                  {!local && hopsNote}
+                  {/* The same legs from the side, and the figures the
+                      altitude was chosen within: asked for once the log is
+                      whole, so its terrain read does not hold up the legs'
+                      (the planner is one process). */}
+                  {!local && ends && <RouteProfileSection ends={ends} rows={data} wanted={!!totals || printing} />}
+                  {!local && tabContent("profile")}
+                </section>
+              ) : tabContent(t)}
+            </TabsContent>
+          ))}
+        </SectionsOpen.Provider>
         {footer}
       </div>
-    </div>
+      {children}
+    </Tabs>
   );
 }

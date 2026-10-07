@@ -28,10 +28,10 @@ export class ApiError extends Error {
   /** `reasons` and `advice`: why, and what to do, where the server says
    *  (a nav log with no legal altitude), apart from the message;
    *  `classB`, Class B airspace is what stops it, and `detours` the
-   *  waypoints round it, best first. */
+   *  waypoints round it, best first; `brief`, all of it in a few words. */
   constructor(
     message: string, readonly status: number, readonly reasons: string[] = [], readonly advice: string | null = null,
-    readonly classB = false, readonly detours: Detour[] = [],
+    readonly classB = false, readonly detours: Detour[] = [], readonly brief: string | null = null,
   ) {
     super(message);
     this.name = "ApiError";
@@ -203,7 +203,8 @@ export const api = {
    */
   async *navlog(
     dep: string, dest: string, altitudeFt?: string, aircraft?: AircraftChoice, altitudeChoice?: AltitudeChoice,
-    depart?: string, signal?: AbortSignal, stops?: string[], classBClearance?: boolean,
+    depart?: string, signal?: AbortSignal, stops?: string[], classBClearance?: boolean, altitudes?: string,
+    checkpoints = true,
   ): AsyncGenerator<NavLogMessage> {
     const result = await planner.GET("/api/navlog", {
       params: {
@@ -220,6 +221,8 @@ export const api = {
           cruise_power_pct: aircraft?.cruisePowerPct,
           depart: depart || undefined,
           class_b_clearance: classBClearance || undefined,
+          altitudes: altitudes || undefined,
+          checkpoints: checkpoints ? undefined : false,
         },
       },
       parseAs: "stream", signal,

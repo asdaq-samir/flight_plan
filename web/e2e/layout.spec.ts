@@ -65,6 +65,15 @@ test.describe("/app/plan", () => {
     await settle(page);
     await expect(page.getByTestId("capsule-title")).toHaveText("C81 → KDLH");
     await expectDrawerClosed(page);
+    // At rest, Share at the capsule's start and the console's button at
+    // its end, the route between them.
+    const [share, title, gear] = await Promise.all(["share-route", "capsule-title", "settings-button"]
+      .map(id => sideDrawer(page).getByTestId(id).boundingBox()));
+    expect(share!.x + share!.width).toBeLessThanOrEqual(title!.x);
+    expect(title!.x + title!.width).toBeLessThanOrEqual(gear!.x);
+    await sideDrawer(page).getByTestId("share-route").click();
+    await expect(page.getByTestId("export-gpx")).toBeVisible();
+    await page.keyboard.press("Escape");
 
     await page.reload();
     await settle(page);
@@ -216,9 +225,9 @@ for (const path of PAGES) {
       // search bar.
       await expect(sideDrawer(page).getByTestId("settings-button")).toBeVisible();
     } else {
-      // None with a route on screen; on the search bar once it is closed,
-      // as Maps' account is.
-      expect(await page.getByTestId("settings-button").count()).toBe(0);
+      // At the end of the route's capsule, as at the search bar's once
+      // the route is closed, as Maps' account is.
+      await expect(sideDrawer(page).getByTestId("settings-button")).toBeVisible();
       await page.goto(path);
       await settle(page);
       await expect(sideDrawer(page).getByTestId("settings-button")).toBeVisible();

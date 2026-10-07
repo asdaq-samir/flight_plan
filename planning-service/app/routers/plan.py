@@ -10,6 +10,7 @@ A route may land at stops on the way (`stops`, "KDSM,KLNK"): each flight
 between two landings -- a hop -- is planned as a route of its own, with
 its own chart read, altitude plan, climb from the field and fuel check,
 the hops planned at once, and the nav log runs on through each stop."""
+import re
 import time
 from concurrent.futures import Future, ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FuturesTimeoutError
@@ -85,12 +86,37 @@ class PlanQuery:
     #: The pilot will have a Class B clearance: its shelves are no
     #: ceiling, and the route is planned through it (vfr.altitude).
     class_b_clearance: bool = False
+    #: Points' own altitudes, feet above sea level: "VPBNG:4500,KMSN:1900".
+    #: A waypoint's is flown to it, the hop into it at that altitude (where
+    #: a pilot crosses it); an airport's is its pattern, which a flight
+    #: landing there comes down to. The rest of the route as planned.
+    altitudes: str = ""
+    #: Checkpoints between the route's own points, as the planner picks
+    #: them off the chart. False, the legs run from point to point alone
+    #: -- the departure, the stops, the destination -- as a pilot whose
+    #: map shows no waypoints flies it; and nothing is scored for them.
+    checkpoints: bool = True
 
     def profile(self) -> dict:
         return aircraft_profile(
             self.aircraft, self.cruise_tas_kt, self.fuel_burn_gph, self.usable_fuel_gal,
             self.climb_tas_kt, self.climb_fuel_burn_gph, self.cruise_power_pct,
         )
+
+    def own_altitudes(self) -> dict[str, float]:
+        """`altitudes` by ident; a 422 for one that is not "IDENT:FEET",
+        or not a VFR altitude: under 18,000 ft MSL, the floor of Class A
+        (14 CFR 71.33), where no flight is VFR (14 CFR 91.135)."""
+        out = {}
+        for part in filter(None, (p.strip() for p in self.altitudes.split(","))):
+            ident, _, feet = part.partition(":")
+            if not POINT_ALTITUDE.fullmatch(part) or not 0 < float(feet) < 18_000:
+                raise HTTPException(422, f"{part!r} is not a point's altitude: an ident and feet, as VPBNG:4500.")
+            out[ident.upper()] = float(feet)
+        return out
+
+
+POINT_ALTITUDE = re.compile(r"[A-Za-z0-9]{2,5}:\d{1,5}")
 
 # How often the nav log stream says it is still working while the
 # altitude plans are being made.
@@ -237,9 +263,11 @@ def hop_runs(r: Route, by_hop: list, depart: datetime | None, profile: dict) -> 
 
 
 def resolve_run(run: HopRun, profile: dict, q: "PlanQuery") -> "Flown | Unflyable | NoWinds":
+    # The hop into a waypoint with an altitude of its own is flown at it.
+    own = None if run.hop.lands else q.own_altitudes().get(run.hop.dest_ident)
     return resolve_altitude(
-        run.hop, run.fixes, profile, q.aircraft, q.altitude_ft, q.altitude_choice, run.fcst_hr, run.window,
-        q.class_b_clearance,
+        run.hop, run.fixes, profile, q.aircraft, q.altitude_ft if own is None else own, q.altitude_choice,
+        run.fcst_hr, run.window, q.class_b_clearance,
     )
 
 
@@ -291,9 +319,11 @@ def join_outcomes(runs: list[HopRun], outcomes: list) -> "Flown | Unflyable | No
     for outcome in outcomes:
         if isinstance(outcome, NoWinds):
             return NoWinds(selection, options, outcome.error)
-    first = outcomes[0]
+    # The plan the route flies is the one its hops are flown on, a hop
+    # into a waypoint at its own altitude (resolve_run) or not.
+    planned = next((o for o in outcomes if o.choice is not None), outcomes[0])
     return Flown(
-        selection, options, first.choice, first.altitude_ft,
+        selection, options, planned.choice, planned.altitude_ft,
         [leg for o in outcomes for leg in o.legs], tuple(o.legs for o in outcomes),
     )
 
@@ -306,31 +336,57 @@ def unflyable_parts(outcome: Unflyable, runs: list[HopRun]) -> tuple[dict, list[
     at = next((i for i, run in enumerate(runs) if (run.hop.dep_ident, run.hop.dest_ident) == outcome.between), 0)
     hop = runs[at].hop
     ways = class_b_detours(outcome.selection, hop.start, hop.end)
-    why = no_altitude(outcome.selection, outcome.between, ways[0] if ways else None)
+    why = no_altitude(outcome.selection, outcome.between, ways[0] if ways else None, _stuck_where(outcome.selection, hop))
     return why, [{**way, "stop_index": at, "description": _where(way["ident"])} for way in ways]
 
 
-def pattern_altitude(flight: Route) -> float | None:
-    """The altitude a flight comes down to: the traffic pattern's at the
-    field it lands at (vfr.faa_data.pattern_agl_ft), to the nearest
-    hundred feet, as a pilot flies it. None where it ends in the air, or
-    the field's elevation is not known."""
-    elevation = flight.dest_airport.get("elevation_ft")
-    if not flight.lands or elevation is None:
+def _stuck_where(selection: dict, hop: Route) -> str | None:
+    """Where on the hop the altitude runs out, by the route's own points
+    as the pilot entered them, at the pilot's ask: the middle of the first
+    stretch with no legal altitude, from the nearer of the hop's ends --
+    "540 nm past KDLH", "120 nm before KBUR" -- for the one line that says
+    what stops the plan."""
+    stuck = next((s for s in selection.get("segments", []) if not s.get("candidates_ft")), None)
+    if stuck is None or stuck.get("from_nm") is None or stuck.get("to_nm") is None:
         return None
-    return round((elevation + faa_data.pattern_agl_ft(flight.dest_ident, DATA_DIR / "raw" / "faa_nasr")) / 100) * 100
+    middle = (stuck["from_nm"] + stuck["to_nm"]) / 2
+    left = max(0.0, hop.length_nm - middle)
+    return f"{middle:,.0f} nm past {hop.dep_ident}" if middle <= left else f"{left:,.0f} nm before {hop.dest_ident}"
 
 
-def flown_legs(r: Route, runs: list[HopRun], outcome: Flown) -> list:
+def field_pattern_ft(ident: str, airport: dict) -> float | None:
+    """A field's traffic pattern altitude above sea level
+    (vfr.faa_data.pattern_agl_ft), to the nearest hundred feet, as a pilot
+    flies it; None where its elevation is not known."""
+    elevation = airport.get("elevation_ft")
+    if elevation is None:
+        return None
+    return round((elevation + faa_data.pattern_agl_ft(ident, DATA_DIR / "raw" / "faa_nasr")) / 100) * 100
+
+
+def pattern_altitude(flight: Route, own: dict[str, float] | None = None) -> float | None:
+    """The altitude a flight comes down to: the traffic pattern's at the
+    field it lands at -- the pilot's own for it (PlanQuery.altitudes), else
+    field_pattern_ft. None where it ends in the air, or the field's
+    elevation is not known."""
+    if not flight.lands:
+        return None
+    if own and flight.dest_ident in own:
+        return own[flight.dest_ident]
+    return field_pattern_ft(flight.dest_ident, flight.dest_airport)
+
+
+def flown_legs(r: Route, runs: list[HopRun], outcome: Flown, own: dict[str, float] | None = None) -> list:
     """The legs a pilot flies, with each flight's tops of climb and
     descent placed (navlog.with_descents): from one landing to the next,
-    through any waypoints, down to the pattern at the end of each."""
+    through any waypoints, down to the pattern at the end of each --
+    `own`, a pilot's own patterns by ident."""
     out, at = [], 0
     for flight in r.flights:
         hops = len(flight.idents) - 1
         legs = [leg for legs in outcome.hop_legs[at:at + hops] for leg in legs]
         fix_list = [fix for k, run in enumerate(runs[at:at + hops]) for fix in (run.fixes if k == 0 else run.fixes[1:])]
-        out.extend(navlog.with_descents(legs, fix_list, pattern_altitude(flight)))
+        out.extend(navlog.with_descents(legs, fix_list, pattern_altitude(flight, own)))
         at += hops
     return out
 
@@ -428,10 +484,18 @@ def course(dep: str, dest: str, stops: str = "") -> Course:
     """
     r = load_route(dep, dest, stops)
     first = r.hops[0]
+    shp = airspace.ensure_class_airspace_shapefile(altitude.DEFAULT_FAA_CACHE_DIR)
+
+    def classed(end: dict) -> dict:
+        if end.get("kind", "airport") != "airport":
+            return end
+        return {**end, "airspace_class": airspace.surface_class_at(end["lat"], end["lon"], shp),
+                "pattern_altitude_ft": field_pattern_ft(end["ident"], end)}
+
     return Course(
-        departure=r.departure,
-        destination=r.destination,
-        stops=r.stops,
+        departure=classed(r.departure),
+        destination=classed(r.destination),
+        stops=[classed(s) for s in r.stops],
         distance_nm=round(r.distance_nm, 1),
         bearing_deg=round(geo.bearing_deg(*first.start, *first.end)),
         course_line=route_line(r),
@@ -534,6 +598,7 @@ def plan(q: Annotated[PlanQuery, Depends()]) -> Plan:
     fuel reserve is the day or the night one.
     """
     r = load_route(q.dep, q.dest, q.stops)
+    own = q.own_altitudes()
     profile = q.profile()
 
     # Everything slow inside the one bound, scoring included: the agents'
@@ -541,7 +606,7 @@ def plan(q: Annotated[PlanQuery, Depends()]) -> Plan:
     runs: list[HopRun] = []
 
     def work():
-        scored, selected, by_hop = route_checkpoints(r)
+        scored, selected, by_hop = route_checkpoints(r) if q.checkpoints else ([], [], [[] for _ in r.hops])
         _name_waypoints(r, selected)
         runs.extend(hop_runs(r, by_hop, q.depart, profile))
         return scored, selected, join_outcomes(runs, [resolve_run(run, profile, q) for run in runs])
@@ -559,7 +624,7 @@ def plan(q: Annotated[PlanQuery, Depends()]) -> Plan:
     if isinstance(outcome, Unflyable):
         _, ways = unflyable_parts(outcome, runs)
         raise HTTPException(422, no_altitude_detail(outcome.selection, outcome.between, ways[0] if ways else None))
-    leg_list = flown_legs(r, runs, outcome)
+    leg_list = flown_legs(r, runs, outcome, own)
 
     return Plan(
         departure=r.departure,
@@ -633,15 +698,21 @@ def navlog_stream(q: Annotated[PlanQuery, Depends()]) -> StreamingResponse:
     out, and an HTTP status can't change after that.
     """
     r = load_route(q.dep, q.dest, q.stops)
+    own = q.own_altitudes()
 
     def lines():
-        yield line(NavLogStage(detail="Reading the chart and choosing the checkpoints…"))
-        _, _, by_hop = route_checkpoints(r)
+        if q.checkpoints:
+            yield line(NavLogStage(detail="Choosing checkpoints…"))
+            _, _, by_hop = route_checkpoints(r)
+        else:
+            by_hop = [[] for _ in r.hops]
 
         profile = q.profile()
         runs = hop_runs(r, by_hop, q.depart, profile)
 
-        yield line(NavLogStage(detail="Planning cruise altitudes (airspace, obstacles, aircraft performance and winds)…"))
+        # Each stage's words short enough for the one line the panel gives
+        # them, at the pilot's ask: what is being worked on first.
+        yield line(NavLogStage(detail="Planning altitudes…"))
         # On side threads with a heartbeat, not inline: an uncached
         # selection on a bad aviationweather.gov day was observed
         # taking over two minutes, all of it silent -- and the webapp
@@ -663,7 +734,7 @@ def navlog_stream(q: Annotated[PlanQuery, Depends()]) -> StreamingResponse:
         try:
             futures = [altitude_pool.submit(resolve_run, run, profile, q) for run in runs]
             for run, future in zip(runs, futures):
-                where = f" {run.hop.dep_ident} → {run.hop.dest_ident}," if len(runs) > 1 else ""
+                where = f" {run.hop.dep_ident} → {run.hop.dest_ident}" if len(runs) > 1 else ""
                 waiting = _waited(future, HEARTBEAT_S, lambda run=run: _running_stages(run, q))
                 while True:
                     try:
@@ -673,10 +744,8 @@ def navlog_stream(q: Annotated[PlanQuery, Depends()]) -> StreamingResponse:
                         break
                     named = _waiting_on(run, q)
                     yield line(NavLogStage(detail=(
-                        f"Planning cruise altitudes ({where} {elapsed:.0f} s, waiting on {named})…".replace("( ", "(")
-                        if named
-                        else f"Planning cruise altitudes ({where} {elapsed:.0f} s, working out the winds for each plan)…"
-                        .replace("( ", "(")
+                        f"Altitudes{where}, {elapsed:.0f} s, waiting on {named}…" if named
+                        else f"Altitudes{where}, {elapsed:.0f} s, winds for each plan…"
                     )))
         finally:
             altitude_pool.shutdown(wait=False)
@@ -685,7 +754,8 @@ def navlog_stream(q: Annotated[PlanQuery, Depends()]) -> StreamingResponse:
         aircraft_line = {"name": q.aircraft, **profile}
         if isinstance(outcome, Unflyable):
             why, detours = unflyable_parts(outcome, runs)
-            yield line(NavLogError(detail=why["title"], reasons=why["reasons"], advice=why["advice"], retry=False,
+            yield line(NavLogError(detail=why["title"], brief=why["brief"], reasons=why["reasons"],
+                                   advice=why["advice"], retry=False,
                                    class_b=why["class_b"], detours=detours))
             return
         if isinstance(outcome, NoWinds):
@@ -712,7 +782,7 @@ def navlog_stream(q: Annotated[PlanQuery, Depends()]) -> StreamingResponse:
             options=outcome.options,
             aircraft=aircraft_line,
         ))
-        for leg in flown_legs(r, runs, outcome):
+        for leg in flown_legs(r, runs, outcome, own):
             yield line(NavLogLeg.model_validate(leg))
 
         yield line(NavLogDone(totals=totals_of(r, runs, outcome, profile)))

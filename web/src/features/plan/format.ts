@@ -1,6 +1,6 @@
 import type { AltitudeOption, Leg, Runway, Totals } from "../../lib/api/types";
 import { SCORE_STEPS } from "../../lib/scoreScale";
-import { altFt } from "../../lib/units";
+import { altFt, flightLevel } from "../../lib/units";
 
 export { altFt };
 
@@ -71,8 +71,8 @@ export function totalsParts(t: Totals) {
 /** One altitude plan's steps: "2,500 ft all the way", or "2,500 ft to
  *  Mill Pond, 6,500 ft to Big Falls Flowage, 2,500 ft to KDLH". */
 export function describeSteps(option: AltitudeOption): string {
-  if (option.steps.length <= 1) return `${altFt(option.steps[0]?.altitude_ft)} ft all the way`;
-  return option.steps.map(s => `${altFt(s.altitude_ft)} ft to ${s.to}`).join(", ");
+  if (option.steps.length <= 1) return `${flightLevel(option.steps[0]?.altitude_ft)} all the way`;
+  return option.steps.map(s => `${flightLevel(s.altitude_ft)} to ${s.to}`).join(", ");
 }
 
 /** One altitude plan's time: the flying time plus what its climbs

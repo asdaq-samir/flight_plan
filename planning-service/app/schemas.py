@@ -30,6 +30,16 @@ class AirportEnd(BaseModel):
     lon: float
     elevation_ft: float | None = None
     kind: Literal["airport", "fix"] = "airport"
+    #: An airport's: the class of the airspace at its surface, as its card
+    #: has it (vfr.airspace.surface_class_at) -- for the route's points to
+    #: be drawn in their airspace's look the moment the course is in,
+    #: where each was a card's whole lookup (its METAR among it) behind
+    #: the plan being made.
+    airspace_class: Literal["B", "C", "D", "E", "G"] | None = None
+    #: An airport's traffic pattern altitude above sea level, to the nearest
+    #: hundred feet (the TPA the FAA publishes, else 1,000 ft over the
+    #: field): what the route's box offers as the altitude there.
+    pattern_altitude_ft: float | None = None
 
 
 class ChartSheet(BaseModel):
@@ -991,6 +1001,9 @@ class NavLogError(BaseModel):
     type: Literal["error"] = "error"
     detail: str
     retry: bool = True
+    #: The whole of it in a few words, for the one line under the route:
+    #: "Aircraft ceiling restricts mountainous flying".
+    brief: str | None = None
     reasons: list[str] = []
     advice: str | None = None
     #: Class B airspace is what leaves no altitude: the page offers to

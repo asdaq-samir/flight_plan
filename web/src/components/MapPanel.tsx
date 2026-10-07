@@ -146,12 +146,19 @@ export default function MapPanel({ label, top, controls, notices, compact, child
   // at half (PanelHalfContext): an airport's card had its actions cut
   // off by the screen's edge, its name on two lines, in Safari with its
   // toolbar taking a share of the screen.
-  const [bodyNeeds, setBodyNeeds] = useState<number | null>(null);
+  // Or, on a phone, just what it must show, where it says so (`exact`):
+  // the route's panel opens on its tabs and the nav log's line, the chart
+  // above. A card beside a desktop's map keeps its half: there is room.
+  const [bodyNeeds, setBodyNeedsState] = useState<{ px: number; exact: boolean } | null>(null);
+  const setBodyNeeds = useCallback((px: number | null, exact = false) => {
+    setBodyNeedsState(was => (px === null ? null : was && was.px === px && was.exact === exact ? was : { px, exact }));
+  }, []);
   const detents = useMemo<Record<PanelState, number>>(() => {
     const full = Math.max(peek, room);
-    const half = Math.max(peek, Math.round(room / 2), bodyNeeds === null ? 0 : peek + bodyNeeds);
+    const half = bodyNeeds?.exact && onPhone ? Math.max(peek, peek + bodyNeeds.px)
+      : Math.max(peek, Math.round(room / 2), bodyNeeds === null ? 0 : peek + bodyNeeds.px);
     return { peek, half: Math.min(half, full), full };
-  }, [peek, room, bodyNeeds]);
+  }, [peek, room, bodyNeeds, onPhone]);
 
   // A drag on the grabber or the head follows the finger, and lets go to
   // the detent it was heading for (useDetentDrag).

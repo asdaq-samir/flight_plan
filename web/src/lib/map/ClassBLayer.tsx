@@ -60,6 +60,11 @@ export function ClassBLayer({ chart, endpoints, onPreview, onSelectPlace }: {
             key={airport.ident}
             position={[airport.lat, airport.lon]}
             icon={airportIcon(colourOf(airport.flight_category), airport.ident, { classB: true })}
+            // Over the route's own airports' chips (RouteMap's 500), as over
+            // the checkpoints: drawn only while the pilot has asked for the
+            // Class B fields, and the one in the way is the one to see --
+            // KORD's lay under C81's, out at the region's zoom.
+            zIndexOffset={700}
             eventHandlers={{
               // Close in, where the tiles exist, hovering previews the
               // sheet. mouseout rather than a timer: a marker that

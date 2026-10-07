@@ -1,7 +1,6 @@
 import { lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { format } from "date-fns";
-import { FileArchive, FileDown, Link2, MapPinned, Printer, Send, Share, TowerControl, X } from "lucide-react";
+import { FileArchive, FileDown, Link2, MapPinned, Printer, Send, Share, X } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../../components/ui/dropdown-menu";
 import { foreflightRoute, fplOf, gpxOf, shareFile, type PlanPoint } from "../../lib/flightPlanFiles";
 import { markPackSent, openInForeFlight, packOrigin, packPath, packSent } from "../../lib/foreflightPack";
@@ -12,12 +11,12 @@ import { cn } from "cn";
 import { api } from "../../lib/api/client";
 import { pilotQuery, queryClient } from "../../lib/queryClient";
 import type { AircraftChoice, AirportPlace, AltitudeChoice, Candidate } from "../../lib/api/types";
-import { aircraftKey, choiceOf, shortName } from "../../lib/aircraftChoice";
+import { aircraftKey, choiceOf } from "../../lib/aircraftChoice";
 import { bestStopIndex, distanceNm } from "../../lib/geo";
 import { useKeepOffline } from "../../lib/map/keepStatus";
 import { locateOnOpen, useOwnShip } from "../../lib/map/ownShip";
 import { pointOf } from "../../lib/airspace";
-import { identOf, routeName, routeOf, stopsOf } from "../../lib/identSchema";
+import { altitudesOf, altitudesParam, identOf, routeName, routeOf, stopsOf } from "../../lib/identSchema";
 import { usePreferences, type RecentAirport } from "../../lib/preferences";
 import { useAirportSearch } from "../../lib/useAirportSearch";
 // Without this Leaflet's tiles, markers and controls have no
@@ -28,23 +27,27 @@ import { useProgressToast } from "../../lib/useProgressToast";
 import { useSearchParamsNow } from "../../lib/useSearchParamsNow";
 import type { WorkspaceProps } from "../page/workspace";
 import IconButton from "../../components/IconButton";
-import ToolbarButton from "../../components/ToolbarButton";
+import { ConsoleButtonSlot } from "../../components/PanelCapsule";
+import { CHIP_TEXT, GLASS_BUTTON, ROUND_BUTTON } from "../../components/mapChrome";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/ui/select";
-import { Button } from "../../components/ui/button";
 import { RouteCapsule, SearchField, SearchResults } from "../../components/PanelCapsule";
+import { chipColourOf } from "../../lib/map/flightCategory";
 import RouteProblem from "./components/RouteProblem";
 import { Favorites, FavoritesList } from "../../components/Favorites";
 import Kneeboard from "./components/Kneeboard";
 import FlightBriefingView, { BriefingNotices, PlanningAidNote, SaveFlightButton } from "./components/briefing/FlightBriefingView";
+import AltitudeButton from "./components/navlog/AltitudeButton";
 import FlightInputs from "./components/navlog/FlightInputs";
 import AirspaceCard from "./components/AirspaceCard";
 import PlaceCard from "./components/PlaceCard";
-import RouteBox from "./components/RouteBox";
-import TitleNote from "./components/navlog/TitleNote";
-import NavLogActions from "./components/navlog/NavLogActions";
+import RouteBox, { type RouteParts } from "./components/RouteBox";
+import type { PointAltitude } from "./components/PointAltitudeDialog";
+import PrintMenu from "./components/navlog/PrintMenu";
+import BriefNarrative from "./components/briefing/BriefNarrative";
 import NavLogView from "./components/navlog/NavLogView";
 import RouteMap from "./components/RouteMap";
 import { usePlan } from "./hooks/usePlan";
+import { useRisk } from "../../lib/frat";
 
 /** A local flight's times aloft to choose from, in minutes: a menu, not a
  *  slider. */
@@ -103,6 +106,10 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // Class B accepted: the pilot will have the clearance, and the route
   // is planned through it (RouteProblem's Accept Class B).
   const classBClearance = searchParams.get("class_b") === "1";
+  // Points' own altitudes (`altitudes`, "VPBNG:4500,KMSN:1900"), set from
+  // a point's menu in the route's box: a waypoint's flown to it, an
+  // airport's its pattern. As the address has them, for the planner.
+  const altitudes = altitudesParam(altitudesOf(searchParams.get("altitudes")));
   // A local flight's time aloft, in minutes (`local_min`): an hour unless
   // the address says otherwise.
   const localMin = LOCAL_MINUTES.includes(Number(searchParams.get("local_min"))) ? Number(searchParams.get("local_min")) : 60;
@@ -119,6 +126,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // (the preferences store), since a pilot flies the same one for a
   // while; a stock profile until they pick one of their own.
   const remembered = usePreferences(p => p.aircraft);
+  const showWaypoints = usePreferences(p => p.waypoints);
   const setAircraft = usePreferences(p => p.setAircraft);
 
   // The stock profiles, plus a signed-in pilot's own aeroplanes on top
@@ -143,7 +151,10 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   const aircraft = aircraftOptions.find(o => aircraftKey(o) === aircraftKey(remembered)) ?? remembered;
   const s = usePlan({
     dep: planned.dep, dest: planned.dest, stops: planned.stops, altitudeFt, altitudeChoice, depart, aircraft, load, classBClearance,
-    localMin,
+    altitudes, localMin,
+    // Checkpoints as the map shows them: the settings' Waypoints off, the
+    // nav log runs from point to point, at the pilot's ask.
+    checkpoints: showWaypoints,
   });
   const changeLocalMin = useCallback((minutes: number) => {
     setSearchParams(prev => {
@@ -265,30 +276,53 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     if (via) next.stops = via;
     if (alt.trim()) next.altitude_ft = alt.trim();
     if (altitudeChoice !== "fastest") next.altitude_choice = altitudeChoice;
+    if (altitudes) next.altitudes = altitudes;
     if (depart) next.depart = depart;
     // Class B accepted for this route, not the next one.
     if (classBClearance && route.dep === planned.dep && route.dest === planned.dest) next.class_b = "1";
     if (panel === "full") next.view = "briefing";
     setSearchParams(next, { replace: true });
     setLoad(n => n + 1);
-  }, [dep, dest, planned.dep, planned.dest, planned.stops, via, alt, altitudeChoice, depart, classBClearance, panel, setSearchParams]);
+  }, [dep, dest, planned.dep, planned.dest, planned.stops, via, alt, altitudeChoice, altitudes, depart, classBClearance, panel, setSearchParams]);
 
   // The route, changed in its box (RouteBox): in the address at once,
   // which re-plans, as the aeroplane and the time do -- the departure,
   // the stops, the destination.
-  const setRoute = useCallback((points: string[]) => {
+  // Either end may be missing -- taken out in the box, half a route with
+  // the other still to be typed -- and with neither, there is no route:
+  // the search, as Maps' close leaves it.
+  const setRoute = useCallback(({ dep, stops, dest }: RouteParts) => {
+    if (!dep && !dest) {
+      setSearchParams({}, { replace: true });
+      setPanel("peek");
+      return;
+    }
     setSearchParams(prev => {
       const next = new URLSearchParams(prev);
-      next.set("dep", points[0]!);
-      next.set("dest", points.at(-1)!);
-      const stops = points.slice(1, -1);
-      if (stops.length) next.set("stops", stops.join(","));
-      else next.delete("stops");
+      // A point's own altitude goes with it out of the route.
+      const kept = Object.entries(altitudesOf(prev.get("altitudes"))).filter(([ident]) => [dep, ...stops, dest].includes(ident));
+      for (const [key, value] of [["dep", dep], ["dest", dest], ["stops", stops.join(",")], ["altitudes", altitudesParam(Object.fromEntries(kept))]] as const) {
+        if (value) next.set(key, value);
+        else next.delete(key);
+      }
+      return next;
+    }, { replace: true });
+  }, [setSearchParams, setPanel]);
+  // A point's own altitude set, or (null) given back to the plan.
+  const setPointAltitude = useCallback((ident: string, feet: number | null) => {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      const own = altitudesOf(prev.get("altitudes"));
+      if (feet === null) delete own[ident];
+      else own[ident] = feet;
+      const value = altitudesParam(own);
+      if (value) next.set("altitudes", value);
+      else next.delete("altitudes");
       return next;
     }, { replace: true });
   }, [setSearchParams]);
   const setStops = useCallback(
-    (stops: string[]) => setRoute([planned.dep, ...stops, planned.dest]), [setRoute, planned.dep, planned.dest]);
+    (stops: string[]) => setRoute({ dep: planned.dep, stops, dest: planned.dest }), [setRoute, planned.dep, planned.dest]);
   // Add Stop open: from its own button, or from no legal altitude's --
   // "via", its Fly via round a Class B, the ways round suggested.
   const [addingStop, setAddingStop] = useState<false | "stop" | "via">(false);
@@ -312,21 +346,6 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       else next.delete("class_b");
       return next;
     }, { replace: true });
-  }, [setSearchParams]);
-
-  // No legal altitude for the route (usePlan) is the route's own problem:
-  // its capsule's chip says so at rest, and a mark beside the Nav Log's
-  // title opens to where, why and the ways on (RouteProblem). It was a toast over
-  // the map, then the same at the head of the nav log, where it took the
-  // room the log needs.
-  const flyAt = useCallback((feet: string) => {
-    setSearchParams(prev => {
-      const next = new URLSearchParams(prev);
-      next.set("altitude_ft", feet);
-      next.delete("altitude_choice");
-      return next;
-    }, { replace: true });
-    setLoad(n => n + 1);
   }, [setSearchParams]);
 
   // With no route, the panel is Maps' search: the bar in the capsule and
@@ -381,7 +400,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   };
   const searchField = (
     <SearchField
-      value={query} onChange={setQuery} open={panel === "full"} inputRef={searchInput}
+      value={query} onChange={setQuery} inputRef={searchInput}
       placeholder={picking === "home" ? "Search for your home airport" : picking === "favorite" ? "Search for an airport to keep" : "Search airports"}
       onFocus={() => { if (place) selectPlace(null); setFavoritesOpen(false); setPanel("full"); }}
       onCancel={() => { setQuery(""); setPicking("place"); setFavoritesOpen(false); if (place) selectPlace(null); setPanel("peek"); }}
@@ -564,8 +583,6 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // The flight planning drawer: the nav log as the first section, the
   // briefing's sections under it, the briefing's own actions in the
   // drawer's header.
-  const [tightOpen, setTightOpen] = useState(false);
-  const [classBOpen, setClassBOpen] = useState(false);
   // A leg where no 500 ft step fits and the planner flies the highest
   // whole hundred under its ceiling (vfr.altitude's tight altitude):
   // where, at what, and how little room there is either side.
@@ -581,10 +598,11 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   })() : null;
 
   const landedStops = (course?.stops ?? []).filter(stop => stop.kind !== "fix").map(stop => stop.ident);
+  const briefingData = s.briefing.state === "ready" ? s.briefing.data : null;
+  const riskLevel = useRisk(r => r.assessment?.level);
   const navLog = (
     <NavLogView
       totals={s.totals} nav={s.nav} legs={s.legs}
-      onAltitudeChoiceChange={changeAltitudeChoice}
       depart={depart}
       dep={planned.dep} dest={planned.dest}
       ends={course}
@@ -596,58 +614,40 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       selectedPoint={selectedPoint} onSelectPoint={(lat, lon) => selectPoint({ lat, lon })}
       onDeselectPoint={() => selectPoint(null)}
       drawerOpen={panelOpen}
-      alt={alt} onAltChange={setAlt} onSubmit={submit}
       aircraftLabel={aircraft.label}
+      // A red mark on a tab whose part has a warning, as the sections'
+      // titles had when all were in one list: VFR not recommended (AIM
+      // 7-1-5) on the Weather, a TFR near the route or a raised risk on
+      // the Brief.
+      marks={{
+        weather: (briefingData?.vfr_not_recommended.length ?? 0) > 0,
+        brief: (briefingData?.tfrs.length ?? 0) > 0 || (!!riskLevel && riskLevel !== "low"),
+      }}
+      // Each tab's part of the briefing; the Brief's narrative first in its.
+      tabContent={part => (
+        <>
+          {part === "brief" && !s.local && (
+            <BriefNarrative
+              ready={!!s.totals} onGenerateNarrative={s.generateNarrative}
+              langgraphNarrative={s.langgraphNarrative} crewaiNarrative={s.crewaiNarrative}
+            />
+          )}
+          <FlightBriefingView
+            part={part} nav={s.nav} legs={s.legs}
+            dep={planned.dep} dest={planned.dest}
+            // The airports landed at: a waypoint has no weather of its own.
+            stops={landedStops}
+            briefing={s.briefing} course={course} totals={s.totals} depart={depart}
+            langgraphNarrative={s.langgraphNarrative} crewaiNarrative={s.crewaiNarrative}
+          />
+        </>
+      )}
       notice={<BriefingNotices briefing={s.briefing} />}
       footer={<PlanningAidNote />}
       local={s.local}
       progress={panelOpen ? progress : null}
-      titleNote={s.unflyable ? (
-        <RouteProblem
-          problem={s.unflyable} onAddStop={() => setAddingStop("stop")} onFly={flyAt}
-          onFlyVia={() => setAddingStop("via")} onAcceptClassB={() => acceptClassB(true)}
-        />
-      ) : (
-        <>
-          {tightLeg && (
-            <TitleNote
-              tone="warning" title="Tight altitude" open={tightOpen} onOpenChange={setTightOpen}
-              testId="tight-altitude-flag" contentTestId="tight-altitude"
-            >
-              {tightLeg}
-            </TitleNote>
-          )}
-          {/* Planned through Class B, at the pilot's word: a mark in the
-              tint that opens to what it means, and Undo. It was a line
-              across the panel under the route. */}
-          {classBClearance && (
-            <TitleNote
-              tone="info" icon={<TowerControl className="size-4 shrink-0" aria-hidden="true" />} label="Class B"
-              title="Planned through Class B" open={classBOpen} onOpenChange={setClassBOpen}
-              testId="class-b-accepted-flag" contentTestId="class-b-accepted"
-            >
-              <div className="space-y-3">
-                <p>Planned through Class B: you&apos;ll need a clearance to enter it.</p>
-                <Button
-                  type="button" size="sm" variant="outline"
-                  onClick={() => { setClassBOpen(false); acceptClassB(false); }}
-                >
-                  Undo
-                </Button>
-              </div>
-            </TitleNote>
-          )}
-        </>
-      )}
+      problem={s.unflyable?.brief}
     >
-      <FlightBriefingView
-        nav={s.nav} legs={s.legs}
-        dep={planned.dep} dest={planned.dest}
-        // The airports landed at: a waypoint has no weather of its own.
-        stops={landedStops}
-        briefing={s.briefing} course={course} totals={s.totals} depart={depart}
-        langgraphNarrative={s.langgraphNarrative} crewaiNarrative={s.crewaiNarrative}
-      />
       {/* Off screen, for Print's Kneeboard card (a portal to the page's body). */}
       <Kneeboard
         course={course} selected={selected} legs={s.legs} totals={s.totals} nav={s.nav}
@@ -658,17 +658,84 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   );
 
   // Saving the flight, the narrative and Print.
+  // The route's airports' airspace classes, as the course came with them:
+  // the pills coloured the moment it is in.
+  const routeAirport = (ident: string) =>
+    [course?.departure, ...(course?.stops ?? []), course?.destination].find(a => a?.ident === ident);
+  const airspaceOf = (ident: string) => routeAirport(ident)?.airspace_class ?? undefined;
+  // The altitude at a point, as its menu offers it: the pilot's own, else
+  // a waypoint's cruise -- the leg flown to it -- or an airport's pattern.
+  const ownAltitudes = altitudesOf(altitudes);
+  const altitudeAt = (ident: string, waypoint: boolean): PointAltitude => {
+    const planned = waypoint ? s.legs.find(leg => leg.to === ident)?.altitude_ft : routeAirport(ident)?.pattern_altitude_ft;
+    return { feet: ownAltitudes[ident] ?? planned ?? null, own: ident in ownAltitudes };
+  };
+
+  // An airport's METAR colour, as its chip on the map: its flight category
+  // once the briefing has it, grey until then (the route's pills, coloured
+  // by the weather in the settings).
+  const metars = s.briefing.state === "ready" ? s.briefing.data.metars : null;
+  const metarColour = (ident: string) => {
+    const metar = metars?.[ident];
+    return chipColourOf({ status: metar ? "reported" : "no-report", category: metar?.flight_category ?? null });
+  };
+
+  // The route shared: a link, a file for another app or the panel's GPS,
+  // on an iPhone the share sheet's Open in ForeFlight.
+  const shareItems = (
+    <>
+      <DropdownMenuItem onSelect={() => void share()}><Link2 />Share link</DropdownMenuItem>
+      <DropdownMenuItem onSelect={() => void exportPlan("fpl")} data-testid="export-fpl"><FileDown />Flight plan (.fpl)</DropdownMenuItem>
+      <DropdownMenuItem onSelect={() => void exportPlan("gpx")} data-testid="export-gpx"><FileDown />GPX route (.gpx)</DropdownMenuItem>
+      {/* Links, not handlers: ForeFlight opens from a tap on its
+          own link, and a download needs one too. */}
+      {points.length > 0 && (packHref && !sentPack ? (
+        <DropdownMenuItem asChild data-testid="open-foreflight">
+          <a href={openInForeFlight(new URL(packHref, packOrigin(window.location)).href)} onClick={sendPack}>
+            <Send />Open in ForeFlight
+          </a>
+        </DropdownMenuItem>
+      ) : (
+        <DropdownMenuItem asChild data-testid="open-foreflight">
+          <a href={foreflightRoute(points, s.nav?.altitude_ft, sentPack)}><Send />Open in ForeFlight</a>
+        </DropdownMenuItem>
+      ))}
+      {/* Sent once and since deleted in ForeFlight: again. */}
+      {packHref && sentPack && (
+        <DropdownMenuItem asChild data-testid="foreflight-pack">
+          <a href={openInForeFlight(new URL(packHref, packOrigin(window.location)).href)}><MapPinned />Send the checkpoints again</a>
+        </DropdownMenuItem>
+      )}
+      {packHref && (
+        <DropdownMenuItem asChild data-testid="export-foreflight">
+          <a href={packHref} download><FileArchive />Checkpoints for ForeFlight (.zip)</a>
+        </DropdownMenuItem>
+      )}
+    </>
+  );
+
+  // Share, a round button of glass as the route's close and the
+  // console's are: at the capsule's start at rest, beside Save and Print
+  // with the panel out.
+  const shareMenu = (align: "start" | "end") => (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <IconButton label="Share this route" variant="secondary" className={`size-9 ${ROUND_BUTTON}`} data-testid="share-route">
+          <Share className="size-5" strokeWidth={2} />
+        </IconButton>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align={align} className="min-w-56">{shareItems}</DropdownMenuContent>
+    </DropdownMenu>
+  );
+
   const routeActions = (
     <>
       <SaveFlightButton
         course={course} totals={s.totals} nav={s.nav} legs={s.legs} selected={selected}
         aircraftId={aircraft.aircraftId ?? null} depart={depart}
       />
-      <NavLogActions
-        onGenerateNarrative={s.generateNarrative}
-        langgraphNarrative={s.langgraphNarrative}
-        crewaiNarrative={s.crewaiNarrative}
-      />
+      {shareMenu("end")}
+      <PrintMenu />
     </>
   );
 
@@ -744,9 +811,10 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       </>
     ),
     head: started ? undefined : searchField,
-    // An airport tapped with a route open: its card alone, the route
-    // under it again when it is closed.
-    alone: started && (!!place || !!heldPoint),
+    // An airport tapped: its card alone -- with a route, the route under
+    // it again when it is closed; without, the search bar and the gear
+    // over it gone while it is open, at the pilot's ask.
+    alone: !!place || !!heldPoint,
     searching: !started,
     // At rest, Maps' capsule: the route with share and close either side
     // and the aeroplane and time under it, which opens the panel to them;
@@ -756,99 +824,112 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     compact: routed ? (
       <RouteCapsule
         title={routeName(planned.dep, planned.dest, planned.stops)}
-        detail={s.unflyable ? "No legal altitude" : `${shortName(aircraft.label)} · ${depart ? format(new Date(depart), "EEE d MMM, HH:mm") : "Now"}`}
-        tone={s.unflyable ? "destructive" : "default"}
+        // One line, as the search bar is, at the pilot's ask: Share at its
+        // start, as it was, the route, a tap on it the panel, and the
+        // console's button at its end. What is wrong with it is a red mark
+        // beside it (the cruising altitude's chip says what); the aeroplane
+        // and the time are in the panel, the sharing too, under More.
+        warning={s.unflyable ? "No legal altitude" : undefined}
         onDetail={() => setPanel("half")}
-        leading={
-          // Maps' share, and the route as a file for another app or the
-          // panel's GPS: on an iPhone the share sheet's Open in ForeFlight.
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <IconButton label="Share this route" variant="secondary" className="rounded-full" data-testid="share-route"><Share /></IconButton>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="min-w-56">
-              <DropdownMenuItem onSelect={() => void share()}><Link2 />Share link</DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => void exportPlan("fpl")} data-testid="export-fpl"><FileDown />Flight plan (.fpl)</DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => void exportPlan("gpx")} data-testid="export-gpx"><FileDown />GPX route (.gpx)</DropdownMenuItem>
-              {/* Links, not handlers: ForeFlight opens from a tap on its
-                  own link, and a download needs one too. */}
-              {points.length > 0 && (packHref && !sentPack ? (
-                <DropdownMenuItem asChild data-testid="open-foreflight">
-                  <a href={openInForeFlight(new URL(packHref, packOrigin(window.location)).href)} onClick={sendPack}>
-                    <Send />Open in ForeFlight
-                  </a>
-                </DropdownMenuItem>
-              ) : (
-                <DropdownMenuItem asChild data-testid="open-foreflight">
-                  <a href={foreflightRoute(points, s.nav?.altitude_ft, sentPack)}><Send />Open in ForeFlight</a>
-                </DropdownMenuItem>
-              ))}
-              {/* Sent once and since deleted in ForeFlight: again. */}
-              {packHref && sentPack && (
-                <DropdownMenuItem asChild data-testid="foreflight-pack">
-                  <a href={openInForeFlight(new URL(packHref, packOrigin(window.location)).href)}><MapPinned />Send the checkpoints again</a>
-                </DropdownMenuItem>
-              )}
-              {packHref && (
-                <DropdownMenuItem asChild data-testid="export-foreflight">
-                  <a href={packHref} download><FileArchive />Checkpoints for ForeFlight (.zip)</a>
-                </DropdownMenuItem>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        }
-        trailing={<IconButton label="Close the route" variant="secondary" className="rounded-full" onClick={clearRoute} data-testid="clear-route"><X /></IconButton>}
+        leading={shareMenu("start")}
       />
     ) : started ? undefined : searchField,
     // The route as one box of pills, in place of the two airport fields.
     // An airport twice (a round trip with its stop taken out) keeps the
     // box, its notice saying what to change.
-    route: routed ? (
-      <RouteBox
-        points={[planned.dep, ...planned.stops, planned.dest]} waypoints={waypointStops}
-        onChange={setRoute}
-        adding={!!addingStop} onAddingChange={open => setAddingStop(open ? "stop" : false)}
-        via={addingStop === "via" ? s.unflyable?.detours : undefined}
-      />
+    // Shaped as the search bar is with no route, and where the search bar
+    // has the console's button, the route's close, as its capsule has:
+    // the route put away, the search back.
+    route: started ? (
+      <div className="flex items-start gap-2">
+        <div className="min-w-0 flex-1">
+          <RouteBox
+            dep={planned.dep} stops={planned.stops} dest={planned.dest} waypoints={waypointStops} airspaceOf={airspaceOf} metarColourOf={metarColour}
+            altitudeAt={altitudeAt} onAltitudeChange={setPointAltitude}
+            onChange={setRoute}
+            adding={!!addingStop} onAddingChange={open => setAddingStop(open ? "stop" : false)}
+            via={addingStop === "via" ? s.unflyable?.detours : undefined}
+          />
+        </div>
+        {/* The route's close, and under it the console's button, as the
+            search bar has it beside its field: the box's two lines tall,
+            the two alike, 40 points with a finger's 44 round them
+            (index.css), as iOS's round buttons over content (ROUND_BUTTON). */}
+        <div className="flex shrink-0 flex-col gap-1 [&_button]:size-10 [&_svg]:size-5">
+          <IconButton label="Close the route" variant="secondary" onClick={clearRoute} data-testid="route-clear" className={ROUND_BUTTON}>
+            {/* Drawn as big as the gear beside it: lucide's cross spans half
+                its box where the gear spans most of it, so at the gear's size
+                it read as a small mark; its line as bold as the gear's. */}
+            <X className="size-7!" strokeWidth={1.5} />
+          </IconButton>
+          <ConsoleButtonSlot />
+        </div>
+      </div>
     ) : undefined,
     // The aeroplane and the departure time, under the route with the
     // panel out, and beside them saving the flight, the narrative and
     // Print: the route's box has the top row to itself.
     // A local flight: how long aloft in place of the narrative, which is
     // written from legs it has none of.
+    // On one line, at the pilot's ask: the aeroplane, the altitude and the
+    // time, chips at a note's 13 (as Maps' route options are) four apart,
+    // and Save, Share and Print at the end -- at the reader's own text
+    // size, which on the pilot's phone is a step up from iOS's default.
+    // Narrower than that, the actions take a line of their own rather than
+    // run off the screen.
     controls: routed && (
-      <>
+      <div className="flex w-full min-w-0 flex-wrap items-center gap-x-1 gap-y-3">
         <FlightInputs
           aircraftValue={aircraftKey(aircraft)}
           aircraftOptions={aircraftOptions.map(o => ({ value: aircraftKey(o), label: o.label }))}
           onAircraftChange={changeAircraft}
+          altitude={!s.local && (
+            <AltitudeButton
+              nav={s.nav} legs={s.legs} onAltitudeChoiceChange={changeAltitudeChoice}
+              problem={s.unflyable ? close => (
+                <RouteProblem
+                  problem={s.unflyable!} onAddStop={() => { close(); setAddingStop("stop"); }}
+                  onFlyVia={() => { close(); setAddingStop("via"); }} onAcceptClassB={() => { close(); acceptClassB(true); }}
+                />
+              ) : undefined}
+              ownAltitude={!s.unflyable?.classB}
+              // What the altitude was planned within, in its popover and
+              // marked on the chip, at the pilot's ask: they were marks beside
+              // the flight's line, where "Class B" took a line of its own.
+              tight={s.unflyable ? null : tightLeg}
+              classB={!s.unflyable && classBClearance ? () => acceptClassB(false) : null}
+              alt={alt} onAltChange={setAlt} onSubmit={submit}
+            />
+          )}
           depart={depart} onDepartChange={changeDepart}
         />
         {s.local ? (
           <>
             <Select value={String(localMin)} onValueChange={v => changeLocalMin(Number(v))}>
-              <SelectTrigger size="sm" aria-label="Time aloft" className="pointer-coarse:text-[0.9375rem]" data-testid="local-duration">
+              <SelectTrigger size="sm" aria-label="Time aloft" className={cn("rounded-full [&_svg]:text-foreground", GLASS_BUTTON, CHIP_TEXT)} data-testid="local-duration">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 {LOCAL_MINUTES.map(m => <SelectItem key={m} value={String(m)}>{hoursOf(m)}</SelectItem>)}
               </SelectContent>
             </Select>
-            <ToolbarButton
-              text="Print" label="Print the briefing" icon={<Printer />} onClick={() => window.print()}
-              className="print:hidden" data-testid="print-button"
-            />
+            <IconButton
+              label="Print the briefing" variant="secondary" onClick={() => window.print()}
+              className={`ml-auto size-9 print:hidden ${ROUND_BUTTON}`} data-testid="print-button"
+            >
+              <Printer className="size-5" strokeWidth={2} />
+            </IconButton>
           </>
         ) : (
-          // Their words' own width to a finger, each still 44 wide: the
-          // padding round them put the three on a line of their own.
-          // At the row's end, as Maps puts a card's actions.
-          <div className="ml-auto flex items-center pointer-coarse:[&_button]:px-0.5">{routeActions}</div>
+          // At the row's end, as Maps puts a card's actions: round buttons
+          // at a fixed 36 with a 20-point glyph -- as iOS's bar buttons stay
+          // their size at any text size, so the line holds at the pilot's,
+          // a step up from iOS's default -- eight apart, so their 44-point
+          // hit areas (index.css) meet.
+          <div className="ml-auto flex shrink-0 items-center gap-2 [&_button]:size-[36px] [&_svg]:size-[20px]">{routeActions}</div>
         )}
-      </>
+      </div>
     ),
-    // Beside the route form while there is no whole route yet.
-    actions: routed ? undefined : routeActions,
     console: <PilotPanel />,
     submit,
     loading: s.stage !== null,

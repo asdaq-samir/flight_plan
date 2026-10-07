@@ -194,6 +194,21 @@ export async function openBriefing(page: Page) {
   await expectDrawerOpen(page);
 }
 
+/** One of the planning panel's tabs: Nav Log (Local, for one airport to
+ *  itself), Brief, Weather, Performance or Airports. The Brief asks for its
+ *  narrative as it opens -- a real, billed Claude call -- so here it is
+ *  answered with a line of its own. */
+export async function openTab(page: Page, name: "Brief" | "Nav Log" | "Local" | "Weather" | "Performance" | "Airports") {
+  if (name === "Brief") {
+    await page.route(url => url.pathname.endsWith("/api/comparison"), route => route.fulfill({
+      status: 200, contentType: "application/x-ndjson",
+      body: JSON.stringify({ type: "done", briefing: "A test narrative." }) + "\n",
+    }));
+  }
+  await sideDrawer(page).getByRole("tab", { name, exact: true }).click();
+  await expect(sideDrawer(page).getByRole("tab", { name, exact: true })).toHaveAttribute("aria-selected", "true");
+}
+
 /** A tap on the chart itself, somewhere nothing else is: not a marker,
  *  a popup, the panel over the map or its buttons -- found by asking the
  *  browser what is under each candidate point. */

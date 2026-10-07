@@ -28,7 +28,7 @@ export default function NearestButton({ onSelectPlace }: { onSelectPlace: (ident
   return (
     <ResponsivePopover open={open} onOpenChange={setOpen}>
       <ResponsivePopoverTrigger asChild>
-        <IconButton label="Nearest airports" className="text-tint" data-testid="nearest-button">
+        <IconButton label="Nearest airports" className="text-foreground" data-testid="nearest-button">
           <PlaneLanding strokeWidth={1.5} className="size-5" />
         </IconButton>
       </ResponsivePopoverTrigger>

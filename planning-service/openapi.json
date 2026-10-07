@@ -213,6 +213,24 @@
       "AirportEnd": {
         "description": "A point of the route: an airport, or -- a stop only -- a named fix\nflown through (`kind` \"fix\": a VFR or GPS waypoint, its `name` the\nkind of fix it is, no elevation).",
         "properties": {
+          "airspace_class": {
+            "anyOf": [
+              {
+                "enum": [
+                  "B",
+                  "C",
+                  "D",
+                  "E",
+                  "G"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Airspace Class"
+          },
           "elevation_ft": {
             "anyOf": [
               {
@@ -248,6 +266,17 @@
           "name": {
             "title": "Name",
             "type": "string"
+          },
+          "pattern_altitude_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pattern Altitude Ft"
           }
         },
         "required": [
@@ -4009,6 +4038,18 @@
             ],
             "default": null,
             "title": "Advice"
+          },
+          "brief": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Brief"
           },
           "class_b": {
             "default": false,
@@ -8415,6 +8456,26 @@
               "title": "Class B Clearance",
               "type": "boolean"
             }
+          },
+          {
+            "in": "query",
+            "name": "altitudes",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Altitudes",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "checkpoints",
+            "required": false,
+            "schema": {
+              "default": true,
+              "title": "Checkpoints",
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -8662,6 +8723,26 @@
             "schema": {
               "default": false,
               "title": "Class B Clearance",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "altitudes",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Altitudes",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "checkpoints",
+            "required": false,
+            "schema": {
+              "default": true,
+              "title": "Checkpoints",
               "type": "boolean"
             }
           }
@@ -9070,6 +9151,26 @@
             "schema": {
               "default": false,
               "title": "Class B Clearance",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "altitudes",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Altitudes",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "checkpoints",
+            "required": false,
+            "schema": {
+              "default": true,
+              "title": "Checkpoints",
               "type": "boolean"
             }
           }

@@ -34,6 +34,8 @@ import { useNarratives } from "./useNarratives";
  *  route), its reasons, and what to do (app.planning.no_altitude). */
 export interface Unflyable {
   title: string;
+  /** All of it in a few words, for the one line under the route. */
+  brief: string;
   reasons: string[];
   advice: string | null;
   /** Class B airspace is what stops it: a clearance, or a waypoint to
@@ -58,6 +60,13 @@ export interface PlanParams {
   load: number;
   /** The pilot will have a Class B clearance: planned through it. */
   classBClearance?: boolean;
+  /** Points' own altitudes, as the address has them ("VPBNG:4500,KMSN:1900"):
+   *  a waypoint's flown to it, an airport's its pattern (RouteBox). */
+  altitudes?: string;
+  /** Checkpoints between the route's points, as the map shows them (the
+   *  settings' Waypoints): without, the nav log runs point to point and
+   *  none are asked for. */
+  checkpoints?: boolean;
   /** A local flight's time aloft, in minutes (one airport to itself). */
   localMin?: number;
 }
@@ -78,7 +87,10 @@ export type BriefingState =
   | { state: "failed"; detail: string };
 
 export function usePlan(
-  { dep, dest, stops, altitudeFt, altitudeChoice, depart, aircraft, load, classBClearance = false, localMin = 60 }: PlanParams,
+  {
+    dep, dest, stops, altitudeFt, altitudeChoice, depart, aircraft, load, classBClearance = false, altitudes = "",
+    checkpoints: withCheckpoints = true, localMin = 60,
+  }: PlanParams,
 ) {
   const routeKnown = routeOf(dep, dest, stops) !== null;
   // An airport to itself with no stop between: a local flight -- the
@@ -102,13 +114,13 @@ export function usePlan(
     queryKey: ["checkpoints", dep, dest, via], queryFn: () => api.checkpoints(dep, dest, stops),
     // routeKnown as well as the course: a disabled course query still
     // hands back the previous route's course as placeholder data.
-    enabled: routeKnown && !!course.data, staleTime: Infinity,
+    enabled: routeKnown && !!course.data && withCheckpoints, staleTime: Infinity,
   });
 
   // Everything the nav log is computed from -- the narratives below are
   // keyed on the same, so a narrative is always about the log on screen.
   const planKey = [
-    dep, dest, via, altitudeFt, altitudeChoice, depart, load, classBClearance,
+    dep, dest, via, altitudeFt, altitudeChoice, depart, load, classBClearance, altitudes, withCheckpoints,
     aircraft.profile, aircraft.cruiseTasKt ?? null, aircraft.fuelBurnGph ?? null, aircraft.usableFuelGal ?? null,
     aircraft.climbTasKt ?? null, aircraft.climbFuelBurnGph ?? null, aircraft.cruisePowerPct ?? null,
   ];
@@ -116,11 +128,13 @@ export function usePlan(
     queryKey: ["navlog", ...planKey],
     queryFn: streamedQuery({
       streamFn: ({ signal }) => ended(
-        api.navlog(dep, dest, altitudeFt || undefined, aircraft, altitudeChoice, depart || undefined, signal, stops, classBClearance),
+        api.navlog(dep, dest, altitudeFt || undefined, aircraft, altitudeChoice, depart || undefined, signal, stops, classBClearance, altitudes, withCheckpoints),
         "nav log",
       ),
     }),
-    enabled: !!checkpoints.data, staleTime: Infinity,
+    // After the checkpoints it is flown through, or the course alone
+    // without them.
+    enabled: withCheckpoints ? !!checkpoints.data : routeKnown && !!course.data, staleTime: Infinity,
     // No legal altitude is the page's to say, with what can be done about
     // it (PlanWorkspace): not the query client's plain toast.
     meta: { silent: error => error instanceof ApiError && error.advice !== null },
@@ -141,7 +155,10 @@ export function usePlan(
   const unflyable = useMemo<Unflyable | null>(() => {
     const error = navlog.error;
     return error instanceof ApiError && error.advice !== null
-      ? { title: error.message, reasons: error.reasons, advice: error.advice, classB: error.classB, detours: error.detours } : null;
+      ? {
+        title: error.message, brief: error.brief ?? "No legal altitude", reasons: error.reasons, advice: error.advice,
+        classB: error.classB, detours: error.detours,
+      } : null;
   }, [navlog.error]);
   const stages = messages.filter(m => m.type === "stage");
   const navStage = navlog.isFetching ? (stages.at(-1) as { detail?: string } | undefined)?.detail ?? null : null;
@@ -185,8 +202,8 @@ export function usePlan(
     // Not the previous route's, kept as a placeholder, once the route is
     // closed (the capsule's X): the map is the chart alone then.
     course: briefable ? course.data ?? null : null,
-    candidates: checkpoints.data?.candidates ?? [],
-    selected: checkpoints.data?.selected ?? [],
+    candidates: withCheckpoints ? checkpoints.data?.candidates ?? [] : [],
+    selected: withCheckpoints ? checkpoints.data?.selected ?? [] : [],
     legs, nav, navStage, stage, unflyable,
     totals: local ? localFlight.data ?? null : totals,
     local,

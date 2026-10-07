@@ -1,6 +1,7 @@
 import { useContext, type ReactNode } from "react";
 import { ConsoleSettingsContext } from "./mapChrome";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
+import { LINE_TAB } from "./lineTabs";
 
 export interface ConsoleTab {
   value: string;
@@ -56,7 +57,7 @@ export default function ConsoleTabs({ tabs: own, saved, onChange }: Props) {
             {tabs.map(t => (
               <TabsTrigger
                 key={t.value} value={t.value}
-                className="h-full rounded-none text-muted-foreground pointer-coarse:text-[0.9375rem] max-[374px]:px-1 pointer-coarse:max-[374px]:text-[0.8125rem] hover:text-foreground data-[state=active]:text-tint dark:data-[state=active]:text-tint after:bg-tint group-data-[orientation=horizontal]/tabs:after:bottom-[-1px]"
+                className={LINE_TAB}
               >
                 {t.label}
               </TabsTrigger>

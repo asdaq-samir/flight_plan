@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
-import { test, expect, type Page } from "@playwright/test";
-import { openPanel, settle, sideDrawer, slow } from "./helpers";
+import { test, expect, type Locator, type Page } from "@playwright/test";
+import { beforeTheRoute, openPanel, settle, sideDrawer, slow, openTab } from "./helpers";
 
 /**
  * A route that lands on the way, as Maps' Add Stop: a stop added in the
@@ -38,7 +38,9 @@ test("a stop added in the panel lands the route there: the capsule, the nav log 
   await settle(page);
   await openPanel(page);
 
-  // Typed into the route's box, the airports that answer offered under it.
+  // Typed at the arrow between the two, the airports that answer offered
+  // under the box.
+  await sideDrawer(page).getByRole("button", { name: "Type a stop between C81 and KDLH" }).click();
   await sideDrawer(page).getByTestId("route-type").fill("KMSN");
   await page.getByTestId("route-suggestions").getByRole("option", { name: /KMSN/ }).first().click();
   await expect(page).toHaveURL(/[?&]stops=KMSN(&|$)/);
@@ -48,7 +50,7 @@ test("a stop added in the panel lands the route there: the capsule, the nav log 
 
   // The nav log lands at it, at the field's elevation, and the fuel is
   // checked flight by flight.
-  await sideDrawer(page).getByRole("button", { name: "Nav Log", exact: true }).click();
+  await openTab(page, "Nav Log");
   const landing = sideDrawer(page).locator("tr", { hasText: "KMSN" });
   await expect(landing).toBeVisible({ timeout: slow(30000) });
   const fuel = sideDrawer(page).getByTestId("fuel-check");
@@ -59,11 +61,134 @@ test("a stop added in the panel lands the route there: the capsule, the nav log 
   await page.getByTestId("sidebar-trigger-button").click();
   await expect(page.getByTestId("capsule-title")).toHaveText("C81 → KMSN → KDLH");
 
-  // Taken off again: the route as it was.
+  // Taken off again from its menu -- a right-click with a mouse, a press
+  // and hold on a phone: the route as it was.
   await openPanel(page);
-  await stop.getByRole("button", { name: "Remove the stop at KMSN" }).click();
+  await stop.click({ button: "right" });
+  await page.getByRole("menuitem", { name: "Remove", exact: true }).click();
   await expect(page).not.toHaveURL(/[?&]stops=/);
   await expect(sideDrawer(page).getByTestId("stop")).toHaveCount(0);
+});
+
+test("the route's box reads its points with an arrow between each two, a tap on one a stop typed there, what is typed after the last the new destination with the old a stop; any point comes out from a hold, a right-click or Delete", async ({ page }) => {
+  await page.route(url => /\/(checkpoints|navlog|briefing)$/.test(url.pathname), route => route.abort());
+  await page.goto("/app/plan?dep=C81&dest=KDLH&stops=KRYV,KMSN");
+  await settle(page);
+  await openPanel(page);
+  const lines = sideDrawer(page).getByTestId("route-slide");
+  // In that order, and no cross on any pill.
+  const order = await lines.evaluate(el => [...el.querySelectorAll("[role=group], [data-testid=route-type], [data-testid=route-arrow]")]
+    .map(n => n.getAttribute("data-testid") ?? ""));
+  expect(order).toEqual(["route-dep", "route-arrow", "stop", "route-arrow", "stop", "route-arrow", "route-dest", "route-type"]);
+  expect(await lines.getByRole("button", { name: /^Remove/ }).count()).toBe(0);
+
+  // What is typed after the last point is the new destination, the old
+  // one a stop on the way.
+  const field = sideDrawer(page).getByTestId("route-type");
+  await field.fill("KMSP");
+  await field.press("Enter");
+  await expect(page).toHaveURL(/[?&]dest=KMSP(&|$)/);
+  await expect(page).toHaveURL(/[?&]stops=KRYV%2CKMSN%2CKDLH(&|$)|[?&]stops=KRYV,KMSN,KDLH(&|$)/);
+  // Taken back out: the route as it was but for the new destination.
+  await lines.getByRole("group", { name: "Stop 3 KDLH" }).focus();
+  await page.keyboard.press("Delete");
+  await expect(page).toHaveURL(/[?&]stops=KRYV%2CKMSN(&|$)|[?&]stops=KRYV,KMSN(&|$)/);
+
+  // A finger held on a pill: its menu.
+  const kmsn = lines.getByRole("group", { name: "Stop 2 KMSN" });
+  const box = (await kmsn.boundingBox())!;
+  const at = { clientX: box.x + 12, clientY: box.y + box.height / 2, pointerType: "touch", pointerId: 7, isPrimary: true, bubbles: true };
+  await kmsn.dispatchEvent("pointerdown", at);
+  // Its menu after the hold (the page under it is then hidden from a
+  // reader, the pill with it, so the finger is not lifted here).
+  await page.getByRole("menuitem", { name: "Remove", exact: true }).click();
+  await expect(page).toHaveURL(/[?&]stops=KRYV(&|$)/);
+
+  // The departure taken out with a right-click: the next airport along is
+  // the departure.
+  await lines.getByRole("group", { name: "Departure C81" }).click({ button: "right" });
+  await page.getByRole("menuitem", { name: "Remove", exact: true }).click();
+  await expect(page).toHaveURL(/[?&]dep=KRYV(&|$)/);
+  await expect(page).not.toHaveURL(/[?&]stops=/);
+
+  // Of two, Delete on the destination: half a route, the departure kept,
+  // the destination still to be typed.
+  await lines.getByRole("group", { name: "Destination KMSP" }).focus();
+  await page.keyboard.press("Delete");
+  await expect(page).not.toHaveURL(/[?&]dest=/);
+  await expect(page).toHaveURL(/[?&]dep=KRYV(&|$)/);
+  await expect(sideDrawer(page).getByTestId("route-type")).toHaveAttribute("placeholder", "Destination");
+  // And the last: no route, the search back.
+  await lines.getByRole("group", { name: "Departure KRYV" }).focus();
+  await page.keyboard.press("Delete");
+  await expect(page).not.toHaveURL(/[?&]dep=/);
+  await expect(page.getByTestId("search-airports")).toBeVisible();
+});
+
+// A finger, as Chromium takes one from a touch screen: put down on one
+// pill and held, then moved in steps onto another, held over it a moment
+// and let go. Both measured first, once the box has settled from the last
+// change: a menu out hides the page from the role queries.
+async function touchHold(page: Page, from: Locator, to: Locator) {
+  const middle = async (pill: Locator) => {
+    await expect.poll(() => pill.boundingBox()).not.toBeNull();
+    const box = (await pill.boundingBox())!;
+    return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+  };
+  const [start, end] = [await middle(from), await middle(to)];
+  const cdp = await page.context().newCDPSession(page);
+  const touch = (type: string, p?: { x: number; y: number }) =>
+    cdp.send("Input.dispatchTouchEvent", { type, touchPoints: p ? [{ ...p, id: 1 }] : [] });
+  await touch("touchStart", start);
+  return async function moveOn() {
+    // A frame apart, as a finger's moves come.
+    for (let i = 1; i <= 20; i++) {
+      await touch("touchMove", { x: start.x + (end.x - start.x) * i / 20, y: start.y + (end.y - start.y) * i / 20 });
+      await page.waitForTimeout(16);
+    }
+    await page.waitForTimeout(300);
+    await touch("touchEnd");
+  };
+}
+
+// Held past the drag's quarter second and well short of the menu's half,
+// a slow runner's lag included.
+async function touchDrag(page: Page, from: Locator, to: Locator) {
+  const moveOn = await touchHold(page, from, to);
+  await page.waitForTimeout(320);
+  await moveOn();
+}
+
+test.describe("on a touch screen", () => {
+  test.use({ hasTouch: true });
+
+  test("any point dragged anywhere, the ends too: before the departure it is the departure, after the destination the destination; held, its menu, which a move puts away for the drag", async ({ page }) => {
+    await page.route(url => /\/(checkpoints|navlog|briefing)$/.test(url.pathname), route => route.abort());
+    await page.goto("/app/plan?dep=C81&dest=KDLH&stops=KRYV,KMSN");
+    await settle(page);
+    await openPanel(page);
+    const lines = sideDrawer(page).getByTestId("route-slide");
+    const stopsAre = (list: string) => new RegExp(`[?&]stops=(${list.replace(",", "%2C")}|${list})(&|$)`);
+
+    await touchDrag(page, lines.getByTestId("route-dest"), lines.getByTestId("route-dep"));
+    await expect(page).toHaveURL(/[?&]dep=KDLH(&|$)/);
+    await expect(page).toHaveURL(/[?&]dest=KMSN(&|$)/);
+    await expect(page).toHaveURL(stopsAre("C81,KRYV"));
+
+    await touchDrag(page, lines.getByTestId("route-dep"), lines.getByTestId("route-dest"));
+    await expect(page).toHaveURL(/[?&]dep=C81(&|$)/);
+    await expect(page).toHaveURL(/[?&]dest=KDLH(&|$)/);
+    await expect(page).toHaveURL(stopsAre("KRYV,KMSN"));
+
+    // Held past the menu's half second, then moved: the menu goes, and the
+    // stop goes where it was taken.
+    const menu = page.getByRole("menuitem", { name: "Remove", exact: true });
+    const moveOn = await touchHold(page, lines.getByRole("group", { name: "Stop 1 KRYV" }), lines.getByRole("group", { name: "Stop 2 KMSN" }));
+    await expect(menu).toBeVisible();
+    await moveOn();
+    await expect(menu).toHaveCount(0);
+    await expect(page).toHaveURL(stopsAre("KMSN,KRYV"));
+  });
 });
 
 test("a link with a stop opens on the route through it", async ({ page }) => {
@@ -96,7 +221,7 @@ test("a flight saved with a stop is filed with it, and its nav log lands there",
   expect(filed[0]!.checkpoints.filter(c => c.category === "stop").map(c => c.name)).toEqual(["KMSN"]);
 });
 
-test("the route's box is round at its ends with no plus beside it, and Enter takes the first airport offered for what is typed", async ({ page }) => {
+test("the route's box is round and two lines tall with no plus beside it, and Enter takes the first airport offered for what is typed", async ({ page }) => {
   await recordedStops(page);
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
@@ -104,17 +229,21 @@ test("the route's box is round at its ends with no plus beside it, and Enter tak
   const box = sideDrawer(page).getByTestId("route-box");
   await expect(box).toBeVisible();
   expect(await sideDrawer(page).getByTestId("add-stop").count()).toBe(0);
+  // Round as the search bar's field is, two lines tall.
   const shape = await box.evaluate(el => ({ radius: parseFloat(getComputedStyle(el).borderTopLeftRadius), height: el.getBoundingClientRect().height }));
-  expect(shape.radius).toBeGreaterThanOrEqual(shape.height / 2 - 1);
+  expect(shape.radius).toBeGreaterThanOrEqual(20);
+  expect(shape.height).toBeGreaterThanOrEqual(80);
 
-  // A town's name: its field offered first, and Enter takes it.
+  // A town's name at the arrow: its field offered first, and Enter takes
+  // it, as a stop.
+  await sideDrawer(page).getByRole("button", { name: "Type a stop between C81 and KDLH" }).click();
   const field = sideDrawer(page).getByTestId("route-type");
   await field.fill("madison");
   const first = page.getByTestId("route-suggestions").getByRole("option").first();
   await expect(first).toContainText("KMSN", { timeout: slow(10000) });
   await field.press("Enter");
   await expect(page).toHaveURL(/[?&]stops=KMSN(&|$)/);
-  await expect(field).toHaveValue("");
+  await expect(page).toHaveURL(/[?&]dest=KDLH(&|$)/);
 });
 
 test("a long route's box wraps its points onto two lines and scrolls down to the rest, never sideways", async ({ page }) => {
@@ -147,10 +276,12 @@ test("a long route's box wraps its points onto two lines and scrolls down to the
   const from = (await lines.getByRole("group", { name: "Stop 1 KRYV" }).boundingBox())!;
   const to = (await lines.getByRole("group", { name: "Stop 6 KSTE" }).boundingBox())!;
   expect(to.y).toBeGreaterThan(from.y + from.height / 2);
-  await page.mouse.move(from.x + 8, from.y + from.height / 2);
+  await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
   await page.mouse.down();
-  await page.mouse.move(from.x + 20, from.y + from.height / 2, { steps: 4 });
-  await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 12 });
+  await page.mouse.move(from.x + from.width / 2 + 12, from.y + from.height / 2, { steps: 4 });
+  await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 20 });
+  // Held there a moment, as a finger is, for the pills to make room.
+  await page.waitForTimeout(300);
   await page.mouse.up();
   await expect(page).toHaveURL(/[?&]stops=KMSN%2CKEAU%2CKOSH%2CKCWA%2CKSTE%2CKRYV%2CKATW%2CKGRB(&|$)|[?&]stops=KMSN,KEAU,KOSH,KCWA,KSTE,KRYV,KATW,KGRB(&|$)/);
 });
@@ -164,6 +295,7 @@ test("a stop may be a VFR waypoint, offered after the airports as it is typed an
   await settle(page);
   await openPanel(page);
 
+  await sideDrawer(page).getByRole("button", { name: "Type a stop between C81 and KDLH" }).click();
   await sideDrawer(page).getByTestId("route-type").fill("VPBNG");
   const waypoint = page.getByTestId("route-suggestions").getByRole("option", { name: /VPBNG · VFR waypoint/ });
   await expect(waypoint).toBeVisible({ timeout: slow(10000) });
@@ -172,6 +304,49 @@ test("a stop may be a VFR waypoint, offered after the airports as it is typed an
 
   // On the map in the sectional's magenta, not as an airport's chip.
   await expect(page.locator(".leaflet-marker-icon", { hasText: "VPBNG" }).first()).toBeVisible({ timeout: slow(15000) });
+});
+
+test("a point's menu has its altitude before Remove: an airport's pattern in feet, a waypoint's cruise as a flight level, each the pilot's to set and give back", async ({ page }) => {
+  // The route through the waypoint asks no more of the planner than its
+  // course: its two hops' chart would be read on CI's runner.
+  await page.route(url => /\/(checkpoints|navlog|briefing)$/.test(url.pathname) && url.searchParams.get("stops") === "VPBNG",
+    route => route.abort());
+  await page.goto("/app/plan?dep=C81&dest=KDLH&stops=VPBNG");
+  await settle(page);
+  await openPanel(page);
+  const lines = sideDrawer(page).getByTestId("route-slide");
+  const item = page.getByTestId("point-altitude");
+
+  // Duluth's pattern, from the course: its field and the pattern over it.
+  await lines.getByRole("group", { name: "Destination KDLH" }).click({ button: "right" });
+  await expect(item).toContainText("Pattern altitude");
+  await expect(item).toContainText(/\d,\d00 ft/, { timeout: slow(15000) });
+  await item.click();
+  await page.getByTestId("point-altitude-input").fill("2600");
+  await page.getByTestId("point-altitude-set").click();
+  await expect(page).toHaveURL(/[?&]altitudes=KDLH%3A2600(&|$)|[?&]altitudes=KDLH:2600(&|$)/);
+
+  // The waypoint's, a flight level over its dashes.
+  await lines.getByRole("group", { name: /VPBNG/ }).click({ button: "right" });
+  await expect(item).toContainText("Altitude");
+  await item.click();
+  await page.getByTestId("point-altitude-input").fill("055");
+  await page.getByTestId("point-altitude-set").click();
+  await expect(page).toHaveURL(/KDLH(%3A|:)2600(%2C|,)VPBNG(%3A|:)5500(&|$)/);
+  await lines.getByRole("group", { name: /VPBNG/ }).click({ button: "right" });
+  await expect(item).toContainText("FL055");
+  await page.keyboard.press("Escape");
+
+  // Given back to the plan: Duluth's own is gone from the address.
+  await lines.getByRole("group", { name: "Destination KDLH" }).click({ button: "right" });
+  await expect(item).toContainText("2,600 ft");
+  await item.click();
+  await page.getByTestId("point-altitude-reset").click();
+  await expect(page).toHaveURL(/[?&]altitudes=VPBNG(%3A|:)5500(&|$)/);
+  // And a point taken out takes its altitude with it.
+  await lines.getByRole("group", { name: /VPBNG/ }).focus();
+  await page.keyboard.press("Delete");
+  await expect(page).not.toHaveURL(/[?&]altitudes=/);
 });
 
 test("an airport's card adds it as a stop, where it bends the route least; the route's own airports have no Add Stop", async ({ page }) => {
@@ -216,9 +391,37 @@ test("a VFR waypoint on the chart is a diamond, and its card adds it as a stop",
   }
   const diamond = page.locator(".leaflet-waypoints-pane .leaflet-marker-icon");
   await expect(diamond).toHaveCount(1, { timeout: slow(20000) });
+  // Once the map has stopped: a tap as the zoom eases in landed where the
+  // diamond had been.
+  let was = "";
+  await expect(async () => {
+    const now = await page.evaluate(() => [...document.querySelectorAll<HTMLElement>(".leaflet-map-pane, .leaflet-tile-container, .leaflet-waypoints-pane .leaflet-marker-icon")]
+      .map(el => el.style.transform).join("|"));
+    const still = now === was;
+    was = now;
+    await page.waitForTimeout(300);
+    expect(still).toBe(true);
+  }).toPass({ timeout: slow(10_000) });
   await diamond.click();
   const add = page.getByTestId("waypoint-add-stop");
   await expect(add).toBeVisible();
   await add.click();
   await expect(page).toHaveURL(/[?&]stops=VPBNG/);
+});
+
+test("the route's airports are coloured by their airspace, or by the weather from the settings", async ({ page }) => {
+  await page.route(url => /\/(checkpoints|navlog)$/.test(url.pathname), route => route.abort());
+  const background = () => sideDrawer(page).getByRole("group", { name: "Destination KDLH" }).evaluate(el => getComputedStyle(el).backgroundColor);
+  // Duluth's Class D: a wash of the sectional's blue, inside a dashed line.
+  await page.goto("/app/plan?dep=C81&dest=KDLH");
+  await settle(page);
+  await openPanel(page);
+  await expect.poll(background, { timeout: slow(15000) }).toBe("rgba(36, 101, 184, 0.12)");
+
+  // By the weather instead: its METAR's colour, or the grey of none.
+  await beforeTheRoute(page, () => page.getByTestId("route-colours-select").getByRole("radio", { name: "Weather" }).click());
+  await page.goto("/app/plan?dep=C81&dest=KDLH");
+  await settle(page);
+  await openPanel(page);
+  await expect.poll(background, { timeout: slow(15000) }).toMatch(/^rgb\(/);
 });

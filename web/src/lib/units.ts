@@ -13,6 +13,12 @@ export function feet(ft: number | null | undefined): string {
   return ft === null || ft === undefined ? "—" : `${altFt(ft)} ft`;
 }
 
+/** A cruising altitude as the pilot asked it written: hundreds of feet in
+ *  three figures, "FL045" for 4,500 ft, and "FL---" with none yet. */
+export function flightLevel(ft: number | null | undefined): string {
+  return ft === null || ft === undefined ? "FL---" : `FL${String(Math.round(ft / 100)).padStart(3, "0")}`;
+}
+
 /** Statute miles as reported: "2.5 sm". */
 export function miles(sm: number | null | undefined): string {
   return sm === null || sm === undefined ? "—" : `${sm} sm`;

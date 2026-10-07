@@ -4,7 +4,7 @@ import { CloudSun, Lightbulb, MapPinPlus, Navigation, Radio, Star, X } from "luc
 import { cn } from "cn";
 import { usePreferences } from "../../../lib/preferences";
 import IconButton from "../../../components/IconButton";
-import { PanelHalfContext } from "../../../components/mapChrome";
+import { GLASS_BUTTON, PanelHalfContext, ROUND_BUTTON } from "../../../components/mapChrome";
 import { ListGroup, ListRow } from "../../../components/GroupedList";
 import { Button } from "../../../components/ui/button";
 import { api } from "../../../lib/api/client";
@@ -48,12 +48,14 @@ function knownOf(queryClient: QueryClient, ident: string): { name: string; categ
 }
 
 /** A tile of the card's action row: its glyph over its word, as Maps
- *  draws its own. The first is filled; the rest are the tint on grey. */
+ *  draws its own -- Fly Here filled in the tint, the rest panes of glass
+ *  in the text's colour, as the gear and the route's close are, at the
+ *  pilot's ask (they were the tint on grey). */
 function Action({ icon, label, filled, onClick, testId }: { icon: ReactNode; label: string; filled?: boolean; onClick: () => void; testId: string }) {
   return (
     <Button
       type="button" variant={filled ? "default" : "secondary"} onClick={onClick} data-testid={testId}
-      className="h-auto flex-col gap-1 rounded-[10px] py-2 [&_svg:not([class*='size-'])]:size-5"
+      className={cn("h-auto flex-col gap-1 rounded-xl py-2 [&_svg:not([class*='size-'])]:size-5", !filled && GLASS_BUTTON)}
     >
       {icon}
       <span className={cn("font-semibold", TEXT.note)}>{label}</span>
@@ -141,8 +143,8 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
             </span>
           )}
           {place && <FavoriteButton place={place} />}
-          <IconButton label="Close" onClick={onClose} className="-mt-1 -mr-2" data-testid="place-close">
-            <X className="size-5" />
+          <IconButton label="Close" variant="secondary" onClick={onClose} className={cn("-mt-1 shrink-0", ROUND_BUTTON)} data-testid="place-close">
+            <X className="size-5" strokeWidth={2} />
           </IconButton>
         </div>
         {place && (
@@ -246,12 +248,15 @@ function FavoriteButton({ place }: { place: AirportPlace }) {
   const kept = usePreferences(s => s.favoriteAirports.some(a => a.ident === place.ident));
   const toggle = usePreferences(s => s.toggleFavoriteAirport);
   return (
+    // A round pane of glass, as the gear is; the star filled in the tint
+    // while the airport is a favorite.
     <IconButton
-      label={kept ? "Remove from Favorites" : "Add to Favorites"} aria-pressed={kept} className="-mt-1"
+      label={kept ? "Remove from Favorites" : "Add to Favorites"} aria-pressed={kept} variant="secondary"
+      className={cn("-mt-1 shrink-0", ROUND_BUTTON, kept && "text-tint hover:text-tint")}
       onClick={() => toggle({ ident: place.ident, name: place.name, municipality: place.municipality, lat: place.lat, lon: place.lon })}
       data-testid="place-favorite"
     >
-      <Star className={cn("size-5", kept && "fill-current")} />
+      <Star className={cn("size-5", kept && "fill-current")} strokeWidth={2} />
     </IconButton>
   );
 }

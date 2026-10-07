@@ -111,7 +111,9 @@ test("a problem goes with the route it was about", async ({ page }) => {
   await page.goto("/app/plan?dep=C81&dest=KZZZ");
   await expect(page.getByTestId("problem-banner-title")).toHaveText("unknown airport KZZZ", { timeout: 20000 });
 
-  await page.getByTestId("clear-route").click();
+  // The route closed from the panel, where its close is.
+  await page.getByTestId("capsule-detail").click();
+  await page.getByTestId("route-clear").click();
   await expect(banner(page)).toHaveCount(0);
 });
 
