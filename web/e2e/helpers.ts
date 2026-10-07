@@ -216,10 +216,18 @@ export async function closeSidebarWithTheStockKey(page: Page) {
  *  cancelled on the way is as done as one that ran out: its `finished`
  *  rejects, with an AbortError, and Promise.all used to take that for
  *  the whole wait failing (the Model Training drawer, its table drawn
- *  at once from the planner's kept read, three times running on CI). */
+ *  at once from the planner's kept read, three times running on CI).
+ *  Nor one out of sight in a tab not up (PanelTabs' tab-away,
+ *  content-visibility: hidden): the browser stops updating it there, and
+ *  its `finished` never comes -- the nav log's rows, arriving as the
+ *  Weather tab opened, held this for two minutes on CI. */
 export async function settled(locator: Locator) {
   await locator.evaluate(el => Promise.all(el.getAnimations({ subtree: true })
     .filter(a => a.effect?.getTiming().iterations !== Infinity)
+    .filter(a => {
+      const target = a.effect instanceof KeyframeEffect ? a.effect.target : null;
+      return !target || target.checkVisibility();
+    })
     .map(a => a.finished.catch(() => undefined))));
 }
 

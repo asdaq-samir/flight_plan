@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { settle, consoleSheet, expectDrawerClosed, expectDrawerOpen, closeSidebarWithTheStockKey, openSettings, library, closeConsole } from "./helpers";
+import { settle, settled, consoleSheet, expectDrawerClosed, expectDrawerOpen, closeSidebarWithTheStockKey, openSettings, library, closeConsole } from "./helpers";
 
 /**
  * The consoles and the settings: fitting the screen, the pilot
@@ -90,7 +90,7 @@ test("the navigation bar's edge is a setting: the panel moves to it, the map's b
   await settle(page);
   // Once the panel has come to rest: it measures its head and eases to
   // its height after a load, and the reload below is compared with this.
-  await page.locator('[data-slot="map-panel"]').evaluate(el => Promise.all(el.getAnimations({ subtree: true }).map(a => a.finished)));
+  await settled(page.locator('[data-slot="map-panel"]'));
 
   const header = (await page.locator("header").boundingBox())!;
   const buttons = (await page.locator("[data-map-controls] > *").first().boundingBox())!;
