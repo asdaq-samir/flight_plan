@@ -336,8 +336,22 @@ def unflyable_parts(outcome: Unflyable, runs: list[HopRun]) -> tuple[dict, list[
     at = next((i for i, run in enumerate(runs) if (run.hop.dep_ident, run.hop.dest_ident) == outcome.between), 0)
     hop = runs[at].hop
     ways = class_b_detours(outcome.selection, hop.start, hop.end)
-    why = no_altitude(outcome.selection, outcome.between, ways[0] if ways else None)
+    why = no_altitude(outcome.selection, outcome.between, ways[0] if ways else None, _stuck_where(outcome.selection, hop))
     return why, [{**way, "stop_index": at, "description": _where(way["ident"])} for way in ways]
+
+
+def _stuck_where(selection: dict, hop: Route) -> str | None:
+    """Where on the hop the altitude runs out, by the route's own points
+    as the pilot entered them, at the pilot's ask: the middle of the first
+    stretch with no legal altitude, from the nearer of the hop's ends --
+    "540 nm past KDLH", "120 nm before KBUR" -- for the one line that says
+    what stops the plan."""
+    stuck = next((s for s in selection.get("segments", []) if not s.get("candidates_ft")), None)
+    if stuck is None or stuck.get("from_nm") is None or stuck.get("to_nm") is None:
+        return None
+    middle = (stuck["from_nm"] + stuck["to_nm"]) / 2
+    left = max(0.0, hop.length_nm - middle)
+    return f"{middle:,.0f} nm past {hop.dep_ident}" if middle <= left else f"{left:,.0f} nm before {hop.dest_ident}"
 
 
 def field_pattern_ft(ident: str, airport: dict) -> float | None:
@@ -740,7 +754,8 @@ def navlog_stream(q: Annotated[PlanQuery, Depends()]) -> StreamingResponse:
         aircraft_line = {"name": q.aircraft, **profile}
         if isinstance(outcome, Unflyable):
             why, detours = unflyable_parts(outcome, runs)
-            yield line(NavLogError(detail=why["title"], brief=why["brief"], reasons=why["reasons"], advice=why["advice"], retry=False,
+            yield line(NavLogError(detail=why["title"], brief=why["brief"], reasons=why["reasons"],
+                                   advice=why["advice"], retry=False,
                                    class_b=why["class_b"], detours=detours))
             return
         if isinstance(outcome, NoWinds):

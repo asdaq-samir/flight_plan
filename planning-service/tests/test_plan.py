@@ -367,8 +367,11 @@ def test_no_altitude_says_where_and_why_in_a_pilots_words():
         "The first westbound VFR altitude above that is 14,500 ft.",
         "The aircraft's service ceiling stops at 14,000 ft.",
     ]
-    # In a few words, for the one line under the route.
-    assert why["brief"] == "Aircraft ceiling restricts mountainous flying"
+    # In a few words, for the one line under the route: the ceiling, and
+    # the terrain where it binds -- by the route's own points, else how far
+    # along -- with the altitude it needs.
+    assert why["brief"] == "Ceiling 14,000 ft: terrain 1,010 nm along needs 14,500"
+    assert planning.no_altitude(selection, where="540 nm past KDLH")["brief"] == "Ceiling 14,000 ft: terrain 540 nm past KDLH needs 14,500"
     # One message for /api/plan's 422, which the agents read.
     detail = planning.no_altitude_detail(selection)
     assert detail.startswith("No legal VFR cruising altitude 980-1040 nm along the route. The terrain")

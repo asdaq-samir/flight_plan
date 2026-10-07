@@ -811,9 +811,10 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       </>
     ),
     head: started ? undefined : searchField,
-    // An airport tapped with a route open: its card alone, the route
-    // under it again when it is closed.
-    alone: started && (!!place || !!heldPoint),
+    // An airport tapped: its card alone -- with a route, the route under
+    // it again when it is closed; without, the search bar and the gear
+    // over it gone while it is open, at the pilot's ask.
+    alone: !!place || !!heldPoint,
     searching: !started,
     // At rest, Maps' capsule: the route with share and close either side
     // and the aeroplane and time under it, which opens the panel to them;

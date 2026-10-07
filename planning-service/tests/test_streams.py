@@ -34,7 +34,8 @@ def test_a_weather_failure_mid_navlog_is_the_streams_last_line(monkeypatch, alti
     altitude = next(m for m in lines if m["type"] == "altitude")
     assert altitude["flown"] is None and altitude["altitude_ft"] is None and altitude["altitude_selection"]
     assert lines[-1] == {
-        "type": "error", "detail": "aviationweather.gov request failed: timed out", "retry": True, "brief": None, "reasons": [], "advice": None,
+        "type": "error", "detail": "aviationweather.gov request failed: timed out", "retry": True, "brief": None,
+        "reasons": [], "advice": None,
         "class_b": False, "detours": [],
     }
 
