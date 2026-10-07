@@ -276,3 +276,12 @@ def test_a_flight_too_short_for_three_to_one_starts_down_at_the_top_of_its_climb
     tod = navlog.with_descents(climbed, FIXES[:2], 1500.0)[0]["tod"]
     assert tod["along_nm"] == climbed[0]["toc"]["along_nm"]
     assert tod["fpm"] > 550
+
+
+def test_a_plan_whose_legs_with_a_wind_have_no_length_has_no_tailwind(monkeypatch):
+    # A hop of no length (a stop written as the airport after it) left
+    # nothing to weigh the tailwind by: none, not a division by zero.
+    monkeypatch.setattr(navlog, "wind_at_altitude", _winds({3500.0: {"wind_dir_true_deg": 225.0, "wind_speed_kt": 10.0}}))
+    same = [FIXES[0], FIXES[0]]
+    plans = navlog.altitude_profiles(same, _segments([[3500.0]]), PROFILE)
+    assert plans["lowest"]["tailwind_kt"] is None

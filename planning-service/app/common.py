@@ -22,6 +22,10 @@ DEFAULT_AIRCRAFT = "c172"
 #: its own to read the chart along and plan.
 MAX_STOPS = 8
 
+#: Two points of a route closer than this are one place: a tenth of a
+#: mile, inside any airport's own boundary.
+SAME_PLACE_NM = 0.1
+
 
 def route_key(dep: str, dest: str) -> tuple:
     return dep.strip().upper(), dest.strip().upper()
@@ -200,7 +204,14 @@ def load_route(dep: str, dest: str, stops: str | list | None = None) -> Route:
         if a == b and len(idents) > 2:
             raise HTTPException(422, f"{a} follows itself: a stop is a different airport from the one before it.")
     dep_airport, dest_airport = resolve(idents[0], idents[-1])
-    return Route(tuple(idents), (dep_airport, *(resolve_stop(s) for s in idents[1:-1]), dest_airport))
+    points = (dep_airport, *(resolve_stop(s) for s in idents[1:-1]), dest_airport)
+    # And by where they are, not only by how they are written: RFD is
+    # KRFD's own FAA identifier, and "KUGN, RFD, KRFD" was a hop of no
+    # length, which the altitude plans divided by (2026-10-07).
+    for (a, pa), (b, pb) in pairwise(zip(idents, points)):
+        if len(idents) > 2 and geo.distance_nm(pa["lat"], pa["lon"], pb["lat"], pb["lon"]) < SAME_PLACE_NM:
+            raise HTTPException(422, f"{a} and {b} are the same place: a stop is a different airport from the one before it.")
+    return Route(tuple(idents), points)
 
 
 def line(message: BaseModel) -> str:

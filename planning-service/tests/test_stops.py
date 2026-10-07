@@ -121,6 +121,15 @@ def test_a_stop_that_is_the_airport_before_it_is_refused(stops):
     assert client.get("/api/course", params={"dep": "C81", "dest": "KDLH", "stops": stops}).status_code == 422
 
 
+def test_a_stop_at_the_same_place_as_the_point_before_it_is_refused(monkeypatch):
+    # MSN is KMSN's own FAA identifier: the same airport written two ways,
+    # a hop of no length.
+    monkeypatch.setattr(airports, "get_airport", lambda ident, **kw: airport({"MSN": "KMSN"}.get(ident.upper(), ident.upper())))
+    response = client.get("/api/course", params={"dep": "C81", "dest": "KMSN", "stops": "MSN"})
+    assert response.status_code == 422
+    assert "MSN and KMSN are the same place" in response.json()["detail"]
+
+
 def test_no_checkpoint_is_kept_just_off_a_stop(monkeypatch):
     # The field is the fix there: a river a few cables past it is no use.
     near = {**CANDIDATES[0], "id": "river@near", "along_track_nm": 0.4, "predicted_score": 4.9}

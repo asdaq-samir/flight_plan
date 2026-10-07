@@ -538,10 +538,12 @@ def altitude_profiles(
         plan_totals = totals(leg_list)
         climb_min = round(sum(leg["climb_min"] for leg in leg_list), 1)
         with_wind = [leg for leg in leg_list if leg.get("wind") is not None and leg["groundspeed_kt"] is not None]
+        # Weighed by distance, so none where the legs with a wind have
+        # none: a hop of no length had nothing to divide by.
+        wind_nm = sum(leg["distance_nm"] for leg in with_wind)
         tailwind = (
-            sum((leg["groundspeed_kt"] - leg["tas_kt"]) * leg["distance_nm"] for leg in with_wind)
-            / sum(leg["distance_nm"] for leg in with_wind)
-        ) if with_wind else None
+            sum((leg["groundspeed_kt"] - leg["tas_kt"]) * leg["distance_nm"] for leg in with_wind) / wind_nm
+        ) if wind_nm > 0 else None
         plans[kind] = {
             "legs": leg_list,
             "totals": plan_totals,
