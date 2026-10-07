@@ -28,6 +28,10 @@ const ISLAND_LANDSCAPE: Insets = { top: 0, right: 59, bottom: 21, left: 59 };
 const INSETS: Record<string, Insets> = {
   "iphone-16-pro": ISLAND_PORTRAIT,
   "iphone-16-pro-max": ISLAND_PORTRAIT,
+  // Both of the Duo's screens have the Dynamic Island.
+  "iphone-duo-folded": ISLAND_PORTRAIT,
+  "iphone-duo-open": ISLAND_PORTRAIT,
+  "iphone-duo-open-landscape": ISLAND_LANDSCAPE,
   "iphone-landscape": ISLAND_LANDSCAPE,
   "webkit-iphone": ISLAND_PORTRAIT,
 };
