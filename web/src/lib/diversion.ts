@@ -9,7 +9,7 @@
  * The ACS asks for "a reasonable estimate of heading, groundspeed,
  * arrival time, and fuel required" (PA.VI.C.S2) and gives no figures;
  * ALLOWANCES are this drill's own, about what a pilot works out in their
- * head and off the chart while flying the aeroplane.
+ * head and off the chart while flying the airplane.
  */
 import type { Leg } from "./api/types";
 
@@ -41,7 +41,7 @@ const round360 = (d: number) => ((d % 360) + 360) % 360;
 
 /** The wind triangle for a true course: the correction (+ right), the
  *  true heading and the ground speed; null where the crosswind is more
- *  than the aeroplane's speed and no heading holds the course. */
+ *  than the airplane's speed and no heading holds the course. */
 export function windTriangle(tc: number, tas: number, windFromDeg: number, windKt: number): { wca: number; th: number; gs: number } | null {
   const angle = rad(windFromDeg - tc);
   const ratio = (windKt * Math.sin(angle)) / tas;

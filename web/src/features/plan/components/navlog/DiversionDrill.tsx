@@ -68,7 +68,7 @@ export default function DiversionDrill({ leg, at }: { leg: Leg; at: { name: stri
     return () => clearInterval(tick);
   }, [started, stopped]);
 
-  // A field under the point is where the aeroplane is, not a diversion.
+  // A field under the point is where the airplane is, not a diversion.
   const fields = (nearest.data ?? []).filter(f => f.distance_nm >= 2).slice(0, 6);
   const chosen = fields.find(f => f.ident === field) ?? null;
   const exact = chosen ? divert(leg, chosen.bearing_deg, chosen.distance_nm) : null;

@@ -56,7 +56,7 @@ export type AltitudeOption = Schemas["AltitudeOption"];
 export type AltitudeStep = Schemas["AltitudeStep"];
 export type AltitudeChoice = AltitudeOption["kind"];
 export type AircraftProfile = Schemas["AircraftProfile"];
-/** How an aeroplane is loaded: its POH's stations, limits and envelope. */
+/** How an airplane is loaded: its POH's stations, limits and envelope. */
 export type Loading = Schemas["Loading"];
 /** A POH's short-field takeoff or landing distances. */
 export type ShortField = Schemas["ShortField"];
@@ -117,8 +117,8 @@ export type DevService = Schemas["DevService"];
 export type DevServices = Schemas["DevServices"];
 export type DevServiceStarted = Schemas["DevServiceStarted"];
 
-/** Which aeroplane the nav log is computed for: a stock profile by
- *  name, optionally with a pilot's own aeroplane's speeds and fuel
+/** Which airplane the nav log is computed for: a stock profile by
+ *  name, optionally with a pilot's own airplane's speeds and fuel
  *  burns, climb and cruise, laid over it (and its id, so a saved
  *  flight records it). */
 export interface AircraftChoice {
@@ -191,7 +191,7 @@ export type Pilot = Webapp["PilotDto"];
  *  before anyone has signed in (`/api/auth/capabilities`). */
 export type SignInCapabilities = Webapp["Capabilities"];
 
-/** A pilot's own aeroplane, from `/api/aircraft`. `usableFuelGal` is
+/** A pilot's own airplane, from `/api/aircraft`. `usableFuelGal` is
  *  null when the owner has not said, and then the nav log makes no
  *  fuel check. */
 export type Aircraft = Webapp["AircraftDto"];
@@ -234,7 +234,7 @@ export type ExperienceItem = Webapp["ExperienceItemDto"];
 export interface NarrativeRequest {
   departure_ident: string;
   destination_ident: string;
-  /** Omitted, the planner's default aeroplane. */
+  /** Omitted, the planner's default airplane. */
   aircraft_name?: string | null;
   altitude_ft: number;
   altitude_selection: AltitudeBreakdown | null;

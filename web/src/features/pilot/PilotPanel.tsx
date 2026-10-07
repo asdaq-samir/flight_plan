@@ -26,7 +26,7 @@ const SECTIONS = [
 
 /**
  * The pilot's own things, the three that need a sign-in, in one tab:
- * their aeroplanes, their filed flights and their logbook, picked with a
+ * their airplanes, their filed flights and their logbook, picked with a
  * segmented control as iOS picks between views of one place. Signed
  * out, it says once what signing in keeps, with the way in, where each
  * was a tab of its own saying so. The control steps aside while one of
@@ -35,7 +35,7 @@ const SECTIONS = [
 function Library({ pilot }: { pilot: PilotState }) {
   const saved = usePreferences(s => s.librarySection);
   const choose = usePreferences(s => s.setLibrarySection);
-  // The aeroplane picked for planning, for a logbook entry's.
+  // The airplane picked for planning, for a logbook entry's.
   const aircraft = usePreferences(s => s.aircraft);
   const section = SECTIONS.some(s => s.value === saved) ? saved : "aircraft";
 
@@ -65,7 +65,7 @@ function Library({ pilot }: { pilot: PilotState }) {
 /**
  * The pilot's console, opened from the map's Settings button on the
  * planner (MapPage): the guide to the planner (first: where a newcomer
- * starts), the Library of their own aeroplanes, flights and logbook,
+ * starts), the Library of their own airplanes, flights and logbook,
  * then the settings. The shape is `ConsoleTabs`, shared with the
  * developer's console. Not the nav log or the briefing: those are the
  * panel over the map.

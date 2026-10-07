@@ -94,7 +94,7 @@ function EntryForm({ initial, onSave, saving }: { initial: LogbookEntryRequest; 
  * 61.57), the flight review (61.56) and the medical, with the two dates
  * they give -- then the totals and the flights, newest first. Add opens
  * the entry's form,
- * filled in with the aeroplane picked for planning; a row opens it to
+ * filled in with the airplane picked for planning; a row opens it to
  * change; Edit takes one out.
  */
 export function LogbookPanel({ aircraft }: { aircraft?: string }) {

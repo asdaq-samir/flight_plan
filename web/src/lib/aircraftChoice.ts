@@ -8,7 +8,7 @@ export function aircraftKey(a: AircraftChoice): string {
   return a.aircraftId != null ? `mine:${a.aircraftId}` : `profile:${a.profile}`;
 }
 
-/** A pilot's own aeroplane rides on the stock profile whose name
+/** A pilot's own airplane rides on the stock profile whose name
  *  matches its type designator (a C172 on c172) for the service ceiling
  *  the altitude selection needs; anything else rides on the default. */
 function baseProfile(typeDesignator: string, profiles: AircraftProfileSummary[]): string {
@@ -16,7 +16,7 @@ function baseProfile(typeDesignator: string, profiles: AircraftProfileSummary[])
   return profiles.find(p => p.name === wanted)?.name ?? DEFAULT_AIRCRAFT.profile;
 }
 
-/** A pilot's own aeroplane as the nav log flies it: its figures, on the
+/** A pilot's own airplane as the nav log flies it: its figures, on the
  *  stock profile of its type. One place for the picker under the route
  *  and the Library's Aircraft, which both choose it. */
 export function choiceOf(a: Aircraft, profiles: AircraftProfileSummary[]): AircraftChoice {
@@ -29,7 +29,7 @@ export function choiceOf(a: Aircraft, profiles: AircraftProfileSummary[]): Aircr
   };
 }
 
-/** An aeroplane's short name: what comes before the " · " in its label
+/** An airplane's short name: what comes before the " · " in its label
  *  ("C172 · Cessna 172", "N12345 · C172"). */
 export function shortName(label: string): string {
   return label.split(" · ")[0] ?? label;

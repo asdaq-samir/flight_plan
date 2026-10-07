@@ -141,7 +141,7 @@ export default function MapPage({ mode }: { mode: Mode }) {
 
   // The console: its button (Settings, a gear, on both pages) and the
   // sheet it opens, with the settings as its last tab (ConsoleTabs) --
-  // the pilot's account, aeroplanes, flights and guide, or the
+  // the pilot's account, airplanes, flights and guide, or the
   // developer's training, performance and system. Its button is on the
   // panel's capsule and nowhere else, as Maps' account is beside its
   // search: on the planner's search bar -- with a route on screen,
@@ -155,7 +155,7 @@ export default function MapPage({ mode }: { mode: Mode }) {
   // from under the finger that had just tapped it. It opens half way, at
   // iOS's medium detent, and stays at whichever as the tabs change: it
   // opened all the way every time, a screen of nothing under one
-  // aeroplane -- all the way, though, over a panel that is. On an iPad, iOS's form sheet instead: a card 540 by 620,
+  // airplane -- all the way, though, over a panel that is. On an iPad, iOS's form sheet instead: a card 540 by 620,
   // centred, as a sheet there is.
   const [consoleDetent, setConsoleDetent] = useState<ConsoleDetent>("medium");
   // Out or not, the app's (useConsoleOpen): a developer's Pilot and

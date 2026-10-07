@@ -52,7 +52,7 @@ export default function AccordionSection({ title, description, aside, summary, c
         {/* The heading its title alone, the flag beside it: inside it, a
             flag's words ("Risk raised") became part of the heading's name. */}
         <div className={cn("mb-2 flex flex-wrap items-center gap-x-2 gap-y-1", TEXT.row)}>
-          <h3 id={titleId} className="font-semibold">{title}</h3>
+          <h3 id={titleId} className={cn("font-semibold", TEXT.heading)}>{title}</h3>
           {aside}
         </div>
         {description && <div className={cn("text-muted-foreground", TEXT.note)}>{description}</div>}

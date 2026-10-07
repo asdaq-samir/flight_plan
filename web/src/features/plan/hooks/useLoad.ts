@@ -2,8 +2,8 @@ import type { AircraftProfile } from "../../../lib/api/types";
 import { usePreferences } from "../../../lib/preferences";
 import { balance, defaultLoad, type Balance, type Load } from "../../../lib/weightBalance";
 
-/** The aeroplane's load as the pilot last set it, kept per aeroplane in
- *  this browser; the POH's sample aeroplane and a pilot until then. */
+/** The airplane's load as the pilot last set it, kept per airplane in
+ *  this browser; the POH's sample airplane and a pilot until then. */
 export function useLoad(aircraft: AircraftProfile | null | undefined, tripFuelGal: number | null) {
   const key = aircraft?.name ?? "";
   const saved = usePreferences(s => s.loads[key]);

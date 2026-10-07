@@ -60,6 +60,14 @@ export const SCREENS: Screen[] = [
       await page.getByTestId("navlog-eta").waitFor({ timeout: slow(120000) });
       await openTab(page, tab);
       await expect(sideDrawer(page).getByTestId(shown).first()).toBeVisible({ timeout: slow(30000) });
+      // And the briefing in: the Brief's Go / No-Go says what it found, and
+      // the mock oral's button is enabled once its question table loads --
+      // measured as it faded in, it read 2:1 on CI's iPad.
+      if (tab === "Brief") {
+        await expect(sideDrawer(page).getByTestId("verdict-weather")).not.toHaveAttribute("data-finding", "pending", { timeout: slow(60000) });
+        const ask = sideDrawer(page).getByTestId("oral-ask");
+        if (await ask.count()) await expect(ask).toBeEnabled({ timeout: slow(30000) });
+      }
     },
   })),
   {
@@ -152,7 +160,7 @@ export const SCREENS: Screen[] = [
   },
   {
     // The route's box of pills -- an airport landed at and a waypoint
-    // flown through -- and the aeroplane, the time and the actions under it.
+    // flown through -- and the airplane, the time and the actions under it.
     name: "route box with stops",
     ready: async page => {
       await page.route(url => /\/(checkpoints|navlog|briefing)$/.test(url.pathname) && url.searchParams.get("stops") === "VPBNG,KMSN",

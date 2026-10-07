@@ -1,6 +1,6 @@
 import type { Loading } from "./api/types";
 
-/** What the pilot loads: the aeroplane's own empty weight and arm (from
+/** What the pilot loads: the airplane's own empty weight and arm (from
  *  its weight and balance record), each station's pounds in the
  *  loading's order, and the fuel at the start, in gallons. */
 export interface Load {

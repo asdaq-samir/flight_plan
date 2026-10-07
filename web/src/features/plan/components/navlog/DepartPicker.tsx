@@ -32,7 +32,7 @@ function nextHour(): string {
 
 /** The departure in a few characters, as iOS's compact picker reads:
  *  "18:00" today, "Sat 18:00" within the week, "11/17 18:00" further
- *  out -- short enough that the aeroplane, the time and Save, Brief and
+ *  out -- short enough that the airplane, the time and Save, Brief and
  *  Print share one line on a phone, where the day, a time box and a
  *  cross took a line of their own, and "17 Nov 18:00" still pushed the
  *  buttons to the next. */
@@ -66,7 +66,7 @@ export default function DepartPicker({ value, onChange }: Props) {
         <Button
           // A chip of glass, as Maps' filter chips are: the time in the
           // text's colour, not a button's tint, at a note's 13 (TEXT), as
-          // the aeroplane beside it (FlightInputs).
+          // the airplane beside it (FlightInputs).
           variant="outline" size="sm" className={cn("rounded-full px-2.5 font-normal pointer-coarse:px-1.5", GLASS_BUTTON, CHIP_TEXT)}
           aria-label="Departure date" data-testid="depart-date"
         >

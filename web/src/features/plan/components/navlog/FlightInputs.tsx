@@ -7,20 +7,20 @@ import DepartPicker from "./DepartPicker";
 
 /**
  * The two inputs the nav log is computed from, in the planning panel's
- * second row, in sight with the panel down: the aeroplane (a stock
+ * second row, in sight with the panel down: the airplane (a stock
  * profile or one of the pilot's own; its TAS and burn are what the legs'
  * times and fuel come from) and when the flight leaves, which gives
  * every row an ETA, is what a saved flight is planned for, and picks the
  * winds forecast period -- shadcn's date picker with a time box
  * (DepartPicker), empty for about now. Changing either re-plans. Chips
- * of glass, the aeroplane's name in the text's colour, as Maps' filter
+ * of glass, the airplane's name in the text's colour, as Maps' filter
  * chips are (GLASS_BUTTON).
  */
 export default function FlightInputs({ aircraftValue, aircraftOptions, onAircraftChange, altitude, depart, onDepartChange }: {
   aircraftValue: string;
   aircraftOptions: { value: string; label: string }[];
   onAircraftChange: (value: string) => void;
-  /** Beside the aeroplane: the altitude it flies (AltitudeButton). */
+  /** Beside the airplane: the altitude it flies (AltitudeButton). */
   altitude?: ReactNode;
   /** An ISO instant, or "" for about now. */
   depart: string;
@@ -30,7 +30,7 @@ export default function FlightInputs({ aircraftValue, aircraftOptions, onAircraf
     <>
       <Select value={aircraftValue} onValueChange={onAircraftChange}>
         {/* 13 to a finger, a note's size, as Maps' route options are: the
-            aeroplane, the altitude, the time and Save, Share and Print on
+            airplane, the altitude, the time and Save, Share and Print on
             one line of a phone at the pilot's text size, a step up from
             iOS's default, where at 15 the buttons went to a line of their
             own. No chevron to a finger: a chip of glass says it is a menu,

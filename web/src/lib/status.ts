@@ -2,7 +2,7 @@
  * What a check found, the one scale every tab of the planning panel says
  * it on: nothing against it, something to look at, something to fix
  * before the flight goes as planned, not known (not worked out for this
- * aeroplane, a source that did not answer), or still being worked out.
+ * airplane, a source that did not answer), or still being worked out.
  * The words are the planner's guide, not a rule: the decision is the
  * pilot in command's (14 CFR 91.3).
  */

@@ -28,7 +28,7 @@ async function openConsole(page: Page) {
   return consoleSheet(page);
 }
 
-test("an add still saving when Edit is clicked says added, and leaves the aeroplane being edited in the form", { tag: "@smoke" }, async ({ page }) => {
+test("an add still saving when Edit is clicked says added, and leaves the airplane being edited in the form", { tag: "@smoke" }, async ({ page }) => {
   await page.route("**/api/me", route =>
     route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(A_PILOT) }));
   const hold = held();
@@ -59,7 +59,7 @@ test("an add still saving when Edit is clicked says added, and leaves the aeropl
   // phone it covers the rows, and their Edit buttons, under it.
   await page.keyboard.press("Escape");
   await expect(page.getByLabel("Tail number")).toHaveCount(0);
-  // The aeroplane's row, or on a phone its card: whichever is shown.
+  // The airplane's row, or on a phone its card: whichever is shown.
   await console.locator("[data-aircraft-row]:visible", { hasText: "N2" }).getByRole("button", { name: "Edit" }).click();
   await expect(page.getByLabel("Tail number")).toHaveValue("N2");
   hold.release();
@@ -139,7 +139,7 @@ test.describe("the email sign-in link", () => {
   });
 });
 
-test("the aeroplane the nav log flies is ticked, and a tap on another flies that one", async ({ page }) => {
+test("the airplane the nav log flies is ticked, and a tap on another flies that one", async ({ page }) => {
   await page.route("**/api/me", route =>
     route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(A_PILOT) }));
   await page.route("**/api/aircraft", route => route.fulfill({

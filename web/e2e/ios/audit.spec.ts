@@ -47,11 +47,18 @@ for (const screen of SCREENS) {
     // P15 in both schemes: the app follows the system's (Settings,
     // Appearance), and dark is a palette of its own to pass or fail.
     const contrast = await contrastFindings(page);
+    // The scheme switched with no colour transitions: a section laid out
+    // only near the screen (content-visibility) pauses its rows' colour
+    // transitions while it is off it, so their words kept the light
+    // scheme's colour on the dark one's background -- 1.1:1 in no
+    // pilot's view, since a row's transition runs as it scrolls in.
+    const instant = await page.addStyleTag({ content: "*, *::before, *::after { transition: none !important; }" });
     await page.emulateMedia({ colorScheme: "dark" });
     await still(page);
     const contrastDark = await contrastFindings(page);
     await page.emulateMedia({ colorScheme: "light" });
     await still(page);
+    await instant.evaluate(style => style.remove());
     const overflow = await horizontalOverflow(page);
     // The safe area last on the screen as laid out, since it rewrites the
     // page's own CSS to a device's insets.

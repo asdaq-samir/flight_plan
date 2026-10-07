@@ -43,7 +43,7 @@ export function useNarratives({ dep, dest, planKey, nav, legs, whole }: Narrativ
     altitude_ft: nav.altitude_ft, altitude_selection: nav.altitude_selection, flown: nav.flown, legs,
   } : null;
   // The nav log's own key, not a few fields of it: this one left out the
-  // departure time, the choice of plan, Load and the aeroplane's own
+  // departure time, the choice of plan, Load and the airplane's own
   // numbers, and held the leg count, which changes while legs stream --
   // so a narrative could be shown, or printed, beside a different log.
   const narrativeQuery = (framework: Framework) => ({

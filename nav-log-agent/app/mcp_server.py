@@ -38,7 +38,7 @@ def startup() -> None:
 def _route(departure_ident: str, destination_ident: str, altitude_ft: float | None, aircraft_name: str | None,
            **pilot_inputs) -> dict:
     """The graph's input: only what the caller actually gave, so the
-    planner's own defaults (its altitude choice, its default aeroplane,
+    planner's own defaults (its altitude choice, its default airplane,
     now for the departure) apply to the rest."""
     state = {"departure_ident": departure_ident, "destination_ident": destination_ident}
     if altitude_ft is not None:
@@ -67,7 +67,7 @@ def generate_nav_log_briefing(
     To brief the flight a pilot actually planned, pass what they planned
     with: `depart` (ISO 8601; the winds period, day or night reserve and
     the forecast's hours), `altitude_choice` (lowest, highest, fastest
-    or economical), and their aeroplane's `cruise_tas_kt`,
+    or economical), and their airplane's `cruise_tas_kt`,
     `fuel_burn_gph`, `usable_fuel_gal`, `climb_tas_kt`,
     `climb_fuel_burn_gph` and `cruise_power_pct` (the power the cruise
     figures are at). Left out: a departure now (the 6-hour winds, a day
@@ -114,7 +114,7 @@ def assemble_nav_log(
     it carries the constraints that matter (plain prose, no Markdown, and
     nothing invented that the data does not support).
 
-    Pass `depart`, `altitude_choice` and the aeroplane's own numbers as
+    Pass `depart`, `altitude_choice` and the airplane's own numbers as
     for generate_nav_log_briefing to get the nav log the pilot planned.
     """
     result = _graph_unnarrated.invoke(_route(

@@ -3,7 +3,7 @@ import { settle, consoleSheet, expectDrawerClosed, expectDrawerOpen, closeSideba
 
 /**
  * The consoles and the settings: fitting the screen, the pilot
- * console's account and aeroplanes, the header's edge, the console
+ * console's account and airplanes, the header's edge, the console
  * holding still as its tabs change, and the theme.
  */
 
@@ -28,7 +28,7 @@ test("signed in, each console fits the screen's width: nothing but a table's own
   }
 });
 
-test("plan page: the pilot console holds the account, aeroplanes and flights, and the drawer opens once it is closed", { tag: "@smoke" }, async ({ page }) => {
+test("plan page: the pilot console holds the account, airplanes and flights, and the drawer opens once it is closed", { tag: "@smoke" }, async ({ page }) => {
   await page.goto("/app/plan");
   await settle(page);
   // Opened as Maps opens: the search half way up (lib/freshLoad).

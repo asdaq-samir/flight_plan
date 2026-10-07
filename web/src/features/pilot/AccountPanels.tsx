@@ -74,7 +74,7 @@ const EMPTY_AIRCRAFT_FORM: AircraftFormValues = {
   climbFuelBurnGph: "", usableFuelGal: "",
 };
 
-/** A signed-in pilot's own aeroplanes -- the one the nav log flies
+/** A signed-in pilot's own airplanes -- the one the nav log flies
  *  ticked, and a tap on another flies that one, as iOS lists Wi-Fi
  *  networks; the ⓘ at a row's end opens its figures to edit (the same
  *  form as a new one's), and delete. The picker under the route offers
@@ -90,7 +90,7 @@ export function AircraftPanel() {
   const { data: profiles } = useQuery({ queryKey: ["aircraftProfiles"], queryFn: api.aircraftProfiles, staleTime: Infinity });
   const [editingId, setEditingId] = useState<number | null>(null);
   // The form is behind the list's New aircraft row: open for a new
-  // aeroplane from there, or for one of the rows from its ⓘ. Closed
+  // airplane from there, or for one of the rows from its ⓘ. Closed
   // again when the save lands, on Cancel, or from the same row.
   const [adding, setAdding] = useState(false);
   const formOpen = adding || editingId !== null;
@@ -108,7 +108,7 @@ export function AircraftPanel() {
     reset(EMPTY_AIRCRAFT_FORM);
   };
 
-  // Which aeroplane a save is for travels with it, the way `remove`'s id
+  // Which airplane a save is for travels with it, the way `remove`'s id
   // does: it used to be read from the form's state when the save
   // finished, so an add still in flight when Edit was clicked on another
   // row toasted "updated" and wiped the form just opened.
@@ -158,7 +158,7 @@ export function AircraftPanel() {
     usableFuelGal: orNull(values.usableFuelGal),
   } });
 
-  // Delete is in the aeroplane's own form, asked first: it was a red
+  // Delete is in the airplane's own form, asked first: it was a red
   // word on every row, beside Edit.
   const editing = list?.find(a => a.id === editingId) ?? null;
   const [askDelete, deleteDialog] = useConfirm({
@@ -179,8 +179,8 @@ export function AircraftPanel() {
         <p role="status" className={cn("px-1 text-muted-foreground", TEXT.note)}>Fetching your aircraft…</p>
       ) : (
         // A grouped list at every width, as iOS lists things: a row per
-        // aeroplane, and New aircraft as the last row. It was a card per
-        // aeroplane with an Edit and a Delete on each on a phone, a table
+        // airplane, and New aircraft as the last row. It was a card per
+        // airplane with an Edit and a Delete on each on a phone, a table
         // from md up, and a small plus beside the heading as the only way
         // to add one; then a row that opened the form, and which one the
         // nav log flew was said only under the route.
@@ -188,7 +188,7 @@ export function AircraftPanel() {
           <ListGroup
             title="Your aircraft"
             footer={list?.length === 0
-              ? "Add your aeroplane, and the nav log flies its speed and fuel burn."
+              ? "Add your airplane, and the nav log flies its speed and fuel burn."
               : flying.aircraftId != null
                 ? "The nav log flies the one ticked. Tap another to fly it, or ⓘ for its figures."
                 : `The nav log flies the stock ${flying.label} now. Tap one of yours to fly it.`}
@@ -211,7 +211,7 @@ export function AircraftPanel() {
                   <IconButton
                     label={`Edit ${a.tailNumber}`} onClick={() => edit(a)} className="mr-1.5 shrink-0 text-tint"
                     // Not "outside" the open form: tapped with it open, the
-                    // form switches to this aeroplane (see onInteractOutside).
+                    // form switches to this airplane (see onInteractOutside).
                     data-aircraft-edit
                   >
                     <Info className="size-5" />
@@ -248,13 +248,13 @@ export function AircraftPanel() {
               </Button>
             )}
             // A row, tapped while the form is open, is not "outside": it
-            // switches the form to that aeroplane, where the stock
+            // switches the form to that airplane, where the stock
             // dismissal would have closed it on the press and reopened it
             // empty on the click.
             onInteractOutside={e => { if ((e.target as Element | null)?.closest?.("[data-aircraft-edit]")) e.preventDefault(); }}
           >
             <form id={formElementId} className="space-y-4" onSubmit={handleSubmit(onSubmit)} noValidate>
-              {/* What the aeroplane is, then its speeds and fuel burns --
+              {/* What the airplane is, then its speeds and fuel burns --
                   climb and cruise, a row each under the group's heading
                   -- and the power the cruise is at, then its tanks. Each
                   field keeps its label and unit while it is typed in; the
@@ -298,7 +298,7 @@ export function AircraftPanel() {
                 />
               </ListGroup>
               {/* What the cruise figures mean to the planner, said where
-                  they are typed: they are the aeroplane's at this power at
+                  they are typed: they are the airplane's at this power at
                   the reference altitude, and each leg flies them in its own
                   air (vfr.performance). */}
               <ListGroup

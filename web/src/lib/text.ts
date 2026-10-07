@@ -18,6 +18,11 @@
 export const TEXT = {
   /** A drawer's or a sheet's own title, with font-semibold: 17, and 16 with a mouse. */
   title: "text-base pointer-coarse:text-[1.0625rem]",
+  /** A section's title in the planning panel's tabs, with font-semibold:
+   *  20 on its 25 leading (iOS Title 3), and 18 with a mouse -- above a
+   *  row's 17, where the same size in a heavier weight read as one more
+   *  row (the tabs' content audit, 2026-10-07). */
+  heading: "text-lg pointer-coarse:text-[1.25rem] pointer-coarse:leading-[1.5625rem]",
   /** A row's name and its value, a section's title: 17, 14. */
   row: "text-sm pointer-coarse:text-[1.0625rem]",
   /** The line under a row's name: 15, 12. */

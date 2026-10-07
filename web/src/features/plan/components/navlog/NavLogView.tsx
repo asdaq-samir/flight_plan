@@ -1,5 +1,4 @@
 import { Fragment, useCallback, useContext, useEffect, useId, useRef, useState, type ReactNode } from "react";
-import { flushSync } from "react-dom";
 import { cn } from "cn";
 import { Loader2, WandSparkles } from "lucide-react";
 import {
@@ -9,6 +8,7 @@ import {
 import { NoteRow, SelectableRow } from "../../../../components/SelectableRows";
 import { PanelHalfContext } from "../../../../components/mapChrome";
 import PanelTabs from "./PanelTabs";
+import { usePrinting } from "../../../../lib/usePrinting";
 import type { PanelTab } from "./panelTab";
 import { ListGroup, ListRow } from "../../../../components/GroupedList";
 import IconButton from "../../../../components/IconButton";
@@ -59,7 +59,7 @@ interface Props {
    *  set here, where its ETAs show; changing it re-plans, since the
    *  winds forecast period follows it. */
   depart: string;
-  /** The aeroplane the log is computed for, by name -- chosen in the
+  /** The airplane the log is computed for, by name -- chosen in the
    *  panel's controls (FlightInputs), named here on paper. */
   aircraftLabel: string;
   /** Streamed in one at a time, in the same order as `selected` --
@@ -225,7 +225,7 @@ export function DescriptionCell({
  * totals above the table, the fuel check and the route's profile under
  * it -- and the briefing's parts in the others, from PlanWorkspace
  * (`tabContent`: FlightBriefingView's parts and the Brief's narrative). The two inputs the log is computed from, the
- * aeroplane and the departure time, are the panel's controls
+ * airplane and the departure time, are the panel's controls
  * (FlightInputs). The briefing
  * used to draw its own read-only copy of the table, and the two
  * drifted; then the drawer had two widths, the table alone and the
@@ -382,10 +382,6 @@ export default function NavLogView({
   // A checkpoint picked on the map with the drawer out: the nav log's tab
   // comes up for it (PanelTabs).
   const pick = drawerOpen && selectedPoint ? descriptionKey(selectedPoint.lat, selectedPoint.lon) : null;
-  // For the printer every tab, one after another -- the paper is the
-  // whole briefing whatever was up on screen: set in the browser's own
-  // beforeprint event, flushed before it lays the page out, and put back
-  // after.
   // At half, the panel just tall enough for the flight's line under the
   // route (PanelHalfContext, exact), the chart above it, at the pilot's
   // ask -- the tabs and the rest a drag up. Measured, since the text size
@@ -407,17 +403,9 @@ export default function NavLogView({
     observer.observe(root);
     return () => { observer.disconnect(); halfNeeds(null); };
   }, [root, halfNeeds]);
-  const [printing, setPrinting] = useState(false);
-  useEffect(() => {
-    const before = () => flushSync(() => setPrinting(true));
-    const after = () => setPrinting(false);
-    window.addEventListener("beforeprint", before);
-    window.addEventListener("afterprint", after);
-    return () => {
-      window.removeEventListener("beforeprint", before);
-      window.removeEventListener("afterprint", after);
-    };
-  }, []);
+  // For the printer every tab, one after another: the paper is the whole
+  // briefing whatever was up on screen (usePrinting).
+  const printing = usePrinting();
   // One row per waypoint the plan knows about, regardless of how many
   // legs have streamed in: a row whose leg has not arrived shows a dash
   // in every column that needs one. Column defs are declared here, not
@@ -490,7 +478,7 @@ export default function NavLogView({
     {
       id: "alt",
       // How its altitudes were chosen opens from the altitude's own chip
-      // beside the aeroplane (AltitudeButton), at the pilot's ask: it was
+      // beside the airplane (AltitudeButton), at the pilot's ask: it was
       // this column's head, out of sight with the panel down.
       header: () => <Heading name="Alt" unit="ft" spoken="Altitude, feet" />,
       // The last row lands at the destination -- shows its field
@@ -551,7 +539,7 @@ export default function NavLogView({
       cell: ({ row }) => (legOf(row.original) ? deg(legOf(row.original)!.magnetic_heading_deg) : "—"),
     },
     {
-      // Each leg's own: the aeroplane's cruise in the forecast air at the
+      // Each leg's own: the airplane's cruise in the forecast air at the
       // leg's altitude, which is why it is a column (the altitude's
       // reasoning says how it is worked out).
       id: "tas",
@@ -807,7 +795,7 @@ export default function NavLogView({
 
   // The fuel check (14 CFR 91.151): the legs' fuel plus the reserve --
   // 30 minutes by day, 45 at night, the day one assumed and said so
-  // without a departure time -- against the aeroplane's usable fuel
+  // without a departure time -- against the airplane's usable fuel
   // when it has one, red when the tanks do not hold it. Under the
   // table, where the fuel column it sums ends, rather than among the
   // totals above it: rows like theirs, each figure at its row's end and
@@ -862,7 +850,7 @@ export default function NavLogView({
       before={(
         <>
           {/* Printed, this header is the briefing's title: the panel's own
-              head (the route form, the aeroplane and the departure time) is
+              head (the route form, the airplane and the departure time) is
               print:hidden, so they are named here instead, as a line of
               text. On screen the name is the panel's tab's, said once there;
               here it is for a screen reader. */}

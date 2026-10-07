@@ -27,7 +27,7 @@ const LETTERS: Record<string, string> = {
 };
 const capital = (word: string) => word.charAt(0).toUpperCase() + word.slice(1);
 
-/** A registration as it is spoken after the aeroplane's make, the N
+/** A registration as it is spoken after the airplane's make, the N
  *  dropped (AIM 4-2-4): "N345SP" is "Three Four Five Sierra Papa". */
 export function spokenTail(tail: string): string {
   return [...tail.trim().toUpperCase().replace(/^N(?=\d)/, "")]
@@ -35,7 +35,7 @@ export function spokenTail(tail: string): string {
     .join(" ");
 }
 
-/** The aeroplane's call sign: its make and its registration spoken, or
+/** The airplane's call sign: its make and its registration spoken, or
  *  its make and a blank where the planner has no registration for it. */
 export function callSign(make: string, tail: string | null): string {
   return `${make} ${tail ? spokenTail(tail) : "[your registration]"}`;
@@ -221,7 +221,7 @@ function departure(input: RadioInput, i: number): RadioPhase {
   };
 }
 
-/** About where a 3:1 descent to pattern altitude has the aeroplane ten
+/** About where a 3:1 descent to pattern altitude has the airplane ten
  *  miles out, no higher than its cruise: as the nav log flies it. */
 function tenMilesOutFt(cruiseFt: number, patternFt: number | null | undefined): number {
   if (patternFt == null) return cruiseFt;

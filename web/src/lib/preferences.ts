@@ -8,7 +8,7 @@ import type { Load } from "./weightBalance";
 /**
  * Everything remembered per browser, in one zustand store persisted to
  * localStorage by its own middleware: which charts the map draws, the
- * aeroplane the nav log is computed for, the training filters, which
+ * airplane the nav log is computed for, the training filters, which
  * tab each console was last on, and which edge the header is on. Components read a slice with
  * the hook (`usePreferences(s => s.base)`); code outside React -- the
  * map's chart layers -- reads `getState()` and `subscribe()`.
@@ -61,7 +61,7 @@ interface Preferences {
   tfrs: boolean;
   /** The pilot's personal minimums (lib/minimums), each off until set. */
   minimums: Minimums;
-  /** Each aeroplane's load as last set (lib/weightBalance), by its name. */
+  /** Each airplane's load as last set (lib/weightBalance), by its name. */
   loads: Record<string, Load>;
   /** Whether each route loaded keeps its charts for use without a
    *  connection (keepRoute): the base chart's tiles along the course,

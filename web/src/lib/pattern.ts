@@ -63,7 +63,7 @@ export function runwayNumber(ident: string): string {
 }
 
 export interface Entry {
-  /** Where the aeroplane comes from, as a direction from the field. */
+  /** Where the airplane comes from, as a direction from the field. */
   from: string;
   /** Whether that is the pattern's side of the runway. */
   patternSide: boolean;
